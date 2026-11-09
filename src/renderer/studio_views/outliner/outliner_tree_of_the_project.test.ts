@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ListedStream, OpenProject } from "../../view_host/studio_view_contract";
+import type { ListedStream, OpenProject, ProjectNodeTypesReading } from "../../view_host/studio_view_contract";
 import { outlinerRowIdOfTheSelection, outlinerTreeOfTheProject } from "./outliner_tree_of_the_project";
 
 const PROJECT: OpenProject = {
@@ -27,12 +27,13 @@ function listedStream(projectFolder: string, displayName: string): ListedStream 
 
 describe("the outliner's tree", () => {
   it("opens on the open project and its listed streams, with Imports closed", () => {
-    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [listedStream("/w/studio", "lobby_wall"), listedStream("/elsewhere", "other")] }, {});
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [listedStream("/w/studio", "lobby_wall"), listedStream("/elsewhere", "other")] }, null, {});
     expect(rows.map(({ row }) => `${"  ".repeat(row.depth)}${row.label} ${row.expansion}`)).toEqual([
       "studio expanded",
       "  studio expanded",
       "    pyproject.toml leaf",
       "    lobby_wall leaf",
+      "    Node types collapsed",
       "  Imports collapsed",
     ]);
     expect(rows[3]?.meaning).toEqual({ kind: "stream", stream: "lobby_wall-id", display_name: "lobby_wall", project_name: "studio", project_folder: "/w/studio" });
@@ -40,7 +41,7 @@ describe("the outliner's tree", () => {
 
   it("labels each stream by its display name and marks a failed one", () => {
     const failedStream: ListedStream = { ...listedStream("/w/studio", "Lobby Wall"), stream: "studio-main-ff588e", state: "failed", node_count: null, failed_because: "`uv sync` did not make /w/studio/.venv" };
-    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [failedStream, listedStream("/w/studio", "door")] }, {});
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [failedStream, listedStream("/w/studio", "door")] }, null, {});
     expect(rows.slice(3, 5).map(({ row }) => [row.label, row.icon, row.tone ?? "plain"])).toEqual([
       ["Lobby Wall", "failed", "failed"],
       ["door", "stream", "plain"],
@@ -49,7 +50,7 @@ describe("the outliner's tree", () => {
 
   it("says in the failure's own words why the streams could not be listed, in place of waiting on them", () => {
     const because = "the runtime's list_streams result could not be read: missing field `stream_asset`";
-    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listing_failed", because }, {});
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listing_failed", because }, null, {});
     expect(rows.slice(2, 4).map(({ row }) => [row.row_id, row.label, row.tone ?? "plain"])).toEqual([
       ["project:/w/studio/pyproject", "pyproject.toml", "plain"],
       ["project:/w/studio/streams-not-listed", because, "unreadable"],
@@ -57,7 +58,7 @@ describe("the outliner's tree", () => {
   });
 
   it("opens the rows the person opened: each import read-only, its streams or why they wait", () => {
-    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "not_listed", because: "Stopped" }, {
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "not_listed", because: "Stopped" }, null, {
       imports: true,
       "project:tatolab-stream": true,
       "project:/w/studio/imports/hall-of-light": true,
@@ -68,6 +69,7 @@ describe("the outliner's tree", () => {
       ["project:/w/studio", "studio", false],
       ["project:/w/studio/pyproject", "pyproject.toml", false],
       ["project:/w/studio/waiting", "Streams and nodes not read yet", false],
+      ["project:/w/studio/node_types", "Node types", false],
       ["imports", "Imports", true],
       ["project:tatolab-stream", "tatolab-stream", true],
       ["project:tatolab-stream/waiting", "Streams and nodes not read yet", false],
@@ -80,9 +82,70 @@ describe("the outliner's tree", () => {
   });
 
   it("closes a row the person closed, and names the row a selection stands for", () => {
-    expect(outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [] }, { open_project_folder: false }).map(({ row }) => row.row_id)).toEqual(["open_project_folder"]);
+    expect(outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [] }, null, { open_project_folder: false }).map(({ row }) => row.row_id)).toEqual(["open_project_folder"]);
     expect(outlinerRowIdOfTheSelection({ kind: "stream", stream: "s", project_folder: "/w" })).toBe("stream:s");
     expect(outlinerRowIdOfTheSelection({ kind: "project", project_name: "tatolab-stream", project_folder: null })).toBe("project:tatolab-stream");
     expect(outlinerRowIdOfTheSelection({ kind: "nothing" })).toBeNull();
+  });
+
+  it("lists the open project's own node types and each import's from the distribution of its name, or why the runtime lists none", () => {
+    const nodeTypes: ProjectNodeTypesReading = {
+      kind: "listed",
+      listing: {
+        project_directory: "/w/studio",
+        project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55",
+        project_name: "studio",
+        sources: [
+          {
+            origin: { source: "project" },
+            node_types: [{ type: "nodes.glow:Glow", kind: "process", description: "", category: "Effects", inputs: [], outputs: [], path: "nodes/glow.py", line: 3 }],
+            graph_generators: [],
+            unreadable_modules: [{ module: "nodes.draft", path: "nodes/draft.py", line: 2, column: 1, why: "SyntaxError: invalid syntax" }],
+          },
+          {
+            origin: { source: "installed_distribution", distribution: "Hall_Of.Light", distribution_version: "1.0.0" },
+            node_types: [{ type: "hall_of_light:Beam", kind: null, description: "", category: "hall_of_light", inputs: null, outputs: null, path: null, line: null }],
+            graph_generators: [],
+            unreadable_modules: [],
+          },
+          { origin: { source: "installed_distribution", distribution: "tatolab-stream", distribution_version: "0.68.40" }, node_types: [], graph_generators: [], unreadable_modules: [] },
+        ],
+      },
+    };
+    const expansion = {
+      imports: true,
+      "project:/w/studio/node_types": true,
+      "project:tatolab-stream": true,
+      "project:/w/studio/imports/hall-of-light": true,
+      "project:/w/studio/imports/hall-of-light/node_types": true,
+    };
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [] }, nodeTypes, expansion);
+    expect(rows.map(({ row }) => `${"  ".repeat(row.depth)}${row.label}`)).toEqual([
+      "studio",
+      "  studio",
+      "    pyproject.toml",
+      "    Streams and nodes not read yet",
+      "    Node types",
+      "      Effects",
+      "        Glow",
+      "      nodes/draft.py:2:1: SyntaxError: invalid syntax",
+      "  Imports",
+      "    tatolab-stream",
+      "      Node types",
+      "    hall-of-light",
+      "      pyproject.toml",
+      "      Streams and nodes not read yet",
+      "      Node types",
+      "        hall_of_light",
+      "          Beam",
+      "    broken",
+    ]);
+    expect(rows.find(({ row }) => row.label === "Glow")?.meaning).toMatchObject({ kind: "node_type_declaration", file: "/w/studio/nodes/glow.py" });
+
+    const refused = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [] }, { kind: "not_listed", because: "list_project_node_types failed: no venv" }, expansion);
+    expect(refused.slice(4, 6).map(({ row }) => [row.label, row.tone ?? "plain"])).toEqual([
+      ["Node types", "plain"],
+      ["list_project_node_types failed: no venv", "unreadable"],
+    ]);
   });
 });

@@ -28,6 +28,7 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       invokeTatolabCommand("read_project_log_records", { project_directory: projectDirectory, stream: narrowing.stream, action: narrowing.action, after }),
     describeStreamGraph: (streamId) => invokeTatolabCommand("describe_stream_graph", { stream: streamId }),
     describeNodeCatalog: (streamId) => invokeTatolabCommand("describe_node_catalog", { stream: streamId }),
+    listProjectNodeTypes: (projectDirectory) => invokeTatolabCommand("list_project_node_types", { project_directory: projectDirectory }),
     checkForTatolabAppUpdates: async () => {
       await invokeTatolabCommand("check_for_tatolab_app_updates", undefined);
     },

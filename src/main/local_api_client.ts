@@ -18,6 +18,7 @@ import net from "node:net";
 import type {
   ListedStream,
   NodeCatalog,
+  ProjectNodeTypeListing,
   ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -44,6 +45,7 @@ import {
 } from "./json_on_the_wire.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
+import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import {
@@ -61,6 +63,9 @@ const LOCAL_API_MCP_CLIENT_NAME = "tatolab-app";
 
 /** The most bytes one local API response may carry before the client gives up on it. */
 const LARGEST_LOCAL_API_RESPONSE_BYTES = 8 * 1024 * 1024;
+
+/** How long `list_project_node_types` may go without a byte: the runtime bounds the project's interpreter reading its source at 60 seconds, and answers its refusal soon after. */
+const PROJECT_NODE_TYPE_LISTING_RESPONSE_TIMEOUT_MS = 65_000;
 
 /** Why a local API request came back without an answer. */
 export interface LocalApiRequestFailure {
@@ -352,6 +357,14 @@ export class LocalApiClient {
     if (!registryBody.ok) return registryBody;
     const nodeCatalog = nodeCatalogFromTheRegistryAnswer(stream, registryBody.value.toString("utf8"));
     return nodeCatalog.ok ? nodeCatalog : localApiRequestFailure(nodeCatalog.failure);
+  }
+
+  /** What the project in `projectDirectory`, each linked dependency at its pin and each installed distribution declare, from the runtime's `list_project_node_types`, read from source without running it; refused in the runtime's own words. */
+  async listProjectNodeTypes(projectDirectory: string): Promise<Result<ProjectNodeTypeListing, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("list_project_node_types", { project_directory: projectDirectory }, PROJECT_NODE_TYPE_LISTING_RESPONSE_TIMEOUT_MS);
+    if (!toolResultText.ok) return toolResultText;
+    const listing = projectNodeTypeListingFromTheToolResult(toolResultText.value);
+    return listing.ok ? listing : localApiRequestFailure(listing.failure);
   }
 
   /** `GET requestTarget`, answering the body of a `200`; any other answer is refused in the runtime's own words when its body carries them. */

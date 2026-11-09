@@ -5,6 +5,7 @@ import { Component, useLayoutEffect, useState, useSyncExternalStore, type ReactN
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import { WaitingState } from "../design_system/waiting_state";
 import type { ProjectLogReadings } from "./project_log_readings";
+import type { ProjectNodeTypeReadings } from "./project_node_type_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
 import type { CodeFileAsked, ListedStreamsReading, OpenProjectReading, StopWatching, StreamTabAddress, StudioSelection } from "./studio_view_contract";
@@ -51,10 +52,11 @@ export interface InWindowStudioViewHostSources {
   openCodeFile(file: string): void;
 }
 
-/** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, their language servers, and the port viewers of their running nodes. */
+/** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs and node types, their language servers, and the port viewers of their running nodes. */
 export interface InWindowProjectServices {
   backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "listProjectFiles" | "popOutViewer">;
   projectLogReadings: ProjectLogReadings;
+  projectNodeTypeReadings: ProjectNodeTypeReadings;
   pythonLanguageServerConnections: PythonLanguageServerConnections;
   portViewerConnections: PortViewerConnections;
 }
@@ -98,6 +100,7 @@ export function inWindowStudioViewHostServices(
         (rejection: unknown) => ({ kind: "not_popped_out", because: describeBackendRejection(rejection) }),
       ),
     watchProjectLog: projectServices.projectLogReadings.watchProjectLog,
+    watchProjectNodeTypes: projectServices.projectNodeTypeReadings.watchProjectNodeTypes,
     connectToPythonLanguageServer: projectServices.pythonLanguageServerConnections.connectToPythonLanguageServer,
     watchPortViewer: projectServices.portViewerConnections.watchPortViewer,
   };

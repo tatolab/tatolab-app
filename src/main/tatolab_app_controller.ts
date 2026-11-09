@@ -14,6 +14,7 @@ import type {
   StreamActionFollowed,
   StreamGraphSummary,
   NodeCatalog,
+  ProjectNodeTypeListing,
   TatolabAppBuild,
   TatolabAppUpdateState,
   TatolabPlatform,
@@ -259,6 +260,11 @@ export class TatolabAppController {
   /** Every node type the loaded stream `stream` can add. */
   describeNodeCatalog(stream: string): Promise<Result<NodeCatalog, LocalApiRequestFailure>> {
     return this.localApiClient.describeNodeCatalog(stream);
+  }
+
+  /** What the project in `projectDirectory` and each source it draws node code from declares, read from source without running it. */
+  listProjectNodeTypes(projectDirectory: string): Promise<Result<ProjectNodeTypeListing, LocalApiRequestFailure>> {
+    return this.localApiClient.listProjectNodeTypes(projectDirectory);
   }
 
   /** The runtime's streams, or why listing them failed, which is logged on the round it starts failing. */

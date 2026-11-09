@@ -19,6 +19,7 @@ import type {
   StreamActionFollowed,
   StreamGraphSummary,
   NodeCatalog,
+  ProjectNodeTypeListing,
   StreamProjectFolderChosenFor,
   TatolabStatus,
   TatolabStreamActionName,
@@ -107,6 +108,14 @@ export function describeNodeCatalog(sharedState: TatolabAppSharedState, stream: 
   });
 }
 
+/** `list_project_node_types { project_directory }`: what the project and each source it draws node code from declares, read from source without running it; refused in the runtime's own words. */
+export function listProjectNodeTypes(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectNodeTypeListing, string>> {
+  return answerTheWindow("list_project_node_types", async () => {
+    const listing = await sharedState.controller.listProjectNodeTypes(projectDirectory);
+    return listing.ok ? listing : failedWith(listing.failure.failureDescription);
+  });
+}
+
 /** The window's `commandName` answered once the runtime queued its action or refused it, then a status round either way, so the listing shows the action under way; the action's id is read only to check the answer. */
 function answerTheWindowOnceQueued(
   sharedState: TatolabAppSharedState,
@@ -137,8 +146,8 @@ export function projectDirectoryTheRuntimeLastListed(sharedState: TatolabAppShar
   return isListed ? succeeded(projectDirectory) : failedWith(`The runtime lists no stream from ${projectDirectory}.`);
 }
 
-/** `projectDirectory` when the runtime last listed a stream from it or it is the folder of the asking window's project or of one of its imports, whose log the code pane reads before its first run; refused otherwise. */
-export function projectDirectoryWhoseLogTheWindowMayRead(
+/** `projectDirectory` when the runtime last listed a stream from it or it is the folder of the asking window's project or of one of its imports, which the studio reads the log and node types of before its first run; refused otherwise. */
+export function projectDirectoryTheWindowMayAskTheRuntimeAbout(
   sharedState: TatolabAppSharedState,
   projectDirectory: string,
   commandFromWindow: TatolabCommandFromWindow,
@@ -588,7 +597,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const readArguments = readProjectLogRecordsArgumentsFrom(commandArguments);
       if (!readArguments.ok) return { ok: false, refusal: readArguments.failure };
       const { projectDirectory, narrowing, after } = readArguments.value;
-      const readableProjectDirectory = projectDirectoryWhoseLogTheWindowMayRead(sharedState, projectDirectory, commandFromWindow);
+      const readableProjectDirectory = projectDirectoryTheWindowMayAskTheRuntimeAbout(sharedState, projectDirectory, commandFromWindow);
       if (!readableProjectDirectory.ok) return { ok: false, refusal: readableProjectDirectory.failure };
       return commandAnswerFrom(await readProjectLogRecords(sharedState, readableProjectDirectory.value, narrowing, after));
     },
@@ -609,6 +618,13 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const describeNodeCatalogArguments = streamArgumentsFrom("describe_node_catalog", commandArguments);
       if (!describeNodeCatalogArguments.ok) return { ok: false, refusal: describeNodeCatalogArguments.failure };
       return commandAnswerFrom(await describeNodeCatalog(sharedState, describeNodeCatalogArguments.value.stream));
+    },
+    list_project_node_types: async (commandArguments, commandFromWindow) => {
+      const projectDirectory = oneTextArgumentFrom("list_project_node_types", commandArguments, "project_directory", "a project's folder");
+      if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
+      const askableProjectDirectory = projectDirectoryTheWindowMayAskTheRuntimeAbout(sharedState, projectDirectory.value, commandFromWindow);
+      if (!askableProjectDirectory.ok) return { ok: false, refusal: askableProjectDirectory.failure };
+      return commandAnswerFrom(await listProjectNodeTypes(sharedState, askableProjectDirectory.value));
     },
     stop_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "stop_stream", commandArguments)),
     start_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "start_stream", commandArguments)),

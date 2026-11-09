@@ -1,13 +1,17 @@
 import {
+  Blocks,
   Box,
   Code,
   FileText,
+  Folder,
   FolderInput,
   Hourglass,
   LayoutPanelTop,
   ListTree,
   MonitorPlay,
+  Network,
   Package,
+  Shapes,
   SlidersHorizontal,
   TriangleAlert,
   Workflow,
@@ -21,12 +25,16 @@ export type StudioIconName =
   | "properties"
   | "viewer"
   | "code"
+  | "palette"
   | "project_view"
   | "project_folder"
   | "project"
   | "imports"
   | "file"
   | "stream"
+  | "node_category"
+  | "node_type"
+  | "graph_generator"
   | "waiting"
   | "unreadable"
   | "failed";
@@ -37,12 +45,16 @@ const STUDIO_ICONS: Record<StudioIconName, LucideIcon> = {
   properties: SlidersHorizontal,
   viewer: MonitorPlay,
   code: Code,
+  palette: Shapes,
   project_view: Box,
   project_folder: LayoutPanelTop,
   project: Package,
   imports: FolderInput,
   file: FileText,
   stream: Workflow,
+  node_category: Folder,
+  node_type: Blocks,
+  graph_generator: Network,
   waiting: Hourglass,
   unreadable: TriangleAlert,
   failed: TriangleAlert,

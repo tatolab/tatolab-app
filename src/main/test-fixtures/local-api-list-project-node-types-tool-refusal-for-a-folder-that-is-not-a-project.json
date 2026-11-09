@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"list_project_node_types failed: /private/tmp/tatolab-proof-185/not-a-project holds no project: it has no tatolab-project.json"}],"isError":true}}

@@ -23,11 +23,13 @@ import { PROPERTIES_VIEW_TYPE } from "./studio_views/properties/properties_view_
 import { VIEWER_VIEW_TYPE } from "./studio_views/viewer/viewer_view_type";
 import { STREAM_GRAPH_VIEW_TYPE } from "./studio_views/stream_graph/stream_graph_view_type";
 import { OUTLINER_VIEW_TYPE } from "./studio_views/outliner/outliner_view_type";
+import { PALETTE_VIEW_TYPE } from "./studio_views/palette/palette_view_type";
 import { inWindowStudioViewHostServices, useWatchedStudioValue } from "./view_host/in_window_view_host";
 import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_catalog_readings";
 import { registeredStudioViewType, StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
 import { projectStudioViewType } from "./view_host/project_studio_view_type";
 import { ProjectLogReadings } from "./view_host/project_log_readings";
+import { ProjectNodeTypeReadings } from "./view_host/project_node_type_readings";
 import { PythonLanguageServerConnections } from "./view_host/python_language_server_connections";
 import { PortViewerConnections } from "./view_host/port_viewer_connections";
 import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "./window_visibility";
@@ -46,6 +48,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
   return new StudioViewTypeRegistry([
     registeredStudioViewType(STREAM_GRAPH_VIEW_TYPE),
     registeredStudioViewType(OUTLINER_VIEW_TYPE),
+    registeredStudioViewType(PALETTE_VIEW_TYPE),
     registeredStudioViewType(PROPERTIES_VIEW_TYPE),
     registeredStudioViewType(VIEWER_VIEW_TYPE),
     registeredStudioViewType(CODE_EDITOR_VIEW_TYPE),
@@ -122,6 +125,9 @@ export function mountTatolabWindow(
   const projectLogReadings = new ProjectLogReadings(backend);
   projectLogReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => projectLogReadings.setPollingAllowed(isVisible));
+  const projectNodeTypeReadings = new ProjectNodeTypeReadings(backend);
+  projectNodeTypeReadings.setPollingAllowed(isTatolabWindowVisible());
+  onTatolabWindowVisibilityChanged((isVisible) => projectNodeTypeReadings.setPollingAllowed(isVisible));
   const pythonLanguageServerConnections = new PythonLanguageServerConnections(backend);
   const portViewerConnections = new PortViewerConnections(backend);
   const studioWindowModel = new StudioWindowModel(new StudioLayoutsKeptInStorage(windowLocalStorage()));
@@ -188,6 +194,7 @@ export function mountTatolabWindow(
     viewHostServices: inWindowStudioViewHostServices(studioWindowModel.viewHostSources(), streamGraphAndCatalogReadings, {
       backend,
       projectLogReadings,
+      projectNodeTypeReadings,
       pythonLanguageServerConnections,
       portViewerConnections,
     }),

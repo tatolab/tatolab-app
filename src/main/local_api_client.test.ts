@@ -766,7 +766,7 @@ test("a_chunked_response_is_dechunked", async () => {
 
 /** Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src/main/local_api_client.test.ts`. */
 const noLiveRuntimeSocketIsNamed = !process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"];
-test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_description_its_streams_their_graphs_and_logs_and_its_machine_name", async () => {
+test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_description_its_streams_their_graphs_logs_and_node_types_and_its_machine_name", async () => {
   const client = new LocalApiClient(process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"] ?? "", 5_000, "0.45.0");
 
   answerOf(await client.checkHealth());
@@ -782,6 +782,8 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
   }
   for (const projectDirectory of new Set(streams.flatMap((listedStream) => (listedStream.location === null ? [] : [listedStream.location.project_directory])))) {
     const projectStreams = streams.filter((listedStream) => listedStream.location?.project_directory === projectDirectory);
+    const nodeTypeListing = answerOf(await client.listProjectNodeTypes(projectDirectory));
+    expect(nodeTypeListing.sources[0]?.origin).toEqual({ source: "project" });
     const wholeLog = answerOf(await client.readProjectLogRecords(projectDirectory, { stream: null, action: null }, null, 500));
     expect(wholeLog.project_directory).toBe(projectDirectory);
     expect(wholeLog.records.length).toBeGreaterThan(0);
@@ -838,4 +840,76 @@ test("a_node_catalog_of_a_stream_not_loaded_is_refused_in_the_runtimes_own_words
   expect(failureOf(await server.client().describeNodeCatalog("front-door")).failureDescription).toBe(
     "Resource not found: no stream with the id `front-door` is loaded in this runtime. Loaded: none",
   );
+});
+
+test("listing_a_projects_node_types_calls_list_project_node_types_with_its_folder_and_reads_each_source", async () => {
+  const listingText = JSON.stringify({
+    project_directory: "/w/pattern",
+    project: "2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90",
+    project_name: "pattern",
+    sources: [{ source: "project", node_types: [], graph_generators: [], unreadable_modules: [] }],
+  });
+  const server = await fakeLocalApiServerAnswering([toolResultResponseOfText(listingText)]);
+
+  const listing = answerOf(await server.client().listProjectNodeTypes("/w/pattern"));
+
+  expect(listing.project_name).toBe("pattern");
+  expect(listing.sources.map((source) => source.origin)).toEqual([{ source: "project" }]);
+  const [head, body] = headAndBodyOf(server.receivedRequests()[0]);
+  expect(head).toContain("Mcp-Name: list_project_node_types\r\n");
+  expect(JSON.parse(body).params.arguments).toEqual({ project_directory: "/w/pattern" });
+});
+
+test("a_node_type_listing_the_runtime_refuses_carries_its_own_words", async () => {
+  const refusal = "list_project_node_types failed: the project's interpreter printed no listing";
+  const server = await fakeLocalApiServerAnswering([toolResultResponseOfText(refusal, true)]);
+
+  expect(failureOf(await server.client().listProjectNodeTypes("/w/pattern")).failureDescription).toBe(refusal);
+});
+
+test("a_real_node_type_listing_reads_the_projects_node_types_generator_unreadable_module_and_installed_distribution", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-project-node-types-tool-result-of-a-project-with-a-module-that-does-not-parse.json")),
+  ]);
+
+  const listing = answerOf(await server.client().listProjectNodeTypes("/private/tmp/tatolab-proof-185/node-type-proof"));
+
+  expect(listing.project_name).toBe("node-type-proof");
+  expect(listing.sources.map((source) => source.origin)).toEqual([
+    { source: "project" },
+    { source: "installed_distribution", distribution: "tatolab-testpattern", distribution_version: "0.68.41" },
+  ]);
+  const [projectSource, testPatternSource] = listing.sources;
+  expect(projectSource?.node_types.map((nodeType) => [nodeType.type, nodeType.kind, nodeType.category])).toEqual([
+    ["nodes.brightness_meter:BrightnessMeter", "process", "nodes.brightness_meter"],
+    ["nodes.edge_mask:EdgeMask", "process", "Masks"],
+    ["nodes.gain:scale_by_gain", "function", "nodes.gain"],
+    ["nodes.halftone_lens_effect:HalftoneLensEffect", "process", "nodes.halftone_lens_effect"],
+  ]);
+  expect(projectSource?.node_types[1]?.outputs).toEqual([{ name: "mask_out", family: "image", description: "The edge mask.", annotation: null }]);
+  expect(projectSource?.node_types[2]?.inputs?.[1]).toEqual({ name: "gain", family: "channels", description: "", annotation: "float" });
+  expect(projectSource?.graph_generators).toEqual([
+    { generator: "nodes.masked_rig:masked_rig", description: "Wires `mask_count` edge masks in a row.", promoted_config: [{ name: "mask_count", annotation: "int" }], path: "nodes/masked_rig.py", line: 7 },
+  ]);
+  expect(projectSource?.unreadable_modules).toEqual([{ module: "nodes.half_written", path: "nodes/half_written.py", line: 4, column: 11, why: "SyntaxError: '(' was never closed" }]);
+  expect(testPatternSource?.node_types.map((nodeType) => nodeType.type)).toEqual(["tatolab.testpattern:TestPatternSource"]);
+});
+
+test("a_real_node_type_listing_of_a_folder_that_is_not_a_project_is_refused_in_the_runtimes_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-project-node-types-tool-refusal-for-a-folder-that-is-not-a-project.json")),
+  ]);
+
+  expect(failureOf(await server.client().listProjectNodeTypes("/private/tmp/tatolab-proof-185/not-a-project")).failureDescription).toBe(
+    "list_project_node_types failed: /private/tmp/tatolab-proof-185/not-a-project holds no project: it has no tatolab-project.json",
+  );
+});
+
+test("a_node_type_listing_waits_past_the_ordinary_request_timeout_for_the_projects_interpreter", async () => {
+  const listingText = JSON.stringify({ project_directory: "/w/pattern", project: "p", project_name: "pattern", sources: [] });
+  const server = await FakeLocalApiServer.answering([toolResultResponseOfText(listingText)], 300);
+  cleanUps.push(() => server.close());
+  const clientWithAShortRequestTimeout = new LocalApiClient(server.localApiSocketPath, 100, "0.45.0");
+
+  expect(answerOf(await clientWithAShortRequestTimeout.listProjectNodeTypes("/w/pattern")).project_name).toBe("pattern");
 });

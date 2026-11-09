@@ -18,6 +18,7 @@ const HOST_SERVICES: StudioViewHostServices = {
   listProjectFiles: async () => ({ kind: "not_listed", because: "no files in this test" }),
   popOutViewer: async () => ({ kind: "not_popped_out", because: "no windows in this test" }),
   watchProjectLog: () => () => undefined,
+  watchProjectNodeTypes: () => () => undefined,
   connectToPythonLanguageServer: () => ({ send: () => undefined, close: () => undefined }),
   watchPortViewer: () => ({ close: () => undefined }),
 };
