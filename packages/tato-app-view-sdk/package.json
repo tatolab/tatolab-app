@@ -13,14 +13,16 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "lint": "tsc --noEmit -p tsconfig.json"
+    "lint": "eslint ."
   },
   "dependencies": {
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
+    "eslint": "^10.13.0",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.0",
     "vite": "^8.3.4",
     "vitest": "^5.0.3"
   }
