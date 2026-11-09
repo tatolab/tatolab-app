@@ -314,7 +314,7 @@ describe("the studio", () => {
     await waitFor(() => expect(viewerArea.querySelector("[data-viewer-playing]")).not.toBeNull());
 
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
-    expect(await screen.findByText("Views a project brings arrive with users' own view types.")).toBeTruthy();
+    expect(await screen.findByText("This project and its imports bring no views.")).toBeTruthy();
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Outliner/ }));
 
     await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] [data-outliner]')).not.toBeNull());
@@ -323,6 +323,32 @@ describe("the studio", () => {
 
     await mountedWindowOverTheMock("state=running");
     await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] [data-outliner]')).not.toBeNull());
+  });
+
+  it("lists a view the project brings, and draws it with full access in a frame of its own on the stream's node of its type", async () => {
+    await mountedWindowOverTheMock("state=running&studio_views=fixture");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    await waitFor(() => expect(viewerArea.querySelector("[data-viewer-playing]")).not.toBeNull());
+
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Picture and fader/ }));
+
+    const viewFrame = await waitFor(
+      () => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-project-studio-view]') ?? expect.unreachable("no project view frame"),
+    );
+    expect(viewFrame.getAttribute("data-project-studio-view")).toBe("tatolab-fixture-views:picture-and-fader");
+    expect(viewFrame.getAttribute("data-project-studio-view-access")).toBe("full");
+    expect(viewFrame.hasAttribute("sandbox")).toBe(false);
+    expect(viewFrame.getAttribute("allow")).toBe("camera; microphone");
+    expect(viewFrame.getAttribute("src")).toMatch(/\/mock_studio_view\/picture_and_fader\/index\.html$/);
+  });
+
+  it("says in the view-type menu why a project's views are not listed", async () => {
+    await mountedWindowOverTheMock("state=running", { listStudioViewsOfTheOpenProject: async () => Promise.reject("the runtime lists no views yet") });
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    expect(await screen.findByText("the runtime lists no views yet")).toBeTruthy();
   });
 
   it("opens a saved layout that does not parse on its default, and says when an area names a view this build lacks", async () => {

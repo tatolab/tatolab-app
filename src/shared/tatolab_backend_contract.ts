@@ -489,6 +489,15 @@ export type PythonLanguageServerEvent =
   | { session: string; kind: "message"; message: JsonValue }
   | { session: string; kind: "ended"; because: string };
 
+/** A view type the open project or one of its imports brings: its id (`<distribution>:<entry>`), the distribution and `tatolab.views` entry it comes from, its `tatolab_view.json` as parsed, and the URL its folder is served under, which its entry and every file it loads resolve against. */
+export interface ListedStudioView {
+  view_type_id: string;
+  distribution: string;
+  entry_name: string;
+  manifest_json: JsonValue;
+  folder_url: string;
+}
+
 /** The output port of a running node a Viewer shows: the stream's id, the node's id as `graph` lists it, and the port's name. */
 export interface PortViewerTarget {
   stream: string;

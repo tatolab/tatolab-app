@@ -26,6 +26,7 @@ import { OUTLINER_VIEW_TYPE } from "./studio_views/outliner/outliner_view_type";
 import { inWindowStudioViewHostServices, useWatchedStudioValue } from "./view_host/in_window_view_host";
 import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_catalog_readings";
 import { registeredStudioViewType, StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
+import { projectStudioViewType } from "./view_host/project_studio_view_type";
 import { ProjectLogReadings } from "./view_host/project_log_readings";
 import { PythonLanguageServerConnections } from "./view_host/python_language_server_connections";
 import { PortViewerConnections } from "./view_host/port_viewer_connections";
@@ -48,7 +49,29 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
     registeredStudioViewType(PROPERTIES_VIEW_TYPE),
     registeredStudioViewType(VIEWER_VIEW_TYPE),
     registeredStudioViewType(CODE_EDITOR_VIEW_TYPE),
-  ]);
+  ], (listed, manifest, projectName) => registeredStudioViewType(projectStudioViewType(listed, manifest, projectName)));
+}
+
+/** Keeps `viewTypeRegistry` listing the views of the project `studioWindowModel` has open, listed again each time another is read. */
+function listTheOpenProjectsStudioViews(backend: TatolabBackend, studioWindowModel: StudioWindowModel, viewTypeRegistry: StudioViewTypeRegistry): void {
+  let listingsAsked = 0;
+  studioWindowModel.openProject.watch((openProjectReading) => {
+    listingsAsked += 1;
+    const thisListing = listingsAsked;
+    if (openProjectReading.kind !== "read") {
+      viewTypeRegistry.projectStudioViews.publish({ kind: "none_open" });
+      return;
+    }
+    const projectName = openProjectReading.open_project.project.name;
+    backend.listStudioViewsOfTheOpenProject().then(
+      (studioViews) => {
+        if (thisListing === listingsAsked) viewTypeRegistry.projectStudioViews.publish({ kind: "listed", project_name: projectName, studio_views: studioViews });
+      },
+      (rejection: unknown) => {
+        if (thisListing === listingsAsked) viewTypeRegistry.projectStudioViews.publish({ kind: "not_listed", because: describeBackendRejection(rejection) });
+      },
+    );
+  });
 }
 
 /** The studio, the Viewer alone in a window popped out of one, or a studio window's Get more window: the window's one screen from the first status on. */
@@ -157,9 +180,11 @@ export function mountTatolabWindow(
   };
   let onChosenByEntryIdOfTheMenusSent: ReadonlyMap<string, () => void> = new Map();
   backend.onSystemMenuBarEntryChosen((entryId) => onChosenByEntryIdOfTheMenusSent.get(entryId)?.());
+  const viewTypeRegistry = studioViewTypeRegistry();
+  listTheOpenProjectsStudioViews(backend, studioWindowModel, viewTypeRegistry);
   const studioWindowSources: StudioWindowSources = {
     model: studioWindowModel,
-    viewTypeRegistry: studioViewTypeRegistry(),
+    viewTypeRegistry,
     viewHostServices: inWindowStudioViewHostServices(studioWindowModel.viewHostSources(), streamGraphAndCatalogReadings, {
       backend,
       projectLogReadings,

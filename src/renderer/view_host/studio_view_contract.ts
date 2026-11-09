@@ -1,6 +1,6 @@
 // The one contract every view of the studio is built on. Every value crossing a host connection is
-// JSON, so a view running sandboxed reaches the same interface over a MessagePort that a first-party
-// view reaches in the window.
+// JSON, so a project's view reaches the same interface over a MessagePort from its own frame that a
+// first-party view reaches in the window.
 
 import type { ReactNode } from "react";
 import type {

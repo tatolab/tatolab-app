@@ -26,6 +26,7 @@ import {
 } from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
 import { MockPortViewers } from "./mock_port_viewers";
+import { mockStudioViewListing } from "./mock_studio_view/mock_studio_view_listing";
 import { MockProjectFiles } from "./mock_project_files";
 import { newProjectFolderNameRefusal } from "../../shared/new_project_folder_name";
 import type { TatolabBackend } from "./tatolab_backend";
@@ -194,6 +195,8 @@ export interface MockTatolabOptions {
   isAGetMoreWindow: boolean;
   /** `?catalog=unserved`: get.tatolab.com serves no catalog yet; the mock catalog by default. */
   isTheCatalogUnserved: boolean;
+  /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node. */
+  isTheFixtureViewListed: boolean;
 }
 
 /** The query parameter a Get more window's page is told by. */
@@ -323,6 +326,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     poppedOutViewer: mockPoppedOutViewerTargetFrom(pageQuery.get(POPPED_OUT_VIEWER_QUERY_PARAMETER)),
     isAGetMoreWindow: pageQuery.get(GET_MORE_QUERY_PARAMETER) === "open",
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
+    isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
   };
 }
 
@@ -441,7 +445,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       ? fixtures.mainStreamWithDisplayWindowInError
       : scenario === "dropping"
         ? fixtures.mainStreamWithItsMeterFallingBehind
-        : fixtures.mainStream;
+        : mockTatolabOptions.isTheFixtureViewListed
+          ? fixtures.mainStreamWithTheFixtureViewsNode
+          : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
   const menusKeptForTheSystemMenuBar: SystemMenuBarMenu[] = [];
@@ -1359,6 +1365,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     onPythonLanguageServerEvent: (listener) => {
       languageServerEventListeners.add(listener);
       return () => languageServerEventListeners.delete(listener);
+    },
+    listStudioViewsOfTheOpenProject: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openProjectReading.kind !== "read") throw "No project is open in this window.";
+      return mockTatolabOptions.isTheFixtureViewListed ? [mockStudioViewListing()] : [];
     },
     openPortViewer: async (target) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
