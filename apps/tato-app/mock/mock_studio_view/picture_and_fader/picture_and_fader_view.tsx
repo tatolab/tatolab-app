@@ -2,8 +2,9 @@
 // own header row after Studio's view-type menu, what is wired into its `picture` input, how the
 // picture fits kept in its area's settings, and its fader sent on its `fader` output.
 
-import "@tatolab/tato-app-view-sdk/design_system/styles/design_system.css";
+import "./picture_and_fader_view.css";
 import { connectToTatoApp, type TatoAppViewConnection, type ViewHeaderRow, type ViewInputEvent, type ViewSettings } from "@tatolab/tato-app-view-sdk";
+import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { PropertyRow } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
 import { SegmentedChoiceControl } from "@tatolab/tato-app-view-sdk/design_system/segmented_choice_control";
 import { StudioAreaHeaderRowInAFrame } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
@@ -97,10 +98,11 @@ function FaderOfTheOutput({ connection }: { connection: TatoAppViewConnection })
 function PictureAndFaderView({ connection }: { connection: TatoAppViewConnection }) {
   const headerRow = useViewReading(useCallback((listener: (headerRow: ViewHeaderRow) => void) => connection.watchHeaderRow(listener), [connection]));
   const settings = useViewReading(useCallback((listener: (settings: ViewSettings) => void) => connection.watchSettings(listener), [connection]));
-  const pictureFit = pictureFitOf(settings ?? null);
+  const pictureFit = pictureFitOf(settings);
+  const [pictureFitRefusal, setPictureFitRefusal] = useState<string | null>(null);
   return (
     <div className="flex h-screen flex-col bg-studio-area text-fg">
-      <StudioAreaHeaderRowInAFrame headerRow={headerRow ?? { leading_inset_px: 0, height_px: 30 }}>
+      <StudioAreaHeaderRowInAFrame headerRow={headerRow ?? null}>
         <span className="flex-1" />
         <SegmentedChoiceControl
           label="How the picture fits"
@@ -109,10 +111,11 @@ function PictureAndFaderView({ connection }: { connection: TatoAppViewConnection
             { choice: "cover", label: "Fill" },
           ]}
           chosen={pictureFit}
-          onChosen={(chosen) => void connection.rememberSettings({ picture_fit: chosen })}
+          onChosen={(chosen) => void connection.rememberSettings({ picture_fit: chosen }).then((answer) => setPictureFitRefusal(answer.kind === "refused" ? answer.because : null))}
           dataAttributeOfEachSegment="data-fixture-view-picture-fit-choice"
         />
       </StudioAreaHeaderRowInAFrame>
+      {pictureFitRefusal === null ? null : <RefusalLine lead="Keeping how the picture fits was refused:" words={pictureFitRefusal} layout="bar" />}
       <PictureOfTheInput connection={connection} pictureFit={pictureFit} />
       <FaderOfTheOutput connection={connection} />
     </div>

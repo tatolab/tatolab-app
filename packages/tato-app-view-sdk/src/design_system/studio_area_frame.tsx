@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { ChevronDown } from "lucide-react";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
+import type { ViewHeaderRow } from "../studio_readings";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
@@ -19,11 +20,6 @@ export function StudioAreaFrame({ label, header, children, ...controlDataAttribu
   );
 }
 
-/** Where a view's own header row lies inside its frame: after the view-type menu laid over the row's start, and as tall as an area's header. */
-export interface StudioAreaHeaderRowInTheFrame {
-  leading_inset_px: number;
-  height_px: number;
-}
 
 /** An area whose view draws its own header row in its frame: the view across the whole area, the view-type menu laid over the row's start, its width told to `onHeaderRowMeasured`. */
 export function StudioAreaOverAViewsOwnFrame({
@@ -35,7 +31,7 @@ export function StudioAreaOverAViewsOwnFrame({
 }: {
   label: string;
   viewTypeMenu: ReactNode;
-  onHeaderRowMeasured: (headerRow: StudioAreaHeaderRowInTheFrame) => void;
+  onHeaderRowMeasured: (headerRow: ViewHeaderRow) => void;
   children: ReactNode;
 } & ControlDataAttributes) {
   const viewTypeMenuRowRef = useRef<HTMLDivElement>(null);
@@ -64,13 +60,12 @@ export function StudioAreaOverAViewsOwnFrame({
   );
 }
 
-/** A view's own header row, drawn in its frame: an area header's look, its tools laid out after `headerRow`'s inset, where Studio's view-type menu lies over the row. */
-export function StudioAreaHeaderRowInAFrame({ headerRow, children }: { headerRow: StudioAreaHeaderRowInTheFrame; children?: ReactNode }) {
+/** A view's own header row, drawn in its frame: an area header's look, its tools laid out after `headerRow`'s inset, where Studio's view-type menu lies over the row; an area header's height until Studio has said where the row lies. */
+export function StudioAreaHeaderRowInAFrame({ headerRow, children }: { headerRow: ViewHeaderRow | null; children?: ReactNode }) {
   return (
     <div
-      className="flex shrink-0 items-center gap-1.5 border-b border-studio-area-header-line bg-studio-area-header pr-1.5"
-      style={{ height: headerRow.height_px, paddingLeft: headerRow.leading_inset_px }}
-      data-view-header-row=""
+      className={cn("flex shrink-0 items-center gap-1.5 border-b border-studio-area-header-line bg-studio-area-header pr-1.5", headerRow === null && "h-(--studio-area-header-height)")}
+      style={headerRow === null ? undefined : { height: headerRow.height_px, paddingLeft: headerRow.leading_inset_px }}
     >
       {children}
     </div>

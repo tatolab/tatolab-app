@@ -12,7 +12,8 @@
 @import "@xyflow/react/dist/base.css" layer(components);
 @import "./node_graph_canvas.css" layer(components);
 
-/* The design system's components, wherever the page importing this sheet lives. */
+/* The design system's components, wherever the page importing this sheet lives. Tailwind finds a page's own classes only under
+   its Vite root, so a view built outside that root imports this sheet from a sheet of its own that adds `@source "./";`. */
 @source "../";
 
 /* Studio is dark only: `dark` on a page's <html> makes shadcn's `dark:` classes apply, as Studio's window and a view's frame both set. */

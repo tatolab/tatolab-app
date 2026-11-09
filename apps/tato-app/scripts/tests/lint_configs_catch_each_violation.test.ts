@@ -6,7 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { ESLint } from "eslint";
 import stylelint from "stylelint";
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 
 const TATO_APP_ROOT = new URL("../..", import.meta.url).pathname;
 const MONOREPO_ROOT = new URL("../../../..", import.meta.url).pathname;
@@ -112,9 +112,16 @@ const stylesheetCases: [string, string, boolean][] = [
   ["a large round applied by Tailwind", ".planted { @apply size-8 rounded-full; }\n", false],
 ];
 
-test.each(stylesheetCases)("stylelint on %s", async (_caseDescription, plantedStylesheet, isReported) => {
-  const { results } = await stylelint.lint({ code: plantedStylesheet, codeFilename: `${TATO_APP_ROOT}src/renderer/styles/zz_planted.css`, cwd: TATO_APP_ROOT });
-  expect((results[0]?.warnings ?? []).length > 0).toBe(isReported);
+const stylesheetFolders: [string, string, string][] = [
+  ["the window's styles", TATO_APP_ROOT, "src/renderer/styles/"],
+  ["the design system's styles", VIEW_SDK_ROOT, "src/design_system/styles/"],
+];
+
+describe.each(stylesheetFolders)("in %s", (_folderDescription, packageRoot, stylesFolder) => {
+  test.each(stylesheetCases)("stylelint on %s", async (_caseDescription, plantedStylesheet, isReported) => {
+    const { results } = await stylelint.lint({ code: plantedStylesheet, codeFilename: `${packageRoot}${stylesFolder}zz_planted.css`, cwd: packageRoot });
+    expect((results[0]?.warnings ?? []).length > 0).toBe(isReported);
+  });
 });
 
 const pullRequestTitleCases: [string, boolean][] = [

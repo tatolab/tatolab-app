@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
 import { StudioAreaHeaderRowOfAWaitingView } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import {WatchedStudioValue } from "./in_window_view_host";
+import { WatchedStudioValue } from "./in_window_view_host";
 import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewTypeSource } from "./studio_view_contract";
 import { nodesOfTheStudioViewType, studioViewInputWiring, STUDIO_VIEW_NODE_ISSUE, type StudioViewInputWiring } from "./studio_view_node_wiring";
 import type { RegisteredStudioViewType, StudioAreaOfTheView, StudioViewHostServices } from "./studio_view_type_registry";
