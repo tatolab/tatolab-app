@@ -42,13 +42,21 @@ export type {
   ProjectTransactionAuthor,
   ProjectActionRefusal,
   RefusedProjectAction,
+  StreamGraphActionLinkEnd,
+  StreamGraphAction,
+  GraphEditMode,
+  GraphLinkEnd,
+  ProjectGraphTransaction,
+  ProjectGraphTransactionApplying,
+  ProjectGraphTransactionTheRuntimeAnswered,
+  ThePersonEditingReading,
   PortViewerTarget,
   PortViewerChannelWaveform,
   PortViewerArrayAttributeReading,
   PortViewerMessageReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 export { PORT_FAMILIES, type PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
-export { TATO_STUDIO_MCP_CLIENT_NAME } from "@tatolab/tato-app-view-sdk/studio_readings";
+export { TATO_STUDIO_MCP_CLIENT_NAME, graphEditModeSchema, streamGraphActionSchema } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { JsonValue, ListedStream, PortViewerMessageReading, ProjectLogRecord } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The platform the app runs on, which decides the window's chrome. */

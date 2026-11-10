@@ -2,7 +2,7 @@
 // document — node ids, config, ports, components with state and metrics, link ids and ends,
 // `machine` — and the summary the main process would read from it.
 
-import { mockNodeIdOf, type MockStreamGraph } from "./mock_stream_fixtures";
+import { mockGraphNodeIdOf, type MockStreamGraph } from "./mock_stream_fixtures";
 import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { ListedStream, PortStreamFacts, StreamGraphDeclaredPort, StreamGraphNode, StreamGraphSummary } from "../src/shared/tatolab_backend_contract";
 
@@ -62,7 +62,7 @@ export function mockStreamGraphSummary(
   const linkState = (state: string) => (moment.hasSettled ? state : "pending");
   const climbed = (perSecond: number) => (moment.hasSettled ? Math.floor(perSecond * moment.secondsSinceSettled) : 0);
   const nodes: StreamGraphNode[] = graph.nodes.map((node) => ({
-    id: mockNodeIdOf(streamId, node.name),
+    id: mockGraphNodeIdOf(streamId, node),
     name: node.name,
     type: node.type,
     state: nodeState(node.state),
@@ -86,7 +86,7 @@ export function mockStreamGraphSummary(
     ...(streamAsset === null ? {} : { asset: streamAsset }),
     stream: streamId,
     nodes: graph.nodes.map((node, nodeIndex) => ({
-      id: mockNodeIdOf(streamId, node.name),
+      id: mockGraphNodeIdOf(streamId, node),
       type: node.type,
       name: node.name,
       config: node.config,

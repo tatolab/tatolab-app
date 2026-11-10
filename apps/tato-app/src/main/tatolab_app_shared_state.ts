@@ -17,6 +17,7 @@ import type { RuntimePortViewers } from "./runtime_port_viewers.js";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import type { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
+import type { ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 
 /** The controller, the status publisher, the updater, what opens a stream's project, adding a project, the stream-failure notifications, Developer mode, opening projects, the app's windows, the language servers, the port viewers and the system menu bar, which the tray's choices and the window's commands reach. */
 export interface TatolabAppSharedState {
@@ -46,6 +47,8 @@ export interface TatolabAppSharedState {
   moduleDownloadsFolder: string;
   /** How Module manager asks for a project's folder or `.zip` to import. */
   dependencySourceDialog: DependencySourceDialog;
+  /** The person signed in to this computer, the author Studio's graph edits are recorded under. */
+  thePersonEditingInStudio: ProjectTransactionAuthor;
   tatolabAppLog: TatolabAppLog;
 }
 

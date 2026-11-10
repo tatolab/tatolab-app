@@ -85,7 +85,8 @@ function refusedLinkEndAt(link: JsonObjectOnTheWire, key: "source" | "target"): 
   return port.ok ? succeeded({ node: node.value, port: port.value }) : port;
 }
 
-function projectActionRefusalAt(fields: JsonObjectOnTheWire): Result<ProjectActionRefusal, string> {
+/** The structured refusal `fields` carries under `refusal`, as a refused action's `structuredContent` and the feed's refused actions do, or why it cannot be read. */
+export function projectActionRefusalAt(fields: JsonObjectOnTheWire): Result<ProjectActionRefusal, string> {
   const refusal = jsonObject(fields["refusal"], "a refusal");
   if (!refusal.ok) return refusal;
   const action = requiredText(refusal.value, "action");

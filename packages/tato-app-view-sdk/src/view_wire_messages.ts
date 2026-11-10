@@ -20,6 +20,10 @@ import {
   projectTransactionSchema,
   projectTransactionsReadingSchema,
   pythonLanguageServerConnectionEventSchema,
+  graphEditModeSchema,
+  projectActionRefusalSchema,
+  projectGraphTransactionSchema,
+  streamGraphActionSchema,
   streamGraphReadingSchema,
   streamTabAddressSchema,
   studioSelectionSchema,
@@ -108,6 +112,16 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("undo_in_the_project"), project_folder: z.string(), author: projectTransactionAuthorSchema }),
   /** Redo what `author`'s latest undo in the project reversed, through the runtime's `redo`. */
   z.object({ kind: z.literal("redo_in_the_project"), project_folder: z.string(), author: projectTransactionAuthorSchema }),
+  /** Apply `operations` on the graphs of the project's streams as one transaction through the runtime's `transact`; `idempotency_key` is minted once per gesture, so a retry answers the first transaction. */
+  z.object({
+    kind: z.literal("transact_in_the_project"),
+    project_folder: z.string(),
+    operations: z.array(streamGraphActionSchema).min(1),
+    mode: graphEditModeSchema,
+    idempotency_key: z.string().nullable(),
+  }),
+  /** The person editing in Studio, the author history records their edits under and their own undo takes. */
+  z.object({ kind: z.literal("read_the_person_editing") }),
 ]);
 /** What a view may ask Studio to do. */
 export type ViewAsk = z.infer<typeof viewAskSchema>;
@@ -165,6 +179,10 @@ export const viewAskAnswerSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("project_file_saved"), version: z.string() }),
   z.object({ kind: z.literal("project_files_listed"), project_files: projectFilesSchema }),
   z.object({ kind: z.literal("project_transaction_applied"), transaction: projectTransactionSchema }),
+  z.object({ kind: z.literal("project_graph_transaction_applied"), transaction: projectGraphTransactionSchema }),
+  /** The runtime refused the action, structured; a refusal before it reached the runtime is `refused`. */
+  z.object({ kind: z.literal("project_action_refused"), refusal: projectActionRefusalSchema }),
+  z.object({ kind: z.literal("the_person_editing"), author: projectTransactionAuthorSchema }),
 ]);
 /** What Studio answers an ask with. */
 export type ViewAskAnswer = z.infer<typeof viewAskAnswerSchema>;
@@ -227,11 +245,14 @@ export function capabilityToAsk(ask: ViewAsk): ViewCapability | null {
     case "read_project_file":
     case "list_project_files":
     case "send_to_python_language_server":
+    case "read_the_person_editing":
       return "read.project_assets";
     case "save_project_file":
     case "undo_in_the_project":
     case "redo_in_the_project":
       return "write.project_assets";
+    case "transact_in_the_project":
+      return "edit.stream_graph";
     case "remember_settings":
     case "send_output":
       return null;

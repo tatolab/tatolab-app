@@ -66,7 +66,9 @@ function mockRefusedUndoOrRedo(author: ProjectTransactionAuthor, undoOrRedo: "un
   };
 }
 
-const YOU = { kind: "person", name: "Sam" };
+/** The person editing in the mock Studio, whose edits the mock history records under them. */
+export const MOCK_PERSON_EDITING_IN_STUDIO = { kind: "person", name: "Sam" } as const;
+const YOU = MOCK_PERSON_EDITING_IN_STUDIO;
 const REFUSED_ACTIONS_THE_RUNTIME_KEEPS = 100;
 const CLAUDE = { kind: "agent", name: "claude-code" } as const;
 const THE_RUNTIME = { kind: "runtime", name: "tatolab" };
@@ -180,6 +182,11 @@ export class MockProjectTransactions {
     const reading = this.read();
     for (const listener of this.listeners) listener(structuredClone(reading));
     return reading;
+  }
+
+  /** Record a graph transaction `author` applied, with what undoes it. */
+  record(author: ProjectTransactionAuthor, operations: JsonValue[], inverseOperations: JsonValue[]): ProjectTransaction {
+    return this.apply(author, operations, inverseOperations, {});
   }
 
   private apply(author: ProjectTransactionAuthor, operations: JsonValue[], inverseOperations: JsonValue[], lineage: { undoes?: string; redoes?: string }): ProjectTransaction {

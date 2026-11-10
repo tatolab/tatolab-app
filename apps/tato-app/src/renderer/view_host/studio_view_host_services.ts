@@ -78,6 +78,8 @@ export function studioViewHostServicesOf(
     watchProjectTransactions: projectServices.projectTransactionsReadings.watchProjectTransactions,
     undoInTheProject: projectServices.projectTransactionsReadings.undoInTheProject,
     redoInTheProject: projectServices.projectTransactionsReadings.redoInTheProject,
+    transactInTheProject: projectServices.projectTransactionsReadings.transactInTheProject,
+    readThePersonEditing: projectServices.projectTransactionsReadings.readThePersonEditing,
     connectToPythonLanguageServer: projectServices.pythonLanguageServerConnections.connectToPythonLanguageServer,
     writeStudioViewOutput: (viewNode, port, value) =>
       backend.writeStudioViewOutput(viewNode.stream, viewNode.node_id, port, value).then(

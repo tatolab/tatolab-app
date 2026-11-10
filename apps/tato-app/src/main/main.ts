@@ -11,7 +11,7 @@ import path from "node:path";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
 import { MODULE_DOWNLOADS_FOLDER_NAME } from "./marketplace_module_download.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-import type { SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
+import type { ProjectTransactionAuthor, SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
@@ -133,6 +133,8 @@ export interface TatolabElectronAppShell {
   startTheCarriedRuntime: StartTheCarriedRuntimeAsAChildProcess;
   /** The app's own config directory, where its switches and recent projects are remembered. */
   appConfigDirectory: string;
+  /** The person signed in to this computer, by their account name, whose Studio edits the runtime records under them. */
+  thePersonSignedInToThisComputer: ProjectTransactionAuthor;
   readMonotonicClockMs(): number;
   /** The wall clock, in milliseconds since the epoch, only ever shown to the person, as when the Projects window says a project was opened. */
   readWallClockMsForDisplay(): number;
@@ -389,6 +391,7 @@ export async function startTatolabApp(
     fetchBytesOverHttps: tatolabElectronAppShell.fetchBytesOverHttps,
     moduleDownloadsFolder: path.join(tatolabElectronAppShell.appConfigDirectory, MODULE_DOWNLOADS_FOLDER_NAME),
     dependencySourceDialog: tatolabElectronAppShell.askThePersonForADependencySource,
+    thePersonEditingInStudio: tatolabElectronAppShell.thePersonSignedInToThisComputer,
     tatolabAppLog,
   };
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.stopWatchingEveryProject());

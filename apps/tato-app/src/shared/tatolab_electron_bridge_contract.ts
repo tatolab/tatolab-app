@@ -25,6 +25,9 @@ import type {
   ProjectLogRecordsPage,
   ProjectRunQueued,
   ProjectTransaction,
+  GraphEditMode,
+  ProjectGraphTransactionTheRuntimeAnswered,
+  StreamGraphAction,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
   RuntimeDescription,
@@ -108,6 +111,8 @@ export const TATOLAB_COMMAND_NAMES = [
   "run_open_project",
   "read_open_project_transactions",
   "undo_in_the_open_project",
+  "transact_in_the_open_project",
+  "read_the_person_editing_in_studio",
   "redo_in_the_open_project",
   "stop_open_project",
   "start_python_language_server",
@@ -149,6 +154,13 @@ export const TATOLAB_PORT_VIEWER_EVENT = "tatolab-port-viewer-event";
 
 /** The event the system menu bar sends the window an entry the person chose on, from the menus that window last showed there; it carries a `SystemMenuBarEntryChosen`. */
 export const TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT = "tatolab-system-menu-bar-entry-chosen";
+
+/** The graph actions a studio window sends as one transaction, under its gesture's idempotency key or none. */
+export interface ProjectGraphTransactionSentByTheWindow {
+  operations: readonly StreamGraphAction[];
+  mode: GraphEditMode;
+  idempotency_key: string | null;
+}
 
 /** What `tatolab-system-menu-bar-entry-chosen` carries: the `entry_id` of the entry chosen. */
 export interface SystemMenuBarEntryChosen {
@@ -306,6 +318,10 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   read_open_project_transactions: { commandArguments: undefined; answer: ProjectTransactionsReading };
   /** The runtime's `undo` by `author` on the asking studio window's project, answering the undo it applied; refused in the runtime's own words. */
   undo_in_the_open_project: { commandArguments: { author: ProjectTransactionAuthor }; answer: ProjectTransaction };
+  /** The runtime's `transact` of `operations` on the graphs of the asking studio window's project's streams, as one transaction by the person editing; a stream outside the project is refused in Studio's words, a refusal the runtime structures is answered as `refused`, any other refusal in its own words. */
+  transact_in_the_open_project: { commandArguments: ProjectGraphTransactionSentByTheWindow; answer: ProjectGraphTransactionTheRuntimeAnswered };
+  /** The person editing in Studio, whose graph edits the runtime records under them. */
+  read_the_person_editing_in_studio: { commandArguments: undefined; answer: ProjectTransactionAuthor };
   /** The runtime's `redo` by `author` on the asking studio window's project, answering the redo it applied; refused in the runtime's own words. */
   redo_in_the_open_project: { commandArguments: { author: ProjectTransactionAuthor }; answer: ProjectTransaction };
   /** The runtime's `stop_project` queued on the open project's folder, which the window never names; every stream of the project shows `stopping` until it has run. Refused in the runtime's own words, or while no project is open. */

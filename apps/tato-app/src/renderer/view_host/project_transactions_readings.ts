@@ -3,21 +3,31 @@
 // transaction. A window follows, undoes and redoes only in its own open project.
 
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
-import type { ProjectTransaction, ProjectTransactionApplying, ProjectTransactionAuthor, ProjectTransactionsReading, StopWatching } from "./studio_view_contract";
+import type {
+  GraphEditMode,
+  ProjectGraphTransactionApplying,
+  ProjectTransaction,
+  ProjectTransactionApplying,
+  ProjectTransactionAuthor,
+  ProjectTransactionsReading,
+  StopWatching,
+  StreamGraphAction,
+  ThePersonEditingReading,
+} from "./studio_view_contract";
 
-/** Why a view naming a folder other than the window's open project reads, undoes and redoes nothing there. */
+/** Why a view naming a folder other than the window's open project reads, edits, undoes and redoes nothing there. */
 export function onlyTheOpenProjectsFeedRefusal(projectFolder: string): string {
   return `Tato Studio follows the history of this window's project only, not ${projectFolder}.`;
 }
 
-/** The open project's change feed, and undo and redo on it. */
+/** The open project's change feed, the graph transactions that add to it, and undo and redo on it. */
 export class ProjectTransactionsReadings {
   private latestReading: ProjectTransactionsReading | null = null;
   private readonly listeners = new Set<(reading: ProjectTransactionsReading) => void>();
   private stopListeningToTheBackend: (() => void) | null = null;
 
   constructor(
-    private readonly backend: Pick<TatolabBackend, "readOpenProjectTransactions" | "onProjectTransactionsChanged" | "undoInTheOpenProject" | "redoInTheOpenProject">,
+    private readonly backend: Pick<TatolabBackend, "readOpenProjectTransactions" | "onProjectTransactionsChanged" | "undoInTheOpenProject" | "redoInTheOpenProject" | "transactInTheOpenProject" | "readThePersonEditingInStudio">,
     private readonly readTheOpenProjectFolder: () => string | null,
   ) {}
 
@@ -44,6 +54,27 @@ export class ProjectTransactionsReadings {
   /** The runtime's `redo` by `author` on the open project. */
   readonly redoInTheProject = (projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying> =>
     this.undoOrRedo(projectFolder, () => this.backend.redoInTheOpenProject(author));
+
+  /** The runtime's `transact` of `operations` on the open project's streams. */
+  readonly transactInTheProject = async (
+    projectFolder: string,
+    operations: readonly StreamGraphAction[],
+    mode: GraphEditMode,
+    idempotencyKey: string | null,
+  ): Promise<ProjectGraphTransactionApplying> => {
+    if (this.readTheOpenProjectFolder() !== projectFolder) return { kind: "not_sent", because: onlyTheOpenProjectsFeedRefusal(projectFolder) };
+    return this.backend.transactInTheOpenProject(operations, mode, idempotencyKey).then(
+      (applying): ProjectGraphTransactionApplying => applying,
+      (rejection: unknown): ProjectGraphTransactionApplying => ({ kind: "not_sent", because: describeBackendRejection(rejection) }),
+    );
+  };
+
+  /** The person editing in Studio, as the main process names them, or why it did not. */
+  readonly readThePersonEditing = (): Promise<ThePersonEditingReading> =>
+    this.backend.readThePersonEditingInStudio().then(
+      (author): ThePersonEditingReading => ({ kind: "read", author }),
+      (rejection: unknown): ThePersonEditingReading => ({ kind: "not_read", because: describeBackendRejection(rejection) }),
+    );
 
   private async undoOrRedo(projectFolder: string, apply: () => Promise<ProjectTransaction>): Promise<ProjectTransactionApplying> {
     if (this.readTheOpenProjectFolder() !== projectFolder) return { kind: "not_applied", because: onlyTheOpenProjectsFeedRefusal(projectFolder) };
