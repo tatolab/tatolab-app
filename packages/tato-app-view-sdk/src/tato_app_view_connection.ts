@@ -47,11 +47,11 @@ import {
 /** Stops a watch; calling it again does nothing. */
 export type StopWatching = () => void;
 
-/** Called with Studio's words when it refuses a watch, such as one a sandboxed view's grant does not cover. */
+/** Called with Studio's words when it refuses a watch, such as one of an input the view does not declare. */
 export type WhenStudioRefuses = (because: string) => void;
 
-/** What a view sends on an output: a `VideoFrame` or `ImageBitmap` for Image, which Studio then owns, or JSON. */
-export type ViewOutputPayload = JsonValue | ImageBitmap | VideoFrame;
+/** What a view sends on an output: a `VideoFrame` for Image, transferred so Studio then owns it, or JSON. */
+export type ViewOutputPayload = JsonValue | VideoFrame;
 
 /** How a graph transaction is sent: kept or live, and the key of the person's gesture it belongs to, `null` for none. */
 export interface GraphTransactionSending {
@@ -148,18 +148,7 @@ function isAVideoFrame(payload: unknown): payload is VideoFrame {
 }
 
 function picturesToTransferOf(payload: ViewOutputPayload): Transferable[] {
-  if (isAVideoFrame(payload)) return [payload];
-  if (typeof ImageBitmap !== "undefined" && payload instanceof ImageBitmap) return [payload];
-  return [];
-}
-
-type ImageBitmapEvent = Extract<Extract<ViewWatchedReading, { subject: "input" }>["reading"], { kind: "image_bitmap" }>;
-
-/** An Image frame that crossed as an `ImageBitmap`, made a `VideoFrame` again at its frame's timestamp. */
-function imageFrameOf(imageBitmapEvent: ImageBitmapEvent): Extract<PortViewerEvent, { kind: "image_frame" }> {
-  const videoFrame = new VideoFrame(imageBitmapEvent.image_bitmap, { timestamp: imageBitmapEvent.timestamp_microseconds });
-  imageBitmapEvent.image_bitmap.close();
-  return { kind: "image_frame", video_frame: videoFrame, format_wire_name: imageBitmapEvent.format_wire_name, skipped_since_last_read: imageBitmapEvent.skipped_since_last_read };
+  return isAVideoFrame(payload) ? [payload] : [];
 }
 
 function settingsOf(reading: JsonValue): ViewSettings {
@@ -262,9 +251,9 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       watchProjectTransactions: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>
         watchFor({ kind: "project_transactions", project_folder: projectFolder }, (watched) => watched.subject === "project_transactions" && listener(watched.reading), whenRefused),
       watchPortViewer: (target, onEvent, whenRefused = IGNORE_THE_REFUSAL) =>
-        watchFor({ kind: "port_viewer", target }, (watched) => watched.subject === "port_viewer" && onEvent(watched.reading.kind === "image_bitmap" ? imageFrameOf(watched.reading) : watched.reading), whenRefused),
+        watchFor({ kind: "port_viewer", target }, (watched) => watched.subject === "port_viewer" && onEvent(watched.reading), whenRefused),
       watchInput: (input, onEvent, whenRefused = IGNORE_THE_REFUSAL) =>
-        watchFor({ kind: "input", input }, (watched) => watched.subject === "input" && onEvent(watched.reading.kind === "image_bitmap" ? imageFrameOf(watched.reading) : watched.reading), whenRefused),
+        watchFor({ kind: "input", input }, (watched) => watched.subject === "input" && onEvent(watched.reading), whenRefused),
       watchSettings: (listener) => watchFor({ kind: "settings" }, (watched) => watched.subject === "settings" && listener(settingsOf(watched.reading)), IGNORE_THE_REFUSAL),
       watchOpenedOn: (listener) => watchFor({ kind: "opened_on" }, (watched) => watched.subject === "opened_on" && listener(watched.reading), IGNORE_THE_REFUSAL),
       watchHeaderRow: (listener) => watchFor({ kind: "header_row" }, (watched) => watched.subject === "header_row" && listener(watched.reading), IGNORE_THE_REFUSAL),
@@ -311,12 +300,7 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
           close: stopWatching,
         };
       },
-      sendOutput: async (output, payload) => {
-        if (!grant.sandboxed || !isAVideoFrame(payload)) return doneOf(await ask({ kind: "send_output", output }, payload));
-        const imageBitmap = await createImageBitmap(payload);
-        payload.close();
-        return doneOf(await ask({ kind: "send_output", output }, imageBitmap));
-      },
+      sendOutput: async (output, payload) => doneOf(await ask({ kind: "send_output", output }, payload)),
       close: () => {
         if (isClosed) return;
         isClosed = true;

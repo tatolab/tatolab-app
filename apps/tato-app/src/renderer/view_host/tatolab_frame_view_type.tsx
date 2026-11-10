@@ -1,7 +1,7 @@
 // A view made with the view SDK, drawn in a frame of its own so its styles and the window's never
-// mix, its one channel to Studio the MessagePort its bridge answers. A full-access view's frame is
-// on the window's origin; one that opts into the sandbox runs on an opaque origin with no Node, no
-// preload and only the permissions its manifest lists.
+// mix, its one channel to Studio the MessagePort its bridge answers. The frame is on the window's
+// origin and runs with full access, which is what lets an Image frame cross as a transferred
+// `VideoFrame` (`docs/views-full-access-and-zero-copy-frames.md`).
 
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { VIEW_PORT_HANDOVER, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
@@ -16,11 +16,8 @@ import type { RegisteredStudioViewType, StudioAreaOfTheView } from "./studio_vie
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 import { WatchedStudioValue } from "./watched_studio_value";
 
-/** The browser permissions a view's frame is allowed: every one for a full-access view, and only those a sandboxed view's manifest lists. */
-function framePermissionsOf(manifest: TatolabViewManifest): string {
-  const isGranted = (capability: "camera" | "microphone") => !manifest.sandbox || manifest.capabilities.includes(capability);
-  return [isGranted("camera") ? "camera" : null, isGranted("microphone") ? "microphone" : null].filter((permission) => permission !== null).join("; ");
-}
+/** The browser permissions every view's frame is allowed. */
+const VIEW_FRAME_PERMISSIONS = "camera; microphone";
 
 interface TatolabViewOfAnArea {
   listed: ListedStudioView;
@@ -72,8 +69,7 @@ function TatolabViewFrame({
     const bridge = new TatolabViewBridge(channel.port1, listed.view_type_id, manifest, hostServices, areaServices, inputWiringRef.current, viewNode);
     bridge.start();
     bridgeRef.current = bridge;
-    // A sandboxed frame without allow-same-origin has an opaque origin, which no target origin but "*" names.
-    frameWindow.postMessage({ kind: VIEW_PORT_HANDOVER }, manifest.sandbox ? "*" : entryUrl.origin, [channel.port2]);
+    frameWindow.postMessage({ kind: VIEW_PORT_HANDOVER }, entryUrl.origin, [channel.port2]);
   };
 
   return (
@@ -81,13 +77,11 @@ function TatolabViewFrame({
       ref={frameRef}
       title={manifest.title}
       src={entryUrl.href}
-      sandbox={manifest.sandbox ? "allow-scripts" : undefined}
-      allow={framePermissionsOf(manifest)}
+      allow={VIEW_FRAME_PERMISSIONS}
       referrerPolicy="no-referrer"
       className="size-full border-0 bg-studio-area"
       onLoad={handTheFrameItsPort}
       data-tatolab-view={listed.view_type_id}
-      data-tatolab-view-access={manifest.sandbox ? "sandboxed" : "full"}
     />
   );
 }

@@ -13,9 +13,6 @@ const STAGE_RIG_MANIFEST = {
   inputs: [{ name: "fixtures", family: "records", description: "Each fixture and where it hangs." }],
   outputs: [{ name: "master_intensity", family: "array", range: [0, 1] }],
   settings: { type: "object", properties: { show_beams: { type: "boolean", default: true } } },
-  capabilities: ["read.selection", "read.project_assets"],
-  network: ["fixtures.example.com", "localhost:8080"],
-  sandbox: true,
 };
 
 function becauseOf(manifestJson: unknown): string {
@@ -28,7 +25,7 @@ describe("readTatolabViewManifest", () => {
     expect(readTatolabViewManifest(STAGE_RIG_MANIFEST)).toEqual({ kind: "read", manifest: STAGE_RIG_MANIFEST });
   });
 
-  it("fills in what an area view leaves out: no ports, no files, full access, no capabilities or hosts", () => {
+  it("fills in what an area view leaves out: no ports and no files", () => {
     expect(readTatolabViewManifest({ contract: "1.0", title: "Notes", entry: "dist/index.html", placement: "area" })).toEqual({
       kind: "read",
       manifest: {
@@ -39,9 +36,6 @@ describe("readTatolabViewManifest", () => {
         inputs: [],
         outputs: [],
         accepts: { files: [] },
-        sandbox: false,
-        capabilities: [],
-        network: [],
       },
     });
   });
@@ -65,10 +59,10 @@ describe("readTatolabViewManifest", () => {
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, view_type_id: "acme:stage-rig" })).toContain('Unrecognized key: "view_type_id"');
   });
 
-  it("refuses a capability the contract does not have, and keeps one asked for twice once", () => {
-    expect(becauseOf({ ...STAGE_RIG_MANIFEST, capabilities: ["read.everything"] })).toContain("`capabilities[0]`:");
-    const reading = readTatolabViewManifest({ ...STAGE_RIG_MANIFEST, capabilities: ["gpu", "gpu"] });
-    expect(reading.kind === "read" ? reading.manifest.capabilities : null).toEqual(["gpu"]);
+  it("refuses a sandbox, capabilities or network hosts, since every view runs with full access", () => {
+    expect(becauseOf({ ...STAGE_RIG_MANIFEST, sandbox: true })).toBe('`tatolab_view.json`: Unrecognized key: "sandbox".');
+    expect(becauseOf({ ...STAGE_RIG_MANIFEST, capabilities: ["gpu"] })).toBe('`tatolab_view.json`: Unrecognized key: "capabilities".');
+    expect(becauseOf({ ...STAGE_RIG_MANIFEST, network: ["fixtures.example.com"] })).toBe('`tatolab_view.json`: Unrecognized key: "network".');
   });
 
   it("refuses a port of no known family, a name out of shape, a name given twice, or a range on a port that is not Array", () => {
@@ -86,18 +80,15 @@ describe("readTatolabViewManifest", () => {
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, placement: "dock" })).toContain("`placement`:");
   });
 
-  it("refuses a network host with a scheme or wildcard, and an extension without its dot", () => {
-    expect(becauseOf({ ...STAGE_RIG_MANIFEST, network: ["https://fixtures.example.com"] })).toContain("`network[0]`:");
-    expect(becauseOf({ ...STAGE_RIG_MANIFEST, network: ["*.example.com"] })).toContain("`network[0]`:");
+  it("refuses an extension without its dot", () => {
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, accepts: { files: ["glb"] } })).toBe('`accepts.files[0]`: an extension is lower case with its dot, as ".glb".');
   });
 
-  it("refuses settings whose properties give no default, and a sandbox that is not true or false", () => {
+  it("refuses settings whose properties give no default", () => {
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, settings: { type: "object", properties: { show_beams: { type: "boolean" } } } })).toContain("`settings.properties.show_beams.default`:");
     expect(
       becauseOf({ ...STAGE_RIG_MANIFEST, settings: { type: "object", properties: { show_beams: { type: "boolean", default: "yes" } } } }),
     ).toContain("`settings.properties.show_beams.default`: its default does not fit its own schema");
-    expect(becauseOf({ ...STAGE_RIG_MANIFEST, sandbox: "yes" })).toContain("`sandbox`:");
   });
 
   it("refuses a manifest that is not an object or has no title", () => {

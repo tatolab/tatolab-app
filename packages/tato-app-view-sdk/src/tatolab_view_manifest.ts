@@ -10,22 +10,6 @@ import { jsonValueSchema } from "./studio_readings.js";
 /** The view contract this SDK speaks; a manifest built for a later minor, or another major, is refused by name. */
 export const VIEW_CONTRACT_SERVED = { major: 1, minor: 0 } as const;
 
-/** Every part of the view contract a sandboxed view may ask for beyond what every view gets; a full-access view has them all. */
-export const VIEW_CAPABILITIES = [
-  "read.selection",
-  "write.selection",
-  "read.stream_graph",
-  "read.project_assets",
-  "write.project_assets",
-  "edit.stream_graph",
-  "gpu",
-  "camera",
-  "microphone",
-] as const;
-
-/** A part of the view contract a manifest asks for. */
-export type ViewCapability = (typeof VIEW_CAPABILITIES)[number];
-
 /** A path inside the view's own folder: relative, with no `..` step, no scheme and no backslash. */
 export function isAPathInsideTheViewsFolder(path: string): boolean {
   if (path === "" || path.startsWith("/") || path.includes("\\") || /^[a-z][a-z0-9+.-]*:/i.test(path)) return false;
@@ -73,9 +57,6 @@ function portsNamedOnce(ports: readonly ViewDeclaredPort[], context: z.Refinemen
 const declaredPortsSchema = z.array(viewDeclaredPortSchema).superRefine(portsNamedOnce);
 
 const fileExtensionSchema = z.string().regex(/^\.[a-z0-9]+$/, { message: 'an extension is lower case with its dot, as ".glb"' });
-
-const NETWORK_HOST_PATTERN = /^(?=.{1,253}(:|$))[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*(:[0-9]{1,5})?$/;
-const networkHostSchema = z.string().regex(NETWORK_HOST_PATTERN, { message: "a host is a lower-case name, with a port if it needs one, and no scheme or wildcard" });
 
 /** The JSON Schema of what a view's area remembers: an object whose every property gives its `default`. */
 export const viewSettingsDeclarationSchema = z
@@ -125,11 +106,6 @@ export const tatolabViewManifestSchema = z
     outputs: declaredPortsSchema.default([]),
     accepts: z.strictObject({ files: z.array(fileExtensionSchema).default([]) }).default({ files: [] }),
     settings: viewSettingsDeclarationSchema.optional(),
-    /** `true` runs the view on an opaque origin, served only its `capabilities` and `network`; left out, it runs with full access. */
-    sandbox: z.boolean().default(false),
-    capabilities: z.array(z.enum(VIEW_CAPABILITIES)).default([]),
-    /** The hosts a sandboxed view may reach, which become its frame's `connect-src`. */
-    network: z.array(networkHostSchema).default([]),
   })
   .superRefine((manifest, context) => {
     if (manifest.placement === "area" && (manifest.inputs.length > 0 || manifest.outputs.length > 0)) {
@@ -151,7 +127,7 @@ function fieldPathWords(path: readonly PropertyKey[]): string {
 /** `manifestJson`, a view's `tatolab_view.json` as parsed, read against the contract this SDK speaks. */
 export function readTatolabViewManifest(manifestJson: unknown): TatolabViewManifestReading {
   const parsed = tatolabViewManifestSchema.safeParse(manifestJson);
-  if (parsed.success) return { kind: "read", manifest: { ...parsed.data, capabilities: [...new Set(parsed.data.capabilities)] } };
+  if (parsed.success) return { kind: "read", manifest: parsed.data };
   const because = parsed.error.issues.map((issue) => `${fieldPathWords(issue.path)}: ${issue.message}.`).join(" ");
   return { kind: "not_read", because };
 }

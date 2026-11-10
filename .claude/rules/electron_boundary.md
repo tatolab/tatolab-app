@@ -23,8 +23,8 @@ paths:
   the local API only through the main process. Loosening any of these is a decision; state the
   reason in the PR.
 - **Views are the settled exception to the seal** (`docs/views-full-access-and-zero-copy-frames.md`).
-  A full-access view runs on the page's own origin in a frame of its own and may reach
-  `tatolabElectronBridge` through `window.parent`. The window's `frame-src` and
+  Every view runs with full access on the page's own origin, in a frame of its own, with no
+  sandbox, and may reach `tatolabElectronBridge` through `window.parent`. The window's `frame-src` and
   `isAViewPageTheWindowFrames` cover every folder Studio serves views from. None of this is a
   loosening to bring to the owner; sealing a view or copying its frames is.
 - **The fuses stay flipped.** `RunAsNode`, `EnableNodeOptionsEnvironmentVariable` and

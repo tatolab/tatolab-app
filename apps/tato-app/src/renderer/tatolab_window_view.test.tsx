@@ -187,7 +187,6 @@ describe("the studio", () => {
     expect(within(outlinerRow("imports")).getByRole("img", { name: "Read only" })).toBeTruthy();
 
     const outlinerFrame = document.querySelector<HTMLIFrameElement>('[data-studio-area="outliner"] iframe[data-tatolab-view="outliner"]') ?? expect.unreachable("no Outliner frame");
-    expect(outlinerFrame.getAttribute("data-tatolab-view-access")).toBe("full");
     expect(outlinerFrame.getAttribute("src")).toMatch(/\/core_views\/outliner\/index\.html$/);
   });
 
@@ -660,7 +659,6 @@ describe("the studio", () => {
       () => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-tatolab-view]') ?? expect.unreachable("no project view frame"),
     );
     expect(viewFrame.getAttribute("data-tatolab-view")).toBe("pattern:picture_and_fader");
-    expect(viewFrame.getAttribute("data-tatolab-view-access")).toBe("full");
     expect(viewFrame.hasAttribute("sandbox")).toBe(false);
     expect(viewFrame.getAttribute("allow")).toBe("camera; microphone");
     expect(viewFrame.getAttribute("src")).toMatch(/\/mock_studio_view\/picture_and_fader\/index\.html$/);

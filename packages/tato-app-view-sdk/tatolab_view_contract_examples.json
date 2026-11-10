@@ -25,10 +25,7 @@
         "settings": {
           "type": "object",
           "properties": { "show_beams": { "type": "boolean", "default": true } }
-        },
-        "capabilities": ["read.selection", "read.project_assets"],
-        "network": ["fixtures.example.com", "localhost:8080"],
-        "sandbox": true
+        }
       },
       "opens": true
     },
@@ -48,20 +45,16 @@
         "placement": "area",
         "inputs": [],
         "outputs": [],
-        "accepts": { "files": [] },
-        "sandbox": false,
-        "capabilities": [],
-        "network": []
+        "accepts": { "files": [] }
       }
     },
     {
-      "named": "a title with space around it, and a capability asked for twice",
+      "named": "a title with space around it",
       "manifest": {
         "contract": "1.0",
         "title": "  Deck ",
         "entry": "index.html",
-        "placement": "node",
-        "capabilities": ["gpu", "gpu"]
+        "placement": "node"
       },
       "opens": true,
       "reads_as": {
@@ -71,10 +64,7 @@
         "placement": "node",
         "inputs": [],
         "outputs": [],
-        "accepts": { "files": [] },
-        "sandbox": false,
-        "capabilities": ["gpu"],
-        "network": []
+        "accepts": { "files": [] }
       }
     },
     {
@@ -256,6 +246,42 @@
       "refused_at": "tatolab_view.json"
     },
     {
+      "named": "a sandbox, which no view declares: every view runs with full access",
+      "manifest": {
+        "contract": "1.0",
+        "title": "Deck",
+        "entry": "index.html",
+        "placement": "node",
+        "sandbox": true
+      },
+      "opens": false,
+      "refused_at": "tatolab_view.json"
+    },
+    {
+      "named": "capabilities, which no view declares: every view is served the whole contract",
+      "manifest": {
+        "contract": "1.0",
+        "title": "Deck",
+        "entry": "index.html",
+        "placement": "node",
+        "capabilities": ["gpu"]
+      },
+      "opens": false,
+      "refused_at": "tatolab_view.json"
+    },
+    {
+      "named": "network hosts, which no view declares: every view runs with full access",
+      "manifest": {
+        "contract": "1.0",
+        "title": "Deck",
+        "entry": "index.html",
+        "placement": "node",
+        "network": ["fixtures.example.com"]
+      },
+      "opens": false,
+      "refused_at": "tatolab_view.json"
+    },
+    {
       "named": "a manifest that is not an object",
       "manifest": [],
       "opens": false,
@@ -348,30 +374,6 @@
       "refused_at": "outputs[0].range"
     },
     {
-      "named": "a network host with a scheme",
-      "manifest": {
-        "contract": "1.0",
-        "title": "Scheme",
-        "entry": "index.html",
-        "placement": "area",
-        "network": ["https://fixtures.example.com"]
-      },
-      "opens": false,
-      "refused_at": "network[0]"
-    },
-    {
-      "named": "a network host with a wildcard",
-      "manifest": {
-        "contract": "1.0",
-        "title": "Wildcard",
-        "entry": "index.html",
-        "placement": "area",
-        "network": ["*.example.com"]
-      },
-      "opens": false,
-      "refused_at": "network[0]"
-    },
-    {
       "named": "an extension without its dot",
       "manifest": {
         "contract": "1.0",
@@ -382,18 +384,6 @@
       },
       "opens": false,
       "refused_at": "accepts.files[0]"
-    },
-    {
-      "named": "a capability the contract does not have",
-      "manifest": {
-        "contract": "1.0",
-        "title": "Everything",
-        "entry": "index.html",
-        "placement": "area",
-        "capabilities": ["read.everything"]
-      },
-      "opens": false,
-      "refused_at": "capabilities[0]"
     },
     {
       "named": "a setting that gives no default",
@@ -409,18 +399,6 @@
       },
       "opens": false,
       "refused_at": "settings.properties.show_beams.default"
-    },
-    {
-      "named": "a sandbox that is not true or false",
-      "manifest": {
-        "contract": "1.0",
-        "title": "Sandbox",
-        "entry": "index.html",
-        "placement": "area",
-        "sandbox": "yes"
-      },
-      "opens": false,
-      "refused_at": "sandbox"
     },
     {
       "named": "a description written as null",
