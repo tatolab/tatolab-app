@@ -39,6 +39,7 @@ import type {
   TatolabStatus,
   ProjectFileRead,
   ProjectFileSaved,
+  NodeFileCreated,
   ProjectFolderChosenFor,
   ProjectArchiveChosenToImport,
   ListedStudioView,
@@ -111,6 +112,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "open_import_to_edit",
   "read_project_file",
   "save_project_file",
+  "create_node_file",
   "list_project_files",
   "list_studio_views_of_the_open_project",
   "write_studio_view_output",
@@ -322,6 +324,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   read_project_file: { commandArguments: { file: string }; answer: ProjectFileRead };
   /** Written whole when the file on disk still has `based_on_version` (`null` for a new file), and only inside the open project's own folder; refused with nothing written otherwise. */
   save_project_file: { commandArguments: { file: string; text: string; based_on_version: string | null }; answer: ProjectFileSaved };
+  /** From a studio window only: a new Python node file at `file`, absolute, inside the open project's own folder, from the runtime's node template as one transaction; refused for an import's file, and in the runtime's own words. */
+  create_node_file: { commandArguments: { file: string }; answer: NodeFileCreated };
   /** `project_folder` the folder of the open project or of one of its imports. */
   list_project_files: { commandArguments: { project_folder: string }; answer: ProjectFiles };
   /** From a studio window only: the runtime's `list_project_views` of its open project, each view's folder served under the window page's scheme; refused while no project is open, and in the runtime's own words. */

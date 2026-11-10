@@ -71,7 +71,7 @@ export function mockStreamGraphSummary(
   const streamAsset = listing.location?.stream_asset ?? null;
   const servedPorts = (ports: StreamGraphDeclaredPort[]): StreamGraphDeclaredPort[] => (arePortFamiliesServed ? ports : ports.map((port) => ({ ...port, family: null })));
   const familyAsTheRuntimeRendersIt = (port: StreamGraphDeclaredPort) => (arePortFamiliesServed && port.family !== null ? { family: port.family } : {});
-  const nodeState = (state: string) => (moment.hasSettled ? state : "Pending");
+  const nodeState = (state: string | null) => (state === null ? null : moment.hasSettled ? state : "Pending");
   const linkState = (state: string) => (moment.hasSettled ? state : "pending");
   const climbed = (perSecond: number) => (moment.hasSettled ? Math.floor(perSecond * moment.secondsSinceSettled) : 0);
   const nodes: StreamGraphNode[] = graph.nodes.map((node) => ({
@@ -126,7 +126,7 @@ export function mockStreamGraphSummary(
           ...familyAsTheRuntimeRendersIt(port),
         })),
       },
-      components: {
+      components: node.state === null ? {} : {
         state: nodes[nodeIndex]?.state ?? null,
         failed_because: nodes[nodeIndex]?.failed_because ?? null,
         paused: false,

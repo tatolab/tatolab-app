@@ -10,7 +10,7 @@ import type { DependencySourceKind, PortViewerImageFrameFacts, StreamProjectFold
 import type { ProjectFolderDialogPurpose } from "./open_project.js";
 import type { AnswerAProjectViewFileRequest } from "./project_view_files.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
-import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
+import { FakeCarriedRuntimeStarts, FakeSystemMediaAccess, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import type { CarriedRuntime } from "./platform/carried_runtime.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { failedWith, succeeded } from "./result.js";
@@ -57,6 +57,7 @@ export type FakeShellRecord = (
   | { asked: "repeat_every"; intervalMs: number }
   | { asked: "set_application_menu"; applicationMenu: ApplicationMenu; menusOfTheFocusedWindow: readonly SystemMenuBarMenu[] | null }
   | { asked: "open_folder_in_the_file_manager"; folder: string }
+  | { asked: "open_web_page_in_the_browser"; webPageUrl: string }
   | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }
   | { asked: "ask_for_a_project_folder"; chosenFor: ProjectFolderDialogPurpose; defaultFolder: string }
   | { asked: "ask_for_a_dependency_source"; sourceKind: DependencySourceKind; defaultFolder: string }
@@ -89,6 +90,7 @@ export class FakeTatolabElectronAppShell {
   /** The runtime this build carries; `undefined` for the fake's own, `null` for a build that carries none. */
   carriedRuntime: CarriedRuntime | null | undefined = undefined;
   commandLineToolLink = new FakeTatolabCommandLineToolLink();
+  readonly systemMediaAccess = new FakeSystemMediaAccess();
   appUpdatePackaging: TatolabAppUpdatePackaging = { kind: "not_offered", reason: "this fake platform updates nothing" };
   appUpdateFeedForThisBuild: TatolabAppUpdateFeedForThisBuild = { kind: "not_offered", reason: "this fake platform updates nothing" };
   /** The folder the fake dialog answers with; `null` reads as the person cancelling it. */
@@ -126,8 +128,12 @@ export class FakeTatolabElectronAppShell {
   private readonly windowFocusedListeners: ((windowContentsId: number) => void)[] = [];
   private readonly windowClosedListeners: ((windowContentsId: number) => void)[] = [];
 
+  /** The notification whose click in Notification Center launched this fake app; `null` unless the test says. */
+  notificationThatLaunchedTheApp: string | null = null;
+
   /** The shell `startTatolabApp` takes. */
   readonly tatolabElectronAppShell: TatolabElectronAppShell = {
+    notificationThatLaunchedTheApp: () => this.notificationThatLaunchedTheApp,
     readThisCopyOfTatolab: async () => this.thisCopyOfTatolab,
     requestTheSingleInstanceLock: (thisCopy) => {
       this.singleInstanceLockAdditionalData.push(structuredClone(tatolabAppCopyOnTheSingleInstanceLock(thisCopy)));
@@ -151,6 +157,7 @@ export class FakeTatolabElectronAppShell {
         carriedRuntime: this.carriedRuntime,
         commandLineToolLink: this.commandLineToolLink,
         appUpdatePackaging: this.appUpdatePackaging,
+        systemMediaAccess: this.systemMediaAccess,
       }),
     startTheCarriedRuntime: (carriedRuntime, whenItExits) => this.carriedRuntimeStarts.startTheCarriedRuntime(carriedRuntime, whenItExits),
     answerTheWindowsCommands: (tatolabWindowCommandHandlers) => {
@@ -201,6 +208,10 @@ export class FakeTatolabElectronAppShell {
     },
     documentsDirectory: path.join(this.appConfigDirectory, "home", "Documents"),
     createTheAppUpdateFeed: () => this.appUpdateFeedForThisBuild,
+    openAWebPageInTheBrowser: (webPageUrl) => {
+      this.records.push({ asked: "open_web_page_in_the_browser", webPageUrl });
+      return Promise.resolve(succeeded(undefined));
+    },
     systemNotifications: this.systemNotifications,
     repeatingTimer: (intervalMs) => this.records.push({ asked: "repeat_every", intervalMs }),
     appConfigDirectory: this.appConfigDirectory,

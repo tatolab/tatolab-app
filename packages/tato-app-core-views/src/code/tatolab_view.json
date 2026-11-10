@@ -4,7 +4,7 @@
   "icon": "icon.svg",
   "entry": "index.html",
   "placement": "area",
-  "accepts": { "files": [".py", ".pyi", ".toml", ".ini", ".cfg", ".json", ".md", ".txt", ".yaml", ".yml"] },
+  "accepts": { "files": [".py", ".pyi", ".toml", ".ini", ".cfg", ".json", ".md", ".txt", ".yaml", ".yml", ".html", ".css", ".js", ".mjs", ".jsx", ".ts", ".tsx"] },
   "settings": {
     "type": "object",
     "properties": {

@@ -1428,6 +1428,36 @@ test("project files are listed, read whole as bytes, and written as one transact
   ]);
 });
 
+const RECORDED_S07_CODE = "/tmp/tatolab-proof-projects/s07-code";
+
+test("a new node file is created from the runtime's node template as one transaction by the author under a key, answering the node type it declares, a refusal in the runtime's own words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-node-file-tool-result-of-sam-creating-s07-code-nodes-invert-py.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-node-file-refusal-for-a-file-s07-code-already-holds.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-node-file-refusal-for-a-path-not-importable-as-a-python-module.json")),
+  ]);
+  const sam = { kind: "person", name: "Sam" } as const;
+
+  expect(answerOf(await server.client().createNodeFile(RECORDED_S07_CODE, "nodes/invert.py", sam, "create-1"))).toEqual({
+    path: "nodes/invert.py",
+    node_type: "nodes.invert:Invert",
+    transaction: "9c38b2ef-7d8b-4d89-b6fd-c226ca507521",
+    commit: "665925378946a3db63451a5eff799202db9bc04b",
+  });
+  expect(failureOf(await server.client().createNodeFile(RECORDED_S07_CODE, "nodes/invert.py", sam, "create-2"))).toMatchObject({
+    isTheRuntimesRefusal: true,
+    failureDescription: "create_node_file failed: the project already holds `nodes/invert.py`, and a new file is never written over it",
+  });
+  expect(failureOf(await server.client().createNodeFile(RECORDED_S07_CODE, "nodes/my-effect.py", sam, "create-3")).failureDescription).toBe(
+    "create_node_file failed: `nodes/my-effect.py` is not importable as a Python module: `my-effect` is not a Python identifier; use letters, digits and `_`, not starting with a digit",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["create_node_file", { project_directory: RECORDED_S07_CODE, path: "nodes/invert.py", author: sam, idempotency_key: "create-1" }],
+    ["create_node_file", { project_directory: RECORDED_S07_CODE, path: "nodes/invert.py", author: sam, idempotency_key: "create-2" }],
+    ["create_node_file", { project_directory: RECORDED_S07_CODE, path: "nodes/my-effect.py", author: sam, idempotency_key: "create-3" }],
+  ]);
+});
+
 test("undoing a save is the runtime's undo of the write_project_file transaction that recorded it", async () => {
   const server = await fakeLocalApiServerAnswering([
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-undo-tool-result-of-sam-undoing-their-save-of-night-show-nodes-camera-py.json")),

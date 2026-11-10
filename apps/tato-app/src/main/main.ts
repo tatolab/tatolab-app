@@ -31,6 +31,7 @@ import { startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded, tatolabWindowComm
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
+import { LastOpenedAppVersionFile, tellThePersonWhenAnUpdateLanded, updateReadyDialogOverTheWindowInFront, type TatolabAppUpdateDialogsSources } from "./tatolab_app_update_dialogs.js";
 import { HeldRememberedSwitch, RememberedSwitchFile } from "./remembered_switch_file.js";
 import { StreamFailureNotifications } from "./stream_failure_notifications.js";
 import { TatolabCommandLineToolVersionReadOncePerLaunch } from "./tatolab_command_line_tool_version.js";
@@ -65,6 +66,8 @@ const TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET = "Tato Studio has not reached the
 
 /** The Electron app as the lifecycle drives it. */
 export interface TatolabElectronAppShell {
+  /** The identifier of the notification whose click in Notification Center launched the app, once ready; `null` for any other launch. */
+  notificationThatLaunchedTheApp(): string | null;
   /** Which build this copy of the app is and the executable that opens it. */
   readThisCopyOfTatolab(): Promise<TatolabAppCopy>;
   /** Whether this is the one running app; a second launch gets false and hands `thisCopy` to the first. */
@@ -128,6 +131,8 @@ export interface TatolabElectronAppShell {
   answerProjectViewFileRequestsWith(answerAProjectViewFileRequest: AnswerAProjectViewFileRequest): void;
   /** The update feed `appUpdatePackaging` reads and takes from, or why this app cannot update itself. */
   createTheAppUpdateFeed(appUpdatePackaging: TatolabAppUpdatePackaging): TatolabAppUpdateFeedForThisBuild;
+  /** Open `webPageUrl` in the person's browser, as an update's release notes open. */
+  openAWebPageInTheBrowser(webPageUrl: string): Promise<Result<void, string>>;
   /** The desktop's notifications, which updates and failing streams are told through. */
   systemNotifications: SystemNotifications;
   /** The timer the daily update check repeats on. */
@@ -204,6 +209,11 @@ export async function startTatolabApp(
       const written = await controllerOnceBuilt.writeProjectFile(projectDirectory, filePath, text, author, idempotencyKey);
       return written.ok ? written : failedWith(written.failure.failureDescription);
     },
+    createNodeFile: async (projectDirectory, filePath, author, idempotencyKey) => {
+      if (controllerOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
+      const created = await controllerOnceBuilt.createNodeFile(projectDirectory, filePath, author, idempotencyKey);
+      return created.ok ? created : failedWith(created.failure.failureDescription);
+    },
   };
   let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
   let localApiSocketOnceKnown: string | null = null;
@@ -243,7 +253,10 @@ export async function startTatolabApp(
     sendTheWindowTheChosenEntry: (windowContentsId, entryId) => tatolabAppWindows.windowWithContents(windowContentsId)?.sendTheWindowTheChosenSystemMenuBarEntry(entryId),
   });
   systemMenuBar.showTheDefaultMenuBar();
-  tatolabElectronAppShell.onAWindowFocused((windowContentsId) => systemMenuBar.noticeTheWindowFocused(windowContentsId));
+  tatolabElectronAppShell.onAWindowFocused((windowContentsId) => {
+    systemMenuBar.noticeTheWindowFocused(windowContentsId);
+    tatolabAppWindows.noticeTheWindowFocused(windowContentsId);
+  });
   tatolabElectronAppShell.onAWindowClosed((windowContentsId) => systemMenuBar.forgetTheWindow(windowContentsId));
   tatolabElectronAppShell.onTheAppOpenedAgain((openedCopy) => {
     if (openedCopy !== null && isAnotherBuildOfTatolab(thisCopyOfTatolab, openedCopy)) {
@@ -269,12 +282,18 @@ export async function startTatolabApp(
   const platformForThisBuild = await tatolabElectronAppShell.buildTheTatolabPlatformForThisBuild(platformItems);
   localApiSocketOnceKnown = platformForThisBuild.localApiSocket;
   let statusPublisherOnceBuilt: TatolabStatusPublisher | null = null;
+  const tatolabAppUpdateDialogsSources: TatolabAppUpdateDialogsSources = {
+    askAQuestionOverTheWindowInFront: (question) => tatolabAppWindows.askAQuestionOverTheWindowInFront(question),
+    openAWebPageInTheBrowser: (webPageUrl) => tatolabElectronAppShell.openAWebPageInTheBrowser(webPageUrl),
+    tatolabAppLog,
+  };
   const tatolabAppUpdater = new TatolabAppUpdater(
     tatolabElectronAppShell.createTheAppUpdateFeed(platformForThisBuild.appUpdatePackaging),
     tatolabAppUpdateNotifierOver(tatolabElectronAppShell.systemNotifications, () => {
       tatolabAppWindows.showTheProjectsWindow();
       statusPublisherOnceBuilt?.sendTheLastPublishedStatusToTheWindow();
     }),
+    updateReadyDialogOverTheWindowInFront(tatolabAppUpdateDialogsSources),
     () => statusPublisherOnceBuilt?.requestRefresh(),
     tatolabAppLog,
   );
@@ -403,6 +422,13 @@ export async function startTatolabApp(
     systemMediaAccessAskedAheadForViews: new SystemMediaAccessAskedAheadForViews(platformForThisBuild.systemMediaAccess, tatolabElectronAppShell.systemNotifications),
     tatolabAppLog,
   };
+  const answerAClickOnAnEarlierRunsNotification = (notificationIdentifier: string) =>
+    sharedState.systemMediaAccessAskedAheadForViews.answerAClickOnAnEarlierRunsNotification(notificationIdentifier).catch((unexpectedFailure: unknown) => {
+      tatolabAppLog.error("answering a click on an earlier run's notification ended without finishing", { failure: describeCaughtFailure(unexpectedFailure) });
+    });
+  const launchingNotificationIdentifier = tatolabElectronAppShell.notificationThatLaunchedTheApp();
+  if (launchingNotificationIdentifier !== null) void answerAClickOnAnEarlierRunsNotification(launchingNotificationIdentifier);
+  tatolabElectronAppShell.systemNotifications.whenAnEarlierRunsNotificationIsClicked((notificationIdentifier) => void answerAClickOnAnEarlierRunsNotification(notificationIdentifier));
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.stopWatchingEveryProject());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.pythonLanguageServers.stopEveryLanguageServer());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.runtimePortViewers.closeEveryPortViewer());
@@ -435,6 +461,13 @@ export async function startTatolabApp(
   const tatolabTrayMenu = TatolabTrayMenu.build(tatolabElectronAppShell.trayIconHostFactory, platformItems.trayIconImage, onTrayMenuChoice);
   statusPublisher.attachTrayMenu(tatolabTrayMenu);
   showTheWindowWithTheLastStatus();
+  if (tatolabAppUpdater.state().kind !== "not_offered") {
+    tellThePersonWhenAnUpdateLanded(
+    thisCopyOfTatolab.appVersion,
+    LastOpenedAppVersionFile.inAppConfigDirectory(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
+    tatolabAppUpdateDialogsSources,
+    ).catch((unexpectedFailure: unknown) => tatolabAppLog.error("the update-landed dialog ended on a failure nothing expected", { failure: describeCaughtFailure(unexpectedFailure) }));
+  }
   runInTheBackgroundWithTheController(sharedState, "tatolab-app-opened", async (controller, statusPublisher) => {
     statusPublisher.startPolling();
     tatolabAppUpdater.startCheckingOnItsOwn(tatolabElectronAppShell.repeatingTimer);

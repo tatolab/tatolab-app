@@ -1,15 +1,14 @@
-// The open streams' tabs as the window draws them: each marked while the runtime lists its stream running, and the
-// open project's other streams that the + after the tabs offers to open.
+// The open streams' tabs as the window draws them, and the open project's other streams that the + after the tabs
+// offers to open.
 
 import type { DocumentTab } from "@tatolab/tato-app-view-sdk/design_system/document_tabs";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import type { OpenStreamTabs } from "../studio_shell/studio_window_model";
 import type { ListedStreamsReading } from "../view_host/studio_view_contract";
 
-/** Each open tab as the strip draws it, running while the runtime lists its stream `running`. */
-export function streamTabsDrawnInTheStrip(openStreamTabs: OpenStreamTabs, listedStreams: ListedStreamsReading): DocumentTab[] {
-  const runningStreams = new Set(listedStreams.kind === "listed" ? listedStreams.streams.filter((stream) => stream.state === "running").map((stream) => stream.stream) : []);
-  return openStreamTabs.tabs.map((tab) => ({ tab_id: tab.stream, name: tab.display_name, is_running: runningStreams.has(tab.stream) }));
+/** Each open tab as the strip draws it: the stream's name. */
+export function streamTabsDrawnInTheStrip(openStreamTabs: OpenStreamTabs): DocumentTab[] {
+  return openStreamTabs.tabs.map((tab) => ({ tab_id: tab.stream, name: tab.display_name }));
 }
 
 /** The streams of the project in `projectFolder` the runtime lists that no tab shows yet, in the order it lists them, or why there are none to offer. */

@@ -66,6 +66,15 @@ class FakeProjectFilesOfTheRuntime implements ProjectFilesOfTheRuntime {
     this.filesByPath.set(filePath, Buffer.from(text));
     return succeeded({ path: filePath, transaction: "a1b2c3d4-0000-4000-8000-000000000001", commit: "4f102d0624025485316c83cd6d759672c34fb18a" });
   };
+
+  readonly nodeFileCreationsAsked: Omit<WriteTheRuntimeWasAsked, "text">[] = [];
+
+  createNodeFile: ProjectFilesOfTheRuntime["createNodeFile"] = async (projectDirectory, filePath, author, idempotencyKey) => {
+    this.nodeFileCreationsAsked.push({ project_directory: projectDirectory, path: filePath, author, idempotency_key: idempotencyKey });
+    if (this.filesByPath.has(filePath)) return failedWith(`create_node_file failed: the project already holds \`${filePath}\`, and a new file is never written over it`);
+    this.filesByPath.set(filePath, Buffer.from("class Invert: ...\n"));
+    return succeeded({ path: filePath, node_type: "nodes.invert:Invert", transaction: "a1b2c3d4-0000-4000-8000-000000000002", commit: "5a213e0735136596427d94de6e86a783d45fc29b" });
+  };
 }
 
 function openProjectFilesOverTheFakeRuntime() {
@@ -176,16 +185,16 @@ test("a refused write is answered in the runtime's own words", async () => {
   });
 });
 
-test("the open project's files list its Python files and pyproject.toml, leaving its imports out, and an import's list its own", async () => {
+test("the open project's files list every file the runtime lists, leaving its imports out, and an import's list its own", async () => {
   const { openProjectFiles } = openProjectFilesOverTheFakeRuntime();
 
   expect(await openProjectFiles.listProjectFiles(PROJECT_FOLDER)).toEqual({
     ok: true,
-    value: { project_folder: PROJECT_FOLDER, files: ["nodes/aurora_field.py", "pyproject.toml", "stream.py"] },
+    value: { project_folder: PROJECT_FOLDER, files: ["nodes/aurora_field.py", "pyproject.toml", "README.md", "stream.py", "views/deck/icon.png"] },
   });
   expect(await openProjectFiles.listProjectFiles(IMPORT_FOLDER)).toEqual({
     ok: true,
-    value: { project_folder: IMPORT_FOLDER, files: ["pyproject.toml", "stream.py"] },
+    value: { project_folder: IMPORT_FOLDER, files: ["pyproject.toml", "stream.py", "tatolab-project.json"] },
   });
   expect(await openProjectFiles.listProjectFiles("/etc")).toEqual({ ok: false, failure: "/etc is not the folder of the open project or of one of its imports." });
 });
@@ -198,4 +207,28 @@ test("a new file saves into a folder the project does not hold yet, and saving w
   expect(await openProjectFiles.saveProjectFile(`${PROJECT_FOLDER}/effects/glow/glow.py`, "class Glow: ...\n", null)).toEqual({ ok: true, value: { version: projectFileVersionOf("class Glow: ...\n") } });
   expect(await openProjectFiles.saveProjectFile(streamPy, heldText, projectFileVersionOf(heldText))).toEqual({ ok: true, value: { version: projectFileVersionOf(heldText) } });
   expect(projectFilesOfTheRuntime.writesAsked.map((writeAsked) => writeAsked.path)).toEqual(["effects/glow/glow.py"]);
+});
+
+test("a new node file is one create_node_file by the person with a fresh key, answering the file and the node type it declares", async () => {
+  const { projectFilesOfTheRuntime, openProjectFiles } = openProjectFilesOverTheFakeRuntime();
+  const invertPy = `${PROJECT_FOLDER}/nodes/invert.py`;
+
+  expect(await openProjectFiles.createNodeFile(invertPy)).toEqual({ ok: true, value: { file: invertPy, node_type: "nodes.invert:Invert" } });
+  expect(projectFilesOfTheRuntime.nodeFileCreationsAsked).toEqual([{ project_directory: PROJECT_FOLDER, path: "nodes/invert.py", author: SAM, idempotency_key: "save-1" }]);
+  expect(await openProjectFiles.createNodeFile(invertPy)).toEqual({
+    ok: false,
+    failure: "create_node_file failed: the project already holds `nodes/invert.py`, and a new file is never written over it",
+  });
+});
+
+test("a new node file in an import or outside the open project is refused before the runtime is asked", async () => {
+  const { projectFilesOfTheRuntime, openProjectFiles } = openProjectFilesOverTheFakeRuntime();
+
+  expect(await openProjectFiles.createNodeFile(`${IMPORT_FOLDER}/nodes/invert.py`)).toEqual({
+    ok: false,
+    failure: `${IMPORT_FOLDER}/nodes/invert.py belongs to an imported project, which the studio opens read-only.`,
+  });
+  const outside = await openProjectFiles.createNodeFile("/etc/invert.py");
+  expect(outside.ok ? "created" : outside.failure).toContain("is not a file of the open project or its imports");
+  expect(projectFilesOfTheRuntime.nodeFileCreationsAsked).toEqual([]);
 });
