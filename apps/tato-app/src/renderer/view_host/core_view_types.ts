@@ -41,7 +41,7 @@ export function coreViewTypesOf(coreViews: readonly CoreView[], folderUrlOf: (fo
       notOpened.push({ view_type_id: coreView.folder, title: titleTheManifestNames(manifestJson, coreView.folder), brought_by: { kind: "tato_studio" }, because: manifestReading.because });
       continue;
     }
-    const listed: ListedStudioView = { view_type_id: coreView.folder, project_name: "Tato Studio", import_folder: null, opens: true, not_opened_because: null, manifest_json: manifestJson, folder_url: folderUrlOf(coreView.folder) };
+    const listed: ListedStudioView = { view_type_id: coreView.folder, project_name: "Tato Studio", import_folder: null, project_folder: null, opens: true, not_opened_because: null, manifest_json: manifestJson, folder_url: folderUrlOf(coreView.folder) };
     viewTypesByFolder.set(coreView.folder, tatolabFrameViewType(listed, manifestReading.manifest, { kind: "tato_studio" }));
   }
   return { view_types_by_folder: viewTypesByFolder, not_opened: notOpened };

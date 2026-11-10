@@ -11,7 +11,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { WatchedStudioValue } from "./watched_studio_value";
 import type {
   JsonValue,
-  OpenProjectReading,
   PortViewerConnectionEvent,
   PortViewerTarget,
   ProjectFileRead,
@@ -29,7 +28,7 @@ import type {
   ViewOpeningTarget,
 } from "./studio_view_contract";
 import type { StudioViewInputWiring } from "./studio_view_node_wiring";
-import { folderOfTheProjectBringingTheView, hostServicesHoldingFilesToTheViewsProject } from "./studio_view_project_file_scope";
+import { hostServicesHeldToTheViewsProject } from "./studio_view_project_file_scope";
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 
 function manifestOf(manifestJson: unknown): TatolabViewManifest {
@@ -576,31 +575,29 @@ describe("a view's connection to Studio, through the one bridge every view is se
   });
 });
 
-describe("a view's project file asks", () => {
-  it("reach only the folder of the project bringing the view, an import's view never its importer's files", async () => {
-    const { hostServices } = recordingHostServices();
-    const ownViewsServices = hostServicesHoldingFilesToTheViewsProject(hostServices, "DJ Deck", () => "/set");
-    const importsViewServices = hostServicesHoldingFilesToTheViewsProject(hostServices, "Meter", () => "/set/imports/lobby-wall");
+describe("a project view's asks of a project", () => {
+  it("reach only the folder of the project bringing the view, an import's view never its importer's files, history, graph or language server", async () => {
+    const { hostServices, undosAsked, languageServers } = recordingHostServices();
+    const ownViewsServices = hostServicesHeldToTheViewsProject(hostServices, "DJ Deck", "/set");
+    const importsViewServices = hostServicesHeldToTheViewsProject(hostServices, "Meter", "/set/imports/lobby-wall");
+    const outsideMeter = (fileOrFolder: string) => `Meter reaches only its own project, in /set/imports/lobby-wall; ${fileOrFolder} is outside it.`;
 
     expect(await ownViewsServices.readProjectFile("/set/stream.py")).toEqual({ kind: "read", file_read: STREAM_FILE_READ });
-    expect(await importsViewServices.readProjectFile("/set/stream.py")).toEqual({ kind: "not_read", because: "Meter reads and writes only its own project's files, in /set/imports/lobby-wall; /set/stream.py is outside it." });
-    expect(await importsViewServices.saveProjectFile("/set/stream.py", "print('hi')", "v1")).toEqual({
-      kind: "not_saved",
-      because: "Meter reads and writes only its own project's files, in /set/imports/lobby-wall; /set/stream.py is outside it.",
-    });
-    expect(await importsViewServices.listProjectFiles("/set")).toEqual({ kind: "not_listed", because: "Meter reads and writes only its own project's files, in /set/imports/lobby-wall; /set is outside it." });
+    expect(await importsViewServices.readProjectFile("/set/stream.py")).toEqual({ kind: "not_read", because: outsideMeter("/set/stream.py") });
+    expect(await importsViewServices.saveProjectFile("/set/stream.py", "print('hi')", "v1")).toEqual({ kind: "not_saved", because: outsideMeter("/set/stream.py") });
+    expect(await importsViewServices.listProjectFiles("/set")).toEqual({ kind: "not_listed", because: outsideMeter("/set") });
+    expect(await importsViewServices.undoInTheProject("/set", { kind: "person", name: "sam" })).toEqual({ kind: "not_applied", because: outsideMeter("/set") });
+    expect(await importsViewServices.transactInTheProject("/set", [], "commit", null)).toEqual({ kind: "not_sent", because: outsideMeter("/set") });
+    const transactionsRead: ProjectTransactionsReading[] = [];
+    importsViewServices.watchProjectTransactions("/set", (reading) => transactionsRead.push(reading));
+    expect(transactionsRead).toEqual([{ kind: "not_read", because: outsideMeter("/set") }]);
+    const languageServerEvents: PythonLanguageServerConnectionEvent[] = [];
+    importsViewServices.connectToPythonLanguageServer("/set", (event) => languageServerEvents.push(event));
+    expect(languageServerEvents).toEqual([{ kind: "ended", because: outsideMeter("/set") }]);
+    expect(undosAsked).toEqual([]);
+    expect(languageServers).toEqual([]);
+
     expect((await ownViewsServices.readProjectFile("/set/imports/../../etc/passwd")).kind).toBe("not_read");
     expect((await ownViewsServices.readProjectFile("/settings/stream.py")).kind).toBe("not_read");
-    expect(await hostServicesHoldingFilesToTheViewsProject(hostServices, "DJ Deck", () => null).readProjectFile("/set/stream.py")).toEqual({
-      kind: "not_read",
-      because: "DJ Deck reads project files only while its project is open.",
-    });
-  });
-
-  it("name the open project's folder for its own view, and the import's folder under imports/ for an import's", () => {
-    const openSet: OpenProjectReading = { kind: "read", open_project: { project: { name: "set", folder: "/set", project: "6f1c2a52-0000-4000-8000-000000000001" }, imports: [], imports_not_listed_because: null } };
-    expect(folderOfTheProjectBringingTheView(openSet, null)).toBe("/set");
-    expect(folderOfTheProjectBringingTheView(openSet, "lobby-wall")).toBe("/set/imports/lobby-wall");
-    expect(folderOfTheProjectBringingTheView({ kind: "none_open" }, null)).toBeNull();
   });
 });

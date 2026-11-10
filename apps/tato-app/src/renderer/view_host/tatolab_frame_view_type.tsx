@@ -13,7 +13,7 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostServices, StudioViewNodeAddress, StudioViewTypeSource } from "./studio_view_contract";
 import { nodesOfTheStudioViewType, studioViewInputWiring, type StudioViewInputWiring } from "./studio_view_node_wiring";
 import type { RegisteredStudioViewType, StudioAreaOfTheView } from "./studio_view_type_registry";
-import { folderOfTheProjectBringingTheView, hostServicesHoldingFilesToTheViewsProject } from "./studio_view_project_file_scope";
+import { hostServicesHeldToTheViewsProject } from "./studio_view_project_file_scope";
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 import { WatchedStudioValue } from "./watched_studio_value";
 
@@ -64,9 +64,6 @@ function TatolabViewFrame({
     bridgeRef.current?.rewireInputs(inputWiringRef.current);
   }, [inputWiringAsJson]);
 
-  const openProject = useViewReading(hostServices.watchOpenProject);
-  const viewsProjectFolderRef = useRef<string | null>(null);
-  viewsProjectFolderRef.current = folderOfTheProjectBringingTheView(openProject, listed.import_folder);
   const entryUrl = new URL(manifest.entry, listed.folder_url);
   const handTheFrameItsPort = () => {
     const frameWindow = frameRef.current?.contentWindow;
@@ -78,7 +75,7 @@ function TatolabViewFrame({
       watchHeaderRow: area.header_row.watch,
     };
     const channel = new MessageChannel();
-    const hostServicesOfTheView = hostServicesHoldingFilesToTheViewsProject(hostServices, manifest.title, () => viewsProjectFolderRef.current);
+    const hostServicesOfTheView = listed.project_folder === null ? hostServices : hostServicesHeldToTheViewsProject(hostServices, manifest.title, listed.project_folder);
     const bridge = new TatolabViewBridge(
       channel.port1,
       listed.view_type_id,
@@ -107,6 +104,7 @@ function TatolabViewFrame({
       onLoad={handTheFrameItsPort}
       data-tatolab-view={listed.view_type_id}
       data-tatolab-view-access={manifest.sandbox ? "sandboxed" : "full"}
+      data-tatolab-view-on-the-windows-origin={picturesCrossTheFrameAs(entryUrl, manifest) === "video_frame" ? "" : undefined}
     />
   );
 }

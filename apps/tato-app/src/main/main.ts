@@ -45,7 +45,7 @@ import { ProjectOpening, type FolderEntriesWatch, type ProjectArchiveDialog, typ
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { localApiRequestFailure } from "./local_api_client.js";
-import { answerAProjectViewFileRequest, type AnswerAProjectViewFileRequest } from "./project_view_files.js";
+import { answerAProjectViewFileRequest, ProjectViewsListedToTheWindows, type AnswerAProjectViewFileRequest } from "./project_view_files.js";
 import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
@@ -326,9 +326,11 @@ export async function startTatolabApp(
     const runtimeStopped = stopTheRuntimeWithinTheQuitWaitLimit(() => controller.stopTheRuntimeAsTheAppQuits(), tatolabAppLog);
     return aRuntimeTheAppStartedIsRunning ? runtimeStopped : null;
   });
+  const projectViewsListed = new ProjectViewsListedToTheWindows();
   tatolabElectronAppShell.answerProjectViewFileRequestsWith((requestUrl) =>
     answerAProjectViewFileRequest(requestUrl, {
       aStudioWindowHoldsTheProjectIn: (projectFolder) => tatolabAppWindows.aStudioWindowHoldsTheProjectIn(projectFolder),
+      projectViewsListed,
       readProjectFile: projectFilesOfTheRuntime.readProjectFile,
     }),
   );
@@ -395,6 +397,7 @@ export async function startTatolabApp(
     moduleDownloadsFolder: path.join(tatolabElectronAppShell.appConfigDirectory, MODULE_DOWNLOADS_FOLDER_NAME),
     dependencySourceDialog: tatolabElectronAppShell.askThePersonForADependencySource,
     thePersonEditingInStudio: tatolabElectronAppShell.thePersonSignedInToThisComputer,
+    projectViewsListed,
     tatolabAppLog,
   };
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.stopWatchingEveryProject());

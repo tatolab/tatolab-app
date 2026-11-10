@@ -12,12 +12,13 @@ const THIS_MODULES_URL = import.meta.url;
 export const MOCK_STUDIO_VIEW_TYPE_ID = "pattern:picture_and_fader";
 
 /** The fixture view as the backend lists it, its folder served beside this module. */
-export function mockStudioViewListing(): ListedStudioView {
+export function mockStudioViewListing(patternProjectFolder: string): ListedStudioView {
   const manifestJson: JsonValue = JSON.parse(pictureAndFaderManifestText);
   return {
     view_type_id: MOCK_STUDIO_VIEW_TYPE_ID,
     project_name: "pattern",
     import_folder: null,
+    project_folder: patternProjectFolder,
     opens: true,
     not_opened_because: null,
     manifest_json: manifestJson,
@@ -26,11 +27,12 @@ export function mockStudioViewListing(): ListedStudioView {
 }
 
 /** A view the mock project's import `lobby-wall` brings that does not open, as the runtime lists one built for a view contract it does not read. */
-export function mockStudioViewListingThatDoesNotOpen(): ListedStudioView {
+export function mockStudioViewListingThatDoesNotOpen(patternProjectFolder: string): ListedStudioView {
   return {
     view_type_id: "lobby-wall:stage_rig",
     project_name: "lobby-wall",
     import_folder: "lobby-wall",
+    project_folder: `${patternProjectFolder}/imports/lobby-wall`,
     opens: false,
     not_opened_because: "`contract`: this runtime reads view contract 1.0.",
     manifest_json: { contract: "2.0", title: "Stage rig", placement: "area", entry: "index.html" },

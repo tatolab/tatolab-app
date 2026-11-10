@@ -131,13 +131,13 @@ export type ViewAsk = z.infer<typeof viewAskSchema>;
 export const messageFromTheViewSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("watch"), watch_id: watchOrAskIdSchema, subject: viewWatchedSubjectSchema }),
   z.object({ kind: z.literal("stop_watching"), watch_id: watchOrAskIdSchema }),
-  /** `payload`, beside a `send_output` ask: a `VideoFrame` from a full-access view or an `ImageBitmap` for Image, which Studio then owns, or JSON. */
+  /** `payload`, beside a `send_output` ask: for Image, a `VideoFrame` or an `ImageBitmap` as the grant's `pictures_cross_as` says, which Studio then owns; otherwise JSON. */
   z.object({ kind: z.literal("ask"), ask_id: watchOrAskIdSchema, ask: viewAskSchema, payload: z.unknown().optional() }),
 ]);
 /** One message a view sends Studio. */
 export type MessageFromTheView = z.infer<typeof messageFromTheViewSchema>;
 
-/** What an input or a port viewer delivers to a sandboxed view: an Image frame as a transferred `ImageBitmap` with its frame's timestamp, which the SDK makes a `VideoFrame` again inside the view. */
+/** What an input or a port viewer delivers to a view whose grant says `pictures_cross_as: image_bitmap`: an Image frame as a transferred `ImageBitmap` with its frame's timestamp, which the SDK makes a `VideoFrame` again inside the view. */
 export const imageBitmapEventSchema = z.object({
   kind: z.literal("image_bitmap"),
   image_bitmap: z.custom<ImageBitmap>((value) => typeof ImageBitmap !== "undefined" && value instanceof ImageBitmap, "an Image frame is an ImageBitmap"),

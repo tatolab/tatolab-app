@@ -53,6 +53,17 @@ export function isAViewPageTheWindowFrames(windowPageUrl: string, frameUrl: stri
   return isOnTheWindowPagesOwnLocation(windowPageUrl, frameUrl) && new URL(frameUrl).pathname.startsWith(CORE_VIEW_PAGES_PATH);
 }
 
+/**
+ * Whether a frame of the window showing `frameUrlNow` may go to `frameUrl`: to a page the window frames, and a project
+ * view's frame only within the origin it was framed on, unless the window page itself sends it elsewhere. A view that
+ * moved its own frame to another view's origin would be handed the port its frame was given.
+ */
+export function isAFrameNavigationTheWindowAllows(windowPageUrl: string, frameUrlNow: string, frameUrl: string, isSentByTheWindowPage: boolean): boolean {
+  if (!isAViewPageTheWindowFrames(windowPageUrl, frameUrl)) return false;
+  if (isSentByTheWindowPage || !isAProjectViewFileUrl(frameUrlNow)) return true;
+  return isAProjectViewFileUrl(frameUrl) && new URL(frameUrlNow).host === new URL(frameUrl).host;
+}
+
 /** Whether a command came from the window's own page at `windowPageUrl`: its top frame, on the page's own location, rather than a frame it embeds, a frame already gone, or a page it navigated to. */
 export function isACommandFromTheWindowsOwnPage(windowPageUrl: string, senderFrameUrl: string | null, senderIsTheTopFrame: boolean): boolean {
   return senderFrameUrl !== null && senderIsTheTopFrame && isOnTheWindowPagesOwnLocation(windowPageUrl, senderFrameUrl);

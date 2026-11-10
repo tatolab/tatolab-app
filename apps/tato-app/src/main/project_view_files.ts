@@ -19,7 +19,7 @@ const VIEW_FOLDER_IN_A_PROJECT = /^(?:views\/[^/]+|imports\/[^/]+\/views\/[^/]+)
 const PROJECT_VIEW_ORIGIN_HOST_LENGTH = 32;
 
 /** Where a view's page may connect when its manifest does not read: its own origin alone. */
-const CONNECT_SOURCES_OF_A_VIEW_WHOSE_MANIFEST_DOES_NOT_READ: readonly string[] = [];
+const CONNECT_SOURCES_OF_THE_VIEWS_OWN_ORIGIN_ALONE: readonly string[] = [];
 
 /** Where a full-access view's page may connect: anywhere on the network, the same trust its project's nodes have. */
 const CONNECT_SOURCES_OF_A_FULL_ACCESS_VIEW: readonly string[] = ["*"];
@@ -48,7 +48,7 @@ export function projectViewContentSecurityPolicy(connectSources: readonly string
 /** Where the view whose `tatolab_view.json` reads `manifestJson` may connect: anywhere with full access, only the `network` hosts it lists when sandboxed, its own origin alone when it does not read. */
 export function connectSourcesOfTheViewsManifest(manifestJson: unknown): readonly string[] {
   const manifestReading = readTatolabViewManifest(manifestJson);
-  if (manifestReading.kind === "not_read") return CONNECT_SOURCES_OF_A_VIEW_WHOSE_MANIFEST_DOES_NOT_READ;
+  if (manifestReading.kind === "not_read") return CONNECT_SOURCES_OF_THE_VIEWS_OWN_ORIGIN_ALONE;
   if (!manifestReading.manifest.sandbox) return CONNECT_SOURCES_OF_A_FULL_ACCESS_VIEW;
   return manifestReading.manifest.network.flatMap((networkHost) => [`https://${networkHost}`, `wss://${networkHost}`]);
 }
@@ -135,46 +135,52 @@ export type ProjectViewFileAnswer =
   | { kind: "served"; content_type: string; content_security_policy: string; file_bytes: Buffer }
   | { kind: "not_served"; status: 403 | 404; because: string };
 
-/** A view's manifest, beside its files: the file the view contract names. */
-const VIEW_MANIFEST_FILE_NAME = "tatolab_view.json";
-
-/** Content types the content security policy is enforced on, a page or a worker's script, for which the view's manifest is read. */
-const CONTENT_TYPES_A_POLICY_GOVERNS: ReadonlySet<string> = new Set(["text/html; charset=utf-8", "text/javascript; charset=utf-8"]);
-
 /** How the running app answers a request for a project view's file. */
 export type AnswerAProjectViewFileRequest = (requestUrl: string) => Promise<ProjectViewFileAnswer>;
 
-/** What a project view's file is served from: whether a studio window holds the project open, and the runtime's `read_project_file`. */
+/** The views each studio window's view-type menu last listed, by project and view folder, each with where its page may connect as its manifest read then: the only folders served, under the policy that one reading calls for. */
+export class ProjectViewsListedToTheWindows {
+  private readonly connectSourcesByOpenProjectFolder = new Map<string, ReadonlyMap<string, readonly string[]>>();
+
+  /** Keep the views that open in `listedViews`, the listing of the project in `openProjectFolder`, in place of its last listing. */
+  rememberTheListing(openProjectFolder: string, listedViews: readonly { view_folder_in_the_project: string; opens: boolean; manifest: unknown }[]): void {
+    const connectSourcesByViewFolder = new Map<string, readonly string[]>();
+    for (const listedView of listedViews) {
+      if (listedView.opens) connectSourcesByViewFolder.set(listedView.view_folder_in_the_project, connectSourcesOfTheViewsManifest(listedView.manifest));
+    }
+    this.connectSourcesByOpenProjectFolder.set(openProjectFolder, connectSourcesByViewFolder);
+  }
+
+  /** Where the view in `viewFolderInTheProject` of the project in `openProjectFolder` may connect, as last listed; `null` when no listing holds it. */
+  connectSourcesOf(openProjectFolder: string, viewFolderInTheProject: string): readonly string[] | null {
+    return this.connectSourcesByOpenProjectFolder.get(openProjectFolder)?.get(viewFolderInTheProject) ?? null;
+  }
+}
+
+/** What a project view's file is served from: whether a studio window holds the project open, where each listed view may connect, and the runtime's `read_project_file`. */
 export interface ProjectViewFilesSources {
   aStudioWindowHoldsTheProjectIn(projectFolder: string): boolean;
+  projectViewsListed: ProjectViewsListedToTheWindows;
   readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, string>>;
 }
 
-/** The answer to `requestUrl`: a project view's file read through the runtime, only for a project a studio window holds open. */
+/** The answer to `requestUrl`: a file of a view a studio window listed, read through the runtime, under the policy its listed manifest calls for; only for a project a studio window holds open. */
 export async function answerAProjectViewFileRequest(requestUrl: string, sources: ProjectViewFilesSources): Promise<ProjectViewFileAnswer> {
   const fileAsked = projectViewFileOfTheRequest(requestUrl);
   if (fileAsked === null) return { kind: "not_served", status: 404, because: `${requestUrl} names no file of a project's view.` };
   if (!sources.aStudioWindowHoldsTheProjectIn(fileAsked.open_project_folder)) {
     return { kind: "not_served", status: 403, because: `${fileAsked.open_project_folder} is not a project open in a studio window.` };
   }
+  const connectSources = sources.projectViewsListed.connectSourcesOf(fileAsked.open_project_folder, fileAsked.view_folder_in_the_project);
+  if (connectSources === null) {
+    return { kind: "not_served", status: 403, because: `${fileAsked.view_folder_in_the_project} is not a view the studio window of ${fileAsked.open_project_folder} listed.` };
+  }
   const fileBytes = await sources.readProjectFile(fileAsked.open_project_folder, fileAsked.path_in_the_project);
   if (!fileBytes.ok) return { kind: "not_served", status: 404, because: fileBytes.failure };
-  const contentType = contentTypeOfAProjectViewFile(fileAsked.path_in_the_project);
-  const connectSources = CONTENT_TYPES_A_POLICY_GOVERNS.has(contentType)
-    ? await connectSourcesOfTheViewInTheFolder(sources, fileAsked.open_project_folder, fileAsked.view_folder_in_the_project)
-    : CONNECT_SOURCES_OF_A_VIEW_WHOSE_MANIFEST_DOES_NOT_READ;
-  return { kind: "served", content_type: contentType, content_security_policy: projectViewContentSecurityPolicy(connectSources), file_bytes: fileBytes.value };
-}
-
-/** Where the view in `viewFolderInTheProject` may connect, from its manifest as the runtime reads it; its own origin alone when the manifest does not read. */
-async function connectSourcesOfTheViewInTheFolder(sources: ProjectViewFilesSources, openProjectFolder: string, viewFolderInTheProject: string): Promise<readonly string[]> {
-  const manifestBytes = await sources.readProjectFile(openProjectFolder, `${viewFolderInTheProject}/${VIEW_MANIFEST_FILE_NAME}`);
-  if (!manifestBytes.ok) return CONNECT_SOURCES_OF_A_VIEW_WHOSE_MANIFEST_DOES_NOT_READ;
-  let manifestJson: unknown;
-  try {
-    manifestJson = JSON.parse(manifestBytes.value.toString("utf8"));
-  } catch {
-    return CONNECT_SOURCES_OF_A_VIEW_WHOSE_MANIFEST_DOES_NOT_READ;
-  }
-  return connectSourcesOfTheViewsManifest(manifestJson);
+  return {
+    kind: "served",
+    content_type: contentTypeOfAProjectViewFile(fileAsked.path_in_the_project),
+    content_security_policy: projectViewContentSecurityPolicy(connectSources),
+    file_bytes: fileBytes.value,
+  };
 }

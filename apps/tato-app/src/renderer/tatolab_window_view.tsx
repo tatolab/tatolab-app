@@ -339,7 +339,7 @@ export function mountTatolabWindow(
     "load",
     (loadEvent) => {
       const viewFrame = loadEvent.target;
-      if (!(viewFrame instanceof HTMLIFrameElement) || viewFrame.dataset.tatolabViewAccess !== "full" || !URL.canParse(viewFrame.src) || new URL(viewFrame.src).origin !== window.location.origin) return;
+      if (!(viewFrame instanceof HTMLIFrameElement) || viewFrame.dataset.tatolabViewOnTheWindowsOrigin === undefined) return;
       viewFrame.contentWindow?.addEventListener("keydown", runTheStudioShortcutOfTheKey);
     },
     true,

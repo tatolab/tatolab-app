@@ -377,6 +377,8 @@ export interface ListedStudioViewFacts {
   project_name: string;
   /** That project's folder under `imports/`; `null` for the open project's own view. */
   import_folder: string | null;
+  /** That project's folder, absolute: the only project the view reaches; `null` for Studio's own views, which reach the open project and its imports. */
+  project_folder: string | null;
   /** Its `tatolab_view.json` as written, `null` when it is not JSON. */
   manifest_json: JsonValue | null;
   /** The URL its folder is served under. */

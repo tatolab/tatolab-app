@@ -1,5 +1,5 @@
 import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
-import { projectViewFolderUrl } from "./project_view_files.js";
+import { projectViewFolderUrl, ProjectViewsListedToTheWindows } from "./project_view_files.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { localApiRequestFailure } from "./local_api_client.js";
 import os from "node:os";
@@ -210,6 +210,7 @@ async function sharedStateOverFakes(
     moduleDownloadsFolder: path.join(appConfigDirectory, "module-downloads"),
     dependencySourceDialog: async () => succeeded(null),
     thePersonEditingInStudio: { kind: "person", name: "sam" },
+    projectViewsListed: new ProjectViewsListedToTheWindows(),
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLink,
     carriedRuntimeStarts,
@@ -997,22 +998,26 @@ test("the open project's views are the runtime's list_project_views of its folde
       view_type_id: "night-show:broken",
       project_name: "night-show",
       import_folder: null,
+      project_folder: recordedNightShowFolder,
       opens: false,
       not_opened_because: "`contract`: this runtime reads view contract 1.0.",
       folder_url: projectViewFolderUrl(recordedNightShowFolder, "views/broken"),
       has_its_manifest: true,
     },
-    { view_type_id: "night-show:deck", project_name: "night-show", import_folder: null, opens: true, not_opened_because: null, folder_url: projectViewFolderUrl(recordedNightShowFolder, "views/deck"), has_its_manifest: true },
+    { view_type_id: "night-show:deck", project_name: "night-show", import_folder: null, project_folder: recordedNightShowFolder, opens: true, not_opened_because: null, folder_url: projectViewFolderUrl(recordedNightShowFolder, "views/deck"), has_its_manifest: true },
     {
       view_type_id: "lobby-wall:meter",
       project_name: "lobby-wall",
       import_folder: "lobby-wall",
+      project_folder: `${recordedNightShowFolder}/imports/lobby-wall`,
       opens: true,
       not_opened_because: null,
       folder_url: projectViewFolderUrl(recordedNightShowFolder, "imports/lobby-wall/views/meter"),
       has_its_manifest: true,
     },
   ]);
+  expect(sharedState.projectViewsListed.connectSourcesOf(recordedNightShowFolder, "views/deck")).not.toBeNull();
+  expect(sharedState.projectViewsListed.connectSourcesOf(recordedNightShowFolder, "views/broken")).toBeNull();
   expect(await commandHandlers.list_studio_views_of_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 

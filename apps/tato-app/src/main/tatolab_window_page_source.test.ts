@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
+import { projectViewFolderUrl } from "./project_view_files.js";
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import {
   builtWindowFileForRequest,
   inlineScriptHashSources,
   isACommandFromTheWindowsOwnPage,
+  isAFrameNavigationTheWindowAllows,
   isAViewPageTheWindowFrames,
   isOnTheWindowPagesOwnLocation,
   TATOLAB_WINDOW_PAGE_URL,
@@ -69,4 +71,18 @@ test("the window frames its core views' pages on its own location, and project v
   expect(isAViewPageTheWindowFrames("http://localhost:5173/", "http://localhost:5173/project_views/L2hvbWU/views/deck/index.html")).toBe(false);
   expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "https://example.com/core_views/outliner/index.html")).toBe(false);
   expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "not a url")).toBe(false);
+});
+
+test("a project view's frame stays on the origin it was framed on unless the window page sends it elsewhere, and any frame goes only to a page the window frames", () => {
+  const deckPage = `${projectViewFolderUrl("/home/sam/streams/night-show", "views/deck")}index.html`;
+  const deckSecondPage = `${projectViewFolderUrl("/home/sam/streams/night-show", "views/deck")}settings.html`;
+  const evilPage = `${projectViewFolderUrl("/home/sam/streams/night-show", "views/evil")}index.html`;
+
+  expect(isAFrameNavigationTheWindowAllows(TATOLAB_WINDOW_PAGE_URL, "", deckPage, false)).toBe(true);
+  expect(isAFrameNavigationTheWindowAllows(TATOLAB_WINDOW_PAGE_URL, "about:blank", deckPage, false)).toBe(true);
+  expect(isAFrameNavigationTheWindowAllows(TATOLAB_WINDOW_PAGE_URL, deckPage, deckSecondPage, false)).toBe(true);
+  expect(isAFrameNavigationTheWindowAllows(TATOLAB_WINDOW_PAGE_URL, deckPage, evilPage, false)).toBe(false);
+  expect(isAFrameNavigationTheWindowAllows(TATOLAB_WINDOW_PAGE_URL, deckPage, "tatolab-app://app/core_views/outliner/index.html", false)).toBe(false);
+  expect(isAFrameNavigationTheWindowAllows(TATOLAB_WINDOW_PAGE_URL, deckPage, evilPage, true)).toBe(true);
+  expect(isAFrameNavigationTheWindowAllows(TATOLAB_WINDOW_PAGE_URL, deckPage, "https://example.com/", true)).toBe(false);
 });

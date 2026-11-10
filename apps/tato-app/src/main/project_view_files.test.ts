@@ -6,6 +6,7 @@ import {
   projectViewContentSecurityPolicy,
   projectViewFileOfTheRequest,
   projectViewFolderUrl,
+  ProjectViewsListedToTheWindows,
   type ProjectViewFilesSources,
 } from "./project_view_files.js";
 import { failedWith, succeeded } from "./result.js";
@@ -82,16 +83,22 @@ test("each file a view's built folder holds is served with its content type, any
 });
 
 const DECK_PAGE = Buffer.from('<!doctype html><script type="module" src="./deck.js"></script>');
-const SANDBOXED_DECK_MANIFEST = Buffer.from(JSON.stringify({ contract: "1.0", title: "Deck", entry: "index.html", placement: "node", sandbox: true, network: ["api.weather.example"] }));
+const SANDBOXED_DECK_MANIFEST = { contract: "1.0", title: "Deck", entry: "index.html", placement: "node", sandbox: true, network: ["api.weather.example"] };
 
 function sourcesOverAnOpenNightShow(filesRead: string[]): ProjectViewFilesSources {
   const filesOfTheProject = new Map([
     ["views/deck/icon.png", PNG_SIGNATURE],
     ["views/deck/index.html", DECK_PAGE],
-    ["views/deck/tatolab_view.json", SANDBOXED_DECK_MANIFEST],
+    ["views/unlisted/index.html", DECK_PAGE],
+  ]);
+  const projectViewsListed = new ProjectViewsListedToTheWindows();
+  projectViewsListed.rememberTheListing(NIGHT_SHOW, [
+    { view_folder_in_the_project: "views/deck", opens: true, manifest: SANDBOXED_DECK_MANIFEST },
+    { view_folder_in_the_project: "views/broken", opens: false, manifest: { contract: "9.0" } },
   ]);
   return {
     aStudioWindowHoldsTheProjectIn: (projectFolder) => projectFolder === NIGHT_SHOW,
+    projectViewsListed,
     readProjectFile: async (projectDirectory, filePath) => {
       filesRead.push(`${projectDirectory} ${filePath}`);
       const fileBytes = filesOfTheProject.get(filePath);
@@ -100,17 +107,19 @@ function sourcesOverAnOpenNightShow(filesRead: string[]): ProjectViewFilesSource
   };
 }
 
-test("a view's file is served from the bytes the runtime reads, only for a project a studio window holds open, a missing one with the runtime's words", async () => {
+test("a listed view's file is served from the bytes the runtime reads, under the policy its listed manifest calls for, only for a project a studio window holds open", async () => {
   const filesRead: string[] = [];
   const sources = sourcesOverAnOpenNightShow(filesRead);
   const deckFolderUrl = projectViewFolderUrl(NIGHT_SHOW, "views/deck");
+  const deckPolicy = projectViewContentSecurityPolicy(["https://api.weather.example", "wss://api.weather.example"]);
 
-  expect(await answerAProjectViewFileRequest(new URL("icon.png", deckFolderUrl).href, sources)).toEqual({
+  expect(await answerAProjectViewFileRequest(new URL("index.html", deckFolderUrl).href, sources)).toEqual({
     kind: "served",
-    content_type: "image/png",
-    content_security_policy: projectViewContentSecurityPolicy([]),
-    file_bytes: PNG_SIGNATURE,
+    content_type: "text/html; charset=utf-8",
+    content_security_policy: deckPolicy,
+    file_bytes: DECK_PAGE,
   });
+  expect(await answerAProjectViewFileRequest(new URL("icon.png", deckFolderUrl).href, sources)).toEqual({ kind: "served", content_type: "image/png", content_security_policy: deckPolicy, file_bytes: PNG_SIGNATURE });
   expect(await answerAProjectViewFileRequest(new URL("missing.js", deckFolderUrl).href, sources)).toEqual({
     kind: "not_served",
     status: 404,
@@ -121,18 +130,18 @@ test("a view's file is served from the bytes the runtime reads, only for a proje
     status: 403,
     because: "/home/sam/streams/other is not a project open in a studio window.",
   });
-  expect(filesRead).toEqual([`${NIGHT_SHOW} views/deck/icon.png`, `${NIGHT_SHOW} views/deck/missing.js`]);
+  expect(filesRead).toEqual([`${NIGHT_SHOW} views/deck/index.html`, `${NIGHT_SHOW} views/deck/icon.png`, `${NIGHT_SHOW} views/deck/missing.js`]);
 });
 
-test("a view's page is served under the policy its manifest, as the runtime reads it, calls for", async () => {
+test("a folder no listing holds as a view that opens is not served, whatever its manifest says now", async () => {
   const filesRead: string[] = [];
-  const pageAnswer = await answerAProjectViewFileRequest(new URL("index.html", projectViewFolderUrl(NIGHT_SHOW, "views/deck")).href, sourcesOverAnOpenNightShow(filesRead));
-
-  expect(pageAnswer).toEqual({
-    kind: "served",
-    content_type: "text/html; charset=utf-8",
-    content_security_policy: projectViewContentSecurityPolicy(["https://api.weather.example", "wss://api.weather.example"]),
-    file_bytes: DECK_PAGE,
-  });
-  expect(filesRead).toEqual([`${NIGHT_SHOW} views/deck/index.html`, `${NIGHT_SHOW} views/deck/tatolab_view.json`]);
+  const sources = sourcesOverAnOpenNightShow(filesRead);
+  for (const viewFolder of ["views/unlisted", "views/broken"]) {
+    expect(await answerAProjectViewFileRequest(new URL("index.html", projectViewFolderUrl(NIGHT_SHOW, viewFolder)).href, sources)).toEqual({
+      kind: "not_served",
+      status: 403,
+      because: `${viewFolder} is not a view the studio window of ${NIGHT_SHOW} listed.`,
+    });
+  }
+  expect(filesRead).toEqual([]);
 });
