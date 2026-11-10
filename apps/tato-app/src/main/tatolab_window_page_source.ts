@@ -53,14 +53,12 @@ export function isAViewPageTheWindowFrames(windowPageUrl: string, frameUrl: stri
   return isOnTheWindowPagesOwnLocation(windowPageUrl, frameUrl) && new URL(frameUrl).pathname.startsWith(CORE_VIEW_PAGES_PATH);
 }
 
-/**
- * Whether the window grants `permission` to the frame at `requestingFrameUrl`. It grants the camera and the microphone
- * (Chromium's `media`) to its own page and to every view it frames, and nothing else. Granting here only lets the
- * request reach the system: macOS still asks the person, once, through its own camera and microphone prompt.
- */
-export function isAPermissionTheWindowGrants(windowPageUrl: string, permission: string, requestingFrameUrl: string): boolean {
-  if (permission !== "media") return false;
-  return isOnTheWindowPagesOwnLocation(windowPageUrl, requestingFrameUrl) || isAViewPageTheWindowFrames(windowPageUrl, requestingFrameUrl);
+/** Whether the window grants `permission` for `mediaTypesAsked` to the frame at `requestingFrameUrl`: the camera and microphone to its own page and its views, nothing else. */
+export function isAPermissionTheWindowGrants(windowPageUrl: string, permission: string, mediaTypesAsked: readonly string[], requestingFrameUrl: string | undefined): boolean {
+  if (permission !== "media" || requestingFrameUrl === undefined) return false;
+  // Chromium asks a screen or system-audio capture through getUserMedia's `chromeMediaSource` as `media` too, with no media type.
+  if (mediaTypesAsked.length === 0 || !mediaTypesAsked.every((mediaType) => mediaType === "video" || mediaType === "audio")) return false;
+  return isOnTheWindowPagesOwnLocation(windowPageUrl, requestingFrameUrl) || isAProjectViewFileUrl(requestingFrameUrl);
 }
 
 /** Whether a command came from the window's own page at `windowPageUrl`: its top frame, on the page's own location, rather than a frame it embeds, a frame already gone, or a page it navigated to. */

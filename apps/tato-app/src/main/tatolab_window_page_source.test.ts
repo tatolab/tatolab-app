@@ -71,15 +71,23 @@ test("the window frames its core views' pages on its own location, and project v
   expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "not a url")).toBe(false);
 });
 
-test("the window grants the camera and the microphone to its own page and every view it frames, and nothing else to anyone", () => {
+test("the window grants the camera and the microphone to its own page and every view it frames, and to no other frame", () => {
   const deckViewUrl = "tatolab-app://app/project_views/L2hvbWUvc2FtL3N0cmVhbXMvbmlnaHQtc2hvdw/views/deck/index.html";
-  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", "tatolab-app://app/index.html")).toBe(true);
-  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", "tatolab-app://app/core_views/viewer/index.html")).toBe(true);
-  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", deckViewUrl)).toBe(true);
-  expect(isAPermissionTheWindowGrants("http://localhost:5173/", "media", deckViewUrl)).toBe(true);
-  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", "https://example.com/camera.html")).toBe(false);
-  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", "not a url")).toBe(false);
-  for (const permission of ["geolocation", "notifications", "display-capture", "clipboard-read", "openExternal", "usb"]) {
-    expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, permission, deckViewUrl)).toBe(false);
+  const viewerUrl = "tatolab-app://app/core_views/viewer/index.html";
+  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", ["video", "audio"], "tatolab-app://app/index.html")).toBe(true);
+  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", ["video"], viewerUrl)).toBe(true);
+  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", ["audio"], deckViewUrl)).toBe(true);
+  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", ["video"], "https://example.com/camera.html")).toBe(false);
+  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", ["video"], "not a url")).toBe(false);
+  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", ["video"], undefined)).toBe(false);
+});
+
+test("the window refuses a screen or system-audio capture, which Chromium asks as media with no camera or microphone, and every other permission", () => {
+  const viewerUrl = "tatolab-app://app/core_views/viewer/index.html";
+  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", [], viewerUrl)).toBe(false);
+  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", ["unknown"], viewerUrl)).toBe(false);
+  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", ["video", "unknown"], viewerUrl)).toBe(false);
+  for (const permission of ["display-capture", "geolocation", "notifications", "clipboard-read", "openExternal", "usb"]) {
+    expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, permission, ["video"], viewerUrl)).toBe(false);
   }
 });

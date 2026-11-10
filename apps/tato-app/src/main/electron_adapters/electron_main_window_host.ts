@@ -62,10 +62,12 @@ export function createElectronMainWindowHostFactory(
       // Electron shows no permission prompt of its own: what these handlers answer is final for Chromium, and only a
       // granted camera or microphone goes on to macOS's own prompt (the bundle's NSCameraUsageDescription words).
       windowContents.session.setPermissionRequestHandler((_requestingContents, permission, answerPermissionRequest, requestDetails) =>
-        answerPermissionRequest(isAPermissionTheWindowGrants(windowPageUrl, permission, requestDetails.requestingUrl)),
+        answerPermissionRequest(
+          isAPermissionTheWindowGrants(windowPageUrl, permission, "mediaTypes" in requestDetails ? (requestDetails.mediaTypes ?? []) : [], requestDetails.requestingUrl),
+        ),
       );
-      windowContents.session.setPermissionCheckHandler((_requestingContents, permission, requestingOrigin, checkDetails) =>
-        isAPermissionTheWindowGrants(windowPageUrl, permission, checkDetails.requestingUrl ?? requestingOrigin),
+      windowContents.session.setPermissionCheckHandler((_requestingContents, permission, _requestingOrigin, checkDetails) =>
+        isAPermissionTheWindowGrants(windowPageUrl, permission, checkDetails.mediaType === undefined ? [] : [checkDetails.mediaType], checkDetails.requestingUrl),
       );
       const firstShowGate = new MainWindowFirstShowGate(() => mainBrowserWindow.show());
       mainBrowserWindow.once("ready-to-show", () => firstShowGate.pageFirstPainted());
