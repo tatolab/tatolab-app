@@ -42,3 +42,21 @@ test("an operation newer than this app reads by its own name, and an edit with n
   expect(sentenceAndLinesOf([{ operation: "fold_the_graph" }])).toEqual(["fold_the_graph", ["fold_the_graph"]]);
   expect(sentenceAndLinesOf([])).toEqual(["Changed nothing", []]);
 });
+
+test("an added node whose other operations each link it reads as added and linked, naming each other end", () => {
+  const LOUDNESS = "7d1f0c2a-4444-4c1d-8e55-000000000004";
+  const HALFTONE = "7d1f0c2a-5555-4c1d-8e55-000000000005";
+  const LIGHTS = "7d1f0c2a-6666-4c1d-8e55-000000000006";
+  const names = new Map([[HALFTONE, "halftone"], [LIGHTS, "lights"]]);
+  const added = { stream: STREAM, operation: "add_node", node: { id: LOUDNESS, name: "loudness", type: "nodes.loudness:LoudnessMeter", config: {} }, links: [] };
+  const toHalftone = { stream: STREAM, operation: "connect", link: { source: { node: LOUDNESS, port: "level" }, target: { node: HALFTONE, port: "level" } } };
+  const toLights = { stream: STREAM, operation: "connect", link: { source: { node: LOUDNESS, port: "level" }, target: { node: LIGHTS, port: "level" } } };
+  const unrelated = { stream: STREAM, operation: "rename_node", node: HALFTONE, from: "halftone", to: "dots" };
+  const sentence = (operations: JsonValue[]) => {
+    const { what } = whatAnEditChanged(operations, names);
+    return [what.lead, what.subject, what.rest].filter((words) => words !== null && words !== "").join(" ");
+  };
+
+  expect(sentence([added, toHalftone, toLights])).toBe("Added loudness and linked it to halftone.level and lights.level");
+  expect(sentence([added, toHalftone, unrelated])).toBe("Added loudness and 2 more changes");
+});

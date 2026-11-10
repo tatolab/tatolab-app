@@ -39,6 +39,7 @@
   --color-studio-agent-avatar: var(--studio-agent-avatar);
   --color-studio-agent-text: var(--studio-agent-text);
   --color-studio-agent-row: var(--studio-agent-row);
+  --color-studio-current-change-row: var(--studio-current-change-row);
   --color-chrome: var(--chrome);
   --color-raised: var(--raised);
   --color-well: var(--well);
@@ -145,6 +146,7 @@
   --studio-agent-avatar: #4a3d78;
   --studio-agent-text: #e6dcff;
   --studio-agent-row: rgba(183, 156, 255, 0.08);
+  --studio-current-change-row: #232327;
   --studio-read-only-banner: rgba(40, 33, 18, 0.95);
   --studio-graph-grid: #26262a;
   --studio-graph-tools: rgba(22, 22, 24, 0.92);

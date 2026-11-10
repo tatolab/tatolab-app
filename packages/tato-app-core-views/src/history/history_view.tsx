@@ -24,17 +24,22 @@ function useWallClockForBylines(): number {
   return nowMs;
 }
 
+function operationsWordsOf(operationCount: number): string | null {
+  return operationCount > 1 ? `one transaction, ${operationCount} operations` : null;
+}
+
 function authoredChangeOf(row: HistoryRow, nowMs: number, isTheLatestApplied: boolean): AuthoredChange {
-  const byline = [row.who, howLongAgoTheEditWasApplied(row.applied_at, nowMs), row.is_undone ? "undone" : null].filter((words) => words !== null).join(" · ");
+  const byline = [row.who, howLongAgoTheEditWasApplied(row.applied_at, nowMs), operationsWordsOf(row.operation_lines.length), row.is_undone ? "undone" : null].filter((words) => words !== null).join(" · ");
   const choiceWords = row.is_undone ? "Redo up to this edit" : isTheLatestApplied ? "The project is at this edit" : "Undo back to this edit";
   return {
     change_id: row.transaction,
-    author_kind: row.author_kind,
+    author_kind: row.shown_author_kind,
     author_name: row.who,
     sentence: row.what,
     byline,
     operation_lines: row.operation_lines,
     is_undone: row.is_undone,
+    is_the_current_change: isTheLatestApplied,
     choice_words: choiceWords,
   };
 }
@@ -108,7 +113,7 @@ function HistoryBody({ connection, projectFolder }: { connection: TatoAppViewCon
         </AuthoredChangeList>
       </div>
       <p className="shrink-0 border-t border-studio-area-header-line px-3 py-2.5 text-2xs text-fg-3">
-        Each row is one transaction from the project's change feed. Choose an earlier row to undo back to it, or a dimmed one to redo up to it; each edit is undone or redone by its own author.
+        Each row is one transaction from the project's change feed: who, what and when. Choose an earlier row to undo back to it, or a dimmed one to redo up to it; each edit is undone or redone by its own author.
       </p>
     </>
   );

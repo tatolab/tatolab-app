@@ -12,10 +12,13 @@ export type HistoryRowAuthorKind = "person" | "agent" | "runtime";
 export interface HistoryRow {
   /** The edit's own transaction, by which the row is chosen. */
   readonly transaction: string;
+  /** The author's kind as history records it, by which History undoes and redoes the edit. */
   readonly author_kind: HistoryRowAuthorKind;
   readonly author_name: string;
-  /** The author as the row names them: a person by name, an agent by name and "(agent)", the runtime as "Runtime". */
+  /** The author as the row names them: "You" for an edit made in Tato Studio, a person by name, an agent by name and "(agent)", the runtime as "Runtime". */
   readonly who: string;
+  /** Whose avatar the row shows: a person's for an edit made in Tato Studio, else the author's kind. */
+  readonly shown_author_kind: HistoryRowAuthorKind;
   /** What it changed, in a sentence, with the node or file it is about named apart so the row can set it bold. */
   readonly what: { readonly lead: string; readonly subject: string | null; readonly rest: string };
   /** Each operation in a line, as the runtime names it. */
@@ -40,10 +43,15 @@ function authorKindOf(authorKind: string): HistoryRowAuthorKind {
   return authorKind === "person" || authorKind === "agent" ? authorKind : "runtime";
 }
 
+function isAnEditMadeInTatoStudio(authorKind: string, authorName: string): boolean {
+  return authorKind === "agent" && authorName === TATO_STUDIO_MCP_CLIENT_NAME;
+}
+
 /** The author as a row names them. */
 export function whoMadeTheEdit(authorKind: string, authorName: string): string {
+  if (isAnEditMadeInTatoStudio(authorKind, authorName)) return "You";
   if (authorKind === "person") return authorName;
-  if (authorKind === "agent") return authorName === TATO_STUDIO_MCP_CLIENT_NAME ? "Tato Studio" : `${authorName} (agent)`;
+  if (authorKind === "agent") return `${authorName} (agent)`;
   return "Runtime";
 }
 
@@ -72,6 +80,7 @@ export function historyRowsOfTheFeed(transactionsNewestFirst: readonly ProjectTr
         author_kind: authorKindOf(edit.author_kind),
         author_name: edit.author_name,
         who: whoMadeTheEdit(edit.author_kind, edit.author_name),
+        shown_author_kind: isAnEditMadeInTatoStudio(edit.author_kind, edit.author_name) ? "person" : authorKindOf(edit.author_kind),
         what: whatChanged.what,
         operation_lines: whatChanged.operation_lines,
         applied_at: edit.applied_at,

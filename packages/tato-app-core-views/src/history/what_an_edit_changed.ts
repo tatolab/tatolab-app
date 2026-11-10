@@ -190,14 +190,41 @@ function whatOneOperationChanged(operation: OperationFields, nodeNames: NodeName
   }
 }
 
+function wordsOfAList(items: readonly string[]): string {
+  return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
+}
+
+/** "and linked it to halftone.level and lights.level" when every operation after an `add_node` connects the added node, else `null`. */
+function wordsOfTheLinksOfAnAddedNode(operations: readonly OperationFields[], nodeNames: NodeNamesById): string | null {
+  const [added, ...rest] = operations;
+  const addedNodeId = textOf(fieldsOf(added?.["node"])?.["id"]);
+  if (added?.["operation"] !== "add_node" || addedNodeId === null || rest.length === 0) return null;
+  const otherEnds = rest.map((operation) => {
+    const link = fieldsOf(operation["link"]);
+    if (operation["operation"] !== "connect" || link === null) return null;
+    const source = fieldsOf(link["source"]);
+    const target = fieldsOf(link["target"]);
+    if (textOf(source?.["node"]) === addedNodeId) return wordsOfALinkEnd(link["target"], nodeNames);
+    if (textOf(target?.["node"]) === addedNodeId) return wordsOfALinkEnd(link["source"], nodeNames);
+    return null;
+  });
+  const linkedTo = otherEnds.filter((end) => end !== null);
+  return linkedTo.length === otherEnds.length ? `and linked it to ${wordsOfAList(linkedTo)}` : null;
+}
+
 /** What the edit whose operations are `operations` changed, its nodes named as `nodeNames` names them. */
 export function whatAnEditChanged(operations: readonly JsonValue[], nodeNames: NodeNamesById): WhatAnEditChanged {
-  const changed = operations.flatMap((operation) => {
+  const operationsFields = operations.flatMap((operation) => {
     const operationFields = fieldsOf(operation);
-    return operationFields === null ? [] : [whatOneOperationChanged(operationFields, nodeNames)];
+    return operationFields === null ? [] : [operationFields];
   });
+  const changed = operationsFields.map((operationFields) => whatOneOperationChanged(operationFields, nodeNames));
   const [first] = changed;
   if (first === undefined) return { what: { lead: "Changed nothing", subject: null, rest: "" }, operation_lines: [] };
+  const linksOfAnAddedNode = wordsOfTheLinksOfAnAddedNode(operationsFields, nodeNames);
+  if (linksOfAnAddedNode !== null) {
+    return { what: { ...first.sentence, rest: linksOfAnAddedNode }, operation_lines: changed.map((operationChanged) => operationChanged.line) };
+  }
   const moreWords = changed.length === 1 ? "" : changed.length === 2 ? "and 1 more change" : `and ${changed.length - 1} more changes`;
   return {
     what: { ...first.sentence, rest: [first.sentence.rest, moreWords].filter((words) => words !== "").join(", ") },

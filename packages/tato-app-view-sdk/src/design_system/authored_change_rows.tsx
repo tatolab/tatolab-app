@@ -20,6 +20,8 @@ export interface AuthoredChange {
   operation_lines: readonly string[];
   /** Reversed, and shown dimmed until it is redone or can no longer be. */
   is_undone: boolean;
+  /** The change the project stands at now, set on a card of its own. */
+  is_the_current_change: boolean;
   /** What choosing it does, read out with the row and shown while the pointer rests on it. */
   choice_words: string;
 }
@@ -72,9 +74,9 @@ export function AuthoredChangeRow({
         {...{ [dataAttribute]: change.change_id }}
         data-undone={change.is_undone || undefined}
         className={cn(
-          "grid w-full grid-cols-[26px_minmax(0,1fr)] gap-2.5 rounded-md px-3 py-2.5 text-left outline-none enabled:hover:bg-hover disabled:cursor-default",
+          "grid w-full grid-cols-[28px_minmax(0,1fr)] gap-2.5 rounded-md px-3 py-2.5 text-left outline-none enabled:hover:bg-hover disabled:cursor-default",
           FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
-          change.author_kind === "agent" && !change.is_undone && "bg-studio-agent-row",
+          change.is_the_current_change ? "bg-studio-current-change-row" : change.author_kind === "agent" && !change.is_undone && "bg-studio-agent-row",
         )}
       >
         <span className={cn(change.is_undone && "opacity-50")}>
