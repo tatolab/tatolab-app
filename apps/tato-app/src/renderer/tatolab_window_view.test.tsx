@@ -242,7 +242,7 @@ describe("the studio", () => {
     const stageRigRow = document.querySelector<HTMLElement>('[data-view-type-not-opened="lobby-wall:stage_rig"]') ?? expect.unreachable("no row for the view that does not open");
     expect(stageRigRow.textContent).toBe("Stage riglobby-wall");
     expect(stageRigRow.getAttribute("aria-disabled")).toBe("true");
-    expect(screen.getByText("Stage rig doesn't open: `contract`: this runtime reads view contract 1.0.")).toBeTruthy();
+    expect(document.getElementById(stageRigRow.getAttribute("aria-describedby") ?? "")?.textContent).toBe("Stage rig doesn't open: `contract`: this runtime reads view contract 1.0.");
   });
 
   it("offers Transactions only in Developer mode, listing the open project's transactions with their author, stream and operations, and each one's detail", async () => {

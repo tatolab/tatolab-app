@@ -1,5 +1,5 @@
 import { PictureInPicture2, Play } from "lucide-react";
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
@@ -61,7 +61,7 @@ function wordsOfWhoBroughtTheView(broughtBy: StudioViewTypeSource): string {
 }
 
 /** A view-type menu's row: the view's icon and title, and who brought it. */
-function ViewTypeMenuRowWords({ icon, title, broughtBy }: { icon: StudioAreaHeaderMenuIcon; title: string; broughtBy: StudioViewTypeSource }) {
+function ViewTypeMenuRowIconTitleAndWhoBroughtIt({ icon, title, broughtBy }: { icon: StudioAreaHeaderMenuIcon; title: string; broughtBy: StudioViewTypeSource }) {
   return (
     <span className="flex w-full items-center gap-2">
       <StudioViewIconMark icon={icon} />
@@ -71,17 +71,16 @@ function ViewTypeMenuRowWords({ icon, title, broughtBy }: { icon: StudioAreaHead
   );
 }
 
-/** Views that do not open, each a row that cannot be chosen, then why it does not open. */
+/** Views that do not open, each a row that cannot be chosen, described by why it does not open. */
 function ViewTypesNotOpenedInTheMenu({ viewTypesNotOpened }: { viewTypesNotOpened: readonly StudioViewNotOpened[] }) {
   return viewTypesNotOpened.map((notOpened) => (
-    <Fragment key={notOpened.view_type_id}>
-      <MenuItemThatCannotBeChosen data-view-type-not-opened={notOpened.view_type_id}>
-        <ViewTypeMenuRowWords icon="project_view" title={notOpened.title} broughtBy={notOpened.brought_by} />
-      </MenuItemThatCannotBeChosen>
-      <MenuNote>
-        {notOpened.title} doesn't open: {notOpened.because}
-      </MenuNote>
-    </Fragment>
+    <MenuItemThatCannotBeChosen
+      key={notOpened.view_type_id}
+      whyItCannotBeChosen={`${notOpened.title} doesn't open: ${notOpened.because}`}
+      data-view-type-not-opened={notOpened.view_type_id}
+    >
+      <ViewTypeMenuRowIconTitleAndWhoBroughtIt icon="unreadable" title={notOpened.title} broughtBy={notOpened.brought_by} />
+    </MenuItemThatCannotBeChosen>
   ));
 }
 
@@ -93,7 +92,7 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
   const projectViewTypesNotOpened = sources.viewTypeRegistry.projectViewTypesNotOpened();
   const viewTypeChoice = (viewType: RegisteredStudioViewType) => ({
     choice: viewType.view_type_id,
-    label: <ViewTypeMenuRowWords icon={viewType.icon} title={viewType.title} broughtBy={viewType.brought_by} />,
+    label: <ViewTypeMenuRowIconTitleAndWhoBroughtIt icon={viewType.icon} title={viewType.title} broughtBy={viewType.brought_by} />,
   });
   const onChosen = (viewTypeId: string) => sources.model.showViewTypeInArea(area.area_id, viewTypeId);
   const iconOfTheArea = area.view_type_id === null ? "project_view" : (sources.viewTypeRegistry.viewTypeWithId(area.view_type_id)?.icon ?? "unreadable");

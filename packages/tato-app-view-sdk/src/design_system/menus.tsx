@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronDown, Ellipsis, type LucideIcon } from "lucide-react";
-import type { ReactElement, ReactNode } from "react";
+import { useId, type ReactElement, type ReactNode } from "react";
 import { Button } from "./ui/button";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "./ui/context-menu";
 import {
@@ -137,6 +137,8 @@ export function FieldMenu({
 /** What stands before a menu item's words: an icon, or something in its place such as a served logo; never both. */
 type MenuItemPicture = { icon?: LucideIcon; leading?: never } | { icon?: never; leading?: ReactNode };
 
+const MENU_NOTE_CLASS_NAMES = "px-2 py-1 text-xs text-fg-3";
+
 /** One choice of a menu; a destructive one reads red. */
 export function MenuItem({
   icon: ItemIcon,
@@ -176,12 +178,22 @@ export function MenuItem({
   );
 }
 
-/** A menu row for something that cannot be chosen here, drawn as a disabled choice; the note after it says why. */
-export function MenuItemThatCannotBeChosen({ children, ...controlDataAttributes }: { children: ReactNode } & ControlDataAttributes) {
+/** A menu row for something that cannot be chosen here, drawn as a disabled choice, then a note saying why that the row is described by. */
+export function MenuItemThatCannotBeChosen({
+  whyItCannotBeChosen,
+  children,
+  ...controlDataAttributes
+}: { whyItCannotBeChosen: ReactNode; children: ReactNode } & ControlDataAttributes) {
+  const idOfTheNoteSayingWhy = useId();
   return (
-    <DropdownMenuItem disabled className={MENU_ITEM_CLASS_NAMES} {...controlDataAttributes}>
-      {children}
-    </DropdownMenuItem>
+    <>
+      <DropdownMenuItem disabled aria-describedby={idOfTheNoteSayingWhy} className={MENU_ITEM_CLASS_NAMES} {...controlDataAttributes}>
+        {children}
+      </DropdownMenuItem>
+      <p id={idOfTheNoteSayingWhy} className={MENU_NOTE_CLASS_NAMES}>
+        {whyItCannotBeChosen}
+      </p>
+    </>
   );
 }
 
@@ -279,5 +291,5 @@ export function MenuSeparator() {
 
 /** A line of a menu that is read, not chosen: what a group holds when it holds nothing yet. */
 export function MenuNote({ children }: { children: ReactNode }) {
-  return <p className="px-2 py-1 text-xs text-fg-3">{children}</p>;
+  return <p className={MENU_NOTE_CLASS_NAMES}>{children}</p>;
 }
