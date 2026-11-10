@@ -202,7 +202,7 @@ export interface ProjectCreationQueued {
   project_directory: string;
 }
 
-/** What `run_project` answers at once: the action it queued, and the project's folder. */
+/** What `start_project` and `reload_project` answer at once: the action each queued, and the project's folder. */
 export interface ProjectRunQueued {
   action: string;
   project_directory: string;
@@ -334,8 +334,21 @@ export interface RecentProject {
   folder: string;
   /** The project's name as the runtime reads it now, or `null` when the runtime names no project there. */
   project_name: string | null;
+  /** What the project is, as the runtime reads it now; `null` when nobody has described it or the runtime names no project there. */
+  project_description: string | null;
+  /** When the project's history last changed, in milliseconds since the epoch on the wall clock, for display only; `null` before its first edit or where the runtime names no project. */
+  last_edited_at_wall_clock_ms: number | null;
   /** When it was last opened, in milliseconds since the epoch on the wall clock: for display only. */
   last_opened_at_wall_clock_ms: number;
+}
+
+/** A project `.zip` chosen to import, and where the Import project sheet starts: the folder new projects go in, and the zip's own name where nothing there holds it yet. */
+export interface ProjectArchiveChosenToImport {
+  /** The `.zip`, absolute. */
+  archive: string;
+  location: string;
+  /** The zip's name without `.zip`, or that name numbered (`pattern 2`, …) where it is taken in `location`. */
+  name: string;
 }
 
 /** What `save_project_file` answers: the version the file now has on disk. */
@@ -348,12 +361,23 @@ export type PythonLanguageServerEvent =
   | { session: string; kind: "message"; message: JsonValue }
   | { session: string; kind: "ended"; because: string };
 
-/** A view type the open project or one of its imports brings: its id (`<distribution>:<entry>`), the distribution and `tatolab.views` entry it comes from, its `tatolab_view.json` as parsed, and the URL its folder is served under, which its entry and every file it loads resolve against. */
-export interface ListedStudioView {
+/** A view the open project or one of its imports brings, as the runtime's `list_project_views` lists it from a `views/<folder>/`, and the URL its folder is served under, which its entry and every file it loads resolve against. */
+export type ListedStudioView = ListedStudioViewFacts & StudioViewOpening;
+
+/** Whether the runtime opens a listed view, and when it does not, why in its own words. */
+export type StudioViewOpening = { opens: true; not_opened_because: null } | { opens: false; not_opened_because: string };
+
+/** What the window draws a listed view from, beside whether it opens. */
+export interface ListedStudioViewFacts {
+  /** `<project name>:<view folder>`, the node type a node of the view is. */
   view_type_id: string;
-  distribution: string;
-  entry_name: string;
-  manifest_json: JsonValue;
+  /** The name of the project bringing it. */
+  project_name: string;
+  /** That project's folder under `imports/`; `null` for the open project's own view. */
+  import_folder: string | null;
+  /** Its `tatolab_view.json` as written, `null` when it is not JSON. */
+  manifest_json: JsonValue | null;
+  /** The URL its folder is served under. */
   folder_url: string;
 }
 

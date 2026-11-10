@@ -64,14 +64,12 @@ async function aTatolabStatus(): Promise<TatolabStatus> {
 }
 
 describe("createElectronTatolabBackend", () => {
-  it("refuses to list a project's views in words naming the runtime's listing it waits on, asking the app nothing", async () => {
-    const fakeBridge = fakeTatolabElectronBridge({});
+  it("lists the open project's views by asking the app for them, and passes the app's refusal on in its words", async () => {
+    const fakeBridge = fakeTatolabElectronBridge({ list_studio_views_of_the_open_project: { ok: false, refusal: "No project is open in this window." } });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
 
-    await expect(backend.listStudioViewsOfTheOpenProject()).rejects.toBe(
-      "Tato Studio lists a project's views once the runtime lists the tatolab.views of a stream's packages (tatolab/streamlib#3307).",
-    );
-    expect(fakeBridge.invokedCommands).toEqual([]);
+    await expect(backend.listStudioViewsOfTheOpenProject()).rejects.toBe("No project is open in this window.");
+    expect(fakeBridge.invokedCommands.map((invokedCommand) => invokedCommand[0])).toEqual(["list_studio_views_of_the_open_project"]);
   });
 
   it("sends each command under its name with its arguments", async () => {

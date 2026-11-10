@@ -115,7 +115,7 @@ export const streamGraphNodeStudioFieldsSchema = z.object({
 export type StreamGraphNodeStudioFields = z.infer<typeof streamGraphNodeStudioFieldsSchema>;
 
 /** The `studio` fields of a node whose graph document sets none. */
-export const NODE_STUDIO_FIELDS_NONE_SET: StreamGraphNodeStudioFields = { position: null, group: null, comment: null, colour: null, collapsed: null, metadata: {} };
+export const NODE_STUDIO_FIELDS_NONE_SET: Readonly<StreamGraphNodeStudioFields> = Object.freeze({ position: null, group: null, comment: null, colour: null, collapsed: null, metadata: Object.freeze({}) });
 
 /** A labelled group of a stream's graph, from its `groups` key, which its nodes join by naming its UUID as their `studio.group`. */
 export const streamGraphGroupSchema = z.object({
@@ -149,7 +149,7 @@ export const streamGraphNodeSchema = z.object({
   failed_because: z.string().nullable(),
   /** Its config as the graph renders it; `{}` when it renders none. */
   config: z.record(z.string(), jsonValueSchema),
-  /** The value each unlinked input holds, by input name, as the graph's `pins` renders it; `{}` when it renders none. */
+  /** The value set on each unlinked input, by input name, as the graph's `pins` renders it; an input left at its port's default is absent. */
   pins: z.record(z.string(), jsonValueSchema),
   input_ports: z.array(streamGraphDeclaredPortSchema),
   output_ports: z.array(streamGraphDeclaredPortSchema),

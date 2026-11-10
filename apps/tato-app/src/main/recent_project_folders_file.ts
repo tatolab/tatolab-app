@@ -7,7 +7,7 @@ import { replaceFileWhole } from "./file_replaced_whole.js";
 import { isAMissingFileFailure } from "./file_system_entries_on_this_machine.js";
 import { isAJsonObject, parseJsonOnTheWire } from "./json_on_the_wire.js";
 import type { RecentProjectFolderOpened, RecentProjectFolders } from "./open_project.js";
-import { describeCaughtFailure, type Result } from "./result.js";
+import { describeCaughtFailure, succeeded, type Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 
 /** The file the recent projects are remembered in, inside the app's config directory. */
@@ -50,12 +50,19 @@ export function recentProjectFoldersFileIn(appConfigDirectory: string, tatolabAp
       return recentFolder === null ? [] : [recentFolder];
     });
   };
+  const writeTheRecentFolders = (recentProjects: readonly RecentProjectFolderOpened[]): Promise<Result<void, string>> =>
+    replaceFileWhole(rememberedFilePath, JSON.stringify({ [RECENT_PROJECTS_KEY]: recentProjects }, null, 2));
   return {
     readRecentFolders,
     rememberOpened: async (folder, openedAtWallClockMs): Promise<Result<void, string>> => {
       const othersRecentFirst = (await readRecentFolders()).filter((recentFolder) => recentFolder.folder !== folder);
       const recentProjects = [{ folder, opened_at_wall_clock_ms: openedAtWallClockMs }, ...othersRecentFirst].slice(0, RECENT_PROJECTS_REMEMBERED);
-      return replaceFileWhole(rememberedFilePath, JSON.stringify({ [RECENT_PROJECTS_KEY]: recentProjects }, null, 2));
+      return writeTheRecentFolders(recentProjects);
+    },
+    forget: async (folder): Promise<Result<void, string>> => {
+      const recentFolders = await readRecentFolders();
+      const othersRecentFirst = recentFolders.filter((recentFolder) => recentFolder.folder !== folder);
+      return othersRecentFirst.length === recentFolders.length ? succeeded(undefined) : writeTheRecentFolders(othersRecentFirst);
     },
   };
 }

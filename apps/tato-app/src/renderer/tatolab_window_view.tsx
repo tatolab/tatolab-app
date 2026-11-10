@@ -59,7 +59,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
       ...coreViewTypeIn("viewer"),
       ...coreViewTypeIn("code"),
     ],
-    (listed, manifest, projectName) => tatolabFrameViewType(listed, manifest, { kind: "project", project_name: projectName }),
+    (listed, manifest) => tatolabFrameViewType(listed, manifest, { kind: "project", project_name: listed.project_name }),
     coreViewTypes.not_opened,
     coreViewTypeIn("transactions"),
   );
@@ -75,10 +75,9 @@ function listTheOpenProjectsStudioViews(backend: TatolabBackend, studioWindowMod
       viewTypeRegistry.projectStudioViews.publish({ kind: "none_open" });
       return;
     }
-    const projectName = openProjectReading.open_project.project.name;
     backend.listStudioViewsOfTheOpenProject().then(
       (studioViews) => {
-        if (thisListing === listingsAsked) viewTypeRegistry.projectStudioViews.publish({ kind: "listed", project_name: projectName, studio_views: studioViews });
+        if (thisListing === listingsAsked) viewTypeRegistry.projectStudioViews.publish({ kind: "listed", studio_views: studioViews });
       },
       (rejection: unknown) => {
         if (thisListing === listingsAsked) viewTypeRegistry.projectStudioViews.publish({ kind: "not_listed", because: describeBackendRejection(rejection) });
@@ -160,7 +159,14 @@ export function mountTatolabWindow(
     createAProject: () => {
       studioWindowModel.projectOpeningRefusal.publish(null);
       backend.readNewProjectDefaults().then(
-        (newProjectDefaults) => studioWindowModel.newProjectSheetOpenedWith.publish(newProjectDefaults),
+        (newProjectDefaults) => studioWindowModel.newProjectSheetOpenedWith.publish({ kind: "new_project", defaults: newProjectDefaults }),
+        (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
+      );
+    },
+    importAProjectArchive: () => {
+      studioWindowModel.projectOpeningRefusal.publish(null);
+      backend.chooseProjectArchiveToImport().then(
+        (chosenArchive) => chosenArchive !== null && studioWindowModel.newProjectSheetOpenedWith.publish({ kind: "project_archive", chosen: chosenArchive }),
         (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
       );
     },
@@ -250,6 +256,12 @@ export function mountTatolabWindow(
         studioWindowModel.projectOpeningRefusal.publish(null);
         backend.openRecentProject(folder).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
       },
+      renameARecentProject: (folder, name) => backend.renameRecentProject(folder, name),
+      duplicateARecentProject: async (folder) => {
+        await backend.duplicateRecentProject(folder);
+      },
+      deleteARecentProject: (folder) => backend.deleteRecentProject(folder),
+      sayWhyTheChangeDidNotHappen: (refusal) => studioWindowModel.recentProjectChangeRefusal.publish(refusal),
     },
     newProject: {
       chooseNewProjectLocation: (startingAt) => backend.chooseNewProjectLocation(startingAt),
@@ -258,6 +270,7 @@ export function mountTatolabWindow(
         if (created.project_creation !== null) studioWindowModel.openTheNewProjectsStream(created.folder, created.project_creation.stream);
         return created;
       },
+      importProjectArchive: (archive, name, location) => backend.importProjectArchive(archive, name, location),
     },
     platform,
   };

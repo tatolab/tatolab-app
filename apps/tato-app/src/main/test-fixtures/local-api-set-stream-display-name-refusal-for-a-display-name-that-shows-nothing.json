@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"set_stream_display_name failed: \"   \" cannot be a stream's display name: it shows nothing"}],"isError":true}}

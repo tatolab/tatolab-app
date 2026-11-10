@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { NODE_STUDIO_FIELDS_NONE_SET, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { outputPortTheViewerPlays, portTheViewerPlays, viewerChosenPortOf } from "./viewer_port_choice";
-import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 const STREAM = "show-main-0a1b2c";
 

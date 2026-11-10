@@ -19,7 +19,9 @@ import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import {
   mockFoldersInDocumentsTatoStudio,
   mockNewProjectDefaults,
+  mockFirstNameNothingHolds,
   mockNewProjectLocationTheDialogAnswers,
+  mockProjectArchiveTheDialogAnswers,
   mockNewProjectReading,
   mockOpenProjectReading,
   mockOpenProjectScenarioNamed,
@@ -29,7 +31,7 @@ import {
 } from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
 import { MockPortViewers } from "./mock_port_viewers";
-import { mockStudioViewListing } from "./mock_studio_view/mock_studio_view_listing";
+import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./mock_studio_view/mock_studio_view_listing";
 import { MockProjectFiles } from "./mock_project_files";
 import { MOCK_PERSON_EDITING_IN_STUDIO, MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
@@ -208,7 +210,7 @@ export interface MockTatolabOptions {
   moduleManagerWorkspaceDependencies: MockWorkspaceDependenciesScenario | null;
   /** `?catalog=unserved`: get.tatolab.com serves no catalog yet; the mock catalog by default. */
   isTheCatalogUnserved: boolean;
-  /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node. */
+  /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node; its import brings one that does not open. */
   isTheFixtureViewListed: boolean;
 }
 
@@ -468,7 +470,17 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const mockFoldersOnDisk = () => [...mockFoldersInDocumentsTatoStudio(fixtures.machine.homeDirectory), ...recentProjects.map((recent) => recent.folder)];
   const openTheProjectInTheMock = (reading: OpenProjectReading, folder: string, projectName: string | null) => {
     openProjectReading = reading;
-    recentProjects = [{ folder, project_name: projectName, last_opened_at_wall_clock_ms: Date.now() }, ...recentProjects.filter((recent) => recent.folder !== folder)];
+    const recentBefore = recentProjects.find((recent) => recent.folder === folder);
+    recentProjects = [
+      {
+        folder,
+        project_name: projectName,
+        project_description: recentBefore?.project_description ?? null,
+        last_edited_at_wall_clock_ms: recentBefore?.last_edited_at_wall_clock_ms ?? null,
+        last_opened_at_wall_clock_ms: Date.now(),
+      },
+      ...recentProjects.filter((recent) => recent.folder !== folder),
+    ];
     for (const openProjectListener of openProjectListeners) openProjectListener(structuredClone(openProjectReading));
   };
   const mockProjectFiles = new MockProjectFiles(`${fixtures.machine.homeDirectory}/streams`);
@@ -522,7 +534,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     [fixtures.failedLobbyRecorder.stream, fixtures.failedLobbyRecorder],
     ...(doesTheRuntimeListAnEarlierRuntimesRecord ? [[fixtures.earlierRuntimesRecord.stream, fixtures.earlierRuntimesRecord] as const] : []),
   ]);
-  /** The display names `rename_stream` gave, by stream id, over the ones the fixtures load with. */
+  /** The display names `set_stream_display_name` gave, by stream id, over the ones the fixtures load with. */
   const displayNamesRenamedTo = new Map<string, string>();
   /** Recorded streams not loaded that a run of their project loads again, by id: `pattern-two`, and each one stopped from the window. */
   const recordedFixturesNotLoaded = new Map<string, MockStreamFixture>([[fixtures.patternTwoStream.listing.stream, fixtures.patternTwoStream]]);
@@ -593,7 +605,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     return `${newProjectsFolder}/${freeName ?? `project-${projectFolders.size}`}`;
   };
 
-  /** Each load `create_project` or `run_project` queued, by action, as `describe_stream_action` reads it. */
+  /** Each load `create_project`, `start_project` or `reload_project` queued, by action, as `describe_stream_action` reads it. */
   const projectLoadsQueued = new Map<string, StreamActionDescription>();
   const notHeldWords = (action: string): string =>
     `the stream action \`${action}\` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log`;
@@ -655,7 +667,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   };
 
   /**
-   * `create_project`'s and `run_project`'s load as the runtime does it: queued, then every stream asset's graph document
+   * `create_project`'s, `start_project`'s and `reload_project`'s load as the runtime does it: queued, then every stream asset's graph document
    * read, the `.venv` made where it has none, and every stream starting, each listed `preparing` under the action, then
    * loaded, or failed for the doorways project's `back_door`.
    */
@@ -1004,10 +1016,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     };
   };
 
-  /** `rename_stream` as the runtime does it: refused for a name that shows nothing or a stream it does not hold, else shown under the new name. */
+  /** `set_stream_display_name` as the runtime does it: refused for a name that shows nothing or a stream it does not hold, else shown under the new name. */
   const renameMockStream = (streamId: string, displayName: string): void => {
     if (displayName.trim() === "") {
-      throw `Invalid configuration: ${JSON.stringify(displayName)} cannot be a stream's display name: it shows nothing; a display name is any text with something to show`;
+      throw `set_stream_display_name failed: ${JSON.stringify(displayName)} cannot be a stream's display name: it shows nothing`;
     }
     if (!(listStreams() ?? []).some((listing) => listing.stream === streamId)) throw aStreamThisRuntimeDoesNotHoldRefusal(streamId);
     displayNamesRenamedTo.set(streamId, displayName);
@@ -1125,7 +1137,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     },
     renameStream: async (streamId, displayName) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer rename_stream`;
+      if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer set_stream_display_name`;
       renameMockStream(streamId, displayName);
     },
     openStreamProjectFolder: async (streamId) => {
@@ -1323,6 +1335,47 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
       openTheProjectInTheMock(mockRecentProjectReading(recentProject, fixtures.machine.homeDirectory), folder, recentProject.project_name);
     },
+    renameRecentProject: async (folder, name) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const recentProject = recentProjects.find((recent) => recent.folder === folder);
+      if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      if (name.trim() === "") throw "Give the project a name.";
+      if (recentProject.project_name === null) throw `rename_project failed: ${folder} holds no project: it has no tatolab-project.json`;
+      recentProjects = recentProjects.map((recent) => (recent.folder === folder ? { ...recent, project_name: name.trim(), last_edited_at_wall_clock_ms: Date.now() } : recent));
+    },
+    duplicateRecentProject: async (folder) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 3);
+      const recentProject = recentProjects.find((recent) => recent.folder === folder);
+      if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      if (recentProject.project_name === null) throw `duplicate_project failed: ${folder} holds no project: it has no tatolab-project.json`;
+      const parentFolder = folder.slice(0, folder.lastIndexOf("/"));
+      const duplicateFolder = `${parentFolder}/${mockFirstNameNothingHolds(parentFolder, `${folder.slice(folder.lastIndexOf("/") + 1)} copy`, mockFoldersOnDisk())}`;
+      recentProjects = [{ ...recentProject, folder: duplicateFolder, project_name: `${recentProject.project_name} copy`, last_opened_at_wall_clock_ms: Date.now(), last_edited_at_wall_clock_ms: Date.now() }, ...recentProjects];
+      return duplicateFolder;
+    },
+    deleteRecentProject: async (folder) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 4);
+      const recentProject = recentProjects.find((recent) => recent.folder === folder);
+      if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      if (recentProject.project_name === null) throw `delete_project failed: ${folder} holds no project: it has no tatolab-project.json`;
+      recentProjects = recentProjects.filter((recent) => recent.folder !== folder);
+    },
+    chooseProjectArchiveToImport: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      return mockProjectArchiveTheDialogAnswers(fixtures.machine.homeDirectory, mockFoldersOnDisk());
+    },
+    importProjectArchive: async (archive, name, location) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 4);
+      const nameRefusal = newProjectFolderNameRefusal(name);
+      if (nameRefusal !== null) throw nameRefusal;
+      const folder = `${location}/${name.trim()}`;
+      if (mockFoldersOnDisk().includes(folder)) throw `${folder} already exists. Choose another name or location.`;
+      if (!archive.endsWith(".zip")) throw `import_project failed: ${archive} is not a .zip`;
+      projectFolders.set(folder, { streamNames: ["main"], hasAPythonEnvironment: false });
+      const importedReading = mockNewProjectReading(folder, name.trim());
+      openTheProjectInTheMock(importedReading, folder, importedReading.kind === "read" ? importedReading.open_project.project.name : null);
+      return { folder, project_creation: null };
+    },
     onOpenProjectChanged: (openProjectListener) => {
       openProjectListeners.add(openProjectListener);
       return () => openProjectListeners.delete(openProjectListener);
@@ -1421,7 +1474,13 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     listStudioViewsOfTheOpenProject: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (openProjectReading.kind !== "read") throw "No project is open in this window.";
-      return mockTatolabOptions.isTheFixtureViewListed ? [mockStudioViewListing()] : [];
+      return mockTatolabOptions.isTheFixtureViewListed ? [mockStudioViewListing(), mockStudioViewListingThatDoesNotOpen()] : [];
+    },
+    writeStudioViewOutput: async (stream, node, port) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const viewNode = loadedStreamOfTheId(stream).fixture.graph.nodes.find((graphNode) => mockGraphNodeIdOf(stream, graphNode) === node);
+      if (viewNode === undefined) throw `write_studio_view_output failed: no node with the id \`${node}\` in stream \`${stream}\``;
+      if (!viewNode.output_ports.some((outputPort) => outputPort.name === port)) throw `write_studio_view_output failed: \`${viewNode.name}\` has no output port named \`${port}\``;
     },
     openPortViewer: async (target) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

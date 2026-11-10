@@ -1,5 +1,7 @@
 import { cn } from "cn";
 import { TriangleAlert } from "lucide-react";
+import type { ReactNode } from "react";
+import { MoreActionsMenu } from "./menus";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 
@@ -27,7 +29,7 @@ const PROJECT_COVER_SIZE_CLASS_NAMES: Record<ProjectCoverSize, string> = {
   thumbnail: "h-11 w-20 shrink-0 rounded-md text-base",
 };
 
-/** A project's plain cover: a ground in the colour picked from its name, with the name's initial on it. */
+/** A project's plain cover: a ground in the colour picked from its name, with the name's initial on it. A card's lifts while its card is under the pointer or its open button has the keyboard's focus. */
 function ProjectCover({ coverNumber, coverInitial, size }: { coverNumber: ProjectCoverNumber; coverInitial: string; size: ProjectCoverSize }) {
   return (
     <span
@@ -36,7 +38,8 @@ function ProjectCover({ coverNumber, coverInitial, size }: { coverNumber: Projec
         "flex items-center justify-center overflow-hidden border border-line font-semibold select-none",
         PROJECT_COVER_CLASS_NAMES[coverNumber],
         PROJECT_COVER_SIZE_CLASS_NAMES[size],
-        size === "card" && "transition-[transform,box-shadow,border-color] duration-150 ease-(--ease) group-hover:-translate-y-0.5 group-hover:border-line-strong group-hover:shadow-(--shadow-pop) group-focus-visible:-translate-y-0.5 group-focus-visible:border-line-strong group-focus-visible:shadow-(--shadow-pop)",
+        size === "card" &&
+          "transition-[transform,box-shadow,border-color] duration-150 ease-(--ease) group-hover/project:-translate-y-0.5 group-hover/project:border-line-strong group-hover/project:shadow-(--shadow-pop) group-has-[[data-popup-open]]/project:-translate-y-0.5 group-has-[[data-popup-open]]/project:shadow-(--shadow-pop) group-focus-visible/open:-translate-y-0.5 group-focus-visible/open:border-line-strong group-focus-visible/open:shadow-(--shadow-pop)",
       )}
     >
       {coverInitial}
@@ -54,90 +57,148 @@ function ProjectName({ name, isUnreadable, className }: { name: string; isUnread
   );
 }
 
-/** What a project card or row shows of one project, and what pressing it does. */
+/** What a project card or row shows of one project, and what pressing it and its ⋯ menu do. */
 interface ProjectShown {
   readonly name: string;
+  /** What the project is, or the words a project with none shows. */
+  readonly description: string;
+  /** Whether `description` is the project's own; a placeholder reads dimmed. */
+  readonly hasADescription: boolean;
+  /** Where the project is, as "~/streams/pattern", in the tooltip of its open button. */
+  readonly folderWords: string;
   readonly coverNumber: ProjectCoverNumber;
   readonly coverInitial: string;
   readonly isUnreadable: boolean;
   readonly onOpened: () => void;
+  /** The ⋯ menu's choices, as `MenuItem`s; it shows while the pointer is over the project, its menu is open or it holds the keyboard's focus. */
+  readonly moreActions: ReactNode;
+  /** The ⋯ button's name, as "Actions for pattern, ~/streams/pattern". */
+  readonly moreActionsLabel: string;
+  /** What is being done to the project while a change of it runs, as "Moving to Trash…"; it then neither opens nor offers its ⋯ menu. `null` when nothing is. */
+  readonly pendingWords: string | null;
 }
 
-/** One project in the Projects window's grid: its cover, which lifts under the pointer, its name, and a line on where it is and when it was opened; pressing it opens it. */
+/** The ⋯ menu's place: out of sight until the project is under the pointer, holds the keyboard's focus, or has its menu open. */
+const PROJECT_MORE_ACTIONS_CLASS_NAMES =
+  "opacity-0 transition-opacity duration-150 group-hover/project:opacity-100 group-focus-within/project:opacity-100 group-has-[[data-popup-open]]/project:opacity-100";
+
+/** The card's ⋯ menu rides its cover as the cover lifts. */
+const PROJECT_CARD_MORE_ACTIONS_LIFT_CLASS_NAMES =
+  "transition-[transform,opacity] group-hover/project:-translate-y-0.5 group-has-[[data-popup-open]]/project:-translate-y-0.5 group-has-[[data-project-open]:focus-visible]/project:-translate-y-0.5";
+
+/** One project in the Projects window's grid: its cover, which lifts under the pointer, its name, what it is and when it was edited, and a ⋯ menu over its cover; pressing it opens it. */
 export function ProjectCard({
   name,
-  detail,
+  description,
+  hasADescription,
+  folderWords,
+  when,
   coverNumber,
   coverInitial,
   isUnreadable,
   onOpened,
+  moreActions,
+  moreActionsLabel,
+  pendingWords,
   ...controlDataAttributes
 }: ProjectShown & {
-  /** The card's second line, as "~/streams/pattern · Opened 2 hours ago". */
-  detail: string;
+  /** When it was last edited, as "Edited 2 hours ago". */
+  when: string;
 } & ControlDataAttributes) {
   return (
-    <button
-      type="button"
-      onClick={onOpened}
-      className={cn("group flex w-full min-w-0 flex-col gap-2.5 rounded-xl text-left outline-none", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
-      {...controlDataAttributes}
-    >
-      <ProjectCover coverNumber={coverNumber} coverInitial={coverInitial} size="card" />
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <ProjectName name={name} isUnreadable={isUnreadable} className="text-base" />
-        <span className="truncate text-xs text-fg-3">{detail}</span>
-      </span>
-    </button>
-  );
-}
-
-/** The columns a Projects list's heading and its rows share: thumbnail, name, folder and when it was opened. */
-const PROJECT_LIST_COLUMNS_CLASS_NAMES = "grid grid-cols-[80px_minmax(0,14rem)_minmax(0,1fr)_8rem] items-center gap-4 px-3";
-
-/** The heading over a Projects list's rows, naming each column. */
-export function ProjectListHeading() {
-  return (
-    <div className={cn(PROJECT_LIST_COLUMNS_CLASS_NAMES, "h-7.5 border-b border-line text-2xs text-fg-3")} aria-hidden>
-      <span />
-      <span>Name</span>
-      <span>Folder</span>
-      <span>Opened</span>
+    <div className="group/project relative flex w-full min-w-0" aria-busy={pendingWords !== null} {...controlDataAttributes}>
+      <button
+        type="button"
+        onClick={onOpened}
+        disabled={pendingWords !== null}
+        title={folderWords}
+        className={cn("group/open flex w-full min-w-0 flex-col gap-2.5 rounded-xl text-left outline-none", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
+        data-project-open=""
+      >
+        <ProjectCover coverNumber={coverNumber} coverInitial={coverInitial} size="card" />
+        <span className="flex min-w-0 flex-col gap-1">
+          <ProjectName name={name} isUnreadable={isUnreadable} className="text-base" />
+          <span className={cn("line-clamp-2 min-h-9 text-xs leading-4.5", hasADescription ? "text-fg-2" : "text-fg-3")}>{description}</span>
+          <span className="truncate text-xs text-fg-3" data-project-pending={pendingWords === null ? undefined : ""}>
+            {pendingWords ?? when}
+          </span>
+        </span>
+      </button>
+      {pendingWords === null && (
+        <div className={cn("absolute top-2.5 right-2.5", PROJECT_MORE_ACTIONS_CLASS_NAMES, PROJECT_CARD_MORE_ACTIONS_LIFT_CLASS_NAMES)}>
+          <MoreActionsMenu label={moreActionsLabel} isOverAPicture data-project-more-actions="">
+            {moreActions}
+          </MoreActionsMenu>
+        </div>
+      )}
     </div>
   );
 }
 
-/** One project in the Projects window's list: a thumbnail of its cover, its name, its folder and when it was opened; pressing it opens it. Its list draws the line under it. */
+/** The columns a Projects list's heading and its rows share: thumbnail, name, description, when it was edited, and its ⋯ menu. */
+const PROJECT_LIST_COLUMNS_CLASS_NAMES = "grid grid-cols-[80px_minmax(0,14rem)_minmax(0,1fr)_8rem] items-center gap-4 px-3";
+
+/** The width of a list row's ⋯ menu, kept clear beside the heading too. */
+const PROJECT_LIST_MORE_ACTIONS_WIDTH_CLASS_NAMES = "w-10 shrink-0";
+
+/** The heading over a Projects list's rows, naming each column. */
+export function ProjectListHeading() {
+  return (
+    <div className="flex h-7.5 items-center border-b border-line text-2xs text-fg-3" aria-hidden>
+      <div className={cn(PROJECT_LIST_COLUMNS_CLASS_NAMES, "flex-1")}>
+        <span />
+        <span>Name</span>
+        <span>Description</span>
+        <span>Edited</span>
+      </div>
+      <span className={PROJECT_LIST_MORE_ACTIONS_WIDTH_CLASS_NAMES} />
+    </div>
+  );
+}
+
+/** One project in the Projects window's list: a thumbnail of its cover, its name, what it is and when it was edited, and a ⋯ menu; pressing it opens it. Its list draws the line under it. */
 export function ProjectListRow({
   name,
+  description,
+  hasADescription,
   folderWords,
-  lastOpenedWords,
+  when,
   coverNumber,
   coverInitial,
   isUnreadable,
   onOpened,
+  moreActions,
+  moreActionsLabel,
+  pendingWords,
   ...controlDataAttributes
 }: ProjectShown & {
-  /** Where the project is, as "~/streams/pattern". */
-  folderWords: string;
-  /** When it was last opened, as "2 hours ago". */
-  lastOpenedWords: string;
+  /** When it was last edited, as "2 hours ago". */
+  when: string;
 } & ControlDataAttributes) {
   return (
-    <button
-      type="button"
-      onClick={onOpened}
-      className={cn(
-        PROJECT_LIST_COLUMNS_CLASS_NAMES,
-        "h-15 w-full rounded-lg text-left outline-none hover:bg-hover",
-        FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
-      )}
-      {...controlDataAttributes}
-    >
-      <ProjectCover coverNumber={coverNumber} coverInitial={coverInitial} size="thumbnail" />
-      <ProjectName name={name} isUnreadable={isUnreadable} className="text-base" />
-      <span className="truncate text-sm text-fg-2">{folderWords}</span>
-      <span className="truncate text-xs text-fg-3">{lastOpenedWords}</span>
-    </button>
+    <div className="group/project flex w-full min-w-0 items-center rounded-lg hover:bg-hover has-[[data-popup-open]]:bg-hover" aria-busy={pendingWords !== null} {...controlDataAttributes}>
+      <button
+        type="button"
+        onClick={onOpened}
+        disabled={pendingWords !== null}
+        title={folderWords}
+        className={cn(PROJECT_LIST_COLUMNS_CLASS_NAMES, "h-15 min-w-0 flex-1 rounded-lg text-left outline-none", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
+        data-project-open=""
+      >
+        <ProjectCover coverNumber={coverNumber} coverInitial={coverInitial} size="thumbnail" />
+        <ProjectName name={name} isUnreadable={isUnreadable} className="text-base" />
+        <span className={cn("truncate text-sm", hasADescription ? "text-fg-2" : "text-fg-3")}>{description}</span>
+        <span className="truncate text-xs text-fg-3" data-project-pending={pendingWords === null ? undefined : ""}>
+          {pendingWords ?? when}
+        </span>
+      </button>
+      <div className={cn("flex justify-center", PROJECT_LIST_MORE_ACTIONS_WIDTH_CLASS_NAMES, PROJECT_MORE_ACTIONS_CLASS_NAMES)}>
+        {pendingWords === null && (
+          <MoreActionsMenu label={moreActionsLabel} data-project-more-actions="">
+            {moreActions}
+          </MoreActionsMenu>
+        )}
+      </div>
+    </div>
   );
 }

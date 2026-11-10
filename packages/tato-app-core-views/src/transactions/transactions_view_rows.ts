@@ -1,33 +1,41 @@
-// What the Transactions view shows of a project's change feed: one row per transaction, the
-// choices its Filter popover offers, and what a row copies as JSON.
+// What the Transactions view shows of a project's change feed: one row per transaction applied or
+// action refused, the choices its Filter popover offers, and what a row copies as JSON.
 
-import type { JsonValue, ListedStream, ProjectTransaction } from "@tatolab/tato-app-view-sdk";
+import type { JsonValue, ListedStream, ProjectTransaction, ProjectTransactions, RefusedProjectAction } from "@tatolab/tato-app-view-sdk";
+import type { StatusChipTone } from "@tatolab/tato-app-view-sdk/design_system/status_chip";
 
-/** Whether the runtime applied a transaction or refused it; every row reads applied while the feed carries no refusals. */
+/** Whether the runtime applied a change or refused it. */
 export type TransactionResult = "applied" | "refused";
+
+/** A change-feed entry exactly as the runtime sent it: a transaction it applied, or an action it refused. */
+export type ChangeFeedEntryAsSent = { kind: "applied"; transaction: ProjectTransaction } | { kind: "refused"; refused_action: RefusedProjectAction };
 
 /** One row of the Transactions table and its detail pane. */
 export interface TransactionsViewRow {
-  transaction: string;
-  /** The time it applied, as this machine's clock reads it; `null` from a runtime that does not say. */
-  applied_at_words: string | null;
+  /** The transaction's UUID, or for a refused action its time, a hash of what it carries and which of its identical twins it is. */
+  row_id: string;
+  /** The time it applied or was refused, as this machine's clock reads it. */
+  happened_at_words: string;
   /** `person · Sam`, `agent · claude-code` or `runtime`. */
   author_words: string;
-  /** The Time cell: `applied_at_words`, or a dash when the runtime does not say. */
-  time_cell_words: string;
   /** Each stream it touched, by the name the runtime lists it under; empty for a change to the project alone. */
   stream_words: readonly string[];
   /** The Stream cell: the streams it touched, or `project` for a change to the project alone. */
   stream_cell_words: string;
   /** Each operation's verb, once each, in order. */
   operation_verbs: readonly string[];
-  /** `undo · set_node_config`, or the verbs it ran. */
+  /** `undo · set_node_config`, or the verbs it ran or asked for. */
   operations_words: string;
+  /** `commit` or `live`, as the change was made or asked: an applied transaction on the feed is always a commit, since the feed keeps no live edit. */
+  mode_words: string;
+  /** A live change in the caution tone, a commit or a mode newer than this app plain. */
+  mode_chip_tone: StatusChipTone;
   result: TransactionResult;
-  /** The commit's first seven hex digits. */
-  commit_words: string;
-  /** The transaction exactly as the runtime sent it. */
-  transaction_as_sent: ProjectTransaction;
+  result_chip_tone: StatusChipTone;
+  /** The Commit cell: the commit's first seven hex digits, or `none` for a refused action, which no history records. */
+  commit_cell_words: string;
+  /** The entry exactly as the runtime sent it. */
+  sent: ChangeFeedEntryAsSent;
   /** Everything the search matches against, lowercased once. */
   searched_words: string;
 }
@@ -64,9 +72,9 @@ function distinctInOrder<Value extends string>(values: readonly Value[]): Value[
   return [...new Set(values)];
 }
 
-/** How a transaction's author reads: the runtime by its kind alone, anyone else by kind and name. */
-export function authorWordsOf(transaction: ProjectTransaction): string {
-  return transaction.author_kind === "runtime" ? "runtime" : `${transaction.author_kind} · ${transaction.author_name}`;
+/** How a change's author reads: the runtime by its kind alone, anyone else by kind and name. */
+export function authorWordsOf(author: { author_kind: string; author_name: string }): string {
+  return author.author_kind === "runtime" ? "runtime" : `${author.author_kind} · ${author.author_name}`;
 }
 
 /** The name each operation's `stream` reads as: the listed stream whose stream asset or stream id it names, or the value itself. */
@@ -75,41 +83,151 @@ export function streamWordsByOperationStream(listedStreams: readonly ListedStrea
     listedStreams.find((listedStream) => listedStream.location?.stream_asset === operationStream || listedStream.stream === operationStream)?.display_name ?? operationStream;
 }
 
-/** `appliedAt`, RFC 3339, as hours, minutes, seconds and milliseconds in `timeZone`, for display only. */
-export function appliedAtWordsOf(appliedAt: string | null, timeZone?: string): string | null {
-  if (appliedAt === null) return null;
-  const applied = new Date(appliedAt);
-  if (Number.isNaN(applied.getTime())) return appliedAt;
-  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3, hourCycle: "h23", timeZone }).format(applied);
+/** `happenedAt`, RFC 3339, as hours, minutes and seconds in `timeZone`, with milliseconds when the runtime sent a fraction, for display only. */
+export function happenedAtWordsOf(happenedAt: string, timeZone?: string): string {
+  const happened = new Date(happenedAt);
+  if (Number.isNaN(happened.getTime())) return happenedAt;
+  const sentAFraction = /T\d{2}:\d{2}:\d{2}\.\d/.test(happenedAt);
+  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", ...(sentAFraction ? { fractionalSecondDigits: 3 } : {}), hourCycle: "h23", timeZone }).format(happened);
 }
 
-/** The row `transaction` shows. */
-export function transactionsViewRowOf(transaction: ProjectTransaction, streamWordsOf: (operationStream: string) => string, timeZone?: string): TransactionsViewRow {
-  const operationVerbs = distinctInOrder(transaction.operations.map((operation) => stringFieldOf(operation, "operation") ?? "unnamed operation"));
-  const lineage = transaction.undoes !== null ? "undo · " : transaction.redoes !== null ? "redo · " : "";
-  const appliedAtWords = appliedAtWordsOf(transaction.applied_at, timeZone);
-  const authorWords = authorWordsOf(transaction);
-  const streamWords = distinctInOrder(
-    transaction.operations.flatMap((operation) => {
+function operationVerbsOf(operations: readonly JsonValue[]): string[] {
+  return distinctInOrder(operations.map((operation) => stringFieldOf(operation, "operation") ?? "unnamed operation"));
+}
+
+function streamWordsOfOperations(operations: readonly JsonValue[], streamWordsOf: (operationStream: string) => string): string[] {
+  return distinctInOrder(
+    operations.flatMap((operation) => {
       const operationStream = stringFieldOf(operation, "stream");
       return operationStream === null ? [] : [streamWordsOf(operationStream)];
     }),
   );
-  const operationsWords = `${lineage}${operationVerbs.length === 0 ? "no operations" : operationVerbs.join(", ")}`;
+}
+
+function verbsWords(operationVerbs: readonly string[]): string {
+  return operationVerbs.length === 0 ? "no operations" : operationVerbs.join(", ");
+}
+
+/** The row `transaction`, one the runtime applied, shows. */
+export function transactionsViewRowOf(transaction: ProjectTransaction, streamWordsOf: (operationStream: string) => string, timeZone?: string): TransactionsViewRow {
+  const operationVerbs = operationVerbsOf(transaction.operations);
+  const lineage = transaction.undoes !== null ? "undo · " : transaction.redoes !== null ? "redo · " : "";
+  const happenedAtWords = happenedAtWordsOf(transaction.applied_at, timeZone);
+  const authorWords = authorWordsOf(transaction);
+  const streamWords = streamWordsOfOperations(transaction.operations, streamWordsOf);
+  const operationsWords = `${lineage}${verbsWords(operationVerbs)}`;
   return {
-    transaction: transaction.transaction,
-    applied_at_words: appliedAtWords,
-    time_cell_words: appliedAtWords ?? "—",
+    row_id: transaction.transaction,
+    happened_at_words: happenedAtWords,
     author_words: authorWords,
     stream_words: streamWords,
     stream_cell_words: streamWords.length === 0 ? "project" : streamWords.join(", "),
     operation_verbs: operationVerbs,
     operations_words: operationsWords,
+    mode_words: "commit",
+    mode_chip_tone: "neutral",
     result: "applied",
-    commit_words: transaction.commit.slice(0, SHORT_COMMIT_LENGTH),
-    transaction_as_sent: transaction,
+    result_chip_tone: "positive",
+    commit_cell_words: transaction.commit.slice(0, SHORT_COMMIT_LENGTH),
+    sent: { kind: "applied", transaction },
     searched_words: [authorWords, operationsWords, ...streamWords, JSON.stringify(transaction)].join("\n").toLowerCase(),
   };
+}
+
+/** 32-bit FNV-1a of `words`, as eight hex digits. */
+function fnv1aHexOf(words: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < words.length; index += 1) {
+    hash ^= words.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+/** A refused action's identity across feed readings, which give it no id: its time and a hash of everything it carries, then which of its identical twins it is, counted from the oldest. */
+function refusedActionRowIdOf(refusedAction: RefusedProjectAction, twinsOlderThanIt: number): string {
+  return `refused:${refusedAction.refused_at}:${fnv1aHexOf(JSON.stringify(refusedAction))}:${twinsOlderThanIt}`;
+}
+
+/** Which of the action's operations the runtime refused, as `n of m`, or `null` when it names none the action carries. */
+export function refusedOperationWordsOf(refusedAction: RefusedProjectAction): string | null {
+  const refusedOperationIndex = refusedAction.refusal.refused_operation_index;
+  const operationCount = refusedAction.operations.length;
+  return refusedOperationIndex === null || refusedOperationIndex >= operationCount ? null : `${refusedOperationIndex + 1} of ${operationCount}`;
+}
+
+/** The node, field, link and idempotency key the refusal names, each as a labelled row, leaving out what it does not name. */
+export function refusedNamesRowsOf(refusedAction: RefusedProjectAction): (readonly [string, string])[] {
+  const refusal = refusedAction.refusal;
+  const refusedLink = refusal.refused_link;
+  return [
+    ...(refusal.refused_node === null ? [] : [["Node", refusal.refused_node] as const]),
+    ...(refusal.refused_field === null ? [] : [["Field", refusal.refused_field] as const]),
+    ...(refusedLink === null ? [] : [["Link", `${refusedLink.source.node}:${refusedLink.source.port} → ${refusedLink.target.node}:${refusedLink.target.port}`] as const]),
+    ...(refusedAction.idempotency_key === null ? [] : [["Key", refusedAction.idempotency_key] as const]),
+  ];
+}
+
+/** The row `refusedAction` shows, under `rowId`; an undo or redo, which asks for no operations, reads as its action. */
+function refusedActionViewRowOf(refusedAction: RefusedProjectAction, rowId: string, streamWordsOf: (operationStream: string) => string, timeZone?: string): TransactionsViewRow {
+  const operationVerbs = operationVerbsOf(refusedAction.operations);
+  const happenedAtWords = happenedAtWordsOf(refusedAction.refused_at, timeZone);
+  const authorWords = authorWordsOf(refusedAction);
+  const streamWords = streamWordsOfOperations(refusedAction.operations, streamWordsOf);
+  const operationsWords = refusedAction.operations.length === 0 ? refusedAction.refusal.action : verbsWords(operationVerbs);
+  return {
+    row_id: rowId,
+    happened_at_words: happenedAtWords,
+    author_words: authorWords,
+    stream_words: streamWords,
+    stream_cell_words: streamWords.length === 0 ? "project" : streamWords.join(", "),
+    operation_verbs: operationVerbs,
+    operations_words: operationsWords,
+    mode_words: refusedAction.mode,
+    mode_chip_tone: refusedAction.mode === "live" ? "caution" : "neutral",
+    result: "refused",
+    result_chip_tone: "danger",
+    commit_cell_words: "none",
+    sent: { kind: "refused", refused_action: refusedAction },
+    searched_words: [authorWords, operationsWords, ...streamWords, JSON.stringify(refusedAction)].join("\n").toLowerCase(),
+  };
+}
+
+/** The second `happenedAt` falls in, or `null` for a time the runtime sent that cannot be read. */
+function secondOf(happenedAt: string): number | null {
+  const milliseconds = new Date(happenedAt).getTime();
+  return Number.isNaN(milliseconds) ? null : Math.floor(milliseconds / 1000);
+}
+
+/** The feed's applied transactions and refused actions as one list, newest first; a refusal in the same second as a transaction comes first, as the runtime orders them, and so does a refusal beside a time that cannot be read. */
+export function transactionsViewRowsOf(feed: ProjectTransactions, streamWordsOf: (operationStream: string) => string, timeZone?: string): TransactionsViewRow[] {
+  const appliedRows = feed.transactions.map((transaction) => ({ second: secondOf(transaction.applied_at), row: transactionsViewRowOf(transaction, streamWordsOf, timeZone) }));
+  const twinsSeenByIdentity = new Map<string, number>();
+  const refusedRows = [...feed.refused_actions]
+    .reverse()
+    .map((refusedAction) => {
+      const identity = refusedActionRowIdOf(refusedAction, 0);
+      const twinsOlderThanIt = twinsSeenByIdentity.get(identity) ?? 0;
+      twinsSeenByIdentity.set(identity, twinsOlderThanIt + 1);
+      return { second: secondOf(refusedAction.refused_at), row: refusedActionViewRowOf(refusedAction, refusedActionRowIdOf(refusedAction, twinsOlderThanIt), streamWordsOf, timeZone) };
+    })
+    .reverse();
+  const rowsNewestFirst: TransactionsViewRow[] = [];
+  let appliedIndex = 0;
+  let refusedIndex = 0;
+  for (;;) {
+    const nextApplied = appliedRows[appliedIndex];
+    const nextRefused = refusedRows[refusedIndex];
+    if (nextRefused !== undefined && (nextApplied === undefined || nextRefused.second === null || nextApplied.second === null || nextRefused.second >= nextApplied.second)) {
+      rowsNewestFirst.push(nextRefused.row);
+      refusedIndex += 1;
+    } else if (nextApplied !== undefined) {
+      rowsNewestFirst.push(nextApplied.row);
+      appliedIndex += 1;
+    } else {
+      return rowsNewestFirst;
+    }
+  }
 }
 
 /** Every value the rows hold for the Filter popover's Result, Author, Stream and Operation lists. */
@@ -134,9 +252,47 @@ export function transactionsFilterButtonWordsOf(filtersOnCount: number): { words
     : { words: `Filter · ${filtersOnCount}`, label: `Filter transactions: ${filtersOnCount} on` };
 }
 
-/** `transaction` as JSON, indented, exactly as the runtime sent it. */
-export function transactionAsJson(transaction: ProjectTransaction): string {
-  return JSON.stringify(transaction, null, 2);
+/** The entry exactly as the runtime sent it, without the kind the view tags it with. */
+export function changeFeedEntryAsTheRuntimeSentIt(sent: ChangeFeedEntryAsSent): ProjectTransaction | RefusedProjectAction {
+  return sent.kind === "applied" ? sent.transaction : sent.refused_action;
+}
+
+/** The entry as JSON, indented, exactly as the runtime sent it. */
+export function changeFeedEntryAsJson(sent: ChangeFeedEntryAsSent): string {
+  return JSON.stringify(changeFeedEntryAsTheRuntimeSentIt(sent), null, 2);
+}
+
+/** The entries `rows` show, as one JSON array, indented, each exactly as the runtime sent it. */
+export function transactionsViewRowsAsJson(rows: readonly TransactionsViewRow[]): string {
+  return JSON.stringify(
+    rows.map((row) => changeFeedEntryAsTheRuntimeSentIt(row.sent)),
+    null,
+    2,
+  );
+}
+
+/** What the log menu holds the view to: the rows it froze when paused, `null` while it follows the feed, and the rows cleared from it. */
+export interface TransactionsLogHolding {
+  rows_when_paused: readonly TransactionsViewRow[] | null;
+  cleared_row_ids: ReadonlySet<string>;
+}
+
+/** The log following the feed, with nothing cleared. */
+export const TRANSACTIONS_LOG_FOLLOWING_THE_FEED: TransactionsLogHolding = { rows_when_paused: null, cleared_row_ids: new Set() };
+
+/** The rows the log shows: the frozen ones while paused, else the feed's, less those cleared. */
+export function transactionsLogRowsShown(rowsOfTheFeed: readonly TransactionsViewRow[], holding: TransactionsLogHolding): TransactionsViewRow[] {
+  return (holding.rows_when_paused ?? rowsOfTheFeed).filter((row) => !holding.cleared_row_ids.has(row.row_id));
+}
+
+/** Pause freezes the rows the feed holds now; Resume follows the feed again. */
+export function transactionsLogPausedOrResumed(holding: TransactionsLogHolding, rowsOfTheFeed: readonly TransactionsViewRow[]): TransactionsLogHolding {
+  return { ...holding, rows_when_paused: holding.rows_when_paused === null ? rowsOfTheFeed : null };
+}
+
+/** Clear hides the rows shown now, and only those: a row that reached the feed while paused, unseen, shows once the log resumes. */
+export function transactionsLogCleared(holding: TransactionsLogHolding, rowsOfTheFeed: readonly TransactionsViewRow[]): TransactionsLogHolding {
+  return { ...holding, cleared_row_ids: new Set([...holding.cleared_row_ids, ...transactionsLogRowsShown(rowsOfTheFeed, holding).map((row) => row.row_id)]) };
 }
 
 /** The rows `filter` keeps, in their order; the search matches the row's words or anything the runtime sent, ignoring case. */

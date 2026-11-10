@@ -65,6 +65,13 @@ async function windowsWithNightShowOpen(stopTheProject: (projectFolder: string) 
     dockIconHost: fakeShell.tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: () => null,
     projectReadingsOfTheRuntime: { nameTheProject: async () => failedWith("no runtime answers"), listTheDependencies: async () => failedWith("no runtime answers") },
+    projectFilesOfTheRuntime: {
+      listProjectFiles: async () => failedWith("no runtime answers"),
+      readProjectFile: async () => failedWith("no runtime answers"),
+      writeProjectFile: async () => failedWith("no runtime answers"),
+    },
+    personSavingTheFiles: { kind: "person", name: "sam" },
+    mintAnIdempotencyKey: () => "a-save",
     openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
     runAfter: () => () => {},
     stopTheProjectAsItsWindowCloses: (folder) => {
@@ -117,6 +124,18 @@ test("closing a running project's window asks first, and Stop and Close stops th
     },
   ]);
   expect(projectsStopped).toEqual([projectFolder]);
+  expect(fakeShell.studioWindowsOpen()).toEqual([]);
+});
+
+test("the window of a project the runtime deleted closes as main closes it, asking nothing, though the last status still lists its streams running", async () => {
+  const { fakeShell, appWindows, projectFolder, projectsStopped } = await windowsWithNightShowOpen(async () => succeeded(undefined));
+  appWindows.sendEveryWindowTheStatus(aStatusListing([aStreamOf(projectFolder, "running")]));
+
+  appWindows.studioWindowOfTheProjectIn(projectFolder)?.tatolabMainWindow.close();
+  await letTheQuestionRun();
+
+  expect(questionsAskedOverTheWindow(fakeShell)).toEqual([]);
+  expect(projectsStopped).toEqual([]);
   expect(fakeShell.studioWindowsOpen()).toEqual([]);
 });
 

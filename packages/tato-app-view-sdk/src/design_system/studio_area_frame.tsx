@@ -11,13 +11,14 @@ import { studioIconNamed, type StudioIconName } from "./support/studio_icons";
 /** What an area header's menu shows its view by: an icon Studio holds, by name, or the image a view's manifest names, drawn in the menu's text colour. */
 export type StudioAreaHeaderMenuIcon = StudioIconName | { image_url: string };
 
-function StudioAreaHeaderMenuIconMark({ icon }: { icon: StudioAreaHeaderMenuIcon }) {
+/** A view's icon as an area header's menu and its choices draw it. */
+export function StudioViewIconMark({ icon }: { icon: StudioAreaHeaderMenuIcon }) {
   if (typeof icon !== "string") {
     const maskOfTheImage = `url(${JSON.stringify(icon.image_url)}) center / contain no-repeat`;
     return <span aria-hidden className="size-3.5 shrink-0 bg-fg-2" style={{ mask: maskOfTheImage, WebkitMask: maskOfTheImage }} data-area-header-menu-icon-image={icon.image_url} />;
   }
   const HeaderIcon = studioIconNamed(icon);
-  return <HeaderIcon className="size-3.5 text-fg-2" strokeWidth={1.5} aria-hidden />;
+  return <HeaderIcon className="size-3.5 shrink-0 text-fg-2" strokeWidth={1.5} aria-hidden />;
 }
 
 /** One area of the studio: a rounded pane on the window's frame, its header over the view it shows. */
@@ -64,7 +65,7 @@ export function StudioAreaOverAViewsOwnFrame({
   }, []);
   return (
     <section aria-label={label} className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg bg-studio-area" {...controlDataAttributes}>
-      <div ref={viewTypeMenuRowRef} className="absolute top-0 left-0 z-10 flex h-(--studio-area-header-height) items-center px-1.5">
+      <div ref={viewTypeMenuRowRef} className="absolute top-0 left-0 z-10 flex h-(--studio-area-header-height) items-center gap-2 px-1.5">
         {viewTypeMenu}
       </div>
       <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
@@ -81,6 +82,15 @@ export function StudioAreaHeaderRowInAFrame({ headerRow, children }: { headerRow
     >
       {children}
     </div>
+  );
+}
+
+/** Quiet words in an area header, such as where the view's node is or the stream a view reads. */
+export function StudioAreaHeaderWords({ children, ...controlDataAttributes }: { children: ReactNode } & ControlDataAttributes) {
+  return (
+    <span className="truncate text-2xs text-fg-3" {...controlDataAttributes}>
+      {children}
+    </span>
   );
 }
 
@@ -118,7 +128,7 @@ export function StudioAreaHeaderMenu({
         aria-label={label}
         {...controlDataAttributes}
       >
-        <StudioAreaHeaderMenuIconMark icon={icon} />
+        <StudioViewIconMark icon={icon} />
         {words}
         <ChevronDown className="size-3 text-fg-3" strokeWidth={1.75} aria-hidden />
       </DropdownMenuTrigger>

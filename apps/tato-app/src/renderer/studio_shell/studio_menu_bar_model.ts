@@ -17,6 +17,8 @@ export interface StudioMenuBarCommands {
   showProjects(): void;
   openAProject(): void;
   createAProject(): void;
+  /** Import project .zip…: ask for a project `.zip`, then open the Import project sheet for it. */
+  importAProjectArchive(): void;
   openPreferences(): void;
   openAbout(): void;
   /** Check for Updates…: check for a newer Tato Studio, which downloads in the background. */
@@ -108,7 +110,7 @@ function studioMenuParts(
       { kind: "command", label: "Open project…", shortcutHint: shortcutHint(platform, "O"), onChosen: commands.openAProject },
       { kind: "command", label: "New project…", shortcutHint: shortcutHint(platform, "N"), onChosen: commands.createAProject },
       { kind: "separator" },
-      laterCommand("Import project…"),
+      { kind: "command", label: "Import project .zip…", onChosen: commands.importAProjectArchive },
       laterCommand("New stream"),
       laterCommand("Save version…"),
       projectCommand("Module manager…", commands.openModuleManager),

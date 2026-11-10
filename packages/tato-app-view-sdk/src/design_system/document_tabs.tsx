@@ -58,7 +58,7 @@ export function DocumentTabs({
                   <span className="text-fg-3">{tab.context_words} /</span>
                   <span className="font-mono text-2xs">{tab.name}</span>
                   {tab.is_running && (
-                    <span className="text-2xs font-medium text-go-text" data-document-tab-running="">
+                    <span className="text-2xs font-medium text-status-positive-text" data-document-tab-running="">
                       running
                     </span>
                   )}

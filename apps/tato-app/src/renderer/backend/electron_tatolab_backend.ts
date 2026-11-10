@@ -1,4 +1,3 @@
-import { STUDIO_VIEW_LISTING_ISSUE } from "../view_host/studio_view_node_wiring";
 import type { TatolabBackend } from "./tatolab_backend";
 import type {
   TatolabCommandName,
@@ -107,6 +106,15 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     openRecentProject: async (folder) => {
       await invokeTatolabCommand("open_recent_project", { folder });
     },
+    renameRecentProject: async (folder, name) => {
+      await invokeTatolabCommand("rename_recent_project", { folder, name });
+    },
+    duplicateRecentProject: (folder) => invokeTatolabCommand("duplicate_recent_project", { folder }),
+    deleteRecentProject: async (folder) => {
+      await invokeTatolabCommand("delete_recent_project", { folder });
+    },
+    chooseProjectArchiveToImport: () => invokeTatolabCommand("choose_project_archive_to_import", undefined),
+    importProjectArchive: (archive, name, location) => invokeTatolabCommand("import_project_archive", { archive, name, location }),
     onOpenProjectChanged: (listener) => tatolabElectronBridge.onOpenProjectChanged(listener),
     readOpenProjectTransactions: () => invokeTatolabCommand("read_open_project_transactions", undefined),
     onProjectTransactionsChanged: (listener) => tatolabElectronBridge.onProjectTransactionsChanged(listener),
@@ -130,8 +138,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("stop_python_language_server", { session });
     },
     onPythonLanguageServerEvent: (listener) => tatolabElectronBridge.onPythonLanguageServerEvent(listener),
-    listStudioViewsOfTheOpenProject: async () => {
-      throw `Tato Studio lists a project's views once the runtime lists the tatolab.views of a stream's packages (${STUDIO_VIEW_LISTING_ISSUE}).`;
+    listStudioViewsOfTheOpenProject: () => invokeTatolabCommand("list_studio_views_of_the_open_project", undefined),
+    writeStudioViewOutput: async (stream, node, port, value) => {
+      await invokeTatolabCommand("write_studio_view_output", { stream, node, port, value });
     },
     openPortViewer: async (target) => (await invokeTatolabCommand("open_port_viewer", target)).port_viewer,
     closePortViewer: async (portViewer) => {

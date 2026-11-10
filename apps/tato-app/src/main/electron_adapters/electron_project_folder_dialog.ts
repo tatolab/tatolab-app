@@ -14,3 +14,11 @@ export async function askThePersonForAProjectFolderThroughElectron(purpose: Proj
         "The location dialog",
       );
 }
+
+/** The desktop's open dialog, sheeted over the focused window, for a project `.zip` to import; `null` when the person cancels. */
+export async function askThePersonForAProjectArchiveThroughElectron(defaultFolder: string): Promise<Result<string | null, string>> {
+  return askThePersonThroughAnOpenDialogOverTheFocusedWindow(
+    { title: "Import a project .zip", buttonLabel: "Import", defaultPath: defaultFolder, properties: ["openFile"], filters: [{ name: "Project archive", extensions: ["zip"] }] },
+    "The import dialog",
+  );
+}

@@ -108,7 +108,7 @@ describe("the mock backend's stream actions", () => {
     await vi.advanceTimersByTimeAsync(100);
     expect(listingWithTheId((await status).streams, CAMERA)).toMatchObject({ display_name: "Desk camera", state: "running" });
     expect(await settledRename(CAMERA, "   ")).toEqual({
-      refusal: `Invalid configuration: "   " cannot be a stream's display name: it shows nothing; a display name is any text with something to show`,
+      refusal: `set_stream_display_name failed: "   " cannot be a stream's display name: it shows nothing`,
     });
     expect(await settledRename("camera", "Desk")).toEqual({ refusal: expect.stringMatching(/^Resource not found: no stream with the id \`camera\` is loaded or recorded in this runtime\./) });
   });
