@@ -4,15 +4,14 @@
 
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { TATOLAB_WINDOW_PAGE_SCHEME } from "../shared/tatolab_electron_bridge_contract.js";
+import { TATOLAB_WINDOW_PAGE_HOST, TATOLAB_WINDOW_PAGE_SCHEME } from "../shared/tatolab_electron_bridge_contract.js";
+import { isAProjectViewFileUrl, PROJECT_VIEW_FILES_PATH } from "./project_view_files.js";
 
-/** The host of the window page's origin. */
-const TATOLAB_WINDOW_PAGE_HOST = "app";
 
 /** The shipped window's page. */
 export const TATOLAB_WINDOW_PAGE_URL = `${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}/index.html`;
 
-/** Where the window serves its core views' pages, the only pages it frames. */
+/** Where the window serves its core views' pages. */
 const CORE_VIEW_PAGES_PATH = "/core_views/";
 
 /** The file under `builtWindowDirectory` that `requestUrl` asks for, or `null` when it asks for another origin or a path outside it. */
@@ -45,10 +44,12 @@ export function isOnTheWindowPagesOwnLocation(windowPageUrl: string, navigationU
 }
 
 /**
- * Whether a frame of the window may load `frameUrl`: only a core view's page, on the window page's own location. A
- * frame on that origin can reach the window page's bridge through `window.parent`, so nothing else is framed there.
+ * Whether a frame of the window may load `frameUrl`: a core view's page, on the window page's own location, or a project
+ * view's file, which the window serves on its own origin too. A frame on that origin can reach the window page's bridge
+ * through `window.parent`; nothing else is framed.
  */
-export function isACoreViewPageOfTheWindow(windowPageUrl: string, frameUrl: string): boolean {
+export function isAViewPageTheWindowFrames(windowPageUrl: string, frameUrl: string): boolean {
+  if (isAProjectViewFileUrl(frameUrl)) return true;
   return isOnTheWindowPagesOwnLocation(windowPageUrl, frameUrl) && new URL(frameUrl).pathname.startsWith(CORE_VIEW_PAGES_PATH);
 }
 
@@ -66,7 +67,7 @@ export function inlineScriptHashSources(windowPageHtml: string): string[] {
 
 /**
  * The window page's content security policy: only its own origin, its inline theme script, inline styles, data: fonts
- * and images, and frames only of its core views' pages.
+ * and images, and frames only of its core views' pages and its project views' files.
  */
 export function windowPageContentSecurityPolicy(windowPageHtml: string): string {
   return [
@@ -76,7 +77,7 @@ export function windowPageContentSecurityPolicy(windowPageHtml: string): string 
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "img-src 'self' data:",
-    `frame-src ${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}${CORE_VIEW_PAGES_PATH}`,
+    `frame-src ${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}${CORE_VIEW_PAGES_PATH} ${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}${PROJECT_VIEW_FILES_PATH}`,
     "object-src 'none'",
     "base-uri 'self'",
   ].join("; ");

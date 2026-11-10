@@ -506,6 +506,8 @@ export type ProjectLogReading = z.infer<typeof projectLogReadingSchema>;
 
 /** One transaction on a project's change feed, as the runtime's `streamlib://project/<project>/transactions` resource carries it. */
 export const projectTransactionSchema = z.object({
+  /** The format the runtime recorded it in, `1` for one recorded before formats were. */
+  format_version: z.number().int(),
   /** The transaction's UUID. */
   transaction: z.string(),
   /** The commit on the project history's `main` that records it. */
@@ -524,17 +526,63 @@ export const projectTransactionSchema = z.object({
   undoes: z.string().nullable(),
   /** The transaction this one redoes, when it is a redo. */
   redoes: z.string().nullable(),
-  /** When the runtime applied it, RFC 3339 in UTC, for display only; `null` from a runtime that does not say (streamlib #3426). */
-  applied_at: z.string().nullable(),
+  /** The key its caller sent it under, `null` when it sent none. */
+  idempotency_key: z.string().nullable(),
+  /** Where an edit or a redo stands with its author's undo and redo now, the same for an edit and every redo of it: `applied`, `undone_redoable` or `undone_not_redoable`, or a state newer than this app; `null` for an undo. */
+  undo_state: z.string().nullable(),
+  /** When the runtime applied it, RFC 3339 in UTC to the second, for display only. */
+  applied_at: z.string(),
 });
 /** One transaction on a project's change feed. */
 export type ProjectTransaction = z.infer<typeof projectTransactionSchema>;
 
-/** A project's change feed: its UUID, its directory, and its newest transactions, newest first. */
+/** One end of the link a refused operation names: a node by UUID or `as` label, and one of its ports. */
+export const refusedGraphLinkEndSchema = z.object({ node: z.string(), port: z.string() });
+
+/** What the runtime refused of an action, and why in its own words. */
+export const projectActionRefusalSchema = z.object({
+  /** The action refused, by the name of the tool it was sent to. */
+  action: z.string(),
+  /** The position, from 0, of the operation refused among those the action sent; `null` when none was. */
+  refused_operation_index: z.number().int().nullable(),
+  /** The node the refused operation names, as the caller named it. */
+  refused_node: z.string().nullable(),
+  /** The link the refused operation names. */
+  refused_link: z.object({ source: refusedGraphLinkEndSchema, target: refusedGraphLinkEndSchema }).nullable(),
+  /** The node's input or config field the refused operation names. */
+  refused_field: z.string().nullable(),
+  /** Why, in the runtime's own words, never rewritten. */
+  runtime_words: z.string(),
+});
+/** What the runtime refused of an action, and why. */
+export type ProjectActionRefusal = z.infer<typeof projectActionRefusalSchema>;
+
+/** An action on a project the runtime refused since it started, which no history records. */
+export const refusedProjectActionSchema = z.object({
+  /** `person`, `agent` or `runtime`, or a kind newer than this app. */
+  author_kind: z.string(),
+  /** The author's name as an applied transaction would carry it. */
+  author_name: z.string(),
+  /** `commit` or `live`, as the action asked. */
+  mode: z.string(),
+  /** The operations the action asked for, in order, as the request named them; none for an undo or a redo. */
+  operations: z.array(jsonValueSchema),
+  /** The key its caller sent it under, `null` when it sent none. */
+  idempotency_key: z.string().nullable(),
+  refusal: projectActionRefusalSchema,
+  /** When the runtime refused it, RFC 3339 in UTC to the second, for display only. */
+  refused_at: z.string(),
+});
+/** An action on a project the runtime refused. */
+export type RefusedProjectAction = z.infer<typeof refusedProjectActionSchema>;
+
+/** A project's change feed: its UUID, its directory, its newest transactions, and the actions the runtime refused lately, each newest first. */
 export const projectTransactionsSchema = z.object({
   project: z.string(),
   project_directory: z.string(),
   transactions: z.array(projectTransactionSchema),
+  /** The runtime keeps the latest 100 it refused, in memory, so a restart forgets them. */
+  refused_actions: z.array(refusedProjectActionSchema),
 });
 /** A project's change feed. */
 export type ProjectTransactions = z.infer<typeof projectTransactionsSchema>;

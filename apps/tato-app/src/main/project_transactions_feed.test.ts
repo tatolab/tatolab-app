@@ -13,6 +13,8 @@ function feedText(transactionIds: readonly string[]): string {
     project: "2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90",
     project_directory: PROJECT_FOLDER,
     transactions: transactionIds.map((transaction) => ({
+      status: "applied",
+      format_version: 2,
       transaction,
       commit: `commit-${transaction}`,
       parent_commit: null,
@@ -20,6 +22,8 @@ function feedText(transactionIds: readonly string[]): string {
       author_name: "claude-code",
       operations: [{ stream: "s", operation: "rename_node", node: "n", from: "a", to: "b" }],
       inverse_operations: [{ stream: "s", operation: "rename_node", node: "n", from: "b", to: "a" }],
+      undo_state: "applied",
+      applied_at: "2026-11-10T18:17:08Z",
     })),
   });
 }

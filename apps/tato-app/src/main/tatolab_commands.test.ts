@@ -69,6 +69,7 @@ async function sharedStateOverFakes(
   platform: TatolabPlatform,
   existingFolders: readonly string[] = [],
   folderTheDialogAnswers: string | null = null,
+  projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime = NO_RUNTIME_READS_THE_PROJECTS,
 ): Promise<
   TatolabAppSharedState & {
     commandLineToolLink: FakeTatolabCommandLineToolLink;
@@ -131,7 +132,14 @@ async function sharedStateOverFakes(
     platformItems: { mainWindowChrome: { titleBarStyle: "default" }, setDockIconVisible: () => {} },
     dockIconHost: fakeShellForTheWindows.tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: () => null,
-    projectReadingsOfTheRuntime: NO_RUNTIME_READS_THE_PROJECTS,
+    projectReadingsOfTheRuntime,
+    projectFilesOfTheRuntime: {
+      listProjectFiles: async () => failedWith("no runtime answers"),
+      readProjectFile: async () => failedWith("no runtime answers"),
+      writeProjectFile: async () => failedWith("no runtime answers"),
+    },
+    personSavingTheFiles: { kind: "person", name: "sam" },
+    mintAnIdempotencyKey: () => "a-save",
     openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
     runAfter: () => () => {},
     stopTheProjectAsItsWindowCloses: async () => succeeded(undefined),
@@ -147,7 +155,7 @@ async function sharedStateOverFakes(
     recentProjectFolders: recentProjectFoldersFileIn(appConfigDirectory, quietTatolabAppLog),
     readWallClockNowMs: () => 1_790_000_000_000,
     newProjectCreation: controller,
-    projectReadingsOfTheRuntime: NO_RUNTIME_READS_THE_PROJECTS,
+    projectReadingsOfTheRuntime,
     openTheProjectInItsStudioWindow: (folder) => appWindows.openTheProjectInItsStudioWindow(folder),
   });
   return {
@@ -811,11 +819,56 @@ test("undo and redo in the open project ask the runtime by the window's author a
 
   expect(await commandHandlers.read_open_project_transactions(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: { kind: "not_read", because: expect.any(String) } });
   const undone = await commandHandlers.undo_in_the_open_project({ author: sam }, fromTheStudioWindow);
-  expect(undone).toMatchObject({ ok: true, value: { author_kind: "person", author_name: "Sam", undoes: expect.stringMatching(/^7680e08a-/), redoes: null, applied_at: null } });
+  expect(undone).toMatchObject({ ok: true, value: { author_kind: "person", author_name: "Sam", undoes: "a25a70ab-229d-4e68-9e05-27cfb771da50", redoes: null, undo_state: null, applied_at: "2026-11-10T18:17:12Z" } });
   expect(await commandHandlers.redo_in_the_open_project({ author: sam }, fromTheStudioWindow)).toEqual({ ok: false, refusal: "redo failed: Sam has undone nothing that is left to redo" });
   expect(await commandHandlers.undo_in_the_open_project({ author: { kind: "runtime", name: "tatolab" } }, fromTheStudioWindow)).toEqual({
     ok: false,
     refusal: "undo_in_the_open_project needs `author`, a person or an agent by the name history shows",
   });
   expect(await commandHandlers.undo_in_the_open_project({ author: sam }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+});
+
+/** The window's `ListedStudioView` reads exactly this JSON. */
+test("the open project's views are the runtime's list_project_views of its folder, each folder served under the window page's scheme, and refused in the Projects window", async () => {
+  const nightShow = "/private/tmp/tl-rec053/projects/night-show";
+  const sharedState = await sharedStateOverFakes(
+    [httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-project-views-tool-result-of-night-show-importing-lobby-wall.json"))],
+    "macos",
+    [],
+    null,
+    {
+      nameTheProject: async () => succeeded({ folder: nightShow, project: "000719ff-93e9-43d1-ba64-975cf13f9a6a", name: "night-show" }),
+      listTheDependencies: async () => succeeded([]),
+    },
+  );
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "night-show-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const nightShowFolderUrl = "tatolab-app://app/project_views/L3ByaXZhdGUvdG1wL3RsLXJlYzA1My9wcm9qZWN0cy9uaWdodC1zaG93";
+
+  const listed = await commandHandlers.list_studio_views_of_the_open_project(undefined, { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 });
+
+  expect(listed.ok && listed.value.map(({ manifest_json, ...listedView }) => ({ ...listedView, has_its_manifest: manifest_json !== null }))).toEqual([
+    {
+      view_type_id: "night-show:broken",
+      project_name: "night-show",
+      import_folder: null,
+      opens: false,
+      not_opened_because: "`contract`: this runtime reads view contract 1.0.",
+      folder_url: `${nightShowFolderUrl}/views/broken/`,
+      has_its_manifest: true,
+    },
+    { view_type_id: "night-show:deck", project_name: "night-show", import_folder: null, opens: true, not_opened_because: null, folder_url: `${nightShowFolderUrl}/views/deck/`, has_its_manifest: true },
+    {
+      view_type_id: "lobby-wall:meter",
+      project_name: "lobby-wall",
+      import_folder: "lobby-wall",
+      opens: true,
+      not_opened_because: null,
+      folder_url: `${nightShowFolderUrl}/imports/lobby-wall/views/meter/`,
+      has_its_manifest: true,
+    },
+  ]);
+  expect(await commandHandlers.list_studio_views_of_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });

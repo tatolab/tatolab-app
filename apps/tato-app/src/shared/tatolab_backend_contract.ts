@@ -40,6 +40,8 @@ export type {
   ProjectTransactions,
   ProjectTransactionsReading,
   ProjectTransactionAuthor,
+  ProjectActionRefusal,
+  RefusedProjectAction,
   PortViewerTarget,
   PortViewerChannelWaveform,
   PortViewerArrayAttributeReading,
@@ -338,12 +340,23 @@ export type PythonLanguageServerEvent =
   | { session: string; kind: "message"; message: JsonValue }
   | { session: string; kind: "ended"; because: string };
 
-/** A view type the open project or one of its imports brings: its id (`<distribution>:<entry>`), the distribution and `tatolab.views` entry it comes from, its `tatolab_view.json` as parsed, and the URL its folder is served under, which its entry and every file it loads resolve against. */
-export interface ListedStudioView {
+/** A view the open project or one of its imports brings, as the runtime's `list_project_views` lists it from a `views/<folder>/`, and the URL its folder is served under, which its entry and every file it loads resolve against. */
+export type ListedStudioView = ListedStudioViewFacts & StudioViewOpening;
+
+/** Whether the runtime opens a listed view, and when it does not, why in its own words. */
+export type StudioViewOpening = { opens: true; not_opened_because: null } | { opens: false; not_opened_because: string };
+
+/** What the window draws a listed view from, beside whether it opens. */
+export interface ListedStudioViewFacts {
+  /** `<project name>:<view folder>`, the node type a node of the view is. */
   view_type_id: string;
-  distribution: string;
-  entry_name: string;
-  manifest_json: JsonValue;
+  /** The name of the project bringing it. */
+  project_name: string;
+  /** That project's folder under `imports/`; `null` for the open project's own view. */
+  import_folder: string | null;
+  /** Its `tatolab_view.json` as written, `null` when it is not JSON. */
+  manifest_json: JsonValue | null;
+  /** The URL its folder is served under. */
   folder_url: string;
 }
 

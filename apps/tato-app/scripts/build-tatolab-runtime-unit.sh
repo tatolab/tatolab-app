@@ -30,9 +30,10 @@ runtime_unit_directory="$streamlib_checkout/target/tatolab-runtime"
 # whatever that commit laid out and this one does not, and its commit would vouch for a half-replaced
 # unit if this build failed part-way.
 rm -rf "$runtime_unit_directory"
-(cd "$streamlib_checkout" && cargo xtask "${xtask_arguments[@]}") >&2
+# With CEF_PATH set xtask stages the browser host, a CEF app bundle the app bundle cannot place yet.
+(cd "$streamlib_checkout" && env -u CEF_PATH cargo xtask "${xtask_arguments[@]}") >&2
 
-for required in bin/tatolabd bin/tatolab bin/uv lib/tatolab/lend/tatolab/runtime; do
+for required in bin/tatolabd bin/tatolab bin/uv lib/tatolab/lend/tatolab/runtime lib/tatolab/imports; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit is missing $required" >&2; exit 1; }
 done
 echo "$streamlib_commit" >"$runtime_unit_directory/streamlib-commit"
