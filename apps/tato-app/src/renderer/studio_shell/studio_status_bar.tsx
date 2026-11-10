@@ -45,21 +45,35 @@ function useWallClockForDisplay(everyMs: number): number {
 function useStudioActivityLog(status: TatolabStatus): [StudioActivityLog, () => void] {
   const [activityLog, setActivityLog] = useState<StudioActivityLog>(EMPTY_STUDIO_ACTIVITY_LOG);
   useEffect(() => {
-    setActivityLog((previousLog) => nextStudioActivityLog(previousLog, { listedStreams: status.streams, appUpdate: status.app_update }));
-  }, [status.streams, status.app_update]);
+    setActivityLog((previousLog) =>
+      nextStudioActivityLog(previousLog, { listedStreams: status.streams, projectVenvSyncsUnderWay: status.project_venv_syncs_under_way, appUpdate: status.app_update }),
+    );
+  }, [status.streams, status.project_venv_syncs_under_way, status.app_update]);
   return [activityLog, () => setActivityLog(studioActivityLogWithTheEndedCleared)];
 }
 
 function StudioActivityProgressMeter({ activity }: { activity: StudioActivity }) {
   if (activity.kind === "in_progress") {
     return (
-      <ProgressMeter
-        label={activity.title}
-        detail={activity.detail}
-        percent={activity.progress.kind === "share_known" ? activity.progress.percent : null}
-        outcome="in_progress"
-        data-studio-activity={activity.activity_id}
-      />
+      <div>
+        <ProgressMeter
+          label={activity.title}
+          detail={activity.detail}
+          percent={activity.progress.kind === "share_known" ? activity.progress.percent : null}
+          outcome="in_progress"
+          data-studio-activity={activity.activity_id}
+        />
+        {activity.package_lines.length > 0 && (
+          <ul className="flex flex-col gap-0.5 pb-1.5 text-2xs" aria-label={`${activity.title}, each package`} data-studio-activity-packages={activity.activity_id}>
+            {activity.package_lines.map((packageLine) => (
+              <li key={packageLine.name} className="flex gap-2">
+                <span className="min-w-0 flex-1 truncate text-fg-2">{packageLine.name}</span>
+                <span className="text-fg-3 tabular-nums">{packageLine.detail}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     );
   }
   return (

@@ -29,6 +29,7 @@ function aStatusListing(streams: ListedStream[]): TatolabStatus {
     streams,
     streams_not_listed_because: null,
     command_line_tool_link: { kind: "not_linked", path: "/usr/local/bin/tatolab" },
+    project_venv_syncs_under_way: [],
     app_update: { kind: "not_offered", reason: "a test updates nothing" },
     app_update_announcement: null,
     local_api_socket: "/tmp/streamlib-501/local-api.sock",

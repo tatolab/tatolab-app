@@ -24,6 +24,7 @@ function statusWith(runtimeState: RuntimeState, streamCount: number | null): Tat
     streams: streamCount === null ? null : listedStreams(streamCount),
     streams_not_listed_because: null,
     command_line_tool_link: { kind: "linked", path: "/Users/someone/.local/bin/tatolab" },
+    project_venv_syncs_under_way: [],
     app_update: { kind: "not_checked" },
     app_update_announcement: null,
     local_api_socket: "/tmp/streamlib-501/local-api.sock",

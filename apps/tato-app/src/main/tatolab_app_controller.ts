@@ -4,6 +4,7 @@
 import type {
   ListedStream,
   ProjectCreationQueued,
+  ProjectVenvSyncUnderWay,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   ProjectRunQueued,
@@ -51,6 +52,9 @@ const LOCAL_API_REQUEST_TIMEOUT_MS = 3_000;
 
 /** How many log records one page the window reads holds. */
 const PROJECT_LOG_RECORDS_PER_PAGE = 500;
+
+/** The stream action step in which the runtime runs uv to make the project's `.venv`. */
+const STREAM_ACTION_STEP_MAKING_THE_VENV = "making_the_venv";
 
 /** The machine's name, asked of the runtime once each time it comes up. */
 export class MachineNameAskedOncePerRuntimeUpEpisode {
@@ -184,6 +188,17 @@ export class TatolabAppController {
     return set;
   }
 
+  /** The sync uv runs for each action a listed stream names on its `making_the_venv` step; an action not described this round is left out, its stream still listed on its step. */
+  private async projectVenvSyncsUnderWayOf(streams: readonly ListedStream[] | null): Promise<ProjectVenvSyncUnderWay[]> {
+    const actionsMakingTheVenv = new Set((streams ?? []).flatMap((listedStream) => (listedStream.step === STREAM_ACTION_STEP_MAKING_THE_VENV && listedStream.action !== null ? [listedStream.action] : [])));
+    const followedActions = await Promise.all([...actionsMakingTheVenv].map((action) => this.localApiClient.describeStreamAction(action)));
+    return followedActions.flatMap((followed) => {
+      if (!followed.ok || followed.value.kind !== "described") return [];
+      const { action, project_directory, venv_sync } = followed.value.description;
+      return venv_sync === null ? [] : [{ action, project_directory, venv_sync }];
+    });
+  }
+
   /** Observe everything once at `nowMs`, start the app's runtime when none answers, and compose the status. */
   async composeStatus(nowMs: number): Promise<TatolabStatus> {
     const healthCheck = await this.localApiClient.checkHealth();
@@ -215,6 +230,7 @@ export class TatolabAppController {
       runtime_not_running_because: runtimeNotRunningBecause,
       machine_name: machineName,
       streams,
+      project_venv_syncs_under_way: await this.projectVenvSyncsUnderWayOf(streams),
       streams_not_listed_because: streamsNotListedBecause,
       command_line_tool_link: await this.commandLineToolLink.observeTheLink(),
       app_update: this.readTheAppUpdateState(),

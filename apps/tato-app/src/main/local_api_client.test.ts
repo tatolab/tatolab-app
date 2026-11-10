@@ -694,6 +694,7 @@ test("describing_a_stream_action_reads_its_state_step_and_streams_from_queued_to
       step: null,
       streams: [],
       failed_because: null,
+      venv_sync: null,
     },
   });
   expect(describedOf(answerOf(await server.client().describeStreamAction("Riioiuiuj7n1z3ghkm7s9n1xi-6")))).toMatchObject({ state: "in_progress", step: "making_the_venv" });
@@ -743,6 +744,7 @@ test("a_cancel_answers_cancelled_for_a_queued_action_and_in_progress_for_one_it_
     step: null,
     streams: [],
     failed_because: null,
+    venv_sync: null,
   });
   expect(answerOf(await server.client().cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-12"))).toEqual({ action: "Ra19ljkh20wimdvgya5udt9v1-12", state: "cancelled" });
   expect(toolCallsReceivedBy(server)[0]).toEqual(["cancel_stream_action", { action: "Ra19ljkh20wimdvgya5udt9v1-10" }]);
