@@ -3,7 +3,8 @@
 // `machine` — and the summary the main process would read from it.
 
 import { mockGraphNodeIdOf, type MockStreamGraph } from "./mock_stream_fixtures";
-import type { PortStreamFacts, StreamGraphDeclaredPort, StreamGraphNode, StreamGraphSummary } from "../src/shared/tatolab_backend_contract";
+import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { ListedStream, PortStreamFacts, StreamGraphDeclaredPort, StreamGraphNode, StreamGraphSummary } from "../src/shared/tatolab_backend_contract";
 
 /** Where a mock stream's run stands when its graph is read. */
 export interface MockStreamGraphMoment {
@@ -45,14 +46,16 @@ function linkSourceAsTheRuntimeRendersIt(sourceNode: string, sourcePort: string)
   return { stream: sourceNode.slice(0, streamSeparator), node: sourceNode.slice(streamSeparator + 1), port: sourcePort };
 }
 
-/** The `graph {stream}` document of `graph` for the stream `streamId` on `machineName` at `moment`, and the summary read from it; its ports name their families only when `arePortFamiliesServed`. */
+/** The `graph {stream}` document of `graph` for the stream `listing` lists, on `machineName` at `moment`, and the summary read from it; its ports name their families only when `arePortFamiliesServed`. */
 export function mockStreamGraphSummary(
-  streamId: string,
+  listing: ListedStream,
   machineName: string,
   graph: MockStreamGraph,
   moment: MockStreamGraphMoment,
   arePortFamiliesServed: boolean,
 ): StreamGraphSummary {
+  const streamId = listing.stream;
+  const streamAsset = listing.location?.stream_asset ?? null;
   const servedPorts = (ports: StreamGraphDeclaredPort[]): StreamGraphDeclaredPort[] => (arePortFamiliesServed ? ports : ports.map((port) => ({ ...port, family: null })));
   const familyAsTheRuntimeRendersIt = (port: StreamGraphDeclaredPort) => (arePortFamiliesServed && port.family !== null ? { family: port.family } : {});
   const nodeState = (state: string) => (moment.hasSettled ? state : "Pending");
@@ -65,6 +68,7 @@ export function mockStreamGraphSummary(
     state: nodeState(node.state),
     failed_because: moment.hasSettled ? (node.failed_because ?? null) : null,
     config: node.config,
+    pins: {},
     input_ports: servedPorts(node.input_ports),
     output_ports: servedPorts(node.output_ports),
     dropped_bags_by_link: Object.fromEntries(
@@ -76,8 +80,10 @@ export function mockStreamGraphSummary(
         climbed(graph.counterRates.refusedPerSecondByOutput.find((output) => output.node === node.name && output.port === port)?.perSecond ?? 0),
       ]),
     ),
+    studio: NODE_STUDIO_FIELDS_NONE_SET,
   }));
   const graphDocument = {
+    ...(streamAsset === null ? {} : { asset: streamAsset }),
     stream: streamId,
     nodes: graph.nodes.map((node, nodeIndex) => ({
       id: mockGraphNodeIdOf(streamId, node),
@@ -126,6 +132,9 @@ export function mockStreamGraphSummary(
   };
   return {
     stream: streamId,
+    stream_asset: streamAsset,
+    groups: [],
+    notes: [],
     nodes,
     links: graph.links.map((link) => ({ ...link, state: linkState(link.state) })),
     graph_document_text: JSON.stringify(graphDocument, null, 2),

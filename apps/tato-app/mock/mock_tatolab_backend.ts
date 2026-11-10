@@ -1016,7 +1016,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
 
   const graphOfLoadedStream = (loadedStream: MockLoadedStream): StreamGraphSummary => {
     const millisecondsSinceSettled = Date.now() - loadedStream.loadedAtMilliseconds - MOCK_STREAM_SETTLE_MILLISECONDS;
-    return mockStreamGraphSummary(loadedStream.fixture.listing.stream, fixtures.machine.name, loadedStream.fixture.graph, {
+    return mockStreamGraphSummary(loadedStream.fixture.listing, fixtures.machine.name, loadedStream.fixture.graph, {
       hasSettled: millisecondsSinceSettled >= 0,
       secondsSinceSettled: Math.max(0, millisecondsSinceSettled) / 1000,
     }, mockTatolabOptions.arePortFamiliesServed);
