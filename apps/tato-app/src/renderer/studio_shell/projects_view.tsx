@@ -22,7 +22,7 @@ import {
   type ProjectsOrder,
 } from "../presentation/projects_presentation";
 import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
-import { useWatchedStudioValue } from "../view_host/in_window_view_host";
+import { useWatchedStudioValue } from "../view_host/watched_studio_value";
 import { PROJECTS_BANNER_STILL_SECONDS, ProjectsBannerScene } from "./projects_banner_scene";
 import type { ProjectsHomeChoicesKeptInStorage } from "./projects_home_choices_kept_in_storage";
 import type { StudioMenuBarCommands } from "./studio_menu_bar_model";

@@ -1,10 +1,6 @@
-// The one contract every view of the studio is built on. Every value crossing a host connection is
-// JSON, so a project's view reaches the same interface over a MessagePort from its own frame that a
-// first-party view reaches in the window.
+// Every value crossing this contract is JSON, carried over the MessagePort each view's frame is handed.
 
-import type { ReactNode } from "react";
 import type { JsonValue, OpenProjectReading, PortViewerTarget } from "../../shared/tatolab_backend_contract";
-import type { StudioIconName } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
 import type {
   ListedStreamsReading,
   NodeCatalogReading,
@@ -25,42 +21,17 @@ import type {
 import type { PortViewerEvent, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
 
 export type {
-  ImportedProject,
   JsonValue,
-  ListedStream,
-  NodeCatalog,
-  NodeCatalogEntry,
-  NodeCatalogPort,
-  OpenProject,
   OpenProjectReading,
-  PortViewerArrayAttributeReading,
-  PortViewerChannelWaveform,
-  PortViewerMessageReading,
   PortViewerTarget,
-  PortStreamFacts,
-  ProjectLogRecord,
-  ProjectTheRuntimeNames,
-  StreamGraphDeclaredPort,
-  StreamGraphLink,
   StreamGraphNode,
   StreamGraphSummary,
   ProjectFileRead,
-  ProjectFiles,
-  ProjectGraphGenerator,
-  ProjectNodeModuleNotReadable,
-  ProjectNodeType,
-  ProjectNodeTypeListing,
-  ProjectNodeTypePort,
-  ProjectNodeTypeSource,
-  ProjectNodeTypeSourceOrigin,
 } from "../../shared/tatolab_backend_contract";
-export type { StudioIconName } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
 export type {
   ListedStreamsReading,
   NodeCatalogReading,
   ProjectFileReading,
-  ProjectFileSaving,
-  ProjectFilesListing,
   ProjectLogReading,
   ProjectNodeTypesReading,
   ProjectTransaction,
@@ -74,7 +45,10 @@ export type {
   ViewHeaderRow,
   ViewOpenedOn,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
-export type { PortViewerEvent as PortViewerConnectionEvent, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
+export type {
+  PortViewerEvent as PortViewerConnectionEvent,
+  ViewOpeningTarget,
+} from "@tatolab/tato-app-view-sdk";
 
 /** Stops a watch; calling it again does nothing. */
 export type StopWatching = () => void;
@@ -105,12 +79,8 @@ export interface PortViewerConnection {
   close(): void;
 }
 
-/** Everything a view may read or ask for. */
-export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
-  /** The settings the view's area holds: restored from the layout, or the view type's defaults. */
-  readonly settings: ViewSettings;
-  /** Keep `nextSettings` with the area, saved with the layout. */
-  rememberSettings(nextSettings: ViewSettings): void;
+/** Everything a view may read or ask for, besides its own area's settings. */
+export interface StudioViewHostServices {
   watchOpenProject(listener: (reading: OpenProjectReading) => void): StopWatching;
   watchListedStreams(listener: (reading: ListedStreamsReading) => void): StopWatching;
   watchSelection(listener: (selection: StudioSelection) => void): StopWatching;
@@ -147,22 +117,3 @@ export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
 
 /** Who brought a view type: the studio itself, or the open project or one of its imports. */
 export type StudioViewTypeSource = { kind: "tato_studio" } | { kind: "project"; project_name: string };
-
-/** What a view draws: tools in its area's header, after the view-type menu, and its body. */
-export interface StudioViewRendering {
-  header_tools: ReactNode;
-  body: ReactNode;
-}
-
-/** One kind of view an area can show. */
-export interface StudioViewType<ViewSettings extends JsonValue> {
-  view_type_id: string;
-  title: string;
-  icon: StudioIconName;
-  brought_by: StudioViewTypeSource;
-  default_settings: ViewSettings;
-  /** Settings restored from a saved layout, or `null` when they no longer fit, and the area opens on the defaults. */
-  settingsFromSavedLayout(savedSettings: JsonValue): ViewSettings | null;
-  /** The view drawn into its area, reading and asking only through `connection`. */
-  renderStudioView(connection: StudioViewHostConnection<ViewSettings>): StudioViewRendering;
-}

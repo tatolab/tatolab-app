@@ -2,14 +2,8 @@ import { readTatolabViewManifest, type TatolabViewManifest } from "@tatolab/tato
 import type { ReactNode } from "react";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
 import type { StudioAreaHeaderMenuIcon } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
-import { WatchedStudioValue } from "./in_window_view_host";
-import type { JsonValue, StudioViewHostConnection, StudioViewType, StudioViewTypeSource, ViewHeaderRow } from "./studio_view_contract";
-
-/** What a host serves every view alike: the connection less the area's own settings. */
-export type StudioViewHostServices = Omit<StudioViewHostConnection<JsonValue>, "settings" | "rememberSettings">;
-
-/** How an area draws its view: the in-window tools after the view-type menu over its body, or the view's own frame across the whole area, under the view-type menu. */
-export type StudioAreaRendering = { kind: "in_window"; header_tools: ReactNode; body: ReactNode } | { kind: "frame"; frame: ReactNode };
+import type { JsonValue, StudioViewHostServices, StudioViewTypeSource, ViewHeaderRow } from "./studio_view_contract";
+import { WatchedStudioValue } from "./watched_studio_value";
 
 /** What an area hands the view type it draws: the settings it saved, keeping the next ones, and where a frame's own header row lies. */
 export interface StudioAreaOfTheView {
@@ -18,32 +12,14 @@ export interface StudioAreaOfTheView {
   header_row: WatchedStudioValue<ViewHeaderRow>;
 }
 
-/** A view type as the registry holds it, its settings' type kept inside: what the view-type menu lists, and how an area draws it. */
+/** A view type as the registry holds it, made from its manifest: what the view-type menu lists, and how an area draws its frame. */
 export interface RegisteredStudioViewType {
   view_type_id: string;
   title: string;
   icon: StudioAreaHeaderMenuIcon;
   brought_by: StudioViewTypeSource;
-  /** The view drawn in `area`, on the settings it saved, or on the defaults when they no longer fit. */
-  renderInAnArea(area: StudioAreaOfTheView, hostServices: StudioViewHostServices): StudioAreaRendering;
-}
-
-/** `viewType` as the registry holds it. */
-export function registeredStudioViewType<ViewSettings extends JsonValue>(viewType: StudioViewType<ViewSettings>): RegisteredStudioViewType {
-  return {
-    view_type_id: viewType.view_type_id,
-    title: viewType.title,
-    icon: viewType.icon,
-    brought_by: viewType.brought_by,
-    renderInAnArea: (area, hostServices) => ({
-      kind: "in_window",
-      ...viewType.renderStudioView({
-        ...hostServices,
-        settings: (area.saved_settings === undefined ? null : viewType.settingsFromSavedLayout(area.saved_settings)) ?? viewType.default_settings,
-        rememberSettings: (nextSettings) => area.rememberSettings(nextSettings),
-      }),
-    }),
-  };
+  /** The view's frame across `area`, on the settings the area saved. */
+  renderInAnArea(area: StudioAreaOfTheView, hostServices: StudioViewHostServices): ReactNode;
 }
 
 /** The views the open project and its imports bring, as the backend lists them, or why it lists none. */

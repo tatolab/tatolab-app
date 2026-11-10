@@ -19,7 +19,8 @@ import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_wi
 import { StudioWindowModel } from "./studio_shell/studio_window_model";
 import { STUDIO_LAYOUTS, StudioLayoutsKeptInStorage } from "./studio_shell/studio_layouts";
 
-import { inWindowStudioViewHostServices, useWatchedStudioValue } from "./view_host/in_window_view_host";
+import { studioViewHostServicesOf } from "./view_host/studio_view_host_services";
+import { useWatchedStudioValue } from "./view_host/watched_studio_value";
 import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_catalog_readings";
 import { StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
 import { tatolabFrameViewType } from "./view_host/tatolab_frame_view_type";
@@ -189,7 +190,7 @@ export function mountTatolabWindow(
   const studioWindowSources: StudioWindowSources = {
     model: studioWindowModel,
     viewTypeRegistry,
-    viewHostServices: inWindowStudioViewHostServices(studioWindowModel.viewHostSources(), streamGraphAndCatalogReadings, {
+    viewHostServices: studioViewHostServicesOf(studioWindowModel.viewHostSources(), streamGraphAndCatalogReadings, {
       backend,
       projectLogReadings,
       projectNodeTypeReadings,

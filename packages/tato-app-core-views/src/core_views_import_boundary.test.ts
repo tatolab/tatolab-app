@@ -17,7 +17,7 @@ describe("a core view's imports", () => {
   });
 
   it("never reaches into the app, by its name, its alias or a path, nor into another package's files", async () => {
-    for (const importedFrom of ["tato-app/src/renderer/view_host/in_window_view_host", "@/components/ui/button", "../../../apps/tato-app/src/shared/tatolab_backend_contract", "../../tato-app-view-sdk/src/index"]) {
+    for (const importedFrom of ["tato-app/src/renderer/view_host/studio_view_host_services", "@/components/ui/button", "../../../apps/tato-app/src/shared/tatolab_backend_contract", "../../tato-app-view-sdk/src/index"]) {
       expect(await boundaryMessagesOf(`import "${importedFrom}";\n`)).not.toEqual([]);
     }
   });

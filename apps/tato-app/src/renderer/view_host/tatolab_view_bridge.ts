@@ -17,9 +17,8 @@ import {
   type ViewWatchedReading,
   type ViewWatchedSubject,
 } from "@tatolab/tato-app-view-sdk";
-import type { JsonValue, PortViewerConnection, PortViewerTarget, PythonLanguageServerConnection, StopWatching, ViewHeaderRow } from "./studio_view_contract";
+import type { JsonValue, PortViewerConnection, PortViewerTarget, PythonLanguageServerConnection, StopWatching, StudioViewHostServices, ViewHeaderRow } from "./studio_view_contract";
 import { STUDIO_VIEW_NODE_ISSUE, type StudioViewInputWiring } from "./studio_view_node_wiring";
-import type { StudioViewHostServices } from "./studio_view_type_registry";
 
 /** The parts of a `MessagePort` the bridge uses, so a test can stand in for one. */
 export interface TatolabViewMessagePort {

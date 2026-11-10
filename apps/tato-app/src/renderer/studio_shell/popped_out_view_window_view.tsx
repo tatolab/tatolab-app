@@ -3,9 +3,11 @@ import type { JsonValue, PoppedOutView, TatolabPlatform } from "../../shared/tat
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
-import { StudioViewFailureBoundary, useWatchedStudioValue, WatchedStudioValue } from "../view_host/in_window_view_host";
+import { StudioViewFailureBoundary } from "../view_host/studio_view_failure_boundary";
+import { useWatchedStudioValue, WatchedStudioValue } from "../view_host/watched_studio_value";
 import type { ViewHeaderRow } from "../view_host/studio_view_contract";
-import type { StudioViewHostServices, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
+import type { StudioViewHostServices } from "../view_host/studio_view_contract";
+import type { StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
 
 const HEADER_ROW_OF_THE_POPPED_OUT_AREA: ViewHeaderRow = { leading_inset_px: 0, height_px: 30 };
@@ -48,9 +50,7 @@ export function PoppedOutViewWindowView({
           <WaitingState title={`This build has no ${target.view_type_id} view`} explanation="Close this window and open the view in the studio." />
         ) : (
           <StudioViewFailureBoundary viewTitle={viewType.title}>
-            {((rendering) => (rendering.kind === "frame" ? rendering.frame : rendering.body))(
-              viewType.renderInAnArea({ saved_settings: settingsKept, rememberSettings: keepSettings, header_row: headerRow }, viewHostServices),
-            )}
+            {viewType.renderInAnArea({ saved_settings: settingsKept, rememberSettings: keepSettings, header_row: headerRow }, viewHostServices)}
           </StudioViewFailureBoundary>
         )}
       </main>

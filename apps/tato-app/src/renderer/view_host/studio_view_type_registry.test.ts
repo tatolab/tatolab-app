@@ -1,52 +1,22 @@
+import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk";
 import { describe, expect, it } from "vitest";
-import { WatchedStudioValue } from "./in_window_view_host";
-import type { JsonValue, StudioViewHostConnection, StudioViewType } from "./studio_view_contract";
-import { registeredStudioViewType, StudioViewTypeRegistry, type StudioAreaOfTheView, type StudioViewHostServices } from "./studio_view_type_registry";
+import type { StudioViewTypeSource } from "./studio_view_contract";
+import { StudioViewTypeRegistry, type RegisteredStudioViewType } from "./studio_view_type_registry";
+import { tatolabFrameViewType } from "./tatolab_frame_view_type";
 
-const HOST_SERVICES: StudioViewHostServices = {
-  watchOpenProject: () => () => undefined,
-  watchListedStreams: () => () => undefined,
-  watchSelection: () => () => undefined,
-  select: () => undefined,
-  watchActiveStreamTab: () => () => undefined,
-  openStreamTab: () => undefined,
-  watchStreamGraph: () => () => undefined,
-  watchNodeCatalog: () => () => undefined,
-  openView: () => ({ kind: "not_opened", because: "no areas in this test" }),
-  watchViewOpenedOn: () => () => undefined,
-  readProjectFile: async () => ({ kind: "not_read", because: "no files in this test" }),
-  saveProjectFile: async () => ({ kind: "not_saved", because: "no files in this test" }),
-  listProjectFiles: async () => ({ kind: "not_listed", because: "no files in this test" }),
-  watchProjectLog: () => () => undefined,
-  watchProjectNodeTypes: () => () => undefined,
-  watchProjectTransactions: () => () => undefined,
-  undoInTheProject: async () => ({ kind: "not_applied", because: "no history in this test" }),
-  redoInTheProject: async () => ({ kind: "not_applied", because: "no history in this test" }),
-  connectToPythonLanguageServer: () => ({ send: () => undefined, close: () => undefined }),
-  watchPortViewer: () => ({ close: () => undefined }),
-};
-
-/** A view type keeping a number, which records each connection it is drawn on. */
-function countingViewType(viewTypeId: string, broughtBy: StudioViewType<number>["brought_by"], connections: StudioViewHostConnection<number>[]): StudioViewType<number> {
-  return {
-    view_type_id: viewTypeId,
-    title: viewTypeId,
-    icon: "outliner",
-    brought_by: broughtBy,
-    default_settings: 1,
-    settingsFromSavedLayout: (saved: JsonValue) => (typeof saved === "number" ? saved : null),
-    renderStudioView: (connection) => {
-      connections.push(connection);
-      return { header_tools: null, body: null };
-    },
-  };
+/** The view type an `area` view's manifest titled `viewTypeId` declares, brought by `broughtBy`. */
+function viewTypeFromItsManifest(viewTypeId: string, broughtBy: StudioViewTypeSource): RegisteredStudioViewType {
+  const manifestJson = { contract: "1.0", title: viewTypeId, entry: "index.html", placement: "area" };
+  const manifestReading = readTatolabViewManifest(manifestJson);
+  if (manifestReading.kind === "not_read") throw new Error(manifestReading.because);
+  return tatolabFrameViewType({ view_type_id: viewTypeId, distribution: "tests", entry_name: viewTypeId, manifest_json: manifestJson, folder_url: `https://views.example/${viewTypeId}/` }, manifestReading.manifest, broughtBy);
 }
 
 describe("the view-type registry", () => {
   it("answers a view type by id, none for one this build lacks, and lists the studio's apart from the project's", () => {
     const registry = new StudioViewTypeRegistry([
-      registeredStudioViewType(countingViewType("outliner", { kind: "tato_studio" }, [])),
-      registeredStudioViewType(countingViewType("venue-3d", { kind: "project", project_name: "hall-of-light" }, [])),
+      viewTypeFromItsManifest("outliner", { kind: "tato_studio" }),
+      viewTypeFromItsManifest("venue-3d", { kind: "project", project_name: "hall-of-light" }),
     ]);
     expect(registry.viewTypeWithId("outliner")?.title).toBe("outliner");
     expect(registry.viewTypeWithId("rocket-assembly")).toBeNull();
@@ -55,8 +25,8 @@ describe("the view-type registry", () => {
   });
 
   it("offers a view type held for Developer mode only while Developer mode is on, last among the studio's", () => {
-    const registry = new StudioViewTypeRegistry([registeredStudioViewType(countingViewType("outliner", { kind: "tato_studio" }, []))], null, [], [
-      registeredStudioViewType(countingViewType("transactions", { kind: "tato_studio" }, [])),
+    const registry = new StudioViewTypeRegistry([viewTypeFromItsManifest("outliner", { kind: "tato_studio" })], null, [], [
+      viewTypeFromItsManifest("transactions", { kind: "tato_studio" }),
     ]);
     expect(registry.studioViewTypes().map((viewType) => viewType.view_type_id)).toEqual(["outliner"]);
     expect(registry.viewTypeWithId("transactions")).toBeNull();
@@ -73,27 +43,9 @@ describe("the view-type registry", () => {
     expect(registry.viewTypeHeldForDeveloperMode("outliner")).toBeNull();
   });
 
-  it("draws a view on the settings its area saved, on its defaults where they no longer fit, and keeps the next ones with the area", () => {
-    const connections: StudioViewHostConnection<number>[] = [];
-    const kept: JsonValue[] = [];
-    const viewType = registeredStudioViewType(countingViewType("counter", { kind: "tato_studio" }, connections));
-    const areaSavedAs = (savedSettings: JsonValue | undefined): StudioAreaOfTheView => ({
-      saved_settings: savedSettings,
-      rememberSettings: (next) => kept.push(next),
-      header_row: new WatchedStudioValue({ leading_inset_px: 0, height_px: 30 }),
-    });
-    viewType.renderInAnArea(areaSavedAs(7), HOST_SERVICES);
-    viewType.renderInAnArea(areaSavedAs("seven"), HOST_SERVICES);
-    viewType.renderInAnArea(areaSavedAs(undefined), HOST_SERVICES);
-    connections[0]?.rememberSettings(8);
-
-    expect(connections.map((connection) => connection.settings)).toEqual([7, 1, 1]);
-    expect(kept).toEqual([8]);
-  });
-
   it("lists the views the open project brings from their manifests, and each one that does not open with why", () => {
-    const registry = new StudioViewTypeRegistry([registeredStudioViewType(countingViewType("outliner", { kind: "tato_studio" }, []))], (listed, manifest, projectName) =>
-      registeredStudioViewType({ ...countingViewType(listed.view_type_id, { kind: "project", project_name: projectName }, []), title: manifest.title }),
+    const registry = new StudioViewTypeRegistry([viewTypeFromItsManifest("outliner", { kind: "tato_studio" })], (listed, manifest, projectName) =>
+      tatolabFrameViewType(listed, manifest, { kind: "project", project_name: projectName }),
     );
     const folder_url = "https://views.example/";
     registry.projectStudioViews.publish({

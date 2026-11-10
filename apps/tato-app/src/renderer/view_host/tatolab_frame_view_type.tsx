@@ -9,11 +9,11 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
 import { StudioAreaHeaderRowOfAWaitingView } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import { WatchedStudioValue } from "./in_window_view_host";
-import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewTypeSource } from "./studio_view_contract";
+import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostServices, StudioViewTypeSource } from "./studio_view_contract";
 import { nodesOfTheStudioViewType, studioViewInputWiring, STUDIO_VIEW_NODE_ISSUE, type StudioViewInputWiring } from "./studio_view_node_wiring";
-import type { RegisteredStudioViewType, StudioAreaOfTheView, StudioViewHostServices } from "./studio_view_type_registry";
+import type { RegisteredStudioViewType, StudioAreaOfTheView } from "./studio_view_type_registry";
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
+import { WatchedStudioValue } from "./watched_studio_value";
 
 /** The browser permissions a view's frame is allowed: every one for a full-access view, and only those a sandboxed view's manifest lists. */
 function framePermissionsOf(manifest: TatolabViewManifest): string {
@@ -149,14 +149,11 @@ export function tatolabFrameViewType(listed: ListedStudioView, manifest: Tatolab
     title: manifest.title,
     icon: manifest.icon === undefined ? "project_view" : { image_url: new URL(manifest.icon, listed.folder_url).href },
     brought_by: broughtBy,
-    renderInAnArea: (area, hostServices) => ({
-      kind: "frame",
-      frame:
-        manifest.placement === "area" ? (
-          <TatolabViewFrame listed={listed} manifest={manifest} area={area} hostServices={hostServices} inputWiring={{}} />
-        ) : (
-          <TatolabNodeView listed={listed} manifest={manifest} area={area} hostServices={hostServices} />
-        ),
-    }),
+    renderInAnArea: (area, hostServices) =>
+      manifest.placement === "area" ? (
+        <TatolabViewFrame listed={listed} manifest={manifest} area={area} hostServices={hostServices} inputWiring={{}} />
+      ) : (
+        <TatolabNodeView listed={listed} manifest={manifest} area={area} hostServices={hostServices} />
+      ),
   };
 }
