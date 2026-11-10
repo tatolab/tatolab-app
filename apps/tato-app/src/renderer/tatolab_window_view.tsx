@@ -20,7 +20,6 @@ import { STUDIO_LAYOUTS, StudioLayoutsKeptInStorage } from "./studio_shell/studi
 
 import { CODE_EDITOR_VIEW_TYPE } from "./studio_views/code_editor/code_editor_view_type";
 import { VIEWER_VIEW_TYPE } from "./studio_views/viewer/viewer_view_type";
-import { STREAM_GRAPH_VIEW_TYPE } from "./studio_views/stream_graph/stream_graph_view_type";
 import { inWindowStudioViewHostServices, useWatchedStudioValue } from "./view_host/in_window_view_host";
 import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_catalog_readings";
 import { registeredStudioViewType, StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
@@ -44,7 +43,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
   };
   return new StudioViewTypeRegistry(
     [
-      registeredStudioViewType(STREAM_GRAPH_VIEW_TYPE),
+      ...coreViewTypeIn("stream_graph"),
       ...coreViewTypeIn("outliner"),
       ...coreViewTypeIn("palette"),
       ...coreViewTypeIn("properties"),

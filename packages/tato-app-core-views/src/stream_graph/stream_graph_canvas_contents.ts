@@ -3,9 +3,9 @@
 // its state.
 
 import type { NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCardCondition, NodeGraphLinkLook } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
-import type { StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "../../view_host/studio_view_contract";
-import { nodeTitle } from "@tatolab/tato-app-core-views/shared/node_words";
-import { portStreamFactsWords, streamFactsAnInputReceives } from "@tatolab/tato-app-core-views/shared/port_stream_facts_words";
+import type { StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { nodeTitle } from "../shared/node_words";
+import { portStreamFactsWords, streamFactsAnInputReceives } from "../shared/port_stream_facts_words";
 
 /** What the canvas draws of one stream's graph. */
 export interface StreamGraphCanvasContents {

@@ -5,7 +5,9 @@ import { NodeGraphCanvas } from "@tatolab/tato-app-view-sdk/design_system/node_g
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { ListedStreamsReading, OpenProjectReading, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
+import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import type { ListedStreamsReading, OpenProjectReading, StreamGraphReading, StreamTabAddress } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { CoreViewFrame } from "../shared/core_view_page";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 
 /** The issue that opens an import as a project of its own, where it can be edited. */
@@ -21,7 +23,7 @@ function importedProjectNameOfTheStream(stream: string, openProject: OpenProject
 }
 
 /** The graph of the stream tab shown, read while the view is drawn. */
-function StreamGraphOfTheTab({ connection, streamTab }: { connection: StudioViewHostConnection<null>; streamTab: StreamTabAddress }) {
+function StreamGraphOfTheTab({ connection, streamTab }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress }) {
   const watchTheTabsGraph = useCallback(
     (listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(streamTab.stream, listener),
     [connection, streamTab.stream],
@@ -34,9 +36,9 @@ function StreamGraphOfTheTab({ connection, streamTab }: { connection: StudioView
   const onNodeSelected = useCallback(
     (nodeName: string | null) => {
       const projectFolder = listedStreams?.kind === "listed" ? listedStreams.streams.find((listedStream) => listedStream.stream === streamTab.stream)?.location?.project_directory : undefined;
-      if (nodeName !== null) connection.select({ kind: "node", stream: streamTab.stream, node: nodeName });
-      else if (projectFolder !== undefined) connection.select({ kind: "stream", stream: streamTab.stream, project_folder: projectFolder });
-      else connection.select({ kind: "nothing" });
+      if (nodeName !== null) void connection.select({ kind: "node", stream: streamTab.stream, node: nodeName });
+      else if (projectFolder !== undefined) void connection.select({ kind: "stream", stream: streamTab.stream, project_folder: projectFolder });
+      else void connection.select({ kind: "nothing" });
     },
     [connection, listedStreams, streamTab.stream],
   );
@@ -111,19 +113,17 @@ function StreamGraphOfTheTab({ connection, streamTab }: { connection: StudioView
 }
 
 /** The stream graph of the active stream tab, or what to do while no tab is open. */
-function StreamGraphBody({ connection }: { connection: StudioViewHostConnection<null> }) {
+function StreamGraphBody({ connection }: { connection: TatoAppViewConnection }) {
   const activeStreamTab = useViewReading(connection.watchActiveStreamTab);
   if (activeStreamTab === null) return <WaitingState title="No stream is open" explanation="Double-click a stream in the outliner to open its tab." data-stream-graph-state="no_tab" />;
   return <StreamGraphOfTheTab key={activeStreamTab.stream} connection={connection} streamTab={activeStreamTab} />;
 }
 
-/** The stream graph: the active stream tab's nodes and links, drawn the Blueprint way. */
-export const STREAM_GRAPH_VIEW_TYPE: StudioViewType<null> = {
-  view_type_id: "stream_graph",
-  title: "Stream graph",
-  icon: "stream_graph",
-  brought_by: { kind: "built_in" },
-  default_settings: null,
-  settingsFromSavedLayout: () => null,
-  renderStudioView: (connection) => ({ header_tools: null, body: <StreamGraphBody connection={connection} /> }),
-};
+/** The Stream graph view's whole frame: the active stream tab's nodes and links, drawn the Blueprint way, under its header row. */
+export function StreamGraphView({ connection }: { connection: TatoAppViewConnection }) {
+  return (
+    <CoreViewFrame connection={connection}>
+      <StreamGraphBody connection={connection} />
+    </CoreViewFrame>
+  );
+}

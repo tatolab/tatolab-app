@@ -405,6 +405,15 @@ describe("the studio", () => {
     await waitFor(() => expect(coreViewPage("outliner", "viewer").querySelector("[data-outliner]")).not.toBeNull());
   });
 
+  it("draws the open stream tab's graph in the Stream graph's own frame, and a node chosen there shows in Properties", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    expect(streamGraph.querySelector('[aria-label="Graph of main"]')).not.toBeNull();
+    const invertingEffectCard = await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card"));
+    fireEvent.click(invertingEffectCard);
+    await waitFor(() => expect(inTheCoreView("properties").getByText("Inverting Effect")).toBeTruthy());
+  });
+
   it("lists a view the project brings, and draws it with full access in a frame of its own on the stream's node of its type", async () => {
     await mountedWindowOverTheMock("state=running&studio_views=fixture");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
