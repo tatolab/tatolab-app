@@ -1,20 +1,15 @@
 // Studio's end of a view's MessagePort, the one way any panel reaches Studio. Each message is parsed
-// against the view contract's schemas and checked against what the view was granted: every
-// capability for a full-access view, and only what its manifest lists for a sandboxed one.
+// against the view contract's schemas; every view runs with full access.
 
 import {
-  capabilityToAsk,
-  capabilityToWatch,
   jsonValueSchema,
   messageFromTheViewSchema,
   readViewSettings,
-  VIEW_CAPABILITIES,
   viewSettingsForAnArea,
   type MessageFromStudio,
   type TatolabViewManifest,
   type ViewAsk,
   type ViewAskAnswer,
-  type ViewCapability,
   type ViewWatchedReading,
   type ViewWatchedSubject,
 } from "@tatolab/tato-app-view-sdk";
@@ -47,14 +42,9 @@ export interface TatolabViewAreaServices {
   watchHeaderRow(listener: (headerRow: ViewHeaderRow) => void): StopWatching;
 }
 
-/** Turns a port viewer's `VideoFrame` into the `ImageBitmap` that crosses into a sandboxed view's frame. */
-export type ImageBitmapOfTheVideoFrame = (videoFrame: VideoFrame) => Promise<ImageBitmap>;
-
-const IMAGE_BITMAP_OF_THE_VIDEO_FRAME: ImageBitmapOfTheVideoFrame = (videoFrame) => createImageBitmap(videoFrame);
-
 /** Whether `payload`, sent beside an output ask, is a picture Studio now holds and must close. */
-function isAPictureToClose(payload: unknown): payload is ImageBitmap | VideoFrame {
-  return (typeof ImageBitmap !== "undefined" && payload instanceof ImageBitmap) || (typeof VideoFrame !== "undefined" && payload instanceof VideoFrame);
+function isAPictureToClose(payload: unknown): payload is VideoFrame {
+  return typeof VideoFrame !== "undefined" && payload instanceof VideoFrame;
 }
 
 interface InputWatch {
@@ -63,9 +53,8 @@ interface InputWatch {
   portViewerConnection: PortViewerConnection | null;
 }
 
-/** Serves one view of `viewTypeId`, declared by `manifest`, over `port`: reading through `hostServices`, its area through `areaServices`, a `node` view's inputs through `inputWiring` and its outputs onto `viewNode`; a sandboxed view's Image frames go through `imageBitmapOfTheVideoFrame`. */
+/** Serves one view of `viewTypeId`, declared by `manifest`, over `port`: reading through `hostServices`, its area through `areaServices`, a `node` view's inputs through `inputWiring` and its outputs onto `viewNode`; Image frames cross as the transferred `VideoFrame`, with no copy. */
 export class TatolabViewBridge {
-  private readonly grantedCapabilities: readonly ViewCapability[];
   private readonly stopWatchingByWatchId = new Map<number, StopWatching>();
   private readonly inputWatchesByWatchId = new Map<number, InputWatch>();
   private readonly pythonLanguageServersByWatchId = new Map<number, PythonLanguageServerConnection>();
@@ -91,12 +80,9 @@ export class TatolabViewBridge {
     private readonly areaServices: TatolabViewAreaServices,
     private inputWiring: Record<string, StudioViewInputWiring> = {},
     private readonly viewNode: StudioViewNodeAddress | null = null,
-    private readonly imageBitmapOfTheVideoFrame: ImageBitmapOfTheVideoFrame = IMAGE_BITMAP_OF_THE_VIDEO_FRAME,
-  ) {
-    this.grantedCapabilities = manifest.sandbox ? manifest.capabilities : VIEW_CAPABILITIES;
-  }
+  ) {}
 
-  /** Tell the view what it was granted, and answer its messages from now on. */
+  /** Tell the view its id, contract, placement and declared ports, and answer its messages from now on. */
   start(): void {
     this.port.addEventListener("message", this.onMessageFromTheView);
     this.port.start();
@@ -106,10 +92,8 @@ export class TatolabViewBridge {
         view_type_id: this.viewTypeId,
         contract: this.manifest.contract,
         placement: this.manifest.placement,
-        sandboxed: this.manifest.sandbox,
         inputs: this.manifest.inputs,
         outputs: this.manifest.outputs,
-        capabilities: [...this.grantedCapabilities],
       },
     });
   }
@@ -142,10 +126,6 @@ export class TatolabViewBridge {
     if (!this.isClosed) this.port.postMessage(message, transfer);
   }
 
-  private refusalForMissing(capability: ViewCapability): string {
-    return `${this.manifest.title} runs sandboxed and does not list ${capability} in its tatolab_view.json, so Studio does not serve it.`;
-  }
-
   private async writeTheOutput(output: string, sentPayload: unknown): Promise<ViewAskAnswer> {
     if (this.viewNode === null) return { kind: "refused", because: `${this.manifest.title} shows in an area and has no node, so what it sends on ${output} reaches no stream.` };
     if (isAPictureToClose(sentPayload)) return { kind: "refused", because: `The runtime publishes what a view writes on its Array, Channels and Records outputs, so ${output} takes JSON, not a picture.` };
@@ -166,11 +146,6 @@ export class TatolabViewBridge {
   private startWatching(watchId: number, subject: ViewWatchedSubject): void {
     if (this.isWatchedUnder(watchId)) {
       this.send({ kind: "watch_refused", watch_id: watchId, because: `The view already watches under ${watchId}.` });
-      return;
-    }
-    const capability = capabilityToWatch(subject);
-    if (capability !== null && !this.grantedCapabilities.includes(capability)) {
-      this.send({ kind: "watch_refused", watch_id: watchId, because: this.refusalForMissing(capability) });
       return;
     }
     const sendReading = (watched: ViewWatchedReading, transfer: Transferable[] = []) => this.send({ kind: "watched", watch_id: watchId, watched }, transfer);
@@ -236,7 +211,7 @@ export class TatolabViewBridge {
     }
   }
 
-  /** Reads `target`'s output port, each event going to `sendEvent`; a sandboxed view's Image frames cross as `ImageBitmap`s. */
+  /** Reads `target`'s output port, each event going to `sendEvent`, an Image frame's `VideoFrame` transferred. */
   private readThePortViewer(
     target: PortViewerTarget,
     sendEvent: (event: Extract<ViewWatchedReading, { subject: "port_viewer" }>["reading"], transfer: Transferable[]) => void,
@@ -247,24 +222,8 @@ export class TatolabViewBridge {
         sendEvent(portViewerEvent, []);
         return;
       }
-      if (!this.manifest.sandbox) {
-        if (this.isClosed || !isWatched) portViewerEvent.video_frame.close();
-        else sendEvent(portViewerEvent, [portViewerEvent.video_frame]);
-        return;
-      }
-      const { video_frame: videoFrame, format_wire_name: formatWireName, skipped_since_last_read: skippedSinceLastRead } = portViewerEvent;
-      const timestampMicroseconds = videoFrame.timestamp;
-      this.imageBitmapOfTheVideoFrame(videoFrame).then(
-        (imageBitmap) => {
-          videoFrame.close();
-          if (!isWatched || this.isClosed) imageBitmap.close();
-          else sendEvent(
-              { kind: "image_bitmap", image_bitmap: imageBitmap, timestamp_microseconds: timestampMicroseconds, format_wire_name: formatWireName, skipped_since_last_read: skippedSinceLastRead },
-              [imageBitmap],
-            );
-        },
-        () => videoFrame.close(),
-      );
+      if (this.isClosed || !isWatched) portViewerEvent.video_frame.close();
+      else sendEvent(portViewerEvent, [portViewerEvent.video_frame]);
     });
     return {
       close: () => {
@@ -297,8 +256,6 @@ export class TatolabViewBridge {
   }
 
   private async answerTheAsk(ask: ViewAsk, sentPayload: unknown): Promise<ViewAskAnswer> {
-    const capability = capabilityToAsk(ask);
-    if (capability !== null && !this.grantedCapabilities.includes(capability)) return { kind: "refused", because: this.refusalForMissing(capability) };
     switch (ask.kind) {
       case "select":
         this.hostServices.select(ask.selection);

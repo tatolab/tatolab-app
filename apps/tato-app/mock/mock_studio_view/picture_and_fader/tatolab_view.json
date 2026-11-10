@@ -8,6 +8,5 @@
   "settings": {
     "type": "object",
     "properties": { "picture_fit": { "type": "string", "enum": ["contain", "cover"], "default": "contain" } }
-  },
-  "capabilities": ["read.selection"]
+  }
 }

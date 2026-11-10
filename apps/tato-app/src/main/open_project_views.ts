@@ -3,20 +3,26 @@
 // bytes `read_project_file` answers.
 
 import type { ListedStudioView, OpenProjectReading } from "../shared/tatolab_backend_contract.js";
-import { projectViewFolderUrl } from "./project_view_files.js";
+import { projectViewFolderUrl, type ProjectViewsListedToTheWindows } from "./project_view_files.js";
 import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** The runtime's `list_project_views`, refused in its own words. */
 export type ListTheProjectViewsOfTheRuntime = (projectDirectory: string) => Promise<Result<ProjectViewTheRuntimeListed[], string>>;
 
-/** The views the open project in `openProjectReading` and its imports bring, each with the URL its folder is served under; refused while no project is read, or in the runtime's words. */
-export async function studioViewsOfTheOpenProject(openProjectReading: OpenProjectReading, listTheProjectViews: ListTheProjectViewsOfTheRuntime): Promise<Result<ListedStudioView[], string>> {
+/** The views the open project in `openProjectReading` and its imports bring, each with the URL its folder is served under, kept in `projectViewsListed` as the only views served; refused while no project is read, or in the runtime's words. */
+export async function studioViewsOfTheOpenProject(
+  openProjectReading: OpenProjectReading,
+  listTheProjectViews: ListTheProjectViewsOfTheRuntime,
+  projectViewsListed: ProjectViewsListedToTheWindows,
+): Promise<Result<ListedStudioView[], string>> {
   if (openProjectReading.kind === "unreadable") return failedWith(openProjectReading.refusal);
   if (openProjectReading.kind !== "read") return failedWith("No project is open in this window.");
   const openProjectFolder = openProjectReading.open_project.project.folder;
+  const listingStarted = projectViewsListed.startAListing();
   const listed = await listTheProjectViews(openProjectFolder);
   if (!listed.ok) return listed;
+  projectViewsListed.rememberTheListing(openProjectFolder, listingStarted, listed.value);
   return succeeded(
     listed.value.map((listedView) => ({
       view_type_id: listedView.view_type,

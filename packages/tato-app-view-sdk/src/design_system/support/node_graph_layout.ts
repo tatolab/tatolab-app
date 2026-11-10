@@ -14,12 +14,13 @@ const NODE_GRAPH_COLUMN_GAP = 72;
 const NODE_GRAPH_ROW_GAP = 28;
 const CROSSING_REDUCTION_SWEEPS = 4;
 
-/** What the layout reads of one node: its id, how many pins each side, whether its card shows why it failed, and its card's width as drawn. */
+/** What the layout reads of one node: its id, how many pins each side, whether its card shows why it failed or is collapsed to its header, and its card's width as drawn. */
 export interface NodeGraphLayoutNode {
   node_id: string;
   input_pin_names: readonly string[];
   output_pin_names: readonly string[];
   shows_failure_words: boolean;
+  is_collapsed: boolean;
   card_width: number;
 }
 
@@ -37,8 +38,9 @@ export interface NodeGraphPosition {
   y: number;
 }
 
-/** A card's height: its header, then a row per pin on its busier side, then why it failed when it shows that. */
-export function nodeGraphCardHeight(node: Pick<NodeGraphLayoutNode, "input_pin_names" | "output_pin_names" | "shows_failure_words">): number {
+/** A card's height: its header, then a row per pin on its busier side, then why it failed when it shows that; a collapsed card is its header alone. */
+export function nodeGraphCardHeight(node: Pick<NodeGraphLayoutNode, "input_pin_names" | "output_pin_names" | "shows_failure_words" | "is_collapsed">): number {
+  if (node.is_collapsed) return NODE_GRAPH_CARD_HEADER_HEIGHT;
   const pinRowCount = Math.max(node.input_pin_names.length, node.output_pin_names.length);
   return (
     NODE_GRAPH_CARD_HEADER_HEIGHT +

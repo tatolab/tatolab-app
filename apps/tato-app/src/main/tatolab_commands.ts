@@ -1098,7 +1098,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
           studioViewsOfTheOpenProject(studioWindow.value.openProject.readOpenProject(), async (projectDirectory) => {
             const listed = await sharedState.controller.listProjectViews(projectDirectory);
             return listed.ok ? listed : failedWith(listed.failure.failureDescription);
-          }),
+          }, sharedState.projectViewsListed),
         ),
       );
     },

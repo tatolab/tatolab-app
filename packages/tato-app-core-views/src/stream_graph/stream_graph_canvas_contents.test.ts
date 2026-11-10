@@ -48,13 +48,17 @@ const GRAPH: StreamGraphSummary = {
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_and_an_input_shows_the_facts_its_one_link_carries", () => {
   expect(streamGraphCanvasContents(GRAPH).nodes).toEqual([
-    { node_id: "camera", title: "camera", condition: { look: "healthy" }, input_pins: [], output_pins: [{ name: "video", family: "image", stream_facts_words: ["29.97 fps"] }] },
+    { node_id: "camera", title: "camera", type_name: "Effect", condition: { look: "healthy" }, input_pins: [], output_pins: [{ name: "video", family: "image", stream_facts_words: ["29.97 fps"] }], saved_position: null, frame_id: null, is_collapsed: false },
     {
       node_id: "invert",
       title: "invert",
+      type_name: "Effect",
       condition: { look: "healthy" },
       input_pins: [{ name: "video_in", family: "image", stream_facts_words: ["29.97 fps"] }],
       output_pins: [{ name: "video_out", family: null, stream_facts_words: [] }],
+      saved_position: null,
+      frame_id: null,
+      is_collapsed: false,
     },
   ]);
 });
@@ -86,4 +90,26 @@ test("a_node_in_error_is_a_failed_card_carrying_why_word_for_word_and_a_restarti
     ["camera", { look: "restarting" }],
     ["invert", { look: "healthy" }],
   ]);
+});
+
+test("a_node_left_somewhere_draws_there_in_the_frame_of_its_group_and_the_graphs_groups_and_notes_are_drawn_too", () => {
+  const groupId = "2c6a1f7e-93b4-4d0a-8e15-b6f0c3a9d421";
+  const graph: StreamGraphSummary = {
+    ...GRAPH,
+    nodes: [
+      { ...graphNode("camera", [], ["video"]), studio: { ...NODE_STUDIO_FIELDS_NONE_SET, position: [40, -12], group: groupId } },
+      { ...graphNode("invert", ["video_in"], ["video_out"]), studio: { ...NODE_STUDIO_FIELDS_NONE_SET, group: "9a9a9a9a-0000-4000-8000-000000000000" } },
+    ],
+    groups: [{ id: groupId, title: "Inputs", description: null, colour: "#3b82f6" }],
+    notes: [{ id: "n1", text: "Tune here", position: [300, 80], size: [220, 90] }],
+  };
+
+  const contents = streamGraphCanvasContents(graph);
+
+  expect(contents.nodes.map((node) => [node.node_id, node.saved_position, node.frame_id])).toEqual([
+    ["camera", { x: 40, y: -12 }, groupId],
+    ["invert", null, null],
+  ]);
+  expect(contents.frames).toEqual([{ frame_id: groupId, title: "Inputs", description: null, colour: "#3b82f6" }]);
+  expect(contents.notes).toEqual([{ note_id: "n1", text: "Tune here", position: { x: 300, y: 80 }, size: { width: 220, height: 90 } }]);
 });

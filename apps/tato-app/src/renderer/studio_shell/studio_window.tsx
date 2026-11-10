@@ -1,15 +1,18 @@
-import { PictureInPicture2, Play } from "lucide-react";
+import { PictureInPicture2, Play, Redo2, Square, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
+import type { OpenProjectReading, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
 import { DocumentTabs } from "@tatolab/tato-app-view-sdk/design_system/document_tabs";
+import { IconButton } from "@tatolab/tato-app-view-sdk/design_system/icon_button";
 import { StudioMenuBar } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
 import { MenuGroup, MenuItem, MenuItemThatCannotBeChosen, MenuNote, MenuSeparator, MenuSingleChoiceGroup } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { StudioAreaFrame, StudioAreaHeaderMenu, StudioAreaOverAViewsOwnFrame, StudioViewIconMark, type StudioAreaHeaderMenuIcon } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { WindowNotice } from "@tatolab/tato-app-view-sdk/design_system/window_notice";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
+import { playOrStopOfferedForTheProject } from "../presentation/project_play_presentation";
+import { streamsOfTheProjectNoTabShows, streamTabsDrawnInTheStrip, type StreamsToOpenAsTabs } from "../presentation/stream_tabs_presentation";
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { presentRecentProjectChangeRefusalTitle } from "../presentation/projects_presentation";
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
@@ -25,6 +28,7 @@ import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
 import {
   RUN_LIVE_KEY,
+  STOP_KEY_HINT,
   studioMenuBarMenus,
   studioMenusInTheSystemMenuBar,
   type StudioMenuBarCommands,
@@ -100,7 +104,7 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
   return (
     <StudioAreaHeaderMenu icon={iconOfTheArea} words={words} label={`${words}: change this area's view`} data-area-view-type-menu={area.area_id}>
       <MenuGroup label="Studio views">
-        <MenuSingleChoiceGroup
+        <MenuSingleChoiceGroup closesTheMenuOnChoice
           choices={sources.viewTypeRegistry.studioViewTypes().map(viewTypeChoice)}
           chosen={area.view_type_id ?? ""}
           onChosen={onChosen}
@@ -114,7 +118,7 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
           <MenuNote>This project and its imports bring no views.</MenuNote>
         )}
         {projectViewTypes.length > 0 && (
-          <MenuSingleChoiceGroup choices={projectViewTypes.map(viewTypeChoice)} chosen={area.view_type_id ?? ""} onChosen={onChosen} dataAttributeOfEachChoice="data-view-type-choice" />
+          <MenuSingleChoiceGroup closesTheMenuOnChoice choices={projectViewTypes.map(viewTypeChoice)} chosen={area.view_type_id ?? ""} onChosen={onChosen} dataAttributeOfEachChoice="data-view-type-choice" />
         )}
         <ViewTypesNotOpenedInTheMenu viewTypesNotOpened={projectViewTypesNotOpened} />
       </MenuGroup>
@@ -212,6 +216,27 @@ function StudioAreaLayoutNodeView({ node, layoutKey, sources }: { node: StudioAr
   );
 }
 
+/** The + menu's choices: each stream of the open project no tab shows, opened as a tab when chosen. */
+function StreamsOfTheProjectToOpenAsTabs({ model, offered }: { model: StudioWindowModel; offered: StreamsToOpenAsTabs }) {
+  if (offered.kind === "none_to_offer") return <MenuNote>{offered.because}</MenuNote>;
+  return (
+    <MenuGroup label="Open a stream">
+      {offered.streams.map((stream) => (
+        <MenuItem key={stream.stream} onChosen={() => model.openStreamTabOfAListedStream(stream.stream)} data-stream-tab-to-open={stream.stream}>
+          {stream.display_name}
+        </MenuItem>
+      ))}
+    </MenuGroup>
+  );
+}
+
+/** The open project's name as the toolbar titles the window, or its folder's when the project doesn't read. */
+function openProjectTitleInTheToolbar(openProject: OpenProjectReading): string {
+  if (openProject.kind === "read") return openProject.open_project.project.name;
+  if (openProject.kind === "unreadable") return openProject.folder.split("/").filter((part) => part !== "").at(-1) ?? openProject.folder;
+  return "";
+}
+
 /** The studio: its menus along the top (in the system menu bar on macOS), the open streams' tabs, and the chosen layout's areas; or the Projects window, with no menus of its own on Linux, while no project is open or File › Projects shows it. */
 export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const { model, platform, commands, systemMenuBar } = sources;
@@ -224,10 +249,13 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const viewPopOutRefusal = useWatchedStudioValue(model.viewPopOutRefusal);
   const recentProjectChangeRefusal = useWatchedStudioValue(model.recentProjectChangeRefusal);
   const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
+  const projectEditRefusal = useWatchedStudioValue(model.projectEditRefusal);
+  const listedStreams = useWatchedStudioValue(model.listedStreams);
   const appUpdateChoiceRefusal = useWatchedStudioValue(model.appUpdateChoiceRefusal);
   const openProjectStreamFailureRaised = useWatchedStudioValue(model.openProjectStreamFailureRaised);
   const newProjectSheetOpenedWith = useWatchedStudioValue(model.newProjectSheetOpenedWith);
   const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null;
+  const openProjectFolder = openProject.kind === "read" ? openProject.open_project.project.folder : null;
   const menusLiveInTheSystemMenuBar = presentPlatform(platform).menusLiveInTheSystemMenuBar;
   const chosenLayoutShown = isAProjectShown ? studioLayouts.chosen_layout : null;
   useEffect(() => {
@@ -237,21 +265,45 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       {isAProjectShown ? (
         <header
-          className="flex h-(--studio-menu-bar-height) shrink-0 items-center gap-2.5 border-b border-studio-frame bg-studio-menu-bar pr-2.5 pl-(--studio-menu-bar-leading-inset)"
+          className="relative flex h-(--studio-menu-bar-height) shrink-0 items-center gap-2.5 border-b border-studio-frame bg-studio-menu-bar pr-2.5 pl-(--studio-menu-bar-leading-inset)"
           data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined}
         >
           {!menusLiveInTheSystemMenuBar && <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, status.app_update, commands)} />}
-          <ActionButton
-            appearance="primary"
-            size="small"
-            icon={Play}
-            tooltip={`Run the project's streams (${RUN_LIVE_KEY})`}
-            onPressed={commands.runTheProjectLive}
-            className="ml-auto"
-            data-studio-run-live=""
-          >
-            Live
-          </ActionButton>
+          <div className="flex items-center gap-0.5">
+            <IconButton icon={Undo2} label="Undo your last edit" onPressed={commands.undoYourLastEdit} data-studio-undo="" />
+            <IconButton icon={Redo2} label="Redo what you undid" onPressed={commands.redoYourLastUndo} data-studio-redo="" />
+          </div>
+          {presentPlatform(platform).hasOverlayTitleBar && (
+            // macOS's overlay title bar draws no title of its own, so the project's name sits centred in the toolbar; Linux's window title bar shows it.
+            <p className="pointer-events-none absolute left-1/2 max-w-[40%] -translate-x-1/2 truncate text-xs text-fg-2" data-studio-window-title="">
+              {openProjectTitleInTheToolbar(openProject)}
+            </p>
+          )}
+          {playOrStopOfferedForTheProject(openProjectFolder, listedStreams) === "play" ? (
+            <ActionButton
+              appearance="positive"
+              size="small"
+              icon={Play}
+              tooltip={`Play the project's streams (${RUN_LIVE_KEY})`}
+              onPressed={commands.runTheProjectLive}
+              className="ml-auto px-4"
+              data-studio-play-or-stop="play"
+            >
+              Play
+            </ActionButton>
+          ) : (
+            <ActionButton
+              appearance="destructive"
+              size="small"
+              icon={Square}
+              tooltip={`Stop the project's streams (${STOP_KEY_HINT})`}
+              onPressed={commands.stopTheProject}
+              className="ml-auto px-4 font-semibold"
+              data-studio-play-or-stop="stop"
+            >
+              Stop
+            </ActionButton>
+          )}
         </header>
       ) : (
         // macOS draws the window buttons over the content, so the Projects window keeps a bare strip for them to sit in and to drag the window by.
@@ -269,11 +321,12 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         <>
           <DocumentTabs
             label="Open streams"
-            tabs={openStreamTabs.tabs.map((tab) => ({ tab_id: tab.stream, context_words: tab.project_name, name: tab.display_name }))}
+            tabs={streamTabsDrawnInTheStrip(openStreamTabs, listedStreams)}
             activeTabId={openStreamTabs.active_stream}
             onTabChosen={(stream) => model.chooseStreamTab(stream)}
             onTabClosed={(stream) => model.closeStreamTab(stream)}
             whenNoneIsOpen="Open a stream from the outliner to see it here."
+            tabsToOpen={{ label: "Open a stream of the project", choices: <StreamsOfTheProjectToOpenAsTabs model={model} offered={streamsOfTheProjectNoTabShows(openProjectFolder, listedStreams, openStreamTabs)} /> }}
           />
           <main className="flex min-h-0 flex-1 px-(--studio-area-gap) pb-(--studio-area-gap)" data-studio-layout={studioLayouts.chosen_layout}>
             <StudioAreaLayoutNodeView
@@ -332,6 +385,15 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               detail={projectRunRefusal.because}
               onDismissed={() => model.projectRunRefusal.publish(null)}
               data-project-run-refusal=""
+            />
+          )}
+          {projectEditRefusal !== null && (
+            <WindowNotice
+              tone="failure"
+              title={projectEditRefusal.asked_to === "undo" ? "Nothing was undone" : "Nothing was redone"}
+              detail={projectEditRefusal.because}
+              onDismissed={() => model.projectEditRefusal.publish(null)}
+              data-project-edit-refusal=""
             />
           )}
           {appUpdateChoiceRefusal !== null && (

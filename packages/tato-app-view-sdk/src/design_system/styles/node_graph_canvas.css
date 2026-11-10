@@ -14,7 +14,7 @@
   border: 1px solid var(--studio-graph-card-line);
   border-radius: var(--radius-lg);
   background: var(--studio-graph-card);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--studio-graph-card-shadow);
 }
 .node-graph-card-header {
   border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
@@ -55,9 +55,49 @@
   border-radius: 50%;
   background: var(--node-graph-family, var(--studio-graph-pin));
 }
-.node-graph-card-header[data-family] { background: color-mix(in srgb, var(--node-graph-family) 26%, var(--studio-graph-card-header)); }
 
 .node-graph-link { stroke: var(--node-graph-family, var(--studio-graph-link)); stroke-width: 2.2; }
 .node-graph-link-waiting { stroke-dasharray: 6 5; }
 .node-graph-link-ending { stroke-dasharray: 6 5; opacity: 0.5; }
 .node-graph-link-failed { stroke: var(--danger); stroke-width: 2.5; }
+
+.node-graph-link-selected { stroke-width: 3.4; filter: drop-shadow(0 0 2px var(--studio-graph-card-selected)); }
+
+.node-graph-note {
+  overflow: hidden;
+  border: 1px solid var(--studio-graph-note-line);
+  border-radius: var(--radius-md);
+  background: var(--studio-graph-note);
+  box-shadow: var(--studio-graph-card-shadow);
+}
+.node-graph-note[data-selected] { border-color: var(--studio-graph-card-selected); }
+.node-graph-canvas .node-graph-note-resize-handle { width: 8px; height: 8px; border: 1px solid var(--studio-graph-card-selected); border-radius: 2px; background: var(--studio-graph-note); }
+.node-graph-canvas .node-graph-note-resize-line { border-color: transparent; }
+
+/* A frame is a labelled box behind the cards it holds, its title on a tab at its top-left, tinted in its group's colour
+   when it has one. It takes no pointer, so the canvas under it still pans and box-selects. */
+.node-graph-canvas .react-flow__node-node_graph_frame { pointer-events: none; }
+.node-graph-frame {
+  border: 1px solid color-mix(in srgb, var(--studio-graph-frame) 40%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--studio-graph-frame) 5%, transparent);
+}
+.node-graph-frame-title {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  max-width: calc(100% - 16px);
+  height: 24px;
+  margin: -1px 0 6px -1px;
+  padding: 0 10px;
+  border-radius: var(--radius-lg) 0 var(--radius-lg) 0;
+  background: color-mix(in srgb, var(--studio-graph-frame) 22%, var(--studio-area));
+  color: var(--fg);
+}
+
+.node-graph-canvas .react-flow__minimap.node-graph-minimap {
+  overflow: hidden;
+  border: 1px solid var(--studio-graph-card-line);
+  border-radius: var(--radius-md);
+}

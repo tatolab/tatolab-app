@@ -39,7 +39,7 @@ import { mockProjectNodeTypeListing } from "./mock_project_node_types";
 import { mockImportTheFilesChosenInto, mockProjectAssetListing, type MockAssetImportScenario } from "./mock_project_assets";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
-import type { ProjectAsset, ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, ProjectAsset, ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
 import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
@@ -525,16 +525,16 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       }),
     );
   /** Commit `operations`: applied to the saved graphs, which answer, then to the running ones. */
-  const commitGraphActions = (operations: readonly StreamGraphAction[], applying: "a_transaction" | "undo_or_redo") => {
-    const outcome = applyMockGraphTransaction(savedGraphTargetsOfTheOpenProject(), operations, applying);
-    if (outcome.kind === "applied") applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations, applying);
+  const commitGraphActions = (operations: readonly StreamGraphAction[], applying: "a_transaction" | "undo_or_redo", historyOperationsReplayed: readonly JsonValue[] = []) => {
+    const outcome = applyMockGraphTransaction(savedGraphTargetsOfTheOpenProject(), operations, applying, historyOperationsReplayed);
+    if (outcome.kind === "applied") applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations, applying, historyOperationsReplayed);
     return outcome;
   };
   /** `undoOrRedo`, its graph operations applied to the mock graphs as the runtime applies them; a transaction naming no graph changes none. */
   const applyingItsGraphOperations = (undoOrRedo: ProjectTransaction): ProjectTransaction => {
     const graphActions = undoOrRedo.operations.map(graphActionApplyingTheHistoryOperation);
     const everyOneNamesAGraph = graphActions.every((graphAction): graphAction is StreamGraphAction => graphAction !== null);
-    if (everyOneNamesAGraph && graphActions.length > 0) commitGraphActions(graphActions, "undo_or_redo");
+    if (everyOneNamesAGraph && graphActions.length > 0) commitGraphActions(graphActions, "undo_or_redo", undoOrRedo.operations);
     return undoOrRedo;
   };
   const listedStreamsNotLoaded = new Map<string, ListedStream>([

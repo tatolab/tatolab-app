@@ -1,6 +1,7 @@
 // What the tray, the window's commands and the app's events reach once the app is set up: the
 // controller, the status publisher, the updater, and the requests the tray and the window both make.
 
+import type { ProjectViewsListedToTheWindows } from "./project_view_files.js";
 import { describeCaughtFailure } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
@@ -52,6 +53,8 @@ export interface TatolabAppSharedState {
   projectAssetsImportedFromChosenFiles: ProjectAssetsImportedFromChosenFiles;
   /** The person signed in to this computer, the author Studio's graph edits are recorded under. */
   thePersonEditingInStudio: ProjectTransactionAuthor;
+  /** The views each studio window listed as ones that open, the only ones whose files are served. */
+  projectViewsListed: ProjectViewsListedToTheWindows;
   tatolabAppLog: TatolabAppLog;
 }
 

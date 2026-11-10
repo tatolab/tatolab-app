@@ -1,16 +1,19 @@
 // A stream's graph as the node graph canvas draws it: a card per node keyed by its name and titled as the
-// studio writes it, its declared ports as pins of their families, and a link per link of the graph, drawn by
-// its state.
+// studio writes it, where it was left and the frame it sits in, its declared ports as pins of their families,
+// a link per link of the graph drawn by its state, a frame per labelled group and the graph's canvas notes.
 
-import type { NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCardCondition, NodeGraphLinkLook } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import type { NodeGraphCanvasFrame, NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCanvasNote, NodeGraphCardCondition, NodeGraphLinkLook } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import type { StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { nodeTitle } from "../shared/node_words";
+import { isANameTheCodeGave, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { portStreamFactsWords, streamFactsAnInputReceives } from "../shared/port_stream_facts_words";
+import { linkIdAsTheCanvasKeysIt } from "./stream_graph_edits";
 
 /** What the canvas draws of one stream's graph. */
 export interface StreamGraphCanvasContents {
   nodes: NodeGraphCanvasNode[];
   links: NodeGraphCanvasLink[];
+  frames: NodeGraphCanvasFrame[];
+  notes: NodeGraphCanvasNote[];
 }
 
 /** How a link in `linkState` is drawn, and its state in words; a state newer than this app is drawn waiting, in its own spelling. */
@@ -43,7 +46,7 @@ function cardConditionOf(node: StreamGraphNode): NodeGraphCardCondition {
 function canvasLinkOf(link: StreamGraphLink): NodeGraphCanvasLink {
   const { look, words } = linkLookAndWords(link.state);
   return {
-    link_id: link.id === "" ? `${link.source_node}.${link.source_port}->${link.target_node}.${link.target_port}` : link.id,
+    link_id: linkIdAsTheCanvasKeysIt(link),
     source_node_id: link.source_node,
     source_pin: link.source_port,
     target_node_id: link.target_node,
@@ -55,14 +58,21 @@ function canvasLinkOf(link: StreamGraphLink): NodeGraphCanvasLink {
 
 /** `graph` as the canvas draws it, each node keyed by its name, as a link's ends name it. */
 export function streamGraphCanvasContents(graph: StreamGraphSummary): StreamGraphCanvasContents {
+  const groupIds = new Set(graph.groups.map((group) => group.id));
   return {
     nodes: graph.nodes.map((node) => ({
       node_id: node.name,
       title: nodeTitle(node.name, node.type),
+      type_name: isANameTheCodeGave(node.name, node.type) ? nodeTypeClassName(node.type) : null,
       condition: cardConditionOf(node),
       input_pins: node.input_ports.map((port) => ({ name: port.name, family: port.family, stream_facts_words: portStreamFactsWords(streamFactsAnInputReceives(graph, node.name, port)) })),
       output_pins: node.output_ports.map((port) => ({ name: port.name, family: port.family, stream_facts_words: portStreamFactsWords(port) })),
+      saved_position: node.studio.position === null ? null : { x: node.studio.position[0], y: node.studio.position[1] },
+      frame_id: node.studio.group !== null && groupIds.has(node.studio.group) ? node.studio.group : null,
+      is_collapsed: node.studio.collapsed === true,
     })),
     links: graph.links.map(canvasLinkOf),
+    frames: graph.groups.map((group) => ({ frame_id: group.id, title: group.title, description: group.description, colour: group.colour })),
+    notes: graph.notes.map((note) => ({ note_id: note.id, text: note.text, position: { x: note.position[0], y: note.position[1] }, size: { width: note.size[0], height: note.size[1] } })),
   };
 }

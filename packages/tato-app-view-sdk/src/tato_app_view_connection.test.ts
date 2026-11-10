@@ -3,7 +3,7 @@ import { connectToTatoAppOverPort, newGestureIdempotencyKey, type TatoAppViewCon
 import { messageFromTheViewSchema, type MessageFromStudio, type MessageFromTheView, type ViewGrant } from "./view_wire_messages.js";
 import type { ProjectTransaction } from "./studio_readings.js";
 
-const GRANT: ViewGrant = { view_type_id: "notes", contract: "1.0", placement: "area", sandboxed: false, inputs: [], outputs: [], capabilities: [] };
+const GRANT: ViewGrant = { view_type_id: "notes", contract: "1.0", placement: "area", inputs: [], outputs: [] };
 
 const channelsOpened: MessageChannel[] = [];
 afterEach(() => {
@@ -45,11 +45,9 @@ describe("connectToTatoAppOverPort", () => {
     );
     const selections: unknown[] = [];
     const stopWatching = connection.watchSelection((selection) => selections.push(selection));
-    await nextTurns();
-    expect(selections).toEqual([{ kind: "node", stream: "s", node: "camera" }]);
+    await vi.waitFor(() => expect(selections).toEqual([{ kind: "node", stream: "s", node: "camera" }]));
     stopWatching();
-    await nextTurns();
-    expect(messagesFromTheView.at(-1)).toEqual({ kind: "stop_watching", watch_id: 1 });
+    await vi.waitFor(() => expect(messagesFromTheView.at(-1)).toEqual({ kind: "stop_watching", watch_id: 1 }));
   });
 
   it("ignores a message from Studio out of the contract's shape", async () => {

@@ -267,7 +267,7 @@ export function ProjectsView({
           <h1 className="mr-auto shrink-0 text-2xl font-semibold whitespace-nowrap">All projects</h1>
           <ExpandingSearchField label="Search projects" placeholder="Search projects" text={searchText} onTextChanged={setSearchText} data-projects-search="" />
           <FieldMenu label={projectsHomeChoicesShown.sortButtonLabel} words={projectsHomeChoicesShown.sortWords} data-projects-sort="">
-            <MenuSingleChoiceGroup<ProjectsOrder>
+            <MenuSingleChoiceGroup<ProjectsOrder> closesTheMenuOnChoice
               choices={PROJECTS_ORDERS.map(({ order, words }) => ({ choice: order, label: words }))}
               chosen={projectsHomeChoices.order}
               onChosen={(order) => changeTheProjectsHomeChoices({ order })}
@@ -275,7 +275,7 @@ export function ProjectsView({
             />
           </FieldMenu>
           <IconButtonMenu icon={PROJECTS_LAYOUT_ICONS[projectsHomeChoices.layout]} label={projectsHomeChoicesShown.viewButtonLabel} data-projects-view="">
-            <MenuSingleChoiceGroup<ProjectsLayout>
+            <MenuSingleChoiceGroup<ProjectsLayout> closesTheMenuOnChoice
               choices={PROJECTS_LAYOUTS.map(({ layout, words }) => {
                 const LayoutIcon = PROJECTS_LAYOUT_ICONS[layout];
                 return {

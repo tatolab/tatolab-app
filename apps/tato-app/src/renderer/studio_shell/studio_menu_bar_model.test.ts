@@ -23,6 +23,8 @@ function commandsCounted(): StudioMenuBarCommands {
     chooseLayout: vi.fn(),
     runTheProjectLive: vi.fn(),
     stopTheProject: vi.fn(),
+    undoYourLastEdit: vi.fn(),
+    redoYourLastUndo: vi.fn(),
     openModuleManager: vi.fn(),
   };
 }
@@ -52,6 +54,21 @@ describe("the studio's File menu", () => {
     moduleManager.onChosen();
     expect(commands.openModuleManager).toHaveBeenCalledOnce();
     expect(entryOf(studioMenuBarMenus("macos", null, UP_TO_DATE, commands), "File", "Module manager…")).toEqual({ kind: "unavailable_command", label: "Module manager…", unavailableBecause: NO_PROJECT_OPEN_REASON });
+  });
+});
+
+describe("the studio's Edit menu", () => {
+  it("undoes and redoes the person's edits while a project is open, and says why they wait while none is", () => {
+    const commands = commandsCounted();
+    const menus = studioMenuBarMenus("linux", "build", UP_TO_DATE, commands);
+    for (const entryLabel of ["Undo", "Redo"]) {
+      const entry = entryOf(menus, "Edit", entryLabel);
+      if (entry?.kind !== "command") throw new Error(`Edit › ${entryLabel} is not a command`);
+      entry.onChosen();
+    }
+    expect(commands.undoYourLastEdit).toHaveBeenCalledOnce();
+    expect(commands.redoYourLastUndo).toHaveBeenCalledOnce();
+    expect(entryOf(studioMenuBarMenus("linux", null, UP_TO_DATE, commands), "Edit", "Undo")).toEqual({ kind: "unavailable_command", label: "Undo", shortcutHint: "Ctrl Z", unavailableBecause: NO_PROJECT_OPEN_REASON });
   });
 });
 
@@ -119,7 +136,7 @@ describe("the studio's menus in macOS's system menu bar", () => {
       menus.find((menu) => menu.label === menuLabel)?.entries.map((entry) => (entry.kind === "system_items" ? `[${entry.system_items}]` : entry.kind === "separator" ? "—" : entry.label));
     expect(labelsOf("Tato Studio")).toEqual(["About Tato Studio", "Check for Updates…", "—", "Settings…", "—", "[app_services_hide_and_quit]"]);
     expect(labelsOf("File")?.slice(-2)).toEqual(["—", "[close_window]"]);
-    expect(labelsOf("Edit")).toEqual(["[text_editing]"]);
+    expect(labelsOf("Edit")).toEqual(["[text_editing]", "—", "Undo Your Last Edit", "Redo Your Last Undo"]);
     expect(labelsOf("View")).toEqual(["[full_screen]"]);
     expect(labelsOf("Window")).toEqual(["[window_arrangement]", "—", "Layout", "Save layout as…", "Maximise area", "New window", "—", "[bring_all_to_front]"]);
     expect(labelsOf("Help")).toEqual(["Documentation"]);
