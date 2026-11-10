@@ -28,6 +28,8 @@ export type {
   ProjectNodeTypeSourceOrigin,
   ProjectNodeTypeSource,
   ProjectNodeTypeListing,
+  ProjectAsset,
+  ProjectAssetListing,
   ProjectTheRuntimeNames,
   ImportedProjectSource,
   ImportedProject,

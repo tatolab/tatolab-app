@@ -39,7 +39,7 @@ const NO_REFUSALS: ReadonlyMap<PlaceOfAnEdit, string> = new Map();
 
 /**
  * Sends the panel's edits to the open project in the order they were made, across every node it shows, each refusal
- * kept under its node and place in the runtime's words. A drag's live edits wait for the one before to be answered,
+ * kept under its node and place in the runtime's words until a later commit on that node applies. A drag's live edits wait for the one before to be answered,
  * the newest replacing any not sent yet, so the runtime is never sent more than it can apply; its commit drops a
  * live edit not sent yet.
  */
@@ -59,6 +59,14 @@ export function useGraphEditsInTheOpenProject(connection: Pick<TatoAppViewConnec
       return new Map(refusalsOfEveryNode).set(nodeId, changed);
     });
   }, []);
+  const clearEveryRefusalOfTheNode = useCallback((nodeId: string) => {
+    setRefusalsByNode((refusalsOfEveryNode) => {
+      if (!refusalsOfEveryNode.has(nodeId)) return refusalsOfEveryNode;
+      const withoutTheNode = new Map(refusalsOfEveryNode);
+      withoutTheNode.delete(nodeId);
+      return withoutTheNode;
+    });
+  }, []);
   const sendNow = useCallback(
     async (edit: GraphEditSent): Promise<boolean> => {
       if (projectFolder === null) {
@@ -67,13 +75,13 @@ export function useGraphEditsInTheOpenProject(connection: Pick<TatoAppViewConnec
       }
       const applying = await connection.transactInTheProject(projectFolder, edit.operations, { mode: edit.mode, idempotencyKey: edit.idempotencyKey });
       if (applying.kind === "applied") {
-        if (edit.mode === "commit") keepTheRefusal(edit.nodeId, edit.place, null);
+        if (edit.mode === "commit") clearEveryRefusalOfTheNode(edit.nodeId);
         return true;
       }
       keepTheRefusal(edit.nodeId, edit.place, applying.kind === "refused" ? applying.refusal.runtime_words : applying.because);
       return false;
     },
-    [connection, projectFolder, keepTheRefusal],
+    [connection, projectFolder, keepTheRefusal, clearEveryRefusalOfTheNode],
   );
   const commit = useCallback(
     (nodeId: string, place: PlaceOfAnEdit, operations: StreamGraphAction[], idempotencyKey = newGestureIdempotencyKey()): Promise<boolean> => {

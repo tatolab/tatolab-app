@@ -18,6 +18,7 @@ import type {
   ProjectTransaction,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
+  ProjectAssetsReading,
   PythonLanguageServerConnectionEvent,
   StudioSelection,
   StudioViewHostServices,
@@ -128,6 +129,10 @@ function recordingHostServices() {
     listProjectFiles: async () => ({ kind: "not_listed", because: "no files in this test" }),
     watchProjectLog: () => () => undefined,
     watchProjectNodeTypes: () => () => undefined,
+    watchProjectAssets: (projectFolder, listener) => {
+      listener({ kind: "not_listed", because: `list_assets failed: ${projectFolder} holds no project: it has no tatolab-project.json` });
+      return () => undefined;
+    },
     watchProjectTransactions: (projectFolder, listener) => {
       listener({ kind: "not_read", because: `No runtime follows ${projectFolder}.` });
       return () => undefined;
@@ -238,6 +243,18 @@ describe("a view's connection to Studio, through the one bridge every view is se
     });
   });
 
+
+  it("lists the project's assets to a view granted read.project_assets, the runtime's refusal in its words, and refuses a sandboxed view by name", async () => {
+    const { connection } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+    const readings: ProjectAssetsReading[] = [];
+    connection.watchProjectAssets("/set", (reading) => readings.push(reading));
+    const sandboxed = await connectedView(DJ_DECK_MANIFEST, {});
+    const refusals: string[] = [];
+    sandboxed.connection.watchProjectAssets("/set", () => undefined, (because) => refusals.push(because));
+    await messagesDelivered();
+    expect(readings).toEqual([{ kind: "not_listed", because: "list_assets failed: /set holds no project: it has no tatolab-project.json" }]);
+    expect(refusals).toEqual(["DJ Deck runs sandboxed and does not list read.project_assets in its tatolab_view.json, so Studio does not serve it."]);
+  });
 
   it("reads the project's history and undoes through it when it may write the project, and is refused both by name when sandboxed without them", async () => {
     const { connection, undosAsked } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});

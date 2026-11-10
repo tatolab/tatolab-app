@@ -20,6 +20,7 @@ import type {
   StreamGraphSummary,
   NodeCatalog,
   ProjectNodeTypeListing,
+  ProjectAssetListing,
   ProjectTheRuntimeNames,
   ProjectDependency,
   WorkspaceDependencyUpdate,
@@ -308,6 +309,11 @@ export class TatolabAppController {
   /** What the project in `projectDirectory` and each source it draws node code from declares, read from source without running it. */
   listProjectNodeTypes(projectDirectory: string): Promise<Result<ProjectNodeTypeListing, LocalApiRequestFailure>> {
     return this.localApiClient.listProjectNodeTypes(projectDirectory);
+  }
+
+  /** Every asset of the project in `projectDirectory`, its graph documents among them. */
+  listProjectAssets(projectDirectory: string): Promise<Result<ProjectAssetListing, LocalApiRequestFailure>> {
+    return this.localApiClient.listProjectAssets(projectDirectory);
   }
 
   /** The project in `projectDirectory` as the runtime names it. */
