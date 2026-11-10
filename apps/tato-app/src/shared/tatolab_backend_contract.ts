@@ -93,6 +93,19 @@ export type TatolabAppUpdateState =
   | { kind: "failed"; refusal: string };
 
 /**
+ * What a studio window's update dialog says, until the person answers it: `update_ready` is a downloaded version ready to
+ * install, offered once per version each time the app runs; `update_landed` is the version the app opened as for the first
+ * time since an update, with its release notes.
+ */
+export type TatolabAppUpdateAnnouncement = { kind: "update_ready"; version: string } | { kind: "update_landed"; version: string; release_notes_url: string };
+
+/** Which update dialog an announcement is. */
+export type TatolabAppUpdateAnnouncementKind = TatolabAppUpdateAnnouncement["kind"];
+
+/** How the person answered the update dialog: its action (Install Update, or Release Notes), or closing it. */
+export type TatolabAppUpdateAnnouncementAnswer = "take_its_action" | "dismiss";
+
+/**
  * Whether the app opens at login, as the OS reports it: on, off, registered but waiting for the person's approval in
  * Login Items (macOS only), or not offered, with why, in a build that cannot open at login.
  */
@@ -155,6 +168,8 @@ export interface TatolabStatus {
   streams_not_listed_because: string | null;
   command_line_tool_link: CommandLineToolLink;
   app_update: TatolabAppUpdateState;
+  /** The update dialog every studio window shows; `null` while there is nothing to say. */
+  app_update_announcement: TatolabAppUpdateAnnouncement | null;
   /** The socket this build reads the runtime's local API at. */
   local_api_socket: string;
   stream_failure_notifications: StreamFailureNotificationsState;

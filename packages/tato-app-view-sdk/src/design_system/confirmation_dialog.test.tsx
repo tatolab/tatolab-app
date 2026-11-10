@@ -44,4 +44,23 @@ describe("the confirmation dialog", () => {
     fireEvent.click(await waitFor(() => screen.getByRole("button", { name: "Remove" })));
     expect(onConfirmed).toHaveBeenCalledOnce();
   });
+
+  it("names its no button with the question's own words, which still holds focus and closes without confirming", async () => {
+    const onConfirmed = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <ConfirmationDialog
+        isOpen
+        onOpenChange={onOpenChange}
+        question={{ title: "Tato Studio is now version 0.69.0", explanation: "Each project's dependencies update on their own.", confirmWords: "Release Notes", dismissWords: "OK" }}
+        onConfirmed={onConfirmed}
+      />,
+    );
+
+    await waitFor(() => expect(document.activeElement?.textContent).toBe("OK"));
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onConfirmed).not.toHaveBeenCalled();
+  });
 });

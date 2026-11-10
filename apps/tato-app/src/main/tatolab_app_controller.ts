@@ -25,6 +25,7 @@ import type {
   ProjectDependency,
   WorkspaceDependencyUpdate,
   TatolabAppBuild,
+  TatolabAppUpdateAnnouncement,
   TatolabAppUpdateState,
   TatolabPlatform,
   TatolabStatus,
@@ -81,6 +82,8 @@ export interface TatolabAppControllerSources {
   readMonotonicClockMs: () => number;
   /** Where checking for a newer Tatolab stands, which each status carries. */
   readTheAppUpdateState: () => TatolabAppUpdateState;
+  /** The update dialog the studio windows show, which each status carries. */
+  readTheAppUpdateAnnouncement: () => TatolabAppUpdateAnnouncement | null;
   /** Whether a stream failing shows a notification, which each status carries. */
   readStreamFailureNotifications: () => StreamFailureNotificationsState;
   /** Whether Developer mode is on, which each status carries. */
@@ -107,6 +110,7 @@ export class TatolabAppController {
     private readonly localApiSocket: string,
     private readonly localApiClient: LocalApiClient,
     private readonly readTheAppUpdateState: () => TatolabAppUpdateState,
+    private readonly readTheAppUpdateAnnouncement: () => TatolabAppUpdateAnnouncement | null,
     private readonly readStreamFailureNotifications: () => StreamFailureNotificationsState,
     private readonly readDeveloperMode: () => boolean,
     private readonly readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion,
@@ -131,6 +135,7 @@ export class TatolabAppController {
       sources.platformForThisBuild.localApiSocket,
       new LocalApiClient(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS, sources.appVersion),
       sources.readTheAppUpdateState,
+      sources.readTheAppUpdateAnnouncement,
       sources.readStreamFailureNotifications,
       sources.readDeveloperMode,
       sources.readTheCommandLineToolVersion,
@@ -213,6 +218,7 @@ export class TatolabAppController {
       streams_not_listed_because: streamsNotListedBecause,
       command_line_tool_link: await this.commandLineToolLink.observeTheLink(),
       app_update: this.readTheAppUpdateState(),
+      app_update_announcement: this.readTheAppUpdateAnnouncement(),
       local_api_socket: this.localApiSocket,
       stream_failure_notifications: this.readStreamFailureNotifications(),
       developer_mode: this.readDeveloperMode(),

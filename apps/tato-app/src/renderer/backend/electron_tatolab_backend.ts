@@ -35,6 +35,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     takeTheNewerTatolabAppVersion: async () => {
       await invokeTatolabCommand("take_the_newer_tatolab_app_version", undefined);
     },
+    answerTheAppUpdateAnnouncement: async (kind, version, answer) => {
+      await invokeTatolabCommand("answer_the_app_update_announcement", { kind, version, answer });
+    },
     removeProject: async (projectDirectory) => {
       await invokeTatolabCommand("remove_project", { project_directory: projectDirectory });
     },

@@ -2,15 +2,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ActionButton } from "./action_button";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 
-/** The words of a question asked before an action: the question, what answering it does, and the word of the button that answers yes. */
+/** The words of a question asked before an action: the question, what answering it does, the word of the button that answers yes, and of the one that answers no (Cancel when left out). */
 export interface ConfirmationQuestion {
   title: string;
   explanation: string;
   confirmWords: string;
+  dismissWords?: string;
 }
 
 /**
- * Asks before an action that cannot be undone: the question and what it does, Cancel (which holds focus as it opens,
+ * Asks before an action: the question and what it does, the button that answers no (which holds focus as it opens,
  * so Return never confirms by accident) and the button that does it.
  */
 export function ConfirmationDialog({
@@ -51,7 +52,7 @@ export function ConfirmationDialog({
             </DialogHeader>
             <DialogFooter className="mx-0 mb-0 rounded-none border-t-0 bg-transparent p-0">
               <ActionButton hasFocusOnOpen onPressed={() => onOpenChange(false)}>
-                Cancel
+                {question.dismissWords ?? "Cancel"}
               </ActionButton>
               <ActionButton appearance={isDestructive ? "destructive" : "primary"} onPressed={onConfirmed} {...confirmDataAttributes}>
                 {question.confirmWords}

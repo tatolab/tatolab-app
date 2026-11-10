@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { APP_UPDATE_SCHEDULE_EXPLANATION, presentTatolabAppUpdate, presentTatolabAppUpdateMenuEntry } from "./app_update_presentation";
+import { APP_UPDATE_SCHEDULE_EXPLANATION, presentTatolabAppUpdate, presentTatolabAppUpdateAnnouncement, presentTatolabAppUpdateMenuEntry } from "./app_update_presentation";
 
 describe("presentTatolabAppUpdate", () => {
   it("offers a check while nothing is under way, and says when it checks and that it downloads in the background", () => {
@@ -67,5 +67,21 @@ describe("presentTatolabAppUpdateMenuEntry", () => {
     });
     expect(presentTatolabAppUpdateMenuEntry({ kind: "up_to_date" })).toEqual({ label: "Check for Updates…", command: "check_for_updates", isEnabled: true });
     expect(presentTatolabAppUpdateMenuEntry({ kind: "not_offered", reason: "Only a packaged Tato Studio updates itself." })).toBeNull();
+  });
+});
+
+describe("presentTatolabAppUpdateAnnouncement", () => {
+  it("asks whether to install a staged version, with Cancel, and names the version the app is now with Release Notes or OK", () => {
+    expect(presentTatolabAppUpdateAnnouncement({ kind: "update_ready", version: "0.69.0" })).toEqual({
+      title: "Tato Studio 0.69.0 is ready to install",
+      explanation: "Installing it restarts Tato Studio, which stops every stream it runs until you run it again.",
+      confirmWords: "Install Update",
+    });
+    expect(presentTatolabAppUpdateAnnouncement({ kind: "update_landed", version: "0.69.0", release_notes_url: "https://github.com/tatolab/tatolab-app/releases/tag/v0.69.0" })).toEqual({
+      title: "Tato Studio is now version 0.69.0",
+      explanation: "Each project's dependencies are brought up to date automatically the next time it runs.",
+      confirmWords: "Release Notes",
+      dismissWords: "OK",
+    });
   });
 });

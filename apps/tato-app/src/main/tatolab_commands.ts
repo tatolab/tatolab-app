@@ -30,6 +30,8 @@ import type {
   ProjectNodeTypeListing,
   ProjectAssetListing,
   StreamProjectFolderChosenFor,
+  TatolabAppUpdateAnnouncementAnswer,
+  TatolabAppUpdateAnnouncementKind,
   TatolabStatus,
   ProjectFolderChosenFor,
 } from "../shared/tatolab_backend_contract.js";
@@ -423,6 +425,21 @@ export function readProjectLogRecordsArgumentsFrom(
 export function streamArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ stream: string }, string> {
   const stream = oneTextArgumentFrom(commandName, commandArguments, "stream", "a stream's id");
   return stream.ok ? succeeded({ stream: stream.value }) : stream;
+}
+
+/** `answer_the_app_update_announcement`'s arguments as the window sends them, or why they are not. */
+export function appUpdateAnnouncementAnswerArgumentsFrom(
+  commandArguments: unknown,
+): Result<{ kind: TatolabAppUpdateAnnouncementKind; version: string; answer: TatolabAppUpdateAnnouncementAnswer }, string> {
+  const kind = oneTextArgumentFrom("answer_the_app_update_announcement", commandArguments, "kind", "the announcement's kind");
+  if (!kind.ok) return kind;
+  if (kind.value !== "update_ready" && kind.value !== "update_landed") return failedWith(`answer_the_app_update_announcement takes \`kind\` update_ready or update_landed, not ${kind.value}`);
+  const version = oneTextArgumentFrom("answer_the_app_update_announcement", commandArguments, "version", "the announcement's version");
+  if (!version.ok) return version;
+  const answer = oneTextArgumentFrom("answer_the_app_update_announcement", commandArguments, "answer", "how the person answered");
+  if (!answer.ok) return answer;
+  if (answer.value !== "take_its_action" && answer.value !== "dismiss") return failedWith(`answer_the_app_update_announcement takes \`answer\` take_its_action or dismiss, not ${answer.value}`);
+  return succeeded({ kind: kind.value, version: version.value, answer: answer.value });
 }
 
 /** `rename_stream`'s arguments as the window sends them, or why they are not. */
@@ -856,6 +873,19 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     take_the_newer_tatolab_app_version: async () => {
       runTatolabAppUpdateWorkInTheBackground(sharedState, "take_the_newer_tatolab_app_version", (tatolabAppUpdater) => tatolabAppUpdater.takeTheNewerVersion("window"));
       return { ok: true, value: null };
+    },
+    answer_the_app_update_announcement: async (commandArguments) => {
+      const answerArguments = appUpdateAnnouncementAnswerArgumentsFrom(commandArguments);
+      if (!answerArguments.ok) return { ok: false, refusal: answerArguments.failure };
+      const { kind, version, answer } = answerArguments.value;
+      const answered = sharedState.tatolabAppUpdateAnnouncements.takeAwayTheAnswered(kind, version);
+      if (answered === null || answer === "dismiss") return { ok: true, value: null };
+      if (answered.kind === "update_ready") {
+        runTatolabAppUpdateWorkInTheBackground(sharedState, "answer_the_app_update_announcement", (tatolabAppUpdater) => tatolabAppUpdater.installTheVersionTheUpdateDialogNamed(answered.version));
+        return { ok: true, value: null };
+      }
+      const opened = await sharedState.openAWebPageInTheBrowser(answered.release_notes_url);
+      return opened.ok ? { ok: true, value: null } : { ok: false, refusal: opened.failure };
     },
     describe_stream_graph: async (commandArguments) => {
       const describeStreamGraphArguments = streamArgumentsFrom("describe_stream_graph", commandArguments);

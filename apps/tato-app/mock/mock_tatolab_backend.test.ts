@@ -411,3 +411,42 @@ describe("the mock backend's port families", () => {
     expect(servedByDefault.catalog).not.toContain(null);
   });
 });
+
+/** The mock's status, once its fake timers have run past its answer's delay. */
+async function statusAfterTheMockAnswers(backend: TatolabBackend) {
+  const status = backend.getTatolabStatus();
+  await vi.advanceTimersByTimeAsync(100);
+  return status;
+}
+
+/** `answering` settled, once the mock's fake timers have run past its delay. */
+async function answeredAfterTheMockAnswers(answering: Promise<void>) {
+  await vi.advanceTimersByTimeAsync(100);
+  return answering;
+}
+
+describe("the mock backend's update dialog", () => {
+  it("announces the staged version with ?update=ready, and Install Update takes it away and installs", async () => {
+    const { backend } = await runningMockBackend("update=ready");
+    expect((await statusAfterTheMockAnswers(backend)).app_update_announcement).toEqual({ kind: "update_ready", version: "0.46.0" });
+
+    await answeredAfterTheMockAnswers(backend.answerTheAppUpdateAnnouncement("update_ready", "0.46.0", "take_its_action"));
+
+    const status = await statusAfterTheMockAnswers(backend);
+    expect(status.app_update_announcement).toBeNull();
+    expect(status.app_update).toEqual({ kind: "installing", version: "0.46.0" });
+  });
+
+  it("announces the version the app is now with ?update=landed, and OK takes it away", async () => {
+    const { backend } = await runningMockBackend("update=landed");
+    expect((await statusAfterTheMockAnswers(backend)).app_update_announcement).toEqual({
+      kind: "update_landed",
+      version: "0.45.0",
+      release_notes_url: "https://github.com/tatolab/tatolab-app/releases/tag/v0.45.0",
+    });
+
+    await answeredAfterTheMockAnswers(backend.answerTheAppUpdateAnnouncement("update_landed", "0.45.0", "dismiss"));
+
+    expect((await statusAfterTheMockAnswers(backend)).app_update_announcement).toBeNull();
+  });
+});

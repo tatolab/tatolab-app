@@ -17,6 +17,7 @@ import { playOrStopOfferedForTheProject } from "../presentation/project_play_pre
 import { streamsOfTheProjectNoTabShows, streamTabsDrawnInTheStrip, type StreamsToOpenAsTabs } from "../presentation/stream_tabs_presentation";
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { presentRecentProjectChangeRefusalTitle } from "../presentation/projects_presentation";
+import { AppUpdateAnnouncementDialogView } from "./app_update_announcement_dialog_view";
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
 import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
 import { StudioViewFailureBoundary } from "../view_host/studio_view_failure_boundary";
@@ -422,6 +423,13 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         shownSection={preferencesSection}
         onSectionChosen={(section) => model.preferencesSection.publish(section)}
         onClosed={() => model.preferencesSection.publish(null)}
+      />
+      <AppUpdateAnnouncementDialogView
+        onUpdateInstallChosen={() => {
+          model.appUpdateChoiceRefusal.publish(null);
+          model.preferencesSection.publish("about");
+        }}
+        onAnswerRefused={(because) => model.appUpdateChoiceRefusal.publish(because)}
       />
       <div className="pointer-events-none absolute right-4 bottom-4 z-40 flex flex-col-reverse gap-2">
         <div aria-live="assertive" aria-atomic="true">

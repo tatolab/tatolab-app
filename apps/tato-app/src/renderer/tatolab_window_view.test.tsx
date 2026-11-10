@@ -1614,6 +1614,54 @@ describe("opening the window", () => {
   });
 });
 
+describe("the update dialog", () => {
+  it("says a downloaded version is ready over the Projects window, holds focus on Cancel, and Install Update answers it and opens Settings › About", async () => {
+    const answersGiven: string[] = [];
+    const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&project=none&update=ready")));
+    await mountedWindowOverTheMock("state=running&project=none&update=ready", {
+      answerTheAppUpdateAnnouncement: (kind, version, answer) => {
+        answersGiven.push(`${kind} ${version} ${answer}`);
+        return mockBackend.answerTheAppUpdateAnnouncement(kind, version, answer);
+      },
+    });
+
+    const updateDialog = await screen.findByRole("dialog", { name: "Tato Studio 0.46.0 is ready to install" });
+    expect(within(updateDialog).getByText("Installing it restarts Tato Studio, which stops every stream it runs until you run it again.")).toBeTruthy();
+    await waitFor(() => expect(document.activeElement?.textContent).toBe("Cancel"));
+    fireEvent.click(within(updateDialog).getByRole("button", { name: "Install Update" }));
+
+    expect(answersGiven).toEqual(["update_ready 0.46.0 take_its_action"]);
+    await waitFor(() => expect(document.querySelector("[data-settings-about]")).not.toBeNull());
+  });
+
+  it("says which version the app is now after an update, and OK closes it at once, before the next status", async () => {
+    const answersGiven: string[] = [];
+    await mountedWindowOverTheMock("state=running&project=none&update=landed", {
+      answerTheAppUpdateAnnouncement: async (kind, version, answer) => {
+        answersGiven.push(`${kind} ${version} ${answer}`);
+      },
+    });
+
+    const updateDialog = await screen.findByRole("dialog", { name: "Tato Studio is now version 0.45.0" });
+    expect(within(updateDialog).getByText("Each project's dependencies are brought up to date automatically the next time it runs.")).toBeTruthy();
+    expect(within(updateDialog).getByRole("button", { name: "Release Notes" })).toBeTruthy();
+    fireEvent.click(within(updateDialog).getByRole("button", { name: "OK" }));
+
+    expect(answersGiven).toEqual(["update_landed 0.45.0 dismiss"]);
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Tato Studio is now version 0.45.0" })).toBeNull());
+  });
+
+  it("shows the window's refusal of an answer in its own words", async () => {
+    await mountedWindowOverTheMock("state=running&project=none&update=landed", {
+      answerTheAppUpdateAnnouncement: () => Promise.reject("The release notes did not open: no browser"),
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Release Notes" }));
+
+    await waitFor(() => expect(textOf("[data-app-update-choice-refusal]")).toContain("The release notes did not open: no browser"));
+  });
+});
+
 describe("Preferences › Command line › tatolab", () => {
   it("links ~/.local/bin/tatolab with no password, then shows the link and the PATH line", async () => {
     await mountedWindowOverTheMock("state=running&cli_link=not_linked");
