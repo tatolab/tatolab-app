@@ -1,13 +1,13 @@
 import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
-import { NodeGraphCanvas, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { NodeGraphCanvas, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint, type NodeGraphCanvasToolsInTheWindowToolbar, type NodeGraphCanvasViewport } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { SearchPopover } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { StopWatching, StudioSelection, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import type { StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings, WindowToolbarGraphTool, WindowToolbarGraphToolOffered, WindowToolbarGraphToolsOffer } from "@tatolab/tato-app-view-sdk";
 import type {
   ListedStreamsReading,
   NodeCatalogReading,
@@ -21,6 +21,7 @@ import type {
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
+import { streamPreparingWords } from "../shared/stream_preparing_words";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 import { useStreamGraphEditsSentToTheRuntime } from "./stream_graph_edit_sending";
 import {
@@ -41,6 +42,7 @@ import {
 } from "./stream_graph_edits";
 import { nodeTypeSearchItems } from "./stream_graph_node_type_search";
 import { streamGraphSavedWords } from "./stream_graph_saved_words";
+import { isTheSamePlaceLeft, settingsWithTheStreamLeft, whereTheStreamWasLeft, type WhereAStreamWasLeft } from "./stream_graph_where_left";
 
 /** How far each node placed with ⇧↵ lands from the one before, so a run of them can be told apart. */
 const NEXT_PLACED_NODE_OFFSET = 36;
@@ -63,6 +65,41 @@ function importedProjectNameOfTheStream(stream: string, openProject: OpenProject
   return importedProject === undefined ? null : importedProject.name;
 }
 
+/** The canvas's tools offered to the window's toolbar for as long as the graph is drawn, each press reaching the canvas. */
+function useTheCanvasToolsInTheWindowToolbar(connection: TatoAppViewConnection): NodeGraphCanvasToolsInTheWindowToolbar {
+  const pressFromTheToolbar = useRef<((tool: WindowToolbarGraphTool) => void) | null>(null);
+  const offer = useRef<WindowToolbarGraphToolsOffer | null>(null);
+  const toolsLastReported = useRef<readonly WindowToolbarGraphToolOffered[] | null>(null);
+  const [isTakenByTheToolbar, setIsTakenByTheToolbar] = useState(false);
+  const showTheTools = useCallback((offerShowing: WindowToolbarGraphToolsOffer, tools: readonly WindowToolbarGraphToolOffered[]) => {
+    void offerShowing.show(tools).then((answer) => offer.current === offerShowing && setIsTakenByTheToolbar(answer.kind === "done"));
+  }, []);
+  useEffect(() => {
+    const offerMade = connection.offerGraphToolsToTheWindow(
+      (tool) => pressFromTheToolbar.current?.(tool),
+      () => {
+        if (offer.current === offerMade) offer.current = null;
+        setIsTakenByTheToolbar(false);
+      },
+    );
+    offer.current = offerMade;
+    if (toolsLastReported.current !== null) showTheTools(offerMade, toolsLastReported.current);
+    return () => {
+      offer.current = null;
+      offerMade.withdraw();
+      setIsTakenByTheToolbar(false);
+    };
+  }, [connection, showTheTools]);
+  const onToolsChanged = useCallback(
+    (tools: readonly WindowToolbarGraphToolOffered[]) => {
+      toolsLastReported.current = tools;
+      if (offer.current !== null) showTheTools(offer.current, tools);
+    },
+    [showTheTools],
+  );
+  return useMemo(() => ({ onToolsChanged, pressFromTheToolbar, isTakenByTheToolbar }), [onToolsChanged, isTakenByTheToolbar]);
+}
+
 /** The graph of the stream tab shown, read while the view is drawn. */
 function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress; select: (selection: StudioSelection) => void }) {
   const watchTheTabsGraph = useCallback(
@@ -73,14 +110,51 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   const selection = useViewReading(connection.watchSelection);
   const openProject = useViewReading(connection.watchOpenProject);
   const listedStreams = useViewReading(connection.watchListedStreams);
-  const canvasContents = useMemo(() => (graphReading?.kind === "read" ? streamGraphCanvasContents(graphReading.graph) : null), [graphReading]);
   const watchTheTabsCatalog = useCallback(
     (listener: (reading: NodeCatalogReading) => void): StopWatching => connection.watchNodeCatalog(streamTab.stream, listener),
     [connection, streamTab.stream],
   );
   const catalogReading = useViewReading(watchTheTabsCatalog);
+  const canvasContents = useMemo(
+    () => (graphReading?.kind === "read" ? streamGraphCanvasContents(graphReading.graph, catalogReading?.kind === "listed" ? catalogReading.catalog : null) : null),
+    [graphReading, catalogReading],
+  );
   const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
   const importedProjectName = importedProjectNameOfTheStream(streamTab.stream, openProject, listedStreams);
+  const toolsInTheWindowToolbar = useTheCanvasToolsInTheWindowToolbar(connection);
+  const areaSettings = useViewReadingSoFar(connection.watchSettings);
+  const areaSettingsRead = areaSettings.kind === "read" ? areaSettings.reading : null;
+  const viewportWhereTheStreamWasLeft = useMemo(() => whereTheStreamWasLeft(areaSettingsRead, streamTab.stream)?.viewport ?? null, [areaSettingsRead, streamTab.stream]);
+  const areaSettingsLastSent = useRef<{ settings: ViewSettings } | null>(null);
+  const settingsToBuildOn = useRef<ViewSettings>(null);
+  if (areaSettingsLastSent.current !== null && JSON.stringify(areaSettingsLastSent.current.settings) === JSON.stringify(areaSettingsRead)) areaSettingsLastSent.current = null;
+  settingsToBuildOn.current = areaSettingsLastSent.current?.settings ?? areaSettingsRead;
+  const keepWhereTheStreamWasLeft = useCallback(
+    (left: Partial<WhereAStreamWasLeft>) => {
+      const before = whereTheStreamWasLeft(settingsToBuildOn.current, streamTab.stream);
+      const whereNow: WhereAStreamWasLeft = {
+        viewport: left.viewport !== undefined ? left.viewport : (before?.viewport ?? null),
+        selected_node: left.selected_node !== undefined ? left.selected_node : (before?.selected_node ?? null),
+      };
+      if (before !== null && isTheSamePlaceLeft(before, whereNow)) return;
+      const sent = { settings: settingsWithTheStreamLeft(settingsToBuildOn.current, streamTab.stream, whereNow) };
+      areaSettingsLastSent.current = sent;
+      settingsToBuildOn.current = sent.settings;
+      void connection.rememberSettings(sent.settings).then((answer) => {
+        if (answer.kind === "refused" && areaSettingsLastSent.current === sent) areaSettingsLastSent.current = null;
+      });
+    },
+    [connection, streamTab.stream],
+  );
+  const hasTheSelectionBeenRestored = useRef(false);
+  useEffect(() => {
+    if (hasTheSelectionBeenRestored.current || areaSettingsRead === null || selection === null || canvasContents === null) return;
+    hasTheSelectionBeenRestored.current = true;
+    const selectedNodeLeft = whereTheStreamWasLeft(areaSettingsRead, streamTab.stream)?.selected_node ?? null;
+    const isNothingElseSelected = selection.kind === "nothing" || (selection.kind === "stream" && selection.stream === streamTab.stream);
+    if (selectedNodeLeft === null || !isNothingElseSelected || !canvasContents.nodes.some((node) => node.node_id === selectedNodeLeft)) return;
+    select({ kind: "node", stream: streamTab.stream, node: selectedNodeLeft });
+  }, [areaSettingsRead, selection, select, streamTab.stream, canvasContents]);
   const { sendTheGesture, refusalOfTheLatestEdit } = useStreamGraphEditsSentToTheRuntime(connection, listedStream?.location?.project_directory ?? null);
   const [studioSentAheadByNodeId, setStudioSentAheadByNodeId] = useState<ReadonlyMap<string, StreamGraphNodeStudioFields>>(new Map());
   useEffect(() => {
@@ -153,6 +227,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   const onNodeSelected = useCallback(
     (nodeName: string | null) => {
       const projectFolder = listedStreams?.kind === "listed" ? listedStreams.streams.find((listedStream) => listedStream.stream === streamTab.stream)?.location?.project_directory : undefined;
+      keepWhereTheStreamWasLeft({ selected_node: nodeName });
       if (nodeName !== null) select({ kind: "node", stream: streamTab.stream, node: nodeName });
       else if (projectFolder !== undefined)
         select({
@@ -162,8 +237,9 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
         });
       else select({ kind: "nothing" });
     },
-    [select, listedStreams, streamTab.stream],
+    [select, listedStreams, streamTab.stream, keepWhereTheStreamWasLeft],
   );
+  const onViewportLeft = useCallback((viewport: NodeGraphCanvasViewport) => keepWhereTheStreamWasLeft({ viewport }), [keepWhereTheStreamWasLeft]);
 
   if (listedStream?.state === "failed") {
     return (
@@ -183,6 +259,8 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   }
   if (graphReading === null) return null;
   if (graphReading.kind === "not_read") {
+    const preparingWords = streamPreparingWords(listedStream, streamTab.display_name);
+    if (preparingWords !== null) return <WaitingState title={preparingWords.title} explanation={preparingWords.explanation} data-stream-graph-state="preparing" />;
     const isRunning = listedStream?.state === "running";
     return (
       <WaitingState
@@ -193,6 +271,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
       />
     );
   }
+  if (areaSettings.kind !== "read") return null;
   if (canvasContents === null || (canvasContents.nodes.length === 0 && editing === null)) {
     return <WaitingState title={`${streamTab.display_name} has no nodes`} explanation="Its graph document holds none." data-stream-graph-state="empty" />;
   }
@@ -211,6 +290,9 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
         selectedNodeId={selection?.kind === "node" && selection.stream === streamTab.stream ? selection.node : null}
         onNodeSelected={onNodeSelected}
         editing={editing}
+        toolsInTheWindowToolbar={toolsInTheWindowToolbar}
+        viewportWhereItWasLeft={viewportWhereTheStreamWasLeft}
+        onViewportLeft={onViewportLeft}
         overlay={
           <>
             {canvasContents.nodes.length === 0 && nodeTypeSearchAsked === null && (

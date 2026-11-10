@@ -3,7 +3,7 @@
 // a link per link of the graph drawn by its state, a frame per labelled group and the graph's canvas notes.
 
 import type { NodeGraphCanvasFrame, NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCanvasNote, NodeGraphCardCondition, NodeGraphLinkLook } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
-import type { StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { NodeCatalog, NodeCatalogPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { isANameTheCodeGave, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { portStreamFactsWords, streamFactsAnInputReceives } from "../shared/port_stream_facts_words";
 import { linkIdAsTheCanvasKeysIt } from "./stream_graph_edits";
@@ -56,17 +56,28 @@ function canvasLinkOf(link: StreamGraphLink): NodeGraphCanvasLink {
   };
 }
 
-/** `graph` as the canvas draws it, each node keyed by its name, as a link's ends name it. */
-export function streamGraphCanvasContents(graph: StreamGraphSummary): StreamGraphCanvasContents {
+const descriptionWords = (description: string | undefined): string | null => (description === undefined || description.trim() === "" ? null : description.trim());
+
+const portDescription = (ports: readonly NodeCatalogPort[] | undefined, portName: string): string | null => descriptionWords(ports?.find((port) => port.name === portName)?.description);
+
+/** `graph` as the canvas draws it, each node keyed by its name, as a link's ends name it, with each node type's and port's description as `catalog` gives it. */
+export function streamGraphCanvasContents(graph: StreamGraphSummary, catalog: NodeCatalog | null): StreamGraphCanvasContents {
   const groupIds = new Set(graph.groups.map((group) => group.id));
+  const catalogEntryByType = new Map((catalog?.node_types ?? []).map((entry) => [entry.type, entry]));
   return {
     nodes: graph.nodes.map((node) => ({
       node_id: node.name,
       title: nodeTitle(node.name, node.type),
       type_name: isANameTheCodeGave(node.name, node.type) ? nodeTypeClassName(node.type) : null,
+      description: descriptionWords(catalogEntryByType.get(node.type)?.description),
       condition: cardConditionOf(node),
-      input_pins: node.input_ports.map((port) => ({ name: port.name, family: port.family, stream_facts_words: portStreamFactsWords(streamFactsAnInputReceives(graph, node.name, port)) })),
-      output_pins: node.output_ports.map((port) => ({ name: port.name, family: port.family, stream_facts_words: portStreamFactsWords(port) })),
+      input_pins: node.input_ports.map((port) => ({
+        name: port.name,
+        family: port.family,
+        description: portDescription(catalogEntryByType.get(node.type)?.inputs, port.name),
+        stream_facts_words: portStreamFactsWords(streamFactsAnInputReceives(graph, node.name, port)),
+      })),
+      output_pins: node.output_ports.map((port) => ({ name: port.name, family: port.family, description: portDescription(catalogEntryByType.get(node.type)?.outputs, port.name), stream_facts_words: portStreamFactsWords(port) })),
       saved_position: node.studio.position === null ? null : { x: node.studio.position[0], y: node.studio.position[1] },
       frame_id: node.studio.group !== null && groupIds.has(node.studio.group) ? node.studio.group : null,
       is_collapsed: node.studio.collapsed === true,

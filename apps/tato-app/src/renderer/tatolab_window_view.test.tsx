@@ -755,6 +755,20 @@ describe("the studio", () => {
     expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
   });
 
+  it("draws the Stream graph's Add node, Frame, Note and Subgraph in the window's toolbar, says why one can't be pressed, and a press opens the node search in the graph", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const toolInTheToolbar = (tool: string) => document.querySelector<HTMLElement>(`[data-studio-graph-tool="${tool}"]`) ?? expect.unreachable(`no ${tool} in the toolbar`);
+    await waitFor(() => expect(document.querySelector("[data-studio-graph-tools]")?.getAttribute("data-studio-graph-tools")).toBe("stream-graph"));
+    await waitFor(() => expect(toolInTheToolbar("add_node").getAttribute("aria-disabled")).toBeNull());
+    expect(toolInTheToolbar("frame_selection").getAttribute("aria-label")).toBe("Frame the selected nodes: Select the nodes to frame first");
+    expect(toolInTheToolbar("add_subgraph").getAttribute("aria-disabled")).toBe("true");
+    const streamGraph = coreViewPage("stream_graph", "stream-graph");
+    await waitFor(() => expect(streamGraph.querySelector('[data-node-graph-tool="add_node"]')).toBeNull());
+
+    fireEvent.click(toolInTheToolbar("add_node"));
+    await waitFor(() => expect(within(streamGraph.body).getByRole("dialog", { name: "Add a node" })).toBeTruthy());
+  });
+
   it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {
     await mountedWindowOverTheMock("state=running");
     expect(await shownLayout()).toBe("build");
@@ -788,7 +802,7 @@ describe("the studio", () => {
     );
     expect(viewFrame.getAttribute("data-tatolab-view")).toBe("pattern:picture_and_fader");
     expect(viewFrame.hasAttribute("sandbox")).toBe(false);
-    expect(viewFrame.getAttribute("allow")).toBe("camera; microphone");
+    expect(viewFrame.getAttribute("allow")).toBe("camera 'none'; microphone 'none'");
     expect(viewFrame.getAttribute("src")).toMatch(/\/mock_studio_view\/picture_and_fader\/index\.html$/);
     expect(viewerArea.querySelector("[data-node-view-whereabouts]")?.textContent).toBe("on the pictureandfader node in main");
   });

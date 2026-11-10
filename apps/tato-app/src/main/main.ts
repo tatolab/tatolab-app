@@ -27,7 +27,7 @@ import {
   runInTheBackgroundWithTheController,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
-import { tatolabWindowCommandHandlers, type TatolabWindowCommandHandlers } from "./tatolab_commands.js";
+import { startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded, tatolabWindowCommandHandlers, type TatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
@@ -46,6 +46,7 @@ import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { localApiRequestFailure } from "./local_api_client.js";
 import { answerAProjectViewFileRequest, ProjectViewsListedToTheWindows, type AnswerAProjectViewFileRequest } from "./project_view_files.js";
+import { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
@@ -349,6 +350,7 @@ export async function startTatolabApp(
     readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     openTheProjectInItsStudioWindow: (folder) => tatolabAppWindows.openTheProjectInItsStudioWindow(folder),
     closeTheStudioWindowOf: (folder) => tatolabAppWindows.studioWindowOfTheProjectIn(folder)?.tatolabMainWindow.close(),
+    startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded: (folder) => startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded({ controller, statusPublisher }, folder),
   });
   const pythonLanguageServers = new PythonLanguageServers({
     startANodeLanguageServer: tatolabElectronAppShell.startANodeLanguageServer,
@@ -398,6 +400,7 @@ export async function startTatolabApp(
     dependencySourceDialog: tatolabElectronAppShell.askThePersonForADependencySource,
     thePersonEditingInStudio: tatolabElectronAppShell.thePersonSignedInToThisComputer,
     projectViewsListed,
+    systemMediaAccessAskedAheadForViews: new SystemMediaAccessAskedAheadForViews(platformForThisBuild.systemMediaAccess, tatolabElectronAppShell.systemNotifications),
     tatolabAppLog,
   };
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.stopWatchingEveryProject());

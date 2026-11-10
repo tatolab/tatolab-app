@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { NODE_STUDIO_FIELDS_NONE_SET, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { NODE_STUDIO_FIELDS_NONE_SET, type NodeCatalog, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 
 function graphNode(name: string, inputs: string[], outputs: string[]): StreamGraphNode {
@@ -47,15 +47,16 @@ const GRAPH: StreamGraphSummary = {
 };
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_and_an_input_shows_the_facts_its_one_link_carries", () => {
-  expect(streamGraphCanvasContents(GRAPH).nodes).toEqual([
-    { node_id: "camera", title: "camera", type_name: "Effect", condition: { look: "healthy" }, input_pins: [], output_pins: [{ name: "video", family: "image", stream_facts_words: ["29.97 fps"] }], saved_position: null, frame_id: null, is_collapsed: false },
+  expect(streamGraphCanvasContents(GRAPH, null).nodes).toEqual([
+    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, input_pins: [], output_pins: [{ name: "video", family: "image", description: null, stream_facts_words: ["29.97 fps"] }], saved_position: null, frame_id: null, is_collapsed: false },
     {
       node_id: "invert",
       title: "invert",
       type_name: "Effect",
+      description: null,
       condition: { look: "healthy" },
-      input_pins: [{ name: "video_in", family: "image", stream_facts_words: ["29.97 fps"] }],
-      output_pins: [{ name: "video_out", family: null, stream_facts_words: [] }],
+      input_pins: [{ name: "video_in", family: "image", description: null, stream_facts_words: ["29.97 fps"] }],
+      output_pins: [{ name: "video_out", family: null, description: null, stream_facts_words: [] }],
       saved_position: null,
       frame_id: null,
       is_collapsed: false,
@@ -64,7 +65,7 @@ test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_and_an_input_
 });
 
 test("each_link_is_drawn_by_its_state_and_described_in_words", () => {
-  expect(streamGraphCanvasContents(GRAPH).links.map((link) => [link.link_id, link.look, link.description])).toEqual([
+  expect(streamGraphCanvasContents(GRAPH, null).links.map((link) => [link.link_id, link.look, link.description])).toEqual([
     ["L1", "carrying", "camera.video → invert.video_in, wired"],
     ["invert.video_out->display.video", "waiting", "invert.video_out → display.video, waiting for the other machine"],
     ["L3", "waiting", "camera.video → display.video, reconnecting_later"],
@@ -84,7 +85,7 @@ test("a_node_in_error_is_a_failed_card_carrying_why_word_for_word_and_a_restarti
     links: [],
   };
 
-  expect(streamGraphCanvasContents(graph).nodes.map((node) => [node.node_id, node.condition])).toEqual([
+  expect(streamGraphCanvasContents(graph, null).nodes.map((node) => [node.node_id, node.condition])).toEqual([
     ["rivesource", { look: "failed", failed_because: failedBecause }],
     ["browsersource", { look: "failed", failed_because: null }],
     ["camera", { look: "restarting" }],
@@ -104,7 +105,7 @@ test("a_node_left_somewhere_draws_there_in_the_frame_of_its_group_and_the_graphs
     notes: [{ id: "n1", text: "Tune here", position: [300, 80], size: [220, 90] }],
   };
 
-  const contents = streamGraphCanvasContents(graph);
+  const contents = streamGraphCanvasContents(graph, null);
 
   expect(contents.nodes.map((node) => [node.node_id, node.saved_position, node.frame_id])).toEqual([
     ["camera", { x: 40, y: -12 }, groupId],
@@ -112,4 +113,24 @@ test("a_node_left_somewhere_draws_there_in_the_frame_of_its_group_and_the_graphs
   ]);
   expect(contents.frames).toEqual([{ frame_id: groupId, title: "Inputs", description: null, colour: "#3b82f6" }]);
   expect(contents.notes).toEqual([{ note_id: "n1", text: "Tune here", position: { x: 300, y: 80 }, size: { width: 220, height: 90 } }]);
+});
+
+test("a card and its pins carry their node type's descriptions from the stream's node catalog, and a blank one is none", () => {
+  const catalog: NodeCatalog = {
+    stream: "main",
+    node_types: [
+      {
+        type: "nodes.invert:Effect",
+        description: "Inverts each frame's colours.",
+        config_schema: null,
+        inputs: [{ name: "video_in", description: "The frames to invert.", family: "image" }],
+        outputs: [{ name: "video_out", description: "  ", family: "image" }],
+      },
+    ],
+  };
+  const invert = streamGraphCanvasContents(GRAPH, catalog).nodes.find((node) => node.node_id === "invert");
+  expect(invert?.description).toBe("Inverts each frame's colours.");
+  expect(invert?.input_pins.map((pin) => pin.description)).toEqual(["The frames to invert."]);
+  expect(invert?.output_pins.map((pin) => pin.description)).toEqual([null]);
+  expect(streamGraphCanvasContents(GRAPH, catalog).nodes.find((node) => node.node_id === "camera")?.description).toBeNull();
 });

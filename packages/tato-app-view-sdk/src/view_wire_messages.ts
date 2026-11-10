@@ -29,7 +29,7 @@ import {
   viewHeaderRowSchema,
   viewOpenedOnSchema,
 } from "./studio_readings.js";
-import { viewDeclaredPortSchema } from "./tatolab_view_manifest.js";
+import { VIEW_CAPABILITIES, viewDeclaredPortSchema } from "./tatolab_view_manifest.js";
 
 const videoFrameSchema = z.custom<VideoFrame>((value) => typeof VideoFrame !== "undefined" && value instanceof VideoFrame, "an Image frame is a VideoFrame");
 
@@ -59,6 +59,16 @@ export const VIEW_PORT_HANDOVER = "tatolab_view_port";
 
 const watchOrAskIdSchema = z.number().int().nonnegative();
 
+/** A graph tool the window's toolbar draws and a stream graph view carries out. */
+export const windowToolbarGraphToolSchema = z.enum(["add_node", "frame_selection", "add_note", "add_subgraph"]);
+/** A graph tool the window's toolbar draws and a stream graph view carries out. */
+export type WindowToolbarGraphTool = z.infer<typeof windowToolbarGraphToolSchema>;
+
+/** One graph tool as the view offers it, and why it cannot be pressed now (`null` when it can). */
+export const windowToolbarGraphToolOfferedSchema = z.object({ tool: windowToolbarGraphToolSchema, disabled_reason: z.string().nullable() });
+/** One graph tool as the view offers it. */
+export type WindowToolbarGraphToolOffered = z.infer<typeof windowToolbarGraphToolOfferedSchema>;
+
 /** What a view may watch. */
 export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("open_project") }),
@@ -82,6 +92,8 @@ export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("settings") }),
   z.object({ kind: z.literal("opened_on") }),
   z.object({ kind: z.literal("header_row") }),
+  /** Each press of a graph tool in the window's toolbar while the view's offer, made with `offer_graph_tools`, is the one it shows; stopping the watch withdraws the offer. */
+  z.object({ kind: z.literal("graph_tool_presses") }),
 ]);
 /** What a view may watch. */
 export type ViewWatchedSubject = z.infer<typeof viewWatchedSubjectSchema>;
@@ -123,6 +135,8 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   }),
   /** The person editing in Studio, the author history records their edits under and their own undo takes. */
   z.object({ kind: z.literal("read_the_person_editing") }),
+  /** The graph tools the view's watch `watch_id` of `graph_tool_presses` offers the window's toolbar, replacing any offer before; refused where the window draws no toolbar. */
+  z.object({ kind: z.literal("offer_graph_tools"), watch_id: watchOrAskIdSchema, tools: z.array(windowToolbarGraphToolOfferedSchema) }),
 ]);
 /** What a view may ask Studio to do. */
 export type ViewAsk = z.infer<typeof viewAskSchema>;
@@ -160,6 +174,7 @@ export const viewWatchedReadingSchema = z.discriminatedUnion("subject", [
   z.object({ subject: z.literal("settings"), reading: jsonValueSchema }),
   z.object({ subject: z.literal("opened_on"), reading: viewOpenedOnSchema }),
   z.object({ subject: z.literal("header_row"), reading: viewHeaderRowSchema }),
+  z.object({ subject: z.literal("graph_tool_presses"), reading: z.object({ tool: windowToolbarGraphToolSchema }) }),
 ]);
 /** One reading of a watched subject. */
 export type ViewWatchedReading = z.infer<typeof viewWatchedReadingSchema>;
@@ -180,13 +195,14 @@ export const viewAskAnswerSchema = z.discriminatedUnion("kind", [
 /** What Studio answers an ask with. */
 export type ViewAskAnswer = z.infer<typeof viewAskAnswerSchema>;
 
-/** What Studio granted the view, as it reads it on connecting: its id, the contract served, its placement and declared ports. */
+/** What Studio granted the view, as it reads it on connecting: its id, the contract served, its placement, declared ports and the capabilities its manifest declares. */
 export const viewGrantSchema = z.object({
   view_type_id: z.string(),
   contract: z.string(),
   placement: z.enum(["area", "node"]),
   inputs: z.array(viewDeclaredPortSchema),
   outputs: z.array(viewDeclaredPortSchema),
+  capabilities: z.array(z.enum(VIEW_CAPABILITIES)),
 });
 /** What Studio granted the view. */
 export type ViewGrant = z.infer<typeof viewGrantSchema>;

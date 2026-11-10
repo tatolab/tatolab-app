@@ -13,6 +13,7 @@ const STAGE_RIG_MANIFEST = {
   inputs: [{ name: "fixtures", family: "records", description: "Each fixture and where it hangs." }],
   outputs: [{ name: "master_intensity", family: "array", range: [0, 1] }],
   settings: { type: "object", properties: { show_beams: { type: "boolean", default: true } } },
+  capabilities: ["read.selection", "read.project_assets", "camera", "microphone"],
 };
 
 function becauseOf(manifestJson: unknown): string {
@@ -25,7 +26,7 @@ describe("readTatolabViewManifest", () => {
     expect(readTatolabViewManifest(STAGE_RIG_MANIFEST)).toEqual({ kind: "read", manifest: STAGE_RIG_MANIFEST });
   });
 
-  it("fills in what an area view leaves out: no ports and no files", () => {
+  it("fills in what an area view leaves out: no ports, no files and no capabilities", () => {
     expect(readTatolabViewManifest({ contract: "1.0", title: "Notes", entry: "dist/index.html", placement: "area" })).toEqual({
       kind: "read",
       manifest: {
@@ -36,6 +37,7 @@ describe("readTatolabViewManifest", () => {
         inputs: [],
         outputs: [],
         accepts: { files: [] },
+        capabilities: [],
       },
     });
   });
@@ -59,9 +61,8 @@ describe("readTatolabViewManifest", () => {
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, view_type_id: "acme:stage-rig" })).toContain('Unrecognized key: "view_type_id"');
   });
 
-  it("refuses a sandbox, capabilities or network hosts, which the contract does not have: every view runs with full access", () => {
+  it("refuses a sandbox or network hosts, which the contract does not have: every view runs with full access", () => {
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, sandbox: true })).toBe('`tatolab_view.json`: Unrecognized key: "sandbox".');
-    expect(becauseOf({ ...STAGE_RIG_MANIFEST, capabilities: ["gpu"] })).toBe('`tatolab_view.json`: Unrecognized key: "capabilities".');
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, network: ["fixtures.example.com"] })).toBe('`tatolab_view.json`: Unrecognized key: "network".');
   });
 
@@ -78,6 +79,12 @@ describe("readTatolabViewManifest", () => {
   it("refuses ports on an area view, which has no node to carry them", () => {
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, placement: "area" })).toContain("`placement`: an `area` view has no node");
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, placement: "dock" })).toContain("`placement`:");
+  });
+
+  it("refuses a capability the contract does not have, and keeps one asked for twice once", () => {
+    expect(becauseOf({ ...STAGE_RIG_MANIFEST, capabilities: ["read.everything"] })).toContain("`capabilities[0]`:");
+    const reading = readTatolabViewManifest({ ...STAGE_RIG_MANIFEST, capabilities: ["gpu", "gpu"] });
+    expect(reading.kind === "read" ? reading.manifest.capabilities : null).toEqual(["gpu"]);
   });
 
   it("refuses an extension without its dot", () => {

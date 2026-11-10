@@ -13,8 +13,10 @@ import {
   FakeTatolabCommandLineToolLink,
   FakeTerminalOpenedInAFolder,
   fakeTatolabPlatformForThisBuild,
+  FakeSystemMediaAccess,
 } from "./fake_tatolab_platform_for_this_build.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
+import { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 import { HeldRememberedSwitch, RememberedSwitchFile } from "./remembered_switch_file.js";
 import { ProjectOpening, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import { PythonLanguageServers } from "./python_language_servers.js";
@@ -44,6 +46,7 @@ import {
   removeProject,
   streamArgumentsFrom,
   linkCommandLineTool,
+  startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded,
   tatolabWindowCommandHandlers,
 } from "./tatolab_commands.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
@@ -79,6 +82,7 @@ async function sharedStateOverFakes(
     foldersShownInTheFileManager: string[];
     localApiSocketPath: string;
     systemNotifications: FakeSystemNotifications;
+    systemMediaAccess: FakeSystemMediaAccess;
     tatolabAppOpenedAtLogin: FakeTatolabAppOpenedAtLogin;
     menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[];
   }
@@ -119,6 +123,7 @@ async function sharedStateOverFakes(
   );
   const foldersShownInTheFileManager: string[] = [];
   const systemNotifications = new FakeSystemNotifications();
+  const systemMediaAccess = new FakeSystemMediaAccess();
   const streamFailureNotifications = await StreamFailureNotifications.load(
     RememberedSwitchFile.streamFailureNotificationsInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog),
     systemNotifications,
@@ -164,6 +169,7 @@ async function sharedStateOverFakes(
     readMonotonicClockMs: () => 0,
     openTheProjectInItsStudioWindow: (folder) => appWindows.openTheProjectInItsStudioWindow(folder),
     closeTheStudioWindowOf: (folder) => appWindows.studioWindowOfTheProjectIn(folder)?.tatolabMainWindow.close(),
+    startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded: async () => succeeded(undefined),
   });
   return {
     controller,
@@ -211,6 +217,8 @@ async function sharedStateOverFakes(
     dependencySourceDialog: async () => succeeded(null),
     thePersonEditingInStudio: { kind: "person", name: "sam" },
     projectViewsListed: new ProjectViewsListedToTheWindows(),
+    systemMediaAccessAskedAheadForViews: new SystemMediaAccessAskedAheadForViews(systemMediaAccess, systemNotifications),
+    systemMediaAccess,
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLink,
     carriedRuntimeStarts,
@@ -511,6 +519,29 @@ test("reloading a project the runtime lists running queues reload_project, one i
     ok: false,
     refusal: "reload_project needs `project_directory`, a project's folder as the runtime lists it",
   });
+});
+
+test("opening a project starts it only when the runtime, asked then, lists none of its streams or each stopped, observing again after; its refusal in its own words", async () => {
+  const listedStreams = await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json");
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", listedStreams),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-project-answer-for-the-folder-hallways.json")),
+      httpResponse("200 OK", "application/json", listedStreams),
+      httpResponse("200 OK", "application/json", listedStreams),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-project-refusal-for-a-project-already-running.json")),
+    ],
+    "linux"
+  );
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const starts = vi.spyOn(sharedState.controller, "startProject");
+
+  expect(await startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded(sharedState, "/home/jonathan-fontanez/scratch/app176/projects/pattern")).toEqual(succeeded(undefined));
+  expect(await startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded(sharedState, "/home/jonathan-fontanez/scratch/app176/projects/doorways")).toEqual(succeeded(undefined));
+  const refused = await startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded(sharedState, "/home/jonathan-fontanez/scratch/app176/projects/lobby");
+  expect(starts.mock.calls).toEqual([["/home/jonathan-fontanez/scratch/app176/projects/pattern"], ["/home/jonathan-fontanez/scratch/app176/projects/lobby"]]);
+  expect(refreshRequests).toHaveBeenCalledTimes(2);
+  expect(refused).toEqual(failedWith(expect.stringContaining("already runs, so there is none to start")));
 });
 
 test("renaming a stream sets the display name of the stream asset the runtime lists for it, then observes again whether it renamed or refused", async () => {
@@ -970,6 +1001,36 @@ test("a graph transaction in the open project reaches the runtime's transact hel
     refusal: "transact_in_the_open_project needs `mode`, `commit` or `live`",
   });
   expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "commit", idempotency_key: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+});
+
+test("listing the open project's views asks the system ahead for the camera and the microphone a view declares, once however often it is listed", async () => {
+  const nightShow = "/private/tmp/tl-rec-cam/projects/night-show";
+  const listingDeclaringTheCamera = await recordedResponseBody("local-api-list-project-views-tool-result-of-night-show-with-a-view-declaring-the-camera-and-microphone.json");
+  const sharedState = await sharedStateOverFakes(
+    [httpResponse("200 OK", "application/json", listingDeclaringTheCamera), httpResponse("200 OK", "application/json", listingDeclaringTheCamera)],
+    "macos",
+    [],
+    null,
+    {
+      nameTheProject: async () => succeeded({ folder: nightShow, project: "a06ae4a5-e1ae-48f7-a660-7380b0815e71", name: "night-show" }),
+      listTheDependencies: async () => succeeded([]),
+    },
+  );
+  sharedState.systemMediaAccess.answerByDevice = { microphone: "refused" };
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "night-show-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+
+  expect((await commandHandlers.list_studio_views_of_the_open_project(undefined, fromTheStudioWindow)).ok).toBe(true);
+  expect((await commandHandlers.list_studio_views_of_the_open_project(undefined, fromTheStudioWindow)).ok).toBe(true);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  expect(sharedState.systemMediaAccess.devicesAsked).toEqual(["camera", "microphone"]);
+  expect(sharedState.systemNotifications.notificationsShown).toEqual([
+    { title: "Tato Studio can't use the microphone", body: "Stage camera needs it. Click to allow Tato Studio in System Settings." },
+  ]);
 });
 
 /** The window's `ListedStudioView` reads exactly this JSON. */

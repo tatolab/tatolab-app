@@ -172,6 +172,24 @@
         "properties"
       ],
       "additionalProperties": {}
+    },
+    "capabilities": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "read.selection",
+          "write.selection",
+          "read.stream_graph",
+          "read.project_assets",
+          "write.project_assets",
+          "edit.stream_graph",
+          "gpu",
+          "camera",
+          "microphone"
+        ]
+      }
     }
   },
   "required": [

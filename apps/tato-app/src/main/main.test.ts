@@ -83,6 +83,11 @@ async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
         await writeFile(path.join(projectDirectory, "tatolab-project.json"), JSON.stringify({ ...projectFile, dependencies: [...projectFile.dependencies, dependency] }));
         return toolResultResponse({ dependency, transaction: "400abda2-8e24-4e95-bef0-7139fd68d853", commit: "7402198987b8ef4b1d2f370b8f090ccde0865a56" });
       }
+      case "list_streams":
+        return toolResultResponse({ streams: [] });
+      case "start_project":
+        if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
+        return toolResultResponse({ action: "5d0c9a51-6a8b-4f3e-9d7e-2b1c0f4e8a77", project_directory: projectDirectory });
       default:
         return null;
     }
@@ -533,7 +538,7 @@ describe("one window per project", () => {
     expect(await fakeShell.invokeTheCommand("read_open_project", undefined, 2)).toMatchObject({ ok: true, value: { open_project: { project: { name: "night-show" } } } });
   });
 
-  test("closing a studio window closes it and forgets its project, and the Projects window refuses a project's commands", async () => {
+  test("closing a studio window closes it, forgets its project and brings back the Projects window, which refuses a project's commands", async () => {
     const fakeShell = await fakeShellOverARuntimeReadingEachProjectsFile();
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     await aProjectTheDialogAnswers(fakeShell, "night-show");
@@ -543,7 +548,8 @@ describe("one window per project", () => {
     expect(fakeShell.studioWindowsOpen()).toEqual([]);
     expect(await fakeShell.invokeTheCommand("read_open_project", undefined, 2)).toEqual({ ok: true, value: { kind: "none_open" } });
     expect(await fakeShell.invokeTheCommand("run_open_project")).toEqual({ ok: false, refusal: "No project is open in this window." });
-    expect(fakeShell.records.at(-1)).toEqual({ asked: "set_activation_policy", activationPolicy: "accessory" });
+    expect(fakeShell.mainWindowShowing).toBe(true);
+    expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "set_activation_policy").at(-1)).toEqual({ asked: "set_activation_policy", activationPolicy: "regular" });
   });
 
   test("File › Projects shows the Projects window again over a project's window", async () => {

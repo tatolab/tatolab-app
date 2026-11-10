@@ -5,6 +5,8 @@ import type { TatolabAppUpdatePackaging } from "./tatolab_app_update_packaging.j
 import type { TatolabCommandLineTool } from "./tatolab_command_line_tool.js";
 import type { TerminalOpenedInAFolder } from "./terminal_opened_in_a_folder.js";
 import type { AppLoginItemSettings } from "./macos/login_item_of_the_app_bundle.js";
+import type { AppMediaAccessSettings } from "./macos/media_access_of_the_app_bundle.js";
+import type { SystemMediaAccess } from "./system_media_access.js";
 
 /** What this build's platform hands the app's controller. */
 export interface TatolabPlatformForThisBuild {
@@ -20,6 +22,8 @@ export interface TatolabPlatformForThisBuild {
   tatolabCommandLineTool: TatolabCommandLineTool;
   /** "Open Tato Studio at login": the bundle's login item on macOS, an XDG autostart entry on Linux; not offered by an unpackaged app. */
   tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin;
+  /** The camera and the microphone as the system grants them to the app: TCC on macOS, asked by no system on Linux. */
+  systemMediaAccess: SystemMediaAccess;
 }
 
 /** What a platform takes from the app around it to build its items. */
@@ -34,4 +38,6 @@ export interface TatolabPlatformHostServices {
   appResourcesDirectory: string;
   /** Electron's login-item settings for the app's own bundle, which only macOS has. */
   appLoginItemSettings: AppLoginItemSettings;
+  /** Electron's camera and microphone access for the app's own bundle, which only macOS has. */
+  appMediaAccessSettings: AppMediaAccessSettings;
 }

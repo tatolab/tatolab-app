@@ -1,3 +1,4 @@
+import { streamPreparingWords } from "../shared/stream_preparing_words";
 import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FieldMenu, MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
@@ -237,14 +238,20 @@ function ViewerPortChooser({
 /** The Viewer's frame for the open stream tab: its port chooser in the header row, and its picture under why the last port choice was refused, once the tab's graph, the selection and the area's settings are read. */
 function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress }) {
   const graphReading = useTheGraphOfTheTab(connection, streamTab.stream);
+  const listedStreams = useViewReading(connection.watchListedStreams);
   const selection = useViewReading(connection.watchSelection);
   const settings = useViewReadingSoFar(connection.watchSettings);
   const [portChoiceRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
   if (graphReading === null || settings.kind === "not_read_yet") return <CoreViewFrame connection={connection}>{null}</CoreViewFrame>;
   if (graphReading.kind === "not_read") {
+    const preparingWords = streamPreparingWords(listedStreams?.kind === "listed" ? listedStreams.streams.find((listed) => listed.stream === streamTab.stream) : undefined, streamTab.display_name);
     return (
       <CoreViewFrame connection={connection}>
-        <WaitingState title={`Nothing of ${streamTab.display_name} to view yet`} explanation={graphReading.because} data-viewer-state="not_read" />
+        {preparingWords !== null ? (
+          <WaitingState title={preparingWords.title} explanation={preparingWords.explanation} data-viewer-state="preparing" />
+        ) : (
+          <WaitingState title={`Nothing of ${streamTab.display_name} to view yet`} explanation={graphReading.because} data-viewer-state="not_read" />
+        )}
       </CoreViewFrame>
     );
   }
