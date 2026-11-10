@@ -336,6 +336,30 @@ describe("the studio", () => {
     await waitFor(() => expect(coreViewPage("history").querySelector('[role="alert"]')?.textContent).toBe("History can't go back there: The runtime's own edit after it (Refreshed mic_levels from its code) can't be undone."));
   });
 
+  it("follows a ⌘Z in the window in History, and scrolls the edit the project is at into view as it moves", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^History/ }));
+    const historyRows = () => [...coreViewPage("history").querySelectorAll<HTMLElement>("[data-history-row]")];
+    await waitFor(() => expect(historyRows().map((row) => row.hasAttribute("data-undone"))).toEqual([true, false, false, false, false]));
+    const historyPageElement = coreViewPage("history").defaultView?.Element ?? expect.unreachable("the History frame has no window");
+    const rowsScrolledIntoView: (string | null)[] = [];
+    historyPageElement.prototype.scrollIntoView = function scrollIntoViewRecorded(this: Element) {
+      rowsScrolledIntoView.push(this.getAttribute("data-history-row"));
+    };
+
+    fireEvent.keyDown(document, { key: "z", metaKey: true });
+
+    await waitFor(() => expect(historyRows().map((row) => row.hasAttribute("data-undone"))).toEqual([true, false, true, false, false]));
+    expect(historyRows()[2]?.getAttribute("aria-label")).toContain("undone");
+
+    fireEvent.click(historyRows()[3] ?? expect.unreachable("no runtime row"));
+    await waitFor(() => expect(historyRows().map((row) => row.hasAttribute("data-undone"))).toEqual([true, true, true, false, false]));
+    await waitFor(() => expect(rowsScrolledIntoView.at(-1)).toBe(historyRows()[3]?.getAttribute("data-history-row")));
+    expect(coreViewPage("history").querySelector("[data-history]")?.textContent).toContain("Each row is one transaction from the project's change feed");
+  });
+
   it("shows a project's streams waiting on the runtime while it lists none", async () => {
     await mountedWindowOverTheMock("state=not-running");
     await waitFor(() => outlinerRow(`project:${PATTERN_PROJECT}/waiting`));
