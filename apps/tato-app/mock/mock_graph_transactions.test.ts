@@ -135,4 +135,7 @@ test("a group frames its nodes until it is removed, and a note is added, changed
   if (unnoted.kind !== "applied") return expect.unreachable(unnoted.refusal.runtime_words);
   expect(graph.notes).toEqual([]);
   expect(unnoted.inverse_operations.map(graphActionApplyingTheHistoryOperation)).toEqual([{ operation: "add_note", stream: STREAM_ASSET, text: "Tune here", position: [10, 20], size: [220, 110] }]);
+  const restoring = unnoted.inverse_operations.map(graphActionApplyingTheHistoryOperation).flatMap((action) => (action === null ? [] : [action]));
+  expect(applyMockGraphTransaction(targetsOf(graph), restoring, "undo_or_redo", unnoted.inverse_operations).kind).toBe("applied");
+  expect(graph.notes?.map((restored) => restored.id)).toEqual([note]);
 });

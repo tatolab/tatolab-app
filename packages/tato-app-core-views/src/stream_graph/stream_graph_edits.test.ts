@@ -6,6 +6,7 @@ import {
   cardLetGoOverALinkEdits,
   cardsMovedEdits,
   deletedEdits,
+  doesTheGraphShowTheStudioSentAhead,
   editedStreamGraphOf,
   frameRenamedEdits,
   studioFieldsSetBy,
@@ -90,6 +91,18 @@ test("a_wire_drawn_between_pins_connects_them_by_node_uuid", () => {
   expect(pinsWiredEdits(edited(), { node_id: "pattern", pin: "video" }, { node_id: "halftone", pin: "frames" })).toEqual([
     { operation: "connect", stream: STREAM_ASSET, source: { node: "uuid-pattern", port: "video" }, target: { node: "uuid-halftone", port: "frames" } },
   ]);
+});
+
+test("a_wire_to_a_card_the_graph_no_longer_holds_asks_nothing_rather_than_naming_it_by_its_name", () => {
+  expect(pinsWiredEdits(edited(), { node_id: "pattern", pin: "video" }, { node_id: "gone", pin: "frames" })).toEqual([]);
+});
+
+test("the_studio_sent_ahead_is_shown_once_the_graph_holds_each_field_it_set_even_beside_a_field_another_edit_set", () => {
+  const sentAhead = { ...PATTERN.studio, collapsed: true };
+  const graphShowing = (studio: StreamGraphNode["studio"]) => ({ ...GRAPH, nodes: [{ ...PATTERN, studio }, HALFTONE, DISPLAY] });
+  expect(doesTheGraphShowTheStudioSentAhead(GRAPH, "uuid-pattern", sentAhead)).toBe(false);
+  expect(doesTheGraphShowTheStudioSentAhead(graphShowing(sentAhead), "uuid-pattern", sentAhead)).toBe(true);
+  expect(doesTheGraphShowTheStudioSentAhead(graphShowing({ ...sentAhead, colour: "#ff0000" }), "uuid-pattern", sentAhead)).toBe(true);
 });
 
 describe("placing_a_node", () => {

@@ -132,12 +132,13 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
 /**
  * Apply `operations` to `targetsByStreamAsset`'s graphs as one transaction: each graph is changed only once every
  * operation has applied to a copy of it. Applied by an undo or a redo, an `add_node`'s `as` is the id the node had, which
- * it takes again.
+ * it takes again, and an `add_group` or `add_note` takes the id its operation in `historyOperationsReplayed` recorded.
  */
 export function applyMockGraphTransaction(
   targetsByStreamAsset: ReadonlyMap<string, MockStreamGraphTarget>,
   operations: readonly StreamGraphAction[],
   applying: "a_transaction" | "undo_or_redo" = "a_transaction",
+  historyOperationsReplayed: readonly JsonValue[] = [],
 ): MockGraphTransactionOutcome {
   const workingGraphs = new Map([...targetsByStreamAsset].map(([streamAsset, target]) => [streamAsset, structuredClone(target.graph)]));
   const nodeIdsByLabel = new Map<string, string>();
@@ -160,6 +161,11 @@ export function applyMockGraphTransaction(
     const linkEndNamed = (end: StreamGraphActionLinkEnd) => {
       const graphNode = nodeNamed(end.node);
       return { graphNode, end: { node: nodeIdOf(graphNode), port: end.port } };
+    };
+    const idTheReplayedOperationKept = (field: "group" | "note"): string | null => {
+      const replayed = historyOperationsReplayed[operationIndex];
+      const kept = isAJsonObject(replayed) ? replayed[field] : undefined;
+      return applying === "undo_or_redo" && isAJsonObject(kept) && typeof kept["id"] === "string" ? kept["id"] : null;
     };
     const recordInHistory = (historyOperation: { [key: string]: JsonValue }, inverseOperation: { [key: string]: JsonValue }) => {
       historyOperations.push({ stream: operation.stream, ...historyOperation });
@@ -295,7 +301,7 @@ export function applyMockGraphTransaction(
           const members = operation.nodes.map(nodeNamed);
           const groups = (graph.groups ??= []);
           mockGroupsAndNotesMade += 1;
-          const group = mockUuidOf(`group\n${target.stream_id}\n${mockGroupsAndNotesMade}\n${operation.title}`);
+          const group = idTheReplayedOperationKept("group") ?? mockUuidOf(`group\n${target.stream_id}\n${mockGroupsAndNotesMade}\n${operation.title}`);
           const added = { id: group, title: operation.title, description: operation.description ?? null, colour: operation.colour ?? null };
           groups.push(added);
           for (const member of members) member.studio = { ...(member.studio ?? NODE_STUDIO_FIELDS_NONE_SET), group };
@@ -328,7 +334,7 @@ export function applyMockGraphTransaction(
         case "add_note": {
           const notes = (graph.notes ??= []);
           mockGroupsAndNotesMade += 1;
-          const note = { id: mockUuidOf(`note\n${target.stream_id}\n${mockGroupsAndNotesMade}\n${operation.text}\n${operation.position.join(",")}`), text: operation.text, position: operation.position, size: operation.size };
+          const note = { id: idTheReplayedOperationKept("note") ?? mockUuidOf(`note\n${target.stream_id}\n${mockGroupsAndNotesMade}\n${operation.text}\n${operation.position.join(",")}`), text: operation.text, position: operation.position, size: operation.size };
           notes.push(note);
           applied.added_notes.push({ stream: target.stream_id, note: note.id });
           recordInHistory({ operation: "add_note", note }, { operation: "remove_note", note });

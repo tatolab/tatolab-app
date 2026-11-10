@@ -233,6 +233,9 @@ const NodeGraphEditableContext = createContext<boolean>(false);
 /** What a note asks for when its text is edited or it is resized. */
 const NodeGraphNoteEditingContext = createContext<NodeGraphCanvasEditing["onNoteChanged"] | null>(null);
 
+/** What a note's corners ask for when a resize ends; `null` on a read-only canvas. */
+const NodeGraphNoteResizingContext = createContext<((noteId: string, resized: NodeGraphPosition & { width: number; height: number }) => void) | null>(null);
+
 /** What a card's chevron and a frame's title ask for on an editable canvas; `null` on a read-only one. */
 const NodeGraphCardAndFrameEditingContext = createContext<Pick<NodeGraphCanvasEditing, "onFrameRenamed" | "onCardCollapsed"> | null>(null);
 
@@ -428,9 +431,8 @@ function NodeGraphNoteView({ data, selected }: NodeProps<NodeGraphNoteFlowNode>)
     if (textBeingEdited !== null && textBeingEdited !== graphNote.text && onNoteChanged !== null) void onNoteChanged(graphNote.note_id, { text: textBeingEdited });
     setTextBeingEdited(null);
   };
-  const keepTheSize: OnResizeEnd = (_event, resized) => {
-    if (onNoteChanged !== null) void onNoteChanged(graphNote.note_id, { position: { x: resized.x, y: resized.y }, size: { width: resized.width, height: resized.height } });
-  };
+  const keepTheResizedNote = useContext(NodeGraphNoteResizingContext);
+  const keepTheSize: OnResizeEnd = (_event, resized) => keepTheResizedNote?.(graphNote.note_id, resized);
   return (
     <div
       className="node-graph-note size-full"
@@ -606,16 +608,34 @@ interface MeasuredCardWidths {
 /** Where a card or note sits while it is dragged, or after it was let go until the graph shows it there or the edit is refused. */
 type HeldPositionById = ReadonlyMap<string, NodeGraphPosition>;
 
+/** A note's width and height on the canvas. */
+type NodeGraphNoteSize = { width: number; height: number };
+
 const samePosition = (first: NodeGraphPosition | null | undefined, second: NodeGraphPosition | null | undefined) =>
   first !== null && first !== undefined && second !== null && second !== undefined && first.x === second.x && first.y === second.y;
 
-/** `held` without the entries whose place the graph now shows, by `shownPositionOf`. */
-function heldPositionsNotShownYet(held: HeldPositionById, shownPositionOf: (id: string) => NodeGraphPosition | null): HeldPositionById {
-  const stillHeld = [...held].filter(([id, position]) => !samePosition(position, shownPositionOf(id)));
+/** A card's or note's place on the whole canvas pixel an edit sends it to, so a held place matches the graph that shows it. */
+const onTheCanvasPixel = (position: NodeGraphPosition): NodeGraphPosition => ({ x: Math.round(position.x), y: Math.round(position.y) });
+
+/** A note's size in the whole canvas pixels an edit sends. */
+const inCanvasPixels = (size: NodeGraphNoteSize): NodeGraphNoteSize => ({ width: Math.round(size.width), height: Math.round(size.height) });
+
+const sameSize = (first: NodeGraphNoteSize, second: NodeGraphNoteSize | undefined) => second !== undefined && first.width === second.width && first.height === second.height;
+
+/** `held` without the entries `isShown` says the graph now shows. */
+function heldValuesNotShownYet<Held>(held: ReadonlyMap<string, Held>, isShown: (id: string, heldValue: Held) => boolean): ReadonlyMap<string, Held> {
+  const stillHeld = [...held].filter(([id, heldValue]) => !isShown(id, heldValue));
   return stillHeld.length === held.size ? held : new Map(stillHeld);
 }
 
-function withoutTheIds(held: HeldPositionById, ids: readonly string[]): HeldPositionById {
+/** `held` with each of `entries` set. */
+function withEntriesSet<Held>(held: ReadonlyMap<string, Held>, entries: readonly { id: string; value: Held }[]): ReadonlyMap<string, Held> {
+  const after = new Map(held);
+  for (const { id, value } of entries) after.set(id, value);
+  return after;
+}
+
+function withoutTheIds<Held>(held: ReadonlyMap<string, Held>, ids: readonly string[]): ReadonlyMap<string, Held> {
   if (!ids.some((id) => held.has(id))) return held;
   const after = new Map(held);
   for (const id of ids) after.delete(id);
@@ -659,7 +679,7 @@ function NodeGraphFlow({
   const [hasBeenFramed, setHasBeenFramed] = useState(false);
   const [heldCardPositions, setHeldCardPositions] = useState<HeldPositionById>(new Map());
   const [heldNotePositions, setHeldNotePositions] = useState<HeldPositionById>(new Map());
-  const [heldNoteSizes, setHeldNoteSizes] = useState<ReadonlyMap<string, { width: number; height: number }>>(new Map());
+  const [heldNoteSizes, setHeldNoteSizes] = useState<ReadonlyMap<string, NodeGraphNoteSize>>(new Map());
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set(selectedNodeId === null ? [] : [selectedNodeId]));
   const [selectedNoteIds, setSelectedNoteIds] = useState<ReadonlySet<string>>(new Set());
 
@@ -672,18 +692,16 @@ function NodeGraphFlow({
 
   const savedPositionByNode = useMemo(() => new Map(nodes.map((node) => [node.node_id, node.saved_position])), [nodes]);
   useEffect(() => {
-    setHeldCardPositions((held) => heldPositionsNotShownYet(held, (nodeId) => savedPositionByNode.get(nodeId) ?? null));
+    setHeldCardPositions((held) => heldValuesNotShownYet(held, (nodeId, position) => samePosition(position, savedPositionByNode.get(nodeId))));
+    setSelectedIds((selectedBefore) => {
+      const stillInTheGraph = [...selectedBefore].filter((nodeId) => savedPositionByNode.has(nodeId));
+      return stillInTheGraph.length === selectedBefore.size ? selectedBefore : new Set(stillInTheGraph);
+    });
   }, [savedPositionByNode]);
   useEffect(() => {
     const noteById = new Map(notes.map((note) => [note.note_id, note]));
-    setHeldNotePositions((held) => heldPositionsNotShownYet(held, (noteId) => noteById.get(noteId)?.position ?? null));
-    setHeldNoteSizes((held) => {
-      const stillHeld = [...held].filter(([noteId, size]) => {
-        const shown = noteById.get(noteId)?.size;
-        return shown === undefined || shown.width !== size.width || shown.height !== size.height;
-      });
-      return stillHeld.length === held.size ? held : new Map(stillHeld);
-    });
+    setHeldNotePositions((held) => heldValuesNotShownYet(held, (noteId, position) => samePosition(position, noteById.get(noteId)?.position)));
+    setHeldNoteSizes((held) => heldValuesNotShownYet(held, (noteId, size) => noteById.get(noteId) === undefined || sameSize(size, noteById.get(noteId)?.size)));
   }, [notes]);
 
   const laidOutPositionByNode: Map<string, NodeGraphPosition> = useMemo(
@@ -851,32 +869,16 @@ function NodeGraphFlow({
           return sizesAfter;
         });
       }
-      const draggedCards = changes.flatMap((change) => (change.type === "position" && change.position !== undefined && nodeById.has(change.id) ? [{ id: change.id, position: change.position }] : []));
-      if (draggedCards.length > 0) {
-        setHeldCardPositions((held) => {
-          const after = new Map(held);
-          for (const { id, position } of draggedCards) after.set(id, position);
-          return after;
-        });
-      }
-      const movedNotes = changes.flatMap((change) => (change.type === "position" && change.position !== undefined && change.id.startsWith("note:") ? [{ id: change.id.slice("note:".length), position: change.position }] : []));
-      if (movedNotes.length > 0) {
-        setHeldNotePositions((held) => {
-          const after = new Map(held);
-          for (const { id, position } of movedNotes) after.set(id, position);
-          return after;
-        });
-      }
-      const resizedNotes = changes.flatMap((change) =>
-        change.type === "dimensions" && change.dimensions !== undefined && change.resizing === true && change.id.startsWith("note:") ? [{ id: change.id.slice("note:".length), size: change.dimensions }] : [],
+      const draggedCards = changes.flatMap((change) => (change.type === "position" && change.position !== undefined && nodeById.has(change.id) ? [{ id: change.id, value: onTheCanvasPixel(change.position) }] : []));
+      if (draggedCards.length > 0) setHeldCardPositions((held) => withEntriesSet(held, draggedCards));
+      const movedNotes = changes.flatMap((change) =>
+        change.type === "position" && change.position !== undefined && change.id.startsWith("note:") ? [{ id: change.id.slice("note:".length), value: onTheCanvasPixel(change.position) }] : [],
       );
-      if (resizedNotes.length > 0) {
-        setHeldNoteSizes((held) => {
-          const after = new Map(held);
-          for (const { id, size } of resizedNotes) after.set(id, size);
-          return after;
-        });
-      }
+      if (movedNotes.length > 0) setHeldNotePositions((held) => withEntriesSet(held, movedNotes));
+      const resizedNotes = changes.flatMap((change) =>
+        change.type === "dimensions" && change.dimensions !== undefined && change.resizing === true && change.id.startsWith("note:") ? [{ id: change.id.slice("note:".length), value: inCanvasPixels(change.dimensions) }] : [],
+      );
+      if (resizedNotes.length > 0) setHeldNoteSizes((held) => withEntriesSet(held, resizedNotes));
       const noteSelectionChanges = changes.flatMap((change) => (change.type === "select" && change.id.startsWith("note:") ? [change] : []));
       if (noteSelectionChanges.length > 0) {
         setSelectedNoteIds((selectedBefore) => {
@@ -987,7 +989,7 @@ function NodeGraphFlow({
       const draggedNotes = draggedNodes.filter((flowNode) => flowNode.type === "node_graph_note");
       for (const note of draggedNotes) {
         const noteId = note.id.slice("note:".length);
-        void editing.onNoteChanged(noteId, { position: note.position }).then((answer) => {
+        void editing.onNoteChanged(noteId, { position: onTheCanvasPixel(note.position) }).then((answer) => {
           if (answer === "refused") setHeldNotePositions((held) => withoutTheIds(held, [noteId]));
         });
       }
@@ -1000,19 +1002,31 @@ function NodeGraphFlow({
           ? linkUnderACard({ position: onlyCard.position, ...sizeOfTheCard(onlyNode) }, linkMidpointsDrawn())
           : null;
       const moves = [
-        ...draggedCards.map((card) => ({ node_id: card.id, position: card.position })),
-        ...nodes.filter((node) => node.saved_position === null && !draggedIds.has(node.node_id)).map((node) => ({ node_id: node.node_id, position: positionOfTheCard(node) })),
+        ...draggedCards.map((card) => ({ node_id: card.id, position: onTheCanvasPixel(card.position) })),
+        ...nodes.filter((node) => node.saved_position === null && !draggedIds.has(node.node_id)).map((node) => ({ node_id: node.node_id, position: onTheCanvasPixel(positionOfTheCard(node)) })),
       ];
-      setHeldCardPositions((held) => {
-        const after = new Map(held);
-        for (const move of moves) after.set(move.node_id, move.position);
-        return after;
-      });
+      setHeldCardPositions((held) => withEntriesSet(held, moves.map((move) => ({ id: move.node_id, value: move.position }))));
       void editing.onCardsMoved(moves, onlyCard === undefined || linkLetGoOver === null ? null : { node_id: onlyCard.id, link_id: linkLetGoOver }).then((answer) => {
         if (answer === "refused") setHeldCardPositions((held) => withoutTheIds(held, moves.map((move) => move.node_id)));
       });
     },
     [editing, nodeById, nodes, links, positionOfTheCard, sizeOfTheCard, linkMidpointsDrawn],
+  );
+
+  const keepTheResizedNote = useCallback(
+    (noteId: string, resized: NodeGraphPosition & NodeGraphNoteSize) => {
+      if (editing === null) return;
+      const position = onTheCanvasPixel(resized);
+      const size = inCanvasPixels(resized);
+      setHeldNotePositions((held) => withEntriesSet(held, [{ id: noteId, value: position }]));
+      setHeldNoteSizes((held) => withEntriesSet(held, [{ id: noteId, value: size }]));
+      void editing.onNoteChanged(noteId, { position, size }).then((answer) => {
+        if (answer !== "refused") return;
+        setHeldNotePositions((held) => withoutTheIds(held, [noteId]));
+        setHeldNoteSizes((held) => withoutTheIds(held, [noteId]));
+      });
+    },
+    [editing],
   );
 
   const pinFamilyOf = useCallback(
@@ -1084,7 +1098,8 @@ function NodeGraphFlow({
   const followTheKeys = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (editing === null || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) return;
-      if (event.key === "Tab" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      const isOnAControl = event.target instanceof Element && event.target.closest("button, a, select, [role=menuitem]") !== null;
+      if (event.key === "Tab" && !isOnAControl && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault();
         editing.onNodeAskedFor(pointerRestsAt.current ?? middleOfTheView());
       } else if (
@@ -1100,15 +1115,20 @@ function NodeGraphFlow({
         editing.onDeleted({ node_ids: [...selectedIds], link_ids: [...selectedLinkIds], note_ids: [...selectedNoteIds] });
         setSelectedLinkIds(new Set());
         setSelectedNoteIds(new Set());
+        if (selectedIds.size > 0) {
+          setSelectedIds(new Set());
+          onNodeSelected(null);
+        }
       }
     },
-    [editing, middleOfTheView, selectedIds, selectedLinkIds, selectedNoteIds, frameTheSelection],
+    [editing, middleOfTheView, selectedIds, selectedLinkIds, selectedNoteIds, frameTheSelection, onNodeSelected],
   );
 
   return (
     <NodeGraphSelectionContext value={selectedIds}>
       <NodeGraphEditableContext value={editing !== null}>
         <NodeGraphNoteEditingContext value={editing?.onNoteChanged ?? null}>
+        <NodeGraphNoteResizingContext value={editing === null ? null : keepTheResizedNote}>
           <NodeGraphCardAndFrameEditingContext value={cardAndFrameEditing}>
             <NodeGraphFrameRenamingContext value={frameRenaming}>
           <NodeGraphLinkedPinsContext value={linkedPins}>
@@ -1218,6 +1238,7 @@ function NodeGraphFlow({
           </NodeGraphLinkedPinsContext>
             </NodeGraphFrameRenamingContext>
           </NodeGraphCardAndFrameEditingContext>
+        </NodeGraphNoteResizingContext>
         </NodeGraphNoteEditingContext>
       </NodeGraphEditableContext>
     </NodeGraphSelectionContext>

@@ -124,7 +124,9 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
       onCardCollapsed: (nodeId, collapsed) => void sendTheStudioGesture(cardCollapsedEdits(editedGraph, nodeId, collapsed)),
     };
   }, [importedProjectName, editedGraph, sendTheGesture, sendTheStudioGesture]);
-  const catalog = catalogReading?.kind === "listed" ? catalogReading.catalog.node_types : [];
+  const catalog = useMemo(() => (catalogReading?.kind === "listed" ? catalogReading.catalog.node_types : []), [catalogReading]);
+  const looseWireOfTheSearch = nodeTypeSearchAsked?.looseWire ?? null;
+  const nodeTypeSearchItemsOffered = useMemo(() => nodeTypeSearchItems(catalog, looseWireOfTheSearch), [catalog, looseWireOfTheSearch]);
   const placeTheChosenNodeType = useCallback(
     (nodeType: string, staysOpen: boolean) => {
       const chosen = catalog.find((entry) => entry.type === nodeType);
@@ -221,7 +223,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
                 label="Add a node"
                 heading={nodeTypeSearchAsked.looseWire === null ? "Add node" : `Add node wired to ${nodeTypeSearchAsked.looseWire.node_id}.${nodeTypeSearchAsked.looseWire.pin}`}
                 placeholder="Search node types"
-                items={nodeTypeSearchItems(catalog, nodeTypeSearchAsked.looseWire)}
+                items={nodeTypeSearchItemsOffered}
                 emptyWords={catalogReading?.kind === "not_listed" ? catalogReading.because : "No node type matches."}
                 chooseWords="place"
                 chooseAndStayWords="place another"

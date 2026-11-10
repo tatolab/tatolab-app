@@ -78,15 +78,17 @@ export function studioFieldsSetBy(actions: readonly StreamGraphAction[]): Map<st
   return studioByNodeId;
 }
 
-/** Whether the graph now shows each studio field set ahead for its node. */
+/** Whether the graph now shows each studio field set ahead for its node, whatever else another edit set beside them. */
 export function doesTheGraphShowTheStudioSentAhead(graph: StreamGraphSummary, nodeId: string, studioSentAhead: StreamGraphNodeStudioFields): boolean {
   const node = graph.nodes.find((graphNode) => graphNode.id === nodeId);
-  return node === undefined || JSON.stringify(studioObjectOf(node.studio)) === JSON.stringify(studioObjectOf(studioSentAhead));
+  if (node === undefined) return true;
+  const shown = studioObjectOf(node.studio);
+  return Object.entries(studioObjectOf(studioSentAhead)).every(([field, value]) => JSON.stringify(shown[field]) === JSON.stringify(value));
 }
 
-/** The UUID of the node named `nodeName`; the canvas names only nodes the graph holds. */
-function nodeIdOf(edited: EditedStreamGraph, nodeName: string): string {
-  return edited.nodeIdByName.get(nodeName) ?? nodeName;
+/** The UUID of the node named `nodeName`; `null` once the graph no longer holds it. */
+function nodeIdOf(edited: EditedStreamGraph, nodeName: string): string | null {
+  return edited.nodeIdByName.get(nodeName) ?? null;
 }
 
 /** Each moved card's new place: its node's studio fields as they are, with the new position. */
@@ -103,14 +105,10 @@ export function cardsMovedEdits(edited: EditedStreamGraph, moves: readonly { nod
 
 /** A link from `source`'s output pin to `target`'s input pin. */
 export function pinsWiredEdits(edited: EditedStreamGraph, source: { node_id: string; pin: string }, target: { node_id: string; pin: string }): StreamGraphAction[] {
-  return [
-    {
-      operation: "connect",
-      stream: edited.streamAsset,
-      source: { node: nodeIdOf(edited, source.node_id), port: source.pin },
-      target: { node: nodeIdOf(edited, target.node_id), port: target.pin },
-    },
-  ];
+  const sourceNode = nodeIdOf(edited, source.node_id);
+  const targetNode = nodeIdOf(edited, target.node_id);
+  if (sourceNode === null || targetNode === null) return [];
+  return [{ operation: "connect", stream: edited.streamAsset, source: { node: sourceNode, port: source.pin }, target: { node: targetNode, port: target.pin } }];
 }
 
 /** The first port of `ports` that can take or give `family`; any port when the family is unknown. */
@@ -135,8 +133,9 @@ export function nodePlacedEdits(edited: EditedStreamGraph, nodeType: NodeCatalog
     studio: { position: toTheCanvasPixel(position) },
     as: NODE_PLACED_IN_THIS_TRANSACTION,
   };
-  if (looseWire === null) return [placed];
-  const wiredEnd = { node: nodeIdOf(edited, looseWire.node_id), port: looseWire.pin };
+  const wiredNode = looseWire === null ? null : nodeIdOf(edited, looseWire.node_id);
+  if (looseWire === null || wiredNode === null) return [placed];
+  const wiredEnd = { node: wiredNode, port: looseWire.pin };
   if (looseWire.side === "output") {
     const input = firstPortOfTheFamily(nodeType.inputs, looseWire.family);
     return input === null ? [placed] : [placed, { operation: "connect", stream: edited.streamAsset, source: wiredEnd, target: { node: NODE_PLACED_IN_THIS_TRANSACTION, port: input } }];
@@ -155,12 +154,12 @@ export function deletedEdits(edited: EditedStreamGraph, deleted: { node_ids: rea
   const removedNodeNames = new Set(deleted.node_ids);
   const disconnected: StreamGraphAction[] = edited.graph.links
     .filter((link) => deleted.link_ids.includes(linkIdAsTheCanvasKeysIt(link)) && !removedNodeNames.has(link.source_node) && !removedNodeNames.has(link.target_node))
-    .map((link) => ({
-      operation: "disconnect",
-      stream: edited.streamAsset,
-      source: { node: nodeIdOf(edited, link.source_node), port: link.source_port },
-      target: { node: nodeIdOf(edited, link.target_node), port: link.target_port },
-    }));
+    .flatMap((link) => {
+      const sourceNode = nodeIdOf(edited, link.source_node);
+      const targetNode = nodeIdOf(edited, link.target_node);
+      if (sourceNode === null || targetNode === null) return [];
+      return [{ operation: "disconnect", stream: edited.streamAsset, source: { node: sourceNode, port: link.source_port }, target: { node: targetNode, port: link.target_port } }];
+    });
   const removedNodes: StreamGraphAction[] = edited.graph.nodes.filter((node) => removedNodeNames.has(node.name)).map((node) => ({ operation: "remove_node", stream: edited.streamAsset, node: node.id }));
   const removedNotes: StreamGraphAction[] = deleted.note_ids.map((note) => ({ operation: "remove_note", stream: edited.streamAsset, note }));
   return [...disconnected, ...removedNodes, ...removedNotes];
@@ -179,9 +178,11 @@ export function cardLetGoOverALinkEdits(edited: EditedStreamGraph, nodeName: str
   const family = edited.graph.nodes.find((graphNode) => graphNode.name === link.source_node)?.output_ports.find((port) => port.name === link.source_port)?.family ?? null;
   const input = firstPortOfTheFamily(node.input_ports.map((port) => ({ name: port.name, description: "", family: port.family })), family);
   const output = firstPortOfTheFamily(node.output_ports.map((port) => ({ name: port.name, description: "", family: port.family })), family);
-  if (input === null || output === null) return [];
-  const linkSource = { node: nodeIdOf(edited, link.source_node), port: link.source_port };
-  const linkTarget = { node: nodeIdOf(edited, link.target_node), port: link.target_port };
+  const linkSourceNode = nodeIdOf(edited, link.source_node);
+  const linkTargetNode = nodeIdOf(edited, link.target_node);
+  if (input === null || output === null || linkSourceNode === null || linkTargetNode === null) return [];
+  const linkSource = { node: linkSourceNode, port: link.source_port };
+  const linkTarget = { node: linkTargetNode, port: link.target_port };
   return [
     { operation: "disconnect", stream: edited.streamAsset, source: linkSource, target: linkTarget },
     { operation: "connect", stream: edited.streamAsset, source: linkSource, target: { node: node.id, port: input } },
