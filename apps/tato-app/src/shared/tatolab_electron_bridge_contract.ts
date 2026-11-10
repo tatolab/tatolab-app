@@ -48,11 +48,8 @@ import type {
 /** The scheme the Electron app serves its window's page under: a page on it with no bridge is the app's window whose preload did not load. */
 export const TATOLAB_WINDOW_PAGE_SCHEME = "tatolab-app";
 
-/** The host of the window page's origin, which core views' pages are served on too. */
+/** The host of the window page's origin, which core views' pages and project views' files are served on too. */
 export const TATOLAB_WINDOW_PAGE_HOST = "app";
-
-/** The scheme a project's views are served under, each view folder on an origin of its own, so no view reaches the window page or another view. */
-export const TATOLAB_PROJECT_VIEW_SCHEME = "tatolab-view";
 
 /** Every command the window invokes, each an IPC channel the main process handles. */
 export const TATOLAB_COMMAND_NAMES = [
@@ -323,7 +320,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   save_project_file: { commandArguments: { file: string; text: string; based_on_version: string | null }; answer: ProjectFileSaved };
   /** `project_folder` the folder of the open project or of one of its imports. */
   list_project_files: { commandArguments: { project_folder: string }; answer: ProjectFiles };
-  /** From a studio window only: the runtime's `list_project_views` of its open project, each view's folder served on an origin of its own; refused while no project is open, and in the runtime's own words. */
+  /** From a studio window only: the runtime's `list_project_views` of its open project, each view's folder served under the window page's scheme; refused while no project is open, and in the runtime's own words. */
   list_studio_views_of_the_open_project: { commandArguments: undefined; answer: ListedStudioView[] };
   /** From a studio window or a popped-out view only: `value` published on the output `port` of the view node `node` (its UUID) in `stream`, as the port's family takes it: a Records port a JSON object, an Array port a number, nested lists of numbers or an object of such attributes by name, a Channels port a number or `{ samples, sample_rate }`, an Image or Packets port refused; live data, recorded nowhere; refused in the runtime's own words. */
   write_studio_view_output: { commandArguments: { stream: string; node: string; port: string; value: JsonValue }; answer: null };

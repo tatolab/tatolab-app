@@ -4,8 +4,8 @@
 
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { TATOLAB_PROJECT_VIEW_SCHEME, TATOLAB_WINDOW_PAGE_HOST, TATOLAB_WINDOW_PAGE_SCHEME } from "../shared/tatolab_electron_bridge_contract.js";
-import { isAProjectViewFileUrl } from "./project_view_files.js";
+import { TATOLAB_WINDOW_PAGE_HOST, TATOLAB_WINDOW_PAGE_SCHEME } from "../shared/tatolab_electron_bridge_contract.js";
+import { isAProjectViewFileUrl, PROJECT_VIEW_FILES_PATH } from "./project_view_files.js";
 
 
 /** The shipped window's page. */
@@ -44,24 +44,13 @@ export function isOnTheWindowPagesOwnLocation(windowPageUrl: string, navigationU
 }
 
 /**
- * Whether a frame of the window may load `frameUrl`: a core view's page, on the window page's own location, where it can
- * reach the window page's bridge through `window.parent`, or a project view's file, on an origin of its own, where it
- * cannot; nothing else is framed.
+ * Whether a frame of the window may load `frameUrl`: a core view's page, on the window page's own location, or a project
+ * view's file, which the window serves on its own origin too. A frame on that origin can reach the window page's bridge
+ * through `window.parent`; nothing else is framed.
  */
 export function isAViewPageTheWindowFrames(windowPageUrl: string, frameUrl: string): boolean {
   if (isAProjectViewFileUrl(frameUrl)) return true;
   return isOnTheWindowPagesOwnLocation(windowPageUrl, frameUrl) && new URL(frameUrl).pathname.startsWith(CORE_VIEW_PAGES_PATH);
-}
-
-/**
- * Whether a frame of the window showing `frameUrlNow` may go to `frameUrl`: to a page the window frames, and a project
- * view's frame only within the origin it was framed on, unless the window page itself sends it elsewhere. A view that
- * moved its own frame to another view's origin would be handed the port its frame was given.
- */
-export function isAFrameNavigationTheWindowAllows(windowPageUrl: string, frameUrlNow: string, frameUrl: string, isSentByTheWindowPage: boolean): boolean {
-  if (!isAViewPageTheWindowFrames(windowPageUrl, frameUrl)) return false;
-  if (isSentByTheWindowPage || !isAProjectViewFileUrl(frameUrlNow)) return true;
-  return isAProjectViewFileUrl(frameUrl) && new URL(frameUrlNow).host === new URL(frameUrl).host;
 }
 
 /** Whether a command came from the window's own page at `windowPageUrl`: its top frame, on the page's own location, rather than a frame it embeds, a frame already gone, or a page it navigated to. */
@@ -88,7 +77,7 @@ export function windowPageContentSecurityPolicy(windowPageHtml: string): string 
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "img-src 'self' data:",
-    `frame-src ${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}${CORE_VIEW_PAGES_PATH} ${TATOLAB_PROJECT_VIEW_SCHEME}:`,
+    `frame-src ${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}${CORE_VIEW_PAGES_PATH} ${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}${PROJECT_VIEW_FILES_PATH}`,
     "object-src 'none'",
     "base-uri 'self'",
   ].join("; ");

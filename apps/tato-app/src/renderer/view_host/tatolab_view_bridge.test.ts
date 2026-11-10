@@ -195,7 +195,7 @@ async function connectedView(manifest: TatolabViewManifest, inputWiring: Record<
   const host = recordingHostServices();
   const area = recordingAreaServices(savedSettings);
   const channel = new MessageChannel();
-  const bridge = new TatolabViewBridge(channel.port1, "acme-dj:deck", manifest, host.hostServices, area.areaServices, manifest.sandbox ? "image_bitmap" : "video_frame", inputWiring, viewNode);
+  const bridge = new TatolabViewBridge(channel.port1, "acme-dj:deck", manifest, host.hostServices, area.areaServices, inputWiring, viewNode);
   bridgesOpen.push(bridge);
   const connecting = connectToTatoAppOverPort(channel.port2);
   bridge.start();
@@ -270,7 +270,6 @@ describe("a view's connection to Studio, through the one bridge every view is se
       contract: "1.0",
       placement: "node",
       sandboxed: true,
-      pictures_cross_as: "image_bitmap",
       inputs: [{ name: "deck_a", family: "channels" }],
       outputs: [
         { name: "crossfader", family: "array" },
@@ -414,7 +413,6 @@ describe("a view's connection to Studio, through the one bridge every view is se
       { ...DJ_DECK_MANIFEST, inputs: [{ name: "deck_a", family: "image" }] },
       host.hostServices,
       recordingAreaServices(undefined).areaServices,
-      "image_bitmap",
       { deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "camera › video" } },
       null,
       async () => imageBitmapNamed(bitmapsMade++ === 0 ? "first" : "second"),
@@ -438,7 +436,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(bitmapsClosed).toEqual(["second"]);
   });
 
-  it("hands a view framed on the window's origin an Image frame as the VideoFrame itself, transferred with no copy", async () => {
+  it("hands a full-access view an Image frame as the VideoFrame itself, transferred with no copy", async () => {
     const host = recordingHostServices();
     const postedToTheView: { message: unknown; transfer: Transferable[] }[] = [];
     const listenersOfThePort: ((event: MessageEvent<unknown>) => void)[] = [];
@@ -462,7 +460,6 @@ describe("a view's connection to Studio, through the one bridge every view is se
       { ...FULL_ACCESS_DJ_DECK_MANIFEST, inputs: [{ name: "deck_a", family: "image" }] },
       host.hostServices,
       recordingAreaServices(undefined).areaServices,
-      "video_frame",
       { deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "camera › video" } },
       null,
       async () => {
@@ -561,7 +558,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
   it("ignores a message that is not the contract's, and answers the next one", async () => {
     const host = recordingHostServices();
     const channel = new MessageChannel();
-    const bridge = new TatolabViewBridge(channel.port1, "acme-dj:deck", FULL_ACCESS_DJ_DECK_MANIFEST, host.hostServices, recordingAreaServices(undefined).areaServices, "video_frame");
+    const bridge = new TatolabViewBridge(channel.port1, "acme-dj:deck", FULL_ACCESS_DJ_DECK_MANIFEST, host.hostServices, recordingAreaServices(undefined).areaServices);
     bridgesOpen.push(bridge);
     const connecting = connectToTatoAppOverPort(channel.port2);
     bridge.start();
@@ -575,7 +572,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
   });
 });
 
-describe("a project view's asks of a project", () => {
+describe("a sandboxed project view's asks of a project", () => {
   it("reach only the folder of the project bringing the view, an import's view never its importer's files, history, graph or language server", async () => {
     const { hostServices, undosAsked, languageServers } = recordingHostServices();
     const ownViewsServices = hostServicesHeldToTheViewsProject(hostServices, "DJ Deck", "/set");

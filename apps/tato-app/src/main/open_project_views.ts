@@ -1,5 +1,5 @@
 // The views the open project and its imports bring, as the window's view-type menu lists them: the
-// runtime's `list_project_views`, each view's folder served on an origin of its own from the bytes
+// runtime's `list_project_views`, each view's folder served under the window page's scheme from the bytes
 // `read_project_file` answers.
 
 import path from "node:path";

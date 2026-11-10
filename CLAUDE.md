@@ -108,6 +108,11 @@ attention spent on settled things is unavailable for real forks.
 
 ## Non-negotiables
 
+- **Project views run with full access on Studio's origin and get `VideoFrame`s with no copy** —
+  Studio drives live projection, so frame performance is load-bearing. Settled by the owner; never
+  isolate them, never convert their frames, never ask again:
+  @docs/project-views-run-with-full-access.md
+
 - **Platform code lives in `apps/tato-app/src/main/platform/`** (enforced); both platforms are checked
   on every change: `npm test` runs both platform modules on any OS, and Linux is proven on an
   x86_64 Linux machine or, from a Mac, in an `ubuntu:22.04` container — a Mac cannot exercise the

@@ -3,7 +3,7 @@ import { connectToTatoAppOverPort, newGestureIdempotencyKey, type TatoAppViewCon
 import { messageFromTheViewSchema, type MessageFromStudio, type MessageFromTheView, type ViewGrant } from "./view_wire_messages.js";
 import type { ProjectTransaction } from "./studio_readings.js";
 
-const GRANT: ViewGrant = { view_type_id: "notes", contract: "1.0", placement: "area", sandboxed: false, pictures_cross_as: "video_frame", inputs: [], outputs: [], capabilities: [] };
+const GRANT: ViewGrant = { view_type_id: "notes", contract: "1.0", placement: "area", sandboxed: false, inputs: [], outputs: [], capabilities: [] };
 
 const channelsOpened: MessageChannel[] = [];
 afterEach(() => {

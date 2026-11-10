@@ -332,14 +332,13 @@ export function mountTatolabWindow(
     if (runStudioShortcut(key)) keyboardEvent.preventDefault();
   };
   document.addEventListener("keydown", runTheStudioShortcutOfTheKey);
-  // A key pressed while a view's frame holds the focus reaches only the frame's own document; a core
-  // view's frame is on the window's origin, so Studio listens there too, as each page loads. A
-  // project's view is on an origin of its own, whose document Studio cannot reach.
+  // A key pressed while a view's frame holds the focus reaches only the frame's own document; a
+  // full-access frame is on the window's origin, so Studio listens there too, as each page loads.
   document.addEventListener(
     "load",
     (loadEvent) => {
       const viewFrame = loadEvent.target;
-      if (!(viewFrame instanceof HTMLIFrameElement) || viewFrame.dataset.tatolabViewOnTheWindowsOrigin === undefined) return;
+      if (!(viewFrame instanceof HTMLIFrameElement) || viewFrame.dataset.tatolabViewAccess !== "full") return;
       viewFrame.contentWindow?.addEventListener("keydown", runTheStudioShortcutOfTheKey);
     },
     true,

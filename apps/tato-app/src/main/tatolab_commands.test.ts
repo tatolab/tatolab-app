@@ -973,7 +973,7 @@ test("a graph transaction in the open project reaches the runtime's transact hel
 });
 
 /** The window's `ListedStudioView` reads exactly this JSON. */
-test("the open project's views are the runtime's list_project_views of its folder, each folder served on an origin of its own, and refused in the Projects window", async () => {
+test("the open project's views are the runtime's list_project_views of its folder, each folder served under the window page's scheme, and refused in the Projects window", async () => {
   const nightShow = "/private/tmp/tl-rec053/projects/night-show";
   const sharedState = await sharedStateOverFakes(
     [httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-project-views-tool-result-of-night-show-importing-lobby-wall.json"))],
@@ -1016,8 +1016,8 @@ test("the open project's views are the runtime's list_project_views of its folde
       has_its_manifest: true,
     },
   ]);
-  expect(sharedState.projectViewsListed.connectSourcesOf(recordedNightShowFolder, "views/deck")).not.toBeNull();
-  expect(sharedState.projectViewsListed.connectSourcesOf(recordedNightShowFolder, "views/broken")).toBeNull();
+  expect(sharedState.projectViewsListed.listedViewIn(recordedNightShowFolder, "views/deck")).not.toBeNull();
+  expect(sharedState.projectViewsListed.listedViewIn(recordedNightShowFolder, "views/broken")).toBeNull();
   expect(await commandHandlers.list_studio_views_of_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 

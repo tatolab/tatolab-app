@@ -1,9 +1,8 @@
 // The view contract as it crosses the MessagePort between a view's frame and Studio. Every message
-// is structured-cloned and parsed against these schemas by whichever end receives it. A core view's
-// frame shares Studio's origin, so an Image frame crosses as the transferred `VideoFrame`; a
-// project's view runs on an origin of its own, or an opaque one when sandboxed, which is another
-// agent cluster, into which Chromium refuses a `VideoFrame` with a `messageerror`, so there it
-// crosses as a transferred `ImageBitmap`.
+// is structured-cloned and parsed against these schemas by whichever end receives it. A full-access
+// view's frame shares Studio's origin, so an Image frame crosses as the transferred `VideoFrame`; a
+// sandboxed view's opaque origin is another agent cluster, into which Chromium refuses a
+// `VideoFrame` with a `messageerror`, so there it crosses as a transferred `ImageBitmap`.
 
 import { z } from "zod";
 import {
@@ -131,13 +130,13 @@ export type ViewAsk = z.infer<typeof viewAskSchema>;
 export const messageFromTheViewSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("watch"), watch_id: watchOrAskIdSchema, subject: viewWatchedSubjectSchema }),
   z.object({ kind: z.literal("stop_watching"), watch_id: watchOrAskIdSchema }),
-  /** `payload`, beside a `send_output` ask: for Image, a `VideoFrame` or an `ImageBitmap` as the grant's `pictures_cross_as` says, which Studio then owns; otherwise JSON. */
+  /** `payload`, beside a `send_output` ask: a `VideoFrame` from a full-access view or an `ImageBitmap` for Image, which Studio then owns, or JSON. */
   z.object({ kind: z.literal("ask"), ask_id: watchOrAskIdSchema, ask: viewAskSchema, payload: z.unknown().optional() }),
 ]);
 /** One message a view sends Studio. */
 export type MessageFromTheView = z.infer<typeof messageFromTheViewSchema>;
 
-/** What an input or a port viewer delivers to a view whose grant says `pictures_cross_as: image_bitmap`: an Image frame as a transferred `ImageBitmap` with its frame's timestamp, which the SDK makes a `VideoFrame` again inside the view. */
+/** What an input or a port viewer delivers to a sandboxed view: an Image frame as a transferred `ImageBitmap` with its frame's timestamp, which the SDK makes a `VideoFrame` again inside the view. */
 export const imageBitmapEventSchema = z.object({
   kind: z.literal("image_bitmap"),
   image_bitmap: z.custom<ImageBitmap>((value) => typeof ImageBitmap !== "undefined" && value instanceof ImageBitmap, "an Image frame is an ImageBitmap"),
@@ -188,14 +187,12 @@ export const viewAskAnswerSchema = z.discriminatedUnion("kind", [
 /** What Studio answers an ask with. */
 export type ViewAskAnswer = z.infer<typeof viewAskAnswerSchema>;
 
-/** What Studio granted the view, as it reads it on connecting: its id, the contract served, its placement and declared ports, whether it runs sandboxed, how an Image frame crosses its frame, and its capabilities, every one for a full-access view. */
+/** What Studio granted the view, as it reads it on connecting: its id, the contract served, its placement and declared ports, whether it runs sandboxed, and its capabilities, every one for a full-access view. */
 export const viewGrantSchema = z.object({
   view_type_id: z.string(),
   contract: z.string(),
   placement: z.enum(["area", "node"]),
   sandboxed: z.boolean(),
-  /** `video_frame` where the view's frame shares Studio's agent cluster, `image_bitmap` where a `VideoFrame` cannot cross into it. */
-  pictures_cross_as: z.enum(["video_frame", "image_bitmap"]),
   inputs: z.array(viewDeclaredPortSchema),
   outputs: z.array(viewDeclaredPortSchema),
   capabilities: z.array(z.enum(VIEW_CAPABILITIES)),

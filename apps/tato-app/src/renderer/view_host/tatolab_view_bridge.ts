@@ -15,7 +15,6 @@ import {
   type ViewAsk,
   type ViewAskAnswer,
   type ViewCapability,
-  type ViewGrant,
   type ViewWatchedReading,
   type ViewWatchedSubject,
 } from "@tatolab/tato-app-view-sdk";
@@ -64,7 +63,7 @@ interface InputWatch {
   portViewerConnection: PortViewerConnection | null;
 }
 
-/** Serves one view of `viewTypeId`, declared by `manifest`, over `port`: reading through `hostServices`, its area through `areaServices`, a `node` view's inputs through `inputWiring` and its outputs onto `viewNode`; Image frames cross its frame as `picturesCrossTheFrameAs` says, an `ImageBitmap` made by `imageBitmapOfTheVideoFrame`. */
+/** Serves one view of `viewTypeId`, declared by `manifest`, over `port`: reading through `hostServices`, its area through `areaServices`, a `node` view's inputs through `inputWiring` and its outputs onto `viewNode`; a sandboxed view's Image frames go through `imageBitmapOfTheVideoFrame`. */
 export class TatolabViewBridge {
   private readonly grantedCapabilities: readonly ViewCapability[];
   private readonly stopWatchingByWatchId = new Map<number, StopWatching>();
@@ -90,7 +89,6 @@ export class TatolabViewBridge {
     private readonly manifest: TatolabViewManifest,
     private readonly hostServices: StudioViewHostServices,
     private readonly areaServices: TatolabViewAreaServices,
-    private readonly picturesCrossTheFrameAs: ViewGrant["pictures_cross_as"],
     private inputWiring: Record<string, StudioViewInputWiring> = {},
     private readonly viewNode: StudioViewNodeAddress | null = null,
     private readonly imageBitmapOfTheVideoFrame: ImageBitmapOfTheVideoFrame = IMAGE_BITMAP_OF_THE_VIDEO_FRAME,
@@ -109,7 +107,6 @@ export class TatolabViewBridge {
         contract: this.manifest.contract,
         placement: this.manifest.placement,
         sandboxed: this.manifest.sandbox,
-        pictures_cross_as: this.picturesCrossTheFrameAs,
         inputs: this.manifest.inputs,
         outputs: this.manifest.outputs,
         capabilities: [...this.grantedCapabilities],
@@ -236,7 +233,7 @@ export class TatolabViewBridge {
     }
   }
 
-  /** Reads `target`'s output port, each event going to `sendEvent`; Image frames cross as `ImageBitmap`s into a frame a `VideoFrame` cannot cross into. */
+  /** Reads `target`'s output port, each event going to `sendEvent`; a sandboxed view's Image frames cross as `ImageBitmap`s. */
   private readThePortViewer(
     target: PortViewerTarget,
     sendEvent: (event: Extract<ViewWatchedReading, { subject: "port_viewer" }>["reading"], transfer: Transferable[]) => void,
@@ -247,7 +244,7 @@ export class TatolabViewBridge {
         sendEvent(portViewerEvent, []);
         return;
       }
-      if (this.picturesCrossTheFrameAs === "video_frame") {
+      if (!this.manifest.sandbox) {
         if (this.isClosed || !isWatched) portViewerEvent.video_frame.close();
         else sendEvent(portViewerEvent, [portViewerEvent.video_frame]);
         return;

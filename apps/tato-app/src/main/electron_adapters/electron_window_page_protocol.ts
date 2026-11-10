@@ -4,8 +4,8 @@ import { pathToFileURL } from "node:url";
 import { net, protocol } from "electron";
 import { describeCaughtFailure } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
-import { TATOLAB_PROJECT_VIEW_SCHEME, TATOLAB_WINDOW_PAGE_SCHEME } from "../../shared/tatolab_electron_bridge_contract.js";
-import type { AnswerAProjectViewFileRequest } from "../project_view_files.js";
+import { TATOLAB_WINDOW_PAGE_SCHEME } from "../../shared/tatolab_electron_bridge_contract.js";
+import { isAProjectViewFileUrl, type AnswerAProjectViewFileRequest } from "../project_view_files.js";
 import { builtWindowFileForRequest, windowPageContentSecurityPolicy } from "../tatolab_window_page_source.js";
 
 let answerAProjectViewFileRequestOnceServed: AnswerAProjectViewFileRequest | null = null;
@@ -15,15 +15,14 @@ export function answerProjectViewFileRequestsWith(answerAProjectViewFileRequest:
   answerAProjectViewFileRequestOnceServed = answerAProjectViewFileRequest;
 }
 
-/** Makes the window page's scheme and project views' scheme secure, standard origins; Electron takes this only before the app is ready. */
+/** Makes the window page's scheme a secure, standard origin; Electron takes this only before the app is ready. */
 export function registerTheWindowPageSchemeBeforeReady(): void {
   protocol.registerSchemesAsPrivileged([
     { scheme: TATOLAB_WINDOW_PAGE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
-    { scheme: TATOLAB_PROJECT_VIEW_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
   ]);
 }
 
-/** The response to a request for a project view's file, each carrying the content security policy that keeps a view to its own origin. */
+/** The response to a request for a project view's file; a full-access view's pages carry no content security policy of their own, a sandboxed view's its sandbox's. */
 async function projectViewFileResponse(requestUrl: string, tatolabAppLog: TatolabAppLog): Promise<Response> {
   if (answerAProjectViewFileRequestOnceServed === null) return new Response(null, { status: 503 });
   const answer = await answerAProjectViewFileRequestOnceServed(requestUrl);
@@ -31,16 +30,15 @@ async function projectViewFileResponse(requestUrl: string, tatolabAppLog: Tatola
     tatolabAppLog.debug("a project view's file was not served", { request_url: requestUrl, because: answer.because });
     return new Response(answer.because, { status: answer.status, headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
-  return new Response(new Uint8Array(answer.file_bytes), {
-    status: 200,
-    headers: { "Content-Type": answer.content_type, "Cache-Control": "no-store", "Content-Security-Policy": answer.content_security_policy },
-  });
+  const projectViewFileHeaders: Record<string, string> = { "Content-Type": answer.content_type, "Cache-Control": "no-store" };
+  if (answer.content_security_policy !== null) projectViewFileHeaders["Content-Security-Policy"] = answer.content_security_policy;
+  return new Response(new Uint8Array(answer.file_bytes), { status: 200, headers: projectViewFileHeaders });
 }
 
 /**
- * Serves project views' scheme through the running app, and the window page's scheme from the built window in
+ * Serves the window page's scheme: project views' files through the running app, and the built window in
  * `builtWindowDirectory`, each of its responses carrying the page's content security policy; `null` while the window
- * comes from the dev server.
+ * comes from the dev server, which serves only project views' files here.
  */
 export async function serveTheWindowPageScheme(builtWindowDirectory: string | null, tatolabAppLog: TatolabAppLog): Promise<void> {
   let windowPageContentSecurityPolicyHeader = "default-src 'self'";
@@ -51,8 +49,8 @@ export async function serveTheWindowPageScheme(builtWindowDirectory: string | nu
       tatolabAppLog.error("the built window could not be read", { built_window_directory: builtWindowDirectory, failure: describeCaughtFailure(caughtFailure) });
     }
   }
-  protocol.handle(TATOLAB_PROJECT_VIEW_SCHEME, (projectViewFileRequest) => projectViewFileResponse(projectViewFileRequest.url, tatolabAppLog));
   protocol.handle(TATOLAB_WINDOW_PAGE_SCHEME, async (windowPageRequest) => {
+    if (isAProjectViewFileUrl(windowPageRequest.url)) return projectViewFileResponse(windowPageRequest.url, tatolabAppLog);
     const builtWindowFile = builtWindowDirectory === null ? null : builtWindowFileForRequest(builtWindowDirectory, windowPageRequest.url);
     if (builtWindowFile === null) return new Response(null, { status: 404 });
     let builtWindowFileResponse: Response;

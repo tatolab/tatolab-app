@@ -307,7 +307,7 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
         };
       },
       sendOutput: async (output, payload) => {
-        if (grant.pictures_cross_as === "video_frame" || !isAVideoFrame(payload)) return doneOf(await ask({ kind: "send_output", output }, payload));
+        if (!grant.sandboxed || !isAVideoFrame(payload)) return doneOf(await ask({ kind: "send_output", output }, payload));
         const imageBitmap = await createImageBitmap(payload);
         payload.close();
         return doneOf(await ask({ kind: "send_output", output }, imageBitmap));

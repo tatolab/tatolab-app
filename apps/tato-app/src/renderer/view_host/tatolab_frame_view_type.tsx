@@ -1,10 +1,10 @@
 // A view made with the view SDK, drawn in a frame of its own so its styles and the window's never
-// mix, its one channel to Studio the MessagePort its bridge answers. A project's full-access view is
-// framed on an origin of its own, never the window's; one that opts into the sandbox runs on an
-// opaque origin with only the permissions its manifest lists. Neither has Node or the preload.
+// mix, its one channel to Studio the MessagePort its bridge answers. A full-access view's frame is
+// on the window's origin; one that opts into the sandbox runs on an opaque origin with no Node, no
+// preload and only the permissions its manifest lists.
 
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { VIEW_PORT_HANDOVER, type TatolabViewManifest, type ViewGrant } from "@tatolab/tato-app-view-sdk";
+import { VIEW_PORT_HANDOVER, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
 import { StudioAreaHeaderRowOfAWaitingView, StudioAreaHeaderWords } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
@@ -21,11 +21,6 @@ import { WatchedStudioValue } from "./watched_studio_value";
 function framePermissionsOf(manifest: TatolabViewManifest): string {
   const isGranted = (capability: "camera" | "microphone") => !manifest.sandbox || manifest.capabilities.includes(capability);
   return [isGranted("camera") ? "camera" : null, isGranted("microphone") ? "microphone" : null].filter((permission) => permission !== null).join("; ");
-}
-
-/** How an Image frame crosses into a view's frame: as the `VideoFrame` itself into a frame on the window's own origin, a core view's, and as an `ImageBitmap` into a project view's own origin or a sandboxed view's opaque one, another agent cluster. */
-function picturesCrossTheFrameAs(entryUrl: URL, manifest: TatolabViewManifest): ViewGrant["pictures_cross_as"] {
-  return !manifest.sandbox && entryUrl.origin === window.location.origin ? "video_frame" : "image_bitmap";
 }
 
 interface TatolabViewOfAnArea {
@@ -75,17 +70,11 @@ function TatolabViewFrame({
       watchHeaderRow: area.header_row.watch,
     };
     const channel = new MessageChannel();
-    const hostServicesOfTheView = listed.project_folder === null ? hostServices : hostServicesHeldToTheViewsProject(hostServices, manifest.title, listed.project_folder);
-    const bridge = new TatolabViewBridge(
-      channel.port1,
-      listed.view_type_id,
-      manifest,
-      hostServicesOfTheView,
-      areaServices,
-      picturesCrossTheFrameAs(entryUrl, manifest),
-      inputWiringRef.current,
-      viewNode,
-    );
+    // A full-access view is on the window's origin and trusted like its project's nodes; a sandboxed one reaches Studio
+    // only through this port, so the port is where it is held to its own project.
+    const hostServicesOfTheView =
+      manifest.sandbox && listed.project_folder !== null ? hostServicesHeldToTheViewsProject(hostServices, manifest.title, listed.project_folder) : hostServices;
+    const bridge = new TatolabViewBridge(channel.port1, listed.view_type_id, manifest, hostServicesOfTheView, areaServices, inputWiringRef.current, viewNode);
     bridge.start();
     bridgeRef.current = bridge;
     // A sandboxed frame without allow-same-origin has an opaque origin, which no target origin but "*" names.
@@ -104,7 +93,6 @@ function TatolabViewFrame({
       onLoad={handTheFrameItsPort}
       data-tatolab-view={listed.view_type_id}
       data-tatolab-view-access={manifest.sandbox ? "sandboxed" : "full"}
-      data-tatolab-view-on-the-windows-origin={picturesCrossTheFrameAs(entryUrl, manifest) === "video_frame" ? "" : undefined}
     />
   );
 }

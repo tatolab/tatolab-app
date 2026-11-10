@@ -1,7 +1,6 @@
-// A project's view reaches Studio only through its bridge, so the bridge is where everything it asks
-// of a project is held to the project that brings it: the open project for its own view, the
+// A sandboxed project view reaches Studio only through its bridge, so the bridge is where everything it
+// asks of a project is held to the project that brings it: the open project for its own view, the
 // import's folder for an import's, never the folder of the project that imported it.
-
 import type { StudioViewHostServices } from "./studio_view_contract";
 
 /** Whether `file` names `folder` or a path under it, with no `.` or `..` step that could climb out. */
