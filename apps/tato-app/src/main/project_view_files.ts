@@ -1,20 +1,17 @@
 // A project's views are served to their frames from the bytes the runtime's `read_project_file`
 // answers, under the window page's own scheme: `tatolab-app://app/project_views/<open project>/
 // <view folder>/<file>`, the open project's folder written as base64url so the URL names which
-// project's history the bytes come from. Only a view a studio window listed as one that opens is
-// served. A full-access view runs on the window's origin with no policy of its own; a sandboxed
-// view's pages carry one that holds them to their own folder and the hosts their manifest lists.
-// The app reads no project file from disk.
+// project's history the bytes come from, and only for a view a studio window listed as one that
+// opens. The app reads no project file from disk.
 
 import path from "node:path";
-import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk/tatolab_view_manifest";
 import { TATOLAB_WINDOW_PAGE_HOST, TATOLAB_WINDOW_PAGE_SCHEME } from "../shared/tatolab_electron_bridge_contract.js";
 import type { Result } from "./result.js";
 
 /** Where the window serves project views' files. */
 export const PROJECT_VIEW_FILES_PATH = "/project_views/";
 
-/** A view's folder inside a project, at the start of a path: its own `views/<folder>`, or an import's `imports/<import>/views/<folder>`. */
+/** A view's folder inside a project: its own `views/<folder>`, or an import's `imports/<import>/views/<folder>`. */
 const VIEW_FOLDER_IN_A_PROJECT = /^(?:views\/[^/]+|imports\/[^/]+\/views\/[^/]+)(?=\/)/;
 
 /** The content type each file a view's built folder may hold is served with, by its extension; any other is served as bytes. */
@@ -48,35 +45,6 @@ const CONTENT_TYPE_BY_EXTENSION: ReadonlyMap<string, string> = new Map([
 export function projectViewFolderUrl(openProjectFolder: string, viewFolderInTheProject: string): string {
   const encodedPath = viewFolderInTheProject.split("/").map(encodeURIComponent).join("/");
   return `${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}${PROJECT_VIEW_FILES_PATH}${Buffer.from(openProjectFolder, "utf8").toString("base64url")}/${encodedPath}/`;
-}
-
-/**
- * The content security policy a sandboxed view's pages are served with: they load only from `viewFolderUrl`, their own
- * folder, frame nothing, and connect only to the `network` hosts `networkHosts` its manifest lists.
- */
-export function sandboxedProjectViewContentSecurityPolicy(viewFolderUrl: string, networkHosts: readonly string[]): string {
-  return [
-    `default-src ${viewFolderUrl}`,
-    `script-src ${viewFolderUrl} 'wasm-unsafe-eval'`,
-    `style-src ${viewFolderUrl} 'unsafe-inline'`,
-    `img-src ${viewFolderUrl} data: blob:`,
-    `media-src ${viewFolderUrl} blob: mediastream:`,
-    `font-src ${viewFolderUrl} data:`,
-    [`connect-src ${viewFolderUrl}`, ...networkHosts.flatMap((networkHost) => [`https://${networkHost}`, `wss://${networkHost}`])].join(" "),
-    `worker-src ${viewFolderUrl} blob:`,
-    "frame-src 'none'",
-    "object-src 'none'",
-    "base-uri 'none'",
-    "form-action 'none'",
-  ].join("; ");
-}
-
-/** The policy the pages of the view in `viewFolderUrl`, whose `tatolab_view.json` reads `manifestJson`, are served with: none for a full-access view, which runs on the window's origin, its sandbox's for a sandboxed one or one whose manifest does not read. */
-export function contentSecurityPolicyOfTheViewsManifest(viewFolderUrl: string, manifestJson: unknown): string | null {
-  const manifestReading = readTatolabViewManifest(manifestJson);
-  if (manifestReading.kind === "not_read") return sandboxedProjectViewContentSecurityPolicy(viewFolderUrl, []);
-  if (!manifestReading.manifest.sandbox) return null;
-  return sandboxedProjectViewContentSecurityPolicy(viewFolderUrl, manifestReading.manifest.network);
 }
 
 /** Whether `url` is served from a project's view folder. */
@@ -118,37 +86,24 @@ export function contentTypeOfAProjectViewFile(pathInTheProject: string): string 
   return CONTENT_TYPE_BY_EXTENSION.get(path.posix.extname(pathInTheProject).toLowerCase()) ?? "application/octet-stream";
 }
 
-/** How a request for a project view's file is answered: its bytes, under a sandboxed view's content security policy or none, or a status with why. */
-export type ProjectViewFileAnswer =
-  | { kind: "served"; content_type: string; content_security_policy: string | null; file_bytes: Buffer }
-  | { kind: "not_served"; status: 403 | 404; because: string };
+/** How a request for a project view's file is answered: its bytes, or a status with why. */
+export type ProjectViewFileAnswer = { kind: "served"; content_type: string; file_bytes: Buffer } | { kind: "not_served"; status: 403 | 404; because: string };
 
 /** How the running app answers a request for a project view's file. */
 export type AnswerAProjectViewFileRequest = (requestUrl: string) => Promise<ProjectViewFileAnswer>;
 
-/** A view a studio window listed as one that opens, with the policy its pages are served under as its manifest read then; `null` for none. */
-interface ProjectViewServedToTheWindow {
-  content_security_policy: string | null;
-}
-
-/** The views each studio window's view-type menu last listed as ones that open, by project and view folder: the only folders served, under the policy that one reading of the manifest calls for. */
+/** The views each studio window's view-type menu last listed as ones that open, by project: the only view folders served. */
 export class ProjectViewsListedToTheWindows {
-  private readonly viewsServedByOpenProjectFolder = new Map<string, ReadonlyMap<string, ProjectViewServedToTheWindow>>();
+  private readonly viewFoldersByOpenProjectFolder = new Map<string, ReadonlySet<string>>();
 
   /** Keep the views that open in `listedViews`, the listing of the project in `openProjectFolder`, in place of its last listing. */
-  rememberTheListing(openProjectFolder: string, listedViews: readonly { view_folder_in_the_project: string; opens: boolean; manifest: unknown }[]): void {
-    const viewsServedByViewFolder = new Map<string, ProjectViewServedToTheWindow>();
-    for (const listedView of listedViews) {
-      if (!listedView.opens) continue;
-      const viewFolderUrl = projectViewFolderUrl(openProjectFolder, listedView.view_folder_in_the_project);
-      viewsServedByViewFolder.set(listedView.view_folder_in_the_project, { content_security_policy: contentSecurityPolicyOfTheViewsManifest(viewFolderUrl, listedView.manifest) });
-    }
-    this.viewsServedByOpenProjectFolder.set(openProjectFolder, viewsServedByViewFolder);
+  rememberTheListing(openProjectFolder: string, listedViews: readonly { view_folder_in_the_project: string; opens: boolean }[]): void {
+    this.viewFoldersByOpenProjectFolder.set(openProjectFolder, new Set(listedViews.filter((listedView) => listedView.opens).map((listedView) => listedView.view_folder_in_the_project)));
   }
 
-  /** The view in `viewFolderInTheProject` of the project in `openProjectFolder`, as last listed; `null` when no listing holds it as one that opens. */
-  listedViewIn(openProjectFolder: string, viewFolderInTheProject: string): ProjectViewServedToTheWindow | null {
-    return this.viewsServedByOpenProjectFolder.get(openProjectFolder)?.get(viewFolderInTheProject) ?? null;
+  /** Whether the last listing of the project in `openProjectFolder` holds `viewFolderInTheProject` as a view that opens. */
+  isListedAsOpening(openProjectFolder: string, viewFolderInTheProject: string): boolean {
+    return this.viewFoldersByOpenProjectFolder.get(openProjectFolder)?.has(viewFolderInTheProject) ?? false;
   }
 }
 
@@ -159,23 +114,17 @@ export interface ProjectViewFilesSources {
   readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, string>>;
 }
 
-/** The answer to `requestUrl`: a file of a view a studio window listed, read through the runtime, under the policy its listed manifest calls for; only for a project a studio window holds open. */
+/** The answer to `requestUrl`: a file of a view a studio window listed as one that opens, read through the runtime, only for a project a studio window holds open. */
 export async function answerAProjectViewFileRequest(requestUrl: string, sources: ProjectViewFilesSources): Promise<ProjectViewFileAnswer> {
   const fileAsked = projectViewFileOfTheRequest(requestUrl);
   if (fileAsked === null) return { kind: "not_served", status: 404, because: `${requestUrl} names no file of a project's view.` };
   if (!sources.aStudioWindowHoldsTheProjectIn(fileAsked.open_project_folder)) {
     return { kind: "not_served", status: 403, because: `${fileAsked.open_project_folder} is not a project open in a studio window.` };
   }
-  const listedView = sources.projectViewsListed.listedViewIn(fileAsked.open_project_folder, fileAsked.view_folder_in_the_project);
-  if (listedView === null) {
+  if (!sources.projectViewsListed.isListedAsOpening(fileAsked.open_project_folder, fileAsked.view_folder_in_the_project)) {
     return { kind: "not_served", status: 403, because: `${fileAsked.view_folder_in_the_project} is not a view the studio window of ${fileAsked.open_project_folder} listed.` };
   }
   const fileBytes = await sources.readProjectFile(fileAsked.open_project_folder, fileAsked.path_in_the_project);
   if (!fileBytes.ok) return { kind: "not_served", status: 404, because: fileBytes.failure };
-  return {
-    kind: "served",
-    content_type: contentTypeOfAProjectViewFile(fileAsked.path_in_the_project),
-    content_security_policy: listedView.content_security_policy,
-    file_bytes: fileBytes.value,
-  };
+  return { kind: "served", content_type: contentTypeOfAProjectViewFile(fileAsked.path_in_the_project), file_bytes: fileBytes.value };
 }

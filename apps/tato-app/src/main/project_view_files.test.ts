@@ -1,12 +1,10 @@
 import { expect, test } from "vitest";
 import {
   answerAProjectViewFileRequest,
-  contentSecurityPolicyOfTheViewsManifest,
   contentTypeOfAProjectViewFile,
   projectViewFileOfTheRequest,
   projectViewFolderUrl,
   ProjectViewsListedToTheWindows,
-  sandboxedProjectViewContentSecurityPolicy,
   type ProjectViewFilesSources,
 } from "./project_view_files.js";
 import { failedWith, succeeded } from "./result.js";
@@ -44,21 +42,6 @@ test("a request outside a view folder, climbing out of one, or naming a project 
   }
 });
 
-test("a full-access view's pages carry no policy of their own; a sandboxed one's load only from its folder, frame nothing and connect only to the hosts it lists", () => {
-  const deckFolderUrl = projectViewFolderUrl(NIGHT_SHOW, "views/deck");
-  expect(contentSecurityPolicyOfTheViewsManifest(deckFolderUrl, { contract: "1.0", title: "Deck", entry: "index.html", placement: "node" })).toBeNull();
-
-  const policyByDirective = (policy: string | null) => new Map((policy ?? "").split("; ").map((directive): [string, string[]] => [directive.split(" ")[0] ?? "", directive.split(" ").slice(1)]));
-  const sandboxedManifest = { contract: "1.0", title: "Weather", entry: "index.html", placement: "area", sandbox: true, network: ["api.weather.example", "localhost:8080"] };
-  const sandboxedPolicy = policyByDirective(contentSecurityPolicyOfTheViewsManifest(deckFolderUrl, sandboxedManifest));
-  expect(sandboxedPolicy.get("default-src")).toEqual([deckFolderUrl]);
-  expect(sandboxedPolicy.get("script-src")).toEqual([deckFolderUrl, "'wasm-unsafe-eval'"]);
-  expect(sandboxedPolicy.get("frame-src")).toEqual(["'none'"]);
-  expect(sandboxedPolicy.get("object-src")).toEqual(["'none'"]);
-  expect(sandboxedPolicy.get("connect-src")).toEqual([deckFolderUrl, "https://api.weather.example", "wss://api.weather.example", "https://localhost:8080", "wss://localhost:8080"]);
-  expect(contentSecurityPolicyOfTheViewsManifest(deckFolderUrl, { contract: "9.0" })).toBe(sandboxedProjectViewContentSecurityPolicy(deckFolderUrl, []));
-});
-
 test("each file a view's built folder holds is served with its content type, any other as bytes", () => {
   expect(["views/deck/index.html", "views/deck/assets/app.js", "views/deck/icon.png", "views/deck/model.onnx"].map(contentTypeOfAProjectViewFile)).toEqual([
     "text/html; charset=utf-8",
@@ -69,8 +52,6 @@ test("each file a view's built folder holds is served with its content type, any
 });
 
 const DECK_PAGE = Buffer.from('<!doctype html><script type="module" src="./deck.js"></script>');
-const FULL_ACCESS_DECK_MANIFEST = { contract: "1.0", title: "Deck", entry: "index.html", placement: "node" };
-const SANDBOXED_WEATHER_MANIFEST = { contract: "1.0", title: "Weather", entry: "index.html", placement: "area", sandbox: true, network: ["api.weather.example"] };
 
 function sourcesOverAnOpenNightShow(filesRead: string[]): ProjectViewFilesSources {
   const filesOfTheProject = new Map([
@@ -81,9 +62,9 @@ function sourcesOverAnOpenNightShow(filesRead: string[]): ProjectViewFilesSource
   ]);
   const projectViewsListed = new ProjectViewsListedToTheWindows();
   projectViewsListed.rememberTheListing(NIGHT_SHOW, [
-    { view_folder_in_the_project: "views/deck", opens: true, manifest: FULL_ACCESS_DECK_MANIFEST },
-    { view_folder_in_the_project: "views/weather", opens: true, manifest: SANDBOXED_WEATHER_MANIFEST },
-    { view_folder_in_the_project: "views/broken", opens: false, manifest: { contract: "9.0" } },
+    { view_folder_in_the_project: "views/deck", opens: true },
+    { view_folder_in_the_project: "views/weather", opens: true },
+    { view_folder_in_the_project: "views/broken", opens: false },
   ]);
   return {
     aStudioWindowHoldsTheProjectIn: (projectFolder) => projectFolder === NIGHT_SHOW,
@@ -96,17 +77,16 @@ function sourcesOverAnOpenNightShow(filesRead: string[]): ProjectViewFilesSource
   };
 }
 
-test("a listed view's file is served from the bytes the runtime reads, under the policy its listed manifest calls for, only for a project a studio window holds open", async () => {
+test("a listed view's file is served from the bytes the runtime reads, only for a project a studio window holds open", async () => {
   const filesRead: string[] = [];
   const sources = sourcesOverAnOpenNightShow(filesRead);
   const deckFolderUrl = projectViewFolderUrl(NIGHT_SHOW, "views/deck");
   const weatherFolderUrl = projectViewFolderUrl(NIGHT_SHOW, "views/weather");
 
-  expect(await answerAProjectViewFileRequest(new URL("icon.png", deckFolderUrl).href, sources)).toEqual({ kind: "served", content_type: "image/png", content_security_policy: null, file_bytes: PNG_SIGNATURE });
+  expect(await answerAProjectViewFileRequest(new URL("icon.png", deckFolderUrl).href, sources)).toEqual({ kind: "served", content_type: "image/png", file_bytes: PNG_SIGNATURE });
   expect(await answerAProjectViewFileRequest(new URL("index.html", weatherFolderUrl).href, sources)).toEqual({
     kind: "served",
     content_type: "text/html; charset=utf-8",
-    content_security_policy: sandboxedProjectViewContentSecurityPolicy(weatherFolderUrl, ["api.weather.example"]),
     file_bytes: DECK_PAGE,
   });
   expect(await answerAProjectViewFileRequest(new URL("missing.js", deckFolderUrl).href, sources)).toEqual({
@@ -122,7 +102,7 @@ test("a listed view's file is served from the bytes the runtime reads, under the
   expect(filesRead).toEqual([`${NIGHT_SHOW} views/deck/icon.png`, `${NIGHT_SHOW} views/weather/index.html`, `${NIGHT_SHOW} views/deck/missing.js`]);
 });
 
-test("a folder no listing holds as a view that opens is not served, whatever its manifest says now", async () => {
+test("a folder no listing holds as a view that opens is not served", async () => {
   const filesRead: string[] = [];
   const sources = sourcesOverAnOpenNightShow(filesRead);
   for (const viewFolder of ["views/unlisted", "views/broken"]) {

@@ -1513,8 +1513,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     listStudioViewsOfTheOpenProject: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (openProjectReading.kind !== "read") throw "No project is open in this window.";
-      const patternProjectFolder = openProjectReading.open_project.project.folder;
-      return mockTatolabOptions.isTheFixtureViewListed ? [mockStudioViewListing(patternProjectFolder), mockStudioViewListingThatDoesNotOpen(patternProjectFolder)] : [];
+      return mockTatolabOptions.isTheFixtureViewListed ? [mockStudioViewListing(), mockStudioViewListingThatDoesNotOpen()] : [];
     },
     writeStudioViewOutput: async (stream, node, port) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

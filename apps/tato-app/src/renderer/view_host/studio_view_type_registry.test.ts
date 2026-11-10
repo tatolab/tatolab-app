@@ -10,7 +10,7 @@ function viewTypeFromItsManifest(viewTypeId: string, broughtBy: StudioViewTypeSo
   const manifestJson: JsonValue = { contract: "1.0", title: viewTypeId, entry: "index.html", placement: "area" };
   const manifestReading = readTatolabViewManifest(manifestJson);
   if (manifestReading.kind === "not_read") throw new Error(manifestReading.because);
-  return tatolabFrameViewType({ view_type_id: viewTypeId, project_name: "tests", import_folder: null, project_folder: null, opens: true, not_opened_because: null, manifest_json: manifestJson, folder_url: `https://views.example/${viewTypeId}/` }, manifestReading.manifest, broughtBy);
+  return tatolabFrameViewType({ view_type_id: viewTypeId, project_name: "tests", import_folder: null, opens: true, not_opened_because: null, manifest_json: manifestJson, folder_url: `https://views.example/${viewTypeId}/` }, manifestReading.manifest, broughtBy);
 }
 
 describe("the view-type registry", () => {
@@ -51,7 +51,6 @@ describe("the view-type registry", () => {
     const listedView = (viewTypeId: string, projectName: string, importFolder: string | null, manifestJson: JsonValue): ListedStudioView => ({
       view_type_id: viewTypeId,
       project_name: projectName,
-      project_folder: importFolder === null ? "/friday-set" : `/friday-set/imports/${importFolder}`,
       import_folder: importFolder,
       opens: true,
       not_opened_because: null,

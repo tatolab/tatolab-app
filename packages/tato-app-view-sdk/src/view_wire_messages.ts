@@ -1,8 +1,6 @@
 // The view contract as it crosses the MessagePort between a view's frame and Studio. Every message
-// is structured-cloned and parsed against these schemas by whichever end receives it. A full-access
-// view's frame shares Studio's origin, so an Image frame crosses as the transferred `VideoFrame`; a
-// sandboxed view's opaque origin is another agent cluster, into which Chromium refuses a
-// `VideoFrame` with a `messageerror`, so there it crosses as a transferred `ImageBitmap`.
+// is structured-cloned and parsed against these schemas by whichever end receives it. Every view's
+// frame shares Studio's origin, so an Image frame crosses as the transferred `VideoFrame`, with no copy.
 
 import { z } from "zod";
 import {
@@ -31,7 +29,7 @@ import {
   viewHeaderRowSchema,
   viewOpenedOnSchema,
 } from "./studio_readings.js";
-import { VIEW_CAPABILITIES, viewDeclaredPortSchema, type ViewCapability } from "./tatolab_view_manifest.js";
+import { viewDeclaredPortSchema } from "./tatolab_view_manifest.js";
 
 const videoFrameSchema = z.custom<VideoFrame>((value) => typeof VideoFrame !== "undefined" && value instanceof VideoFrame, "an Image frame is a VideoFrame");
 
@@ -133,20 +131,11 @@ export type ViewAsk = z.infer<typeof viewAskSchema>;
 export const messageFromTheViewSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("watch"), watch_id: watchOrAskIdSchema, subject: viewWatchedSubjectSchema }),
   z.object({ kind: z.literal("stop_watching"), watch_id: watchOrAskIdSchema }),
-  /** `payload`, beside a `send_output` ask: a `VideoFrame` from a full-access view or an `ImageBitmap` for Image, which Studio then owns, or JSON. */
+  /** `payload`, beside a `send_output` ask: a `VideoFrame` for Image, which Studio then owns, or JSON. */
   z.object({ kind: z.literal("ask"), ask_id: watchOrAskIdSchema, ask: viewAskSchema, payload: z.unknown().optional() }),
 ]);
 /** One message a view sends Studio. */
 export type MessageFromTheView = z.infer<typeof messageFromTheViewSchema>;
-
-/** What an input or a port viewer delivers to a sandboxed view: an Image frame as a transferred `ImageBitmap` with its frame's timestamp, which the SDK makes a `VideoFrame` again inside the view. */
-export const imageBitmapEventSchema = z.object({
-  kind: z.literal("image_bitmap"),
-  image_bitmap: z.custom<ImageBitmap>((value) => typeof ImageBitmap !== "undefined" && value instanceof ImageBitmap, "an Image frame is an ImageBitmap"),
-  timestamp_microseconds: z.number(),
-  format_wire_name: z.string(),
-  skipped_since_last_read: z.number(),
-});
 
 /** What an input delivers: its port viewer's events, or why nothing is wired into it. */
 export const viewInputEventSchema = z.union([portViewerEventSchema, z.object({ kind: z.literal("unwired"), because: z.string() })]);
@@ -165,8 +154,8 @@ export const viewWatchedReadingSchema = z.discriminatedUnion("subject", [
   z.object({ subject: z.literal("project_node_types"), reading: projectNodeTypesReadingSchema }),
   z.object({ subject: z.literal("project_assets"), reading: projectAssetsReadingSchema }),
   z.object({ subject: z.literal("project_transactions"), reading: projectTransactionsReadingSchema }),
-  z.object({ subject: z.literal("port_viewer"), reading: z.union([portViewerEventSchema, imageBitmapEventSchema]) }),
-  z.object({ subject: z.literal("input"), reading: z.union([viewInputEventSchema, imageBitmapEventSchema]) }),
+  z.object({ subject: z.literal("port_viewer"), reading: portViewerEventSchema }),
+  z.object({ subject: z.literal("input"), reading: viewInputEventSchema }),
   z.object({ subject: z.literal("python_language_server"), reading: pythonLanguageServerConnectionEventSchema }),
   z.object({ subject: z.literal("settings"), reading: jsonValueSchema }),
   z.object({ subject: z.literal("opened_on"), reading: viewOpenedOnSchema }),
@@ -191,15 +180,13 @@ export const viewAskAnswerSchema = z.discriminatedUnion("kind", [
 /** What Studio answers an ask with. */
 export type ViewAskAnswer = z.infer<typeof viewAskAnswerSchema>;
 
-/** What Studio granted the view, as it reads it on connecting: its id, the contract served, its placement and declared ports, whether it runs sandboxed, and its capabilities, every one for a full-access view. */
+/** What Studio granted the view, as it reads it on connecting: its id, the contract served, its placement and declared ports. */
 export const viewGrantSchema = z.object({
   view_type_id: z.string(),
   contract: z.string(),
   placement: z.enum(["area", "node"]),
-  sandboxed: z.boolean(),
   inputs: z.array(viewDeclaredPortSchema),
   outputs: z.array(viewDeclaredPortSchema),
-  capabilities: z.array(z.enum(VIEW_CAPABILITIES)),
 });
 /** What Studio granted the view. */
 export type ViewGrant = z.infer<typeof viewGrantSchema>;
@@ -214,52 +201,3 @@ export const messageFromStudioSchema = z.discriminatedUnion("kind", [
 /** One message Studio sends a view. */
 export type MessageFromStudio = z.infer<typeof messageFromStudioSchema>;
 
-/** The capability a subject needs beyond what every view gets, or `null` when every view may watch it. */
-export function capabilityToWatch(subject: ViewWatchedSubject): ViewCapability | null {
-  switch (subject.kind) {
-    case "selection":
-      return "read.selection";
-    case "stream_graph":
-    case "node_catalog":
-    case "port_viewer":
-      return "read.stream_graph";
-    case "project_log":
-    case "project_node_types":
-    case "project_assets":
-    case "project_transactions":
-    case "python_language_server":
-      return "read.project_assets";
-    case "open_project":
-    case "listed_streams":
-    case "active_stream_tab":
-    case "input":
-    case "settings":
-    case "opened_on":
-    case "header_row":
-      return null;
-  }
-}
-
-/** The capability an ask needs beyond what every view gets, or `null` when every view may ask it. */
-export function capabilityToAsk(ask: ViewAsk): ViewCapability | null {
-  switch (ask.kind) {
-    case "select":
-    case "open_stream_tab":
-    case "open_view":
-      return "write.selection";
-    case "read_project_file":
-    case "list_project_files":
-    case "send_to_python_language_server":
-    case "read_the_person_editing":
-      return "read.project_assets";
-    case "save_project_file":
-    case "undo_in_the_project":
-    case "redo_in_the_project":
-      return "write.project_assets";
-    case "transact_in_the_project":
-      return "edit.stream_graph";
-    case "remember_settings":
-    case "send_output":
-      return null;
-  }
-}

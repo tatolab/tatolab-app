@@ -22,7 +22,7 @@ export function registerTheWindowPageSchemeBeforeReady(): void {
   ]);
 }
 
-/** The response to a request for a project view's file; a full-access view's pages carry no content security policy of their own, a sandboxed view's its sandbox's. */
+/** The response to a request for a project view's file; its pages carry no content security policy, since a project's view runs with full access. */
 async function projectViewFileResponse(requestUrl: string, tatolabAppLog: TatolabAppLog): Promise<Response> {
   if (answerAProjectViewFileRequestOnceServed === null) return new Response(null, { status: 503 });
   const answer = await answerAProjectViewFileRequestOnceServed(requestUrl);
@@ -30,9 +30,7 @@ async function projectViewFileResponse(requestUrl: string, tatolabAppLog: Tatola
     tatolabAppLog.debug("a project view's file was not served", { request_url: requestUrl, because: answer.because });
     return new Response(answer.because, { status: answer.status, headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
-  const projectViewFileHeaders: Record<string, string> = { "Content-Type": answer.content_type, "Cache-Control": "no-store" };
-  if (answer.content_security_policy !== null) projectViewFileHeaders["Content-Security-Policy"] = answer.content_security_policy;
-  return new Response(new Uint8Array(answer.file_bytes), { status: 200, headers: projectViewFileHeaders });
+  return new Response(new Uint8Array(answer.file_bytes), { status: 200, headers: { "Content-Type": answer.content_type, "Cache-Control": "no-store" } });
 }
 
 /**
