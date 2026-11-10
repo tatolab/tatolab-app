@@ -4,11 +4,14 @@ import { Ban, Plus } from "lucide-react";
 import { afterEach, describe, expect, it } from "vitest";
 import { ActionButton } from "./action_button";
 import { CopyIconButton } from "./copy_icon_button";
+import { ExpandingSearchField } from "./expanding_search_field";
 import { IconButton } from "./icon_button";
 import { InlineLink } from "./inline_link";
+import { ProjectCard, ProjectListRow } from "./project_card";
 import { FieldMenu, MenuItem, MoreActionsMenu } from "./menus";
 import { SearchField } from "./search_field";
 import { SegmentedChoiceControl } from "./segmented_choice_control";
+import { SplitActionButton } from "./split_action_button";
 import { ToggleIconButton } from "./toggle_icon_button";
 
 afterEach(cleanup);
@@ -35,11 +38,18 @@ describe("every design-system control", () => {
         <FieldMenu label="Output to preview" words="camera">
           <MenuItem onChosen={() => {}}>camera</MenuItem>
         </FieldMenu>
+        <SplitActionButton icon={Plus} menuLabel="More ways to start a project" onPressed={() => {}} menuChoices={<MenuItem onChosen={() => {}}>Import project…</MenuItem>}>
+          New project
+        </SplitActionButton>
+        <ExpandingSearchField label="Search projects" placeholder="Search projects" text="" onTextChanged={() => {}} />
+        <ExpandingSearchField label="Search more projects" placeholder="Search projects" text="cam" onTextChanged={() => {}} />
+        <ProjectCard name="pattern" detail="~/streams/pattern · Opened 2 hours ago" coverNumber={1} coverInitial="P" isUnreadable={false} onOpened={() => {}} />
+        <ProjectListRow name="pattern" folderWords="~/streams/pattern" lastOpenedWords="2 hours ago" coverNumber={1} coverInitial="P" isUnreadable={false} onOpened={() => {}} />
       </>,
     );
     const focusableControls = [...container.querySelectorAll<HTMLElement>("button, a")];
 
-    expect(focusableControls.length).toBeGreaterThanOrEqual(10);
+    expect(focusableControls.length).toBeGreaterThanOrEqual(16);
     for (const control of focusableControls) {
       const focusRingColours = control.className.split(/\s+/).filter((className) => /(^|:)focus-visible:ring-(?!\d|\[)/.test(className));
       // Every theme's focus ring is the ring token at its own strength: no other colour, no opacity, light or dark.

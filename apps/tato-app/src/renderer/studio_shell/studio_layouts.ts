@@ -2,6 +2,7 @@
 // project folder in the page's storage so a project reopens as it was left.
 
 import { studioAreaLayoutFromSaved, type StudioArea, type StudioAreaLayoutNode, type StudioAreaSplit } from "./studio_area_layout";
+import type { TatolabWindowLocalStorage } from "../tatolab_window_local_storage";
 
 /** A layout by the name it is saved under. */
 export type StudioLayoutName = "build" | "compose" | "spatial" | "code" | "perform";
@@ -91,9 +92,6 @@ export function studioLayoutsFromSaved(saved: unknown): StudioLayoutsOfAFolder {
   };
 }
 
-/** The page storage a project's layouts are kept in: the window's `localStorage`, or none where the page may not use it. */
-export type StudioLayoutsStorage = Pick<Storage, "getItem" | "setItem"> | null;
-
 /** The key `projectFolder`'s layouts are kept under. */
 export function studioLayoutsStorageKey(projectFolder: string): string {
   return `studio-layouts:${projectFolder}`;
@@ -101,7 +99,7 @@ export function studioLayoutsStorageKey(projectFolder: string): string {
 
 /** Each project folder's layouts, read from and kept in the page's storage. */
 export class StudioLayoutsKeptInStorage {
-  constructor(private readonly storage: StudioLayoutsStorage) {}
+  constructor(private readonly storage: TatolabWindowLocalStorage) {}
 
   /** The layouts kept for `projectFolder`, each a default where none is kept or what is kept does not parse. */
   readLayoutsOf(projectFolder: string): StudioLayoutsOfAFolder {
