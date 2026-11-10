@@ -6,8 +6,9 @@ import {
   createMockStreamFixtures,
   createMockStreamRunFromAProjectFolder,
   MOCK_RUNTIME_ID,
-  mockNodeIdOf,
+  mockGraphNodeIdOf,
   mockStreamIdOf,
+  type MockStreamGraph,
   type MockLiveLogWriter,
   type MockLogRecordDraft,
   type MockMachine,
@@ -25,6 +26,7 @@ import {
   mockOpenProjectReading,
   mockOpenProjectScenarioNamed,
   mockRecentProjectReading,
+  mockProjectCoverImageUrl,
   mockRecentProjects,
   type MockOpenProjectScenario,
 } from "./mock_open_project";
@@ -32,10 +34,12 @@ import { MockPythonLanguageServer } from "./mock_python_language_server";
 import { MockPortViewers } from "./mock_port_viewers";
 import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./mock_studio_view/mock_studio_view_listing";
 import { MockProjectFiles } from "./mock_project_files";
-import { MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
+import { MOCK_PERSON_EDITING_IN_STUDIO, MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
+import type { ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
+import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
@@ -464,6 +468,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     mockTatolabOptions.moduleManagerWorkspaceDependencies ?? "copied",
   );
   let recentProjects = mockRecentProjects(recentProjectsInTheQuery, fixtures.machine.homeDirectory, Date.now());
+  const coverImageUrlsByFolder = new Map<string, string>();
   const mockFoldersOnDisk = () => [...mockFoldersInDocumentsTatoStudio(fixtures.machine.homeDirectory), ...recentProjects.map((recent) => recent.folder)];
   const openTheProjectInTheMock = (reading: OpenProjectReading, folder: string, projectName: string | null) => {
     openProjectReading = reading;
@@ -474,6 +479,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         project_name: projectName,
         project_description: recentBefore?.project_description ?? null,
         last_edited_at_wall_clock_ms: recentBefore?.last_edited_at_wall_clock_ms ?? null,
+        has_a_chosen_cover: recentBefore?.has_a_chosen_cover ?? false,
         last_opened_at_wall_clock_ms: Date.now(),
       },
       ...recentProjects.filter((recent) => recent.folder !== folder),
@@ -485,12 +491,47 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const mockLanguageServersBySession = new Map<string, MockPythonLanguageServer>();
   const mockPortViewers = new MockPortViewers();
   let languageServerSessionCount = 0;
+  /** Each committed graph transaction by its gesture's key; a live edit's key is never kept, as the runtime keeps none. */
+  const graphTransactionsCommittedByIdempotencyKey = new Map<string, ProjectGraphTransaction>();
   const mockProjectTransactions =
     openProjectReading.kind === "read" ? new MockProjectTransactions(openProjectReading.open_project.project.project, openProjectReading.open_project.project.folder, projectHistoryScenario) : null;
   const refuseWithoutAnOpenProject = (): void => {
     if (openProjectReading.kind !== "read") throw "No project is open, so its files cannot be read.";
   };
   const loadedStreams = new Map<string, MockLoadedStream>();
+  /** The graph of each loaded stream of the open project, by its stream asset, which a graph action names it by. */
+  const graphTargetsOfTheOpenProject = (): Map<string, MockStreamGraphTarget> => {
+    const openProjectFolder = openProjectReading.kind === "read" ? openProjectReading.open_project.project.folder : null;
+    return new Map(
+      [...loadedStreams.values()].flatMap((loadedStream) => {
+        const location = loadedStream.fixture.listing.location;
+        return location === null || location.project_directory !== openProjectFolder ? [] : [[location.stream_asset, { stream_id: loadedStream.fixture.listing.stream, graph: loadedStream.fixture.graph }] as const];
+      }),
+    );
+  };
+  /** Each graph as last committed, by stream asset, which a commit's `from` reads as the runtime's does; a live edit changes only the running graph. */
+  const savedGraphsByStreamAsset = new Map<string, MockStreamGraph>();
+  const savedGraphTargetsOfTheOpenProject = (): Map<string, MockStreamGraphTarget> =>
+    new Map(
+      [...graphTargetsOfTheOpenProject()].map(([streamAsset, runningTarget]) => {
+        const savedGraph = savedGraphsByStreamAsset.get(streamAsset) ?? structuredClone(runningTarget.graph);
+        savedGraphsByStreamAsset.set(streamAsset, savedGraph);
+        return [streamAsset, { stream_id: runningTarget.stream_id, graph: savedGraph }] as const;
+      }),
+    );
+  /** Commit `operations`: applied to the saved graphs, which answer, then to the running ones. */
+  const commitGraphActions = (operations: readonly StreamGraphAction[], applying: "a_transaction" | "undo_or_redo") => {
+    const outcome = applyMockGraphTransaction(savedGraphTargetsOfTheOpenProject(), operations, applying);
+    if (outcome.kind === "applied") applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations, applying);
+    return outcome;
+  };
+  /** `undoOrRedo`, its graph operations applied to the mock graphs as the runtime applies them; a transaction naming no graph changes none. */
+  const applyingItsGraphOperations = (undoOrRedo: ProjectTransaction): ProjectTransaction => {
+    const graphActions = undoOrRedo.operations.map(graphActionApplyingTheHistoryOperation);
+    const everyOneNamesAGraph = graphActions.every((graphAction): graphAction is StreamGraphAction => graphAction !== null);
+    if (everyOneNamesAGraph && graphActions.length > 0) commitGraphActions(graphActions, "undo_or_redo");
+    return undoOrRedo;
+  };
   const listedStreamsNotLoaded = new Map<string, ListedStream>([
     [fixtures.stoppedPatternTwo.stream, fixtures.stoppedPatternTwo],
     [fixtures.failedLobbyRecorder.stream, fixtures.failedLobbyRecorder],
@@ -1278,7 +1319,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     },
     importFromTheMarketplace: async (name) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 6);
-      return workspaceDependencies.add(`${fixtures.machine.homeDirectory}/Library/Application Support/Tato Studio/module-downloads/${name}-0.68.29.zip`);
+      return workspaceDependencies.add(`${fixtures.machine.homeDirectory}/Library/Application Support/Tato Studio/module-downloads/${name}-0.68.29.zip`, name);
     },
     openImportToEdit: async (folder) => {
       if (!workspaceDependencies.holdsTheFolder(folder)) throw `The project imports nothing in imports/${folder}.`;
@@ -1322,6 +1363,34 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (recentProject.project_name === null) throw `delete_project failed: ${folder} holds no project: it has no tatolab-project.json`;
       recentProjects = recentProjects.filter((recent) => recent.folder !== folder);
     },
+    readRecentProjectCover: async (folder) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const recentProject = recentProjects.find((recent) => recent.folder === folder);
+      if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      return recentProject.has_a_chosen_cover ? (coverImageUrlsByFolder.get(folder) ?? mockProjectCoverImageUrl(folder.endsWith("pattern") ? "arcs" : "stripes")) : null;
+    },
+    setRecentProjectDescription: async (folder, description) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const recentProject = recentProjects.find((recent) => recent.folder === folder);
+      if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      if (recentProject.project_name === null) throw `set_project_description failed: ${folder} holds no project: it has no tatolab-project.json`;
+      const trimmedDescription = description.trim();
+      recentProjects = recentProjects.map((recent) =>
+        recent.folder === folder ? { ...recent, project_description: trimmedDescription === "" ? null : trimmedDescription, last_edited_at_wall_clock_ms: Date.now() } : recent,
+      );
+    },
+    chooseProjectCoverImage: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      return `${fixtures.machine.homeDirectory}/Pictures/night-market-poster.png`;
+    },
+    setRecentProjectCover: async (folder, image) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 2);
+      const recentProject = recentProjects.find((recent) => recent.folder === folder);
+      if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      if (recentProject.project_name === null) throw `import_asset failed: ${folder} holds no project: it has no tatolab-project.json`;
+      if (image !== null) coverImageUrlsByFolder.set(folder, mockProjectCoverImageUrl("stripes"));
+      recentProjects = recentProjects.map((recent) => (recent.folder === folder ? { ...recent, has_a_chosen_cover: image !== null, last_edited_at_wall_clock_ms: Date.now() } : recent));
+    },
     chooseProjectArchiveToImport: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       return mockProjectArchiveTheDialogAnswers(fixtures.machine.homeDirectory, mockFoldersOnDisk());
@@ -1352,13 +1421,30 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockProjectTransactions === null) throw "No project is open in this window.";
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      return mockProjectTransactions.undo(author);
+      return applyingItsGraphOperations(mockProjectTransactions.undo(author));
     },
+    transactInTheOpenProject: async (operations, mode, idempotencyKey) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockProjectTransactions === null || openProjectReading.kind !== "read") throw "No project is open in this window.";
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const committedBefore = idempotencyKey === null || mode !== "commit" ? undefined : graphTransactionsCommittedByIdempotencyKey.get(idempotencyKey);
+      if (committedBefore !== undefined) {
+        return { kind: "applied", transaction: { ...structuredClone(committedBefore), added_nodes: committedBefore.added_nodes.map((addedNode) => ({ ...addedNode, as: null })) } };
+      }
+      savedGraphTargetsOfTheOpenProject();
+      const outcome = mode === "commit" ? commitGraphActions(operations, "a_transaction") : applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations);
+      if (outcome.kind === "refused") return outcome;
+      const recorded = mode === "commit" ? mockProjectTransactions.record(MOCK_PERSON_EDITING_IN_STUDIO, outcome.history_operations, outcome.inverse_operations) : null;
+      const transaction: ProjectGraphTransaction = { mode, transaction: recorded?.transaction ?? null, commit: recorded?.commit ?? null, ...outcome.transaction };
+      if (idempotencyKey !== null && mode === "commit") graphTransactionsCommittedByIdempotencyKey.set(idempotencyKey, structuredClone(transaction));
+      return { kind: "applied", transaction };
+    },
+    readThePersonEditingInStudio: async () => structuredClone(MOCK_PERSON_EDITING_IN_STUDIO),
     redoInTheOpenProject: async (author) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockProjectTransactions === null) throw "No project is open in this window.";
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      return mockProjectTransactions.redo(author);
+      return applyingItsGraphOperations(mockProjectTransactions.redo(author));
     },
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);
@@ -1423,13 +1509,13 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     },
     writeStudioViewOutput: async (stream, node, port) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      const viewNode = loadedStreamOfTheId(stream).fixture.graph.nodes.find((graphNode) => mockNodeIdOf(stream, graphNode.name) === node);
+      const viewNode = loadedStreamOfTheId(stream).fixture.graph.nodes.find((graphNode) => mockGraphNodeIdOf(stream, graphNode) === node);
       if (viewNode === undefined) throw `write_studio_view_output failed: no node with the id \`${node}\` in stream \`${stream}\``;
       if (!viewNode.output_ports.some((outputPort) => outputPort.name === port)) throw `write_studio_view_output failed: \`${viewNode.name}\` has no output port named \`${port}\``;
     },
     openPortViewer: async (target) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      const node = loadedStreamOfTheId(target.stream).fixture.graph.nodes.find((graphNode) => mockNodeIdOf(target.stream, graphNode.name) === target.node_id);
+      const node = loadedStreamOfTheId(target.stream).fixture.graph.nodes.find((graphNode) => mockGraphNodeIdOf(target.stream, graphNode) === target.node_id);
       if (node === undefined) throw `no node with the id \`${target.node_id}\` in stream \`${target.stream}\``;
       const outputPort = node.output_ports.find((port) => port.name === target.port);
       if (outputPort === undefined) throw `\`${node.name}\` has no output port named \`${target.port}\``;

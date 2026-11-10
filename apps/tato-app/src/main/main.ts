@@ -11,7 +11,7 @@ import path from "node:path";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
 import { MODULE_DOWNLOADS_FOLDER_NAME } from "./marketplace_module_download.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-import type { SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
+import type { ProjectTransactionAuthor, SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
@@ -41,7 +41,7 @@ import type { Result } from "./result.js";
 import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
 import type { ProjectFilesOfTheRuntime } from "./open_project_files.js";
-import { ProjectOpening, type FolderEntriesWatch, type ProjectArchiveDialog, type ProjectFolderDialog, type ProjectReadingsOfTheRuntime } from "./open_project.js";
+import { ProjectOpening, type FolderEntriesWatch, type ProjectArchiveDialog, type ProjectCoverImageDialog, type ProjectFolderDialog, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { localApiRequestFailure } from "./local_api_client.js";
@@ -99,6 +99,8 @@ export interface TatolabElectronAppShell {
   askThePersonForAProjectFolder: ProjectFolderDialog;
   /** The desktop's open dialog over the window, which the Projects window's Import project .zip… asks through. */
   askThePersonForAProjectArchive: ProjectArchiveDialog;
+  /** The desktop's open dialog over the window, which the Project details panel's Choose image… asks through. */
+  askThePersonForAProjectCoverImage: ProjectCoverImageDialog;
   /** The desktop's open dialog over the window, which Module manager imports a project's folder or `.zip` through. */
   askThePersonForADependencySource: DependencySourceDialog;
   /** How the code pane's language servers start, each in its own process. */
@@ -133,6 +135,8 @@ export interface TatolabElectronAppShell {
   startTheCarriedRuntime: StartTheCarriedRuntimeAsAChildProcess;
   /** The app's own config directory, where its switches and recent projects are remembered. */
   appConfigDirectory: string;
+  /** The person signed in to this computer, by their account name, whose Studio edits the runtime records under them. */
+  thePersonSignedInToThisComputer: ProjectTransactionAuthor;
   readMonotonicClockMs(): number;
   /** The wall clock, in milliseconds since the epoch, only ever shown to the person, as when the Projects window says a project was opened. */
   readWallClockMsForDisplay(): number;
@@ -333,6 +337,7 @@ export async function startTatolabApp(
     documentsDirectory: tatolabElectronAppShell.documentsDirectory,
     projectFolderDialog: tatolabElectronAppShell.askThePersonForAProjectFolder,
     projectArchiveDialog: tatolabElectronAppShell.askThePersonForAProjectArchive,
+    projectCoverImageDialog: tatolabElectronAppShell.askThePersonForAProjectCoverImage,
     recentProjectFolders: recentProjectFoldersFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
     readWallClockNowMs: () => tatolabElectronAppShell.readWallClockMsForDisplay(),
     newProjectCreation: controller,
@@ -389,6 +394,7 @@ export async function startTatolabApp(
     fetchBytesOverHttps: tatolabElectronAppShell.fetchBytesOverHttps,
     moduleDownloadsFolder: path.join(tatolabElectronAppShell.appConfigDirectory, MODULE_DOWNLOADS_FOLDER_NAME),
     dependencySourceDialog: tatolabElectronAppShell.askThePersonForADependencySource,
+    thePersonEditingInStudio: tatolabElectronAppShell.thePersonSignedInToThisComputer,
     tatolabAppLog,
   };
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.stopWatchingEveryProject());

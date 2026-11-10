@@ -19,6 +19,8 @@ import type {
   ProjectRunQueued,
   ProjectTransaction,
   ProjectTransactionAuthor,
+  ProjectGraphTransactionTheRuntimeAnswered,
+  StreamGraphAction,
   RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
@@ -29,7 +31,8 @@ import type {
   TatolabStatus,
   ProjectFolderChosenFor,
 } from "../shared/tatolab_backend_contract.js";
-import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
+import { graphEditModeSchema, streamGraphActionSchema } from "../shared/tatolab_backend_contract.js";
+import type { ProjectGraphTransactionSentByTheWindow, TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
 import { readThePackageCatalog } from "./package_catalog.js";
 import { importFolderInsideTheWorkspace, workspaceDependenciesOf } from "./workspace_dependencies.js";
@@ -486,6 +489,24 @@ export function renameRecentProjectArgumentsFrom(commandArguments: unknown): Res
   return succeeded({ folder: folder.value, name: name.value });
 }
 
+/** `set_recent_project_description`'s arguments as the window sends them, or why they are not. */
+export function setRecentProjectDescriptionArgumentsFrom(commandArguments: unknown): Result<{ folder: string; description: string }, string> {
+  const folder = oneTextArgumentFrom("set_recent_project_description", commandArguments, "folder", "one of the recent projects' folders");
+  if (!folder.ok) return folder;
+  const description = oneTextArgumentFrom("set_recent_project_description", commandArguments, "description", "what the project is, blank to clear it");
+  if (!description.ok) return description;
+  return succeeded({ folder: folder.value, description: description.value });
+}
+
+/** `set_recent_project_cover`'s arguments as the window sends them, or why they are not. */
+export function setRecentProjectCoverArgumentsFrom(commandArguments: unknown): Result<{ folder: string; image: string | null }, string> {
+  const folder = oneTextArgumentFrom("set_recent_project_cover", commandArguments, "folder", "one of the recent projects' folders");
+  if (!folder.ok) return folder;
+  const image = isAJsonObject(commandArguments) ? commandArguments["image"] : undefined;
+  if (image !== null && typeof image !== "string") return failedWith("set_recent_project_cover needs `image`, the full path of an image, or null for the plain cover");
+  return succeeded({ folder: folder.value, image });
+}
+
 /** `create_new_project`'s arguments as the window sends them, or why they are not. */
 export function createNewProjectArgumentsFrom(commandArguments: unknown): Result<{ name: string; location: string }, string> {
   const name = oneTextArgumentFrom("create_new_project", commandArguments, "name", "the new project's name");
@@ -512,6 +533,51 @@ export async function stopOpenProject(sharedState: TatolabAppSharedState, comman
   const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
   if (!studioWindow.ok) return studioWindow;
   return answerTheWindowOnceQueued(sharedState, "stop_open_project", () => sharedState.controller.stopProject(studioWindow.value.openProject.projectFolder));
+}
+
+/** `transact_in_the_open_project`'s arguments as the window sends them, each operation held to the runtime's own shape, or why they are not. */
+export function transactArgumentsFrom(commandArguments: unknown): Result<ProjectGraphTransactionSentByTheWindow, string> {
+  if (!isAJsonObject(commandArguments)) return failedWith("transact_in_the_open_project needs `operations`, `mode` and `idempotency_key`");
+  const operationsOnTheWire = commandArguments["operations"];
+  if (!Array.isArray(operationsOnTheWire) || operationsOnTheWire.length === 0) return failedWith("transact_in_the_open_project needs `operations`, at least one graph action");
+  const operations: StreamGraphAction[] = [];
+  for (const [index, operationOnTheWire] of operationsOnTheWire.entries()) {
+    const operation = streamGraphActionSchema.safeParse(operationOnTheWire);
+    if (!operation.success) return failedWith(`transact_in_the_open_project's operation ${index} is not a graph action the runtime takes: ${operation.error.issues[0]?.message ?? "it does not parse"}`);
+    operations.push(operation.data);
+  }
+  const mode = graphEditModeSchema.safeParse(commandArguments["mode"]);
+  if (!mode.success) return failedWith("transact_in_the_open_project needs `mode`, `commit` or `live`");
+  const idempotencyKey = commandArguments["idempotency_key"];
+  if (idempotencyKey !== null && typeof idempotencyKey !== "string") return failedWith("transact_in_the_open_project needs `idempotency_key`, a gesture's key or null");
+  return succeeded({ operations, mode: mode.data, idempotency_key: idempotencyKey });
+}
+
+/** The first stream asset `operations` name that is none of `projectFolder`'s streams as the runtime last listed them, or `null` when each is one. */
+function streamAssetOutsideTheProject(sharedState: TatolabAppSharedState, projectFolder: string, operations: readonly StreamGraphAction[]): string | null {
+  const streamAssetsOfTheProject = new Set(
+    (sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? []).flatMap((listedStream) =>
+      listedStream.location?.project_directory === projectFolder ? [listedStream.location.stream_asset] : [],
+    ),
+  );
+  return operations.find((operation) => !streamAssetsOfTheProject.has(operation.stream))?.stream ?? null;
+}
+
+/** `transact_in_the_open_project`: the runtime's `transact` of the window's graph actions by the person editing in Studio; a stream asset that is not the window's project's is refused in Studio's words, anything else the runtime refuses in its own. */
+export function transactInTheOpenProject(
+  sharedState: TatolabAppSharedState,
+  transacting: ProjectGraphTransactionSentByTheWindow,
+  commandFromWindow: TatolabCommandFromWindow,
+): Promise<Result<ProjectGraphTransactionTheRuntimeAnswered, string>> {
+  return answerTheWindow("transact_in_the_open_project", async () => {
+    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!studioWindow.ok) return studioWindow;
+    const projectFolder = studioWindow.value.projectTransactionsFeed.projectFolder;
+    const foreignStreamAsset = streamAssetOutsideTheProject(sharedState, projectFolder, transacting.operations);
+    if (foreignStreamAsset !== null) return failedWith(`The stream asset ${foreignStreamAsset} is not one of the streams the runtime lists in ${projectFolder}.`);
+    const applying = await sharedState.controller.transactOnTheStreamGraphs(transacting.operations, transacting.mode, transacting.idempotency_key, sharedState.thePersonEditingInStudio);
+    return applying.ok ? applying : failedWith(applying.failure.failureDescription);
+  });
 }
 
 /** `write_studio_view_output`'s `{ stream, node, port, value }` as the window sends it, or why it is not. */
@@ -871,6 +937,26 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
         await answerTheWindowThenRefreshTheStatus(sharedState, "delete_recent_project", () => sharedState.projectOpening.deleteRecentProject(folder.value)),
       );
     },
+    read_recent_project_cover: async (commandArguments) => {
+      const folder = oneTextArgumentFrom("read_recent_project_cover", commandArguments, "folder", "one of the recent projects' folders");
+      if (!folder.ok) return { ok: false, refusal: folder.failure };
+      return commandAnswerFrom(await answerTheWindow("read_recent_project_cover", () => sharedState.projectOpening.readRecentProjectCover(folder.value)));
+    },
+    set_recent_project_description: async (commandArguments) => {
+      const descriptionArguments = setRecentProjectDescriptionArgumentsFrom(commandArguments);
+      if (!descriptionArguments.ok) return { ok: false, refusal: descriptionArguments.failure };
+      return commandAnswerOfNothingFrom(
+        await answerTheWindow("set_recent_project_description", () => sharedState.projectOpening.setRecentProjectDescription(descriptionArguments.value.folder, descriptionArguments.value.description)),
+      );
+    },
+    choose_project_cover_image: async () => commandAnswerFrom(await answerTheWindow("choose_project_cover_image", () => sharedState.projectOpening.chooseProjectCoverImage())),
+    set_recent_project_cover: async (commandArguments) => {
+      const coverArguments = setRecentProjectCoverArgumentsFrom(commandArguments);
+      if (!coverArguments.ok) return { ok: false, refusal: coverArguments.failure };
+      return commandAnswerOfNothingFrom(
+        await answerTheWindow("set_recent_project_cover", () => sharedState.projectOpening.setRecentProjectCover(coverArguments.value.folder, coverArguments.value.image)),
+      );
+    },
     choose_project_archive_to_import: async () =>
       commandAnswerFrom(await answerTheWindow("choose_project_archive_to_import", () => sharedState.projectOpening.chooseProjectArchiveToImport())),
     import_project_archive: async (commandArguments, commandFromWindow) => {
@@ -993,6 +1079,12 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!author.ok) return { ok: false, refusal: author.failure };
       return commandAnswerFrom(await undoOrRedoInTheOpenProject(sharedState, "undo", author.value, commandFromWindow));
     },
+    transact_in_the_open_project: async (commandArguments, commandFromWindow) => {
+      const transacting = transactArgumentsFrom(commandArguments);
+      if (!transacting.ok) return { ok: false, refusal: transacting.failure };
+      return commandAnswerFrom(await transactInTheOpenProject(sharedState, transacting.value, commandFromWindow));
+    },
+    read_the_person_editing_in_studio: async () => ({ ok: true, value: sharedState.thePersonEditingInStudio }),
     redo_in_the_open_project: async (commandArguments, commandFromWindow) => {
       const author = undoOrRedoArgumentsFrom("redo_in_the_open_project", commandArguments);
       if (!author.ok) return { ok: false, refusal: author.failure };

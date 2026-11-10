@@ -340,6 +340,16 @@ export class TatolabViewBridge {
           ask.kind === "undo_in_the_project" ? await this.hostServices.undoInTheProject(ask.project_folder, ask.author) : await this.hostServices.redoInTheProject(ask.project_folder, ask.author);
         return applying.kind === "applied" ? { kind: "project_transaction_applied", transaction: applying.transaction } : { kind: "refused", because: applying.because };
       }
+      case "transact_in_the_project": {
+        const applying = await this.hostServices.transactInTheProject(ask.project_folder, ask.operations, ask.mode, ask.idempotency_key);
+        if (applying.kind === "applied") return { kind: "project_graph_transaction_applied", transaction: applying.transaction };
+        if (applying.kind === "refused") return { kind: "project_action_refused", refusal: applying.refusal };
+        return { kind: "refused", because: applying.because };
+      }
+      case "read_the_person_editing": {
+        const reading = await this.hostServices.readThePersonEditing();
+        return reading.kind === "read" ? { kind: "the_person_editing", author: reading.author } : { kind: "refused", because: reading.because };
+      }
       case "send_output":
         if (!this.manifest.outputs.some((declaredOutput) => declaredOutput.name === ask.output)) {
           return { kind: "refused", because: `${this.manifest.title} declares no output named ${ask.output}.` };

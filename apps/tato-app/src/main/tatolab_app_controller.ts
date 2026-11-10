@@ -9,6 +9,9 @@ import type {
   ProjectRunQueued,
   ProjectTransaction,
   ProjectTransactionAuthor,
+  GraphEditMode,
+  ProjectGraphTransactionTheRuntimeAnswered,
+  StreamGraphAction,
   RuntimeDescription,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
@@ -30,6 +33,7 @@ import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_ap
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
+import type { AssetImportedByTheRuntime, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
 import type { ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
 import type { ProjectViewTheRuntimeListed, StudioViewOutputWritten } from "./project_views_on_the_wire.js";
 import { LocalApiClient, type LocalApiRequestFailure, type StreamDisplayNameSet } from "./local_api_client.js";
@@ -261,6 +265,16 @@ export class TatolabAppController {
     return this.localApiClient.undoInTheProject(projectDirectory, author);
   }
 
+  /** Apply `operations` on the graphs of the streams they name as one transaction through the runtime's `transact`, by `author`. */
+  transactOnTheStreamGraphs(
+    operations: readonly StreamGraphAction[],
+    mode: GraphEditMode,
+    idempotencyKey: string | null,
+    author: ProjectTransactionAuthor,
+  ): Promise<Result<ProjectGraphTransactionTheRuntimeAnswered, LocalApiRequestFailure>> {
+    return this.localApiClient.transactOnTheStreamGraphs(operations, mode, idempotencyKey, author);
+  }
+
   /** Redo what `author`'s latest undo in the project in `projectDirectory` reversed, answering the redo the runtime applied. */
   redoInTheProject(projectDirectory: string, author: ProjectTransactionAuthor): Promise<Result<ProjectTransaction, LocalApiRequestFailure>> {
     return this.localApiClient.redoInTheProject(projectDirectory, author);
@@ -319,6 +333,21 @@ export class TatolabAppController {
   /** Queue the deletion of the project in `projectDirectory` through the runtime's `delete_project`, answering the action's id. */
   deleteProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
     return this.localApiClient.deleteProject(projectDirectory);
+  }
+
+  /** Describe the project in `projectDirectory` through the runtime's `set_project_description`; `null` clears it. */
+  setProjectDescription(projectDirectory: string, description: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>> {
+    return this.localApiClient.setProjectDescription(projectDirectory, description);
+  }
+
+  /** Show the project in `projectDirectory` by the media asset `cover` through the runtime's `set_project_cover`; `null` clears it. */
+  setProjectCover(projectDirectory: string, cover: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>> {
+    return this.localApiClient.setProjectCover(projectDirectory, cover);
+  }
+
+  /** Copy the file at `source` into the project in `projectDirectory` at `assetPath` through the runtime's `import_asset`. */
+  importAsset(projectDirectory: string, source: string, assetPath: string): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>> {
+    return this.localApiClient.importAsset(projectDirectory, source, assetPath);
   }
 
   /** Make a project in `projectDirectory` from the `.zip` `source` through the runtime's `import_project`. */

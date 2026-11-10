@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { PanelRightClose } from "lucide-react";
 import type { ReactNode } from "react";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./ui/resizable";
@@ -40,6 +41,20 @@ export function WorkAreaWithSidePanel({ sidePanel, children }: { sidePanel: Reac
   );
 }
 
+/** Where a side panel sits: docked in a work area's resizable split, or floating as a raised card of a fixed width beside a page's content. */
+export type SidePanelPlacement = "docked" | "floating";
+
+/** A floating panel's title row stands taller than a docked one's, which matches the tab toolbar beside it. */
+const SIDE_PANEL_TITLE_ROW_CLASS_NAMES: Record<SidePanelPlacement, string> = {
+  docked: "h-10 pr-1.5 pl-4",
+  floating: "h-15 pr-3 pl-5",
+};
+
+const SIDE_PANEL_PLACEMENT_CLASS_NAMES: Record<SidePanelPlacement, string> = {
+  docked: "flex-1",
+  floating: "my-6 mr-6 w-95 shrink-0 overflow-hidden rounded-xl border border-line bg-raised",
+};
+
 /** A side panel: its title, what it is about under it, its own actions and Hide, over its sections, which scroll; Hide is left out where something else on the page opens and closes it. */
 export function SidePanel({
   label,
@@ -47,6 +62,8 @@ export function SidePanel({
   subtitle,
   actions,
   hiding,
+  placement = "docked",
+  className,
   children,
   ...controlDataAttributes
 }: {
@@ -57,12 +74,15 @@ export function SidePanel({
   actions?: ReactNode;
   /** The Hide button and its name, as "Hide details"; `null` where a toggle elsewhere on the page closes the panel. */
   hiding: { hideLabel: string; onHidden: () => void } | null;
+  placement?: SidePanelPlacement;
+  /** A one-off adjustment where the panel is used. */
+  className?: string;
   children: ReactNode;
 } & ControlDataAttributes) {
   return (
-    <aside aria-label={label} className="flex min-h-0 min-w-0 flex-1 flex-col" {...controlDataAttributes}>
+    <aside aria-label={label} className={cn("flex min-h-0 min-w-0 flex-col", SIDE_PANEL_PLACEMENT_CLASS_NAMES[placement], className)} {...controlDataAttributes}>
       {/* The tab toolbar's height, so the two hairlines meet across the separator. */}
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b pr-1.5 pl-4">
+      <div className={cn("flex shrink-0 items-center gap-2 border-b", SIDE_PANEL_TITLE_ROW_CLASS_NAMES[placement])}>
         <div className="min-w-0 flex-1">
           <h2 className="truncate font-medium text-fg">{title}</h2>
           {subtitle !== undefined && <div className="truncate text-xs leading-4 text-fg-3">{subtitle}</div>}

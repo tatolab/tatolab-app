@@ -17,6 +17,10 @@ import type {
   StreamTabAddress,
   StudioSelection,
   ViewOpenedOn,
+  GraphEditMode,
+  ProjectGraphTransactionApplying,
+  StreamGraphAction,
+  ThePersonEditingReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { PortViewerEvent, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
 
@@ -43,6 +47,10 @@ export type {
   StreamTabAddress,
   StudioSelection,
   ViewHeaderRow,
+  GraphEditMode,
+  ProjectGraphTransactionApplying,
+  StreamGraphAction,
+  ThePersonEditingReading,
   ViewOpenedOn,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 export type {
@@ -118,6 +126,10 @@ export interface StudioViewHostServices {
   undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** The runtime's `redo` by `author` on the open project, answering the redo it applied or its refusal. */
   redoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
+  /** The runtime's `transact` of `operations` on the open project's streams as one transaction, answering what it applied, its structured refusal, or why it was never sent. */
+  transactInTheProject(projectFolder: string, operations: readonly StreamGraphAction[], mode: GraphEditMode, idempotencyKey: string | null): Promise<ProjectGraphTransactionApplying>;
+  /** The person editing in Studio, the author their graph edits are recorded under, or why it was not read. */
+  readThePersonEditing(): Promise<ThePersonEditingReading>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
   /** Publish `value` on the output `port` of the view node `viewNode`, answering once the runtime took it or why it did not. */

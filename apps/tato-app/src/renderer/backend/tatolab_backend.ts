@@ -14,6 +14,9 @@ import type {
   OpenProjectReading,
   ProjectTransaction,
   ProjectTransactionAuthor,
+  GraphEditMode,
+  ProjectGraphTransactionTheRuntimeAnswered,
+  StreamGraphAction,
   ProjectTransactionsReading,
   PoppedOutView,
   PackageCatalogReading,
@@ -151,6 +154,14 @@ export interface TatolabBackend {
   duplicateRecentProject(folder: string): Promise<string>;
   /** Delete `folder`, one of the recent projects, through the runtime, which moves its folder to the Trash; answers once it has, rejecting in the runtime's own words. */
   deleteRecentProject(folder: string): Promise<void>;
+  /** The image `folder`, one of the recent projects, is shown by, as a `data:` URL; `null` for its plain cover. Rejects in the runtime's own words. */
+  readRecentProjectCover(folder: string): Promise<string | null>;
+  /** Describe `folder`, one of the recent projects, as `description` through the runtime; a blank one clears it. Rejects in the runtime's own words. */
+  setRecentProjectDescription(folder: string, description: string): Promise<void>;
+  /** An image chosen in the desktop's dialog to show a project by; `null` when the person cancels. */
+  chooseProjectCoverImage(): Promise<string | null>;
+  /** Show `folder`, one of the recent projects, by the image file `image`, which the runtime imports into the project; `null` shows its plain cover. Rejects in the app's or the runtime's own words. */
+  setRecentProjectCover(folder: string, image: string | null): Promise<void>;
   /** A project `.zip` chosen in the desktop's dialog, with where the Import project sheet starts for it; `null` when the person cancels. */
   chooseProjectArchiveToImport(): Promise<ProjectArchiveChosenToImport | null>;
   /** Make the project `name` in `location` from the `.zip` `archive` with the runtime and open it, rejecting with nothing made in the app's or the runtime's own words. */
@@ -163,6 +174,10 @@ export interface TatolabBackend {
   onProjectTransactionsChanged(listener: (reading: ProjectTransactionsReading) => void): () => void;
   /** The runtime's `undo` by `author` on the open project, resolving with the undo it applied and rejecting in the runtime's own words. */
   undoInTheOpenProject(author: ProjectTransactionAuthor): Promise<ProjectTransaction>;
+  /** The runtime's `transact` of `operations` on the graphs of the open project's streams as one transaction recorded as Studio's own, resolving with what it applied or the runtime's structured refusal, and rejecting in words for any other refusal. */
+  transactInTheOpenProject(operations: readonly StreamGraphAction[], mode: GraphEditMode, idempotencyKey: string | null): Promise<ProjectGraphTransactionTheRuntimeAnswered>;
+  /** The person editing in Studio, whose graph edits the runtime records under them. */
+  readThePersonEditingInStudio(): Promise<ProjectTransactionAuthor>;
   /** The runtime's `redo` by `author` on the open project, resolving with the redo it applied and rejecting in the runtime's own words. */
   redoInTheOpenProject(author: ProjectTransactionAuthor): Promise<ProjectTransaction>;
   /** `file` of the open project and its imports, as read from disk, rejecting for a file outside them or in the filesystem's words. */

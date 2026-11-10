@@ -23,7 +23,7 @@ import { TATOLAB_WINDOW_PAGE_URL } from "../tatolab_window_page_source.js";
 import { electronApplicationMenu } from "./electron_application_menu.js";
 import { openAFolderInTheFileManagerThroughElectron } from "./electron_folder_in_the_file_manager.js";
 import { askThePersonForAStreamProjectFolderThroughElectron } from "./electron_stream_project_folder_dialog.js";
-import { askThePersonForAProjectArchiveThroughElectron, askThePersonForAProjectFolderThroughElectron } from "./electron_project_folder_dialog.js";
+import { askThePersonForAProjectArchiveThroughElectron, askThePersonForAProjectCoverImageThroughElectron, askThePersonForAProjectFolderThroughElectron } from "./electron_project_folder_dialog.js";
 import { askThePersonForADependencySourceThroughElectron } from "./electron_dependency_source_dialog.js";
 import { startANodeLanguageServerInAUtilityProcess } from "./electron_node_language_server_in_a_utility_process.js";
 import { fetchBytesOverHttpsThroughElectron, fetchTextOverHttpsThroughElectron } from "./electron_text_over_https.js";
@@ -55,6 +55,15 @@ const tatolabPlatformHostServices: TatolabPlatformHostServices = {
   appLoginItemSettings: ELECTRON_APP_LOGIN_ITEM_SETTINGS,
 };
 const appConfigDirectory = path.join(app.getPath("appData"), TATOLAB_APP_IDENTIFIER);
+
+/** The account name of the person signed in; `os.userInfo()` throws when the account has no passwd entry, as in some containers, and the home folder's name stands in. */
+function accountNameOfThePersonSignedIn(): string {
+  try {
+    return os.userInfo().username;
+  } catch {
+    return path.basename(os.homedir());
+  }
+}
 // Chromium's profile would otherwise land in `<appData>/<productName>`, beside the app's own config
 // directory rather than in it.
 app.setPath("userData", appConfigDirectory);
@@ -134,6 +143,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   askThePersonForAStreamProjectFolder: askThePersonForAStreamProjectFolderThroughElectron,
   askThePersonForAProjectFolder: askThePersonForAProjectFolderThroughElectron,
   askThePersonForAProjectArchive: askThePersonForAProjectArchiveThroughElectron,
+  askThePersonForAProjectCoverImage: askThePersonForAProjectCoverImageThroughElectron,
   askThePersonForADependencySource: askThePersonForADependencySourceThroughElectron,
   startANodeLanguageServer: startANodeLanguageServerInAUtilityProcess,
   // A packaged app carries Pyright outside app.asar, in app.asar.unpacked, so its worker threads and typeshed stubs load from plain files;
@@ -161,6 +171,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   },
   startTheCarriedRuntime: startTheCarriedRuntimeAsAChildProcess,
   appConfigDirectory,
+  thePersonSignedInToThisComputer: { kind: "person", name: accountNameOfThePersonSignedIn() },
   readMonotonicClockMs: () => performance.now(),
   // The one wall-clock read in the main process: it stamps when a project was opened, which the Projects window only displays.
   // eslint-disable-next-line no-restricted-properties

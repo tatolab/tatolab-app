@@ -113,12 +113,22 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     deleteRecentProject: async (folder) => {
       await invokeTatolabCommand("delete_recent_project", { folder });
     },
+    readRecentProjectCover: (folder) => invokeTatolabCommand("read_recent_project_cover", { folder }),
+    setRecentProjectDescription: async (folder, description) => {
+      await invokeTatolabCommand("set_recent_project_description", { folder, description });
+    },
+    chooseProjectCoverImage: () => invokeTatolabCommand("choose_project_cover_image", undefined),
+    setRecentProjectCover: async (folder, image) => {
+      await invokeTatolabCommand("set_recent_project_cover", { folder, image });
+    },
     chooseProjectArchiveToImport: () => invokeTatolabCommand("choose_project_archive_to_import", undefined),
     importProjectArchive: (archive, name, location) => invokeTatolabCommand("import_project_archive", { archive, name, location }),
     onOpenProjectChanged: (listener) => tatolabElectronBridge.onOpenProjectChanged(listener),
     readOpenProjectTransactions: () => invokeTatolabCommand("read_open_project_transactions", undefined),
     onProjectTransactionsChanged: (listener) => tatolabElectronBridge.onProjectTransactionsChanged(listener),
     undoInTheOpenProject: (author) => invokeTatolabCommand("undo_in_the_open_project", { author }),
+    transactInTheOpenProject: (operations, mode, idempotencyKey) => invokeTatolabCommand("transact_in_the_open_project", { operations, mode, idempotency_key: idempotencyKey }),
+    readThePersonEditingInStudio: () => invokeTatolabCommand("read_the_person_editing_in_studio", undefined),
     redoInTheOpenProject: (author) => invokeTatolabCommand("redo_in_the_open_project", { author }),
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),
     readProjectFile: (file) => invokeTatolabCommand("read_project_file", { file }),

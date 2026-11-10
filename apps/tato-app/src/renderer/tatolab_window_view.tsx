@@ -236,6 +236,10 @@ export function mountTatolabWindow(
         backend.openRecentProject(folder).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
       },
       renameARecentProject: (folder, name) => backend.renameRecentProject(folder, name),
+      readARecentProjectCover: (folder) => backend.readRecentProjectCover(folder),
+      setARecentProjectDescription: (folder, description) => backend.setRecentProjectDescription(folder, description),
+      chooseAProjectCoverImage: () => backend.chooseProjectCoverImage(),
+      setARecentProjectCover: (folder, image) => backend.setRecentProjectCover(folder, image),
       duplicateARecentProject: async (folder) => {
         await backend.duplicateRecentProject(folder);
       },

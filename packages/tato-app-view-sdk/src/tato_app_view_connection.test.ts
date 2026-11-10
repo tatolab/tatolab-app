@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { connectToTatoAppOverPort, type TatoAppViewConnection } from "./tato_app_view_connection.js";
+import { connectToTatoAppOverPort, newGestureIdempotencyKey, type TatoAppViewConnection } from "./tato_app_view_connection.js";
 import { messageFromTheViewSchema, type MessageFromStudio, type MessageFromTheView, type ViewGrant } from "./view_wire_messages.js";
 import type { ProjectTransaction } from "./studio_readings.js";
 
@@ -123,6 +123,45 @@ describe("connectToTatoAppOverPort", () => {
     expect(await connection.undoInTheProject("/p", author)).toEqual({ kind: "applied", transaction: undo });
     expect(messagesFromTheView.at(-1)).toMatchObject({ kind: "ask", ask: { kind: "undo_in_the_project", project_folder: "/p", author } });
     expect(await connection.redoInTheProject("/p", author)).toEqual({ kind: "not_applied", because: "redo failed: claude-code has nothing to redo" });
+  });
+
+  it("sends a graph transaction under its gesture's key, answering what the runtime applied, its structured refusal, or Studio's own refusal", async () => {
+    const applied = {
+      mode: "commit",
+      transaction: "t1",
+      commit: "c1",
+      operations: [{ operation: "add_node" }],
+      added_nodes: [{ stream: "hallways-main-3990b7", node: "n-uuid", name: "holdframe", as: "hold" }],
+      connected_links: [],
+      added_groups: [],
+      added_notes: [],
+    };
+    const refusal = { action: "transact", refused_operation_index: 0, refused_node: "n-uuid", refused_link: null, refused_field: "width", runtime_words: "width is not an integer" };
+    let asksAnswered = 0;
+    const { connection, messagesFromTheView } = await connectionToAStandInStudio((message) => {
+      if (message.kind !== "ask" || message.ask.kind !== "transact_in_the_project") return [];
+      asksAnswered += 1;
+      if (asksAnswered === 1) return [{ kind: "answered", ask_id: message.ask_id, answer: { kind: "project_graph_transaction_applied", transaction: applied } }];
+      if (asksAnswered === 2) return [{ kind: "answered", ask_id: message.ask_id, answer: { kind: "project_action_refused", refusal } }];
+      return [{ kind: "answered", ask_id: message.ask_id, answer: { kind: "refused", because: "No project is open." } }];
+    });
+    const addHoldFrame = { operation: "add_node", stream: "s-uuid", type: "tatolab.ops:HoldFrame", as: "hold" } as const;
+    const gesture = newGestureIdempotencyKey();
+    expect(await connection.transactInTheProject("/p", [addHoldFrame], { mode: "commit", idempotencyKey: gesture })).toEqual({ kind: "applied", transaction: applied });
+    expect(messagesFromTheView.at(-1)).toMatchObject({ kind: "ask", ask: { kind: "transact_in_the_project", project_folder: "/p", operations: [addHoldFrame], mode: "commit", idempotency_key: gesture } });
+    expect(await connection.transactInTheProject("/p", [addHoldFrame], { mode: "live", idempotencyKey: null })).toEqual({ kind: "refused", refusal });
+    expect(await connection.transactInTheProject("/p", [addHoldFrame], { mode: "commit", idempotencyKey: null })).toEqual({ kind: "not_sent", because: "No project is open." });
+  });
+
+  it("mints a different idempotency key for each gesture", () => {
+    expect(newGestureIdempotencyKey()).not.toBe(newGestureIdempotencyKey());
+  });
+
+  it("never sends a graph action out of the runtime's shape", () => {
+    const askWithAKeyTheRuntimeRefuses = { kind: "ask", ask_id: 1, ask: { kind: "transact_in_the_project", project_folder: "/p", operations: [{ operation: "remove_node", stream: "s", node: "n", force: true }], mode: "commit", idempotency_key: null } };
+    expect(messageFromTheViewSchema.safeParse(askWithAKeyTheRuntimeRefuses).success).toBe(false);
+    const askWithNoOperations = { kind: "ask", ask_id: 1, ask: { kind: "transact_in_the_project", project_folder: "/p", operations: [], mode: "commit", idempotency_key: null } };
+    expect(messageFromTheViewSchema.safeParse(askWithNoOperations).success).toBe(false);
   });
 
   it("answers every ask still waiting as refused once the view closes its connection", async () => {

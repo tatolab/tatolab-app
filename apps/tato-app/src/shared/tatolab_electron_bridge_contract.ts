@@ -25,6 +25,9 @@ import type {
   ProjectLogRecordsPage,
   ProjectRunQueued,
   ProjectTransaction,
+  GraphEditMode,
+  ProjectGraphTransactionTheRuntimeAnswered,
+  StreamGraphAction,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
   RuntimeDescription,
@@ -90,6 +93,10 @@ export const TATOLAB_COMMAND_NAMES = [
   "duplicate_recent_project",
   "delete_recent_project",
   "choose_project_archive_to_import",
+  "read_recent_project_cover",
+  "set_recent_project_description",
+  "choose_project_cover_image",
+  "set_recent_project_cover",
   "import_project_archive",
   "show_projects_window",
   "pop_out_view",
@@ -111,6 +118,8 @@ export const TATOLAB_COMMAND_NAMES = [
   "run_open_project",
   "read_open_project_transactions",
   "undo_in_the_open_project",
+  "transact_in_the_open_project",
+  "read_the_person_editing_in_studio",
   "redo_in_the_open_project",
   "stop_open_project",
   "start_python_language_server",
@@ -125,7 +134,7 @@ export const TATOLAB_COMMAND_NAMES = [
  * One command the window invokes. Arguments: `set_stream_failure_notifications`, `set_developer_mode` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
  * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
- * `choose_project_folder` `{ chosen_for }`, `open_recent_project`, `duplicate_recent_project` and `delete_recent_project` `{ folder }`, `rename_recent_project` `{ folder, name }`, `import_project_archive` `{ archive, name, location }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_view` a `PoppedOutView`, `list_workspace_dependencies` `{ check_for_newer }`, `choose_dependency_source` `{ source_kind }`, `add_dependency_to_the_workspace` `{ source }`, `update_workspace_dependency` `{ project, overwrite_edited_files }`, `import_from_the_marketplace` `{ name }`, `open_import_to_edit` `{ folder }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * `choose_project_folder` `{ chosen_for }`, `open_recent_project`, `duplicate_recent_project` and `delete_recent_project` `{ folder }`, `rename_recent_project` `{ folder, name }`, `read_recent_project_cover` `{ folder }`, `set_recent_project_description` `{ folder, description }`, `set_recent_project_cover` `{ folder, image }`, `import_project_archive` `{ archive, name, location }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_view` a `PoppedOutView`, `list_workspace_dependencies` `{ check_for_newer }`, `choose_dependency_source` `{ source_kind }`, `add_dependency_to_the_workspace` `{ source }`, `update_workspace_dependency` `{ project, overwrite_edited_files }`, `import_from_the_marketplace` `{ name }`, `open_import_to_edit` `{ folder }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` and the recent-project commands only on one of the recent projects, `import_project_archive` on any absolute `.zip`, which the runtime reads, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab
  * that installs in place, downloads it; `take_the_newer_tatolab_app_version` restarts into a downloaded one, downloads one a check found, or opens a `.deb`'s download, the person choosing it being the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
@@ -152,6 +161,13 @@ export const TATOLAB_PORT_VIEWER_EVENT = "tatolab-port-viewer-event";
 
 /** The event the system menu bar sends the window an entry the person chose on, from the menus that window last showed there; it carries a `SystemMenuBarEntryChosen`. */
 export const TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT = "tatolab-system-menu-bar-entry-chosen";
+
+/** The graph actions a studio window sends as one transaction, under its gesture's idempotency key or none. */
+export interface ProjectGraphTransactionSentByTheWindow {
+  operations: readonly StreamGraphAction[];
+  mode: GraphEditMode;
+  idempotency_key: string | null;
+}
 
 /** What `tatolab-system-menu-bar-entry-chosen` carries: the `entry_id` of the entry chosen. */
 export interface SystemMenuBarEntryChosen {
@@ -265,6 +281,14 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   duplicate_recent_project: { commandArguments: { folder: string }; answer: string };
   /** `folder` one of the recent projects, deleted through the runtime's `delete_project`, its folder moved to the Trash; answers once the runtime has, its studio window closed and the project forgotten. Refused in the runtime's own words. */
   delete_recent_project: { commandArguments: { folder: string }; answer: null };
+  /** `folder` one of the recent projects: its chosen cover as a `data:` URL of the image, read through the runtime's `read_project_file`; `null` when it has none a window shows. */
+  read_recent_project_cover: { commandArguments: { folder: string }; answer: string | null };
+  /** `folder` one of the recent projects, described as `description` through the runtime's `set_project_description`; a blank one clears it. Refused in the runtime's own words. */
+  set_recent_project_description: { commandArguments: { folder: string; description: string }; answer: null };
+  /** The desktop's open dialog for an image to show a project by, opened at home; `null` when the person cancels. */
+  choose_project_cover_image: { commandArguments: undefined; answer: string | null };
+  /** `folder` one of the recent projects, shown by `image`, an absolute PNG, JPEG, WebP or GIF the runtime's `import_asset` copies into its `media/`, through `set_project_cover`; `null` shows its plain cover again. Refused in the runtime's own words. */
+  set_recent_project_cover: { commandArguments: { folder: string; image: string | null }; answer: null };
   /** The desktop's open dialog for a project `.zip`, and where the Import project sheet starts for it; `null` when the person cancels. */
   choose_project_archive_to_import: { commandArguments: undefined; answer: ProjectArchiveChosenToImport | null };
   /** `archive` an absolute `.zip`, `name` a folder name and `location` absolute: the runtime's `import_project` makes `<location>/<name>` from it, which opens in its own studio window and is put first among the recent projects; refused with nothing made for a name that is no folder name or is taken there, and in the runtime's own words. */
@@ -309,6 +333,10 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   read_open_project_transactions: { commandArguments: undefined; answer: ProjectTransactionsReading };
   /** The runtime's `undo` by `author` on the asking studio window's project, answering the undo it applied; refused in the runtime's own words. */
   undo_in_the_open_project: { commandArguments: { author: ProjectTransactionAuthor }; answer: ProjectTransaction };
+  /** The runtime's `transact` of `operations` on the graphs of the asking studio window's project's streams, as one transaction by the person editing; a stream outside the project is refused in Studio's words, a refusal the runtime structures is answered as `refused`, any other refusal in its own words. */
+  transact_in_the_open_project: { commandArguments: ProjectGraphTransactionSentByTheWindow; answer: ProjectGraphTransactionTheRuntimeAnswered };
+  /** The person editing in Studio, whose graph edits the runtime records under them. */
+  read_the_person_editing_in_studio: { commandArguments: undefined; answer: ProjectTransactionAuthor };
   /** The runtime's `redo` by `author` on the asking studio window's project, answering the redo it applied; refused in the runtime's own words. */
   redo_in_the_open_project: { commandArguments: { author: ProjectTransactionAuthor }; answer: ProjectTransaction };
   /** The runtime's `stop_project` queued on the open project's folder, which the window never names; every stream of the project shows `stopping` until it has run. Refused in the runtime's own words, or while no project is open. */

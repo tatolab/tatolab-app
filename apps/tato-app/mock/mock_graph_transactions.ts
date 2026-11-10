@@ -1,0 +1,244 @@
+// The browser mock's `transact`: graph actions applied to the mock streams' graphs whole or not at all, a node named
+// by its id or an earlier `add_node`'s `as`, answered as the runtime answers (`GraphTransactionToolResult`) or
+// refused as it refuses (`ProjectActionRefusalOnTheWire`), in words modelled on the runtime's. History keeps each
+// operation as the runtime does: its stream by asset UUID, with `from` and `to`, the inverse swapping them. An
+// action the mock does not model is refused, naming it.
+
+import { mockGraphNodeIdOf, type MockGraphNode, type MockStreamGraph } from "./mock_stream_fixtures";
+import { MOCK_NODE_CATALOG_ENTRIES } from "./mock_node_catalog";
+import type { JsonValue, PortFamily, ProjectActionRefusal, ProjectGraphTransaction, StreamGraphAction, StreamGraphActionLinkEnd } from "../src/shared/tatolab_backend_contract";
+
+/** A mock stream a graph action can name: its id, and the graph the mock holds for it. */
+export interface MockStreamGraphTarget {
+  stream_id: string;
+  graph: MockStreamGraph;
+}
+
+/** What a mock transaction did, with each operation and its inverse as history records them, or the refusal that left every graph as it was. */
+export type MockGraphTransactionOutcome =
+  | { kind: "applied"; transaction: Omit<ProjectGraphTransaction, "mode" | "transaction" | "commit">; history_operations: JsonValue[]; inverse_operations: JsonValue[] }
+  | { kind: "refused"; refusal: ProjectActionRefusal };
+
+class MockGraphActionRefused {
+  constructor(readonly refusal: Omit<ProjectActionRefusal, "action" | "refused_operation_index">) {}
+}
+
+function refusedNaming(words: string, named: Partial<Omit<ProjectActionRefusal, "action" | "refused_operation_index" | "runtime_words">> = {}): MockGraphActionRefused {
+  return new MockGraphActionRefused({ refused_node: null, refused_link: null, refused_field: null, ...named, runtime_words: words });
+}
+
+function shortNameOfTheType(nodeType: string): string {
+  return (nodeType.split(":").at(-1) ?? nodeType).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
+
+function familyAsTheRuntimeNamesIt(family: PortFamily | null): string {
+  return family === null ? "no family" : `${family.charAt(0).toUpperCase()}${family.slice(1)}`;
+}
+
+let mockLinksMade = 0;
+
+/** The graph action that applies `historyOperation`, an operation as history records it, to the mock graphs; `null` for one that names no graph. */
+export function graphActionApplyingTheHistoryOperation(historyOperation: JsonValue): StreamGraphAction | null {
+  if (typeof historyOperation !== "object" || historyOperation === null || Array.isArray(historyOperation)) return null;
+  const { operation, stream, node } = historyOperation;
+  if (typeof stream !== "string") return null;
+  const to = historyOperation["to"] ?? null;
+  switch (operation) {
+    case "set_node_config":
+      return typeof node === "string" && typeof to === "object" && to !== null && !Array.isArray(to) ? { operation, stream, node, config: to } : null;
+    case "set_pin_value": {
+      const input = historyOperation["input"];
+      return typeof node === "string" && typeof input === "string" ? { operation, stream, node, input, value: to } : null;
+    }
+    case "rename_node":
+      return typeof node === "string" && typeof to === "string" ? { operation, stream, node, name: to } : null;
+    case "remove_node":
+      return typeof node === "string" ? { operation, stream, node } : null;
+    case "add_node": {
+      const added = historyOperation["node"];
+      if (typeof added !== "object" || added === null || Array.isArray(added)) return null;
+      const { type, name, config, pins, id } = added;
+      if (typeof type !== "string" || typeof name !== "string" || typeof id !== "string") return null;
+      const isAnObject = (value: JsonValue | undefined): value is { [key: string]: JsonValue } => typeof value === "object" && value !== null && !Array.isArray(value);
+      return { operation, stream, type, name, as: id, ...(isAnObject(config) ? { config } : {}), ...(isAnObject(pins) ? { pins } : {}) };
+    }
+    case "connect":
+    case "disconnect": {
+      const link = historyOperation["link"];
+      if (typeof link !== "object" || link === null || Array.isArray(link)) return null;
+      const end = (value: JsonValue | undefined): StreamGraphActionLinkEnd | null =>
+        typeof value === "object" && value !== null && !Array.isArray(value) && typeof value["node"] === "string" && typeof value["port"] === "string" ? { node: value["node"], port: value["port"] } : null;
+      const source = end(link["source"]);
+      const target = end(link["target"]);
+      return source !== null && target !== null ? { operation, stream, source, target } : null;
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Apply `operations` to `targetsByStreamAsset`'s graphs as one transaction: each graph is changed only once every
+ * operation has applied to a copy of it. Applied by an undo or a redo, an `add_node`'s `as` is the id the node had, which
+ * it takes again.
+ */
+export function applyMockGraphTransaction(
+  targetsByStreamAsset: ReadonlyMap<string, MockStreamGraphTarget>,
+  operations: readonly StreamGraphAction[],
+  applying: "a_transaction" | "undo_or_redo" = "a_transaction",
+): MockGraphTransactionOutcome {
+  const workingGraphs = new Map([...targetsByStreamAsset].map(([streamAsset, target]) => [streamAsset, structuredClone(target.graph)]));
+  const nodeIdsByLabel = new Map<string, string>();
+  const applied: Omit<ProjectGraphTransaction, "mode" | "transaction" | "commit"> = { operations: [], added_nodes: [], connected_links: [], added_groups: [], added_notes: [] };
+  const historyOperations: JsonValue[] = [];
+  const inverseOperations: JsonValue[] = [];
+  for (const [operationIndex, operation] of operations.entries()) {
+    const target = targetsByStreamAsset.get(operation.stream);
+    const graph = workingGraphs.get(operation.stream);
+    if (target === undefined || graph === undefined) {
+      return { kind: "refused", refusal: { action: "transact", refused_operation_index: operationIndex, refused_node: null, refused_link: null, refused_field: null, runtime_words: `no loaded stream is the stream asset ${operation.stream}` } };
+    }
+    const nodeIdOf = (graphNode: MockGraphNode) => mockGraphNodeIdOf(target.stream_id, graphNode);
+    const nodeNamed = (node: string) => {
+      const nodeId = nodeIdsByLabel.get(node) ?? node;
+      const graphNode = graph.nodes.find((candidate) => nodeIdOf(candidate) === nodeId);
+      if (graphNode === undefined) throw refusedNaming(`no node ${node} in the stream's graph`, { refused_node: node });
+      return graphNode;
+    };
+    const linkEndNamed = (end: StreamGraphActionLinkEnd) => {
+      const graphNode = nodeNamed(end.node);
+      return { graphNode, end: { node: nodeIdOf(graphNode), port: end.port } };
+    };
+    const recordInHistory = (historyOperation: { [key: string]: JsonValue }, inverseOperation: { [key: string]: JsonValue }) => {
+      historyOperations.push({ stream: operation.stream, ...historyOperation });
+      inverseOperations.unshift({ stream: operation.stream, ...inverseOperation });
+      applied.operations.push({ ...historyOperation, stream: target.stream_id });
+    };
+    try {
+      switch (operation.operation) {
+        case "set_node_config": {
+          const node = nodeNamed(operation.node);
+          const from = structuredClone(node.config);
+          node.config = structuredClone(operation.config);
+          recordInHistory({ operation: "set_node_config", node: nodeIdOf(node), from, to: operation.config }, { operation: "set_node_config", node: nodeIdOf(node), from: operation.config, to: from });
+          break;
+        }
+        case "set_pin_value": {
+          const node = nodeNamed(operation.node);
+          if (!node.input_ports.some((port) => port.name === operation.input)) {
+            throw refusedNaming(`Processor '${node.name}' has no input port named '${operation.input}'`, { refused_node: operation.node, refused_field: operation.input });
+          }
+          const pins = { ...node.pins };
+          const from = pins[operation.input] ?? null;
+          const to = operation.value ?? null;
+          if (to === null) delete pins[operation.input];
+          else pins[operation.input] = to;
+          node.pins = pins;
+          recordInHistory({ operation: "set_pin_value", node: nodeIdOf(node), input: operation.input, from, to }, { operation: "set_pin_value", node: nodeIdOf(node), input: operation.input, from: to, to: from });
+          break;
+        }
+        case "rename_node": {
+          const node = nodeNamed(operation.node);
+          const nodeId = nodeIdOf(node);
+          const name = operation.name.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+          if (graph.nodes.some((other) => other !== node && other.name === name)) {
+            throw refusedNaming(`the node name \`${operation.name}\` casts to \`${name}\`, which node \`${name}\` in this graph already has`, { refused_node: operation.node });
+          }
+          const from = node.name;
+          for (const link of graph.links) {
+            if (link.source_node === node.name) link.source_node = name;
+            if (link.target_node === node.name) link.target_node = name;
+          }
+          node.id_kept_through_renames = nodeId;
+          node.name = name;
+          recordInHistory({ operation: "rename_node", node: nodeId, from, to: name }, { operation: "rename_node", node: nodeId, from: name, to: from });
+          break;
+        }
+        case "add_node": {
+          const catalogEntry = MOCK_NODE_CATALOG_ENTRIES.find((entry) => entry.type === operation.type);
+          if (catalogEntry === undefined) throw refusedNaming(`unknown node type \`${operation.type}\``, { refused_node: operation.as ?? operation.name ?? null });
+          const shortName = operation.name ?? shortNameOfTheType(operation.type);
+          const takenNames = new Set(graph.nodes.map((node) => node.name));
+          let name = shortName;
+          for (let suffix = 2; operation.name === undefined && takenNames.has(name); suffix += 1) name = `${shortName}-${suffix}`;
+          if (takenNames.has(name)) throw refusedNaming(`node \`${name}\` in this graph already has that name`, { refused_node: operation.as ?? name });
+          const portsOf = (ports: typeof catalogEntry.inputs) => ports.map((port) => ({ name: port.name, family: port.family, stream_facts: null, values_checked: port.family === "records" ? false : null }));
+          const config = structuredClone(operation.config ?? {});
+          const pins = structuredClone(operation.pins ?? {});
+          const addedNode: MockGraphNode = { name, type: operation.type, state: "Running", config, pins, input_ports: portsOf(catalogEntry.inputs), output_ports: portsOf(catalogEntry.outputs) };
+          if (applying === "undo_or_redo" && operation.as !== undefined) addedNode.id_kept_through_renames = operation.as;
+          graph.nodes.push(addedNode);
+          const nodeId = nodeIdOf(addedNode);
+          if (operation.as !== undefined) nodeIdsByLabel.set(operation.as, nodeId);
+          applied.added_nodes.push({ stream: target.stream_id, node: nodeId, name, as: operation.as ?? null });
+          recordInHistory({ operation: "add_node", node: { id: nodeId, name, type: operation.type, config, pins } }, { operation: "remove_node", node: nodeId });
+          break;
+        }
+        case "remove_node": {
+          const node = nodeNamed(operation.node);
+          const nodeId = nodeIdOf(node);
+          const linksOfTheNode = graph.links.filter((link) => link.source_node === node.name || link.target_node === node.name);
+          graph.nodes.splice(graph.nodes.indexOf(node), 1);
+          graph.links = graph.links.filter((link) => !linksOfTheNode.includes(link));
+          recordInHistory({ operation: "remove_node", node: nodeId }, { operation: "add_node", node: { id: nodeId, name: node.name, type: node.type, config: node.config, pins: node.pins ?? {} } });
+          for (const link of linksOfTheNode) {
+            const endOf = (nodeName: string, port: string) => {
+              const linked = nodeName === node.name ? node : graph.nodes.find((candidate) => candidate.name === nodeName);
+              return { node: linked === undefined ? nodeName : nodeIdOf(linked), port };
+            };
+            inverseOperations.splice(1, 0, { stream: operation.stream, operation: "connect", link: { source: endOf(link.source_node, link.source_port), target: endOf(link.target_node, link.target_port) } });
+          }
+          break;
+        }
+        case "connect": {
+          const source = linkEndNamed(operation.source);
+          const targetEnd = linkEndNamed(operation.target);
+          const sourcePort = source.graphNode.output_ports.find((port) => port.name === operation.source.port);
+          const targetPort = targetEnd.graphNode.input_ports.find((port) => port.name === operation.target.port);
+          const refusedLink = { source: operation.source, target: operation.target };
+          const sourceSpelled = `${source.graphNode.name}.${operation.source.port}`;
+          const targetSpelled = `${targetEnd.graphNode.name}.${operation.target.port}`;
+          if (sourcePort === undefined || targetPort === undefined) throw refusedNaming(`Invalid link: no port ${sourceSpelled} to ${targetSpelled}`, { refused_link: refusedLink });
+          if (sourcePort.family !== targetPort.family) {
+            throw refusedNaming(
+              `Invalid link: cannot link ${sourceSpelled} (${familyAsTheRuntimeNamesIt(sourcePort.family)}) to ${targetSpelled} (${familyAsTheRuntimeNamesIt(targetPort.family)}): a link joins two ports of one family; no one node converts between them; chain the conversion nodes that do`,
+              { refused_link: refusedLink },
+            );
+          }
+          if (graph.links.some((link) => link.target_node === targetEnd.graphNode.name && link.target_port === operation.target.port)) {
+            throw refusedNaming(`Invalid link: ${targetSpelled} is already linked`, { refused_link: refusedLink });
+          }
+          mockLinksMade += 1;
+          graph.links.push({ id: `Lmock${mockLinksMade.toString(36).padStart(21, "0")}`, source_node: source.graphNode.name, source_port: operation.source.port, target_node: targetEnd.graphNode.name, target_port: operation.target.port, state: "wired" });
+          const link = { source: source.end, target: targetEnd.end };
+          applied.connected_links.push({ stream: target.stream_id, ...link, state: "wired", error_reason: null });
+          recordInHistory({ operation: "connect", link }, { operation: "disconnect", link });
+          break;
+        }
+        case "disconnect": {
+          const source = linkEndNamed(operation.source);
+          const targetEnd = linkEndNamed(operation.target);
+          const linkCount = graph.links.length;
+          graph.links = graph.links.filter(
+            (link) =>
+              !(link.source_node === source.graphNode.name && link.source_port === operation.source.port && link.target_node === targetEnd.graphNode.name && link.target_port === operation.target.port),
+          );
+          if (graph.links.length === linkCount) throw refusedNaming("no such link in the stream's graph", { refused_link: { source: operation.source, target: operation.target } });
+          const link = { source: source.end, target: targetEnd.end };
+          recordInHistory({ operation: "disconnect", link }, { operation: "connect", link });
+          break;
+        }
+        default:
+          throw refusedNaming(`the mock runtime does not apply \`${operation.operation}\``);
+      }
+    } catch (refused) {
+      if (!(refused instanceof MockGraphActionRefused)) throw refused;
+      return { kind: "refused", refusal: { action: "transact", refused_operation_index: operationIndex, ...refused.refusal } };
+    }
+  }
+  for (const [streamAsset, workingGraph] of workingGraphs) {
+    const target = targetsByStreamAsset.get(streamAsset);
+    if (target !== undefined) Object.assign(target.graph, workingGraph);
+  }
+  return { kind: "applied", transaction: applied, history_operations: historyOperations, inverse_operations: inverseOperations };
+}

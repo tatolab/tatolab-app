@@ -3,6 +3,8 @@ import type { RecentProject } from "../../shared/tatolab_backend_contract";
 import {
   PROJECTS_HOME_CHOICES_AT_FIRST,
   presentNewProjectSheetWords,
+  projectDescriptionToSave,
+  projectNameToSave,
   presentProjectDeletionQuestion,
   presentRecentProjectChangePendingWords,
   presentRecentProjectChangeRefusalTitle,
@@ -27,6 +29,7 @@ function aRecentProject(folder: string, projectName: string | null, openedHoursA
     project_description: projectDescription,
     last_edited_at_wall_clock_ms: editedHoursAgo === null ? null : NOW_MS - editedHoursAgo * HOUR_MS,
     last_opened_at_wall_clock_ms: NOW_MS - openedHoursAgo * HOUR_MS,
+    has_a_chosen_cover: false,
   };
 }
 
@@ -173,5 +176,30 @@ describe("the sheet that makes a project", () => {
       pendingWords: "Importing…",
       refusalLead: "The project wasn't imported:",
     });
+  });
+});
+
+describe("the Project details panel", () => {
+  it("edits the description the runtime serves, empty for none, and reads a chosen cover apart from the plain one", () => {
+    const [describedCard] = presentRecentProjectCards([{ ...aRecentProject("/Users/ada/streams/pattern", "pattern", 2, 1, "A test pattern."), has_a_chosen_cover: true }], NOW_MS, "");
+    expect(describedCard).toMatchObject({ descriptionToEdit: "A test pattern.", hasAChosenCover: true });
+    const [undescribedCard] = presentRecentProjectCards([aRecentProject("/Users/ada/streams/lobby", "lobby", 2)], NOW_MS, "");
+    expect(undescribedCard).toMatchObject({ descriptionToEdit: "", descriptionWords: "No description yet", hasAChosenCover: false });
+  });
+
+  it("saves a description only when it differs from the project's and from the one just sent, past the spaces around it, and saves a blank one to clear it", () => {
+    expect(projectDescriptionToSave("A test pattern.", "A test pattern.", null)).toBeNull();
+    expect(projectDescriptionToSave("  A test pattern. ", "A test pattern.", null)).toBeNull();
+    expect(projectDescriptionToSave("Bars into a meter.", "A test pattern.", null)).toBe("Bars into a meter.");
+    expect(projectDescriptionToSave("Bars into a meter.", "A test pattern.", "Bars into a meter.")).toBeNull();
+    expect(projectDescriptionToSave("   ", "A test pattern.", null)).toBe("   ");
+    expect(projectDescriptionToSave("", "", null)).toBeNull();
+  });
+
+  it("saves a name only when it differs from the project's and from the one just sent", () => {
+    expect(projectNameToSave("pattern", "pattern", null)).toBeNull();
+    expect(projectNameToSave(" pattern ", "pattern", null)).toBeNull();
+    expect(projectNameToSave("Night Show", "pattern", null)).toBe("Night Show");
+    expect(projectNameToSave("Night Show ", "pattern", "Night Show")).toBeNull();
   });
 });
