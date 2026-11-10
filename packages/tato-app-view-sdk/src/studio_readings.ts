@@ -237,7 +237,7 @@ export const projectNodeTypeSchema = z.object({
   /** `process`, `function` or `shader`, or a kind newer than this app; `null` where source does not show it. */
   kind: z.string().nullable(),
   description: z.string(),
-  /** The palette category, the declaring module when none is declared. */
+  /** The Library category, the declaring module when none is declared. */
   category: z.string(),
   /** `null` where only the node's native half states its ports. */
   inputs: z.array(projectNodeTypePortSchema).nullable(),

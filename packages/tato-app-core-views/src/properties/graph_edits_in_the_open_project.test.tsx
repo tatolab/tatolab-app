@@ -116,6 +116,18 @@ test("a refusal is kept under its place in the runtime's words, and the next com
   expect(drawn.edits.refusalsByPlace.has("config:fps")).toBe(false);
 });
 
+test("a commit on the node that applies clears every refusal kept for it, as each told of an ask since overtaken", async () => {
+  const studio = aStudioThatAnswersEachTransactionLater();
+  const drawn = drawTheGraphEdits(studio.connection, "/projects/hallways");
+  act(() => drawn.edits.keepTheRefusal("config:width", "fast is not a number."));
+  expect(drawn.edits.refusalsByPlace.get("config:width")).toBe("fast is not a number.");
+
+  act(() => void drawn.edits.commit("name", [{ operation: "rename_node", stream: "stream-asset", node: "node-id", name: "Bars" }]));
+  await letTheQueuedSendsRun();
+  await studio.theTransactionAsked(0).answer(anApplied("commit"));
+  expect(drawn.edits.refusalsByPlace.size).toBe(0);
+});
+
 test("edits are sent one after another, a later commit waiting for the earlier to be answered", async () => {
   const studio = aStudioThatAnswersEachTransactionLater();
   const drawn = drawTheGraphEdits(studio.connection, "/projects/hallways");

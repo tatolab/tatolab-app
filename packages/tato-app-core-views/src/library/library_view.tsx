@@ -3,6 +3,8 @@ import { useCallback, useMemo, useState } from "react";
 import { Boxes, Folder } from "lucide-react";
 import { MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { ProjectAssetCard, ProjectAssetPicture } from "@tatolab/tato-app-view-sdk/design_system/project_asset_card";
+import { CardGrid } from "@tatolab/tato-app-view-sdk/design_system/card_grid";
+import { SidePanel, WorkAreaWithSidePanel } from "@tatolab/tato-app-view-sdk/design_system/side_panel";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { SectionNavigationList } from "@tatolab/tato-app-view-sdk/design_system/section_navigation_list";
 import { StudioAreaHeaderChoiceMenu } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
@@ -19,12 +21,29 @@ import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/re
 import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
 import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../shared/node_type_listing_tree";
 import { libraryTreeOfTheListing, type LibraryDeclarationsShown, type LibraryRowMeaning } from "./library_tree_of_the_listing";
-import { assetFileName, assetFormatWords, assetPictureToneOf, assetsShownInTheFolder, assetsTheLibraryLists, byteLengthInWords, EVERY_ASSET_FOLDER_ID, libraryAssetFoldersOf, shortenedDigest } from "./library_assets_of_the_listing";
+import {
+  assetFileName,
+  assetFormatWords,
+  assetKindAndSizeWords,
+  assetPictureToneOf,
+  assetsShownInTheFolder,
+  assetsTheLibraryLists,
+  byteLengthInWords,
+  EVERY_ASSET_FOLDER_ID,
+  libraryAssetFoldersOf,
+  noAssetShownWords,
+  shortenedDigest,
+} from "./library_assets_of_the_listing";
 
 function PortsOfTheDeclaration({ direction, ports }: { direction: "In" | "Out"; ports: ProjectNodeTypePort[] | null }) {
   if (ports === null) return <p className="px-1 text-xs text-fg-3">{direction === "In" ? "Inputs" : "Outputs"} stated only by its native half</p>;
   return ports.map((port) => (
-    <div key={`${direction}:${port.name}`} className="flex h-6 min-w-0 items-center gap-2 text-xs" title={port.description === "" ? (port.annotation ?? undefined) : port.description} data-library-port={port.name}>
+    <div
+      key={`${direction}:${port.name}`}
+      className="flex h-6 min-w-0 items-center gap-2 text-xs"
+      title={port.description === "" ? (port.annotation ?? undefined) : port.description}
+      data-library-port={port.name}
+    >
       <span className="w-6 shrink-0 text-right text-2xs text-fg-3">{direction}</span>
       <NodeGraphPinMark family={port.family} />
       <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-fg">{port.name}</span>
@@ -145,7 +164,8 @@ function DeclarationsOfTheProject({ connection, projectFolder, declarationsShown
       </WaitingState>
     );
   }
-  if (libraryRows.length === 0) return <WaitingState title="No graph generators" explanation="Neither the project nor anything it imports declares one." data-library-state="no_graph_generators" />;
+  if (libraryRows.length === 0 && declarationsShown === "graph_generators")
+    return <WaitingState title="No graph generators" explanation="Neither the project nor anything it imports declares one." data-library-state="no_graph_generators" />;
   const meaningOfRow = (rowId: string): LibraryRowMeaning => libraryRows.find((libraryRow) => libraryRow.row.row_id === rowId)?.meaning ?? { kind: "nothing_to_select" };
   const chosenMeaning = chosenRowId === null ? null : meaningOfRow(chosenRowId);
   return (
@@ -173,26 +193,48 @@ function DeclarationsOfTheProject({ connection, projectFolder, declarationsShown
   );
 }
 
-/** The chosen asset: its file's name and path, what it is, its UUID, its bytes' digest and size, and the settings its import took. */
-function DetailsOfTheAsset({ asset }: { asset: ProjectAsset }) {
-  const importSettingKeys = Object.keys(asset.import_settings);
+/** The chosen asset: its file's name and path, what it is, its UUID, its bytes' digest and size, and each setting its import took. */
+function DetailsOfTheAsset({ asset, onHidden }: { asset: ProjectAsset; onHidden: () => void }) {
+  const importSettings = Object.entries(asset.import_settings);
   return (
-    <aside aria-label={`${assetFileName(asset.path)} details`} className="scrollbar-thin flex w-72 shrink-0 flex-col gap-3 overflow-y-auto border-l p-3" data-library-asset-details={asset.asset}>
-      <ProjectAssetPicture tone={assetPictureToneOf(asset)} words={assetFormatWords(asset)} />
-      <div>
-        <h2 className="truncate text-[15px] font-semibold text-fg">{assetFileName(asset.path)}</h2>
-        <p className="truncate font-mono text-2xs text-fg-3">{asset.path}</p>
+    <SidePanel
+      label="Chosen asset"
+      title={assetFileName(asset.path)}
+      subtitle={<span className="font-mono">{asset.path}</span>}
+      hiding={{ hideLabel: "Hide details", onHidden }}
+      data-library-asset-details={asset.asset}
+    >
+      <div className="flex flex-col gap-3 px-4 py-3">
+        <ProjectAssetPicture tone={assetPictureToneOf(asset)} words={assetFormatWords(asset)} size="details_band" />
+        <KeyValueRows
+          rows={[
+            ["Kind", asset.kind],
+            [
+              "UUID",
+              <span className="font-mono" title={asset.asset}>
+                {shortenedDigest(asset.asset)}
+              </span>,
+            ],
+            [
+              "Content",
+              <span className="font-mono" title={asset.content_sha256}>
+                sha256 {shortenedDigest(asset.content_sha256)}
+              </span>,
+            ],
+            ["Size", byteLengthInWords(asset.content_byte_len)],
+          ]}
+        />
+        <PropertySection title="Import settings">
+          {importSettings.length === 0 ? (
+            <p className="px-1 text-xs text-fg-3">None</p>
+          ) : (
+            <div className="px-1 pb-2">
+              <KeyValueRows look="fields" rows={importSettings.map(([key, value]): KeyValueRow => [key, <span className="font-mono break-all">{JSON.stringify(value)}</span>])} />
+            </div>
+          )}
+        </PropertySection>
       </div>
-      <KeyValueRows
-        rows={[
-          ["Kind", asset.kind],
-          ["UUID", <span className="font-mono" title={asset.asset}>{shortenedDigest(asset.asset)}</span>],
-          ["Content", <span className="font-mono" title={asset.content_sha256}>sha256 {shortenedDigest(asset.content_sha256)}</span>],
-          ["Size", byteLengthInWords(asset.content_byte_len)],
-          ["Settings", importSettingKeys.length === 0 ? "None" : <span className="font-mono">{JSON.stringify(asset.import_settings)}</span>],
-        ]}
-      />
-    </aside>
+    </SidePanel>
   );
 }
 
@@ -214,7 +256,9 @@ function AssetsOfTheProject({ connection, projectFolder, searchText }: { connect
   const folders = libraryAssetFoldersOf(assets);
   const folderShown = folders.some((folder) => folder.folder_id === shownFolderId) ? shownFolderId : EVERY_ASSET_FOLDER_ID;
   const assetsShown = assetsShownInTheFolder(assets, folderShown, searchText);
-  const chosenAsset = assets.find((asset) => asset.asset === chosenAssetUuid) ?? null;
+  const chosenAsset = assetsShown.find((asset) => asset.asset === chosenAssetUuid) ?? null;
+  const folderShownLabel = folders.find((folder) => folder.folder_id === folderShown)?.label ?? "this folder";
+  const noAssetShown = noAssetShownWords(assets.length, folderShownLabel, searchText);
   return (
     <div className="flex min-h-0 flex-1" data-library-assets="">
       <SectionNavigationList
@@ -229,33 +273,29 @@ function AssetsOfTheProject({ connection, projectFolder, searchText }: { connect
         shownSectionId={folderShown}
         onSectionChosen={setShownFolderId}
         dataAttributeOfEachSection="data-library-asset-folder"
-        footnote="The Library is what this project can use now. Window › Modules installs more."
       />
-      <div className="scrollbar-thin min-w-0 flex-1 overflow-y-auto p-3">
-        {assetsShown.length === 0 ? (
-          <WaitingState
-            title={assets.length === 0 ? "No assets yet" : "No asset matches"}
-            explanation={assets.length === 0 ? "A file imported into the project, a video, an image, a LUT or a model, is listed here." : `Nothing in ${folders.find((folder) => folder.folder_id === folderShown)?.label ?? "this folder"} has “${searchText.trim()}” in its path.`}
-            data-library-state={assets.length === 0 ? "no_assets" : "no_asset_matches"}
-          />
-        ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
-            {assetsShown.map((asset) => (
-              <ProjectAssetCard
-                key={asset.asset}
-                name={assetFileName(asset.path)}
-                kindAndSizeWords={`${asset.kind} · ${byteLengthInWords(asset.content_byte_len)}`}
-                pictureTone={assetPictureToneOf(asset)}
-                pictureWords={assetFormatWords(asset)}
-                isSelected={asset.asset === chosenAsset?.asset}
-                onSelected={() => setChosenAssetUuid(asset.asset)}
-                data-library-asset={asset.path}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-      {chosenAsset !== null && <DetailsOfTheAsset asset={chosenAsset} />}
+      <WorkAreaWithSidePanel sidePanel={chosenAsset === null ? null : <DetailsOfTheAsset asset={chosenAsset} onHidden={() => setChosenAssetUuid(null)} />}>
+        <div className="scrollbar-thin min-w-0 flex-1 overflow-y-auto p-3">
+          {assetsShown.length === 0 ? (
+            <WaitingState title={noAssetShown.title} explanation={noAssetShown.explanation} data-library-state={assets.length === 0 ? "no_assets" : "no_asset_matches"} />
+          ) : (
+            <CardGrid size="studio_compact" label={`Assets in ${folderShownLabel}`}>
+              {assetsShown.map((asset) => (
+                <ProjectAssetCard
+                  key={asset.asset}
+                  name={assetFileName(asset.path)}
+                  kindAndSizeWords={assetKindAndSizeWords(asset)}
+                  pictureTone={assetPictureToneOf(asset)}
+                  pictureWords={assetFormatWords(asset)}
+                  isSelected={asset.asset === chosenAsset?.asset}
+                  onSelected={() => setChosenAssetUuid(asset.asset)}
+                  data-library-asset={asset.path}
+                />
+              ))}
+            </CardGrid>
+          )}
+        </div>
+      </WorkAreaWithSidePanel>
     </div>
   );
 }

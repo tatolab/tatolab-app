@@ -20,10 +20,10 @@ import type { ControlDataAttributeName, ControlDataAttributes } from "./support/
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 import { ICON_BUTTON_CLASS_NAMES, STOCK_ICON_BUTTON_SIZE, type IconButtonSize } from "./icon_button";
 
-/** How wide an open menu is: as wide as its words, or a fixed width for choices that read better aligned. */
+/** How wide an open menu is: as wide as its words, or a fixed width for choices that read better aligned, narrowed to the room beside its field so a menu in a narrow frame is not cut off. */
 export type MenuWidth = "fit" | "wide";
 
-const MENU_WIDTH_CLASS_NAMES: Record<MenuWidth, string> = { fit: "w-auto min-w-56", wide: "w-[288px] max-h-96" };
+const MENU_WIDTH_CLASS_NAMES: Record<MenuWidth, string> = { fit: "w-auto min-w-56", wide: "w-[min(288px,var(--available-width))] max-h-96" };
 
 /** How big a field that opens a menu is: regular in bars and forms, compact inside a property panel's row. */
 export type FieldMenuSize = "regular" | "compact";

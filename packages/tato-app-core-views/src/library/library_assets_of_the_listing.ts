@@ -77,3 +77,15 @@ export function assetPictureToneOf(asset: ProjectAsset): ProjectAssetPictureTone
 export function shortenedDigest(digest: string): string {
   return digest.length <= 12 ? digest : `${digest.slice(0, 4)}…${digest.slice(-4)}`;
 }
+
+/** What an asset's card says under its name, as "media · 38 MB". */
+export function assetKindAndSizeWords(asset: ProjectAsset): string {
+  return `${asset.kind} · ${byteLengthInWords(asset.content_byte_len)}`;
+}
+
+/** Why no card shows: the project has no assets yet, or none in the folder `folderLabel` has `searchText` in its path. */
+export function noAssetShownWords(assetCount: number, folderLabel: string, searchText: string): { title: string; explanation: string } {
+  if (assetCount === 0) return { title: "No assets yet", explanation: "A file imported into the project, a video, an image, a LUT or a model, is listed here." };
+  const searchedFor = searchText.trim();
+  return { title: "No asset matches", explanation: searchedFor === "" ? `${folderLabel} holds no asset.` : `Nothing in ${folderLabel} has “${searchedFor}” in its path.` };
+}

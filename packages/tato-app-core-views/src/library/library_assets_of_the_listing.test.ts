@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ProjectAsset, ProjectAssetListing } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { assetFileName, assetFormatWords, assetPictureToneOf, assetsShownInTheFolder, assetsTheLibraryLists, byteLengthInWords, EVERY_ASSET_FOLDER_ID, libraryAssetFoldersOf, shortenedDigest } from "./library_assets_of_the_listing";
+import { assetFileName, assetKindAndSizeWords, noAssetShownWords, assetFormatWords, assetPictureToneOf, assetsShownInTheFolder, assetsTheLibraryLists, byteLengthInWords, EVERY_ASSET_FOLDER_ID, libraryAssetFoldersOf, shortenedDigest } from "./library_assets_of_the_listing";
 
 const assetAt = (path: string, kind: string, contentByteLen = 1): ProjectAsset => ({ asset: `uuid-of-${path}`, kind, path, content_sha256: "0".repeat(64), content_byte_len: contentByteLen, import_settings: {} });
 
@@ -45,5 +45,11 @@ describe("the Library's assets", () => {
     expect([1, 75, 11_194, 39_845_888, 2_621_440_000].map(byteLengthInWords)).toEqual(["1 byte", "75 bytes", "11 KB", "40 MB", "2.6 GB"]);
     expect(["media", "scene", "data", "tensor"].map((kind) => assetPictureToneOf(assetAt("x", kind)))).toEqual(["media", "scene", "data", "other"]);
     expect(shortenedDigest("16e89515f01295ded2534fd319db70fbd6bce1e95ed619b0127105489cc82700")).toBe("16e8…2700");
+  });
+
+  it("says what a card shows under its name, and why no card shows", () => {
+    expect(assetKindAndSizeWords(assetAt("media/poster.png", "media", 11_194))).toBe("media · 11 KB");
+    expect(noAssetShownWords(0, "All assets", "")).toEqual({ title: "No assets yet", explanation: "A file imported into the project, a video, an image, a LUT or a model, is listed here." });
+    expect(noAssetShownWords(4, "luts", " poster ")).toEqual({ title: "No asset matches", explanation: "Nothing in luts has “poster” in its path." });
   });
 });
