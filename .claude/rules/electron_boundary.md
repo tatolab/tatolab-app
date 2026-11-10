@@ -22,12 +22,6 @@ paths:
   `windowPageContentSecurityPolicy` — `connect-src 'self'`, nothing remote — so the window reaches
   the local API only through the main process. Loosening any of these is a decision; state the
   reason in the PR.
-- **Project views run with full access on Studio's origin** (owner, #195): each one in its own
-  frame, getting `VideoFrame`s with no copy, and able to reach the window's bridge through
-  `window.parent`, as trusted as its project's nodes. This is not a loosening of the seal and
-  never goes back to the owner. The sandbox is the view's opt-in. Making the sandbox the default,
-  giving views another origin, or converting their frames is the decision that does go to the
-  owner. See `docs/project-views-run-with-full-access.md`.
 - **The fuses stay flipped.** `RunAsNode`, `EnableNodeOptionsEnvironmentVariable` and
   `EnableNodeCliInspectArguments` off, `OnlyLoadAppFromAsar` on (and asar integrity on macOS):
   otherwise any process can run the signed app as plain Node and inherit its camera and
