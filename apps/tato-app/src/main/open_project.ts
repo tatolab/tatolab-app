@@ -96,8 +96,8 @@ export interface ProjectChangesThroughTheRuntime {
   setProjectDescription(projectDirectory: string, description: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>>;
   /** `set_project_cover` with the media asset `cover`, a UUID the project holds; `null` clears it. */
   setProjectCover(projectDirectory: string, cover: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>>;
-  /** `import_asset` of the file at `source` to `assetPath` in the project, by `author` or, for `null`, the runtime's own. */
-  importAsset(projectDirectory: string, source: string, assetPath: string, author: ProjectTransactionAuthor | null): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>>;
+  /** `import_asset` of the file at `source` to `assetPath` in the project, or for `null` into its kind's folder, by `author` or, for `null`, the runtime's own. */
+  importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>>;
   /** `read_project_file`: the bytes of `filePath` in the project. */
   readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, LocalApiRequestFailure>>;
 }

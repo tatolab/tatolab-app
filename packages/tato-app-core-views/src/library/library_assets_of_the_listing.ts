@@ -40,13 +40,6 @@ export function assetFolderIdShownOf(folders: readonly LibraryAssetFolder[], sho
   return folders.some((folder) => folder.folder_id === shownFolderId) ? shownFolderId : EVERY_ASSET_FOLDER_ID;
 }
 
-/** The folder Import asset… copies into while `folderId` is shown, `/`-separated in the project: the folder itself, or the project's top for every asset or the top's own. */
-export function assetFolderOfTheShownFolder(folderId: string): string {
-  if (!folderId.startsWith("folder:")) return "";
-  const folder = folderId.slice("folder:".length);
-  return folder === "." ? "" : folder;
-}
-
 /** One file Import asset… did not import, or the import as a whole, with the words of whoever refused it. */
 export interface LibraryImportRefusal {
   lead: string;

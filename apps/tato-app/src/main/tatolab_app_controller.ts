@@ -352,7 +352,7 @@ export class TatolabAppController {
   }
 
   /** Copy the file at `source` into the project in `projectDirectory` at `assetPath` through the runtime's `import_asset`, by `author` or, for `null`, the runtime's own. */
-  importAsset(projectDirectory: string, source: string, assetPath: string, author: ProjectTransactionAuthor | null): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>> {
+  importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>> {
     return this.localApiClient.importAsset(projectDirectory, source, assetPath, author);
   }
 

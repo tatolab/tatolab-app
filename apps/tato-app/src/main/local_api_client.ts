@@ -369,11 +369,11 @@ export class LocalApiClient {
     return this.changeProjectSettings("set_project_cover", { project_directory: projectDirectory, cover });
   }
 
-  /** Copy the file at `source`, an absolute path on this machine, into the project in `projectDirectory` as an asset at `assetPath` through `import_asset`, the kind its extension implies, recorded under `author` or, for `null`, the runtime's own; refused in the runtime's own words. */
-  async importAsset(projectDirectory: string, source: string, assetPath: string, author: ProjectTransactionAuthor | null): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>> {
+  /** Copy the file at `source`, an absolute path on this machine, into the project in `projectDirectory` as an asset through `import_asset`, the kind its extension implies, at `assetPath` or, for `null`, in its kind's folder under its own name numbered past a name already taken; recorded under `author` or, for `null`, the runtime's own; refused in the runtime's own words. */
+  async importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>> {
     const toolResultText = await this.callMcpTool(
       "import_asset",
-      { project_directory: projectDirectory, source, asset_path: assetPath, ...(author === null ? {} : { author: authorOnTheWire(author) }) },
+      { project_directory: projectDirectory, source, ...(assetPath === null ? {} : { asset_path: assetPath }), ...(author === null ? {} : { author: authorOnTheWire(author) }) },
       FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS,
     );
     if (!toolResultText.ok) return toolResultText;

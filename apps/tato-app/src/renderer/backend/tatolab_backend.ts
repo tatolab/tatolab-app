@@ -68,8 +68,8 @@ export interface TatolabBackend {
   listProjectNodeTypes(projectDirectory: string): Promise<ProjectNodeTypeListing>;
   /** Every asset of the project in `projectDirectory`, its graph documents among them; rejects in the runtime's own words. */
   listProjectAssets(projectDirectory: string): Promise<ProjectAssetListing>;
-  /** Ask the person for files and import each into `intoFolder` of the window's project (`""` for its top), by the person editing; `null` when they choose nothing, rejecting in Studio's or the runtime's words. */
-  importAssetsIntoTheOpenProject(intoFolder: string): Promise<ProjectAssetsImported | null>;
+  /** Ask the person for files and import each into the window's project, where the runtime places it in its kind's folder, by the person editing; `null` when they choose nothing, rejecting in Studio's or the runtime's words. */
+  importAssetsIntoTheOpenProject(): Promise<ProjectAssetsImported | null>;
   /** Check for a newer Tato Studio, downloading one that installs in place; how that goes arrives as the status's `app_update`. */
   checkForTatolabAppUpdates(): Promise<void>;
   /** Restart into a downloaded Tato Studio, download one a check found, or open a `.deb`'s download; how that goes arrives as the status's `app_update`. */

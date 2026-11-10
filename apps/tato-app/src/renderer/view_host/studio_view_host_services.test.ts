@@ -8,44 +8,44 @@ const GALLERY_WALL_OPEN: OpenProjectReading = {
 };
 
 function anAssetImportAnswering(answer: () => Promise<ProjectAssetsImported | null>) {
-  const foldersAsked: string[] = [];
+  let importsAsked = 0;
   const projectsListedAgain: string[] = [];
   const assetImportSources = {
     readTheOpenProject: () => GALLERY_WALL_OPEN,
     backend: {
-      importAssetsIntoTheOpenProject: (intoFolder: string) => {
-        foldersAsked.push(intoFolder);
+      importAssetsIntoTheOpenProject: () => {
+        importsAsked += 1;
         return answer();
       },
     },
     listTheProjectAgainNow: (projectFolder: string) => projectsListedAgain.push(projectFolder),
   };
-  return { assetImportSources, foldersAsked, projectsListedAgain };
+  return { assetImportSources, importsAskedSoFar: () => importsAsked, projectsListedAgain };
 }
 
 test("a view imports into the window's open project, whose assets are listed again at once", async () => {
   const assetsImported: ProjectAssetsImported = { imported: [{ asset: "b-uuid", path: "media/intro.mp4" }], refused: [] };
-  const { assetImportSources, foldersAsked, projectsListedAgain } = anAssetImportAnswering(async () => assetsImported);
+  const { assetImportSources, importsAskedSoFar, projectsListedAgain } = anAssetImportAnswering(async () => assetsImported);
 
-  expect(await importAssetsIntoTheOpenProjectForAView("/projects/gallery-wall", "media", assetImportSources)).toEqual({ kind: "imported", assets_imported: assetsImported });
-  expect(foldersAsked).toEqual(["media"]);
+  expect(await importAssetsIntoTheOpenProjectForAView("/projects/gallery-wall", assetImportSources)).toEqual({ kind: "imported", assets_imported: assetsImported });
+  expect(importsAskedSoFar()).toBe(1);
   expect(projectsListedAgain).toEqual(["/projects/gallery-wall"]);
 });
 
 test("choosing nothing is answered as nothing chosen, and a rejection in its own words", async () => {
-  expect(await importAssetsIntoTheOpenProjectForAView("/projects/gallery-wall", "", anAssetImportAnswering(async () => null).assetImportSources)).toEqual({ kind: "nothing_chosen" });
-  expect(await importAssetsIntoTheOpenProjectForAView("/projects/gallery-wall", "", anAssetImportAnswering(() => Promise.reject("No runtime answers.")).assetImportSources)).toEqual({
+  expect(await importAssetsIntoTheOpenProjectForAView("/projects/gallery-wall", anAssetImportAnswering(async () => null).assetImportSources)).toEqual({ kind: "nothing_chosen" });
+  expect(await importAssetsIntoTheOpenProjectForAView("/projects/gallery-wall", anAssetImportAnswering(() => Promise.reject("No runtime answers.")).assetImportSources)).toEqual({
     kind: "not_imported",
     because: "No runtime answers.",
   });
 });
 
 test("a folder that is not the window's open project is refused in Studio's words, with nothing asked of the backend", async () => {
-  const { assetImportSources, foldersAsked } = anAssetImportAnswering(async () => null);
+  const { assetImportSources, importsAskedSoFar } = anAssetImportAnswering(async () => null);
 
-  expect(await importAssetsIntoTheOpenProjectForAView("/projects/elsewhere", "media", assetImportSources)).toEqual({
+  expect(await importAssetsIntoTheOpenProjectForAView("/projects/elsewhere", assetImportSources)).toEqual({
     kind: "not_imported",
     because: "Tato Studio imports assets into this window's project only, not /projects/elsewhere.",
   });
-  expect(foldersAsked).toEqual([]);
+  expect(importsAskedSoFar()).toBe(0);
 });

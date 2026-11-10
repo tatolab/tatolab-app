@@ -26,7 +26,6 @@ import { libraryTreeOfTheListing, type LibraryDeclarationsShown, type LibraryRow
 import {
   assetFileName,
   assetFolderIdShownOf,
-  assetFolderOfTheShownFolder,
   assetFormatWords,
   assetKindAndSizeWords,
   assetPictureToneOf,
@@ -380,10 +379,9 @@ export function LibraryView({ connection }: { connection: TatoAppViewConnection 
   const choices = choicesKept.projectFolder === projectFolder ? choicesKept : libraryChoicesForANewProject(projectFolder);
   const changeTheChoices = (change: Partial<LibraryOfTheProjectChoices>) =>
     setChoicesKept((latest) => ({ ...(latest.projectFolder === projectFolder ? latest : libraryChoicesForANewProject(projectFolder)), ...change }));
-  const assetFolders = assetsReading?.kind === "listed" ? libraryAssetFoldersOf(assetsTheLibraryLists(assetsReading.listing)) : [];
-  const importIntoTheShownFolder = (folderOfTheProject: string) => {
+  const importTheFilesThePersonChooses = (folderOfTheProject: string) => {
     changeTheChoices({ isImporting: true, importRefusals: [] });
-    void connection.importAssetsIntoTheProject(folderOfTheProject, assetFolderOfTheShownFolder(assetFolderIdShownOf(assetFolders, choices.assetsShown.shownFolderId))).then((importing) => {
+    void connection.importAssetsIntoTheProject(folderOfTheProject).then((importing) => {
       const firstImported = importing.kind === "imported" ? importing.assets_imported.imported[0] : undefined;
       setChoicesKept((latest) =>
         latest.projectFolder !== folderOfTheProject
@@ -416,7 +414,7 @@ export function LibraryView({ connection }: { connection: TatoAppViewConnection 
                 label="Import asset…"
                 tooltip="Copy files into the folder shown"
                 disabledReason={importDisabledReason}
-                onPressed={() => importIntoTheShownFolder(projectFolder)}
+                onPressed={() => importTheFilesThePersonChooses(projectFolder)}
                 data-library-import-asset=""
               >
                 {choices.isImporting ? "Importing…" : "Import asset…"}

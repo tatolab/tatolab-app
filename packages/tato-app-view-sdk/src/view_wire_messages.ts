@@ -138,8 +138,8 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   }),
   /** The person editing in Studio, the author history records their edits under and their own undo takes. */
   z.object({ kind: z.literal("read_the_person_editing") }),
-  /** Ask the person for files in the desktop's open dialog and import each into `into_folder` of the project, `/`-separated and `""` for its top, through the runtime's `import_asset`. */
-  z.object({ kind: z.literal("import_assets_into_the_project"), project_folder: z.string(), into_folder: z.string() }),
+  /** Ask the person for files in the desktop's open dialog and import each into the project through the runtime's `import_asset`, which places it in its kind's folder. */
+  z.object({ kind: z.literal("import_assets_into_the_project"), project_folder: z.string() }),
   /** The graph tools the view's watch `watch_id` of `graph_tool_presses` offers the window's toolbar, replacing any offer before; refused where the window draws no toolbar. */
   z.object({ kind: z.literal("offer_graph_tools"), watch_id: watchOrAskIdSchema, tools: z.array(windowToolbarGraphToolOfferedSchema) }),
 ]);

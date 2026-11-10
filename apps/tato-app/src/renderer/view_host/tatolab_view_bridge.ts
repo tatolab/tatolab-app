@@ -324,7 +324,7 @@ export class TatolabViewBridge {
         return { kind: "done" };
       }
       case "import_assets_into_the_project": {
-        const importing = await this.hostServices.importAssetsIntoTheProject(ask.project_folder, ask.into_folder);
+        const importing = await this.hostServices.importAssetsIntoTheProject(ask.project_folder);
         if (importing.kind === "imported") return { kind: "project_assets_imported", assets_imported: importing.assets_imported };
         return importing.kind === "nothing_chosen" ? { kind: "nothing_chosen" } : { kind: "refused", because: importing.because };
       }

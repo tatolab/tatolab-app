@@ -2,8 +2,6 @@
 // UUIDs its streams are listed with, beside the media, scene and data files imported into it.
 
 import type { ProjectAsset, ProjectAssetListing, ProjectAssetsImported } from "../src/shared/tatolab_backend_contract";
-import { assetFolderRefusal } from "../src/shared/asset_folder_in_a_project";
-import { projectNameNumbered } from "../src/shared/new_project_folder_name";
 import { mockStreamLocationOf } from "./mock_stream_fixtures";
 
 const PATTERN_PROJECT = "2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90";
@@ -49,22 +47,19 @@ const MOCK_FILE_CHOSEN_TO_IMPORT = { name: "night-sky", extension: ".jpg", kind:
 /** What the browser mock's Import asset… does: imports the one file its dialog answers with, or also refuses a graph document chosen beside it, in the runtime's words. */
 export type MockAssetImportScenario = "imports_one" | "refuses_one";
 
-/** The mock's `import_assets_into_the_open_project`: the file its dialog answers with imported into `intoFolder` of the pattern project in `streamsFolder` under its name numbered past one already there, kept in `assetsImportedWhileTheMockRuns`, and with `refuses_one` a graph document refused beside it; a folder outside the project is refused before anything is imported, as the main process refuses it. */
-export function mockImportTheFilesChosenInto(
+/** The mock's `import_assets_into_the_open_project`: the file its dialog answers with imported into its kind's folder of the pattern project in `streamsFolder`, as the runtime places an import that names no path, its name numbered `-2`, `-3` past one already there, kept in `assetsImportedWhileTheMockRuns`, and with `refuses_one` a graph document refused beside it. */
+export function mockImportTheFilesChosen(
   projectDirectory: string,
   streamsFolder: string,
-  intoFolder: string,
   assetsImportedWhileTheMockRuns: ProjectAsset[],
   assetImportScenario: MockAssetImportScenario,
 ): ProjectAssetsImported | string {
-  const folderRefusal = assetFolderRefusal(intoFolder);
-  if (folderRefusal !== null) return folderRefusal;
   const listing = mockProjectAssetListing(projectDirectory, streamsFolder, assetsImportedWhileTheMockRuns);
   if (listing === null) return `import_asset failed: ${projectDirectory} holds no project`;
   const pathsHeld = new Set(listing.assets.map((asset) => asset.path));
-  const folderPrefix = intoFolder === "" ? "" : `${intoFolder}/`;
   let numberPastTheFilesHeld = 1;
-  const pathNumbered = () => `${folderPrefix}${projectNameNumbered(MOCK_FILE_CHOSEN_TO_IMPORT.name, numberPastTheFilesHeld)}${MOCK_FILE_CHOSEN_TO_IMPORT.extension}`;
+  const pathNumbered = () =>
+    `${MOCK_FILE_CHOSEN_TO_IMPORT.kind}/${MOCK_FILE_CHOSEN_TO_IMPORT.name}${numberPastTheFilesHeld === 1 ? "" : `-${numberPastTheFilesHeld}`}${MOCK_FILE_CHOSEN_TO_IMPORT.extension}`;
   while (pathsHeld.has(pathNumbered())) numberPastTheFilesHeld += 1;
   const imported: ProjectAsset = {
     asset: `5e0c6a1d-7f2b-4c93-8a1e-${String(assetsImportedWhileTheMockRuns.length + 1).padStart(12, "0")}`,
@@ -77,7 +72,7 @@ export function mockImportTheFilesChosenInto(
   assetsImportedWhileTheMockRuns.push(imported);
   const refused =
     assetImportScenario === "refuses_one"
-      ? [{ file_name: "main.graph.json", because: `import_asset failed: \`${folderPrefix}main.graph.json\` is not an asset path: it names a stream's graph document, which only the stream verbs write` }]
+      ? [{ file_name: "main.graph.json", because: `import_asset failed: \`data/main.graph.json\` is not an asset path: it names a stream's graph document, which only the stream verbs write` }]
       : [];
   return { imported: [{ asset: imported.asset, path: imported.path }], refused };
 }

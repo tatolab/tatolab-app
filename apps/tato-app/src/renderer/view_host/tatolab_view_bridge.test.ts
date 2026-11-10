@@ -93,7 +93,7 @@ function recordingHostServices() {
   const viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
   const languageServerMessagesSent: JsonValue[] = [];
   const undosAsked: { projectFolder: string; author: ProjectTransactionAuthor }[] = [];
-  const assetImportsAsked: { projectFolder: string; intoFolder: string }[] = [];
+  const assetImportsAsked: string[] = [];
   const graphTransactionsAsked: { projectFolder: string; operations: readonly unknown[]; mode: string; idempotencyKey: string | null }[] = [];
   const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
   const outputsWritten: { viewNode: StudioViewNodeAddress; port: string; value: JsonValue }[] = [];
@@ -131,12 +131,12 @@ function recordingHostServices() {
       listener({ kind: "not_listed", because: `list_assets failed: ${projectFolder} holds no project: it has no tatolab-project.json` });
       return () => undefined;
     },
-    importAssetsIntoTheProject: async (projectFolder, intoFolder) => {
-      assetImportsAsked.push({ projectFolder, intoFolder });
-      if (intoFolder === "nowhere") return { kind: "nothing_chosen" };
+    importAssetsIntoTheProject: async (projectFolder) => {
+      assetImportsAsked.push(projectFolder);
+      if (projectFolder === "/cancelled") return { kind: "nothing_chosen" };
       return {
         kind: "imported",
-        assets_imported: { imported: [{ asset: "a-uuid", path: `${intoFolder}/intro.mp4` }], refused: [{ file_name: "notes.txt", because: "import_asset failed: `media/notes.txt` is already the path of the asset b-uuid" }] },
+        assets_imported: { imported: [{ asset: "a-uuid", path: "media/intro.mp4" }], refused: [{ file_name: "notes.txt", because: "import_asset failed: `media/notes.txt` is already the path of the asset b-uuid" }] },
       };
     },
     watchProjectTransactions: (projectFolder, listener) => {
@@ -277,15 +277,12 @@ describe("a view's connection to Studio, through the one bridge every view is se
 
   it("imports the files the person chooses, each refusal in the runtime's words", async () => {
     const { connection, assetImportsAsked } = await connectedView(DJ_DECK_MANIFEST, {});
-    expect(await connection.importAssetsIntoTheProject("/set", "media")).toEqual({
+    expect(await connection.importAssetsIntoTheProject("/set")).toEqual({
       kind: "imported",
       assets_imported: { imported: [{ asset: "a-uuid", path: "media/intro.mp4" }], refused: [{ file_name: "notes.txt", because: "import_asset failed: `media/notes.txt` is already the path of the asset b-uuid" }] },
     });
-    expect(await connection.importAssetsIntoTheProject("/set", "nowhere")).toEqual({ kind: "nothing_chosen" });
-    expect(assetImportsAsked).toEqual([
-      { projectFolder: "/set", intoFolder: "media" },
-      { projectFolder: "/set", intoFolder: "nowhere" },
-    ]);
+    expect(await connection.importAssetsIntoTheProject("/cancelled")).toEqual({ kind: "nothing_chosen" });
+    expect(assetImportsAsked).toEqual(["/set", "/cancelled"]);
   });
 
   it("reads the project's history and undoes through it", async () => {

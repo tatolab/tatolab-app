@@ -284,7 +284,7 @@ describe("the studio", () => {
     expect(details.textContent).toContain("11 KB");
   });
 
-  it("imports the file the person chooses into the Library's shown folder, shows it at once and opens its details", async () => {
+  it("imports the file the person chooses, which the runtime places in its kind's folder, shows it at once and opens its details", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
@@ -292,7 +292,7 @@ describe("the studio", () => {
     await showInTheLibrary("assets");
 
     const library = coreViewPage("library");
-    fireEvent.click(await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset-folder="folder:media"]') ?? expect.unreachable("no media folder")));
+    await waitFor(() => library.querySelector('[data-library-asset="luts/warm.cube"]') ?? expect.unreachable("no assets listed"));
     fireEvent.click(library.querySelector<HTMLElement>("[data-library-import-asset]") ?? expect.unreachable("no Import asset button"));
 
     const imported = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset="media/night-sky.jpg"]') ?? expect.unreachable("the imported file is not shown"));
@@ -315,10 +315,10 @@ describe("the studio", () => {
     fireEvent.click(library.querySelector<HTMLElement>("[data-library-import-asset]") ?? expect.unreachable("no Import asset button"));
 
     const refusal = await waitFor(() => library.querySelector<HTMLElement>("[data-library-import-refused]") ?? expect.unreachable("no refusal"));
-    expect(refusal.textContent).toBe("Didn't import main.graph.json: import_asset failed: `main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write");
+    expect(refusal.textContent).toBe("Didn't import main.graph.json: import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write");
     expect(library.querySelector<HTMLInputElement>("[data-library-asset-search]")?.value).toBe("");
-    await waitFor(() => library.querySelector('[data-library-asset="night-sky.jpg"]') ?? expect.unreachable("the imported file is not shown"));
-    expect(library.querySelector("[data-library-asset-details]")?.textContent).toContain("night-sky.jpg");
+    await waitFor(() => library.querySelector('[data-library-asset="media/night-sky.jpg"]') ?? expect.unreachable("the imported file is not shown"));
+    expect(library.querySelector("[data-library-asset-details]")?.textContent).toContain("media/night-sky.jpg");
   });
 
   it("lists in an area's view-type menu each view with who brought it, and a view that does not open as a row that cannot be chosen, with why", async () => {

@@ -927,7 +927,7 @@ test("undo and redo in the open project ask the runtime by the window's author a
 });
 
 /** The window's `ProjectAssetsImported` reads exactly this JSON. */
-test("importing assets into the open project copies each file the person chooses into its folder by the person editing, answering each one imported and each refusal in the runtime's words", async () => {
+test("importing assets into the open project copies each file the person chooses into the project, naming no path, by the person editing, answering each one imported and each refusal in the runtime's words", async () => {
   const sharedState = await sharedStateOverFakes(
     [
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-answer-for-stills-poster-png-imported-by-a-person.json")),
@@ -941,20 +941,16 @@ test("importing assets into the open project copies each file the person chooses
   const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
-  expect(await commandHandlers.import_assets_into_the_open_project({ into_folder: "stills" }, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.import_assets_into_the_open_project(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: null });
   sharedState.assetFilesTheDialogAnswers.files = ["/home/sam/poster.png", "/home/sam/cover-art.png"];
-  expect(await commandHandlers.import_assets_into_the_open_project({ into_folder: "stills" }, fromTheStudioWindow)).toEqual({
+  expect(await commandHandlers.import_assets_into_the_open_project(undefined, fromTheStudioWindow)).toEqual({
     ok: true,
     value: {
       imported: [{ asset: "0f10d6b7-3e8b-414f-aca0-30ded70632dc", path: "stills/poster.png" }],
       refused: [{ file_name: "cover-art.png", because: "import_asset failed: `media/cover-art.png` is already the path of the asset 7593be3b-210b-4656-ab21-2213bfa307b5" }],
     },
   });
-  expect(await commandHandlers.import_assets_into_the_open_project({}, fromTheStudioWindow)).toEqual({
-    ok: false,
-    refusal: 'import_assets_into_the_open_project needs `into_folder`, the folder in the project the assets go in, "" for its top',
-  });
-  expect(await commandHandlers.import_assets_into_the_open_project({ into_folder: "stills" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+  expect(await commandHandlers.import_assets_into_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 
 /** The window's `ProjectGraphTransactionTheRuntimeAnswered` reads exactly this JSON. */
