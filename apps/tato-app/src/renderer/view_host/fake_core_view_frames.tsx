@@ -59,6 +59,24 @@ export function drawTheCoreViewsInTheirFrames(): () => void {
     });
   }
   const viewRootsByFrame = new Map<HTMLIFrameElement, { viewRoot: Root; viewElement: HTMLElement }>();
+  const framesByTheirPage = new Map<Document, HTMLIFrameElement>();
+  // happy-dom empties a frame's page the moment the frame leaves the window, while its view, drawn from
+  // the test's module graph, can still commit a removal there; in Electron the page and its view go
+  // together, so a removal from the page of a frame that has left is a removal already done.
+  const removeChildPatches = new Map<object, unknown>();
+  const takeRemovalsFromPagesOfFramesThatLeft = (nodeOfThePage: Node) => {
+    let prototypeHoldingRemoveChild: object | null = Object.getPrototypeOf(nodeOfThePage);
+    while (prototypeHoldingRemoveChild !== null && !Object.hasOwn(prototypeHoldingRemoveChild, "removeChild")) prototypeHoldingRemoveChild = Object.getPrototypeOf(prototypeHoldingRemoveChild);
+    if (prototypeHoldingRemoveChild === null || removeChildPatches.has(prototypeHoldingRemoveChild)) return;
+    const removeChild: unknown = Reflect.get(prototypeHoldingRemoveChild, "removeChild");
+    if (typeof removeChild !== "function") return;
+    removeChildPatches.set(prototypeHoldingRemoveChild, removeChild);
+    Reflect.set(prototypeHoldingRemoveChild, "removeChild", function removeChildUnlessThePagesFrameLeft(this: Node, child: Node): unknown {
+      const frameOfThePage = this.ownerDocument === null ? undefined : framesByTheirPage.get(this.ownerDocument);
+      if (frameOfThePage !== undefined && !frameOfThePage.isConnected && child.parentNode !== this) return child;
+      return Reflect.apply(removeChild, this, [child]);
+    });
+  };
   // happy-dom empties a frame's page as the frame leaves the window or loads its page again, so a view
   // whose page is gone is forgotten rather than unmounted; Studio's bridge closed its port with the page.
   const unmountTheView = (frame: HTMLIFrameElement) => {
@@ -74,6 +92,8 @@ export function drawTheCoreViewsInTheirFrames(): () => void {
     const frameWindow = frame.contentWindow;
     const viewElement = frame.contentDocument?.getElementById("view");
     if (drawTheView === undefined || frameWindow === null || viewElement === null || viewElement === undefined) return;
+    framesByTheirPage.set(viewElement.ownerDocument, frame);
+    takeRemovalsFromPagesOfFramesThatLeft(viewElement);
     const postTheMessage = frameWindow.postMessage.bind(frameWindow);
     // happy-dom's window.postMessage drops what it transfers, so the handover's port is taken here.
     frameWindow.postMessage = (message: unknown, targetOrigin: string | WindowPostMessageOptions = "*", transfer: Transferable[] = []) => {
@@ -91,6 +111,7 @@ export function drawTheCoreViewsInTheirFrames(): () => void {
   document.addEventListener("load", onAFrameLoaded, true);
   return () => {
     document.removeEventListener("load", onAFrameLoaded, true);
+    for (const [nodePrototype, removeChild] of removeChildPatches) Reflect.set(nodePrototype, "removeChild", removeChild);
     for (const frame of [...viewRootsByFrame.keys()]) unmountTheView(frame);
     if (settings !== null) Reflect.set(settings, "enableIframePageLoading", iframePageLoadingBefore);
     if (typeof fetchSettings === "object" && fetchSettings !== null) Reflect.set(fetchSettings, "interceptor", fetchInterceptorBefore);

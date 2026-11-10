@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { connectToTatoAppOverPort, type TatoAppViewConnection } from "./tato_app_view_connection.js";
 import { messageFromTheViewSchema, type MessageFromStudio, type MessageFromTheView, type ViewGrant } from "./view_wire_messages.js";
 
@@ -85,8 +85,7 @@ describe("connectToTatoAppOverPort", () => {
     const serverEvents: unknown[] = [];
     const languageServer = connection.connectToPythonLanguageServer("/p", (event) => serverEvents.push(event));
     languageServer.send({ jsonrpc: "2.0", id: 1, method: "initialize" });
-    await nextTurns();
-    expect(serverEvents).toEqual([{ kind: "message", message: { jsonrpc: "2.0", id: 1, result: null } }]);
+    await vi.waitFor(() => expect(serverEvents).toEqual([{ kind: "message", message: { jsonrpc: "2.0", id: 1, result: null } }]));
     const watchMessage = messagesFromTheView.find((message) => message.kind === "watch");
     expect(messagesFromTheView.at(-1)).toMatchObject({ kind: "ask", ask: { kind: "send_to_python_language_server", watch_id: watchMessage?.kind === "watch" ? watchMessage.watch_id : -1 } });
   });
