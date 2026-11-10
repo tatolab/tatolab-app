@@ -2,7 +2,7 @@
    the window's structural sizes. */
 
 @theme inline {
-  --font-sans: "Geist Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
 
   --text-2xs: 11px;
