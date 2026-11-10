@@ -253,6 +253,7 @@ async function anOpenProject(options: {
   recentFolders?: RecentProjectFolderOpened[];
   creationRefusal?: string;
   deletionStates?: readonly StreamActionFollowed[];
+  startRefusal?: string;
 }) {
   const sentReadings: OpenProjectReading[] = [];
   const dialogsAsked: Array<{ purpose: ProjectFolderDialogPurpose; defaultFolder: string }> = [];
@@ -266,6 +267,7 @@ async function anOpenProject(options: {
   let wallClockNowMs = 1_790_000_000_000;
   let projectOpenedLast: OpenProjectOfAStudioWindow | null = null;
   const studioWindowsClosed: string[] = [];
+  const projectsStarted: string[] = [];
   const waitsMs: number[] = [];
   const archiveDialogsAsked: string[] = [];
   const coverImageDialogsAsked: string[] = [];
@@ -314,6 +316,11 @@ async function anOpenProject(options: {
       monotonicClockMs += delayMs;
     },
     readMonotonicClockMs: () => monotonicClockMs,
+    startTheProjectUnlessTheRuntimeRunsIt: async (folder) => {
+      if (options.startRefusal !== undefined) return failedWith(options.startRefusal);
+      projectsStarted.push(folder);
+      return succeeded(undefined);
+    },
     closeTheStudioWindowOf: (folder) => {
       studioWindowsClosed.push(folder);
       if (projectOpenedLast?.projectFolder !== folder) return;
@@ -375,6 +382,7 @@ async function anOpenProject(options: {
     deletionsQueued,
     describedDeletions,
     studioWindowsClosed,
+    projectsStarted,
     waitsMs,
     recentFolders: () => recentFolders.map((recentFolder) => recentFolder.folder),
     rememberedFolder: () => recentFolders[0]?.folder ?? null,
@@ -445,6 +453,25 @@ test("a new project is made in its location, which is made when missing, created
   expect(projectDirectoriesCreated).toEqual([projectFolder]);
   expect(rememberedFolder()).toBe(projectFolder);
   expect(openProject.readOpenProject()).toMatchObject({ kind: "read", open_project: { project: { folder: projectFolder, name: "fresh" } } });
+});
+
+test("opening a project starts it, so its graph is there to draw and edit, and a new one the runtime starts already is not started again", async () => {
+  const studioFolder = await aFolder();
+  await writeAProject(studioFolder, "studio");
+  const { openProject, documentsDirectory, projectsStarted } = await anOpenProject({ dialogAnswers: null, recentFolders: [{ folder: studioFolder, opened_at_wall_clock_ms: 1 }] });
+
+  expect(await openProject.openRecentProject(studioFolder)).toEqual(succeeded(undefined));
+  expect(await openProject.createNewProject("Night Show", path.join(documentsDirectory, "Tato Studio"))).toMatchObject({ ok: true });
+  expect(projectsStarted).toEqual([studioFolder]);
+});
+
+test("a project the runtime refuses to start still opens, and says so in the runtime's words", async () => {
+  const studioFolder = await aFolder();
+  await writeAProject(studioFolder, "studio");
+  const { openProject } = await anOpenProject({ dialogAnswers: null, recentFolders: [{ folder: studioFolder, opened_at_wall_clock_ms: 1 }], startRefusal: "no runtime answers" });
+
+  expect(await openProject.openRecentProject(studioFolder)).toEqual(failedWith(`${studioFolder} is open, but the runtime did not start it: no runtime answers`));
+  expect(openProject.readOpenProject()).toMatchObject({ kind: "read", open_project: { project: { folder: studioFolder } } });
 });
 
 test("a new project is refused before the runtime is asked for a name that is no folder name, a location that is no full path, or a folder already there", async () => {

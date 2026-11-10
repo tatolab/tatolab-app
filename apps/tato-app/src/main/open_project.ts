@@ -146,6 +146,8 @@ export interface ProjectOpeningSources {
   openTheProjectInItsStudioWindow: (folder: string) => Promise<void>;
   /** Close the studio window of the project in `folder` and the windows it opened, without asking; nothing when none is open. */
   closeTheStudioWindowOf: (folder: string) => void;
+  /** Start the project in `folder` unless the runtime lists it running, paused or starting already, since the runtime draws and edits only a loaded project's graph; refused in the runtime's own words. */
+  startTheProjectUnlessTheRuntimeRunsIt: (folder: string) => Promise<Result<void, string>>;
 }
 
 /** What a studio window's project reaches: a folder watch, a timer, its window, and the runtime that lists its imports. */
@@ -374,7 +376,7 @@ export class ProjectOpening {
     const queued = await this.sources.newProjectCreation.createProject(projectDirectory.value);
     if (!queued.ok) return failedWith(queued.failure.failureDescription);
     const folder = await realPathOrAsGiven(path.resolve(queued.value.project_directory));
-    const opened = await this.openAndRememberTheFolder(folder);
+    const opened = await this.openAndRememberTheFolder(folder, "the_runtime_starts_it_already");
     return opened.ok ? succeeded({ folder, project_creation: queued.value }) : opened;
   }
 
@@ -443,9 +445,11 @@ export class ProjectOpening {
     return failedWith(`The runtime is still deleting ${folder}. Its card stays here, and reads as gone from disk once the folder is in the Trash.`);
   }
 
-  private async openAndRememberTheFolder(folder: string): Promise<Result<void, string>> {
+  private async openAndRememberTheFolder(folder: string, start: "start_it_unless_it_runs" | "the_runtime_starts_it_already" = "start_it_unless_it_runs"): Promise<Result<void, string>> {
+    const started = start === "start_it_unless_it_runs" ? await this.sources.startTheProjectUnlessTheRuntimeRunsIt(folder) : succeeded(undefined);
     await this.sources.openTheProjectInItsStudioWindow(folder);
     const remembered = await this.sources.recentProjectFolders.rememberOpened(folder, this.sources.readWallClockNowMs());
+    if (!started.ok) return failedWith(`${folder} is open, but the runtime did not start it: ${started.failure}`);
     return remembered.ok ? succeeded(undefined) : failedWith(`${folder} is open, but Tato Studio could not remember it for next time: ${remembered.failure}`);
   }
 }

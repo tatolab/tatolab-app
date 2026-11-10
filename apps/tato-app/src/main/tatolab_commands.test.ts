@@ -163,6 +163,7 @@ async function sharedStateOverFakes(
     readMonotonicClockMs: () => 0,
     openTheProjectInItsStudioWindow: (folder) => appWindows.openTheProjectInItsStudioWindow(folder),
     closeTheStudioWindowOf: (folder) => appWindows.studioWindowOfTheProjectIn(folder)?.tatolabMainWindow.close(),
+    startTheProjectUnlessTheRuntimeRunsIt: async () => succeeded(undefined),
   });
   return {
     controller,
