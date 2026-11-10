@@ -39,6 +39,7 @@
   --color-studio-agent-avatar: var(--studio-agent-avatar);
   --color-studio-agent-text: var(--studio-agent-text);
   --color-studio-agent-row: var(--studio-agent-row);
+  --color-studio-current-change-row: var(--studio-current-change-row);
   --color-chrome: var(--chrome);
   --color-raised: var(--raised);
   --color-well: var(--well);
@@ -70,6 +71,14 @@
   --color-danger: var(--danger);
   --color-danger-text: var(--danger-text);
   --color-danger-soft: var(--danger-soft);
+  --color-status-positive-ground: var(--status-positive-ground);
+  --color-status-positive-text: var(--status-positive-text);
+  --color-status-danger-ground: var(--status-danger-ground);
+  --color-status-danger-text: var(--status-danger-text);
+  --color-status-caution-ground: var(--status-caution-ground);
+  --color-status-caution-text: var(--status-caution-text);
+  --color-status-neutral-ground: var(--status-neutral-ground);
+  --color-status-neutral-text: var(--status-neutral-text);
 
   /* shadcn's theme, mapped once onto the tokens above; each follows the theme through the variable it names. */
   --color-background: var(--window);
@@ -145,6 +154,7 @@
   --studio-agent-avatar: #4a3d78;
   --studio-agent-text: #e6dcff;
   --studio-agent-row: rgba(183, 156, 255, 0.08);
+  --studio-current-change-row: #232327;
   --studio-read-only-banner: rgba(40, 33, 18, 0.95);
   --studio-graph-grid: #26262a;
   --studio-graph-tools: rgba(22, 22, 24, 0.92);
@@ -190,6 +200,14 @@
   --warn-text: #f0a63a;
   --danger-text: #ff6b62;
   --danger-soft: rgba(242, 85, 77, 0.1);
+  --status-positive-ground: #13261d;
+  --status-positive-text: #9fe3c2;
+  --status-danger-ground: #3a1a18;
+  --status-danger-text: #f2b9a6;
+  --status-caution-ground: #2b2416;
+  --status-caution-text: #f0c27a;
+  --status-neutral-ground: #26262b;
+  --status-neutral-text: #c8c8ce;
   --ring: rgba(124, 155, 255, 0.85);
   --scrim: rgba(0, 0, 0, 0.4);
   --shadow-pop: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);

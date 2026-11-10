@@ -1,10 +1,15 @@
-// A stream's graph as the window draws it, read from the runtime's `graph {stream}` tool: its
-// nodes by name with their type, state, config, declared ports and drop counters, its links by id, node and port, and the
-// tool's text itself. Every other key the runtime renders stays only in that text.
+// A stream's graph as the window draws it, read from the runtime's `graph {stream}` tool: its stream
+// asset, its nodes by name with their type, state, config, declared ports, drop counters and studio
+// fields, its links by id, node and port, its labelled groups and canvas notes, and the tool's text
+// itself. Every other key the runtime renders stays only in that text.
 
 import type {
   JsonValue,
   StreamGraphDeclaredPort,
+  StreamGraphGroup,
+  StreamGraphNodeStudioFields,
+  StreamGraphNote,
+  StudioCanvasPair,
   StreamGraphLink,
   StreamGraphNode,
   StreamGraphSummary,
@@ -53,7 +58,107 @@ function streamGraphSummaryFromTheParsedGraph(
   if (!linksOnTheWire.ok) return linksOnTheWire;
   const links = everyOneRead(linksOnTheWire.value, streamGraphLinkOnTheWire);
   if (!links.ok) return links;
-  return succeeded({ stream: stream.value ?? requestedStream, nodes: nodes.value, links: links.value });
+  const streamAsset = optionalText(graph.value, "asset");
+  if (!streamAsset.ok) return streamAsset;
+  const groupsOnTheWire = arrayOrEmpty(graph.value, "groups");
+  if (!groupsOnTheWire.ok) return groupsOnTheWire;
+  const groups = everyOneRead(groupsOnTheWire.value, streamGraphGroupOnTheWire);
+  if (!groups.ok) return groups;
+  const documentStudio = objectOrEmpty(graph.value, "studio");
+  if (!documentStudio.ok) return documentStudio;
+  const notesOnTheWire = arrayOrEmpty(documentStudio.value, "notes");
+  if (!notesOnTheWire.ok) return notesOnTheWire;
+  const notes = notesOnTheWire.value.flatMap((noteOnTheWire) => {
+    const note = streamGraphNoteOnTheWire(noteOnTheWire);
+    return note === null ? [] : [note];
+  });
+  return succeeded({ stream: stream.value ?? requestedStream, stream_asset: streamAsset.value, nodes: nodes.value, links: links.value, groups: groups.value, notes });
+}
+
+/** `[x, y]` as two finite numbers; `null` for anything else. */
+function canvasPairOnTheWire(value: unknown): StudioCanvasPair | null {
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  const [first, second]: unknown[] = value;
+  return typeof first === "number" && Number.isFinite(first) && typeof second === "number" && Number.isFinite(second) ? [first, second] : null;
+}
+
+/** The studio contract version this app reads; a node's `studio` under another version is read as a free map. */
+const NODE_STUDIO_CONTRACT_READ = 1;
+
+/** A UUID in any text form the runtime's `Uuid::parse_str` takes: hyphenated, simple, braced or `urn:uuid:`. */
+const A_UUID = /^(?:urn:uuid:)?(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}|[0-9a-f]{32})$/i;
+
+/** One fixed key of a node's `studio` read into `fields`; whether its value had the key's shape. */
+function readANodeStudioFixedKey(fields: StreamGraphNodeStudioFields, key: string, value: unknown): boolean {
+  switch (key) {
+    case "position": {
+      const position = canvasPairOnTheWire(value);
+      if (position !== null) fields.position = position;
+      return position !== null;
+    }
+    case "group":
+      if (typeof value === "string" && A_UUID.test(value)) fields.group = value;
+      return typeof value === "string" && A_UUID.test(value);
+    case "comment":
+      if (typeof value === "string") fields.comment = value;
+      return typeof value === "string";
+    case "colour":
+      if (typeof value === "string") fields.colour = value;
+      return typeof value === "string";
+    case "collapsed":
+      if (typeof value === "boolean") fields.collapsed = value;
+      return typeof value === "boolean";
+    default:
+      return false;
+  }
+}
+
+/** A node's `studio` read as the runtime reads it: under the contract, each fixed key of its shape, a key the runtime would refuse to write read as absent; in a free map written before the contract, every key that does not read kept under `metadata`. */
+function nodeStudioFieldsOnTheWire(studioOnTheWire: unknown): StreamGraphNodeStudioFields {
+  const studio = isAJsonObject(studioOnTheWire) ? studioOnTheWire : {};
+  const isUnderTheContract = studio["contract"] === NODE_STUDIO_CONTRACT_READ;
+  const metadataOnTheWire = studio["metadata"];
+  const fields: StreamGraphNodeStudioFields = {
+    position: null,
+    group: null,
+    comment: null,
+    colour: null,
+    collapsed: null,
+    metadata: isAJsonObject(metadataOnTheWire)
+      ? Object.fromEntries(Object.entries(metadataOnTheWire).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1])))
+      : !isUnderTheContract && isAJsonValue(metadataOnTheWire)
+        ? { metadata: metadataOnTheWire }
+        : {},
+  };
+  for (const [key, value] of Object.entries(studio)) {
+    if ((key === "contract" && isUnderTheContract) || key === "metadata") continue;
+    if (!readANodeStudioFixedKey(fields, key, value) && !isUnderTheContract && isAJsonValue(value)) fields.metadata[key] = value;
+  }
+  return fields;
+}
+
+function streamGraphGroupOnTheWire(groupOnTheWire: unknown): Result<StreamGraphGroup, string> {
+  const group = jsonObject(groupOnTheWire, "a group");
+  if (!group.ok) return group;
+  const id = requiredText(group.value, "id");
+  if (!id.ok) return id;
+  const title = textOrDefault(group.value, "title", "");
+  if (!title.ok) return title;
+  const description = optionalText(group.value, "description");
+  if (!description.ok) return description;
+  const colour = optionalText(group.value, "colour");
+  if (!colour.ok) return colour;
+  return succeeded({ id: id.value, title: title.value, description: description.value, colour: colour.value });
+}
+
+/** A canvas note as the runtime reads one; `null` for one it would refuse (no id or text, or no two-number position or size), which the canvas leaves out rather than losing the graph over. */
+function streamGraphNoteOnTheWire(noteOnTheWire: unknown): StreamGraphNote | null {
+  if (!isAJsonObject(noteOnTheWire)) return null;
+  const { id, text } = noteOnTheWire;
+  const position = canvasPairOnTheWire(noteOnTheWire["position"]);
+  const size = canvasPairOnTheWire(noteOnTheWire["size"]);
+  if (typeof id !== "string" || typeof text !== "string" || position === null || size === null) return null;
+  return { id, text, position, size };
 }
 
 /** A `{ name: count }` object of the node's `components.metrics`, keeping each count the runtime wrote as a number; `{}` when it wrote none. */
@@ -78,6 +183,8 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
   if (!components.ok) return components;
   const config = objectOrEmpty(node.value, "config");
   if (!config.ok) return config;
+  const pins = objectOrEmpty(node.value, "pins");
+  if (!pins.ok) return pins;
   const state = components.value["state"];
   const failedBecause = components.value["failed_because"];
   const metrics = components.value["metrics"];
@@ -94,10 +201,12 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
     state: typeof state === "string" ? state : null,
     failed_because: typeof failedBecause === "string" ? failedBecause : null,
     config: Object.fromEntries(Object.entries(config.value).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]))),
+    pins: Object.fromEntries(Object.entries(pins.value).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]))),
     input_ports: inputPorts.value,
     output_ports: outputPorts.value,
     dropped_bags_by_link: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "dropped_bags_by_link"),
     refused_bags_by_output_port: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "refused_bags_by_output_port"),
+    studio: nodeStudioFieldsOnTheWire(node.value["studio"]),
   });
 }
 

@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronDown, Ellipsis, type LucideIcon } from "lucide-react";
-import type { ReactElement, ReactNode } from "react";
+import { useId, type ReactElement, type ReactNode } from "react";
 import { Button } from "./ui/button";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "./ui/context-menu";
 import {
@@ -35,6 +35,7 @@ export function IconButtonMenu({
   label,
   size = "regular",
   menuAlignment = "end",
+  isOverAPicture = false,
   children,
   ...controlDataAttributes
 }: {
@@ -43,11 +44,17 @@ export function IconButtonMenu({
   size?: IconButtonSize;
   /** Which edge of the button the open menu lines up with. */
   menuAlignment?: "start" | "end";
+  /** Drawn over a picture, as a project's cover: on a ground of its own with an outline, so it reads over any picture. */
+  isOverAPicture?: boolean;
   children: ReactNode;
 } & ControlDataAttributes) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size={STOCK_ICON_BUTTON_SIZE[size]} className={ICON_BUTTON_CLASS_NAMES} />} aria-label={label} {...controlDataAttributes}>
+      <DropdownMenuTrigger
+        render={<Button variant="ghost" size={STOCK_ICON_BUTTON_SIZE[size]} className={cn(ICON_BUTTON_CLASS_NAMES, isOverAPicture && ICON_BUTTON_OVER_A_PICTURE_CLASS_NAMES)} />}
+        aria-label={label}
+        {...controlDataAttributes}
+      >
         <TriggerIcon className="size-4" strokeWidth={1.75} aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align={menuAlignment} className={MENU_WIDTH_CLASS_NAMES.fit}>
@@ -57,10 +64,18 @@ export function IconButtonMenu({
   );
 }
 
-/** The ⋯ button that opens a row's or a page's other actions. */
-export function MoreActionsMenu({ label, children, ...controlDataAttributes }: { label: string; children: ReactNode } & ControlDataAttributes) {
+/** An icon button's look over a picture: a ground of the window's colour and an outline, so its icon reads over any picture. */
+const ICON_BUTTON_OVER_A_PICTURE_CLASS_NAMES = "border border-line-strong bg-window/85 text-fg backdrop-blur-sm hover:bg-window dark:hover:bg-window data-popup-open:bg-window aria-expanded:bg-window";
+
+/** The ⋯ button that opens a row's, a card's or a page's other actions. */
+export function MoreActionsMenu({
+  label,
+  isOverAPicture = false,
+  children,
+  ...controlDataAttributes
+}: { label: string; isOverAPicture?: boolean; children: ReactNode } & ControlDataAttributes) {
   return (
-    <IconButtonMenu icon={Ellipsis} label={label} {...controlDataAttributes}>
+    <IconButtonMenu icon={Ellipsis} label={label} isOverAPicture={isOverAPicture} {...controlDataAttributes}>
       {children}
     </IconButtonMenu>
   );
@@ -122,6 +137,8 @@ export function FieldMenu({
 /** What stands before a menu item's words: an icon, or something in its place such as a served logo; never both. */
 type MenuItemPicture = { icon?: LucideIcon; leading?: never } | { icon?: never; leading?: ReactNode };
 
+const MENU_NOTE_CLASS_NAMES = "px-2 py-1 text-xs text-fg-3";
+
 /** One choice of a menu; a destructive one reads red. */
 export function MenuItem({
   icon: ItemIcon,
@@ -158,6 +175,25 @@ export function MenuItem({
       {children}
       {shortcutHint !== undefined && <DropdownMenuShortcut>{shortcutHint}</DropdownMenuShortcut>}
     </DropdownMenuItem>
+  );
+}
+
+/** A menu row for something that cannot be chosen here, drawn as a disabled choice, then a note saying why that the row is described by. */
+export function MenuItemThatCannotBeChosen({
+  whyItCannotBeChosen,
+  children,
+  ...controlDataAttributes
+}: { whyItCannotBeChosen: ReactNode; children: ReactNode } & ControlDataAttributes) {
+  const idOfTheNoteSayingWhy = useId();
+  return (
+    <>
+      <DropdownMenuItem disabled aria-describedby={idOfTheNoteSayingWhy} className={MENU_ITEM_CLASS_NAMES} {...controlDataAttributes}>
+        {children}
+      </DropdownMenuItem>
+      <p id={idOfTheNoteSayingWhy} className={MENU_NOTE_CLASS_NAMES}>
+        {whyItCannotBeChosen}
+      </p>
+    </>
   );
 }
 
@@ -255,5 +291,5 @@ export function MenuSeparator() {
 
 /** A line of a menu that is read, not chosen: what a group holds when it holds nothing yet. */
 export function MenuNote({ children }: { children: ReactNode }) {
-  return <p className="px-2 py-1 text-xs text-fg-3">{children}</p>;
+  return <p className={MENU_NOTE_CLASS_NAMES}>{children}</p>;
 }

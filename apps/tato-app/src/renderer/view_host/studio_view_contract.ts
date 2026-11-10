@@ -81,6 +81,15 @@ export interface PythonLanguageServerConnection {
   close(): void;
 }
 
+/** A view node in a running stream: the stream and the node's UUID, as `graph` lists it under `id`. */
+export interface StudioViewNodeAddress {
+  stream: string;
+  node_id: string;
+}
+
+/** Whether the runtime published a value a view wrote on one of its node's outputs, or why not, in its own words. */
+export type StudioViewOutputWriting = { kind: "written" } | { kind: "not_written"; because: string };
+
 /** One port viewer, reading a running node's output port until closed. */
 export interface PortViewerConnection {
   /** Close the viewer; nothing arrives after. */
@@ -123,6 +132,8 @@ export interface StudioViewHostServices {
   readThePersonEditing(): Promise<ThePersonEditingReading>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
+  /** Publish `value` on the output `port` of the view node `viewNode`, answering once the runtime took it or why it did not. */
+  writeStudioViewOutput(viewNode: StudioViewNodeAddress, port: string, value: JsonValue): Promise<StudioViewOutputWriting>;
   /** Read `target`'s output port, each frame or message and the viewer's end arriving on `onEvent`. */
   watchPortViewer(target: PortViewerTarget, onEvent: (event: PortViewerEvent) => void): PortViewerConnection;
 }

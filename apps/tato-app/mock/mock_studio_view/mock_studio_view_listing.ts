@@ -24,3 +24,16 @@ export function mockStudioViewListing(): ListedStudioView {
     folder_url: new URL("picture_and_fader/", THIS_MODULES_URL).href,
   };
 }
+
+/** A view the mock project's import `lobby-wall` brings that does not open, as the runtime lists one built for a view contract it does not read. */
+export function mockStudioViewListingThatDoesNotOpen(): ListedStudioView {
+  return {
+    view_type_id: "lobby-wall:stage_rig",
+    project_name: "lobby-wall",
+    import_folder: "lobby-wall",
+    opens: false,
+    not_opened_because: "`contract`: this runtime reads view contract 1.0.",
+    manifest_json: { contract: "2.0", title: "Stage rig", placement: "area", entry: "index.html" },
+    folder_url: new URL("stage_rig/", THIS_MODULES_URL).href,
+  };
+}

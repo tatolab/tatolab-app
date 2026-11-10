@@ -11,11 +11,12 @@ import {
   parseHttpResponse,
   runtimeDescriptionFromTheDescribeRuntimeToolResult,
   queuedStreamActionFromTheToolResult,
-  streamRenameAnswerFromTheRenameStreamToolResult,
+  streamDisplayNameSetFromTheSetStreamDisplayNameToolResult,
 } from "./local_api_client.js";
 import type { Result } from "./result.js";
 import {
   projectCreationQueuedFromTheCreateProjectToolResult,
+  projectRunQueuedFromTheStartOrReloadProjectToolResult,
   streamActionCancelAnswerFromTheCancelStreamActionToolResult,
   streamActionDescriptionFromTheDescribeStreamActionToolResult,
 } from "./stream_action_description.js";
@@ -585,26 +586,31 @@ test("removing_a_project_queues_remove_project_with_its_folder_and_a_project_the
   ]);
 });
 
-test("renaming_a_stream_calls_rename_stream_with_its_id_and_the_display_name_and_a_refusal_is_the_runtimes_own_words", async () => {
+test("setting_a_streams_display_name_calls_set_stream_display_name_with_its_project_and_stream_asset_and_a_refusal_is_the_runtimes_own_words", async () => {
   const server = await fakeLocalApiServerAnswering([
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-rename-stream-answer-for-the-stream-heat-map-main-8eda1f-renamed-heat-map.json")),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-rename-stream-refusal-for-a-display-name-that-shows-nothing.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-set-stream-display-name-answer-for-the-main-stream-of-hallways-renamed-heat-map.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-set-stream-display-name-refusal-for-a-display-name-that-shows-nothing.json")),
   ]);
+  const hallways = "/private/tmp/tatolab-proof-projects/hallways";
+  const mainStreamAsset = "666895f1-e258-4587-8c62-ed07c0cc70db";
 
-  expect(answerOf(await server.client().renameStream("heat-map-main-8eda1f", "Heat map"))).toBeUndefined();
-  expect(failureOf(await server.client().renameStream("heat-map-main-8eda1f", "   "))).toEqual({
-    failureDescription: `Invalid configuration: "   " cannot be a stream's display name: it shows nothing; a display name is any text with something to show`,
+  expect(answerOf(await server.client().setStreamDisplayName(hallways, mainStreamAsset, "Heat map"))).toEqual({
+    transaction: "43d874c1-83a9-4506-90fc-e01bfc47b9ca",
+    commit: "22857d5b7b2ac6dbd9e62ed1b64fd38dff47cb9f",
+  });
+  expect(failureOf(await server.client().setStreamDisplayName(hallways, mainStreamAsset, "   "))).toEqual({
+    failureDescription: `set_stream_display_name failed: "   " cannot be a stream's display name: it shows nothing`,
     isTheRuntimesRefusal: true,
   });
-  expect(server.receivedRequests().map((request) => [/Mcp-Name: (\S+)/.exec(headAndBodyOf(request)[0])?.[1], JSON.parse(headAndBodyOf(request)[1]).params.arguments])).toEqual([
-    ["rename_stream", { stream: "heat-map-main-8eda1f", display_name: "Heat map" }],
-    ["rename_stream", { stream: "heat-map-main-8eda1f", display_name: "   " }],
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["set_stream_display_name", { project_directory: hallways, stream_asset: mainStreamAsset, display_name: "Heat map" }],
+    ["set_stream_display_name", { project_directory: hallways, stream_asset: mainStreamAsset, display_name: "   " }],
   ]);
 });
 
-test("a_rename_stream_answer_missing_its_display_name_is_refused_naming_it", () => {
-  expect(failureOf(streamRenameAnswerFromTheRenameStreamToolResult('{"stream":"heat-map-main-8eda1f"}'))).toBe(
-    "the runtime's rename_stream result could not be read: missing field `display_name`",
+test("a_set_stream_display_name_answer_missing_its_commit_is_refused_naming_it", () => {
+  expect(failureOf(streamDisplayNameSetFromTheSetStreamDisplayNameToolResult('{"transaction":"43d874c1-83a9-4506-90fc-e01bfc47b9ca"}'))).toBe(
+    "the runtime's set_stream_display_name result could not be read: missing field `commit`",
   );
 });
 
@@ -630,16 +636,40 @@ test("creating_a_project_calls_create_project_with_its_folder_or_none_and_reads_
   ]);
 });
 
-test("running_a_project_calls_run_project_with_its_folder_and_reads_the_action_it_queued", async () => {
+test("starting_a_project_calls_start_project_with_its_folder_and_reads_the_action_it_queued_and_a_running_one_is_refused_naming_reload_project", async () => {
   const server = await fakeLocalApiServerAnswering([
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-project-answer-for-the-folder-hallways.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-project-answer-for-the-folder-hallways.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-project-refusal-for-a-project-already-running.json")),
   ]);
 
-  expect(answerOf(await server.client().runProject("/tmp/tatolab-proof-projects/hallways"))).toEqual({
-    action: "Rj12j3eujz3zn0dposliv79k9-3",
-    project_directory: "/tmp/tatolab-proof-projects/hallways",
+  expect(answerOf(await server.client().startProject("/tmp/tatolab-proof-projects/hallways"))).toEqual({
+    action: "Rgdbghpj6ai2ge3wgy64g42y7-4",
+    project_directory: "/private/tmp/tatolab-proof-projects/hallways",
   });
-  expect(toolCallsReceivedBy(server)).toEqual([["run_project", { project_directory: "/tmp/tatolab-proof-projects/hallways" }]]);
+  expect(failureOf(await server.client().startProject("/tmp/tatolab-proof-projects/hallways"))).toEqual({
+    failureDescription: "Runtime error: the project in /private/tmp/tatolab-proof-projects/hallways already runs, so there is none to start; `reload_project` re-reads it from disk",
+    isTheRuntimesRefusal: true,
+  });
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["start_project", { project_directory: "/tmp/tatolab-proof-projects/hallways" }],
+    ["start_project", { project_directory: "/tmp/tatolab-proof-projects/hallways" }],
+  ]);
+});
+
+test("reloading_a_project_calls_reload_project_with_its_folder_and_reads_the_action_it_queued", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-reload-project-answer-for-the-folder-hallways.json")),
+  ]);
+
+  expect(answerOf(await server.client().reloadProject("/tmp/tatolab-proof-projects/hallways"))).toEqual({
+    action: "Rgdbghpj6ai2ge3wgy64g42y7-5",
+    project_directory: "/private/tmp/tatolab-proof-projects/hallways",
+  });
+  expect(toolCallsReceivedBy(server)).toEqual([["reload_project", { project_directory: "/tmp/tatolab-proof-projects/hallways" }]]);
+});
+
+test("a_start_or_reload_project_answer_missing_its_action_is_refused_naming_the_tool", () => {
+  expect(failureOf(projectRunQueuedFromTheStartOrReloadProjectToolResult("reload_project", '{"project_directory":"/tmp/hallways"}'))).toContain("reload_project");
 });
 
 /** The description `describe_stream_action` answered, failing the test when it answered anything else. */
@@ -1158,6 +1188,104 @@ test("a_graph_transaction_refused_with_no_structured_refusal_fails_in_the_runtim
   expect(failure).toEqual({ isTheRuntimesRefusal: true, failureDescription: "transact failed: the runtime is shutting down" });
 });
 
+test("renaming_a_project_calls_rename_project_with_its_folder_and_name_and_reads_its_name_now_and_a_blank_name_is_refused_in_the_runtimes_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-rename-project-answer-for-night-show-renamed-night-show.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-rename-project-refusal-for-a-name-that-shows-nothing.json")),
+  ]);
+
+  expect(answerOf(await server.client().renameProject("/tmp/tatolab-proof-projects/night-show", "Night Show"))).toBe("Night Show");
+  expect(failureOf(await server.client().renameProject("/tmp/tatolab-proof-projects/night-show", "   "))).toEqual({
+    failureDescription: "rename_project failed: a project's name cannot be blank",
+    isTheRuntimesRefusal: true,
+  });
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["rename_project", { project_directory: "/tmp/tatolab-proof-projects/night-show", name: "Night Show" }],
+    ["rename_project", { project_directory: "/tmp/tatolab-proof-projects/night-show", name: "   " }],
+  ]);
+});
+
+test("duplicating_a_project_calls_duplicate_project_into_a_new_folder_and_reads_the_duplicate_and_a_folder_already_there_is_refused_in_the_runtimes_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-duplicate-project-answer-for-night-show-into-night-show-copy.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-duplicate-project-refusal-for-a-folder-already-there.json")),
+  ]);
+  const into = "/tmp/tatolab-proof-projects/night-show copy";
+
+  expect(answerOf(await server.client().duplicateProject("/tmp/tatolab-proof-projects/night-show", into))).toEqual({
+    folder: into,
+    project: "03784927-d486-46f1-a0d8-a1768485f601",
+    name: "Night Show copy",
+  });
+  expect(failureOf(await server.client().duplicateProject("/tmp/tatolab-proof-projects/night-show", into)).failureDescription).toBe(
+    "duplicate_project failed: /tmp/tatolab-proof-projects/night-show copy already exists, so the project was not duplicated into it",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["duplicate_project", { project_directory: "/tmp/tatolab-proof-projects/night-show", into }],
+    ["duplicate_project", { project_directory: "/tmp/tatolab-proof-projects/night-show", into }],
+  ]);
+});
+
+test("importing_a_project_zip_calls_import_project_with_the_zip_and_a_new_folder_and_reads_the_project_made_and_a_zip_holding_none_is_refused_in_the_runtimes_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-project-answer-for-night-show-zip-into-imported-show.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-project-refusal-for-a-zip-holding-no-project.json")),
+  ]);
+
+  expect(answerOf(await server.client().importProject("/tmp/tatolab-proof-projects/night-show.zip", "/tmp/tatolab-proof-projects/imported-show"))).toEqual({
+    folder: "/tmp/tatolab-proof-projects/imported-show",
+    project: "cba1d286-8a36-4113-bf10-8630cf9a52b2",
+    name: "Night Show",
+  });
+  expect(failureOf(await server.client().importProject("/tmp/tatolab-proof-projects/notes.zip", "/tmp/tatolab-proof-projects/imported-notes")).failureDescription).toBe(
+    "import_project failed: /tmp/tatolab-proof-projects/notes.zip holds no project to import: it has no `tatolab-project.json` at its root",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["import_project", { source: "/tmp/tatolab-proof-projects/night-show.zip", project_directory: "/tmp/tatolab-proof-projects/imported-show" }],
+    ["import_project", { source: "/tmp/tatolab-proof-projects/notes.zip", project_directory: "/tmp/tatolab-proof-projects/imported-notes" }],
+  ]);
+});
+
+test("deleting_a_project_queues_delete_project_answering_its_action_which_is_followed_to_done_and_a_folder_holding_no_project_is_refused_in_the_runtimes_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-project-answer-queueing-the-deletion-of-night-show-copy.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-the-deletion-of-night-show-copy-done.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-project-refusal-for-a-folder-that-is-not-a-project.json")),
+  ]);
+
+  expect(answerOf(await server.client().deleteProject("/tmp/tatolab-proof-projects/night-show copy"))).toBe("Rumdndppudfu1hageszz80pom-2");
+  expect(answerOf(await server.client().describeStreamAction("Rumdndppudfu1hageszz80pom-2"))).toMatchObject({
+    kind: "described",
+    description: { action: "Rumdndppudfu1hageszz80pom-2", kind: "delete", state: "done", streams: [], failed_because: null },
+  });
+  expect(failureOf(await server.client().deleteProject("/tmp/tatolab-proof-projects/nothing-here")).failureDescription).toBe(
+    "Resource not found: /tmp/tatolab-proof-projects/nothing-here holds no project: it has no tatolab-project.json, so there is none to delete",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["delete_project", { project_directory: "/tmp/tatolab-proof-projects/night-show copy" }],
+    ["describe_stream_action", { action: "Rumdndppudfu1hageszz80pom-2" }],
+    ["delete_project", { project_directory: "/tmp/tatolab-proof-projects/nothing-here" }],
+  ]);
+});
+
+test("summarizing_a_project_reads_its_name_description_and_last_edit_from_list_assets_and_a_project_never_described_has_none", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-assets-tool-result-of-night-show-described-and-edited.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-assets-tool-result-of-night-show-copy-with-no-description-or-cover.json")),
+  ]);
+
+  expect(answerOf(await server.client().summarizeTheProject("/tmp/tatolab-proof-projects/night-show"))).toMatchObject({
+    name: "Night Show",
+    description: "Projection for the night market: a test pattern into a brightness meter.",
+    last_edited_at_wall_clock_ms: 1_794_335_926_000,
+  });
+  expect(answerOf(await server.client().summarizeTheProject("/tmp/tatolab-proof-projects/night-show copy"))).toMatchObject({
+    name: "Night Show copy",
+    description: null,
+    last_edited_at_wall_clock_ms: 1_794_335_872_000,
+  });
+});
+
 const RECORDED_NIGHT_SHOW = "/private/tmp/tl-rec053/projects/night-show";
 
 test("project files are listed, read whole as bytes, and written as one transaction by the author under a key, each through the runtime's file tools, a refusal in its own words", async () => {
@@ -1236,4 +1364,21 @@ test("a project's views are listed from its views/ folders and its imports', eac
   ]);
   expect(listed[1]?.manifest).toMatchObject({ title: "DJ Deck", placement: "node", entry: "index.html" });
   expect(refusal.failureDescription).toBe("list_project_views failed: /private/tmp/tl-rec053/not-a-project holds no project: it has no tatolab-project.json");
+});
+
+test("a value a view writes is handed to its node's output with the stream, the node's UUID and the port, and a stream that is not loaded refused in the runtime's words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-studio-view-output-tool-result-of-the-deck-node-cue.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-studio-view-output-refusal-for-the-stopped-stream-night-show.json")),
+  ]);
+  const deckNode = "fdca90ae-f25d-4551-86e2-11f5cdb65d16";
+
+  expect(answerOf(await server.client().writeStudioViewOutput("night-show-main-aa298d", deckNode, "cue", { track: "Opening" }))).toEqual({ stream: "night-show-main-aa298d", node: deckNode, port: "cue" });
+  expect(failureOf(await server.client().writeStudioViewOutput("night-show-main-aa298d", deckNode, "cue", { track: "Opening" })).failureDescription).toBe(
+    "write_studio_view_output failed: Resource not found: no stream with the id `night-show-main-aa298d` is loaded in this runtime. Loaded: lobby-wall-main-c95d53",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["write_studio_view_output", { stream: "night-show-main-aa298d", node: deckNode, port: "cue", value: { track: "Opening" } }],
+    ["write_studio_view_output", { stream: "night-show-main-aa298d", node: deckNode, port: "cue", value: { track: "Opening" } }],
+  ]);
 });

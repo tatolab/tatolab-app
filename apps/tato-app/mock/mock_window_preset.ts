@@ -85,9 +85,10 @@ async function openEveryOutlinerRow(): Promise<void> {
  * `?section=general|developer|runtime|command-line|about`; there `?restart=pressed|refused` presses Restart and `?link=pressed`
  * presses Link tatolab, with the backend's `?cli_link=not_linked`. `?sheet=new_project` presses the Projects window's New project, then
  * `?new_project_name=<name>` types that name and `?new_project=browse|create` presses Browse… or Create. On the
- * Projects window, `?projects_view=grid|list` chooses that layout from the View menu, `?projects_sort=last_opened|name`
- * that order from the sort menu, `?projects_search=<text>` opens the search and types the text, and
- * `?projects_menu=new|view|sort` leaves that menu open.
+ * Projects window, `?projects_view=grid|list` chooses that layout from the View menu, `?projects_sort=last_edited|name`
+ * that order from the sort menu, `?projects_search=<text>` opens the search and types the text,
+ * `?projects_menu=new|view|sort|project` leaves that menu open (`project` the first project's ⋯ menu), and
+ * `?projects_dialog=rename|delete|import_archive` opens the first project's Rename or Delete dialog, or the Import project sheet for a `.zip`.
  */
 export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platform: TatolabPlatform): Promise<void> {
   const layout = pageQuery.get("layout");
@@ -167,4 +168,14 @@ async function driveTheProjectsWindowToPreset(pageQuery: URLSearchParams): Promi
   if (projectsMenu === "new") await pressWhenShown(`[data-projects-action="new-menu"]`);
   if (projectsMenu === "view") await pressWhenShown(`[data-projects-view]`);
   if (projectsMenu === "sort") await pressWhenShown(`[data-projects-sort]`);
+  if (projectsMenu === "project") await pressWhenShown(`[data-projects-project] [data-project-more-actions]`);
+  const projectsDialog = pageQuery.get("projects_dialog");
+  if (projectsDialog === "rename" || projectsDialog === "delete") {
+    await pressWhenShown(`[data-projects-project] [data-project-more-actions]`);
+    await clickWhenShown(`[data-project-action="${projectsDialog}"]`);
+  }
+  if (projectsDialog === "import_archive") {
+    await pressWhenShown(`[data-projects-action="new-menu"]`);
+    await clickWhenShown(`[data-projects-new-menu-choice="import-archive"]`);
+  }
 }

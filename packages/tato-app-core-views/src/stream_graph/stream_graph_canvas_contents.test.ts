@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import type { StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { NODE_STUDIO_FIELDS_NONE_SET, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 
 function graphNode(name: string, inputs: string[], outputs: string[]): StreamGraphNode {
@@ -14,11 +14,16 @@ function graphNode(name: string, inputs: string[], outputs: string[]): StreamGra
     output_ports: outputs.map((port) => ({ name: port, family: null, stream_facts: null, values_checked: null })),
     dropped_bags_by_link: {},
     refused_bags_by_output_port: {},
+    pins: {},
+    studio: NODE_STUDIO_FIELDS_NONE_SET,
   };
 }
 
 const GRAPH: StreamGraphSummary = {
   stream: "main",
+  stream_asset: null,
+  groups: [],
+  notes: [],
   nodes: [
     {
       ...graphNode("camera", [], []),

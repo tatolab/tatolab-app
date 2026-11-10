@@ -1,6 +1,6 @@
 import { useId, useState, type KeyboardEvent } from "react";
 import { newProjectFolderNameRefusal } from "../../shared/new_project_folder_name";
-import type { ChosenProjectFolder, NewProjectDefaults } from "../../shared/tatolab_backend_contract";
+import type { ChosenProjectFolder } from "../../shared/tatolab_backend_contract";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { FormDialog, FormDialogFooter, FormDialogRow, FormDialogRows } from "@tatolab/tato-app-view-sdk/design_system/form_dialog";
@@ -8,6 +8,8 @@ import { PendingActionWords } from "@tatolab/tato-app-view-sdk/design_system/pen
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { TextField } from "@tatolab/tato-app-view-sdk/design_system/text_field";
 import { abbreviateHomeDirectory } from "../presentation/platform_presentation";
+import { presentNewProjectSheetWords } from "../presentation/projects_presentation";
+import type { NewProjectSheetOpening } from "./studio_window_model";
 
 /** What the New project sheet asks the app for: the folder a project goes in, through its dialog, and the project made there. */
 export interface NewProjectSources {
@@ -15,6 +17,8 @@ export interface NewProjectSources {
   chooseNewProjectLocation(startingAt: string): Promise<string | null>;
   /** The project `name` made in `location` by the runtime and opened, rejecting in the app's or the runtime's own words. */
   createNewProject(name: string, location: string): Promise<ChosenProjectFolder>;
+  /** The project `name` made in `location` by the runtime from the `.zip` `archive` and opened, rejecting in the app's or the runtime's own words. */
+  importProjectArchive(archive: string, name: string, location: string): Promise<ChosenProjectFolder>;
 }
 
 /** `name` in `location`, as the folder the project is made in. */
@@ -22,12 +26,14 @@ function newProjectFolderOf(location: string, name: string): string {
   return `${location.replace(/\/+$/, "")}/${name.trim()}`;
 }
 
-/** The sheet's fields, opened with `openedWith`, and its Create and Cancel; it closes once the project is made and open. */
-function NewProjectSheetFields({ openedWith, sources, onClosed }: { openedWith: NewProjectDefaults; sources: NewProjectSources; onClosed: () => void }) {
+/** The sheet's fields, opened with `openedWith`, and its Create or Import and Cancel; it closes once the project is made and open. */
+function NewProjectSheetFields({ openedWith, sources, onClosed }: { openedWith: NewProjectSheetOpening; sources: NewProjectSources; onClosed: () => void }) {
   const nameFieldId = useId();
   const nameRefusalId = useId();
-  const [name, setName] = useState(openedWith.name);
-  const [location, setLocation] = useState(openedWith.location);
+  const startingAt = openedWith.kind === "new_project" ? openedWith.defaults : openedWith.chosen;
+  const sheetWords = presentNewProjectSheetWords(openedWith.kind === "project_archive" ? openedWith.chosen.archive : null);
+  const [name, setName] = useState(startingAt.name);
+  const [location, setLocation] = useState(startingAt.location);
   const [creationRefusal, setCreationRefusal] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isBrowsing, setIsBrowsing] = useState(false);
@@ -53,7 +59,8 @@ function NewProjectSheetFields({ openedWith, sources, onClosed }: { openedWith: 
     if (nameRefusal !== null || isCreating) return;
     setIsCreating(true);
     setCreationRefusal(null);
-    sources.createNewProject(name, location).then(onClosed, (rejection: unknown) => {
+    const made = openedWith.kind === "new_project" ? sources.createNewProject(name, location) : sources.importProjectArchive(openedWith.chosen.archive, name, location);
+    made.then(onClosed, (rejection: unknown) => {
       setIsCreating(false);
       setCreationRefusal(describeBackendRejection(rejection));
     });
@@ -68,8 +75,8 @@ function NewProjectSheetFields({ openedWith, sources, onClosed }: { openedWith: 
     <FormDialog
       isOpen
       onOpenChange={(isOpen) => !isOpen && onClosed()}
-      title="New project"
-      description="Tato Studio makes a folder for the project, with a stream to start from."
+      title={sheetWords.title}
+      description={sheetWords.description}
       focusOnOpen="first_field_selected"
       footer={
         <FormDialogFooter>
@@ -78,10 +85,10 @@ function NewProjectSheetFields({ openedWith, sources, onClosed }: { openedWith: 
             Cancel
           </ActionButton>
           {isCreating ? (
-            <PendingActionWords words="Creating…" />
+            <PendingActionWords words={sheetWords.pendingWords} />
           ) : (
             <ActionButton appearance="primary" disabledReason={nameRefusal} onPressed={createTheProject} data-new-project-action="create">
-              Create
+              {sheetWords.actionWords}
             </ActionButton>
           )}
         </FormDialogFooter>
@@ -91,13 +98,13 @@ function NewProjectSheetFields({ openedWith, sources, onClosed }: { openedWith: 
       <div onKeyDown={createOnEnterInAField}>
         <FormDialogRows>
           <FormDialogRow
-            label="Name"
+            label={sheetWords.nameLabel}
             labelFor={nameFieldId}
             below={name.trim() !== "" && nameRefusal !== null ? <span id={nameRefusalId}><RefusalLine words={nameRefusal} /></span> : undefined}
           >
             <TextField
               id={nameFieldId}
-              label="Name"
+              label={sheetWords.nameLabel}
               text={name}
               onTextChanged={(typedName) => {
                 setName(typedName);
@@ -124,7 +131,7 @@ function NewProjectSheetFields({ openedWith, sources, onClosed }: { openedWith: 
         </p>
         {creationRefusal !== null && (
           <div data-new-project-refusal="">
-            <RefusalLine lead="The project wasn't created:" words={creationRefusal} />
+            <RefusalLine lead={sheetWords.refusalLead} words={creationRefusal} />
           </div>
         )}
       </div>
@@ -132,8 +139,8 @@ function NewProjectSheetFields({ openedWith, sources, onClosed }: { openedWith: 
   );
 }
 
-/** The New project sheet over the window while `openedWith` holds what it opened with: a name, the folder it goes in with Browse…, and the full path the project is made at. */
-export function NewProjectSheetView({ openedWith, sources, onClosed }: { openedWith: NewProjectDefaults | null; sources: NewProjectSources; onClosed: () => void }) {
+/** The New project sheet, or the Import project sheet for a `.zip`, over the window while `openedWith` holds what it opened with: a name, the folder it goes in with Browse…, and the full path the project is made at. */
+export function NewProjectSheetView({ openedWith, sources, onClosed }: { openedWith: NewProjectSheetOpening | null; sources: NewProjectSources; onClosed: () => void }) {
   if (openedWith === null) return null;
   return <NewProjectSheetFields openedWith={openedWith} sources={sources} onClosed={onClosed} />;
 }

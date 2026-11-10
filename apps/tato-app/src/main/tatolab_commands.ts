@@ -185,12 +185,15 @@ function stepTheProjectsWindowAsideOnceItOpenedAProject(
   }
 }
 
-/** `rename_stream { stream, display_name }`: the runtime's `rename_stream` on `stream`, then a status round whether it renamed or refused; refused in the runtime's own words. */
+/** `rename_stream { stream, display_name }`: the runtime's `set_stream_display_name` on the stream asset the runtime last listed for `stream`, then a status round whether it renamed or refused; refused in the runtime's own words, or for a stream it lists no project for. */
 export function renameStream(sharedState: TatolabAppSharedState, stream: string, displayName: string): Promise<Result<void, string>> {
   return answerTheWindow("rename_stream", async () => {
-    const renamed = await sharedState.controller.renameStream(stream, displayName);
+    const listedStream = sharedState.statusPublisher.lastPublishedStatusNow()?.streams?.find((candidateListedStream) => candidateListedStream.stream === stream) ?? null;
+    if (listedStream === null) return failedWith(`The runtime does not list ${stream}, so Tato Studio has no stream to rename.`);
+    if (listedStream.location === null) return failedWith(`The runtime lists no project for ${listedStream.display_name}, so it cannot be renamed.`);
+    const renamed = await sharedState.controller.setStreamDisplayName(listedStream.location.project_directory, listedStream.location.stream_asset, displayName);
     sharedState.statusPublisher.requestRefresh();
-    return renamed.ok ? renamed : failedWith(renamed.failure.failureDescription);
+    return renamed.ok ? succeeded(undefined) : failedWith(renamed.failure.failureDescription);
   });
 }
 
@@ -234,7 +237,7 @@ export function createStreamProject(sharedState: TatolabAppSharedState, folder: 
   });
 }
 
-/** `run_stream_project { folder }`: the runtime's `run_project` queued on `folder`, then a status round; refused in the runtime's own words. */
+/** `run_stream_project { folder }`: the runtime's `start_project` queued on `folder`, then a status round; refused in the runtime's own words. */
 export function runStreamProject(sharedState: TatolabAppSharedState, folder: string): Promise<Result<ProjectRunQueued, string>> {
   return answerTheWindow("run_stream_project", async () => {
     const queued = await sharedState.streamProjectAdding.runStreamProject(folder);
@@ -243,10 +246,22 @@ export function runStreamProject(sharedState: TatolabAppSharedState, folder: str
   });
 }
 
-/** `reload_project { project_directory }`: the runtime's `run_project` queued on a project it lists, which loads every stream asset in it again, then a status round; refused in the runtime's own words. */
+/** The states the runtime lists a stream of a project in while that project runs, is paused or is being started, which `reload_project` re-reads; `start_project` refuses each. */
+const STREAM_STATES_OF_A_PROJECT_THE_RUNTIME_RUNS: ReadonlySet<string> = new Set(["running", "paused", "preparing"]);
+
+/** The runtime's `reload_project` queued on `projectDirectory` when it last listed a stream of it running, paused or being started, else its `start_project`. */
+function startOrReloadTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
+  const listedStreams = sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [];
+  const theRuntimeRunsTheProject = listedStreams.some(
+    (listedStream) => listedStream.location?.project_directory === projectDirectory && STREAM_STATES_OF_A_PROJECT_THE_RUNTIME_RUNS.has(listedStream.state),
+  );
+  return theRuntimeRunsTheProject ? sharedState.controller.reloadProject(projectDirectory) : sharedState.controller.startProject(projectDirectory);
+}
+
+/** `reload_project { project_directory }`: a project the runtime lists read again from disk with `reload_project` while it runs, or started with `start_project` while it is stopped or failed, then a status round; refused in the runtime's own words. */
 export function reloadProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectRunQueued, string>> {
   return answerTheWindow("reload_project", async () => {
-    const queued = await sharedState.controller.runProject(projectDirectory);
+    const queued = await startOrReloadTheProject(sharedState, projectDirectory);
     sharedState.statusPublisher.requestRefresh();
     return queued.ok ? queued : failedWith(queued.failure.failureDescription);
   });
@@ -439,6 +454,41 @@ export async function openRecentProject(sharedState: TatolabAppSharedState, fold
   return opened;
 }
 
+/** `import_project_archive { archive, name, location }`: the runtime's `import_project` of `archive` into `<location>/<name>`, opened in its own studio window, then a status round; refused in the app's words or the runtime's own. */
+export async function importProjectArchive(
+  sharedState: TatolabAppSharedState,
+  importArguments: { archive: string; name: string; location: string },
+  commandFromWindow: TatolabCommandFromWindow,
+): Promise<Result<ChosenProjectFolder, string>> {
+  const imported = await answerTheWindow("import_project_archive", async () => {
+    const importedProject = await sharedState.projectOpening.importProjectArchive(importArguments.archive, importArguments.name, importArguments.location);
+    sharedState.statusPublisher.requestRefresh();
+    return importedProject;
+  });
+  stepTheProjectsWindowAsideOnceItOpenedAProject(sharedState, commandFromWindow, imported);
+  return imported;
+}
+
+/** `import_project_archive`'s arguments as the window sends them, or why they are not. */
+export function importProjectArchiveArgumentsFrom(commandArguments: unknown): Result<{ archive: string; name: string; location: string }, string> {
+  const archive = oneTextArgumentFrom("import_project_archive", commandArguments, "archive", "the project .zip chosen in the dialog");
+  if (!archive.ok) return archive;
+  const name = oneTextArgumentFrom("import_project_archive", commandArguments, "name", "the imported project's name");
+  if (!name.ok) return name;
+  const location = oneTextArgumentFrom("import_project_archive", commandArguments, "location", "the folder the project goes in");
+  if (!location.ok) return location;
+  return succeeded({ archive: archive.value, name: name.value, location: location.value });
+}
+
+/** `rename_recent_project`'s arguments as the window sends them, or why they are not. */
+export function renameRecentProjectArgumentsFrom(commandArguments: unknown): Result<{ folder: string; name: string }, string> {
+  const folder = oneTextArgumentFrom("rename_recent_project", commandArguments, "folder", "one of the recent projects' folders");
+  if (!folder.ok) return folder;
+  const name = oneTextArgumentFrom("rename_recent_project", commandArguments, "name", "the project's new name");
+  if (!name.ok) return name;
+  return succeeded({ folder: folder.value, name: name.value });
+}
+
 /** `create_new_project`'s arguments as the window sends them, or why they are not. */
 export function createNewProjectArgumentsFrom(commandArguments: unknown): Result<{ name: string; location: string }, string> {
   const name = oneTextArgumentFrom("create_new_project", commandArguments, "name", "the new project's name");
@@ -447,14 +497,14 @@ export function createNewProjectArgumentsFrom(commandArguments: unknown): Result
   return location.ok ? succeeded({ name: name.value, location: location.value }) : location;
 }
 
-/** `run_open_project`: the runtime's `run_project` queued on the asking window's project's folder, then a status round; refused in the Projects window, or in the runtime's own words. */
+/** `run_open_project`: the asking window's project started with `start_project`, or read again from disk with `reload_project` while it runs, then a status round; refused in the Projects window, or in the runtime's own words. */
 export function runOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectRunQueued, string>> {
   return answerTheWindow("run_open_project", async () => {
     const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!studioWindow.ok) return studioWindow;
     const reading = studioWindow.value.openProject.readOpenProject();
     if (reading.kind !== "read") return failedWith(reading.kind === "none_open" ? "No project is open to run." : `The project in ${reading.folder} could not be read: ${reading.refusal}`);
-    const queued = await sharedState.controller.runProject(reading.open_project.project.folder);
+    const queued = await startOrReloadTheProject(sharedState, reading.open_project.project.folder);
     sharedState.statusPublisher.requestRefresh();
     return queued.ok ? queued : failedWith(queued.failure.failureDescription);
   });
@@ -510,6 +560,15 @@ export function transactInTheOpenProject(
     const applying = await sharedState.controller.transactOnTheStreamGraphs(transacting.operations, transacting.mode, transacting.idempotency_key, sharedState.thePersonEditingInStudio);
     return applying.ok ? applying : failedWith(applying.failure.failureDescription);
   });
+}
+
+/** `write_studio_view_output`'s `{ stream, node, port, value }` as the window sends it, or why it is not. */
+export function studioViewOutputArgumentsFrom(commandArguments: unknown): Result<{ stream: string; node: string; port: string; value: JsonValue }, string> {
+  if (!isAJsonObject(commandArguments)) return failedWith("write_studio_view_output needs `stream`, `node`, `port` and `value`");
+  const { stream, node, port, value } = commandArguments;
+  if (typeof stream !== "string" || typeof node !== "string" || typeof port !== "string") return failedWith("write_studio_view_output needs `stream`, `node` and `port` as text");
+  if (!isAJsonValue(value)) return failedWith("write_studio_view_output needs `value` as JSON");
+  return succeeded({ stream, node, port, value });
 }
 
 /** `undo_in_the_open_project`'s and `redo_in_the_open_project`'s `{ author }` as the window sends it, or why it is not. */
@@ -841,6 +900,32 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!folder.ok) return { ok: false, refusal: folder.failure };
       return commandAnswerOfNothingFrom(await openRecentProject(sharedState, folder.value, commandFromWindow));
     },
+    rename_recent_project: async (commandArguments) => {
+      const renameArguments = renameRecentProjectArgumentsFrom(commandArguments);
+      if (!renameArguments.ok) return { ok: false, refusal: renameArguments.failure };
+      return commandAnswerOfNothingFrom(
+        await answerTheWindow("rename_recent_project", () => sharedState.projectOpening.renameRecentProject(renameArguments.value.folder, renameArguments.value.name)),
+      );
+    },
+    duplicate_recent_project: async (commandArguments) => {
+      const folder = oneTextArgumentFrom("duplicate_recent_project", commandArguments, "folder", "one of the recent projects' folders");
+      if (!folder.ok) return { ok: false, refusal: folder.failure };
+      return commandAnswerFrom(await answerTheWindow("duplicate_recent_project", () => sharedState.projectOpening.duplicateRecentProject(folder.value)));
+    },
+    delete_recent_project: async (commandArguments) => {
+      const folder = oneTextArgumentFrom("delete_recent_project", commandArguments, "folder", "one of the recent projects' folders");
+      if (!folder.ok) return { ok: false, refusal: folder.failure };
+      return commandAnswerOfNothingFrom(
+        await answerTheWindowThenRefreshTheStatus(sharedState, "delete_recent_project", () => sharedState.projectOpening.deleteRecentProject(folder.value)),
+      );
+    },
+    choose_project_archive_to_import: async () =>
+      commandAnswerFrom(await answerTheWindow("choose_project_archive_to_import", () => sharedState.projectOpening.chooseProjectArchiveToImport())),
+    import_project_archive: async (commandArguments, commandFromWindow) => {
+      const importArguments = importProjectArchiveArgumentsFrom(commandArguments);
+      if (!importArguments.ok) return { ok: false, refusal: importArguments.failure };
+      return commandAnswerFrom(await importProjectArchive(sharedState, importArguments.value, commandFromWindow));
+    },
     show_projects_window: async () => {
       sharedState.appWindows.showTheProjectsWindow();
       return { ok: true, value: null };
@@ -918,6 +1003,20 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
       if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
       return commandAnswerFrom(await answerTheWindow("list_project_files", () => studioWindow.value.openProjectFiles.listProjectFiles(projectFolder.value)));
+    },
+    write_studio_view_output: async (commandArguments, commandFromWindow) => {
+      const outputArguments = studioViewOutputArgumentsFrom(commandArguments);
+      if (!outputArguments.ok) return { ok: false, refusal: outputArguments.failure };
+      if (sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId) === null) {
+        return { ok: false, refusal: "Only a studio window or a popped-out view writes a view's output." };
+      }
+      const { stream, node, port, value } = outputArguments.value;
+      return commandAnswerOfNothingFrom(
+        await answerTheWindow("write_studio_view_output", async () => {
+          const written = await sharedState.controller.writeStudioViewOutput(stream, node, port, value);
+          return written.ok ? written : failedWith(written.failure.failureDescription);
+        }),
+      );
     },
     list_studio_views_of_the_open_project: async (_commandArguments, commandFromWindow) => {
       const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);

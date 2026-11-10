@@ -122,6 +122,7 @@ function harness() {
   const repeatingTicks: { everyMs: number; tick: () => void; stopped: boolean }[] = [];
   const waits: { afterMs: number; then: () => void }[] = [];
   let addonRefusal: string | null = null;
+  const streamStatesTheRuntimeLists = new Map([[CAMERA_VIDEO.stream, "running"]]);
   const runtimePortViewers = new RuntimePortViewers({
     openTheViewerConnection: () => {
       const connection = new FakeViewerConnection();
@@ -143,6 +144,7 @@ function harness() {
       };
     },
     waitThen: (afterMs, then) => waits.push({ afterMs, then }),
+    streamStateTheRuntimeListsNow: (stream) => streamStatesTheRuntimeLists.get(stream) ?? null,
     tatolabAppLog: SILENT_TATOLAB_APP_LOG,
   });
   const tickAndSettle = async () => {
@@ -159,6 +161,7 @@ function harness() {
     refuseInTheAddon: (refusal: string) => {
       addonRefusal = refusal;
     },
+    streamStatesTheRuntimeLists,
   };
 }
 
@@ -262,6 +265,103 @@ test("the_runtimes_refusal_to_open_a_viewer_is_answered_in_its_own_words", async
   const refused = await runtimePortViewers.openAPortViewer({ ...CAMERA_VIDEO, node_id: "mic-id" }, new FakeWindowShowingPortViewers());
 
   expect(refused).toEqual({ ok: false, failure: "no node named `mic` in stream `studio`" });
+});
+
+test("a_port_viewer_opened_before_its_stream_runs_waits_saying_why_and_opens_once_the_stream_runs", async () => {
+  const { runtimePortViewers, connections, channelReaders, waits, streamStatesTheRuntimeLists } = harness();
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
+  runtimePortViewers.closeThePortViewersOf(windowShowingPortViewers);
+  const connection = connections[0];
+  if (connection === undefined) throw new Error("the connection was not opened");
+  streamStatesTheRuntimeLists.set(CAMERA_VIDEO.stream, "preparing");
+  const notRunningYet = "Link error: node `camera-id` (camera) of the stream `studio` is not running, so its port `video` writes nothing yet";
+  connection.openRefusal = notRunningYet;
+
+  const waiting = await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
+
+  expect(waiting).toEqual(succeeded({ port_viewer: "port-viewer-2" }));
+  expect(waits.map((wait) => wait.afterMs)).toEqual([PORT_VIEWER_REOPEN_AFTER_MS]);
+  waits[0]?.then();
+  await new Promise((settle) => setImmediate(settle));
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([{ port_viewer: "port-viewer-2", kind: "reopening", because: notRunningYet }]);
+  expect(waits).toHaveLength(2);
+
+  streamStatesTheRuntimeLists.set(CAMERA_VIDEO.stream, "running");
+  connection.openRefusal = null;
+  waits[1]?.then();
+  await new Promise((settle) => setImmediate(settle));
+
+  expect(channelReaders).toHaveLength(2);
+  expect(channelReaders[1]?.closed).toBe(false);
+  expect(waits).toHaveLength(2);
+});
+
+test("a_viewer_on_a_failed_stream_is_refused_in_the_runtimes_words_rather_than_waited_out", async () => {
+  const { runtimePortViewers, connections, waits, streamStatesTheRuntimeLists } = harness();
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
+  runtimePortViewers.closeThePortViewersOf(windowShowingPortViewers);
+  const connection = connections[0];
+  if (connection === undefined) throw new Error("the connection was not opened");
+  streamStatesTheRuntimeLists.set(CAMERA_VIDEO.stream, "failed");
+  connection.openRefusal = "node `camera-id` is not running";
+
+  expect(await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers)).toEqual({ ok: false, failure: "node `camera-id` is not running" });
+  expect(waits).toEqual([]);
+});
+
+test("two_windows_waiting_for_one_ports_stream_share_one_wait", async () => {
+  const { runtimePortViewers, connections, waits, streamStatesTheRuntimeLists } = harness();
+  const firstWindow = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, firstWindow);
+  runtimePortViewers.closeThePortViewersOf(firstWindow);
+  const connection = connections[0];
+  if (connection === undefined) throw new Error("the connection was not opened");
+  streamStatesTheRuntimeLists.set(CAMERA_VIDEO.stream, "stopped");
+  connection.openRefusal = "node `camera-id` is not running";
+  const secondWindow = new FakeWindowShowingPortViewers();
+
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, firstWindow);
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, secondWindow);
+  expect(waits).toHaveLength(1);
+  waits[0]?.then();
+  await new Promise((settle) => setImmediate(settle));
+
+  expect(firstWindow.portViewerEvents).toEqual([{ port_viewer: "port-viewer-2", kind: "reopening", because: "node `camera-id` is not running" }]);
+  expect(secondWindow.portViewerEvents).toEqual([{ port_viewer: "port-viewer-3", kind: "reopening", because: "node `camera-id` is not running" }]);
+  expect(waits).toHaveLength(2);
+});
+
+test("a_refusal_on_a_stream_that_is_not_running_from_the_addon_is_not_waited_out", async () => {
+  const { runtimePortViewers, waits, refuseInTheAddon, streamStatesTheRuntimeLists } = harness();
+  streamStatesTheRuntimeLists.set(CAMERA_VIDEO.stream, "preparing");
+  refuseInTheAddon("this build carries no viewer addon");
+
+  const refused = await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
+
+  expect(refused).toEqual({ ok: false, failure: "this build carries no viewer addon" });
+  expect(waits).toEqual([]);
+});
+
+test("a_port_viewer_waiting_for_its_stream_stops_waiting_when_its_window_closes_it", async () => {
+  const { runtimePortViewers, connections, waits, streamStatesTheRuntimeLists } = harness();
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
+  runtimePortViewers.closeThePortViewersOf(windowShowingPortViewers);
+  const connection = connections[0];
+  if (connection === undefined) throw new Error("the connection was not opened");
+  streamStatesTheRuntimeLists.set(CAMERA_VIDEO.stream, "preparing");
+  connection.openRefusal = "node `camera-id` is not running";
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
+  const opensAskedBeforeClosing = connection.openedTargets.length;
+
+  runtimePortViewers.closeThePortViewersOf(windowShowingPortViewers);
+  waits[0]?.then();
+  await new Promise((settle) => setImmediate(settle));
+
+  expect(connection.openedTargets).toHaveLength(opensAskedBeforeClosing);
+  expect(waits).toHaveLength(1);
 });
 
 test("the_addons_refusal_closes_the_runtime_viewer_it_could_not_read", async () => {

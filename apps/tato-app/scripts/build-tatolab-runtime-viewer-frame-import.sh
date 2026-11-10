@@ -34,8 +34,19 @@ done
 # A patched build rewrites the crate's lockfile to the checkout's paths; the committed one, which
 # pins the git sources, is put back however the build ends.
 cp "$addon_crate/Cargo.lock" "$addon_crate/Cargo.lock.pinned-to-git"
-trap 'mv -f "$addon_crate/Cargo.lock.pinned-to-git" "$addon_crate/Cargo.lock"' EXIT
-(cd "$addon_crate" && cargo build "${cargo_profile_arguments[@]}" "${patch_from_the_checkout[@]}") >&2
+# Cargo keeps a locked git entry over a path patch of another version, and only warns that the
+# patch "was not used", so the checkout's crates are moved into the lockfile first and an unused
+# patch fails the build: an addon built from the pinned crates misreads a newer runtime's frames.
+patched_crate_arguments=()
+for streamlib_crate in streamlib-gpu-frame-import-client streamlib-ipc-types streamlib-consumer-rhi; do
+  patched_crate_arguments+=(-p "$streamlib_crate")
+done
+cargo_output="$(mktemp)"
+trap 'mv -f "$addon_crate/Cargo.lock.pinned-to-git" "$addon_crate/Cargo.lock"; rm -f "$cargo_output"' EXIT
+(cd "$addon_crate" && cargo update "${patch_from_the_checkout[@]}" "${patched_crate_arguments[@]}") 2>&1 | tee "$cargo_output" >&2
+(cd "$addon_crate" && cargo build "${cargo_profile_arguments[@]}" "${patch_from_the_checkout[@]}") 2>&1 | tee -a "$cargo_output" >&2
+! grep -q "was not used in the crate graph" "$cargo_output" \
+  || { echo "the addon was not built from $streamlib_checkout's crates: cargo left a patch unused" >&2; exit 1; }
 
 case "$(uname -s)" in
   Darwin) built_library="$CARGO_TARGET_DIR/$cargo_profile_directory/libtatolab_runtime_viewer_frame_import.dylib" ;;

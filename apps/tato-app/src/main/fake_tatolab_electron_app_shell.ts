@@ -60,6 +60,7 @@ export type FakeShellRecord = (
   | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }
   | { asked: "ask_for_a_project_folder"; chosenFor: ProjectFolderDialogPurpose; defaultFolder: string }
   | { asked: "ask_for_a_dependency_source"; sourceKind: DependencySourceKind; defaultFolder: string }
+  | { asked: "ask_for_a_project_archive"; defaultFolder: string }
 ) & { windowContentsId?: number };
 
 /** A fake Electron app shell for the lifecycle's tests. */
@@ -105,6 +106,8 @@ export class FakeTatolabElectronAppShell {
   projectFolderTheDialogAnswers: string | null = null;
   /** The folder or `.zip` the dependency source dialog answers, or `null` for the person cancelling. */
   dependencySourceTheDialogAnswers: string | null = null;
+  /** The `.zip` the project archive dialog answers, or `null` for the person cancelling. */
+  projectArchiveTheDialogAnswers: string | null = null;
   readonly systemNotifications = new FakeSystemNotifications((notificationShown) => this.records.push({ asked: "notify", ...notificationShown }));
   readonly appConfigDirectory = path.join(os.tmpdir(), `tl-app-config-${randomUUID()}`);
   private tatolabWindowCommandHandlers: TatolabWindowCommandHandlers | null = null;
@@ -161,6 +164,10 @@ export class FakeTatolabElectronAppShell {
     askThePersonForAProjectFolder: async (chosenFor, defaultFolder) => {
       this.records.push({ asked: "ask_for_a_project_folder", chosenFor, defaultFolder });
       return succeeded(this.projectFolderTheDialogAnswers);
+    },
+    askThePersonForAProjectArchive: async (defaultFolder) => {
+      this.records.push({ asked: "ask_for_a_project_archive", defaultFolder });
+      return succeeded(this.projectArchiveTheDialogAnswers);
     },
     askThePersonForADependencySource: async (sourceKind, defaultFolder) => {
       this.records.push({ asked: "ask_for_a_dependency_source", sourceKind, defaultFolder });

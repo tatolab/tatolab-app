@@ -7,10 +7,11 @@ import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_re
 import { VIEW_PORT_HANDOVER, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
-import { StudioAreaHeaderRowOfAWaitingView } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
+import { StudioAreaHeaderRowOfAWaitingView, StudioAreaHeaderWords } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
+import { nodeTitle } from "@tatolab/tato-app-core-views/shared/node_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostServices, StudioViewTypeSource } from "./studio_view_contract";
-import { nodesOfTheStudioViewType, studioViewInputWiring, STUDIO_VIEW_NODE_ISSUE, type StudioViewInputWiring } from "./studio_view_node_wiring";
+import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostServices, StudioViewNodeAddress, StudioViewTypeSource } from "./studio_view_contract";
+import { nodesOfTheStudioViewType, studioViewInputWiring, type StudioViewInputWiring } from "./studio_view_node_wiring";
 import type { RegisteredStudioViewType, StudioAreaOfTheView } from "./studio_view_type_registry";
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 import { WatchedStudioValue } from "./watched_studio_value";
@@ -28,8 +29,15 @@ interface TatolabViewOfAnArea {
   hostServices: StudioViewHostServices;
 }
 
-/** The view's frame, on its entry, served by a bridge that reads its inputs from `inputWiring`; a reload of the frame is served by a new one. */
-function TatolabViewFrame({ listed, manifest, area, hostServices, inputWiring }: TatolabViewOfAnArea & { inputWiring: Record<string, StudioViewInputWiring> }) {
+/** The view's frame, on its entry, served by a bridge that reads its inputs from `inputWiring` and writes its outputs onto `viewNode`; a reload of the frame is served by a new one. */
+function TatolabViewFrame({
+  listed,
+  manifest,
+  area,
+  hostServices,
+  inputWiring,
+  viewNode,
+}: TatolabViewOfAnArea & { inputWiring: Record<string, StudioViewInputWiring>; viewNode: StudioViewNodeAddress | null }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<TatolabViewBridge | null>(null);
   const inputWiringRef = useRef(inputWiring);
@@ -61,7 +69,7 @@ function TatolabViewFrame({ listed, manifest, area, hostServices, inputWiring }:
       watchHeaderRow: area.header_row.watch,
     };
     const channel = new MessageChannel();
-    const bridge = new TatolabViewBridge(channel.port1, listed.view_type_id, manifest, hostServices, areaServices, inputWiringRef.current);
+    const bridge = new TatolabViewBridge(channel.port1, listed.view_type_id, manifest, hostServices, areaServices, inputWiringRef.current, viewNode);
     bridge.start();
     bridgeRef.current = bridge;
     // A sandboxed frame without allow-same-origin has an opaque origin, which no target origin but "*" names.
@@ -121,13 +129,19 @@ function TatolabNodeViewOfTheTab({ streamTab, ...view }: TatolabViewOfAnArea & {
         <WaitingState
           title={`${streamTab.display_name} has no ${manifest.title} node`}
           explanation={`${manifest.title} shows its node in the stream's graph, each of its inputs reading what is wired into it.`}
-          waitsOn={STUDIO_VIEW_NODE_ISSUE}
           data-tatolab-view-state="no_view_node"
         />
       </TatolabViewWaiting>
     );
   }
-  return <TatolabViewFrame key={viewNode.id} {...view} inputWiring={studioViewInputWiring(graphReading.graph, viewNode, manifest.inputs)} />;
+  return (
+    <TatolabViewFrame
+      key={viewNode.id}
+      {...view}
+      inputWiring={studioViewInputWiring(graphReading.graph, viewNode, manifest.inputs)}
+      viewNode={{ stream: graphReading.graph.stream, node_id: viewNode.id }}
+    />
+  );
 }
 
 function TatolabNodeView(view: TatolabViewOfAnArea) {
@@ -142,6 +156,26 @@ function TatolabNodeView(view: TatolabViewOfAnArea) {
   return <TatolabNodeViewOfTheTab key={activeStreamTab.stream} {...view} streamTab={activeStreamTab} />;
 }
 
+/** Where the active tab's node of the view type `viewTypeId` is, as "on the <node> node in <stream>", once the tab's graph has one; nothing before. */
+function WhereTheNodeViewsNodeIsInTheTab({ streamTab, viewTypeId, hostServices }: { streamTab: StreamTabAddress; viewTypeId: string; hostServices: StudioViewHostServices }) {
+  const { stream } = streamTab;
+  const watchTheTabsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => hostServices.watchStreamGraph(stream, listener), [hostServices, stream]);
+  const graphReading = useViewReading(watchTheTabsGraph);
+  const viewNode = graphReading?.kind === "read" ? nodesOfTheStudioViewType(graphReading.graph, viewTypeId)[0] : undefined;
+  if (viewNode === undefined) return null;
+  return (
+    <StudioAreaHeaderWords data-node-view-whereabouts={viewNode.id}>
+      on the {nodeTitle(viewNode.name, viewNode.type)} node in {streamTab.display_name}
+    </StudioAreaHeaderWords>
+  );
+}
+
+function WhereTheNodeViewsNodeIs({ viewTypeId, hostServices }: { viewTypeId: string; hostServices: StudioViewHostServices }) {
+  const activeStreamTab = useViewReading(hostServices.watchActiveStreamTab);
+  if (activeStreamTab === null) return null;
+  return <WhereTheNodeViewsNodeIsInTheTab key={activeStreamTab.stream} streamTab={activeStreamTab} viewTypeId={viewTypeId} hostServices={hostServices} />;
+}
+
 /** The view type `listed`, declared by `manifest` and brought by `broughtBy`: an `area` view's frame fills its area, and a `node` view's shows the active tab's node of its type. */
 export function tatolabFrameViewType(listed: ListedStudioView, manifest: TatolabViewManifest, broughtBy: StudioViewTypeSource): RegisteredStudioViewType {
   return {
@@ -151,9 +185,11 @@ export function tatolabFrameViewType(listed: ListedStudioView, manifest: Tatolab
     brought_by: broughtBy,
     renderInAnArea: (area, hostServices) =>
       manifest.placement === "area" ? (
-        <TatolabViewFrame listed={listed} manifest={manifest} area={area} hostServices={hostServices} inputWiring={{}} />
+        <TatolabViewFrame listed={listed} manifest={manifest} area={area} hostServices={hostServices} inputWiring={{}} viewNode={null} />
       ) : (
         <TatolabNodeView listed={listed} manifest={manifest} area={area} hostServices={hostServices} />
       ),
+    renderWordsAfterTheViewTypeMenu:
+      manifest.placement === "node" ? (hostServices) => <WhereTheNodeViewsNodeIs viewTypeId={listed.view_type_id} hostServices={hostServices} /> : undefined,
   };
 }
