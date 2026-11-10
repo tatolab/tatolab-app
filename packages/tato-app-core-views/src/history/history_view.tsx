@@ -4,7 +4,7 @@ import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_li
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { ProjectTransaction, ProjectTransactionsReading, StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { historyRowsOfTheFeed, historyStepsToTheRow, nodeNamesTheFeedGives, theStepReachedItsEdit, whoMadeTheEdit, type HistoryRow } from "./history_rows_of_the_feed";
 import { dayTheEditWasApplied, howLongAgoTheEditWasApplied } from "./when_an_edit_was_applied";
@@ -89,15 +89,21 @@ function HistoryBody({ connection, projectFolder }: { connection: TatoAppViewCon
     setHistoryChoice({ kind: "idle" });
   };
 
+  const latestAppliedTransaction = historyRows.find((row) => !row.is_undone)?.transaction ?? null;
+  const historyRowsScroller = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (latestAppliedTransaction === null) return;
+    historyRowsScroller.current?.querySelector(`[data-history-row="${CSS.escape(latestAppliedTransaction)}"]`)?.scrollIntoView?.({ block: "nearest" });
+  }, [latestAppliedTransaction]);
+
   if (projectTransactions === null) return null;
   if (projectTransactions.kind === "not_read") return <WaitingState isFailure title="The project's history can't be read" explanation={projectTransactions.because} />;
   if (historyRows.length === 0) return <WaitingState title="No edits yet" explanation="Each edit to the project, by you, an agent or the runtime, shows here as it lands." />;
-  const latestAppliedTransaction = historyRows.find((row) => !row.is_undone)?.transaction ?? null;
   const dayHeadings = historyRows.map((row) => dayTheEditWasApplied(row.applied_at, nowMs));
   return (
     <>
       {historyChoice.kind === "refused" && <RefusalLine layout="bar" lead={historyChoice.lead} words={historyChoice.because} />}
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-auto" data-history="">
+      <div ref={historyRowsScroller} className="scrollbar-thin min-h-0 flex-1 overflow-auto" data-history="">
         <AuthoredChangeList label="History">
           {historyRows.map((row, position) => (
             <Fragment key={row.transaction}>
@@ -111,10 +117,10 @@ function HistoryBody({ connection, projectFolder }: { connection: TatoAppViewCon
             </Fragment>
           ))}
         </AuthoredChangeList>
+        <p className="border-t border-studio-area-header-line px-3 py-2.5 text-2xs text-fg-3">
+          Each row is one transaction from the project's change feed: who, what and when. Choose an earlier row to undo back to it, or a dimmed one to redo up to it; each edit is undone or redone by its own author.
+        </p>
       </div>
-      <p className="shrink-0 border-t border-studio-area-header-line px-3 py-2.5 text-2xs text-fg-3">
-        Each row is one transaction from the project's change feed: who, what and when. Choose an earlier row to undo back to it, or a dimmed one to redo up to it; each edit is undone or redone by its own author.
-      </p>
     </>
   );
 }
