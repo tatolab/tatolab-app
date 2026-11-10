@@ -195,15 +195,13 @@ export class MockProjectFiles {
   read(file: string): ProjectFileRead {
     const projectFolder = this.projectFolderOf(file);
     const known = this.filesByPath.get(file);
-    if (projectFolder === null) throw `${file} is not a file of the open project or its imports, so Tato Studio does not open it.`;
+    if (projectFolder === null) throw `${file} is not a file of the open project or its imports, so Tatolab does not open it.`;
     if (known === undefined) throw `ENOENT: no such file or directory, open '${file}'`;
     return { file, project_folder: projectFolder, text: known.text, version: String(known.version), is_editable: projectFolder === this.openProjectFolder };
   }
 
   save(file: string, text: string, basedOnVersion: string | null): ProjectFileSaved {
-    const projectFolder = this.projectFolderOf(file);
-    if (projectFolder === null) throw `${file} is not a file of the open project or its imports, so Tato Studio does not open it.`;
-    if (projectFolder !== this.openProjectFolder) throw `${file} belongs to an imported project, which the studio opens read-only.`;
+    this.refuseUnlessWrittenInTheOpenProject(file);
     const known = this.filesByPath.get(file);
     const versionOnDisk = known === undefined ? null : String(known.version);
     if (versionOnDisk !== basedOnVersion) throw `${file.split("/").at(-1) ?? file} changed since it was opened, so it was not saved.`;
@@ -214,10 +212,8 @@ export class MockProjectFiles {
 
   /** A new node file at `file` from the runtime's node template, refused in the runtime's words as `create_node_file` refuses. */
   createNodeFile(file: string): NodeFileCreated {
-    const projectFolder = this.projectFolderOf(file);
-    if (projectFolder === null) throw `${file} is not a file of the open project or its imports, so Tato Studio does not open it.`;
-    if (projectFolder !== this.openProjectFolder) throw `${file} belongs to an imported project, which the studio opens read-only.`;
-    const pathInTheProject = file.slice(projectFolder.length + 1);
+    this.refuseUnlessWrittenInTheOpenProject(file);
+    const pathInTheProject = this.pathInTheOpenProjectOf(file);
     if (this.filesByPath.has(file)) throw `create_node_file failed: the project already holds \`${pathInTheProject}\`, and a new file is never written over it`;
     if (!pathInTheProject.endsWith(".py")) throw `create_node_file failed: \`${pathInTheProject}\` is not a Python file; name it \`<name>.py\``;
     const moduleParts = pathInTheProject.slice(0, -".py".length).split("/");
@@ -239,6 +235,17 @@ export class MockProjectFiles {
       .map((file) => file.slice(projectFolder.length + 1))
       .sort();
     return { project_folder: projectFolder, files };
+  }
+
+  /** `file`'s `/`-separated path inside the open project's folder. */
+  pathInTheOpenProjectOf(file: string): string {
+    return file.slice(this.openProjectFolder.length + 1);
+  }
+
+  private refuseUnlessWrittenInTheOpenProject(file: string): void {
+    const projectFolder = this.projectFolderOf(file);
+    if (projectFolder === null) throw `${file} is not a file of the open project or its imports, so Tatolab does not open it.`;
+    if (projectFolder !== this.openProjectFolder) throw `${file} belongs to an imported project, which the studio opens read-only.`;
   }
 
   private projectFolderOf(file: string): string | null {

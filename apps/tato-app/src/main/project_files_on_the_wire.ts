@@ -3,7 +3,7 @@
 // standard base64 with padding, and `write_project_file` and `create_node_file` name the transaction that recorded
 // it, `create_node_file` with the node type, `<module>:<class>`, the new file declares.
 
-import { everyOneRead, jsonObject, parseJsonOnTheWire, requiredArray, requiredText, requiredUnsignedInteger } from "./json_on_the_wire.js";
+import { everyOneRead, jsonObject, type JsonObjectOnTheWire, parseJsonOnTheWire, requiredArray, requiredText, requiredUnsignedInteger } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** One file `list_project_files` named: its `/`-separated path in the project and its length in bytes. */
@@ -77,22 +77,22 @@ export function projectFileWriteFromTheWriteProjectFileToolResult(toolResultText
 function writeFromTheParsedToolResult(parsedToolResult: Result<unknown, string>): Result<ProjectFileWriteRecorded, string> {
   if (!parsedToolResult.ok) return parsedToolResult;
   const toolResult = jsonObject(parsedToolResult.value, "the file write");
-  if (!toolResult.ok) return toolResult;
-  const filePath = requiredText(toolResult.value, "path");
+  return toolResult.ok ? fileTransactionRecordedIn(toolResult.value) : toolResult;
+}
+
+function fileTransactionRecordedIn(toolResult: JsonObjectOnTheWire): Result<ProjectFileWriteRecorded, string> {
+  const filePath = requiredText(toolResult, "path");
   if (!filePath.ok) return filePath;
-  const transaction = requiredText(toolResult.value, "transaction");
+  const transaction = requiredText(toolResult, "transaction");
   if (!transaction.ok) return transaction;
-  const commit = requiredText(toolResult.value, "commit");
+  const commit = requiredText(toolResult, "commit");
   if (!commit.ok) return commit;
   return succeeded({ path: filePath.value, transaction: transaction.value, commit: commit.value });
 }
 
 /** What `create_node_file` recorded: the file's path, the node type it declares as `add_node` takes it, the transaction's UUID and the commit holding it. */
-export interface NodeFileCreationRecorded {
-  path: string;
+export interface NodeFileCreationRecorded extends ProjectFileWriteRecorded {
   node_type: string;
-  transaction: string;
-  commit: string;
 }
 
 /** The node file `create_node_file` answered with `toolResultText`, or why it could not be read. */
@@ -105,13 +105,9 @@ function nodeFileCreationFromTheParsedToolResult(parsedToolResult: Result<unknow
   if (!parsedToolResult.ok) return parsedToolResult;
   const toolResult = jsonObject(parsedToolResult.value, "the node file created");
   if (!toolResult.ok) return toolResult;
-  const filePath = requiredText(toolResult.value, "path");
-  if (!filePath.ok) return filePath;
+  const recorded = fileTransactionRecordedIn(toolResult.value);
+  if (!recorded.ok) return recorded;
   const nodeType = requiredText(toolResult.value, "node_type");
   if (!nodeType.ok) return nodeType;
-  const transaction = requiredText(toolResult.value, "transaction");
-  if (!transaction.ok) return transaction;
-  const commit = requiredText(toolResult.value, "commit");
-  if (!commit.ok) return commit;
-  return succeeded({ path: filePath.value, node_type: nodeType.value, transaction: transaction.value, commit: commit.value });
+  return succeeded({ ...recorded.value, node_type: nodeType.value });
 }

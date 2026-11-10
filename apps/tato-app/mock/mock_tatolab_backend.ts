@@ -1482,7 +1482,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       refuseWithoutAnOpenProject();
       const created = mockProjectFiles.createNodeFile(file);
-      const pathInTheProject = file.slice(mockProjectFiles.openProjectFolder.length + 1);
+      const pathInTheProject = mockProjectFiles.pathInTheOpenProjectOf(file);
       mockProjectTransactions?.record(
         MOCK_PERSON_EDITING_IN_STUDIO,
         [{ operation: "write_project_file", path: pathInTheProject, content: { staged_copy: { staged_at: `.tatolab/staged-file-writes/${crypto.randomUUID()}` } }, replaced_a_file: false }],

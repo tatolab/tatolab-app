@@ -79,7 +79,7 @@ test("the form opens on nodes/ with its field focused, and Enter in the field as
   expect(form.filesCreated).toEqual([`${PROJECT_FOLDER}/nodes/invert.py`]);
 });
 
-test("a refusal stays in the form in the runtime's own words, and nothing is reported created", async () => {
+test("a refusal stays in the form in the runtime's own words, describing the path field, which takes the focus back, and nothing is reported created", async () => {
   const form = drawTheFormOverAStudioThatAnswersLater();
   const refusal = "create_node_file failed: the project already holds `nodes/invert.py`, and a new file is never written over it";
 
@@ -88,7 +88,8 @@ test("a refusal stays in the form in the runtime's own words, and nothing is rep
   await form.answerTheLatest({ kind: "not_created", because: refusal });
 
   expect(form.formHolder.querySelector("[data-new-node-file-refusal]")?.textContent).toContain(refusal);
-  expect([form.filesCreated, form.closes()]).toEqual([[], 0]);
+  expect([form.filesCreated, form.closes(), document.activeElement === form.pathField()]).toEqual([[], 0, true]);
+  expect(form.pathField().getAttribute("aria-describedby")).toBe(form.formHolder.querySelector("[data-new-node-file-refusal]")?.parentElement?.id);
 });
 
 test("Enter on Cancel creates nothing, an unnamed path asks for nothing, and Escape closes the form only while nothing is being created", async () => {

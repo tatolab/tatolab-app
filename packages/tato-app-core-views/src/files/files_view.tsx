@@ -65,6 +65,10 @@ function FilesOfTheProject({
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [askRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
   const [fileNotOpened, setFileNotOpened] = useState<FileNotOpenedNote>(null);
+  const closeTheNewNodeFileFormForTheButton = () => {
+    closeTheNewNodeFileForm();
+    document.querySelector<HTMLElement>("[data-files-new-node-file]")?.focus();
+  };
   const openTheNewNodeFileInCode = (file: string) => {
     closeTheNewNodeFileForm();
     showTheRefusalOf("Didn't open the new file:", connection.openView(CODE_VIEW_TYPE_ID, { kind: "file", file }));
@@ -73,7 +77,7 @@ function FilesOfTheProject({
   const meaningOfRow = (rowId: string) => filesTreeRows.find((filesTreeRow) => filesTreeRow.row.row_id === rowId);
   return (
     <>
-      {isTheNewNodeFileFormOpen && <NewNodeFileForm connection={connection} projectFolder={openProject.project.folder} onCreated={openTheNewNodeFileInCode} onClosed={closeTheNewNodeFileForm} />}
+      {isTheNewNodeFileFormOpen && <NewNodeFileForm connection={connection} projectFolder={openProject.project.folder} onCreated={openTheNewNodeFileInCode} onClosed={closeTheNewNodeFileFormForTheButton} />}
       {fileNotOpened === null ? <RefusalOfTheLatestAskBar refusal={askRefusal} /> : <RefusalLine layout="bar" tone="warning" lead={`Didn't open ${fileNotOpened.file_name}:`} words={WHAT_CODE_OPENS} />}
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto" data-files-tree="">
         <TreeView
@@ -137,10 +141,10 @@ export function FilesView({ connection }: { connection: TatoAppViewConnection })
         <span className="ml-auto flex">
           <IconButton
             icon={FilePlus}
-            label="New node file"
+            label={isTheNewNodeFileFormOpen ? "Close New node file" : "New node file"}
             size="compact"
             disabledReason={openProjectFolder === null ? "Open a project to add a node file to it." : null}
-            onPressed={() => setProjectTheNewNodeFileFormIsOpenFor(openProjectFolder)}
+            onPressed={() => setProjectTheNewNodeFileFormIsOpenFor(isTheNewNodeFileFormOpen ? null : openProjectFolder)}
             data-files-new-node-file=""
           />
         </span>
