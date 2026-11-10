@@ -872,3 +872,27 @@ test("the open project's views are the runtime's list_project_views of its folde
   ]);
   expect(await commandHandlers.list_studio_views_of_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
+
+/** The window's `write_studio_view_output` answers `null` once the runtime took the value, and its refusal word for word. */
+test("a view's output value reaches the runtime's write_studio_view_output, answered null once taken, refused in the runtime's own words, and arguments that are not text and JSON refused before it is asked", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-studio-view-output-tool-result-of-the-deck-node-cue.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-studio-view-output-refusal-for-the-stopped-stream-night-show.json")),
+    ],
+    "macos",
+  );
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const cue = { stream: "night-show-main-aa298d", node: "fdca90ae-f25d-4551-86e2-11f5cdb65d16", port: "cue", value: { track: "Opening" } };
+
+  expect(await commandHandlers.write_studio_view_output(cue, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.write_studio_view_output(cue, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "write_studio_view_output failed: Resource not found: no stream with the id `night-show-main-aa298d` is loaded in this runtime. Loaded: lobby-wall-main-c95d53",
+  });
+  expect(await commandHandlers.write_studio_view_output({ ...cue, node: 7 }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "write_studio_view_output needs `stream`, `node` and `port` as text" });
+  expect(await commandHandlers.write_studio_view_output({ stream: cue.stream, node: cue.node, port: cue.port }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "write_studio_view_output needs `value` as JSON",
+  });
+});

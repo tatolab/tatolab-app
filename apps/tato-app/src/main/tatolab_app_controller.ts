@@ -24,12 +24,13 @@ import type {
   TatolabAppUpdateState,
   TatolabPlatform,
   TatolabStatus,
+  JsonValue,
 } from "../shared/tatolab_backend_contract.js";
 import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_apps_child.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
-import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
+import type { ProjectViewTheRuntimeListed, StudioViewOutputWritten } from "./project_views_on_the_wire.js";
 import { LocalApiClient, type LocalApiRequestFailure } from "./local_api_client.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import type { TatolabCommandLineToolLink } from "./platform/command_line_tool_link_in_the_home_folder.js";
@@ -322,6 +323,11 @@ export class TatolabAppController {
   /** Write `text` whole to `filePath` in the project in `projectDirectory`, one transaction by `author` keyed by `idempotencyKey`. */
   writeProjectFile(projectDirectory: string, filePath: string, text: string, author: ProjectTransactionAuthor, idempotencyKey: string): Promise<Result<ProjectFileWriteRecorded, LocalApiRequestFailure>> {
     return this.localApiClient.writeProjectFile(projectDirectory, filePath, text, author, idempotencyKey);
+  }
+
+  /** Publish `value` on the output `port` of the view node `node` in `stream`. */
+  writeStudioViewOutput(stream: string, node: string, port: string, value: JsonValue): Promise<Result<StudioViewOutputWritten, LocalApiRequestFailure>> {
+    return this.localApiClient.writeStudioViewOutput(stream, node, port, value);
   }
 
   /** Each view the project in `projectDirectory` and its imports bring. */

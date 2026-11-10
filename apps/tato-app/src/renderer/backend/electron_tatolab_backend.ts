@@ -128,6 +128,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     },
     onPythonLanguageServerEvent: (listener) => tatolabElectronBridge.onPythonLanguageServerEvent(listener),
     listStudioViewsOfTheOpenProject: () => invokeTatolabCommand("list_studio_views_of_the_open_project", undefined),
+    writeStudioViewOutput: async (stream, node, port, value) => {
+      await invokeTatolabCommand("write_studio_view_output", { stream, node, port, value });
+    },
     openPortViewer: async (target) => (await invokeTatolabCommand("open_port_viewer", target)).port_viewer,
     closePortViewer: async (portViewer) => {
       await invokeTatolabCommand("close_port_viewer", { port_viewer: portViewer });

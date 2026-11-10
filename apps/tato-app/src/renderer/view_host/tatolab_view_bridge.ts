@@ -5,6 +5,7 @@
 import {
   capabilityToAsk,
   capabilityToWatch,
+  jsonValueSchema,
   messageFromTheViewSchema,
   readViewSettings,
   VIEW_CAPABILITIES,
@@ -17,8 +18,17 @@ import {
   type ViewWatchedReading,
   type ViewWatchedSubject,
 } from "@tatolab/tato-app-view-sdk";
-import type { JsonValue, PortViewerConnection, PortViewerTarget, PythonLanguageServerConnection, StopWatching, StudioViewHostServices, ViewHeaderRow } from "./studio_view_contract";
-import { STUDIO_VIEW_NODE_ISSUE, type StudioViewInputWiring } from "./studio_view_node_wiring";
+import type {
+  JsonValue,
+  PortViewerConnection,
+  PortViewerTarget,
+  PythonLanguageServerConnection,
+  StopWatching,
+  StudioViewHostServices,
+  StudioViewNodeAddress,
+  ViewHeaderRow,
+} from "./studio_view_contract";
+import type { StudioViewInputWiring } from "./studio_view_node_wiring";
 
 /** The parts of a `MessagePort` the bridge uses, so a test can stand in for one. */
 export interface TatolabViewMessagePort {
@@ -53,7 +63,7 @@ interface InputWatch {
   portViewerConnection: PortViewerConnection | null;
 }
 
-/** Serves one view of `viewTypeId`, declared by `manifest`, over `port`: reading through `hostServices`, its area through `areaServices`, and a `node` view's inputs through `inputWiring`; a sandboxed view's Image frames go through `imageBitmapOfTheVideoFrame`. */
+/** Serves one view of `viewTypeId`, declared by `manifest`, over `port`: reading through `hostServices`, its area through `areaServices`, a `node` view's inputs through `inputWiring` and its outputs onto `viewNode`; a sandboxed view's Image frames go through `imageBitmapOfTheVideoFrame`. */
 export class TatolabViewBridge {
   private readonly grantedCapabilities: readonly ViewCapability[];
   private readonly stopWatchingByWatchId = new Map<number, StopWatching>();
@@ -70,7 +80,7 @@ export class TatolabViewBridge {
     const message = parsed.data;
     if (message.kind === "watch") this.startWatching(message.watch_id, message.subject);
     else if (message.kind === "stop_watching") this.stopWatching(message.watch_id);
-    else void this.answerTheAsk(message.ask).then((answer) => this.send({ kind: "answered", ask_id: message.ask_id, answer }));
+    else void this.answerTheAsk(message.ask, sentPayload).then((answer) => this.send({ kind: "answered", ask_id: message.ask_id, answer }));
   };
 
   constructor(
@@ -80,6 +90,7 @@ export class TatolabViewBridge {
     private readonly hostServices: StudioViewHostServices,
     private readonly areaServices: TatolabViewAreaServices,
     private inputWiring: Record<string, StudioViewInputWiring> = {},
+    private readonly viewNode: StudioViewNodeAddress | null = null,
     private readonly imageBitmapOfTheVideoFrame: ImageBitmapOfTheVideoFrame = IMAGE_BITMAP_OF_THE_VIDEO_FRAME,
   ) {
     this.grantedCapabilities = manifest.sandbox ? manifest.capabilities : VIEW_CAPABILITIES;
@@ -133,6 +144,14 @@ export class TatolabViewBridge {
 
   private refusalForMissing(capability: ViewCapability): string {
     return `${this.manifest.title} runs sandboxed and does not list ${capability} in its tatolab_view.json, so Studio does not serve it.`;
+  }
+
+  private async writeTheOutput(output: string, sentPayload: unknown): Promise<ViewAskAnswer> {
+    if (this.viewNode === null) return { kind: "refused", because: `${this.manifest.title} shows in an area and has no node, so what it sends on ${output} reaches no stream.` };
+    const value = jsonValueSchema.safeParse(sentPayload);
+    if (isAPictureToClose(sentPayload) || !value.success) return { kind: "refused", because: `The runtime publishes what a view writes on its Array, Channels and Records outputs, so ${output} takes JSON, not a picture.` };
+    const writing = await this.hostServices.writeStudioViewOutput(this.viewNode, output, value.data);
+    return writing.kind === "written" ? { kind: "done" } : { kind: "refused", because: writing.because };
   }
 
   private wiringOfTheInput(input: string): StudioViewInputWiring {
@@ -273,7 +292,7 @@ export class TatolabViewBridge {
     this.pythonLanguageServersByWatchId.delete(watchId);
   }
 
-  private async answerTheAsk(ask: ViewAsk): Promise<ViewAskAnswer> {
+  private async answerTheAsk(ask: ViewAsk, sentPayload: unknown): Promise<ViewAskAnswer> {
     const capability = capabilityToAsk(ask);
     if (capability !== null && !this.grantedCapabilities.includes(capability)) return { kind: "refused", because: this.refusalForMissing(capability) };
     switch (ask.kind) {
@@ -321,10 +340,7 @@ export class TatolabViewBridge {
         if (!this.manifest.outputs.some((declaredOutput) => declaredOutput.name === ask.output)) {
           return { kind: "refused", because: `${this.manifest.title} declares no output named ${ask.output}.` };
         }
-        return {
-          kind: "refused",
-          because: `What a view sends on ${ask.output} reaches its stream once the runtime runs a view's node (${STUDIO_VIEW_NODE_ISSUE}); until then Studio holds nothing it sends.`,
-        };
+        return this.writeTheOutput(ask.output, sentPayload);
     }
   }
 }

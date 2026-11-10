@@ -171,8 +171,10 @@ export interface TatolabBackend {
   stopPythonLanguageServer(session: string): Promise<void>;
   /** Calls `listener` with each message a language server sends and each server's end; the returned function stops it. */
   onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
-  /** The views the open project and its imports bring, each from a `tatolab.views` entry point, rejecting in words where none can be listed. */
+  /** The views the open project and its imports bring, as the runtime's `list_project_views` lists them, rejecting in words where none can be listed. */
   listStudioViewsOfTheOpenProject(): Promise<ListedStudioView[]>;
+  /** Publish `value` on the output `port` of the view node `node` (its UUID) in `stream`, as the port's family takes it; recorded nowhere; rejecting in the runtime's own words. */
+  writeStudioViewOutput(stream: string, node: string, port: string, value: JsonValue): Promise<void>;
   /** Read `target`'s output port while the port viewer is open, resolving with the id its events arrive under and rejecting in the runtime's own words. */
   openPortViewer(target: PortViewerTarget): Promise<string>;
   closePortViewer(portViewer: string): Promise<void>;
