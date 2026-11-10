@@ -23,6 +23,7 @@ import { realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_
 import type { LocalApiRequestFailure } from "./local_api_client.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
+import type { AssetImportedByTheRuntime, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
 import { importFolderInsideTheWorkspace, PROJECT_IMPORTS_FOLDER } from "./workspace_dependencies.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 
@@ -39,7 +40,7 @@ export type ProjectFolderDialog = (purpose: ProjectFolderDialogPurpose, defaultF
 export const NEW_PROJECTS_FOLDER_INSIDE_DOCUMENTS = "Tato Studio";
 
 /** How many numbered names are tried for a new, imported or duplicated project's folder before the plain one is offered and the runtime or the sheet refuses it. */
-const NUMBERED_PROJECT_NAMES_TRIED = 1_000;
+const NUMBERED_NAMES_TRIED = 1_000;
 
 /** How often a deletion the runtime queued is asked about while the Projects window waits for it. */
 export const PROJECT_DELETION_FOLLOW_INTERVAL_MS = 250;
@@ -90,10 +91,38 @@ export interface ProjectChangesThroughTheRuntime {
   describeStreamAction(action: string): Promise<Result<StreamActionFollowed, LocalApiRequestFailure>>;
   /** `import_project` of the `.zip` `source` into `projectDirectory`, a folder that does not exist yet. */
   importProject(source: string, projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>>;
+  /** `set_project_description`; `null` clears it. */
+  setProjectDescription(projectDirectory: string, description: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>>;
+  /** `set_project_cover` with the media asset `cover`, a UUID the project holds; `null` clears it. */
+  setProjectCover(projectDirectory: string, cover: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>>;
+  /** `import_asset` of the file at `source` to `assetPath` in the project. */
+  importAsset(projectDirectory: string, source: string, assetPath: string): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>>;
+  /** `read_project_file`: the bytes of `filePath` in the project. */
+  readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, LocalApiRequestFailure>>;
 }
 
 /** Asks the person for a project `.zip` in the desktop's open dialog, opened at `defaultFolder`. `null` when they cancel. */
 export type ProjectArchiveDialog = (defaultFolder: string) => Promise<Result<string | null, string>>;
+
+/** Asks the person for an image to show a project by, in the desktop's open dialog, opened at `defaultFolder`. `null` when they cancel. */
+export type ProjectCoverImageDialog = (defaultFolder: string) => Promise<Result<string | null, string>>;
+
+/** The image files a project cover can be chosen from, by extension, with the media type each is read back as. */
+export const PROJECT_COVER_IMAGE_MEDIA_TYPES: Readonly<Record<string, string>> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+};
+
+/** The media type a window shows the image at `imagePath` as, by its extension; `undefined` for a file no window shows as a cover. */
+function projectCoverImageMediaTypeOf(imagePath: string): string | undefined {
+  return PROJECT_COVER_IMAGE_MEDIA_TYPES[path.extname(imagePath).toLowerCase()];
+}
+
+/** The folder in a project a chosen cover image is imported into. */
+const PROJECT_COVER_IMAGES_FOLDER = "media";
 
 /** What opening a project reaches: the person's home and Documents folders, the dialogs, the recent projects, the wall clock, the runtime, and the studio window each project opens in. */
 export interface ProjectOpeningSources {
@@ -102,6 +131,7 @@ export interface ProjectOpeningSources {
   documentsDirectory: string;
   projectFolderDialog: ProjectFolderDialog;
   projectArchiveDialog: ProjectArchiveDialog;
+  projectCoverImageDialog: ProjectCoverImageDialog;
   recentProjectFolders: RecentProjectFolders;
   /** The wall clock, in milliseconds since the epoch, stamped on a project as it opens for the Projects window to show. */
   readWallClockNowMs: () => number;
@@ -135,11 +165,11 @@ export interface ProjectReadingsOfTheRuntime {
   listTheDependencies: (projectFolder: string) => Promise<Result<ListedProjectDependency[], string>>;
 }
 
-/** The first of `name`, `name 2`, `name 3`, … that nothing in `location` holds; `name` itself when every one tried is taken, for the runtime or the sheet to refuse. */
-async function firstProjectNameNothingHoldsIn(location: string, name: string): Promise<string> {
-  for (let number = 1; number <= NUMBERED_PROJECT_NAMES_TRIED; number += 1) {
+/** The first of `name`, `name 2`, `name 3`, … that nothing in `location` holds as `<that name><extension>`; `name` itself when every one tried is taken, for the runtime or the sheet to refuse. */
+async function firstNumberedNameNothingHoldsIn(location: string, name: string, extension = ""): Promise<string> {
+  for (let number = 1; number <= NUMBERED_NAMES_TRIED; number += 1) {
     const numberedName = projectNameNumbered(name, number);
-    if (!(await somethingIsAt(path.join(location, numberedName)))) return numberedName;
+    if (!(await somethingIsAt(path.join(location, `${numberedName}${extension}`)))) return numberedName;
   }
   return name;
 }
@@ -207,7 +237,7 @@ export class ProjectOpening {
   /** `<Documents>/Tato Studio`, and the first of `Untitled project`, `Untitled project 2`, … that nothing there holds. */
   async readNewProjectDefaults(): Promise<NewProjectDefaults> {
     const location = this.defaultNewProjectLocation();
-    return { location, name: await firstProjectNameNothingHoldsIn(location, UNTITLED_PROJECT_NAME) };
+    return { location, name: await firstNumberedNameNothingHoldsIn(location, UNTITLED_PROJECT_NAME) };
   }
 
   /** Ask the person for a project `.zip`, the dialog opened at home, and answer where the Import project sheet starts for it; `null` when they cancel. */
@@ -217,7 +247,7 @@ export class ProjectOpening {
     if (chosenArchive.value === null) return succeeded(null);
     const location = this.defaultNewProjectLocation();
     const archive = path.resolve(chosenArchive.value);
-    return succeeded({ archive, location, name: await firstProjectNameNothingHoldsIn(location, projectNameOfTheArchive(archive)) });
+    return succeeded({ archive, location, name: await firstNumberedNameNothingHoldsIn(location, projectNameOfTheArchive(archive)) });
   }
 
   /**
@@ -251,12 +281,65 @@ export class ProjectOpening {
   async duplicateRecentProject(folder: string): Promise<Result<string, string>> {
     const recentFolder = await this.oneOfTheRecentFolders(folder);
     if (!recentFolder.ok) return recentFolder;
-    const duplicateFolderName = await firstProjectNameNothingHoldsIn(path.dirname(folder), `${path.basename(folder)} ${DUPLICATE_FOLDER_NAME_SUFFIX}`);
+    const duplicateFolderName = await firstNumberedNameNothingHoldsIn(path.dirname(folder), `${path.basename(folder)} ${DUPLICATE_FOLDER_NAME_SUFFIX}`);
     const duplicated = await this.sources.projectChanges.duplicateProject(folder, path.join(path.dirname(folder), duplicateFolderName));
     if (!duplicated.ok) return failedWith(duplicated.failure.failureDescription);
     const duplicateFolder = await realPathOrAsGiven(path.resolve(duplicated.value.folder));
     const remembered = await this.sources.recentProjectFolders.rememberOpened(duplicateFolder, this.sources.readWallClockNowMs());
     return remembered.ok ? succeeded(duplicateFolder) : failedWith(`The duplicate is in ${duplicateFolder}, but Tato Studio could not remember it for next time: ${remembered.failure}`);
+  }
+
+  /** The cover of the project in `folder`, one of the recent projects, as a `data:` URL of its image; `null` when it has none or one that is no image a window shows. Refused for any other folder, and in the runtime's own words. */
+  async readRecentProjectCover(folder: string): Promise<Result<string | null, string>> {
+    const recentFolder = await this.oneOfTheRecentFolders(folder);
+    if (!recentFolder.ok) return recentFolder;
+    const summary = await this.sources.projectChanges.summarizeTheProject(folder);
+    if (!summary.ok) return failedWith(summary.failure.failureDescription);
+    const coverPath = summary.value.cover_path;
+    if (coverPath === null) return succeeded(null);
+    const mediaType = projectCoverImageMediaTypeOf(coverPath);
+    if (mediaType === undefined) return succeeded(null);
+    const coverBytes = await this.sources.projectChanges.readProjectFile(folder, coverPath);
+    if (!coverBytes.ok) return failedWith(coverBytes.failure.failureDescription);
+    return succeeded(`data:${mediaType};base64,${coverBytes.value.toString("base64")}`);
+  }
+
+  /** Describe the project in `folder`, one of the recent projects, as `description` through the runtime; a blank one clears it. Refused for any other folder, and in the runtime's own words. */
+  async setRecentProjectDescription(folder: string, description: string): Promise<Result<void, string>> {
+    const recentFolder = await this.oneOfTheRecentFolders(folder);
+    if (!recentFolder.ok) return recentFolder;
+    const described = await this.sources.projectChanges.setProjectDescription(folder, description.trim() === "" ? null : description.trim());
+    return described.ok ? succeeded(undefined) : failedWith(described.failure.failureDescription);
+  }
+
+  /** The image the person chooses to show a project by, in the dialog opened at home; `null` when they cancel. */
+  async chooseProjectCoverImage(): Promise<Result<string | null, string>> {
+    const chosenImage = await this.sources.projectCoverImageDialog(this.sources.homeDirectory);
+    if (!chosenImage.ok) return chosenImage;
+    return succeeded(chosenImage.value === null ? null : path.resolve(chosenImage.value));
+  }
+
+  /**
+   * Show the project in `folder`, one of the recent projects, by `image`, an image file on this machine, which the runtime imports into its `media/`
+   * under the image's own name, numbered past one already there; `null` shows it by its plain cover again. Refused for any other folder, an image of a
+   * kind a window cannot show, and in the runtime's own words.
+   */
+  async setRecentProjectCover(folder: string, image: string | null): Promise<Result<void, string>> {
+    const recentFolder = await this.oneOfTheRecentFolders(folder);
+    if (!recentFolder.ok) return recentFolder;
+    if (image === null) {
+      const uncovered = await this.sources.projectChanges.setProjectCover(folder, null);
+      return uncovered.ok ? succeeded(undefined) : failedWith(uncovered.failure.failureDescription);
+    }
+    if (!path.isAbsolute(image)) return failedWith(`${image} is not a full path to an image.`);
+    const extension = path.extname(image);
+    if (projectCoverImageMediaTypeOf(image) === undefined) return failedWith(`${path.basename(image)} is not a PNG, JPEG, WebP or GIF image.`);
+    const coverImagesFolder = path.join(folder, PROJECT_COVER_IMAGES_FOLDER);
+    const imageFileName = `${await firstNumberedNameNothingHoldsIn(coverImagesFolder, path.basename(image, extension), extension)}${extension}`;
+    const imported = await this.sources.projectChanges.importAsset(folder, image, `${PROJECT_COVER_IMAGES_FOLDER}/${imageFileName}`);
+    if (!imported.ok) return failedWith(imported.failure.failureDescription);
+    const covered = await this.sources.projectChanges.setProjectCover(folder, imported.value.asset);
+    return covered.ok ? succeeded(undefined) : failedWith(covered.failure.failureDescription);
   }
 
   /**
@@ -313,6 +396,7 @@ export class ProjectOpening {
           project_name: summary.ok ? summary.value.name : null,
           project_description: summary.ok ? summary.value.description : null,
           last_edited_at_wall_clock_ms: summary.ok ? summary.value.last_edited_at_wall_clock_ms : null,
+          has_a_chosen_cover: summary.ok && summary.value.cover_path !== null && projectCoverImageMediaTypeOf(summary.value.cover_path) !== undefined,
           last_opened_at_wall_clock_ms: opened_at_wall_clock_ms,
         };
       }),

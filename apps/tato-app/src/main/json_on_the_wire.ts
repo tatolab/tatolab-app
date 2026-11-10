@@ -131,6 +131,13 @@ export function arrayOrEmpty(jsonObject: JsonObjectOnTheWire, key: string): Resu
   return Array.isArray(value) ? succeeded(value) : failedWith(`\`${key}\` is not an array`);
 }
 
+/** The required object at `key`. */
+export function requiredObject(jsonObject: JsonObjectOnTheWire, key: string): Result<JsonObjectOnTheWire, string> {
+  const value = jsonObject[key];
+  if (value === undefined) return failedWith(`missing field \`${key}\``);
+  return isAJsonObject(value) ? succeeded(value) : failedWith(`\`${key}\` is not an object`);
+}
+
 /** The object at `key`, or `null` when it is absent or `null`. */
 export function optionalObject(jsonObject: JsonObjectOnTheWire, key: string): Result<JsonObjectOnTheWire | null, string> {
   const value = jsonObject[key];

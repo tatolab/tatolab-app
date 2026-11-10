@@ -3,7 +3,7 @@
 // history last changed. Its assets and every other key are ignored.
 
 import type { ProjectTheRuntimeNames } from "../shared/tatolab_backend_contract.js";
-import { optionalText, optionalUnsignedInteger, requiredText, toolResultReadWith, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
+import { arrayOrEmpty, isAJsonObject, optionalText, optionalUnsignedInteger, requiredText, toolResultReadWith, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
 import { succeeded, type Result } from "./result.js";
 
 /** A project as its card on the Projects home shows it: what the runtime names it, what it is, and when it was last edited. */
@@ -12,6 +12,8 @@ export interface ProjectSummaryTheRuntimeServes extends ProjectTheRuntimeNames {
   description: string | null;
   /** `project_last_edited_at`, whole seconds since the Unix epoch, as milliseconds for display; `null` before its first commit. */
   last_edited_at_wall_clock_ms: number | null;
+  /** The path in the project of the media asset `project_cover` names, `null` when it names none or one the listing does not hold. */
+  cover_path: string | null;
 }
 
 /** The project `list_assets` answered with `toolResultText`, or why it could not be read. */
@@ -42,9 +44,16 @@ function projectSummaryIn(toolResult: JsonObjectOnTheWire): Result<ProjectSummar
   if (!description.ok) return description;
   const lastEditedAtSeconds = optionalUnsignedInteger(toolResult, "project_last_edited_at");
   if (!lastEditedAtSeconds.ok) return lastEditedAtSeconds;
+  const cover = optionalText(toolResult, "project_cover");
+  if (!cover.ok) return cover;
+  const assets = arrayOrEmpty(toolResult, "assets");
+  if (!assets.ok) return assets;
+  const coverAsset = cover.value === null ? undefined : assets.value.filter(isAJsonObject).find((listedAsset) => listedAsset["asset"] === cover.value);
+  const coverPath = typeof coverAsset?.["path"] === "string" ? coverAsset["path"] : null;
   return succeeded({
     ...named.value,
     description: description.value,
     last_edited_at_wall_clock_ms: lastEditedAtSeconds.value === null ? null : lastEditedAtSeconds.value * 1000,
+    cover_path: coverPath,
   });
 }

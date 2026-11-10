@@ -489,6 +489,24 @@ export function renameRecentProjectArgumentsFrom(commandArguments: unknown): Res
   return succeeded({ folder: folder.value, name: name.value });
 }
 
+/** `set_recent_project_description`'s arguments as the window sends them, or why they are not. */
+export function setRecentProjectDescriptionArgumentsFrom(commandArguments: unknown): Result<{ folder: string; description: string }, string> {
+  const folder = oneTextArgumentFrom("set_recent_project_description", commandArguments, "folder", "one of the recent projects' folders");
+  if (!folder.ok) return folder;
+  const description = oneTextArgumentFrom("set_recent_project_description", commandArguments, "description", "what the project is, blank to clear it");
+  if (!description.ok) return description;
+  return succeeded({ folder: folder.value, description: description.value });
+}
+
+/** `set_recent_project_cover`'s arguments as the window sends them, or why they are not. */
+export function setRecentProjectCoverArgumentsFrom(commandArguments: unknown): Result<{ folder: string; image: string | null }, string> {
+  const folder = oneTextArgumentFrom("set_recent_project_cover", commandArguments, "folder", "one of the recent projects' folders");
+  if (!folder.ok) return folder;
+  const image = isAJsonObject(commandArguments) ? commandArguments["image"] : undefined;
+  if (image !== null && typeof image !== "string") return failedWith("set_recent_project_cover needs `image`, the full path of an image, or null for the plain cover");
+  return succeeded({ folder: folder.value, image });
+}
+
 /** `create_new_project`'s arguments as the window sends them, or why they are not. */
 export function createNewProjectArgumentsFrom(commandArguments: unknown): Result<{ name: string; location: string }, string> {
   const name = oneTextArgumentFrom("create_new_project", commandArguments, "name", "the new project's name");
@@ -917,6 +935,26 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!folder.ok) return { ok: false, refusal: folder.failure };
       return commandAnswerOfNothingFrom(
         await answerTheWindowThenRefreshTheStatus(sharedState, "delete_recent_project", () => sharedState.projectOpening.deleteRecentProject(folder.value)),
+      );
+    },
+    read_recent_project_cover: async (commandArguments) => {
+      const folder = oneTextArgumentFrom("read_recent_project_cover", commandArguments, "folder", "one of the recent projects' folders");
+      if (!folder.ok) return { ok: false, refusal: folder.failure };
+      return commandAnswerFrom(await answerTheWindow("read_recent_project_cover", () => sharedState.projectOpening.readRecentProjectCover(folder.value)));
+    },
+    set_recent_project_description: async (commandArguments) => {
+      const descriptionArguments = setRecentProjectDescriptionArgumentsFrom(commandArguments);
+      if (!descriptionArguments.ok) return { ok: false, refusal: descriptionArguments.failure };
+      return commandAnswerOfNothingFrom(
+        await answerTheWindow("set_recent_project_description", () => sharedState.projectOpening.setRecentProjectDescription(descriptionArguments.value.folder, descriptionArguments.value.description)),
+      );
+    },
+    choose_project_cover_image: async () => commandAnswerFrom(await answerTheWindow("choose_project_cover_image", () => sharedState.projectOpening.chooseProjectCoverImage())),
+    set_recent_project_cover: async (commandArguments) => {
+      const coverArguments = setRecentProjectCoverArgumentsFrom(commandArguments);
+      if (!coverArguments.ok) return { ok: false, refusal: coverArguments.failure };
+      return commandAnswerOfNothingFrom(
+        await answerTheWindow("set_recent_project_cover", () => sharedState.projectOpening.setRecentProjectCover(coverArguments.value.folder, coverArguments.value.image)),
       );
     },
     choose_project_archive_to_import: async () =>

@@ -1286,6 +1286,62 @@ test("summarizing_a_project_reads_its_name_description_and_last_edit_from_list_a
   });
 });
 
+test("a_project_covered_by_a_media_asset_is_summarized_with_that_assets_path_and_one_with_no_cover_has_none", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-assets-tool-result-of-night-show-covered-by-cover-art.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-assets-tool-result-of-night-show-copy-with-no-description-or-cover.json")),
+  ]);
+
+  expect(answerOf(await server.client().summarizeTheProject("/tmp/tatolab-proof-projects/night-show"))).toMatchObject({ name: "Night Market", cover_path: "media/cover-art.png" });
+  expect(answerOf(await server.client().summarizeTheProject("/tmp/tatolab-proof-projects/night-show copy"))).toMatchObject({ cover_path: null });
+});
+
+test("describing_a_project_calls_set_project_description_and_reads_its_settings_after_and_a_folder_holding_no_project_is_refused_in_the_runtimes_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-set-project-description-answer-for-night-show.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-set-project-description-refusal-for-a-folder-that-is-not-a-project.json")),
+  ]);
+
+  expect(answerOf(await server.client().setProjectDescription("/tmp/tatolab-proof-projects/night-show", "Projection for the night market."))).toEqual({
+    name: "Night Market",
+    description: "Projection for the night market.",
+    cover: "7593be3b-210b-4656-ab21-2213bfa307b5",
+  });
+  expect(failureOf(await server.client().setProjectDescription("/tmp/tatolab-proof-projects/nothing-here", null))).toEqual({
+    failureDescription: "set_project_description failed: /tmp/tatolab-proof-projects/nothing-here holds no project: it has no tatolab-project.json",
+    isTheRuntimesRefusal: true,
+  });
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["set_project_description", { project_directory: "/tmp/tatolab-proof-projects/night-show", description: "Projection for the night market." }],
+    ["set_project_description", { project_directory: "/tmp/tatolab-proof-projects/nothing-here", description: null }],
+  ]);
+});
+
+test("covering_a_project_imports_the_image_with_import_asset_then_names_it_with_set_project_cover_and_each_refusal_is_in_the_runtimes_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-answer-for-cover-art-png-into-night-show.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-refusal-for-a-path-night-show-already-holds.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-set-project-cover-answer-for-night-show-covered-by-cover-art.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-set-project-cover-refusal-for-an-asset-night-show-does-not-hold.json")),
+  ]);
+  const nightShow = "/tmp/tatolab-proof-projects/night-show";
+
+  expect(answerOf(await server.client().importAsset(nightShow, "/tmp/cover-art.png", "media/cover-art.png"))).toEqual({ asset: "7593be3b-210b-4656-ab21-2213bfa307b5", path: "media/cover-art.png" });
+  expect(failureOf(await server.client().importAsset(nightShow, "/tmp/cover-art.png", "media/cover-art.png")).failureDescription).toBe(
+    "import_asset failed: `media/cover-art.png` is already the path of the asset 7593be3b-210b-4656-ab21-2213bfa307b5",
+  );
+  expect(answerOf(await server.client().setProjectCover(nightShow, "7593be3b-210b-4656-ab21-2213bfa307b5"))).toMatchObject({ cover: "7593be3b-210b-4656-ab21-2213bfa307b5" });
+  expect(failureOf(await server.client().setProjectCover(nightShow, "00000000-0000-4000-8000-000000000000")).failureDescription).toBe(
+    "set_project_cover failed: the project holds no asset 00000000-0000-4000-8000-000000000000",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["import_asset", { project_directory: nightShow, source: "/tmp/cover-art.png", asset_path: "media/cover-art.png" }],
+    ["import_asset", { project_directory: nightShow, source: "/tmp/cover-art.png", asset_path: "media/cover-art.png" }],
+    ["set_project_cover", { project_directory: nightShow, cover: "7593be3b-210b-4656-ab21-2213bfa307b5" }],
+    ["set_project_cover", { project_directory: nightShow, cover: "00000000-0000-4000-8000-000000000000" }],
+  ]);
+});
+
 const RECORDED_NIGHT_SHOW = "/private/tmp/tl-rec053/projects/night-show";
 
 test("project files are listed, read whole as bytes, and written as one transaction by the author under a key, each through the runtime's file tools, a refusal in its own words", async () => {

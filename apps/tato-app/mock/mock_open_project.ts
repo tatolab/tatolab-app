@@ -79,16 +79,24 @@ export function mockRecentProjects(recentInTheQuery: string | null, homeDirector
   if (recentInTheQuery === "none") return [];
   const streamsFolder = `${homeDirectory}/streams`;
   const openedHoursAgo = (hours: number) => wallClockNowMs - hours * MILLISECONDS_IN_AN_HOUR;
-  const recentProject = (folder: string, projectName: string | null, projectDescription: string | null, editedHoursAgo: number | null, openedHours: number): RecentProject => ({
+  const recentProject = (
+    folder: string,
+    projectName: string | null,
+    projectDescription: string | null,
+    editedHoursAgo: number | null,
+    openedHours: number,
+    hasAChosenCover = false,
+  ): RecentProject => ({
     folder,
     project_name: projectName,
     project_description: projectDescription,
     last_edited_at_wall_clock_ms: editedHoursAgo === null ? null : openedHoursAgo(editedHoursAgo),
+    has_a_chosen_cover: hasAChosenCover,
     last_opened_at_wall_clock_ms: openedHoursAgo(openedHours),
   });
   return [
-    recentProject(`${streamsFolder}/pattern`, "pattern", "The project tatolab new makes: a test pattern through a halftone effect into a brightness meter.", 0.1, 2),
-    recentProject(`${streamsFolder}/night-market-visuals`, "night-market-visuals", "Projection loops for the night market's north wall.", 20, 26),
+    recentProject(`${streamsFolder}/pattern`, "pattern", "The project tatolab new makes: a test pattern through a halftone effect into a brightness meter.", 0.1, 2, true),
+    recentProject(`${streamsFolder}/night-market-visuals`, "night-market-visuals", "Projection loops for the night market's north wall.", 20, 26, true),
     recentProject(`${streamsFolder}/camera`, "camera", "Camera test bench for the new capture cards.", 75, 75),
     recentProject(`${streamsFolder}/lobby-recorder`, "lobby-recorder", null, 170, 170),
     recentProject(`${streamsFolder}/gallery-wall`, "gallery-wall", null, null, 400),
@@ -159,4 +167,13 @@ export function mockNewProjectReading(folder: string, name: string): OpenProject
       imports_not_listed_because: null,
     },
   };
+}
+
+/** A cover image the mock serves for a project shown by a chosen image: sweeping arcs on a dark ground, in one of two colourings. */
+export function mockProjectCoverImageUrl(colouring: "arcs" | "stripes"): string {
+  const coverPicture =
+    colouring === "arcs"
+      ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 270"><rect width="480" height="270" fill="#10131c"/><path d="M-40 150 Q240 60 520 120" stroke="#6f9bff" stroke-width="5" fill="none" opacity=".85"/><path d="M-20 190 Q240 120 500 200" stroke="#3fcf8e" stroke-width="5" fill="none" opacity=".7"/></svg>`
+      : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 270"><defs><pattern id="s" width="22" height="270" patternUnits="userSpaceOnUse"><rect width="2" height="270" fill="#e07a5f" opacity=".3"/></pattern></defs><rect width="480" height="270" fill="#2a1b17"/><rect width="480" height="270" fill="url(#s)"/><text x="28" y="240" font-family="sans-serif" font-size="34" font-weight="700" fill="#f2b9a6">NIGHT MARKET</text></svg>`;
+  return `data:image/svg+xml;base64,${btoa(coverPicture)}`;
 }

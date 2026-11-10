@@ -153,6 +153,7 @@ async function sharedStateOverFakes(
     documentsDirectory: path.join(appConfigDirectory, "Documents"),
     projectFolderDialog: async () => succeeded(null),
     projectArchiveDialog: async () => succeeded(null),
+    projectCoverImageDialog: async () => succeeded(null),
     recentProjectFolders: recentProjectFoldersFileIn(appConfigDirectory, quietTatolabAppLog),
     readWallClockNowMs: () => 1_790_000_000_000,
     newProjectCreation: controller,
@@ -699,6 +700,20 @@ test("A recent project's ⋯ commands and Import project .zip… read their argu
   expect(await commandHandlers.import_project_archive({ archive: "/tmp/a.zip", location: "/tmp" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "import_project_archive needs `name`, the imported project's name" });
   expect(await commandHandlers.import_project_archive({ archive: "/tmp/a.zip", name: "Show" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "import_project_archive needs `location`, the folder the project goes in" });
   expect(await commandHandlers.import_project_archive({ archive: "/tmp/a.zip", name: "a/b", location: "/tmp" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "A project's name can't hold a /." });
+});
+
+test("The Project details panel's commands read their arguments as the window sends them, and change only a recent project", async () => {
+  const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
+  expect(await commandHandlers.read_recent_project_cover({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "read_recent_project_cover needs `folder`, one of the recent projects' folders" });
+  expect(await commandHandlers.read_recent_project_cover({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "/etc is not one of the recent projects." });
+  expect(await commandHandlers.set_recent_project_description({ description: "A show" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "set_recent_project_description needs `folder`, one of the recent projects' folders" });
+  expect(await commandHandlers.set_recent_project_description({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "set_recent_project_description needs `description`, what the project is, blank to clear it" });
+  expect(await commandHandlers.set_recent_project_description({ folder: "/etc", description: "A show" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "/etc is not one of the recent projects." });
+  expect(await commandHandlers.choose_project_cover_image(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.set_recent_project_cover({ image: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "set_recent_project_cover needs `folder`, one of the recent projects' folders" });
+  expect(await commandHandlers.set_recent_project_cover({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "set_recent_project_cover needs `image`, the full path of an image, or null for the plain cover" });
+  expect(await commandHandlers.set_recent_project_cover({ folder: "/etc", image: 7 }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "set_recent_project_cover needs `image`, the full path of an image, or null for the plain cover" });
+  expect(await commandHandlers.set_recent_project_cover({ folder: "/etc", image: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "/etc is not one of the recent projects." });
 });
 
 test("New project's commands suggest an untitled project in Documents/Tato Studio and read their arguments as the window sends them", async () => {

@@ -1,9 +1,9 @@
 import { expect, test } from "vitest";
-import { duplicateFromTheDuplicateProjectToolResult, projectFromTheImportProjectToolResult, projectNameFromTheRenameProjectToolResult } from "./project_changes_on_the_wire.js";
+import { duplicateFromTheDuplicateProjectToolResult, projectFromTheImportProjectToolResult, projectSettingsFromTheToolResult } from "./project_changes_on_the_wire.js";
 import { projectSummaryFromTheListAssetsToolResult } from "./project_the_runtime_names.js";
 
 test("a project change's answer missing a field is refused naming the tool and the field", () => {
-  expect(projectNameFromTheRenameProjectToolResult('{"project":"4d7c"}')).toEqual({ ok: false, failure: "the runtime's rename_project result could not be read: missing field `project_name`" });
+  expect(projectSettingsFromTheToolResult("rename_project", '{"project":"4d7c"}')).toEqual({ ok: false, failure: "the runtime's rename_project result could not be read: missing field `project_name`" });
   expect(duplicateFromTheDuplicateProjectToolResult('{"project_directory":"/a copy","project":"0378"}')).toEqual({
     ok: false,
     failure: "the runtime's duplicate_project result could not be read: missing field `project_name`",

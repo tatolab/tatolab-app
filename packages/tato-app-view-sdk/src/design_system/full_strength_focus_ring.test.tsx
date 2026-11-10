@@ -51,6 +51,7 @@ describe("every design-system control", () => {
           when="Edited 2 hours ago"
           coverNumber={1}
           coverInitial="P"
+          coverImageUrl={null}
           isUnreadable={false}
           onOpened={() => {}}
           moreActions={<MenuItem onChosen={() => {}}>Rename…</MenuItem>}
@@ -65,6 +66,7 @@ describe("every design-system control", () => {
           when="2 hours ago"
           coverNumber={1}
           coverInitial="P"
+          coverImageUrl={null}
           isUnreadable={false}
           onOpened={() => {}}
           moreActions={<MenuItem onChosen={() => {}}>Rename…</MenuItem>}
