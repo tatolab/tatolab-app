@@ -2,6 +2,7 @@
 // action refused, the choices its Filter popover offers, and what a row copies as JSON.
 
 import type { JsonValue, ListedStream, ProjectTransaction, ProjectTransactions, RefusedProjectAction } from "@tatolab/tato-app-view-sdk";
+import type { StatusChipTone } from "@tatolab/tato-app-view-sdk/design_system/status_chip";
 
 /** Whether the runtime applied a change or refused it. */
 export type TransactionResult = "applied" | "refused";
@@ -27,7 +28,10 @@ export interface TransactionsViewRow {
   operations_words: string;
   /** `commit` or `live`, as the change was made or asked: an applied transaction on the feed is always a commit, since the feed keeps no live edit. */
   mode_words: string;
+  /** A live change in the caution tone, a commit or a mode newer than this app plain. */
+  mode_chip_tone: StatusChipTone;
   result: TransactionResult;
+  result_chip_tone: StatusChipTone;
   /** The Commit cell: the commit's first seven hex digits, or `none` for a refused action, which no history records. */
   commit_cell_words: string;
   /** The entry exactly as the runtime sent it. */
@@ -121,7 +125,9 @@ export function transactionsViewRowOf(transaction: ProjectTransaction, streamWor
     operation_verbs: operationVerbs,
     operations_words: operationsWords,
     mode_words: "commit",
+    mode_chip_tone: "neutral",
     result: "applied",
+    result_chip_tone: "positive",
     commit_cell_words: transaction.commit.slice(0, SHORT_COMMIT_LENGTH),
     sent: { kind: "applied", transaction },
     searched_words: [authorWords, operationsWords, ...streamWords, JSON.stringify(transaction)].join("\n").toLowerCase(),
@@ -178,7 +184,9 @@ function refusedActionViewRowOf(refusedAction: RefusedProjectAction, rowId: stri
     operation_verbs: operationVerbs,
     operations_words: operationsWords,
     mode_words: refusedAction.mode,
+    mode_chip_tone: refusedAction.mode === "live" ? "caution" : "neutral",
     result: "refused",
+    result_chip_tone: "danger",
     commit_cell_words: "none",
     sent: { kind: "refused", refused_action: refusedAction },
     searched_words: [authorWords, operationsWords, ...streamWords, JSON.stringify(refusedAction)].join("\n").toLowerCase(),
@@ -244,23 +252,47 @@ export function transactionsFilterButtonWordsOf(filtersOnCount: number): { words
     : { words: `Filter · ${filtersOnCount}`, label: `Filter transactions: ${filtersOnCount} on` };
 }
 
+/** The entry exactly as the runtime sent it, without the kind the view tags it with. */
+export function changeFeedEntryAsTheRuntimeSentIt(sent: ChangeFeedEntryAsSent): ProjectTransaction | RefusedProjectAction {
+  return sent.kind === "applied" ? sent.transaction : sent.refused_action;
+}
+
 /** The entry as JSON, indented, exactly as the runtime sent it. */
 export function changeFeedEntryAsJson(sent: ChangeFeedEntryAsSent): string {
-  return JSON.stringify(sent.kind === "applied" ? sent.transaction : sent.refused_action, null, 2);
+  return JSON.stringify(changeFeedEntryAsTheRuntimeSentIt(sent), null, 2);
 }
 
 /** The entries `rows` show, as one JSON array, indented, each exactly as the runtime sent it. */
 export function transactionsViewRowsAsJson(rows: readonly TransactionsViewRow[]): string {
   return JSON.stringify(
-    rows.map((row) => (row.sent.kind === "applied" ? row.sent.transaction : row.sent.refused_action)),
+    rows.map((row) => changeFeedEntryAsTheRuntimeSentIt(row.sent)),
     null,
     2,
   );
 }
 
-/** The rows still shown after the view was cleared of `clearedRowIds`: only what the runtime recorded since. */
-export function transactionsViewRowsAfterClearing(rows: readonly TransactionsViewRow[], clearedRowIds: ReadonlySet<string>): TransactionsViewRow[] {
-  return rows.filter((row) => !clearedRowIds.has(row.row_id));
+/** What the log menu holds the view to: the rows it froze when paused, `null` while it follows the feed, and the rows cleared from it. */
+export interface TransactionsLogHolding {
+  rows_when_paused: readonly TransactionsViewRow[] | null;
+  cleared_row_ids: ReadonlySet<string>;
+}
+
+/** The log following the feed, with nothing cleared. */
+export const TRANSACTIONS_LOG_FOLLOWING_THE_FEED: TransactionsLogHolding = { rows_when_paused: null, cleared_row_ids: new Set() };
+
+/** The rows the log shows: the frozen ones while paused, else the feed's, less those cleared. */
+export function transactionsLogRowsShown(rowsOfTheFeed: readonly TransactionsViewRow[], holding: TransactionsLogHolding): TransactionsViewRow[] {
+  return (holding.rows_when_paused ?? rowsOfTheFeed).filter((row) => !holding.cleared_row_ids.has(row.row_id));
+}
+
+/** Pause freezes the rows the feed holds now; Resume follows the feed again. */
+export function transactionsLogPausedOrResumed(holding: TransactionsLogHolding, rowsOfTheFeed: readonly TransactionsViewRow[]): TransactionsLogHolding {
+  return { ...holding, rows_when_paused: holding.rows_when_paused === null ? rowsOfTheFeed : null };
+}
+
+/** Clear hides the rows shown now, and only those: a row that reached the feed while paused, unseen, shows once the log resumes. */
+export function transactionsLogCleared(holding: TransactionsLogHolding, rowsOfTheFeed: readonly TransactionsViewRow[]): TransactionsLogHolding {
+  return { ...holding, cleared_row_ids: new Set([...holding.cleared_row_ids, ...transactionsLogRowsShown(rowsOfTheFeed, holding).map((row) => row.row_id)]) };
 }
 
 /** The rows `filter` keeps, in their order; the search matches the row's words or anything the runtime sent, ignoring case. */

@@ -262,6 +262,14 @@ describe("the studio", () => {
     fireEvent.click(refusedRow);
     await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-transactions-detail-refusal]")).not.toBeNull());
     expect(coreViewPage("transactions").querySelector("[data-transactions-detail-refusal]")?.textContent).toContain("claude-code has undone nothing that is left to redo");
+
+    pressAsAPointerDoes(coreViewPage("transactions").querySelector<HTMLElement>("[data-transactions-log-menu]") ?? expect.unreachable("no log menu"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Pause the log" }));
+    await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-transactions-paused-chip]")?.textContent).toBe("Paused"));
+    pressAsAPointerDoes(coreViewPage("transactions").querySelector<HTMLElement>("[data-transactions-log-menu]") ?? expect.unreachable("no log menu"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Clear the view" }));
+    await waitFor(() => expect(coreViewPage("transactions").querySelector('[data-transactions-state="cleared"]')).not.toBeNull());
+    expect(transactionRows()).toEqual([]);
   });
 
   it("says an area left on Transactions shows it only in Developer mode once Developer mode is turned off", async () => {

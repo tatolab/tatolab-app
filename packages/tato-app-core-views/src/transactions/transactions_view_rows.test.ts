@@ -11,7 +11,10 @@ import {
   transactionsFilterChoicesOf,
   transactionsFiltersOnCount,
   transactionsViewRowOf,
-  transactionsViewRowsAfterClearing,
+  TRANSACTIONS_LOG_FOLLOWING_THE_FEED,
+  transactionsLogCleared,
+  transactionsLogPausedOrResumed,
+  transactionsLogRowsShown,
   transactionsViewRowsAsJson,
   transactionsViewRowsOf,
   transactionsViewRowsShownBy,
@@ -92,7 +95,9 @@ describe("a Transactions row", () => {
       operation_verbs: ["add_node", "connect"],
       operations_words: "add_node, connect",
       mode_words: "commit",
+      mode_chip_tone: "neutral",
       result: "applied",
+      result_chip_tone: "positive",
       commit_cell_words: "3b0fc2d",
       stream_cell_words: "Main",
     });
@@ -247,13 +252,30 @@ describe("the log menu's rows", () => {
     const transaction = transactionWith({ transaction: "t1" });
     const refusedAction = refusedActionWith({ mode: "live" });
     const rows = transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [transaction], refused_actions: [refusedAction] }, streamWordsOf);
-    expect(rows.find((row) => row.result === "refused")?.mode_words).toBe("live");
+    expect(rows.find((row) => row.result === "refused")).toMatchObject({ mode_words: "live", mode_chip_tone: "caution", result_chip_tone: "danger" });
     expect(JSON.parse(transactionsViewRowsAsJson(rows))).toEqual(rows.map((row) => (row.sent.kind === "applied" ? transaction : refusedAction)));
   });
 
-  it("keeps only what the runtime recorded after the view was cleared", () => {
-    const before = transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [transactionWith({ transaction: "t1" })], refused_actions: [refusedActionWith({})] }, streamWordsOf);
-    const after = transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [transactionWith({ transaction: "t2" }), transactionWith({ transaction: "t1" })], refused_actions: [refusedActionWith({})] }, streamWordsOf);
-    expect(transactionsViewRowsAfterClearing(after, new Set(before.map((row) => row.row_id))).map((row) => row.row_id)).toEqual(["t2"]);
+  const feedOf = (transactionIds: string[]) =>
+    transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: transactionIds.map((transaction) => transactionWith({ transaction })), refused_actions: [] }, streamWordsOf);
+  const idsOf = (rows: readonly { row_id: string }[]) => rows.map((row) => row.row_id);
+
+  it("freezes the rows while paused and follows the feed again once resumed", () => {
+    const paused = transactionsLogPausedOrResumed(TRANSACTIONS_LOG_FOLLOWING_THE_FEED, feedOf(["t1"]));
+    expect(idsOf(transactionsLogRowsShown(feedOf(["t2", "t1"]), paused))).toEqual(["t1"]);
+    expect(idsOf(transactionsLogRowsShown(feedOf(["t2", "t1"]), transactionsLogPausedOrResumed(paused, feedOf(["t2", "t1"]))))).toEqual(["t2", "t1"]);
+  });
+
+  it("clears what is shown, and shows what the runtime records after", () => {
+    const cleared = transactionsLogCleared(TRANSACTIONS_LOG_FOLLOWING_THE_FEED, feedOf(["t1"]));
+    expect(transactionsLogRowsShown(feedOf(["t1"]), cleared)).toEqual([]);
+    expect(idsOf(transactionsLogRowsShown(feedOf(["t2", "t1"]), cleared))).toEqual(["t2"]);
+  });
+
+  it("keeps a row that reached the feed unseen while paused, so it shows once the log resumes after a clear", () => {
+    const paused = transactionsLogPausedOrResumed(TRANSACTIONS_LOG_FOLLOWING_THE_FEED, feedOf(["t1"]));
+    const clearedWhilePaused = transactionsLogCleared(paused, feedOf(["t2", "t1"]));
+    expect(transactionsLogRowsShown(feedOf(["t2", "t1"]), clearedWhilePaused)).toEqual([]);
+    expect(idsOf(transactionsLogRowsShown(feedOf(["t2", "t1"]), transactionsLogPausedOrResumed(clearedWhilePaused, feedOf(["t2", "t1"]))))).toEqual(["t2"]);
   });
 });

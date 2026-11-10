@@ -6,10 +6,8 @@ import { StatusChip } from "./status_chip";
 afterEach(cleanup);
 
 describe("StatusChip", () => {
-  it("says its word and names its tone", () => {
-    render(<StatusChip tone="danger">refused</StatusChip>);
-    const chip = screen.getByText("refused");
-    expect(chip.dataset.statusChipTone).toBe("danger");
-    expect(chip.className).toContain("bg-status-danger-ground");
+  it.each(["positive", "danger", "caution", "neutral"] as const)("says its word and names its %s tone", (tone) => {
+    render(<StatusChip tone={tone}>{`${tone} word`}</StatusChip>);
+    expect(screen.getByText(`${tone} word`).dataset.statusChipTone).toBe(tone);
   });
 });
