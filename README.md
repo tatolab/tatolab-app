@@ -52,10 +52,11 @@ the stream, in Finder or the file manager, and in Terminal.app or `x-terminal-em
 A packaged app checks the feed at `https://get.tatolab.com/app/` at launch and once a day, through
 [electron-updater](https://github.com/electron-userland/electron-builder/tree/master/packages/electron-updater)'s
 generic provider; "Check for Updates…", right after About Tato Studio (in the Tato Studio menu of
-macOS's menu bar, in Help on Linux), in the tray, or in Settings checks at once. A newer version that installs in place downloads in the background and
-is staged, and the person is notified once per version; the same item then reads "Restart to Update",
-which installs it and reopens the app, and a staged version also installs the next time the app
-quits. On macOS Squirrel.Mac stages the signed `.zip` and replaces the bundle, which stops the old
+macOS's menu bar, in Help on Linux), in the tray, or in Settings checks at once. A newer version that installs in place downloads in the background, and a
+dialog says it is ready, once per version each time the app runs, with Install Update and Cancel; the same item then reads
+"Restart to Update". Either installs it and reopens the app; quitting never installs it. The first time
+the app opens after an update, a dialog names the new version and links its release notes on GitHub
+Releases. On macOS Squirrel.Mac takes the signed `.zip` when the person chooses to install it and replaces the bundle, which stops the old
 runtime with the old app and starts the new bundle's; the AppImage replaces its own file; a `.deb`
 only finds the newer version, and opens its download in the browser when the person chooses it,
 since apt alone replaces it. The feed's manifests are

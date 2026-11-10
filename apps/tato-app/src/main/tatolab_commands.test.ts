@@ -117,7 +117,8 @@ async function sharedStateOverFakes(
   const statusPublisher = new TatolabStatusPublisher(controller, () => {}, () => 0, quietTatolabAppLog);
   const tatolabAppUpdater = new TatolabAppUpdater(
     { kind: "not_offered", reason: "this fake platform updates nothing" },
-    { notifyANewerVersionIsAvailable: () => {}, notifyANewerVersionIsReadyToInstall: () => {}, notifyTheAppIsUpToDate: () => {}, notifyTheUpdateFailed: () => {} },
+    { notifyANewerVersionIsAvailable: () => {}, notifyTheAppIsUpToDate: () => {}, notifyTheUpdateFailed: () => {} },
+    () => Promise.resolve("cancel"),
     () => {},
     quietTatolabAppLog,
   );

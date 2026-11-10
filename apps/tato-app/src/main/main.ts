@@ -31,6 +31,7 @@ import { startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded, tatolabWindowComm
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
+import { LastOpenedAppVersionFile, tellThePersonWhenAnUpdateLanded, updateReadyDialogOverTheWindowInFront, type TatolabAppUpdateDialogsSources } from "./tatolab_app_update_dialogs.js";
 import { HeldRememberedSwitch, RememberedSwitchFile } from "./remembered_switch_file.js";
 import { StreamFailureNotifications } from "./stream_failure_notifications.js";
 import { TatolabCommandLineToolVersionReadOncePerLaunch } from "./tatolab_command_line_tool_version.js";
@@ -128,6 +129,8 @@ export interface TatolabElectronAppShell {
   answerProjectViewFileRequestsWith(answerAProjectViewFileRequest: AnswerAProjectViewFileRequest): void;
   /** The update feed `appUpdatePackaging` reads and takes from, or why this app cannot update itself. */
   createTheAppUpdateFeed(appUpdatePackaging: TatolabAppUpdatePackaging): TatolabAppUpdateFeedForThisBuild;
+  /** Open `webPageUrl` in the person's browser, as an update's release notes open. */
+  openAWebPageInTheBrowser(webPageUrl: string): Promise<Result<void, string>>;
   /** The desktop's notifications, which updates and failing streams are told through. */
   systemNotifications: SystemNotifications;
   /** The timer the daily update check repeats on. */
@@ -269,12 +272,18 @@ export async function startTatolabApp(
   const platformForThisBuild = await tatolabElectronAppShell.buildTheTatolabPlatformForThisBuild(platformItems);
   localApiSocketOnceKnown = platformForThisBuild.localApiSocket;
   let statusPublisherOnceBuilt: TatolabStatusPublisher | null = null;
+  const tatolabAppUpdateDialogsSources: TatolabAppUpdateDialogsSources = {
+    askAQuestionOverTheWindowInFront: (question) => tatolabAppWindows.askAQuestionOverTheWindowInFront(question),
+    openAWebPageInTheBrowser: (webPageUrl) => tatolabElectronAppShell.openAWebPageInTheBrowser(webPageUrl),
+    tatolabAppLog,
+  };
   const tatolabAppUpdater = new TatolabAppUpdater(
     tatolabElectronAppShell.createTheAppUpdateFeed(platformForThisBuild.appUpdatePackaging),
     tatolabAppUpdateNotifierOver(tatolabElectronAppShell.systemNotifications, () => {
       tatolabAppWindows.showTheProjectsWindow();
       statusPublisherOnceBuilt?.sendTheLastPublishedStatusToTheWindow();
     }),
+    updateReadyDialogOverTheWindowInFront(tatolabAppUpdateDialogsSources),
     () => statusPublisherOnceBuilt?.requestRefresh(),
     tatolabAppLog,
   );
@@ -435,6 +444,11 @@ export async function startTatolabApp(
   const tatolabTrayMenu = TatolabTrayMenu.build(tatolabElectronAppShell.trayIconHostFactory, platformItems.trayIconImage, onTrayMenuChoice);
   statusPublisher.attachTrayMenu(tatolabTrayMenu);
   showTheWindowWithTheLastStatus();
+  tellThePersonWhenAnUpdateLanded(
+    thisCopyOfTatolab.appVersion,
+    LastOpenedAppVersionFile.inAppConfigDirectory(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
+    tatolabAppUpdateDialogsSources,
+  ).catch((unexpectedFailure: unknown) => tatolabAppLog.error("the update-landed dialog ended on a failure nothing expected", { failure: describeCaughtFailure(unexpectedFailure) }));
   runInTheBackgroundWithTheController(sharedState, "tatolab-app-opened", async (controller, statusPublisher) => {
     statusPublisher.startPolling();
     tatolabAppUpdater.startCheckingOnItsOwn(tatolabElectronAppShell.repeatingTimer);

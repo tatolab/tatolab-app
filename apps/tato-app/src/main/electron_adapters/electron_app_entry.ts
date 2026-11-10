@@ -4,9 +4,9 @@
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
-import { app, autoUpdater as electronNativeAutoUpdater, Menu } from "electron";
+import { app, autoUpdater as electronNativeAutoUpdater, Menu, shell } from "electron";
 import { startTatolabApp, type TatolabElectronAppShell, type TatolabRunningApp } from "../main.js";
-import { describeCaughtFailure } from "../result.js";
+import { describeCaughtFailure, failedWith, succeeded } from "../result.js";
 import { RUNTIME_VIEWER_FRAME_IMPORT_ADDON_FILE_NAME } from "../runtime_viewer_frame_import_addon.js";
 import { createTatolabAppLogToStandardError } from "../tatolab_app_log.js";
 import { TATOLAB_APP_BUILD_FEATURES, tatolabAppBuildForTheWindow } from "../tatolab_app_build_features.js";
@@ -167,6 +167,14 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   personSignedInToThisMachine: nameOfThePersonSignedInToThisMachine(),
   answerProjectViewFileRequestsWith,
   createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
+  openAWebPageInTheBrowser: async (webPageUrl) => {
+    try {
+      await shell.openExternal(webPageUrl);
+    } catch (openFailure) {
+      return failedWith(describeCaughtFailure(openFailure));
+    }
+    return succeeded(undefined);
+  },
   systemNotifications: createElectronSystemNotifications(),
   repeatingTimer: (intervalMs, work) => {
     setInterval(work, intervalMs);

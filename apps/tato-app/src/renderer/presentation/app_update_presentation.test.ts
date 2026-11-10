@@ -25,7 +25,7 @@ describe("presentTatolabAppUpdate", () => {
 
   it("offers Restart to Update once a newer version is staged", () => {
     expect(presentTatolabAppUpdate({ kind: "ready_to_restart", version: "0.47.0" })).toEqual({
-      description: "Tato Studio 0.47.0 is ready. Restart to update, or it installs the next time you quit.",
+      description: "Tato Studio 0.47.0 is ready. Restart to update to install it.",
       action: { label: "Restart to Update", command: "take_the_newer_version", isEnabled: true },
       failure: null,
     });

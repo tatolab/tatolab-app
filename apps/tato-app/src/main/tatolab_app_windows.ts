@@ -14,7 +14,7 @@ import type { TatolabPlatformItems } from "./platform/tatolab_platform_items.js"
 import type { LanguageServerOfAWindow } from "./python_language_servers.js";
 import type { Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-import { TatolabMainWindow, type MainWindowHostFactory } from "./tatolab_main_window.js";
+import { TatolabMainWindow, type MainWindowHostFactory, type QuestionOverTheWindow } from "./tatolab_main_window.js";
 
 /** The button of the question asked before a running project's window closes that stops the project and closes the window. */
 export const STOP_AND_CLOSE_BUTTON_LABEL = "Stop and Close";
@@ -93,6 +93,15 @@ export class TatolabAppWindows {
   /** Show the Projects window and bring it forward. */
   showTheProjectsWindow(): void {
     this.projectsWindow.show();
+  }
+
+  /** Ask `question` over a studio window on screen, or else over the Projects window, shown for it; answers the index of the button chosen. */
+  askAQuestionOverTheWindowInFront(question: QuestionOverTheWindow): Promise<Result<number, string>> {
+    for (const studioWindow of this.studioWindowsByProjectFolder.values()) {
+      if (studioWindow.tatolabMainWindow.isShowing()) return studioWindow.tatolabMainWindow.askAQuestionOverTheWindow(question);
+    }
+    this.showTheProjectsWindow();
+    return this.projectsWindow.askAQuestionOverTheWindow(question);
   }
 
   /** Open the project in `projectFolder` in its own studio window, reading it first, or bring its window forward when one is open; answers once the window shows it, with which of the two it did. */
