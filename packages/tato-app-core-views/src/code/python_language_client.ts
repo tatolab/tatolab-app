@@ -39,7 +39,7 @@ export function fileOfUri(uri: string): string | null {
   }
 }
 
-/** The interpreter of a project's venv, the one `run_project` makes, which Pyright resolves the project's imports with. */
+/** The interpreter of a project's venv, the one `start_project` makes, which Pyright resolves the project's imports with. */
 export function projectVenvPythonOf(projectFolder: string): string {
   return `${projectFolder}/.venv/bin/python`;
 }

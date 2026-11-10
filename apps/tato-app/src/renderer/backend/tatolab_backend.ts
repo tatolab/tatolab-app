@@ -78,9 +78,9 @@ export interface TatolabBackend {
   chooseStreamProjectFolder(chosenFor: StreamProjectFolderChosenFor): Promise<string | null>;
   /** Queue `create_project` in `folder`, or with `null` in a folder the runtime draws under `~/streams`, resolving with the action queued and rejecting in the runtime's own words. */
   createStreamProject(folder: string | null): Promise<ProjectCreationQueued>;
-  /** Queue `run_project` in `folder`, which loads every stream asset in it, resolving with the action queued and rejecting in the runtime's own words. */
+  /** Queue `start_project` in `folder`, which loads every stream asset in it, resolving with the action queued and rejecting in the runtime's own words. */
   runStreamProject(folder: string): Promise<ProjectRunQueued>;
-  /** Queue `run_project` on `projectDirectory`, a project the runtime lists, which loads every stream asset in it again, resolving with the action queued and rejecting in the runtime's own words. */
+  /** Queue `reload_project` on `projectDirectory`, a running or paused project the runtime lists, which reads every stream asset in it again from disk, resolving with the action queued and rejecting in the runtime's own words. */
   reloadProject(projectDirectory: string): Promise<ProjectRunQueued>;
   /** Where the stream action `action` has got to, or the runtime's words that it no longer holds it; rejects when the runtime does not answer. */
   describeStreamAction(action: string): Promise<StreamActionFollowed>;
@@ -171,7 +171,7 @@ export interface TatolabBackend {
   saveProjectFile(file: string, text: string, basedOnVersion: string | null): Promise<ProjectFileSaved>;
   /** The Python files and `pyproject.toml` of `projectFolder`, the folder of the open project or of one of its imports. */
   listProjectFiles(projectFolder: string): Promise<ProjectFiles>;
-  /** Queue `run_project` on the open project's folder, resolving with the action queued and rejecting in the runtime's own words. */
+  /** Queue `start_project` on the open project's folder, resolving with the action queued and rejecting in the runtime's own words. */
   runOpenProject(): Promise<ProjectRunQueued>;
   /** Queue `stop_project` on the open project's folder, resolving once it is queued and rejecting in the runtime's own words; its streams' `stopping`, then `stopped`, arrive as the next statuses. */
   stopOpenProject(): Promise<void>;

@@ -182,12 +182,15 @@ function stepTheProjectsWindowAsideOnceItOpenedAProject(
   }
 }
 
-/** `rename_stream { stream, display_name }`: the runtime's `rename_stream` on `stream`, then a status round whether it renamed or refused; refused in the runtime's own words. */
+/** `rename_stream { stream, display_name }`: the runtime's `set_stream_display_name` on the stream asset the runtime last listed for `stream`, then a status round whether it renamed or refused; refused in the runtime's own words, or for a stream it lists no project for. */
 export function renameStream(sharedState: TatolabAppSharedState, stream: string, displayName: string): Promise<Result<void, string>> {
   return answerTheWindow("rename_stream", async () => {
-    const renamed = await sharedState.controller.renameStream(stream, displayName);
+    const listedStream = sharedState.statusPublisher.lastPublishedStatusNow()?.streams?.find((candidateListedStream) => candidateListedStream.stream === stream) ?? null;
+    if (listedStream === null) return failedWith(`The runtime does not list ${stream}, so Tato Studio has no stream to rename.`);
+    if (listedStream.location === null) return failedWith(`The runtime lists no project for ${listedStream.display_name}, so it cannot be renamed.`);
+    const renamed = await sharedState.controller.setStreamDisplayName(listedStream.location.project_directory, listedStream.location.stream_asset, displayName);
     sharedState.statusPublisher.requestRefresh();
-    return renamed.ok ? renamed : failedWith(renamed.failure.failureDescription);
+    return renamed.ok ? succeeded(undefined) : failedWith(renamed.failure.failureDescription);
   });
 }
 
@@ -231,7 +234,7 @@ export function createStreamProject(sharedState: TatolabAppSharedState, folder: 
   });
 }
 
-/** `run_stream_project { folder }`: the runtime's `run_project` queued on `folder`, then a status round; refused in the runtime's own words. */
+/** `run_stream_project { folder }`: the runtime's `start_project` queued on `folder`, then a status round; refused in the runtime's own words. */
 export function runStreamProject(sharedState: TatolabAppSharedState, folder: string): Promise<Result<ProjectRunQueued, string>> {
   return answerTheWindow("run_stream_project", async () => {
     const queued = await sharedState.streamProjectAdding.runStreamProject(folder);
@@ -240,10 +243,22 @@ export function runStreamProject(sharedState: TatolabAppSharedState, folder: str
   });
 }
 
-/** `reload_project { project_directory }`: the runtime's `run_project` queued on a project it lists, which loads every stream asset in it again, then a status round; refused in the runtime's own words. */
+/** The states the runtime lists a stream of a project in while that project runs, is paused or is being started, which `reload_project` re-reads; `start_project` refuses each. */
+const STREAM_STATES_OF_A_PROJECT_THE_RUNTIME_RUNS: ReadonlySet<string> = new Set(["running", "paused", "preparing"]);
+
+/** The runtime's `reload_project` queued on `projectDirectory` when it last listed a stream of it running, paused or being started, else its `start_project`. */
+function startOrReloadTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
+  const listedStreams = sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [];
+  const theRuntimeRunsTheProject = listedStreams.some(
+    (listedStream) => listedStream.location?.project_directory === projectDirectory && STREAM_STATES_OF_A_PROJECT_THE_RUNTIME_RUNS.has(listedStream.state),
+  );
+  return theRuntimeRunsTheProject ? sharedState.controller.reloadProject(projectDirectory) : sharedState.controller.startProject(projectDirectory);
+}
+
+/** `reload_project { project_directory }`: a project the runtime lists read again from disk with `reload_project` while it runs, or started with `start_project` while it is stopped or failed, then a status round; refused in the runtime's own words. */
 export function reloadProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectRunQueued, string>> {
   return answerTheWindow("reload_project", async () => {
-    const queued = await sharedState.controller.runProject(projectDirectory);
+    const queued = await startOrReloadTheProject(sharedState, projectDirectory);
     sharedState.statusPublisher.requestRefresh();
     return queued.ok ? queued : failedWith(queued.failure.failureDescription);
   });
@@ -479,14 +494,14 @@ export function createNewProjectArgumentsFrom(commandArguments: unknown): Result
   return location.ok ? succeeded({ name: name.value, location: location.value }) : location;
 }
 
-/** `run_open_project`: the runtime's `run_project` queued on the asking window's project's folder, then a status round; refused in the Projects window, or in the runtime's own words. */
+/** `run_open_project`: the asking window's project started with `start_project`, or read again from disk with `reload_project` while it runs, then a status round; refused in the Projects window, or in the runtime's own words. */
 export function runOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectRunQueued, string>> {
   return answerTheWindow("run_open_project", async () => {
     const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!studioWindow.ok) return studioWindow;
     const reading = studioWindow.value.openProject.readOpenProject();
     if (reading.kind !== "read") return failedWith(reading.kind === "none_open" ? "No project is open to run." : `The project in ${reading.folder} could not be read: ${reading.refusal}`);
-    const queued = await sharedState.controller.runProject(reading.open_project.project.folder);
+    const queued = await startOrReloadTheProject(sharedState, reading.open_project.project.folder);
     sharedState.statusPublisher.requestRefresh();
     return queued.ok ? queued : failedWith(queued.failure.failureDescription);
   });

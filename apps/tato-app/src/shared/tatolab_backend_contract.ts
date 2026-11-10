@@ -194,7 +194,7 @@ export interface ProjectCreationQueued {
   project_directory: string;
 }
 
-/** What `run_project` answers at once: the action it queued, and the project's folder. */
+/** What `start_project` and `reload_project` answer at once: the action each queued, and the project's folder. */
 export interface ProjectRunQueued {
   action: string;
   project_directory: string;

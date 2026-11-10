@@ -32,7 +32,7 @@ import type { ListedProjectDependency } from "./project_dependencies_on_the_wire
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import type { ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
 import type { ProjectViewTheRuntimeListed, StudioViewOutputWritten } from "./project_views_on_the_wire.js";
-import { LocalApiClient, type LocalApiRequestFailure } from "./local_api_client.js";
+import { LocalApiClient, type LocalApiRequestFailure, type StreamDisplayNameSet } from "./local_api_client.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import type { TatolabCommandLineToolLink } from "./platform/command_line_tool_link_in_the_home_folder.js";
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
@@ -236,9 +236,9 @@ export class TatolabAppController {
     return this.localApiClient.removeProject(projectDirectory);
   }
 
-  /** Show the stream `stream` under `displayName`, through the runtime's `rename_stream`. */
-  renameStream(stream: string, displayName: string): Promise<Result<void, LocalApiRequestFailure>> {
-    return this.localApiClient.renameStream(stream, displayName);
+  /** Show the stream asset `streamAsset` of the project in `projectDirectory` under `displayName`, through the runtime's `set_stream_display_name`. */
+  setStreamDisplayName(projectDirectory: string, streamAsset: string, displayName: string): Promise<Result<StreamDisplayNameSet, LocalApiRequestFailure>> {
+    return this.localApiClient.setStreamDisplayName(projectDirectory, streamAsset, displayName);
   }
 
   /** Queue a new project's creation and run through the runtime's `create_project`, in `projectDirectory` or, with `null`, a folder the runtime draws. */
@@ -246,9 +246,14 @@ export class TatolabAppController {
     return this.localApiClient.createProject(projectDirectory);
   }
 
-  /** Queue a run of the project in `projectDirectory` through the runtime's `run_project`. */
-  runProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
-    return this.localApiClient.runProject(projectDirectory);
+  /** Queue the start of the stopped project in `projectDirectory` through the runtime's `start_project`. */
+  startProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
+    return this.localApiClient.startProject(projectDirectory);
+  }
+
+  /** Queue the reload from disk of the running or paused project in `projectDirectory` through the runtime's `reload_project`. */
+  reloadProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
+    return this.localApiClient.reloadProject(projectDirectory);
   }
 
   /** Undo `author`'s latest transaction in the project in `projectDirectory` not undone yet, answering the undo the runtime applied. */
