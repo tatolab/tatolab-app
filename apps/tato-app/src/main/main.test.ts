@@ -533,7 +533,7 @@ describe("one window per project", () => {
     expect(await fakeShell.invokeTheCommand("read_open_project", undefined, 2)).toMatchObject({ ok: true, value: { open_project: { project: { name: "night-show" } } } });
   });
 
-  test("closing a studio window closes it and forgets its project, and the Projects window refuses a project's commands", async () => {
+  test("closing a studio window closes it, forgets its project and brings back the Projects window, which refuses a project's commands", async () => {
     const fakeShell = await fakeShellOverARuntimeReadingEachProjectsFile();
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     await aProjectTheDialogAnswers(fakeShell, "night-show");
@@ -543,7 +543,8 @@ describe("one window per project", () => {
     expect(fakeShell.studioWindowsOpen()).toEqual([]);
     expect(await fakeShell.invokeTheCommand("read_open_project", undefined, 2)).toEqual({ ok: true, value: { kind: "none_open" } });
     expect(await fakeShell.invokeTheCommand("run_open_project")).toEqual({ ok: false, refusal: "No project is open in this window." });
-    expect(fakeShell.records.at(-1)).toEqual({ asked: "set_activation_policy", activationPolicy: "accessory" });
+    expect(fakeShell.mainWindowShowing).toBe(true);
+    expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "set_activation_policy").at(-1)).toEqual({ asked: "set_activation_policy", activationPolicy: "regular" });
   });
 
   test("File › Projects shows the Projects window again over a project's window", async () => {

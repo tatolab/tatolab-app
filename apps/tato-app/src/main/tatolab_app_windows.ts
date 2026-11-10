@@ -77,6 +77,7 @@ export class TatolabAppWindows {
   private readonly moduleManagerWindowsByStudioWindow = new Map<StudioWindowOfAProject, TatolabMainWindow>();
   private lastStatusSent: TatolabStatus | null = null;
   private readonly studioWindowsAskingToStopTheirProject = new Set<StudioWindowOfAProject>();
+  private isTheAppQuitting = false;
 
   constructor(private readonly sources: TatolabAppWindowsSources) {
     this.projectsWindow = new TatolabMainWindow(
@@ -275,6 +276,7 @@ export class TatolabAppWindows {
 
   /** Let every window close, rather than hide, from here on: the app is quitting. */
   letEveryWindowCloseAsTheAppQuits(): void {
+    this.isTheAppQuitting = true;
     for (const tatolabMainWindow of this.everyWindow()) tatolabMainWindow.letTheWindowCloseAsTheAppQuits();
   }
 
@@ -413,6 +415,7 @@ export class TatolabAppWindows {
     this.sources.whenAWindowStartingLanguageServersClosed(studioWindow.languageServerOfTheWindow);
     this.sources.whenAWindowShowingPortViewersClosed(studioWindow.tatolabMainWindow);
     this.sources.tatolabAppLog.info("closed a project's window", { project_folder: projectFolder });
+    if (!this.isTheAppQuitting && this.studioWindowsByProjectFolder.size === 0 && this.studioWindowsOpening.size === 0) this.showTheProjectsWindow();
   }
 
   private showTheDockIconWhileAWindowIsShown(): void {
