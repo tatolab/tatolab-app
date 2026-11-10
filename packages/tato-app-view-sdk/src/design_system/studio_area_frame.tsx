@@ -65,7 +65,7 @@ export function StudioAreaOverAViewsOwnFrame({
   }, []);
   return (
     <section aria-label={label} className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg bg-studio-area" {...controlDataAttributes}>
-      <div ref={viewTypeMenuRowRef} className="absolute top-0 left-0 z-10 flex h-(--studio-area-header-height) items-center px-1.5">
+      <div ref={viewTypeMenuRowRef} className="absolute top-0 left-0 z-10 flex h-(--studio-area-header-height) items-center gap-2 px-1.5">
         {viewTypeMenu}
       </div>
       <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
@@ -82,6 +82,15 @@ export function StudioAreaHeaderRowInAFrame({ headerRow, children }: { headerRow
     >
       {children}
     </div>
+  );
+}
+
+/** Quiet words in an area header, such as where the view's node is or the stream a view reads. */
+export function StudioAreaHeaderWords({ children, ...controlDataAttributes }: { children: ReactNode } & ControlDataAttributes) {
+  return (
+    <span className="truncate text-2xs text-fg-3" {...controlDataAttributes}>
+      {children}
+    </span>
   );
 }
 

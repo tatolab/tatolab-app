@@ -79,7 +79,7 @@ function ViewTypesNotOpenedInTheMenu({ viewTypesNotOpened }: { viewTypesNotOpene
       whyItCannotBeChosen={`${notOpened.title} doesn't open: ${notOpened.because}`}
       data-view-type-not-opened={notOpened.view_type_id}
     >
-      <ViewTypeMenuRowIconTitleAndWhoBroughtIt icon="unreadable" title={notOpened.title} broughtBy={notOpened.brought_by} />
+      <ViewTypeMenuRowIconTitleAndWhoBroughtIt icon="project_view" title={notOpened.title} broughtBy={notOpened.brought_by} />
     </MenuItemThatCannotBeChosen>
   ));
 }
@@ -174,7 +174,12 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
   return (
     <StudioAreaOverAViewsOwnFrame
       label={viewType.title}
-      viewTypeMenu={<AreaViewTypeMenu area={area} sources={sources} words={viewType.title} />}
+      viewTypeMenu={
+        <>
+          <AreaViewTypeMenu area={area} sources={sources} words={viewType.title} />
+          {viewType.renderWordsAfterTheViewTypeMenu?.(sources.viewHostServices)}
+        </>
+      }
       onHeaderRowMeasured={(headerRow) => headerRowInTheFrame.publish(headerRow)}
       data-studio-area={area.area_id}
     >
