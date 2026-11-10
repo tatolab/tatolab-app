@@ -66,6 +66,8 @@ const TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET = "Tato Studio has not reached the
 
 /** The Electron app as the lifecycle drives it. */
 export interface TatolabElectronAppShell {
+  /** The identifier of the notification whose click in Notification Center launched the app, once ready; `null` for any other launch. */
+  notificationThatLaunchedTheApp(): string | null;
   /** Which build this copy of the app is and the executable that opens it. */
   readThisCopyOfTatolab(): Promise<TatolabAppCopy>;
   /** Whether this is the one running app; a second launch gets false and hands `thisCopy` to the first. */
@@ -420,6 +422,13 @@ export async function startTatolabApp(
     systemMediaAccessAskedAheadForViews: new SystemMediaAccessAskedAheadForViews(platformForThisBuild.systemMediaAccess, tatolabElectronAppShell.systemNotifications),
     tatolabAppLog,
   };
+  const answerAClickOnAnEarlierRunsNotification = (notificationIdentifier: string) =>
+    sharedState.systemMediaAccessAskedAheadForViews.answerAClickOnAnEarlierRunsNotification(notificationIdentifier).catch((unexpectedFailure: unknown) => {
+      tatolabAppLog.error("answering a click on an earlier run's notification ended without finishing", { failure: describeCaughtFailure(unexpectedFailure) });
+    });
+  const launchingNotificationIdentifier = tatolabElectronAppShell.notificationThatLaunchedTheApp();
+  if (launchingNotificationIdentifier !== null) void answerAClickOnAnEarlierRunsNotification(launchingNotificationIdentifier);
+  tatolabElectronAppShell.systemNotifications.whenAnEarlierRunsNotificationIsClicked((notificationIdentifier) => void answerAClickOnAnEarlierRunsNotification(notificationIdentifier));
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.stopWatchingEveryProject());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.pythonLanguageServers.stopEveryLanguageServer());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.runtimePortViewers.closeEveryPortViewer());

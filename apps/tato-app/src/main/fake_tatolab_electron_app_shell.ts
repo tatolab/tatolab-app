@@ -10,7 +10,7 @@ import type { DependencySourceKind, PortViewerImageFrameFacts, StreamProjectFold
 import type { ProjectFolderDialogPurpose } from "./open_project.js";
 import type { AnswerAProjectViewFileRequest } from "./project_view_files.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
-import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
+import { FakeCarriedRuntimeStarts, FakeSystemMediaAccess, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import type { CarriedRuntime } from "./platform/carried_runtime.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { failedWith, succeeded } from "./result.js";
@@ -90,6 +90,7 @@ export class FakeTatolabElectronAppShell {
   /** The runtime this build carries; `undefined` for the fake's own, `null` for a build that carries none. */
   carriedRuntime: CarriedRuntime | null | undefined = undefined;
   commandLineToolLink = new FakeTatolabCommandLineToolLink();
+  readonly systemMediaAccess = new FakeSystemMediaAccess();
   appUpdatePackaging: TatolabAppUpdatePackaging = { kind: "not_offered", reason: "this fake platform updates nothing" };
   appUpdateFeedForThisBuild: TatolabAppUpdateFeedForThisBuild = { kind: "not_offered", reason: "this fake platform updates nothing" };
   /** The folder the fake dialog answers with; `null` reads as the person cancelling it. */
@@ -127,8 +128,12 @@ export class FakeTatolabElectronAppShell {
   private readonly windowFocusedListeners: ((windowContentsId: number) => void)[] = [];
   private readonly windowClosedListeners: ((windowContentsId: number) => void)[] = [];
 
+  /** The notification whose click in Notification Center launched this fake app; `null` unless the test says. */
+  notificationThatLaunchedTheApp: string | null = null;
+
   /** The shell `startTatolabApp` takes. */
   readonly tatolabElectronAppShell: TatolabElectronAppShell = {
+    notificationThatLaunchedTheApp: () => this.notificationThatLaunchedTheApp,
     readThisCopyOfTatolab: async () => this.thisCopyOfTatolab,
     requestTheSingleInstanceLock: (thisCopy) => {
       this.singleInstanceLockAdditionalData.push(structuredClone(tatolabAppCopyOnTheSingleInstanceLock(thisCopy)));
@@ -152,6 +157,7 @@ export class FakeTatolabElectronAppShell {
         carriedRuntime: this.carriedRuntime,
         commandLineToolLink: this.commandLineToolLink,
         appUpdatePackaging: this.appUpdatePackaging,
+        systemMediaAccess: this.systemMediaAccess,
       }),
     startTheCarriedRuntime: (carriedRuntime, whenItExits) => this.carriedRuntimeStarts.startTheCarriedRuntime(carriedRuntime, whenItExits),
     answerTheWindowsCommands: (tatolabWindowCommandHandlers) => {

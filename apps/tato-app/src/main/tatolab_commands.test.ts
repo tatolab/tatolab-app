@@ -1031,7 +1031,11 @@ test("listing the open project's views asks the system ahead for the camera and 
 
   expect(sharedState.systemMediaAccess.devicesAsked).toEqual(["camera", "microphone"]);
   expect(sharedState.systemNotifications.notificationsShown).toEqual([
-    { title: "Tato Studio can't use the microphone", body: "Stage camera needs it. Click to allow Tato Studio in System Settings." },
+    {
+      title: "Tato Studio can't use the microphone",
+      body: "Stage camera needs it. Click to allow Tato Studio in System Settings.",
+      notificationIdentifier: "com.tatolab.tatolab.media-access-refused.microphone",
+    },
   ]);
 });
 
