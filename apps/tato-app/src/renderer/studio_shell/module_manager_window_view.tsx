@@ -26,7 +26,7 @@ import { Toolbar, ToolbarGroup } from "@tatolab/tato-app-view-sdk/design_system/
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { coverInitialOfTheName, projectCoverNumberOfTheName } from "../presentation/projects_presentation";
-import { moduleCardCountsOf, moduleCardRowsOf, shortVersionOf, type ModuleCardRow, type ModulesShown } from "./module_manager_listing";
+import { everyModuleCardRowOf, moduleCardCountsOf, moduleCardMarkOf, moduleCardRowPickedBy, moduleCardRowsShownOf, shortVersionOf, type ModuleCardRow, type ModulesShown } from "./module_manager_listing";
 
 /** The streamlib issue that serves the catalog. */
 const THE_CATALOG_IS_SERVED_WITH = "tatolab/streamlib#3216";
@@ -105,7 +105,7 @@ function ModuleCardDetails({
     ...(entry === null ? [] : ([["Version", entry.version], ["Package", <span className="font-mono text-xs">{entry.name}</span>], ["Kind", entry.kind === "sample" ? "Sample project" : "Package"]] as const)),
     ...(dependency === null
       ? []
-      : ([["Folder", `imports/${dependency.folder}`], ["Copy", shortVersionOf(dependency.version)], ["From", <span className="break-all">{dependency.source}</span>]] as const)),
+      : ([["Folder", `imports/${dependency.folder}`], ["Copy", shortVersionOf(dependency.version)]] as const)),
   ];
   return (
     <aside className="flex w-95 shrink-0 flex-col border-l bg-studio-area shadow-(--shadow-pop)" aria-label="Details" data-module-manager-detail={row.row_id}>
@@ -138,6 +138,11 @@ function ModuleCardDetails({
           </PanelSection>
         )}
         <KeyValueRows rows={facts} />
+        {dependency !== null && (
+          <p className="text-xs break-all text-fg-3 select-text" data-module-manager-copied-from="">
+            Copied from {dependency.source}
+          </p>
+        )}
       </div>
       <div className="flex shrink-0 flex-col gap-2 border-t p-4">
         {dependency !== null ? (
@@ -219,12 +224,13 @@ export function ModuleManagerWindowView({ workspace, sources, platform }: { work
   }, [sources, listTheModulesOfTheProject]);
 
   const dependencies = useMemo(() => (modulesOfTheProject.kind === "listed" ? modulesOfTheProject.dependencies : []), [modulesOfTheProject]);
-  const cardRows = useMemo(() => moduleCardRowsOf(catalog, dependencies, modulesShown, searchText), [catalog, dependencies, modulesShown, searchText]);
-  const cardCounts = useMemo(() => moduleCardCountsOf(catalog, dependencies), [catalog, dependencies]);
+  const everyCardRow = useMemo(() => everyModuleCardRowOf(catalog, dependencies), [catalog, dependencies]);
+  const cardRows = useMemo(() => moduleCardRowsShownOf(everyCardRow, modulesShown, searchText), [everyCardRow, modulesShown, searchText]);
+  const cardCounts = useMemo(() => moduleCardCountsOf(everyCardRow), [everyCardRow]);
   const pickedRow = (() => {
     if (isTheDetailsPanelClosed) return null;
     if (pickedRowId === null) return cardRows[0] ?? null;
-    return cardRows.find((row) => row.row_id === pickedRowId || row.module_of_the_project?.folder === pickedRowId) ?? null;
+    return moduleCardRowPickedBy(cardRows, pickedRowId);
   })();
   const pickTheCard = (rowId: string) => {
     setPickedRowId(rowId);
@@ -271,7 +277,8 @@ export function ModuleManagerWindowView({ workspace, sources, platform }: { work
       void listTheModulesOfTheProject();
     });
   const addFromTheCatalog = (entry: PackageCatalogEntry) =>
-    doTheWork(`Downloading and adding ${entry.title}`, () => sources.importFromTheMarketplace(entry.name), () => {
+    doTheWork(`Downloading and adding ${entry.title}`, () => sources.importFromTheMarketplace(entry.name), (added) => {
+      pickTheCard(added.folder);
       void listTheModulesOfTheProject();
     });
   const openToEdit = (dependency: WorkspaceDependency) => {
@@ -297,7 +304,7 @@ export function ModuleManagerWindowView({ workspace, sources, platform }: { work
   };
 
   const cardGrid = (() => {
-    if (catalog === null && modulesOfTheProject.kind === "listing") return <WaitingState title="Reading the catalog and the project's modules" data-module-manager-state="reading" />;
+    if (modulesOfTheProject.kind === "listing") return <WaitingState title="Reading the catalog and the project's modules" data-module-manager-state="reading" />;
     if (cardRows.length > 0) {
       return (
         <div className="grid auto-rows-min grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3.5 overflow-y-auto p-5" data-module-manager-cards="">
@@ -308,7 +315,7 @@ export function ModuleManagerWindowView({ workspace, sources, platform }: { work
               summary={row.summary}
               coverNumber={projectCoverNumberOfTheName(row.title)}
               coverInitial={coverInitialOfTheName(row.title)}
-              isAddedToTheProject={row.module_of_the_project !== null}
+              mark={moduleCardMarkOf(row)}
               isPicked={row.row_id === pickedRow?.row_id}
               onPicked={() => pickTheCard(row.row_id)}
               data-module-manager-row={row.row_id}
@@ -318,9 +325,14 @@ export function ModuleManagerWindowView({ workspace, sources, platform }: { work
       );
     }
     if (searchText.trim() !== "") return <WaitingState title={`Nothing matches “${searchText.trim()}”`} data-module-manager-state="empty" />;
+    if (modulesShown === "added_to_this_project" && modulesOfTheProject.kind === "refused") {
+      return <WaitingState title="The project's modules could not be listed" explanation="The runtime's words are above." data-module-manager-state="refused" />;
+    }
     if (modulesShown === "added_to_this_project") {
       return <WaitingState title="The project has no modules yet" explanation="Add one from the catalog, from a project's folder or .zip, or drop one here." data-module-manager-state="empty" />;
     }
+    if (catalog === null) return <WaitingState title="Reading the catalog" data-module-manager-state="reading" />;
+    if (catalog.kind === "not_read") return <WaitingState title="The catalog didn't load" explanation="Its reason is above." data-module-manager-state="not_read" />;
     return <WaitingState title="The catalog lists nothing to show here yet" data-module-manager-state="empty" />;
   })();
 

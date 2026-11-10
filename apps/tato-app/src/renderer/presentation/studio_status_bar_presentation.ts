@@ -8,6 +8,7 @@ import { presentPlatform, shortcutHint } from "./platform_presentation";
 import { presentTimeSince } from "./projects_presentation";
 import type { RuntimeDescriptionReading } from "./settings_presentation";
 import { RUN_LIVE_KEY } from "../studio_shell/studio_menu_bar_model";
+import { STUDIO_LAYOUTS } from "../studio_shell/studio_layouts";
 
 /** How the status bar's runtime dot reads: running, on its way, or not answering. */
 export type StudioStatusBarRuntimeTone = "running" | "starting" | "not_running";
@@ -64,6 +65,14 @@ function lastEditWordsOf(projectTransactions: ProjectTransactionsReading | null,
   return `Last edit by ${newestTransaction.author_name} · ${whenWords}`;
 }
 
+function layoutShortcutsWordsOf(platform: TatolabPlatform): string {
+  const firstLayout = STUDIO_LAYOUTS[0];
+  const lastLayout = STUDIO_LAYOUTS.at(-1);
+  if (firstLayout === undefined || lastLayout === undefined) return "";
+  const firstShortcut = shortcutHint(platform, firstLayout.shortcut_digit);
+  return firstLayout === lastLayout ? firstShortcut : `${firstShortcut}–${lastLayout.shortcut_digit}`;
+}
+
 /** Every phrase the status bar shows for `sources`. */
 export function studioStatusBarWordsOf(sources: StudioStatusBarSources): StudioStatusBarWords {
   return {
@@ -71,6 +80,6 @@ export function studioStatusBarWordsOf(sources: StudioStatusBarSources): StudioS
     runtime: runtimeWordsOf(sources.runtimeState, sources.runtimeDescription, sources.platform),
     open_stream: openStreamWordsOf(sources.listedStreams, sources.activeStream),
     last_edit: lastEditWordsOf(sources.projectTransactions, sources.wallClockNowMs),
-    shortcuts: `${RUN_LIVE_KEY} Live · ${shortcutHint(sources.platform, "1")}–5 Layouts`,
+    shortcuts: `${RUN_LIVE_KEY} Live · ${layoutShortcutsWordsOf(sources.platform)} Layouts`,
   };
 }

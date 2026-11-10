@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { PackageCatalogReading, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
-import { moduleCardCountsOf, moduleCardRowsOf, shortVersionOf } from "./module_manager_listing";
+import { everyModuleCardRowOf, moduleCardCountsOf, moduleCardMarkOf, moduleCardRowPickedBy, moduleCardRowsShownOf, moduleFolderNameOf, shortVersionOf, type ModulesShown } from "./module_manager_listing";
+
+function moduleCardRowsOf(catalog: PackageCatalogReading | null, dependencies: readonly WorkspaceDependency[], modulesShown: ModulesShown, searchText: string) {
+  return moduleCardRowsShownOf(everyModuleCardRowOf(catalog, dependencies), modulesShown, searchText);
+}
 
 const DOWNLOAD = { url: "https://get.tatolab.com/modules/x.zip", sha256: "4f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f70" };
 
@@ -44,7 +48,7 @@ describe("what the Modules window lists", () => {
   it("shows only the project's modules, or only the catalog's samples, and counts each choice", () => {
     expect(moduleCardRowsOf(CATALOG, MODULES, "added_to_this_project", "").map((row) => row.row_id)).toEqual(["tatolab-camera", "lobby-wall"]);
     expect(moduleCardRowsOf(CATALOG, MODULES, "sample_projects", "").map((row) => row.row_id)).toEqual(["camera-halftone"]);
-    expect(moduleCardCountsOf(CATALOG, MODULES)).toEqual({ everything: 4, added_to_this_project: 2, sample_projects: 1 });
+    expect(moduleCardCountsOf(everyModuleCardRowOf(CATALOG, MODULES))).toEqual({ everything: 4, added_to_this_project: 2, sample_projects: 1 });
   });
 
   it("narrows to a search by a node's or stream's name, or a module's folder or source", () => {
@@ -69,6 +73,26 @@ describe("what the Modules window lists", () => {
       ["lobby-wall", "lobby-wall"],
     ]);
     expect(moduleCardRowsOf(null, [], "everything", "")).toEqual([]);
+  });
+
+  it("picks a card by its own id before another card's module folder of the same name", () => {
+    const rows = everyModuleCardRowOf(CATALOG, [aModule("camera-halftone-copy", "tatolab-camera"), aModule("tatolab-opus-2", null)]);
+    expect(moduleCardRowPickedBy(rows, "tatolab-camera")?.row_id).toBe("tatolab-camera");
+    expect(moduleCardRowPickedBy(rows, "camera-halftone-copy")?.row_id).toBe("tatolab-camera");
+    expect(moduleCardRowPickedBy(rows, "gone")).toBeNull();
+  });
+
+  it("marks a card with a newer version as news, one with edited files as edited, and any other added one as added", () => {
+    const rowOf = (dependency: WorkspaceDependency) => everyModuleCardRowOf(null, [dependency])[0];
+    const camera = aModule("tatolab-camera", null);
+    expect(moduleCardMarkOf(rowOf({ ...camera, newer_version_exists: true }))).toEqual({ words: "Newer version", isNews: true });
+    expect(moduleCardMarkOf(rowOf({ ...camera, edited_files: ["nodes/x.py"] }))).toEqual({ words: "Added · edited", isNews: false });
+    expect(moduleCardMarkOf(rowOf(camera))).toEqual({ words: "Added", isNews: false });
+    expect(moduleCardMarkOf(everyModuleCardRowOf(CATALOG, [])[0])).toBeNull();
+  });
+
+  it("names a module's folder as the runtime does", () => {
+    expect(moduleFolderNameOf("Camera Tools!")).toBe("camera-tools");
   });
 
   it("shows a version by its first 12 characters", () => {
