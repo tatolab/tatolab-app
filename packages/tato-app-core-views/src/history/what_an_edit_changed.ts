@@ -198,15 +198,15 @@ function wordsOfAList(items: readonly string[]): string {
 function wordsOfTheLinksOfAnAddedNode(operations: readonly OperationFields[], nodeNames: NodeNamesById): string | null {
   const [added, ...rest] = operations;
   const addedNodeId = textOf(fieldsOf(added?.["node"])?.["id"]);
-  if (added?.["operation"] !== "add_node" || addedNodeId === null || rest.length === 0) return null;
+  const addedWithItsOwnLinks = Array.isArray(added?.["links"]) && added["links"].length > 0;
+  if (added?.["operation"] !== "add_node" || addedNodeId === null || addedWithItsOwnLinks || rest.length === 0) return null;
   const otherEnds = rest.map((operation) => {
     const link = fieldsOf(operation["link"]);
     if (operation["operation"] !== "connect" || link === null) return null;
-    const source = fieldsOf(link["source"]);
-    const target = fieldsOf(link["target"]);
-    if (textOf(source?.["node"]) === addedNodeId) return wordsOfALinkEnd(link["target"], nodeNames);
-    if (textOf(target?.["node"]) === addedNodeId) return wordsOfALinkEnd(link["source"], nodeNames);
-    return null;
+    const fromTheAddedNode = textOf(fieldsOf(link["source"])?.["node"]) === addedNodeId;
+    const intoTheAddedNode = textOf(fieldsOf(link["target"])?.["node"]) === addedNodeId;
+    if (fromTheAddedNode === intoTheAddedNode) return null;
+    return wordsOfALinkEnd(fromTheAddedNode ? link["target"] : link["source"], nodeNames);
   });
   const linkedTo = otherEnds.filter((end) => end !== null);
   return linkedTo.length === otherEnds.length ? `and linked it to ${wordsOfAList(linkedTo)}` : null;

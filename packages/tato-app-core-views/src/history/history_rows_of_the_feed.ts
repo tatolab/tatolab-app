@@ -23,6 +23,8 @@ export interface HistoryRow {
   readonly what: { readonly lead: string; readonly subject: string | null; readonly rest: string };
   /** Each operation in a line, as the runtime names it. */
   readonly operation_lines: readonly string[];
+  /** How many operations the transaction holds, as the runtime sent them. */
+  readonly operation_count: number;
   /** When the runtime applied the edit, as `applied_at` gives it. */
   readonly applied_at: string;
   /** Undone by its author, who can still redo it. */
@@ -75,14 +77,16 @@ export function historyRowsOfTheFeed(transactionsNewestFirst: readonly ProjectTr
     .filter((transaction) => transaction.undoes === null && transaction.redoes === null && transaction.undo_state !== "undone_not_redoable")
     .map((edit) => {
       const whatChanged = whatAnEditChanged(edit.operations, nodeNames);
+      const madeInTatoStudio = isAnEditMadeInTatoStudio(edit.author_kind, edit.author_name);
       return {
         transaction: edit.transaction,
         author_kind: authorKindOf(edit.author_kind),
         author_name: edit.author_name,
         who: whoMadeTheEdit(edit.author_kind, edit.author_name),
-        shown_author_kind: isAnEditMadeInTatoStudio(edit.author_kind, edit.author_name) ? "person" : authorKindOf(edit.author_kind),
+        shown_author_kind: madeInTatoStudio ? "person" : authorKindOf(edit.author_kind),
         what: whatChanged.what,
         operation_lines: whatChanged.operation_lines,
+        operation_count: edit.operations.length,
         applied_at: edit.applied_at,
         is_undone: edit.undo_state === "undone_redoable",
       };

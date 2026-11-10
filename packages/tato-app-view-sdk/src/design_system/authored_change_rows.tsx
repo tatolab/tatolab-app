@@ -14,13 +14,13 @@ export interface AuthoredChange {
   author_name: string;
   /** What it changed, with the thing it is about set bold between `lead` and `rest`. */
   sentence: { lead: string; subject: string | null; rest: string };
-  /** Who and when, under the sentence, as "Sam · 2 min ago". */
+  /** Who, when and anything more about the change, under the sentence, as "Sam · 2 min ago · undone". */
   byline: string;
   /** Each operation it made, in a line of code type. */
   operation_lines: readonly string[];
   /** Reversed, and shown dimmed until it is redone or can no longer be. */
   is_undone: boolean;
-  /** The change the project stands at now, set on a card of its own. */
+  /** The change the project stands at now, set on a card of its own unless it is an agent's, which keeps the agent's tint. */
   is_the_current_change: boolean;
   /** What choosing it does, read out with the row and shown while the pointer rests on it. */
   choice_words: string;
@@ -76,7 +76,7 @@ export function AuthoredChangeRow({
         className={cn(
           "grid w-full grid-cols-[28px_minmax(0,1fr)] gap-2.5 rounded-md px-3 py-2.5 text-left outline-none enabled:hover:bg-hover disabled:cursor-default",
           FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
-          change.is_the_current_change ? "bg-studio-current-change-row" : change.author_kind === "agent" && !change.is_undone && "bg-studio-agent-row",
+          change.author_kind === "agent" && !change.is_undone ? "bg-studio-agent-row" : change.is_the_current_change && "bg-studio-current-change-row",
         )}
       >
         <span className={cn(change.is_undone && "opacity-50")}>

@@ -60,3 +60,16 @@ test("an added node whose other operations each link it reads as added and linke
   expect(sentence([added, toHalftone, toLights])).toBe("Added loudness and linked it to halftone.level and lights.level");
   expect(sentence([added, toHalftone, unrelated])).toBe("Added loudness and 2 more changes");
 });
+
+test("an added node that carries its own links, or links to itself, reads with a count instead", () => {
+  const NODE = "7d1f0c2a-7777-4c1d-8e55-000000000007";
+  const selfLink = { stream: STREAM, operation: "connect", link: { source: { node: NODE, port: "out" }, target: { node: NODE, port: "in" } } };
+  const added = (links: JsonValue[]) => ({ stream: STREAM, operation: "add_node", node: { id: NODE, name: "echo", type: "nodes.echo:Echo", config: {} }, links });
+  const sentence = (operations: JsonValue[]) => {
+    const { what } = whatAnEditChanged(operations, new Map());
+    return [what.lead, what.subject, what.rest].filter((words) => words !== null && words !== "").join(" ");
+  };
+
+  expect(sentence([added([]), selfLink])).toBe("Added echo and 1 more change");
+  expect(sentence([added([selfLink["link"]]), selfLink])).toBe("Added echo and its link, and 1 more change");
+});

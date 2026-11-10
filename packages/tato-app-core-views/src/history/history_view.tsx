@@ -6,7 +6,7 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import type { ProjectTransaction, ProjectTransactionsReading, StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { CoreViewFrame } from "../shared/core_view_page";
-import { historyRowsOfTheFeed, historyStepsToTheRow, nodeNamesTheFeedGives, theStepReachedItsEdit, type HistoryRow } from "./history_rows_of_the_feed";
+import { historyRowsOfTheFeed, historyStepsToTheRow, nodeNamesTheFeedGives, theStepReachedItsEdit, whoMadeTheEdit, type HistoryRow } from "./history_rows_of_the_feed";
 import { dayTheEditWasApplied, howLongAgoTheEditWasApplied } from "./when_an_edit_was_applied";
 
 const NOTHING_TO_WATCH: StopWatching = () => undefined;
@@ -29,7 +29,7 @@ function operationsWordsOf(operationCount: number): string | null {
 }
 
 function authoredChangeOf(row: HistoryRow, nowMs: number, isTheLatestApplied: boolean): AuthoredChange {
-  const byline = [row.who, howLongAgoTheEditWasApplied(row.applied_at, nowMs), operationsWordsOf(row.operation_lines.length), row.is_undone ? "undone" : null].filter((words) => words !== null).join(" · ");
+  const byline = [row.who, howLongAgoTheEditWasApplied(row.applied_at, nowMs), operationsWordsOf(row.operation_count), row.is_undone ? "undone" : null].filter((words) => words !== null).join(" · ");
   const choiceWords = row.is_undone ? "Redo up to this edit" : isTheLatestApplied ? "The project is at this edit" : "Undo back to this edit";
   return {
     change_id: row.transaction,
@@ -82,7 +82,7 @@ function HistoryBody({ connection, projectFolder }: { connection: TatoAppViewCon
       }
       answeredSoFar.unshift(applying.transaction);
       if (!theStepReachedItsEdit(step, applying.transaction, [...answeredSoFar, ...transactionsNewestFirst])) {
-        setHistoryChoice({ kind: "refused", lead: "History stopped:", because: `${step.author.name}'s ${step.undo_or_redo} reversed a different edit than the one History meant, so it went no further.` });
+        setHistoryChoice({ kind: "refused", lead: "History stopped:", because: `${whoMadeTheEdit(step.author.kind, step.author.name)}'s ${step.undo_or_redo} reversed a different edit than the one History meant, so it went no further.` });
         return;
       }
     }
