@@ -16,6 +16,13 @@ export const STUDIO_LAYOUTS: readonly { name: StudioLayoutName; title: string; s
   { name: "perform", title: "Perform", shortcut_digit: "5" },
 ];
 
+/**
+ * Each layout's default as of the screens canvas it was last laid out after, saved beside the trees: a tree kept under an
+ * earlier revision is that layout's new default once, so a project reopens on a changed default. A tree saved with no
+ * revision is revision 1.
+ */
+const STUDIO_LAYOUT_DEFAULT_REVISIONS: Record<StudioLayoutName, number> = { build: 1, compose: 1, spatial: 1, code: 2, perform: 2 };
+
 /** Each layout's tree as the person left it, and the one chosen. */
 export interface StudioLayoutsOfAFolder {
   chosen_layout: StudioLayoutName;
@@ -91,7 +98,10 @@ function savedField(saved: unknown, fieldName: string): unknown {
 export function studioLayoutsFromSaved(saved: unknown): StudioLayoutsOfAFolder {
   const chosenLayout = savedField(saved, "chosen_layout");
   const savedLayouts = savedField(saved, "layouts");
-  const layoutOf = (layoutName: StudioLayoutName) => studioAreaLayoutFromSaved(savedField(savedLayouts, layoutName)) ?? defaultStudioLayout(layoutName);
+  const savedRevisions = savedField(saved, "default_revisions");
+  const isKeptUnderTheCurrentDefault = (layoutName: StudioLayoutName) => (savedField(savedRevisions, layoutName) ?? 1) === STUDIO_LAYOUT_DEFAULT_REVISIONS[layoutName];
+  const layoutOf = (layoutName: StudioLayoutName) =>
+    (isKeptUnderTheCurrentDefault(layoutName) ? studioAreaLayoutFromSaved(savedField(savedLayouts, layoutName)) : null) ?? defaultStudioLayout(layoutName);
   return {
     chosen_layout: isAStudioLayoutName(chosenLayout) ? chosenLayout : "build",
     layouts: { build: layoutOf("build"), compose: layoutOf("compose"), spatial: layoutOf("spatial"), code: layoutOf("code"), perform: layoutOf("perform") },
@@ -122,7 +132,7 @@ export class StudioLayoutsKeptInStorage {
   /** Keep `layouts` for `projectFolder`; a page that may not store keeps them only while it is open. */
   keepLayoutsOf(projectFolder: string, layouts: StudioLayoutsOfAFolder): void {
     try {
-      this.storage?.setItem(studioLayoutsStorageKey(projectFolder), JSON.stringify(layouts));
+      this.storage?.setItem(studioLayoutsStorageKey(projectFolder), JSON.stringify({ ...layouts, default_revisions: STUDIO_LAYOUT_DEFAULT_REVISIONS }));
     } catch {
       return;
     }

@@ -278,8 +278,8 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
 
 /** The pattern's main stream declares two input ports, as the runtime renders a `GraphInput` back: no state, its `port` and `family` config, one `value` output. */
 const TEST_PATTERN_GRAPH_INPUTS: MockGraphNode[] = [
-  { name: "intensity", type: "tatolab.stream:GraphInput", state: null, config: { port: "intensity", family: "Array" }, input_ports: [], output_ports: portsStatingNoStreamFacts("array", "value") },
-  { name: "overlay_text", type: "tatolab.stream:GraphInput", state: null, config: { port: "overlay_text", family: "Records" }, input_ports: [], output_ports: portsStatingNoStreamFacts("records", "value") },
+  { name: "intensity", type: "tatolab.stream:GraphInput", state: null, config: { port: "intensity", family: "array" }, input_ports: [], output_ports: portsStatingNoStreamFacts("array", "value") },
+  { name: "overlay_text", type: "tatolab.stream:GraphInput", state: null, config: { port: "overlay_text", family: "records" }, input_ports: [], output_ports: portsStatingNoStreamFacts("records", "value") },
 ];
 
 const TEST_PATTERN_LINKS: StreamGraphLink[] = [

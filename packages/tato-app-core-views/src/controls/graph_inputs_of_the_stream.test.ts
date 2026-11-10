@@ -10,10 +10,10 @@ test("each GraphInput the graph renders is a control, by the port and family its
   const graph: StreamGraphSummary = {
     stream: "gallery-main-018195",
     nodes: [
-      node("a1", "intensity", "tatolab.stream:GraphInput", { port: "intensity", family: "Array" }),
+      node("a1", "intensity", "tatolab.stream:GraphInput", { port: "intensity", family: "array" }),
       node("b2", "glow", "nodes.glow:Glow", {}),
-      node("c3", "settings", "tatolab.stream:GraphInput", { family: "Records" }),
-      node("d4", "out", "tatolab.stream:GraphOutput", { port: "video", family: "Image" }),
+      node("c3", "settings", "tatolab.stream:GraphInput", { family: "records" }),
+      node("d4", "out", "tatolab.stream:GraphOutput", { port: "video", family: "image" }),
       node("e5", "tint", "tatolab.stream:GraphInput", {}),
     ],
     links: [],
@@ -21,8 +21,8 @@ test("each GraphInput the graph renders is a control, by the port and family its
   };
 
   expect(graphInputsOfTheStream(graph)).toEqual([
-    { node_id: "a1", port_name: "intensity", family: "Array" },
-    { node_id: "c3", port_name: "settings", family: "Records" },
+    { node_id: "a1", port_name: "intensity", family: "array" },
+    { node_id: "c3", port_name: "settings", family: "records" },
     { node_id: "e5", port_name: "tint", family: null },
   ]);
 });

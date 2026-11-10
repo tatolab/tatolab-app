@@ -39,7 +39,7 @@ describe("a saved layout", () => {
   });
 
   it("falls back, layout by layout, to the default of any it does not hold or that does not parse", () => {
-    const saved = { chosen_layout: "perform", layouts: { code: { kind: "area", area_id: "only", view_type_id: "code" }, build: { kind: "split" } } };
+    const saved = { chosen_layout: "perform", layouts: { code: { kind: "area", area_id: "only", view_type_id: "code" }, build: { kind: "split" } }, default_revisions: { code: 2 } };
     const layouts = studioLayoutsFromSaved(saved);
     expect(layouts.chosen_layout).toBe("perform");
     expect(layouts.layouts.code).toEqual({ kind: "area", area_id: "only", view_type_id: "code" });
@@ -55,6 +55,27 @@ describe("a saved layout", () => {
     expect(sideColumn?.kind === "split" && sideColumn.parts.map(({ size_percent }) => size_percent)).toEqual([70, 58]);
     expect(JSON.stringify(resized)).toContain('{"kind":"area","area_id":"viewer","view_type_id":"outliner","settings":{"row_expansion":{"imports":true}}}');
     expect(areaIdsOf(resized)).toEqual(areaIdsOf(build));
+  });
+});
+
+describe("a layout whose default changed since it was kept", () => {
+  it("opens once on its new default, while a layout whose default held keeps what the person left", () => {
+    const keptBuild: StudioAreaLayoutNode = { kind: "area", area_id: "only", view_type_id: "viewer" };
+    const keptPerform: StudioAreaLayoutNode = { kind: "area", area_id: "only", view_type_id: "stream_graph" };
+    const savedBeforeTheCanvasLayouts = studioLayoutsFromSaved({ chosen_layout: "perform", layouts: { build: keptBuild, perform: keptPerform } });
+
+    expect(savedBeforeTheCanvasLayouts.layouts.build).toEqual(keptBuild);
+    expect(savedBeforeTheCanvasLayouts.layouts.perform).toEqual(defaultStudioLayout("perform"));
+  });
+
+  it("keeps an edited layout once it was saved under its current default", () => {
+    const storage = storageInMemory();
+    const layoutsKept = new StudioLayoutsKeptInStorage(storage);
+    const editedPerform: StudioAreaLayoutNode = { kind: "area", area_id: "only", view_type_id: "viewer" };
+    const layouts = studioLayoutsFromSaved(undefined);
+    layoutsKept.keepLayoutsOf("/a", { ...layouts, layouts: { ...layouts.layouts, perform: editedPerform } });
+
+    expect(layoutsKept.readLayoutsOf("/a").layouts.perform).toEqual(editedPerform);
   });
 });
 

@@ -1,5 +1,6 @@
 import { useViewReading, useViewReadingSoFar, type ViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
+import { WaitsOnNote } from "@tatolab/tato-app-view-sdk/design_system/waits_on_note";
 import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { StreamGraphReading, StreamTabAddress } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { useCallback, useMemo } from "react";
@@ -16,7 +17,7 @@ function GraphInputControl({ graphInput }: { graphInput: GraphInputOfTheStream }
         <span className="min-w-0 truncate text-fg">{graphInput.port_name}</span>
         <span className="ml-auto shrink-0 font-mono text-2xs text-fg-3">{graphInput.family ?? "no family"}</span>
       </div>
-      <div className="h-1.5 rounded-full bg-line" aria-hidden />
+      <div className="h-1.5 rounded-full bg-line-strong" aria-hidden />
     </li>
   );
 }
@@ -40,11 +41,9 @@ function GraphInputsOfTheTab({ connection, streamTab }: { connection: TatoAppVie
         ))}
       </ul>
       <p className="mt-auto rounded-lg bg-well p-2.5 text-2xs text-fg-3">
-        Moving a control will send its value to the running stream live, leaving History quiet. Until the runtime takes a live value for a Graph Input, each control shows the input but
+        Moving a control streams its value to the running stream, leaving History quiet. Until the runtime takes a live value for a Graph Input, each control shows the input and
         sets nothing.
-        <span className="mt-1 block">
-          Waits on <span className="font-mono">{LIVE_GRAPH_INPUT_VALUES_WAIT_ON}</span>
-        </span>
+        <WaitsOnNote waitsOn={LIVE_GRAPH_INPUT_VALUES_WAIT_ON} />
       </p>
     </div>
   );
@@ -61,7 +60,7 @@ export function ControlsView({ connection }: { connection: TatoAppViewConnection
   const activeStreamTab = useViewReadingSoFar(connection.watchActiveStreamTab);
   const headerWords = activeStreamTab.kind === "read" && activeStreamTab.reading !== null ? `${activeStreamTab.reading.display_name}'s Graph Inputs` : null;
   return (
-    <CoreViewFrame connection={connection} headerTools={headerWords === null ? undefined : <span className="truncate text-2xs text-fg-3">{headerWords}</span>}>
+    <CoreViewFrame connection={connection} headerCaption={headerWords}>
       <ControlsBody connection={connection} activeStreamTab={activeStreamTab} />
     </CoreViewFrame>
   );

@@ -99,7 +99,7 @@ export function FilesView({ connection }: { connection: TatoAppViewConnection })
   const openProject = useViewReading(connection.watchOpenProject);
   const projectName = openProject?.kind === "read" ? openProject.open_project.project.name : null;
   return (
-    <CoreViewFrame connection={connection} headerTools={projectName === null ? undefined : <span className="truncate text-2xs text-fg-3">{projectName}</span>}>
+    <CoreViewFrame connection={connection} headerCaption={projectName}>
       <FilesBody connection={connection} openProject={openProject} />
     </CoreViewFrame>
   );

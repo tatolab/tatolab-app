@@ -818,7 +818,7 @@ describe("the studio", () => {
   it("opens a saved layout that does not parse on its default, and says when an area names a view this build lacks", async () => {
     localStorage.setItem(
       studioLayoutsStorageKey(PATTERN_PROJECT),
-      JSON.stringify({ chosen_layout: "code", layouts: { code: { kind: "area", area_id: "venue", view_type_id: "venue-3d" }, build: { kind: "split", parts: [] } } }),
+      JSON.stringify({ chosen_layout: "code", layouts: { code: { kind: "area", area_id: "venue", view_type_id: "venue-3d" }, build: { kind: "split", parts: [] } }, default_revisions: { code: 2 } }),
     );
     await mountedWindowOverTheMock("state=running");
 
