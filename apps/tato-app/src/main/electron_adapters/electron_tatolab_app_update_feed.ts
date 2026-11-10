@@ -4,11 +4,11 @@
 // only reads the feed, and the `.deb`'s download opens in the browser. Nothing downloads but when the
 // updater asks, and quitting never installs.
 
-import { shell } from "electron";
 import electronUpdater, { type AppUpdater, type Logger, type UpdateCheckResult } from "electron-updater";
 import type { TatolabAppUpdatePackaging } from "../platform/tatolab_app_update_packaging.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
+import { openAWebPageInTheBrowserThroughElectron } from "./electron_web_page_in_the_browser.js";
 import type {
   TatolabAppUpdateFeedForThisBuild,
   TatolabAppUpdateFeedInstallingInPlace,
@@ -142,11 +142,6 @@ class ElectronDownloadOpeningTatolabAppUpdateFeed implements TatolabAppUpdateFee
 
   async openTheNewerVersionsDownload(): Promise<Result<void, string>> {
     if (this.newerDebUrl === null) return failedWith("no newer version has been found to download");
-    try {
-      await shell.openExternal(this.newerDebUrl);
-    } catch (openFailure) {
-      return failedWith(describeCaughtFailure(openFailure));
-    }
-    return succeeded(undefined);
+    return openAWebPageInTheBrowserThroughElectron(this.newerDebUrl);
   }
 }

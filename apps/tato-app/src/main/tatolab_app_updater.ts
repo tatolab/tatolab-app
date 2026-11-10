@@ -17,7 +17,7 @@ export interface TatolabAppUpdateFeedInstallingInPlace {
   readonly delivery: "install_and_relaunch";
   /** The version the feed offers over this app's, `null` when this app is the newest; refused in the updater's own words. */
   findANewerVersion(): Promise<Result<string | null, string>>;
-  /** Download the version `findANewerVersion` last found , reporting whole percents to `onDownloadProgress`; it installs only through `installTheDownloadedVersionAndRelaunch`. */
+  /** Download the version `findANewerVersion` last found, reporting whole percents to `onDownloadProgress`; it installs only through `installTheDownloadedVersionAndRelaunch`. */
   downloadTheNewerVersion(onDownloadProgress: (percent: number) => void): Promise<Result<void, string>>;
   /** Quit, install the staged version and reopen, answering only if that fails, in the updater's own words; the installed app is then as it was. */
   installTheDownloadedVersionAndRelaunch(): Promise<Result<void, string>>;
@@ -204,7 +204,7 @@ export class TatolabAppUpdater {
     if (this.versionsTheUpdateReadyDialogAskedAbout.has(version)) return;
     this.versionsTheUpdateReadyDialogAskedAbout.add(version);
     this.askWhetherToInstallTheDownloadedVersion(version)
-      .then((choice) => (choice === "install_update" && this.appUpdateState.kind === "ready_to_restart" ? this.takeTheNewerVersion("update_ready_dialog") : undefined))
+      .then((choice) => (choice === "install_update" && this.appUpdateState.kind === "ready_to_restart" && this.appUpdateState.version === version ? this.takeTheNewerVersion("update_ready_dialog") : undefined))
       .catch((unexpectedFailure: unknown) => {
         this.tatolabAppLog.error("the update-ready dialog ended on a failure nothing expected", { version, failure: describeCaughtFailure(unexpectedFailure) });
       });

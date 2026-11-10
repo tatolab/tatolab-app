@@ -78,6 +78,7 @@ export class TatolabAppWindows {
   private lastStatusSent: TatolabStatus | null = null;
   private readonly studioWindowsAskingToStopTheirProject = new Set<StudioWindowOfAProject>();
   private isTheAppQuitting = false;
+  private lastFocusedWindowContentsId: number | null = null;
 
   constructor(private readonly sources: TatolabAppWindowsSources) {
     this.projectsWindow = new TatolabMainWindow(
@@ -95,8 +96,15 @@ export class TatolabAppWindows {
     this.projectsWindow.show();
   }
 
-  /** Ask `question` over a studio window on screen, or else over the Projects window, shown for it; answers the index of the button chosen. */
+  /** Keep `windowContentsId` as the window last in focus, which a question for the window in front is asked over. */
+  noticeTheWindowFocused(windowContentsId: number): void {
+    this.lastFocusedWindowContentsId = windowContentsId;
+  }
+
+  /** Ask `question` over the window last in focus while it is on screen, else over a studio window on screen, else over the Projects window, shown for it; answers the index of the button chosen. */
   askAQuestionOverTheWindowInFront(question: QuestionOverTheWindow): Promise<Result<number, string>> {
+    const lastFocusedWindow = this.lastFocusedWindowContentsId === null ? null : this.windowWithContents(this.lastFocusedWindowContentsId);
+    if (lastFocusedWindow?.isShowing() === true) return lastFocusedWindow.askAQuestionOverTheWindow(question);
     for (const studioWindow of this.studioWindowsByProjectFolder.values()) {
       if (studioWindow.tatolabMainWindow.isShowing()) return studioWindow.tatolabMainWindow.askAQuestionOverTheWindow(question);
     }
@@ -391,6 +399,7 @@ export class TatolabAppWindows {
       message: `Closing this window stops ${projectName}.`,
       detail: `Every stream of ${projectName} stops running. Open the project and run it again to start it.`,
       buttonLabels: [STOP_AND_CLOSE_BUTTON_LABEL, "Cancel"],
+      defaultButtonIndex: 0,
       cancelButtonIndex: 1,
     });
     if (!choice.ok) {
@@ -408,6 +417,7 @@ export class TatolabAppWindows {
       message: `${projectName} did not stop, so its window stays open.`,
       detail: stopped.failure,
       buttonLabels: ["OK"],
+      defaultButtonIndex: 0,
       cancelButtonIndex: 0,
     });
   }

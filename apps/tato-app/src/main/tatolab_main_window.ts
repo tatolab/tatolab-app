@@ -33,11 +33,13 @@ export interface MainWindowSpecification {
 /** Whether a close request closes the window, hides it instead, or keeps it open while the app asks the person first. */
 export type MainWindowCloseRequestAnswer = "hide_instead" | "let_it_close" | "keep_it_open";
 
-/** A question the desktop asks in a message box over the window: its words, and the buttons it offers, the first the default. */
+/** A question the desktop asks in a message box over the window: its words, and the buttons it offers. */
 export interface QuestionOverTheWindow {
   message: string;
   detail: string;
   buttonLabels: readonly string[];
+  /** The button Return chooses. */
+  defaultButtonIndex: number;
   /** The button Escape, or closing the message box, chooses. */
   cancelButtonIndex: number;
 }

@@ -60,6 +60,7 @@ test("the update-ready dialog names the version, offers Install Update or Cancel
     message: "Tato Studio 0.69.0 is ready to install.",
     detail: "Installing it restarts Tato Studio, which stops every stream it runs until you run it again.",
     buttonLabels: ["Install Update", "Cancel"],
+    defaultButtonIndex: 1,
     cancelButtonIndex: 1,
   });
 });
@@ -88,6 +89,7 @@ test("the first launch after an update names the new version and that dependenci
       message: "Tato Studio is now version 0.69.0.",
       detail: "Each project's dependencies are brought up to date automatically the next time it runs.",
       buttonLabels: ["OK", "Release Notes"],
+      defaultButtonIndex: 0,
       cancelButtonIndex: 0,
     },
   ]);

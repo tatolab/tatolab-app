@@ -246,7 +246,10 @@ export async function startTatolabApp(
     sendTheWindowTheChosenEntry: (windowContentsId, entryId) => tatolabAppWindows.windowWithContents(windowContentsId)?.sendTheWindowTheChosenSystemMenuBarEntry(entryId),
   });
   systemMenuBar.showTheDefaultMenuBar();
-  tatolabElectronAppShell.onAWindowFocused((windowContentsId) => systemMenuBar.noticeTheWindowFocused(windowContentsId));
+  tatolabElectronAppShell.onAWindowFocused((windowContentsId) => {
+    systemMenuBar.noticeTheWindowFocused(windowContentsId);
+    tatolabAppWindows.noticeTheWindowFocused(windowContentsId);
+  });
   tatolabElectronAppShell.onAWindowClosed((windowContentsId) => systemMenuBar.forgetTheWindow(windowContentsId));
   tatolabElectronAppShell.onTheAppOpenedAgain((openedCopy) => {
     if (openedCopy !== null && isAnotherBuildOfTatolab(thisCopyOfTatolab, openedCopy)) {
@@ -444,11 +447,13 @@ export async function startTatolabApp(
   const tatolabTrayMenu = TatolabTrayMenu.build(tatolabElectronAppShell.trayIconHostFactory, platformItems.trayIconImage, onTrayMenuChoice);
   statusPublisher.attachTrayMenu(tatolabTrayMenu);
   showTheWindowWithTheLastStatus();
-  tellThePersonWhenAnUpdateLanded(
+  if (tatolabAppUpdater.state().kind !== "not_offered") {
+    tellThePersonWhenAnUpdateLanded(
     thisCopyOfTatolab.appVersion,
     LastOpenedAppVersionFile.inAppConfigDirectory(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
     tatolabAppUpdateDialogsSources,
-  ).catch((unexpectedFailure: unknown) => tatolabAppLog.error("the update-landed dialog ended on a failure nothing expected", { failure: describeCaughtFailure(unexpectedFailure) }));
+    ).catch((unexpectedFailure: unknown) => tatolabAppLog.error("the update-landed dialog ended on a failure nothing expected", { failure: describeCaughtFailure(unexpectedFailure) }));
+  }
   runInTheBackgroundWithTheController(sharedState, "tatolab-app-opened", async (controller, statusPublisher) => {
     statusPublisher.startPolling();
     tatolabAppUpdater.startCheckingOnItsOwn(tatolabElectronAppShell.repeatingTimer);

@@ -437,6 +437,7 @@ describe("updating the app", () => {
           message: "Tato Studio 0.47.0 is ready to install.",
           detail: "Installing it restarts Tato Studio, which stops every stream it runs until you run it again.",
           buttonLabels: ["Install Update", "Cancel"],
+          defaultButtonIndex: 1,
           cancelButtonIndex: 1,
         },
       },
@@ -460,8 +461,16 @@ describe("updating the app", () => {
     await expect.poll(() => takenFrom.installs).toBe(1);
   });
 
-  test("the first launch after an update says which version the app is now, over the Projects window", async () => {
+  test("the first launch after an update says which version the app is now, over the Projects window, and an app that cannot update itself says nothing", async () => {
+    const appThatCannotUpdateItself = fakeShellQuitAfterTheTest();
+    await mkdir(appThatCannotUpdateItself.appConfigDirectory, { recursive: true });
+    await writeFile(path.join(appThatCannotUpdateItself.appConfigDirectory, LAST_OPENED_APP_VERSION_FILE_NAME), JSON.stringify({ app_version: "0.0.1" }));
+    const tatolabRunningApp = await startTatolabApp(appThatCannotUpdateItself.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, appThatCannotUpdateItself.tatolabAppLog);
+    await theFirstPublishedStatus(tatolabRunningApp);
+    expect(appThatCannotUpdateItself.askedFor()).not.toContain("ask_a_question_over_the_window");
+
     const fakeShell = fakeShellQuitAfterTheTest();
+    fakeShell.appUpdateFeedForThisBuild = { kind: "offered", feed: fakeAppUpdateFeedOffering(null).feed };
     await mkdir(fakeShell.appConfigDirectory, { recursive: true });
     await writeFile(path.join(fakeShell.appConfigDirectory, LAST_OPENED_APP_VERSION_FILE_NAME), JSON.stringify({ app_version: "0.0.1" }));
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);

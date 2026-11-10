@@ -311,3 +311,27 @@ test("each update notification reads as plain sentences, and the update's own wo
     { title: "Tato Studio couldn't update", body: "Something went wrong while updating. Open Settings to see what happened and try again." },
   ]);
 });
+
+test("Install Update in a dialog for a version a newer download has since replaced installs nothing", async () => {
+  let answerTheFirstDialog: (choice: ChoiceInTheUpdateReadyDialog) => void = () => {};
+  const feed = new FakeTatolabAppUpdateFeedInstallingInPlace();
+  const dialogsShown: string[] = [];
+  const updater = new TatolabAppUpdater(
+    { kind: "offered", feed },
+    { notifyANewerVersionIsAvailable: () => {}, notifyTheAppIsUpToDate: () => {}, notifyTheUpdateFailed: () => {} },
+    (version) => {
+      dialogsShown.push(version);
+      return version === "0.47.0" ? new Promise((answer) => (answerTheFirstDialog = answer)) : Promise.resolve("cancel");
+    },
+    () => {},
+    createTatolabAppLog("error", () => {}),
+  );
+  feed.newerVersion = succeeded("0.47.0");
+  await updater.checkOnItsOwn();
+  feed.newerVersion = succeeded("0.48.0");
+  await updater.checkOnItsOwn();
+  answerTheFirstDialog("install_update");
+  await settleTheUpdateReadyDialog();
+  expect(dialogsShown).toEqual(["0.47.0", "0.48.0"]);
+  expect(feed.installCount).toBe(0);
+});

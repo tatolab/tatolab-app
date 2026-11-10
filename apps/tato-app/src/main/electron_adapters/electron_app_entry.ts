@@ -4,9 +4,9 @@
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
-import { app, autoUpdater as electronNativeAutoUpdater, Menu, shell } from "electron";
+import { app, autoUpdater as electronNativeAutoUpdater, Menu } from "electron";
 import { startTatolabApp, type TatolabElectronAppShell, type TatolabRunningApp } from "../main.js";
-import { describeCaughtFailure, failedWith, succeeded } from "../result.js";
+import { describeCaughtFailure } from "../result.js";
 import { RUNTIME_VIEWER_FRAME_IMPORT_ADDON_FILE_NAME } from "../runtime_viewer_frame_import_addon.js";
 import { createTatolabAppLogToStandardError } from "../tatolab_app_log.js";
 import { TATOLAB_APP_BUILD_FEATURES, tatolabAppBuildForTheWindow } from "../tatolab_app_build_features.js";
@@ -33,6 +33,7 @@ import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_hand
 import { createElectronTatolabAppUpdateFeed } from "./electron_tatolab_app_update_feed.js";
 import { createElectronSystemNotifications } from "./electron_system_notifications.js";
 import { ELECTRON_APP_MEDIA_ACCESS_SETTINGS } from "./electron_app_media_access_settings.js";
+import { openAWebPageInTheBrowserThroughElectron } from "./electron_web_page_in_the_browser.js";
 import { ELECTRON_APP_LOGIN_ITEM_SETTINGS } from "./electron_app_login_item_settings.js";
 import { createElectronTrayIconHostFactory } from "./electron_tray_icon.js";
 import { answerProjectViewFileRequestsWith, registerTheWindowPageSchemeBeforeReady, serveTheWindowPageScheme } from "./electron_window_page_protocol.js";
@@ -167,14 +168,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   personSignedInToThisMachine: nameOfThePersonSignedInToThisMachine(),
   answerProjectViewFileRequestsWith,
   createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
-  openAWebPageInTheBrowser: async (webPageUrl) => {
-    try {
-      await shell.openExternal(webPageUrl);
-    } catch (openFailure) {
-      return failedWith(describeCaughtFailure(openFailure));
-    }
-    return succeeded(undefined);
-  },
+  openAWebPageInTheBrowser: openAWebPageInTheBrowserThroughElectron,
   systemNotifications: createElectronSystemNotifications(),
   repeatingTimer: (intervalMs, work) => {
     setInterval(work, intervalMs);

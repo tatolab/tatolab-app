@@ -44,6 +44,8 @@ export function updateReadyDialogOverTheWindowInFront(sources: TatolabAppUpdateD
       message: `Tato Studio ${version} is ready to install.`,
       detail: "Installing it restarts Tato Studio, which stops every stream it runs until you run it again.",
       buttonLabels: [INSTALL_UPDATE_BUTTON_LABEL, "Cancel"],
+      // Return keeps the app running: the dialog opens on its own, maybe over a live show.
+      defaultButtonIndex: 1,
       cancelButtonIndex: 1,
     });
     if (!choice.ok) {
@@ -108,6 +110,7 @@ export async function tellThePersonWhenAnUpdateLanded(appVersion: string, lastOp
     message: `Tato Studio is now version ${appVersion}.`,
     detail: "Each project's dependencies are brought up to date automatically the next time it runs.",
     buttonLabels: ["OK", RELEASE_NOTES_BUTTON_LABEL],
+    defaultButtonIndex: 0,
     cancelButtonIndex: 0,
   });
   if (!choice.ok) {
