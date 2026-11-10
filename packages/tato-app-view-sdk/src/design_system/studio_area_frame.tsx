@@ -11,13 +11,14 @@ import { studioIconNamed, type StudioIconName } from "./support/studio_icons";
 /** What an area header's menu shows its view by: an icon Studio holds, by name, or the image a view's manifest names, drawn in the menu's text colour. */
 export type StudioAreaHeaderMenuIcon = StudioIconName | { image_url: string };
 
-function StudioAreaHeaderMenuIconMark({ icon }: { icon: StudioAreaHeaderMenuIcon }) {
+/** A view's icon as an area header's menu and its choices draw it. */
+export function StudioViewIconMark({ icon }: { icon: StudioAreaHeaderMenuIcon }) {
   if (typeof icon !== "string") {
     const maskOfTheImage = `url(${JSON.stringify(icon.image_url)}) center / contain no-repeat`;
     return <span aria-hidden className="size-3.5 shrink-0 bg-fg-2" style={{ mask: maskOfTheImage, WebkitMask: maskOfTheImage }} data-area-header-menu-icon-image={icon.image_url} />;
   }
   const HeaderIcon = studioIconNamed(icon);
-  return <HeaderIcon className="size-3.5 text-fg-2" strokeWidth={1.5} aria-hidden />;
+  return <HeaderIcon className="size-3.5 shrink-0 text-fg-2" strokeWidth={1.5} aria-hidden />;
 }
 
 /** One area of the studio: a rounded pane on the window's frame, its header over the view it shows. */
@@ -118,7 +119,7 @@ export function StudioAreaHeaderMenu({
         aria-label={label}
         {...controlDataAttributes}
       >
-        <StudioAreaHeaderMenuIconMark icon={icon} />
+        <StudioViewIconMark icon={icon} />
         {words}
         <ChevronDown className="size-3 text-fg-3" strokeWidth={1.75} aria-hidden />
       </DropdownMenuTrigger>

@@ -73,8 +73,18 @@ describe("the view-type registry", () => {
     ]);
     expect(registry.viewTypeWithId("friday-set:deck")?.title).toBe("DJ Deck");
     expect(registry.projectViewTypesNotOpened()).toEqual([
-      { view_type_id: "friday-set:future", because: "`contract`: this runtime reads view contract 1.0" },
-      { view_type_id: "outliner", because: "The studio already has a view named outliner." },
+      {
+        view_type_id: "friday-set:future",
+        title: "friday-set:future",
+        brought_by: { kind: "project", project_name: "friday-set" },
+        because: "`contract`: this runtime reads view contract 1.0",
+      },
+      {
+        view_type_id: "outliner",
+        title: "Outliner",
+        brought_by: { kind: "project", project_name: "friday-set" },
+        because: "The studio already has a view named outliner.",
+      },
     ]);
 
     registry.projectStudioViews.publish({ kind: "none_open" });

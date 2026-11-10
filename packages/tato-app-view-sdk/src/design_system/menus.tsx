@@ -176,6 +176,15 @@ export function MenuItem({
   );
 }
 
+/** A menu row for something that cannot be chosen here, drawn as a disabled choice; the note after it says why. */
+export function MenuItemThatCannotBeChosen({ children, ...controlDataAttributes }: { children: ReactNode } & ControlDataAttributes) {
+  return (
+    <DropdownMenuItem disabled className={MENU_ITEM_CLASS_NAMES} {...controlDataAttributes}>
+      {children}
+    </DropdownMenuItem>
+  );
+}
+
 /** A menu a right-click on `children` opens at the pointer; `children` is the row itself, so a click in the menu never reaches the row. */
 export function RightClickMenu({ label, choices, children }: { label: string; choices: ReactNode; children: ReactElement }) {
   return (

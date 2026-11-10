@@ -30,7 +30,7 @@ import {
 } from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
 import { MockPortViewers } from "./mock_port_viewers";
-import { mockStudioViewListing } from "./mock_studio_view/mock_studio_view_listing";
+import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./mock_studio_view/mock_studio_view_listing";
 import { MockProjectFiles } from "./mock_project_files";
 import { MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
@@ -207,7 +207,7 @@ export interface MockTatolabOptions {
   moduleManagerWorkspaceDependencies: MockWorkspaceDependenciesScenario | null;
   /** `?catalog=unserved`: get.tatolab.com serves no catalog yet; the mock catalog by default. */
   isTheCatalogUnserved: boolean;
-  /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node. */
+  /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node; its import brings one that does not open. */
   isTheFixtureViewListed: boolean;
 }
 
@@ -1419,7 +1419,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     listStudioViewsOfTheOpenProject: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (openProjectReading.kind !== "read") throw "No project is open in this window.";
-      return mockTatolabOptions.isTheFixtureViewListed ? [mockStudioViewListing()] : [];
+      return mockTatolabOptions.isTheFixtureViewListed ? [mockStudioViewListing(), mockStudioViewListingThatDoesNotOpen()] : [];
     },
     writeStudioViewOutput: async (stream, node, port) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

@@ -5,13 +5,13 @@ import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk";
 import type { CoreView } from "@tatolab/tato-app-core-views";
 import type { JsonValue } from "./studio_view_contract";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
-import type { ProjectStudioViewNotOpened, RegisteredStudioViewType } from "./studio_view_type_registry";
+import { titleTheManifestNames, type RegisteredStudioViewType, type StudioViewNotOpened } from "./studio_view_type_registry";
 import { tatolabFrameViewType } from "./tatolab_frame_view_type";
 
 /** The core views as view types, by folder, and each whose manifest does not open, with why. */
 export interface CoreViewTypes {
   readonly view_types_by_folder: ReadonlyMap<string, RegisteredStudioViewType>;
-  readonly not_opened: readonly ProjectStudioViewNotOpened[];
+  readonly not_opened: readonly StudioViewNotOpened[];
 }
 
 /** Where the window serves the built folder of the core view `folder`. */
@@ -22,18 +22,23 @@ export function servedCoreViewFolderUrl(folder: string, windowPageUrl: string): 
 /** Each of `coreViews` read from its manifest, its folder served at `folderUrlOf(folder)`. */
 export function coreViewTypesOf(coreViews: readonly CoreView[], folderUrlOf: (folder: string) => string): CoreViewTypes {
   const viewTypesByFolder = new Map<string, RegisteredStudioViewType>();
-  const notOpened: ProjectStudioViewNotOpened[] = [];
+  const notOpened: StudioViewNotOpened[] = [];
   for (const coreView of coreViews) {
     let manifestJson: JsonValue;
     try {
       manifestJson = JSON.parse(coreView.manifest_text);
     } catch (parseFailure) {
-      notOpened.push({ view_type_id: coreView.folder, because: `\`tatolab_view.json\`: ${parseFailure instanceof Error ? parseFailure.message : String(parseFailure)}` });
+      notOpened.push({
+        view_type_id: coreView.folder,
+        title: coreView.folder,
+        brought_by: { kind: "tato_studio" },
+        because: `\`tatolab_view.json\`: ${parseFailure instanceof Error ? parseFailure.message : String(parseFailure)}`,
+      });
       continue;
     }
     const manifestReading = readTatolabViewManifest(manifestJson);
     if (manifestReading.kind === "not_read") {
-      notOpened.push({ view_type_id: coreView.folder, because: manifestReading.because });
+      notOpened.push({ view_type_id: coreView.folder, title: titleTheManifestNames(manifestJson, coreView.folder), brought_by: { kind: "tato_studio" }, because: manifestReading.because });
       continue;
     }
     const listed: ListedStudioView = { view_type_id: coreView.folder, project_name: "Tato Studio", import_folder: null, opens: true, not_opened_because: null, manifest_json: manifestJson, folder_url: folderUrlOf(coreView.folder) };

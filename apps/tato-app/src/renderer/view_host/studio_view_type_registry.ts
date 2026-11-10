@@ -28,10 +28,20 @@ export type ProjectStudioViewsReading =
   | { kind: "listed"; studio_views: ListedStudioView[] }
   | { kind: "not_listed"; because: string };
 
-/** A view the open project brings that does not open, and why, in words naming its manifest's field. */
-export interface ProjectStudioViewNotOpened {
+/** A view that does not open, named as its manifest titles it and by who brought it, and why, in words naming its manifest's field or the runtime's. */
+export interface StudioViewNotOpened {
   view_type_id: string;
+  /** Its manifest's `title`, or its view type id when the manifest names none. */
+  title: string;
+  brought_by: StudioViewTypeSource;
   because: string;
+}
+
+/** The `title` the manifest `manifestJson` names, or `fallbackTitle` when it names none. */
+export function titleTheManifestNames(manifestJson: JsonValue | null, fallbackTitle: string): string {
+  if (typeof manifestJson !== "object" || manifestJson === null || Array.isArray(manifestJson)) return fallbackTitle;
+  const title = manifestJson["title"];
+  return typeof title === "string" && title !== "" ? title : fallbackTitle;
 }
 
 /** Makes the view type a listed view's manifest declares, brought by the project its `project_name` names: the open project or the import whose `views/` holds it. */
@@ -40,7 +50,7 @@ export type ProjectStudioViewTypeMaker = (listed: ListedStudioView, manifest: Ta
 interface ProjectStudioViewTypesRead {
   readFrom: ProjectStudioViewsReading;
   viewTypes: RegisteredStudioViewType[];
-  notOpened: ProjectStudioViewNotOpened[];
+  notOpened: StudioViewNotOpened[];
 }
 
 /** Every view type an area can show, by id: the studio's own, then those the open project brings. */
@@ -56,7 +66,7 @@ export class StudioViewTypeRegistry {
   constructor(
     viewTypes: readonly RegisteredStudioViewType[],
     private readonly projectStudioViewTypeOf: ProjectStudioViewTypeMaker | null = null,
-    private readonly studioViewTypesNotOpenedList: readonly ProjectStudioViewNotOpened[] = [],
+    private readonly studioViewTypesNotOpenedList: readonly StudioViewNotOpened[] = [],
     viewTypesOfferedInDeveloperMode: readonly RegisteredStudioViewType[] = [],
   ) {
     for (const viewType of viewTypes) this.viewTypesById.set(viewType.view_type_id, viewType);
@@ -83,7 +93,7 @@ export class StudioViewTypeRegistry {
   }
 
   /** Studio's own views that do not open, each with why. */
-  studioViewTypesNotOpened(): readonly ProjectStudioViewNotOpened[] {
+  studioViewTypesNotOpened(): readonly StudioViewNotOpened[] {
     return this.studioViewTypesNotOpenedList;
   }
 
@@ -93,7 +103,7 @@ export class StudioViewTypeRegistry {
   }
 
   /** The views the open project brings that do not open, each with why. */
-  projectViewTypesNotOpened(): ProjectStudioViewNotOpened[] {
+  projectViewTypesNotOpened(): StudioViewNotOpened[] {
     return this.readProjectStudioViewTypes().notOpened;
   }
 
@@ -101,16 +111,22 @@ export class StudioViewTypeRegistry {
     const reading = this.projectStudioViews.readLatest();
     if (this.projectStudioViewTypesRead?.readFrom === reading) return this.projectStudioViewTypesRead;
     const viewTypes: RegisteredStudioViewType[] = [];
-    const notOpened: ProjectStudioViewNotOpened[] = [];
+    const notOpened: StudioViewNotOpened[] = [];
     if (reading.kind === "listed" && this.projectStudioViewTypeOf !== null) {
       for (const listed of reading.studio_views) {
+        const notOpenedBecause = (because: string): StudioViewNotOpened => ({
+          view_type_id: listed.view_type_id,
+          title: titleTheManifestNames(listed.manifest_json, listed.view_type_id),
+          brought_by: { kind: "project", project_name: listed.project_name },
+          because,
+        });
         if (!listed.opens) {
-          notOpened.push({ view_type_id: listed.view_type_id, because: listed.not_opened_because });
+          notOpened.push(notOpenedBecause(listed.not_opened_because));
           continue;
         }
         const manifestReading = readTatolabViewManifest(listed.manifest_json);
-        if (manifestReading.kind === "not_read") notOpened.push({ view_type_id: listed.view_type_id, because: manifestReading.because });
-        else if (this.viewTypesById.has(listed.view_type_id) || this.viewTypesOfferedInDeveloperModeById.has(listed.view_type_id)) notOpened.push({ view_type_id: listed.view_type_id, because: `The studio already has a view named ${listed.view_type_id}.` });
+        if (manifestReading.kind === "not_read") notOpened.push(notOpenedBecause(manifestReading.because));
+        else if (this.viewTypesById.has(listed.view_type_id) || this.viewTypesOfferedInDeveloperModeById.has(listed.view_type_id)) notOpened.push(notOpenedBecause(`The studio already has a view named ${listed.view_type_id}.`));
         else viewTypes.push(this.projectStudioViewTypeOf(listed, manifestReading.manifest));
       }
     }
