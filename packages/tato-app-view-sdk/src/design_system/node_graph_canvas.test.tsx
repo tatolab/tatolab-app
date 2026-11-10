@@ -20,9 +20,10 @@ function card(nodeId: string, isCollapsed: boolean): NodeGraphCanvasNode {
     node_id: nodeId,
     title: nodeId,
     type_name: null,
+    description: "Passes each frame through.",
     condition: { look: "healthy" },
-    input_pins: [{ name: "video_in", family: "image", stream_facts_words: [] }],
-    output_pins: [{ name: "video_out", family: "image", stream_facts_words: [] }],
+    input_pins: [{ name: "video_in", family: "image", description: "The frames to pass.", stream_facts_words: [] }],
+    output_pins: [{ name: "video_out", family: "image", description: null, stream_facts_words: [] }],
     saved_position: { x: 0, y: 0 },
     frame_id: FRAME_ID,
     is_collapsed: isCollapsed,
@@ -61,6 +62,16 @@ function drawnCanvas(editing: NodeGraphCanvasEditing, isCollapsed = false) {
     />,
   );
 }
+
+describe("the node graph canvas", () => {
+  it("shows a node type's description on its card's header, and a pin's family and description on its name and its handle", async () => {
+    const { container } = drawnCanvas(editingRecorded().editing);
+    const header = await vi.waitFor(() => container.querySelector<HTMLElement>('[data-node-graph-card="pattern"] .node-graph-card-header') ?? expect.unreachable("no card header"));
+    expect(header.getAttribute("title")).toBe("Passes each frame through.");
+    expect(container.querySelector('[data-node-graph-input-pin="video_in"]')?.getAttribute("title")).toBe("video_in · Image\nThe frames to pass.");
+    expect(container.querySelector('[data-node-graph-output-pin="video_out"]')?.getAttribute("title")).toBe("video_out · Image");
+  });
+});
 
 describe("the node graph canvas while it takes edits", () => {
   it("renames a frame from its title tab on a double-click, keeping the trimmed title, and asks nothing on Escape or an unchanged title", async () => {
