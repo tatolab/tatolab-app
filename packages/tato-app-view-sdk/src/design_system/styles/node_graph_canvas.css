@@ -95,3 +95,10 @@
   background: color-mix(in srgb, var(--studio-graph-frame) 22%, var(--studio-area));
   color: var(--fg);
 }
+
+/* The map of the whole graph sits in the canvas's bottom-right corner, as the studio's other floating tools do. */
+.node-graph-canvas .react-flow__minimap.node-graph-minimap {
+  overflow: hidden;
+  border: 1px solid var(--studio-graph-card-line);
+  border-radius: var(--radius-md);
+}

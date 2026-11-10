@@ -4,6 +4,7 @@ import {
   BaseEdge,
   getBezierPath,
   Handle,
+  MiniMap,
   NodeResizer,
   Position,
   ReactFlow,
@@ -62,6 +63,9 @@ const NODE_GRAPH_PIN_FAMILY_WORDS: Record<NodeGraphPinFamily, string> = {
   packets: "Packets",
   records: "Records",
 };
+
+/** The families in the order the legend names them. */
+const NODE_GRAPH_PIN_FAMILIES_IN_ORDER: readonly NodeGraphPinFamily[] = ["image", "array", "channels", "packets", "records"];
 
 /** One pin of a card: its name, its family, `null` drawn as a plain bar while none is known, and what it states about its stream, shown while the pointer rests on it. */
 export interface NodeGraphCanvasPin {
@@ -976,6 +980,11 @@ function NodeGraphFlow({
     [editing, pinFamilyOf, canvasPointOf],
   );
 
+  const familiesOnTheCanvas = useMemo(
+    () => NODE_GRAPH_PIN_FAMILIES_IN_ORDER.filter((family) => nodes.some((node) => [...node.input_pins, ...node.output_pins].some((pin) => pin.family === family))),
+    [nodes],
+  );
+
   const followTheKeys = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (editing === null || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) return;
@@ -1080,6 +1089,26 @@ function NodeGraphFlow({
                     </>
                   )}
                 </div>
+                {familiesOnTheCanvas.length > 0 && (
+                  <ul aria-label="Pin families" className="pointer-events-none absolute bottom-2.5 left-2.5 z-10 flex gap-2.5 rounded-md bg-studio-graph-tools px-2.5 py-1 text-[11px] text-fg-2" data-node-graph-legend="">
+                    {familiesOnTheCanvas.map((family) => (
+                      <li key={family} className="flex items-center gap-1.5">
+                        <NodeGraphPinMark family={family} />
+                        {nodeGraphPinFamilyWords(family)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <MiniMap
+                  className="node-graph-minimap"
+                  ariaLabel="Map of the whole graph"
+                  pannable
+                  zoomable
+                  nodeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--studio-graph-card-header)" : "transparent")}
+                  nodeStrokeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--studio-graph-card-line)" : "transparent")}
+                  maskColor="var(--scrim)"
+                  bgColor="var(--studio-area)"
+                />
                 {overlay}
               </ReactFlow>
             </div>
