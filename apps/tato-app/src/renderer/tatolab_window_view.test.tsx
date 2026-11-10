@@ -387,7 +387,7 @@ describe("the studio", () => {
     await mountedWindowOverTheMock("state=running", backendChanges);
     expect(await shownLayout()).toBe("build");
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
-    expect(document.querySelector("[data-studio-run-live]")).not.toBeNull();
+    expect(document.querySelector("[data-studio-play-or-stop]")).not.toBeNull();
     expect(menusShownLast().map((menu) => [menu.label, menu.system_menu])).toEqual([
       ["Tato Studio", "app"],
       ["File", null],

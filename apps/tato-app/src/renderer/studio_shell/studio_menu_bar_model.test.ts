@@ -22,6 +22,8 @@ function commandsCounted(): StudioMenuBarCommands {
     chooseLayout: vi.fn(),
     runTheProjectLive: vi.fn(),
     stopTheProject: vi.fn(),
+    undoYourLastEdit: vi.fn(),
+    redoYourLastUndo: vi.fn(),
     openModuleManager: vi.fn(),
   };
 }
@@ -51,6 +53,21 @@ describe("the studio's File menu", () => {
     moduleManager.onChosen();
     expect(commands.openModuleManager).toHaveBeenCalledOnce();
     expect(entryOf(studioMenuBarMenus("macos", null, UP_TO_DATE, commands), "File", "Module manager…")).toEqual({ kind: "unavailable_command", label: "Module manager…", unavailableBecause: NO_PROJECT_OPEN_REASON });
+  });
+});
+
+describe("the studio's Edit menu", () => {
+  it("undoes and redoes the person's edits while a project is open, and says why they wait while none is", () => {
+    const commands = commandsCounted();
+    const menus = studioMenuBarMenus("linux", "build", UP_TO_DATE, commands);
+    for (const entryLabel of ["Undo", "Redo"]) {
+      const entry = entryOf(menus, "Edit", entryLabel);
+      if (entry?.kind !== "command") throw new Error(`Edit › ${entryLabel} is not a command`);
+      entry.onChosen();
+    }
+    expect(commands.undoYourLastEdit).toHaveBeenCalledOnce();
+    expect(commands.redoYourLastUndo).toHaveBeenCalledOnce();
+    expect(entryOf(studioMenuBarMenus("linux", null, UP_TO_DATE, commands), "Edit", "Undo")).toEqual({ kind: "unavailable_command", label: "Undo", unavailableBecause: NO_PROJECT_OPEN_REASON });
   });
 });
 

@@ -1,15 +1,17 @@
-import { PictureInPicture2, Play } from "lucide-react";
+import { PictureInPicture2, Play, Redo2, Square, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
 import { DocumentTabs } from "@tatolab/tato-app-view-sdk/design_system/document_tabs";
+import { IconButton } from "@tatolab/tato-app-view-sdk/design_system/icon_button";
 import { StudioMenuBar } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
 import { MenuGroup, MenuItem, MenuNote, MenuSeparator, MenuSingleChoiceGroup } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { StudioAreaFrame, StudioAreaHeaderMenu, StudioAreaOverAViewsOwnFrame } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { WindowNotice } from "@tatolab/tato-app-view-sdk/design_system/window_notice";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
+import { playOrStopOfferedForTheProject } from "../presentation/project_play_presentation";
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
 import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
@@ -23,6 +25,7 @@ import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
 import {
   RUN_LIVE_KEY,
+  STOP_KEY_HINT,
   studioMenuBarMenus,
   studioMenusInTheSystemMenuBar,
   type StudioMenuBarCommands,
@@ -207,6 +210,8 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
   const viewPopOutRefusal = useWatchedStudioValue(model.viewPopOutRefusal);
   const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
+  const projectEditRefusal = useWatchedStudioValue(model.projectEditRefusal);
+  const listedStreams = useWatchedStudioValue(model.listedStreams);
   const appUpdateChoiceRefusal = useWatchedStudioValue(model.appUpdateChoiceRefusal);
   const openProjectStreamFailureRaised = useWatchedStudioValue(model.openProjectStreamFailureRaised);
   const newProjectSheetOpenedWith = useWatchedStudioValue(model.newProjectSheetOpenedWith);
@@ -224,17 +229,35 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
           data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined}
         >
           {!menusLiveInTheSystemMenuBar && <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, status.app_update, commands)} />}
-          <ActionButton
-            appearance="primary"
-            size="small"
-            icon={Play}
-            tooltip={`Run the project's streams (${RUN_LIVE_KEY})`}
-            onPressed={commands.runTheProjectLive}
-            className="ml-auto"
-            data-studio-run-live=""
-          >
-            Live
-          </ActionButton>
+          <div className="flex items-center gap-0.5">
+            <IconButton icon={Undo2} label="Undo your last edit" onPressed={commands.undoYourLastEdit} data-studio-undo="" />
+            <IconButton icon={Redo2} label="Redo what you undid" onPressed={commands.redoYourLastUndo} data-studio-redo="" />
+          </div>
+          {playOrStopOfferedForTheProject(openProject.kind === "read" ? openProject.open_project.project.folder : null, listedStreams) === "play" ? (
+            <ActionButton
+              appearance="go"
+              size="small"
+              icon={Play}
+              tooltip={`Play the project's streams (${RUN_LIVE_KEY})`}
+              onPressed={commands.runTheProjectLive}
+              className="ml-auto px-4"
+              data-studio-play-or-stop="play"
+            >
+              Play
+            </ActionButton>
+          ) : (
+            <ActionButton
+              appearance="destructive"
+              size="small"
+              icon={Square}
+              tooltip={`Stop the project's streams (${STOP_KEY_HINT})`}
+              onPressed={commands.stopTheProject}
+              className="ml-auto px-4 font-semibold"
+              data-studio-play-or-stop="stop"
+            >
+              Stop
+            </ActionButton>
+          )}
         </header>
       ) : (
         // macOS draws the window buttons over the content, so the Projects window keeps a bare strip for them to sit in and to drag the window by.
@@ -300,6 +323,15 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               detail={projectRunRefusal.because}
               onDismissed={() => model.projectRunRefusal.publish(null)}
               data-project-run-refusal=""
+            />
+          )}
+          {projectEditRefusal !== null && (
+            <WindowNotice
+              tone="failure"
+              title={projectEditRefusal.asked_to === "undo" ? "Nothing was undone" : "Nothing was redone"}
+              detail={projectEditRefusal.because}
+              onDismissed={() => model.projectEditRefusal.publish(null)}
+              data-project-edit-refusal=""
             />
           )}
           {appUpdateChoiceRefusal !== null && (

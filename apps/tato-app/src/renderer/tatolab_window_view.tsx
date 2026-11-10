@@ -178,6 +178,20 @@ export function mountTatolabWindow(
       studioWindowModel.projectRunRefusal.publish(null);
       backend.stopOpenProject().catch((rejection: unknown) => studioWindowModel.projectRunRefusal.publish({ asked_to: "stop", because: describeBackendRejection(rejection) }));
     },
+    undoYourLastEdit: () => {
+      studioWindowModel.projectEditRefusal.publish(null);
+      backend
+        .readThePersonEditingInStudio()
+        .then((person) => backend.undoInTheOpenProject(person))
+        .catch((rejection: unknown) => studioWindowModel.projectEditRefusal.publish({ asked_to: "undo", because: describeBackendRejection(rejection) }));
+    },
+    redoYourLastUndo: () => {
+      studioWindowModel.projectEditRefusal.publish(null);
+      backend
+        .readThePersonEditingInStudio()
+        .then((person) => backend.redoInTheOpenProject(person))
+        .catch((rejection: unknown) => studioWindowModel.projectEditRefusal.publish({ asked_to: "redo", because: describeBackendRejection(rejection) }));
+    },
     openModuleManager: () => {
       studioWindowModel.projectOpeningRefusal.publish(null);
       backend.openModuleManagerWindow().catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));

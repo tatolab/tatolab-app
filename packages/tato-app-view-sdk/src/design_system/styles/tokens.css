@@ -70,6 +70,9 @@
   --color-danger: var(--danger);
   --color-danger-text: var(--danger-text);
   --color-danger-soft: var(--danger-soft);
+  --color-go: var(--go);
+  --color-go-text: var(--go-text);
+  --color-go-soft: var(--go-soft);
 
   /* shadcn's theme, mapped once onto the tokens above; each follows the theme through the variable it names. */
   --color-background: var(--window);
@@ -193,6 +196,9 @@
   --warn-text: #f0a63a;
   --danger-text: #ff6b62;
   --danger-soft: rgba(242, 85, 77, 0.1);
+  --go: #3fcf8e;
+  --go-text: #8ef0bf;
+  --go-soft: rgba(63, 207, 142, 0.16);
   --ring: rgba(124, 155, 255, 0.85);
   --scrim: rgba(0, 0, 0, 0.4);
   --shadow-pop: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);

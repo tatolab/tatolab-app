@@ -28,6 +28,10 @@ export interface StudioMenuBarCommands {
   runTheProjectLive(): void;
   /** Run › Stop: stop the open project's running streams. */
   stopTheProject(): void;
+  /** Edit › Undo: undo the last edit the person made in the open project that is not undone yet. */
+  undoYourLastEdit(): void;
+  /** Edit › Redo: redo what the person's last undo in the open project reversed. */
+  redoYourLastUndo(): void;
   /** File › Module manager…: open the project's Module manager window. */
   openModuleManager(): void;
 }
@@ -109,7 +113,7 @@ function studioMenuParts(
       laterCommand("Save version…"),
       projectCommand("Module manager…", commands.openModuleManager),
     ],
-    undoAndRedoEntries: [laterCommand("Undo"), laterCommand("Redo")],
+    undoAndRedoEntries: [projectCommand("Undo", commands.undoYourLastEdit), projectCommand("Redo", commands.redoYourLastUndo)],
     preferencesEntry: { kind: "command", label: preferencesLabel, shortcutHint: shortcutHint(platform, ","), onChosen: commands.openPreferences },
     addMenu: { label: "Add", entries: [laterCommand("Node…", "Shift A"), laterCommand("Connection…"), laterCommand("Variable…"), laterCommand("Frame")] },
     streamMenu: { label: "Stream", entries: [laterCommand("Run on…"), laterCommand("Stream clock")] },
