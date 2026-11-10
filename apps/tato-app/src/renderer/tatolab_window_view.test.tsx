@@ -247,9 +247,9 @@ describe("the studio", () => {
 
     const transactionRows = () => [...coreViewPage("transactions").querySelectorAll<HTMLElement>("[data-record-table-row]")];
     await waitFor(() => expect(transactionRows().length).toBeGreaterThan(0));
-    const rowWords = transactionRows().map((row) => [...row.querySelectorAll("td")].slice(1, 5).map((cell) => cell.textContent));
-    expect(rowWords).toContainEqual(["agent · claude-code", "main", "add_node", "applied"]);
-    expect(rowWords[0]?.[2]).toBe("undo · set_node_config");
+    const rowWords = transactionRows().map((row) => [...row.querySelectorAll("td")].slice(1, 6).map((cell) => cell.textContent));
+    expect(rowWords).toContainEqual(["agent · claude-code", "main", "commit", "add_node", "applied"]);
+    expect(rowWords[0]?.[3]).toBe("undo · set_node_config");
 
     const addedRow = transactionRows().find((row) => row.textContent?.includes("add_node")) ?? expect.unreachable("no add_node row");
     fireEvent.click(addedRow);
@@ -257,10 +257,19 @@ describe("the studio", () => {
     expect(coreViewPage("transactions").querySelector("[data-transactions-detail-operations]")?.textContent).toContain('"operation": "add_node"');
 
     const refusedRow = transactionRows().find((row) => row.dataset.recordTableRowTone === "danger") ?? expect.unreachable("no refused row");
-    expect([...refusedRow.querySelectorAll("td")].slice(1, 6).map((cell) => cell.textContent)).toEqual(["agent · claude-code", "project", "redo", "refused", "—"]);
+    expect([...refusedRow.querySelectorAll("td")].slice(1, 7).map((cell) => cell.textContent)).toEqual(["agent · claude-code", "project", "commit", "redo", "refused", "none"]);
+    expect(refusedRow.querySelector('[data-status-chip-tone="danger"]')?.textContent).toBe("refused");
     fireEvent.click(refusedRow);
     await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-transactions-detail-refusal]")).not.toBeNull());
     expect(coreViewPage("transactions").querySelector("[data-transactions-detail-refusal]")?.textContent).toContain("claude-code has undone nothing that is left to redo");
+
+    pressAsAPointerDoes(coreViewPage("transactions").querySelector<HTMLElement>("[data-transactions-log-menu]") ?? expect.unreachable("no log menu"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Pause the log" }));
+    await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-transactions-paused-chip]")?.textContent).toBe("Paused"));
+    pressAsAPointerDoes(coreViewPage("transactions").querySelector<HTMLElement>("[data-transactions-log-menu]") ?? expect.unreachable("no log menu"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Clear the view" }));
+    await waitFor(() => expect(coreViewPage("transactions").querySelector('[data-transactions-state="cleared"]')).not.toBeNull());
+    expect(transactionRows()).toEqual([]);
   });
 
   it("says an area left on Transactions shows it only in Developer mode once Developer mode is turned off", async () => {
