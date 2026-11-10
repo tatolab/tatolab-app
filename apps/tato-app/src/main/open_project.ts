@@ -143,12 +143,15 @@ export interface ProjectOpeningSources {
   /** The monotonic clock, in milliseconds, that a deletion's longest wait is measured on. */
   readMonotonicClockMs: () => number;
   /** Open the project in `folder` in its own studio window, or bring that window forward when it is open; answers once the window shows the project. */
-  openTheProjectInItsStudioWindow: (folder: string) => Promise<void>;
+  openTheProjectInItsStudioWindow: (folder: string) => Promise<StudioWindowOfTheProjectShown>;
   /** Close the studio window of the project in `folder` and the windows it opened, without asking; nothing when none is open. */
   closeTheStudioWindowOf: (folder: string) => void;
-  /** Start the project in `folder` unless the runtime lists it running, paused or starting already, since the runtime draws and edits only a loaded project's graph; refused in the runtime's own words. */
-  startTheProjectUnlessTheRuntimeRunsIt: (folder: string) => Promise<Result<void, string>>;
+  /** Start the project in `folder` when the runtime holds none of its streams loaded, since it draws and edits only a loaded stream's graph; refused in the runtime's own words. */
+  startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded: (folder: string) => Promise<Result<void, string>>;
 }
+
+/** What opening a project in its studio window did: opened a new window for it, or brought the one already open forward. */
+export type StudioWindowOfTheProjectShown = "opened_its_studio_window" | "brought_its_studio_window_forward";
 
 /** What a studio window's project reaches: a folder watch, a timer, its window, and the runtime that lists its imports. */
 export interface OpenProjectOfAStudioWindowSources {
@@ -376,7 +379,7 @@ export class ProjectOpening {
     const queued = await this.sources.newProjectCreation.createProject(projectDirectory.value);
     if (!queued.ok) return failedWith(queued.failure.failureDescription);
     const folder = await realPathOrAsGiven(path.resolve(queued.value.project_directory));
-    const opened = await this.openAndRememberTheFolder(folder, "the_runtime_starts_it_already");
+    const opened = await this.openAndRememberTheFolder(folder, "the_runtime_starts_the_new_project_itself");
     return opened.ok ? succeeded({ folder, project_creation: queued.value }) : opened;
   }
 
@@ -445,12 +448,22 @@ export class ProjectOpening {
     return failedWith(`The runtime is still deleting ${folder}. Its card stays here, and reads as gone from disk once the folder is in the Trash.`);
   }
 
-  private async openAndRememberTheFolder(folder: string, start: "start_it_unless_it_runs" | "the_runtime_starts_it_already" = "start_it_unless_it_runs"): Promise<Result<void, string>> {
-    const started = start === "start_it_unless_it_runs" ? await this.sources.startTheProjectUnlessTheRuntimeRunsIt(folder) : succeeded(undefined);
-    await this.sources.openTheProjectInItsStudioWindow(folder);
+  /** Open `folder` in its studio window and remember it; a project opened in a new window is started first when the runtime holds it unloaded, one whose window was open already is left as the person left it. */
+  private async openAndRememberTheFolder(
+    folder: string,
+    howTheOpenedProjectIsStarted: "start_it_when_the_runtime_holds_it_unloaded" | "the_runtime_starts_the_new_project_itself" = "start_it_when_the_runtime_holds_it_unloaded",
+  ): Promise<Result<void, string>> {
+    const studioWindowShown = await this.sources.openTheProjectInItsStudioWindow(folder);
     const remembered = await this.sources.recentProjectFolders.rememberOpened(folder, this.sources.readWallClockNowMs());
-    if (!started.ok) return failedWith(`${folder} is open, but the runtime did not start it: ${started.failure}`);
-    return remembered.ok ? succeeded(undefined) : failedWith(`${folder} is open, but Tato Studio could not remember it for next time: ${remembered.failure}`);
+    const started =
+      howTheOpenedProjectIsStarted === "start_it_when_the_runtime_holds_it_unloaded" && studioWindowShown === "opened_its_studio_window"
+        ? await this.sources.startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded(folder)
+        : succeeded(undefined);
+    const failuresAfterTheWindowOpened = [
+      ...(started.ok ? [] : [`the runtime did not start it: ${started.failure}`]),
+      ...(remembered.ok ? [] : [`Tato Studio could not remember it for next time: ${remembered.failure}`]),
+    ];
+    return failuresAfterTheWindowOpened.length === 0 ? succeeded(undefined) : failedWith(`${folder} is open, but ${failuresAfterTheWindowOpened.join("; and ")}`);
   }
 }
 

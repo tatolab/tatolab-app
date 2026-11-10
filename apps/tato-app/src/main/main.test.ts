@@ -83,6 +83,8 @@ async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
         await writeFile(path.join(projectDirectory, "tatolab-project.json"), JSON.stringify({ ...projectFile, dependencies: [...projectFile.dependencies, dependency] }));
         return toolResultResponse({ dependency, transaction: "400abda2-8e24-4e95-bef0-7139fd68d853", commit: "7402198987b8ef4b1d2f370b8f090ccde0865a56" });
       }
+      case "list_streams":
+        return toolResultResponse({ streams: [] });
       case "start_project":
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
         return toolResultResponse({ action: "5d0c9a51-6a8b-4f3e-9d7e-2b1c0f4e8a77", project_directory: projectDirectory });

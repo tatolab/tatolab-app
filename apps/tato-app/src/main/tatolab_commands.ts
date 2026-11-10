@@ -250,15 +250,33 @@ export function runStreamProject(sharedState: TatolabAppSharedState, folder: str
 /** The states the runtime lists a stream of a project in while that project runs, is paused or is being started, which `reload_project` re-reads; `start_project` refuses each. */
 const STREAM_STATES_OF_A_PROJECT_THE_RUNTIME_RUNS: ReadonlySet<string> = new Set(["running", "paused", "preparing"]);
 
-/** Whether `listedStreams` holds a stream of the project in `projectDirectory` running, paused or being started. */
-export function theRuntimeListsTheProjectRunning(listedStreams: readonly ListedStream[], projectDirectory: string): boolean {
-  return listedStreams.some((listedStream) => listedStream.location?.project_directory === projectDirectory && STREAM_STATES_OF_A_PROJECT_THE_RUNTIME_RUNS.has(listedStream.state));
+/**
+ * `start_project` queued on the project in `projectDirectory` when the runtime, asked now, lists none of its streams or each of them stopped, since it draws and
+ * edits only a loaded stream's graph, then a status round; nothing when it lists one running, failed or on its way. Refused in the runtime's own words.
+ */
+export async function startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded(
+  sharedState: Pick<TatolabAppSharedState, "controller" | "statusPublisher">,
+  projectDirectory: string,
+): Promise<Result<void, string>> {
+  const listedStreams = await sharedState.controller.listStreams();
+  if (!listedStreams.ok) return failedWith(listedStreams.failure.failureDescription);
+  if (!theRuntimeListsEveryStreamOfTheProjectStopped(listedStreams.value, projectDirectory)) return succeeded(undefined);
+  const queued = await sharedState.controller.startProject(projectDirectory);
+  sharedState.statusPublisher.requestRefresh();
+  return queued.ok ? succeeded(undefined) : failedWith(queued.failure.failureDescription);
+}
+
+function theRuntimeListsEveryStreamOfTheProjectStopped(listedStreams: readonly ListedStream[], projectDirectory: string): boolean {
+  return listedStreams.every((listedStream) => listedStream.location?.project_directory !== projectDirectory || listedStream.state === "stopped");
 }
 
 /** The runtime's `reload_project` queued on `projectDirectory` when it last listed a stream of it running, paused or being started, else its `start_project`. */
 function startOrReloadTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
   const listedStreams = sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [];
-  return theRuntimeListsTheProjectRunning(listedStreams, projectDirectory) ? sharedState.controller.reloadProject(projectDirectory) : sharedState.controller.startProject(projectDirectory);
+  const theRuntimeRunsTheProject = listedStreams.some(
+    (listedStream) => listedStream.location?.project_directory === projectDirectory && STREAM_STATES_OF_A_PROJECT_THE_RUNTIME_RUNS.has(listedStream.state),
+  );
+  return theRuntimeRunsTheProject ? sharedState.controller.reloadProject(projectDirectory) : sharedState.controller.startProject(projectDirectory);
 }
 
 /** `reload_project { project_directory }`: a project the runtime lists read again from disk with `reload_project` while it runs, or started with `start_project` while it is stopped or failed, then a status round; refused in the runtime's own words. */

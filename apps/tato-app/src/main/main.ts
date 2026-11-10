@@ -27,7 +27,7 @@ import {
   runInTheBackgroundWithTheController,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
-import { theRuntimeListsTheProjectRunning, tatolabWindowCommandHandlers, type TatolabWindowCommandHandlers } from "./tatolab_commands.js";
+import { startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded, tatolabWindowCommandHandlers, type TatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
@@ -347,12 +347,7 @@ export async function startTatolabApp(
     readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     openTheProjectInItsStudioWindow: (folder) => tatolabAppWindows.openTheProjectInItsStudioWindow(folder),
     closeTheStudioWindowOf: (folder) => tatolabAppWindows.studioWindowOfTheProjectIn(folder)?.tatolabMainWindow.close(),
-    startTheProjectUnlessTheRuntimeRunsIt: async (folder) => {
-      if (theRuntimeListsTheProjectRunning(statusPublisher.lastPublishedStatusNow()?.streams ?? [], folder)) return succeeded(undefined);
-      const queued = await controller.startProject(folder);
-      statusPublisher.requestRefresh();
-      return queued.ok ? succeeded(undefined) : failedWith(queued.failure.failureDescription);
-    },
+    startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded: (folder) => startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded({ controller, statusPublisher }, folder),
   });
   const pythonLanguageServers = new PythonLanguageServers({
     startANodeLanguageServer: tatolabElectronAppShell.startANodeLanguageServer,

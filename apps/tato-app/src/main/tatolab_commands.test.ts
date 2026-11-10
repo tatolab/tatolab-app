@@ -43,6 +43,7 @@ import {
   removeProject,
   streamArgumentsFrom,
   linkCommandLineTool,
+  startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded,
   tatolabWindowCommandHandlers,
 } from "./tatolab_commands.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
@@ -163,7 +164,7 @@ async function sharedStateOverFakes(
     readMonotonicClockMs: () => 0,
     openTheProjectInItsStudioWindow: (folder) => appWindows.openTheProjectInItsStudioWindow(folder),
     closeTheStudioWindowOf: (folder) => appWindows.studioWindowOfTheProjectIn(folder)?.tatolabMainWindow.close(),
-    startTheProjectUnlessTheRuntimeRunsIt: async () => succeeded(undefined),
+    startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded: async () => succeeded(undefined),
   });
   return {
     controller,
@@ -510,6 +511,29 @@ test("reloading a project the runtime lists running queues reload_project, one i
     ok: false,
     refusal: "reload_project needs `project_directory`, a project's folder as the runtime lists it",
   });
+});
+
+test("opening a project starts it only when the runtime, asked then, lists none of its streams or each stopped, observing again after; its refusal in its own words", async () => {
+  const listedStreams = await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json");
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", listedStreams),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-project-answer-for-the-folder-hallways.json")),
+      httpResponse("200 OK", "application/json", listedStreams),
+      httpResponse("200 OK", "application/json", listedStreams),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-project-refusal-for-a-project-already-running.json")),
+    ],
+    "linux"
+  );
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const starts = vi.spyOn(sharedState.controller, "startProject");
+
+  expect(await startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded(sharedState, "/home/jonathan-fontanez/scratch/app176/projects/pattern")).toEqual(succeeded(undefined));
+  expect(await startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded(sharedState, "/home/jonathan-fontanez/scratch/app176/projects/doorways")).toEqual(succeeded(undefined));
+  const refused = await startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded(sharedState, "/home/jonathan-fontanez/scratch/app176/projects/lobby");
+  expect(starts.mock.calls).toEqual([["/home/jonathan-fontanez/scratch/app176/projects/pattern"], ["/home/jonathan-fontanez/scratch/app176/projects/lobby"]]);
+  expect(refreshRequests).toHaveBeenCalledTimes(2);
+  expect(refused).toEqual(failedWith(expect.stringContaining("already runs, so there is none to start")));
 });
 
 test("renaming a stream sets the display name of the stream asset the runtime lists for it, then observes again whether it renamed or refused", async () => {
