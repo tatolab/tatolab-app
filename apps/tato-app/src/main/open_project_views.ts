@@ -19,9 +19,10 @@ export async function studioViewsOfTheOpenProject(
   if (openProjectReading.kind === "unreadable") return failedWith(openProjectReading.refusal);
   if (openProjectReading.kind !== "read") return failedWith("No project is open in this window.");
   const openProjectFolder = openProjectReading.open_project.project.folder;
+  const listingStarted = projectViewsListed.startAListing();
   const listed = await listTheProjectViews(openProjectFolder);
   if (!listed.ok) return listed;
-  projectViewsListed.rememberTheListing(openProjectFolder, listed.value);
+  projectViewsListed.rememberTheListing(openProjectFolder, listingStarted, listed.value);
   return succeeded(
     listed.value.map((listedView) => ({
       view_type_id: listedView.view_type,

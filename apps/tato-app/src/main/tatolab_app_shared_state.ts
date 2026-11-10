@@ -50,7 +50,7 @@ export interface TatolabAppSharedState {
   dependencySourceDialog: DependencySourceDialog;
   /** The person signed in to this computer, the author Studio's graph edits are recorded under. */
   thePersonEditingInStudio: ProjectTransactionAuthor;
-  /** The views each studio window listed, the only ones whose files are served, each under the policy its listed manifest calls for. */
+  /** The views each studio window listed as ones that open, the only ones whose files are served. */
   projectViewsListed: ProjectViewsListedToTheWindows;
   tatolabAppLog: TatolabAppLog;
 }

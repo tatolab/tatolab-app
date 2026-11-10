@@ -94,16 +94,26 @@ export type AnswerAProjectViewFileRequest = (requestUrl: string) => Promise<Proj
 
 /** The views each studio window's view-type menu last listed as ones that open, by project: the only view folders served. */
 export class ProjectViewsListedToTheWindows {
-  private readonly viewFoldersByOpenProjectFolder = new Map<string, ReadonlySet<string>>();
+  private readonly viewFoldersByOpenProjectFolder = new Map<string, { listing_started: number; view_folders: ReadonlySet<string> }>();
+  private listingsStarted = 0;
 
-  /** Keep the views that open in `listedViews`, the listing of the project in `openProjectFolder`, in place of its last listing. */
-  rememberTheListing(openProjectFolder: string, listedViews: readonly { view_folder_in_the_project: string; opens: boolean }[]): void {
-    this.viewFoldersByOpenProjectFolder.set(openProjectFolder, new Set(listedViews.filter((listedView) => listedView.opens).map((listedView) => listedView.view_folder_in_the_project)));
+  /** The mark of a listing of a project about to be asked for, which `rememberTheListing` takes back with its answer. */
+  startAListing(): number {
+    this.listingsStarted += 1;
+    return this.listingsStarted;
+  }
+
+  /** Keep the views that open in `listedViews`, the listing of the project in `openProjectFolder` started as `listingStarted`, in place of its last listing, unless a listing started later is already kept. */
+  rememberTheListing(openProjectFolder: string, listingStarted: number, listedViews: readonly { view_folder_in_the_project: string; opens: boolean }[]): void {
+    const keptListing = this.viewFoldersByOpenProjectFolder.get(openProjectFolder);
+    if (keptListing !== undefined && keptListing.listing_started > listingStarted) return;
+    const viewFolders = new Set(listedViews.filter((listedView) => listedView.opens).map((listedView) => listedView.view_folder_in_the_project));
+    this.viewFoldersByOpenProjectFolder.set(openProjectFolder, { listing_started: listingStarted, view_folders: viewFolders });
   }
 
   /** Whether the last listing of the project in `openProjectFolder` holds `viewFolderInTheProject` as a view that opens. */
   isListedAsOpening(openProjectFolder: string, viewFolderInTheProject: string): boolean {
-    return this.viewFoldersByOpenProjectFolder.get(openProjectFolder)?.has(viewFolderInTheProject) ?? false;
+    return this.viewFoldersByOpenProjectFolder.get(openProjectFolder)?.view_folders.has(viewFolderInTheProject) ?? false;
   }
 }
 

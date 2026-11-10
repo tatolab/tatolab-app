@@ -82,7 +82,7 @@ export class TatolabViewBridge {
     private readonly viewNode: StudioViewNodeAddress | null = null,
   ) {}
 
-  /** Tell the view what it was granted, and answer its messages from now on. */
+  /** Tell the view its id, contract, placement and declared ports, and answer its messages from now on. */
   start(): void {
     this.port.addEventListener("message", this.onMessageFromTheView);
     this.port.start();

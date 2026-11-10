@@ -443,10 +443,10 @@ describe("a view's connection to Studio, through the one bridge every view is se
   });
 
   it("reads a project file, saying why in the reader's words when it was not read", async () => {
-    const fullAccess = await connectedView(DJ_DECK_MANIFEST, {});
+    const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
 
-    expect(await fullAccess.connection.readProjectFile("/set/stream.py")).toEqual({ kind: "read", file_read: STREAM_FILE_READ });
-    expect(await fullAccess.connection.readProjectFile("/elsewhere.py")).toEqual({ kind: "not_read", because: "/elsewhere.py is not in the project." });
+    expect(await connection.readProjectFile("/set/stream.py")).toEqual({ kind: "read", file_read: STREAM_FILE_READ });
+    expect(await connection.readProjectFile("/elsewhere.py")).toEqual({ kind: "not_read", because: "/elsewhere.py is not in the project." });
   });
 
   it("starts a Python language server for the watch, carries its messages both ways, and stops it with the watch", async () => {

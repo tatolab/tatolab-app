@@ -61,7 +61,7 @@ function sourcesOverAnOpenNightShow(filesRead: string[]): ProjectViewFilesSource
     ["views/unlisted/index.html", DECK_PAGE],
   ]);
   const projectViewsListed = new ProjectViewsListedToTheWindows();
-  projectViewsListed.rememberTheListing(NIGHT_SHOW, [
+  projectViewsListed.rememberTheListing(NIGHT_SHOW, projectViewsListed.startAListing(), [
     { view_folder_in_the_project: "views/deck", opens: true },
     { view_folder_in_the_project: "views/weather", opens: true },
     { view_folder_in_the_project: "views/broken", opens: false },
@@ -113,4 +113,16 @@ test("a folder no listing holds as a view that opens is not served", async () =>
     });
   }
   expect(filesRead).toEqual([]);
+});
+
+test("a listing that answers after one started later is not kept over it", () => {
+  const projectViewsListed = new ProjectViewsListedToTheWindows();
+  const earlierListing = projectViewsListed.startAListing();
+  const laterListing = projectViewsListed.startAListing();
+  projectViewsListed.rememberTheListing(NIGHT_SHOW, laterListing, [{ view_folder_in_the_project: "views/deck", opens: true }]);
+  projectViewsListed.rememberTheListing(NIGHT_SHOW, earlierListing, [{ view_folder_in_the_project: "views/deck", opens: false }]);
+  expect(projectViewsListed.isListedAsOpening(NIGHT_SHOW, "views/deck")).toBe(true);
+
+  projectViewsListed.rememberTheListing(NIGHT_SHOW, projectViewsListed.startAListing(), [{ view_folder_in_the_project: "views/deck", opens: false }]);
+  expect(projectViewsListed.isListedAsOpening(NIGHT_SHOW, "views/deck")).toBe(false);
 });
