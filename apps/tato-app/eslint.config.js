@@ -17,14 +17,6 @@ const SHADCN_IMPORT_PATTERNS = [
   },
 ];
 
-const STUDIO_VIEW_IMPORT_PATTERNS = [
-  {
-    regex: String.raw`^\.\./\.\./(?!view_host/)`,
-    message: "A studio view reads and asks only through view_host/'s contract and draws with the view SDK's design system, as a user's view will.",
-  },
-  { regex: String.raw`^\.\./\.\./\.\./`, message: "A studio view reads and asks only through view_host/'s contract and draws with the view SDK's design system, as a user's view will." },
-];
-
 const ELECTRON_IMPORT_PATHS = [{ name: "electron", message: "Only src/main/electron_adapters/ and src/preload/ import electron, so everything else runs in plain Node." }];
 const ELECTRON_REQUIRE_SELECTORS = [
   { selector: "CallExpression[callee.name='require'][arguments.0.value='electron']", message: ELECTRON_IMPORT_PATHS[0].message },
@@ -114,20 +106,16 @@ function mainProcessConfigs() {
 }
 
 const WINDOW_FILES = ["src/renderer/**/*.{ts,tsx}", "src/shared/**/*.ts", "mock/**/*.{ts,tsx}"];
-const SCREEN_FILES = ["src/renderer/studio_shell/**/*.tsx", "src/renderer/studio_views/**/*.tsx", "src/renderer/setup_and_preferences/**/*.tsx", "src/renderer/tatolab_window_view.tsx"];
-const STUDIO_VIEW_FILES = ["src/renderer/studio_views/**/*.{ts,tsx}"];
+const SCREEN_FILES = ["src/renderer/studio_shell/**/*.tsx", "src/renderer/setup_and_preferences/**/*.tsx", "src/renderer/tatolab_window_view.tsx"];
 const ICON_GEOMETRY_FILES = ["src/renderer/icons.ts"];
 
 /** The restrictions that hold for one group of the window's shipped files. */
-function windowRestrictions({ isScreen, mayDrawCircles, isStudioView }) {
+function windowRestrictions({ isScreen, mayDrawCircles }) {
   return {
     "no-console": "error",
     "no-debugger": "error",
     "no-restricted-syntax": ["error", ...DOT_INDICATOR_SELECTORS, ...(mayDrawCircles ? [] : SVG_CIRCLE_SELECTORS), ...(isScreen ? HAND_BUILT_CONTROL_SELECTORS : [])],
-    "no-restricted-imports": [
-      "error",
-      { paths: ROUND_STATUS_ICON_IMPORTS, patterns: [...(isScreen ? SHADCN_IMPORT_PATTERNS : []), ...(isStudioView ? STUDIO_VIEW_IMPORT_PATTERNS : [])] },
-    ],
+    "no-restricted-imports": ["error", { paths: ROUND_STATUS_ICON_IMPORTS, patterns: isScreen ? SHADCN_IMPORT_PATTERNS : [] }],
   };
 }
 
@@ -142,6 +130,5 @@ export default defineConfig(
   ...mainProcessConfigs(),
   { files: WINDOW_FILES, ignores: [...TEST_FILES, ...SCREEN_FILES, ...ICON_GEOMETRY_FILES], rules: windowRestrictions({}) },
   { files: ICON_GEOMETRY_FILES, rules: windowRestrictions({ mayDrawCircles: true }) },
-  { files: SCREEN_FILES, ignores: [...TEST_FILES, ...STUDIO_VIEW_FILES], rules: windowRestrictions({ isScreen: true }) },
-  { files: STUDIO_VIEW_FILES, ignores: TEST_FILES, rules: windowRestrictions({ isScreen: true, isStudioView: true }) },
+  { files: SCREEN_FILES, ignores: TEST_FILES, rules: windowRestrictions({ isScreen: true }) },
 );

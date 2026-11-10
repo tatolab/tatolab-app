@@ -8,7 +8,7 @@ import {
   type ViewSettings,
 } from "@tatolab/tato-app-view-sdk";
 import { afterEach, describe, expect, it } from "vitest";
-import { WatchedStudioValue } from "./in_window_view_host";
+import { WatchedStudioValue } from "./watched_studio_value";
 import type {
   JsonValue,
   PortViewerConnectionEvent,
@@ -20,13 +20,13 @@ import type {
   ProjectTransactionsReading,
   PythonLanguageServerConnectionEvent,
   StudioSelection,
+  StudioViewHostServices,
   ViewHeaderRow,
   ViewOpenedOn,
   ViewOpenedOnAsked,
   ViewOpeningTarget,
 } from "./studio_view_contract";
 import type { StudioViewInputWiring } from "./studio_view_node_wiring";
-import type { StudioViewHostServices } from "./studio_view_type_registry";
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 
 function manifestOf(manifestJson: unknown): TatolabViewManifest {

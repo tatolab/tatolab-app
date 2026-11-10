@@ -13,9 +13,11 @@ import { presentPlatform, windowDragRegionAttribute } from "../presentation/plat
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
 import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
-import { StudioViewFailureBoundary, useWatchedStudioValue, WatchedStudioValue } from "../view_host/in_window_view_host";
+import { StudioViewFailureBoundary } from "../view_host/studio_view_failure_boundary";
+import { useWatchedStudioValue, WatchedStudioValue } from "../view_host/watched_studio_value";
 import type { ViewHeaderRow } from "../view_host/studio_view_contract";
-import type { StudioViewHostServices, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
+import type { StudioViewHostServices } from "../view_host/studio_view_contract";
+import type { StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
 import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet_view";
 import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
@@ -120,7 +122,7 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
 /** Where a frame's header row starts before the view-type menu is measured: an area header's height, with no inset. */
 const HEADER_ROW_BEFORE_IT_IS_MEASURED: ViewHeaderRow = { leading_inset_px: 0, height_px: 30 };
 
-/** One area: its header with the view-type menu and the view's tools, over the view, or the view's own frame under the menu; a view that fails to draw says why there and nowhere else. */
+/** One area: the view's own frame under the view-type menu, or why it shows none; a view that fails to draw says why there and nowhere else. */
 function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWindowSources }) {
   const projectStudioViews = useWatchedStudioValue(sources.viewTypeRegistry.projectStudioViews);
   useWatchedStudioValue(sources.viewTypeRegistry.developerMode);
@@ -159,39 +161,20 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
       </StudioAreaFrame>
     );
   }
-  const rendering = viewType.renderInAnArea(
-    { saved_settings: area.settings, rememberSettings: (nextSettings) => sources.model.keepAreaSettings(area.area_id, nextSettings), header_row: headerRowInTheFrame },
-    sources.viewHostServices,
-  );
-  if (rendering.kind === "frame") {
-    return (
-      <StudioAreaOverAViewsOwnFrame
-        label={viewType.title}
-        viewTypeMenu={<AreaViewTypeMenu area={area} sources={sources} words={viewType.title} />}
-        onHeaderRowMeasured={(headerRow) => headerRowInTheFrame.publish(headerRow)}
-        data-studio-area={area.area_id}
-      >
-        <StudioViewFailureBoundary key={viewType.view_type_id} viewTitle={viewType.title}>
-          {rendering.frame}
-        </StudioViewFailureBoundary>
-      </StudioAreaOverAViewsOwnFrame>
-    );
-  }
   return (
-    <StudioAreaFrame
+    <StudioAreaOverAViewsOwnFrame
       label={viewType.title}
-      header={
-        <>
-          <AreaViewTypeMenu area={area} sources={sources} words={viewType.title} />
-          {rendering.header_tools}
-        </>
-      }
+      viewTypeMenu={<AreaViewTypeMenu area={area} sources={sources} words={viewType.title} />}
+      onHeaderRowMeasured={(headerRow) => headerRowInTheFrame.publish(headerRow)}
       data-studio-area={area.area_id}
     >
       <StudioViewFailureBoundary key={viewType.view_type_id} viewTitle={viewType.title}>
-        {rendering.body}
+        {viewType.renderInAnArea(
+          { saved_settings: area.settings, rememberSettings: (nextSettings) => sources.model.keepAreaSettings(area.area_id, nextSettings), header_row: headerRowInTheFrame },
+          sources.viewHostServices,
+        )}
       </StudioViewFailureBoundary>
-    </StudioAreaFrame>
+    </StudioAreaOverAViewsOwnFrame>
   );
 }
 

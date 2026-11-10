@@ -1,49 +1,15 @@
-// The host a first-party view is served by, in the window itself: the contract's connection answered
-// synchronously from what the studio holds.
-
-import { Component, useSyncExternalStore, type ReactNode } from "react";
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
-import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { ProjectLogReadings } from "./project_log_readings";
 import type { ProjectNodeTypeReadings } from "./project_node_type_readings";
 import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
-import type { ListedStreamsReading, OpenProjectReading, StopWatching, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
+import type { ListedStreamsReading, OpenProjectReading, StreamTabAddress, StudioSelection, StudioViewHostServices, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
-import type { StudioViewHostServices } from "./studio_view_type_registry";
-
-/** A value every watcher is told of: at once when it starts watching, then on each change. */
-export class WatchedStudioValue<Value> {
-  private readonly listeners = new Set<(value: Value) => void>();
-
-  constructor(private latestValue: Value) {}
-
-  readonly readLatest = (): Value => this.latestValue;
-
-  readonly watch = (listener: (value: Value) => void): StopWatching => {
-    this.listeners.add(listener);
-    listener(this.latestValue);
-    return () => {
-      this.listeners.delete(listener);
-    };
-  };
-
-  /** Keep `value` and tell every watcher; a value equal to the last as JSON tells none. */
-  publish(value: Value): void {
-    if (JSON.stringify(value) === JSON.stringify(this.latestValue)) return;
-    this.latestValue = value;
-    for (const listener of [...this.listeners]) listener(value);
-  }
-}
-
-/** `watched`'s latest value, re-rendering the caller on each change. */
-export function useWatchedStudioValue<Value>(watched: WatchedStudioValue<Value>): Value {
-  return useSyncExternalStore((onChange) => watched.watch(() => onChange()), watched.readLatest);
-}
+import type { WatchedStudioValue } from "./watched_studio_value";
 
 /** What the studio publishes to its views, and what it does when a view opens a stream's tab. */
-export interface InWindowStudioViewHostSources {
+export interface StudioWindowValuesServedToViews {
   openProject: WatchedStudioValue<OpenProjectReading>;
   listedStreams: WatchedStudioValue<ListedStreamsReading>;
   selection: WatchedStudioValue<StudioSelection>;
@@ -55,7 +21,7 @@ export interface InWindowStudioViewHostSources {
 }
 
 /** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types and history, their language servers, and the port viewers of their running nodes. */
-export interface InWindowProjectServices {
+export interface StudioViewHostProjectServices {
   backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "listProjectFiles">;
   projectLogReadings: ProjectLogReadings;
   projectNodeTypeReadings: ProjectNodeTypeReadings;
@@ -64,11 +30,11 @@ export interface InWindowProjectServices {
   portViewerConnections: PortViewerConnections;
 }
 
-/** The services every first-party view is handed, read from `sources`, for a stream's graph and catalog from `streamReadings`, and for the open project and its imports from `projectServices`. */
-export function inWindowStudioViewHostServices(
-  sources: InWindowStudioViewHostSources,
+/** What every view's bridge answers its frame from, read from `sources`, for a stream's graph and catalog from `streamReadings`, and for the open project and its imports from `projectServices`. */
+export function studioViewHostServicesOf(
+  sources: StudioWindowValuesServedToViews,
   streamReadings: StreamGraphAndCatalogReadings,
-  projectServices: InWindowProjectServices,
+  projectServices: StudioViewHostProjectServices,
 ): StudioViewHostServices {
   const { backend } = projectServices;
   return {
@@ -115,18 +81,4 @@ export function inWindowStudioViewHostServices(
     connectToPythonLanguageServer: projectServices.pythonLanguageServerConnections.connectToPythonLanguageServer,
     watchPortViewer: projectServices.portViewerConnections.watchPortViewer,
   };
-}
-
-/** Shows a view that failed while drawing, in the failure's own words, so the other areas keep running. */
-export class StudioViewFailureBoundary extends Component<{ viewTitle: string; children: ReactNode }, { failureWords: string | null }> {
-  override state: { failureWords: string | null } = { failureWords: null };
-
-  static getDerivedStateFromError(failure: unknown): { failureWords: string } {
-    return { failureWords: failure instanceof Error ? failure.message : String(failure) };
-  }
-
-  override render(): ReactNode {
-    if (this.state.failureWords === null) return this.props.children;
-    return <WaitingState isFailure title={`${this.props.viewTitle} stopped drawing`} explanation={this.state.failureWords} />;
-  }
 }

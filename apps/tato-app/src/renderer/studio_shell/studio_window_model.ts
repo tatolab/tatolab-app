@@ -4,7 +4,8 @@
 import type { ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutView, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
-import { WatchedStudioValue, type InWindowStudioViewHostSources } from "../view_host/in_window_view_host";
+import type { StudioWindowValuesServedToViews } from "../view_host/studio_view_host_services";
+import { WatchedStudioValue } from "../view_host/watched_studio_value";
 import type { JsonValue, ListedStreamsReading, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
 import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, type StudioAreaLayoutNode } from "./studio_area_layout";
 import { STUDIO_LAYOUTS, type StudioLayoutName, type StudioLayoutsKeptInStorage, type StudioLayoutsOfAFolder } from "./studio_layouts";
@@ -50,7 +51,7 @@ function openProjectFolderOf(reading: OpenProjectReading): string | null {
   }
 }
 
-/** The studio window's state, each part watched by the shell and served to the views through the in-window host. */
+/** The studio window's state, each part watched by the shell and served to the views through their bridges. */
 export class StudioWindowModel {
   readonly openProject = new WatchedStudioValue<OpenProjectReading>({ kind: "none_open" });
   readonly listedStreams = new WatchedStudioValue<ListedStreamsReading>({ kind: "not_listed", because: "" });
@@ -90,7 +91,7 @@ export class StudioWindowModel {
   constructor(private readonly layoutsKept: StudioLayoutsKeptInStorage) {}
 
   /** What the views are served from this model. */
-  viewHostSources(): InWindowStudioViewHostSources {
+  viewHostSources(): StudioWindowValuesServedToViews {
     return {
       openProject: this.openProject,
       listedStreams: this.listedStreams,
