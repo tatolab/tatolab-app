@@ -49,6 +49,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
       ...coreViewTypeIn("outliner"),
       ...coreViewTypeIn("palette"),
       ...coreViewTypeIn("properties"),
+      ...coreViewTypeIn("history"),
       registeredStudioViewType(VIEWER_VIEW_TYPE),
       registeredStudioViewType(CODE_EDITOR_VIEW_TYPE),
     ],
