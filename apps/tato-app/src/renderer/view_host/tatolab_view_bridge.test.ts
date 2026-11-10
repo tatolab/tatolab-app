@@ -249,8 +249,8 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(redone).toEqual({ kind: "not_applied", because: "redo failed: claude-code has nothing to redo" });
   });
 
-  it("is told its id, contract, placement and declared ports as it connects", async () => {
-    const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
+  it("is told its id, contract, placement, declared ports and declared capabilities as it connects", async () => {
+    const { connection } = await connectedView({ ...DJ_DECK_MANIFEST, capabilities: ["read.selection", "camera"] }, {});
     expect(connection.grant).toEqual({
       view_type_id: "acme-dj:deck",
       contract: "1.0",
@@ -260,6 +260,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
         { name: "crossfader", family: "array" },
         { name: "play_a", family: "array" },
       ],
+      capabilities: ["read.selection", "camera"],
     });
   });
 
