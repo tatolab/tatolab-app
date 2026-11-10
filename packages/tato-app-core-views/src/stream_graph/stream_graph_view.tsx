@@ -11,6 +11,7 @@ import type { StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings
 import type {
   ListedStreamsReading,
   NodeCatalogReading,
+  ProjectNodeTypesReading,
   OpenProjectReading,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
@@ -40,7 +41,7 @@ import {
   studioFieldsSetBy,
   type LooseWire,
 } from "./stream_graph_edits";
-import { nodeTypeSearchItems } from "./stream_graph_node_type_search";
+import { nodeTypeSearchItems, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
 import { streamGraphSavedWords } from "./stream_graph_saved_words";
 import { isTheSamePlaceLeft, settingsWithTheStreamLeft, whereTheStreamWasLeft, type WhereAStreamWasLeft } from "./stream_graph_where_left";
 
@@ -64,6 +65,9 @@ function importedProjectNameOfTheStream(stream: string, openProject: OpenProject
   const importedProject = openProject.open_project.imports.find((imported) => imported.source.kind === "folder" && imported.source.project.folder === projectDirectory);
   return importedProject === undefined ? null : importedProject.name;
 }
+
+/** Stops nothing: a stream the runtime lists in no project has no project node types to watch. */
+const NO_PROJECT_FOLDER_TO_LIST: StopWatching = () => undefined;
 
 /** The canvas's tools offered to the window's toolbar for as long as the graph is drawn, each press reaching the canvas. */
 function useTheCanvasToolsInTheWindowToolbar(connection: TatoAppViewConnection): NodeGraphCanvasToolsInTheWindowToolbar {
@@ -198,7 +202,17 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
       onCardCollapsed: (nodeId, collapsed) => void sendTheStudioGesture(cardCollapsedEdits(editedGraph, nodeId, collapsed)),
     };
   }, [importedProjectName, editedGraph, sendTheGesture, sendTheStudioGesture]);
-  const catalog = useMemo(() => (catalogReading?.kind === "listed" ? catalogReading.catalog.node_types : []), [catalogReading]);
+  const projectFolderOfTheStream = listedStream?.location?.project_directory ?? null;
+  const watchTheProjectsNodeTypes = useCallback(
+    (listener: (reading: ProjectNodeTypesReading) => void): StopWatching =>
+      projectFolderOfTheStream === null ? NO_PROJECT_FOLDER_TO_LIST : connection.watchProjectNodeTypes(projectFolderOfTheStream, listener),
+    [connection, projectFolderOfTheStream],
+  );
+  const projectNodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
+  const catalog = useMemo(
+    () => nodeTypesTheSearchOffers(catalogReading?.kind === "listed" ? catalogReading.catalog.node_types : [], projectNodeTypesReading?.kind === "listed" ? projectNodeTypesReading.listing : null),
+    [catalogReading, projectNodeTypesReading],
+  );
   const looseWireOfTheSearch = nodeTypeSearchAsked?.looseWire ?? null;
   const nodeTypeSearchItemsOffered = useMemo(() => nodeTypeSearchItems(catalog, looseWireOfTheSearch), [catalog, looseWireOfTheSearch]);
   const placeTheChosenNodeType = useCallback(
