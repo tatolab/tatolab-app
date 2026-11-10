@@ -2,7 +2,11 @@ import {
   Blocks,
   Box,
   Code,
+  FileCode,
+  FileImage,
+  FileJson,
   FileText,
+  FolderTree,
   Folder,
   FolderInput,
   Hourglass,
@@ -31,6 +35,11 @@ export type StudioIconName =
   | "project"
   | "imports"
   | "file"
+  | "code_file"
+  | "data_file"
+  | "image_file"
+  | "folder"
+  | "files"
   | "stream"
   | "node_category"
   | "node_type"
@@ -51,6 +60,11 @@ const STUDIO_ICONS: Record<StudioIconName, LucideIcon> = {
   project: Package,
   imports: FolderInput,
   file: FileText,
+  code_file: FileCode,
+  data_file: FileJson,
+  image_file: FileImage,
+  folder: Folder,
+  files: FolderTree,
   stream: Workflow,
   node_category: Folder,
   node_type: Blocks,

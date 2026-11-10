@@ -59,8 +59,9 @@ export function defaultStudioLayout(layoutName: StudioLayoutName): StudioAreaLay
       ]);
     case "code":
       return split("code-columns", "row", [
-        [43, area("code", "code")],
-        [39, split("code-middle", "column", [[50, area("stream-graph", "stream_graph")], [50, area("viewer", "viewer")]])],
+        [16, area("files", "files")],
+        [42, area("code", "code")],
+        [24, split("code-middle", "column", [[50, area("stream-graph", "stream_graph")], [50, area("viewer", "viewer")]])],
         [18, sideColumn()],
       ]);
     case "perform":

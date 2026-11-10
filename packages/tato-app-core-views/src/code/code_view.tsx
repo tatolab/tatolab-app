@@ -10,6 +10,7 @@ import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_on
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { ProjectLogReading, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import { CoreViewFrame } from "../shared/core_view_page";
+import { isAFileTheCodeViewOpens } from "../shared/files_the_code_view_opens";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import {
   codeFileTabsOf,
@@ -79,7 +80,11 @@ function useOpenableFileGroups(connection: TatoAppViewConnection): OpenableCodeF
       projects.map(async ({ project_name: projectName, project_folder: projectFolder }): Promise<OpenableCodeFileGroup> => {
         const listing = await connection.listProjectFiles(projectFolder);
         if (listing.kind === "not_listed") return { project_name: projectName, files: [], not_listed_because: listing.because };
-        return { project_name: projectName, files: listing.project_files.files.map((name) => ({ file: `${projectFolder}/${name}`, name })), not_listed_because: null };
+        return {
+          project_name: projectName,
+          files: listing.project_files.files.filter(isAFileTheCodeViewOpens).map((name) => ({ file: `${projectFolder}/${name}`, name })),
+          not_listed_because: null,
+        };
       }),
     ).then((listedGroups) => {
       if (!isStale) setGroups(listedGroups);

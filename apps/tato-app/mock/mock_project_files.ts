@@ -1,5 +1,5 @@
-// The mock's files of the open project: the pattern project's graph documents, its two node modules
-// and `pyproject.toml`, which the code pane reads and saves as it would on disk. A save at a version the mock no longer holds is refused as a change on disk.
+// The mock's files of the open project as the runtime lists them: the pattern project's graph documents, its two node modules,
+// `pyproject.toml`, `tatolab-project.json` and a view's files, which the code pane reads and saves as it would on disk. A save at a version the mock no longer holds is refused as a change on disk.
 
 import type { ProjectFileRead, ProjectFileSaved, ProjectFiles } from "../src/shared/tatolab_backend_contract";
 import { mockStreamLocationOf } from "./mock_stream_fixtures";
@@ -118,6 +118,28 @@ lobby-recorder = { path = "../lobby-recorder" }
 stage-lights = { path = "imports/stage-lights" }
 `;
 
+const PATTERN_TATOLAB_PROJECT_JSON = `{
+  "project": "5f0c2a9e-7b1d-4e3a-9c84-2d6f1b0a7e53",
+  "name": "pattern"
+}
+`;
+
+const PATTERN_DECK_VIEW_JSON = `{
+  "contract": "1.0",
+  "title": "Deck",
+  "entry": "index.html",
+  "placement": "area"
+}
+`;
+
+const PATTERN_DECK_VIEW_INDEX_HTML = `<!doctype html>
+<html lang="en">
+  <body>
+    <div id="deck"></div>
+  </body>
+</html>
+`;
+
 interface MockProjectFile {
   text: string;
   version: number;
@@ -139,6 +161,10 @@ export class MockProjectFiles {
       [`${this.openProjectFolder}/nodes/inverting_effect.py`, INVERTING_EFFECT_PY],
       [`${this.openProjectFolder}/nodes/brightness_meter.py`, BRIGHTNESS_METER_PY],
       [`${this.openProjectFolder}/pyproject.toml`, PATTERN_PYPROJECT_TOML],
+      [`${this.openProjectFolder}/tatolab-project.json`, PATTERN_TATOLAB_PROJECT_JSON],
+      [`${this.openProjectFolder}/.gitignore`, ".venv/\n__pycache__/\n"],
+      [`${this.openProjectFolder}/views/deck/tatolab_view.json`, PATTERN_DECK_VIEW_JSON],
+      [`${this.openProjectFolder}/views/deck/index.html`, PATTERN_DECK_VIEW_INDEX_HTML],
     ];
     for (const [file, text] of initialTexts) this.filesByPath.set(file, { text, version: this.nextVersion() });
   }
