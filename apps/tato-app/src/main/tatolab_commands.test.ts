@@ -462,24 +462,32 @@ test("each queued action answers the window null, and a missing argument or a pr
   expect(await commandHandlers.list_project_node_types({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "list_project_node_types needs `project_directory`, a project's folder" });
 });
 
-test("reloading a project the runtime lists queues reload_project on its folder, answers the action, and observes again; one it does not list is refused", async () => {
+test("reloading a project the runtime lists running queues reload_project, one it lists stopped start_project, each answering the action and observing again; one it does not list is refused", async () => {
   const sharedState = await sharedStateOverFakes(
     [
       httpResponse("200 OK", "text/plain", "ok"),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-reload-project-answer-for-the-folder-hallways.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-project-answer-for-the-folder-hallways.json")),
     ],
     "linux"
   );
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const reloads = vi.spyOn(sharedState.controller, "reloadProject");
+  const starts = vi.spyOn(sharedState.controller, "startProject");
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
   await sharedState.statusPublisher.refreshAndPublish();
 
   expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/doorways" }, FROM_THE_PROJECTS_WINDOW))).toBe(
     '{"ok":true,"value":{"action":"Rgdbghpj6ai2ge3wgy64g42y7-5","project_directory":"/private/tmp/tatolab-proof-projects/hallways"}}',
   );
-  expect(refreshRequests).toHaveBeenCalledTimes(1);
+  expect(reloads.mock.calls).toEqual([["/home/jonathan-fontanez/scratch/app176/projects/doorways"]]);
+  expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/pattern" }, FROM_THE_PROJECTS_WINDOW))).toBe(
+    '{"ok":true,"value":{"action":"Rgdbghpj6ai2ge3wgy64g42y7-4","project_directory":"/private/tmp/tatolab-proof-projects/hallways"}}',
+  );
+  expect(starts.mock.calls).toEqual([["/home/jonathan-fontanez/scratch/app176/projects/pattern"]]);
+  expect(refreshRequests).toHaveBeenCalledTimes(2);
   expect(await commandHandlers.reload_project({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
   expect(await commandHandlers.reload_project({ folder: "/tmp/tatolab-proof-projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,

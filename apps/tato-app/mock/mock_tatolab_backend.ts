@@ -969,7 +969,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   /** `set_stream_display_name` as the runtime does it: refused for a name that shows nothing or a stream it does not hold, else shown under the new name. */
   const renameMockStream = (streamId: string, displayName: string): void => {
     if (displayName.trim() === "") {
-      throw `Invalid configuration: ${JSON.stringify(displayName)} cannot be a stream's display name: it shows nothing; a display name is any text with something to show`;
+      throw `set_stream_display_name failed: ${JSON.stringify(displayName)} cannot be a stream's display name: it shows nothing`;
     }
     if (!(listStreams() ?? []).some((listing) => listing.stream === streamId)) throw aStreamThisRuntimeDoesNotHoldRefusal(streamId);
     displayNamesRenamedTo.set(streamId, displayName);
