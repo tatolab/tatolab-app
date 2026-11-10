@@ -1,7 +1,7 @@
 import { BrowserWindow, dialog, sharedTexture, type SharedTextureImported } from "electron";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
-import { isACommandFromTheWindowsOwnPage, isAPermissionTheWindowLetsAViewAsk, isAViewPageTheWindowFrames, isOnTheWindowPagesOwnLocation } from "../tatolab_window_page_source.js";
+import { isACommandFromTheWindowsOwnPage, isAPermissionTheWindowLetsAViewAsk, isAViewPageTheWindowFrames, isOnTheWindowPagesOwnLocation, mediaTypesOfAPermissionCheck } from "../tatolab_window_page_source.js";
 import { MainWindowFirstShowGate } from "../main_window_first_show_gate.js";
 import { TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE } from "../../shared/tatolab_electron_bridge_contract.js";
 import type { MainWindowCloseRequestAnswer, MainWindowHost, MainWindowHostFactory, MainWindowSpecification } from "../tatolab_main_window.js";
@@ -64,13 +64,12 @@ export function createElectronMainWindowHostFactory(
           isAPermissionTheWindowLetsAViewAsk(windowPageUrl, permission, permissionDetails.requestingUrl, "mediaTypes" in permissionDetails ? (permissionDetails.mediaTypes ?? []) : []),
         ),
       );
-      // A check reports `mediaType` `unknown` while a frame only asks whether it may capture; the request that follows names it.
       windowContents.session.setPermissionCheckHandler((_requestingContents, permission, _requestingOrigin, permissionCheckDetails) =>
         isAPermissionTheWindowLetsAViewAsk(
           windowPageUrl,
           permission,
           permissionCheckDetails.requestingUrl ?? "",
-          permissionCheckDetails.mediaType === undefined || permissionCheckDetails.mediaType === "unknown" ? [] : [permissionCheckDetails.mediaType],
+          mediaTypesOfAPermissionCheck(permissionCheckDetails.mediaType),
         ),
       );
       const firstShowGate = new MainWindowFirstShowGate(() => mainBrowserWindow.show());

@@ -122,7 +122,7 @@ export const tatolabViewManifestSchema = z
     outputs: declaredPortsSchema.default([]),
     accepts: z.strictObject({ files: z.array(fileExtensionSchema).default([]) }).default({ files: [] }),
     settings: viewSettingsDeclarationSchema.optional(),
-    /** What the view declares it uses; a camera or microphone left out is never offered to its frame. */
+    /** What the view declares it uses; a camera or microphone left out is refused to its frame. */
     capabilities: z.array(z.enum(VIEW_CAPABILITIES)).default([]),
   })
   .superRefine((manifest, context) => {

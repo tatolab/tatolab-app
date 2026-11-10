@@ -6,6 +6,7 @@ import {
   inlineScriptHashSources,
   isACommandFromTheWindowsOwnPage,
   isAPermissionTheWindowLetsAViewAsk,
+  mediaTypesOfAPermissionCheck,
   isAViewPageTheWindowFrames,
   isOnTheWindowPagesOwnLocation,
   TATOLAB_WINDOW_PAGE_URL,
@@ -76,10 +77,18 @@ test("the window lets a view's page ask the system for a camera and a microphone
   const coreViewPage = "tatolab-app://app/core_views/viewer/index.html";
   expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "media", projectViewPage, ["video", "audio"])).toBe(true);
   expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "media", coreViewPage, ["audio"])).toBe(true);
-  expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "media", projectViewPage, [])).toBe(true);
-  expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "media", projectViewPage, ["video", "screen"])).toBe(false);
+  expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "media", projectViewPage, [])).toBe(false);
   expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "display-capture", projectViewPage, [])).toBe(false);
   expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "geolocation", projectViewPage, [])).toBe(false);
   expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "media", TATOLAB_WINDOW_PAGE_URL, ["video"])).toBe(false);
   expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "media", "https://example.com/", ["video"])).toBe(false);
+});
+
+test("a permission check for a camera or a microphone is let through, and one for any other capture or for no capture is refused", () => {
+  const projectViewPage = "tatolab-app://app/project_views/L2hvbWUvc2FtL3N0cmVhbXMvbmlnaHQtc2hvdw/views/deck/index.html";
+  const checkOf = (mediaType: string | undefined) => isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "media", projectViewPage, mediaTypesOfAPermissionCheck(mediaType));
+  expect(checkOf("video")).toBe(true);
+  expect(checkOf("audio")).toBe(true);
+  expect(checkOf("unknown")).toBe(false);
+  expect(checkOf(undefined)).toBe(false);
 });

@@ -56,14 +56,19 @@ export function isAViewPageTheWindowFrames(windowPageUrl: string, frameUrl: stri
 /** The kinds of capture a view's frame may ask for: a camera and a microphone, never the screen. */
 const MEDIA_A_VIEW_MAY_CAPTURE: ReadonlySet<string> = new Set(["video", "audio"]);
 
-/**
- * Whether the window's session lets `permission`, asked by the page at `requestingUrl` for `mediaTypes`, through to the
- * system: only `media` for a camera or a microphone, and only from a view's page the window frames, never the window
- * page itself. macOS then asks the person, as for any app, under the usage strings in `Info.plist`.
- */
+/** Whether the window's session lets `permission`, asked by a view's page at `requestingUrl` for `mediaTypes`, through to the system: only `media` naming a camera or a microphone and nothing else. */
 export function isAPermissionTheWindowLetsAViewAsk(windowPageUrl: string, permission: string, requestingUrl: string, mediaTypes: readonly string[]): boolean {
   if (permission !== "media" || !isAViewPageTheWindowFrames(windowPageUrl, requestingUrl)) return false;
-  return mediaTypes.every((mediaType) => MEDIA_A_VIEW_MAY_CAPTURE.has(mediaType));
+  return mediaTypes.length > 0 && mediaTypes.every((mediaType) => MEDIA_A_VIEW_MAY_CAPTURE.has(mediaType));
+}
+
+/**
+ * The media a permission check asks about. Electron names a check's `mediaType` `video` or `audio` only for a camera or a
+ * microphone, `unknown` for every other capture (the screen, a tab, the system's audio), and none for a query that names no
+ * capture; only the first two are kept as kinds of capture, so the rest are refused.
+ */
+export function mediaTypesOfAPermissionCheck(mediaType: string | undefined): string[] {
+  return mediaType === undefined ? [] : [mediaType];
 }
 
 /** Whether a command came from the window's own page at `windowPageUrl`: its top frame, on the page's own location, rather than a frame it embeds, a frame already gone, or a page it navigated to. */

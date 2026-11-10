@@ -15,9 +15,11 @@ import type { RegisteredStudioViewType, StudioAreaOfTheView } from "./studio_vie
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 import { WatchedStudioValue } from "./watched_studio_value";
 
-/** The frame's permissions policy: only the camera and microphone its manifest declares, which the frame may then ask the person for. */
-function framePermissionsPolicyOf(manifest: TatolabViewManifest): string {
-  return manifest.capabilities.filter((capability) => capability === "camera" || capability === "microphone").join("; ");
+const SYSTEM_DEVICES_A_VIEW_MAY_DECLARE = ["camera", "microphone"] as const;
+
+/** The frame's permissions policy: the camera and microphone its manifest declares, and `'none'` for each it leaves out, since a frame on the window's origin otherwise inherits both. */
+export function framePermissionsPolicyOf(manifest: TatolabViewManifest): string {
+  return SYSTEM_DEVICES_A_VIEW_MAY_DECLARE.map((device) => (manifest.capabilities.includes(device) ? device : `${device} 'none'`)).join("; ");
 }
 
 interface TatolabViewOfAnArea {

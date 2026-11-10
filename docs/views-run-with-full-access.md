@@ -21,9 +21,10 @@ Studio's origin.
   concern from full access. A view lists what it reads, writes and needs from the system, and
   Studio hands that list to the view in its grant. Today Studio blocks nothing a view leaves out;
   the declaration is what any later gate on runtime calls would read. `camera` and `microphone`
-  are the exception, and they reach the system: only a view that declares one gets it in its
-  frame's permissions policy. The window's session lets a view's page ask for a camera or a
-  microphone, never the screen, and macOS then asks the person, as it would for any app.
+  are the exception, and they reach the system: a view's frame's permissions policy allows each
+  one its manifest declares and refuses each it leaves out. The window's session lets a view's
+  page ask for a camera or a microphone and refuses every other capture, the screen, a tab or the
+  system's audio among them; macOS then asks the person, as it would for any app.
 - **Every view is framed on Studio's origin.** That is `tatolab-app://app/core_views/…` for
   Studio's own views and `tatolab-app://app/project_views/…` for a project's. Every view gets every
   part of the view contract.
