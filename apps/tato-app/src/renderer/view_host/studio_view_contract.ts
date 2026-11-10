@@ -146,7 +146,7 @@ export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
 }
 
 /** Who brought a view type: the studio itself, or the open project or one of its imports. */
-export type StudioViewTypeSource = { kind: "built_in" } | { kind: "project"; project_name: string };
+export type StudioViewTypeSource = { kind: "tato_studio" } | { kind: "project"; project_name: string };
 
 /** What a view draws: tools in its area's header, after the view-type menu, and its body. */
 export interface StudioViewRendering {

@@ -45,7 +45,7 @@ function countingViewType(viewTypeId: string, broughtBy: StudioViewType<number>[
 describe("the view-type registry", () => {
   it("answers a view type by id, none for one this build lacks, and lists the studio's apart from the project's", () => {
     const registry = new StudioViewTypeRegistry([
-      registeredStudioViewType(countingViewType("outliner", { kind: "built_in" }, [])),
+      registeredStudioViewType(countingViewType("outliner", { kind: "tato_studio" }, [])),
       registeredStudioViewType(countingViewType("venue-3d", { kind: "project", project_name: "hall-of-light" }, [])),
     ]);
     expect(registry.viewTypeWithId("outliner")?.title).toBe("outliner");
@@ -55,8 +55,8 @@ describe("the view-type registry", () => {
   });
 
   it("offers a view type held for Developer mode only while Developer mode is on, last among the studio's", () => {
-    const registry = new StudioViewTypeRegistry([registeredStudioViewType(countingViewType("outliner", { kind: "built_in" }, []))], null, [], [
-      registeredStudioViewType(countingViewType("transactions", { kind: "built_in" }, [])),
+    const registry = new StudioViewTypeRegistry([registeredStudioViewType(countingViewType("outliner", { kind: "tato_studio" }, []))], null, [], [
+      registeredStudioViewType(countingViewType("transactions", { kind: "tato_studio" }, [])),
     ]);
     expect(registry.studioViewTypes().map((viewType) => viewType.view_type_id)).toEqual(["outliner"]);
     expect(registry.viewTypeWithId("transactions")).toBeNull();
@@ -76,7 +76,7 @@ describe("the view-type registry", () => {
   it("draws a view on the settings its area saved, on its defaults where they no longer fit, and keeps the next ones with the area", () => {
     const connections: StudioViewHostConnection<number>[] = [];
     const kept: JsonValue[] = [];
-    const viewType = registeredStudioViewType(countingViewType("counter", { kind: "built_in" }, connections));
+    const viewType = registeredStudioViewType(countingViewType("counter", { kind: "tato_studio" }, connections));
     const areaSavedAs = (savedSettings: JsonValue | undefined): StudioAreaOfTheView => ({
       saved_settings: savedSettings,
       rememberSettings: (next) => kept.push(next),
@@ -92,7 +92,7 @@ describe("the view-type registry", () => {
   });
 
   it("lists the views the open project brings from their manifests, and each one that does not open with why", () => {
-    const registry = new StudioViewTypeRegistry([registeredStudioViewType(countingViewType("outliner", { kind: "built_in" }, []))], (listed, manifest, projectName) =>
+    const registry = new StudioViewTypeRegistry([registeredStudioViewType(countingViewType("outliner", { kind: "tato_studio" }, []))], (listed, manifest, projectName) =>
       registeredStudioViewType({ ...countingViewType(listed.view_type_id, { kind: "project", project_name: projectName }, []), title: manifest.title }),
     );
     const folder_url = "https://views.example/";

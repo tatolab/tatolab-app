@@ -28,6 +28,9 @@ import {
 } from "./studio_menu_bar_model";
 import type { StudioWindowModel } from "./studio_window_model";
 
+/** Who the view-type menu says brings the views the app ships with itself. */
+const TATO_STUDIO_AS_A_VIEW_SOURCE = "Tato Studio";
+
 /** Where the studio window's menus go on macOS: the system menu bar, while this window is in focus. */
 export interface StudioWindowSystemMenuBar {
   showTheMenus(menus: readonly StudioMenuInTheSystemMenuBar[]): void;
@@ -75,7 +78,7 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
           </MenuNote>
         ))}
         <MenuSingleChoiceGroup
-          choices={sources.viewTypeRegistry.studioViewTypes().map((viewType) => viewTypeChoice(viewType.view_type_id, viewType.title, "built in"))}
+          choices={sources.viewTypeRegistry.studioViewTypes().map((viewType) => viewTypeChoice(viewType.view_type_id, viewType.title, TATO_STUDIO_AS_A_VIEW_SOURCE))}
           chosen={area.view_type_id ?? ""}
           onChosen={onChosen}
           dataAttributeOfEachChoice="data-view-type-choice"
@@ -94,7 +97,7 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
         {projectViewTypes.length > 0 && (
           <MenuSingleChoiceGroup
             choices={projectViewTypes.map((viewType) =>
-              viewTypeChoice(viewType.view_type_id, viewType.title, viewType.brought_by.kind === "project" ? viewType.brought_by.project_name : "built in"),
+              viewTypeChoice(viewType.view_type_id, viewType.title, viewType.brought_by.kind === "project" ? viewType.brought_by.project_name : TATO_STUDIO_AS_A_VIEW_SOURCE),
             )}
             chosen={area.view_type_id ?? ""}
             onChosen={onChosen}

@@ -1,4 +1,4 @@
-// `tatolab_view.json`, view contract 1.0: what every panel declares, built in or brought by a
+// `tatolab_view.json`, view contract 1.0: what every panel declares, Tato Studio's own or brought by a
 // project. This schema is the source of truth; `tatolab_view.schema.json` is written from it, less
 // the checks only code can make (a path that stays inside the view's folder), which Studio still
 // enforces.
@@ -107,7 +107,7 @@ export function settingsSchemaOfTheDeclaration(declaration: Parameters<typeof z.
 /** The JSON Schema of what a view's area remembers. */
 export type ViewSettingsDeclaration = z.infer<typeof viewSettingsDeclarationSchema>;
 
-/** What `tatolab_view.json` declares, for view contract 1.0. A view's id is never written here: a built-in's is its folder's name, a project's view's its project's name and its folder's. */
+/** What `tatolab_view.json` declares, for view contract 1.0. A view's id is never written here: one Tato Studio ships with is its folder's name, a project's view's its project's name and its folder's. */
 export const tatolabViewManifestSchema = z
   .strictObject({
     contract: contractSchema,

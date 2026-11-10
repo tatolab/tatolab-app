@@ -103,7 +103,7 @@ export class StudioViewTypeRegistry {
 
   /** The studio's own view types, in the order the view-type menu lists them, those Developer mode offers last while it is on. */
   studioViewTypes(): RegisteredStudioViewType[] {
-    return this.viewTypesOfferedNow().filter((viewType) => viewType.brought_by.kind === "built_in");
+    return this.viewTypesOfferedNow().filter((viewType) => viewType.brought_by.kind === "tato_studio");
   }
 
   /** Studio's own views that do not open, each with why. */

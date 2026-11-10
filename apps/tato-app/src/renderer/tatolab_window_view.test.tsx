@@ -535,13 +535,14 @@ describe("the studio", () => {
     expect(document.querySelector('[data-popped-out-view="outliner"]')).not.toBeNull();
   });
 
-  it("shows the view an area's view-type menu chooses, and the project reopens with it", async () => {
+  it("shows the view an area's view-type menu chooses, each of the app's own views saying it comes with Tato Studio, and the project reopens with it", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).not.toBeNull());
 
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
     expect(await screen.findByText("This project and its imports bring no views.")).toBeTruthy();
+    expect(screen.getByRole("menuitemradio", { name: /^Outliner/ }).textContent).toBe("OutlinerTato Studio");
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Outliner/ }));
 
     await waitFor(() => expect(coreViewPage("outliner", "viewer").querySelector("[data-outliner]")).not.toBeNull());

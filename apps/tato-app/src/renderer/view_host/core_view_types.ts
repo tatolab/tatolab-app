@@ -1,4 +1,4 @@
-// Studio's built-in panels, read from their own `tatolab_view.json` like any view's and opened in a frame
+// The panels Tato Studio ships with itself, read from their own `tatolab_view.json` like any view's and opened in a frame
 // through the one bridge; their built folders are served beside the window under `core_views/`.
 
 import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk";
@@ -36,7 +36,7 @@ export function coreViewTypesOf(coreViews: readonly CoreView[], folderUrlOf: (fo
       continue;
     }
     const listed = { view_type_id: coreView.folder, distribution: "tato-app-core-views", entry_name: coreView.folder, manifest_json: manifestJson, folder_url: folderUrlOf(coreView.folder) };
-    viewTypesByFolder.set(coreView.folder, tatolabFrameViewType(listed, manifestReading.manifest, { kind: "built_in" }));
+    viewTypesByFolder.set(coreView.folder, tatolabFrameViewType(listed, manifestReading.manifest, { kind: "tato_studio" }));
   }
   return { view_types_by_folder: viewTypesByFolder, not_opened: notOpened };
 }

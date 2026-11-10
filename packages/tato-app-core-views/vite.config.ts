@@ -1,5 +1,5 @@
 // Builds each core view into `dist/<folder>/`: its page, its `tatolab_view.json` and its icon, beside the
-// scripts and styles the views share in `dist/assets/`. Studio serves `dist/` as the folder of its built-in views.
+// scripts and styles the views share in `dist/assets/`. Studio serves `dist/` as the folder of the views it ships with itself.
 
 import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
 import path from "node:path";
