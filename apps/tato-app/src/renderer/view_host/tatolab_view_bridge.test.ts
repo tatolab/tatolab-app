@@ -92,10 +92,14 @@ function recordingHostServices() {
     openView: (viewTypeId, on) => {
       viewsOpened.push({ viewTypeId, on });
       if (viewTypeId === "acme-dj:nowhere") return { kind: "not_opened", because: "No layout has an area showing acme-dj:nowhere." };
-      viewsOpenedOn.publish({ ...viewsOpenedOn.readLatest(), [viewTypeId]: { on, ask: viewsOpened.length } });
+      viewsOpenedOn.publish({ ...viewsOpenedOn.readLatest(), [viewTypeId]: { on, opening_id: `opening-${viewsOpened.length}`, layout: "build" } });
       return { kind: "opened" };
     },
-    watchViewOpenedOn: (viewTypeId, listener) => viewsOpenedOn.watch((openedOn) => listener(openedOn[viewTypeId]?.on ?? null)),
+    watchViewOpenedOn: (viewTypeId, listener) =>
+      viewsOpenedOn.watch((openedOn) => {
+        const opening = openedOn[viewTypeId];
+        listener(opening === undefined ? null : { ...opening.on, opening_id: opening.opening_id });
+      }),
     readProjectFile: async (file): Promise<ProjectFileReading> =>
       file === STREAM_FILE_READ.file ? { kind: "read", file_read: STREAM_FILE_READ } : { kind: "not_read", because: `${file} is not in the project.` },
     saveProjectFile: async () => ({ kind: "not_saved", because: "no files in this test" }),
@@ -426,7 +430,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(openedAnswer).toEqual({ kind: "done" });
     expect(notOpenedAnswer).toEqual({ kind: "refused", because: "No layout has an area showing acme-dj:nowhere." });
     expect(viewsOpened.map((opened) => opened.viewTypeId)).toEqual(["acme-dj:deck", "acme-dj:nowhere"]);
-    expect(openedOnSeen).toEqual([null, { kind: "file", file: "/set/crate.m3u" }]);
+    expect(openedOnSeen).toEqual([null, { kind: "file", file: "/set/crate.m3u", opening_id: "opening-1" }]);
   });
 
   it("tells the view where its own header row lies after Studio's view-type menu, and again when the menu's width changes", async () => {

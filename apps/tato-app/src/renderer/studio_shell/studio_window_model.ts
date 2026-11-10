@@ -67,10 +67,8 @@ export class StudioWindowModel {
   readonly viewPopOutRefusal = new WatchedStudioValue<string | null>(null);
   /** The open project's layouts; `null` while none is open. */
   readonly studioLayouts = new WatchedStudioValue<StudioLayoutsOfAFolder | null>(null);
-  /** The file a code view was last asked to show. */
   /** What views of each type were last opened on, by view type id. */
   readonly viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
-  private viewOpeningAsks = 0;
   /** Why the last run or stop of the open project was refused, until it is dismissed or another is asked for. */
   readonly projectRunRefusal = new WatchedStudioValue<{ asked_to: "run" | "stop"; because: string } | null>(null);
   /** Why the last update choice from the menus did not reach the app, until it is dismissed or another is made. */
@@ -100,6 +98,7 @@ export class StudioWindowModel {
       activeStreamTab: this.activeStreamTab,
       openStreamTab: (streamTab) => this.openStreamTab(streamTab),
       viewsOpenedOn: this.viewsOpenedOn,
+      chosenLayout: () => this.studioLayouts.readLatest()?.chosen_layout ?? null,
       openView: (viewTypeId, on) => this.openView(viewTypeId, on),
     };
   }
@@ -130,8 +129,8 @@ export class StudioWindowModel {
       }
       this.chooseLayout(layoutShowingTheViewType.name);
     }
-    this.viewOpeningAsks += 1;
-    this.viewsOpenedOn.publish({ ...this.viewsOpenedOn.readLatest(), [viewTypeId]: { on, ask: this.viewOpeningAsks } });
+    const opening: ViewOpenedOnAsked = { on, opening_id: crypto.randomUUID(), layout: this.studioLayouts.readLatest()?.chosen_layout ?? null };
+    this.viewsOpenedOn.publish({ ...this.viewsOpenedOn.readLatest(), [viewTypeId]: opening });
     return { kind: "opened" };
   }
 

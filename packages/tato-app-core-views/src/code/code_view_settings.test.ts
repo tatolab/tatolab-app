@@ -11,7 +11,7 @@ describe("a code area's settings and words", () => {
       shown_file: `${PATTERN}/stream.py`,
       logs_shown: false,
       logs_size_percent: DEFAULT_CODE_VIEW_SETTINGS.logs_size_percent,
-      opened_on_file: null,
+      opening_taken: null,
     });
     expect(codeViewSettingsOf(null)).toEqual(DEFAULT_CODE_VIEW_SETTINGS);
     expect(codeViewSettingsOf({ shown_file: "x" })).toMatchObject({ open_files: [], shown_file: null });

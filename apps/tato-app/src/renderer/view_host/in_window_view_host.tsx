@@ -50,6 +50,7 @@ export interface InWindowStudioViewHostSources {
   activeStreamTab: WatchedStudioValue<StreamTabAddress | null>;
   openStreamTab(streamTab: StreamTabAddress): void;
   viewsOpenedOn: WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>;
+  chosenLayout(): string | null;
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening;
 }
 
@@ -81,13 +82,14 @@ export function inWindowStudioViewHostServices(
     watchNodeCatalog: streamReadings.watchNodeCatalog,
     openView: (viewTypeId, on) => sources.openView(viewTypeId, on),
     watchViewOpenedOn: (viewTypeId, listener) => {
-      let askLastTold: number | null = null;
+      let openingLastTold: string | null | undefined = undefined;
       return sources.viewsOpenedOn.watch((viewsOpenedOn) => {
         const openedOnAsked = viewsOpenedOn[viewTypeId];
-        const ask = openedOnAsked?.ask ?? 0;
-        if (ask === askLastTold) return;
-        askLastTold = ask;
-        listener(openedOnAsked?.on ?? null);
+        const openingForThisLayout = openedOnAsked !== undefined && openedOnAsked.layout === sources.chosenLayout() ? openedOnAsked : null;
+        const openingId = openingForThisLayout?.opening_id ?? null;
+        if (openingId === openingLastTold) return;
+        openingLastTold = openingId;
+        listener(openingForThisLayout === null ? null : { ...openingForThisLayout.on, opening_id: openingForThisLayout.opening_id });
       });
     },
     readProjectFile: (file) =>

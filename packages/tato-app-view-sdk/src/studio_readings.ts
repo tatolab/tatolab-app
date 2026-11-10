@@ -526,9 +526,12 @@ export const pythonLanguageServerConnectionEventSchema = z.discriminatedUnion("k
 /** What a Python language server connection delivers. */
 export type PythonLanguageServerConnectionEvent = z.infer<typeof pythonLanguageServerConnectionEventSchema>;
 
-/** What a view's area was opened on: a file of the open project or its imports, or a running node's output port; `null` for an area opened on nothing. */
+/** What a view's area was opened on: a file of the open project or its imports, or a running node's output port, with the opening's id, so a view that keeps what it opened tells a new opening from one it took before; `null` for an area opened on nothing. */
 export const viewOpenedOnSchema = z
-  .discriminatedUnion("kind", [z.object({ kind: z.literal("file"), file: z.string() }), z.object({ kind: z.literal("port"), target: portViewerTargetSchema })])
+  .discriminatedUnion("kind", [
+    z.object({ kind: z.literal("file"), file: z.string(), opening_id: z.string() }),
+    z.object({ kind: z.literal("port"), target: portViewerTargetSchema, opening_id: z.string() }),
+  ])
   .nullable();
 /** What a view's area was opened on. */
 export type ViewOpenedOn = z.infer<typeof viewOpenedOnSchema>;

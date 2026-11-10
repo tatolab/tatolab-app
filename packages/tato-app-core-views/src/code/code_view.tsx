@@ -8,7 +8,7 @@ import { codeEditorLanguageOfFile } from "@tatolab/tato-app-view-sdk/design_syst
 import { LogRecordLines } from "@tatolab/tato-app-view-sdk/design_system/log_record_lines";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { ProjectLogReading, StopWatching, TatoAppViewConnection, ViewOpenedOn } from "@tatolab/tato-app-view-sdk";
+import type { ProjectLogReading, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import {
@@ -20,16 +20,50 @@ import {
   withTheFileShown,
   type CodeViewSettings,
 } from "./code_view_settings";
-import { hasEditsNotSaved, OpenCodeDocuments, type OpenCodeDocument } from "./open_code_documents";
+import { hasEditsNotSaved, OpenCodeDocuments, type CodeEditsNotSaved, type CodeEditsNotSavedStore, type OpenCodeDocument } from "./open_code_documents";
 
 /** The issue that names the file a node's class is defined in, which opening a node's code waits on. */
 const OPENING_A_NODES_FILE_WAITS_ON = "tatolab/streamlib#2918";
 
-/** Keeps `settings` with the area, showing why when Studio refuses them. */
-type RememberTheCodeSettings = (settings: CodeViewSettings) => void;
+/** Keeps with the area the settings `change` makes of the latest ones, showing why when Studio refuses them. */
+type RememberTheCodeSettings = (change: (settings: CodeViewSettings) => CodeViewSettings) => void;
+
+const EDITS_NOT_SAVED_KEY_PREFIX = "tatolab.code.edits_not_saved:";
+
+function isCodeEditsNotSaved(value: unknown): value is CodeEditsNotSaved {
+  return typeof value === "object" && value !== null && "text" in value && typeof value.text === "string" && "based_on_version" in value && typeof value.based_on_version === "string";
+}
+
+// Session storage is shared by the frames of one window that come from the core views' origin, and outlives a frame loaded again; a
+// private window or blocked site data can refuse it, and then edits are kept only while the frame stays.
+const EDITS_NOT_SAVED_IN_SESSION_STORAGE: CodeEditsNotSavedStore = {
+  editsOf: (file) => {
+    try {
+      const kept = sessionStorage.getItem(EDITS_NOT_SAVED_KEY_PREFIX + file);
+      const parsed: unknown = kept === null ? null : JSON.parse(kept);
+      return isCodeEditsNotSaved(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  },
+  keep: (file, edits) => {
+    try {
+      sessionStorage.setItem(EDITS_NOT_SAVED_KEY_PREFIX + file, JSON.stringify(edits));
+    } catch {
+      return;
+    }
+  },
+  forget: (file) => {
+    try {
+      sessionStorage.removeItem(EDITS_NOT_SAVED_KEY_PREFIX + file);
+    } catch {
+      return;
+    }
+  },
+};
 
 function useOpenCodeDocuments(connection: TatoAppViewConnection): OpenCodeDocuments {
-  const [documents] = useState(() => new OpenCodeDocuments(connection, forgetCodeEditorDocument));
+  const [documents] = useState(() => new OpenCodeDocuments(connection, forgetCodeEditorDocument, EDITS_NOT_SAVED_IN_SESSION_STORAGE));
   useSyncExternalStore(documents.subscribe, documents.snapshot);
   return documents;
 }
@@ -79,13 +113,13 @@ function CodeAreaHeaderTools({
       shownFile={settings.shown_file}
       openableFileGroups={openableFileGroups}
       areLogsShown={settings.logs_shown}
-      onTabChosen={(file) => rememberTheSettings({ ...settings, shown_file: file })}
+      onTabChosen={(file) => rememberTheSettings((latest) => ({ ...latest, shown_file: file }))}
       onTabClosed={(file) => {
-        rememberTheSettings(withTheFileClosed(settings, file));
+        rememberTheSettings((latest) => withTheFileClosed(latest, file));
         documents.close(file);
       }}
-      onFileChosen={(file) => rememberTheSettings(withTheFileShown(settings, file))}
-      onLogsToggled={(areShown) => rememberTheSettings({ ...settings, logs_shown: areShown })}
+      onFileChosen={(file) => rememberTheSettings((latest) => withTheFileShown(latest, file))}
+      onLogsToggled={(areShown) => rememberTheSettings((latest) => ({ ...latest, logs_shown: areShown }))}
     />
   );
 }
@@ -234,34 +268,40 @@ function CodeAreaBody({
       ]}
       onSizesChanged={(sizePercentByPartId) => {
         const logsSizePercent = sizePercentByPartId.log;
-        if (logsSizePercent !== undefined) rememberTheSettings({ ...settings, logs_size_percent: Math.round(logsSizePercent) });
+        if (logsSizePercent !== undefined) rememberTheSettings((latest) => ({ ...latest, logs_size_percent: Math.round(logsSizePercent) }));
       }}
     />
   );
 }
 
-/** Shows the file each opening of the area names; the first opening a frame hears is the one it last took when that file is still `settings.opened_on_file`, so a frame loaded again does not open it twice. */
-function useTheFileTheAreaIsOpenedOn(connection: TatoAppViewConnection, settings: CodeViewSettings, rememberTheSettings: RememberTheCodeSettings): void {
-  const openedOn = useViewReadingSoFar(connection.watchOpenedOn);
-  const openingsHeard = useRef<{ last_heard: { kind: "read"; reading: ViewOpenedOn } | null; count: number }>({ last_heard: null, count: 0 });
+/** Shows the file each opening of the area names, once: an opening the area took before, heard again as its frame loads again, is left as the person left the tabs. */
+function useTheFileTheAreaIsOpenedOn(connection: TatoAppViewConnection, rememberTheSettings: RememberTheCodeSettings): void {
+  const openedOn = useViewReading(connection.watchOpenedOn);
   useEffect(() => {
-    if (openedOn.kind !== "read" || openedOn === openingsHeard.current.last_heard) return;
-    openingsHeard.current = { last_heard: openedOn, count: openingsHeard.current.count + 1 };
-    const opening = openedOn.reading;
-    if (opening?.kind !== "file") return;
-    if (openingsHeard.current.count === 1 && opening.file === settings.opened_on_file) return;
-    rememberTheSettings({ ...withTheFileShown(settings, opening.file), opened_on_file: opening.file });
-  }, [openedOn, settings, rememberTheSettings]);
+    if (openedOn?.kind !== "file") return;
+    const { file, opening_id: openingId } = openedOn;
+    rememberTheSettings((settings) => (settings.opening_taken === openingId ? settings : { ...withTheFileShown(settings, file), opening_taken: openingId }));
+  }, [openedOn, rememberTheSettings]);
 }
 
 function CodeOfTheArea({ connection, settings }: { connection: TatoAppViewConnection; settings: CodeViewSettings }) {
   const documents = useOpenCodeDocuments(connection);
   const [settingsRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
-  const rememberTheSettings = useCallback(
-    (settingsNow: CodeViewSettings) => showTheRefusalOf("Didn't keep the area's files:", connection.rememberSettings(settingsNow)),
+  // Studio's reading of a change arrives after the change is asked for, so the next change is made of the last one asked.
+  const latestSettings = useRef(settings);
+  useEffect(() => {
+    latestSettings.current = settings;
+  }, [settings]);
+  const rememberTheSettings = useCallback<RememberTheCodeSettings>(
+    (change) => {
+      const changed = change(latestSettings.current);
+      if (changed === latestSettings.current) return;
+      latestSettings.current = changed;
+      showTheRefusalOf("Didn't keep the area's files:", connection.rememberSettings(changed));
+    },
     [connection, showTheRefusalOf],
   );
-  useTheFileTheAreaIsOpenedOn(connection, settings, rememberTheSettings);
+  useTheFileTheAreaIsOpenedOn(connection, rememberTheSettings);
   return (
     <CoreViewFrame connection={connection} headerTools={<CodeAreaHeaderTools connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} />}>
       <RefusalOfTheLatestAskBar refusal={settingsRefusal} />

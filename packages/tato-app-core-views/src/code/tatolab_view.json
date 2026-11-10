@@ -12,7 +12,7 @@
       "shown_file": { "anyOf": [{ "type": "null" }, { "type": "string" }], "default": null },
       "logs_shown": { "type": "boolean", "default": true },
       "logs_size_percent": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 100, "default": 30 },
-      "opened_on_file": { "anyOf": [{ "type": "null" }, { "type": "string" }], "default": null }
+      "opening_taken": { "anyOf": [{ "type": "null" }, { "type": "string" }], "default": null }
     }
   }
 }

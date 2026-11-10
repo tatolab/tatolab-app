@@ -439,7 +439,7 @@ describe("the studio", () => {
     expect(localStorage.getItem(studioLayoutsStorageKey(PATTERN_PROJECT))).toMatch(/"area_id":"viewer","view_type_id":"viewer","settings":\{"chosen_port":\{"stream":"[^"]+","node_id":"[^"]+","port":"[^"]+"\}\}/);
   });
 
-  it("opens a node type's file in Code's own frame from the outliner, in the first layout with a Code area, its tab and the log's toggle in Code's header row, and a closed tab stays closed as the frame loads again", async () => {
+  it("opens a node type's file in Code's own frame from the outliner, in the first layout with a Code area, its tab and the log's toggle in Code's header row, a closed tab staying closed as the frame loads again until the file is opened again, and the Code layout's own area left as it was", async () => {
     await mountedWindowOverTheMock("state=running");
     const nodeTypesRowId = `project:${PATTERN_PROJECT}/node_types`;
     await openTheOutlinerRow(nodeTypesRowId);
@@ -467,6 +467,18 @@ describe("the studio", () => {
     await act(() => new Promise<void>((settled) => setTimeout(settled, 100)));
     expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("none_open");
     expect(coreViewPage("code").querySelector("[data-code-file-tab]")).toBeNull();
+
+    fireEvent.keyDown(document, { key: "1", metaKey: true });
+    expect(await shownLayout()).toBe("build");
+    fireEvent.doubleClick(await waitFor(() => outlinerRow(invertingEffectRowId)));
+    await waitFor(async () => expect(await shownLayout()).toBe("compose"));
+    await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(invertingEffectFile));
+
+    fireEvent.keyDown(document, { key: "4", metaKey: true });
+    expect(await shownLayout()).toBe("code");
+    await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-logs-toggle]")).not.toBeNull());
+    await act(() => new Promise<void>((settled) => setTimeout(settled, 100)));
+    expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("none_open");
   });
 
   it("pops any area's view out into a window from its view-type menu, pinned to the stream shown and the selection, and says why where it is refused", async () => {
