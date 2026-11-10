@@ -33,7 +33,8 @@ export async function downloadTheCatalogEntrysZip(entry: PackageCatalogEntry, fe
     await writeFile(partialZipPath, downloaded.value);
     await rename(partialZipPath, zipPath);
   } catch (writeFailure) {
-    await rm(partialZipPath, { force: true });
+    // The write's failure is the one to report; a partial file that cannot be removed either is left.
+    await rm(partialZipPath, { force: true }).catch(() => undefined);
     return failedWith(`Tato Studio couldn't write ${zipPath}: ${describeCaughtFailure(writeFailure)}`);
   }
   return succeeded(zipPath);
