@@ -1278,7 +1278,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     },
     importFromTheMarketplace: async (name) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 6);
-      return workspaceDependencies.add(`${fixtures.machine.homeDirectory}/Library/Application Support/Tato Studio/module-downloads/${name}-0.68.29.zip`);
+      return workspaceDependencies.add(`${fixtures.machine.homeDirectory}/Library/Application Support/Tato Studio/module-downloads/${name}-0.68.29.zip`, name);
     },
     openImportToEdit: async (folder) => {
       if (!workspaceDependencies.holdsTheFolder(folder)) throw `The project imports nothing in imports/${folder}.`;
