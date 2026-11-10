@@ -38,7 +38,7 @@ export function settingsSectionLabel(section: SettingsSection): string {
 }
 
 /** What the Developer mode switch adds, as its row describes it. */
-export const DEVELOPER_MODE_DESCRIPTION = "Adds the Transactions view, which lists every change sent to the runtime and its answer. Find it in each area's view menu.";
+export const DEVELOPER_MODE_DESCRIPTION = "Adds the Transactions view, which lists every change the runtime recorded in the open project, exactly as it sent it. Find it in each area's view menu.";
 
 /** The licence the runtime the app runs is under, as streamlib states it. */
 export const RUNTIME_LICENCE = "BUSL-1.1";

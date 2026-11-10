@@ -14,7 +14,7 @@ import {
   fakeTatolabPlatformForThisBuild,
 } from "./fake_tatolab_platform_for_this_build.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
-import { RememberedSwitchFile } from "./remembered_switch_file.js";
+import { HeldRememberedSwitch, RememberedSwitchFile } from "./remembered_switch_file.js";
 import { ProjectOpening, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import { PythonLanguageServers } from "./python_language_servers.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
@@ -22,7 +22,6 @@ import { FakeTatolabElectronAppShell, PROJECTS_WINDOW_CONTENTS_ID } from "./fake
 import { recentProjectFoldersFileIn } from "./recent_project_folders_file.js";
 import { failedWith, succeeded } from "./result.js";
 import { StreamFailureNotifications } from "./stream_failure_notifications.js";
-import { DeveloperModeSwitch } from "./developer_mode_switch.js";
 import { RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL } from "./carried_runtime_run_as_the_apps_child.js";
 import { RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL } from "./runtime_log_folder_opening.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
@@ -124,7 +123,7 @@ async function sharedStateOverFakes(
     () => {},
     quietTatolabAppLog,
   );
-  const developerModeSwitch = await DeveloperModeSwitch.load(RememberedSwitchFile.developerModeInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog), quietTatolabAppLog);
+  const developerModeSwitch = await HeldRememberedSwitch.load(RememberedSwitchFile.developerModeInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog));
   const fakeShellForTheWindows = new FakeTatolabElectronAppShell();
   const menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[] = [];
   const appWindows = new TatolabAppWindows({

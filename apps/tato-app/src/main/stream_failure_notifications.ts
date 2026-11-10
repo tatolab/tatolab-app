@@ -5,8 +5,8 @@
 // clicking it opens.
 
 import type { StreamFailureNotificationsState, TatolabStatus } from "../shared/tatolab_backend_contract.js";
-import { failedWith, succeeded, type Result } from "./result.js";
-import type { RememberedSwitchFile } from "./remembered_switch_file.js";
+import type { Result } from "./result.js";
+import { HeldRememberedSwitch, type RememberedSwitchFile } from "./remembered_switch_file.js";
 import type { SystemNotifications } from "./system_notifications.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 
@@ -27,8 +27,7 @@ export class StreamFailureNotifications {
   private failedStreamsInTheLastListing: ReadonlySet<string> | null = null;
 
   private constructor(
-    private notifyWhenAStreamFails: boolean,
-    private readonly rememberedSwitch: RememberedSwitchFile,
+    private readonly notifyWhenAStreamFails: HeldRememberedSwitch,
     private readonly systemNotifications: SystemNotifications,
     private readonly showTheStreamsPage: (streamId: string) => void,
     private readonly tatolabAppLog: TatolabAppLog,
@@ -41,21 +40,17 @@ export class StreamFailureNotifications {
     showTheStreamsPage: (streamId: string) => void,
     tatolabAppLog: TatolabAppLog,
   ): Promise<StreamFailureNotifications> {
-    return new StreamFailureNotifications(await rememberedSwitch.loadRememberedSwitch(), rememberedSwitch, systemNotifications, showTheStreamsPage, tatolabAppLog);
+    return new StreamFailureNotifications(await HeldRememberedSwitch.load(rememberedSwitch), systemNotifications, showTheStreamsPage, tatolabAppLog);
   }
 
   /** The switch and whether this desktop shows notifications, as the status carries them. */
   stateNow(): StreamFailureNotificationsState {
-    return { enabled: this.notifyWhenAStreamFails, shown_by_this_desktop: this.systemNotifications.shownByThisDesktop() };
+    return { enabled: this.notifyWhenAStreamFails.isOnNow(), shown_by_this_desktop: this.systemNotifications.shownByThisDesktop() };
   }
 
   /** Turn the notifications on or off and remember it; refused when it could not be remembered, though it holds until the app quits. */
-  async setNotifyWhenAStreamFails(notifyWhenAStreamFails: boolean): Promise<Result<void, string>> {
-    this.notifyWhenAStreamFails = notifyWhenAStreamFails;
-    const remembered = await this.rememberedSwitch.saveRememberedSwitch(notifyWhenAStreamFails);
-    if (remembered.ok) return succeeded(undefined);
-    this.tatolabAppLog.warn("the stream-failure notifications switch could not be remembered", { failure: remembered.failure });
-    return failedWith(`Tato Studio couldn't remember this, so it holds only until Tato Studio quits: ${remembered.failure}`);
+  setNotifyWhenAStreamFails(notifyWhenAStreamFails: boolean): Promise<Result<void, string>> {
+    return this.notifyWhenAStreamFails.setAndRemember(notifyWhenAStreamFails);
   }
 
   /** Notify each stream that `status` lists as newly failed, when the switch is on; a status listing no streams changes nothing. */
@@ -64,7 +59,7 @@ export class StreamFailureNotifications {
     const failedStreams = status.streams.filter((listedStream) => listedStream.state === FAILED_STREAM_STATE);
     const failedStreamsBefore = this.failedStreamsInTheLastListing;
     this.failedStreamsInTheLastListing = new Set(failedStreams.map((failedStream) => failedStream.stream));
-    if (failedStreamsBefore === null || !this.notifyWhenAStreamFails) return;
+    if (failedStreamsBefore === null || !this.notifyWhenAStreamFails.isOnNow()) return;
     for (const newlyFailedStream of failedStreams.filter((failedStream) => !failedStreamsBefore.has(failedStream.stream))) {
       this.tatolabAppLog.info("a stream failed; notifying", { stream: newlyFailedStream.stream });
       this.systemNotifications.showNotification(STREAM_FAILURE_NOTIFICATION_TITLE, streamFailureNotificationBody(newlyFailedStream.display_name), () =>

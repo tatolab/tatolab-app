@@ -14,11 +14,11 @@ import {
   NO_TRANSACTIONS_FILTER,
   streamWordsByOperationStream,
   transactionAsJson,
+  transactionsFilterButtonWordsOf,
   transactionsFilterChoicesOf,
   transactionsFiltersOnCount,
   transactionsViewRowOf,
   transactionsViewRowsShownBy,
-  type TransactionResult,
   type TransactionsViewFilter,
   type TransactionsViewRow,
 } from "./transactions_view_rows";
@@ -32,11 +32,20 @@ const TRANSACTIONS_COLUMNS: readonly RecordTableColumn[] = [
   { column_id: "commit", heading: "Commit", isMachineWords: true },
 ];
 
-/** Every value of one filter list, `any` first; `any` stands for no narrowing. */
-const ANY = "any";
+/** The choice that narrows nothing; every other choice is a value behind its own prefix, so no value can be mistaken for it. */
+const NO_NARROWING_FILTER_CHOICE = "transactions-filter:no-narrowing";
+const NARROWING_FILTER_CHOICE_PREFIX = "transactions-filter:value:";
 
 function choicesWithAny(anyWords: string, values: readonly string[]) {
-  return [{ choice: ANY, label: anyWords }, ...values.map((value) => ({ choice: value, label: value }))];
+  return [{ choice: NO_NARROWING_FILTER_CHOICE, label: anyWords }, ...values.map((value) => ({ choice: `${NARROWING_FILTER_CHOICE_PREFIX}${value}`, label: value }))];
+}
+
+function choiceOf(narrowing: string | null): string {
+  return narrowing === null ? NO_NARROWING_FILTER_CHOICE : `${NARROWING_FILTER_CHOICE_PREFIX}${narrowing}`;
+}
+
+function narrowingOf(choice: string): string | null {
+  return choice.startsWith(NARROWING_FILTER_CHOICE_PREFIX) ? choice.slice(NARROWING_FILTER_CHOICE_PREFIX.length) : null;
 }
 
 /** The labelled Filter ▾ menu: Result, Author, Stream and Operation, each one choice, and Clear filters. */
@@ -49,40 +58,40 @@ function TransactionsFilterMenu({
   filter: TransactionsViewFilter;
   onFilterChanged: (filter: TransactionsViewFilter) => void;
 }) {
-  const choices = transactionsFilterChoicesOf(rows);
+  const choices = useMemo(() => transactionsFilterChoicesOf(rows), [rows]);
   const filtersOn = transactionsFiltersOnCount(filter);
-  const narrowedTo = (value: string) => (value === ANY ? null : value);
+  const buttonWords = transactionsFilterButtonWordsOf(filtersOn);
   return (
-    <FieldMenu label={filtersOn === 0 ? "Filter transactions: no filters on" : `Filter transactions: ${filtersOn} on`} words={filtersOn === 0 ? "Filter" : `Filter · ${filtersOn}`} isNarrowing={filtersOn > 0} data-transactions-filter="">
+    <FieldMenu label={buttonWords.label} words={buttonWords.words} isNarrowing={filtersOn > 0} data-transactions-filter="">
       <MenuGroup label="Result">
         <MenuSingleChoiceGroup<string>
-          choices={choicesWithAny("Any result", ["applied", "refused"])}
-          chosen={filter.result ?? ANY}
-          onChosen={(result) => onFilterChanged({ ...filter, result: result === "applied" || result === "refused" ? (result satisfies TransactionResult) : null })}
+          choices={choicesWithAny("Any result", choices.results)}
+          chosen={choiceOf(filter.result)}
+          onChosen={(choice) => onFilterChanged({ ...filter, result: choices.results.find((result) => result === narrowingOf(choice)) ?? null })}
           dataAttributeOfEachChoice="data-transactions-filter-result"
         />
       </MenuGroup>
       <MenuGroup label="Author">
         <MenuSingleChoiceGroup<string>
           choices={choicesWithAny("Anyone", choices.author_words)}
-          chosen={filter.author_words ?? ANY}
-          onChosen={(author) => onFilterChanged({ ...filter, author_words: narrowedTo(author) })}
+          chosen={choiceOf(filter.author_words)}
+          onChosen={(choice) => onFilterChanged({ ...filter, author_words: narrowingOf(choice) })}
           dataAttributeOfEachChoice="data-transactions-filter-author"
         />
       </MenuGroup>
       <MenuGroup label="Stream">
         <MenuSingleChoiceGroup<string>
           choices={choicesWithAny("All streams", choices.stream_words)}
-          chosen={filter.stream_words ?? ANY}
-          onChosen={(stream) => onFilterChanged({ ...filter, stream_words: narrowedTo(stream) })}
+          chosen={choiceOf(filter.stream_words)}
+          onChosen={(choice) => onFilterChanged({ ...filter, stream_words: narrowingOf(choice) })}
           dataAttributeOfEachChoice="data-transactions-filter-stream"
         />
       </MenuGroup>
       <MenuGroup label="Operation">
         <MenuSingleChoiceGroup<string>
           choices={choicesWithAny("Any", choices.operation_verbs)}
-          chosen={filter.operation_verb ?? ANY}
-          onChosen={(operationVerb) => onFilterChanged({ ...filter, operation_verb: narrowedTo(operationVerb) })}
+          chosen={choiceOf(filter.operation_verb)}
+          onChosen={(choice) => onFilterChanged({ ...filter, operation_verb: narrowingOf(choice) })}
           dataAttributeOfEachChoice="data-transactions-filter-operation"
         />
       </MenuGroup>
@@ -100,15 +109,17 @@ function TransactionDetail({ row }: { row: TransactionsViewRow }) {
   return (
     <SidePanel label="Selected transaction" title={row.operations_words} subtitle={row.result} hiding={null} data-transactions-detail={row.transaction}>
       <div className="flex flex-col gap-3 px-4 py-3">
+        <KeyValueRows rows={[["Author", row.author_words]]} />
         <KeyValueRows
+          look="fields"
           rows={[
-            ["Transaction", <span className="font-mono text-2xs select-text">{sent.transaction}</span>],
-            ["Author", row.author_words],
-            ["Commit", <span className="font-mono text-2xs select-text">{sent.commit}</span>],
-            ["Parent", <span className="font-mono text-2xs select-text">{sent.parent_commit ?? "none, the project's first"}</span>],
-            ...(sent.undoes === null ? [] : [["Undoes", <span className="font-mono text-2xs select-text">{sent.undoes}</span>] as const]),
-            ...(sent.redoes === null ? [] : [["Redoes", <span className="font-mono text-2xs select-text">{sent.redoes}</span>] as const]),
+            ["Transaction", sent.transaction],
+            ["Commit", sent.commit],
+            ["Parent", sent.parent_commit ?? "none, the project's first"],
+            ...(sent.undoes === null ? [] : [["Undoes", sent.undoes] as const]),
+            ...(sent.redoes === null ? [] : [["Redoes", sent.redoes] as const]),
           ]}
+          data-transactions-detail-ids=""
         />
         <CodeBlock fileName="operations" code={JSON.stringify(sent.operations, null, 2)} data-transactions-detail-operations="" />
         <CodeBlock fileName="inverse_operations" code={JSON.stringify(sent.inverse_operations, null, 2)} data-transactions-detail-inverse-operations="" />
@@ -140,8 +151,8 @@ function TransactionsTableAndDetail({ feed, rows, filter }: { feed: ProjectTrans
           onRowSelected={setSelectedTransaction}
           rows={shownRows.map((row) => ({
             row_id: row.transaction,
-            tone: row.result === "refused" ? "refused" : "plain",
-            cells: [row.applied_at_words ?? "—", row.author_words, row.stream_words.length === 0 ? "project" : row.stream_words.join(", "), row.operations_words, row.result, row.commit_words],
+            tone: row.result === "refused" ? "danger" : "plain",
+            cells: [row.time_cell_words, row.author_words, row.stream_cell_words, row.operations_words, row.result, row.commit_words],
             trailing: (
               <MoreActionsMenu label={`More for ${row.operations_words}`} data-transactions-row-menu={row.transaction}>
                 <MenuItem onChosen={() => void writeTextToClipboard(transactionAsJson(row.transaction_as_sent))} data-transactions-copy-as-json={row.transaction}>

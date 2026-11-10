@@ -301,7 +301,7 @@ export function setStreamFailureNotifications(sharedState: TatolabAppSharedState
 /** `set_developer_mode { enabled }`: turn Developer mode on or off, then a status round; refused when the choice could not be remembered. */
 export function setDeveloperMode(sharedState: TatolabAppSharedState, enabled: boolean): Promise<Result<void, string>> {
   return answerTheWindow("set_developer_mode", async () => {
-    const set = await sharedState.developerModeSwitch.setDeveloperMode(enabled);
+    const set = await sharedState.developerModeSwitch.setAndRemember(enabled);
     sharedState.statusPublisher.requestRefresh();
     return set;
   });

@@ -68,8 +68,12 @@ describe("the view-type registry", () => {
     expect(registry.studioViewTypes().map((viewType) => viewType.view_type_id)).toEqual(["outliner", "transactions"]);
     expect(registry.viewTypeWithId("transactions")?.title).toBe("transactions");
 
+    expect(registry.viewTypeHeldForDeveloperMode("transactions")).toBeNull();
+
     registry.developerMode.publish(false);
     expect(registry.viewTypeWithId("transactions")).toBeNull();
+    expect(registry.viewTypeHeldForDeveloperMode("transactions")?.title).toBe("transactions");
+    expect(registry.viewTypeHeldForDeveloperMode("outliner")).toBeNull();
   });
 
   it("draws a view on the settings its area saved, on its defaults where they no longer fit, and keeps the next ones with the area", () => {

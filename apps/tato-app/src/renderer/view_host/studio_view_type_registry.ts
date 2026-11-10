@@ -96,6 +96,11 @@ export class StudioViewTypeRegistry {
     return this.viewTypesOfferedNow().find((viewType) => viewType.view_type_id === viewTypeId) ?? this.readProjectStudioViewTypes().viewTypes.find((viewType) => viewType.view_type_id === viewTypeId) ?? null;
   }
 
+  /** The view type `viewTypeId` names when Developer mode offers it and is off now, or `null`. */
+  viewTypeHeldForDeveloperMode(viewTypeId: string): RegisteredStudioViewType | null {
+    return this.developerMode.readLatest() ? null : (this.viewTypesOfferedInDeveloperModeById.get(viewTypeId) ?? null);
+  }
+
   /** The studio's own view types, in the order the view-type menu lists them, those Developer mode offers last while it is on. */
   studioViewTypes(): RegisteredStudioViewType[] {
     return this.viewTypesOfferedNow().filter((viewType) => viewType.brought_by.kind === "built_in");

@@ -251,6 +251,19 @@ describe("the studio", () => {
     expect(coreViewPage("transactions").querySelector("[data-transactions-detail-operations]")?.textContent).toContain('"operation": "add_node"');
   });
 
+  it("says an area left on Transactions shows it only in Developer mode once Developer mode is turned off", async () => {
+    const { backend } = await mountedWindowOverTheMock("state=running&developer_mode=on");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Transactions/ }));
+    await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-record-table-row]")).not.toBeNull());
+
+    await act(async () => {
+      await backend.setDeveloperMode(false);
+    });
+    await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] [data-studio-area-held-for-developer-mode]')?.textContent).toContain("Transactions shows only in Developer mode"));
+  });
+
   it("says in the runtime's own words why the palette lists no node types", async () => {
     await mountedWindowOverTheMock("state=not-running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));

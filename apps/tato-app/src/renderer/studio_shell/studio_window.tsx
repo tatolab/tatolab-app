@@ -127,6 +127,18 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
     );
   }
   const viewType = sources.viewTypeRegistry.viewTypeWithId(area.view_type_id);
+  const viewTypeHeldForDeveloperMode = viewType === null ? sources.viewTypeRegistry.viewTypeHeldForDeveloperMode(area.view_type_id) : null;
+  if (viewTypeHeldForDeveloperMode !== null) {
+    return (
+      <StudioAreaFrame label={viewTypeHeldForDeveloperMode.title} header={<AreaViewTypeMenu area={area} sources={sources} words={viewTypeHeldForDeveloperMode.title} />} data-studio-area={area.area_id}>
+        <WaitingState
+          title={`${viewTypeHeldForDeveloperMode.title} shows only in Developer mode`}
+          explanation="Turn on Developer mode in Preferences › Developer, or choose another view from the menu above."
+          data-studio-area-held-for-developer-mode=""
+        />
+      </StudioAreaFrame>
+    );
+  }
   if (viewType === null) {
     return (
       <StudioAreaFrame label={area.view_type_id} header={<AreaViewTypeMenu area={area} sources={sources} words={area.view_type_id} />} data-studio-area={area.area_id}>

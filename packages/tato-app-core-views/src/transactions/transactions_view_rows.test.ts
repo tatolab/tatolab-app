@@ -5,6 +5,7 @@ import {
   NO_TRANSACTIONS_FILTER,
   streamWordsByOperationStream,
   transactionAsJson,
+  transactionsFilterButtonWordsOf,
   transactionsFilterChoicesOf,
   transactionsFiltersOnCount,
   transactionsViewRowOf,
@@ -64,13 +65,14 @@ describe("a Transactions row", () => {
       operations_words: "add_node, connect",
       result: "applied",
       commit_words: "3b0fc2d",
-      parent_commit_words: "e72d118",
+      time_cell_words: "18:42:31.204",
+      stream_cell_words: "Main",
     });
   });
 
   it("reads the runtime by its kind alone, an asset change as touching no stream, and an unlisted stream by what the runtime sent", () => {
     const imported = transactionsViewRowOf(transactionWith({ author_kind: "runtime", author_name: "tatolab", parent_commit: null, operations: [{ operation: "import_asset", asset: {} }] }), streamWordsOf);
-    expect(imported).toMatchObject({ author_words: "runtime", stream_words: [], parent_commit_words: null });
+    expect(imported).toMatchObject({ author_words: "runtime", stream_words: [], stream_cell_words: "project" });
     const elsewhere = transactionsViewRowOf(transactionWith({ operations: [{ operation: "rename_node", stream: "a-stream-no-longer-listed" }] }), streamWordsOf);
     expect(elsewhere.stream_words).toEqual(["a-stream-no-longer-listed"]);
   });
@@ -82,6 +84,7 @@ describe("a Transactions row", () => {
 
   it("has no time from a runtime that does not say, and shows a time it cannot read as sent", () => {
     expect(appliedAtWordsOf(null)).toBeNull();
+    expect(transactionsViewRowOf(transactionWith({ applied_at: null, operations: [] }), streamWordsOf).time_cell_words).toBe("—");
     expect(appliedAtWordsOf("not a time")).toBe("not a time");
   });
 
@@ -99,8 +102,9 @@ describe("the Filter popover", () => {
   ];
   const shownTransactions = (filter: Partial<typeof NO_TRANSACTIONS_FILTER>) => transactionsViewRowsShownBy(rows, { ...NO_TRANSACTIONS_FILTER, ...filter }).map((row) => row.transaction);
 
-  it("offers every author, stream and operation the rows hold", () => {
+  it("offers every result, author, stream and operation the rows hold", () => {
     expect(transactionsFilterChoicesOf(rows)).toEqual({
+      results: ["applied"],
       author_words: ["person · Sam", "agent · claude-code", "runtime"],
       stream_words: ["Main"],
       operation_verbs: ["add_node", "set_node_config", "import_asset"],
@@ -114,6 +118,11 @@ describe("the Filter popover", () => {
     expect(shownTransactions({ operation_verb: "import_asset" })).toEqual(["t3"]);
     expect(shownTransactions({ result: "refused" })).toEqual([]);
     expect(shownTransactions({ search_words: "  SOFTNESS " })).toEqual(["t2"]);
+  });
+
+  it("says on its button how many narrowings are on", () => {
+    expect(transactionsFilterButtonWordsOf(0)).toEqual({ words: "Filter", label: "Filter transactions: no filters on" });
+    expect(transactionsFilterButtonWordsOf(2)).toEqual({ words: "Filter · 2", label: "Filter transactions: 2 on" });
   });
 
   it("counts the narrowings that are on, not the search", () => {

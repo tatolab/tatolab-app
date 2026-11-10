@@ -30,9 +30,8 @@ import { tatolabWindowCommandHandlers, type TatolabWindowCommandHandlers } from 
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
-import { RememberedSwitchFile } from "./remembered_switch_file.js";
+import { HeldRememberedSwitch, RememberedSwitchFile } from "./remembered_switch_file.js";
 import { StreamFailureNotifications } from "./stream_failure_notifications.js";
-import { DeveloperModeSwitch } from "./developer_mode_switch.js";
 import { TatolabCommandLineToolVersionReadOncePerLaunch } from "./tatolab_command_line_tool_version.js";
 import type { SystemNotifications } from "./system_notifications.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
@@ -259,7 +258,7 @@ export async function startTatolabApp(
     },
     tatolabAppLog,
   );
-  const developerModeSwitch = await DeveloperModeSwitch.load(RememberedSwitchFile.developerModeInAppConfigDirectory(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog), tatolabAppLog);
+  const developerModeSwitch = await HeldRememberedSwitch.load(RememberedSwitchFile.developerModeInAppConfigDirectory(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog));
   const tatolabCommandLineToolVersion = new TatolabCommandLineToolVersionReadOncePerLaunch(
     platformForThisBuild.tatolabCommandLineTool,
     runProgramToCompletion,
