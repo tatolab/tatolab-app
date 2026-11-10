@@ -69,11 +69,17 @@ function useOpenCodeDocuments(connection: TatoAppViewConnection): OpenCodeDocume
   return documents;
 }
 
-/** The files each of the open project and its imports offers to open, listed again whenever the project is read again. */
+/** The files each of the open project and its imports offers to open, listed again whenever the project is read again and after each transaction the runtime applies to it. */
 function useOpenableFileGroups(connection: TatoAppViewConnection): OpenableCodeFileGroup[] {
   const openProject = useViewReading(connection.watchOpenProject);
+  const openProjectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
   const projects = useMemo(() => (openProject?.kind === "read" ? projectsWithFilesOf(openProject.open_project) : []), [openProject]);
+  const [transactionsSeen, setTransactionsSeen] = useState(0);
   const [groups, setGroups] = useState<OpenableCodeFileGroup[]>([]);
+  useEffect(() => {
+    if (openProjectFolder === null) return undefined;
+    return connection.watchProjectTransactions(openProjectFolder, () => setTransactionsSeen((count) => count + 1));
+  }, [connection, openProjectFolder]);
   useEffect(() => {
     let isStale = false;
     void Promise.all(projects.map(async (project) => openableCodeFileGroupOf(project, await connection.listProjectFiles(project.project_folder)))).then((listedGroups) => {
@@ -82,7 +88,7 @@ function useOpenableFileGroups(connection: TatoAppViewConnection): OpenableCodeF
     return () => {
       isStale = true;
     };
-  }, [connection, projects]);
+  }, [connection, projects, transactionsSeen]);
   return groups;
 }
 

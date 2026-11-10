@@ -102,12 +102,16 @@ export function nodeFileCreationFromTheCreateNodeFileToolResult(toolResultText: 
 }
 
 function nodeFileCreationFromTheParsedToolResult(parsedToolResult: Result<unknown, string>): Result<NodeFileCreationRecorded, string> {
-  const written = writeFromTheParsedToolResult(parsedToolResult);
-  if (!written.ok) return written;
   if (!parsedToolResult.ok) return parsedToolResult;
   const toolResult = jsonObject(parsedToolResult.value, "the node file created");
   if (!toolResult.ok) return toolResult;
+  const filePath = requiredText(toolResult.value, "path");
+  if (!filePath.ok) return filePath;
   const nodeType = requiredText(toolResult.value, "node_type");
   if (!nodeType.ok) return nodeType;
-  return succeeded({ ...written.value, node_type: nodeType.value });
+  const transaction = requiredText(toolResult.value, "transaction");
+  if (!transaction.ok) return transaction;
+  const commit = requiredText(toolResult.value, "commit");
+  if (!commit.ok) return commit;
+  return succeeded({ path: filePath.value, node_type: nodeType.value, transaction: transaction.value, commit: commit.value });
 }

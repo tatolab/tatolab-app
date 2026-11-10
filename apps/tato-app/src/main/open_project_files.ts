@@ -13,9 +13,6 @@ import { failedWith, succeeded, type Result } from "./result.js";
 /** The folder every import's copy sits in, inside the project that imports it. */
 const IMPORTS_FOLDER_NAME = "imports";
 
-/** How many files a project's file listing names at most. */
-const PROJECT_LISTING_FILE_LIMIT = 400;
-
 /** What the runtime's file tools answer the open project's files with, each refusal in the runtime's own words. */
 export interface ProjectFilesOfTheRuntime {
   /** `list_project_files`, of the folder `under` alone when given. */
@@ -61,6 +58,10 @@ function slashSeparated(relativePath: string): string {
 function isInsideTheFolder(fileSystemPath: string, folder: string): boolean {
   const relativePath = path.relative(folder, fileSystemPath);
   return relativePath !== "" && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
+}
+
+function refusalOfAnImportsFile(file: string): string {
+  return `${file} belongs to an imported project, which the studio opens read-only.`;
 }
 
 function refusalOfAFileOutsideTheProject(file: string): string {
@@ -115,7 +116,7 @@ export class OpenProjectFiles {
     const fileAddress = this.addressOf(file);
     if (!fileAddress.ok) return fileAddress;
     const { open_project_folder: openProjectFolder, path_in_the_open_project: pathInTheOpenProject } = fileAddress.value;
-    if (!fileAddress.value.is_editable) return failedWith(`${file} belongs to an imported project, which the studio opens read-only.`);
+    if (!fileAddress.value.is_editable) return failedWith(refusalOfAnImportsFile(file));
     const versionNow = await this.versionTheRuntimeHolds(openProjectFolder, pathInTheOpenProject);
     if (!versionNow.ok) return versionNow;
     if (versionNow.value !== basedOnVersion) {
@@ -132,7 +133,7 @@ export class OpenProjectFiles {
   async createNodeFile(file: string): Promise<Result<NodeFileCreated, string>> {
     const fileAddress = this.addressOf(file);
     if (!fileAddress.ok) return fileAddress;
-    if (!fileAddress.value.is_editable) return failedWith(`${file} belongs to an imported project, which the studio opens read-only.`);
+    if (!fileAddress.value.is_editable) return failedWith(refusalOfAnImportsFile(file));
     const created = await this.sources.projectFilesOfTheRuntime.createNodeFile(
       fileAddress.value.open_project_folder,
       fileAddress.value.path_in_the_open_project,
@@ -155,8 +156,7 @@ export class OpenProjectFiles {
     const files = listed.value
       .map((listedFile) => (under === null ? listedFile.path : listedFile.path.slice(under.length + 1)))
       .filter((pathInTheProject) => under !== null || !pathInTheProject.startsWith(`${IMPORTS_FOLDER_NAME}/`))
-      .sort((first, second) => first.localeCompare(second))
-      .slice(0, PROJECT_LISTING_FILE_LIMIT);
+      .sort((first, second) => first.localeCompare(second));
     return succeeded({ project_folder: listedFolder.value, files });
   }
 
