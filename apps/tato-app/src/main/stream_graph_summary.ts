@@ -80,19 +80,41 @@ function canvasPairOnTheWire(value: unknown): StudioCanvasPair | null {
   return typeof first === "number" && Number.isFinite(first) && typeof second === "number" && Number.isFinite(second) ? [first, second] : null;
 }
 
-/** A node's `studio` under the runtime's studio contract: a fixed key of another shape reads as absent, since the runtime refuses to write one; a free `group` string an earlier runtime wrote reads ungrouped. */
+/** How one fixed key of a node's `studio` reads its value; `null` for a value of another shape. */
+const NODE_STUDIO_FIXED_KEY_READERS: Record<"position" | "group" | "comment" | "colour" | "collapsed", (value: unknown) => JsonValue | null> = {
+  position: (value) => canvasPairOnTheWire(value),
+  group: (value) => (typeof value === "string" && A_UUID.test(value) ? value : null),
+  comment: (value) => (typeof value === "string" ? value : null),
+  colour: (value) => (typeof value === "string" ? value : null),
+  collapsed: (value) => (typeof value === "boolean" ? value : null),
+};
+
+const isANodeStudioFixedKey = (key: string): key is keyof typeof NODE_STUDIO_FIXED_KEY_READERS => Object.hasOwn(NODE_STUDIO_FIXED_KEY_READERS, key);
+
+/** A node's `studio` read as the runtime reads it: under a `contract`, each fixed key of its shape, a key the runtime would refuse to write read as absent; in a free map written before the contract, every key that does not read kept under `metadata`. */
 function nodeStudioFieldsOnTheWire(studioOnTheWire: unknown): StreamGraphNodeStudioFields {
   const studio = isAJsonObject(studioOnTheWire) ? studioOnTheWire : {};
-  const textUnder = (key: string): string | null => (typeof studio[key] === "string" ? studio[key] : null);
-  const group = textUnder("group");
-  const metadata = studio["metadata"];
+  const isUnderAContract = studio["contract"] !== undefined;
+  const metadataOnTheWire = studio["metadata"];
+  const metadata: Record<string, JsonValue> = isAJsonObject(metadataOnTheWire)
+    ? Object.fromEntries(Object.entries(metadataOnTheWire).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1])))
+    : !isUnderAContract && isAJsonValue(metadataOnTheWire)
+      ? { metadata: metadataOnTheWire }
+      : {};
+  const fixedValues: Partial<Record<keyof typeof NODE_STUDIO_FIXED_KEY_READERS, JsonValue>> = {};
+  for (const [key, value] of Object.entries(studio)) {
+    if (key === "contract" || key === "metadata") continue;
+    const read = isANodeStudioFixedKey(key) ? NODE_STUDIO_FIXED_KEY_READERS[key](value) : null;
+    if (isANodeStudioFixedKey(key) && read !== null) fixedValues[key] = read;
+    else if (!isUnderAContract && isAJsonValue(value)) metadata[key] = value;
+  }
   return {
-    position: canvasPairOnTheWire(studio["position"]),
-    group: group !== null && A_UUID.test(group) ? group : null,
-    comment: textUnder("comment"),
-    colour: textUnder("colour"),
-    collapsed: studio["collapsed"] === true,
-    metadata: isAJsonObject(metadata) ? Object.fromEntries(Object.entries(metadata).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]))) : {},
+    position: canvasPairOnTheWire(fixedValues.position),
+    group: typeof fixedValues.group === "string" ? fixedValues.group : null,
+    comment: typeof fixedValues.comment === "string" ? fixedValues.comment : null,
+    colour: typeof fixedValues.colour === "string" ? fixedValues.colour : null,
+    collapsed: typeof fixedValues.collapsed === "boolean" ? fixedValues.collapsed : null,
+    metadata,
   };
 }
 

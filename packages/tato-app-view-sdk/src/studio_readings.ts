@@ -101,21 +101,21 @@ export const studioCanvasPairSchema = z.tuple([z.number(), z.number()]);
 /** A point or a size on the canvas. */
 export type StudioCanvasPair = z.infer<typeof studioCanvasPairSchema>;
 
-/** A node's fixed `studio` fields; each `null` (`collapsed` `false`) while the graph document holds none, and `metadata` what a client keeps beside them. */
+/** A node's fixed `studio` fields, each `null` while the graph document holds none, and `metadata` what a client keeps beside them; written back whole, an unset field stays unset. */
 export const streamGraphNodeStudioFieldsSchema = z.object({
   position: studioCanvasPairSchema.nullable(),
   /** The labelled group it belongs to, by the group's UUID. */
   group: z.string().nullable(),
   comment: z.string().nullable(),
   colour: z.string().nullable(),
-  collapsed: z.boolean(),
+  collapsed: z.boolean().nullable(),
   metadata: z.record(z.string(), jsonValueSchema),
 });
 /** A node's fixed `studio` fields. */
 export type StreamGraphNodeStudioFields = z.infer<typeof streamGraphNodeStudioFieldsSchema>;
 
 /** The `studio` fields of a node whose graph document sets none. */
-export const NODE_STUDIO_FIELDS_NONE_SET: StreamGraphNodeStudioFields = { position: null, group: null, comment: null, colour: null, collapsed: false, metadata: {} };
+export const NODE_STUDIO_FIELDS_NONE_SET: StreamGraphNodeStudioFields = { position: null, group: null, comment: null, colour: null, collapsed: null, metadata: {} };
 
 /** A labelled group of a stream's graph, from its `groups` key, which its nodes join by naming its UUID as their `studio.group`. */
 export const streamGraphGroupSchema = z.object({

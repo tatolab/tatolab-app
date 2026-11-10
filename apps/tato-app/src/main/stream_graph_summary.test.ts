@@ -261,7 +261,7 @@ test("a_node_whose_components_carry_no_failed_because_reads_null", () => {
   expect(summary.ok && summary.value.nodes[0]?.failed_because).toBeNull();
 });
 
-/** A graph document as the runtime's studio contract writes it: the stream asset, a node's `studio` under contract 1, a labelled group, and a canvas note under the document's own `studio`. */
+/** A graph document as the runtime's studio contract writes it: the stream asset, a node's `studio` under contract 1, one written before the contract as a free map, one under the contract with keys of the wrong shape, an unlinked input's value, a labelled group, and a canvas note under the document's own `studio`. */
 const A_GRAPH_HOLDING_STUDIO_FIELDS_GROUPS_AND_NOTES = {
   asset: "1a6c8434-651e-4c86-ae72-620f991fcf90",
   stream: "look-main-98bc63",
@@ -272,7 +272,8 @@ const A_GRAPH_HOLDING_STUDIO_FIELDS_GROUPS_AND_NOTES = {
       type: "tatolab.stream:CameraSource",
       studio: { contract: 1, position: [40, -12.5], group: "2c6a1f7e-93b4-4d0a-8e15-b6f0c3a9d421", comment: "the front door", colour: "#3b82f6", collapsed: true, metadata: { pinned: true } },
     },
-    { id: "4b37b30b-f092-5712-be47-f4a41d9d6a10", name: "halftone", type: "nodes.halftone:HalftoneLensEffect", studio: { group: "sources", position: "far left" } },
+    { id: "4b37b30b-f092-5712-be47-f4a41d9d6a10", name: "halftone", type: "nodes.halftone:HalftoneLensEffect", studio: { group: "sources", position: "far left", comment: "kept", x: 4, metadata: 7 } },
+    { id: "5c48c41c-0103-4f2a-8e6b-2a3b4c5d6e7f", name: "meter", type: "nodes.meter:BrightnessMeter", studio: { contract: 1, position: "far left", collapsed: "yes" }, pins: { level: { value: 0.5 }, threshold: 2 } },
   ],
   links: [],
   groups: [
@@ -283,14 +284,27 @@ const A_GRAPH_HOLDING_STUDIO_FIELDS_GROUPS_AND_NOTES = {
   machine: "studio-mac",
 };
 
-test("a_graph_reads_its_stream_asset_each_nodes_studio_fields_its_groups_and_its_canvas_notes", () => {
+test("a_real_graph_reads_its_stream_asset", async () => {
+  const recordedResponse: { result: { content: { text: string }[] } } = JSON.parse(
+    await readFile(new URL("./test-fixtures/local-api-graph-tool-result-of-a-stream-stating-stream-facts.json", import.meta.url), "utf8"),
+  );
+  const graphToolResultText = recordedResponse.result.content[0]?.text ?? expect.unreachable("the recorded graph holds no tool result text");
+
+  const summary = streamGraphSummaryFromTheGraphToolResult("suite-stream-project-1-a_declaring_source_and_a_replacin-98bc63", graphToolResultText);
+
+  expect(summary.ok && summary.value.stream_asset).toBe("1a6c8434-651e-4c86-ae72-620f991fcf90");
+});
+
+test("a_graph_reads_each_nodes_studio_fields_as_the_runtime_does_its_pins_its_groups_and_its_canvas_notes", () => {
   const summary = streamGraphSummaryFromTheGraphToolResult("look-main-98bc63", JSON.stringify(A_GRAPH_HOLDING_STUDIO_FIELDS_GROUPS_AND_NOTES));
 
   expect(summary.ok && summary.value.stream_asset).toBe("1a6c8434-651e-4c86-ae72-620f991fcf90");
   expect(summary.ok && summary.value.nodes.map((graphNode) => graphNode.studio)).toEqual([
     { position: [40, -12.5], group: "2c6a1f7e-93b4-4d0a-8e15-b6f0c3a9d421", comment: "the front door", colour: "#3b82f6", collapsed: true, metadata: { pinned: true } },
+    { ...NODE_STUDIO_FIELDS_NONE_SET, comment: "kept", metadata: { group: "sources", position: "far left", x: 4, metadata: 7 } },
     NODE_STUDIO_FIELDS_NONE_SET,
   ]);
+  expect(summary.ok && summary.value.nodes.map((graphNode) => graphNode.pins)).toEqual([{}, {}, { level: { value: 0.5 }, threshold: 2 }]);
   expect(summary.ok && summary.value.groups).toEqual([
     { id: "2c6a1f7e-93b4-4d0a-8e15-b6f0c3a9d421", title: "Inputs", description: "What the look reads", colour: "#3b82f6" },
     { id: "7d1e2f3a-0000-4000-8000-000000000001", title: "Bare", description: null, colour: null },
