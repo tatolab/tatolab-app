@@ -5,6 +5,7 @@
 
 import path from "node:path";
 import type {
+  ListedStream,
   ChosenProjectFolder,
   JsonValue,
   DependencySourceKind,
@@ -269,6 +270,26 @@ export function runStreamProject(sharedState: TatolabAppSharedState, folder: str
 
 /** The states the runtime lists a stream of a project in while that project runs, is paused or is being started, which `reload_project` re-reads; `start_project` refuses each. */
 const STREAM_STATES_OF_A_PROJECT_THE_RUNTIME_RUNS: ReadonlySet<string> = new Set(["running", "paused", "preparing"]);
+
+/**
+ * `start_project` queued on the project in `projectDirectory` when the runtime, asked now, lists none of its streams or each of them stopped, since it draws and
+ * edits only a loaded stream's graph, then a status round; nothing when it lists one running, failed or on its way. Refused in the runtime's own words.
+ */
+export async function startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded(
+  sharedState: Pick<TatolabAppSharedState, "controller" | "statusPublisher">,
+  projectDirectory: string,
+): Promise<Result<void, string>> {
+  const listedStreams = await sharedState.controller.listStreams();
+  if (!listedStreams.ok) return failedWith(listedStreams.failure.failureDescription);
+  if (!theRuntimeListsEveryStreamOfTheProjectStopped(listedStreams.value, projectDirectory)) return succeeded(undefined);
+  const queued = await sharedState.controller.startProject(projectDirectory);
+  sharedState.statusPublisher.requestRefresh();
+  return queued.ok ? succeeded(undefined) : failedWith(queued.failure.failureDescription);
+}
+
+function theRuntimeListsEveryStreamOfTheProjectStopped(listedStreams: readonly ListedStream[], projectDirectory: string): boolean {
+  return listedStreams.every((listedStream) => listedStream.location?.project_directory !== projectDirectory || listedStream.state === "stopped");
+}
 
 /** The runtime's `reload_project` queued on `projectDirectory` when it last listed a stream of it running, paused or being started, else its `start_project`. */
 function startOrReloadTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
