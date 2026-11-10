@@ -315,14 +315,15 @@ describe("the studio", () => {
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^History/ }));
 
     const historyRows = () => [...coreViewPage("history").querySelectorAll<HTMLElement>("[data-history-row]")];
-    await waitFor(() => expect(historyRows()).toHaveLength(5));
-    expect(historyRows().map((row) => [row.getAttribute("aria-label")?.split(". ").slice(0, 2).join(". ").replace(/ · (?!undone)[^·]*?(?= · |$)/g, ""), row.hasAttribute("data-undone")])).toEqual([
-      ["Set displaywindow scaling to fit. Sam · undone", true],
-      ["Added brightnessmeter and its link. claude-code (agent)", false],
-      ["Renamed invert to invertingeffect. Sam", false],
-      ["Refreshed mic_levels from its code. Runtime", false],
-      ["Imported warm.cube. Sam", false],
-    ]);
+    await waitFor(() =>
+      expect(historyRows().map((row) => [row.getAttribute("aria-label")?.split(". ").slice(0, 2).join(". ").replace(/ · (?!undone)[^·]*?(?= · |$)/g, ""), row.hasAttribute("data-undone")])).toEqual([
+        ["Set displaywindow scaling to fit. Sam · undone", true],
+        ["Added brightnessmeter and its link. claude-code (agent)", false],
+        ["Renamed invert to invertingeffect. Sam", false],
+        ["Refreshed mic_levels from its code. Runtime", false],
+        ["Imported warm.cube. Sam", false],
+      ]),
+    );
 
     fireEvent.click(historyRows()[2] ?? expect.unreachable("no rename row"));
     await waitFor(() => expect(historyRows()[1]?.hasAttribute("data-undone")).toBe(true));
