@@ -1,13 +1,14 @@
-import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
+import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useMemo } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { NodeGraphCanvas } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import type { StopWatching, StudioSelection, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { ListedStreamsReading, OpenProjectReading, StreamGraphReading, StreamTabAddress } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
+import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 
 /** The issue that opens an import as a project of its own, where it can be edited. */
@@ -23,7 +24,7 @@ function importedProjectNameOfTheStream(stream: string, openProject: OpenProject
 }
 
 /** The graph of the stream tab shown, read while the view is drawn. */
-function StreamGraphOfTheTab({ connection, streamTab }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress }) {
+function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress; select: (selection: StudioSelection) => void }) {
   const watchTheTabsGraph = useCallback(
     (listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(streamTab.stream, listener),
     [connection, streamTab.stream],
@@ -36,11 +37,11 @@ function StreamGraphOfTheTab({ connection, streamTab }: { connection: TatoAppVie
   const onNodeSelected = useCallback(
     (nodeName: string | null) => {
       const projectFolder = listedStreams?.kind === "listed" ? listedStreams.streams.find((listedStream) => listedStream.stream === streamTab.stream)?.location?.project_directory : undefined;
-      if (nodeName !== null) void connection.select({ kind: "node", stream: streamTab.stream, node: nodeName });
-      else if (projectFolder !== undefined) void connection.select({ kind: "stream", stream: streamTab.stream, project_folder: projectFolder });
-      else void connection.select({ kind: "nothing" });
+      if (nodeName !== null) select({ kind: "node", stream: streamTab.stream, node: nodeName });
+      else if (projectFolder !== undefined) select({ kind: "stream", stream: streamTab.stream, project_folder: projectFolder });
+      else select({ kind: "nothing" });
     },
-    [connection, listedStreams, streamTab.stream],
+    [select, listedStreams, streamTab.stream],
   );
 
   const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
@@ -114,9 +115,17 @@ function StreamGraphOfTheTab({ connection, streamTab }: { connection: TatoAppVie
 
 /** The stream graph of the active stream tab, or what to do while no tab is open. */
 function StreamGraphBody({ connection }: { connection: TatoAppViewConnection }) {
-  const activeStreamTab = useViewReading(connection.watchActiveStreamTab);
-  if (activeStreamTab === null) return <WaitingState title="No stream is open" explanation="Double-click a stream in the outliner to open its tab." data-stream-graph-state="no_tab" />;
-  return <StreamGraphOfTheTab key={activeStreamTab.stream} connection={connection} streamTab={activeStreamTab} />;
+  const activeStreamTab = useViewReadingSoFar(connection.watchActiveStreamTab);
+  const [selectionRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
+  const select = useCallback((selection: StudioSelection) => showTheRefusalOf("Didn't select:", connection.select(selection)), [connection, showTheRefusalOf]);
+  if (activeStreamTab.kind === "not_read_yet") return null;
+  if (activeStreamTab.reading === null) return <WaitingState title="No stream is open" explanation="Double-click a stream in the outliner to open its tab." data-stream-graph-state="no_tab" />;
+  return (
+    <>
+      <RefusalOfTheLatestAskBar refusal={selectionRefusal} />
+      <StreamGraphOfTheTab key={activeStreamTab.reading.stream} connection={connection} streamTab={activeStreamTab.reading} select={select} />
+    </>
+  );
 }
 
 /** The Stream graph view's whole frame: the active stream tab's nodes and links, drawn the Blueprint way, under its header row. */

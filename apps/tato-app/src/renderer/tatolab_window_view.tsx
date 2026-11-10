@@ -268,7 +268,7 @@ export function mountTatolabWindow(
     }
   }
 
-  document.addEventListener("keydown", (keyboardEvent) => {
+  const runTheStudioShortcutOfTheKey = (keyboardEvent: KeyboardEvent) => {
     if (statusStore === null || studioWindowModel.poppedOutViewer.readLatest() !== null || studioWindowModel.moduleManagerWorkspace.readLatest() !== null) return;
     if (keyboardEvent.key === RUN_LIVE_KEY && !keyboardEvent.metaKey && !keyboardEvent.ctrlKey && !keyboardEvent.altKey) {
       if (studioWindowModel.studioLayouts.readLatest() === null) return;
@@ -280,7 +280,19 @@ export function mountTatolabWindow(
     if (!holdsWindowShortcutModifier(platform, keyboardEvent)) return;
     const key = keyboardEvent.key.length === 1 ? keyboardEvent.key.toLowerCase() : keyboardEvent.key;
     if (runStudioShortcut(key)) keyboardEvent.preventDefault();
-  });
+  };
+  document.addEventListener("keydown", runTheStudioShortcutOfTheKey);
+  // A key pressed while a view's frame holds the focus reaches only the frame's own document; a
+  // full-access frame is on the window's origin, so Studio listens there too, as each page loads.
+  document.addEventListener(
+    "load",
+    (loadEvent) => {
+      const viewFrame = loadEvent.target;
+      if (!(viewFrame instanceof HTMLIFrameElement) || viewFrame.dataset.tatolabViewAccess !== "full") return;
+      viewFrame.contentWindow?.addEventListener("keydown", runTheStudioShortcutOfTheKey);
+    },
+    true,
+  );
 
   let runtimeStateLastShown: TatolabStatus["runtime_state"] | null = null;
   const showStatusOutsideReact = (status: TatolabStatus) => {

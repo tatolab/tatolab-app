@@ -9,6 +9,7 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { ProjectNodeTypePort, ProjectNodeTypesReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
+import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
 import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../shared/node_type_listing_tree";
 import { paletteTreeOfTheListing, type PaletteRowMeaning } from "./palette_tree_of_the_listing";
@@ -113,6 +114,7 @@ function PaletteOfTheProject({ connection, projectFolder }: { connection: TatoAp
   const settings = useViewReading(connection.watchSettings);
   const [expansionChoices, toggleTheRow] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
   const [chosenRowId, setChosenRowId] = useState<string | null>(null);
+  const [openingRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
   const paletteRows = useMemo(
     () => (nodeTypesReading?.kind === "listed" ? paletteTreeOfTheListing(nodeTypesReading.listing, expansionChoices) : []),
     [nodeTypesReading, expansionChoices],
@@ -129,6 +131,7 @@ function PaletteOfTheProject({ connection, projectFolder }: { connection: TatoAp
   const chosenMeaning = chosenRowId === null ? null : meaningOfRow(chosenRowId);
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-palette="">
+      <RefusalOfTheLatestAskBar refusal={openingRefusal} />
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
         <TreeView
           label="Palette"
@@ -137,7 +140,7 @@ function PaletteOfTheProject({ connection, projectFolder }: { connection: TatoAp
           onRowSelected={(rowId) => setChosenRowId(meaningOfRow(rowId).kind === "nothing_to_select" ? null : rowId)}
           onRowActivated={(rowId) => {
             const meaning = meaningOfRow(rowId);
-            if (meaning.kind !== "nothing_to_select" && meaning.file !== null) void connection.openView("code", { kind: "file", file: meaning.file });
+            if (meaning.kind !== "nothing_to_select" && meaning.file !== null) showTheRefusalOf("Didn't open the file:", connection.openView("code", { kind: "file", file: meaning.file }));
           }}
           onExpansionToggled={toggleTheRow}
         />

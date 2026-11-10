@@ -12,12 +12,12 @@ import { drawTheCoreViewsInTheirFrames } from "./view_host/fake_core_view_frames
 /** Stops drawing the core views of the window mounted last, unmounting each. */
 let stopDrawingTheCoreViews: () => void = () => undefined;
 
-/** The keydown listeners each mounted window added to the document, removed after each test so a window from an earlier test never answers a shortcut. */
-const documentKeydownListenersAdded: EventListenerOrEventListenerObject[] = [];
+/** The keydown listeners, and the load listeners that hand a view's frame one, each mounted window added to the document, removed after each test so a window from an earlier test never answers a shortcut. */
+const documentShortcutListenersAdded: { eventName: string; listener: EventListenerOrEventListenerObject; options?: boolean | AddEventListenerOptions }[] = [];
 
 function removeTheKeydownListenersOfEarlierWindows(): void {
   vi.restoreAllMocks();
-  for (const keydownListener of documentKeydownListenersAdded.splice(0)) document.removeEventListener("keydown", keydownListener);
+  for (const { eventName, listener, options } of documentShortcutListenersAdded.splice(0)) document.removeEventListener(eventName, listener, options);
 }
 
 /** Hides every window mounted so far, so none starts another read, and lets the reads already in flight settle while the page is still here. */
@@ -39,6 +39,7 @@ afterEach(async () => {
 
 /** The real window over the mock backend opened with `pageQuery`, mounted the way `main.ts` mounts it. */
 async function mountedWindowOverTheMock(pageQuery: string, backendChanges: Partial<TatolabBackend> = {}, onTheFirstStatusDrawn?: () => void) {
+  removeTheKeydownListenersOfEarlierWindows();
   const backend: TatolabBackend = { ...createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams(pageQuery))), ...backendChanges };
   const rootElement = document.createElement("div");
   document.body.append(rootElement);
@@ -47,9 +48,8 @@ async function mountedWindowOverTheMock(pageQuery: string, backendChanges: Parti
   let showTatolabStatus: ((status: TatolabStatus) => void) | null = null;
   await backend.onTatolabStatusChanged((status) => showTatolabStatus?.(status));
   const firstStatus = await backend.getTatolabStatus();
-  removeTheKeydownListenersOfEarlierWindows();
   vi.spyOn(document, "addEventListener").mockImplementation((eventName: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions) => {
-    if (eventName === "keydown" && listener !== null) documentKeydownListenersAdded.push(listener);
+    if ((eventName === "keydown" || eventName === "load") && listener !== null) documentShortcutListenersAdded.push({ eventName, listener, options });
     EventTarget.prototype.addEventListener.call(document, eventName, listener, options);
   });
   await act(async () => {
@@ -412,6 +412,26 @@ describe("the studio", () => {
     const invertingEffectCard = await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card"));
     fireEvent.click(invertingEffectCard);
     await waitFor(() => expect(inTheCoreView("properties").getByText("Inverting Effect")).toBeTruthy());
+  });
+
+  it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {
+    await mountedWindowOverTheMock("state=running");
+    expect(await shownLayout()).toBe("build");
+    const outlinerPage = await waitFor(() => (coreViewPage("outliner").querySelector("[data-outliner]") === null ? expect.unreachable("no outliner drawn") : coreViewPage("outliner")));
+
+    fireEvent.keyDown(outlinerPage, { key: "2", metaKey: true });
+    expect(await shownLayout()).toBe("compose");
+  });
+
+  it("says in the Stream graph's frame that a stopped stream isn't running, and that no stream is open once its tab closes", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const patternTwoStream = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" });
+    fireEvent.doubleClick(await waitFor(() => outlinerRow(`stream:${patternTwoStream}`)));
+
+    await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-graph-state="not_read"]')?.textContent).toMatch(/pattern-two isn't running/));
+
+    for (const closeButton of document.querySelectorAll<HTMLElement>('[aria-label^="Close "]')) fireEvent.click(closeButton);
+    await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-graph-state="no_tab"]')).not.toBeNull());
   });
 
   it("lists a view the project brings, and draws it with full access in a frame of its own on the stream's node of its type", async () => {
