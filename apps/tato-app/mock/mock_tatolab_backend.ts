@@ -484,7 +484,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     [fixtures.failedLobbyRecorder.stream, fixtures.failedLobbyRecorder],
     ...(doesTheRuntimeListAnEarlierRuntimesRecord ? [[fixtures.earlierRuntimesRecord.stream, fixtures.earlierRuntimesRecord] as const] : []),
   ]);
-  /** The display names `rename_stream` gave, by stream id, over the ones the fixtures load with. */
+  /** The display names `set_stream_display_name` gave, by stream id, over the ones the fixtures load with. */
   const displayNamesRenamedTo = new Map<string, string>();
   /** Recorded streams not loaded that a run of their project loads again, by id: `pattern-two`, and each one stopped from the window. */
   const recordedFixturesNotLoaded = new Map<string, MockStreamFixture>([[fixtures.patternTwoStream.listing.stream, fixtures.patternTwoStream]]);
@@ -555,7 +555,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     return `${newProjectsFolder}/${freeName ?? `project-${projectFolders.size}`}`;
   };
 
-  /** Each load `create_project` or `run_project` queued, by action, as `describe_stream_action` reads it. */
+  /** Each load `create_project`, `start_project` or `reload_project` queued, by action, as `describe_stream_action` reads it. */
   const projectLoadsQueued = new Map<string, StreamActionDescription>();
   const notHeldWords = (action: string): string =>
     `the stream action \`${action}\` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log`;
@@ -617,7 +617,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   };
 
   /**
-   * `create_project`'s and `run_project`'s load as the runtime does it: queued, then every stream asset's graph document
+   * `create_project`'s, `start_project`'s and `reload_project`'s load as the runtime does it: queued, then every stream asset's graph document
    * read, the `.venv` made where it has none, and every stream starting, each listed `preparing` under the action, then
    * loaded, or failed for the doorways project's `back_door`.
    */
@@ -966,7 +966,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     };
   };
 
-  /** `rename_stream` as the runtime does it: refused for a name that shows nothing or a stream it does not hold, else shown under the new name. */
+  /** `set_stream_display_name` as the runtime does it: refused for a name that shows nothing or a stream it does not hold, else shown under the new name. */
   const renameMockStream = (streamId: string, displayName: string): void => {
     if (displayName.trim() === "") {
       throw `Invalid configuration: ${JSON.stringify(displayName)} cannot be a stream's display name: it shows nothing; a display name is any text with something to show`;
@@ -1087,7 +1087,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     },
     renameStream: async (streamId, displayName) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer rename_stream`;
+      if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer set_stream_display_name`;
       renameMockStream(streamId, displayName);
     },
     openStreamProjectFolder: async (streamId) => {

@@ -462,13 +462,13 @@ test("each queued action answers the window null, and a missing argument or a pr
   expect(await commandHandlers.list_project_node_types({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "list_project_node_types needs `project_directory`, a project's folder" });
 });
 
-test("reloading a project the runtime lists queues run_project on its folder, answers the action, and observes again; one it does not list is refused", async () => {
+test("reloading a project the runtime lists queues reload_project on its folder, answers the action, and observes again; one it does not list is refused", async () => {
   const sharedState = await sharedStateOverFakes(
     [
       httpResponse("200 OK", "text/plain", "ok"),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-project-answer-for-the-folder-doorways.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-reload-project-answer-for-the-folder-hallways.json")),
     ],
     "linux"
   );
@@ -477,7 +477,7 @@ test("reloading a project the runtime lists queues run_project on its folder, an
   await sharedState.statusPublisher.refreshAndPublish();
 
   expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/doorways" }, FROM_THE_PROJECTS_WINDOW))).toBe(
-    '{"ok":true,"value":{"action":"Rnd53mwtsrixjyxk7h3jfq5j5-7","project_directory":"/tmp/tatolab-proof-projects/doorways"}}',
+    '{"ok":true,"value":{"action":"Rgdbghpj6ai2ge3wgy64g42y7-5","project_directory":"/private/tmp/tatolab-proof-projects/hallways"}}',
   );
   expect(refreshRequests).toHaveBeenCalledTimes(1);
   expect(await commandHandlers.reload_project({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
@@ -487,24 +487,32 @@ test("reloading a project the runtime lists queues run_project on its folder, an
   });
 });
 
-test("renaming a stream asks the runtime, then observes again whether it renamed or refused, answering null or its refusal", async () => {
+test("renaming a stream sets the display name of the stream asset the runtime lists for it, then observes again whether it renamed or refused", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-rename-stream-answer-for-the-stream-heat-map-main-8eda1f-renamed-heat-map.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-rename-stream-refusal-for-a-display-name-that-shows-nothing.json")),
+      httpResponse("200 OK", "text/plain", "ok"),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-hallways-running.json")),
+      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-set-stream-display-name-answer-for-the-main-stream-of-hallways-renamed-heat-map.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-set-stream-display-name-refusal-for-a-display-name-that-shows-nothing.json")),
     ],
     "macos"
   );
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  await sharedState.statusPublisher.refreshAndPublish();
 
-  expect(JSON.stringify(await commandHandlers.rename_stream({ stream: "heat-map-main-8eda1f", display_name: "Heat map" }, FROM_THE_PROJECTS_WINDOW))).toBe('{"ok":true,"value":null}');
-  expect(await commandHandlers.rename_stream({ stream: "heat-map-main-8eda1f", display_name: "   " }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+  expect(JSON.stringify(await commandHandlers.rename_stream({ stream: "hallways-main-26aa44", display_name: "Heat map" }, FROM_THE_PROJECTS_WINDOW))).toBe('{"ok":true,"value":null}');
+  expect(await commandHandlers.rename_stream({ stream: "hallways-main-26aa44", display_name: "   " }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: `Invalid configuration: "   " cannot be a stream's display name: it shows nothing; a display name is any text with something to show`,
+    refusal: `set_stream_display_name failed: "   " cannot be a stream's display name: it shows nothing`,
   });
   expect(refreshRequests).toHaveBeenCalledTimes(2);
-  expect(await commandHandlers.rename_stream({ stream: "heat-map-main-8eda1f" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+  expect(await commandHandlers.rename_stream({ stream: "doorways-main-0b1c2d", display_name: "Heat map" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "The runtime does not list doorways-main-0b1c2d, so Tato Studio has no stream to rename.",
+  });
+  expect(await commandHandlers.rename_stream({ stream: "hallways-main-26aa44" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "rename_stream needs `display_name`, the display name to show it under",
   });
@@ -571,7 +579,7 @@ test("adding a project answers the window in the contract's shape, from the chos
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-project-answer-for-the-folder-hallways.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-project-answer-for-the-folder-hallways.json")),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-project-answer-with-no-folder-drawn-kind-butte.json")),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-the-create-of-kind-butte-starting.json")),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json")),
@@ -586,7 +594,7 @@ test("adding a project answers the window in the contract's shape, from the chos
 
   expect(JSON.stringify(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" }, FROM_THE_PROJECTS_WINDOW))).toBe(`{"ok":true,"value":${JSON.stringify(projectFolder)}}`);
   expect(JSON.stringify(await commandHandlers.run_stream_project({ folder: projectFolder }, FROM_THE_PROJECTS_WINDOW))).toBe(
-    '{"ok":true,"value":{"action":"Rj12j3eujz3zn0dposliv79k9-3","project_directory":"/tmp/tatolab-proof-projects/hallways"}}',
+    '{"ok":true,"value":{"action":"Rgdbghpj6ai2ge3wgy64g42y7-4","project_directory":"/private/tmp/tatolab-proof-projects/hallways"}}',
   );
   expect(JSON.stringify(await commandHandlers.create_stream_project({ folder: null }, FROM_THE_PROJECTS_WINDOW))).toBe(
     '{"ok":true,"value":{"action":"Rj12j3eujz3zn0dposliv79k9-7","stream":"kind-butte-main-e51c2f","project_directory":"/tmp/tatolab-proof/streams/kind-butte"}}',

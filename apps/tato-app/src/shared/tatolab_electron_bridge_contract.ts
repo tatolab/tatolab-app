@@ -214,7 +214,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   create_stream_project: { commandArguments: { folder: string | null }; answer: ProjectCreationQueued };
   /** Answers once the runtime has queued the run of every stream asset in the folder, which the window follows with `describe_stream_action`. */
   run_stream_project: { commandArguments: { folder: string }; answer: ProjectRunQueued };
-  /** Answers once the runtime has queued `run_project` on a project it lists, which the window follows with `describe_stream_action`. */
+  /** Answers once the runtime has queued `reload_project` on a project it lists, which the window follows with `describe_stream_action`. */
   reload_project: { commandArguments: { project_directory: string }; answer: ProjectRunQueued };
   /** The action's description, or the runtime's words that it no longer holds it; refused when the runtime could not be asked. */
   describe_stream_action: { commandArguments: { action: string }; answer: StreamActionFollowed };
@@ -274,7 +274,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   save_project_file: { commandArguments: { file: string; text: string; based_on_version: string | null }; answer: ProjectFileSaved };
   /** `project_folder` the folder of the open project or of one of its imports. */
   list_project_files: { commandArguments: { project_folder: string }; answer: ProjectFiles };
-  /** The runtime's `run_project` queued on the open project's folder, which the window never names; refused in the runtime's own words, or while no project is open. */
+  /** The runtime's `start_project` queued on the open project's folder, which the window never names; refused in the runtime's own words, or while no project is open. */
   run_open_project: { commandArguments: undefined; answer: ProjectRunQueued };
   /** The asking studio window's project's change feed as last read; refused in the Projects window. */
   read_open_project_transactions: { commandArguments: undefined; answer: ProjectTransactionsReading };

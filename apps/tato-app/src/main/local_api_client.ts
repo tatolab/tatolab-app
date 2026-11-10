@@ -2,10 +2,10 @@
 // local API's Unix socket. `GET /health` says the runtime is up, `describe_runtime` names its
 // version, uptime and log folder, the MCP tools `list_streams`, `logs` and `graph` over
 // `POST /mcp` list its streams, read a project's log records and draw one stream's graph,
-// `create_project` and `run_project` queue a project's load, which `describe_stream_action` follows,
-// `stop_project` queues the stop of every stream of a project, `remove_project` queues the
-// removal of a project's streams, `rename_stream`
-// renames one, `add_dependency`, `update_dependency` and `list_dependencies` copy, copy again and
+// `create_project`, `start_project` and `reload_project` queue a project's load, which
+// `describe_stream_action` follows, `stop_project` queues the stop of every stream of a project,
+// `remove_project` queues the removal of a project's streams, `set_stream_display_name` shows a
+// stream under another name, `add_dependency`, `update_dependency` and `list_dependencies` copy, copy again and
 // list the projects a project imports, `GET /api/graph` names the machine, and `GET /api/registry` lists the node types a
 // stream can add.
 //
@@ -64,7 +64,7 @@ import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import {
   projectCreationQueuedFromTheCreateProjectToolResult,
-  projectRunQueuedFromTheRunProjectToolResult,
+  projectRunQueuedFromTheStartOrReloadProjectToolResult,
   streamActionCancelAnswerFromTheCancelStreamActionToolResult,
   streamActionDescriptionFromTheDescribeStreamActionToolResult,
 } from "./stream_action_description.js";
@@ -112,26 +112,26 @@ function streamLocationOnTheWire(location: JsonObjectOnTheWire): Result<StreamLo
   return succeeded({ project_directory: projectDirectory.value, project: project.value, stream_asset: streamAsset.value });
 }
 
-/** What `rename_stream` answers: the stream's id and the display name it is shown under now. */
-export interface StreamRenameAnswer {
-  stream: string;
-  display_name: string;
+/** What `set_stream_display_name` answers: the one transaction that renamed the stream asset, and its commit on the project's history. */
+export interface StreamDisplayNameSet {
+  transaction: string;
+  commit: string;
 }
 
-/** A `rename_stream` tool result read field for field; unknown fields are ignored. */
-export function streamRenameAnswerFromTheRenameStreamToolResult(toolResultText: string): Result<StreamRenameAnswer, string> {
+/** A `set_stream_display_name` tool result read field for field; unknown fields, the stream asset as it now is among them, are ignored. */
+export function streamDisplayNameSetFromTheSetStreamDisplayNameToolResult(toolResultText: string): Result<StreamDisplayNameSet, string> {
   const parsedToolResult = parseJsonOnTheWire(toolResultText);
-  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the rename_stream result") : parsedToolResult;
-  const streamRenameAnswer = toolResult.ok ? streamRenameAnswerOnTheWire(toolResult.value) : toolResult;
-  return streamRenameAnswer.ok ? streamRenameAnswer : failedWith(`the runtime's rename_stream result could not be read: ${streamRenameAnswer.failure}`);
+  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the set_stream_display_name result") : parsedToolResult;
+  const displayNameSet = toolResult.ok ? streamDisplayNameSetOnTheWire(toolResult.value) : toolResult;
+  return displayNameSet.ok ? displayNameSet : failedWith(`the runtime's set_stream_display_name result could not be read: ${displayNameSet.failure}`);
 }
 
-function streamRenameAnswerOnTheWire(toolResult: JsonObjectOnTheWire): Result<StreamRenameAnswer, string> {
-  const stream = requiredText(toolResult, "stream");
-  if (!stream.ok) return stream;
-  const displayName = requiredText(toolResult, "display_name");
-  if (!displayName.ok) return displayName;
-  return succeeded({ stream: stream.value, display_name: displayName.value });
+function streamDisplayNameSetOnTheWire(toolResult: JsonObjectOnTheWire): Result<StreamDisplayNameSet, string> {
+  const transaction = requiredText(toolResult, "transaction");
+  if (!transaction.ok) return transaction;
+  const commit = requiredText(toolResult, "commit");
+  if (!commit.ok) return commit;
+  return succeeded({ transaction: transaction.value, commit: commit.value });
 }
 
 /** A `describe_runtime` tool result read field for field; unknown fields are ignored. */
@@ -322,12 +322,16 @@ export class LocalApiClient {
     return action.ok ? action : localApiRequestFailure(action.failure);
   }
 
-  /** Show the stream `stream` under `displayName` through the runtime's `rename_stream` tool, its id, address and broadcast as they are; refused in the runtime's own words. */
-  async renameStream(stream: string, displayName: string): Promise<Result<void, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("rename_stream", { stream, display_name: displayName });
+  /** Show the stream asset `streamAsset` of the project in `projectDirectory` under `displayName` through the runtime's `set_stream_display_name`, one transaction on its history; refused in the runtime's own words. */
+  async setStreamDisplayName(projectDirectory: string, streamAsset: string, displayName: string): Promise<Result<StreamDisplayNameSet, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("set_stream_display_name", {
+      project_directory: projectDirectory,
+      stream_asset: streamAsset,
+      display_name: displayName,
+    });
     if (!toolResultText.ok) return toolResultText;
-    const renamed = streamRenameAnswerFromTheRenameStreamToolResult(toolResultText.value);
-    return renamed.ok ? succeeded(undefined) : localApiRequestFailure(renamed.failure);
+    const displayNameSet = streamDisplayNameSetFromTheSetStreamDisplayNameToolResult(toolResultText.value);
+    return displayNameSet.ok ? displayNameSet : localApiRequestFailure(displayNameSet.failure);
   }
 
   /** Queue the creation of a new project in `projectDirectory`, or with `null` in a folder the runtime draws under `~/streams`, and its run; answered at once, refused in the runtime's own words. */
@@ -338,11 +342,20 @@ export class LocalApiClient {
     return queued.ok ? queued : localApiRequestFailure(queued.failure);
   }
 
-  /** Queue a run of the project in `projectDirectory`, which loads every stream asset in it; answered at once, refused in the runtime's own words. */
-  async runProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("run_project", { project_directory: projectDirectory });
+  /** Queue the start of the stopped or never-started project in `projectDirectory`, which loads every stream asset in it; answered at once, refused in the runtime's own words, as for a running project, which `reloadProject` re-reads. */
+  startProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
+    return this.queueAProjectLoad("start_project", projectDirectory);
+  }
+
+  /** Queue the reload from disk of the running or paused project in `projectDirectory`; answered at once, refused in the runtime's own words, as for a stopped project, which `startProject` starts. */
+  reloadProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
+    return this.queueAProjectLoad("reload_project", projectDirectory);
+  }
+
+  private async queueAProjectLoad(toolName: "start_project" | "reload_project", projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool(toolName, { project_directory: projectDirectory });
     if (!toolResultText.ok) return toolResultText;
-    const queued = projectRunQueuedFromTheRunProjectToolResult(toolResultText.value);
+    const queued = projectRunQueuedFromTheStartOrReloadProjectToolResult(toolName, toolResultText.value);
     return queued.ok ? queued : localApiRequestFailure(queued.failure);
   }
 
