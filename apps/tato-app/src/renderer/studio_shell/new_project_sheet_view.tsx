@@ -8,6 +8,7 @@ import { PendingActionWords } from "@tatolab/tato-app-view-sdk/design_system/pen
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { TextField } from "@tatolab/tato-app-view-sdk/design_system/text_field";
 import { abbreviateHomeDirectory } from "../presentation/platform_presentation";
+import { presentNewProjectSheetWords } from "../presentation/projects_presentation";
 import type { NewProjectSheetOpening } from "./studio_window_model";
 
 /** What the New project sheet asks the app for: the folder a project goes in, through its dialog, and the project made there. */
@@ -20,28 +21,6 @@ export interface NewProjectSources {
   importProjectArchive(archive: string, name: string, location: string): Promise<ChosenProjectFolder>;
 }
 
-/** The words the sheet shows for what it opened with: its title, what it does, its button and the words while it works. */
-function sheetWordsFor(openedWith: NewProjectSheetOpening) {
-  if (openedWith.kind === "new_project") {
-    return {
-      title: "New project",
-      description: "Tato Studio makes a folder for the project, with a stream to start from.",
-      nameLabel: "Name",
-      actionWords: "Create",
-      pendingWords: "Creating…",
-      refusalLead: "The project wasn't created:",
-    };
-  }
-  return {
-    title: "Import project",
-    description: `Tato Studio makes a project of its own from ${openedWith.chosen.archive.slice(openedWith.chosen.archive.lastIndexOf("/") + 1)}, in a new folder. It keeps the name it was saved with.`,
-    nameLabel: "Folder name",
-    actionWords: "Import",
-    pendingWords: "Importing…",
-    refusalLead: "The project wasn't imported:",
-  };
-}
-
 /** `name` in `location`, as the folder the project is made in. */
 function newProjectFolderOf(location: string, name: string): string {
   return `${location.replace(/\/+$/, "")}/${name.trim()}`;
@@ -52,7 +31,7 @@ function NewProjectSheetFields({ openedWith, sources, onClosed }: { openedWith: 
   const nameFieldId = useId();
   const nameRefusalId = useId();
   const startingAt = openedWith.kind === "new_project" ? openedWith.defaults : openedWith.chosen;
-  const sheetWords = sheetWordsFor(openedWith);
+  const sheetWords = presentNewProjectSheetWords(openedWith.kind === "project_archive" ? openedWith.chosen.archive : null);
   const [name, setName] = useState(startingAt.name);
   const [location, setLocation] = useState(startingAt.location);
   const [creationRefusal, setCreationRefusal] = useState<string | null>(null);

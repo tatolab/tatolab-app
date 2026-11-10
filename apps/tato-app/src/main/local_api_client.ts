@@ -58,7 +58,6 @@ import {
   duplicateFromTheDuplicateProjectToolResult,
   projectFromTheImportProjectToolResult,
   projectNameFromTheRenameProjectToolResult,
-  type ProjectMadeByTheRuntime,
 } from "./project_changes_on_the_wire.js";
 import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTheListAssetsToolResult, type ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
@@ -336,7 +335,7 @@ export class LocalApiClient {
   }
 
   /** Copy the project in `projectDirectory` with its history into `into`, a folder that does not exist yet, as a project of its own; refused in the runtime's own words. */
-  async duplicateProject(projectDirectory: string, into: string): Promise<Result<ProjectMadeByTheRuntime, LocalApiRequestFailure>> {
+  async duplicateProject(projectDirectory: string, into: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
     const toolResultText = await this.callMcpTool("duplicate_project", { project_directory: projectDirectory, into }, PROJECT_COPY_RESPONSE_TIMEOUT_MS);
     if (!toolResultText.ok) return toolResultText;
     const duplicate = duplicateFromTheDuplicateProjectToolResult(toolResultText.value);
@@ -344,7 +343,7 @@ export class LocalApiClient {
   }
 
   /** Make a project in `projectDirectory`, a folder that does not exist yet, from `source`, an absolute `.zip` of one, through the runtime's `import_project`; runs nothing, refused in the runtime's own words. */
-  async importProject(source: string, projectDirectory: string): Promise<Result<ProjectMadeByTheRuntime, LocalApiRequestFailure>> {
+  async importProject(source: string, projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
     const toolResultText = await this.callMcpTool("import_project", { source, project_directory: projectDirectory }, PROJECT_COPY_RESPONSE_TIMEOUT_MS);
     if (!toolResultText.ok) return toolResultText;
     const imported = projectFromTheImportProjectToolResult(toolResultText.value);

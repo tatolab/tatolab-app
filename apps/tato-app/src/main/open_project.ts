@@ -21,7 +21,6 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import { realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
-import type { ProjectMadeByTheRuntime } from "./project_changes_on_the_wire.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import { importFolderInsideTheWorkspace, PROJECT_IMPORTS_FOLDER } from "./workspace_dependencies.js";
@@ -42,12 +41,16 @@ export const NEW_PROJECTS_FOLDER_INSIDE_DOCUMENTS = "Tato Studio";
 /** How many numbered names are tried for a new, imported or duplicated project's folder before the plain one is offered and the runtime or the sheet refuses it. */
 const NUMBERED_PROJECT_NAMES_TRIED = 1_000;
 
-/** How often a deletion the runtime queued is asked about while the Projects window waits for it, and for how long at most. */
+/** How often a deletion the runtime queued is asked about while the Projects window waits for it. */
 export const PROJECT_DELETION_FOLLOW_INTERVAL_MS = 250;
+/** How long, on the monotonic clock, the Projects window waits at most for a deletion to end. */
 export const PROJECT_DELETION_LONGEST_WAIT_MS = 60_000;
 
 /** The words a duplicate's folder name takes after the original's: `pattern copy`, then `pattern copy 2`, …. */
 const DUPLICATE_FOLDER_NAME_SUFFIX = "copy";
+
+/** The name an imported project is suggested when its `.zip`'s name cannot be a folder name. */
+const IMPORTED_PROJECT_NAME = "Imported project";
 
 /** Calls `onChange` whenever an entry directly in `folder` changes; the answer stops watching, and is `null` for a folder that cannot be watched. */
 export type FolderEntriesWatch = (folder: string, onChange: () => void) => (() => void) | null;
@@ -80,12 +83,13 @@ export interface ProjectChangesThroughTheRuntime {
   /** `rename_project`, answering the name it now has. */
   renameProject(projectDirectory: string, name: string): Promise<Result<string, LocalApiRequestFailure>>;
   /** `duplicate_project` into `into`, a folder that does not exist yet. */
-  duplicateProject(projectDirectory: string, into: string): Promise<Result<ProjectMadeByTheRuntime, LocalApiRequestFailure>>;
+  duplicateProject(projectDirectory: string, into: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>>;
   /** `delete_project`, answering the id of the action it queued. */
   deleteProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>>;
+  /** Where the deletion `deleteProject` queued stands now. */
   describeStreamAction(action: string): Promise<Result<StreamActionFollowed, LocalApiRequestFailure>>;
   /** `import_project` of the `.zip` `source` into `projectDirectory`, a folder that does not exist yet. */
-  importProject(source: string, projectDirectory: string): Promise<Result<ProjectMadeByTheRuntime, LocalApiRequestFailure>>;
+  importProject(source: string, projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>>;
 }
 
 /** Asks the person for a project `.zip` in the desktop's open dialog, opened at `defaultFolder`. `null` when they cancel. */
@@ -106,6 +110,8 @@ export interface ProjectOpeningSources {
   projectChanges: ProjectChangesThroughTheRuntime;
   /** Answers once `delayMs` have passed. */
   waitFor: (delayMs: number) => Promise<void>;
+  /** The monotonic clock, in milliseconds, that a deletion's longest wait is measured on. */
+  readMonotonicClockMs: () => number;
   /** Open the project in `folder` in its own studio window, or bring that window forward when it is open; answers once the window shows the project. */
   openTheProjectInItsStudioWindow: (folder: string) => Promise<void>;
   /** Close the studio window of the project in `folder` and the windows it opened, without asking; nothing when none is open. */
@@ -141,11 +147,8 @@ async function firstProjectNameNothingHoldsIn(location: string, name: string): P
 /** The name a project imported from `archive` suggests: the `.zip`'s file name without its extension, or `Imported project` for a name that is only the extension. */
 function projectNameOfTheArchive(archive: string): string {
   const archiveName = path.basename(archive).replace(/\.zip$/i, "").trim();
-  return archiveName === "" || newProjectFolderNameRefusal(archiveName) !== null ? IMPORTED_PROJECT_NAME : archiveName;
+  return newProjectFolderNameRefusal(archiveName) !== null ? IMPORTED_PROJECT_NAME : archiveName;
 }
-
-/** The name an imported project is suggested when its `.zip`'s name cannot be a folder name. */
-const IMPORTED_PROJECT_NAME = "Imported project";
 
 /** Each import the runtime lists, its copy under `imports/` named by the runtime. */
 async function importsOfTheOpenProject(
@@ -210,7 +213,8 @@ export class ProjectOpening {
   /** Ask the person for a project `.zip`, the dialog opened at home, and answer where the Import project sheet starts for it; `null` when they cancel. */
   async chooseProjectArchiveToImport(): Promise<Result<ProjectArchiveChosenToImport | null, string>> {
     const chosenArchive = await this.sources.projectArchiveDialog(this.sources.homeDirectory);
-    if (!chosenArchive.ok || chosenArchive.value === null) return chosenArchive.ok ? succeeded(null) : chosenArchive;
+    if (!chosenArchive.ok) return chosenArchive;
+    if (chosenArchive.value === null) return succeeded(null);
     const location = this.defaultNewProjectLocation();
     const archive = path.resolve(chosenArchive.value);
     return succeeded({ archive, location, name: await firstProjectNameNothingHoldsIn(location, projectNameOfTheArchive(archive)) });
@@ -341,7 +345,8 @@ export class ProjectOpening {
 
   /** Ask about the deletion `action` until it ends: done, or refused with why it failed, was cancelled, is no longer held, or is still running past the longest wait. */
   private async followTheDeletionToItsEnd(action: string, folder: string): Promise<Result<void, string>> {
-    for (let waitedMs = 0; waitedMs <= PROJECT_DELETION_LONGEST_WAIT_MS; waitedMs += PROJECT_DELETION_FOLLOW_INTERVAL_MS) {
+    const followedSinceMs = this.sources.readMonotonicClockMs();
+    while (this.sources.readMonotonicClockMs() - followedSinceMs <= PROJECT_DELETION_LONGEST_WAIT_MS) {
       const followed = await this.sources.projectChanges.describeStreamAction(action);
       if (!followed.ok) return failedWith(followed.failure.failureDescription);
       if (followed.value.kind === "not_held") return failedWith(followed.value.words);
@@ -351,7 +356,7 @@ export class ProjectOpening {
       if (state === "cancelled") return failedWith(`Deleting ${folder} was cancelled; the project is where it was.`);
       await this.sources.waitFor(PROJECT_DELETION_FOLLOW_INTERVAL_MS);
     }
-    return failedWith(`The runtime is still deleting ${folder}. It leaves the Projects window once it has.`);
+    return failedWith(`The runtime is still deleting ${folder}. Its card stays here, and reads as gone from disk once the folder is in the Trash.`);
   }
 
   private async openAndRememberTheFolder(folder: string): Promise<Result<void, string>> {

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { RecentProject } from "../../shared/tatolab_backend_contract";
 import {
   PROJECTS_HOME_CHOICES_AT_FIRST,
+  presentNewProjectSheetWords,
   presentProjectDeletionQuestion,
+  presentRecentProjectChangePendingWords,
   presentRecentProjectChangeRefusalTitle,
   projectRenameRefusal,
   presentProjectsHomeChoices,
@@ -60,6 +62,11 @@ describe("the Projects window's cards", () => {
     expect(presentRecentProjectCards(RECENT_PROJECTS, NOW_MS, "").map((card) => card.folderWords)).toEqual(["~/streams/lobby", "~/streams/pattern", "~/Desktop/old-sketch/"]);
   });
 
+  it("name each ⋯ button for the project and its folder, so two projects of one name read apart", () => {
+    const twoPatterns = [aRecentProject("/Users/ada/a/pattern", "pattern", 1), aRecentProject("/Users/ada/b/pattern", "pattern", 2)];
+    expect(presentRecentProjectCards(twoPatterns, NOW_MS, "").map((card) => card.moreActionsLabel)).toEqual(["Actions for pattern, ~/a/pattern", "Actions for pattern, ~/b/pattern"]);
+  });
+
   it("narrow to a search of the name, the folder or the description, ignoring case", () => {
     expect(presentRecentProjectCards(RECENT_PROJECTS, NOW_MS, " LOBBY ").map((card) => card.name)).toEqual(["lobby-recorder"]);
     expect(presentRecentProjectCards(RECENT_PROJECTS, NOW_MS, "desktop").map((card) => card.name)).toEqual(["old-sketch"]);
@@ -106,6 +113,11 @@ describe("a project's ⋯ menu", () => {
     expect(projectRenameRefusal("Night Show")).toBeNull();
   });
 
+  it("says what is being done to a project while its duplicate or deletion runs", () => {
+    expect(presentRecentProjectChangePendingWords("duplicate")).toBe("Duplicating…");
+    expect(presentRecentProjectChangePendingWords("delete")).toBe("Moving to Trash…");
+  });
+
   it("titles the notice of a change that did not happen by the change asked for", () => {
     expect(presentRecentProjectChangeRefusalTitle("rename")).toBe("The project wasn't renamed");
     expect(presentRecentProjectChangeRefusalTitle("duplicate")).toBe("The project wasn't duplicated");
@@ -140,5 +152,26 @@ describe("the Projects window's sort and View buttons", () => {
   it("show the chosen order and are named for the order and layout chosen", () => {
     expect(presentProjectsHomeChoices({ order: "last_edited", layout: "grid" })).toEqual({ sortWords: "Last edited", sortButtonLabel: "Sort: Last edited", viewButtonLabel: "View: Grid" });
     expect(presentProjectsHomeChoices({ order: "name", layout: "list" })).toEqual({ sortWords: "Name", sortButtonLabel: "Sort: Name", viewButtonLabel: "View: List" });
+  });
+});
+
+describe("the sheet that makes a project", () => {
+  it("creates a new project by its name, or imports a .zip into a folder it names, the project keeping its saved name", () => {
+    expect(presentNewProjectSheetWords(null)).toEqual({
+      title: "New project",
+      description: "Tato Studio makes a folder for the project, with a stream to start from.",
+      nameLabel: "Name",
+      actionWords: "Create",
+      pendingWords: "Creating…",
+      refusalLead: "The project wasn't created:",
+    });
+    expect(presentNewProjectSheetWords("/Users/ada/Downloads/halftone-webcam-main.zip")).toEqual({
+      title: "Import project",
+      description: "Tato Studio makes a project of its own from halftone-webcam-main.zip, in a new folder. It keeps the name it was saved with.",
+      nameLabel: "Folder name",
+      actionWords: "Import",
+      pendingWords: "Importing…",
+      refusalLead: "The project wasn't imported:",
+    });
   });
 });

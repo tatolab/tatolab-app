@@ -306,6 +306,7 @@ export async function startTatolabApp(
     projectReadingsOfTheRuntime,
     projectChanges: controller,
     waitFor: (delayMs) => new Promise((waited) => setTimeout(waited, delayMs)),
+    readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     openTheProjectInItsStudioWindow: (folder) => tatolabAppWindows.openTheProjectInItsStudioWindow(folder),
     closeTheStudioWindowOf: (folder) => tatolabAppWindows.studioWindowOfTheProjectIn(folder)?.tatolabMainWindow.close(),
   });

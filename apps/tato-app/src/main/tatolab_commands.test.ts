@@ -151,6 +151,7 @@ async function sharedStateOverFakes(
     projectReadingsOfTheRuntime: NO_RUNTIME_READS_THE_PROJECTS,
     projectChanges: controller,
     waitFor: async () => {},
+    readMonotonicClockMs: () => 0,
     openTheProjectInItsStudioWindow: (folder) => appWindows.openTheProjectInItsStudioWindow(folder),
     closeTheStudioWindowOf: (folder) => appWindows.studioWindowOfTheProjectIn(folder)?.tatolabMainWindow.close(),
   });

@@ -1312,7 +1312,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (recentProject.project_name === null) throw `duplicate_project failed: ${folder} holds no project: it has no tatolab-project.json`;
       const parentFolder = folder.slice(0, folder.lastIndexOf("/"));
       const duplicateFolder = `${parentFolder}/${mockFirstNameNothingHolds(parentFolder, `${folder.slice(folder.lastIndexOf("/") + 1)} copy`, mockFoldersOnDisk())}`;
-      recentProjects = [{ ...recentProject, folder: duplicateFolder, project_name: `${recentProject.project_name} copy`, last_opened_at_wall_clock_ms: Date.now() }, ...recentProjects];
+      recentProjects = [{ ...recentProject, folder: duplicateFolder, project_name: `${recentProject.project_name} copy`, last_opened_at_wall_clock_ms: Date.now(), last_edited_at_wall_clock_ms: Date.now() }, ...recentProjects];
       return duplicateFolder;
     },
     deleteRecentProject: async (folder) => {

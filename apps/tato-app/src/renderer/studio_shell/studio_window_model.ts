@@ -2,7 +2,7 @@
 // serves its views, the selection, the open stream tabs, and the open project's layouts.
 
 import type { ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutView, ProjectArchiveChosenToImport, TatolabStatus } from "../../shared/tatolab_backend_contract";
-import type { RecentProjectChange } from "../presentation/projects_presentation";
+import type { RecentProjectChangeRefusal } from "../presentation/projects_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import type { StudioWindowValuesServedToViews } from "../view_host/studio_view_host_services";
@@ -67,7 +67,7 @@ export class StudioWindowModel {
   /** What the New project sheet opened with while it shows, a new project's name and location or a `.zip` to import; `null` while it is closed. */
   readonly newProjectSheetOpenedWith = new WatchedStudioValue<NewProjectSheetOpening | null>(null);
   /** Why the last rename, duplicate or delete the Projects window asked of a project did not happen, until it is dismissed or another is asked for. */
-  readonly recentProjectChangeRefusal = new WatchedStudioValue<{ asked_to: RecentProjectChange; because: string } | null>(null);
+  readonly recentProjectChangeRefusal = new WatchedStudioValue<RecentProjectChangeRefusal | null>(null);
   /** Why the last project asked for did not open, until it is dismissed or another opens. */
   readonly projectOpeningRefusal = new WatchedStudioValue<string | null>(null);
   /** Why the last view popped out of an area did not, until it is dismissed or another pops out. */

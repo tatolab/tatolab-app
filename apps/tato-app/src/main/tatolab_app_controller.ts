@@ -28,7 +28,6 @@ import type {
 import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_apps_child.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
-import type { ProjectMadeByTheRuntime } from "./project_changes_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import { LocalApiClient, type LocalApiRequestFailure } from "./local_api_client.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
@@ -305,7 +304,7 @@ export class TatolabAppController {
   }
 
   /** Copy the project in `projectDirectory` into `into` as a project of its own through the runtime's `duplicate_project`. */
-  duplicateProject(projectDirectory: string, into: string): Promise<Result<ProjectMadeByTheRuntime, LocalApiRequestFailure>> {
+  duplicateProject(projectDirectory: string, into: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
     return this.localApiClient.duplicateProject(projectDirectory, into);
   }
 
@@ -315,7 +314,7 @@ export class TatolabAppController {
   }
 
   /** Make a project in `projectDirectory` from the `.zip` `source` through the runtime's `import_project`. */
-  importProject(source: string, projectDirectory: string): Promise<Result<ProjectMadeByTheRuntime, LocalApiRequestFailure>> {
+  importProject(source: string, projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
     return this.localApiClient.importProject(source, projectDirectory);
   }
 

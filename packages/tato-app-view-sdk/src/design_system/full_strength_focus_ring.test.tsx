@@ -55,6 +55,7 @@ describe("every design-system control", () => {
           onOpened={() => {}}
           moreActions={<MenuItem onChosen={() => {}}>Rename…</MenuItem>}
           moreActionsLabel="Actions for pattern"
+          pendingWords={null}
         />
         <ProjectListRow
           name="pattern"
@@ -68,6 +69,7 @@ describe("every design-system control", () => {
           onOpened={() => {}}
           moreActions={<MenuItem onChosen={() => {}}>Rename…</MenuItem>}
           moreActionsLabel="Actions for pattern"
+          pendingWords={null}
         />
       </>,
     );

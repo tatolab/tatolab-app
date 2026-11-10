@@ -707,7 +707,7 @@ describe("the studio", () => {
   it("orders the Projects window by last edited, or by name from its sort menu", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
     await waitFor(() => expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6));
-    const namesShown = () => [...document.querySelectorAll("[data-projects-project] [data-project-more-actions]")].map((moreActions) => (moreActions.getAttribute("aria-label") ?? "").replace(/^Actions for /, ""));
+    const namesShown = () => [...document.querySelectorAll("[data-projects-project] [data-project-more-actions]")].map((moreActions) => (moreActions.getAttribute("aria-label") ?? "").replace(/^Actions for (.*), [^,]*$/, "$1"));
     const namesByLastOpened = namesShown();
     expect(namesByLastOpened.slice(0, 3)).toEqual(["pattern", "night-market-visuals", "camera"]);
 
@@ -740,7 +740,7 @@ describe("the studio", () => {
     backend.readRecentProjects = async () => (await readRecentProjectsOfTheMock()).map((recent) => ({ ...recent, project_name: renamedNames.get(recent.folder) ?? recent.project_name }));
     const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
 
-    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: "Actions for pattern" }));
+    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Rename…/ }));
     const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-rename-project-name]") ?? expect.unreachable("no Rename dialog"));
     expect(nameField.value).toBe("pattern");
@@ -758,22 +758,22 @@ describe("the studio", () => {
 
     await waitFor(() => expect(document.querySelector("[data-rename-project-dialog]")).toBeNull());
     expect(renameRecentProject).toHaveBeenLastCalledWith(PATTERN_PROJECT, "Night Show");
-    await waitFor(() => expect(within(patternCard).getByRole("button", { name: "Actions for Night Show" })).toBeTruthy());
+    await waitFor(() => expect(within(patternCard).getByRole("button", { name: /^Actions for Night Show,/ })).toBeTruthy());
   });
 
   it("duplicates a project from its ⋯ menu into a card of its own, and says why in a notice when the runtime refuses", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
     const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
 
-    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: "Actions for pattern" }));
+    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Duplicate/ }));
 
     await waitFor(() => expect(document.querySelector(`[data-projects-project="${PATTERN_PROJECT} copy"]`)).not.toBeNull());
     expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(7);
-    expect(screen.getByRole("button", { name: "Actions for pattern copy" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Actions for pattern copy,/ })).toBeTruthy();
 
     const goneCard = document.querySelector<HTMLElement>(`[data-projects-project$="/Desktop/old-sketch"]`) ?? expect.unreachable("no card of the project gone from disk");
-    pressAsAPointerDoes(within(goneCard).getByRole("button", { name: "Actions for old-sketch" }));
+    pressAsAPointerDoes(within(goneCard).getByRole("button", { name: /^Actions for old-sketch,/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Duplicate/ }));
 
     await waitFor(() => expect(document.querySelector('[data-recent-project-change-refusal="duplicate"]')).not.toBeNull());
@@ -791,7 +791,7 @@ describe("the studio", () => {
     };
     const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
 
-    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: "Actions for pattern" }));
+    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Delete…/ }));
     await waitFor(() => expect(screen.getByText("Delete “pattern”?")).toBeTruthy());
     expect(screen.getByText("Its streams stop, and Tato Studio moves its folder to the Trash, where you can put it back.")).toBeTruthy();
@@ -799,9 +799,12 @@ describe("the studio", () => {
     await waitFor(() => expect(screen.queryByText("Delete “pattern”?")).toBeNull());
     expect(deleteRecentProject).not.toHaveBeenCalled();
 
-    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: "Actions for pattern" }));
+    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Delete…/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Move to Trash" }));
+    await waitFor(() => expect(within(patternCard).getByText("Moving to Trash…")).toBeTruthy());
+    expect(patternCard.querySelector<HTMLButtonElement>("[data-project-open]")?.disabled).toBe(true);
+    expect(patternCard.querySelector("[data-project-more-actions]")).toBeNull();
 
     await waitFor(() => expect(document.querySelector(`[data-projects-project="${PATTERN_PROJECT}"]`)).toBeNull());
     expect(deleteRecentProject).toHaveBeenCalledExactlyOnceWith(PATTERN_PROJECT);

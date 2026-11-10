@@ -72,13 +72,19 @@ interface ProjectShown {
   readonly onOpened: () => void;
   /** The ⋯ menu's choices, as `MenuItem`s; it shows while the pointer is over the project, its menu is open or it holds the keyboard's focus. */
   readonly moreActions: ReactNode;
-  /** The ⋯ button's name, as "Actions for pattern". */
+  /** The ⋯ button's name, as "Actions for pattern, ~/streams/pattern". */
   readonly moreActionsLabel: string;
+  /** What is being done to the project while a change of it runs, as "Moving to Trash…"; it then neither opens nor offers its ⋯ menu. `null` when nothing is. */
+  readonly pendingWords: string | null;
 }
 
 /** The ⋯ menu's place: out of sight until the project is under the pointer, holds the keyboard's focus, or has its menu open. */
 const PROJECT_MORE_ACTIONS_CLASS_NAMES =
   "opacity-0 transition-opacity duration-150 group-hover/project:opacity-100 group-focus-within/project:opacity-100 group-has-[[data-popup-open]]/project:opacity-100";
+
+/** The card's ⋯ menu rides its cover as the cover lifts. */
+const PROJECT_CARD_MORE_ACTIONS_LIFT_CLASS_NAMES =
+  "transition-[transform,opacity] group-hover/project:-translate-y-0.5 group-has-[[data-popup-open]]/project:-translate-y-0.5 group-has-[[data-project-open]:focus-visible]/project:-translate-y-0.5";
 
 /** One project in the Projects window's grid: its cover, which lifts under the pointer, its name, what it is and when it was edited, and a ⋯ menu over its cover; pressing it opens it. */
 export function ProjectCard({
@@ -93,16 +99,18 @@ export function ProjectCard({
   onOpened,
   moreActions,
   moreActionsLabel,
+  pendingWords,
   ...controlDataAttributes
 }: ProjectShown & {
   /** When it was last edited, as "Edited 2 hours ago". */
   when: string;
 } & ControlDataAttributes) {
   return (
-    <div className="group/project relative flex w-full min-w-0" {...controlDataAttributes}>
+    <div className="group/project relative flex w-full min-w-0" aria-busy={pendingWords !== null} {...controlDataAttributes}>
       <button
         type="button"
         onClick={onOpened}
+        disabled={pendingWords !== null}
         title={folderWords}
         className={cn("group/open flex w-full min-w-0 flex-col gap-2.5 rounded-xl text-left outline-none", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
         data-project-open=""
@@ -111,14 +119,18 @@ export function ProjectCard({
         <span className="flex min-w-0 flex-col gap-1">
           <ProjectName name={name} isUnreadable={isUnreadable} className="text-base" />
           <span className={cn("line-clamp-2 min-h-9 text-xs leading-4.5", hasADescription ? "text-fg-2" : "text-fg-3")}>{description}</span>
-          <span className="truncate text-xs text-fg-3">{when}</span>
+          <span className="truncate text-xs text-fg-3" data-project-pending={pendingWords === null ? undefined : ""}>
+            {pendingWords ?? when}
+          </span>
         </span>
       </button>
-      <div className={cn("absolute top-2.5 right-2.5", PROJECT_MORE_ACTIONS_CLASS_NAMES)}>
-        <MoreActionsMenu label={moreActionsLabel} isOverAPicture data-project-more-actions="">
-          {moreActions}
-        </MoreActionsMenu>
-      </div>
+      {pendingWords === null && (
+        <div className={cn("absolute top-2.5 right-2.5", PROJECT_MORE_ACTIONS_CLASS_NAMES, PROJECT_CARD_MORE_ACTIONS_LIFT_CLASS_NAMES)}>
+          <MoreActionsMenu label={moreActionsLabel} isOverAPicture data-project-more-actions="">
+            {moreActions}
+          </MoreActionsMenu>
+        </div>
+      )}
     </div>
   );
 }
@@ -157,16 +169,18 @@ export function ProjectListRow({
   onOpened,
   moreActions,
   moreActionsLabel,
+  pendingWords,
   ...controlDataAttributes
 }: ProjectShown & {
   /** When it was last edited, as "2 hours ago". */
   when: string;
 } & ControlDataAttributes) {
   return (
-    <div className="group/project flex w-full min-w-0 items-center rounded-lg hover:bg-hover has-[[data-popup-open]]:bg-hover" {...controlDataAttributes}>
+    <div className="group/project flex w-full min-w-0 items-center rounded-lg hover:bg-hover has-[[data-popup-open]]:bg-hover" aria-busy={pendingWords !== null} {...controlDataAttributes}>
       <button
         type="button"
         onClick={onOpened}
+        disabled={pendingWords !== null}
         title={folderWords}
         className={cn(PROJECT_LIST_COLUMNS_CLASS_NAMES, "h-15 min-w-0 flex-1 rounded-lg text-left outline-none", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
         data-project-open=""
@@ -174,12 +188,16 @@ export function ProjectListRow({
         <ProjectCover coverNumber={coverNumber} coverInitial={coverInitial} size="thumbnail" />
         <ProjectName name={name} isUnreadable={isUnreadable} className="text-base" />
         <span className={cn("truncate text-sm", hasADescription ? "text-fg-2" : "text-fg-3")}>{description}</span>
-        <span className="truncate text-xs text-fg-3">{when}</span>
+        <span className="truncate text-xs text-fg-3" data-project-pending={pendingWords === null ? undefined : ""}>
+          {pendingWords ?? when}
+        </span>
       </button>
       <div className={cn("flex justify-center", PROJECT_LIST_MORE_ACTIONS_WIDTH_CLASS_NAMES, PROJECT_MORE_ACTIONS_CLASS_NAMES)}>
-        <MoreActionsMenu label={moreActionsLabel} data-project-more-actions="">
-          {moreActions}
-        </MoreActionsMenu>
+        {pendingWords === null && (
+          <MoreActionsMenu label={moreActionsLabel} data-project-more-actions="">
+            {moreActions}
+          </MoreActionsMenu>
+        )}
       </div>
     </div>
   );

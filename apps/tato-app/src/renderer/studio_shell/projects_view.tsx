@@ -19,9 +19,11 @@ import {
   presentProjectsHomeChoices,
   presentProjectsWithNoCards,
   presentRecentProjectCards,
+  presentRecentProjectChangePendingWords,
   type ProjectsHomeChoices,
   type RecentProjectCardPresentation,
   type RecentProjectChange,
+  type RecentProjectChangeRefusal,
   type ProjectsLayout,
   type ProjectsOrder,
 } from "../presentation/projects_presentation";
@@ -50,7 +52,7 @@ export interface ProjectsSources {
   /** Delete `folder`, one of them, its folder moved to the Trash; rejects in the runtime's own words. */
   deleteARecentProject(folder: string): Promise<void>;
   /** Say why a change asked of a project did not happen, as `because` words it; `null` clears what was said. */
-  sayWhyTheChangeDidNotHappen(refusal: { asked_to: RecentProjectChange; because: string } | null): void;
+  sayWhyTheChangeDidNotHappen(refusal: RecentProjectChangeRefusal | null): void;
 }
 
 /** How many times the window has come back to the person, focused or shown again, since it opened. */
@@ -157,20 +159,35 @@ export function ProjectsView({
   const [projectToRename, setProjectToRename] = useState<ProjectToRename | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<RecentProjectCardPresentation | null>(null);
   const [isTheDeletionQuestionOpen, setIsTheDeletionQuestionOpen] = useState(false);
+  const [changesRunningByFolder, setChangesRunningByFolder] = useState<ReadonlyMap<string, Exclude<RecentProjectChange, "rename">>>(new Map());
   const readTheProjectsAgain = () => setTimesTheProjectsChanged((timesBefore) => timesBefore + 1);
-  const changeAProject = (askedTo: RecentProjectChange, change: () => Promise<void>) => {
+  const changeAProject = (folder: string, askedTo: Exclude<RecentProjectChange, "rename">, change: () => Promise<void>) => {
+    if (changesRunningByFolder.has(folder)) return;
     projectsSources.sayWhyTheChangeDidNotHappen(null);
-    change().then(readTheProjectsAgain, (rejection: unknown) => {
-      projectsSources.sayWhyTheChangeDidNotHappen({ asked_to: askedTo, because: describeBackendRejection(rejection) });
+    setChangesRunningByFolder((changesBefore) => new Map(changesBefore).set(folder, askedTo));
+    const changeEnded = () => {
+      setChangesRunningByFolder((changesBefore) => {
+        const changesAfter = new Map(changesBefore);
+        changesAfter.delete(folder);
+        return changesAfter;
+      });
       readTheProjectsAgain();
+    };
+    change().then(changeEnded, (rejection: unknown) => {
+      projectsSources.sayWhyTheChangeDidNotHappen({ asked_to: askedTo, because: describeBackendRejection(rejection) });
+      changeEnded();
     });
+  };
+  const pendingWordsOf = (card: RecentProjectCardPresentation) => {
+    const changeRunning = changesRunningByFolder.get(card.folder);
+    return changeRunning === undefined ? null : presentRecentProjectChangePendingWords(changeRunning);
   };
   const moreActionsOf = (card: RecentProjectCardPresentation) => (
     <>
       <MenuItem icon={Pencil} onChosen={() => setProjectToRename({ folder: card.folder, name: card.name })} data-project-action="rename">
         Rename…
       </MenuItem>
-      <MenuItem icon={Copy} onChosen={() => changeAProject("duplicate", () => projectsSources.duplicateARecentProject(card.folder))} data-project-action="duplicate">
+      <MenuItem icon={Copy} onChosen={() => changeAProject(card.folder, "duplicate", () => projectsSources.duplicateARecentProject(card.folder))} data-project-action="duplicate">
         Duplicate
       </MenuItem>
       <MenuSeparator />
@@ -279,7 +296,8 @@ export function ProjectsView({
                   isUnreadable={card.isUnreadable}
                   onOpened={() => openTheProject(card.folder)}
                   moreActions={moreActionsOf(card)}
-                  moreActionsLabel={`Actions for ${card.name}`}
+                  moreActionsLabel={card.moreActionsLabel}
+                  pendingWords={pendingWordsOf(card)}
                   data-projects-project={card.folder}
                 />
               </div>
@@ -302,7 +320,8 @@ export function ProjectsView({
                     isUnreadable={card.isUnreadable}
                     onOpened={() => openTheProject(card.folder)}
                     moreActions={moreActionsOf(card)}
-                    moreActionsLabel={`Actions for ${card.name}`}
+                    moreActionsLabel={card.moreActionsLabel}
+                  pendingWords={pendingWordsOf(card)}
                     data-projects-project={card.folder}
                   />
                 </div>
@@ -329,7 +348,7 @@ export function ProjectsView({
           setIsTheDeletionQuestionOpen(false);
           if (projectToDelete !== null) {
             const folderToDelete = projectToDelete.folder;
-            changeAProject("delete", () => projectsSources.deleteARecentProject(folderToDelete));
+            changeAProject(folderToDelete, "delete", () => projectsSources.deleteARecentProject(folderToDelete));
           }
         }}
         confirmDataAttributes={{ "data-project-deletion-action": "confirm" }}

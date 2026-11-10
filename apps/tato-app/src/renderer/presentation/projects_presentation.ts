@@ -8,6 +8,8 @@ export interface RecentProjectCardPresentation {
   name: string;
   /** The folder, with the person's home as `~`, as the card's tooltip says where the project is. */
   folderWords: string;
+  /** Its ⋯ button's name, as "Actions for pattern, ~/streams/pattern", so two projects of one name read apart. */
+  moreActionsLabel: string;
   /** What the project is, or "No description yet". */
   descriptionWords: string;
   /** Whether the runtime serves a description; a card without one shows its placeholder dimmed. */
@@ -110,6 +112,7 @@ function cardOfTheRecentProject(recentProject: RecentProject, wallClockNowMs: nu
       folder: recentProject.folder,
       name,
       folderWords: folderUnderHome(recentProject.folder),
+      moreActionsLabel: `Actions for ${name}, ${folderUnderHome(recentProject.folder)}`,
       descriptionWords: description === "" ? "No description yet" : description,
       hasADescription: description !== "",
       whenWords: editedTimeWords === null ? openedWords : `Edited ${editedTimeWords}`,
@@ -192,6 +195,50 @@ export function projectRenameRefusal(name: string): string | null {
 
 /** A change the Projects window asked of a recent project. */
 export type RecentProjectChange = "rename" | "duplicate" | "delete";
+
+/** Why a change the Projects window asked of a recent project did not happen, in the words of whatever refused it. */
+export interface RecentProjectChangeRefusal {
+  asked_to: RecentProjectChange;
+  because: string;
+}
+
+/** What a card says is being done to its project while a duplicate or a deletion of it runs. */
+export function presentRecentProjectChangePendingWords(change: Exclude<RecentProjectChange, "rename">): string {
+  return change === "duplicate" ? "Duplicating…" : "Moving to Trash…";
+}
+
+/** The words of the sheet that makes a project: New project's, or Import project's for the `.zip` at `archive`, which keeps the name it was saved with. */
+export function presentNewProjectSheetWords(archive: string | null): {
+  title: string;
+  description: string;
+  nameLabel: string;
+  actionWords: string;
+  pendingWords: string;
+  refusalLead: string;
+} {
+  if (archive === null) {
+    return {
+      title: "New project",
+      description: "Tato Studio makes a folder for the project, with a stream to start from.",
+      nameLabel: "Name",
+      actionWords: "Create",
+      pendingWords: "Creating…",
+      refusalLead: "The project wasn't created:",
+    };
+  }
+  return {
+    title: "Import project",
+    description: `Tato Studio makes a project of its own from ${fileNameOfThePath(archive)}, in a new folder. It keeps the name it was saved with.`,
+    nameLabel: "Folder name",
+    actionWords: "Import",
+    pendingWords: "Importing…",
+    refusalLead: "The project wasn't imported:",
+  };
+}
+
+function fileNameOfThePath(filePath: string): string {
+  return filePath.slice(filePath.lastIndexOf("/") + 1);
+}
 
 /** The title of the notice that says a change the Projects window asked of a project did not happen. */
 export function presentRecentProjectChangeRefusalTitle(askedTo: RecentProjectChange): string {

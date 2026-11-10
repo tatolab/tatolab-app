@@ -62,6 +62,7 @@ const THE_FAKE_RUNTIMES_REFUSAL_OF_A_ZIP_HOLDING_NO_PROJECT = "import_project fa
  */
 function aFakeRuntimeChangingProjects(options: { deletionStates: readonly StreamActionFollowed[] }) {
   const deletionsQueued: string[] = [];
+  let describedDeletions = 0;
   const deletionStatesLeft = [...options.deletionStates];
   const projectChanges: ProjectChangesThroughTheRuntime = {
     summarizeTheProject: async (projectDirectory) => {
@@ -95,6 +96,7 @@ function aFakeRuntimeChangingProjects(options: { deletionStates: readonly Stream
       return succeeded(`deletion-${deletionsQueued.length}`);
     },
     describeStreamAction: async (action) => {
+      describedDeletions += 1;
       const followed = deletionStatesLeft.length > 1 ? deletionStatesLeft.shift() : deletionStatesLeft[0];
       if (followed === undefined) return aRefusalOfTheRuntime(`no state scripted for ${action}`);
       if (followed.kind === "described" && followed.description.state === "done") await rm(followed.description.project_directory, { recursive: true, force: true });
@@ -107,7 +109,7 @@ function aFakeRuntimeChangingProjects(options: { deletionStates: readonly Stream
       return succeeded({ folder: projectDirectory, project: `uuid-of-${String(archive.name)}`, name: String(archive.name) });
     },
   };
-  return { projectChanges, deletionsQueued };
+  return { projectChanges, deletionsQueued, describedDeletions: () => describedDeletions };
 }
 
 /** The deletion of `projectDirectory` as `describe_stream_action` describes it in `state`. */
@@ -213,7 +215,8 @@ async function anOpenProject(options: {
   const studioWindowsClosed: string[] = [];
   const waitsMs: number[] = [];
   const archiveDialogsAsked: string[] = [];
-  const { projectChanges, deletionsQueued } = aFakeRuntimeChangingProjects({ deletionStates: options.deletionStates ?? [] });
+  let monotonicClockMs = 0;
+  const { projectChanges, deletionsQueued, describedDeletions } = aFakeRuntimeChangingProjects({ deletionStates: options.deletionStates ?? [] });
   const homeDirectory = await aFolder();
   const projectOpening = new ProjectOpening({
     homeDirectory,
@@ -250,7 +253,9 @@ async function anOpenProject(options: {
     projectChanges,
     waitFor: async (delayMs) => {
       waitsMs.push(delayMs);
+      monotonicClockMs += delayMs;
     },
+    readMonotonicClockMs: () => monotonicClockMs,
     closeTheStudioWindowOf: (folder) => {
       studioWindowsClosed.push(folder);
       if (projectOpenedLast?.projectFolder !== folder) return;
@@ -304,6 +309,7 @@ async function anOpenProject(options: {
     homeDirectory,
     archiveDialogsAsked,
     deletionsQueued,
+    describedDeletions,
     studioWindowsClosed,
     waitsMs,
     recentFolders: () => recentFolders.map((recentFolder) => recentFolder.folder),
@@ -558,7 +564,7 @@ test("a deletion that fails, is cancelled or is no longer held is refused in the
 test("a deletion still running past the longest wait is refused saying so, and one of a folder not among the recent projects is never queued", async () => {
   const studioFolder = await aFolder();
   await writeAProject(studioFolder, "studio");
-  const { openProject, waitsMs, deletionsQueued, recentFolders } = await anOpenProject({
+  const { openProject, waitsMs, deletionsQueued, describedDeletions, recentFolders } = await anOpenProject({
     dialogAnswers: null,
     recentFolders: [{ folder: studioFolder, opened_at_wall_clock_ms: 200 }],
     deletionStates: [aDeletionIn(studioFolder, "in_progress")],
@@ -566,8 +572,9 @@ test("a deletion still running past the longest wait is refused saying so, and o
   expect(await openProject.deleteRecentProject("/etc")).toEqual(failedWith("/etc is not one of the recent projects."));
   expect(deletionsQueued).toEqual([]);
 
-  expect(await openProject.deleteRecentProject(studioFolder)).toEqual(failedWith(`The runtime is still deleting ${studioFolder}. It leaves the Projects window once it has.`));
+  expect(await openProject.deleteRecentProject(studioFolder)).toEqual(failedWith(`The runtime is still deleting ${studioFolder}. Its card stays here, and reads as gone from disk once the folder is in the Trash.`));
   expect(waitsMs.reduce((waitedMs, waitMs) => waitedMs + waitMs, 0)).toBe(PROJECT_DELETION_LONGEST_WAIT_MS + PROJECT_DELETION_FOLLOW_INTERVAL_MS);
+  expect(describedDeletions()).toBe(PROJECT_DELETION_LONGEST_WAIT_MS / PROJECT_DELETION_FOLLOW_INTERVAL_MS + 1);
   expect(recentFolders()).toEqual([studioFolder]);
 });
 

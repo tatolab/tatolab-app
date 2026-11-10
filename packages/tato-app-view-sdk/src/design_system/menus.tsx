@@ -65,7 +65,7 @@ export function IconButtonMenu({
 }
 
 /** An icon button's look over a picture: a ground of the window's colour and an outline, so its icon reads over any picture. */
-const ICON_BUTTON_OVER_A_PICTURE_CLASS_NAMES = "border border-line-strong bg-window/85 text-fg backdrop-blur-sm hover:bg-window dark:hover:bg-window";
+const ICON_BUTTON_OVER_A_PICTURE_CLASS_NAMES = "border border-line-strong bg-window/85 text-fg backdrop-blur-sm hover:bg-window dark:hover:bg-window data-popup-open:bg-window aria-expanded:bg-window";
 
 /** The ⋯ button that opens a row's, a card's or a page's other actions. */
 export function MoreActionsMenu({

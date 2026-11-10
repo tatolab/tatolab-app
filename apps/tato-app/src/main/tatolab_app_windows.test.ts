@@ -120,6 +120,18 @@ test("closing a running project's window asks first, and Stop and Close stops th
   expect(fakeShell.studioWindowsOpen()).toEqual([]);
 });
 
+test("the window of a project the runtime deleted closes as main closes it, asking nothing, though the last status still lists its streams running", async () => {
+  const { fakeShell, appWindows, projectFolder, projectsStopped } = await windowsWithNightShowOpen(async () => succeeded(undefined));
+  appWindows.sendEveryWindowTheStatus(aStatusListing([aStreamOf(projectFolder, "running")]));
+
+  appWindows.studioWindowOfTheProjectIn(projectFolder)?.tatolabMainWindow.close();
+  await letTheQuestionRun();
+
+  expect(questionsAskedOverTheWindow(fakeShell)).toEqual([]);
+  expect(projectsStopped).toEqual([]);
+  expect(fakeShell.studioWindowsOpen()).toEqual([]);
+});
+
 test("Cancel keeps a running project's window open and its project running", async () => {
   const { fakeShell, appWindows, projectFolder, projectsStopped } = await windowsWithNightShowOpen(async () => succeeded(undefined));
   appWindows.sendEveryWindowTheStatus(aStatusListing([aStreamOf(projectFolder, "preparing")]));
