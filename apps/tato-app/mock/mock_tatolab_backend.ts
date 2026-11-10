@@ -467,9 +467,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
           ? fixtures.mainStreamWithTheFixtureViewsNode
           : mockTatolabOptions.isTheCompositorInMain
             ? fixtures.mainStreamWithTheCompositorNode
-          : mockTatolabOptions.doesTheMainStreamDeclareGraphInputs
-            ? fixtures.mainStreamDeclaringGraphInputs
-            : fixtures.mainStream;
+            : mockTatolabOptions.doesTheMainStreamDeclareGraphInputs
+              ? fixtures.mainStreamDeclaringGraphInputs
+              : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
   const menusKeptForTheSystemMenuBar: SystemMenuBarMenu[] = [];
