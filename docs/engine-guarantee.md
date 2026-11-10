@@ -179,9 +179,9 @@ Each item is something Studio does today that moves, or something it will need t
 | --- | --- | --- |
 | Run controls | Start and stop per stream (`start_stream`, `stop_stream`) | Run, stop and pause apply to the whole project; per-stream start and stop go away |
 | Closing the window | No rule | Closing a running project's window asks: stop and close, or cancel. Background running is left out for now |
-| Project files | The view bridge has `read_project_file` / `save_project_file` asks, and views are found through the `tatolab.views` Python entry point | Studio reads no project files. Listing and reading are runtime verbs, and a write is the `write_project_file` action; views are listed by the runtime from `views/<name>/` in the project and its imports |
+| Project files | The view bridge's `read_project_file` / `save_project_file` asks go to the runtime's file tools, and views are listed by `list_project_views` | Studio reads no project files. Listing and reading are runtime verbs, and a write is the `write_project_file` action; views are listed by the runtime from `views/<name>/` in the project and its imports |
 | Node view settings | Kept by the view | Become the node's config, changed with `set_node_config` |
-| View output | `send_output` is refused (`tatolab_view_bridge.ts`) | Panels send values to the node over the new runtime path (see Views as graph nodes) |
+| View output | A panel's value goes to its node through `write_studio_view_output` (`tatolab_view_bridge.ts`) | Panels send values to the node over the new runtime path (see Views as graph nodes) |
 | View input wiring | Matched by node name | Matched by node UUID |
 | Node `studio` fields | A free map; only `group` is checked | A strict, versioned contract for position, group, comment and colour, plus a free-form metadata map |
 | Edits | Studio calls separate tools whose arguments differ from what history records | Every edit goes through one SDK in one action contract, with a format version and a caller idempotency key |

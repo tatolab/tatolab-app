@@ -69,7 +69,7 @@ test("each edit is a row, newest first, naming who made it and what it changed, 
 
   expect(rows.map((row) => [row.who, sentenceOf(row), row.is_undone])).toEqual([
     ["Sam", "Set displaywindow scaling to fit", false],
-    ["claude-code (agent)", "Added brightnessmeter and 1 more change", false],
+    ["claude-code (agent)", "Added brightnessmeter and linked it to invertingeffect.video_to_downstream", false],
     ["Sam", "Renamed invert to invertingeffect", false],
     ["Runtime", "Refreshed MicLevels from its code", false],
     ["Sam", "Imported warm.cube", false],
@@ -101,11 +101,11 @@ test("an edit the runtime holds undone and redoable is dimmed, an undo or a redo
   ]);
 });
 
-test("Studio's own edits, recorded under its MCP client name, are Tato Studio's, and each row carries when the runtime applied it", () => {
+test("an edit made in Tato Studio, recorded under its MCP client name, is yours, shown as a person's and undone as the agent history records", () => {
   const described = transaction(TATO_STUDIO, [{ operation: "set_project_description", from: null, to: "The lobby screens" }]);
   const rows = historyRowsOfTheFeed([described], new Map());
 
-  expect(rows.map((row) => [row.who, row.author_kind, row.applied_at])).toEqual([["Tato Studio", "agent", described.applied_at]]);
+  expect(rows.map((row) => [row.who, row.shown_author_kind, row.author_kind, row.author_name, row.applied_at])).toEqual([["You", "person", "agent", "tatolab-app", described.applied_at]]);
 });
 
 test("choosing an earlier row undoes every later edit still applied, newest first, each by its own author", () => {

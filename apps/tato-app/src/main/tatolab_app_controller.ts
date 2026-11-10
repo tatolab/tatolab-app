@@ -24,12 +24,14 @@ import type {
   TatolabAppUpdateState,
   TatolabPlatform,
   TatolabStatus,
+  JsonValue,
 } from "../shared/tatolab_backend_contract.js";
 import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_apps_child.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
+import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import type { ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
-import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
+import type { ProjectViewTheRuntimeListed, StudioViewOutputWritten } from "./project_views_on_the_wire.js";
 import { LocalApiClient, type LocalApiRequestFailure, type StreamDisplayNameSet } from "./local_api_client.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import type { TatolabCommandLineToolLink } from "./platform/command_line_tool_link_in_the_home_folder.js";
@@ -299,6 +301,31 @@ export class TatolabAppController {
     return this.localApiClient.nameTheProject(projectDirectory);
   }
 
+  /** The project in `projectDirectory` as its card shows it: its name, description and last edit. */
+  summarizeTheProject(projectDirectory: string): Promise<Result<ProjectSummaryTheRuntimeServes, LocalApiRequestFailure>> {
+    return this.localApiClient.summarizeTheProject(projectDirectory);
+  }
+
+  /** Name the project in `projectDirectory` `name` through the runtime's `rename_project`, answering its name now. */
+  renameProject(projectDirectory: string, name: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.localApiClient.renameProject(projectDirectory, name);
+  }
+
+  /** Copy the project in `projectDirectory` into `into` as a project of its own through the runtime's `duplicate_project`. */
+  duplicateProject(projectDirectory: string, into: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
+    return this.localApiClient.duplicateProject(projectDirectory, into);
+  }
+
+  /** Queue the deletion of the project in `projectDirectory` through the runtime's `delete_project`, answering the action's id. */
+  deleteProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.localApiClient.deleteProject(projectDirectory);
+  }
+
+  /** Make a project in `projectDirectory` from the `.zip` `source` through the runtime's `import_project`. */
+  importProject(source: string, projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
+    return this.localApiClient.importProject(source, projectDirectory);
+  }
+
   /** Copy the project in `source` into `imports/` of the project in `projectDirectory`. */
   addDependency(projectDirectory: string, source: string): Promise<Result<ProjectDependency, LocalApiRequestFailure>> {
     return this.localApiClient.addDependency(projectDirectory, source);
@@ -327,6 +354,11 @@ export class TatolabAppController {
   /** Write `text` whole to `filePath` in the project in `projectDirectory`, one transaction by `author` keyed by `idempotencyKey`. */
   writeProjectFile(projectDirectory: string, filePath: string, text: string, author: ProjectTransactionAuthor, idempotencyKey: string): Promise<Result<ProjectFileWriteRecorded, LocalApiRequestFailure>> {
     return this.localApiClient.writeProjectFile(projectDirectory, filePath, text, author, idempotencyKey);
+  }
+
+  /** Publish `value` on the output `port` of the view node `node` in `stream`. */
+  writeStudioViewOutput(stream: string, node: string, port: string, value: JsonValue): Promise<Result<StudioViewOutputWritten, LocalApiRequestFailure>> {
+    return this.localApiClient.writeStudioViewOutput(stream, node, port, value);
   }
 
   /** Each view the project in `projectDirectory` and its imports bring. */

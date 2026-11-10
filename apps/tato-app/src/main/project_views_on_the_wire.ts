@@ -69,3 +69,29 @@ function viewsFromTheParsedToolResult(parsedToolResult: Result<unknown, string>)
     });
   });
 }
+
+/** The output `write_studio_view_output` published a value on: the stream, the view node's UUID and its port. */
+export interface StudioViewOutputWritten {
+  stream: string;
+  node: string;
+  port: string;
+}
+
+/** The output `write_studio_view_output` answered with `toolResultText`, or why it could not be read. */
+export function studioViewOutputFromTheWriteStudioViewOutputToolResult(toolResultText: string): Result<StudioViewOutputWritten, string> {
+  const written = outputFromTheParsedToolResult(parseJsonOnTheWire(toolResultText));
+  return written.ok ? written : failedWith(`the runtime's write_studio_view_output result could not be read: ${written.failure}`);
+}
+
+function outputFromTheParsedToolResult(parsedToolResult: Result<unknown, string>): Result<StudioViewOutputWritten, string> {
+  if (!parsedToolResult.ok) return parsedToolResult;
+  const toolResult = jsonObject(parsedToolResult.value, "the output written");
+  if (!toolResult.ok) return toolResult;
+  const stream = requiredText(toolResult.value, "stream");
+  if (!stream.ok) return stream;
+  const node = requiredText(toolResult.value, "node");
+  if (!node.ok) return node;
+  const port = requiredText(toolResult.value, "port");
+  if (!port.ok) return port;
+  return succeeded({ stream: stream.value, node: node.value, port: port.value });
+}

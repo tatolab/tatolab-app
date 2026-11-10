@@ -18,7 +18,9 @@ import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import {
   mockFoldersInDocumentsTatoStudio,
   mockNewProjectDefaults,
+  mockFirstNameNothingHolds,
   mockNewProjectLocationTheDialogAnswers,
+  mockProjectArchiveTheDialogAnswers,
   mockNewProjectReading,
   mockOpenProjectReading,
   mockOpenProjectScenarioNamed,
@@ -465,7 +467,17 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const mockFoldersOnDisk = () => [...mockFoldersInDocumentsTatoStudio(fixtures.machine.homeDirectory), ...recentProjects.map((recent) => recent.folder)];
   const openTheProjectInTheMock = (reading: OpenProjectReading, folder: string, projectName: string | null) => {
     openProjectReading = reading;
-    recentProjects = [{ folder, project_name: projectName, last_opened_at_wall_clock_ms: Date.now() }, ...recentProjects.filter((recent) => recent.folder !== folder)];
+    const recentBefore = recentProjects.find((recent) => recent.folder === folder);
+    recentProjects = [
+      {
+        folder,
+        project_name: projectName,
+        project_description: recentBefore?.project_description ?? null,
+        last_edited_at_wall_clock_ms: recentBefore?.last_edited_at_wall_clock_ms ?? null,
+        last_opened_at_wall_clock_ms: Date.now(),
+      },
+      ...recentProjects.filter((recent) => recent.folder !== folder),
+    ];
     for (const openProjectListener of openProjectListeners) openProjectListener(structuredClone(openProjectReading));
   };
   const mockProjectFiles = new MockProjectFiles(`${fixtures.machine.homeDirectory}/streams`);
@@ -1285,6 +1297,47 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
       openTheProjectInTheMock(mockRecentProjectReading(recentProject, fixtures.machine.homeDirectory), folder, recentProject.project_name);
     },
+    renameRecentProject: async (folder, name) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const recentProject = recentProjects.find((recent) => recent.folder === folder);
+      if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      if (name.trim() === "") throw "Give the project a name.";
+      if (recentProject.project_name === null) throw `rename_project failed: ${folder} holds no project: it has no tatolab-project.json`;
+      recentProjects = recentProjects.map((recent) => (recent.folder === folder ? { ...recent, project_name: name.trim(), last_edited_at_wall_clock_ms: Date.now() } : recent));
+    },
+    duplicateRecentProject: async (folder) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 3);
+      const recentProject = recentProjects.find((recent) => recent.folder === folder);
+      if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      if (recentProject.project_name === null) throw `duplicate_project failed: ${folder} holds no project: it has no tatolab-project.json`;
+      const parentFolder = folder.slice(0, folder.lastIndexOf("/"));
+      const duplicateFolder = `${parentFolder}/${mockFirstNameNothingHolds(parentFolder, `${folder.slice(folder.lastIndexOf("/") + 1)} copy`, mockFoldersOnDisk())}`;
+      recentProjects = [{ ...recentProject, folder: duplicateFolder, project_name: `${recentProject.project_name} copy`, last_opened_at_wall_clock_ms: Date.now(), last_edited_at_wall_clock_ms: Date.now() }, ...recentProjects];
+      return duplicateFolder;
+    },
+    deleteRecentProject: async (folder) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 4);
+      const recentProject = recentProjects.find((recent) => recent.folder === folder);
+      if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      if (recentProject.project_name === null) throw `delete_project failed: ${folder} holds no project: it has no tatolab-project.json`;
+      recentProjects = recentProjects.filter((recent) => recent.folder !== folder);
+    },
+    chooseProjectArchiveToImport: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      return mockProjectArchiveTheDialogAnswers(fixtures.machine.homeDirectory, mockFoldersOnDisk());
+    },
+    importProjectArchive: async (archive, name, location) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 4);
+      const nameRefusal = newProjectFolderNameRefusal(name);
+      if (nameRefusal !== null) throw nameRefusal;
+      const folder = `${location}/${name.trim()}`;
+      if (mockFoldersOnDisk().includes(folder)) throw `${folder} already exists. Choose another name or location.`;
+      if (!archive.endsWith(".zip")) throw `import_project failed: ${archive} is not a .zip`;
+      projectFolders.set(folder, { streamNames: ["main"], hasAPythonEnvironment: false });
+      const importedReading = mockNewProjectReading(folder, name.trim());
+      openTheProjectInTheMock(importedReading, folder, importedReading.kind === "read" ? importedReading.open_project.project.name : null);
+      return { folder, project_creation: null };
+    },
     onOpenProjectChanged: (openProjectListener) => {
       openProjectListeners.add(openProjectListener);
       return () => openProjectListeners.delete(openProjectListener);
@@ -1367,6 +1420,12 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (openProjectReading.kind !== "read") throw "No project is open in this window.";
       return mockTatolabOptions.isTheFixtureViewListed ? [mockStudioViewListing()] : [];
+    },
+    writeStudioViewOutput: async (stream, node, port) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const viewNode = loadedStreamOfTheId(stream).fixture.graph.nodes.find((graphNode) => mockNodeIdOf(stream, graphNode.name) === node);
+      if (viewNode === undefined) throw `write_studio_view_output failed: no node with the id \`${node}\` in stream \`${stream}\``;
+      if (!viewNode.output_ports.some((outputPort) => outputPort.name === port)) throw `write_studio_view_output failed: \`${viewNode.name}\` has no output port named \`${port}\``;
     },
     openPortViewer: async (target) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

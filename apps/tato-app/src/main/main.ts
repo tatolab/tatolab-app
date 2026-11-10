@@ -41,7 +41,7 @@ import type { Result } from "./result.js";
 import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
 import type { ProjectFilesOfTheRuntime } from "./open_project_files.js";
-import { ProjectOpening, type FolderEntriesWatch, type ProjectFolderDialog, type ProjectReadingsOfTheRuntime } from "./open_project.js";
+import { ProjectOpening, type FolderEntriesWatch, type ProjectArchiveDialog, type ProjectFolderDialog, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { localApiRequestFailure } from "./local_api_client.js";
@@ -97,6 +97,8 @@ export interface TatolabElectronAppShell {
   askThePersonForAStreamProjectFolder: StreamProjectFolderDialog;
   /** The desktop's folder dialog over the window, which the studio opens and creates a project through. */
   askThePersonForAProjectFolder: ProjectFolderDialog;
+  /** The desktop's open dialog over the window, which the Projects window's Import project .zip… asks through. */
+  askThePersonForAProjectArchive: ProjectArchiveDialog;
   /** The desktop's open dialog over the window, which Module manager imports a project's folder or `.zip` through. */
   askThePersonForADependencySource: DependencySourceDialog;
   /** How the code pane's language servers start, each in its own process. */
@@ -330,11 +332,16 @@ export async function startTatolabApp(
     homeDirectory: tatolabElectronAppShell.homeDirectory,
     documentsDirectory: tatolabElectronAppShell.documentsDirectory,
     projectFolderDialog: tatolabElectronAppShell.askThePersonForAProjectFolder,
+    projectArchiveDialog: tatolabElectronAppShell.askThePersonForAProjectArchive,
     recentProjectFolders: recentProjectFoldersFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
     readWallClockNowMs: () => tatolabElectronAppShell.readWallClockMsForDisplay(),
     newProjectCreation: controller,
     projectReadingsOfTheRuntime,
+    projectChanges: controller,
+    waitFor: (delayMs) => new Promise((waited) => setTimeout(waited, delayMs)),
+    readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     openTheProjectInItsStudioWindow: (folder) => tatolabAppWindows.openTheProjectInItsStudioWindow(folder),
+    closeTheStudioWindowOf: (folder) => tatolabAppWindows.studioWindowOfTheProjectIn(folder)?.tatolabMainWindow.close(),
   });
   const pythonLanguageServers = new PythonLanguageServers({
     startANodeLanguageServer: tatolabElectronAppShell.startANodeLanguageServer,

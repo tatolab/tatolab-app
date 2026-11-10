@@ -152,7 +152,14 @@ export function mountTatolabWindow(
     createAProject: () => {
       studioWindowModel.projectOpeningRefusal.publish(null);
       backend.readNewProjectDefaults().then(
-        (newProjectDefaults) => studioWindowModel.newProjectSheetOpenedWith.publish(newProjectDefaults),
+        (newProjectDefaults) => studioWindowModel.newProjectSheetOpenedWith.publish({ kind: "new_project", defaults: newProjectDefaults }),
+        (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
+      );
+    },
+    importAProjectArchive: () => {
+      studioWindowModel.projectOpeningRefusal.publish(null);
+      backend.chooseProjectArchiveToImport().then(
+        (chosenArchive) => chosenArchive !== null && studioWindowModel.newProjectSheetOpenedWith.publish({ kind: "project_archive", chosen: chosenArchive }),
         (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
       );
     },
@@ -228,6 +235,12 @@ export function mountTatolabWindow(
         studioWindowModel.projectOpeningRefusal.publish(null);
         backend.openRecentProject(folder).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
       },
+      renameARecentProject: (folder, name) => backend.renameRecentProject(folder, name),
+      duplicateARecentProject: async (folder) => {
+        await backend.duplicateRecentProject(folder);
+      },
+      deleteARecentProject: (folder) => backend.deleteRecentProject(folder),
+      sayWhyTheChangeDidNotHappen: (refusal) => studioWindowModel.recentProjectChangeRefusal.publish(refusal),
     },
     newProject: {
       chooseNewProjectLocation: (startingAt) => backend.chooseNewProjectLocation(startingAt),
@@ -236,6 +249,7 @@ export function mountTatolabWindow(
         if (created.project_creation !== null) studioWindowModel.openTheNewProjectsStream(created.folder, created.project_creation.stream);
         return created;
       },
+      importProjectArchive: (archive, name, location) => backend.importProjectArchive(archive, name, location),
     },
     platform,
   };

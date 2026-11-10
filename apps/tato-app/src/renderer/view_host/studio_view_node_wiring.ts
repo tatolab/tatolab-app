@@ -1,11 +1,9 @@
-// A view people write is a node in its stream's graph, and each of its inputs reads whatever output
-// a link wires into it, through that output's port viewer.
+// A view people write is a node in its stream's graph: each of its inputs reads whatever output a
+// link wires into it, through that output's port viewer, and what it writes on its outputs the
+// node publishes.
 
 import type { ViewDeclaredPort } from "@tatolab/tato-app-view-sdk";
 import type { PortViewerTarget, StreamGraphNode, StreamGraphSummary } from "./studio_view_contract";
-
-/** The issue that brings the runtime's view node, which carries what a view sends on its outputs into the stream. */
-export const STUDIO_VIEW_NODE_ISSUE = "tatolab/streamlib#3306";
 
 /** What one input of a view reads: the output wired into it, named as `Node › port`, or why it reads nothing. */
 export type StudioViewInputWiring = { kind: "wired"; target: PortViewerTarget; wired_from_words: string } | { kind: "unwired"; because: string };

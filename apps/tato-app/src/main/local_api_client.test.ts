@@ -1073,6 +1073,104 @@ test("undo_and_redo_ask_the_runtime_by_the_author_and_answer_the_transaction_or_
   ]);
 });
 
+test("renaming_a_project_calls_rename_project_with_its_folder_and_name_and_reads_its_name_now_and_a_blank_name_is_refused_in_the_runtimes_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-rename-project-answer-for-night-show-renamed-night-show.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-rename-project-refusal-for-a-name-that-shows-nothing.json")),
+  ]);
+
+  expect(answerOf(await server.client().renameProject("/tmp/tatolab-proof-projects/night-show", "Night Show"))).toBe("Night Show");
+  expect(failureOf(await server.client().renameProject("/tmp/tatolab-proof-projects/night-show", "   "))).toEqual({
+    failureDescription: "rename_project failed: a project's name cannot be blank",
+    isTheRuntimesRefusal: true,
+  });
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["rename_project", { project_directory: "/tmp/tatolab-proof-projects/night-show", name: "Night Show" }],
+    ["rename_project", { project_directory: "/tmp/tatolab-proof-projects/night-show", name: "   " }],
+  ]);
+});
+
+test("duplicating_a_project_calls_duplicate_project_into_a_new_folder_and_reads_the_duplicate_and_a_folder_already_there_is_refused_in_the_runtimes_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-duplicate-project-answer-for-night-show-into-night-show-copy.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-duplicate-project-refusal-for-a-folder-already-there.json")),
+  ]);
+  const into = "/tmp/tatolab-proof-projects/night-show copy";
+
+  expect(answerOf(await server.client().duplicateProject("/tmp/tatolab-proof-projects/night-show", into))).toEqual({
+    folder: into,
+    project: "03784927-d486-46f1-a0d8-a1768485f601",
+    name: "Night Show copy",
+  });
+  expect(failureOf(await server.client().duplicateProject("/tmp/tatolab-proof-projects/night-show", into)).failureDescription).toBe(
+    "duplicate_project failed: /tmp/tatolab-proof-projects/night-show copy already exists, so the project was not duplicated into it",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["duplicate_project", { project_directory: "/tmp/tatolab-proof-projects/night-show", into }],
+    ["duplicate_project", { project_directory: "/tmp/tatolab-proof-projects/night-show", into }],
+  ]);
+});
+
+test("importing_a_project_zip_calls_import_project_with_the_zip_and_a_new_folder_and_reads_the_project_made_and_a_zip_holding_none_is_refused_in_the_runtimes_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-project-answer-for-night-show-zip-into-imported-show.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-project-refusal-for-a-zip-holding-no-project.json")),
+  ]);
+
+  expect(answerOf(await server.client().importProject("/tmp/tatolab-proof-projects/night-show.zip", "/tmp/tatolab-proof-projects/imported-show"))).toEqual({
+    folder: "/tmp/tatolab-proof-projects/imported-show",
+    project: "cba1d286-8a36-4113-bf10-8630cf9a52b2",
+    name: "Night Show",
+  });
+  expect(failureOf(await server.client().importProject("/tmp/tatolab-proof-projects/notes.zip", "/tmp/tatolab-proof-projects/imported-notes")).failureDescription).toBe(
+    "import_project failed: /tmp/tatolab-proof-projects/notes.zip holds no project to import: it has no `tatolab-project.json` at its root",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["import_project", { source: "/tmp/tatolab-proof-projects/night-show.zip", project_directory: "/tmp/tatolab-proof-projects/imported-show" }],
+    ["import_project", { source: "/tmp/tatolab-proof-projects/notes.zip", project_directory: "/tmp/tatolab-proof-projects/imported-notes" }],
+  ]);
+});
+
+test("deleting_a_project_queues_delete_project_answering_its_action_which_is_followed_to_done_and_a_folder_holding_no_project_is_refused_in_the_runtimes_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-project-answer-queueing-the-deletion-of-night-show-copy.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-the-deletion-of-night-show-copy-done.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-project-refusal-for-a-folder-that-is-not-a-project.json")),
+  ]);
+
+  expect(answerOf(await server.client().deleteProject("/tmp/tatolab-proof-projects/night-show copy"))).toBe("Rumdndppudfu1hageszz80pom-2");
+  expect(answerOf(await server.client().describeStreamAction("Rumdndppudfu1hageszz80pom-2"))).toMatchObject({
+    kind: "described",
+    description: { action: "Rumdndppudfu1hageszz80pom-2", kind: "delete", state: "done", streams: [], failed_because: null },
+  });
+  expect(failureOf(await server.client().deleteProject("/tmp/tatolab-proof-projects/nothing-here")).failureDescription).toBe(
+    "Resource not found: /tmp/tatolab-proof-projects/nothing-here holds no project: it has no tatolab-project.json, so there is none to delete",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["delete_project", { project_directory: "/tmp/tatolab-proof-projects/night-show copy" }],
+    ["describe_stream_action", { action: "Rumdndppudfu1hageszz80pom-2" }],
+    ["delete_project", { project_directory: "/tmp/tatolab-proof-projects/nothing-here" }],
+  ]);
+});
+
+test("summarizing_a_project_reads_its_name_description_and_last_edit_from_list_assets_and_a_project_never_described_has_none", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-assets-tool-result-of-night-show-described-and-edited.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-assets-tool-result-of-night-show-copy-with-no-description-or-cover.json")),
+  ]);
+
+  expect(answerOf(await server.client().summarizeTheProject("/tmp/tatolab-proof-projects/night-show"))).toMatchObject({
+    name: "Night Show",
+    description: "Projection for the night market: a test pattern into a brightness meter.",
+    last_edited_at_wall_clock_ms: 1_794_335_926_000,
+  });
+  expect(answerOf(await server.client().summarizeTheProject("/tmp/tatolab-proof-projects/night-show copy"))).toMatchObject({
+    name: "Night Show copy",
+    description: null,
+    last_edited_at_wall_clock_ms: 1_794_335_872_000,
+  });
+});
+
 const RECORDED_NIGHT_SHOW = "/private/tmp/tl-rec053/projects/night-show";
 
 test("project files are listed, read whole as bytes, and written as one transaction by the author under a key, each through the runtime's file tools, a refusal in its own words", async () => {
@@ -1151,4 +1249,21 @@ test("a project's views are listed from its views/ folders and its imports', eac
   ]);
   expect(listed[1]?.manifest).toMatchObject({ title: "DJ Deck", placement: "node", entry: "index.html" });
   expect(refusal.failureDescription).toBe("list_project_views failed: /private/tmp/tl-rec053/not-a-project holds no project: it has no tatolab-project.json");
+});
+
+test("a value a view writes is handed to its node's output with the stream, the node's UUID and the port, and a stream that is not loaded refused in the runtime's words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-studio-view-output-tool-result-of-the-deck-node-cue.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-studio-view-output-refusal-for-the-stopped-stream-night-show.json")),
+  ]);
+  const deckNode = "fdca90ae-f25d-4551-86e2-11f5cdb65d16";
+
+  expect(answerOf(await server.client().writeStudioViewOutput("night-show-main-aa298d", deckNode, "cue", { track: "Opening" }))).toEqual({ stream: "night-show-main-aa298d", node: deckNode, port: "cue" });
+  expect(failureOf(await server.client().writeStudioViewOutput("night-show-main-aa298d", deckNode, "cue", { track: "Opening" })).failureDescription).toBe(
+    "write_studio_view_output failed: Resource not found: no stream with the id `night-show-main-aa298d` is loaded in this runtime. Loaded: lobby-wall-main-c95d53",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["write_studio_view_output", { stream: "night-show-main-aa298d", node: deckNode, port: "cue", value: { track: "Opening" } }],
+    ["write_studio_view_output", { stream: "night-show-main-aa298d", node: deckNode, port: "cue", value: { track: "Opening" } }],
+  ]);
 });

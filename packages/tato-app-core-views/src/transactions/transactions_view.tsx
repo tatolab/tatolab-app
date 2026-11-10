@@ -1,11 +1,13 @@
 import type { ListedStreamsReading, OpenProjectReading, ProjectTransaction, ProjectTransactionsReading, RefusedProjectAction, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import { CodeBlock } from "@tatolab/tato-app-view-sdk/design_system/code_block";
+import { CopyWordsButton } from "@tatolab/tato-app-view-sdk/design_system/copy_words_button";
 import { KeyValueRows } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
 import { FieldMenu, MenuGroup, MenuItem, MenuSeparator, MenuSingleChoiceGroup, MoreActionsMenu } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { RecordTable, type RecordTableColumn } from "@tatolab/tato-app-view-sdk/design_system/record_table";
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { SidePanel, WorkAreaWithSidePanel } from "@tatolab/tato-app-view-sdk/design_system/side_panel";
+import { StatusChip } from "@tatolab/tato-app-view-sdk/design_system/status_chip";
 import { writeTextToClipboard } from "@tatolab/tato-app-view-sdk/design_system/support/clipboard";
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
@@ -20,8 +22,14 @@ import {
   transactionsFilterButtonWordsOf,
   transactionsFilterChoicesOf,
   transactionsFiltersOnCount,
+  TRANSACTIONS_LOG_FOLLOWING_THE_FEED,
+  transactionsLogCleared,
+  transactionsLogPausedOrResumed,
+  transactionsLogRowsShown,
+  transactionsViewRowsAsJson,
   transactionsViewRowsOf,
   transactionsViewRowsShownBy,
+  type TransactionsLogHolding,
   type TransactionsViewFilter,
   type TransactionsViewRow,
 } from "./transactions_view_rows";
@@ -30,10 +38,31 @@ const TRANSACTIONS_COLUMNS: readonly RecordTableColumn[] = [
   { column_id: "time", heading: "Time", isMachineWords: true },
   { column_id: "author", heading: "Author" },
   { column_id: "stream", heading: "Stream" },
+  { column_id: "mode", heading: "Mode" },
   { column_id: "operations", heading: "Operations" },
   { column_id: "result", heading: "Result" },
   { column_id: "commit", heading: "Commit", isMachineWords: true },
 ];
+
+/** A row's mode and result, each as a chip in the tone the row gives it. */
+function ModeChip({ row }: { row: TransactionsViewRow }) {
+  return <StatusChip tone={row.mode_chip_tone}>{row.mode_words}</StatusChip>;
+}
+
+function ResultChip({ row }: { row: TransactionsViewRow }) {
+  return <StatusChip tone={row.result_chip_tone}>{row.result}</StatusChip>;
+}
+
+/** The detail panel's title row: what ran, then its mode and result. */
+function TransactionDetailTitle({ row }: { row: TransactionsViewRow }) {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <span className="truncate">{row.operations_words}</span>
+      <ModeChip row={row} />
+      <ResultChip row={row} />
+    </span>
+  );
+}
 
 /** The choice that narrows nothing; every other choice is a value behind its own prefix, so no value can be mistaken for it. */
 const NO_NARROWING_FILTER_CHOICE = "transactions-filter:no-narrowing";
@@ -109,7 +138,13 @@ function TransactionsFilterMenu({
 /** The selected transaction: who made it and from where, then what it ran and what undoes it, as the runtime sent them. */
 function AppliedTransactionDetail({ row, transaction }: { row: TransactionsViewRow; transaction: ProjectTransaction }) {
   return (
-    <SidePanel label="Selected transaction" title={row.operations_words} subtitle={row.result} hiding={null} data-transactions-detail={row.row_id}>
+    <SidePanel
+      label="Selected transaction"
+      title={<TransactionDetailTitle row={row} />}
+      actions={<CopyWordsButton appearance="quiet" readTextToCopy={() => changeFeedEntryAsJson(row.sent)} data-transactions-detail-copy="" />}
+      hiding={null}
+      data-transactions-detail={row.row_id}
+    >
       <div className="flex flex-col gap-3 px-4 py-3">
         <KeyValueRows rows={[["Author", row.author_words]]} />
         <KeyValueRows
@@ -135,13 +170,18 @@ function RefusedActionDetail({ row, refusedAction }: { row: TransactionsViewRow;
   const refusedOperationWords = refusedOperationWordsOf(refusedAction);
   const refusedNamesRows = refusedNamesRowsOf(refusedAction);
   return (
-    <SidePanel label="Selected refused action" title={row.operations_words} subtitle={row.result} hiding={null} data-transactions-detail={row.row_id}>
+    <SidePanel
+      label="Selected refused action"
+      title={<TransactionDetailTitle row={row} />}
+      actions={<CopyWordsButton appearance="quiet" readTextToCopy={() => changeFeedEntryAsJson(row.sent)} data-transactions-detail-copy="" />}
+      hiding={null}
+      data-transactions-detail={row.row_id}
+    >
       <div className="flex flex-col gap-3 px-4 py-3">
         <RuntimeFailureWords words={refusedAction.refusal.runtime_words} data-transactions-detail-refusal="" />
         <KeyValueRows
           rows={[
             ["Author", row.author_words],
-            ["Mode", refusedAction.mode],
             ["Action", refusedAction.refusal.action],
             ...(refusedOperationWords === null ? [] : [["Operation", refusedOperationWords] as const]),
           ]}
@@ -158,11 +198,13 @@ function TransactionDetail({ row }: { row: TransactionsViewRow }) {
 }
 
 /** The feed's rows, newest first, filtered, beside the selected one's detail, or why there are none to show. */
-function TransactionsTableAndDetail({ feed, rows, filter }: { feed: ProjectTransactionsReading | null; rows: readonly TransactionsViewRow[]; filter: TransactionsViewFilter }) {
+function TransactionsTableAndDetail({ feed, rows, shownRows, wasCleared }: { feed: ProjectTransactionsReading | null; rows: readonly TransactionsViewRow[]; shownRows: readonly TransactionsViewRow[]; wasCleared: boolean }) {
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
-  const shownRows = useMemo(() => transactionsViewRowsShownBy(rows, filter), [rows, filter]);
   if (feed === null) return <WaitingState title="Reading the project's transactions" data-transactions-state="reading" />;
   if (feed.kind === "not_read") return <WaitingState isFailure title="The project's transactions weren't read" explanation={feed.because} data-transactions-state="not_read" />;
+  if (rows.length === 0 && wasCleared) {
+    return <WaitingState title="The view is cleared" explanation="Each change the runtime applies or refuses from now on shows here." data-transactions-state="cleared" />;
+  }
   if (rows.length === 0) {
     return <WaitingState title="No transactions yet" explanation="Each change the runtime applies or refuses in this project shows here." data-transactions-state="none_yet" />;
   }
@@ -181,7 +223,7 @@ function TransactionsTableAndDetail({ feed, rows, filter }: { feed: ProjectTrans
           rows={shownRows.map((row) => ({
             row_id: row.row_id,
             tone: row.result === "refused" ? "danger" : "plain",
-            cells: [row.happened_at_words, row.author_words, row.stream_cell_words, row.operations_words, row.result, row.commit_cell_words],
+            cells: [row.happened_at_words, row.author_words, row.stream_cell_words, <ModeChip key="mode" row={row} />, row.operations_words, <ResultChip key="result" row={row} />, row.commit_cell_words],
             trailing: (
               <MoreActionsMenu label={`More for ${row.operations_words}`} data-transactions-row-menu={row.row_id}>
                 <MenuItem onChosen={() => void writeTextToClipboard(changeFeedEntryAsJson(row.sent))} data-transactions-copy-as-json={row.row_id}>
@@ -205,22 +247,46 @@ function TransactionsOfTheProject({ connection, projectFolder }: { connection: T
   const feed = useViewReading(watchTheFeed);
   const listedStreams = useViewReading(useCallback((listener: (reading: ListedStreamsReading) => void) => connection.watchListedStreams(listener), [connection]));
   const [filter, setFilter] = useState<TransactionsViewFilter>(NO_TRANSACTIONS_FILTER);
-  const rows = useMemo(() => {
+  const [logHolding, setLogHolding] = useState<TransactionsLogHolding>(TRANSACTIONS_LOG_FOLLOWING_THE_FEED);
+  const rowsOfTheFeed = useMemo(() => {
     if (feed?.kind !== "read") return [];
     const streamWordsOf = streamWordsByOperationStream(listedStreams?.kind === "listed" ? listedStreams.streams : []);
     return transactionsViewRowsOf(feed.project_transactions, streamWordsOf);
   }, [feed, listedStreams]);
+  const rows = useMemo(() => transactionsLogRowsShown(rowsOfTheFeed, logHolding), [rowsOfTheFeed, logHolding]);
+  const shownRows = useMemo(() => transactionsViewRowsShownBy(rows, filter), [rows, filter]);
   return (
     <CoreViewFrame
       connection={connection}
       headerTools={
-        <div className="ml-auto flex items-center gap-1.5 pr-1">
-          <SearchField label="Search transactions" placeholder="Search transactions" text={filter.search_words} onTextChanged={(searchWords) => setFilter({ ...filter, search_words: searchWords })} data-transactions-search="" />
-          <TransactionsFilterMenu rows={rows} filter={filter} onFilterChanged={setFilter} />
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 pr-1">
+          <StatusChip tone="caution" data-transactions-developer-chip="">
+            Developer
+          </StatusChip>
+          {logHolding.rows_when_paused === null ? null : (
+            <StatusChip tone="neutral" data-transactions-paused-chip="">
+              Paused
+            </StatusChip>
+          )}
+          <div className="ml-auto flex items-center gap-1.5">
+            <SearchField label="Search transactions" placeholder="Search transactions" text={filter.search_words} onTextChanged={(searchWords) => setFilter({ ...filter, search_words: searchWords })} data-transactions-search="" />
+            <TransactionsFilterMenu rows={rows} filter={filter} onFilterChanged={setFilter} />
+            <MoreActionsMenu label="More for the transactions log" data-transactions-log-menu="">
+              <MenuItem onChosen={() => setLogHolding((holding) => transactionsLogPausedOrResumed(holding, rowsOfTheFeed))} data-transactions-pause="">
+                {logHolding.rows_when_paused === null ? "Pause the log" : "Resume the log"}
+              </MenuItem>
+              <MenuItem isDisabled={shownRows.length === 0} onChosen={() => void writeTextToClipboard(transactionsViewRowsAsJson(shownRows))} data-transactions-copy-shown-as-json="">
+                Copy shown rows as JSON
+              </MenuItem>
+              <MenuItem isDisabled={rows.length === 0} onChosen={() => setLogHolding((holding) => transactionsLogCleared(holding, rowsOfTheFeed))} data-transactions-clear-view="">
+                Clear the view
+              </MenuItem>
+            </MoreActionsMenu>
+          </div>
         </div>
       }
     >
-      <TransactionsTableAndDetail feed={feed} rows={rows} filter={filter} />
+      <TransactionsTableAndDetail feed={feed} rows={rows} shownRows={shownRows} wasCleared={logHolding.cleared_row_ids.size > 0} />
     </CoreViewFrame>
   );
 }

@@ -69,6 +69,14 @@ export function jsonObject(value: unknown, what: string): Result<JsonObjectOnThe
   return isAJsonObject(value) ? succeeded(value) : failedWith(`${what} is not an object`);
 }
 
+/** `toolResultText`, the result `toolName` answered, read as an object with `readTheResult`, or why it could not be read, naming the tool. */
+export function toolResultReadWith<Read>(toolName: string, toolResultText: string, readTheResult: (toolResult: JsonObjectOnTheWire) => Result<Read, string>): Result<Read, string> {
+  const parsedToolResult = parseJsonOnTheWire(toolResultText);
+  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, `the ${toolName} result`) : parsedToolResult;
+  const read = toolResult.ok ? readTheResult(toolResult.value) : toolResult;
+  return read.ok ? read : failedWith(`the runtime's ${toolName} result could not be read: ${read.failure}`);
+}
+
 /** The required text at `key`. */
 export function requiredText(jsonObject: JsonObjectOnTheWire, key: string): Result<string, string> {
   const value = jsonObject[key];
