@@ -7,7 +7,8 @@ import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_re
 import { VIEW_PORT_HANDOVER, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
-import { StudioAreaHeaderRowOfAWaitingView } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
+import { StudioAreaHeaderRowOfAWaitingView, StudioAreaHeaderWords } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
+import { nodeTitle } from "@tatolab/tato-app-core-views/shared/node_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostServices, StudioViewNodeAddress, StudioViewTypeSource } from "./studio_view_contract";
 import { nodesOfTheStudioViewType, studioViewInputWiring, type StudioViewInputWiring } from "./studio_view_node_wiring";
@@ -155,6 +156,26 @@ function TatolabNodeView(view: TatolabViewOfAnArea) {
   return <TatolabNodeViewOfTheTab key={activeStreamTab.stream} {...view} streamTab={activeStreamTab} />;
 }
 
+/** Where the active tab's node of the view type `viewTypeId` is, as "on the <node> node in <stream>", once the tab's graph has one; nothing before. */
+function WhereTheNodeViewsNodeIsInTheTab({ streamTab, viewTypeId, hostServices }: { streamTab: StreamTabAddress; viewTypeId: string; hostServices: StudioViewHostServices }) {
+  const { stream } = streamTab;
+  const watchTheTabsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => hostServices.watchStreamGraph(stream, listener), [hostServices, stream]);
+  const graphReading = useViewReading(watchTheTabsGraph);
+  const viewNode = graphReading?.kind === "read" ? nodesOfTheStudioViewType(graphReading.graph, viewTypeId)[0] : undefined;
+  if (viewNode === undefined) return null;
+  return (
+    <StudioAreaHeaderWords data-node-view-whereabouts={viewNode.id}>
+      on the {nodeTitle(viewNode.name, viewNode.type)} node in {streamTab.display_name}
+    </StudioAreaHeaderWords>
+  );
+}
+
+function WhereTheNodeViewsNodeIs({ viewTypeId, hostServices }: { viewTypeId: string; hostServices: StudioViewHostServices }) {
+  const activeStreamTab = useViewReading(hostServices.watchActiveStreamTab);
+  if (activeStreamTab === null) return null;
+  return <WhereTheNodeViewsNodeIsInTheTab key={activeStreamTab.stream} streamTab={activeStreamTab} viewTypeId={viewTypeId} hostServices={hostServices} />;
+}
+
 /** The view type `listed`, declared by `manifest` and brought by `broughtBy`: an `area` view's frame fills its area, and a `node` view's shows the active tab's node of its type. */
 export function tatolabFrameViewType(listed: ListedStudioView, manifest: TatolabViewManifest, broughtBy: StudioViewTypeSource): RegisteredStudioViewType {
   return {
@@ -168,5 +189,7 @@ export function tatolabFrameViewType(listed: ListedStudioView, manifest: Tatolab
       ) : (
         <TatolabNodeView listed={listed} manifest={manifest} area={area} hostServices={hostServices} />
       ),
+    renderWordsAfterTheViewTypeMenu:
+      manifest.placement === "node" ? (hostServices) => <WhereTheNodeViewsNodeIs viewTypeId={listed.view_type_id} hostServices={hostServices} /> : undefined,
   };
 }

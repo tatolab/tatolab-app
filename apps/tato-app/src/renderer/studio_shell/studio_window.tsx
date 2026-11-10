@@ -5,8 +5,8 @@ import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_bu
 import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
 import { DocumentTabs } from "@tatolab/tato-app-view-sdk/design_system/document_tabs";
 import { StudioMenuBar } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
-import { MenuGroup, MenuItem, MenuNote, MenuSeparator, MenuSingleChoiceGroup } from "@tatolab/tato-app-view-sdk/design_system/menus";
-import { StudioAreaFrame, StudioAreaHeaderMenu, StudioAreaOverAViewsOwnFrame } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
+import { MenuGroup, MenuItem, MenuItemThatCannotBeChosen, MenuNote, MenuSeparator, MenuSingleChoiceGroup } from "@tatolab/tato-app-view-sdk/design_system/menus";
+import { StudioAreaFrame, StudioAreaHeaderMenu, StudioAreaOverAViewsOwnFrame, StudioViewIconMark, type StudioAreaHeaderMenuIcon } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { WindowNotice } from "@tatolab/tato-app-view-sdk/design_system/window_notice";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
@@ -17,8 +17,8 @@ import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_contex
 import { StudioViewFailureBoundary } from "../view_host/studio_view_failure_boundary";
 import { useWatchedStudioValue, WatchedStudioValue } from "../view_host/watched_studio_value";
 import type { ViewHeaderRow } from "../view_host/studio_view_contract";
-import type { StudioViewHostServices } from "../view_host/studio_view_contract";
-import type { StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
+import type { StudioViewHostServices, StudioViewTypeSource } from "../view_host/studio_view_contract";
+import type { RegisteredStudioViewType, StudioViewNotOpened, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
 import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet_view";
 import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
@@ -55,58 +55,67 @@ export interface StudioWindowSources {
   platform: TatolabPlatform;
 }
 
+/** Who brought a view, in the words its menu row ends with. */
+function wordsOfWhoBroughtTheView(broughtBy: StudioViewTypeSource): string {
+  return broughtBy.kind === "project" ? broughtBy.project_name : TATO_STUDIO_AS_A_VIEW_SOURCE;
+}
+
+/** A view-type menu's row: the view's icon and title, and who brought it. */
+function ViewTypeMenuRowIconTitleAndWhoBroughtIt({ icon, title, broughtBy }: { icon: StudioAreaHeaderMenuIcon; title: string; broughtBy: StudioViewTypeSource }) {
+  return (
+    <span className="flex w-full items-center gap-2">
+      <StudioViewIconMark icon={icon} />
+      <span className="flex-1">{title}</span>
+      <span className="text-2xs text-fg-3">{wordsOfWhoBroughtTheView(broughtBy)}</span>
+    </span>
+  );
+}
+
+/** Views that do not open, each a row that cannot be chosen, described by why it does not open. */
+function ViewTypesNotOpenedInTheMenu({ viewTypesNotOpened }: { viewTypesNotOpened: readonly StudioViewNotOpened[] }) {
+  return viewTypesNotOpened.map((notOpened) => (
+    <MenuItemThatCannotBeChosen
+      key={notOpened.view_type_id}
+      whyItCannotBeChosen={`${notOpened.title} doesn't open: ${notOpened.because}`}
+      data-view-type-not-opened={notOpened.view_type_id}
+    >
+      <ViewTypeMenuRowIconTitleAndWhoBroughtIt icon="project_view" title={notOpened.title} broughtBy={notOpened.brought_by} />
+    </MenuItemThatCannotBeChosen>
+  ));
+}
+
 /** An area's view-type menu: the studio's views, each ticked when the area shows it, then the views the open project and its imports bring. */
 function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources: StudioWindowSources; words: string }) {
   const projectStudioViews = useWatchedStudioValue(sources.viewTypeRegistry.projectStudioViews);
   useWatchedStudioValue(sources.viewTypeRegistry.developerMode);
   const projectViewTypes = sources.viewTypeRegistry.projectViewTypes();
   const projectViewTypesNotOpened = sources.viewTypeRegistry.projectViewTypesNotOpened();
-  const viewTypeChoice = (viewTypeId: string, title: string, broughtBy: string) => ({
-    choice: viewTypeId,
-    label: (
-      <span className="flex w-full items-center gap-2">
-        <span className="flex-1">{title}</span>
-        <span className="text-2xs text-fg-3">{broughtBy}</span>
-      </span>
-    ),
+  const viewTypeChoice = (viewType: RegisteredStudioViewType) => ({
+    choice: viewType.view_type_id,
+    label: <ViewTypeMenuRowIconTitleAndWhoBroughtIt icon={viewType.icon} title={viewType.title} broughtBy={viewType.brought_by} />,
   });
   const onChosen = (viewTypeId: string) => sources.model.showViewTypeInArea(area.area_id, viewTypeId);
   const iconOfTheArea = area.view_type_id === null ? "project_view" : (sources.viewTypeRegistry.viewTypeWithId(area.view_type_id)?.icon ?? "unreadable");
   return (
     <StudioAreaHeaderMenu icon={iconOfTheArea} words={words} label={`${words}: change this area's view`} data-area-view-type-menu={area.area_id}>
       <MenuGroup label="Studio views">
-        {sources.viewTypeRegistry.studioViewTypesNotOpened().map((notOpened) => (
-          <MenuNote key={notOpened.view_type_id}>
-            {notOpened.view_type_id} doesn't open: {notOpened.because}
-          </MenuNote>
-        ))}
         <MenuSingleChoiceGroup
-          choices={sources.viewTypeRegistry.studioViewTypes().map((viewType) => viewTypeChoice(viewType.view_type_id, viewType.title, TATO_STUDIO_AS_A_VIEW_SOURCE))}
+          choices={sources.viewTypeRegistry.studioViewTypes().map(viewTypeChoice)}
           chosen={area.view_type_id ?? ""}
           onChosen={onChosen}
           dataAttributeOfEachChoice="data-view-type-choice"
         />
+        <ViewTypesNotOpenedInTheMenu viewTypesNotOpened={sources.viewTypeRegistry.studioViewTypesNotOpened()} />
       </MenuGroup>
       <MenuGroup label="Project views">
         {projectStudioViews.kind === "not_listed" && <MenuNote>{projectStudioViews.because}</MenuNote>}
         {projectStudioViews.kind === "listed" && projectViewTypes.length === 0 && projectViewTypesNotOpened.length === 0 && (
           <MenuNote>This project and its imports bring no views.</MenuNote>
         )}
-        {projectViewTypesNotOpened.map((notOpened) => (
-          <MenuNote key={notOpened.view_type_id}>
-            {notOpened.view_type_id} doesn't open: {notOpened.because}
-          </MenuNote>
-        ))}
         {projectViewTypes.length > 0 && (
-          <MenuSingleChoiceGroup
-            choices={projectViewTypes.map((viewType) =>
-              viewTypeChoice(viewType.view_type_id, viewType.title, viewType.brought_by.kind === "project" ? viewType.brought_by.project_name : TATO_STUDIO_AS_A_VIEW_SOURCE),
-            )}
-            chosen={area.view_type_id ?? ""}
-            onChosen={onChosen}
-            dataAttributeOfEachChoice="data-view-type-choice"
-          />
+          <MenuSingleChoiceGroup choices={projectViewTypes.map(viewTypeChoice)} chosen={area.view_type_id ?? ""} onChosen={onChosen} dataAttributeOfEachChoice="data-view-type-choice" />
         )}
+        <ViewTypesNotOpenedInTheMenu viewTypesNotOpened={projectViewTypesNotOpened} />
       </MenuGroup>
       {area.view_type_id !== null && sources.viewTypeRegistry.viewTypeWithId(area.view_type_id) !== null && (
         <>
@@ -165,7 +174,12 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
   return (
     <StudioAreaOverAViewsOwnFrame
       label={viewType.title}
-      viewTypeMenu={<AreaViewTypeMenu area={area} sources={sources} words={viewType.title} />}
+      viewTypeMenu={
+        <>
+          <AreaViewTypeMenu area={area} sources={sources} words={viewType.title} />
+          {viewType.renderWordsAfterTheViewTypeMenu?.(sources.viewHostServices)}
+        </>
+      }
       onHeaderRowMeasured={(headerRow) => headerRowInTheFrame.publish(headerRow)}
       data-studio-area={area.area_id}
     >

@@ -232,6 +232,19 @@ describe("the studio", () => {
     expect(inTheCoreView("palette").getByText("Outputs stated only by its native half")).toBeTruthy();
   });
 
+  it("lists in an area's view-type menu each view with who brought it, and a view that does not open as a row that cannot be chosen, with why", async () => {
+    await mountedWindowOverTheMock("state=running&studio_views=fixture");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+
+    expect((await screen.findByRole("menuitemradio", { name: /^Outliner/ })).textContent).toBe("OutlinerTato Studio");
+    expect((await screen.findByRole("menuitemradio", { name: /^Picture and fader/ })).textContent).toBe("Picture and faderpattern");
+    const stageRigRow = document.querySelector<HTMLElement>('[data-view-type-not-opened="lobby-wall:stage_rig"]') ?? expect.unreachable("no row for the view that does not open");
+    expect(stageRigRow.textContent).toBe("Stage riglobby-wall");
+    expect(stageRigRow.getAttribute("aria-disabled")).toBe("true");
+    expect(document.getElementById(stageRigRow.getAttribute("aria-describedby") ?? "")?.textContent).toBe("Stage rig doesn't open: `contract`: this runtime reads view contract 1.0.");
+  });
+
   it("offers Transactions only in Developer mode, listing the open project's transactions with their author, stream and operations, and each one's detail", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
@@ -613,6 +626,7 @@ describe("the studio", () => {
     expect(viewFrame.hasAttribute("sandbox")).toBe(false);
     expect(viewFrame.getAttribute("allow")).toBe("camera; microphone");
     expect(viewFrame.getAttribute("src")).toMatch(/\/mock_studio_view\/picture_and_fader\/index\.html$/);
+    expect(viewerArea.querySelector("[data-node-view-whereabouts]")?.textContent).toBe("on the pictureandfader node in main");
   });
 
   it("says in the view-type menu why a project's views are not listed", async () => {
