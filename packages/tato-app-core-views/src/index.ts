@@ -8,6 +8,7 @@ import propertiesManifestText from "./properties/tatolab_view.json?raw";
 import streamGraphManifestText from "./stream_graph/tatolab_view.json?raw";
 import viewerManifestText from "./viewer/tatolab_view.json?raw";
 import historyManifestText from "./history/tatolab_view.json?raw";
+import codeManifestText from "./code/tatolab_view.json?raw";
 import transactionsManifestText from "./transactions/tatolab_view.json?raw";
 
 /** One core view: its folder, which names it, and its `tatolab_view.json` as written, for Studio to read like any view's. */
@@ -24,5 +25,6 @@ export const CORE_VIEWS: readonly CoreView[] = [
   { folder: "properties", manifest_text: propertiesManifestText },
   { folder: "history", manifest_text: historyManifestText },
   { folder: "viewer", manifest_text: viewerManifestText },
+  { folder: "code", manifest_text: codeManifestText },
   { folder: "transactions", manifest_text: transactionsManifestText },
 ];

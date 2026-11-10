@@ -9,7 +9,7 @@ import type { ProjectNodeTypeReadings } from "./project_node_type_readings";
 import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
-import type { CodeFileAsked, ListedStreamsReading, OpenProjectReading, StopWatching, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
+import type { ListedStreamsReading, OpenProjectReading, StopWatching, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { StudioViewHostServices } from "./studio_view_type_registry";
 
@@ -49,8 +49,6 @@ export interface InWindowStudioViewHostSources {
   selection: WatchedStudioValue<StudioSelection>;
   activeStreamTab: WatchedStudioValue<StreamTabAddress | null>;
   openStreamTab(streamTab: StreamTabAddress): void;
-  codeFileAsked: WatchedStudioValue<CodeFileAsked | null>;
-  openCodeFile(file: string): void;
   viewsOpenedOn: WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>;
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening;
 }
@@ -81,8 +79,6 @@ export function inWindowStudioViewHostServices(
     openStreamTab: (streamTab) => sources.openStreamTab(streamTab),
     watchStreamGraph: streamReadings.watchStreamGraph,
     watchNodeCatalog: streamReadings.watchNodeCatalog,
-    watchCodeFileAsked: sources.codeFileAsked.watch,
-    openCodeFile: (file) => sources.openCodeFile(file),
     openView: (viewTypeId, on) => sources.openView(viewTypeId, on),
     watchViewOpenedOn: (viewTypeId, listener) => {
       let askLastTold: number | null = null;

@@ -89,12 +89,6 @@ export interface ViewOpenedOnAsked {
 /** A view opened on a file or port in an area of the chosen layout, or why no area could show it. */
 export type ViewOpening = { kind: "opened" } | { kind: "not_opened"; because: string };
 
-/** The file the studio asked a code view to show, as opening a node's own file does; `ask` counts up so asking for the same file again is a new ask. */
-export interface CodeFileAsked {
-  file: string;
-  ask: number;
-}
-
 /** One Python language server, started for a project folder, its JSON-RPC messages carried both ways. */
 export interface PythonLanguageServerConnection {
   /** Send one JSON-RPC message; messages sent before the server has started are held and sent in order. */
@@ -125,10 +119,6 @@ export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
   watchStreamGraph(stream: string, listener: (reading: StreamGraphReading) => void): StopWatching;
   /** The node types `stream` can add, read when first watched and again once its graph names a type the catalog lacks. */
   watchNodeCatalog(stream: string, listener: (reading: NodeCatalogReading) => void): StopWatching;
-  /** The file the studio last asked a code view to show; `null` until one is asked for. */
-  watchCodeFileAsked(listener: (codeFileAsked: CodeFileAsked | null) => void): StopWatching;
-  /** Ask the studio's code view to show `file`, an absolute path in the open project. */
-  openCodeFile(file: string): void;
   /** Open a view of `viewTypeId` on `on`, in an area of the chosen layout showing that type, or of the first layout with one. */
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening;
   /** What views of `viewTypeId` were last opened on, at once and again on each `openView` of that type; `null` until one is. */

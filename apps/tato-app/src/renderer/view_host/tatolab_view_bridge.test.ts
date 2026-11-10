@@ -89,8 +89,6 @@ function recordingHostServices() {
     openStreamTab: () => undefined,
     watchStreamGraph: () => () => undefined,
     watchNodeCatalog: () => () => undefined,
-    watchCodeFileAsked: () => () => undefined,
-    openCodeFile: () => undefined,
     openView: (viewTypeId, on) => {
       viewsOpened.push({ viewTypeId, on });
       if (viewTypeId === "acme-dj:nowhere") return { kind: "not_opened", because: "No layout has an area showing acme-dj:nowhere." };

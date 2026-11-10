@@ -1,19 +1,20 @@
 import { describe, expect, it } from "vitest";
-import type { ProjectLogRecord } from "../../view_host/studio_view_contract";
-import { codeFileTabNames, codeViewSettingsFromSavedLayout, DEFAULT_CODE_VIEW_SETTINGS, logRecordLineOf, withTheFileClosed, withTheFileShown } from "./code_editor_view_settings";
+import type { ProjectLogRecord } from "@tatolab/tato-app-view-sdk";
+import { codeFileTabNames, codeViewSettingsOf, DEFAULT_CODE_VIEW_SETTINGS, logRecordLineOf, withTheFileClosed, withTheFileShown } from "./code_view_settings";
 
 const PATTERN = "/home/jonathanf/streams/pattern";
 
 describe("a code area's settings and words", () => {
-  it("reads saved settings, showing the first open file when the shown one is not open, and refuses what is not settings", () => {
-    expect(codeViewSettingsFromSavedLayout({ open_files: [`${PATTERN}/stream.py`, 7], shown_file: "/elsewhere.py", logs_shown: false })).toEqual({
+  it("reads an area's settings, showing the first open file when the shown one is not open, and the defaults for what is not a code area's", () => {
+    expect(codeViewSettingsOf({ open_files: [`${PATTERN}/stream.py`, 7], shown_file: "/elsewhere.py", logs_shown: false })).toEqual({
       open_files: [`${PATTERN}/stream.py`],
       shown_file: `${PATTERN}/stream.py`,
       logs_shown: false,
       logs_size_percent: DEFAULT_CODE_VIEW_SETTINGS.logs_size_percent,
+      opened_on_file: null,
     });
-    expect(codeViewSettingsFromSavedLayout(null)).toBeNull();
-    expect(codeViewSettingsFromSavedLayout({ shown_file: "x" })).toBeNull();
+    expect(codeViewSettingsOf(null)).toEqual(DEFAULT_CODE_VIEW_SETTINGS);
+    expect(codeViewSettingsOf({ shown_file: "x" })).toMatchObject({ open_files: [], shown_file: null });
   });
 
   it("opens a file at the end of the tabs, and closing the shown one shows its neighbour", () => {

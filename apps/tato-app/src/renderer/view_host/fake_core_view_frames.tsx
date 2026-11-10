@@ -10,6 +10,7 @@ import { PaletteView } from "@tatolab/tato-app-core-views/views/palette";
 import { PropertiesView } from "@tatolab/tato-app-core-views/views/properties";
 import { StreamGraphView } from "@tatolab/tato-app-core-views/views/stream_graph";
 import { ViewerView } from "@tatolab/tato-app-core-views/views/viewer";
+import { CodeView } from "@tatolab/tato-app-core-views/views/code";
 import { TransactionsView } from "@tatolab/tato-app-core-views/views/transactions";
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -21,6 +22,7 @@ const CORE_VIEW_DRAWINGS: Record<string, (connection: TatoAppViewConnection) => 
   properties: (connection) => <PropertiesView connection={connection} />,
   history: (connection) => <HistoryView connection={connection} />,
   viewer: (connection) => <ViewerView connection={connection} />,
+  code: (connection) => <CodeView connection={connection} />,
   transactions: (connection) => <TransactionsView connection={connection} />,
 };
 

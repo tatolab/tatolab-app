@@ -1,14 +1,14 @@
-// The files the code pane has open, shared by every code area of the window: each one's text as
+// The files a code area has open: each one's text as
 // read from disk and as edited, the version a save is checked against, what Pyright says of it, and
 // how its last save went. One Pyright session serves each project with a Python file open, and ends
 // when the project's last one closes.
 
 import type { CodeEditorDiagnostic, CodeEditorLanguageHelp } from "@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_types";
-import type { StudioViewHostConnection, JsonValue, PythonLanguageServerConnection } from "../../view_host/studio_view_contract";
+import type { PythonLanguageServerConnection, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import { PythonLanguageClient } from "./python_language_client";
 
-/** What the open documents ask of the host. */
-export type OpenCodeDocumentsHost = Pick<StudioViewHostConnection<JsonValue>, "readProjectFile" | "saveProjectFile" | "connectToPythonLanguageServer">;
+/** What the open documents ask of Studio. */
+export type OpenCodeDocumentsHost = Pick<TatoAppViewConnection, "readProjectFile" | "saveProjectFile" | "connectToPythonLanguageServer">;
 
 /** How a document's last save went, or one under way. */
 export type OpenCodeDocumentSave = { kind: "none" } | { kind: "saving" } | { kind: "refused"; because: string };
@@ -53,7 +53,7 @@ interface ProjectLanguageSession {
   ended_because: string | null;
 }
 
-/** Every file the code pane has open, read and saved through `host`. */
+/** Every file a code area has open, read and saved through `host`. */
 export class OpenCodeDocuments {
   private readonly documentsByFile = new Map<string, OpenCodeDocument>();
   private readonly languageSessionsByProjectFolder = new Map<string, ProjectLanguageSession>();

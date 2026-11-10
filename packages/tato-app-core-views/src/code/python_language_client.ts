@@ -3,7 +3,7 @@
 // publishes, and completion and hover asked at a position. The server's own requests are answered
 // here: its configuration with the project's `.venv` interpreter, everything else with null.
 
-import type { JsonValue } from "../../view_host/studio_view_contract";
+import type { JsonValue } from "@tatolab/tato-app-view-sdk";
 import type { CodeEditorCompletion, CodeEditorCompletionKind, CodeEditorDiagnostic, CodeEditorDiagnosticSeverity } from "@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_types";
 
 type JsonObject = { [key: string]: JsonValue };

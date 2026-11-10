@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { JsonValue } from "../../view_host/studio_view_contract";
+import type { JsonValue } from "@tatolab/tato-app-view-sdk";
 import { fileOfUri, fileUriOf, PythonLanguageClient } from "./python_language_client";
 
 const PROJECT_FOLDER = "/home/jonathanf/streams/pattern";

@@ -1,5 +1,5 @@
-import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
 import { CodeFileTabStrip, type OpenableCodeFileGroup } from "@tatolab/tato-app-view-sdk/design_system/code_file_tab_strip";
@@ -8,46 +8,34 @@ import { codeEditorLanguageOfFile } from "@tatolab/tato-app-view-sdk/design_syst
 import { LogRecordLines } from "@tatolab/tato-app-view-sdk/design_system/log_record_lines";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { ProjectLogReading, StopWatching, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
+import type { ProjectLogReading, StopWatching, TatoAppViewConnection, ViewOpenedOn } from "@tatolab/tato-app-view-sdk";
+import { CoreViewFrame } from "../shared/core_view_page";
+import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import {
   codeFileTabsOf,
-  codeViewSettingsFromSavedLayout,
-  DEFAULT_CODE_VIEW_SETTINGS,
+  codeViewSettingsOf,
   logRecordLineOf,
   projectsWithFilesToOffer,
   withTheFileClosed,
   withTheFileShown,
   type CodeViewSettings,
-} from "./code_editor_view_settings";
+} from "./code_view_settings";
 import { hasEditsNotSaved, OpenCodeDocuments, type OpenCodeDocument } from "./open_code_documents";
-
-type CodeViewConnection = StudioViewHostConnection<CodeViewSettings>;
 
 /** The issue that names the file a node's class is defined in, which opening a node's code waits on. */
 const OPENING_A_NODES_FILE_WAITS_ON = "tatolab/streamlib#2918";
 
-/**
- * The host hands every area the same functions, so the documents open behind them are found by one of
- * those functions: every code area of the window shares one set of open files, as split editors do.
- */
-const openCodeDocumentsOfEachHost = new WeakMap<CodeViewConnection["readProjectFile"], { documents: OpenCodeDocuments; last_code_file_ask_taken: number }>();
+/** Keeps `settings` with the area, showing why when Studio refuses them. */
+type RememberTheCodeSettings = (settings: CodeViewSettings) => void;
 
-function openCodeDocumentsOf(connection: CodeViewConnection): { documents: OpenCodeDocuments; last_code_file_ask_taken: number } {
-  const known = openCodeDocumentsOfEachHost.get(connection.readProjectFile);
-  if (known !== undefined) return known;
-  const created = { documents: new OpenCodeDocuments(connection, forgetCodeEditorDocument), last_code_file_ask_taken: 0 };
-  openCodeDocumentsOfEachHost.set(connection.readProjectFile, created);
-  return created;
-}
-
-function useOpenCodeDocuments(connection: CodeViewConnection): OpenCodeDocuments {
-  const { documents } = openCodeDocumentsOf(connection);
+function useOpenCodeDocuments(connection: TatoAppViewConnection): OpenCodeDocuments {
+  const [documents] = useState(() => new OpenCodeDocuments(connection, forgetCodeEditorDocument));
   useSyncExternalStore(documents.subscribe, documents.snapshot);
   return documents;
 }
 
 /** The files each of the open project and its imports offers to open, listed again whenever the project is read again. */
-function useOpenableFileGroups(connection: CodeViewConnection): OpenableCodeFileGroup[] {
+function useOpenableFileGroups(connection: TatoAppViewConnection): OpenableCodeFileGroup[] {
   const openProject = useViewReading(connection.watchOpenProject);
   const projects = useMemo(() => projectsWithFilesToOffer(openProject), [openProject]);
   const [groups, setGroups] = useState<OpenableCodeFileGroup[]>([]);
@@ -69,10 +57,18 @@ function useOpenableFileGroups(connection: CodeViewConnection): OpenableCodeFile
   return groups;
 }
 
-function CodeAreaHeaderTools({ connection }: { connection: CodeViewConnection }) {
-  const documents = useOpenCodeDocuments(connection);
+function CodeAreaHeaderTools({
+  connection,
+  documents,
+  settings,
+  rememberTheSettings,
+}: {
+  connection: TatoAppViewConnection;
+  documents: OpenCodeDocuments;
+  settings: CodeViewSettings;
+  rememberTheSettings: RememberTheCodeSettings;
+}) {
   const openableFileGroups = useOpenableFileGroups(connection);
-  const { settings } = connection;
   const tabs = codeFileTabsOf(settings.open_files, (file) => {
     const document = documents.documentOf(file);
     return { has_edits_not_saved: hasEditsNotSaved(document), is_read_only: document?.kind === "read" && !document.is_editable };
@@ -83,13 +79,13 @@ function CodeAreaHeaderTools({ connection }: { connection: CodeViewConnection })
       shownFile={settings.shown_file}
       openableFileGroups={openableFileGroups}
       areLogsShown={settings.logs_shown}
-      onTabChosen={(file) => connection.rememberSettings({ ...settings, shown_file: file })}
+      onTabChosen={(file) => rememberTheSettings({ ...settings, shown_file: file })}
       onTabClosed={(file) => {
-        connection.rememberSettings(withTheFileClosed(settings, file));
+        rememberTheSettings(withTheFileClosed(settings, file));
         documents.close(file);
       }}
-      onFileChosen={(file) => connection.rememberSettings(withTheFileShown(settings, file))}
-      onLogsToggled={(areShown) => connection.rememberSettings({ ...settings, logs_shown: areShown })}
+      onFileChosen={(file) => rememberTheSettings(withTheFileShown(settings, file))}
+      onLogsToggled={(areShown) => rememberTheSettings({ ...settings, logs_shown: areShown })}
     />
   );
 }
@@ -182,7 +178,7 @@ function ShownCodeDocument({ documents, file }: { documents: OpenCodeDocuments; 
   );
 }
 
-function ProjectLog({ connection, projectFolder }: { connection: CodeViewConnection; projectFolder: string }) {
+function ProjectLog({ connection, projectFolder }: { connection: TatoAppViewConnection; projectFolder: string }) {
   const watchTheProjectsLog = useCallback((listener: (reading: ProjectLogReading) => void): StopWatching => connection.watchProjectLog(projectFolder, listener), [connection, projectFolder]);
   const reading = useViewReading(watchTheProjectsLog);
   const lines = useMemo(() => (reading?.kind === "read" ? reading.records.map(logRecordLineOf) : []), [reading]);
@@ -200,18 +196,18 @@ function ProjectLog({ connection, projectFolder }: { connection: CodeViewConnect
   );
 }
 
-function CodeAreaBody({ connection }: { connection: CodeViewConnection }) {
-  const documents = useOpenCodeDocuments(connection);
-  const { settings } = connection;
-  const codeFileAsked = useViewReading(connection.watchCodeFileAsked);
+function CodeAreaBody({
+  connection,
+  documents,
+  settings,
+  rememberTheSettings,
+}: {
+  connection: TatoAppViewConnection;
+  documents: OpenCodeDocuments;
+  settings: CodeViewSettings;
+  rememberTheSettings: RememberTheCodeSettings;
+}) {
   const openProject = useViewReading(connection.watchOpenProject);
-  useEffect(() => {
-    const host = openCodeDocumentsOf(connection);
-    if (codeFileAsked === null || codeFileAsked.ask <= host.last_code_file_ask_taken) return;
-    host.last_code_file_ask_taken = codeFileAsked.ask;
-    connection.rememberSettings(withTheFileShown(settings, codeFileAsked.file));
-  }, [codeFileAsked, connection, settings]);
-
   const shownDocument = settings.shown_file === null ? undefined : documents.documentOf(settings.shown_file);
   const openProjectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
   const loggedProjectFolder = shownDocument?.kind === "read" ? shownDocument.project_folder : openProjectFolder;
@@ -238,19 +234,45 @@ function CodeAreaBody({ connection }: { connection: CodeViewConnection }) {
       ]}
       onSizesChanged={(sizePercentByPartId) => {
         const logsSizePercent = sizePercentByPartId.log;
-        if (logsSizePercent !== undefined) connection.rememberSettings({ ...settings, logs_size_percent: Math.round(logsSizePercent) });
+        if (logsSizePercent !== undefined) rememberTheSettings({ ...settings, logs_size_percent: Math.round(logsSizePercent) });
       }}
     />
   );
 }
 
-/** Code: the project's files in Monaco with Pyright's diagnostics and completion, saved straight to disk, the project's log under them. */
-export const CODE_EDITOR_VIEW_TYPE: StudioViewType<CodeViewSettings> = {
-  view_type_id: "code",
-  title: "Code",
-  icon: "code",
-  brought_by: { kind: "built_in" },
-  default_settings: DEFAULT_CODE_VIEW_SETTINGS,
-  settingsFromSavedLayout: codeViewSettingsFromSavedLayout,
-  renderStudioView: (connection) => ({ header_tools: <CodeAreaHeaderTools connection={connection} />, body: <CodeAreaBody connection={connection} /> }),
-};
+/** Shows the file each opening of the area names; the first opening a frame hears is the one it last took when that file is still `settings.opened_on_file`, so a frame loaded again does not open it twice. */
+function useTheFileTheAreaIsOpenedOn(connection: TatoAppViewConnection, settings: CodeViewSettings, rememberTheSettings: RememberTheCodeSettings): void {
+  const openedOn = useViewReadingSoFar(connection.watchOpenedOn);
+  const openingsHeard = useRef<{ last_heard: { kind: "read"; reading: ViewOpenedOn } | null; count: number }>({ last_heard: null, count: 0 });
+  useEffect(() => {
+    if (openedOn.kind !== "read" || openedOn === openingsHeard.current.last_heard) return;
+    openingsHeard.current = { last_heard: openedOn, count: openingsHeard.current.count + 1 };
+    const opening = openedOn.reading;
+    if (opening?.kind !== "file") return;
+    if (openingsHeard.current.count === 1 && opening.file === settings.opened_on_file) return;
+    rememberTheSettings({ ...withTheFileShown(settings, opening.file), opened_on_file: opening.file });
+  }, [openedOn, settings, rememberTheSettings]);
+}
+
+function CodeOfTheArea({ connection, settings }: { connection: TatoAppViewConnection; settings: CodeViewSettings }) {
+  const documents = useOpenCodeDocuments(connection);
+  const [settingsRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
+  const rememberTheSettings = useCallback(
+    (settingsNow: CodeViewSettings) => showTheRefusalOf("Didn't keep the area's files:", connection.rememberSettings(settingsNow)),
+    [connection, showTheRefusalOf],
+  );
+  useTheFileTheAreaIsOpenedOn(connection, settings, rememberTheSettings);
+  return (
+    <CoreViewFrame connection={connection} headerTools={<CodeAreaHeaderTools connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} />}>
+      <RefusalOfTheLatestAskBar refusal={settingsRefusal} />
+      <CodeAreaBody connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} />
+    </CoreViewFrame>
+  );
+}
+
+/** Code: the project's files in Monaco with Pyright's diagnostics and completion, saved straight to disk, the project's log under them; opened on a file, it shows that file. */
+export function CodeView({ connection }: { connection: TatoAppViewConnection }) {
+  const settings = useViewReadingSoFar(connection.watchSettings);
+  if (settings.kind === "not_read_yet") return <CoreViewFrame connection={connection}>{null}</CoreViewFrame>;
+  return <CodeOfTheArea connection={connection} settings={codeViewSettingsOf(settings.reading)} />;
+}

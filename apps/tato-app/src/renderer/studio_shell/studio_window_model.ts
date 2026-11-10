@@ -5,13 +5,10 @@ import type { ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutVie
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import { WatchedStudioValue, type InWindowStudioViewHostSources } from "../view_host/in_window_view_host";
-import type { CodeFileAsked, JsonValue, ListedStreamsReading, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
+import type { JsonValue, ListedStreamsReading, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
 import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, type StudioAreaLayoutNode } from "./studio_area_layout";
 import { STUDIO_LAYOUTS, type StudioLayoutName, type StudioLayoutsKeptInStorage, type StudioLayoutsOfAFolder } from "./studio_layouts";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
-
-/** The view type id of the code pane, which a file the studio asks to open shows in. */
-export const CODE_VIEW_TYPE_ID = "code";
 
 /** The streams the runtime lists in `status`, or why it lists none now. */
 export function listedStreamsReadingOf(status: TatolabStatus): ListedStreamsReading {
@@ -71,7 +68,6 @@ export class StudioWindowModel {
   /** The open project's layouts; `null` while none is open. */
   readonly studioLayouts = new WatchedStudioValue<StudioLayoutsOfAFolder | null>(null);
   /** The file a code view was last asked to show. */
-  readonly codeFileAsked = new WatchedStudioValue<CodeFileAsked | null>(null);
   /** What views of each type were last opened on, by view type id. */
   readonly viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
   private viewOpeningAsks = 0;
@@ -103,8 +99,6 @@ export class StudioWindowModel {
       selection: this.selection,
       activeStreamTab: this.activeStreamTab,
       openStreamTab: (streamTab) => this.openStreamTab(streamTab),
-      codeFileAsked: this.codeFileAsked,
-      openCodeFile: (file) => this.openCodeFile(file),
       viewsOpenedOn: this.viewsOpenedOn,
       openView: (viewTypeId, on) => this.openView(viewTypeId, on),
     };
@@ -125,11 +119,6 @@ export class StudioWindowModel {
     this.selection.publish(pin.selection);
   }
 
-  /** Ask the code view to show `file`; a layout with no code area switches to Code, which has one. */
-  openCodeFile(file: string): void {
-    this.openView(CODE_VIEW_TYPE_ID, { kind: "file", file });
-  }
-
   /** Open views of `viewTypeId` on `on`: in the chosen layout when an area of it shows that type, or else in the first layout with one, which is chosen. */
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening {
     if (this.poppedOutView.readLatest() !== null) return { kind: "not_opened", because: "A popped-out view's window shows that view alone. Open it from the project's studio window." };
@@ -143,7 +132,6 @@ export class StudioWindowModel {
     }
     this.viewOpeningAsks += 1;
     this.viewsOpenedOn.publish({ ...this.viewsOpenedOn.readLatest(), [viewTypeId]: { on, ask: this.viewOpeningAsks } });
-    if (viewTypeId === CODE_VIEW_TYPE_ID && on.kind === "file") this.codeFileAsked.publish({ file: on.file, ask: (this.codeFileAsked.readLatest()?.ask ?? 0) + 1 });
     return { kind: "opened" };
   }
 

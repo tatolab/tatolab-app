@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { JsonValue, PythonLanguageServerConnectionEvent, ProjectFileReading, ProjectFileSaving } from "../../view_host/studio_view_contract";
+import type { JsonValue, PythonLanguageServerConnectionEvent, ProjectFileReading, ProjectFileSaving } from "@tatolab/tato-app-view-sdk";
 import { hasEditsNotSaved, OpenCodeDocuments, type OpenCodeDocumentsHost } from "./open_code_documents";
 
 const PROJECT_FOLDER = "/home/jonathanf/streams/pattern";
@@ -31,7 +31,8 @@ function fakeHost() {
       return { kind: "saved", version: String(versionCount) };
     },
     connectToPythonLanguageServer: (projectFolder, onEvent) => {
-      const session = { project_folder: projectFolder, sent: [] as JsonValue[], closed: false, onEvent };
+      const sent: JsonValue[] = [];
+      const session = { project_folder: projectFolder, sent, closed: false, onEvent };
       sessions.push(session);
       return { send: (message) => session.sent.push(message), close: () => (session.closed = true) };
     },
