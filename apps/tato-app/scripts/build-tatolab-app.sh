@@ -90,7 +90,10 @@ developer_id_keychain="$developer_id_scratch_directory/tatolab-developer-id.keyc
 keychain_search_list_before_the_build=()
 while IFS= read -r listed_keychain; do
   listed_keychain="$(sed -e 's/^[[:space:]]*"//' -e 's/"[[:space:]]*$//' <<<"$listed_keychain")"
-  [ -n "$listed_keychain" ] && keychain_search_list_before_the_build+=("$listed_keychain")
+  # A build killed before its EXIT trap leaves its temporary keychain listed; carried forward, its
+  # lost password makes codesign prompt for every later build.
+  case "$listed_keychain" in "" | */tatolab-developer-id.keychain-db) continue ;; esac
+  keychain_search_list_before_the_build+=("$listed_keychain")
 done < <(security list-keychains -d user)
 remove_the_developer_id_keychain() {
   security list-keychains -d user -s ${keychain_search_list_before_the_build[@]+"${keychain_search_list_before_the_build[@]}"}
