@@ -30,7 +30,7 @@ function split(splitId: string, direction: "row" | "column", parts: [number, Stu
   return { kind: "split", split_id: splitId, direction, parts: parts.map(([sizePercent, part]) => ({ size_percent: sizePercent, part })) };
 }
 
-/** The column down the right edge every layout keeps: the outliner over properties. */
+/** The column down the right edge of the layouts that keep one: the outliner over properties. */
 function sideColumn(): StudioAreaSplit {
   return split("side", "column", [
     [42, area("outliner", "outliner")],
@@ -59,15 +59,20 @@ export function defaultStudioLayout(layoutName: StudioLayoutName): StudioAreaLay
       ]);
     case "code":
       return split("code-columns", "row", [
-        [16, area("files", "files")],
-        [42, area("code", "code")],
-        [24, split("code-middle", "column", [[50, area("stream-graph", "stream_graph")], [50, area("viewer", "viewer")]])],
-        [18, sideColumn()],
+        [15, area("files", "files")],
+        [40, area("code", "code")],
+        [45, split("code-right", "column", [[70, area("stream-graph", "stream_graph")], [30, area("viewer", "viewer")]])],
       ]);
     case "perform":
       return split("perform-columns", "row", [
-        [82, split("perform-main", "column", [[58, area("viewer", "viewer")], [42, split("perform-bottom", "row", [[50, area("scene", null)], [50, area("stream-graph", "stream_graph")]])]])],
-        [18, sideColumn()],
+        [
+          76,
+          split("perform-main", "column", [
+            [82, area("viewer", "viewer")],
+            [18, split("perform-previews", "row", [[34, area("preview-first", "viewer")], [33, area("preview-second", "viewer")], [33, area("preview-third", "viewer")]])],
+          ]),
+        ],
+        [24, area("controls", "controls")],
       ]);
   }
 }

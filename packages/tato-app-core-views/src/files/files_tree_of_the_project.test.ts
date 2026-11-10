@@ -1,6 +1,6 @@
 import type { OpenProject } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { expect, test } from "vitest";
-import { filesTreeOfTheProject, iconOfAFile, IMPORTS_HEADING_ROW_ID, type ProjectFilesListedForTheTree } from "./files_tree_of_the_project";
+import { filesTreeOfTheProject, IMPORTS_HEADING_ROW_ID, type ProjectFilesListedForTheTree } from "./files_tree_of_the_project";
 
 const GALLERY: OpenProject = {
   project: { folder: "/w/gallery", project: "0b6f3c1e-2d4a-4e8b-9c7d-5a1f8e3b6d20", name: "Gallery" },
@@ -28,24 +28,14 @@ function rowLines(rows: ReturnType<typeof filesTreeOfTheProject>): string[] {
   return rows.map(({ row }) => `${"  ".repeat(row.depth)}${row.label}${row.expansion === "collapsed" ? " +" : ""}${row.isReadOnly === true ? " (read only)" : ""}`);
 }
 
-test("the project's folders show closed before its files, sorted by name, then the imports with folders, read-only", () => {
-  expect(rowLines(filesTreeOfTheProject(GALLERY, LISTED, {}))).toEqual([
-    "Gallery",
-    "  nodes +",
-    "  streams +",
-    "  views +",
-    "  Notes.md",
-    "  pyproject.toml",
-    "Imports",
-    "  Doorway (read only)",
-    "    nodes +",
-  ]);
+test("the project's folders show closed at the top before its files, sorted by name, then the imports with folders, read-only", () => {
+  expect(rowLines(filesTreeOfTheProject(GALLERY, LISTED, {}))).toEqual(["nodes +", "streams +", "views +", "Notes.md", "pyproject.toml", "Imports", "  Doorway (read only)", "    nodes +"]);
 });
 
 test("an opened folder shows its folders and files, and each file row names the file absolute and whether Code opens it", () => {
   const rows = filesTreeOfTheProject(GALLERY, LISTED, { "folder:/w/gallery/nodes": true, "folder:/w/gallery/views": true, "folder:/w/gallery/views/deck": true });
 
-  expect(rowLines(rows).slice(0, 9)).toEqual(["Gallery", "  nodes", "    blur.py", "    glow.py", "  streams +", "  views", "    deck", "      logo.png", "  Notes.md"]);
+  expect(rowLines(rows).slice(0, 8)).toEqual(["nodes", "  blur.py", "  glow.py", "streams +", "views", "  deck", "    logo.png", "Notes.md"]);
   expect(rows.find(({ row }) => row.label === "glow.py")?.meaning).toEqual({ kind: "file", file: "/w/gallery/nodes/glow.py", opens_in_code: true });
   expect(rows.find(({ row }) => row.label === "logo.png")?.meaning).toEqual({ kind: "file", file: "/w/gallery/views/deck/logo.png", opens_in_code: false });
 });
@@ -58,26 +48,23 @@ test("an import is marked read-only on its heading, and its files listed under i
   expect(rows.find(({ row }) => row.label === "glow.py")).toBeUndefined();
 });
 
-test("a closed project heading or Imports heading hides what is under it", () => {
-  expect(rowLines(filesTreeOfTheProject(GALLERY, LISTED, { "project:/w/gallery": false, [IMPORTS_HEADING_ROW_ID]: false }))).toEqual(["Gallery +", "Imports +"]);
+test("a closed import heading or Imports heading hides what is under it", () => {
+  expect(rowLines(filesTreeOfTheProject(GALLERY, LISTED, { "project:/w/gallery/imports/doorway": false })).slice(-2)).toEqual(["Imports", "  Doorway + (read only)"]);
+  expect(rowLines(filesTreeOfTheProject(GALLERY, LISTED, { [IMPORTS_HEADING_ROW_ID]: false })).slice(-1)).toEqual(["Imports +"]);
 });
 
 test("a project still being listed says so, and one the runtime refused to list shows the runtime's words", () => {
   const rows = filesTreeOfTheProject(GALLERY, [{ project_folder: "/w/gallery", listing: { kind: "not_listed", because: "list_project_files failed: the runtime is stopping" } }], {});
 
-  expect(rowLines(rows)).toEqual(["Gallery", "  list_project_files failed: the runtime is stopping", "Imports", "  Doorway (read only)", "    Listing the files…"]);
-  expect(rows[1]?.row.tone).toBe("unreadable");
+  expect(rowLines(rows)).toEqual(["list_project_files failed: the runtime is stopping", "Imports", "  Doorway (read only)", "    Listing the files…"]);
+  expect(rows[0]?.row.tone).toBe("unreadable");
 });
 
 test("a project with no folder imports shows no Imports heading", () => {
   expect(rowLines(filesTreeOfTheProject({ ...GALLERY, imports: [] }, LISTED, {})).includes("Imports")).toBe(false);
 });
 
-test("a file's icon follows its kind", () => {
-  expect(["glow.py", "frame.pyi", "main.graph.json", "pyproject.toml", "logo.PNG", "Notes.md"].map(iconOfAFile)).toEqual(["code_file", "code_file", "data_file", "data_file", "image_file", "file"]);
-});
-
 test("a project the runtime lists no file of says so", () => {
   const rows = filesTreeOfTheProject({ ...GALLERY, imports: [] }, [{ project_folder: "/w/gallery", listing: { kind: "listed", project_files: { project_folder: "/w/gallery", files: [] } } }], {});
-  expect(rowLines(rows)).toEqual(["Gallery", "  No files"]);
+  expect(rowLines(rows)).toEqual(["No files"]);
 });

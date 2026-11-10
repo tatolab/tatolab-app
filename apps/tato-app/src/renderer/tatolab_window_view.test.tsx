@@ -468,10 +468,10 @@ describe("the studio", () => {
 
     fireEvent.keyDown(document, { key: "2", metaKey: true });
     expect(await shownLayout()).toBe("compose");
-    expect(document.querySelector('[data-studio-area="scene"]')).toBeNull();
+    expect(document.querySelector('[data-studio-area="controls"]')).toBeNull();
     fireEvent.keyDown(document, { key: "5", metaKey: true });
     expect(await shownLayout()).toBe("perform");
-    expect(document.querySelector('[data-studio-area="scene"]')).not.toBeNull();
+    expect(document.querySelector('[data-studio-area="controls"]')).not.toBeNull();
 
   });
 

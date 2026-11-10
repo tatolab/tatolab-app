@@ -1,8 +1,7 @@
-// The open project's folder as the Files view draws it: the project, its folders and files as the
-// runtime lists them, folders before files, then its imports, each read-only with its own files.
+// The open project's folder as the Files view draws it: its folders and files as the runtime lists
+// them, folders before files, then its imports, each read-only with its own files.
 
 import type { TreeViewRow } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
-import type { StudioIconName } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
 import type { OpenProject, ProjectFilesListing } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { RowExpansionChoices } from "../shared/row_expansion_settings";
 import { isAFileTheCodeViewOpens } from "../shared/files_the_code_view_opens";
@@ -29,18 +28,6 @@ export interface ProjectFilesListedForTheTree {
 
 /** The row id of the heading over the open project's imports. */
 export const IMPORTS_HEADING_ROW_ID = "imports";
-
-const EXTENSIONS_OF_DATA_FILES = [".json", ".toml", ".yaml", ".yml", ".ini", ".cfg"];
-const EXTENSIONS_OF_IMAGE_FILES = [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"];
-
-/** The icon a file's row shows, by its extension. */
-export function iconOfAFile(fileName: string): StudioIconName {
-  const lowerCaseName = fileName.toLowerCase();
-  if (lowerCaseName.endsWith(".py") || lowerCaseName.endsWith(".pyi")) return "code_file";
-  if (EXTENSIONS_OF_DATA_FILES.some((extension) => lowerCaseName.endsWith(extension))) return "data_file";
-  if (EXTENSIONS_OF_IMAGE_FILES.some((extension) => lowerCaseName.endsWith(extension))) return "image_file";
-  return "file";
-}
 
 /** A folder of a listing: its folders and its files, each by name. */
 interface ListedFolder {
@@ -89,53 +76,53 @@ function rowsOfAFolder(folder: ListedFolder, absoluteFolder: string, depth: numb
   for (const fileName of [...folder.file_names].sort(byName)) {
     const file = `${absoluteFolder}/${fileName}`;
     rows.push({
-      row: { row_id: `file:${file}`, depth, label: fileName, icon: iconOfAFile(fileName), isMachineWords: true, expansion: "leaf" },
+      row: { row_id: `file:${file}`, depth, label: fileName, icon: "file", isMachineWords: true, expansion: "leaf" },
       meaning: { kind: "file", file, opens_in_code: isAFileTheCodeViewOpens(fileName) },
     });
   }
   return rows;
 }
 
-function rowsOfAProject(
-  heading: { readonly row_id: string; readonly label: string; readonly depth: number; readonly is_an_import: boolean },
-  listed: ProjectFilesListedForTheTree | undefined,
-  expansionChoices: RowExpansionChoices,
-): FilesTreeRow[] {
-  const expansion = expansionOf(heading.row_id, expansionChoices, true);
-  const headingRow: FilesTreeRow = {
-    row: { row_id: heading.row_id, depth: heading.depth, label: heading.label, icon: "project", isHeading: true, isReadOnly: heading.is_an_import, expansion },
-    meaning: { kind: "folder" },
-  };
-  if (expansion === "collapsed") return [headingRow];
+/** The rows a project's listing shows at `depth`: its folders and files, or a row saying it is still listed, was refused or holds none. */
+function rowsOfAListing(rowIdPrefix: string, depth: number, listed: ProjectFilesListedForTheTree | undefined, expansionChoices: RowExpansionChoices): FilesTreeRow[] {
   const listing = listed?.listing ?? null;
   if (listing === null) {
-    return [headingRow, { row: { row_id: `${heading.row_id}:listing`, depth: heading.depth + 1, label: "Listing the files…", icon: "waiting", tone: "waiting", expansion: "leaf" }, meaning: { kind: "nothing_to_open" } }];
+    return [{ row: { row_id: `${rowIdPrefix}:listing`, depth, label: "Listing the files…", icon: "waiting", tone: "waiting", expansion: "leaf" }, meaning: { kind: "nothing_to_open" } }];
   }
   if (listing.kind === "not_listed") {
-    return [headingRow, { row: { row_id: `${heading.row_id}:not_listed`, depth: heading.depth + 1, label: listing.because, icon: "unreadable", tone: "unreadable", expansion: "leaf" }, meaning: { kind: "nothing_to_open" } }];
+    return [{ row: { row_id: `${rowIdPrefix}:not_listed`, depth, label: listing.because, icon: "unreadable", tone: "unreadable", expansion: "leaf" }, meaning: { kind: "nothing_to_open" } }];
   }
-  const projectFolder = listing.project_files.project_folder;
   if (listing.project_files.files.length === 0) {
-    return [headingRow, { row: { row_id: `${heading.row_id}:empty`, depth: heading.depth + 1, label: "No files", icon: "file", expansion: "leaf" }, meaning: { kind: "nothing_to_open" } }];
+    return [{ row: { row_id: `${rowIdPrefix}:empty`, depth, label: "No files", icon: "file", expansion: "leaf" }, meaning: { kind: "nothing_to_open" } }];
   }
-  return [headingRow, ...rowsOfAFolder(listedFolderOf(listing.project_files.files), projectFolder, heading.depth + 1, expansionChoices)];
+  return rowsOfAFolder(listedFolderOf(listing.project_files.files), listing.project_files.project_folder, depth, expansionChoices);
+}
+
+/** The open project's folders and files at the tree's top, as the Files view's header names the project. */
+function rowsOfTheOpenProject(projectFolder: string, listed: ProjectFilesListedForTheTree | undefined, expansionChoices: RowExpansionChoices): FilesTreeRow[] {
+  return rowsOfAListing(`project:${projectFolder}`, 0, listed, expansionChoices);
+}
+
+/** An import's heading, read-only, and its folders and files under it while it is open. */
+function rowsOfAnImport(importWithFiles: ProjectWithFiles, listed: ProjectFilesListedForTheTree | undefined, expansionChoices: RowExpansionChoices): FilesTreeRow[] {
+  const rowId = `project:${importWithFiles.project_folder}`;
+  const expansion = expansionOf(rowId, expansionChoices, true);
+  const headingRow: FilesTreeRow = {
+    row: { row_id: rowId, depth: 1, label: importWithFiles.project_name, icon: "project", isHeading: true, isReadOnly: true, expansion },
+    meaning: { kind: "folder" },
+  };
+  return expansion === "collapsed" ? [headingRow] : [headingRow, ...rowsOfAListing(rowId, 2, listed, expansionChoices)];
 }
 
 /** The rows of the Files tree for `openProject`, each project's files from `listedProjects`, opened and closed as `expansionChoices` says. */
 export function filesTreeOfTheProject(openProject: OpenProject, listedProjects: readonly ProjectFilesListedForTheTree[], expansionChoices: RowExpansionChoices): FilesTreeRow[] {
   const listedProjectOf = (projectFolder: string) => listedProjects.find((listedProject) => listedProject.project_folder === projectFolder);
   const [openProjectWithFiles, ...importsWithFiles] = projectsWithFilesOf(openProject);
-  const rowsOfProject = (projectWithFiles: ProjectWithFiles, depth: number) =>
-    rowsOfAProject(
-      { row_id: `project:${projectWithFiles.project_folder}`, label: projectWithFiles.project_name, depth, is_an_import: projectWithFiles.is_an_import },
-      listedProjectOf(projectWithFiles.project_folder),
-      expansionChoices,
-    );
-  const rows = openProjectWithFiles === undefined ? [] : rowsOfProject(openProjectWithFiles, 0);
+  const rows = openProjectWithFiles === undefined ? [] : rowsOfTheOpenProject(openProjectWithFiles.project_folder, listedProjectOf(openProjectWithFiles.project_folder), expansionChoices);
   if (importsWithFiles.length === 0) return rows;
   const importsExpansion = expansionOf(IMPORTS_HEADING_ROW_ID, expansionChoices, true);
   rows.push({ row: { row_id: IMPORTS_HEADING_ROW_ID, depth: 0, label: "Imports", icon: "imports", isHeading: true, tone: "imports", expansion: importsExpansion }, meaning: { kind: "folder" } });
   if (importsExpansion === "collapsed") return rows;
-  for (const importWithFiles of importsWithFiles) rows.push(...rowsOfProject(importWithFiles, 1));
+  for (const importWithFiles of importsWithFiles) rows.push(...rowsOfAnImport(importWithFiles, listedProjectOf(importWithFiles.project_folder), expansionChoices));
   return rows;
 }

@@ -4,7 +4,7 @@ import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import type { OpenProject, ProjectTransactionsReading } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { OpenProject, OpenProjectReading, ProjectTransactionsReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { CODE_VIEW_TYPE_ID, extensionsTheCodeViewOpens } from "../shared/files_the_code_view_opens";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
@@ -82,23 +82,25 @@ function FilesOfTheProject({ connection, openProject }: { connection: TatoAppVie
           onExpansionToggled={toggleTheRow}
         />
       </div>
+      <p className="shrink-0 px-3 pt-2 pb-3 text-2xs text-fg-3">The project folder on disk. The Outliner shows the graph instead.</p>
     </>
   );
 }
 
-function FilesBody({ connection }: { connection: TatoAppViewConnection }) {
-  const openProject = useViewReading(connection.watchOpenProject);
+function FilesBody({ connection, openProject }: { connection: TatoAppViewConnection; openProject: OpenProjectReading | null }) {
   if (openProject === null) return null;
   if (openProject.kind === "none_open") return <WaitingState title="No project is open" explanation="Open or create one from the File menu." />;
   if (openProject.kind === "unreadable") return <WaitingState isFailure title={`${openProject.folder} can't be read`} explanation={openProject.refusal} />;
   return <FilesOfTheProject connection={connection} openProject={openProject.open_project} />;
 }
 
-/** Files: the open project's folder and its imports' as a tree, every file listed by the runtime; choosing a file opens it in Code. */
+/** Files: the open project's folder and its imports' as a tree under the project's name, every file listed by the runtime; choosing a file opens it in Code. */
 export function FilesView({ connection }: { connection: TatoAppViewConnection }) {
+  const openProject = useViewReading(connection.watchOpenProject);
+  const projectName = openProject?.kind === "read" ? openProject.open_project.project.name : null;
   return (
-    <CoreViewFrame connection={connection}>
-      <FilesBody connection={connection} />
+    <CoreViewFrame connection={connection} headerTools={projectName === null ? undefined : <span className="truncate text-2xs text-fg-3">{projectName}</span>}>
+      <FilesBody connection={connection} openProject={openProject} />
     </CoreViewFrame>
   );
 }

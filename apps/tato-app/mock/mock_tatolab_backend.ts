@@ -216,6 +216,8 @@ export interface MockTatolabOptions {
   isTheFixtureViewListed: boolean;
   /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the effect's output. */
   isTheCompositorInMain: boolean;
+  /** Whether the open project's main stream declares Graph Inputs, which Perform's Controls show. */
+  doesTheMainStreamDeclareGraphInputs: boolean;
 }
 
 /** The query parameter a Module manager window's page is told by. */
@@ -339,6 +341,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
     isTheCompositorInMain: pageQuery.get("compositor") === "layered",
+    doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",
   };
 }
 
@@ -464,6 +467,8 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
           ? fixtures.mainStreamWithTheFixtureViewsNode
           : mockTatolabOptions.isTheCompositorInMain
             ? fixtures.mainStreamWithTheCompositorNode
+          : mockTatolabOptions.doesTheMainStreamDeclareGraphInputs
+            ? fixtures.mainStreamDeclaringGraphInputs
             : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();

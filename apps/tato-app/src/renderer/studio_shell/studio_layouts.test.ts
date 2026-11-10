@@ -13,13 +13,13 @@ function storageInMemory() {
 }
 
 describe("the five layouts", () => {
-  it("lays each out after the canvas, the outliner over properties down the right of every one", () => {
+  it("lays each out after the canvas: the outliner over properties down the right of Build, Compose and Spatial, Files beside Code, and Controls beside Perform's viewers", () => {
     expect(STUDIO_LAYOUTS.map(({ title, shortcut_digit }) => `${title} ${shortcut_digit}`)).toEqual(["Build 1", "Compose 2", "Spatial 3", "Code 4", "Perform 5"]);
     expect(areaIdsOf(defaultStudioLayout("build"))).toEqual(["viewer", "stream-graph", "outliner", "properties"]);
     expect(areaIdsOf(defaultStudioLayout("compose"))).toEqual(["stream-graph", "viewer", "code", "outliner", "properties"]);
     expect(areaIdsOf(defaultStudioLayout("spatial"))).toEqual(["scene", "viewer", "stream-graph", "outliner", "properties"]);
-    expect(areaIdsOf(defaultStudioLayout("code"))).toEqual(["files", "code", "stream-graph", "viewer", "outliner", "properties"]);
-    expect(areaIdsOf(defaultStudioLayout("perform"))).toEqual(["viewer", "scene", "stream-graph", "outliner", "properties"]);
+    expect(areaIdsOf(defaultStudioLayout("code"))).toEqual(["files", "code", "stream-graph", "viewer"]);
+    expect(areaIdsOf(defaultStudioLayout("perform"))).toEqual(["viewer", "preview-first", "preview-second", "preview-third", "controls"]);
   });
 
   it("reads every default back as it was saved", () => {

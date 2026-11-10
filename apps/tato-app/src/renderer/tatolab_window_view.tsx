@@ -63,6 +63,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
       ...coreViewTypeIn("viewer"),
       ...coreViewTypeIn("code"),
       ...coreViewTypeIn("files"),
+      ...coreViewTypeIn("controls"),
     ],
     (listed, manifest) => tatolabFrameViewType(listed, manifest, { kind: "project", project_name: listed.project_name }),
     coreViewTypes.not_opened,
