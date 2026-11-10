@@ -60,7 +60,7 @@ test("a command is answered only from the window page's own top frame, never a f
 
 test("the window frames its core views' pages on its own location, and project views' files served on its scheme, and nothing else", () => {
   expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "tatolab-app://app/core_views/outliner/index.html")).toBe(true);
-  expect(isAViewPageTheWindowFrames("http://localhost:5173/", "http://localhost:5173/core_views/palette/index.html")).toBe(true);
+  expect(isAViewPageTheWindowFrames("http://localhost:5173/", "http://localhost:5173/core_views/library/index.html")).toBe(true);
   expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "tatolab-app://app/project_views/L2hvbWUvc2FtL3N0cmVhbXMvbmlnaHQtc2hvdw/views/deck/index.html")).toBe(true);
   expect(isAViewPageTheWindowFrames("http://localhost:5173/", "tatolab-app://app/project_views/L2hvbWUvc2FtL3N0cmVhbXMvbmlnaHQtc2hvdw/views/deck/index.html")).toBe(true);
   expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "tatolab-app://app/index.html")).toBe(false);

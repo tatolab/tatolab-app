@@ -11,6 +11,7 @@ import type {
   ProjectFiles,
   NodeCatalog,
   ProjectNodeTypeListing,
+  ProjectAssetListing,
   OpenProjectReading,
   ProjectTransaction,
   ProjectTransactionAuthor,
@@ -63,6 +64,8 @@ export interface TatolabBackend {
   describeNodeCatalog(streamId: string): Promise<NodeCatalog>;
   /** What the project in `projectDirectory` and each source it draws node code from declares, read from source without running it; rejects in the runtime's own words. */
   listProjectNodeTypes(projectDirectory: string): Promise<ProjectNodeTypeListing>;
+  /** Every asset of the project in `projectDirectory`, its graph documents among them; rejects in the runtime's own words. */
+  listProjectAssets(projectDirectory: string): Promise<ProjectAssetListing>;
   /** Check for a newer Tato Studio, downloading one that installs in place; how that goes arrives as the status's `app_update`. */
   checkForTatolabAppUpdates(): Promise<void>;
   /** Restart into a downloaded Tato Studio, download one a check found, or open a `.deb`'s download; how that goes arrives as the status's `app_update`. */

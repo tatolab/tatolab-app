@@ -20,10 +20,10 @@ import type { ControlDataAttributeName, ControlDataAttributes } from "./support/
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 import { ICON_BUTTON_CLASS_NAMES, STOCK_ICON_BUTTON_SIZE, type IconButtonSize } from "./icon_button";
 
-/** How wide an open menu is: as wide as its words, or a fixed width for choices that read better aligned. */
+/** How wide an open menu is: as wide as its words, or a fixed width for choices that read better aligned, narrowed to the room beside its field so a menu in a narrow frame is not cut off. */
 export type MenuWidth = "fit" | "wide";
 
-const MENU_WIDTH_CLASS_NAMES: Record<MenuWidth, string> = { fit: "w-auto min-w-56", wide: "w-[288px] max-h-96" };
+const MENU_WIDTH_CLASS_NAMES: Record<MenuWidth, string> = { fit: "w-auto min-w-56", wide: "w-[min(288px,var(--available-width))] max-h-96" };
 
 /** How big a field that opens a menu is: regular in bars and forms, compact inside a property panel's row. */
 export type FieldMenuSize = "regular" | "compact";
@@ -259,12 +259,15 @@ export function MenuSingleChoiceGroup<Choice extends string>({
   chosen,
   onChosen,
   dataAttributeOfEachChoice,
+  closesTheMenuOnChoice = false,
 }: {
   choices: readonly MenuSingleChoice<Choice>[];
   chosen: Choice;
   onChosen: (choice: Choice) => void;
   /** Set on each choice to its value, as `data-streams-list-state-choice="failed"`. */
   dataAttributeOfEachChoice?: ControlDataAttributeName;
+  /** Close the menu once a choice is made, for a menu whose only job is the choice; a filter among other filters stays open. */
+  closesTheMenuOnChoice?: boolean;
 }) {
   return (
     <DropdownMenuRadioGroup
@@ -275,7 +278,7 @@ export function MenuSingleChoiceGroup<Choice extends string>({
       }}
     >
       {choices.map(({ choice, label }) => (
-        <DropdownMenuRadioItem key={choice} value={choice} className="pl-2" {...(dataAttributeOfEachChoice === undefined ? {} : { [dataAttributeOfEachChoice]: choice })}>
+        <DropdownMenuRadioItem key={choice} value={choice} closeOnClick={closesTheMenuOnChoice} className="pl-2" {...(dataAttributeOfEachChoice === undefined ? {} : { [dataAttributeOfEachChoice]: choice })}>
           {label}
         </DropdownMenuRadioItem>
       ))}

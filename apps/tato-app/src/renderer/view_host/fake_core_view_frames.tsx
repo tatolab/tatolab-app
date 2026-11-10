@@ -6,7 +6,7 @@
 import { connectToTatoAppOverPort, VIEW_PORT_HANDOVER, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import { HistoryView } from "@tatolab/tato-app-core-views/views/history";
 import { OutlinerView } from "@tatolab/tato-app-core-views/views/outliner";
-import { PaletteView } from "@tatolab/tato-app-core-views/views/palette";
+import { LibraryView } from "@tatolab/tato-app-core-views/views/library";
 import { PropertiesView } from "@tatolab/tato-app-core-views/views/properties";
 import { StreamGraphView } from "@tatolab/tato-app-core-views/views/stream_graph";
 import { ViewerView } from "@tatolab/tato-app-core-views/views/viewer";
@@ -18,7 +18,7 @@ import { createRoot, type Root } from "react-dom/client";
 const CORE_VIEW_DRAWINGS: Record<string, (connection: TatoAppViewConnection) => ReactNode> = {
   stream_graph: (connection) => <StreamGraphView connection={connection} />,
   outliner: (connection) => <OutlinerView connection={connection} />,
-  palette: (connection) => <PaletteView connection={connection} />,
+  library: (connection) => <LibraryView connection={connection} />,
   properties: (connection) => <PropertiesView connection={connection} />,
   history: (connection) => <HistoryView connection={connection} />,
   viewer: (connection) => <ViewerView connection={connection} />,

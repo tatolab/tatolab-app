@@ -134,6 +134,15 @@ function inTheCoreView(viewTypeId: string) {
   return within(coreViewPage(viewTypeId).body);
 }
 
+/** Chooses `shown` in the Library's Show menu. */
+async function showInTheLibrary(shown: string): Promise<void> {
+  const library = coreViewPage("library");
+  pressAsAPointerDoes(await waitFor(() => library.querySelector<HTMLElement>("[data-library-shown]") ?? expect.unreachable("no Show menu")));
+  // A fake core view frame is drawn by the window's own React, so its menu's portal opens in the window's document.
+  const shownChoice = `[data-library-shown-choice="${shown}"]`;
+  fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>(shownChoice) ?? expect.unreachable(`no Show choice ${shown}`)));
+}
+
 function outlinerRow(rowId: string): HTMLElement {
   return coreViewPage("outliner").querySelector<HTMLElement>(`[data-outliner] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no outliner row ${rowId}`);
 }
@@ -211,25 +220,54 @@ describe("the studio", () => {
     expect(outlinerRow(invertingEffectRowId).textContent).toBe("InvertingEffect");
   });
 
-  it("lists in the palette each source's node types by category and its generators, and says why a module does not parse", async () => {
+  it("lists in the Library each source's node types by category, its generators under Show, and says why a module does not parse", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Palette/ }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
 
-    const paletteRow = (rowId: string) => coreViewPage("palette").querySelector<HTMLElement>(`[data-palette] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no palette row ${rowId}`);
-    await waitFor(() => paletteRow("source:project"));
-    expect(paletteRow("source:project").textContent).toBe("pattern");
-    expect(paletteRow("source:project/graph_generators/nodes.scenes:two_cameras_side_by_side").textContent).toBe("two_cameras_side_by_side");
-    expect(paletteRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11").textContent).toBe("imports/hall-of-light");
-    expect(paletteRow("source:distribution:tatolab-testpattern").getAttribute("aria-expanded")).toBe("false");
+    const libraryRow = (rowId: string) => coreViewPage("library").querySelector<HTMLElement>(`[data-library-declarations] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no Library row ${rowId}`);
+    await waitFor(() => libraryRow("source:project"));
+    expect(libraryRow("source:project").textContent).toBe("pattern");
+    expect(coreViewPage("library").querySelector('[data-tree-row-id="source:project/graph_generators"]')).toBeNull();
+    expect(libraryRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11").textContent).toBe("imports/hall-of-light");
+    expect(libraryRow("source:distribution:tatolab-testpattern").getAttribute("aria-expanded")).toBe("false");
 
-    fireEvent.click(paletteRow("source:project/unreadable:nodes.half_written"));
-    await waitFor(() => expect(coreViewPage("palette").querySelector('[data-palette-unreadable-why="nodes.half_written"]')?.textContent).toBe("SyntaxError: expected ':'"));
-    fireEvent.click(paletteRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11/category:Lighting/node_type:nodes.gripper:Gripper"));
-    await waitFor(() => expect(coreViewPage("palette").querySelector('[data-palette-details="nodes.gripper:Gripper"]')).not.toBeNull());
-    expect(coreViewPage("palette").querySelector('[data-palette-port="grip"]')?.textContent).toContain("grip");
-    expect(inTheCoreView("palette").getByText("Outputs stated only by its native half")).toBeTruthy();
+    fireEvent.click(libraryRow("source:project/unreadable:nodes.half_written"));
+    await waitFor(() => expect(coreViewPage("library").querySelector('[data-library-unreadable-why="nodes.half_written"]')?.textContent).toBe("SyntaxError: expected ':'"));
+    fireEvent.click(libraryRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11/category:Lighting/node_type:nodes.gripper:Gripper"));
+    await waitFor(() => expect(coreViewPage("library").querySelector('[data-library-details="nodes.gripper:Gripper"]')).not.toBeNull());
+    expect(coreViewPage("library").querySelector('[data-library-port="grip"]')?.textContent).toContain("grip");
+    expect(inTheCoreView("library").getByText("Outputs stated only by its native half")).toBeTruthy();
+
+    await showInTheLibrary("graph_generators");
+    await waitFor(() => expect(libraryRow("source:project/graph_generators/nodes.scenes:two_cameras_side_by_side").textContent).toBe("two_cameras_side_by_side"));
+    expect(coreViewPage("library").querySelector('[data-tree-row-id="source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11"]')).toBeNull();
+  });
+
+  it("shows the project's assets in the Library by folder, narrowed by the search, with the chosen asset's details, its graph documents left out", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
+    await showInTheLibrary("assets");
+
+    const library = coreViewPage("library");
+    const assetCardPaths = () => [...library.querySelectorAll<HTMLElement>("[data-library-asset]")].map((card) => card.dataset.libraryAsset);
+    await waitFor(() => expect(assetCardPaths()).toEqual(["luts/warm.cube", "media/lobby-intro.mp4", "media/poster.png", "scenes/stage.usdz"]));
+    expect([...library.querySelectorAll<HTMLElement>("[data-library-asset-folder]")].map((folder) => folder.textContent)).toEqual(["All assets4", "luts1", "media2", "scenes1"]);
+    expect(library.querySelector('[data-library-asset="media/lobby-intro.mp4"]')?.textContent).toBe("MP4lobby-intro.mp4media · 40 MB");
+
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-asset-folder="folder:media"]') ?? expect.unreachable("no media folder"));
+    await waitFor(() => expect(assetCardPaths()).toEqual(["media/lobby-intro.mp4", "media/poster.png"]));
+    fireEvent.change(library.querySelector<HTMLInputElement>("[data-library-asset-search]") ?? expect.unreachable("no search field"), { target: { value: "POSTER" } });
+    await waitFor(() => expect(assetCardPaths()).toEqual(["media/poster.png"]));
+
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-asset="media/poster.png"]') ?? expect.unreachable("no poster card"));
+    const details = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset-details="baaf9e5a-0aff-45f7-a7ea-b83db51e5a3b"]') ?? expect.unreachable("no details"));
+    expect(details.textContent).toContain("poster.png");
+    expect(details.textContent).toContain("sha256 c59c…fa05");
+    expect(details.textContent).toContain("11 KB");
   });
 
   it("lists in an area's view-type menu each view with who brought it, and a view that does not open as a row that cannot be chosen, with why", async () => {
@@ -249,7 +287,7 @@ describe("the studio", () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
-    await screen.findByRole("menuitemradio", { name: /^Palette/ });
+    await screen.findByRole("menuitemradio", { name: /^Library/ });
     expect(screen.queryByRole("menuitemradio", { name: /^Transactions/ })).toBeNull();
 
     document.body.replaceChildren();
@@ -298,13 +336,13 @@ describe("the studio", () => {
     await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] [data-studio-area-held-for-developer-mode]')?.textContent).toContain("Transactions shows only in Developer mode"));
   });
 
-  it("says in the runtime's own words why the palette lists no node types", async () => {
+  it("says in the runtime's own words why the Library lists no node types", async () => {
     await mountedWindowOverTheMock("state=not-running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Palette/ }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
 
-    await waitFor(() => expect(coreViewPage("palette").querySelector("[data-palette-not-listed-because]")?.textContent).toMatch(/^no runtime answers at /));
+    await waitFor(() => expect(coreViewPage("library").querySelector("[data-library-not-listed-because]")?.textContent).toMatch(/^no runtime answers at /));
   });
 
   it("lists the project's edits in History, newest first, and choosing an earlier one undoes back to it by each edit's author", async () => {

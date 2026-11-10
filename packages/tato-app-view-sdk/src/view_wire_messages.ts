@@ -16,6 +16,7 @@ import {
   projectFilesSchema,
   projectLogReadingSchema,
   projectNodeTypesReadingSchema,
+  projectAssetsReadingSchema,
   projectTransactionAuthorSchema,
   projectTransactionSchema,
   projectTransactionsReadingSchema,
@@ -70,6 +71,8 @@ export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("node_catalog"), stream: z.string() }),
   z.object({ kind: z.literal("project_log"), project_folder: z.string() }),
   z.object({ kind: z.literal("project_node_types"), project_folder: z.string() }),
+  /** The project's assets, listed again while watched. */
+  z.object({ kind: z.literal("project_assets"), project_folder: z.string() }),
   /** The project's change feed, read again each time the runtime applies a transaction to it. */
   z.object({ kind: z.literal("project_transactions"), project_folder: z.string() }),
   /** A running node's output port, read until the watch stops. */
@@ -160,6 +163,7 @@ export const viewWatchedReadingSchema = z.discriminatedUnion("subject", [
   z.object({ subject: z.literal("node_catalog"), reading: nodeCatalogReadingSchema }),
   z.object({ subject: z.literal("project_log"), reading: projectLogReadingSchema }),
   z.object({ subject: z.literal("project_node_types"), reading: projectNodeTypesReadingSchema }),
+  z.object({ subject: z.literal("project_assets"), reading: projectAssetsReadingSchema }),
   z.object({ subject: z.literal("project_transactions"), reading: projectTransactionsReadingSchema }),
   z.object({ subject: z.literal("port_viewer"), reading: z.union([portViewerEventSchema, imageBitmapEventSchema]) }),
   z.object({ subject: z.literal("input"), reading: z.union([viewInputEventSchema, imageBitmapEventSchema]) }),
@@ -221,6 +225,7 @@ export function capabilityToWatch(subject: ViewWatchedSubject): ViewCapability |
       return "read.stream_graph";
     case "project_log":
     case "project_node_types":
+    case "project_assets":
     case "project_transactions":
     case "python_language_server":
       return "read.project_assets";

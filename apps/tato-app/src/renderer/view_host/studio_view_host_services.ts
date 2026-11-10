@@ -1,6 +1,7 @@
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import type { ProjectLogReadings } from "./project_log_readings";
-import type { ProjectNodeTypeReadings } from "./project_node_type_readings";
+import type { ProjectListingReadingsPolledWhileWatched } from "./project_listing_readings_polled_while_watched";
+import type { ProjectAssetListing, ProjectNodeTypeListing } from "../../shared/tatolab_backend_contract";
 import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
@@ -20,11 +21,12 @@ export interface StudioWindowValuesServedToViews {
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening;
 }
 
-/** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types and history, their language servers, and the port viewers of their running nodes. */
+/** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types, assets and history, their language servers, and the port viewers of their running nodes. */
 export interface StudioViewHostProjectServices {
   backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "listProjectFiles" | "writeStudioViewOutput">;
   projectLogReadings: ProjectLogReadings;
-  projectNodeTypeReadings: ProjectNodeTypeReadings;
+  projectNodeTypeReadings: ProjectListingReadingsPolledWhileWatched<ProjectNodeTypeListing>;
+  projectAssetReadings: ProjectListingReadingsPolledWhileWatched<ProjectAssetListing>;
   projectTransactionsReadings: ProjectTransactionsReadings;
   pythonLanguageServerConnections: PythonLanguageServerConnections;
   portViewerConnections: PortViewerConnections;
@@ -74,7 +76,8 @@ export function studioViewHostServicesOf(
         (rejection: unknown) => ({ kind: "not_listed", because: describeBackendRejection(rejection) }),
       ),
     watchProjectLog: projectServices.projectLogReadings.watchProjectLog,
-    watchProjectNodeTypes: projectServices.projectNodeTypeReadings.watchProjectNodeTypes,
+    watchProjectNodeTypes: projectServices.projectNodeTypeReadings.watchTheProject,
+    watchProjectAssets: projectServices.projectAssetReadings.watchTheProject,
     watchProjectTransactions: projectServices.projectTransactionsReadings.watchProjectTransactions,
     undoInTheProject: projectServices.projectTransactionsReadings.undoInTheProject,
     redoInTheProject: projectServices.projectTransactionsReadings.redoInTheProject,

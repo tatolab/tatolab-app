@@ -3,7 +3,7 @@
 // imports the app. A core view's type id is its folder's name.
 
 import outlinerManifestText from "./outliner/tatolab_view.json?raw";
-import paletteManifestText from "./palette/tatolab_view.json?raw";
+import libraryManifestText from "./library/tatolab_view.json?raw";
 import propertiesManifestText from "./properties/tatolab_view.json?raw";
 import streamGraphManifestText from "./stream_graph/tatolab_view.json?raw";
 import viewerManifestText from "./viewer/tatolab_view.json?raw";
@@ -21,7 +21,7 @@ export interface CoreView {
 export const CORE_VIEWS: readonly CoreView[] = [
   { folder: "stream_graph", manifest_text: streamGraphManifestText },
   { folder: "outliner", manifest_text: outlinerManifestText },
-  { folder: "palette", manifest_text: paletteManifestText },
+  { folder: "library", manifest_text: libraryManifestText },
   { folder: "properties", manifest_text: propertiesManifestText },
   { folder: "history", manifest_text: historyManifestText },
   { folder: "viewer", manifest_text: viewerManifestText },
