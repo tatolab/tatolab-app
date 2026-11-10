@@ -21,7 +21,7 @@ import {
   type OnResizeEnd,
 } from "@xyflow/react";
 import { cn } from "cn";
-import { Frame, Plus, Scan, SquareX, StickyNote } from "lucide-react";
+import { ChevronDown, ChevronRight, Frame, Plus, Scan, SquareX, StickyNote } from "lucide-react";
 import {
   createContext,
   memo,
@@ -98,6 +98,8 @@ export interface NodeGraphCanvasNode {
   saved_position: NodeGraphPosition | null;
   /** The frame drawn around it, by `frame_id`; `null` for none. */
   frame_id: string | null;
+  /** Drawn as its header alone, its wires meeting the header's edges. */
+  is_collapsed: boolean;
 }
 
 /** A labelled frame drawn around the cards that name it, with its title on a tab, its description under it, and a tint of its colour. */
@@ -177,8 +179,12 @@ export interface NodeGraphCanvasEditing {
   onCardLetGoOverALink(nodeId: string, linkId: string): void;
   /** The selected cards, links and notes, deleted with Backspace or Delete. */
   onDeleted(deleted: { node_ids: readonly string[]; link_ids: readonly string[]; note_ids: readonly string[] }): void;
-  /** F or Frame pressed with cards selected, to frame them. */
+  /** F, ⌘G or Frame pressed with cards selected, to frame them. */
   onFrameAskedFor(nodeIds: readonly string[]): void;
+  /** A frame's title edited on its tab. */
+  onFrameRenamed(frameId: string, title: string): void;
+  /** A card's chevron pressed, to collapse it to its header or open it again. */
+  onCardCollapsed(nodeId: string, collapsed: boolean): void;
   /** A note's text edited, or the note moved or resized. */
   onNoteChanged(noteId: string, change: { text?: string; position?: NodeGraphPosition; size?: { width: number; height: number } }): Promise<NodeGraphCanvasEditAnswer>;
 }
@@ -228,6 +234,12 @@ const NodeGraphEditableContext = createContext<boolean>(false);
 /** What a note asks for when its text is edited or it is resized. */
 const NodeGraphNoteEditingContext = createContext<NodeGraphCanvasEditing["onNoteChanged"] | null>(null);
 
+/** What a card's chevron and a frame's title ask for on an editable canvas; `null` on a read-only one. */
+const NodeGraphCardAndFrameEditingContext = createContext<Pick<NodeGraphCanvasEditing, "onFrameRenamed" | "onCardCollapsed"> | null>(null);
+
+/** The frame whose title is being edited, and how a frame starts or stops having it edited; `null` outside a canvas. */
+const NodeGraphFrameRenamingContext = createContext<{ frameIdBeingRenamed: string | null; renameTheFrame: (frameId: string | null) => void } | null>(null);
+
 /** Every pin a link joins, by `linkedPinKey`, which a card draws filled. */
 const NodeGraphLinkedPinsContext = createContext<ReadonlySet<string>>(
   new Set(),
@@ -274,6 +286,7 @@ function NodeGraphPinHandle({
 
 function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
   const selectedNodeIds = useContext(NodeGraphSelectionContext);
+  const cardAndFrameEditing = useContext(NodeGraphCardAndFrameEditingContext);
   const { graphNode } = data;
   const isSelected = selectedNodeIds.has(graphNode.node_id);
   const failureWords = failureWordsTheCardShows(graphNode);
@@ -290,11 +303,24 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
       data-node-graph-card={graphNode.node_id}
       data-selected={isSelected || undefined}
       data-condition={graphNode.condition.look}
+      data-collapsed={graphNode.is_collapsed || undefined}
     >
       <div
-        className="node-graph-card-header flex items-center gap-2 px-2"
+        className="node-graph-card-header relative flex items-center gap-2 px-2"
         style={{ height: NODE_GRAPH_CARD_HEADER_HEIGHT }}
       >
+        {cardAndFrameEditing !== null && (
+          <button
+            type="button"
+            className="nodrag -mr-1 flex size-4 shrink-0 items-center justify-center rounded-sm text-fg-3 hover:bg-hover hover:text-fg"
+            aria-label={graphNode.is_collapsed ? `Expand ${graphNode.title}` : `Collapse ${graphNode.title}`}
+            aria-expanded={!graphNode.is_collapsed}
+            onClick={() => cardAndFrameEditing.onCardCollapsed(graphNode.node_id, !graphNode.is_collapsed)}
+            data-node-graph-card-collapse={graphNode.node_id}
+          >
+            {graphNode.is_collapsed ? <ChevronRight className="size-3" strokeWidth={2} aria-hidden /> : <ChevronDown className="size-3" strokeWidth={2} aria-hidden />}
+          </button>
+        )}
         <span className="truncate text-xs font-semibold text-fg">
           {graphNode.title}
         </span>
@@ -304,8 +330,19 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
           </span>
         )}
         <NodeGraphCardConditionTag condition={graphNode.condition} />
+        {graphNode.is_collapsed && (
+          <>
+            {graphNode.input_pins.map((pin) => (
+              <NodeGraphPinHandle key={`input:${pin.name}`} nodeId={graphNode.node_id} side="input" pin={pin} />
+            ))}
+            {graphNode.output_pins.map((pin) => (
+              <NodeGraphPinHandle key={`output:${pin.name}`} nodeId={graphNode.node_id} side="output" pin={pin} />
+            ))}
+          </>
+        )}
       </div>
-      <div style={{ paddingBlock: NODE_GRAPH_CARD_PIN_ROWS_PADDING }}>
+      {!graphNode.is_collapsed && (
+        <div style={{ paddingBlock: NODE_GRAPH_CARD_PIN_ROWS_PADDING }}>
         {Array.from({ length: pinRowCount }, (_, rowIndex) => {
           const inputPin = graphNode.input_pins[rowIndex];
           const outputPin = graphNode.output_pins[rowIndex];
@@ -344,8 +381,9 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
             </div>
           );
         })}
-      </div>
-      {failureWords !== null && (
+        </div>
+      )}
+      {failureWords !== null && !graphNode.is_collapsed && (
         <p
           className="node-graph-card-failure-words w-0 min-w-full px-2.5 py-1.5 text-[11px] leading-4 text-danger-text"
           style={{ height: NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT }}
@@ -427,21 +465,49 @@ function NodeGraphNoteView({ data, selected }: NodeProps<NodeGraphNoteFlowNode>)
   );
 }
 
-/** A frame behind its cards: its title on a coloured tab and its description under it. */
+/** A frame behind its cards: its title on a coloured tab, which a double-click edits on an editable canvas, and its description under it. */
 function NodeGraphFrameView({ data }: NodeProps<NodeGraphFrameFlowNode>) {
   const { graphFrame } = data;
+  const cardAndFrameEditing = useContext(NodeGraphCardAndFrameEditingContext);
+  const frameRenaming = useContext(NodeGraphFrameRenamingContext);
+  const isBeingRenamed = frameRenaming?.frameIdBeingRenamed === graphFrame.frame_id;
+  const keepTheTitle = (title: string) => {
+    cardAndFrameEditing?.onFrameRenamed(graphFrame.frame_id, title);
+    frameRenaming?.renameTheFrame(null);
+  };
+  const titleTabStyle = graphFrame.colour === null ? undefined : { backgroundColor: `color-mix(in srgb, ${graphFrame.colour} 30%, var(--studio-area))` };
   return (
     <div
       className="node-graph-frame size-full"
       style={graphFrame.colour === null ? undefined : { borderColor: `color-mix(in srgb, ${graphFrame.colour} 45%, transparent)`, backgroundColor: `color-mix(in srgb, ${graphFrame.colour} 7%, transparent)` }}
       data-node-graph-frame={graphFrame.frame_id}
     >
-      <span
-        className="node-graph-frame-title truncate text-xs font-semibold"
-        style={graphFrame.colour === null ? undefined : { backgroundColor: `color-mix(in srgb, ${graphFrame.colour} 30%, var(--studio-area))` }}
-      >
-        {graphFrame.title}
-      </span>
+      {isBeingRenamed ? (
+        <input
+          aria-label="Frame title"
+          className="node-graph-frame-title nodrag text-xs font-semibold text-fg outline-none"
+          style={titleTabStyle}
+          autoFocus
+          defaultValue={graphFrame.title}
+          onFocus={(focusEvent) => focusEvent.target.select()}
+          onBlur={(blurEvent) => keepTheTitle(blurEvent.target.value)}
+          onKeyDown={(keyboardEvent) => {
+            if (keyboardEvent.key === "Escape") keyboardEvent.currentTarget.value = graphFrame.title;
+            if (keyboardEvent.key === "Enter" || keyboardEvent.key === "Escape") keyboardEvent.currentTarget.blur();
+            keyboardEvent.stopPropagation();
+          }}
+          data-node-graph-frame-title-field={graphFrame.frame_id}
+        />
+      ) : (
+        <span
+          className="node-graph-frame-title truncate text-xs font-semibold"
+          style={titleTabStyle}
+          onDoubleClick={cardAndFrameEditing === null ? undefined : () => frameRenaming?.renameTheFrame(graphFrame.frame_id)}
+          data-node-graph-frame-title={graphFrame.frame_id}
+        >
+          {graphFrame.title}
+        </span>
+      )}
       {graphFrame.description !== null && graphFrame.description !== "" && (
         <p className="node-graph-frame-description truncate px-2.5 text-[11px] text-fg-2">{graphFrame.description}</p>
       )}
@@ -623,6 +689,7 @@ function NodeGraphFlow({
           input_pin_names: node.input_pins.map((pin) => pin.name),
           output_pin_names: node.output_pins.map((pin) => pin.name),
           shows_failure_words: failureWordsTheCardShows(node) !== null,
+          is_collapsed: node.is_collapsed,
           card_width:
             (isLaidOutOnMeasuredWidths
               ? measuredCardWidths.widthByNode.get(node.node_id)
@@ -641,7 +708,7 @@ function NodeGraphFlow({
     (node: NodeGraphCanvasNode) =>
       cardSizeByNode.get(node.node_id) ?? {
         width: NODE_GRAPH_CARD_SMALLEST_WIDTH,
-        height: nodeGraphCardHeight({ input_pin_names: node.input_pins.map((pin) => pin.name), output_pin_names: node.output_pins.map((pin) => pin.name), shows_failure_words: failureWordsTheCardShows(node) !== null }),
+        height: nodeGraphCardHeight({ input_pin_names: node.input_pins.map((pin) => pin.name), output_pin_names: node.output_pins.map((pin) => pin.name), shows_failure_words: failureWordsTheCardShows(node) !== null, is_collapsed: node.is_collapsed }),
       },
     [cardSizeByNode],
   );
@@ -985,15 +1052,37 @@ function NodeGraphFlow({
     [nodes],
   );
 
+  const [frameIdBeingRenamed, setFrameIdBeingRenamed] = useState<string | null>(null);
+  const frameIdsWhenAFrameWasAskedFor = useRef<ReadonlySet<string> | null>(null);
+  const frameTheSelection = useCallback(() => {
+    if (editing === null) return;
+    frameIdsWhenAFrameWasAskedFor.current = new Set(frames.map((frame) => frame.frame_id));
+    editing.onFrameAskedFor([...selectedIds]);
+  }, [editing, frames, selectedIds]);
+  useEffect(() => {
+    const frameIdsBefore = frameIdsWhenAFrameWasAskedFor.current;
+    if (frameIdsBefore === null) return;
+    const newFrame = frames.find((frame) => !frameIdsBefore.has(frame.frame_id));
+    if (newFrame === undefined) return;
+    frameIdsWhenAFrameWasAskedFor.current = null;
+    setFrameIdBeingRenamed(newFrame.frame_id);
+  }, [frames]);
+  const frameRenaming = useMemo(() => ({ frameIdBeingRenamed, renameTheFrame: setFrameIdBeingRenamed }), [frameIdBeingRenamed]);
+  const cardAndFrameEditing = useMemo(() => (editing === null ? null : { onFrameRenamed: editing.onFrameRenamed, onCardCollapsed: editing.onCardCollapsed }), [editing]);
+
   const followTheKeys = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (editing === null || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) return;
       if (event.key === "Tab" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault();
         editing.onNodeAskedFor(pointerRestsAt.current ?? middleOfTheView());
-      } else if ((event.key === "f" || event.key === "F") && !event.metaKey && !event.ctrlKey && !event.altKey && selectedIds.size > 0) {
+      } else if (
+        selectedIds.size > 0 &&
+        !event.altKey &&
+        (((event.key === "f" || event.key === "F") && !event.metaKey && !event.ctrlKey) || ((event.key === "g" || event.key === "G") && (event.metaKey || event.ctrlKey) && !event.shiftKey))
+      ) {
         event.preventDefault();
-        editing.onFrameAskedFor([...selectedIds]);
+        frameTheSelection();
       } else if (event.key === "Backspace" || event.key === "Delete") {
         if (selectedIds.size === 0 && selectedLinkIds.size === 0 && selectedNoteIds.size === 0) return;
         event.preventDefault();
@@ -1002,13 +1091,15 @@ function NodeGraphFlow({
         setSelectedNoteIds(new Set());
       }
     },
-    [editing, middleOfTheView, selectedIds, selectedLinkIds, selectedNoteIds],
+    [editing, middleOfTheView, selectedIds, selectedLinkIds, selectedNoteIds, frameTheSelection],
   );
 
   return (
     <NodeGraphSelectionContext value={selectedIds}>
       <NodeGraphEditableContext value={editing !== null}>
         <NodeGraphNoteEditingContext value={editing?.onNoteChanged ?? null}>
+          <NodeGraphCardAndFrameEditingContext value={cardAndFrameEditing}>
+            <NodeGraphFrameRenamingContext value={frameRenaming}>
           <NodeGraphLinkedPinsContext value={linkedPins}>
             <div
               ref={canvasElement}
@@ -1082,7 +1173,7 @@ function NodeGraphFlow({
                         tooltip="Frame the selected nodes (F)"
                         disabledReason={selectedIds.size === 0 ? "Select the nodes to frame first" : null}
                         size="compact"
-                        onPressed={() => editing.onFrameAskedFor([...selectedIds])}
+                        onPressed={frameTheSelection}
                         data-node-graph-tool="frame_selection"
                       />
                       <IconButton icon={StickyNote} label="Add a note" size="compact" onPressed={() => editing.onNoteAskedFor(clearPlaceBroughtIntoView())} data-node-graph-tool="add_note" />
@@ -1114,6 +1205,8 @@ function NodeGraphFlow({
               </ReactFlow>
             </div>
           </NodeGraphLinkedPinsContext>
+            </NodeGraphFrameRenamingContext>
+          </NodeGraphCardAndFrameEditingContext>
         </NodeGraphNoteEditingContext>
       </NodeGraphEditableContext>
     </NodeGraphSelectionContext>
@@ -1125,7 +1218,7 @@ function NodeGraphFlow({
  * down its right, links as curves between them, labelled frames behind the cards they hold and notes beside them. Cards
  * with no saved place are laid out left to right, and the graph is framed whole when it first shows. Clicking a card
  * selects it; clicking the canvas selects nothing. Given `editing`, cards and notes drag, pins wire, Tab asks for a
- * node, F frames the selection and Backspace deletes it. `overlay` draws over the canvas.
+ * node, F or ⌘G frames the selection, a frame's title edits on a double-click, and Backspace deletes it. `overlay` draws over the canvas.
  */
 export function NodeGraphCanvas({
   label,

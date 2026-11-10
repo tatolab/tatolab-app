@@ -22,10 +22,12 @@ import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/re
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 import { useStreamGraphEditsSentToTheRuntime } from "./stream_graph_edit_sending";
 import {
+  cardCollapsedEdits,
   cardLetGoOverALinkEdits,
   cardsMovedEdits,
   deletedEdits,
   editedStreamGraphOf,
+  frameRenamedEdits,
   nodePlacedEdits,
   noteChangedEdits,
   notePlacedEdits,
@@ -91,6 +93,8 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
       onDeleted: (deleted) => void sendTheGesture(deletedEdits(editedGraph, deleted)),
       onFrameAskedFor: (nodeIds) => void sendTheGesture(selectionFramedEdits(editedGraph, nodeIds)),
       onNoteChanged: (noteId, change) => sendTheGesture(noteChangedEdits(editedGraph, noteId, change)),
+      onFrameRenamed: (frameId, title) => void sendTheGesture(frameRenamedEdits(editedGraph, frameId, title)),
+      onCardCollapsed: (nodeId, collapsed) => void sendTheGesture(cardCollapsedEdits(editedGraph, nodeId, collapsed)),
     };
   }, [importedProjectName, editedGraph, sendTheGesture]);
   const catalog = catalogReading?.kind === "listed" ? catalogReading.catalog.node_types : [];

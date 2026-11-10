@@ -48,7 +48,7 @@ const GRAPH: StreamGraphSummary = {
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_and_an_input_shows_the_facts_its_one_link_carries", () => {
   expect(streamGraphCanvasContents(GRAPH).nodes).toEqual([
-    { node_id: "camera", title: "camera", type_name: "Effect", condition: { look: "healthy" }, input_pins: [], output_pins: [{ name: "video", family: "image", stream_facts_words: ["29.97 fps"] }], saved_position: null, frame_id: null },
+    { node_id: "camera", title: "camera", type_name: "Effect", condition: { look: "healthy" }, input_pins: [], output_pins: [{ name: "video", family: "image", stream_facts_words: ["29.97 fps"] }], saved_position: null, frame_id: null, is_collapsed: false },
     {
       node_id: "invert",
       title: "invert",
@@ -58,6 +58,7 @@ test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_and_an_input_
       output_pins: [{ name: "video_out", family: null, stream_facts_words: [] }],
       saved_position: null,
       frame_id: null,
+      is_collapsed: false,
     },
   ]);
 });

@@ -69,6 +69,7 @@ export function streamGraphCanvasContents(graph: StreamGraphSummary): StreamGrap
       output_pins: node.output_ports.map((port) => ({ name: port.name, family: port.family, stream_facts_words: portStreamFactsWords(port) })),
       saved_position: node.studio.position === null ? null : { x: node.studio.position[0], y: node.studio.position[1] },
       frame_id: node.studio.group !== null && groupIds.has(node.studio.group) ? node.studio.group : null,
+      is_collapsed: node.studio.collapsed === true,
     })),
     links: graph.links.map(canvasLinkOf),
     frames: graph.groups.map((group) => ({ frame_id: group.id, title: group.title, description: group.description, colour: group.colour })),

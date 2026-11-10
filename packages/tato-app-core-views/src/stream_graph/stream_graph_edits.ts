@@ -165,6 +165,21 @@ export function selectionFramedEdits(edited: EditedStreamGraph, nodeNames: reado
   return nodes.length === 0 ? [] : [{ operation: "add_group", stream: edited.streamAsset, title: PLACED_FRAME_TITLE, nodes }];
 }
 
+/** A frame's new title; a blank one is no edit, since the runtime refuses a group with no title. */
+export function frameRenamedEdits(edited: EditedStreamGraph, group: string, title: string): StreamGraphAction[] {
+  const trimmedTitle = title.trim();
+  const frame = edited.graph.groups.find((graphGroup) => graphGroup.id === group);
+  if (frame === undefined || trimmedTitle === "" || trimmedTitle === frame.title) return [];
+  return [{ operation: "set_group_fields", stream: edited.streamAsset, group, title: trimmedTitle }];
+}
+
+/** A card collapsed to its header, or opened again: its node's studio fields as they are, with `collapsed`. */
+export function cardCollapsedEdits(edited: EditedStreamGraph, nodeName: string, collapsed: boolean): StreamGraphAction[] {
+  const node = edited.graph.nodes.find((graphNode) => graphNode.name === nodeName);
+  if (node === undefined || node.studio.collapsed === collapsed) return [];
+  return [{ operation: "set_studio_fields", stream: edited.streamAsset, node: node.id, studio: studioObjectOf({ ...node.studio, collapsed }) }];
+}
+
 /** A note placed with its top-left corner at `position`. */
 export function notePlacedEdits(edited: EditedStreamGraph, position: StreamGraphCanvasPosition): StreamGraphAction[] {
   return [{ operation: "add_note", stream: edited.streamAsset, text: PLACED_NOTE_TEXT, position: toTheCanvasPixel(position), size: PLACED_NOTE_SIZE }];

@@ -2,10 +2,12 @@ import { describe, expect, test } from "vitest";
 import { NODE_STUDIO_FIELDS_NONE_SET, type NodeCatalogEntry, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import {
   canANodeTypeTakeTheLooseWire,
+  cardCollapsedEdits,
   cardLetGoOverALinkEdits,
   cardsMovedEdits,
   deletedEdits,
   editedStreamGraphOf,
+  frameRenamedEdits,
   nodePlacedEdits,
   noteChangedEdits,
   notePlacedEdits,
@@ -150,4 +152,23 @@ test("a_note_is_placed_at_the_point_and_its_change_sets_only_the_fields_that_cha
   expect(noteChangedEdits(edited(), "note-1", { position: { x: 1, y: 2 }, size: { width: 300.4, height: 90 } })).toEqual([
     { operation: "set_note_fields", stream: STREAM_ASSET, note: "note-1", position: [1, 2], size: [300, 90] },
   ]);
+});
+
+test("a_frame_renamed_sets_its_title_trimmed_and_a_blank_or_unchanged_title_asks_nothing", () => {
+  const group = "21d9c0ee-a01d-40a0-ad61-bd05476819e7";
+  const framed = edited({ ...GRAPH, groups: [{ id: group, title: "Frame", description: null, colour: null }] });
+  expect(frameRenamedEdits(framed, group, "  Titles ")).toEqual([{ operation: "set_group_fields", stream: STREAM_ASSET, group, title: "Titles" }]);
+  expect(frameRenamedEdits(framed, group, "   ")).toEqual([]);
+  expect(frameRenamedEdits(framed, group, "Frame")).toEqual([]);
+});
+
+test("a_card_collapsed_keeps_its_other_studio_fields_and_one_already_so_asks_nothing", () => {
+  expect(cardCollapsedEdits(edited(), "pattern", true)).toEqual([
+    { operation: "set_studio_fields", stream: STREAM_ASSET, node: "uuid-pattern", studio: { position: [0, 0], comment: "the source", collapsed: true, metadata: { pinned: true } } },
+  ]);
+  expect(cardCollapsedEdits(edited(), "halftone", false)).toEqual([
+    { operation: "set_studio_fields", stream: STREAM_ASSET, node: "uuid-halftone", studio: { collapsed: false } },
+  ]);
+  const collapsed = edited({ ...GRAPH, nodes: [{ ...DISPLAY, studio: { ...NODE_STUDIO_FIELDS_NONE_SET, collapsed: true } }] });
+  expect(cardCollapsedEdits(collapsed, "display", true)).toEqual([]);
 });
