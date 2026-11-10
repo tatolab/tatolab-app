@@ -320,6 +320,7 @@ export async function startTatolabApp(
     waitThen: (afterMs, then) => {
       setTimeout(then, afterMs);
     },
+    streamStateTheRuntimeListsNow: (stream) => statusPublisher.lastPublishedStatusNow()?.streams?.find((listedStream) => listedStream.stream === stream)?.state ?? null,
     tatolabAppLog,
   });
   runtimePortViewersOnceBuilt = runtimePortViewers;

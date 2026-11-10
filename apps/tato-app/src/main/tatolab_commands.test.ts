@@ -181,6 +181,7 @@ async function sharedStateOverFakes(
       viewerProcessId: 4242,
       repeatEvery: () => () => undefined,
       waitThen: () => undefined,
+      streamStateTheRuntimeListsNow: () => "running",
       tatolabAppLog: quietTatolabAppLog,
     }),
     systemMenuBar: new SystemMenuBarOfTheFocusedWindow({

@@ -48,13 +48,15 @@ export interface RuntimePortViewersSources {
   repeatEvery(everyMs: number, tick: () => void): () => void;
   /** Call `then` once, `afterMs` from now. */
   waitThen(afterMs: number, then: () => void): void;
+  /** The state the runtime's last listing gives the stream `stream`, or `null` when it lists no such stream. */
+  streamStateTheRuntimeListsNow(stream: string): string | null;
   tatolabAppLog: TatolabAppLog;
 }
 
 /** How often a port's latest message is read: once a 60 Hz display frame. */
 export const PORT_VIEWER_READ_EVERY_MS = 16;
 
-/** How long a port viewer waits after its connection to the runtime closed before it opens the port again. */
+/** How long a port viewer waits, after its connection to the runtime closed or its stream was not yet running, before it opens the port again. */
 export const PORT_VIEWER_REOPEN_AFTER_MS = 1_000;
 
 /** One window's port viewer. */
@@ -71,6 +73,15 @@ interface RuntimeViewerHeldOpen {
   aReadIsUnderWay: boolean;
 }
 
+/** Why a runtime viewer did not open, and whether it was `open_viewer`'s own refusal rather than the connection's or the addon's. */
+interface RuntimeViewerOpenFailure {
+  words: string;
+  theRuntimeRefusedToOpenIt: boolean;
+}
+
+/** The listed states of a stream whose nodes run once its project is started, resumed or done stopping, so `open_viewer`'s refusal on it is waited out. */
+const STREAM_STATES_A_PORT_VIEWER_WAITS_OUT: ReadonlySet<string> = new Set(["stopped", "paused", "preparing", "stopping"]);
+
 function portViewerTargetKey(target: PortViewerTarget): string {
   return JSON.stringify([target.stream, target.node_id, target.port]);
 }
@@ -80,6 +91,7 @@ export class RuntimePortViewers {
   private readonly subscriptionsByPortViewer = new Map<string, PortViewerSubscription>();
   private readonly runtimeViewersByTargetKey = new Map<string, RuntimeViewerHeldOpen>();
   private readonly targetKeysBeingOpened = new Set<string>();
+  private readonly targetKeysAwaitingAReopen = new Set<string>();
   private viewerConnection: RuntimeViewerConnection | null = null;
   private portViewersOpened = 0;
 
@@ -88,10 +100,12 @@ export class RuntimePortViewers {
   /** Open a port viewer of `target` for `windowShowingPortViewers`, answering the id its events arrive under; refused in the runtime's or the addon's words. */
   async openAPortViewer(target: PortViewerTarget, windowShowingPortViewers: WindowShowingPortViewers): Promise<Result<{ port_viewer: string }, string>> {
     const runtimeViewer = await this.theRuntimeViewerOf(target);
-    if (!runtimeViewer.ok) return runtimeViewer;
+    const theStreamIsNotYetRunning = !runtimeViewer.ok && this.theRuntimeRefusedAStreamThatIsNotYetRunning(target, runtimeViewer.failure);
+    if (!runtimeViewer.ok && !theStreamIsNotYetRunning) return failedWith(runtimeViewer.failure.words);
     this.portViewersOpened += 1;
     const portViewer = `port-viewer-${this.portViewersOpened}`;
     this.subscriptionsByPortViewer.set(portViewer, { target, windowShowingPortViewers });
+    if (theStreamIsNotYetRunning) this.reopenAfterAWait(portViewerTargetKey(target));
     return succeeded({ port_viewer: portViewer });
   }
 
@@ -123,14 +137,19 @@ export class RuntimePortViewers {
     this.viewerConnection = null;
   }
 
+  private theRuntimeRefusedAStreamThatIsNotYetRunning(target: PortViewerTarget, openFailure: RuntimeViewerOpenFailure): boolean {
+    const listedState = this.sources.streamStateTheRuntimeListsNow(target.stream);
+    return openFailure.theRuntimeRefusedToOpenIt && listedState !== null && STREAM_STATES_A_PORT_VIEWER_WAITS_OUT.has(listedState);
+  }
+
   private subscriptionsOf(targetKey: string): [string, PortViewerSubscription][] {
     return [...this.subscriptionsByPortViewer].filter(([, subscription]) => portViewerTargetKey(subscription.target) === targetKey);
   }
 
-  private async theViewerConnection(): Promise<Result<RuntimeViewerConnection, string>> {
+  private async theViewerConnection(): Promise<Result<RuntimeViewerConnection, RuntimeViewerOpenFailure>> {
     if (this.viewerConnection !== null && this.viewerConnection.isOpen()) return succeeded(this.viewerConnection);
     const opened = await this.sources.openTheViewerConnection();
-    if (!opened.ok) return failedWith(opened.failure.failureDescription);
+    if (!opened.ok) return failedWith({ words: opened.failure.failureDescription, theRuntimeRefusedToOpenIt: false });
     if (this.viewerConnection !== null && this.viewerConnection.isOpen()) {
       opened.value.close();
       return succeeded(this.viewerConnection);
@@ -141,11 +160,11 @@ export class RuntimePortViewers {
     return succeeded(viewerConnection);
   }
 
-  private async theRuntimeViewerOf(target: PortViewerTarget): Promise<Result<RuntimeViewerHeldOpen, string>> {
+  private async theRuntimeViewerOf(target: PortViewerTarget): Promise<Result<RuntimeViewerHeldOpen, RuntimeViewerOpenFailure>> {
     const targetKey = portViewerTargetKey(target);
     const heldOpen = this.runtimeViewersByTargetKey.get(targetKey);
     if (heldOpen !== undefined) return succeeded(heldOpen);
-    if (this.targetKeysBeingOpened.has(targetKey)) return failedWith(`${target.node_id} › ${target.port} is already being opened`);
+    if (this.targetKeysBeingOpened.has(targetKey)) return failedWith({ words: `${target.node_id} › ${target.port} is already being opened`, theRuntimeRefusedToOpenIt: false });
     this.targetKeysBeingOpened.add(targetKey);
     const opened = await this.openTheRuntimeViewer(target);
     this.targetKeysBeingOpened.delete(targetKey);
@@ -153,15 +172,15 @@ export class RuntimePortViewers {
     return opened;
   }
 
-  private async openTheRuntimeViewer(target: PortViewerTarget): Promise<Result<RuntimeViewerHeldOpen, string>> {
+  private async openTheRuntimeViewer(target: PortViewerTarget): Promise<Result<RuntimeViewerHeldOpen, RuntimeViewerOpenFailure>> {
     const viewerConnection = await this.theViewerConnection();
     if (!viewerConnection.ok) return viewerConnection;
     const openedViewer = await viewerConnection.value.openViewer({ ...target, viewer_process_id: this.sources.viewerProcessId });
-    if (!openedViewer.ok) return failedWith(openedViewer.failure.failureDescription);
+    if (!openedViewer.ok) return failedWith({ words: openedViewer.failure.failureDescription, theRuntimeRefusedToOpenIt: openedViewer.failure.isTheRuntimesRefusal });
     const channelReader = this.sources.openAChannelReader(openedViewer.value, `tato-studio-viewer-${this.sources.viewerProcessId}`);
     if (!channelReader.ok) {
       void viewerConnection.value.closeViewer(openedViewer.value.viewer);
-      return failedWith(channelReader.failure);
+      return failedWith({ words: channelReader.failure, theRuntimeRefusedToOpenIt: false });
     }
     const targetKey = portViewerTargetKey(target);
     const heldOpen: RuntimeViewerHeldOpen = {
@@ -207,7 +226,10 @@ export class RuntimePortViewers {
   }
 
   private reopenAfterAWait(targetKey: string): void {
+    if (this.targetKeysAwaitingAReopen.has(targetKey)) return;
+    this.targetKeysAwaitingAReopen.add(targetKey);
     this.sources.waitThen(PORT_VIEWER_REOPEN_AFTER_MS, () => {
+      this.targetKeysAwaitingAReopen.delete(targetKey);
       const subscriptions = this.subscriptionsOf(targetKey);
       const [firstSubscription] = subscriptions;
       if (firstSubscription === undefined || this.runtimeViewersByTargetKey.has(targetKey)) return;
@@ -217,7 +239,7 @@ export class RuntimePortViewers {
           return;
         }
         for (const [portViewer, subscription] of this.subscriptionsOf(targetKey)) {
-          subscription.windowShowingPortViewers.sendTheWindowAPortViewerEvent({ port_viewer: portViewer, kind: "reopening", because: reopened.failure });
+          subscription.windowShowingPortViewers.sendTheWindowAPortViewerEvent({ port_viewer: portViewer, kind: "reopening", because: reopened.failure.words });
         }
         this.reopenAfterAWait(targetKey);
       });
