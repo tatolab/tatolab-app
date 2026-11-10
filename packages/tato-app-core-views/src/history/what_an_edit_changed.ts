@@ -147,10 +147,44 @@ function whatOneOperationChanged(operation: OperationFields, nodeNames: NodeName
       return { sentence: { lead: "Placed an import", subject: null, rest: "" }, line: "place_import" };
     case "remove_import":
       return { sentence: { lead: "Removed an import", subject: null, rest: "" }, line: "remove_import" };
+    case "replace_asset_content": {
+      const path = pathOfTheAsset(operation);
+      return { sentence: { lead: "Replaced the content of", subject: fileNameOf(path), rest: "" }, line: `replace_asset_content ${path}` };
+    }
     case "create_stream_document":
-      return { sentence: { lead: "Created a stream", subject: null, rest: "" }, line: "create_stream_document" };
-    case "delete_stream_document":
-      return { sentence: { lead: "Deleted a stream", subject: null, rest: "" }, line: "delete_stream_document" };
+    case "delete_stream_document": {
+      const path = textOf(operation["path"]);
+      const verb = operationName === "create_stream_document" ? "Created" : "Deleted";
+      const sentence = path === null ? { lead: `${verb} a stream`, subject: null, rest: "" } : { lead: `${verb} the stream`, subject: fileNameOf(path), rest: "" };
+      return { sentence, line: path === null ? operationName : `${operationName} ${path}` };
+    }
+    case "set_stream_display_name": {
+      const to = textOf(operation["to"]);
+      return {
+        sentence: to === null ? { lead: "Showed a stream under its file name", subject: null, rest: "" } : { lead: "Named a stream", subject: to, rest: "" },
+        line: `set_stream_display_name ${wordsOfAValue(operation["from"] ?? undefined)} → ${wordsOfAValue(operation["to"] ?? undefined)}`,
+      };
+    }
+    case "write_project_file":
+    case "remove_project_file": {
+      const path = textOf(operation["path"]) ?? "a file";
+      const lead = operationName === "remove_project_file" ? "Removed" : operation["replaced_a_file"] === true ? "Edited" : "Added";
+      return { sentence: { lead, subject: fileNameOf(path), rest: "" }, line: `${operationName} ${path}` };
+    }
+    case "set_project_name": {
+      const to = textOf(operation["to"]);
+      return { sentence: { lead: "Renamed the project", subject: null, rest: to === null ? "" : `to ${to}` }, line: `set_project_name ${wordsOfAValue(operation["from"])} → ${wordsOfAValue(operation["to"])}` };
+    }
+    case "set_project_description":
+      return {
+        sentence: { lead: textOf(operation["to"]) === null ? "Removed the project's description" : "Described the project", subject: null, rest: "" },
+        line: "set_project_description",
+      };
+    case "set_project_cover":
+      return {
+        sentence: { lead: textOf(operation["to"]) === null ? "Removed the project's cover" : "Set the project's cover", subject: null, rest: "" },
+        line: `set_project_cover ${wordsOfAValue(operation["from"] ?? undefined)} → ${wordsOfAValue(operation["to"] ?? undefined)}`,
+      };
     default:
       return { sentence: { lead: operationName, subject: null, rest: "" }, line: operationName };
   }

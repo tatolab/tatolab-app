@@ -287,7 +287,7 @@ describe("the studio", () => {
 
     const historyRows = () => [...coreViewPage("history").querySelectorAll<HTMLElement>("[data-history-row]")];
     await waitFor(() => expect(historyRows()).toHaveLength(5));
-    expect(historyRows().map((row) => [row.getAttribute("aria-label")?.split(". ").slice(0, 2).join(". ").replace(/ · \d+ (min|h) ago| · just now/, ""), row.hasAttribute("data-undone")])).toEqual([
+    expect(historyRows().map((row) => [row.getAttribute("aria-label")?.split(". ").slice(0, 2).join(". ").replace(/ · (?!undone)[^·]*?(?= · |$)/g, ""), row.hasAttribute("data-undone")])).toEqual([
       ["Set displaywindow scaling to fit. Sam · undone", true],
       ["Added brightnessmeter and its link. claude-code (agent)", false],
       ["Renamed invert to invertingeffect. Sam", false],
