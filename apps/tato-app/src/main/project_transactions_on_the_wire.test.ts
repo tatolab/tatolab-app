@@ -117,12 +117,17 @@ test("a refused graph edit reads with the node, link and field it names", () => 
   expect(feed.refused_actions[0]).toMatchObject({ mode: "live", idempotency_key: "k1", refusal: { refused_operation_index: 0, refused_node: "n2", refused_link: link, refused_field: "video_from_upstream" } });
 });
 
+test("an entry or an undo state newer than this app leaves the rest of the feed readable", () => {
+  const appliedInANewerState = { status: "applied", format_version: 3, transaction: "t", commit: "c", author_kind: "person", author_name: "Sam", operations: [], inverse_operations: [], undo_state: "parked", applied_at: "2026-11-10T18:00:00Z" };
+  const feed = answerOf(projectTransactionsFromTheResourceText(JSON.stringify({ project: "p", project_directory: "/d", transactions: [{ status: "pending", anything: 1 }, appliedInANewerState] })));
+  expect(feed.transactions.map((transaction) => [transaction.transaction, transaction.undo_state])).toEqual([["t", "parked"]]);
+  expect(feed.refused_actions).toEqual([]);
+});
+
 test("a change feed or undo result missing what it must carry is not read", () => {
   expect(projectTransactionsFromTheResourceText('{"project":"p","project_directory":"/d"}')).toEqual({ ok: false, failure: expect.stringMatching(/^the project's change feed could not be read: .*transactions/) });
   expect(projectTransactionFromTheUndoOrRedoToolResult("redo", '{"format_version":2,"transaction":"t"}')).toEqual({ ok: false, failure: expect.stringMatching(/^the runtime's redo result could not be read: .*commit/) });
   expect(transactionsResourceUriFromTheListAssetsToolResult('{"assets":[]}')).toEqual({ ok: false, failure: expect.stringMatching(/^the runtime's list_assets result names no change feed: /) });
-  expect(projectTransactionsFromTheResourceText('{"project":"p","project_directory":"/d","transactions":[{"status":"pending"}]}')).toEqual({ ok: false, failure: expect.stringMatching(/`status` is `pending`/) });
   expect(projectTransactionsFromTheResourceText('{"project":"p","project_directory":"/d","transactions":[{"transaction":"t"}]}')).toEqual({ ok: false, failure: expect.stringMatching(/`status`/) });
-  const appliedWithAnUnknownUndoState = { status: "applied", format_version: 2, transaction: "t", commit: "c", author_kind: "person", author_name: "Sam", operations: [], inverse_operations: [], undo_state: "parked", applied_at: "x" };
-  expect(projectTransactionsFromTheResourceText(JSON.stringify({ project: "p", project_directory: "/d", transactions: [appliedWithAnUnknownUndoState] }))).toEqual({ ok: false, failure: expect.stringMatching(/`undo_state` is `parked`/) });
+
 });

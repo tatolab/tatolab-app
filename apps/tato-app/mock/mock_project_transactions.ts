@@ -14,7 +14,6 @@ import type {
   ProjectTransactionAuthor,
   ProjectTransactions,
   ProjectTransactionsReading,
-  ProjectTransactionUndoState,
   RefusedProjectAction,
 } from "../src/shared/tatolab_backend_contract";
 
@@ -68,6 +67,7 @@ function mockRefusedUndoOrRedo(author: ProjectTransactionAuthor, undoOrRedo: "un
 }
 
 const YOU = { kind: "person", name: "Sam" };
+const REFUSED_ACTIONS_THE_RUNTIME_KEEPS = 100;
 const CLAUDE = { kind: "agent", name: "claude-code" } as const;
 const THE_RUNTIME = { kind: "runtime", name: "tatolab" };
 
@@ -171,30 +171,33 @@ export class MockProjectTransactions {
   private refuse(author: ProjectTransactionAuthor, undoOrRedo: "undo" | "redo", runtimeWords: string): string {
     const latestAppliedAt = this.transactionsOldestFirst.at(-1)?.applied_at ?? mockAppliedAt(0);
     this.refusedActionsNewestFirst.unshift(mockRefusedUndoOrRedo(author, undoOrRedo, runtimeWords, latestAppliedAt));
+    this.refusedActionsNewestFirst.splice(REFUSED_ACTIONS_THE_RUNTIME_KEEPS);
     this.tellTheListeners();
     return `${undoOrRedo} failed: ${runtimeWords}`;
   }
 
-  private tellTheListeners(): void {
+  private tellTheListeners(): ProjectTransactionsReading {
     const reading = this.read();
     for (const listener of this.listeners) listener(structuredClone(reading));
+    return reading;
   }
 
   private apply(author: ProjectTransactionAuthor, operations: JsonValue[], inverseOperations: JsonValue[], lineage: { undoes?: string; redoes?: string }): ProjectTransaction {
     const applied = mockTransaction(this.transactionsOldestFirst.length + 1, author, operations, inverseOperations, lineage);
     this.transactionsOldestFirst.push(applied);
-    this.tellTheListeners();
-    return structuredClone({ ...applied, undo_state: this.undoStateOfEachEditAndRedo().get(applied.transaction) ?? null });
+    const reading = this.tellTheListeners();
+    const appliedAsRead = reading.kind === "read" ? reading.project_transactions.transactions.find((transaction) => transaction.transaction === applied.transaction) : undefined;
+    return structuredClone(appliedAsRead ?? applied);
   }
 
   /** Each edit and redo's `undo_state`, the same for an edit and every redo of it; an undo has none. */
-  private undoStateOfEachEditAndRedo(): Map<string, ProjectTransactionUndoState> {
+  private undoStateOfEachEditAndRedo(): Map<string, string> {
     const editOfTheTransaction = new Map<string, string>();
     for (const transaction of this.transactionsOldestFirst) {
       if (transaction.undoes !== null) continue;
       editOfTheTransaction.set(transaction.transaction, transaction.redoes === null ? transaction.transaction : (editOfTheTransaction.get(transaction.redoes) ?? transaction.redoes));
     }
-    const undoStateOfTheEdit = new Map<string, ProjectTransactionUndoState>();
+    const undoStateOfTheEdit = new Map<string, string>();
     const authors = new Map(this.transactionsOldestFirst.map((transaction) => [`${transaction.author_kind}\u0000${transaction.author_name}`, { kind: transaction.author_kind, name: transaction.author_name }]));
     for (const author of authors.values()) {
       const { undoable, redoable } = this.whatTheAuthorCanUndoAndRedo(author);

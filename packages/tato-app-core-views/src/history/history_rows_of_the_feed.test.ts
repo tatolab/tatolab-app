@@ -1,4 +1,4 @@
-import type { JsonValue, ProjectTransaction, ProjectTransactionUndoState } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { JsonValue, ProjectTransaction } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { expect, test } from "vitest";
 import { historyRowsOfTheFeed, historyStepsToTheRow, nodeNamesTheFeedGives, theStepReachedItsEdit, type HistoryRow } from "./history_rows_of_the_feed";
 
@@ -16,7 +16,7 @@ let transactionsMade = 0;
 function transaction(
   author: { kind: string; name: string },
   operations: JsonValue[],
-  lineage: { undoes?: string; redoes?: string; undo_state?: ProjectTransactionUndoState } = {},
+  lineage: { undoes?: string; redoes?: string; undo_state?: string } = {},
 ): ProjectTransaction {
   transactionsMade += 1;
   return {
@@ -79,7 +79,7 @@ test("each edit is a row, newest first, naming who made it and what it changed, 
 });
 
 /** `transaction` as the runtime serves it once its author's undo and redo stand at `undoState`. */
-function standingAt(edit: ProjectTransaction, undoState: ProjectTransactionUndoState): ProjectTransaction {
+function standingAt(edit: ProjectTransaction, undoState: string): ProjectTransaction {
   return { ...edit, undo_state: undoState };
 }
 

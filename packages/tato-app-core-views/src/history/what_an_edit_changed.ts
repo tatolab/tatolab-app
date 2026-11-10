@@ -173,7 +173,7 @@ function whatOneOperationChanged(operation: OperationFields, nodeNames: NodeName
     }
     case "set_project_name": {
       const to = textOf(operation["to"]);
-      return { sentence: { lead: "Renamed the project", subject: null, rest: to === null ? "" : `to ${to}` }, line: `set_project_name ${wordsOfAValue(operation["from"])} → ${wordsOfAValue(operation["to"])}` };
+      return { sentence: { lead: "Renamed the project", subject: null, rest: to === null ? "" : `to ${to}` }, line: `set_project_name ${wordsOfAValue(operation["from"] ?? undefined)} → ${wordsOfAValue(operation["to"] ?? undefined)}` };
     }
     case "set_project_description":
       return {

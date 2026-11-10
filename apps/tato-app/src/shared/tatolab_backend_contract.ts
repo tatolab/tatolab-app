@@ -36,7 +36,6 @@ export type {
   ProjectTransactions,
   ProjectTransactionsReading,
   ProjectTransactionAuthor,
-  ProjectTransactionUndoState,
   ProjectActionRefusal,
   RefusedProjectAction,
   PortViewerTarget,

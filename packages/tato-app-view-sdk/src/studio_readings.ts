@@ -456,11 +456,6 @@ export const projectLogReadingSchema = z.discriminatedUnion("kind", [
 export type ProjectLogReading = z.infer<typeof projectLogReadingSchema>;
 
 /** One transaction on a project's change feed, as the runtime's `streamlib://project/<project>/transactions` resource carries it. */
-/** Where an edit or a redo stands with its author's undo and redo now; the same for an edit and every redo of it. */
-export const projectTransactionUndoStateSchema = z.enum(["applied", "undone_redoable", "undone_not_redoable"]);
-/** Where an edit stands with its author's undo and redo. */
-export type ProjectTransactionUndoState = z.infer<typeof projectTransactionUndoStateSchema>;
-
 export const projectTransactionSchema = z.object({
   /** The format the runtime recorded it in, `1` for one recorded before formats were. */
   format_version: z.number().int(),
@@ -484,8 +479,8 @@ export const projectTransactionSchema = z.object({
   redoes: z.string().nullable(),
   /** The key its caller sent it under, `null` when it sent none. */
   idempotency_key: z.string().nullable(),
-  /** Where an edit or a redo stands with its author's undo and redo now; `null` for an undo. */
-  undo_state: projectTransactionUndoStateSchema.nullable(),
+  /** Where an edit or a redo stands with its author's undo and redo now, the same for an edit and every redo of it: `applied`, `undone_redoable` or `undone_not_redoable`, or a state newer than this app; `null` for an undo. */
+  undo_state: z.string().nullable(),
   /** When the runtime applied it, RFC 3339 in UTC to the second, for display only. */
   applied_at: z.string(),
 });

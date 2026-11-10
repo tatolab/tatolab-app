@@ -1,11 +1,13 @@
 // A project's change feed as the runtime's `streamlib://project/<project>/transactions` resource
 // renders it (`ProjectTransactionsResourceContents` in `local_api_wire_contract.rs`): applied and
 // refused entries in one array, tagged by `status`, which this reads apart into `transactions` and
-// `refused_actions`, each keeping the runtime's order. An `undo` or `redo` tool answers one applied
+// `refused_actions`, each keeping the runtime's order; an entry of a `status` newer than this app is
+// left out. The runtime orders the array by the second each entry happened, a refusal first on a
+// tie, so `applied_at` and `refused_at` merge the two back as it sent them. An `undo` or `redo` tool answers one applied
 // transaction with no `status`. A key the runtime leaves out when it has no value reads as `null`;
 // every other key a newer runtime adds is ignored.
 
-import type { JsonValue, ProjectActionRefusal, ProjectTransaction, ProjectTransactions, ProjectTransactionUndoState, RefusedProjectAction } from "../shared/tatolab_backend_contract.js";
+import type { JsonValue, ProjectActionRefusal, ProjectTransaction, ProjectTransactions, RefusedProjectAction } from "../shared/tatolab_backend_contract.js";
 import {
   everyOneRead,
   isAJsonValue,
@@ -23,16 +25,6 @@ import { failedWith, succeeded, type Result } from "./result.js";
 
 function jsonValuesOf(values: readonly unknown[], key: string): Result<JsonValue[], string> {
   return everyOneRead(values, (value) => (isAJsonValue(value) ? succeeded(value) : failedWith(`an entry of ${key} is not JSON`)));
-}
-
-const UNDO_STATES: readonly ProjectTransactionUndoState[] = ["applied", "undone_redoable", "undone_not_redoable"];
-
-function undoStateAt(fields: JsonObjectOnTheWire): Result<ProjectTransactionUndoState | null, string> {
-  const undoState = optionalText(fields, "undo_state");
-  if (!undoState.ok) return undoState;
-  if (undoState.value === null) return succeeded(null);
-  const known = UNDO_STATES.find((state) => state === undoState.value);
-  return known === undefined ? failedWith(`\`undo_state\` is \`${undoState.value}\`, not one this app knows`) : succeeded(known);
 }
 
 function jsonValuesAt(fields: JsonObjectOnTheWire, key: string): Result<JsonValue[], string> {
@@ -63,7 +55,7 @@ function projectTransactionFromItsFields(fields: JsonObjectOnTheWire): Result<Pr
   if (!redoes.ok) return redoes;
   const idempotencyKey = optionalText(fields, "idempotency_key");
   if (!idempotencyKey.ok) return idempotencyKey;
-  const undoState = undoStateAt(fields);
+  const undoState = optionalText(fields, "undo_state");
   if (!undoState.ok) return undoState;
   const appliedAt = requiredText(fields, "applied_at");
   if (!appliedAt.ok) return appliedAt;
@@ -152,7 +144,7 @@ function refusedProjectActionFromItsFields(fields: JsonObjectOnTheWire): Result<
   });
 }
 
-type ChangeFeedEntry = { status: "applied"; transaction: ProjectTransaction } | { status: "refused"; refused_action: RefusedProjectAction };
+type ChangeFeedEntry = { status: "applied"; transaction: ProjectTransaction } | { status: "refused"; refused_action: RefusedProjectAction } | { status: "newer_than_this_app" };
 
 function changeFeedEntryOnTheWire(value: unknown): Result<ChangeFeedEntry, string> {
   const fields = jsonObject(value, "a change feed entry");
@@ -167,7 +159,7 @@ function changeFeedEntryOnTheWire(value: unknown): Result<ChangeFeedEntry, strin
     const refusedAction = refusedProjectActionFromItsFields(fields.value);
     return refusedAction.ok ? succeeded({ status: "refused", refused_action: refusedAction.value }) : refusedAction;
   }
-  return failedWith(`a change feed entry's \`status\` is \`${status.value}\`, not one this app knows`);
+  return succeeded({ status: "newer_than_this_app" });
 }
 
 /** The change feed the resource's text `resourceText` holds, or why it could not be read. */
