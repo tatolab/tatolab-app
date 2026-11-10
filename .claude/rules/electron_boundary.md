@@ -18,7 +18,8 @@ paths:
 - **The window stays sealed.** `contextIsolation`, `sandbox` and `webSecurity` on,
   `nodeIntegration` off; the preload exposes only `tatolabElectronBridge`; new windows are denied,
   navigation off the page's own location is refused, and every permission request is answered
-  no. The page is served under `tatolab-app:` with the CSP from
+  no but the camera and the microphone, which the window grants its own page and every view it
+  frames (`isAPermissionTheWindowGrants`, owner 2026-11-10), so macOS asks the person. The page is served under `tatolab-app:` with the CSP from
   `windowPageContentSecurityPolicy` — `connect-src 'self'`, nothing remote — so the window reaches
   the local API only through the main process. Loosening any of these is a decision; state the
   reason in the PR.

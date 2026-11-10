@@ -5,6 +5,7 @@ import {
   builtWindowFileForRequest,
   inlineScriptHashSources,
   isACommandFromTheWindowsOwnPage,
+  isAPermissionTheWindowGrants,
   isAViewPageTheWindowFrames,
   isOnTheWindowPagesOwnLocation,
   TATOLAB_WINDOW_PAGE_URL,
@@ -68,4 +69,17 @@ test("the window frames its core views' pages on its own location, and project v
   expect(isAViewPageTheWindowFrames("http://localhost:5173/", "http://localhost:5173/project_views/L2hvbWU/views/deck/index.html")).toBe(false);
   expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "https://example.com/core_views/outliner/index.html")).toBe(false);
   expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "not a url")).toBe(false);
+});
+
+test("the window grants the camera and the microphone to its own page and every view it frames, and nothing else to anyone", () => {
+  const deckViewUrl = "tatolab-app://app/project_views/L2hvbWUvc2FtL3N0cmVhbXMvbmlnaHQtc2hvdw/views/deck/index.html";
+  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", "tatolab-app://app/index.html")).toBe(true);
+  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", "tatolab-app://app/core_views/viewer/index.html")).toBe(true);
+  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", deckViewUrl)).toBe(true);
+  expect(isAPermissionTheWindowGrants("http://localhost:5173/", "media", deckViewUrl)).toBe(true);
+  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", "https://example.com/camera.html")).toBe(false);
+  expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, "media", "not a url")).toBe(false);
+  for (const permission of ["geolocation", "notifications", "display-capture", "clipboard-read", "openExternal", "usb"]) {
+    expect(isAPermissionTheWindowGrants(TATOLAB_WINDOW_PAGE_URL, permission, deckViewUrl)).toBe(false);
+  }
 });

@@ -27,6 +27,10 @@ Studio's origin.
 - **A view is trusted like its project's nodes.** It can reach the window page through
   `window.parent`, the same way a project's Python node can rewrite the project. Trust is placed in
   the project the person opens or imports, as with VS Code's extensions or Blender's add-ons.
+- **A view asks for the camera and the microphone the standard way,** with `getUserMedia`. Studio
+  grants the request to its own page and to every view it frames, and macOS then asks the person
+  through its own camera and microphone prompt, once, as for any Mac app. Studio refuses every other
+  browser permission.
 - **What Studio does for every view:** it serves the files only of a view a studio window listed
   as one that opens, read through the runtime's `read_project_file`, and only for a project a studio
   window holds open.
