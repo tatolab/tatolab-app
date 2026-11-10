@@ -64,6 +64,19 @@ const UNDO_APPLIED: ProjectTransaction = {
   applied_at: "2026-11-09T18:42:00Z",
 };
 
+const GRAPH_TRANSACTION_APPLIED = {
+  mode: "commit",
+  transaction: "t-add",
+  commit: "c3",
+  operations: [{ operation: "add_node" }],
+  added_nodes: [{ stream: "set-main-1a2b3c", node: "n-uuid", name: "holdframe", as: "hold" }],
+  connected_links: [],
+  added_groups: [],
+  added_notes: [],
+};
+
+const GRAPH_TRANSACTION_REFUSAL = { action: "transact", refused_operation_index: 0, refused_node: "n-uuid", refused_link: null, refused_field: null, runtime_words: "a node of that name exists" };
+
 const DECK_A_TARGET: PortViewerTarget = { stream: "set", node_id: "id-deck-a", port: "audio" };
 const DECK_B_TARGET: PortViewerTarget = { stream: "set", node_id: "id-deck-b", port: "audio" };
 
@@ -76,6 +89,7 @@ function recordingHostServices() {
   const viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
   const languageServerMessagesSent: JsonValue[] = [];
   const undosAsked: { projectFolder: string; author: ProjectTransactionAuthor }[] = [];
+  const graphTransactionsAsked: { projectFolder: string; operations: unknown[]; mode: string; idempotencyKey: string | null }[] = [];
   const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
   const hostServices: StudioViewHostServices = {
     watchOpenProject: (listener) => {
@@ -115,6 +129,12 @@ function recordingHostServices() {
       return { kind: "applied", transaction: UNDO_APPLIED };
     },
     redoInTheProject: async () => ({ kind: "not_applied", because: "redo failed: claude-code has nothing to redo" }),
+    transactInTheProject: async (projectFolder, operations, mode, idempotencyKey) => {
+      graphTransactionsAsked.push({ projectFolder, operations, mode, idempotencyKey });
+      if (operations[0]?.operation === "rename_node") return { kind: "refused", refusal: GRAPH_TRANSACTION_REFUSAL };
+      if (operations[0]?.operation === "remove_node") return { kind: "not_sent", because: "No runtime answers." };
+      return { kind: "applied", transaction: GRAPH_TRANSACTION_APPLIED };
+    },
     connectToPythonLanguageServer: (projectFolder, onEvent) => {
       const opened = { projectFolder, onEvent, closed: false };
       languageServers.push(opened);
@@ -135,7 +155,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked };
+  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, graphTransactionsAsked };
 }
 
 /** An area that keeps the settings it is asked to remember and says where the view's header row lies. */
@@ -176,6 +196,26 @@ function messagesDelivered(): Promise<void> {
 }
 
 describe("a view's connection to Studio, through the one bridge every view is served by", () => {
+  it("edits the project's graphs through it when granted edit.stream_graph, the runtime's structured refusal reaching the view whole, and is refused by name when sandboxed without it", async () => {
+    const { connection, graphTransactionsAsked } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+    const addHoldFrame = { operation: "add_node", stream: "s-uuid", type: "tatolab.ops:HoldFrame", as: "hold" } as const;
+    expect(await connection.transactInTheProject("/set", [addHoldFrame], { mode: "commit", idempotencyKey: "gesture-1" })).toEqual({ kind: "applied", transaction: GRAPH_TRANSACTION_APPLIED });
+    expect(await connection.transactInTheProject("/set", [{ operation: "rename_node", stream: "s-uuid", node: "n-uuid", name: "camera" }], { mode: "commit", idempotencyKey: null })).toEqual({
+      kind: "refused",
+      refusal: GRAPH_TRANSACTION_REFUSAL,
+    });
+    expect(await connection.transactInTheProject("/set", [{ operation: "remove_node", stream: "s-uuid", node: "n-uuid" }], { mode: "live", idempotencyKey: null })).toEqual({ kind: "not_sent", because: "No runtime answers." });
+    expect(graphTransactionsAsked[0]).toEqual({ projectFolder: "/set", operations: [addHoldFrame], mode: "commit", idempotencyKey: "gesture-1" });
+
+    const sandboxed = await connectedView(DJ_DECK_MANIFEST, {});
+    expect(await sandboxed.connection.transactInTheProject("/set", [addHoldFrame], { mode: "commit", idempotencyKey: null })).toEqual({
+      kind: "not_sent",
+      because: "DJ Deck runs sandboxed and does not list edit.stream_graph in its tatolab_view.json, so Studio does not serve it.",
+    });
+    expect(sandboxed.graphTransactionsAsked).toEqual([]);
+  });
+
+
   it("reads the project's history and undoes through it when it may write the project, and is refused both by name when sandboxed without them", async () => {
     const { connection, undosAsked } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
     const readings: ProjectTransactionsReading[] = [];

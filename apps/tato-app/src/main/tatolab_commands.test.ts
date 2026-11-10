@@ -819,3 +819,57 @@ test("undo and redo in the open project ask the runtime by the window's author a
   });
   expect(await commandHandlers.undo_in_the_open_project({ author: sam }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
+
+/** The window's `ProjectGraphTransactionApplying` reads exactly this JSON. */
+test("a graph transaction in the open project reaches the runtime's transact held to its shape, answering what it applied or the runtime's structured refusal", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-transact-tool-result-of-sam-setting-the-test-pattern-to-640-by-360.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-transact-refusal-for-an-image-output-into-a-channels-input.json")),
+    ],
+    "linux",
+  );
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "hallways-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const stream = "ab38b36d-ea2a-4948-bc01-f231ca4fa043";
+  const testPattern = "ea646832-0f5f-45f4-bd5c-6b5b50a0b70a";
+  const setTheSize = { operation: "set_node_config", stream, node: testPattern, config: { width: 640, height: 360 } };
+
+  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "commit", idempotency_key: "5a8e1c3f-2d47-4b6a-9f01-8c7d6e5b4a32" }, fromTheStudioWindow)).toEqual({
+    ok: true,
+    value: {
+      kind: "applied",
+      transaction: {
+        mode: "commit",
+        transaction: "0e29a20a-60d9-4cf1-9fdc-6c66a4b5136d",
+        commit: "5e2cdcdc1f1b5e5cfde4d4c870c83197dcc29b7c",
+        operations: [{ operation: "set_node_config", node: testPattern, from: {}, to: { width: 640, height: 360 }, stream: "hallways-main-3990b7" }],
+        added_nodes: [],
+        connected_links: [],
+        added_groups: [],
+        added_notes: [],
+      },
+    },
+  });
+  const link = { source: { node: testPattern, port: "video" }, target: { node: "d28273fd-8094-41f7-b832-a55f58d60f37", port: "refresh" } };
+  expect(await commandHandlers.transact_in_the_open_project({ operations: [{ operation: "connect", stream, ...link }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toMatchObject({
+    ok: true,
+    value: { kind: "refused", refusal: { action: "transact", refused_operation_index: 0, refused_link: link, refused_node: null, refused_field: null } },
+  });
+  expect(await commandHandlers.transact_in_the_open_project({ operations: [{ ...setTheSize, force: true }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toMatchObject({
+    ok: false,
+    refusal: expect.stringMatching(/^transact_in_the_open_project's operation 0 is not a graph action the runtime takes: /),
+  });
+  expect(await commandHandlers.transact_in_the_open_project({ operations: [], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: "transact_in_the_open_project needs `operations`, at least one graph action",
+  });
+  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "kept", idempotency_key: null }, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: "transact_in_the_open_project needs `mode`, `commit` or `live`",
+  });
+  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "commit", idempotency_key: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+});

@@ -25,6 +25,9 @@ import type {
   ProjectLogRecordsPage,
   ProjectRunQueued,
   ProjectTransaction,
+  GraphEditMode,
+  ProjectGraphTransactionApplying,
+  StreamGraphAction,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
   RuntimeDescription,
@@ -96,6 +99,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "run_open_project",
   "read_open_project_transactions",
   "undo_in_the_open_project",
+  "transact_in_the_open_project",
   "redo_in_the_open_project",
   "stop_open_project",
   "start_python_language_server",
@@ -280,6 +284,11 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   read_open_project_transactions: { commandArguments: undefined; answer: ProjectTransactionsReading };
   /** The runtime's `undo` by `author` on the asking studio window's project, answering the undo it applied; refused in the runtime's own words. */
   undo_in_the_open_project: { commandArguments: { author: ProjectTransactionAuthor }; answer: ProjectTransaction };
+  /** The runtime's `transact` of `operations` on the graphs of the asking studio window's project's streams, as one transaction recorded as Studio's own; a refusal the runtime structures is answered as `refused`, any other refusal in its own words. */
+  transact_in_the_open_project: {
+    commandArguments: { operations: StreamGraphAction[]; mode: GraphEditMode; idempotency_key: string | null };
+    answer: Exclude<ProjectGraphTransactionApplying, { kind: "not_sent" }>;
+  };
   /** The runtime's `redo` by `author` on the asking studio window's project, answering the redo it applied; refused in the runtime's own words. */
   redo_in_the_open_project: { commandArguments: { author: ProjectTransactionAuthor }; answer: ProjectTransaction };
   /** The runtime's `stop_project` queued on the open project's folder, which the window never names; every stream of the project shows `stopping` until it has run. Refused in the runtime's own words, or while no project is open. */

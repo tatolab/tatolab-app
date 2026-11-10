@@ -6,7 +6,8 @@
 // `stop_project` queues the stop of every stream of a project, `remove_project` queues the
 // removal of a project's streams, `rename_stream`
 // renames one, `add_dependency`, `update_dependency` and `list_dependencies` copy, copy again and
-// list the projects a project imports, `GET /api/graph` names the machine, and `GET /api/registry` lists the node types a
+// list the projects a project imports, `transact` applies graph actions as one transaction and answers
+// its structured refusal, `GET /api/graph` names the machine, and `GET /api/registry` lists the node types a
 // stream can add.
 //
 // The MCP request is spelled as StreamLib's runtime requires one (`streamlib-api-server`'s
@@ -30,6 +31,9 @@ import type {
   ProjectTheRuntimeNames,
   ProjectTransaction,
   ProjectTransactionAuthor,
+  GraphEditMode,
+  ProjectGraphTransactionApplying,
+  StreamGraphAction,
   RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
@@ -54,6 +58,7 @@ import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./no
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
 import { projectTheRuntimeNamesFromTheListAssetsToolResult } from "./project_the_runtime_names.js";
 import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
+import { projectActionRefusalFromTheStructuredContent, projectGraphTransactionFromTheTransactToolResult } from "./project_graph_transaction_on_the_wire.js";
 import {
   dependencyUpdateFromTheUpdateDependencyToolResult,
   type ListedProjectDependency,
@@ -440,6 +445,26 @@ export class LocalApiClient {
     return transaction.ok ? transaction : localApiRequestFailure(transaction.failure);
   }
 
+  /** Apply `operations` on the graphs of a project's streams as one transaction through the runtime's `transact`, under `idempotencyKey` when one is given, recorded as Studio's own (the agent the app's `clientInfo` names); a refusal the runtime structures is answered as `refused`, every other failure as a failure. */
+  async transactInTheProject(
+    operations: readonly StreamGraphAction[],
+    mode: GraphEditMode,
+    idempotencyKey: string | null,
+  ): Promise<Result<ProjectGraphTransactionApplying, LocalApiRequestFailure>> {
+    const toolAnswer = await this.callMcpToolKeepingItsRefusal("transact", {
+      operations,
+      mode,
+      ...(idempotencyKey === null ? {} : { idempotency_key: idempotencyKey }),
+    });
+    if (!toolAnswer.ok) return toolAnswer;
+    if (toolAnswer.value.kind === "refused_by_the_tool") {
+      const refusal = projectActionRefusalFromTheStructuredContent(toolAnswer.value.structured_content);
+      return refusal.ok ? succeeded({ kind: "refused", refusal: refusal.value }) : theRuntimesRefusal(toolAnswer.value.words);
+    }
+    const transaction = projectGraphTransactionFromTheTransactToolResult(toolAnswer.value.text);
+    return transaction.ok ? succeeded({ kind: "applied", transaction: transaction.value }) : localApiRequestFailure(transaction.failure);
+  }
+
   /** `GET requestTarget`, answering the body of a `200`; any other answer is refused in the runtime's own words when its body carries them. */
   private async getBodyOfAnOkAnswer(requestTarget: string): Promise<Result<Buffer, LocalApiRequestFailure>> {
     const response = await this.sendOneHttpRequestAndReadItsResponse("GET", requestTarget, [], null);
@@ -577,7 +602,7 @@ export function mcpToolCallRequestBody(requestId: number, toolName: string, tool
 }
 
 /** What a tool call answered: the text of its first content block, or the words of a tool that ran and failed (`isError`). */
-export type McpToolAnswer = { kind: "answered"; text: string } | { kind: "refused_by_the_tool"; words: string };
+export type McpToolAnswer = { kind: "answered"; text: string } | { kind: "refused_by_the_tool"; words: string; structured_content: unknown };
 
 /** What the JSON-RPC response `jsonRpcResponseText` to a `toolName` call answered, `answeredOver` naming how it came (an HTTP status, or `/mcp/stdio`) in a failure's words. */
 export function mcpToolAnswerFromTheJsonRpcResponse(toolName: string, jsonRpcResponseText: string, answeredOver: string): Result<McpToolAnswer, LocalApiRequestFailure> {
@@ -597,7 +622,7 @@ export function mcpToolAnswerFromTheJsonRpcResponse(toolName: string, jsonRpcRes
   const content = toolResultFields["content"];
   const firstText = Array.isArray(content) ? content.map(textOfATextBlock).find((blockText) => blockText !== null) ?? null : null;
   const toolFailed = toolResultFields["isError"] === true;
-  if (toolFailed) return succeeded({ kind: "refused_by_the_tool", words: firstText ?? `\`${toolName}\` failed and gave no reason` });
+  if (toolFailed) return succeeded({ kind: "refused_by_the_tool", words: firstText ?? `\`${toolName}\` failed and gave no reason`, structured_content: toolResultFields["structuredContent"] ?? null });
   return firstText === null ? localApiRequestFailure(`\`${toolName}\` answered with no text`) : succeeded({ kind: "answered", text: firstText });
 }
 

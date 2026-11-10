@@ -14,6 +14,9 @@ import type {
   OpenProjectReading,
   ProjectTransaction,
   ProjectTransactionAuthor,
+  GraphEditMode,
+  ProjectGraphTransactionApplying,
+  StreamGraphAction,
   ProjectTransactionsReading,
   PoppedOutView,
   PackageCatalogReading,
@@ -152,6 +155,12 @@ export interface TatolabBackend {
   onProjectTransactionsChanged(listener: (reading: ProjectTransactionsReading) => void): () => void;
   /** The runtime's `undo` by `author` on the open project, resolving with the undo it applied and rejecting in the runtime's own words. */
   undoInTheOpenProject(author: ProjectTransactionAuthor): Promise<ProjectTransaction>;
+  /** The runtime's `transact` of `operations` on the graphs of the open project's streams as one transaction recorded as Studio's own, resolving with what it applied or the runtime's structured refusal, and rejecting in words for any other refusal. */
+  transactInTheOpenProject(
+    operations: StreamGraphAction[],
+    mode: GraphEditMode,
+    idempotencyKey: string | null,
+  ): Promise<Exclude<ProjectGraphTransactionApplying, { kind: "not_sent" }>>;
   /** The runtime's `redo` by `author` on the open project, resolving with the redo it applied and rejecting in the runtime's own words. */
   redoInTheOpenProject(author: ProjectTransactionAuthor): Promise<ProjectTransaction>;
   /** `file` of the open project and its imports, as read from disk, rejecting for a file outside them or in the filesystem's words. */

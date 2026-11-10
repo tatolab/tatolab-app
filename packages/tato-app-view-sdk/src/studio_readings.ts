@@ -506,6 +506,142 @@ export const projectTransactionAuthorSchema = z.object({ kind: z.enum(["person",
 /** Whose change an undo or a redo reverses. */
 export type ProjectTransactionAuthor = z.infer<typeof projectTransactionAuthorSchema>;
 
+/** One end of a link a graph action names: a node by its UUID, or by an `as` an earlier `add_node` of the same transaction gave it, and one of its ports. */
+export const streamGraphActionLinkEndSchema = z.strictObject({ node: z.string(), port: z.string() });
+/** One end of a link a graph action names. */
+export type StreamGraphActionLinkEnd = z.infer<typeof streamGraphActionLinkEndSchema>;
+
+const studioCanvasPairSchema = z.tuple([z.number(), z.number()]);
+const jsonObjectSchema = z.record(z.string(), jsonValueSchema);
+
+/**
+ * One action on a stream's graph as the runtime's `transact` takes it (`StreamGraphAction` in streamlib's
+ * `stream_graph_action.rs`), tagged by `operation`: `stream` is the stream asset's UUID, a node is named by its
+ * UUID or an `as` label, and a key the runtime does not take is refused, here as there.
+ */
+export const streamGraphActionSchema = z.discriminatedUnion("operation", [
+  z.strictObject({
+    operation: z.literal("add_node"),
+    stream: z.string(),
+    type: z.string(),
+    name: z.string().optional(),
+    config: jsonObjectSchema.optional(),
+    pins: jsonObjectSchema.optional(),
+    exposed_config_fields: z.array(z.string()).optional(),
+    studio: jsonObjectSchema.optional(),
+    as: z.string().optional(),
+  }),
+  z.strictObject({ operation: z.literal("remove_node"), stream: z.string(), node: z.string() }),
+  z.strictObject({ operation: z.literal("connect"), stream: z.string(), source: streamGraphActionLinkEndSchema, target: streamGraphActionLinkEndSchema }),
+  z.strictObject({ operation: z.literal("disconnect"), stream: z.string(), source: streamGraphActionLinkEndSchema, target: streamGraphActionLinkEndSchema }),
+  /** Replaces the node's config whole. */
+  z.strictObject({ operation: z.literal("set_node_config"), stream: z.string(), node: z.string(), config: jsonObjectSchema }),
+  /** An absent or `null` value takes the input's value off. */
+  z.strictObject({ operation: z.literal("set_pin_value"), stream: z.string(), node: z.string(), input: z.string(), value: jsonValueSchema.optional() }),
+  z.strictObject({ operation: z.literal("rename_node"), stream: z.string(), node: z.string(), name: z.string() }),
+  /** Replaces the node's studio fields whole. */
+  z.strictObject({ operation: z.literal("set_studio_fields"), stream: z.string(), node: z.string(), studio: jsonObjectSchema }),
+  z.strictObject({
+    operation: z.literal("import_graph_generator"),
+    stream: z.string(),
+    generator: z.string(),
+    name: z.string().optional(),
+    config: jsonObjectSchema.optional(),
+    as: z.string().optional(),
+  }),
+  z.strictObject({ operation: z.literal("set_exposed_config_fields"), stream: z.string(), node: z.string(), exposed_config_fields: z.array(z.string()) }),
+  z.strictObject({
+    operation: z.literal("add_group"),
+    stream: z.string(),
+    title: z.string(),
+    description: z.string().optional(),
+    colour: z.string().optional(),
+    nodes: z.array(z.string()),
+  }),
+  z.strictObject({
+    operation: z.literal("set_group_fields"),
+    stream: z.string(),
+    group: z.string(),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    colour: z.string().optional(),
+  }),
+  z.strictObject({ operation: z.literal("remove_group"), stream: z.string(), group: z.string() }),
+  z.strictObject({
+    operation: z.literal("use_dependency_stream"),
+    stream: z.string(),
+    project: z.string(),
+    dependency_stream: z.string(),
+    name: z.string().optional(),
+    as: z.string().optional(),
+  }),
+  z.strictObject({ operation: z.literal("collapse_selection_into_subgraph"), stream: z.string(), nodes: z.array(z.string()), name: z.string(), as: z.string().optional() }),
+  z.strictObject({ operation: z.literal("unlock_generator_fragment"), stream: z.string(), fragment: z.string() }),
+  z.strictObject({ operation: z.literal("add_note"), stream: z.string(), text: z.string(), position: studioCanvasPairSchema, size: studioCanvasPairSchema }),
+  z.strictObject({
+    operation: z.literal("set_note_fields"),
+    stream: z.string(),
+    note: z.string(),
+    text: z.string().optional(),
+    position: studioCanvasPairSchema.optional(),
+    size: studioCanvasPairSchema.optional(),
+  }),
+  z.strictObject({ operation: z.literal("remove_note"), stream: z.string(), note: z.string() }),
+]);
+/** One action on a stream's graph. */
+export type StreamGraphAction = z.infer<typeof streamGraphActionSchema>;
+
+/** Whether a graph transaction is kept: `commit` applies it, writes each graph document and records it in history; `live` applies it to the running streams alone. */
+export const graphEditModeSchema = z.enum(["commit", "live"]);
+/** Whether a graph transaction is kept. */
+export type GraphEditMode = z.infer<typeof graphEditModeSchema>;
+
+/** A link end as the runtime answers it: a node by its UUID, and one of its ports. */
+export const graphLinkEndSchema = z.object({ node: z.string(), port: z.string() });
+/** A link end as the runtime answers it. */
+export type GraphLinkEnd = z.infer<typeof graphLinkEndSchema>;
+
+/** What a graph transaction applied, as `transact` answers it (`GraphTransactionToolResult` in `local_api_wire_contract.rs`); each `stream` here is a stream id. */
+export const projectGraphTransactionSchema = z.object({
+  mode: z.string(),
+  /** The transaction's UUID; `null` on a live one, which history never records. */
+  transaction: z.string().nullable(),
+  /** The commit on the project history's `main` recording it; `null` on a live one. */
+  commit: z.string().nullable(),
+  /** Each operation as applied, in order, tagged by its `operation`. */
+  operations: z.array(jsonValueSchema),
+  /** Each node it added: its new UUID as `node`, the name it took, and the `as` its `add_node` gave it. */
+  added_nodes: z.array(z.object({ stream: z.string(), node: z.string(), name: z.string(), as: z.string().nullable() })),
+  /** Each link it made, with `state` `pending`, `wired` or `error` (`null` when the graph could not be read after it) and why an `error` link carries nothing. */
+  connected_links: z.array(
+    z.object({ stream: z.string(), source: graphLinkEndSchema, target: graphLinkEndSchema, state: z.string().nullable(), error_reason: z.string().nullable() }),
+  ),
+  added_groups: z.array(z.object({ stream: z.string(), group: z.string(), title: z.string() })),
+  added_notes: z.array(z.object({ stream: z.string(), note: z.string() })),
+});
+/** What a graph transaction applied. */
+export type ProjectGraphTransaction = z.infer<typeof projectGraphTransactionSchema>;
+
+/** The runtime's refusal of an action (`ProjectActionRefusalOnTheWire`): the tool it was sent to, what it refused as the caller named it, and why in the runtime's own words, never rewritten. */
+export const projectActionRefusalSchema = z.object({
+  action: z.string(),
+  /** The refused operation's position, from 0, among those sent; `null` when the whole action was refused. */
+  refused_operation_index: z.number().int().nonnegative().nullable(),
+  refused_node: z.string().nullable(),
+  refused_link: z.object({ source: graphLinkEndSchema, target: graphLinkEndSchema }).nullable(),
+  /** The node's input or config field refused. */
+  refused_field: z.string().nullable(),
+  runtime_words: z.string(),
+});
+/** The runtime's refusal of an action. */
+export type ProjectActionRefusal = z.infer<typeof projectActionRefusalSchema>;
+
+/** A graph transaction applied whole, or refused with nothing changed: by the runtime, structured, or by Studio before it reached the runtime, in Studio's words alone. */
+export type ProjectGraphTransactionApplying =
+  | { kind: "applied"; transaction: ProjectGraphTransaction }
+  | { kind: "refused"; refusal: ProjectActionRefusal }
+  | { kind: "not_sent"; because: string };
+
 /** The transaction an undo or a redo applied, or why the runtime refused it, in its own words. */
 export type ProjectTransactionApplying = { kind: "applied"; transaction: ProjectTransaction } | { kind: "not_applied"; because: string };
 

@@ -19,6 +19,9 @@ import type {
   ProjectRunQueued,
   ProjectTransaction,
   ProjectTransactionAuthor,
+  GraphEditMode,
+  ProjectGraphTransactionApplying,
+  StreamGraphAction,
   RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
@@ -29,6 +32,7 @@ import type {
   TatolabStatus,
   ProjectFolderChosenFor,
 } from "../shared/tatolab_backend_contract.js";
+import { graphEditModeSchema, streamGraphActionSchema } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
 import { readThePackageCatalog } from "./package_catalog.js";
@@ -463,6 +467,41 @@ export async function stopOpenProject(sharedState: TatolabAppSharedState, comman
   return answerTheWindowOnceQueued(sharedState, "stop_open_project", () => sharedState.controller.stopProject(studioWindow.value.openProject.projectFolder));
 }
 
+/** `transact_in_the_open_project`'s arguments as the window sends them, each operation held to the runtime's own shape, or why they are not. */
+export function transactArgumentsFrom(
+  commandArguments: unknown,
+): Result<{ operations: StreamGraphAction[]; mode: GraphEditMode; idempotency_key: string | null }, string> {
+  if (!isAJsonObject(commandArguments)) return failedWith("transact_in_the_open_project needs `operations`, `mode` and `idempotency_key`");
+  const operationsOnTheWire = commandArguments["operations"];
+  if (!Array.isArray(operationsOnTheWire) || operationsOnTheWire.length === 0) return failedWith("transact_in_the_open_project needs `operations`, at least one graph action");
+  const operations: StreamGraphAction[] = [];
+  for (const [index, operationOnTheWire] of operationsOnTheWire.entries()) {
+    const operation = streamGraphActionSchema.safeParse(operationOnTheWire);
+    if (!operation.success) return failedWith(`transact_in_the_open_project's operation ${index} is not a graph action the runtime takes: ${operation.error.issues[0]?.message ?? "it does not parse"}`);
+    operations.push(operation.data);
+  }
+  const mode = graphEditModeSchema.safeParse(commandArguments["mode"]);
+  if (!mode.success) return failedWith("transact_in_the_open_project needs `mode`, `commit` or `live`");
+  const idempotencyKey = commandArguments["idempotency_key"];
+  if (idempotencyKey !== null && typeof idempotencyKey !== "string") return failedWith("transact_in_the_open_project needs `idempotency_key`, a gesture's key or null");
+  return succeeded({ operations, mode: mode.data, idempotency_key: idempotencyKey });
+}
+
+/** `transact_in_the_open_project`: the runtime's `transact` of the window's graph actions, recorded as Studio's own; refused in the Projects window, or in the runtime's own words when it structures none. */
+export function transactInTheOpenProject(
+  sharedState: TatolabAppSharedState,
+  transacting: { operations: StreamGraphAction[]; mode: GraphEditMode; idempotency_key: string | null },
+  commandFromWindow: TatolabCommandFromWindow,
+): Promise<Result<Exclude<ProjectGraphTransactionApplying, { kind: "not_sent" }>, string>> {
+  return answerTheWindow("transact_in_the_open_project", async () => {
+    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!studioWindow.ok) return studioWindow;
+    const applying = await sharedState.controller.transactInTheProject(transacting.operations, transacting.mode, transacting.idempotency_key);
+    if (!applying.ok) return failedWith(applying.failure.failureDescription);
+    return applying.value.kind === "not_sent" ? failedWith(applying.value.because) : succeeded(applying.value);
+  });
+}
+
 /** `undo_in_the_open_project`'s and `redo_in_the_open_project`'s `{ author }` as the window sends it, or why it is not. */
 export function undoOrRedoArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<ProjectTransactionAuthor, string> {
   const author = isAJsonObject(commandArguments) ? commandArguments["author"] : undefined;
@@ -880,6 +919,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const author = undoOrRedoArgumentsFrom("undo_in_the_open_project", commandArguments);
       if (!author.ok) return { ok: false, refusal: author.failure };
       return commandAnswerFrom(await undoOrRedoInTheOpenProject(sharedState, "undo", author.value, commandFromWindow));
+    },
+    transact_in_the_open_project: async (commandArguments, commandFromWindow) => {
+      const transacting = transactArgumentsFrom(commandArguments);
+      if (!transacting.ok) return { ok: false, refusal: transacting.failure };
+      return commandAnswerFrom(await transactInTheOpenProject(sharedState, transacting.value, commandFromWindow));
     },
     redo_in_the_open_project: async (commandArguments, commandFromWindow) => {
       const author = undoOrRedoArgumentsFrom("redo_in_the_open_project", commandArguments);

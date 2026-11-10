@@ -1,6 +1,6 @@
 import { STUDIO_VIEW_NODE_TYPE } from "../src/renderer/view_host/studio_view_node_wiring";
 import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
-import type { ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphLink, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphLink, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
 
 function fnv1aHashOf(text: string): number {
   let hash = 2166136261;
@@ -88,7 +88,9 @@ export interface MockGraphNode {
   state: string;
   /** Why it failed, in the runtime's words, while `state` reads `Error`. */
   failed_because?: string;
-  config: Record<string, string | number | boolean>;
+  config: Record<string, JsonValue>;
+  /** The value each unlinked input holds, by input name. */
+  pins?: Record<string, JsonValue>;
   input_ports: StreamGraphDeclaredPort[];
   output_ports: StreamGraphDeclaredPort[];
 }
