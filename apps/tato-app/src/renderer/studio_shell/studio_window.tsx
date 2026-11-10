@@ -1,6 +1,6 @@
 import { PictureInPicture2, Play, Redo2, Square, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
 import { DocumentTabs } from "@tatolab/tato-app-view-sdk/design_system/document_tabs";
@@ -12,6 +12,7 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import { WindowNotice } from "@tatolab/tato-app-view-sdk/design_system/window_notice";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { playOrStopOfferedForTheProject } from "../presentation/project_play_presentation";
+import { streamsOfTheProjectNoTabShows, streamTabsDrawnInTheStrip } from "../presentation/stream_tabs_presentation";
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
 import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
@@ -199,6 +200,20 @@ function StudioAreaLayoutNodeView({ node, layoutKey, sources }: { node: StudioAr
   );
 }
 
+/** The + menu's choices: each stream of the open project no tab shows, opened as a tab when chosen. */
+function StreamsOfTheProjectToOpenAsTabs({ model, streams }: { model: StudioWindowModel; streams: readonly ListedStream[] }) {
+  if (streams.length === 0) return <MenuNote>Every stream of the project is open.</MenuNote>;
+  return (
+    <MenuGroup label="Open a stream">
+      {streams.map((stream) => (
+        <MenuItem key={stream.stream} onChosen={() => model.openStreamTabOfAListedStream(stream.stream)} data-stream-tab-to-open={stream.stream}>
+          {stream.display_name}
+        </MenuItem>
+      ))}
+    </MenuGroup>
+  );
+}
+
 /** The studio: its menus along the top (in the system menu bar on macOS), the open streams' tabs, and the chosen layout's areas; or the Projects window, with no menus of its own on Linux, while no project is open or File › Projects shows it. */
 export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const { model, platform, commands, systemMenuBar } = sources;
@@ -216,6 +231,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const openProjectStreamFailureRaised = useWatchedStudioValue(model.openProjectStreamFailureRaised);
   const newProjectSheetOpenedWith = useWatchedStudioValue(model.newProjectSheetOpenedWith);
   const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null;
+  const openProjectFolder = openProject.kind === "read" ? openProject.open_project.project.folder : null;
   const menusLiveInTheSystemMenuBar = presentPlatform(platform).menusLiveInTheSystemMenuBar;
   const chosenLayoutShown = isAProjectShown ? studioLayouts.chosen_layout : null;
   useEffect(() => {
@@ -233,7 +249,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
             <IconButton icon={Undo2} label="Undo your last edit" onPressed={commands.undoYourLastEdit} data-studio-undo="" />
             <IconButton icon={Redo2} label="Redo what you undid" onPressed={commands.redoYourLastUndo} data-studio-redo="" />
           </div>
-          {playOrStopOfferedForTheProject(openProject.kind === "read" ? openProject.open_project.project.folder : null, listedStreams) === "play" ? (
+          {playOrStopOfferedForTheProject(openProjectFolder, listedStreams) === "play" ? (
             <ActionButton
               appearance="go"
               size="small"
@@ -275,11 +291,12 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         <>
           <DocumentTabs
             label="Open streams"
-            tabs={openStreamTabs.tabs.map((tab) => ({ tab_id: tab.stream, context_words: tab.project_name, name: tab.display_name }))}
+            tabs={streamTabsDrawnInTheStrip(openStreamTabs, listedStreams)}
             activeTabId={openStreamTabs.active_stream}
             onTabChosen={(stream) => model.chooseStreamTab(stream)}
             onTabClosed={(stream) => model.closeStreamTab(stream)}
             whenNoneIsOpen="Open a stream from the outliner to see it here."
+            tabsToOpen={{ label: "Open a stream of the project", choices: <StreamsOfTheProjectToOpenAsTabs model={model} streams={streamsOfTheProjectNoTabShows(openProjectFolder, listedStreams, openStreamTabs)} /> }}
           />
           <main className="flex min-h-0 flex-1 px-(--studio-area-gap) pb-(--studio-area-gap)" data-studio-layout={studioLayouts.chosen_layout}>
             <StudioAreaLayoutNodeView

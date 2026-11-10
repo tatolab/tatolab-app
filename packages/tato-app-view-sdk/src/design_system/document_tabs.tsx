@@ -1,6 +1,7 @@
 import { cn } from "cn";
-import { X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import type { ReactNode } from "react";
+import { IconButtonMenu } from "./menus";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 
 /** One open document's tab: its id, the quiet words it sits under, and its name. */
@@ -9,9 +10,11 @@ export interface DocumentTab {
   /** Where the document belongs, before its name, as a stream's project. */
   context_words: string;
   name: string;
+  /** Marked running in green, as a stream the runtime lists running. */
+  is_running: boolean;
 }
 
-/** The open documents' tabs along the top of the work, the active one joined to the areas under it; each closes from its ×. */
+/** The open documents' tabs along the top of the work, the active one joined to the areas under it; each closes from its ×, and the + after them opens `tabsToOpen`. */
 export function DocumentTabs({
   label,
   tabs,
@@ -19,6 +22,7 @@ export function DocumentTabs({
   onTabChosen,
   onTabClosed,
   whenNoneIsOpen,
+  tabsToOpen,
 }: {
   label: string;
   tabs: readonly DocumentTab[];
@@ -27,6 +31,8 @@ export function DocumentTabs({
   onTabClosed: (tabId: string) => void;
   /** What the strip says while no tab is open. */
   whenNoneIsOpen: ReactNode;
+  /** The + button's accessible name and the menu choices it opens, as the project's streams not yet open. */
+  tabsToOpen: { label: string; choices: ReactNode };
 }) {
   return (
     <div className="flex h-(--studio-stream-tabs-height) shrink-0 items-end gap-0.5 bg-studio-stream-tabs px-2">
@@ -51,6 +57,11 @@ export function DocumentTabs({
                 >
                   <span className="text-fg-3">{tab.context_words} /</span>
                   <span className="font-mono text-2xs">{tab.name}</span>
+                  {tab.is_running && (
+                    <span className="text-2xs font-medium text-go-text" data-document-tab-running="">
+                      running
+                    </span>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -69,6 +80,11 @@ export function DocumentTabs({
           })}
         </div>
       )}
+      <div className="mb-0.5 ml-1 self-center">
+        <IconButtonMenu icon={Plus} label={tabsToOpen.label} size="compact" menuAlignment="start" data-document-tabs-open="">
+          {tabsToOpen.choices}
+        </IconButtonMenu>
+      </div>
     </div>
   );
 }
