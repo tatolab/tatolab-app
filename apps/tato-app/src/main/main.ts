@@ -41,7 +41,7 @@ import type { Result } from "./result.js";
 import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
 import type { ProjectFilesOfTheRuntime } from "./open_project_files.js";
-import { ProjectOpening, type FolderEntriesWatch, type ProjectArchiveDialog, type ProjectFolderDialog, type ProjectReadingsOfTheRuntime } from "./open_project.js";
+import { ProjectOpening, type FolderEntriesWatch, type ProjectArchiveDialog, type ProjectCoverImageDialog, type ProjectFolderDialog, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { localApiRequestFailure } from "./local_api_client.js";
@@ -99,6 +99,8 @@ export interface TatolabElectronAppShell {
   askThePersonForAProjectFolder: ProjectFolderDialog;
   /** The desktop's open dialog over the window, which the Projects window's Import project .zip… asks through. */
   askThePersonForAProjectArchive: ProjectArchiveDialog;
+  /** The desktop's open dialog over the window, which the Project details panel's Choose image… asks through. */
+  askThePersonForAProjectCoverImage: ProjectCoverImageDialog;
   /** The desktop's open dialog over the window, which Module manager imports a project's folder or `.zip` through. */
   askThePersonForADependencySource: DependencySourceDialog;
   /** How the code pane's language servers start, each in its own process. */
@@ -335,6 +337,7 @@ export async function startTatolabApp(
     documentsDirectory: tatolabElectronAppShell.documentsDirectory,
     projectFolderDialog: tatolabElectronAppShell.askThePersonForAProjectFolder,
     projectArchiveDialog: tatolabElectronAppShell.askThePersonForAProjectArchive,
+    projectCoverImageDialog: tatolabElectronAppShell.askThePersonForAProjectCoverImage,
     recentProjectFolders: recentProjectFoldersFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
     readWallClockNowMs: () => tatolabElectronAppShell.readWallClockMsForDisplay(),
     newProjectCreation: controller,

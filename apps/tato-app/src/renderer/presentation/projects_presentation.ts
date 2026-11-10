@@ -24,6 +24,10 @@ export interface RecentProjectCardPresentation {
   coverNumber: ProjectCoverNumber;
   /** The name's first letter or digit, drawn on the plain cover; empty for a name with none. */
   coverInitial: string;
+  /** Whether the project is shown by an image chosen for it, which the window reads apart, rather than by its plain cover. */
+  hasAChosenCover: boolean;
+  /** The description as the runtime serves it, empty for none, as the Project details panel edits it. */
+  descriptionToEdit: string;
 }
 
 /** How the Projects window orders its projects: the most recently edited first, or by name. */
@@ -120,6 +124,8 @@ function cardOfTheRecentProject(recentProject: RecentProject, wallClockNowMs: nu
       isUnreadable: recentProject.project_name === null,
       coverNumber: projectCoverNumberOfTheName(name),
       coverInitial: coverInitialOfTheName(name),
+      hasAChosenCover: recentProject.has_a_chosen_cover,
+      descriptionToEdit: recentProject.project_description ?? "",
     },
     orderedAtMs: lastEditedAtMs ?? recentProject.last_opened_at_wall_clock_ms,
   };
@@ -238,6 +244,18 @@ export function presentNewProjectSheetWords(archive: string | null): {
 
 function fileNameOfThePath(filePath: string): string {
   return filePath.slice(filePath.lastIndexOf("/") + 1);
+}
+
+/** The name the Project details panel saves for `nameTyped`: `null` when it is the name the project has or the one just sent, so a name is saved once. */
+export function projectNameToSave(nameTyped: string, nameTheProjectHas: string, nameLastSent: string | null): string | null {
+  const trimmedName = nameTyped.trim();
+  return trimmedName === nameTheProjectHas || trimmedName === nameLastSent ? null : nameTyped;
+}
+
+/** The description the Project details panel saves for `descriptionTyped`: `null` when it is the one the project has or the one just sent, so it is saved once. */
+export function projectDescriptionToSave(descriptionTyped: string, descriptionTheProjectHas: string, descriptionLastSent: string | null): string | null {
+  const trimmedDescription = descriptionTyped.trim();
+  return trimmedDescription === descriptionTheProjectHas.trim() || trimmedDescription === descriptionLastSent?.trim() ? null : descriptionTyped;
 }
 
 /** The title of the notice that says a change the Projects window asked of a project did not happen. */

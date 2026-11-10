@@ -33,6 +33,7 @@ import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_ap
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
+import type { AssetImportedByTheRuntime, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
 import type { ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
 import type { ProjectViewTheRuntimeListed, StudioViewOutputWritten } from "./project_views_on_the_wire.js";
 import { LocalApiClient, type LocalApiRequestFailure, type StreamDisplayNameSet } from "./local_api_client.js";
@@ -332,6 +333,21 @@ export class TatolabAppController {
   /** Queue the deletion of the project in `projectDirectory` through the runtime's `delete_project`, answering the action's id. */
   deleteProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
     return this.localApiClient.deleteProject(projectDirectory);
+  }
+
+  /** Describe the project in `projectDirectory` through the runtime's `set_project_description`; `null` clears it. */
+  setProjectDescription(projectDirectory: string, description: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>> {
+    return this.localApiClient.setProjectDescription(projectDirectory, description);
+  }
+
+  /** Show the project in `projectDirectory` by the media asset `cover` through the runtime's `set_project_cover`; `null` clears it. */
+  setProjectCover(projectDirectory: string, cover: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>> {
+    return this.localApiClient.setProjectCover(projectDirectory, cover);
+  }
+
+  /** Copy the file at `source` into the project in `projectDirectory` at `assetPath` through the runtime's `import_asset`. */
+  importAsset(projectDirectory: string, source: string, assetPath: string): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>> {
+    return this.localApiClient.importAsset(projectDirectory, source, assetPath);
   }
 
   /** Make a project in `projectDirectory` from the `.zip` `source` through the runtime's `import_project`. */
