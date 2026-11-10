@@ -295,6 +295,26 @@ test("a_real_graph_reads_its_stream_asset", async () => {
   expect(summary.ok && summary.value.stream_asset).toBe("1a6c8434-651e-4c86-ae72-620f991fcf90");
 });
 
+test("a_recorded_graph_reads_studio_fields_written_under_the_contract_a_group_written_into_its_nodes_a_pin_value_and_a_canvas_note", async () => {
+  const recordedResponse: { result: { content: { text: string }[] } } = JSON.parse(
+    await readFile(new URL("./test-fixtures/local-api-graph-tool-result-of-a-stream-holding-studio-fields-a-group-and-a-note.json", import.meta.url), "utf8"),
+  );
+  const graphToolResultText = recordedResponse.result.content[0]?.text ?? expect.unreachable("the recorded graph holds no tool result text");
+
+  const summary = streamGraphSummaryFromTheGraphToolResult("studio-fields-main-bb0c95", graphToolResultText);
+
+  if (!summary.ok) return expect.unreachable(summary.failure);
+  const group = "21d9c0ee-a01d-40a0-ad61-bd05476819e7";
+  expect(summary.value.stream_asset).toBe("465d6f89-5f61-43ee-99e0-ad46fb979935");
+  expect(summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.id, graphNode.studio, graphNode.pins])).toEqual([
+    ["testpatternsource", "df33b674-0693-411f-99ce-c3e87c6f053c", NODE_STUDIO_FIELDS_NONE_SET, {}],
+    ["testpatternsource-2", "fe2d6234-0c56-4250-ac26-3d0d17b26e5e", { position: [40, 20], group, comment: "c", colour: "#3b82f6", collapsed: true, metadata: { k: 1 } }, {}],
+    ["add", "a1461e65-164d-4d11-8075-f3b84a4ebdb4", { ...NODE_STUDIO_FIELDS_NONE_SET, group }, { a: 2 }],
+  ]);
+  expect(summary.value.groups).toEqual([{ id: group, title: "Inputs", description: "d", colour: "#3b82f6" }]);
+  expect(summary.value.notes).toEqual([{ id: "762070bf-4080-4d5b-b54e-0c4c4a0b2258", text: "n", position: [300, 80], size: [220, 90] }]);
+});
+
 test("a_graph_reads_each_nodes_studio_fields_as_the_runtime_does_its_pins_its_groups_and_its_canvas_notes", () => {
   const summary = streamGraphSummaryFromTheGraphToolResult("look-main-98bc63", JSON.stringify(A_GRAPH_HOLDING_STUDIO_FIELDS_GROUPS_AND_NOTES));
 
