@@ -106,6 +106,16 @@ attention spent on settled things is unavailable for real forks.
 - The app holds no copy of a secret the runtime takes — not on disk, not in memory past the
   request.
 
+## Views run with full access and get frames with no copy
+
+Studio is used live, projecting onto real things, so views get video at full speed. A view runs
+with full access on Studio's origin, in a frame of its own, and an Image frame reaches or leaves
+it only as a transferred `VideoFrame`, never an `ImageBitmap` or any other copy. The sandbox is the
+view's own opt-in. This is settled: never ask to reopen it, and never flag it as a loosening of
+the window's seal. Only a change toward sealing views or copying frames goes to the owner.
+
+@docs/views-full-access-and-zero-copy-frames.md
+
 ## Non-negotiables
 
 - **Platform code lives in `apps/tato-app/src/main/platform/`** (enforced); both platforms are checked
