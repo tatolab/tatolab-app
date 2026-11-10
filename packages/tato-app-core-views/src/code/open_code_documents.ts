@@ -1,14 +1,27 @@
-// The files the code pane has open, shared by every code area of the window: each one's text as
+// The files a code area has open, their edits not saved kept across the frame loading again: each one's text as
 // read from disk and as edited, the version a save is checked against, what Pyright says of it, and
 // how its last save went. One Pyright session serves each project with a Python file open, and ends
 // when the project's last one closes.
 
 import type { CodeEditorDiagnostic, CodeEditorLanguageHelp } from "@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_types";
-import type { StudioViewHostConnection, JsonValue, PythonLanguageServerConnection } from "../../view_host/studio_view_contract";
+import type { PythonLanguageServerConnection, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import { PythonLanguageClient } from "./python_language_client";
 
-/** What the open documents ask of the host. */
-export type OpenCodeDocumentsHost = Pick<StudioViewHostConnection<JsonValue>, "readProjectFile" | "saveProjectFile" | "connectToPythonLanguageServer">;
+/** What the open documents ask of Studio. */
+export type OpenCodeDocumentsHost = Pick<TatoAppViewConnection, "readProjectFile" | "saveProjectFile" | "connectToPythonLanguageServer">;
+
+/** A file's edits not saved, and the version on disk they were made over. */
+export interface CodeEditsNotSaved {
+  text: string;
+  based_on_version: string;
+}
+
+/** Where a code area keeps each file's edits not saved, so a frame loaded again takes them back. */
+export interface CodeEditsNotSavedStore {
+  editsOf(file: string): CodeEditsNotSaved | null;
+  keep(file: string, edits: CodeEditsNotSaved): void;
+  forget(file: string): void;
+}
 
 /** How a document's last save went, or one under way. */
 export type OpenCodeDocumentSave = { kind: "none" } | { kind: "saving" } | { kind: "refused"; because: string };
@@ -53,7 +66,7 @@ interface ProjectLanguageSession {
   ended_because: string | null;
 }
 
-/** Every file the code pane has open, read and saved through `host`. */
+/** Every file a code area has open, read and saved through `host`. */
 export class OpenCodeDocuments {
   private readonly documentsByFile = new Map<string, OpenCodeDocument>();
   private readonly languageSessionsByProjectFolder = new Map<string, ProjectLanguageSession>();
@@ -63,6 +76,7 @@ export class OpenCodeDocuments {
   constructor(
     private readonly host: OpenCodeDocumentsHost,
     private readonly forgetTheEditorsCopy: (file: string) => void,
+    private readonly editsNotSaved: CodeEditsNotSavedStore,
   ) {}
 
   /** Calls `listener` after every change to any document; the returned function stops it. */
@@ -140,6 +154,7 @@ export class OpenCodeDocuments {
     if (document === undefined) return;
     this.documentsByFile.delete(file);
     this.forgetTheEditorsCopy(file);
+    this.editsNotSaved.forget(file);
     if (document.kind === "read") {
       const session = this.languageSessionsByProjectFolder.get(document.project_folder);
       if (session !== undefined && session.files.delete(file)) {
@@ -182,15 +197,17 @@ export class OpenCodeDocuments {
       return;
     }
     const session = isAPythonFile(file) ? this.languageSessionOf(fileRead.project_folder) : null;
+    const keptEdits = fileRead.is_editable ? this.editsNotSaved.editsOf(file) : null;
+    const text = keptEdits?.text ?? fileRead.text;
     this.documentsByFile.set(file, {
       kind: "read",
       file,
       project_folder: fileRead.project_folder,
       is_editable: fileRead.is_editable,
-      text: fileRead.text,
+      text,
       text_on_disk: fileRead.text,
       version_on_disk: fileRead.version,
-      is_changed_on_disk: false,
+      is_changed_on_disk: keptEdits !== null && keptEdits.based_on_version !== fileRead.version,
       diagnostics: [],
       save: { kind: "none" },
       language_help:
@@ -204,7 +221,7 @@ export class OpenCodeDocuments {
     });
     if (session !== null) {
       session.files.add(file);
-      session.client.openDocument(file, fileRead.text);
+      session.client.openDocument(file, text);
     }
     this.publish();
   }
@@ -254,6 +271,11 @@ export class OpenCodeDocuments {
   }
 
   private publish(): void {
+    for (const document of this.documentsByFile.values()) {
+      if (document.kind !== "read") continue;
+      if (hasEditsNotSaved(document)) this.editsNotSaved.keep(document.file, { text: document.text, based_on_version: document.version_on_disk });
+      else this.editsNotSaved.forget(document.file);
+    }
     this.snapshotCount += 1;
     for (const listener of [...this.listeners]) listener();
   }

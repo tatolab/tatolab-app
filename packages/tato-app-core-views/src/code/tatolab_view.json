@@ -1,0 +1,18 @@
+{
+  "contract": "1.0",
+  "title": "Code",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "placement": "area",
+  "accepts": { "files": [".py", ".pyi", ".toml", ".ini", ".cfg", ".json", ".md", ".txt", ".yaml", ".yml"] },
+  "settings": {
+    "type": "object",
+    "properties": {
+      "open_files": { "type": "array", "items": { "type": "string" }, "default": [] },
+      "shown_file": { "anyOf": [{ "type": "null" }, { "type": "string" }], "default": null },
+      "logs_shown": { "type": "boolean", "default": true },
+      "logs_size_percent": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 100, "default": 30 },
+      "opening_taken": { "anyOf": [{ "type": "null" }, { "type": "string" }], "default": null }
+    }
+  }
+}

@@ -12,8 +12,6 @@ const HOST_SERVICES: StudioViewHostServices = {
   openStreamTab: () => undefined,
   watchStreamGraph: () => () => undefined,
   watchNodeCatalog: () => () => undefined,
-  watchCodeFileAsked: () => () => undefined,
-  openCodeFile: () => undefined,
   openView: () => ({ kind: "not_opened", because: "no areas in this test" }),
   watchViewOpenedOn: () => () => undefined,
   readProjectFile: async () => ({ kind: "not_read", because: "no files in this test" }),

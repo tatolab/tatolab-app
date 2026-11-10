@@ -1,11 +1,11 @@
-// What a code area keeps with the layout, and the words its header and log show, apart from the
+// What a code area keeps in its settings, and the words its header and log show, apart from the
 // view so each is read the same way in a test.
 
 import type { CodeFileTab } from "@tatolab/tato-app-view-sdk/design_system/code_file_tab_strip";
 import type { LogRecordLine } from "@tatolab/tato-app-view-sdk/design_system/log_record_lines";
-import type { JsonValue, OpenProjectReading, ProjectLogRecord } from "../../view_host/studio_view_contract";
+import type { JsonValue, OpenProjectReading, ProjectLogRecord, ViewSettings } from "@tatolab/tato-app-view-sdk";
 
-/** A code area's settings: the files it has open, in tab order, the one it shows, and whether the project's log shows under it. */
+/** A code area's settings: the files it has open, in tab order, the one it shows, whether the project's log shows under it, and the opening it last took. */
 export interface CodeViewSettings {
   [settingName: string]: JsonValue;
   open_files: string[];
@@ -13,22 +13,24 @@ export interface CodeViewSettings {
   logs_shown: boolean;
   /** The log's share of the area's height, in percent. */
   logs_size_percent: number;
+  /** The id of the opening the area last took, so a frame loaded again does not take it a second time. */
+  opening_taken: string | null;
 }
 
 /** A new code area: nothing open, the log shown. */
-export const DEFAULT_CODE_VIEW_SETTINGS: CodeViewSettings = { open_files: [], shown_file: null, logs_shown: true, logs_size_percent: 30 };
+export const DEFAULT_CODE_VIEW_SETTINGS: CodeViewSettings = { open_files: [], shown_file: null, logs_shown: true, logs_size_percent: 30, opening_taken: null };
 
-/** `saved` as a code area's settings, or `null` when it is not one. */
-export function codeViewSettingsFromSavedLayout(saved: JsonValue): CodeViewSettings | null {
-  if (typeof saved !== "object" || saved === null || Array.isArray(saved)) return null;
-  const { open_files: openFiles, shown_file: shownFile, logs_shown: logsShown, logs_size_percent: logsSizePercent } = saved;
-  if (!Array.isArray(openFiles)) return null;
-  const files = openFiles.filter((file): file is string => typeof file === "string");
+/** The area's `settings` as a code area's, showing the first open file when the shown one is not open; the defaults for what is not a code area's. */
+export function codeViewSettingsOf(settings: ViewSettings): CodeViewSettings {
+  if (settings === null) return DEFAULT_CODE_VIEW_SETTINGS;
+  const { open_files: openFiles, shown_file: shownFile, logs_shown: logsShown, logs_size_percent: logsSizePercent, opening_taken: openingTaken } = settings;
+  const files = Array.isArray(openFiles) ? openFiles.filter((file): file is string => typeof file === "string") : [];
   return {
     open_files: files,
     shown_file: typeof shownFile === "string" && files.includes(shownFile) ? shownFile : (files[0] ?? null),
     logs_shown: typeof logsShown === "boolean" ? logsShown : DEFAULT_CODE_VIEW_SETTINGS.logs_shown,
     logs_size_percent: typeof logsSizePercent === "number" && logsSizePercent > 0 && logsSizePercent < 100 ? logsSizePercent : DEFAULT_CODE_VIEW_SETTINGS.logs_size_percent,
+    opening_taken: typeof openingTaken === "string" ? openingTaken : null,
   };
 }
 

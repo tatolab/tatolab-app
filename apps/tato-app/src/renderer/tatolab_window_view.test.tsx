@@ -9,6 +9,12 @@ import { studioLayoutsStorageKey } from "./studio_shell/studio_layouts";
 import { mountTatolabWindow } from "./tatolab_window_view";
 import { drawTheCoreViewsInTheirFrames } from "./view_host/fake_core_view_frames";
 
+// Monaco left in the page listens on the document's body and rejects on events of every later test, so
+// Code's editor here says Monaco didn't load; the code pane's text and saves are tested beside it.
+vi.mock("@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_monaco", () => {
+  throw new Error("Monaco is not loaded in the window's tests.");
+});
+
 /** Stops drawing the core views of the window mounted last, unmounting each. */
 let stopDrawingTheCoreViews: () => void = () => undefined;
 
@@ -431,6 +437,48 @@ describe("the studio", () => {
 
     await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")?.getAttribute("data-viewer-playing")).toMatch(/\/video$/));
     expect(localStorage.getItem(studioLayoutsStorageKey(PATTERN_PROJECT))).toMatch(/"area_id":"viewer","view_type_id":"viewer","settings":\{"chosen_port":\{"stream":"[^"]+","node_id":"[^"]+","port":"[^"]+"\}\}/);
+  });
+
+  it("opens a node type's file in Code's own frame from the outliner, in the first layout with a Code area, its tab and the log's toggle in Code's header row, a closed tab staying closed as the frame loads again until the file is opened again, and the Code layout's own area left as it was", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const nodeTypesRowId = `project:${PATTERN_PROJECT}/node_types`;
+    await openTheOutlinerRow(nodeTypesRowId);
+    const invertingEffectRowId = `${nodeTypesRowId}/category:Effects/node_type:nodes.inverting_effect:InvertingEffect`;
+    fireEvent.doubleClick(await waitFor(() => outlinerRow(invertingEffectRowId)));
+
+    await waitFor(async () => expect(await shownLayout()).toBe("compose"));
+    const invertingEffectFile = `${PATTERN_PROJECT}/nodes/inverting_effect.py`;
+    await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("read"));
+    expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(invertingEffectFile);
+    expect(coreViewPage("code").querySelector(`[data-code-file-tab="${CSS.escape(invertingEffectFile)}"]`)?.textContent).toContain("inverting_effect.py");
+    await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-project-log]")).not.toBeNull());
+
+    fireEvent.click(coreViewPage("code").querySelector<HTMLElement>("[data-code-logs-toggle]") ?? expect.unreachable("no logs toggle"));
+    await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-project-log]")).toBeNull());
+    fireEvent.click(coreViewPage("code").querySelector<HTMLElement>(`[data-code-file-tab-close="${CSS.escape(invertingEffectFile)}"]`) ?? expect.unreachable("no close on the tab"));
+    await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("none_open"));
+
+    fireEvent.keyDown(document, { key: "1", metaKey: true });
+    expect(await shownLayout()).toBe("build");
+    fireEvent.keyDown(document, { key: "2", metaKey: true });
+    expect(await shownLayout()).toBe("compose");
+    await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-logs-toggle]")).not.toBeNull());
+    // The opening the frame hears as it loads again crosses its port after its settings do.
+    await act(() => new Promise<void>((settled) => setTimeout(settled, 100)));
+    expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("none_open");
+    expect(coreViewPage("code").querySelector("[data-code-file-tab]")).toBeNull();
+
+    fireEvent.keyDown(document, { key: "1", metaKey: true });
+    expect(await shownLayout()).toBe("build");
+    fireEvent.doubleClick(await waitFor(() => outlinerRow(invertingEffectRowId)));
+    await waitFor(async () => expect(await shownLayout()).toBe("compose"));
+    await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(invertingEffectFile));
+
+    fireEvent.keyDown(document, { key: "4", metaKey: true });
+    expect(await shownLayout()).toBe("code");
+    await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-logs-toggle]")).not.toBeNull());
+    await act(() => new Promise<void>((settled) => setTimeout(settled, 100)));
+    expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("none_open");
   });
 
   it("pops any area's view out into a window from its view-type menu, pinned to the stream shown and the selection, and says why where it is refused", async () => {

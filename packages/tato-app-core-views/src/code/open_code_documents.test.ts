@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { JsonValue, PythonLanguageServerConnectionEvent, ProjectFileReading, ProjectFileSaving } from "../../view_host/studio_view_contract";
-import { hasEditsNotSaved, OpenCodeDocuments, type OpenCodeDocumentsHost } from "./open_code_documents";
+import type { JsonValue, PythonLanguageServerConnectionEvent, ProjectFileReading, ProjectFileSaving } from "@tatolab/tato-app-view-sdk";
+import { hasEditsNotSaved, OpenCodeDocuments, type CodeEditsNotSaved, type CodeEditsNotSavedStore, type OpenCodeDocumentsHost } from "./open_code_documents";
 
 const PROJECT_FOLDER = "/home/jonathanf/streams/pattern";
 const STREAM_PY = `${PROJECT_FOLDER}/stream.py`;
@@ -31,7 +31,8 @@ function fakeHost() {
       return { kind: "saved", version: String(versionCount) };
     },
     connectToPythonLanguageServer: (projectFolder, onEvent) => {
-      const session = { project_folder: projectFolder, sent: [] as JsonValue[], closed: false, onEvent };
+      const sent: JsonValue[] = [];
+      const session = { project_folder: projectFolder, sent, closed: false, onEvent };
       sessions.push(session);
       return { send: (message) => session.sent.push(message), close: () => (session.closed = true) };
     },
@@ -41,6 +42,12 @@ function fakeHost() {
     disk.set(file, { text, version: versionCount });
   };
   return { host, disk, sessions, changeOnDisk };
+}
+
+/** Edits not saved kept in memory, as a frame's session storage keeps them. */
+function editsNotSavedInMemory(): CodeEditsNotSavedStore & { kept: Map<string, CodeEditsNotSaved> } {
+  const kept = new Map<string, CodeEditsNotSaved>();
+  return { kept, editsOf: (file) => kept.get(file) ?? null, keep: (file, edits) => kept.set(file, edits), forget: (file) => kept.delete(file) };
 }
 
 async function settled(): Promise<void> {
@@ -56,7 +63,7 @@ function readDocument(documents: OpenCodeDocuments, file: string) {
 describe("the code pane's open documents", () => {
   it("reads a file once, and starts one Pyright session for its project only for a Python file", async () => {
     const { host, sessions } = fakeHost();
-    const documents = new OpenCodeDocuments(host, () => undefined);
+    const documents = new OpenCodeDocuments(host, () => undefined, editsNotSavedInMemory());
     documents.open(STREAM_PY);
     documents.open(STREAM_PY);
     documents.open(PYPROJECT);
@@ -69,7 +76,7 @@ describe("the code pane's open documents", () => {
 
   it("saves edits at the version read, and refuses over a file changed on disk until the person saves over it", async () => {
     const { host, disk, changeOnDisk } = fakeHost();
-    const documents = new OpenCodeDocuments(host, () => undefined);
+    const documents = new OpenCodeDocuments(host, () => undefined, editsNotSavedInMemory());
     documents.open(STREAM_PY);
     await settled();
     documents.editText(STREAM_PY, "a = 2\n");
@@ -90,7 +97,7 @@ describe("the code pane's open documents", () => {
 
   it("takes a change on disk while nothing is edited, and marks it under edits instead of dropping them", async () => {
     const { host, changeOnDisk } = fakeHost();
-    const documents = new OpenCodeDocuments(host, () => undefined);
+    const documents = new OpenCodeDocuments(host, () => undefined, editsNotSavedInMemory());
     documents.open(STREAM_PY);
     await settled();
     changeOnDisk(STREAM_PY, "from disk\n");
@@ -105,9 +112,33 @@ describe("the code pane's open documents", () => {
     expect(readDocument(documents, STREAM_PY)).toMatchObject({ text: "theirs\n", text_on_disk: "theirs\n", is_changed_on_disk: false });
   });
 
+  it("takes back the edits not saved of a file opened again over the same store, marked changed on disk when the file changed since", async () => {
+    const { host, changeOnDisk } = fakeHost();
+    const editsNotSaved = editsNotSavedInMemory();
+    const documentsBefore = new OpenCodeDocuments(host, () => undefined, editsNotSaved);
+    documentsBefore.open(STREAM_PY);
+    documentsBefore.open(PYPROJECT);
+    await settled();
+    documentsBefore.editText(STREAM_PY, "a = 2\n");
+    documentsBefore.editText(PYPROJECT, "[tool]\n");
+    expect(editsNotSaved.kept.get(STREAM_PY)).toEqual({ text: "a = 2\n", based_on_version: "1" });
+    changeOnDisk(PYPROJECT, "[project]\nname = 'x'\n");
+
+    const documentsAfter = new OpenCodeDocuments(host, () => undefined, editsNotSaved);
+    documentsAfter.open(STREAM_PY);
+    documentsAfter.open(PYPROJECT);
+    await settled();
+    expect(readDocument(documentsAfter, STREAM_PY)).toMatchObject({ text: "a = 2\n", text_on_disk: "a = 1\n", is_changed_on_disk: false });
+    expect(readDocument(documentsAfter, PYPROJECT)).toMatchObject({ text: "[tool]\n", is_changed_on_disk: true });
+    await documentsAfter.save(STREAM_PY);
+    expect(editsNotSaved.kept.has(STREAM_PY)).toBe(false);
+    documentsAfter.close(PYPROJECT);
+    expect(editsNotSaved.kept.size).toBe(0);
+  });
+
   it("keeps an import's file read-only", async () => {
     const { host, disk } = fakeHost();
-    const documents = new OpenCodeDocuments(host, () => undefined);
+    const documents = new OpenCodeDocuments(host, () => undefined, editsNotSavedInMemory());
     documents.open(IMPORTED_STREAM_PY);
     await settled();
     documents.editText(IMPORTED_STREAM_PY, "edited\n");
@@ -117,7 +148,7 @@ describe("the code pane's open documents", () => {
   });
 
   it("shows a file that cannot be read in the host's words", async () => {
-    const documents = new OpenCodeDocuments(fakeHost().host, () => undefined);
+    const documents = new OpenCodeDocuments(fakeHost().host, () => undefined, editsNotSavedInMemory());
     documents.open("/etc/passwd");
     await settled();
     expect(documents.documentOf("/etc/passwd")).toEqual({ kind: "not_read", file: "/etc/passwd", because: "/etc/passwd is not a file of the open project or its imports" });
@@ -126,7 +157,7 @@ describe("the code pane's open documents", () => {
   it("takes Pyright's diagnostics, says when its session ended, and closes it with the project's last file", async () => {
     const { host, sessions } = fakeHost();
     const forgotten: string[] = [];
-    const documents = new OpenCodeDocuments(host, (file) => forgotten.push(file));
+    const documents = new OpenCodeDocuments(host, (file) => forgotten.push(file), editsNotSavedInMemory());
     documents.open(STREAM_PY);
     await settled();
     const [session] = sessions;

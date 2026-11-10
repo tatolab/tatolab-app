@@ -19,10 +19,9 @@ import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_wi
 import { StudioWindowModel } from "./studio_shell/studio_window_model";
 import { STUDIO_LAYOUTS, StudioLayoutsKeptInStorage } from "./studio_shell/studio_layouts";
 
-import { CODE_EDITOR_VIEW_TYPE } from "./studio_views/code_editor/code_editor_view_type";
 import { inWindowStudioViewHostServices, useWatchedStudioValue } from "./view_host/in_window_view_host";
 import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_catalog_readings";
-import { registeredStudioViewType, StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
+import { StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
 import { tatolabFrameViewType } from "./view_host/tatolab_frame_view_type";
 import { coreViewTypesOf, servedCoreViewFolderUrl } from "./view_host/core_view_types";
 import { CORE_VIEWS } from "@tatolab/tato-app-core-views";
@@ -50,7 +49,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
       ...coreViewTypeIn("properties"),
       ...coreViewTypeIn("history"),
       ...coreViewTypeIn("viewer"),
-      registeredStudioViewType(CODE_EDITOR_VIEW_TYPE),
+      ...coreViewTypeIn("code"),
     ],
     (listed, manifest, projectName) => tatolabFrameViewType(listed, manifest, { kind: "project", project_name: projectName }),
     coreViewTypes.not_opened,
