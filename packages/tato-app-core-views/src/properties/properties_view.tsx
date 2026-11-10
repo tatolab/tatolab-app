@@ -1,31 +1,139 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_banner";
+import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
-import { PropertyCheckbox, PropertyChoiceField, PropertyNumberField, PropertyRow, PropertySection, PropertyTextField } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
+import {
+  PropertyCheckbox,
+  PropertyChoiceField,
+  PropertyHeadingNameField,
+  PropertyNumberField,
+  PropertyPortConnectMenu,
+  PropertyPortRow,
+  PropertyRow,
+  PropertySection,
+  PropertySliderField,
+  PropertyTextField,
+} from "@tatolab/tato-app-view-sdk/design_system/property_fields";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import type { NodeCatalogEntry, NodeCatalogPort, NodeCatalogReading, StreamGraphDeclaredPort, StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { newGestureIdempotencyKey, type StopWatching, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import type {
+  NodeCatalogEntry,
+  NodeCatalogPort,
+  NodeCatalogReading,
+  StreamGraphDeclaredPort,
+  StreamGraphNode,
+  StreamGraphReading,
+  StreamGraphSummary,
+} from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { portStreamFactsWords, streamFactsAnInputReceives, VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
-import { isANameTheCodeGave, nameInWords, nodeTitle, nodeTypeClassName } from "../shared/node_words";
+import { nameInWords, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { configFormFieldValueWords, configFormOf, type ConfigFormField } from "./config_form_fields";
+import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
+import {
+  configValueFromTheWordsTyped,
+  disconnectTheLink,
+  linkedEndsOfThePort,
+  nodeIdInShort,
+  pinValueFromTheWordsTyped,
+  portsToConnect,
+  portsToConnectNote,
+  resetTheConfigField,
+  setTheConfigField,
+  type SetNodeConfigAction,
+} from "./properties_graph_edits";
 
-/** A config field's value in the field its control draws. */
-function ConfigFieldValue({ fieldId, field }: { fieldId: string; field: ConfigFormField }) {
+/** The id of the field holding the value an unlinked input of the node takes. */
+function pinValueFieldId(nodeId: string, portName: string): string {
+  return `${nodeId}:${portName}:pin`;
+}
+
+/** A config field's control, each change written back as the node's whole config; read only while the stream can't be edited. */
+function ConfigFieldControl({ fieldId, field, node, streamAsset, graphEdits }: { fieldId: string; field: ConfigFormField; node: StreamGraphNode; streamAsset: string | null; graphEdits: GraphEditsOfTheNode }) {
   const isTheTypesDefault = field.value_source !== "config";
+  const place: PlaceOfAnEdit = `config:${field.key}`;
+  const idempotencyKeyOfTheDragInProgress = useRef<string | null>(null);
   const { control, value } = field;
+  const configFieldSetTo = (stream: string, newValue: (typeof field)["value"]): SetNodeConfigAction => {
+    const configEdit = setTheConfigField(stream, node.id, graphEdits.configToEditFrom(node.config), field.key, newValue);
+    graphEdits.rememberTheConfigSent(node.config, configEdit.config);
+    return configEdit;
+  };
+  const commitTheConfigFieldValue = (newValue: (typeof field)["value"]) => {
+    if (streamAsset !== null) void graphEdits.commit(place, [configFieldSetTo(streamAsset, newValue)]);
+  };
+  const commitTheWords = (words: string) => {
+    const valueTyped = configValueFromTheWordsTyped(field, words);
+    if (valueTyped.kind === "not_a_value") graphEdits.keepTheRefusal(place, valueTyped.because);
+    else commitTheConfigFieldValue(valueTyped.value);
+  };
+  const isEditable = streamAsset !== null;
   switch (control.kind) {
     case "number":
-      return <PropertyNumberField fieldId={fieldId} value={typeof value === "number" ? value : null} minimum={control.minimum} maximum={control.maximum} isTheTypesDefault={isTheTypesDefault} />;
+      if (isEditable && control.minimum !== null && control.maximum !== null && control.maximum > control.minimum) {
+        return (
+          <PropertySliderField
+            fieldId={fieldId}
+            value={typeof value === "number" ? value : null}
+            minimum={control.minimum}
+            maximum={control.maximum}
+            isWholeNumber={control.is_whole_number}
+            isTheTypesDefault={isTheTypesDefault}
+            onDragStarted={() => {
+              idempotencyKeyOfTheDragInProgress.current = newGestureIdempotencyKey();
+            }}
+            onLiveEdit={(moved) => {
+              if (idempotencyKeyOfTheDragInProgress.current !== null) graphEdits.sendLive(place, [configFieldSetTo(streamAsset, moved)], idempotencyKeyOfTheDragInProgress.current);
+            }}
+            onCommitted={(released) => {
+              const idempotencyKeyOfTheRelease = idempotencyKeyOfTheDragInProgress.current ?? newGestureIdempotencyKey();
+              idempotencyKeyOfTheDragInProgress.current = null;
+              void graphEdits.commit(place, [configFieldSetTo(streamAsset, released)], idempotencyKeyOfTheRelease);
+            }}
+          />
+        );
+      }
+      return (
+        <PropertyNumberField
+          fieldId={fieldId}
+          value={typeof value === "number" ? value : null}
+          minimum={control.minimum}
+          maximum={control.maximum}
+          isTheTypesDefault={isTheTypesDefault}
+          onCommitted={isEditable ? commitTheWords : undefined}
+        />
+      );
     case "toggle":
-      return <PropertyCheckbox fieldId={fieldId} isOn={value === true} isTheTypesDefault={isTheTypesDefault} />;
+      return <PropertyCheckbox fieldId={fieldId} isOn={value === true} isTheTypesDefault={isTheTypesDefault} onToggled={isEditable ? commitTheConfigFieldValue : undefined} />;
     case "choice":
-      return <PropertyChoiceField fieldId={fieldId} words={configFormFieldValueWords(value)} isTheTypesDefault={isTheTypesDefault} />;
+      return (
+        <PropertyChoiceField
+          fieldId={fieldId}
+          words={configFormFieldValueWords(value)}
+          isTheTypesDefault={isTheTypesDefault}
+          choices={
+            isEditable
+              ? control.choices.map((choice) => ({
+                  words: configFormFieldValueWords(choice),
+                  onChosen: () => commitTheConfigFieldValue(choice),
+                }))
+              : undefined
+          }
+        />
+      );
     case "text":
     case "json":
-      return <PropertyTextField fieldId={fieldId} words={field.value_source === "unset" ? "" : configFormFieldValueWords(value)} isTheTypesDefault={isTheTypesDefault} />;
+      return (
+        <PropertyTextField
+          fieldId={fieldId}
+          words={field.value_source === "unset" ? "" : configFormFieldValueWords(value)}
+          isTheTypesDefault={isTheTypesDefault}
+          onCommitted={isEditable ? commitTheWords : undefined}
+        />
+      );
   }
 }
 
@@ -34,118 +142,265 @@ function meaningOfAConfigKey(field: ConfigFormField): string {
   return field.description === null ? field.key : `${field.key} · ${field.description}`;
 }
 
-function PortRows({
+/** What a port's name shows while the pointer rests on it: what its type says it carries, and the stream facts it reads. */
+function meaningOfAPort(port: StreamGraphDeclaredPort, catalogPorts: NodeCatalogPort[], facts: Pick<StreamGraphDeclaredPort, "stream_facts" | "values_checked">): string | undefined {
+  const description = catalogPorts.find((catalogPort) => catalogPort.name === port.name)?.description;
+  const factsWords = portStreamFactsWords(facts);
+  const meaning = [
+    description === undefined || description === "" ? null : description,
+    factsWords.length > 0 ? factsWords.join(" · ") : null,
+    facts.values_checked === false ? VALUES_UNCHECKED_MEANING : null,
+  ]
+    .filter((words): words is string => words !== null)
+    .join("\n");
+  return meaning === "" ? undefined : meaning;
+}
+
+function PortRowsOfOneDirection({
   direction,
-  ports,
+  graph,
+  node,
+  streamName,
+  streamAsset,
   catalogPorts,
-  factsOfThePort,
+  graphEdits,
 }: {
-  direction: "In" | "Out";
-  ports: StreamGraphDeclaredPort[];
+  direction: "input" | "output";
+  graph: StreamGraphSummary;
+  node: StreamGraphNode;
+  streamName: string;
+  streamAsset: string | null;
   catalogPorts: NodeCatalogPort[];
-  factsOfThePort: (port: StreamGraphDeclaredPort) => Pick<StreamGraphDeclaredPort, "stream_facts" | "values_checked">;
+  graphEdits: GraphEditsOfTheNode;
 }) {
+  const ports = direction === "input" ? node.input_ports : node.output_ports;
+  if (ports.length === 0) return <p className="px-1 text-xs text-fg-3">None</p>;
   return ports.map((port) => {
-    const description = catalogPorts.find((catalogPort) => catalogPort.name === port.name)?.description;
-    const facts = factsOfThePort(port);
-    const factsWords = portStreamFactsWords(facts);
+    const place: PlaceOfAnEdit = `${direction}:${port.name}`;
+    const linkedEnds = linkedEndsOfThePort(graph, node, direction, port.name);
+    const facts = direction === "input" ? streamFactsAnInputReceives(graph, node.name, port) : port;
+    const familyWords = port.family === null ? "Unknown" : nodeGraphPinFamilyWords(port.family);
+    const pinValue = node.pins[port.name];
     return (
-      <div key={`${direction}:${port.name}`} className="flex min-w-0 flex-col py-0.5" data-properties-port={port.name}>
-        <div className="flex h-6 min-w-0 items-center gap-2 text-xs" title={description === undefined || description === "" ? undefined : description}>
-          <span className="w-6 shrink-0 text-right text-2xs text-fg-3">{direction}</span>
-          <NodeGraphPinMark family={port.family} />
-          <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-fg">{port.name}</span>
-          {port.family !== null && <span className="shrink-0 text-fg-3">{nodeGraphPinFamilyWords(port.family)}</span>}
-        </div>
-        {factsWords.length > 0 && (
-          <div
-            className="truncate pl-[3.25rem] text-2xs text-fg-3"
-            title={facts.values_checked === false ? VALUES_UNCHECKED_MEANING : factsWords.join(" · ")}
-            data-properties-port-stream-facts={factsWords.join(" · ")}
-          >
-            {factsWords.join(" · ")}
-          </div>
-        )}
-      </div>
+      <PropertyPortRow
+        key={place}
+        direction={direction}
+        portName={port.name}
+        familyWords={familyWords}
+        pinMark={<NodeGraphPinMark family={port.family} />}
+        meaning={meaningOfAPort(port, catalogPorts, facts)}
+        refusal={graphEdits.refusalsByPlace.get(place) ?? null}
+        linkedEnds={linkedEnds.map((linkedEnd) => ({
+          nodeTitle: nodeTitle(linkedEnd.node.name, linkedEnd.node.type),
+          port: linkedEnd.port,
+          linkKey: `${linkedEnd.node.id}:${linkedEnd.port}`,
+          onDisconnect: () => {
+            if (streamAsset !== null) void graphEdits.commit(place, [disconnectTheLink(streamAsset, node, direction, port.name, linkedEnd)]);
+          },
+        }))}
+        unlinkedValue={
+          direction === "input" && streamAsset !== null ? (
+            <PropertyTextField
+              fieldId={pinValueFieldId(node.id, port.name)}
+              words={pinValue === undefined ? "" : configFormFieldValueWords(pinValue)}
+              isTheTypesDefault={pinValue === undefined}
+              label={`Value of ${port.name}`}
+              onCommitted={(words) =>
+                void graphEdits.commit(place, [
+                  {
+                    operation: "set_pin_value",
+                    stream: streamAsset,
+                    node: node.id,
+                    input: port.name,
+                    value: words.trim() === "" ? null : pinValueFromTheWordsTyped(words),
+                  },
+                ])
+              }
+            />
+          ) : undefined
+        }
+        connectMenu={
+          streamAsset === null ? undefined : (
+            <PropertyPortConnectMenu
+              portName={port.name}
+              note={portsToConnectNote(direction, streamName, familyWords)}
+              choicesWhenOpened={() =>
+                portsToConnect(streamAsset, graph, node, direction, port).map((portToConnect) => ({
+                  words: portToConnect.words,
+                  cannotBecause: portToConnect.cannotBecause,
+                  choiceKey: portToConnect.choiceKey,
+                  onChosen: () => void graphEdits.commit(place, [portToConnect.connecting]),
+                }))
+              }
+            />
+          )
+        }
+      />
     );
   });
 }
 
-/** The selected node's name and type, its config read against its type's schema, and its ports, as a details panel. */
-function PropertiesOfTheSelectedNode({ connection, stream, nodeName }: { connection: TatoAppViewConnection; stream: string; nodeName: string }) {
+/** The selected node's name, its config as controls that edit it, and its inputs and outputs with what each joins. */
+function PropertiesOfTheSelectedNode({
+  connection,
+  stream,
+  nodeName,
+  graphEditsInTheProject,
+}: {
+  connection: TatoAppViewConnection;
+  stream: string;
+  nodeName: string;
+  graphEditsInTheProject: GraphEditsInTheOpenProject;
+}) {
   const watchTheStreamsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(stream, listener), [connection, stream]);
   const watchTheStreamsCatalog = useCallback((listener: (reading: NodeCatalogReading) => void): StopWatching => connection.watchNodeCatalog(stream, listener), [connection, stream]);
   const graphReading = useViewReading(watchTheStreamsGraph);
   const catalogReading = useViewReading(watchTheStreamsCatalog);
-  const node = graphReading?.kind === "read" ? graphReading.graph.nodes.find((graphNode) => graphNode.name === nodeName) : undefined;
+  const listedStreams = useViewReading(connection.watchListedStreams);
+  const nodeShownWhileItWasSelectedByName = useRef<{ nodeName: string; nodeId: string } | null>(null);
+  const graph = graphReading?.kind === "read" ? graphReading.graph : null;
+  const nodeSelectedByName = graph?.nodes.find((graphNode) => graphNode.name === nodeName);
+  const nodeRenamedSinceItWasSelected =
+    nodeSelectedByName === undefined && nodeShownWhileItWasSelectedByName.current?.nodeName === nodeName
+      ? graph?.nodes.find((graphNode) => graphNode.id === nodeShownWhileItWasSelectedByName.current?.nodeId)
+      : undefined;
+  const node = nodeSelectedByName ?? nodeRenamedSinceItWasSelected;
+  if (nodeSelectedByName !== undefined) nodeShownWhileItWasSelectedByName.current = { nodeName, nodeId: nodeSelectedByName.id };
+  const graphEdits = graphEditsInTheProject.ofTheNode(node?.id ?? "");
   const catalogEntry: NodeCatalogEntry | undefined = catalogReading?.kind === "listed" && node !== undefined ? catalogReading.catalog.node_types.find((entry) => entry.type === node.type) : undefined;
   const configForm = useMemo(() => (node === undefined ? null : configFormOf(catalogEntry?.config_schema ?? null, node.config)), [node, catalogEntry]);
+  const nameTheNodeGoesByNow = node?.name;
+  useEffect(() => {
+    if (nameTheNodeGoesByNow !== undefined && nameTheNodeGoesByNow !== nodeName)
+      void connection.select({
+        kind: "node",
+        stream,
+        node: nameTheNodeGoesByNow,
+      });
+  }, [connection, stream, nodeName, nameTheNodeGoesByNow]);
 
   if (graphReading === null) return null;
   if (graphReading.kind === "not_read") return <WaitingState title={`${nodeName} can't be read`} explanation={graphReading.because} data-properties-state="graph_not_read" />;
-  if (node === undefined || configForm === null) return <WaitingState title={`${nodeName} is gone`} explanation="Its stream's graph no longer has it." data-properties-state="node_gone" />;
-  const { graph } = graphReading;
+  if (graph === null || node === undefined || configForm === null)
+    return <WaitingState title={`${nodeName} is gone`} explanation="Its stream's graph no longer has it." data-properties-state="node_gone" />;
+  const streamAsset = graph.stream_asset;
+  const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((candidate) => candidate.stream === stream) : undefined;
+  const streamName = listedStream?.display_name ?? stream;
   const typeClassName = nodeTypeClassName(node.type);
+  const imageOutputs = node.output_ports.filter((port) => port.family === "image");
+  const refusalOfTheName = graphEdits.refusalsByPlace.get("name");
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-properties-of-node={node.name}>
-      <header className="flex min-w-0 items-center gap-2 border-b px-3 py-2.5">
-        <NodeGraphPinMark family={node.output_ports[0]?.family ?? node.input_ports[0]?.family ?? null} />
-        <h2 className="min-w-0 truncate text-[13px] font-semibold text-fg">{nodeTitle(node.name, node.type)}</h2>
+    <div className="flex min-h-0 flex-1 flex-col" data-properties-of-node={node.name}>
+      <header className="flex min-w-0 flex-col gap-0.5 border-b px-3 py-2">
+        <PropertyHeadingNameField
+          label="Node name"
+          name={nodeTitle(node.name, node.type)}
+          onCommitted={
+            streamAsset === null
+              ? undefined
+              : (name) => {
+                  void graphEdits.commit("name", [{ operation: "rename_node", stream: streamAsset, node: node.id, name }]);
+                }
+          }
+        />
+        <div className="flex min-w-0 items-center gap-2 px-1">
+          <span
+            className="min-w-0 truncate text-xs text-fg-3"
+            title={catalogEntry?.description === undefined || catalogEntry.description === "" ? node.type : `${node.type} · ${catalogEntry.description}`}
+          >
+            {typeClassName}
+          </span>
+          <span className="ml-auto shrink-0 font-mono text-2xs text-fg-3" title={node.id} data-properties-node-id={node.id}>
+            {nodeIdInShort(node.id)}
+          </span>
+        </div>
       </header>
-      {node.state === "Error" && (
-        <div data-properties-node-failed={node.name}>
-          <FailureBanner place="panel">{node.failed_because === null ? "This node failed. The runtime gave no reason." : "This node failed."}</FailureBanner>
-          {node.failed_because !== null && (
-            <div className="border-b px-3 py-2.5">
-              <RuntimeFailureWords words={node.failed_because} data-properties-failed-because={node.name} />
-            </div>
-          )}
+      {refusalOfTheName !== undefined && (
+        <div data-property-refusal>
+          <RefusalLine words={refusalOfTheName} layout="bar" />
         </div>
       )}
-      <PropertySection title="Node">
-        <PropertyRow label="Name" meaning={isANameTheCodeGave(node.name, node.type) ? "The name its stream's code gave it." : "The runtime named it after its type, as its stream's code gave it no name."}>
-          {(fieldId) => <PropertyTextField fieldId={fieldId} words={node.name} />}
-        </PropertyRow>
-        <PropertyRow label="Type" meaning={catalogEntry?.description === undefined || catalogEntry.description === "" ? node.type : `${node.type} · ${catalogEntry.description}`}>
-          {(fieldId) => <PropertyTextField fieldId={fieldId} words={typeClassName} />}
-        </PropertyRow>
-      </PropertySection>
-      <PropertySection title="Config">
-        {configForm.kind === "takes_no_config" ? (
-          <p className="px-1 text-xs text-fg-3">{nameInWords(typeClassName)} takes no config.</p>
-        ) : configForm.fields.length === 0 ? (
-          <p className="px-1 text-xs text-fg-3">{catalogReading?.kind === "not_listed" ? catalogReading.because : "No config."}</p>
-        ) : (
-          configForm.fields.map((field) => (
-            <PropertyRow key={field.key} label={nameInWords(field.key)} meaning={meaningOfAConfigKey(field)} data-config-field={field.key} data-config-field-value-source={field.value_source}>
-              {(fieldId) => <ConfigFieldValue fieldId={fieldId} field={field} />}
-            </PropertyRow>
-          ))
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        {node.state === "Error" && (
+          <div data-properties-node-failed={node.name}>
+            <FailureBanner place="panel">{node.failed_because === null ? "This node failed. The runtime gave no reason." : "This node failed."}</FailureBanner>
+            {node.failed_because !== null && (
+              <div className="border-b px-3 py-2.5">
+                <RuntimeFailureWords words={node.failed_because} data-properties-failed-because={node.name} />
+              </div>
+            )}
+          </div>
         )}
-      </PropertySection>
-      <PropertySection title="Ports">
-        {node.input_ports.length + node.output_ports.length === 0 ? (
-          <p className="px-1 text-xs text-fg-3">None</p>
-        ) : (
-          <>
-            <PortRows
-              direction="In"
-              ports={node.input_ports}
-              catalogPorts={catalogEntry?.inputs ?? []}
-              factsOfThePort={(port) => streamFactsAnInputReceives(graph, node.name, port)}
-            />
-            <PortRows direction="Out" ports={node.output_ports} catalogPorts={catalogEntry?.outputs ?? []} factsOfThePort={(port) => port} />
-          </>
-        )}
-      </PropertySection>
+        {streamAsset === null && <p className="border-b px-3 py-1.5 text-xs text-fg-3">This runtime names no stream asset for {streamName}, so its nodes can't be edited from here.</p>}
+        <PropertySection title="Config">
+          {configForm.kind === "takes_no_config" ? (
+            <p className="px-1 text-xs text-fg-3">{nameInWords(typeClassName)} takes no config.</p>
+          ) : configForm.fields.length === 0 ? (
+            <p className="px-1 text-xs text-fg-3">{catalogReading?.kind === "not_listed" ? catalogReading.because : "No config."}</p>
+          ) : (
+            configForm.fields.map((field) => (
+              <PropertyRow
+                key={field.key}
+                label={nameInWords(field.key)}
+                meaning={meaningOfAConfigKey(field)}
+                refusal={graphEdits.refusalsByPlace.get(`config:${field.key}`) ?? null}
+                reset={
+                  streamAsset === null || field.value_source !== "config"
+                    ? undefined
+                    : {
+                        label: `Reset ${nameInWords(field.key)} to its type's default`,
+                        onReset: () => {
+                          const configReset = resetTheConfigField(streamAsset, node.id, graphEdits.configToEditFrom(node.config), field.key);
+                          graphEdits.rememberTheConfigSent(node.config, configReset.config);
+                          void graphEdits.commit(`config:${field.key}`, [configReset]);
+                        },
+                      }
+                }
+                data-config-field={field.key}
+                data-config-field-value-source={field.value_source}
+              >
+                {(fieldId) => <ConfigFieldControl fieldId={fieldId} field={field} node={node} streamAsset={streamAsset} graphEdits={graphEdits} />}
+              </PropertyRow>
+            ))
+          )}
+        </PropertySection>
+        <PropertySection title="Inputs" data-properties-section="inputs">
+          <PortRowsOfOneDirection direction="input" graph={graph} node={node} streamName={streamName} streamAsset={streamAsset} catalogPorts={catalogEntry?.inputs ?? []} graphEdits={graphEdits} />
+        </PropertySection>
+        <PropertySection title="Outputs" data-properties-section="outputs">
+          <PortRowsOfOneDirection direction="output" graph={graph} node={node} streamName={streamName} streamAsset={streamAsset} catalogPorts={catalogEntry?.outputs ?? []} graphEdits={graphEdits} />
+          {imageOutputs.map((port) => (
+            <div key={port.name} className="flex justify-end">
+              <ActionButton
+                appearance="secondary"
+                size="small"
+                onPressed={() =>
+                  void connection.openView("viewer", {
+                    kind: "port",
+                    target: { stream, node_id: node.id, port: port.name },
+                  })
+                }
+              >
+                Show {port.name} in Viewer
+              </ActionButton>
+            </div>
+          ))}
+        </PropertySection>
+      </div>
     </div>
   );
 }
 
 function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
   const selection = useViewReading(connection.watchSelection);
-  if (selection?.kind !== "node") return <WaitingState title="Nothing to show" explanation="Select a node in the stream graph to see its config and ports." data-properties-state="no_node" />;
-  return <PropertiesOfTheSelectedNode key={`${selection.stream}/${selection.node}`} connection={connection} stream={selection.stream} nodeName={selection.node} />;
+  const activeStreamTab = useViewReading(connection.watchActiveStreamTab);
+  const openProject = useViewReading(connection.watchOpenProject);
+  const projectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
+  const graphEditsInTheProject = useGraphEditsInTheOpenProject(connection, projectFolder);
+  if (selection?.kind !== "node" || activeStreamTab?.stream !== selection.stream) {
+    return <WaitingState title="Nothing to show" explanation="Select a node in the stream graph to edit its config and see what it's connected to." data-properties-state="no_node" />;
+  }
+  return <PropertiesOfTheSelectedNode key={selection.stream} connection={connection} stream={selection.stream} nodeName={selection.node} graphEditsInTheProject={graphEditsInTheProject} />;
 }
 
 /** The Properties view's whole frame: the selection's properties, under its header row. */

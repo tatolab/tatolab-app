@@ -68,7 +68,7 @@ export function mockStreamGraphSummary(
     state: nodeState(node.state),
     failed_because: moment.hasSettled ? (node.failed_because ?? null) : null,
     config: node.config,
-    pins: {},
+    pins: node.pins ?? {},
     input_ports: servedPorts(node.input_ports),
     output_ports: servedPorts(node.output_ports),
     dropped_bags_by_link: Object.fromEntries(
@@ -90,6 +90,7 @@ export function mockStreamGraphSummary(
       type: node.type,
       name: node.name,
       config: node.config,
+      pins: node.pins ?? {},
       ports: {
         inputs: node.input_ports.map((port) => ({
           name: port.name,

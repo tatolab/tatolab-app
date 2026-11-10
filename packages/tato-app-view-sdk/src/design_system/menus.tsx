@@ -25,6 +25,9 @@ export type MenuWidth = "fit" | "wide";
 
 const MENU_WIDTH_CLASS_NAMES: Record<MenuWidth, string> = { fit: "w-auto min-w-56", wide: "w-[288px] max-h-96" };
 
+/** How big a field that opens a menu is: regular in bars and forms, compact inside a property panel's row. */
+export type FieldMenuSize = "regular" | "compact";
+
 /** A menu choice's padding and its icon's look, the same in a dropdown menu and a right-click menu. */
 const MENU_ITEM_CLASS_NAMES = "px-2";
 const MENU_ITEM_ICON_CLASS_NAMES = "size-4 text-fg-3";
@@ -92,6 +95,8 @@ export function FieldMenu({
   isNarrowing = false,
   fillsItsPlace = false,
   menuWidth = "fit",
+  size = "regular",
+  menuAlignment = "start",
   children,
   ...controlDataAttributes
 }: {
@@ -103,6 +108,9 @@ export function FieldMenu({
   isNarrowing?: boolean;
   fillsItsPlace?: boolean;
   menuWidth?: MenuWidth;
+  size?: FieldMenuSize;
+  /** Which edge of the field the open menu lines up with. */
+  menuAlignment?: "start" | "end";
   children: ReactNode;
 } & ControlDataAttributes) {
   return (
@@ -111,9 +119,10 @@ export function FieldMenu({
         render={
           <Button
             variant="outline"
-            size="sm"
+            size={size === "compact" ? "xs" : "sm"}
             className={cn(
               "min-w-0 shrink-0 gap-1.5 rounded-md border-line bg-window pr-1.5 pl-2 text-sm font-normal text-fg-2 hover:border-line-strong hover:bg-hover hover:text-fg aria-expanded:bg-hover dark:border-line dark:bg-window dark:hover:bg-hover",
+              size === "compact" && "h-6 gap-1 rounded-[4px] bg-transparent text-[11.5px] dark:bg-transparent",
               isNarrowing && "border-line-strong text-fg dark:border-line-strong",
               fillsItsPlace ? "w-full" : "max-w-96",
               FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
@@ -127,7 +136,7 @@ export function FieldMenu({
         <span className="flex min-w-0 items-center gap-1.5 truncate">{words}</span>
         <ChevronDown className="ml-auto size-3.5 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className={MENU_WIDTH_CLASS_NAMES[menuWidth]}>
+      <DropdownMenuContent align={menuAlignment} className={MENU_WIDTH_CLASS_NAMES[menuWidth]}>
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
