@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
@@ -7,6 +7,7 @@ import {
   closedViewerFromTheCloseViewerToolResult,
   LocalApiMcpStdioConnection,
   openedRuntimeViewerFromTheOpenViewerToolResult,
+  resourceTextFromTheResourcesReadAnswer,
   type OpenedRuntimeViewer,
 } from "./local_api_mcp_stdio_connection.js";
 import type { Result } from "./result.js";
@@ -255,4 +256,70 @@ test("an_open_viewer_result_missing_its_channel_cannot_be_read", () => {
 
   expect(failureOf(openedRuntimeViewerFromTheOpenViewerToolResult(JSON.stringify(withoutChannel)))).toMatch(/^the runtime's open_viewer result could not be read: .*channel/);
   expect(failureOf(closedViewerFromTheCloseViewerToolResult("{}"))).toMatch(/^the runtime's close_viewer result could not be read: /);
+});
+
+const FEED_URI = "streamlib://project/2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90/transactions";
+
+test("a_resource_is_read_with_resources_read_and_answers_its_first_contents_text", async () => {
+  const runtime = await fakeMcpStdioRuntime(UPGRADED, (request) => [
+    JSON.stringify({ jsonrpc: "2.0", id: request["id"], result: { contents: [{ uri: FEED_URI, mimeType: "application/json", text: '{"transactions":[]}' }] } }),
+  ]);
+  const connection = await openConnection(runtime.localApiSocketPath);
+
+  expect(answerOf(await connection.readResourceText(FEED_URI))).toBe('{"transactions":[]}');
+  expect(runtime.requestLinesRead[0]).toMatchObject({ method: "resources/read", params: { uri: FEED_URI, _meta: { "io.modelcontextprotocol/protocolVersion": LOCAL_API_MCP_PROTOCOL_VERSION } } });
+});
+
+test("a_resource_the_runtime_refuses_is_its_refusal_in_its_own_words", async () => {
+  const runtime = await fakeMcpStdioRuntime(UPGRADED, (request) => [JSON.stringify({ jsonrpc: "2.0", id: request["id"], error: { code: -32002, message: "no project is open at that uri" } })]);
+  const connection = await openConnection(runtime.localApiSocketPath);
+
+  const failure = failureOf(await connection.readResourceText(FEED_URI));
+  expect(failure.isTheRuntimesRefusal).toBe(true);
+  expect(failure.failureDescription).toBe("no project is open at that uri");
+});
+
+test("a_listen_hears_each_update_of_its_resource_until_stopped_and_stopping_cancels_it", async () => {
+  const runtime = await fakeMcpStdioRuntime(UPGRADED, (request) => {
+    if (request["method"] !== "subscriptions/listen") return null;
+    const updated = (uri: string) => JSON.stringify({ jsonrpc: "2.0", method: "notifications/resources/updated", params: { uri } });
+    return [JSON.stringify({ jsonrpc: "2.0", method: "notifications/subscriptions/acknowledged", params: {} }), updated(FEED_URI), updated("streamlib://project/other/transactions"), updated(FEED_URI)];
+  });
+  const connection = await openConnection(runtime.localApiSocketPath);
+  let updatesHeard = 0;
+  const whyItEnded: string[] = [];
+
+  const listen = connection.listenForUpdatesOfTheResource(FEED_URI, () => (updatesHeard += 1), (why) => whyItEnded.push(why));
+  await expect.poll(() => updatesHeard).toBe(2);
+  listen.stop();
+  await expect.poll(() => runtime.requestLinesRead.length).toBe(2);
+
+  const [listenRequest, cancellation] = runtime.requestLinesRead;
+  expect(listenRequest).toMatchObject({ method: "subscriptions/listen", params: { notifications: { resourceSubscriptions: [FEED_URI] } } });
+  expect(cancellation).toMatchObject({ method: "notifications/cancelled", params: { requestId: listenRequest?.["id"] } });
+  expect(whyItEnded).toEqual([]);
+});
+
+test("a_listen_is_held_past_the_request_timeout_and_ends_with_why_when_the_connection_closes", async () => {
+  const runtime = await fakeMcpStdioRuntime(UPGRADED, () => null);
+  const connection = await openConnection(runtime.localApiSocketPath, 50);
+  const whyItEnded: string[] = [];
+
+  connection.listenForUpdatesOfTheResource(FEED_URI, () => undefined, (why) => whyItEnded.push(why));
+  await expect.poll(() => runtime.requestLinesRead.length).toBe(1);
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  expect(whyItEnded).toEqual([]);
+  runtime.closeEveryConnection();
+
+  await expect.poll(() => whyItEnded.length).toBe(1);
+  expect(whyItEnded[0]).toMatch(/closed the \/mcp\/stdio connection$/);
+});
+
+test("a_recorded_read_of_a_project_no_tool_has_opened_is_the_runtimes_refusal_in_its_own_words", async () => {
+  const answerLine = await readFile(new URL("./test-fixtures/local-api-transactions-resource-refusal-for-a-project-not-open.json", import.meta.url), "utf8");
+
+  expect(failureOf(resourceTextFromTheResourcesReadAnswer(FEED_URI, answerLine))).toEqual({
+    isTheRuntimesRefusal: true,
+    failureDescription: "no project 00000000-3988-4afd-aa77-5569cbfeb081 is open in this runtime; an asset tool such as `list_assets` opens it by its directory",
+  });
 });

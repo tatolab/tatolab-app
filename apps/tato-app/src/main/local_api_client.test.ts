@@ -1022,3 +1022,23 @@ test("a_node_type_listing_waits_past_the_ordinary_request_timeout_for_the_projec
 
   expect(answerOf(await clientWithAShortRequestTimeout.listProjectNodeTypes("/w/pattern")).project_name).toBe("pattern");
 });
+
+test("undo_and_redo_ask_the_runtime_by_the_author_and_answer_the_transaction_or_the_runtimes_refusal_in_its_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-undo-tool-result-of-sam-undoing-their-import-into-lobby.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-redo-tool-result-of-sam-redoing-their-import-into-lobby.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-undo-tool-refusal-for-sam-with-nothing-left-to-undo.json")),
+  ]);
+  const sam = { kind: "person", name: "Sam" } as const;
+  const projectFolder = "/tmp/claude-0/-home-user/e49a0dd5-7a95-5fdd-b9ce-70d350d7c52d/scratchpad/streams/lobby";
+
+  const undone = answerOf(await server.client().undoInTheProject(projectFolder, sam));
+  expect(answerOf(await server.client().redoInTheProject(projectFolder, sam)).redoes).toBe(undone.undoes);
+  const refusal = failureOf(await server.client().undoInTheProject(projectFolder, sam));
+  expect(refusal).toMatchObject({ isTheRuntimesRefusal: true, failureDescription: "undo failed: Sam has no transaction left to undo" });
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["undo", { project_directory: projectFolder, author: sam }],
+    ["redo", { project_directory: projectFolder, author: sam }],
+    ["undo", { project_directory: projectFolder, author: sam }],
+  ]);
+});

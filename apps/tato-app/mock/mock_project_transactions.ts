@@ -1,10 +1,11 @@
 // The mock's change feed for its open project: a few transactions by the person, an agent and the
-// runtime, newest first, as the runtime's `streamlib://project/<project>/transactions` resource
+// runtime, on its `main` stream, newest first, as the runtime's `streamlib://project/<project>/transactions` resource
 // holds them. Undo and redo follow the runtime's per-author rule (`what_the_author_can_undo_and_redo`
 // in streamlib's project repository): an author's edits are undone newest first, an undo can be
 // redone until that author's next edit, and every undo and redo is a transaction of its own.
 // `?history=empty` opens a project with no transactions.
 
+import { mockNodeIdOf, mockStreamIdOf, mockStreamLocationOf } from "./mock_stream_fixtures";
 import type { JsonValue, ProjectTransaction, ProjectTransactionAuthor, ProjectTransactions, ProjectTransactionsReading } from "../src/shared/tatolab_backend_contract";
 
 /** What `?history=` names. */
@@ -14,8 +15,6 @@ export type MockProjectHistoryScenario = "edited" | "empty";
 export function mockProjectHistoryScenarioNamed(historyInTheQuery: string | null): MockProjectHistoryScenario {
   return historyInTheQuery === "empty" ? "empty" : "edited";
 }
-
-const MOCK_MAIN_STREAM = "pattern-main-1a2b3c";
 
 function mockTransaction(
   number: number,
@@ -43,46 +42,39 @@ const YOU = { kind: "person", name: "Sam" };
 const CLAUDE = { kind: "agent", name: "claude-code" };
 const THE_RUNTIME = { kind: "runtime", name: "tatolab" };
 
-/** The mock project's transactions, oldest first. */
-function mockTransactionsOldestFirst(): ProjectTransaction[] {
-  const imported = mockTransaction(
-    1,
-    YOU,
-    [{ operation: "import_asset", asset: "a1", asset_path: "media/warm.cube" }],
-    [{ operation: "delete_asset", asset: "a1" }],
-  );
+/** The mock project's transactions, oldest first, each operation in the shape the runtime records it (`ProjectOperation`): a graph one names its stream by its asset's UUID and its nodes by UUID. */
+function mockTransactionsOldestFirst(projectDirectory: string): ProjectTransaction[] {
+  const mainStreamAddress = { project_directory: projectDirectory, stream_name: "main" };
+  const mainStream = mockStreamLocationOf(mainStreamAddress).stream_asset;
+  const mainStreamId = mockStreamIdOf(mainStreamAddress);
+  const nodeOf = (nodeName: string) => mockNodeIdOf(mainStreamId, nodeName);
+  const warmLut = { asset: "a7c1e0d2-5b3f-4e8a-9d61-0f2c4b8e7a15", kind: "data", path: "media/warm.cube", content_sha256: "9f".repeat(32), content_byte_len: 1_048_576, import_settings: {} };
+  const imported = mockTransaction(1, YOU, [{ operation: "import_asset", asset: warmLut }], [{ operation: "delete_asset", asset: warmLut }]);
+  const micLevelsBefore = { type: "nodes.mic_levels:mic_levels", config: { bands: 8 }, fragment: { nodes: [], links: [] } };
+  const micLevelsAfter = { type: "nodes.mic_levels:mic_levels", config: { bands: 16 }, fragment: { nodes: [], links: [] } };
   const refreshed = mockTransaction(
     2,
     THE_RUNTIME,
-    [{ operation: "refresh_fragment", stream: MOCK_MAIN_STREAM, node: "f1", name: "mic_levels" }],
-    [{ operation: "refresh_fragment", stream: MOCK_MAIN_STREAM, node: "f1", name: "mic_levels" }],
+    [{ stream: mainStream, operation: "refresh_fragment", node: "e3b0c442-98fc-4c14-9afb-f4c8996fb924", from: micLevelsBefore, to: micLevelsAfter }],
+    [{ stream: mainStream, operation: "refresh_fragment", node: "e3b0c442-98fc-4c14-9afb-f4c8996fb924", from: micLevelsAfter, to: micLevelsBefore }],
   );
   const renamed = mockTransaction(
     3,
     YOU,
-    [{ operation: "rename_node", stream: MOCK_MAIN_STREAM, node: "7f3a", name: "camera" }],
-    [{ operation: "rename_node", stream: MOCK_MAIN_STREAM, node: "7f3a", name: "camera_source" }],
+    [{ stream: mainStream, operation: "rename_node", node: nodeOf("invertingeffect"), from: "invert", to: "invertingeffect" }],
+    [{ stream: mainStream, operation: "rename_node", node: nodeOf("invertingeffect"), from: "invertingeffect", to: "invert" }],
   );
-  const added = mockTransaction(
-    4,
-    CLAUDE,
-    [
-      { operation: "add_node", stream: MOCK_MAIN_STREAM, node: "9c41", name: "loudness", type: "LoudnessMeter" },
-      { operation: "connect", stream: MOCK_MAIN_STREAM, from: { node: "9c41", port: "level" }, to: { node: "4d2e", port: "level" } },
-    ],
-    [
-      { operation: "disconnect", stream: MOCK_MAIN_STREAM, from: { node: "9c41", port: "level" }, to: { node: "4d2e", port: "level" } },
-      { operation: "remove_node", stream: MOCK_MAIN_STREAM, node: "9c41" },
-    ],
-  );
-  const softened = mockTransaction(
+  const meter = { id: nodeOf("brightnessmeter"), name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", config: {} };
+  const meterLinks = [{ source: { node: nodeOf("invertingeffect"), port: "video_to_downstream" }, target: { node: meter.id, port: "video_from_upstream" } }];
+  const added = mockTransaction(4, CLAUDE, [{ stream: mainStream, operation: "add_node", node: meter, links: meterLinks }], [{ stream: mainStream, operation: "remove_node", node: meter, links: meterLinks }]);
+  const fitted = mockTransaction(
     5,
     YOU,
-    [{ operation: "set_node_config", stream: MOCK_MAIN_STREAM, node: "4d2e", key: "softness", value: 0.64 }],
-    [{ operation: "set_node_config", stream: MOCK_MAIN_STREAM, node: "4d2e", key: "softness", value: 0.42 }],
+    [{ stream: mainStream, operation: "set_node_config", node: nodeOf("displaywindow"), from: { title: "Tatolab", scaling: "fill" }, to: { title: "Tatolab", scaling: "fit" } }],
+    [{ stream: mainStream, operation: "set_node_config", node: nodeOf("displaywindow"), from: { title: "Tatolab", scaling: "fit" }, to: { title: "Tatolab", scaling: "fill" } }],
   );
-  const softenedUndone = mockTransaction(6, YOU, softened.inverse_operations, softened.operations, { undoes: softened.transaction });
-  return [imported, refreshed, renamed, added, softened, softenedUndone];
+  const fittedUndone = mockTransaction(6, YOU, fitted.inverse_operations, fitted.operations, { undoes: fitted.transaction });
+  return [imported, refreshed, renamed, added, fitted, fittedUndone];
 }
 
 function lastPositionOf(transactions: readonly ProjectTransaction[], transaction: string): number {
@@ -104,7 +96,7 @@ export class MockProjectTransactions {
     private readonly projectDirectory: string,
     scenario: MockProjectHistoryScenario,
   ) {
-    this.transactionsOldestFirst = scenario === "empty" ? [] : mockTransactionsOldestFirst();
+    this.transactionsOldestFirst = scenario === "empty" ? [] : mockTransactionsOldestFirst(projectDirectory);
   }
 
   /** The feed as the runtime's resource holds it. */
@@ -122,14 +114,14 @@ export class MockProjectTransactions {
   /** Undo `author`'s latest transaction not undone yet, in the runtime's words when there is none. */
   undo(author: ProjectTransactionAuthor): ProjectTransaction {
     const undone = this.whatTheAuthorCanUndoAndRedo(author).undoable.at(-1);
-    if (undone === undefined) throw `undo failed: ${author.name} has nothing to undo`;
+    if (undone === undefined) throw `undo failed: ${author.name} has no transaction left to undo`;
     return this.apply(author, undone.inverse_operations, undone.operations, { undoes: undone.transaction });
   }
 
   /** Redo what `author`'s latest undo reversed, in the runtime's words when there is none. */
   redo(author: ProjectTransactionAuthor): ProjectTransaction {
     const redone = this.whatTheAuthorCanUndoAndRedo(author).redoable.at(-1);
-    if (redone === undefined) throw `redo failed: ${author.name} has nothing to redo`;
+    if (redone === undefined) throw `redo failed: ${author.name} has undone nothing that is left to redo`;
     return this.apply(author, redone.operations, redone.inverse_operations, { redoes: redone.transaction });
   }
 
