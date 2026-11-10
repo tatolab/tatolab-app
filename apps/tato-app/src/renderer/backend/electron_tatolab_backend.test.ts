@@ -77,7 +77,7 @@ describe("createElectronTatolabBackend", () => {
       link_command_line_tool: { ok: true, value: null },
       quit_tatolab_app: { ok: true, value: null },
       read_project_log_records: { ok: true, value: { project_directory: "/p", records: [], next_after: "1:90", records_no_longer_held: false } },
-      describe_stream_graph: { ok: true, value: { stream: "camera", nodes: [], links: [], graph_document_text: "{}" } },
+      describe_stream_graph: { ok: true, value: { stream: "camera", stream_asset: null, nodes: [], links: [], groups: [], notes: [], graph_document_text: "{}" } },
       open_stream_project_folder: { ok: true, value: null },
       open_terminal_at_stream_project: { ok: true, value: null },
       open_stream_log_folder: { ok: true, value: null },

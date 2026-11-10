@@ -96,9 +96,50 @@ export const streamGraphDeclaredPortSchema = z.object({
 /** A port a node declares. */
 export type StreamGraphDeclaredPort = z.infer<typeof streamGraphDeclaredPortSchema>;
 
+/** A point or a size on the canvas, `[x, y]` or `[width, height]`. */
+export const studioCanvasPairSchema = z.tuple([z.number(), z.number()]);
+/** A point or a size on the canvas. */
+export type StudioCanvasPair = z.infer<typeof studioCanvasPairSchema>;
+
+/** A node's fixed `studio` fields, each `null` while the graph document holds none, and `metadata` what a client keeps beside them; written back whole, an unset field stays unset. */
+export const streamGraphNodeStudioFieldsSchema = z.object({
+  position: studioCanvasPairSchema.nullable(),
+  /** The labelled group it belongs to, by the group's UUID. */
+  group: z.string().nullable(),
+  comment: z.string().nullable(),
+  colour: z.string().nullable(),
+  collapsed: z.boolean().nullable(),
+  metadata: z.record(z.string(), jsonValueSchema),
+});
+/** A node's fixed `studio` fields. */
+export type StreamGraphNodeStudioFields = z.infer<typeof streamGraphNodeStudioFieldsSchema>;
+
+/** The `studio` fields of a node whose graph document sets none. */
+export const NODE_STUDIO_FIELDS_NONE_SET: Readonly<StreamGraphNodeStudioFields> = Object.freeze({ position: null, group: null, comment: null, colour: null, collapsed: null, metadata: Object.freeze({}) });
+
+/** A labelled group of a stream's graph, from its `groups` key, which its nodes join by naming its UUID as their `studio.group`. */
+export const streamGraphGroupSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  colour: z.string().nullable(),
+});
+/** A labelled group of a stream's graph. */
+export type StreamGraphGroup = z.infer<typeof streamGraphGroupSchema>;
+
+/** A canvas note of a stream's graph, from its `studio.notes` key: text at a position and size, beside the nodes. */
+export const streamGraphNoteSchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  position: studioCanvasPairSchema,
+  size: studioCanvasPairSchema,
+});
+/** A canvas note of a stream's graph. */
+export type StreamGraphNote = z.infer<typeof streamGraphNoteSchema>;
+
 /** One node of a stream's graph, by the name a link end and a port address name it by. */
 export const streamGraphNodeSchema = z.object({
-  /** The runtime's id of the node, which a log record's `processor_id` names it by. */
+  /** The node's UUID, which a log record's `processor_id` and every graph edit name it by. */
   id: z.string(),
   name: z.string(),
   type: z.string(),
@@ -108,12 +149,16 @@ export const streamGraphNodeSchema = z.object({
   failed_because: z.string().nullable(),
   /** Its config as the graph renders it; `{}` when it renders none. */
   config: z.record(z.string(), jsonValueSchema),
+  /** The value set on each unlinked input, by input name, as the graph's `pins` renders it; an input left at its port's default is absent. */
+  pins: z.record(z.string(), jsonValueSchema),
   input_ports: z.array(streamGraphDeclaredPortSchema),
   output_ports: z.array(streamGraphDeclaredPortSchema),
   /** Messages it dropped on each link into it, by the link's `id`. */
   dropped_bags_by_link: z.record(z.string(), z.number()),
   /** Messages each of its output ports refused, by port name. */
   refused_bags_by_output_port: z.record(z.string(), z.number()),
+  /** What Tato Studio draws it with, from its `studio` key under the runtime's studio contract. */
+  studio: streamGraphNodeStudioFieldsSchema,
 });
 /** One node of a stream's graph. */
 export type StreamGraphNode = z.infer<typeof streamGraphNodeSchema>;
@@ -135,6 +180,10 @@ export type StreamGraphLink = z.infer<typeof streamGraphLinkSchema>;
 /** One loaded stream's nodes and links, and the document they were read from. */
 export const streamGraphSummarySchema = z.object({
   stream: z.string(),
+  /** The stream asset's UUID, from the graph's `asset` key, which every graph edit names the stream by; `null` when the graph renders none. */
+  stream_asset: z.string().nullable(),
+  groups: z.array(streamGraphGroupSchema),
+  notes: z.array(streamGraphNoteSchema),
   nodes: z.array(streamGraphNodeSchema),
   links: z.array(streamGraphLinkSchema),
   /** The `graph` tool's text exactly as the runtime wrote it. */
