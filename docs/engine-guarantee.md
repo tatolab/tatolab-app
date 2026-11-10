@@ -130,12 +130,18 @@ whether it opens and, if not, why, in the schema's or the runtime's words. Today
 ## Views as graph nodes
 
 A view that sits on the canvas is a real node, so the graph, Properties and every other client
-treat it like any other node (the Node-RED proxy pattern).
+treat it like any other node. The view's panel is always available in Studio, and its node is the
+panel's plug into a stream, wiring data in and out.
 
-- **The node.** One node type, `tatolab.studio:StudioView`, with `config.view_type` naming the
-  view. The runtime reads the view's declared input and output ports, with their families, from
-  the view contract and reports them like any node's ports, so the canvas draws pins and
-  Properties builds the form the usual way.
+- **The node.** Each view is its own node type, named by its view type (`acme-dj:deck`), the way a
+  project's Python node classes are. The runtime reads the view's declared input and output ports,
+  with their families, from the view contract and reports them like any node's ports, so the
+  canvas draws pins and Properties builds the form the usual way. The manifest's `description`
+  and each port's `description` are the type's, for tooltips and agents. Add-node and search list
+  views under a **Views** group, each by its `title`.
+- **One node per view per stream.** For now a stream holds at most one node of a view type; the
+  runtime refuses a second, so a panel always knows its node. Several nodes of one view, with a
+  picker in the panel, may come later.
 - **Settings are config.** The view's `settings` become the node's config and change through
   `set_node_config`, so they are in history and undo like every other edit.
 - **Reads.** Panels read the node's inputs through the existing viewer path; Image stays
@@ -151,8 +157,8 @@ treat it like any other node (the Node-RED proxy pattern).
 ```text
  Runtime (the graph)
  ┌───────────────┐  inputs  ┌──────────────────────────┐  outputs  ┌──────────────────┐
- │ Upstream node │ ───────► │ StudioView node          │ ────────► │ Downstream node  │
- └───────────────┘          │ config.view_type+settings│           │ keeps last value │
+ │ Upstream node │ ───────► │ acme-dj:deck node        │ ────────► │ Downstream node  │
+ └───────────────┘          │ config = view settings   │           │ keeps last value │
                             │ owns its values          │           └──────────────────┘
                             └──────────────────────────┘
                      reads (viewer path) │      ▲ sends values (last write wins)
