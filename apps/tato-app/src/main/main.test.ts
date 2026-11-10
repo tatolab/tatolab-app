@@ -698,7 +698,7 @@ describe("one window per project", () => {
       expect(studioWindowsProject).toMatchObject({ ok: true, value: { kind: "read" } });
       expect(await fakeShell.invokeTheCommand("read_open_project", undefined, 3)).toEqual(studioWindowsProject);
       expect(await fakeShell.invokeTheCommand("read_open_project_transactions", undefined, 3)).toEqual(await fakeShell.invokeTheCommand("read_open_project_transactions", undefined, 2));
-      expect(await fakeShell.invokeTheCommand("start_python_language_server", { project_folder: "/anywhere" }, 3)).toEqual({ ok: false, refusal: "Only a project's studio window starts a language server." });
+
     });
 
     test("is sent the status the other windows were last sent as it opens", async () => {
@@ -708,7 +708,7 @@ describe("one window per project", () => {
       expect(fakeShell.records).toContainEqual(expect.objectContaining({ asked: "send_window_event", eventChannel: "tatolab-status-changed", windowContentsId: 3 }));
     });
 
-    test("popping out the same view pinned the same way again brings its window forward; another pin gets a window of its own", async () => {
+    test("popping out the same view on the same stream and node again brings its window forward, whatever else it pins; another node gets a window of its own", async () => {
       const fakeShell = await aStudioWindowOfNightShow();
       await fakeShell.invokeTheCommand("pop_out_view", VIEWER_PINNED_TO_THE_DISPLAY, 2);
       fakeShell.forgetTheRecords();
@@ -717,6 +717,8 @@ describe("one window per project", () => {
       expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "create_main_window")).toEqual([]);
       expect(fakeShell.records).toContainEqual({ asked: "focus", windowContentsId: 3 });
 
+      await fakeShell.invokeTheCommand("pop_out_view", { ...VIEWER_PINNED_TO_THE_DISPLAY, pinned_to: { stream_tab: { stream: "night-show-1a2b" }, node: "display", settings: { chosen_port: null } } }, 2);
+      expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "create_main_window")).toEqual([]);
       await fakeShell.invokeTheCommand("pop_out_view", { ...VIEWER_PINNED_TO_THE_DISPLAY, window_title: "main · Viewer", pinned_to: { stream_tab: { stream: "night-show-1a2b" }, node: null } }, 2);
       await fakeShell.invokeTheCommand("pop_out_view", { view_type_id: "outliner", window_title: "night-show · Outliner", pinned_to: null }, 2);
       expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "main › display · Viewer", "main · Viewer", "night-show · Outliner"]);

@@ -79,7 +79,7 @@ function listTheOpenProjectsStudioViews(backend: TatolabBackend, studioWindowMod
   });
 }
 
-/** The studio, the Viewer alone in a window popped out of one, or a studio window's Module manager window: the window's one screen from the first status on. */
+/** The studio, one view alone in a window popped out of one, or a studio window's Module manager window: the window's one screen from the first status on. */
 function TatolabWindowRoot({
   studioWindowSources,
   moduleManagerSources,
@@ -91,6 +91,7 @@ function TatolabWindowRoot({
 }) {
   useEffect(noticeTheFirstStatusCommitted, [noticeTheFirstStatusCommitted]);
   const poppedOutView = useWatchedStudioValue(studioWindowSources.model.poppedOutView);
+  const projectOpeningRefusal = useWatchedStudioValue(studioWindowSources.model.projectOpeningRefusal);
   const moduleManagerWorkspace = useWatchedStudioValue(studioWindowSources.model.moduleManagerWorkspace);
   if (moduleManagerWorkspace !== null) return <ModuleManagerWindowView workspace={moduleManagerWorkspace} sources={moduleManagerSources} platform={studioWindowSources.platform} />;
   if (poppedOutView !== null) {
@@ -99,6 +100,7 @@ function TatolabWindowRoot({
         target={poppedOutView}
         viewTypeRegistry={studioWindowSources.viewTypeRegistry}
         viewHostServices={studioWindowSources.viewHostServices}
+        projectReadingRefusal={projectOpeningRefusal}
         platform={studioWindowSources.platform}
       />
     );
@@ -252,13 +254,16 @@ export function mountTatolabWindow(
     pathOfADroppedFile: (droppedFile) => backend.pathOfADroppedFile(droppedFile),
     describeRejection: describeBackendRejection,
   };
-  const readTheOpenProject = (onceShown: () => void = () => undefined) =>
+  const readTheOpenProject = (onceRead: () => void = () => undefined) =>
     void backend.readOpenProject().then(
       (reading) => {
         studioWindowModel.showOpenProject(reading);
-        onceShown();
+        onceRead();
       },
-      (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
+      (rejection: unknown) => {
+        studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection));
+        onceRead();
+      },
     );
   const whatTheWindowShowsIsRead = Promise.all([backend.readPoppedOutView().catch(() => null), backend.readModuleManagerWorkspace().catch(() => null)]).then(([poppedOutView, moduleManagerWorkspace]) => {
     if (poppedOutView !== null) {

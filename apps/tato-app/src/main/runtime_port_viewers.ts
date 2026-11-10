@@ -26,7 +26,7 @@ export interface RuntimeViewerConnection {
   close(): void;
 }
 
-/** A studio window or a Viewer popped out of one: where its port viewers' events and Image frames go. */
+/** A studio window or a view popped out of one: where its port viewers' events and Image frames go. */
 export interface WindowShowingPortViewers {
   sendTheWindowAPortViewerEvent(event: PortViewerEvent): void;
   /** Hand the window `imageFrame` as a shared texture; `whenTheWindowLetsGo` is called once the window, and Electron, hold no reference to it, whether the hand-over succeeded or not. */

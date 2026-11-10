@@ -83,7 +83,7 @@ export class StudioWindowModel {
   readonly openProjectStreamFailureRaised = new WatchedStudioValue<OpenProjectStreamFailure | null>(null);
   /** The workspace when the window is a studio window's Module manager window, as last read from disk; `null` in any other window. */
   readonly moduleManagerWorkspace = new WatchedStudioValue<OpenProjectReading | null>(null);
-  /** What the window is pinned to when it is a Viewer popped out of a studio window; `null` in the Projects and studio windows. */
+  /** The view the window shows when it is popped out of a studio window; `null` in the Projects and studio windows. */
   readonly poppedOutView = new WatchedStudioValue<PoppedOutView | null>(null);
 
   /** The tab a project opens on once it is open and the runtime lists the stream: the stream New project just made, or with `stream` `null` the first the runtime lists from the folder; cleared when any tab is opened. */
@@ -120,6 +120,7 @@ export class StudioWindowModel {
     const poppedOutView = this.poppedOutView.readLatest();
     const pin = poppedOutView === null ? null : poppedOutViewPinOf(poppedOutView.pinned_to);
     if (pin === null) return;
+    this.streamTabAwaitedByTheOpeningProject = null;
     if (pin.stream_tab !== null) this.openStreamTab(pin.stream_tab);
     this.selection.publish(pin.selection);
   }
@@ -131,6 +132,7 @@ export class StudioWindowModel {
 
   /** Open views of `viewTypeId` on `on`: in the chosen layout when an area of it shows that type, or else in the first layout with one, which is chosen. */
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening {
+    if (this.poppedOutView.readLatest() !== null) return { kind: "not_opened", because: "A popped-out view's window shows that view alone. Open it from the project's studio window." };
     const layouts = this.studioLayouts.readLatest();
     if (layouts !== null && !layoutShowsTheViewType(layouts.layouts[layouts.chosen_layout], viewTypeId)) {
       const layoutShowingTheViewType = STUDIO_LAYOUTS.find((layout) => layoutShowsTheViewType(layouts.layouts[layout.name], viewTypeId));

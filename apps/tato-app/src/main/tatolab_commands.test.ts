@@ -133,7 +133,7 @@ async function sharedStateOverFakes(
     openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
     runAfter: () => () => {},
     stopTheProjectAsItsWindowCloses: async () => succeeded(undefined),
-    whenAStudioWindowClosed: () => {},
+    whenAWindowStartingLanguageServersClosed: () => {},
     whenAWindowShowingPortViewersClosed: () => {},
     tatolabAppLog: quietTatolabAppLog,
   });

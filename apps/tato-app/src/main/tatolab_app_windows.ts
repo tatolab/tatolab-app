@@ -11,7 +11,7 @@ import { OpenProjectOfAStudioWindow, type FolderEntriesWatch, type ProjectReadin
 import { ProjectTransactionsFeedOfAStudioWindow, type ProjectTransactionsFeedOfAStudioWindowSources } from "./project_transactions_feed.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
 import type { TatolabPlatformItems } from "./platform/tatolab_platform_items.js";
-import type { LanguageServerOfAStudioWindow } from "./python_language_servers.js";
+import type { LanguageServerOfAWindow } from "./python_language_servers.js";
 import type { Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import { TatolabMainWindow, type MainWindowHostFactory } from "./tatolab_main_window.js";
@@ -30,15 +30,16 @@ export interface StudioWindowOfAProject {
   /** The project's change feed, followed while the window is open. */
   readonly projectTransactionsFeed: ProjectTransactionsFeedOfAStudioWindow;
   /** Where language servers this window starts send their events, and which folders they may serve. */
-  readonly languageServerOfTheWindow: LanguageServerOfAStudioWindow;
+  readonly languageServerOfTheWindow: LanguageServerOfAWindow;
   /** The views popped out of this window, by the view type and what each is pinned to. */
   readonly poppedOutViews: Map<string, PoppedOutViewWindow>;
 }
 
-/** A view popped out of a studio window into a window of its own, and what it is pinned to. */
+/** A view popped out of a studio window into a window of its own, what it is pinned to, and where the language servers it starts send their events. */
 export interface PoppedOutViewWindow {
   readonly tatolabMainWindow: TatolabMainWindow;
   readonly target: PoppedOutView;
+  readonly languageServerOfTheWindow: LanguageServerOfAWindow;
 }
 
 /** What the windows reach: how a window is made, the platform's window chrome and Dock, a folder watch and a timer for each project, and what a closed window stops. */
@@ -55,8 +56,8 @@ export interface TatolabAppWindowsSources {
   runAfter: (delayMs: number, work: () => void) => () => void;
   /** Queue the stop of every stream of the project in `projectFolder`, as the person chose in closing its window; refused in the runtime's own words. */
   stopTheProjectAsItsWindowCloses: (projectFolder: string) => Promise<Result<void, string>>;
-  /** A studio window closed: stop the language servers its page started. */
-  whenAStudioWindowClosed: (studioWindow: StudioWindowOfAProject) => void;
+  /** A studio window or a popped-out view closed: stop the language servers its page started. */
+  whenAWindowStartingLanguageServersClosed: (languageServerOfTheWindow: LanguageServerOfAWindow) => void;
   /** A studio window or a popped-out view closed: close the port viewers its page opened. */
   whenAWindowShowingPortViewersClosed: (tatolabMainWindow: TatolabMainWindow) => void;
   tatolabAppLog: TatolabAppLog;
@@ -117,15 +118,27 @@ export class TatolabAppWindows {
     return null;
   }
 
-  /** The studio window whose project the page `windowContentsId` reads: the studio window's own page, or a view popped out of it; `null` for any other window. */
-  studioWindowServingTheContents(windowContentsId: number): StudioWindowOfAProject | null {
+  /** The studio window whose page is `windowContentsId`, or that the popped-out view whose page it is came from, with that view; `null` for any other window. */
+  private studioWindowAndPoppedOutViewWithContents(windowContentsId: number): { studioWindow: StudioWindowOfAProject; poppedOutView: PoppedOutViewWindow | null } | null {
     for (const studioWindow of this.studioWindowsByProjectFolder.values()) {
-      if (studioWindow.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return studioWindow;
+      if (studioWindow.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return { studioWindow, poppedOutView: null };
       for (const poppedOutView of studioWindow.poppedOutViews.values()) {
-        if (poppedOutView.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return studioWindow;
+        if (poppedOutView.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return { studioWindow, poppedOutView };
       }
     }
     return null;
+  }
+
+  /** The studio window whose project the page `windowContentsId` reads: the studio window's own page, or a view popped out of it; `null` for any other window. */
+  studioWindowServingTheContents(windowContentsId: number): StudioWindowOfAProject | null {
+    return this.studioWindowAndPoppedOutViewWithContents(windowContentsId)?.studioWindow ?? null;
+  }
+
+  /** Where the language servers the page `windowContentsId` starts send their events, a studio window's or a popped-out view's; `null` for any other window. */
+  languageServerOfTheWindowWithContents(windowContentsId: number): LanguageServerOfAWindow | null {
+    const windows = this.studioWindowAndPoppedOutViewWithContents(windowContentsId);
+    if (windows === null) return null;
+    return (windows.poppedOutView ?? windows.studioWindow).languageServerOfTheWindow;
   }
 
   /** The studio window of the project in `projectFolder`; `null` when none is open. */
@@ -152,12 +165,21 @@ export class TatolabAppWindows {
         answerItsCloseRequest: () => "let_it_close",
         whenItClosed: () => {
           if (poppedOutViewOnceMade !== null && studioWindow.poppedOutViews.get(pinKey) === poppedOutViewOnceMade) studioWindow.poppedOutViews.delete(pinKey);
-          if (poppedOutViewOnceMade !== null) this.sources.whenAWindowShowingPortViewersClosed(poppedOutViewOnceMade.tatolabMainWindow);
+          if (poppedOutViewOnceMade === null) return;
+          this.sources.whenAWindowShowingPortViewersClosed(poppedOutViewOnceMade.tatolabMainWindow);
+          this.sources.whenAWindowStartingLanguageServersClosed(poppedOutViewOnceMade.languageServerOfTheWindow);
         },
       },
       this.sources.tatolabAppLog,
     );
-    const poppedOutView: PoppedOutViewWindow = { tatolabMainWindow, target };
+    const poppedOutView: PoppedOutViewWindow = {
+      tatolabMainWindow,
+      target,
+      languageServerOfTheWindow: {
+        projectFolderOfTheOpenProject: (folder) => studioWindow.languageServerOfTheWindow.projectFolderOfTheOpenProject(folder),
+        sendTheWindowALanguageServerEvent: (event: PythonLanguageServerEvent) => tatolabMainWindow.sendTheWindowALanguageServerEvent(event),
+      },
+    };
     poppedOutViewOnceMade = poppedOutView;
     studioWindow.poppedOutViews.set(pinKey, poppedOutView);
     this.sources.tatolabAppLog.info("popped a view out into its own window", { view_type_id: target.view_type_id });
@@ -203,23 +225,14 @@ export class TatolabAppWindows {
 
   /** The studio window or popped-out view whose page is `windowContentsId`, the windows that show port viewers; `null` for any other window. */
   windowShowingPortViewersWithContents(windowContentsId: number): TatolabMainWindow | null {
-    for (const studioWindow of this.studioWindowsByProjectFolder.values()) {
-      if (studioWindow.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return studioWindow.tatolabMainWindow;
-      for (const poppedOutView of studioWindow.poppedOutViews.values()) {
-        if (poppedOutView.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return poppedOutView.tatolabMainWindow;
-      }
-    }
-    return null;
+    const windows = this.studioWindowAndPoppedOutViewWithContents(windowContentsId);
+    if (windows === null) return null;
+    return (windows.poppedOutView ?? windows.studioWindow).tatolabMainWindow;
   }
 
   /** What the popped-out view whose page is `windowContentsId` is pinned to; `null` for the Projects window, a studio window, or a window that has closed. */
   poppedOutViewOfTheWindowWithContents(windowContentsId: number): PoppedOutView | null {
-    for (const studioWindow of this.studioWindowsByProjectFolder.values()) {
-      for (const poppedOutView of studioWindow.poppedOutViews.values()) {
-        if (poppedOutView.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return poppedOutView.target;
-      }
-    }
-    return null;
+    return this.studioWindowAndPoppedOutViewWithContents(windowContentsId)?.poppedOutView?.target ?? null;
   }
 
   /** The window whose page is `windowContentsId`, whatever it is; `null` for a window that has closed. */
@@ -377,7 +390,7 @@ export class TatolabAppWindows {
     studioWindow.poppedOutViews.clear();
     this.moduleManagerWindowsByStudioWindow.get(studioWindow)?.close();
     this.moduleManagerWindowsByStudioWindow.delete(studioWindow);
-    this.sources.whenAStudioWindowClosed(studioWindow);
+    this.sources.whenAWindowStartingLanguageServersClosed(studioWindow.languageServerOfTheWindow);
     this.sources.whenAWindowShowingPortViewersClosed(studioWindow.tatolabMainWindow);
     this.sources.tatolabAppLog.info("closed a project's window", { project_folder: projectFolder });
   }
@@ -402,9 +415,9 @@ function studioWindowTitleOf(reading: OpenProjectReading, projectFolder: string)
   return reading.kind === "read" ? reading.open_project.project.name : path.basename(projectFolder);
 }
 
-/** The key a popped-out view is kept under in its studio window: its view type and what it is pinned to. */
+/** The key a popped-out view is kept under in its studio window: its view type and its window's title, which names the stream and node it shows. */
 function poppedOutViewPinKeyOf(target: PoppedOutView): string {
-  return JSON.stringify([target.view_type_id, target.pinned_to]);
+  return JSON.stringify([target.view_type_id, target.window_title]);
 }
 
 /** The reading a window with no project of its own is answered: the Projects window's. */

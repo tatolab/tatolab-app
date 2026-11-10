@@ -13,7 +13,7 @@ import type {
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { portStreamFactsWords } from "../shared/port_stream_facts_words";
-import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk, type RefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
+import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { PortViewerMessageReadingShown, packetsUnitsSeenWith, type PacketsUnitSeen } from "./port_viewer_message_readings";
 import {
   chosenPortStillInTheGraph,
@@ -171,21 +171,8 @@ function useTheGraphOfTheTab(connection: TatoAppViewConnection, stream: string):
   return useViewReading(watchTheTabsGraph);
 }
 
-/** The port the area keeps in its settings, or `null` to follow the selection. */
-function useTheChosenPort(connection: TatoAppViewConnection): ViewerChosenPort {
-  return viewerChosenPortOf(useViewReading(connection.watchSettings));
-}
-
-/** The Viewer of the stream tab shown: the live picture of the port it plays. */
-function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress }) {
-  const graphReading = useTheGraphOfTheTab(connection, streamTab.stream);
-  const selection = useViewReading(connection.watchSelection);
-  const chosenPort = useTheChosenPort(connection);
-  if (graphReading === null) return null;
-  if (graphReading.kind === "not_read") {
-    return <WaitingState title={`Nothing of ${streamTab.display_name} to view yet`} explanation={graphReading.because} data-viewer-state="not_read" />;
-  }
-  const playedPort = portTheViewerPlays(graphReading.graph, selection, chosenPort);
+/** The Viewer of a graph it has read: the live picture of the port it plays. */
+function ViewerOfTheGraph({ connection, streamTab, graph, playedPort }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress; graph: StreamGraphSummary; playedPort: ViewerPortAddress | null }) {
   if (playedPort === null) {
     return (
       <WaitingState
@@ -201,21 +188,26 @@ function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConn
       connection={connection}
       target={{ stream: streamTab.stream, node_id: playedPort.node_id, port: playedPort.port }}
       nodeName={playedPort.node_name}
-      portWords={portWordsOf(graphReading.graph, playedPort)}
-      streamFactsOfThePort={declaredOutputPortOf(graphReading.graph, playedPort) ?? { stream_facts: null, values_checked: null }}
+      portWords={portWordsOf(graph, playedPort)}
+      streamFactsOfThePort={declaredOutputPortOf(graph, playedPort) ?? { stream_facts: null, values_checked: null }}
     />
   );
 }
 
 /** The port the Viewer plays, chosen from every output of the tab's graph, or following the selection; the choice is kept in the area's settings. */
-function ViewerPortChooser({ connection, streamTab, showTheRefusalOf }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress; showTheRefusalOf: (lead: string, asked: Promise<ViewAskDone>) => void }) {
-  const graphReading = useTheGraphOfTheTab(connection, streamTab.stream);
-  const selection = useViewReading(connection.watchSelection);
-  const chosenPortSetting = useTheChosenPort(connection);
-  if (graphReading === null || graphReading.kind === "not_read") return null;
-  const { graph } = graphReading;
-  const playedPort = portTheViewerPlays(graph, selection, chosenPortSetting);
-  if (playedPort === null) return null;
+function ViewerPortChooser({
+  connection,
+  graph,
+  playedPort,
+  chosenPortSetting,
+  showTheRefusalOf,
+}: {
+  connection: TatoAppViewConnection;
+  graph: StreamGraphSummary;
+  playedPort: ViewerPortAddress;
+  chosenPortSetting: ViewerChosenPort;
+  showTheRefusalOf: (lead: string, asked: Promise<ViewAskDone>) => void;
+}) {
   const chosenPort = chosenPortStillInTheGraph(graph, chosenPortSetting);
   const portChoices: MenuSingleChoice<string>[] = [
     { choice: FOLLOW_THE_SELECTION_CHOICE, label: "Follow the selection" },
@@ -223,53 +215,65 @@ function ViewerPortChooser({ connection, streamTab, showTheRefusalOf }: { connec
   ];
   const playedPortWords = portWordsOf(graph, playedPort);
   return (
-    <FieldMenu label={`Port: ${playedPortWords}`} words={playedPortWords} menuWidth="fit" data-viewer-port-chooser="">
-      <MenuSingleChoiceGroup
-        choices={portChoices}
-        chosen={chosenPort === null ? FOLLOW_THE_SELECTION_CHOICE : viewerPortChoiceKey(chosenPort)}
-        dataAttributeOfEachChoice="data-viewer-port-choice"
-        onChosen={(choice) => {
-          const portChosenNow = everyOutputPortOf(graph).find((outputPort) => viewerPortChoiceKey(outputPort) === choice);
-          showTheRefusalOf(
-            "Didn't keep the port:",
-            connection.rememberSettings({ chosen_port: portChosenNow === undefined ? null : { stream: graph.stream, node_id: portChosenNow.node_id, port: portChosenNow.port } }),
-          );
-        }}
-      />
-    </FieldMenu>
+    <div className="ml-auto flex min-w-0 items-center gap-1.5">
+      <FieldMenu label={`Port: ${playedPortWords}`} words={playedPortWords} menuWidth="fit" data-viewer-port-chooser="">
+        <MenuSingleChoiceGroup
+          choices={portChoices}
+          chosen={chosenPort === null ? FOLLOW_THE_SELECTION_CHOICE : viewerPortChoiceKey(chosenPort)}
+          dataAttributeOfEachChoice="data-viewer-port-choice"
+          onChosen={(choice) => {
+            const portChosenNow = everyOutputPortOf(graph).find((outputPort) => viewerPortChoiceKey(outputPort) === choice);
+            showTheRefusalOf(
+              "Didn't keep the port:",
+              connection.rememberSettings({ chosen_port: portChosenNow === undefined ? null : { stream: graph.stream, node_id: portChosenNow.node_id, port: portChosenNow.port } }),
+            );
+          }}
+        />
+      </FieldMenu>
+    </div>
   );
 }
 
-/** The Viewer's body: the active stream tab's picture under why the last port choice was refused, or what to do while no tab is open. */
-function ViewerBody({ connection, activeStreamTab, portChoiceRefusal }: { connection: TatoAppViewConnection; activeStreamTab: StreamTabAddress | null; portChoiceRefusal: RefusalOfTheLatestAsk | null }) {
-  if (activeStreamTab === null) {
-    return <WaitingState title="No stream is open" explanation="Double-click a stream in the outliner to view it here." data-viewer-state="no_tab" />;
+/** The Viewer's frame for the open stream tab: its port chooser in the header row, and its picture under why the last port choice was refused, once the tab's graph, the selection and the area's settings are read. */
+function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress }) {
+  const graphReading = useTheGraphOfTheTab(connection, streamTab.stream);
+  const selection = useViewReading(connection.watchSelection);
+  const settings = useViewReadingSoFar(connection.watchSettings);
+  const [portChoiceRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
+  if (graphReading === null || settings.kind === "not_read_yet") return <CoreViewFrame connection={connection}>{null}</CoreViewFrame>;
+  if (graphReading.kind === "not_read") {
+    return (
+      <CoreViewFrame connection={connection}>
+        <WaitingState title={`Nothing of ${streamTab.display_name} to view yet`} explanation={graphReading.because} data-viewer-state="not_read" />
+      </CoreViewFrame>
+    );
   }
+  const { graph } = graphReading;
+  const chosenPortSetting = viewerChosenPortOf(settings.reading);
+  const playedPort = portTheViewerPlays(graph, selection, chosenPortSetting);
   return (
-    <>
+    <CoreViewFrame
+      connection={connection}
+      headerTools={
+        playedPort !== null && <ViewerPortChooser connection={connection} graph={graph} playedPort={playedPort} chosenPortSetting={chosenPortSetting} showTheRefusalOf={showTheRefusalOf} />
+      }
+    >
       <RefusalOfTheLatestAskBar refusal={portChoiceRefusal} />
-      <ViewerOfTheTab key={activeStreamTab.stream} connection={connection} streamTab={activeStreamTab} />
-    </>
+      <ViewerOfTheGraph connection={connection} streamTab={streamTab} graph={graph} playedPort={playedPort} />
+    </CoreViewFrame>
   );
 }
 
 /** The Viewer view's whole frame: the live picture of any output port of the active stream's running nodes, the selected node's unless a port is chosen in its header row. */
 export function ViewerView({ connection }: { connection: TatoAppViewConnection }) {
   const activeStreamTab = useViewReadingSoFar(connection.watchActiveStreamTab);
-  const [portChoiceRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
-  const streamTab = activeStreamTab.kind === "read" ? activeStreamTab.reading : null;
-  return (
-    <CoreViewFrame
-      connection={connection}
-      headerTools={
-        streamTab !== null && (
-          <div className="ml-auto flex min-w-0 items-center gap-1.5">
-            <ViewerPortChooser key={streamTab.stream} connection={connection} streamTab={streamTab} showTheRefusalOf={showTheRefusalOf} />
-          </div>
-        )
-      }
-    >
-      {activeStreamTab.kind === "read" && <ViewerBody connection={connection} activeStreamTab={streamTab} portChoiceRefusal={portChoiceRefusal} />}
-    </CoreViewFrame>
-  );
+  if (activeStreamTab.kind === "not_read_yet") return <CoreViewFrame connection={connection}>{null}</CoreViewFrame>;
+  if (activeStreamTab.reading === null) {
+    return (
+      <CoreViewFrame connection={connection}>
+        <WaitingState title="No stream is open" explanation="Double-click a stream in the outliner to view it here." data-viewer-state="no_tab" />
+      </CoreViewFrame>
+    );
+  }
+  return <ViewerOfTheTab key={activeStreamTab.reading.stream} connection={connection} streamTab={activeStreamTab.reading} />;
 }

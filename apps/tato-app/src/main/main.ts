@@ -196,7 +196,7 @@ export async function startTatolabApp(
       sharedStateOnceBuilt.statusPublisher.requestRefresh();
       return stopQueued.ok ? succeeded(undefined) : failedWith(stopQueued.failure.failureDescription);
     },
-    whenAStudioWindowClosed: (studioWindow) => pythonLanguageServersOnceBuilt?.stopTheLanguageServersOf(studioWindow.languageServerOfTheWindow),
+    whenAWindowStartingLanguageServersClosed: (languageServerOfTheWindow) => pythonLanguageServersOnceBuilt?.stopTheLanguageServersOf(languageServerOfTheWindow),
     whenAWindowShowingPortViewersClosed: (tatolabMainWindow) => runtimePortViewersOnceBuilt?.closeThePortViewersOf(tatolabMainWindow),
     tatolabAppLog,
   });

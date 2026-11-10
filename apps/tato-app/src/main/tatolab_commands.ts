@@ -875,10 +875,9 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     start_python_language_server: async (commandArguments, commandFromWindow) => {
       const projectFolder = oneTextArgumentFrom("start_python_language_server", commandArguments, "project_folder", "the folder of the open project or of one of its imports");
       if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };
-      // A language server's events go to the studio window that started it, so a popped-out view starts none.
-      const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
-      if (studioWindow === null) return { ok: false, refusal: "Only a project's studio window starts a language server." };
-      return commandAnswerFrom(sharedState.pythonLanguageServers.startALanguageServer(projectFolder.value, studioWindow.languageServerOfTheWindow));
+      const languageServerOfTheWindow = sharedState.appWindows.languageServerOfTheWindowWithContents(commandFromWindow.windowContentsId);
+      if (languageServerOfTheWindow === null) return { ok: false, refusal: NO_PROJECT_IN_THE_PROJECTS_WINDOW_REFUSAL };
+      return commandAnswerFrom(sharedState.pythonLanguageServers.startALanguageServer(projectFolder.value, languageServerOfTheWindow));
     },
     send_to_python_language_server: async (commandArguments) => {
       const sendArguments = sendToPythonLanguageServerArgumentsFrom(commandArguments);

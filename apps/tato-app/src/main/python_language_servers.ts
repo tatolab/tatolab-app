@@ -33,8 +33,8 @@ export interface PythonLanguageServersSources {
   tatolabAppLog: TatolabAppLog;
 }
 
-/** The project of the studio window starting a language server: which folders it may serve, and where the server's events go. */
-export interface LanguageServerOfAStudioWindow {
+/** The window starting a language server, a studio window or a view popped out of one: which folders of its project it may serve, and where the server's events go. */
+export interface LanguageServerOfAWindow {
   /** `projectFolder` as the folder of the window's project or of one of its imports, or why it is not one. */
   projectFolderOfTheOpenProject(projectFolder: string): Result<string, string>;
   sendTheWindowALanguageServerEvent(event: PythonLanguageServerEvent): void;
@@ -43,7 +43,7 @@ export interface LanguageServerOfAStudioWindow {
 /** A running language server and the window its events go to. */
 interface RunningLanguageServerSession {
   program: RunningNodeProgram;
-  studioWindow: LanguageServerOfAStudioWindow;
+  studioWindow: LanguageServerOfAWindow;
 }
 
 /** Every Python language server the studio windows have started and not stopped, by session. */
@@ -54,7 +54,7 @@ export class PythonLanguageServers {
   constructor(private readonly sources: PythonLanguageServersSources) {}
 
   /** Start a language server for `projectFolder` of `studioWindow`'s project, answering the session its messages are sent and arrive under; refused for a folder outside that project, or in the platform's words. */
-  startALanguageServer(projectFolder: string, studioWindow: LanguageServerOfAStudioWindow): Result<{ session: string }, string> {
+  startALanguageServer(projectFolder: string, studioWindow: LanguageServerOfAWindow): Result<{ session: string }, string> {
     const servedFolder = studioWindow.projectFolderOfTheOpenProject(projectFolder);
     if (!servedFolder.ok) return servedFolder;
     this.sessionsStarted += 1;
@@ -86,7 +86,7 @@ export class PythonLanguageServers {
   }
 
   /** Stop every language server `studioWindow` started, as it closes. */
-  stopTheLanguageServersOf(studioWindow: LanguageServerOfAStudioWindow): void {
+  stopTheLanguageServersOf(studioWindow: LanguageServerOfAWindow): void {
     for (const [session, running] of [...this.runningSessionsBySession]) {
       if (running.studioWindow === studioWindow) this.stopALanguageServer(session);
     }
