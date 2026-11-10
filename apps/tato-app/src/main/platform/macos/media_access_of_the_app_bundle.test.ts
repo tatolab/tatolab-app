@@ -9,19 +9,19 @@ const quietTatolabAppLog = createTatolabAppLog("error", () => {});
 /** Electron's media access, answering TCC's status as scripted and recording each prompt and each pane opened. */
 function scriptedAppMediaAccessSettings(status: TccMediaAccessStatus, promptAnswer: Result<boolean, string> = succeeded(true)) {
   const promptsShown: SystemMediaDevice[] = [];
-  const panesOpened: SystemMediaDevice[] = [];
+  const urlsOpened: string[] = [];
   const appMediaAccessSettings: AppMediaAccessSettings = {
     readMediaAccessStatus: () => status,
     askForMediaAccess: async (device) => {
       promptsShown.push(device);
       return promptAnswer;
     },
-    openThePrivacyPaneOf: async (device) => {
-      panesOpened.push(device);
+    openExternalUrl: async (url) => {
+      urlsOpened.push(url);
       return succeeded(undefined);
     },
   };
-  return { appMediaAccessSettings, promptsShown, panesOpened };
+  return { appMediaAccessSettings, promptsShown, urlsOpened };
 }
 
 test("shows macOS's prompt only while TCC has not been answered, and answers what the person chose", async () => {
@@ -47,6 +47,14 @@ test("answers refused, with System Settings' privacy pane to open, when the pers
     if (answer.kind === "refused") answer.openWhereThePersonAllowsIt();
     await new Promise((resolve) => setImmediate(resolve));
     expect(settings.promptsShown).toEqual(promptsExpected);
-    expect(settings.panesOpened).toEqual(["camera"]);
+    expect(settings.urlsOpened).toEqual(["x-apple.systempreferences:com.apple.preference.security?Privacy_Camera"]);
   }
+});
+
+test("opens System Settings on the microphone's own privacy pane for a refused microphone", async () => {
+  const settings = scriptedAppMediaAccessSettings("denied");
+  const answer = await new MediaAccessOfTheAppBundle(settings.appMediaAccessSettings, quietTatolabAppLog).askAheadFor("microphone");
+  if (answer.kind === "refused") answer.openWhereThePersonAllowsIt();
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(settings.urlsOpened).toEqual(["x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"]);
 });
