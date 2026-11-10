@@ -14,6 +14,7 @@ function readingsOverAFakeBackend(openProjectFolder: string | null) {
       undoInTheOpenProject: async (author) => {
         undosAsked.push(author.name);
         const undone: ProjectTransaction = {
+          format_version: 2,
           transaction: "t2",
           commit: "c2",
           parent_commit: "c1",
@@ -23,7 +24,9 @@ function readingsOverAFakeBackend(openProjectFolder: string | null) {
           inverse_operations: [],
           undoes: "t1",
           redoes: null,
-          applied_at: null,
+          idempotency_key: null,
+          undo_state: null,
+          applied_at: "2026-11-10T18:17:12Z",
         };
         return undone;
       },

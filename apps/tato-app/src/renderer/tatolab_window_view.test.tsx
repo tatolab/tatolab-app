@@ -255,6 +255,12 @@ describe("the studio", () => {
     fireEvent.click(addedRow);
     await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-transactions-detail]")).not.toBeNull());
     expect(coreViewPage("transactions").querySelector("[data-transactions-detail-operations]")?.textContent).toContain('"operation": "add_node"');
+
+    const refusedRow = transactionRows().find((row) => row.dataset.recordTableRowTone === "danger") ?? expect.unreachable("no refused row");
+    expect([...refusedRow.querySelectorAll("td")].slice(1, 6).map((cell) => cell.textContent)).toEqual(["agent · claude-code", "project", "redo", "refused", "—"]);
+    fireEvent.click(refusedRow);
+    await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-transactions-detail-refusal]")).not.toBeNull());
+    expect(coreViewPage("transactions").querySelector("[data-transactions-detail-refusal]")?.textContent).toContain("claude-code has undone nothing that is left to redo");
   });
 
   it("says an area left on Transactions shows it only in Developer mode once Developer mode is turned off", async () => {
@@ -287,7 +293,7 @@ describe("the studio", () => {
 
     const historyRows = () => [...coreViewPage("history").querySelectorAll<HTMLElement>("[data-history-row]")];
     await waitFor(() => expect(historyRows()).toHaveLength(5));
-    expect(historyRows().map((row) => [row.getAttribute("aria-label")?.split(". ").slice(0, 2).join(". ").replace(/ · (\d+ (min|h) ago|just now|[A-Z][a-z]{2} \d{1,2}, \d{1,2}:\d{2}\s[AP]M)/, ""), row.hasAttribute("data-undone")])).toEqual([
+    expect(historyRows().map((row) => [row.getAttribute("aria-label")?.split(". ").slice(0, 2).join(". ").replace(/ · (?!undone)[^·]*?(?= · |$)/g, ""), row.hasAttribute("data-undone")])).toEqual([
       ["Set displaywindow scaling to fit. Sam · undone", true],
       ["Added brightnessmeter and its link. claude-code (agent)", false],
       ["Renamed invert to invertingeffect. Sam", false],

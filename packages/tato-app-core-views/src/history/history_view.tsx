@@ -25,7 +25,7 @@ function useWallClockForBylines(): number {
 }
 
 function authoredChangeOf(row: HistoryRow, nowMs: number, isTheLatestApplied: boolean): AuthoredChange {
-  const byline = [row.who, row.applied_at === null ? null : howLongAgoTheEditWasApplied(row.applied_at, nowMs), row.is_undone ? "undone" : null].filter((words) => words !== null).join(" · ");
+  const byline = [row.who, howLongAgoTheEditWasApplied(row.applied_at, nowMs), row.is_undone ? "undone" : null].filter((words) => words !== null).join(" · ");
   const choiceWords = row.is_undone ? "Redo up to this edit" : isTheLatestApplied ? "The project is at this edit" : "Undo back to this edit";
   return {
     change_id: row.transaction,
@@ -88,7 +88,7 @@ function HistoryBody({ connection, projectFolder }: { connection: TatoAppViewCon
   if (projectTransactions.kind === "not_read") return <WaitingState isFailure title="The project's history can't be read" explanation={projectTransactions.because} />;
   if (historyRows.length === 0) return <WaitingState title="No edits yet" explanation="Each edit to the project, by you, an agent or the runtime, shows here as it lands." />;
   const latestAppliedTransaction = historyRows.find((row) => !row.is_undone)?.transaction ?? null;
-  const dayHeadings = historyRows.map((row) => (row.applied_at === null ? null : dayTheEditWasApplied(row.applied_at, nowMs)));
+  const dayHeadings = historyRows.map((row) => dayTheEditWasApplied(row.applied_at, nowMs));
   return (
     <>
       {historyChoice.kind === "refused" && <RefusalLine layout="bar" lead={historyChoice.lead} words={historyChoice.because} />}
@@ -96,7 +96,7 @@ function HistoryBody({ connection, projectFolder }: { connection: TatoAppViewCon
         <AuthoredChangeList label="History">
           {historyRows.map((row, position) => (
             <Fragment key={row.transaction}>
-              {dayHeadings[position] !== null && dayHeadings[position] !== dayHeadings[position - 1] && <AuthoredChangeSectionHeading>{dayHeadings[position]}</AuthoredChangeSectionHeading>}
+              {dayHeadings[position] !== dayHeadings[position - 1] && <AuthoredChangeSectionHeading>{dayHeadings[position]}</AuthoredChangeSectionHeading>}
               <AuthoredChangeRow
                 change={authoredChangeOf(row, nowMs, row.transaction === latestAppliedTransaction)}
                 isChoosable={historyChoice.kind !== "carrying_out" && row.transaction !== latestAppliedTransaction}
