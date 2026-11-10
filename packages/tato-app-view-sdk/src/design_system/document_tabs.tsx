@@ -8,8 +8,6 @@ import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_fo
 export interface DocumentTab {
   tab_id: string;
   name: string;
-  /** Marked running in green, as a stream the runtime lists running. */
-  is_running: boolean;
 }
 
 /** The open documents' tabs along the top of the work, the active one joined to the areas under it; each closes from its ×, and the + after them opens `tabsToOpen`. */
@@ -54,11 +52,6 @@ export function DocumentTabs({
                   className={cn("flex h-full items-center gap-1.5 rounded-t-[7px] pl-3 outline-none", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
                 >
                   <span className="font-mono text-2xs">{tab.name}</span>
-                  {tab.is_running && (
-                    <span className="text-2xs font-medium text-status-positive-text" data-document-tab-running="">
-                      <span className="sr-only">, </span>running
-                    </span>
-                  )}
                 </button>
                 <button
                   type="button"

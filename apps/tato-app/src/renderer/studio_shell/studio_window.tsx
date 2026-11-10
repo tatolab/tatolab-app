@@ -395,7 +395,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         <>
           <DocumentTabs
             label="Open streams"
-            tabs={streamTabsDrawnInTheStrip(openStreamTabs, listedStreams)}
+            tabs={streamTabsDrawnInTheStrip(openStreamTabs)}
             activeTabId={openStreamTabs.active_stream}
             onTabChosen={(stream) => model.chooseStreamTab(stream)}
             onTabClosed={(stream) => model.closeStreamTab(stream)}
