@@ -1101,10 +1101,11 @@ function NodeGraphFlow({
                 )}
                 <MiniMap
                   className="node-graph-minimap"
+                  style={{ width: 168, height: 108 }}
                   ariaLabel="Map of the whole graph"
                   pannable
                   zoomable
-                  nodeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--studio-graph-card-header)" : "transparent")}
+                  nodeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--fg-3)" : "transparent")}
                   nodeStrokeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--studio-graph-card-line)" : "transparent")}
                   maskColor="var(--scrim)"
                   bgColor="var(--studio-area)"

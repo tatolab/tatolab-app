@@ -1,5 +1,5 @@
 import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { NodeGraphCanvas, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
@@ -8,7 +8,15 @@ import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_on
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { StopWatching, StudioSelection, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import type { ListedStreamsReading, NodeCatalogReading, OpenProjectReading, StreamGraphReading, StreamTabAddress } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type {
+  ListedStreamsReading,
+  NodeCatalogReading,
+  OpenProjectReading,
+  ProjectTransactionAuthor,
+  ProjectTransactionsReading,
+  StreamGraphReading,
+  StreamTabAddress,
+} from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
@@ -26,6 +34,7 @@ import {
   type LooseWire,
 } from "./stream_graph_edits";
 import { nodeTypeSearchItems } from "./stream_graph_node_type_search";
+import { streamGraphSavedWords } from "./stream_graph_saved_words";
 
 /** How far each node placed with ⇧↵ lands from the one before, so a run of them can be told apart. */
 const NEXT_PLACED_NODE_OFFSET = 36;
@@ -234,10 +243,44 @@ function StreamGraphBody({ connection }: { connection: TatoAppViewConnection }) 
   );
 }
 
+/** The header's words on the open project's history, as "Saved · last edit by you", while its change feed reads. */
+function StreamGraphSavedWordsOfTheProject({ connection, projectFolder }: { connection: TatoAppViewConnection; projectFolder: string }) {
+  const transactionsReading = useViewReading(
+    useCallback((listener: (reading: ProjectTransactionsReading) => void): StopWatching => connection.watchProjectTransactions(projectFolder, listener), [connection, projectFolder]),
+  );
+  const [thePersonEditing, setThePersonEditing] = useState<ProjectTransactionAuthor | null>(null);
+  useEffect(() => {
+    let isStillShown = true;
+    void connection.readThePersonEditing().then((reading) => isStillShown && setThePersonEditing(reading.kind === "read" ? reading.author : null));
+    return () => {
+      isStillShown = false;
+    };
+  }, [connection]);
+  const savedWords = transactionsReading?.kind === "read" ? streamGraphSavedWords(transactionsReading.project_transactions.transactions, thePersonEditing) : null;
+  return savedWords === null ? null : (
+    <span className="truncate text-2xs text-fg-3" data-stream-graph-saved>
+      {savedWords}
+    </span>
+  );
+}
+
+/** The Stream graph view's header tools: the active tab's stream, and who made the open project's latest edit. */
+function StreamGraphHeaderTools({ connection }: { connection: TatoAppViewConnection }) {
+  const activeStreamTab = useViewReadingSoFar(connection.watchActiveStreamTab);
+  const openProject = useViewReading(connection.watchOpenProject);
+  const streamTab = activeStreamTab.kind === "read" ? activeStreamTab.reading : null;
+  return (
+    <span className="flex min-w-0 items-baseline gap-2">
+      {streamTab !== null && <span className="truncate text-xs font-medium text-fg">{streamTab.display_name}</span>}
+      {openProject?.kind === "read" && <StreamGraphSavedWordsOfTheProject key={openProject.open_project.project.folder} connection={connection} projectFolder={openProject.open_project.project.folder} />}
+    </span>
+  );
+}
+
 /** The Stream graph view's whole frame: the active stream tab's nodes and links, drawn the Blueprint way, under its header row. */
 export function StreamGraphView({ connection }: { connection: TatoAppViewConnection }) {
   return (
-    <CoreViewFrame connection={connection}>
+    <CoreViewFrame connection={connection} headerTools={<StreamGraphHeaderTools connection={connection} />}>
       <StreamGraphBody connection={connection} />
     </CoreViewFrame>
   );
