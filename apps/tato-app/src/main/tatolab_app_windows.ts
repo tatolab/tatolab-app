@@ -7,7 +7,7 @@
 import path from "node:path";
 import type { OpenProjectReading, PoppedOutView, ProjectTransactionAuthor, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import { OpenProjectFiles, type ProjectFilesOfTheRuntime } from "./open_project_files.js";
-import { OpenProjectOfAStudioWindow, type FolderEntriesWatch, type ProjectReadingsOfTheRuntime } from "./open_project.js";
+import { OpenProjectOfAStudioWindow, type FolderEntriesWatch, type ProjectReadingsOfTheRuntime, type StudioWindowOfTheProjectShown } from "./open_project.js";
 import { ProjectTransactionsFeedOfAStudioWindow, type ProjectTransactionsFeedOfAStudioWindowSources } from "./project_transactions_feed.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
 import type { TatolabPlatformItems } from "./platform/tatolab_platform_items.js";
@@ -77,6 +77,7 @@ export class TatolabAppWindows {
   private readonly moduleManagerWindowsByStudioWindow = new Map<StudioWindowOfAProject, TatolabMainWindow>();
   private lastStatusSent: TatolabStatus | null = null;
   private readonly studioWindowsAskingToStopTheirProject = new Set<StudioWindowOfAProject>();
+  private isTheAppQuitting = false;
 
   constructor(private readonly sources: TatolabAppWindowsSources) {
     this.projectsWindow = new TatolabMainWindow(
@@ -94,16 +95,17 @@ export class TatolabAppWindows {
     this.projectsWindow.show();
   }
 
-  /** Open the project in `projectFolder` in its own studio window, reading it first, or bring its window forward when one is open; answers once the window shows it. */
-  openTheProjectInItsStudioWindow(projectFolder: string): Promise<void> {
+  /** Open the project in `projectFolder` in its own studio window, reading it first, or bring its window forward when one is open; answers once the window shows it, with which of the two it did. */
+  async openTheProjectInItsStudioWindow(projectFolder: string): Promise<StudioWindowOfTheProjectShown> {
     const studioWindowOpen = this.studioWindowsByProjectFolder.get(projectFolder);
     if (studioWindowOpen !== undefined) {
       studioWindowOpen.tatolabMainWindow.show();
-      return Promise.resolve();
+      return "brought_its_studio_window_forward";
     }
     const opening = this.studioWindowsOpening.get(projectFolder) ?? this.openANewStudioWindow(projectFolder);
     this.studioWindowsOpening.set(projectFolder, opening);
-    return opening;
+    await opening;
+    return "opened_its_studio_window";
   }
 
   /** Show the page of the stream `streamId` in the studio window of its project in `projectFolder`, opening that window when none is; the Projects window when the stream's project is not known. */
@@ -275,6 +277,7 @@ export class TatolabAppWindows {
 
   /** Let every window close, rather than hide, from here on: the app is quitting. */
   letEveryWindowCloseAsTheAppQuits(): void {
+    this.isTheAppQuitting = true;
     for (const tatolabMainWindow of this.everyWindow()) tatolabMainWindow.letTheWindowCloseAsTheAppQuits();
   }
 
@@ -413,6 +416,7 @@ export class TatolabAppWindows {
     this.sources.whenAWindowStartingLanguageServersClosed(studioWindow.languageServerOfTheWindow);
     this.sources.whenAWindowShowingPortViewersClosed(studioWindow.tatolabMainWindow);
     this.sources.tatolabAppLog.info("closed a project's window", { project_folder: projectFolder });
+    if (!this.isTheAppQuitting && this.studioWindowsByProjectFolder.size === 0 && this.studioWindowsOpening.size === 0) this.showTheProjectsWindow();
   }
 
   private showTheDockIconWhileAWindowIsShown(): void {

@@ -53,6 +53,24 @@ export function isAViewPageTheWindowFrames(windowPageUrl: string, frameUrl: stri
   return isOnTheWindowPagesOwnLocation(windowPageUrl, frameUrl) && new URL(frameUrl).pathname.startsWith(CORE_VIEW_PAGES_PATH);
 }
 
+/** The kinds of capture a view's frame may ask for: a camera and a microphone, never the screen. */
+const MEDIA_A_VIEW_MAY_CAPTURE: ReadonlySet<string> = new Set(["video", "audio"]);
+
+/** Whether the window's session lets `permission`, asked by a view's page at `requestingUrl` for `mediaTypes`, through to the system: only `media` naming a camera or a microphone and nothing else. */
+export function isAPermissionTheWindowLetsAViewAsk(windowPageUrl: string, permission: string, requestingUrl: string, mediaTypes: readonly string[]): boolean {
+  if (permission !== "media" || !isAViewPageTheWindowFrames(windowPageUrl, requestingUrl)) return false;
+  return mediaTypes.length > 0 && mediaTypes.every((mediaType) => MEDIA_A_VIEW_MAY_CAPTURE.has(mediaType));
+}
+
+/**
+ * The media a permission check asks about. Electron names a check's `mediaType` `video` or `audio` only for a camera or a
+ * microphone, `unknown` for every other capture (the screen, a tab, the system's audio), and none for a query that names no
+ * capture; only the first two are kept as kinds of capture, so the rest are refused.
+ */
+export function mediaTypesOfAPermissionCheck(mediaType: string | undefined): string[] {
+  return mediaType === undefined ? [] : [mediaType];
+}
+
 /** Whether a command came from the window's own page at `windowPageUrl`: its top frame, on the page's own location, rather than a frame it embeds, a frame already gone, or a page it navigated to. */
 export function isACommandFromTheWindowsOwnPage(windowPageUrl: string, senderFrameUrl: string | null, senderIsTheTopFrame: boolean): boolean {
   return senderFrameUrl !== null && senderIsTheTopFrame && isOnTheWindowPagesOwnLocation(windowPageUrl, senderFrameUrl);

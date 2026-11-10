@@ -29,7 +29,7 @@ import {
   viewHeaderRowSchema,
   viewOpenedOnSchema,
 } from "./studio_readings.js";
-import { viewDeclaredPortSchema } from "./tatolab_view_manifest.js";
+import { VIEW_CAPABILITIES, viewDeclaredPortSchema } from "./tatolab_view_manifest.js";
 
 const videoFrameSchema = z.custom<VideoFrame>((value) => typeof VideoFrame !== "undefined" && value instanceof VideoFrame, "an Image frame is a VideoFrame");
 
@@ -195,13 +195,14 @@ export const viewAskAnswerSchema = z.discriminatedUnion("kind", [
 /** What Studio answers an ask with. */
 export type ViewAskAnswer = z.infer<typeof viewAskAnswerSchema>;
 
-/** What Studio granted the view, as it reads it on connecting: its id, the contract served, its placement and declared ports. */
+/** What Studio granted the view, as it reads it on connecting: its id, the contract served, its placement, declared ports and the capabilities its manifest declares. */
 export const viewGrantSchema = z.object({
   view_type_id: z.string(),
   contract: z.string(),
   placement: z.enum(["area", "node"]),
   inputs: z.array(viewDeclaredPortSchema),
   outputs: z.array(viewDeclaredPortSchema),
+  capabilities: z.array(z.enum(VIEW_CAPABILITIES)),
 });
 /** What Studio granted the view. */
 export type ViewGrant = z.infer<typeof viewGrantSchema>;

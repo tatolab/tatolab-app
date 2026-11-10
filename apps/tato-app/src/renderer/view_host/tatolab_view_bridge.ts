@@ -93,7 +93,7 @@ export class TatolabViewBridge {
     private readonly viewNode: StudioViewNodeAddress | null = null,
   ) {}
 
-  /** Tell the view its id, contract, placement and declared ports, and answer its messages from now on. */
+  /** Tell the view its id, contract, placement, declared ports and capabilities, and answer its messages from now on. */
   start(): void {
     this.port.addEventListener("message", this.onMessageFromTheView);
     this.port.start();
@@ -105,6 +105,7 @@ export class TatolabViewBridge {
         placement: this.manifest.placement,
         inputs: this.manifest.inputs,
         outputs: this.manifest.outputs,
+        capabilities: this.manifest.capabilities,
       },
     });
   }

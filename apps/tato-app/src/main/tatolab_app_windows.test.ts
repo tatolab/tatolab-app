@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 import type { ListedStream, TatolabStatus } from "../shared/tatolab_backend_contract.js";
-import { FakeTatolabElectronAppShell } from "./fake_tatolab_electron_app_shell.js";
+import { FakeTatolabElectronAppShell, PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import type { LanguageServerOfAWindow } from "./python_language_servers.js";
@@ -178,6 +178,22 @@ test("a second close while the question is up asks it once", async () => {
   await letTheQuestionRun();
 
   expect(questionsAskedOverTheWindow(fakeShell)).toHaveLength(1);
+});
+
+test("closing the last project's window brings back the Projects window, and closing one as the app quits does not", async () => {
+  const { fakeShell, projectFolder, appWindows } = await windowsWithNightShowOpen(async () => succeeded(undefined));
+  appWindows.sendEveryWindowTheStatus(aStatusListing([aStreamOf(projectFolder, "stopped")]));
+  fakeShell.requestTheCloseOfTheWindow(PROJECTS_WINDOW_CONTENTS_ID);
+  expect(fakeShell.mainWindowShowing).toBe(false);
+
+  fakeShell.requestTheCloseOfTheWindow(STUDIO_WINDOW_CONTENTS_ID);
+  expect(fakeShell.mainWindowShowing).toBe(true);
+
+  const quitting = await windowsWithNightShowOpen(async () => succeeded(undefined));
+  quitting.fakeShell.requestTheCloseOfTheWindow(PROJECTS_WINDOW_CONTENTS_ID);
+  quitting.appWindows.letEveryWindowCloseAsTheAppQuits();
+  quitting.fakeShell.requestTheCloseOfTheWindow(STUDIO_WINDOW_CONTENTS_ID);
+  expect(quitting.fakeShell.mainWindowShowing).toBe(false);
 });
 
 test("a window closing as the app quits asks nothing", async () => {

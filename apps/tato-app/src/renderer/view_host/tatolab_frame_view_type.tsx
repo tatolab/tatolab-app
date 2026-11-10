@@ -15,8 +15,12 @@ import type { RegisteredStudioViewType, StudioAreaOfTheView } from "./studio_vie
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 import { WatchedStudioValue } from "./watched_studio_value";
 
-/** The browser permissions every view's frame is allowed. */
-const VIEW_FRAME_PERMISSIONS = "camera; microphone";
+const SYSTEM_DEVICES_A_VIEW_MAY_DECLARE = ["camera", "microphone"] as const;
+
+/** The frame's permissions policy: the camera and microphone its manifest declares, and `'none'` for each it leaves out, since a frame on the window's origin otherwise inherits both. */
+export function framePermissionsPolicyOf(manifest: TatolabViewManifest): string {
+  return SYSTEM_DEVICES_A_VIEW_MAY_DECLARE.map((device) => (manifest.capabilities.includes(device) ? device : `${device} 'none'`)).join("; ");
+}
 
 interface TatolabViewOfAnArea {
   listed: ListedStudioView;
@@ -85,7 +89,7 @@ function TatolabViewFrame({
       ref={frameRef}
       title={manifest.title}
       src={entryUrl.href}
-      allow={VIEW_FRAME_PERMISSIONS}
+      allow={framePermissionsPolicyOf(manifest)}
       referrerPolicy="no-referrer"
       className="size-full border-0 bg-studio-area"
       onLoad={handTheFrameItsPort}

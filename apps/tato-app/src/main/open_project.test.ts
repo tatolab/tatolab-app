@@ -253,6 +253,7 @@ async function anOpenProject(options: {
   recentFolders?: RecentProjectFolderOpened[];
   creationRefusal?: string;
   deletionStates?: readonly StreamActionFollowed[];
+  startRefusal?: string;
 }) {
   const sentReadings: OpenProjectReading[] = [];
   const dialogsAsked: Array<{ purpose: ProjectFolderDialogPurpose; defaultFolder: string }> = [];
@@ -266,6 +267,7 @@ async function anOpenProject(options: {
   let wallClockNowMs = 1_790_000_000_000;
   let projectOpenedLast: OpenProjectOfAStudioWindow | null = null;
   const studioWindowsClosed: string[] = [];
+  const projectsStarted: string[] = [];
   const waitsMs: number[] = [];
   const archiveDialogsAsked: string[] = [];
   const coverImageDialogsAsked: string[] = [];
@@ -314,6 +316,11 @@ async function anOpenProject(options: {
       monotonicClockMs += delayMs;
     },
     readMonotonicClockMs: () => monotonicClockMs,
+    startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded: async (folder) => {
+      if (options.startRefusal !== undefined) return failedWith(options.startRefusal);
+      projectsStarted.push(folder);
+      return succeeded(undefined);
+    },
     closeTheStudioWindowOf: (folder) => {
       studioWindowsClosed.push(folder);
       if (projectOpenedLast?.projectFolder !== folder) return;
@@ -321,6 +328,7 @@ async function anOpenProject(options: {
       projectOpenedLast = null;
     },
     openTheProjectInItsStudioWindow: async (folder) => {
+      if (projectOpenedLast?.projectFolder === folder) return "brought_its_studio_window_forward";
       projectOpenedLast?.stopWatching();
       projectOpenedLast = new OpenProjectOfAStudioWindow(folder, {
         watchFolderEntries: (watchedFolder, onChange) => {
@@ -336,6 +344,7 @@ async function anOpenProject(options: {
         projectReadingsOfTheRuntime: fakeRuntime,
       });
       await projectOpenedLast.readAndWatch();
+      return "opened_its_studio_window";
     },
   });
   // Opening from the studio window of the project opened last, as the person would after opening one.
@@ -375,6 +384,7 @@ async function anOpenProject(options: {
     deletionsQueued,
     describedDeletions,
     studioWindowsClosed,
+    projectsStarted,
     waitsMs,
     recentFolders: () => recentFolders.map((recentFolder) => recentFolder.folder),
     rememberedFolder: () => recentFolders[0]?.folder ?? null,
@@ -445,6 +455,38 @@ test("a new project is made in its location, which is made when missing, created
   expect(projectDirectoriesCreated).toEqual([projectFolder]);
   expect(rememberedFolder()).toBe(projectFolder);
   expect(openProject.readOpenProject()).toMatchObject({ kind: "read", open_project: { project: { folder: projectFolder, name: "fresh" } } });
+});
+
+test("opening a project in a new window starts it, from the recent projects, the folder dialog or an imported archive, and a new one the runtime starts itself is not started again", async () => {
+  const studioFolder = await aFolder();
+  const chosenFolder = await aFolder();
+  await writeAProject(studioFolder, "studio");
+  await writeAProject(chosenFolder, "chosen");
+  const { openProject, documentsDirectory, projectsStarted } = await anOpenProject({ dialogAnswers: chosenFolder, recentFolders: [{ folder: studioFolder, opened_at_wall_clock_ms: 1 }] });
+
+  expect(await openProject.openRecentProject(studioFolder)).toEqual(succeeded(undefined));
+  expect(await openProject.chooseProjectFolder("project_to_open")).toMatchObject({ ok: true });
+  expect(await openProject.createNewProject("Night Show", path.join(documentsDirectory, "Tato Studio"))).toMatchObject({ ok: true });
+  expect(projectsStarted).toEqual([studioFolder, await realpath(chosenFolder)]);
+});
+
+test("bringing a project's open window forward leaves the project as the person left it, stopped or running", async () => {
+  const studioFolder = await aFolder();
+  await writeAProject(studioFolder, "studio");
+  const { openProject, projectsStarted } = await anOpenProject({ dialogAnswers: null, recentFolders: [{ folder: studioFolder, opened_at_wall_clock_ms: 1 }] });
+
+  expect(await openProject.openRecentProject(studioFolder)).toEqual(succeeded(undefined));
+  expect(await openProject.openRecentProject(studioFolder)).toEqual(succeeded(undefined));
+  expect(projectsStarted).toEqual([studioFolder]);
+});
+
+test("a project the runtime refuses to start still opens, and says so in the runtime's words", async () => {
+  const studioFolder = await aFolder();
+  await writeAProject(studioFolder, "studio");
+  const { openProject } = await anOpenProject({ dialogAnswers: null, recentFolders: [{ folder: studioFolder, opened_at_wall_clock_ms: 1 }], startRefusal: "no runtime answers" });
+
+  expect(await openProject.openRecentProject(studioFolder)).toEqual(failedWith(`${studioFolder} is open, but the runtime did not start it: no runtime answers`));
+  expect(openProject.readOpenProject()).toMatchObject({ kind: "read", open_project: { project: { folder: studioFolder } } });
 });
 
 test("a new project is refused before the runtime is asked for a name that is no folder name, a location that is no full path, or a folder already there", async () => {
@@ -714,15 +756,16 @@ test("a project .zip chosen to import suggests Documents/Tato Studio and the zip
   expect(await onlyAnExtension.openProject.chooseProjectArchiveToImport()).toMatchObject(succeeded({ name: "Imported project" }));
 });
 
-test("a project .zip is imported by the runtime into its location, which is made when missing, then opened and remembered", async () => {
+test("a project .zip is imported by the runtime into its location, which is made when missing, then opened, started, since import_project runs nothing, and remembered", async () => {
   const archive = path.join(await aFolder(), "pattern.zip");
   await writeFile(archive, JSON.stringify({ name: "Pattern" }));
-  const { openProject, documentsDirectory, rememberedFolder } = await anOpenProject({ dialogAnswers: null });
+  const { openProject, documentsDirectory, rememberedFolder, projectsStarted } = await anOpenProject({ dialogAnswers: null });
   const location = path.join(documentsDirectory, "Tato Studio");
   const projectFolder = path.join(location, "Pattern show");
 
   expect(await openProject.importProjectArchive(archive, " Pattern show ", location)).toEqual(succeeded({ folder: projectFolder, project_creation: null }));
   expect(rememberedFolder()).toBe(projectFolder);
+  expect(projectsStarted).toEqual([projectFolder]);
   expect(openProject.readOpenProject()).toMatchObject({ kind: "read", open_project: { project: { folder: projectFolder, name: "Pattern" } } });
 });
 
