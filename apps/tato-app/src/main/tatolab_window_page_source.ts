@@ -4,8 +4,8 @@
 
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { TATOLAB_WINDOW_PAGE_HOST, TATOLAB_WINDOW_PAGE_SCHEME } from "../shared/tatolab_electron_bridge_contract.js";
-import { isAProjectViewFileUrl, PROJECT_VIEW_FILES_PATH } from "./project_view_files.js";
+import { TATOLAB_PROJECT_VIEW_SCHEME, TATOLAB_WINDOW_PAGE_HOST, TATOLAB_WINDOW_PAGE_SCHEME } from "../shared/tatolab_electron_bridge_contract.js";
+import { isAProjectViewFileUrl } from "./project_view_files.js";
 
 
 /** The shipped window's page. */
@@ -44,9 +44,9 @@ export function isOnTheWindowPagesOwnLocation(windowPageUrl: string, navigationU
 }
 
 /**
- * Whether a frame of the window may load `frameUrl`: a core view's page, on the window page's own location, or a project
- * view's file, which the window serves on its own origin too. A frame on that origin can reach the window page's bridge
- * through `window.parent`; nothing else is framed.
+ * Whether a frame of the window may load `frameUrl`: a core view's page, on the window page's own location, where it can
+ * reach the window page's bridge through `window.parent`, or a project view's file, on an origin of its own, where it
+ * cannot; nothing else is framed.
  */
 export function isAViewPageTheWindowFrames(windowPageUrl: string, frameUrl: string): boolean {
   if (isAProjectViewFileUrl(frameUrl)) return true;
@@ -77,7 +77,7 @@ export function windowPageContentSecurityPolicy(windowPageHtml: string): string 
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "img-src 'self' data:",
-    `frame-src ${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}${CORE_VIEW_PAGES_PATH} ${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}${PROJECT_VIEW_FILES_PATH}`,
+    `frame-src ${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}${CORE_VIEW_PAGES_PATH} ${TATOLAB_PROJECT_VIEW_SCHEME}:`,
     "object-src 'none'",
     "base-uri 'self'",
   ].join("; ");

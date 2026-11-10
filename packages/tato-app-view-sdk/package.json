@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./studio_readings": "./src/studio_readings.ts",
     "./port_families": "./src/port_families.ts",
+    "./tatolab_view_manifest": "./src/tatolab_view_manifest.ts",
     "./tatolab_view.schema.json": "./tatolab_view.schema.json",
     "./design_system/*": "./src/design_system/*.tsx",
     "./design_system/support/*": "./src/design_system/support/*.ts",

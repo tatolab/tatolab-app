@@ -1,10 +1,10 @@
 // A view made with the view SDK, drawn in a frame of its own so its styles and the window's never
-// mix, its one channel to Studio the MessagePort its bridge answers. A full-access view's frame is
-// on the window's origin; one that opts into the sandbox runs on an opaque origin with no Node, no
-// preload and only the permissions its manifest lists.
+// mix, its one channel to Studio the MessagePort its bridge answers. A project's full-access view is
+// framed on an origin of its own, never the window's; one that opts into the sandbox runs on an
+// opaque origin with only the permissions its manifest lists. Neither has Node or the preload.
 
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { VIEW_PORT_HANDOVER, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
+import { VIEW_PORT_HANDOVER, type TatolabViewManifest, type ViewGrant } from "@tatolab/tato-app-view-sdk";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
 import { StudioAreaHeaderRowOfAWaitingView, StudioAreaHeaderWords } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
@@ -13,6 +13,7 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostServices, StudioViewNodeAddress, StudioViewTypeSource } from "./studio_view_contract";
 import { nodesOfTheStudioViewType, studioViewInputWiring, type StudioViewInputWiring } from "./studio_view_node_wiring";
 import type { RegisteredStudioViewType, StudioAreaOfTheView } from "./studio_view_type_registry";
+import { folderOfTheProjectBringingTheView, hostServicesHoldingFilesToTheViewsProject } from "./studio_view_project_file_scope";
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 import { WatchedStudioValue } from "./watched_studio_value";
 
@@ -20,6 +21,11 @@ import { WatchedStudioValue } from "./watched_studio_value";
 function framePermissionsOf(manifest: TatolabViewManifest): string {
   const isGranted = (capability: "camera" | "microphone") => !manifest.sandbox || manifest.capabilities.includes(capability);
   return [isGranted("camera") ? "camera" : null, isGranted("microphone") ? "microphone" : null].filter((permission) => permission !== null).join("; ");
+}
+
+/** How an Image frame crosses into a view's frame: as the `VideoFrame` itself into a frame on the window's own origin, a core view's, and as an `ImageBitmap` into a project view's own origin or a sandboxed view's opaque one, another agent cluster. */
+function picturesCrossTheFrameAs(entryUrl: URL, manifest: TatolabViewManifest): ViewGrant["pictures_cross_as"] {
+  return !manifest.sandbox && entryUrl.origin === window.location.origin ? "video_frame" : "image_bitmap";
 }
 
 interface TatolabViewOfAnArea {
@@ -58,6 +64,9 @@ function TatolabViewFrame({
     bridgeRef.current?.rewireInputs(inputWiringRef.current);
   }, [inputWiringAsJson]);
 
+  const openProject = useViewReading(hostServices.watchOpenProject);
+  const viewsProjectFolderRef = useRef<string | null>(null);
+  viewsProjectFolderRef.current = folderOfTheProjectBringingTheView(openProject, listed.import_folder);
   const entryUrl = new URL(manifest.entry, listed.folder_url);
   const handTheFrameItsPort = () => {
     const frameWindow = frameRef.current?.contentWindow;
@@ -69,7 +78,17 @@ function TatolabViewFrame({
       watchHeaderRow: area.header_row.watch,
     };
     const channel = new MessageChannel();
-    const bridge = new TatolabViewBridge(channel.port1, listed.view_type_id, manifest, hostServices, areaServices, inputWiringRef.current, viewNode);
+    const hostServicesOfTheView = hostServicesHoldingFilesToTheViewsProject(hostServices, manifest.title, () => viewsProjectFolderRef.current);
+    const bridge = new TatolabViewBridge(
+      channel.port1,
+      listed.view_type_id,
+      manifest,
+      hostServicesOfTheView,
+      areaServices,
+      picturesCrossTheFrameAs(entryUrl, manifest),
+      inputWiringRef.current,
+      viewNode,
+    );
     bridge.start();
     bridgeRef.current = bridge;
     // A sandboxed frame without allow-same-origin has an opaque origin, which no target origin but "*" names.

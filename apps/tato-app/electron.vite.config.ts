@@ -59,7 +59,7 @@ function isARolldownWatcher(buildOutcome: unknown): buildOutcome is Rolldown.Rol
 /**
  * Serves the built core views, `packages/tato-app-core-views/dist/`, at `core_views/` beside the window: from the
  * dev server, which rebuilds them as their source changes, and copied into `out/renderer/core_views/` by a build,
- * where the window's page protocol serves them on the window's origin as every view's folder is.
+ * where the window's page protocol serves them on the window's origin.
  */
 function builtCoreViewsBesideTheWindow(): Plugin {
   return {

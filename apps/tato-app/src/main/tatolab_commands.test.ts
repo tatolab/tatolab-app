@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { projectViewFolderUrl } from "./project_view_files.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { localApiRequestFailure } from "./local_api_client.js";
 import os from "node:os";
@@ -867,7 +868,7 @@ test("undo and redo in the open project ask the runtime by the window's author a
 });
 
 /** The window's `ListedStudioView` reads exactly this JSON. */
-test("the open project's views are the runtime's list_project_views of its folder, each folder served under the window page's scheme, and refused in the Projects window", async () => {
+test("the open project's views are the runtime's list_project_views of its folder, each folder served on an origin of its own, and refused in the Projects window", async () => {
   const nightShow = "/private/tmp/tl-rec053/projects/night-show";
   const sharedState = await sharedStateOverFakes(
     [httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-project-views-tool-result-of-night-show-importing-lobby-wall.json"))],
@@ -883,7 +884,7 @@ test("the open project's views are the runtime's list_project_views of its folde
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
-  const nightShowFolderUrl = "tatolab-app://app/project_views/L3ByaXZhdGUvdG1wL3RsLXJlYzA1My9wcm9qZWN0cy9uaWdodC1zaG93";
+  const recordedNightShowFolder = "/private/tmp/tl-rec053/projects/night-show";
 
   const listed = await commandHandlers.list_studio_views_of_the_open_project(undefined, { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 });
 
@@ -894,17 +895,17 @@ test("the open project's views are the runtime's list_project_views of its folde
       import_folder: null,
       opens: false,
       not_opened_because: "`contract`: this runtime reads view contract 1.0.",
-      folder_url: `${nightShowFolderUrl}/views/broken/`,
+      folder_url: projectViewFolderUrl(recordedNightShowFolder, "views/broken"),
       has_its_manifest: true,
     },
-    { view_type_id: "night-show:deck", project_name: "night-show", import_folder: null, opens: true, not_opened_because: null, folder_url: `${nightShowFolderUrl}/views/deck/`, has_its_manifest: true },
+    { view_type_id: "night-show:deck", project_name: "night-show", import_folder: null, opens: true, not_opened_because: null, folder_url: projectViewFolderUrl(recordedNightShowFolder, "views/deck"), has_its_manifest: true },
     {
       view_type_id: "lobby-wall:meter",
       project_name: "lobby-wall",
       import_folder: "lobby-wall",
       opens: true,
       not_opened_because: null,
-      folder_url: `${nightShowFolderUrl}/imports/lobby-wall/views/meter/`,
+      folder_url: projectViewFolderUrl(recordedNightShowFolder, "imports/lobby-wall/views/meter"),
       has_its_manifest: true,
     },
   ]);

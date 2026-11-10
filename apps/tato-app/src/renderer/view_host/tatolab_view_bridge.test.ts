@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { WatchedStudioValue } from "./watched_studio_value";
 import type {
   JsonValue,
+  OpenProjectReading,
   PortViewerConnectionEvent,
   PortViewerTarget,
   ProjectFileRead,
@@ -28,6 +29,7 @@ import type {
   ViewOpeningTarget,
 } from "./studio_view_contract";
 import type { StudioViewInputWiring } from "./studio_view_node_wiring";
+import { folderOfTheProjectBringingTheView, hostServicesHoldingFilesToTheViewsProject } from "./studio_view_project_file_scope";
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 
 function manifestOf(manifestJson: unknown): TatolabViewManifest {
@@ -173,7 +175,7 @@ async function connectedView(manifest: TatolabViewManifest, inputWiring: Record<
   const host = recordingHostServices();
   const area = recordingAreaServices(savedSettings);
   const channel = new MessageChannel();
-  const bridge = new TatolabViewBridge(channel.port1, "acme-dj:deck", manifest, host.hostServices, area.areaServices, inputWiring, viewNode);
+  const bridge = new TatolabViewBridge(channel.port1, "acme-dj:deck", manifest, host.hostServices, area.areaServices, manifest.sandbox ? "image_bitmap" : "video_frame", inputWiring, viewNode);
   bridgesOpen.push(bridge);
   const connecting = connectToTatoAppOverPort(channel.port2);
   bridge.start();
@@ -218,6 +220,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
       contract: "1.0",
       placement: "node",
       sandboxed: true,
+      pictures_cross_as: "image_bitmap",
       inputs: [{ name: "deck_a", family: "channels" }],
       outputs: [
         { name: "crossfader", family: "array" },
@@ -361,6 +364,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
       { ...DJ_DECK_MANIFEST, inputs: [{ name: "deck_a", family: "image" }] },
       host.hostServices,
       recordingAreaServices(undefined).areaServices,
+      "image_bitmap",
       { deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "camera › video" } },
       null,
       async () => imageBitmapNamed(bitmapsMade++ === 0 ? "first" : "second"),
@@ -384,7 +388,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(bitmapsClosed).toEqual(["second"]);
   });
 
-  it("hands a full-access view an Image frame as the VideoFrame itself, transferred with no copy", async () => {
+  it("hands a view framed on the window's origin an Image frame as the VideoFrame itself, transferred with no copy", async () => {
     const host = recordingHostServices();
     const postedToTheView: { message: unknown; transfer: Transferable[] }[] = [];
     const listenersOfThePort: ((event: MessageEvent<unknown>) => void)[] = [];
@@ -408,6 +412,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
       { ...FULL_ACCESS_DJ_DECK_MANIFEST, inputs: [{ name: "deck_a", family: "image" }] },
       host.hostServices,
       recordingAreaServices(undefined).areaServices,
+      "video_frame",
       { deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "camera › video" } },
       null,
       async () => {
@@ -506,7 +511,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
   it("ignores a message that is not the contract's, and answers the next one", async () => {
     const host = recordingHostServices();
     const channel = new MessageChannel();
-    const bridge = new TatolabViewBridge(channel.port1, "acme-dj:deck", FULL_ACCESS_DJ_DECK_MANIFEST, host.hostServices, recordingAreaServices(undefined).areaServices);
+    const bridge = new TatolabViewBridge(channel.port1, "acme-dj:deck", FULL_ACCESS_DJ_DECK_MANIFEST, host.hostServices, recordingAreaServices(undefined).areaServices, "video_frame");
     bridgesOpen.push(bridge);
     const connecting = connectToTatoAppOverPort(channel.port2);
     bridge.start();
@@ -517,5 +522,34 @@ describe("a view's connection to Studio, through the one bridge every view is se
 
     expect(await connection.select({ kind: "nothing" })).toEqual({ kind: "done" });
     expect(host.selectionsAsked).toEqual([{ kind: "nothing" }]);
+  });
+});
+
+describe("a view's project file asks", () => {
+  it("reach only the folder of the project bringing the view, an import's view never its importer's files", async () => {
+    const { hostServices } = recordingHostServices();
+    const ownViewsServices = hostServicesHoldingFilesToTheViewsProject(hostServices, "DJ Deck", () => "/set");
+    const importsViewServices = hostServicesHoldingFilesToTheViewsProject(hostServices, "Meter", () => "/set/imports/lobby-wall");
+
+    expect(await ownViewsServices.readProjectFile("/set/stream.py")).toEqual({ kind: "read", file_read: STREAM_FILE_READ });
+    expect(await importsViewServices.readProjectFile("/set/stream.py")).toEqual({ kind: "not_read", because: "Meter reads and writes only its own project's files, in /set/imports/lobby-wall; /set/stream.py is outside it." });
+    expect(await importsViewServices.saveProjectFile("/set/stream.py", "print('hi')", "v1")).toEqual({
+      kind: "not_saved",
+      because: "Meter reads and writes only its own project's files, in /set/imports/lobby-wall; /set/stream.py is outside it.",
+    });
+    expect(await importsViewServices.listProjectFiles("/set")).toEqual({ kind: "not_listed", because: "Meter reads and writes only its own project's files, in /set/imports/lobby-wall; /set is outside it." });
+    expect((await ownViewsServices.readProjectFile("/set/imports/../../etc/passwd")).kind).toBe("not_read");
+    expect((await ownViewsServices.readProjectFile("/settings/stream.py")).kind).toBe("not_read");
+    expect(await hostServicesHoldingFilesToTheViewsProject(hostServices, "DJ Deck", () => null).readProjectFile("/set/stream.py")).toEqual({
+      kind: "not_read",
+      because: "DJ Deck reads project files only while its project is open.",
+    });
+  });
+
+  it("name the open project's folder for its own view, and the import's folder under imports/ for an import's", () => {
+    const openSet: OpenProjectReading = { kind: "read", open_project: { project: { name: "set", folder: "/set", project: "6f1c2a52-0000-4000-8000-000000000001" }, imports: [], imports_not_listed_because: null } };
+    expect(folderOfTheProjectBringingTheView(openSet, null)).toBe("/set");
+    expect(folderOfTheProjectBringingTheView(openSet, "lobby-wall")).toBe("/set/imports/lobby-wall");
+    expect(folderOfTheProjectBringingTheView({ kind: "none_open" }, null)).toBeNull();
   });
 });
