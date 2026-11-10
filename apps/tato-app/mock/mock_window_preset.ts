@@ -67,7 +67,10 @@ async function openEveryOutlinerRow(): Promise<void> {
  * view-type menu opened) with `?area_view=<view type id>` (that view chosen in it, as a project's view with the backend's `?studio_views=fixture`), `?palette_row=<row id>` (that palette row clicked, as `source:project/category:Effects/node_type:nodes.inverting_effect:InvertingEffect`, with the backend's `?node_types=unreadable_project` listing every module of the project's own unreadable); with the backend's `?project=none|unreadable` (none shows the Projects window, empty with `?recent=none`), `?popped_out_viewer=<pin as JSON>` (the window a Viewer's Pop out opens), `?module_manager=open` (the window File › Module manager… opens) with `?catalog=unserved` (get.tatolab.com serving no catalog), and `?port_families=unserved` (no port's family in the graph or the catalog, as a runtime from before strict-port-families). `?page=projects` opens the Projects window from File › Projects; `?page=preferences` opens Preferences, on
  * `?section=general|runtime|command-line|about`; there `?restart=pressed|refused` presses Restart and `?link=pressed`
  * presses Link tatolab, with the backend's `?cli_link=not_linked`. `?sheet=new_project` presses the Projects window's New project, then
- * `?new_project_name=<name>` types that name and `?new_project=browse|create` presses Browse… or Create.
+ * `?new_project_name=<name>` types that name and `?new_project=browse|create` presses Browse… or Create. On the
+ * Projects window, `?projects_view=grid|list` chooses that layout from the View menu, `?projects_sort=last_opened|name`
+ * that order from the sort menu, `?projects_search=<text>` opens the search and types the text, and
+ * `?projects_menu=new|view|sort` leaves that menu open.
  */
 export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platform: TatolabPlatform): Promise<void> {
   const layout = pageQuery.get("layout");
@@ -113,6 +116,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   if (page === "preferences" && section !== null) await clickWhenShown(`[data-settings-section="${CSS.escape(section)}"]`);
   if (pageQuery.get("restart") === "pressed" || pageQuery.get("restart") === "refused") await clickWhenShown(`[data-runtime-action="restart"]:not([disabled])`);
   if (pageQuery.get("link") === "pressed") await clickWhenShown(`[data-settings-action="link-command-line-tool"]`);
+  await driveTheProjectsWindowToPreset(pageQuery);
   if (pageQuery.get("sheet") === "new_project") {
     await clickWhenShown(`[data-projects-action="new"]`);
     const newProjectName = pageQuery.get("new_project_name");
@@ -120,4 +124,27 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     const newProjectAction = pageQuery.get("new_project");
     if (newProjectAction === "browse" || newProjectAction === "create") await clickWhenShown(`[data-new-project-action="${newProjectAction}"]`);
   }
+}
+
+/** The Projects window's layout, order, search and open menu the page's query names. */
+async function driveTheProjectsWindowToPreset(pageQuery: URLSearchParams): Promise<void> {
+  const projectsView = pageQuery.get("projects_view");
+  if (projectsView !== null) {
+    await pressWhenShown(`[data-projects-view]`);
+    await clickWhenShown(`[data-projects-view-choice="${CSS.escape(projectsView)}"]`);
+  }
+  const projectsSort = pageQuery.get("projects_sort");
+  if (projectsSort !== null) {
+    await pressWhenShown(`[data-projects-sort]`);
+    await clickWhenShown(`[data-projects-sort-choice="${CSS.escape(projectsSort)}"]`);
+  }
+  const projectsSearch = pageQuery.get("projects_search");
+  if (projectsSearch !== null) {
+    await clickWhenShown(`button[data-projects-search]`);
+    await typeWhenShown(`input[data-projects-search]`, projectsSearch);
+  }
+  const projectsMenu = pageQuery.get("projects_menu");
+  if (projectsMenu === "new") await pressWhenShown(`[data-projects-action="new-menu"]`);
+  if (projectsMenu === "view") await pressWhenShown(`[data-projects-view]`);
+  if (projectsMenu === "sort") await pressWhenShown(`[data-projects-sort]`);
 }

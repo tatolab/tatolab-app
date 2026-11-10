@@ -53,7 +53,11 @@ export function SearchField({
       />
       {text !== "" ? (
         <InputGroupAddon align="inline-end" className="py-0 pr-1">
-          <InputGroupButton size="icon-xs" aria-label="Clear search" onClick={() => onTextChanged("")} className={`text-fg-3 hover:bg-hover hover:text-fg ${FULL_STRENGTH_FOCUS_RING_CLASS_NAMES}`}>
+          <InputGroupButton size="icon-xs" aria-label="Clear search" onClick={(clickEvent) => {
+              onTextChanged("");
+              // The clear button goes once the text is empty, so focus goes back to the text rather than to the page.
+              clickEvent.currentTarget.closest('[data-slot="input-group"]')?.querySelector("input")?.focus();
+            }} className={`text-fg-3 hover:bg-hover hover:text-fg ${FULL_STRENGTH_FOCUS_RING_CLASS_NAMES}`}>
             <X className="size-3.5" aria-hidden />
           </InputGroupButton>
         </InputGroupAddon>

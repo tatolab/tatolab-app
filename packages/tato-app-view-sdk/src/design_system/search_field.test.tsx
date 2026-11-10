@@ -21,6 +21,7 @@ describe("the search field", () => {
     expect(screen.queryByText("⌘F")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
     expect(searchInput).toHaveProperty("value", "");
+    expect(document.activeElement).toBe(searchInput);
   });
 
   it("clears its text with Escape, then leaves the field with a second", () => {

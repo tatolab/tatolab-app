@@ -102,7 +102,7 @@ function studioMenuParts(
       { kind: "command", label: "Projects", onChosen: commands.showProjects },
       { kind: "separator" },
       { kind: "command", label: "Open project…", shortcutHint: shortcutHint(platform, "O"), onChosen: commands.openAProject },
-      { kind: "command", label: "New project…", onChosen: commands.createAProject },
+      { kind: "command", label: "New project…", shortcutHint: shortcutHint(platform, "N"), onChosen: commands.createAProject },
       { kind: "separator" },
       laterCommand("Import project…"),
       laterCommand("New stream"),

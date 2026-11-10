@@ -33,15 +33,8 @@ import { ProjectNodeTypeReadings } from "./view_host/project_node_type_readings"
 import { PythonLanguageServerConnections } from "./view_host/python_language_server_connections";
 import { PortViewerConnections } from "./view_host/port_viewer_connections";
 import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "./window_visibility";
-
-/** The page's storage, or `null` where the page may not use it. */
-function windowLocalStorage(): Storage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
+import { ProjectsHomeChoicesKeptInStorage } from "./studio_shell/projects_home_choices_kept_in_storage";
+import { tatolabWindowLocalStorage } from "./tatolab_window_local_storage";
 
 /** The view types every studio area can show, in the view-type menu's order. */
 function studioViewTypeRegistry(): StudioViewTypeRegistry {
@@ -130,7 +123,7 @@ export function mountTatolabWindow(
   onTatolabWindowVisibilityChanged((isVisible) => projectNodeTypeReadings.setPollingAllowed(isVisible));
   const pythonLanguageServerConnections = new PythonLanguageServerConnections(backend);
   const portViewerConnections = new PortViewerConnections(backend);
-  const studioWindowModel = new StudioWindowModel(new StudioLayoutsKeptInStorage(windowLocalStorage()));
+  const studioWindowModel = new StudioWindowModel(new StudioLayoutsKeptInStorage(tatolabWindowLocalStorage()));
 
   const chooseProjectFolder = (chosenFor: ProjectFolderChosenFor) => {
     studioWindowModel.projectOpeningRefusal.publish(null);
@@ -198,6 +191,7 @@ export function mountTatolabWindow(
       },
     },
     projects: {
+      projectsHomeChoices: new ProjectsHomeChoicesKeptInStorage(tatolabWindowLocalStorage()),
       readRecentProjects: () => backend.readRecentProjects(),
       openARecentProject: (folder) => {
         studioWindowModel.projectOpeningRefusal.publish(null);
@@ -254,6 +248,10 @@ export function mountTatolabWindow(
     switch (key) {
       case "o":
         studioMenuBarCommands.openAProject();
+        return true;
+      case "n":
+        if (studioWindowModel.newProjectSheetOpenedWith.readLatest() !== null) return false;
+        studioMenuBarCommands.createAProject();
         return true;
       case ",":
         studioMenuBarCommands.openPreferences();

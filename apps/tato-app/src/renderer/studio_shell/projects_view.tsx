@@ -1,25 +1,38 @@
-import { FolderOpen, FolderPlus, LayoutGrid, Settings } from "lucide-react";
+import { FolderInput, FolderPlus, LayoutGrid, List, Plus, Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { RecentProject, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import projectsBannerStillImageUrl from "../assets/projects_banner_still.jpg";
-import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { BANNER_HEADER_HEIGHT_PX, BannerHeader } from "@tatolab/tato-app-view-sdk/design_system/banner_header";
 import { EmptyState } from "@tatolab/tato-app-view-sdk/design_system/empty_state";
+import { ExpandingSearchField } from "@tatolab/tato-app-view-sdk/design_system/expanding_search_field";
 import { IconButton } from "@tatolab/tato-app-view-sdk/design_system/icon_button";
-import { ProjectCard } from "@tatolab/tato-app-view-sdk/design_system/project_card";
-import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
+import { FieldMenu, IconButtonMenu, MenuItem, MenuSingleChoiceGroup } from "@tatolab/tato-app-view-sdk/design_system/menus";
+import { ProjectCard, ProjectListHeading, ProjectListRow } from "@tatolab/tato-app-view-sdk/design_system/project_card";
+import { SplitActionButton } from "@tatolab/tato-app-view-sdk/design_system/split_action_button";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { shortcutHint } from "../presentation/platform_presentation";
-import { presentProjectsWithNoCards, presentRecentProjectCards } from "../presentation/projects_presentation";
+import {
+  PROJECTS_LAYOUTS,
+  PROJECTS_ORDERS,
+  presentProjectsHomeChoices,
+  presentProjectsWithNoCards,
+  presentRecentProjectCards,
+  type ProjectsHomeChoices,
+  type ProjectsLayout,
+  type ProjectsOrder,
+} from "../presentation/projects_presentation";
 import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
 import { useWatchedStudioValue } from "../view_host/in_window_view_host";
 import { PROJECTS_BANNER_STILL_SECONDS, ProjectsBannerScene } from "./projects_banner_scene";
+import type { ProjectsHomeChoicesKeptInStorage } from "./projects_home_choices_kept_in_storage";
 import type { StudioMenuBarCommands } from "./studio_menu_bar_model";
 import type { StudioWindowModel } from "./studio_window_model";
 import { isTatolabWindowVisible } from "../window_visibility";
 
 /** What the Projects window reads its projects from and opens them through. */
 export interface ProjectsSources {
+  /** Where the chosen order and layout are kept between launches. */
+  projectsHomeChoices: Pick<ProjectsHomeChoicesKeptInStorage, "readKeptChoices" | "keepChoices">;
   /** The projects opened before, recent first. */
   readRecentProjects(): Promise<RecentProject[]>;
   /** Open `folder`, one of them, in the studio. */
@@ -98,7 +111,21 @@ function ProjectsBanner() {
   );
 }
 
-/** The Projects window, the app's project manager: the banner with Preferences, Open… and New project, then the recent projects as cards, narrowed by a search. */
+/** The icon each layout is shown by, on the View button and in its menu. */
+const PROJECTS_LAYOUT_ICONS = { grid: LayoutGrid, list: List } as const;
+
+/** The order and layout chosen, read from where they are kept as the window opens and kept again each time one changes. */
+function useProjectsHomeChoices(projectsSources: ProjectsSources): [ProjectsHomeChoices, (changedProjectsHomeChoices: Partial<ProjectsHomeChoices>) => void] {
+  const [projectsHomeChoices, setProjectsHomeChoices] = useState<ProjectsHomeChoices>(() => projectsSources.projectsHomeChoices.readKeptChoices());
+  const changeTheProjectsHomeChoices = (changedProjectsHomeChoices: Partial<ProjectsHomeChoices>) => {
+    const projectsHomeChoicesNow = { ...projectsHomeChoices, ...changedProjectsHomeChoices };
+    setProjectsHomeChoices(projectsHomeChoicesNow);
+    projectsSources.projectsHomeChoices.keepChoices(projectsHomeChoicesNow);
+  };
+  return [projectsHomeChoices, changeTheProjectsHomeChoices];
+}
+
+/** The Projects window, the app's project manager: the banner with Preferences, then the projects as cards or rows, narrowed by a search, ordered by a sort, and New project with Import project…. */
 export function ProjectsView({
   model,
   projectsSources,
@@ -113,34 +140,72 @@ export function ProjectsView({
   const status = useTatolabStatus();
   const recentProjects = useRecentProjects(projectsSources, model);
   const [searchText, setSearchText] = useState("");
+  const [projectsHomeChoices, changeTheProjectsHomeChoices] = useProjectsHomeChoices(projectsSources);
+  const projectsHomeChoicesShown = presentProjectsHomeChoices(projectsHomeChoices);
   const wallClockNowMs = Date.now();
-  const cardsShown = presentRecentProjectCards(recentProjects ?? [], wallClockNowMs, searchText);
+  const cardsShown = presentRecentProjectCards(recentProjects ?? [], wallClockNowMs, searchText, projectsHomeChoices.order);
   const noCards = presentProjectsWithNoCards(searchText);
   const openTheProject = (folder: string) => {
     projectsSources.openARecentProject(folder);
   };
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-window text-fg" data-projects="">
+    <div className="flex min-h-0 flex-1 flex-col bg-window text-fg" data-projects="" data-projects-layout={projectsHomeChoices.layout}>
       <BannerHeader
         appName="Tato Studio"
         versionWords={`v${status.app_version}`}
         banner={<ProjectsBanner />}
-        actions={
-          <>
-            <IconButton icon={Settings} label="Preferences" tooltip={`Preferences (${shortcutHint(platform, ",")})`} onPressed={commands.openPreferences} data-projects-action="preferences" />
-            <ActionButton icon={FolderOpen} onPressed={commands.openAProject} data-projects-action="open">
-              Open…
-            </ActionButton>
-            <ActionButton appearance="primary" icon={FolderPlus} onPressed={commands.createAProject} data-projects-action="new">
-              New project
-            </ActionButton>
-          </>
-        }
+        actions={<IconButton icon={Settings} label="Preferences" tooltip={`Preferences (${shortcutHint(platform, ",")})`} onPressed={commands.openPreferences} data-projects-action="preferences" />}
       />
       <main className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-4.5 overflow-y-auto px-8 pt-5.5 pb-7">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <h2 className="mr-auto text-base font-semibold">Projects</h2>
-          <SearchField label="Search projects" placeholder="Search" text={searchText} onTextChanged={setSearchText} data-projects-search="" />
+          <ExpandingSearchField label="Search projects" placeholder="Search projects" text={searchText} onTextChanged={setSearchText} data-projects-search="" />
+          <FieldMenu label={projectsHomeChoicesShown.sortButtonLabel} words={projectsHomeChoicesShown.sortWords} data-projects-sort="">
+            <MenuSingleChoiceGroup<ProjectsOrder>
+              choices={PROJECTS_ORDERS.map(({ order, words }) => ({ choice: order, label: words }))}
+              chosen={projectsHomeChoices.order}
+              onChosen={(order) => changeTheProjectsHomeChoices({ order })}
+              dataAttributeOfEachChoice="data-projects-sort-choice"
+            />
+          </FieldMenu>
+          <IconButtonMenu icon={PROJECTS_LAYOUT_ICONS[projectsHomeChoices.layout]} label={projectsHomeChoicesShown.viewButtonLabel} data-projects-view="">
+            <MenuSingleChoiceGroup<ProjectsLayout>
+              choices={PROJECTS_LAYOUTS.map(({ layout, words }) => {
+                const LayoutIcon = PROJECTS_LAYOUT_ICONS[layout];
+                return {
+                  choice: layout,
+                  label: (
+                    <span className="flex items-center gap-2">
+                      <LayoutIcon className="size-4 text-fg-3" strokeWidth={1.75} aria-hidden />
+                      {words}
+                    </span>
+                  ),
+                };
+              })}
+              chosen={projectsHomeChoices.layout}
+              onChosen={(layout) => changeTheProjectsHomeChoices({ layout })}
+              dataAttributeOfEachChoice="data-projects-view-choice"
+            />
+          </IconButtonMenu>
+          <SplitActionButton
+            icon={Plus}
+            onPressed={commands.createAProject}
+            menuLabel="More ways to start a project"
+            menuDataAttributes={{ "data-projects-action": "new-menu" }}
+            menuChoices={
+              <>
+                <MenuItem icon={FolderPlus} shortcutHint={shortcutHint(platform, "N")} onChosen={commands.createAProject} data-projects-new-menu-choice="new">
+                  New project
+                </MenuItem>
+                <MenuItem icon={FolderInput} onChosen={commands.openAProject} data-projects-new-menu-choice="import">
+                  Import project…
+                </MenuItem>
+              </>
+            }
+            data-projects-action="new"
+          >
+            New project
+          </SplitActionButton>
         </div>
         {recentProjects === null ? (
           <WaitingState title="Reading your projects…" />
@@ -148,19 +213,41 @@ export function ProjectsView({
           <div className="flex flex-1 items-center justify-center">
             <EmptyState icon={LayoutGrid} title={noCards.title} explanation={noCards.explanation} data-projects-empty="" />
           </div>
-        ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4.5" role="list" aria-label="Projects">
+        ) : projectsHomeChoices.layout === "grid" ? (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-x-6 gap-y-7" role="list" aria-label="Projects">
             {cardsShown.map((card) => (
               <div key={card.folder} role="listitem" className="flex min-w-0">
                 <ProjectCard
                   name={card.name}
-                  detail={`${card.folderWords} · ${card.lastOpenedWords}`}
+                  detail={card.detailWords}
+                  coverNumber={card.coverNumber}
+                  coverInitial={card.coverInitial}
                   isUnreadable={card.isUnreadable}
                   onOpened={() => openTheProject(card.folder)}
                   data-projects-project={card.folder}
                 />
               </div>
             ))}
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            <ProjectListHeading />
+            <div className="flex flex-col" role="list" aria-label="Projects">
+              {cardsShown.map((card) => (
+                <div key={card.folder} role="listitem" className="flex min-w-0 border-b border-line">
+                  <ProjectListRow
+                    name={card.name}
+                    folderWords={card.folderWords}
+                    lastOpenedWords={card.lastOpenedWords}
+                    coverNumber={card.coverNumber}
+                    coverInitial={card.coverInitial}
+                    isUnreadable={card.isUnreadable}
+                    onOpened={() => openTheProject(card.folder)}
+                    data-projects-project={card.folder}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </main>

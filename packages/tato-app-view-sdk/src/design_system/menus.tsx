@@ -13,6 +13,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import type { ControlDataAttributeName, ControlDataAttributes } from "./support/control_data_attributes";
@@ -128,11 +129,14 @@ export function MenuItem({
   isDestructive = false,
   keepsTheMenuOpen = false,
   isDisabled = false,
+  shortcutHint,
   onChosen,
   children,
   ...controlDataAttributes
 }: {
   isDestructive?: boolean;
+  /** The key cap of the shortcut that does the same, shown at the item's end, as ⌘N. */
+  shortcutHint?: string;
   /** For a choice whose effect is shown in the menu itself. */
   keepsTheMenuOpen?: boolean;
   isDisabled?: boolean;
@@ -152,6 +156,7 @@ export function MenuItem({
       {ItemIcon !== undefined && <ItemIcon className={cn(MENU_ITEM_ICON_CLASS_NAMES, isDestructive && "text-danger")} strokeWidth={1.75} aria-hidden />}
       {leading}
       {children}
+      {shortcutHint !== undefined && <DropdownMenuShortcut>{shortcutHint}</DropdownMenuShortcut>}
     </DropdownMenuItem>
   );
 }
