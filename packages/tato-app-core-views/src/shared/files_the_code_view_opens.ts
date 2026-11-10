@@ -14,8 +14,13 @@ function extensionsCodeAccepts(): readonly string[] {
 
 const EXTENSIONS_CODE_ACCEPTS = extensionsCodeAccepts();
 
-/** Whether Code opens `file`, a path or a name, by its extension. */
+/** The extensions Code's manifest accepts, each lower case and with its dot, in the manifest's order. */
+export function extensionsTheCodeViewOpens(): readonly string[] {
+  return EXTENSIONS_CODE_ACCEPTS;
+}
+
+/** Whether Code opens `file`, a path or a name, by its extension in any case. */
 export function isAFileTheCodeViewOpens(file: string): boolean {
-  const fileName = file.split("/").at(-1) ?? file;
-  return EXTENSIONS_CODE_ACCEPTS.some((extension) => fileName.endsWith(extension) && fileName.length > extension.length);
+  const lowerCaseName = (file.split("/").at(-1) ?? file).toLowerCase();
+  return EXTENSIONS_CODE_ACCEPTS.some((extension) => lowerCaseName.endsWith(extension) && lowerCaseName.length > extension.length);
 }

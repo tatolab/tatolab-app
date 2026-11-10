@@ -6,6 +6,7 @@ import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view
 import type { ProjectNodeTypesReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
+import { CODE_VIEW_TYPE_ID } from "../shared/files_the_code_view_opens";
 import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
 import { outlinerRowIdOfTheSelection, outlinerTreeOfTheProject, type OutlinerRowExpansionChoices } from "./outliner_tree_of_the_project";
 
@@ -54,7 +55,7 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
             const meaning = meaningOfRow(rowId);
             if (meaning.kind === "stream") showTheRefusalOf("Didn't open the stream:", connection.openStreamTab({ stream: meaning.stream, project_name: meaning.project_name, display_name: meaning.display_name }));
             if ((meaning.kind === "node_type_declaration" || meaning.kind === "graph_generator_declaration" || meaning.kind === "unreadable_module") && meaning.file !== null) {
-              showTheRefusalOf("Didn't open the file:", connection.openView("code", { kind: "file", file: meaning.file }));
+              showTheRefusalOf("Didn't open the file:", connection.openView(CODE_VIEW_TYPE_ID, { kind: "file", file: meaning.file }));
             }
           }}
           onExpansionToggled={toggleTheRow}

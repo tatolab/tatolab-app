@@ -6,24 +6,25 @@ import type { StudioIconName } from "@tatolab/tato-app-view-sdk/design_system/su
 import type { OpenProject, ProjectFilesListing } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { RowExpansionChoices } from "../shared/row_expansion_settings";
 import { isAFileTheCodeViewOpens } from "../shared/files_the_code_view_opens";
+import { projectsWithFilesOf, type ProjectWithFiles } from "../shared/projects_with_files";
 
 /** What choosing a row of the Files tree does. */
 export type FilesTreeRowMeaning =
-  | { kind: "folder" }
+  | { readonly kind: "folder" }
   /** `file` is absolute; `opens_in_code` says whether Code opens it. */
-  | { kind: "file"; file: string; opens_in_code: boolean }
-  | { kind: "nothing_to_open" };
+  | { readonly kind: "file"; readonly file: string; readonly opens_in_code: boolean }
+  | { readonly kind: "nothing_to_open" };
 
 /** One row of the Files tree and what choosing it does. */
 export interface FilesTreeRow {
-  row: TreeViewRow;
-  meaning: FilesTreeRowMeaning;
+  readonly row: TreeViewRow;
+  readonly meaning: FilesTreeRowMeaning;
 }
 
 /** One project's files as the Files view lists them: the open project's or an import's, by its folder. */
 export interface ProjectFilesListedForTheTree {
-  project_folder: string;
-  listing: ProjectFilesListing | null;
+  readonly project_folder: string;
+  readonly listing: ProjectFilesListing | null;
 }
 
 /** The row id of the heading over the open project's imports. */
@@ -74,7 +75,7 @@ function expansionOf(rowId: string, expansionChoices: RowExpansionChoices, expan
   return (expansionChoices[rowId] ?? expandedUnchosen) ? "expanded" : "collapsed";
 }
 
-function rowsOfAFolder(folder: ListedFolder, absoluteFolder: string, depth: number, isReadOnly: boolean, expansionChoices: RowExpansionChoices): FilesTreeRow[] {
+function rowsOfAFolder(folder: ListedFolder, absoluteFolder: string, depth: number, expansionChoices: RowExpansionChoices): FilesTreeRow[] {
   const rows: FilesTreeRow[] = [];
   for (const folderName of [...folder.folders.keys()].sort(byName)) {
     const innerFolder = folder.folders.get(folderName);
@@ -83,12 +84,12 @@ function rowsOfAFolder(folder: ListedFolder, absoluteFolder: string, depth: numb
     const rowId = `folder:${absoluteInnerFolder}`;
     const expansion = expansionOf(rowId, expansionChoices, false);
     rows.push({ row: { row_id: rowId, depth, label: folderName, icon: "folder", expansion }, meaning: { kind: "folder" } });
-    if (expansion === "expanded") rows.push(...rowsOfAFolder(innerFolder, absoluteInnerFolder, depth + 1, isReadOnly, expansionChoices));
+    if (expansion === "expanded") rows.push(...rowsOfAFolder(innerFolder, absoluteInnerFolder, depth + 1, expansionChoices));
   }
   for (const fileName of [...folder.file_names].sort(byName)) {
     const file = `${absoluteFolder}/${fileName}`;
     rows.push({
-      row: { row_id: `file:${file}`, depth, label: fileName, icon: iconOfAFile(fileName), isMachineWords: true, isReadOnly, expansion: "leaf" },
+      row: { row_id: `file:${file}`, depth, label: fileName, icon: iconOfAFile(fileName), isMachineWords: true, expansion: "leaf" },
       meaning: { kind: "file", file, opens_in_code: isAFileTheCodeViewOpens(fileName) },
     });
   }
@@ -96,13 +97,13 @@ function rowsOfAFolder(folder: ListedFolder, absoluteFolder: string, depth: numb
 }
 
 function rowsOfAProject(
-  heading: { row_id: string; label: string; icon: StudioIconName; depth: number; is_read_only: boolean },
+  heading: { readonly row_id: string; readonly label: string; readonly depth: number; readonly is_an_import: boolean },
   listed: ProjectFilesListedForTheTree | undefined,
   expansionChoices: RowExpansionChoices,
 ): FilesTreeRow[] {
   const expansion = expansionOf(heading.row_id, expansionChoices, true);
   const headingRow: FilesTreeRow = {
-    row: { row_id: heading.row_id, depth: heading.depth, label: heading.label, icon: heading.icon, isHeading: true, isReadOnly: heading.is_read_only, expansion },
+    row: { row_id: heading.row_id, depth: heading.depth, label: heading.label, icon: "project", isHeading: true, isReadOnly: heading.is_an_import, expansion },
     meaning: { kind: "folder" },
   };
   if (expansion === "collapsed") return [headingRow];
@@ -115,37 +116,26 @@ function rowsOfAProject(
   }
   const projectFolder = listing.project_files.project_folder;
   if (listing.project_files.files.length === 0) {
-    return [headingRow, { row: { row_id: `${heading.row_id}:empty`, depth: heading.depth + 1, label: "No files", icon: "file", tone: "waiting", expansion: "leaf" }, meaning: { kind: "nothing_to_open" } }];
+    return [headingRow, { row: { row_id: `${heading.row_id}:empty`, depth: heading.depth + 1, label: "No files", icon: "file", expansion: "leaf" }, meaning: { kind: "nothing_to_open" } }];
   }
-  return [headingRow, ...rowsOfAFolder(listedFolderOf(listing.project_files.files), projectFolder, heading.depth + 1, heading.is_read_only, expansionChoices)];
+  return [headingRow, ...rowsOfAFolder(listedFolderOf(listing.project_files.files), projectFolder, heading.depth + 1, expansionChoices)];
 }
 
 /** The rows of the Files tree for `openProject`, each project's files from `listedProjects`, opened and closed as `expansionChoices` says. */
 export function filesTreeOfTheProject(openProject: OpenProject, listedProjects: readonly ProjectFilesListedForTheTree[], expansionChoices: RowExpansionChoices): FilesTreeRow[] {
   const listedProjectOf = (projectFolder: string) => listedProjects.find((listedProject) => listedProject.project_folder === projectFolder);
-  const rows = rowsOfAProject(
-    { row_id: `project:${openProject.project.folder}`, label: openProject.project.name, icon: "project", depth: 0, is_read_only: false },
-    listedProjectOf(openProject.project.folder),
-    expansionChoices,
-  );
-  const importsWithFolders = openProject.imports.flatMap((importedProject) => (importedProject.source.kind === "folder" ? [importedProject.source.project] : []));
-  if (importsWithFolders.length === 0) return rows;
+  const [openProjectWithFiles, ...importsWithFiles] = projectsWithFilesOf(openProject);
+  const rowsOfProject = (projectWithFiles: ProjectWithFiles, depth: number) =>
+    rowsOfAProject(
+      { row_id: `project:${projectWithFiles.project_folder}`, label: projectWithFiles.project_name, depth, is_an_import: projectWithFiles.is_an_import },
+      listedProjectOf(projectWithFiles.project_folder),
+      expansionChoices,
+    );
+  const rows = openProjectWithFiles === undefined ? [] : rowsOfProject(openProjectWithFiles, 0);
+  if (importsWithFiles.length === 0) return rows;
   const importsExpansion = expansionOf(IMPORTS_HEADING_ROW_ID, expansionChoices, true);
   rows.push({ row: { row_id: IMPORTS_HEADING_ROW_ID, depth: 0, label: "Imports", icon: "imports", isHeading: true, tone: "imports", expansion: importsExpansion }, meaning: { kind: "folder" } });
   if (importsExpansion === "collapsed") return rows;
-  for (const importedProject of importsWithFolders) {
-    rows.push(
-      ...rowsOfAProject(
-        { row_id: `project:${importedProject.folder}`, label: importedProject.name, icon: "project", depth: 1, is_read_only: true },
-        listedProjectOf(importedProject.folder),
-        expansionChoices,
-      ),
-    );
-  }
+  for (const importWithFiles of importsWithFiles) rows.push(...rowsOfProject(importWithFiles, 1));
   return rows;
-}
-
-/** The folders of the open project and of each import whose files the tree lists. */
-export function projectFoldersTheTreeLists(openProject: OpenProject): string[] {
-  return [openProject.project.folder, ...openProject.imports.flatMap((importedProject) => (importedProject.source.kind === "folder" ? [importedProject.source.project.folder] : []))];
 }

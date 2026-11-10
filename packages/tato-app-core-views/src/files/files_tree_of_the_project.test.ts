@@ -1,6 +1,6 @@
 import type { OpenProject } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { expect, test } from "vitest";
-import { filesTreeOfTheProject, iconOfAFile, IMPORTS_HEADING_ROW_ID, projectFoldersTheTreeLists, type ProjectFilesListedForTheTree } from "./files_tree_of_the_project";
+import { filesTreeOfTheProject, iconOfAFile, IMPORTS_HEADING_ROW_ID, type ProjectFilesListedForTheTree } from "./files_tree_of_the_project";
 
 const GALLERY: OpenProject = {
   project: { folder: "/w/gallery", project: "0b6f3c1e-2d4a-4e8b-9c7d-5a1f8e3b6d20", name: "Gallery" },
@@ -50,10 +50,11 @@ test("an opened folder shows its folders and files, and each file row names the 
   expect(rows.find(({ row }) => row.label === "logo.png")?.meaning).toEqual({ kind: "file", file: "/w/gallery/views/deck/logo.png", opens_in_code: false });
 });
 
-test("an import's files are marked read-only", () => {
+test("an import is marked read-only on its heading, and its files listed under it", () => {
   const rows = filesTreeOfTheProject(GALLERY, LISTED, { "folder:/w/gallery/imports/doorway/nodes": true });
 
-  expect(rows.find(({ row }) => row.label === "door.py")?.row.isReadOnly).toBe(true);
+  expect(rows.find(({ row }) => row.label === "Doorway")?.row.isReadOnly).toBe(true);
+  expect(rows.find(({ row }) => row.label === "door.py")?.meaning).toEqual({ kind: "file", file: "/w/gallery/imports/doorway/nodes/door.py", opens_in_code: true });
   expect(rows.find(({ row }) => row.label === "glow.py")).toBeUndefined();
 });
 
@@ -70,7 +71,6 @@ test("a project still being listed says so, and one the runtime refused to list 
 
 test("a project with no folder imports shows no Imports heading", () => {
   expect(rowLines(filesTreeOfTheProject({ ...GALLERY, imports: [] }, LISTED, {})).includes("Imports")).toBe(false);
-  expect(projectFoldersTheTreeLists(GALLERY)).toEqual(["/w/gallery", "/w/gallery/imports/doorway"]);
 });
 
 test("a file's icon follows its kind", () => {

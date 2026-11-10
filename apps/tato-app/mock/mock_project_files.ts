@@ -165,6 +165,9 @@ export class MockProjectFiles {
       [`${this.openProjectFolder}/.gitignore`, ".venv/\n__pycache__/\n"],
       [`${this.openProjectFolder}/views/deck/tatolab_view.json`, PATTERN_DECK_VIEW_JSON],
       [`${this.openProjectFolder}/views/deck/index.html`, PATTERN_DECK_VIEW_INDEX_HTML],
+      [`${streamsFolder}/camera/pyproject.toml`, '[project]\nname = "camera"\nversion = "0.1.0"\n'],
+      [`${streamsFolder}/camera/nodes/camera_frames.py`, "from tatolab.stream import node\n"],
+      [`${streamsFolder}/lobby-recorder/pyproject.toml`, '[project]\nname = "lobby-recorder"\nversion = "0.1.0"\n'],
     ];
     for (const [file, text] of initialTexts) this.filesByPath.set(file, { text, version: this.nextVersion() });
   }
@@ -183,7 +186,7 @@ export class MockProjectFiles {
     if (projectFolder !== this.openProjectFolder) throw `${file} belongs to an imported project, which the studio opens read-only.`;
     const known = this.filesByPath.get(file);
     const versionOnDisk = known === undefined ? null : String(known.version);
-    if (versionOnDisk !== basedOnVersion) throw `${file.split("/").at(-1) ?? file} changed on disk since it was opened, so it was not saved.`;
+    if (versionOnDisk !== basedOnVersion) throw `${file.split("/").at(-1) ?? file} changed since it was opened, so it was not saved.`;
     const saved = { text, version: this.nextVersion() };
     this.filesByPath.set(file, saved);
     return { version: String(saved.version) };

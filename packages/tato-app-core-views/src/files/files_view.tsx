@@ -6,19 +6,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { OpenProject, ProjectTransactionsReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
-import { CODE_VIEW_TYPE_ID } from "../shared/files_the_code_view_opens";
+import { CODE_VIEW_TYPE_ID, extensionsTheCodeViewOpens } from "../shared/files_the_code_view_opens";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
-import { filesTreeOfTheProject, projectFoldersTheTreeLists, type ProjectFilesListedForTheTree } from "./files_tree_of_the_project";
+import { projectsWithFilesOf } from "../shared/projects_with_files";
+import { filesTreeOfTheProject, type ProjectFilesListedForTheTree } from "./files_tree_of_the_project";
 
 /** The change feed of the project in `projectFolder`, read again each time the runtime applies a transaction to it. */
 function useTransactionsAppliedTo(connection: TatoAppViewConnection, projectFolder: string): ProjectTransactionsReading | null {
   return useViewReading(useCallback((listener: (reading: ProjectTransactionsReading) => void): StopWatching => connection.watchProjectTransactions(projectFolder, listener), [connection, projectFolder]));
 }
 
-/** Each project's files as the runtime lists them, listed again after each transaction on the project and each time the window comes back into focus. */
+/** Each project's files as the runtime lists them, listed again after each transaction on the project and each time the view's frame takes the focus. */
 function useProjectFilesListedForTheTree(connection: TatoAppViewConnection, openProject: OpenProject): ProjectFilesListedForTheTree[] {
-  const projectFolders = useMemo(() => projectFoldersTheTreeLists(openProject), [openProject]);
+  const projectFolders = useMemo(() => projectsWithFilesOf(openProject).map((projectWithFiles) => projectWithFiles.project_folder), [openProject]);
   const transactions = useTransactionsAppliedTo(connection, openProject.project.folder);
   const [listingsAskedFor, setListingsAskedFor] = useState(0);
   const [listedProjects, setListedProjects] = useState<ProjectFilesListedForTheTree[]>([]);
@@ -39,8 +40,10 @@ function useProjectFilesListedForTheTree(connection: TatoAppViewConnection, open
   return listedProjects;
 }
 
-/** Why the latest file chosen did not open, in the Files view's own words, or `null`. */
+/** The latest file chosen that no view of the build opens, or `null`. */
 type FileNotOpenedNote = { file_name: string } | null;
+
+const WHAT_CODE_OPENS = `Code opens ${extensionsTheCodeViewOpens().join(" ")} files.`;
 
 function FilesOfTheProject({ connection, openProject }: { connection: TatoAppViewConnection; openProject: OpenProject }) {
   const listedProjects = useProjectFilesListedForTheTree(connection, openProject);
@@ -53,25 +56,27 @@ function FilesOfTheProject({ connection, openProject }: { connection: TatoAppVie
   const meaningOfRow = (rowId: string) => filesTreeRows.find((filesTreeRow) => filesTreeRow.row.row_id === rowId);
   return (
     <>
-      <RefusalOfTheLatestAskBar refusal={askRefusal} />
-      {fileNotOpened !== null && <RefusalLine layout="bar" lead="Didn't open the file:" words={`no view of Tato Studio opens ${fileNotOpened.file_name}.`} />}
+      {fileNotOpened === null ? <RefusalOfTheLatestAskBar refusal={askRefusal} /> : <RefusalLine layout="bar" tone="warning" lead={`Didn't open ${fileNotOpened.file_name}:`} words={WHAT_CODE_OPENS} />}
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto" data-files-tree="">
         <TreeView
           label="Files"
           rows={filesTreeRows.map((filesTreeRow) => filesTreeRow.row)}
           selectedRowId={selectedRowId}
-          onRowSelected={setSelectedRowId}
+          onRowSelected={(rowId) => {
+            setSelectedRowId(rowId);
+            setFileNotOpened(null);
+          }}
           onRowActivated={(rowId) => {
             const filesTreeRow = meaningOfRow(rowId);
             if (filesTreeRow === undefined) return;
             const { meaning, row } = filesTreeRow;
+            setFileNotOpened(null);
             if (meaning.kind === "folder" && row.expansion !== "leaf") toggleTheRow(rowId, row.expansion === "collapsed");
             if (meaning.kind !== "file") return;
             if (!meaning.opens_in_code) {
               setFileNotOpened({ file_name: row.label });
               return;
             }
-            setFileNotOpened(null);
             showTheRefusalOf("Didn't open the file:", connection.openView(CODE_VIEW_TYPE_ID, { kind: "file", file: meaning.file }));
           }}
           onExpansionToggled={toggleTheRow}
