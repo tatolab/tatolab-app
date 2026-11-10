@@ -874,7 +874,7 @@ test("the open project's views are the runtime's list_project_views of its folde
 });
 
 /** The window's `write_studio_view_output` answers `null` once the runtime took the value, and its refusal word for word. */
-test("a view's output value reaches the runtime's write_studio_view_output, answered null once taken, refused in the runtime's own words, and arguments that are not text and JSON refused before it is asked", async () => {
+test("a view's output value reaches the runtime's write_studio_view_output from a studio window, answered null once taken, refused in the runtime's own words, and from the Projects window or with arguments that are not text and JSON refused before it is asked", async () => {
   const sharedState = await sharedStateOverFakes(
     [
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-studio-view-output-tool-result-of-the-deck-node-cue.json")),
@@ -882,11 +882,16 @@ test("a view's output value reaches the runtime's write_studio_view_output, answ
     ],
     "macos",
   );
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "night-show-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
   const cue = { stream: "night-show-main-aa298d", node: "fdca90ae-f25d-4551-86e2-11f5cdb65d16", port: "cue", value: { track: "Opening" } };
 
-  expect(await commandHandlers.write_studio_view_output(cue, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.write_studio_view_output(cue, FROM_THE_PROJECTS_WINDOW)).toEqual({
+  expect(await commandHandlers.write_studio_view_output(cue, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "Only a studio window or a popped-out view writes a view's output." });
+  expect(await commandHandlers.write_studio_view_output(cue, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.write_studio_view_output(cue, fromTheStudioWindow)).toEqual({
     ok: false,
     refusal: "write_studio_view_output failed: Resource not found: no stream with the id `night-show-main-aa298d` is loaded in this runtime. Loaded: lobby-wall-main-c95d53",
   });

@@ -148,8 +148,9 @@ export class TatolabViewBridge {
 
   private async writeTheOutput(output: string, sentPayload: unknown): Promise<ViewAskAnswer> {
     if (this.viewNode === null) return { kind: "refused", because: `${this.manifest.title} shows in an area and has no node, so what it sends on ${output} reaches no stream.` };
+    if (isAPictureToClose(sentPayload)) return { kind: "refused", because: `The runtime publishes what a view writes on its Array, Channels and Records outputs, so ${output} takes JSON, not a picture.` };
     const value = jsonValueSchema.safeParse(sentPayload);
-    if (isAPictureToClose(sentPayload) || !value.success) return { kind: "refused", because: `The runtime publishes what a view writes on its Array, Channels and Records outputs, so ${output} takes JSON, not a picture.` };
+    if (!value.success) return { kind: "refused", because: `${output} takes JSON, and what the view sent is not.` };
     const writing = await this.hostServices.writeStudioViewOutput(this.viewNode, output, value.data);
     return writing.kind === "written" ? { kind: "done" } : { kind: "refused", because: writing.because };
   }

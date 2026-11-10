@@ -880,14 +880,17 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
       return commandAnswerFrom(await answerTheWindow("list_project_files", () => studioWindow.value.openProjectFiles.listProjectFiles(projectFolder.value)));
     },
-    write_studio_view_output: async (commandArguments) => {
-      const output = studioViewOutputArgumentsFrom(commandArguments);
-      if (!output.ok) return { ok: false, refusal: output.failure };
-      const { stream, node, port, value } = output.value;
-      return commandAnswerFrom(
+    write_studio_view_output: async (commandArguments, commandFromWindow) => {
+      const outputArguments = studioViewOutputArgumentsFrom(commandArguments);
+      if (!outputArguments.ok) return { ok: false, refusal: outputArguments.failure };
+      if (sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId) === null) {
+        return { ok: false, refusal: "Only a studio window or a popped-out view writes a view's output." };
+      }
+      const { stream, node, port, value } = outputArguments.value;
+      return commandAnswerOfNothingFrom(
         await answerTheWindow("write_studio_view_output", async () => {
           const written = await sharedState.controller.writeStudioViewOutput(stream, node, port, value);
-          return written.ok ? succeeded(null) : failedWith(written.failure.failureDescription);
+          return written.ok ? written : failedWith(written.failure.failureDescription);
         }),
       );
     },
