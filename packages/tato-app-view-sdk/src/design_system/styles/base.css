@@ -110,6 +110,12 @@ code, kbd, .mono { font-family: var(--font-mono); font-variant-ligatures: none; 
 }
 @keyframes progress-spinner-turn { to { transform: rotate(360deg); } }
 
+/* ---------- progress meter with no known share: a third of the track sweeping across it ---------- */
+@keyframes progress-meter-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
 /* ---------- wells ---------- */
 .well {
   background: var(--chrome);
