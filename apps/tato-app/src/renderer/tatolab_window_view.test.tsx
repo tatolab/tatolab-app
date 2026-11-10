@@ -727,6 +727,34 @@ describe("the studio", () => {
     await waitFor(() => expect(inTheCoreView("properties").getByRole("textbox", { name: "Node name" })).toHaveProperty("value", "Inverting Effect"));
   });
 
+  it("shows each entry of a list config as its own fields in Properties, and edits, adds and removes an entry as the node's whole config", { timeout: 20_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&compositor=layered");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="alphaovercompositor"]') ?? expect.unreachable("no compositor card")));
+    const properties = () => coreViewPage("properties");
+    const entryLabels = () => [...properties().querySelectorAll("[data-config-list-entry]")].map((entry) => entry.getAttribute("data-config-list-entry"));
+    await waitFor(() => expect(entryLabels()).toEqual(["layers:0", "layers:1"]));
+    expect(properties().querySelector('[data-config-field="layers"] output')?.textContent).toBe("2 entries");
+    const secondX = () => properties().querySelector<HTMLInputElement>('[data-config-field="layers:1:x"] input') ?? expect.unreachable("no x field on the second entry");
+    expect(secondX().value).toBe("640");
+    expect(properties().querySelector('[data-config-field="layers:0:opacity"]')?.getAttribute("data-config-field-value-source")).toBe("default");
+
+    fireEvent.change(secondX(), { target: { value: "100" } });
+    secondX().focus();
+    fireEvent.keyDown(secondX(), { key: "Enter" });
+    await waitFor(() => expect(secondX().value).toBe("100"), { timeout: 5000 });
+    expect(properties().querySelector('[data-config-field="layers:1:y"] input')).toHaveProperty("value", "360");
+
+    fireEvent.click(properties().querySelector<HTMLElement>('[data-config-field="layers"] [data-property-list-entry-add]') ?? expect.unreachable("no add"));
+    await waitFor(() => expect(entryLabels()).toEqual(["layers:0", "layers:1", "layers:2"]), { timeout: 5000 });
+    expect(properties().querySelector('[data-config-field="layers:2:opacity"]')?.getAttribute("data-config-field-value-source")).toBe("default");
+
+    fireEvent.click(properties().querySelector<HTMLElement>('[data-config-list-entry="layers:0"] [data-property-list-entry-remove]') ?? expect.unreachable("no remove"));
+    await waitFor(() => expect(entryLabels()).toEqual(["layers:0", "layers:1"]), { timeout: 5000 });
+    expect(secondX().value).toBe("0");
+    expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
+  });
+
   it("draws the Stream graph's Add node, Frame, Note and Subgraph in the window's toolbar, says why one can't be pressed, and a press opens the node search in the graph", async () => {
     await mountedWindowOverTheMock("state=running");
     const toolInTheToolbar = (tool: string) => document.querySelector<HTMLElement>(`[data-studio-graph-tool="${tool}"]`) ?? expect.unreachable(`no ${tool} in the toolbar`);
