@@ -3,5 +3,31 @@
   "title": "Stream graph",
   "icon": "icon.svg",
   "entry": "index.html",
-  "placement": "area"
+  "placement": "area",
+  "settings": {
+    "type": "object",
+    "properties": {
+      "where_each_stream_was_left": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "viewport": {
+              "anyOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "zoom": { "type": "number", "exclusiveMinimum": 0 } },
+                  "required": ["x", "y", "zoom"]
+                }
+              ]
+            },
+            "selected_node": { "anyOf": [{ "type": "null" }, { "type": "string" }] }
+          },
+          "required": ["viewport", "selected_node"]
+        },
+        "default": {}
+      }
+    }
+  }
 }

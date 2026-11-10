@@ -31,6 +31,7 @@ export type StudioIconName =
   | "project"
   | "imports"
   | "file"
+  | "folder"
   | "stream"
   | "node_category"
   | "node_type"
@@ -51,6 +52,7 @@ const STUDIO_ICONS: Record<StudioIconName, LucideIcon> = {
   project: Package,
   imports: FolderInput,
   file: FileText,
+  folder: Folder,
   stream: Workflow,
   node_category: Folder,
   node_type: Blocks,

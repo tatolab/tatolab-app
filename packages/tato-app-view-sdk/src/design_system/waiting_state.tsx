@@ -2,6 +2,7 @@ import { Hourglass, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { EmptyState } from "./empty_state";
+import { WaitsOnNote } from "./waits_on_note";
 
 /** What a place shows while what it would show is not here yet: what it is, why, and the work it waits on by name; or, red, why it failed. */
 export function WaitingState({
@@ -28,11 +29,7 @@ export function WaitingState({
         explanation === undefined && waitsOn === undefined ? undefined : (
           <>
             {explanation}
-            {waitsOn !== undefined && (
-              <span className="mt-1 block text-2xs text-fg-3">
-                Waits on <span className="font-mono">{waitsOn}</span>
-              </span>
-            )}
+            {waitsOn !== undefined && <WaitsOnNote waitsOn={waitsOn} />}
           </>
         )
       }

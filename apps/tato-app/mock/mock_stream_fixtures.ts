@@ -91,7 +91,8 @@ export interface MockGraphNode {
   /** The id it had before a rename, which it keeps as the runtime keeps a node's UUID. */
   id_kept_through_renames?: string;
   type: string;
-  state: string;
+  /** `null` for an interface node, which runs nothing and so reads no state. */
+  state: string | null;
   /** Why it failed, in the runtime's words, while `state` reads `Error`. */
   failed_because?: string;
   config: Record<string, JsonValue>;
@@ -275,6 +276,12 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
   },
 ];
 
+/** The pattern's main stream declares two input ports, as the runtime renders a `GraphInput` back: no state, its `port` and `family` config, one `value` output. */
+const TEST_PATTERN_GRAPH_INPUTS: MockGraphNode[] = [
+  { name: "intensity", type: "tatolab.stream:GraphInput", state: null, config: { port: "intensity", family: "array" }, input_ports: [], output_ports: portsStatingNoStreamFacts("array", "value") },
+  { name: "overlay_text", type: "tatolab.stream:GraphInput", state: null, config: { port: "overlay_text", family: "records" }, input_ports: [], output_ports: portsStatingNoStreamFacts("records", "value") },
+];
+
 const TEST_PATTERN_LINKS: StreamGraphLink[] = [
   {
     id: "Lj17fu4mdczivji99oua37i06",
@@ -311,6 +318,25 @@ const PICTURE_AND_FADER_VIEW_LINK: StreamGraphLink = {
   source_port: "video_to_downstream",
   target_node: "pictureandfader",
   target_port: "picture",
+  state: "wired",
+};
+
+/** An alpha-over compositor of two layers over the effect's output, the second offset and half transparent. */
+const ALPHA_OVER_COMPOSITOR_NODE: MockGraphNode = {
+  name: "alphaovercompositor",
+  type: "tatolab.compositor:AlphaOverCompositor",
+  state: "Running",
+  config: { width: 1280, height: 720, layers: [{}, { x: 640, y: 360, opacity: 0.5 }] },
+  input_ports: portsStatingNoStreamFacts("image", "layer_0", "layer_1"),
+  output_ports: portsStatingNoStreamFacts("image", "composite"),
+};
+
+const ALPHA_OVER_COMPOSITOR_LINK: StreamGraphLink = {
+  id: "La1ph4ov3rc0mp0s1t0rl1nk0",
+  source_node: "invertingeffect",
+  source_port: "video_to_downstream",
+  target_node: "alphaovercompositor",
+  target_port: "layer_0",
   state: "wired",
 };
 
@@ -355,10 +381,12 @@ function createTestPatternStream(
     /** The id of the stream a recorder reads the effect output of, a link whose source is in another stream; `null` for none. */
     recordsTheStream: string | null;
     withTheFixtureViewsNode: boolean;
+    withTheCompositorNode: boolean;
+    withGraphInputs: boolean;
   },
 ): MockStreamFixture {
   const { projectDirectory, recordsTheStream } = options;
-  const nodeCount = 4 + (recordsTheStream === null ? 0 : 1) + (options.withTheFixtureViewsNode ? 1 : 0);
+  const nodeCount = 4 + (recordsTheStream === null ? 0 : 1) + (options.withTheFixtureViewsNode ? 1 : 0) + (options.withTheCompositorNode ? 1 : 0);
   const listing = runningListing({ project_directory: projectDirectory, stream_name: options.streamName }, options.displayName, nodeCount);
   const streamId = listing.stream;
   const brightness = (dueAt: number): MockLogRecordDraft => ({
@@ -377,11 +405,14 @@ function createTestPatternStream(
         ...TEST_PATTERN_NODES.map((node) => (options.withDisplayWindowInError && node.name === "displaywindow" ? { ...node, state: "Error", failed_because: DISPLAY_WINDOW_FAILED_BECAUSE } : node)),
         ...(recordsTheStream === null ? [] : [RECORDER_OF_MAIN_NODE]),
         ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_NODE] : []),
+        ...(options.withTheCompositorNode ? [ALPHA_OVER_COMPOSITOR_NODE] : []),
+        ...(options.withGraphInputs ? TEST_PATTERN_GRAPH_INPUTS : []),
       ],
       links: [
         ...TEST_PATTERN_LINKS.map((link) => (options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" } : link)),
         ...(recordsTheStream === null ? [] : [recorderOfMainLink(recordsTheStream)]),
         ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_LINK] : []),
+        ...(options.withTheCompositorNode ? [ALPHA_OVER_COMPOSITOR_LINK] : []),
       ],
       counterRates: options.withTheMeterFallingBehind ? TEST_PATTERN_METER_FALLING_BEHIND : NO_COUNTERS_CLIMB,
     },
@@ -579,6 +610,9 @@ export interface MockStreamFixtures {
   mainStreamWithItsMeterFallingBehind: MockStreamFixture;
   /** `main` with the fixture view's node, its picture wired from the effect. */
   mainStreamWithTheFixtureViewsNode: MockStreamFixture;
+  /** `main` with an alpha-over compositor of two layers on the effect's output. */
+  mainStreamWithTheCompositorNode: MockStreamFixture;
+  mainStreamDeclaringGraphInputs: MockStreamFixture;
   cameraStream: MockStreamFixture;
   /** The camera stream as the runtime re-loads it at its start before anyone has asked for camera access. */
   cameraStreamWaitingForCameraAccess: MockStreamFixture;
@@ -608,6 +642,8 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     withTheMeterFallingBehind: false,
     recordsTheStream: null,
     withTheFixtureViewsNode: false,
+    withTheCompositorNode: false,
+    withGraphInputs: false,
   };
   const mainStream = createTestPatternStream(machine, mainStreamOptions);
   const cameraStream = createCameraStream(machine);
@@ -625,6 +661,8 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     mainStreamWithDisplayWindowInError: createTestPatternStream(machine, { ...mainStreamOptions, withDisplayWindowInError: true }),
     mainStreamWithItsMeterFallingBehind: createTestPatternStream(machine, { ...mainStreamOptions, withTheMeterFallingBehind: true }),
     mainStreamWithTheFixtureViewsNode: createTestPatternStream(machine, { ...mainStreamOptions, withTheFixtureViewsNode: true }),
+    mainStreamWithTheCompositorNode: createTestPatternStream(machine, { ...mainStreamOptions, withTheCompositorNode: true }),
+    mainStreamDeclaringGraphInputs: createTestPatternStream(machine, { ...mainStreamOptions, withGraphInputs: true }),
     cameraStream,
     cameraStreamWaitingForCameraAccess: { ...cameraStream, listing: { ...cameraStream.listing, capture_devices_whose_access_was_never_asked_for: ["camera"] } },
     recorderOfMainStream,
@@ -658,6 +696,8 @@ export function createMockStreamRunFromAProjectFolder(machine: MockMachine, proj
     withTheMeterFallingBehind: false,
     recordsTheStream: null,
     withTheFixtureViewsNode: false,
+    withTheCompositorNode: false,
+    withGraphInputs: false,
   });
   return { ...fixture, loadedForMillisecondsAtOpen: 0 };
 }

@@ -18,7 +18,10 @@ paths:
 - **The window stays sealed.** `contextIsolation`, `sandbox` and `webSecurity` on,
   `nodeIntegration` off; the preload exposes only `tatolabElectronBridge`; new windows are denied,
   navigation off the page's own location is refused, and every permission request is answered
-  no. The page is served under `tatolab-app:` with the CSP from
+  no, except a view's page asking for a camera or a microphone and nothing else
+  (`isAPermissionTheWindowLetsAViewAsk`), which goes on to the system's own prompt; a view's
+  frame is refused, by its permissions policy, each of the two its manifest's `capabilities`
+  leave out (`framePermissionsPolicyOf`). The page is served under `tatolab-app:` with the CSP from
   `windowPageContentSecurityPolicy` — `connect-src 'self'`, nothing remote — so the window reaches
   the local API only through the main process. Loosening any of these is a decision; state the
   reason in the PR.

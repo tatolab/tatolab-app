@@ -8,6 +8,7 @@ import type {
   PortViewerTarget,
   ProjectFileRead,
   ProjectFileSaved,
+  NodeFileCreated,
   ProjectFiles,
   NodeCatalog,
   ProjectNodeTypeListing,
@@ -190,7 +191,9 @@ export interface TatolabBackend {
   readProjectFile(file: string): Promise<ProjectFileRead>;
   /** Write `text` to `file` whole when the file on disk is still at `basedOnVersion` (`null` for a new file), rejecting with nothing written when it changed, belongs to an import, or the filesystem refuses. */
   saveProjectFile(file: string, text: string, basedOnVersion: string | null): Promise<ProjectFileSaved>;
-  /** The Python files and `pyproject.toml` of `projectFolder`, the folder of the open project or of one of its imports. */
+  /** A new Python node file at `file` in the open project's own folder, from the runtime's node template, resolving with the node type it declares and rejecting in the runtime's own words. */
+  createNodeFile(file: string): Promise<NodeFileCreated>;
+  /** Every file of `projectFolder`, the folder of the open project or of one of its imports. */
   listProjectFiles(projectFolder: string): Promise<ProjectFiles>;
   /** Queue `start_project` on the open project's folder, resolving with the action queued and rejecting in the runtime's own words. */
   runOpenProject(): Promise<ProjectRunQueued>;

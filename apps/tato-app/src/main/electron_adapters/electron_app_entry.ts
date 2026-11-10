@@ -37,6 +37,8 @@ import { createElectronMainWindowHostFactory } from "./electron_main_window_host
 import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_handlers.js";
 import { createElectronTatolabAppUpdateFeed } from "./electron_tatolab_app_update_feed.js";
 import { createElectronSystemNotifications } from "./electron_system_notifications.js";
+import { ELECTRON_APP_MEDIA_ACCESS_SETTINGS } from "./electron_app_media_access_settings.js";
+import { openAWebPageInTheBrowserThroughElectron } from "./electron_web_page_in_the_browser.js";
 import { ELECTRON_APP_LOGIN_ITEM_SETTINGS } from "./electron_app_login_item_settings.js";
 import { createElectronTrayIconHostFactory } from "./electron_tray_icon.js";
 import { answerProjectViewFileRequestsWith, registerTheWindowPageSchemeBeforeReady, serveTheWindowPageScheme } from "./electron_window_page_protocol.js";
@@ -58,6 +60,7 @@ const tatolabPlatformHostServices: TatolabPlatformHostServices = {
   appIsPackaged: app.isPackaged,
   appResourcesDirectory: process.resourcesPath,
   appLoginItemSettings: ELECTRON_APP_LOGIN_ITEM_SETTINGS,
+  appMediaAccessSettings: ELECTRON_APP_MEDIA_ACCESS_SETTINGS,
 };
 const appConfigDirectory = path.join(app.getPath("appData"), TATOLAB_APP_IDENTIFIER);
 
@@ -73,6 +76,13 @@ function accountNameOfThePersonSignedIn(): string {
 // directory rather than in it.
 app.setPath("userData", appConfigDirectory);
 registerTheWindowPageSchemeBeforeReady();
+// macOS hands the notification whose click in Notification Center launched the app (its `UNNotificationRequest`
+// identifier) only to `ready`'s listeners, as `launchInfo`, so it is kept from there. Linux passes no `launchInfo`.
+let notificationIdentifierThatLaunchedTheApp: string | null = null;
+app.once("ready", (_readyEvent, launchInfo: unknown) => {
+  const launchingIdentifier: unknown = typeof launchInfo === "object" && launchInfo !== null && "identifier" in launchInfo ? launchInfo.identifier : null;
+  notificationIdentifierThatLaunchedTheApp = typeof launchingIdentifier === "string" && launchingIdentifier !== "" ? launchingIdentifier : null;
+});
 
 function windowDevServerUrlNamedIn(windowDevServerUrlText: string | undefined): string | null {
   if (windowDevServerUrlText === undefined) return null;
@@ -100,6 +110,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
     appBuild: tatolabAppBuildForTheWindow(TATOLAB_APP_BUILD_FEATURES.tatolabAppBuildId),
     carriedStreamlibCommit: await streamlibCommitTheAppCarries(tatolabPlatformItems?.streamlibCommitFileTheAppCarries(process.resourcesPath) ?? null),
   }),
+  notificationThatLaunchedTheApp: () => notificationIdentifierThatLaunchedTheApp,
   requestTheSingleInstanceLock: (thisCopy) => app.requestSingleInstanceLock(tatolabAppCopyOnTheSingleInstanceLock(thisCopy)),
   whenReady: async () => {
     await app.whenReady();
@@ -171,7 +182,8 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   personSignedInToThisMachine: nameOfThePersonSignedInToThisMachine(),
   answerProjectViewFileRequestsWith,
   createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
-  systemNotifications: createElectronSystemNotifications(),
+  openAWebPageInTheBrowser: openAWebPageInTheBrowserThroughElectron,
+  systemNotifications: createElectronSystemNotifications(tatolabAppLog),
   repeatingTimer: (intervalMs, work) => {
     setInterval(work, intervalMs);
   },

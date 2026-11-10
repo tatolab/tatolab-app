@@ -5,7 +5,8 @@
 
 import type { JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
 
-type JsonObject = { [key: string]: JsonValue };
+/** A JSON object, as a config or a record in a config's list is. */
+export type JsonObject = { [key: string]: JsonValue };
 
 /** How a field shows its value: text, a number, on or off, one of a fixed set, or JSON for a value no plainer control holds. */
 export type ConfigFormFieldControl =
@@ -13,6 +14,7 @@ export type ConfigFormFieldControl =
   | { kind: "number"; is_whole_number: boolean; minimum: number | null; maximum: number | null }
   | { kind: "toggle" }
   | { kind: "choice"; choices: JsonValue[] }
+  | { kind: "list_of_records"; item_schema: JsonObject; new_item: JsonObject }
   | { kind: "json" };
 
 /** One field of a node's config form. */
@@ -75,7 +77,28 @@ function rangeOfTheSchema(schema: JsonObject): { minimum: number | null; maximum
   return { minimum: typeof minimum === "number" ? minimum : null, maximum: typeof maximum === "number" ? maximum : null };
 }
 
-function controlOfTheSchema(schema: JsonObject): { control: ConfigFormFieldControl; isNullable: boolean } {
+/** An array schema whose items are objects with named properties, as the item's schema with the document's `$defs` carried along so it reads on its own. */
+function recordItemSchemaOfAnArray(schema: JsonObject, documentRoot: JsonObject): JsonObject | null {
+  const itemSchema = withNullUnionUnwrapped(resolvedSchema(schema["items"], documentRoot), documentRoot).schema;
+  if (declaredTypes(itemSchema).types.join() !== "object" || !isAJsonObject(itemSchema["properties"])) return null;
+  const carriedDefinitions = Object.fromEntries((["$defs", "definitions"] as const).flatMap((definitionsKey) => (documentRoot[definitionsKey] === undefined ? [] : [[definitionsKey, documentRoot[definitionsKey]]])));
+  return { ...carriedDefinitions, ...itemSchema };
+}
+
+/** A record added to a list: empty, so it reads its type's defaults, but for each required property with a default, at that default. */
+function newItemOfTheRecordSchema(itemSchema: JsonObject): JsonObject {
+  const properties = isAJsonObject(itemSchema["properties"]) ? itemSchema["properties"] : {};
+  const requiredKeys = Array.isArray(itemSchema["required"]) ? itemSchema["required"] : [];
+  return Object.fromEntries(
+    Object.entries(properties).flatMap(([key, propertySchema]) => {
+      if (!requiredKeys.includes(key)) return [];
+      const defaultValue = withNullUnionUnwrapped(resolvedSchema(propertySchema, itemSchema), itemSchema).schema["default"];
+      return defaultValue === undefined ? [] : [[key, defaultValue]];
+    }),
+  );
+}
+
+function controlOfTheSchema(schema: JsonObject, documentRoot: JsonObject): { control: ConfigFormFieldControl; isNullable: boolean } {
   const choices = schema["enum"];
   const { types, isNullable } = declaredTypes(schema);
   if (Array.isArray(choices)) return { control: { kind: "choice", choices: choices.filter((choice) => choice !== null) }, isNullable: isNullable || choices.includes(null) };
@@ -90,6 +113,10 @@ function controlOfTheSchema(schema: JsonObject): { control: ConfigFormFieldContr
       return { control: { kind: "number", is_whole_number: false, ...rangeOfTheSchema(schema) }, isNullable };
     case "boolean":
       return { control: { kind: "toggle" }, isNullable };
+    case "array": {
+      const itemSchema = recordItemSchemaOfAnArray(schema, documentRoot);
+      return { control: itemSchema === null ? { kind: "json" } : { kind: "list_of_records", item_schema: itemSchema, new_item: newItemOfTheRecordSchema(itemSchema) }, isNullable };
+    }
     default:
       return { control: { kind: "json" }, isNullable };
   }
@@ -120,7 +147,7 @@ export function configFormOf(configSchema: JsonValue | null, config: { [key: str
   const requiredKeys = Array.isArray(rootSchema["required"]) ? rootSchema["required"].filter((key): key is string => typeof key === "string") : [];
   const fieldsTheSchemaNames = Object.entries(properties).map(([key, propertySchemaOnTheWire]): ConfigFormField => {
     const unwrapped = withNullUnionUnwrapped(resolvedSchema(propertySchemaOnTheWire, documentRoot), documentRoot);
-    const { control, isNullable } = controlOfTheSchema(unwrapped.schema);
+    const { control, isNullable } = controlOfTheSchema(unwrapped.schema, documentRoot);
     const description = unwrapped.schema["description"];
     const configValue = config[key];
     const defaultValue = unwrapped.schema["default"];
@@ -141,6 +168,17 @@ export function configFormOf(configSchema: JsonValue | null, config: { [key: str
   const fields = [...fieldsTheSchemaNames, ...fieldsOfKeysTheSchemaDoesNotName];
   if (fields.length === 0 && rootSchema["additionalProperties"] === false) return { kind: "takes_no_config" };
   return { kind: "fields", fields };
+}
+
+/** The form of one entry of a list of records: its fields, a list nested in it shown as JSON. */
+export function configFormOfAListEntry(itemSchema: JsonObject, record: JsonObject): ConfigForm {
+  const entryForm = configFormOf(itemSchema, record);
+  return entryForm.kind === "fields" ? { kind: "fields", fields: entryForm.fields.map((field) => (field.control.kind === "list_of_records" ? { ...field, control: { kind: "json" } } : field)) } : entryForm;
+}
+
+/** The records of a list field's value, an absent or malformed list read as none and a non-object entry as an empty record. */
+export function recordsOfAListField(value: JsonValue): JsonObject[] {
+  return Array.isArray(value) ? value.map((item) => (isAJsonObject(item) ? item : {})) : [];
 }
 
 /** A field's value in words: text as itself, `null` as nothing, anything else as compact JSON. */

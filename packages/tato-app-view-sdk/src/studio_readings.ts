@@ -789,6 +789,9 @@ export type ProjectFileReading = { kind: "read"; file_read: ProjectFileRead } | 
 /** A file saved, with the version it now has on disk, or why nothing was written. */
 export type ProjectFileSaving = { kind: "saved"; version: string } | { kind: "not_saved"; because: string };
 
+/** A new node file from the runtime's node template, with the node type it declares as `<module>:<class>`, or why it was not created, in the runtime's own words. */
+export type NodeFileCreating = { kind: "created"; file: string; node_type: string } | { kind: "not_created"; because: string };
+
 /** A project's files, or why they were not listed. */
 export type ProjectFilesListing = { kind: "listed"; project_files: ProjectFiles } | { kind: "not_listed"; because: string };
 

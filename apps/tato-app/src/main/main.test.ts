@@ -8,8 +8,9 @@ import { startTatolabApp, type TatolabRunningApp } from "./main.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabTrayMenu } from "./tatolab_tray_menu.js";
 import { tatolabPlatformItemsFor } from "./platform/tatolab_platform_items.js";
-import { succeeded } from "./result.js";
+import { failedWith, succeeded } from "./result.js";
 import { APP_UPDATE_CHECK_INTERVAL_MS, type TatolabAppUpdateFeedInstallingInPlace } from "./tatolab_app_updater.js";
+import { LAST_OPENED_APP_VERSION_FILE_NAME } from "./tatolab_app_update_dialogs.js";
 import { tatolabAppCopyOnTheSingleInstanceLock } from "./tatolab_app_copy_handoff.js";
 
 const MACOS_PLATFORM_ITEMS = tatolabPlatformItemsFor("darwin");
@@ -83,6 +84,11 @@ async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
         await writeFile(path.join(projectDirectory, "tatolab-project.json"), JSON.stringify({ ...projectFile, dependencies: [...projectFile.dependencies, dependency] }));
         return toolResultResponse({ dependency, transaction: "400abda2-8e24-4e95-bef0-7139fd68d853", commit: "7402198987b8ef4b1d2f370b8f090ccde0865a56" });
       }
+      case "list_streams":
+        return toolResultResponse({ streams: [] });
+      case "start_project":
+        if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
+        return toolResultResponse({ action: "5d0c9a51-6a8b-4f3e-9d7e-2b1c0f4e8a77", project_directory: projectDirectory });
       default:
         return null;
     }
@@ -102,6 +108,28 @@ async function fakeShellOverARuntimeReadingEachProjectsFile(): Promise<FakeTatol
 async function theFirstPublishedStatus(tatolabRunningApp: TatolabRunningApp | null): Promise<TatolabStatus | null> {
   return (await tatolabRunningApp?.statusPublisher.lastPublishedStatusWaitingUpTo(5_000)) ?? null;
 }
+
+test("an app launched by a click on a camera refusal in Notification Center opens the camera's privacy pane while macOS still refuses it", async () => {
+  const fakeShell = fakeShellQuitAfterTheTest();
+  fakeShell.notificationThatLaunchedTheApp = "com.tatolab.tatolab.media-access-refused.camera";
+  fakeShell.systemMediaAccess.answerByDevice = { camera: "refused" };
+  await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+  await vi.waitFor(() => expect(fakeShell.systemMediaAccess.privacyPanesOpened).toEqual(["camera"]));
+});
+
+test("a running app opens the microphone's privacy pane when an earlier run's microphone refusal is clicked in Notification Center", async () => {
+  const fakeShell = fakeShellQuitAfterTheTest();
+  fakeShell.systemMediaAccess.answerByDevice = { microphone: "refused" };
+  await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+  fakeShell.systemNotifications.clickAnEarlierRunsNotification("com.tatolab.tatolab.media-access-refused.microphone");
+  await vi.waitFor(() => expect(fakeShell.systemMediaAccess.privacyPanesOpened).toEqual(["microphone"]));
+});
+
+test("an app launched any other way asks the system for nothing as it starts", async () => {
+  const fakeShell = fakeShellQuitAfterTheTest();
+  await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+  expect(fakeShell.systemMediaAccess.devicesAsked).toEqual([]);
+});
 
 describe("the app on macOS", () => {
   let fakeShell: FakeTatolabElectronAppShell;
@@ -419,14 +447,24 @@ function fakeAppUpdateFeedOffering(newerVersion: string | null) {
 }
 
 describe("updating the app", () => {
-  test("the app checks at launch and once a day, downloads a newer version, says it is ready, and the tray restarts into it", async () => {
+  test("the app checks at launch and once a day, downloads a newer version, says it is ready in a dialog, and after Cancel the tray restarts into it", async () => {
     const fakeShell = fakeShellQuitAfterTheTest();
     const { feed, takenFrom } = fakeAppUpdateFeedOffering("0.47.0");
     fakeShell.appUpdateFeedForThisBuild = { kind: "offered", feed };
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
-    await expect.poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "notify")).toEqual([
-      { asked: "notify", title: "Tato Studio 0.47.0 is ready to install", body: "Choose Restart to Update, or it installs the next time you quit." },
+    await expect.poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "ask_a_question_over_the_window")).toEqual([
+      {
+        asked: "ask_a_question_over_the_window",
+        question: {
+          message: "Tato Studio 0.47.0 is ready to install.",
+          detail: "Installing it restarts Tato Studio, which stops every stream it runs until you run it again.",
+          buttonLabels: ["Install Update", "Cancel"],
+          defaultButtonIndex: 1,
+          cancelButtonIndex: 1,
+        },
+      },
     ]);
+    expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "notify")).toEqual([]);
     expect(fakeShell.records).toContainEqual({ asked: "repeat_every", intervalMs: APP_UPDATE_CHECK_INTERVAL_MS });
     await expect
       .poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "show_tray_menu").at(-1))
@@ -434,6 +472,33 @@ describe("updating the app", () => {
     expect(takenFrom).toEqual({ downloads: 1, installs: 0 });
     fakeShell.clickTheTrayMenuItem("app_updates");
     await expect.poll(() => takenFrom.installs).toBe(1);
+  });
+
+  test("Install Update in the update-ready dialog installs the downloaded version", async () => {
+    const fakeShell = fakeShellQuitAfterTheTest();
+    const { feed, takenFrom } = fakeAppUpdateFeedOffering("0.47.0");
+    fakeShell.appUpdateFeedForThisBuild = { kind: "offered", feed };
+    fakeShell.buttonsChosenInTheNextQuestionsOverAWindow.push(0);
+    await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+    await expect.poll(() => takenFrom.installs).toBe(1);
+  });
+
+  test("the first launch after an update says which version the app is now, over the Projects window, and an app that cannot update itself says nothing", async () => {
+    const appThatCannotUpdateItself = fakeShellQuitAfterTheTest();
+    await mkdir(appThatCannotUpdateItself.appConfigDirectory, { recursive: true });
+    await writeFile(path.join(appThatCannotUpdateItself.appConfigDirectory, LAST_OPENED_APP_VERSION_FILE_NAME), JSON.stringify({ app_version: "0.0.1" }));
+    const tatolabRunningApp = await startTatolabApp(appThatCannotUpdateItself.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, appThatCannotUpdateItself.tatolabAppLog);
+    await theFirstPublishedStatus(tatolabRunningApp);
+    expect(appThatCannotUpdateItself.askedFor()).not.toContain("ask_a_question_over_the_window");
+
+    const fakeShell = fakeShellQuitAfterTheTest();
+    fakeShell.appUpdateFeedForThisBuild = { kind: "offered", feed: fakeAppUpdateFeedOffering(null).feed };
+    await mkdir(fakeShell.appConfigDirectory, { recursive: true });
+    await writeFile(path.join(fakeShell.appConfigDirectory, LAST_OPENED_APP_VERSION_FILE_NAME), JSON.stringify({ app_version: "0.0.1" }));
+    await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+    await expect
+      .poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "ask_a_question_over_the_window"))
+      .toEqual([{ asked: "ask_a_question_over_the_window", question: expect.objectContaining({ message: `Tato Studio is now version ${fakeShell.thisCopyOfTatolab.appVersion}.` }) }]);
   });
 
   test("the window's Restart to Update installs the staged version, and the status follows it to installing", async () => {
@@ -456,9 +521,11 @@ describe("updating the app", () => {
 
   test("clicking the notification shows the window", async () => {
     const fakeShell = fakeShellQuitAfterTheTest();
-    fakeShell.appUpdateFeedForThisBuild = { kind: "offered", feed: fakeAppUpdateFeedOffering("0.47.0").feed };
+    const { feed } = fakeAppUpdateFeedOffering("0.47.0");
+    fakeShell.appUpdateFeedForThisBuild = { kind: "offered", feed: { ...feed, downloadTheNewerVersion: async () => failedWith("net::ERR_CONNECTION_RESET") } };
     const tatolabRunningApp = await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     await theFirstPublishedStatus(tatolabRunningApp);
+    await expect.poll(() => fakeShell.askedFor()).toContain("notify");
     fakeShell.requestTheWindowClose();
     fakeShell.forgetTheRecords();
     fakeShell.clickTheNotification();
@@ -533,7 +600,7 @@ describe("one window per project", () => {
     expect(await fakeShell.invokeTheCommand("read_open_project", undefined, 2)).toMatchObject({ ok: true, value: { open_project: { project: { name: "night-show" } } } });
   });
 
-  test("closing a studio window closes it and forgets its project, and the Projects window refuses a project's commands", async () => {
+  test("closing a studio window closes it, forgets its project and brings back the Projects window, which refuses a project's commands", async () => {
     const fakeShell = await fakeShellOverARuntimeReadingEachProjectsFile();
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     await aProjectTheDialogAnswers(fakeShell, "night-show");
@@ -543,7 +610,8 @@ describe("one window per project", () => {
     expect(fakeShell.studioWindowsOpen()).toEqual([]);
     expect(await fakeShell.invokeTheCommand("read_open_project", undefined, 2)).toEqual({ ok: true, value: { kind: "none_open" } });
     expect(await fakeShell.invokeTheCommand("run_open_project")).toEqual({ ok: false, refusal: "No project is open in this window." });
-    expect(fakeShell.records.at(-1)).toEqual({ asked: "set_activation_policy", activationPolicy: "accessory" });
+    expect(fakeShell.mainWindowShowing).toBe(true);
+    expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "set_activation_policy").at(-1)).toEqual({ asked: "set_activation_policy", activationPolicy: "regular" });
   });
 
   test("File › Projects shows the Projects window again over a project's window", async () => {

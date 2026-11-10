@@ -11,6 +11,7 @@ import { NO_TATOLAB_COMMAND_LINE_TOOL_REFUSAL, tatolabCommandLineToolAt } from "
 import { localProofRuntimeEnvironment } from "../tatolab_machine_paths.js";
 import type { TatolabPlatformForThisBuild, TatolabPlatformHostServices } from "../tatolab_platform_for_this_build.js";
 import { tatolabAppOpenedAtLoginOnLinux } from "./tatolab_app_opened_at_login_on_linux.js";
+import { MEDIA_DEVICES_ASKED_BY_NO_SYSTEM_ON_LINUX } from "./media_devices_asked_by_no_system_on_linux.js";
 import { tatolabAppUpdatePackagingOnLinux } from "./tatolab_app_update_packaging_on_linux.js";
 import {
   carriedCommandLineToolInTheAppResources,
@@ -59,6 +60,7 @@ export async function linuxTatolabPlatformForThisBuild(
     terminalOpenedInAFolder: new XTerminalEmulatorOnThePath(),
     tatolabCommandLineTool: tatolabCommandLineToolAt(carriedCommandLineTool),
     tatolabAppOpenedAtLogin: tatolabAppOpenedAtLoginOnLinux(appUpdatePackaging, appExecutable, process.env["XDG_CONFIG_HOME"], os.homedir(), tatolabAppLog),
+    systemMediaAccess: MEDIA_DEVICES_ASKED_BY_NO_SYSTEM_ON_LINUX,
   };
 }
 

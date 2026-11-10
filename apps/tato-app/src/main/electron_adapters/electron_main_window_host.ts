@@ -1,7 +1,7 @@
 import { BrowserWindow, dialog, sharedTexture, type SharedTextureImported } from "electron";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
-import { isACommandFromTheWindowsOwnPage, isAViewPageTheWindowFrames, isOnTheWindowPagesOwnLocation } from "../tatolab_window_page_source.js";
+import { isACommandFromTheWindowsOwnPage, isAPermissionTheWindowLetsAViewAsk, isAViewPageTheWindowFrames, isOnTheWindowPagesOwnLocation, mediaTypesOfAPermissionCheck } from "../tatolab_window_page_source.js";
 import { MainWindowFirstShowGate } from "../main_window_first_show_gate.js";
 import { TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE } from "../../shared/tatolab_electron_bridge_contract.js";
 import type { MainWindowCloseRequestAnswer, MainWindowHost, MainWindowHostFactory, MainWindowSpecification } from "../tatolab_main_window.js";
@@ -59,10 +59,19 @@ export function createElectronMainWindowHostFactory(
       windowContents.on("will-frame-navigate", (frameNavigationEvent) => {
         if (!frameNavigationEvent.isMainFrame && !isAViewPageTheWindowFrames(windowPageUrl, frameNavigationEvent.url)) frameNavigationEvent.preventDefault();
       });
-      windowContents.session.setPermissionRequestHandler((_requestingContents, _permission, answerPermissionRequest) =>
-        answerPermissionRequest(false),
+      windowContents.session.setPermissionRequestHandler((_requestingContents, permission, answerPermissionRequest, permissionDetails) =>
+        answerPermissionRequest(
+          isAPermissionTheWindowLetsAViewAsk(windowPageUrl, permission, permissionDetails.requestingUrl, "mediaTypes" in permissionDetails ? (permissionDetails.mediaTypes ?? []) : []),
+        ),
       );
-      windowContents.session.setPermissionCheckHandler(() => false);
+      windowContents.session.setPermissionCheckHandler((_requestingContents, permission, _requestingOrigin, permissionCheckDetails) =>
+        isAPermissionTheWindowLetsAViewAsk(
+          windowPageUrl,
+          permission,
+          permissionCheckDetails.requestingUrl ?? "",
+          mediaTypesOfAPermissionCheck(permissionCheckDetails.mediaType),
+        ),
+      );
       const firstShowGate = new MainWindowFirstShowGate(() => mainBrowserWindow.show());
       mainBrowserWindow.once("ready-to-show", () => firstShowGate.pageFirstPainted());
       windowContents.ipc.on(TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE, (noticeEvent) => {
@@ -95,7 +104,7 @@ export function createElectronMainWindowHostFactory(
               message: question.message,
               detail: question.detail,
               buttons: [...question.buttonLabels],
-              defaultId: 0,
+              defaultId: question.defaultButtonIndex,
               cancelId: question.cancelButtonIndex,
               noLink: true,
             });

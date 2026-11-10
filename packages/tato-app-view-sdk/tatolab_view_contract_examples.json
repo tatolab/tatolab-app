@@ -25,7 +25,8 @@
         "settings": {
           "type": "object",
           "properties": { "show_beams": { "type": "boolean", "default": true } }
-        }
+        },
+        "capabilities": ["read.selection", "read.project_assets", "camera", "microphone"]
       },
       "opens": true
     },
@@ -45,16 +46,18 @@
         "placement": "area",
         "inputs": [],
         "outputs": [],
-        "accepts": { "files": [] }
+        "accepts": { "files": [] },
+        "capabilities": []
       }
     },
     {
-      "named": "a title with space around it",
+      "named": "a title with space around it, and a capability asked for twice",
       "manifest": {
         "contract": "1.0",
         "title": "  Deck ",
         "entry": "index.html",
-        "placement": "node"
+        "placement": "node",
+        "capabilities": ["camera", "camera"]
       },
       "opens": true,
       "reads_as": {
@@ -64,7 +67,8 @@
         "placement": "node",
         "inputs": [],
         "outputs": [],
-        "accepts": { "files": [] }
+        "accepts": { "files": [] },
+        "capabilities": ["camera"]
       }
     },
     {
@@ -363,6 +367,18 @@
       },
       "opens": false,
       "refused_at": "settings.properties.show_beams.default"
+    },
+    {
+      "named": "a capability the contract does not have",
+      "manifest": {
+        "contract": "1.0",
+        "title": "Everything",
+        "entry": "index.html",
+        "placement": "area",
+        "capabilities": ["read.everything"]
+      },
+      "opens": false,
+      "refused_at": "capabilities[0]"
     },
     {
       "named": "a sandbox, which the contract does not have: every view runs with full access",

@@ -77,6 +77,8 @@ import {
   projectFileBytesFromTheReadProjectFileToolResult,
   projectFilesFromTheListProjectFilesToolResult,
   projectFileWriteFromTheWriteProjectFileToolResult,
+  nodeFileCreationFromTheCreateNodeFileToolResult,
+  type NodeFileCreationRecorded,
   type ProjectFileTheRuntimeListed,
   type ProjectFileWriteRecorded,
 } from "./project_files_on_the_wire.js";
@@ -578,6 +580,24 @@ export class LocalApiClient {
     if (!toolResultText.ok) return toolResultText;
     const written = projectFileWriteFromTheWriteProjectFileToolResult(toolResultText.value);
     return written.ok ? written : localApiRequestFailure(written.failure);
+  }
+
+  /** A new Python node file at `filePath` in the project in `projectDirectory`, from the runtime's node template, as one transaction by `author` keyed by `idempotencyKey`, through the runtime's `create_node_file`; refused in the runtime's own words. */
+  async createNodeFile(
+    projectDirectory: string,
+    filePath: string,
+    author: ProjectTransactionAuthor,
+    idempotencyKey: string,
+  ): Promise<Result<NodeFileCreationRecorded, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("create_node_file", {
+      project_directory: projectDirectory,
+      path: filePath,
+      author: { kind: author.kind, name: author.name },
+      idempotency_key: idempotencyKey,
+    });
+    if (!toolResultText.ok) return toolResultText;
+    const created = nodeFileCreationFromTheCreateNodeFileToolResult(toolResultText.value);
+    return created.ok ? created : localApiRequestFailure(created.failure);
   }
 
   /** Each view the project in `projectDirectory` and its imports bring, from the runtime's `list_project_views`; refused in the runtime's own words. */

@@ -117,7 +117,7 @@ What a module or a view author can rely on, each defined once in code and held b
 | Graph generators | `@graph_generator`, its output stored as a fragment | Exists |
 | Native half of a node | `tatolab-module-sdk` module host table | Exists |
 | Module identity | `tatolab-project.json` (a module is a project) | Exists; strict, unknown keys refused |
-| Views | The view SDK's Zod contract, `packages/tato-app-view-sdk` (view contract 1.0): title, entry, `placement` (`area` or `node`), declared `inputs`/`outputs`, `settings`; every view runs with full access on Studio's origin and gets Image ports as `VideoFrame`s with no copy, with no sandbox or capability list (`docs/views-run-with-full-access.md`) | Exists in tatolab-app |
+| Views | The view SDK's Zod contract, `packages/tato-app-view-sdk` (view contract 1.0): title, entry, `placement` (`area` or `node`), declared `inputs`/`outputs`, `settings`, `capabilities` (what the view declares it uses; `camera` and `microphone` go to the system's prompt); every view runs with full access on Studio's origin and gets Image ports as `VideoFrame`s with no copy, with no sandbox (`docs/views-run-with-full-access.md`) | Exists in tatolab-app |
 | A node's `studio` fields | The `studio` map on each node in a graph document | Decided: a strict, versioned contract owned by Tatolab for the important keys (canvas position, group, comment, colour, collapsed or expanded), plus one free-form metadata map for anything else |
 | Graph-level Studio items | Canvas Notes and Frames, which are not nodes | Decided with Studio: their own place in the graph document's Studio metadata, under the same versioned contract |
 

@@ -11,6 +11,7 @@ import type {
   PortViewerTarget,
   ProjectFileReading,
   ProjectFileSaving,
+  NodeFileCreating,
   ProjectFilesListing,
   ProjectGraphTransactionApplying,
   ProjectLogReading,
@@ -43,6 +44,8 @@ import {
   type ViewOpeningTarget,
   type ViewWatchedReading,
   type ViewWatchedSubject,
+  type WindowToolbarGraphTool,
+  type WindowToolbarGraphToolOffered,
 } from "./view_wire_messages.js";
 
 /** Stops a watch; calling it again does nothing. */
@@ -74,6 +77,14 @@ export interface PythonLanguageServerConnection {
   send(message: JsonValue): void;
   /** Stop the server; nothing arrives after. */
   close(): void;
+}
+
+/** The view's graph tools as the window's toolbar draws them, offered until withdrawn. */
+export interface WindowToolbarGraphToolsOffer {
+  /** Offer `tools` in place of any offer before; refused where the window draws no toolbar, as a popped-out view's window does. */
+  show(tools: readonly WindowToolbarGraphToolOffered[]): Promise<ViewAskDone>;
+  /** Take the offer back; no press arrives after. */
+  withdraw(): void;
 }
 
 /** A view's connection to Studio: what it was granted, and each part of the contract it may read or ask for. */
@@ -118,10 +129,14 @@ export interface TatoAppViewConnection {
   readProjectFile(file: string): Promise<ProjectFileReading>;
   /** Write `text` to `file` whole when it is still at `basedOnVersion` on disk (`null` for a new file). */
   saveProjectFile(file: string, text: string, basedOnVersion: string | null): Promise<ProjectFileSaving>;
+  /** A new Python node file at `file` in the open project's own folder, from the runtime's node template, with the node type it declares, or why the runtime did not create it. */
+  createNodeFile(file: string): Promise<NodeFileCreating>;
   /** The files of the project in `projectFolder`, or why they were not listed. */
   listProjectFiles(projectFolder: string): Promise<ProjectFilesListing>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
+  /** Offer graph tools to the window's toolbar, each press of one arriving on `onToolPressed` while the toolbar shows this view's offer. */
+  offerGraphToolsToTheWindow(onToolPressed: (tool: WindowToolbarGraphTool) => void, whenRefused?: WhenStudioRefuses): WindowToolbarGraphToolsOffer;
   /** Undo `author`'s latest transaction in the project not undone yet, answering the undo the runtime applied. */
   undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** Redo what `author`'s latest undo in the project reversed, answering the redo the runtime applied. */
@@ -274,6 +289,11 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
           if (answer.kind === "project_file_saved") return { kind: "saved", version: answer.version };
           return { kind: "not_saved", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
         }),
+      createNodeFile: (file) =>
+        ask({ kind: "create_node_file", file }).then((answer): NodeFileCreating => {
+          if (answer.kind === "node_file_created") return { kind: "created", file: answer.file, node_type: answer.node_type };
+          return { kind: "not_created", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
       listProjectFiles: (projectFolder) =>
         ask({ kind: "list_project_files", project_folder: projectFolder }).then((answer): ProjectFilesListing => {
           if (answer.kind === "project_files_listed") return { kind: "listed", project_files: answer.project_files };
@@ -308,6 +328,18 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
           send: (message) => void ask({ kind: "send_to_python_language_server", watch_id: watchId, message }),
           close: stopWatching,
         };
+      },
+      offerGraphToolsToTheWindow: (onToolPressed, whenRefused = IGNORE_THE_REFUSAL) => {
+        const { watchId, stopWatching } = watch(
+          { kind: "graph_tool_presses" },
+          {
+            onWatched: (watched) => {
+              if (watched.subject === "graph_tool_presses") onToolPressed(watched.reading.tool);
+            },
+            whenRefused,
+          },
+        );
+        return { show: (tools) => ask({ kind: "offer_graph_tools", watch_id: watchId, tools: [...tools] }).then(doneOf), withdraw: stopWatching };
       },
       sendOutput: async (output, payload) => doneOf(await ask({ kind: "send_output", output }, payload)),
       close: () => {

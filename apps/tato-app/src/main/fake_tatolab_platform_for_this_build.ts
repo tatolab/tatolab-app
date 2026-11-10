@@ -9,6 +9,7 @@ import type { TatolabAppUpdatePackaging } from "./platform/tatolab_app_update_pa
 import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_tool.js";
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { TerminalOpenedInAFolder } from "./platform/terminal_opened_in_a_folder.js";
+import type { SystemMediaAccess, SystemMediaAccessAnswer, SystemMediaDevice } from "./platform/system_media_access.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** The carried runtime a fake platform names. */
@@ -111,6 +112,20 @@ export class FakeTatolabAppOpenedAtLogin implements TatolabAppOpenedAtLogin {
   }
 }
 
+/** The system's camera and microphone access, answering each device as the test scripts it (allowed unless told), recording each ask and each time the person is sent to allow one. */
+export class FakeSystemMediaAccess implements SystemMediaAccess {
+  readonly devicesAsked: SystemMediaDevice[] = [];
+  readonly privacyPanesOpened: SystemMediaDevice[] = [];
+  answerByDevice: Partial<Record<SystemMediaDevice, SystemMediaAccessAnswer["kind"]>> = {};
+
+  async askAheadFor(device: SystemMediaDevice): Promise<SystemMediaAccessAnswer> {
+    this.devicesAsked.push(device);
+    const answerKind = this.answerByDevice[device] ?? "allowed";
+    if (answerKind === "refused") return { kind: "refused", openWhereThePersonAllowsIt: () => this.privacyPanesOpened.push(device) };
+    return { kind: answerKind };
+  }
+}
+
 /** How the fakes' app updates unless a test says otherwise: as an unpackaged app, which offers none. */
 const FAKE_APP_UPDATE_PACKAGING_NOT_OFFERED: TatolabAppUpdatePackaging = { kind: "not_offered", reason: "this fake platform updates nothing" };
 
@@ -123,6 +138,7 @@ export interface FakeTatolabPlatformParts {
   terminalOpenedInAFolder?: TerminalOpenedInAFolder;
   tatolabCommandLineTool?: TatolabCommandLineTool;
   tatolabAppOpenedAtLogin?: TatolabAppOpenedAtLogin;
+  systemMediaAccess?: SystemMediaAccess;
 }
 
 /** A platform of these fakes, serving its local API at `localApiSocket` and carrying `FAKE_CARRIED_RUNTIME` unless told otherwise. */
@@ -135,5 +151,6 @@ export function fakeTatolabPlatformForThisBuild(parts: FakeTatolabPlatformParts)
     terminalOpenedInAFolder: parts.terminalOpenedInAFolder ?? new FakeTerminalOpenedInAFolder(),
     tatolabCommandLineTool: parts.tatolabCommandLineTool ?? { kind: "not_offered", reason: "this fake platform has no tatolab command" },
     tatolabAppOpenedAtLogin: parts.tatolabAppOpenedAtLogin ?? new FakeTatolabAppOpenedAtLogin(),
+    systemMediaAccess: parts.systemMediaAccess ?? new FakeSystemMediaAccess(),
   };
 }
