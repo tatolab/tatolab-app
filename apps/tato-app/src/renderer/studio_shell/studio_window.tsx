@@ -1,6 +1,6 @@
 import { PictureInPicture2, Play, Redo2, Square, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
+import type { OpenProjectReading, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
 import { DocumentTabs } from "@tatolab/tato-app-view-sdk/design_system/document_tabs";
@@ -230,6 +230,13 @@ function StreamsOfTheProjectToOpenAsTabs({ model, offered }: { model: StudioWind
   );
 }
 
+/** The open project's name as the toolbar titles the window, or its folder's when the project doesn't read. */
+function openProjectTitleInTheToolbar(openProject: OpenProjectReading): string {
+  if (openProject.kind === "read") return openProject.open_project.project.name;
+  if (openProject.kind === "unreadable") return openProject.folder.split("/").filter((part) => part !== "").at(-1) ?? openProject.folder;
+  return "";
+}
+
 /** The studio: its menus along the top (in the system menu bar on macOS), the open streams' tabs, and the chosen layout's areas; or the Projects window, with no menus of its own on Linux, while no project is open or File › Projects shows it. */
 export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const { model, platform, commands, systemMenuBar } = sources;
@@ -258,7 +265,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       {isAProjectShown ? (
         <header
-          className="flex h-(--studio-menu-bar-height) shrink-0 items-center gap-2.5 border-b border-studio-frame bg-studio-menu-bar pr-2.5 pl-(--studio-menu-bar-leading-inset)"
+          className="relative flex h-(--studio-menu-bar-height) shrink-0 items-center gap-2.5 border-b border-studio-frame bg-studio-menu-bar pr-2.5 pl-(--studio-menu-bar-leading-inset)"
           data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined}
         >
           {!menusLiveInTheSystemMenuBar && <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, status.app_update, commands)} />}
@@ -266,6 +273,12 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
             <IconButton icon={Undo2} label="Undo your last edit" onPressed={commands.undoYourLastEdit} data-studio-undo="" />
             <IconButton icon={Redo2} label="Redo what you undid" onPressed={commands.redoYourLastUndo} data-studio-redo="" />
           </div>
+          {presentPlatform(platform).hasOverlayTitleBar && (
+            // macOS's overlay title bar draws no title of its own, so the project's name sits centred in the toolbar; Linux's window title bar shows it.
+            <p className="pointer-events-none absolute left-1/2 max-w-[40%] -translate-x-1/2 truncate text-xs text-fg-2" data-studio-window-title="">
+              {openProjectTitleInTheToolbar(openProject)}
+            </p>
+          )}
           {playOrStopOfferedForTheProject(openProjectFolder, listedStreams) === "play" ? (
             <ActionButton
               appearance="positive"

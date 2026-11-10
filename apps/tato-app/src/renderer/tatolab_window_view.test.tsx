@@ -220,6 +220,19 @@ describe("the studio", () => {
     expect(outlinerRow(invertingEffectRowId).textContent).toBe("InvertingEffect");
   });
 
+  it("titles the window with the project's name once, centred in the toolbar on macOS, never on a stream tab", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await waitFor(() => expect(document.querySelector("[data-studio-window-title]")?.textContent).toBe("pattern"));
+    const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main, running"]));
+  });
+
+  it("leaves the project's name to the window's title bar on Linux", async () => {
+    await mountedWindowOverTheMock("platform=linux&state=running");
+    await screen.findByRole("tablist", { name: "Open streams" });
+    expect(document.querySelector("[data-studio-window-title]")).toBeNull();
+  });
+
   it("closes the view-type menu on a choice, and lists in the Library each source's node types by category, its generators under Show, and says why a module does not parse", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
