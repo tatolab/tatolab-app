@@ -25,8 +25,10 @@ export interface TransactionsViewRow {
   operation_verbs: readonly string[];
   /** `undo · set_node_config`, or the verbs it ran or asked for. */
   operations_words: string;
+  /** `commit` or `live`, as the change was made or asked: an applied transaction on the feed is always a commit, since the feed keeps no live edit. */
+  mode_words: string;
   result: TransactionResult;
-  /** The Commit cell: the commit's first seven hex digits, or a dash for a refused action, which no history records. */
+  /** The Commit cell: the commit's first seven hex digits, or `none` for a refused action, which no history records. */
   commit_cell_words: string;
   /** The entry exactly as the runtime sent it. */
   sent: ChangeFeedEntryAsSent;
@@ -118,6 +120,7 @@ export function transactionsViewRowOf(transaction: ProjectTransaction, streamWor
     stream_cell_words: streamWords.length === 0 ? "project" : streamWords.join(", "),
     operation_verbs: operationVerbs,
     operations_words: operationsWords,
+    mode_words: "commit",
     result: "applied",
     commit_cell_words: transaction.commit.slice(0, SHORT_COMMIT_LENGTH),
     sent: { kind: "applied", transaction },
@@ -174,8 +177,9 @@ function refusedActionViewRowOf(refusedAction: RefusedProjectAction, rowId: stri
     stream_cell_words: streamWords.length === 0 ? "project" : streamWords.join(", "),
     operation_verbs: operationVerbs,
     operations_words: operationsWords,
+    mode_words: refusedAction.mode,
     result: "refused",
-    commit_cell_words: "—",
+    commit_cell_words: "none",
     sent: { kind: "refused", refused_action: refusedAction },
     searched_words: [authorWords, operationsWords, ...streamWords, JSON.stringify(refusedAction)].join("\n").toLowerCase(),
   };
@@ -243,6 +247,20 @@ export function transactionsFilterButtonWordsOf(filtersOnCount: number): { words
 /** The entry as JSON, indented, exactly as the runtime sent it. */
 export function changeFeedEntryAsJson(sent: ChangeFeedEntryAsSent): string {
   return JSON.stringify(sent.kind === "applied" ? sent.transaction : sent.refused_action, null, 2);
+}
+
+/** The entries `rows` show, as one JSON array, indented, each exactly as the runtime sent it. */
+export function transactionsViewRowsAsJson(rows: readonly TransactionsViewRow[]): string {
+  return JSON.stringify(
+    rows.map((row) => (row.sent.kind === "applied" ? row.sent.transaction : row.sent.refused_action)),
+    null,
+    2,
+  );
+}
+
+/** The rows still shown after the view was cleared of `clearedRowIds`: only what the runtime recorded since. */
+export function transactionsViewRowsAfterClearing(rows: readonly TransactionsViewRow[], clearedRowIds: ReadonlySet<string>): TransactionsViewRow[] {
+  return rows.filter((row) => !clearedRowIds.has(row.row_id));
 }
 
 /** The rows `filter` keeps, in their order; the search matches the row's words or anything the runtime sent, ignoring case. */

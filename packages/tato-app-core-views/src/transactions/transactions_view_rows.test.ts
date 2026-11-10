@@ -11,6 +11,8 @@ import {
   transactionsFilterChoicesOf,
   transactionsFiltersOnCount,
   transactionsViewRowOf,
+  transactionsViewRowsAfterClearing,
+  transactionsViewRowsAsJson,
   transactionsViewRowsOf,
   transactionsViewRowsShownBy,
 } from "./transactions_view_rows";
@@ -89,6 +91,7 @@ describe("a Transactions row", () => {
       stream_words: ["Main"],
       operation_verbs: ["add_node", "connect"],
       operations_words: "add_node, connect",
+      mode_words: "commit",
       result: "applied",
       commit_cell_words: "3b0fc2d",
       stream_cell_words: "Main",
@@ -128,7 +131,8 @@ describe("a refused action's row", () => {
       stream_cell_words: "Main",
       operations_words: "set_node_config",
       happened_at_words: "18:42:31",
-      commit_cell_words: "—",
+      mode_words: "commit",
+      commit_cell_words: "none",
     });
     expect(row?.sent).toEqual({ kind: "refused", refused_action: refusedAction });
     expect(JSON.parse(changeFeedEntryAsJson({ kind: "refused", refused_action: refusedAction }))).toEqual(refusedAction);
@@ -235,5 +239,21 @@ describe("a refused action's detail words", () => {
       ["Key", "k-1"],
     ]);
     expect(refusedNamesRowsOf({ ...refusedAction, idempotency_key: null, refusal: { ...refusal, refused_link: null } })).toEqual([]);
+  });
+});
+
+describe("the log menu's rows", () => {
+  it("copies the rows shown as one JSON array, each entry exactly as the runtime sent it", () => {
+    const transaction = transactionWith({ transaction: "t1" });
+    const refusedAction = refusedActionWith({ mode: "live" });
+    const rows = transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [transaction], refused_actions: [refusedAction] }, streamWordsOf);
+    expect(rows.find((row) => row.result === "refused")?.mode_words).toBe("live");
+    expect(JSON.parse(transactionsViewRowsAsJson(rows))).toEqual(rows.map((row) => (row.sent.kind === "applied" ? transaction : refusedAction)));
+  });
+
+  it("keeps only what the runtime recorded after the view was cleared", () => {
+    const before = transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [transactionWith({ transaction: "t1" })], refused_actions: [refusedActionWith({})] }, streamWordsOf);
+    const after = transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [transactionWith({ transaction: "t2" }), transactionWith({ transaction: "t1" })], refused_actions: [refusedActionWith({})] }, streamWordsOf);
+    expect(transactionsViewRowsAfterClearing(after, new Set(before.map((row) => row.row_id))).map((row) => row.row_id)).toEqual(["t2"]);
   });
 });
