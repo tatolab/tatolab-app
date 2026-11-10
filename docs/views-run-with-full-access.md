@@ -24,7 +24,14 @@ Studio's origin.
   are the exception, and they reach the system: a view's frame's permissions policy allows each
   one its manifest declares and refuses each it leaves out. The window's session lets a view's
   page ask for a camera or a microphone and refuses every other capture, the screen, a tab or the
-  system's audio among them; macOS then asks the person, as it would for any app.
+  system's audio among them.
+- **macOS asks once, for the whole app, when a view that declares a device arrives.** The system
+  grants the camera and the microphone to Tato Studio, not to a view, and remembers the answer.
+  Studio asks for each device as soon as a studio window lists a view that opens and declares it:
+  on opening or creating a project, and after an import brings one. The prompt never waits for a
+  view's first capture, which could land mid-show. A device already answered is not asked again,
+  and a refused one is told once a run of the app in a notification naming the view, which opens
+  System Settings' privacy pane. Linux has no such prompt.
 - **Every view is framed on Studio's origin.** That is `tatolab-app://app/core_views/…` for
   Studio's own views and `tatolab-app://app/project_views/…` for a project's. Every view gets every
   part of the view contract.

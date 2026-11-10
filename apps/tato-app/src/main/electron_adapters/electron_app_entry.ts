@@ -32,6 +32,7 @@ import { createElectronMainWindowHostFactory } from "./electron_main_window_host
 import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_handlers.js";
 import { createElectronTatolabAppUpdateFeed } from "./electron_tatolab_app_update_feed.js";
 import { createElectronSystemNotifications } from "./electron_system_notifications.js";
+import { ELECTRON_APP_MEDIA_ACCESS_SETTINGS } from "./electron_app_media_access_settings.js";
 import { ELECTRON_APP_LOGIN_ITEM_SETTINGS } from "./electron_app_login_item_settings.js";
 import { createElectronTrayIconHostFactory } from "./electron_tray_icon.js";
 import { answerProjectViewFileRequestsWith, registerTheWindowPageSchemeBeforeReady, serveTheWindowPageScheme } from "./electron_window_page_protocol.js";
@@ -53,6 +54,7 @@ const tatolabPlatformHostServices: TatolabPlatformHostServices = {
   appIsPackaged: app.isPackaged,
   appResourcesDirectory: process.resourcesPath,
   appLoginItemSettings: ELECTRON_APP_LOGIN_ITEM_SETTINGS,
+  appMediaAccessSettings: ELECTRON_APP_MEDIA_ACCESS_SETTINGS,
 };
 const appConfigDirectory = path.join(app.getPath("appData"), TATOLAB_APP_IDENTIFIER);
 
