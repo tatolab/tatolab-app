@@ -3,6 +3,7 @@
 // middle of a show the first time a view starts capturing.
 
 import { SYSTEM_MEDIA_DEVICES, type SystemMediaAccess, type SystemMediaDevice } from "./platform/system_media_access.js";
+import { TATOLAB_APP_IDENTIFIER } from "./platform/tatolab_app_identifier.js";
 import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import type { SystemNotifications } from "./system_notifications.js";
 
@@ -20,7 +21,7 @@ export function mediaAccessRefusedNotificationBody(viewTitle: string): string {
 }
 
 /** The prefix of a media-access refusal notification's identifier, which the device's name follows. */
-const MEDIA_ACCESS_REFUSED_NOTIFICATION_IDENTIFIER_PREFIX = "com.tatolab.tatolab.media-access-refused.";
+const MEDIA_ACCESS_REFUSED_NOTIFICATION_IDENTIFIER_PREFIX = `${TATOLAB_APP_IDENTIFIER}.media-access-refused.`;
 
 /** The identifier the refusal notification for `device` carries, the same in every run so a later launch can read it. */
 export function mediaAccessRefusedNotificationIdentifier(device: SystemMediaDevice): string {
@@ -53,6 +54,7 @@ export function viewsDeclaringEachSystemMediaDevice(listedViews: readonly Projec
 /** Asks `systemMediaAccess` for each device a listed view declares, once a run of the app per device, telling the person through `systemNotifications` when the system refuses one. */
 export class SystemMediaAccessAskedAheadForViews {
   private readonly devicesAskedThisRun = new Set<SystemMediaDevice>();
+  private readonly devicesAnsweredForAClickThisRun = new Set<SystemMediaDevice>();
 
   constructor(
     private readonly systemMediaAccess: SystemMediaAccess,
@@ -78,11 +80,12 @@ export class SystemMediaAccessAskedAheadForViews {
 
   /**
    * Answer a click in Notification Center on `notificationIdentifier`, shown by an earlier run of the app: for a refusal
-   * notification whose device the system still refuses, open where the person allows it.
+   * notification whose device the system still refuses, open where the person allows it, once a run per device.
    */
   async answerAClickOnAnEarlierRunsNotification(notificationIdentifier: string): Promise<void> {
     const device = deviceOfAMediaAccessRefusedNotification(notificationIdentifier);
-    if (device === null) return;
+    if (device === null || this.devicesAnsweredForAClickThisRun.has(device)) return;
+    this.devicesAnsweredForAClickThisRun.add(device);
     this.devicesAskedThisRun.add(device);
     const answer = await this.systemMediaAccess.askAheadFor(device);
     if (answer.kind === "refused") answer.openWhereThePersonAllowsIt();

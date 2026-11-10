@@ -32,7 +32,7 @@ Studio's origin.
   view's first capture, which could land mid-show. A device already answered is not asked again,
   and a refused one is told once a run of the app in a notification naming the view, which opens
   System Settings' privacy pane. The click works from the banner, and from Notification Center after
-  that run quit: a click that launches Studio, or one a later run of Studio is open for, opens the pane
+  that run quit: a click that launches Studio, or one clicked while a later run of Studio is open, opens the pane
   while macOS still refuses the device. Linux has no such prompt.
 - **Every view is framed on Studio's origin.** That is `tatolab-app://app/core_views/…` for
   Studio's own views and `tatolab-app://app/project_views/…` for a project's. Every view gets every

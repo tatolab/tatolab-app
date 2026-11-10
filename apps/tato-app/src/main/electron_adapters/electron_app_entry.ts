@@ -175,7 +175,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   personSignedInToThisMachine: nameOfThePersonSignedInToThisMachine(),
   answerProjectViewFileRequestsWith,
   createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
-  systemNotifications: createElectronSystemNotifications(),
+  systemNotifications: createElectronSystemNotifications(tatolabAppLog),
   repeatingTimer: (intervalMs, work) => {
     setInterval(work, intervalMs);
   },

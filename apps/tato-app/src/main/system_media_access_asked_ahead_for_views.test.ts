@@ -111,3 +111,14 @@ test("a launch from a refusal notification opens nothing once the person allowed
   expect(systemMediaAccess.devicesAsked).toEqual(["camera"]);
   expect(systemMediaAccess.privacyPanesOpened).toEqual([]);
 });
+
+test("a click reaching the app twice, as a launch and again from Notification Center, opens the pane once", async () => {
+  const systemMediaAccess = new FakeSystemMediaAccess();
+  systemMediaAccess.answerByDevice = { camera: "refused" };
+  const askedAhead = new SystemMediaAccessAskedAheadForViews(systemMediaAccess, new FakeSystemNotifications());
+
+  await askedAhead.answerAClickOnAnEarlierRunsNotification("com.tatolab.tatolab.media-access-refused.camera");
+  await askedAhead.answerAClickOnAnEarlierRunsNotification("com.tatolab.tatolab.media-access-refused.camera");
+
+  expect(systemMediaAccess.privacyPanesOpened).toEqual(["camera"]);
+});
