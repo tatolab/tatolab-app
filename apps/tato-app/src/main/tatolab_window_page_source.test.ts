@@ -5,6 +5,7 @@ import {
   builtWindowFileForRequest,
   inlineScriptHashSources,
   isACommandFromTheWindowsOwnPage,
+  isAPermissionTheWindowLetsAViewAsk,
   isAViewPageTheWindowFrames,
   isOnTheWindowPagesOwnLocation,
   TATOLAB_WINDOW_PAGE_URL,
@@ -68,4 +69,17 @@ test("the window frames its core views' pages on its own location, and project v
   expect(isAViewPageTheWindowFrames("http://localhost:5173/", "http://localhost:5173/project_views/L2hvbWU/views/deck/index.html")).toBe(false);
   expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "https://example.com/core_views/outliner/index.html")).toBe(false);
   expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "not a url")).toBe(false);
+});
+
+test("the window lets a view's page ask the system for a camera and a microphone, and nothing else, and never the window page itself", () => {
+  const projectViewPage = "tatolab-app://app/project_views/L2hvbWUvc2FtL3N0cmVhbXMvbmlnaHQtc2hvdw/views/deck/index.html";
+  const coreViewPage = "tatolab-app://app/core_views/viewer/index.html";
+  expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "media", projectViewPage, ["video", "audio"])).toBe(true);
+  expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "media", coreViewPage, ["audio"])).toBe(true);
+  expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "media", projectViewPage, [])).toBe(true);
+  expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "media", projectViewPage, ["video", "screen"])).toBe(false);
+  expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "display-capture", projectViewPage, [])).toBe(false);
+  expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "geolocation", projectViewPage, [])).toBe(false);
+  expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "media", TATOLAB_WINDOW_PAGE_URL, ["video"])).toBe(false);
+  expect(isAPermissionTheWindowLetsAViewAsk(TATOLAB_WINDOW_PAGE_URL, "media", "https://example.com/", ["video"])).toBe(false);
 });

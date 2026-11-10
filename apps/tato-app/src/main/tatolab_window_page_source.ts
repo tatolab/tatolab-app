@@ -53,6 +53,19 @@ export function isAViewPageTheWindowFrames(windowPageUrl: string, frameUrl: stri
   return isOnTheWindowPagesOwnLocation(windowPageUrl, frameUrl) && new URL(frameUrl).pathname.startsWith(CORE_VIEW_PAGES_PATH);
 }
 
+/** The kinds of capture a view's frame may ask for: a camera and a microphone, never the screen. */
+const MEDIA_A_VIEW_MAY_CAPTURE: ReadonlySet<string> = new Set(["video", "audio"]);
+
+/**
+ * Whether the window's session lets `permission`, asked by the page at `requestingUrl` for `mediaTypes`, through to the
+ * system: only `media` for a camera or a microphone, and only from a view's page the window frames, never the window
+ * page itself. macOS then asks the person, as for any app, under the usage strings in `Info.plist`.
+ */
+export function isAPermissionTheWindowLetsAViewAsk(windowPageUrl: string, permission: string, requestingUrl: string, mediaTypes: readonly string[]): boolean {
+  if (permission !== "media" || !isAViewPageTheWindowFrames(windowPageUrl, requestingUrl)) return false;
+  return mediaTypes.every((mediaType) => MEDIA_A_VIEW_MAY_CAPTURE.has(mediaType));
+}
+
 /** Whether a command came from the window's own page at `windowPageUrl`: its top frame, on the page's own location, rather than a frame it embeds, a frame already gone, or a page it navigated to. */
 export function isACommandFromTheWindowsOwnPage(windowPageUrl: string, senderFrameUrl: string | null, senderIsTheTopFrame: boolean): boolean {
   return senderFrameUrl !== null && senderIsTheTopFrame && isOnTheWindowPagesOwnLocation(windowPageUrl, senderFrameUrl);

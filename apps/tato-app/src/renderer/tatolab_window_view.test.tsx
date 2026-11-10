@@ -661,7 +661,7 @@ describe("the studio", () => {
     );
     expect(viewFrame.getAttribute("data-tatolab-view")).toBe("pattern:picture_and_fader");
     expect(viewFrame.hasAttribute("sandbox")).toBe(false);
-    expect(viewFrame.getAttribute("allow")).toBe("camera; microphone");
+    expect(viewFrame.getAttribute("allow")).toBe("");
     expect(viewFrame.getAttribute("src")).toMatch(/\/mock_studio_view\/picture_and_fader\/index\.html$/);
     expect(viewerArea.querySelector("[data-node-view-whereabouts]")?.textContent).toBe("on the pictureandfader node in main");
   });
