@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Check, ChevronDown, ChevronRight, RotateCcw, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { WithControlTooltip } from "./control_tooltip";
@@ -89,6 +89,42 @@ export function PropertyRow({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** One entry of a property that is a list of records: its label on a line of its own with a remove beside it, and its own property rows indented under it. */
+export function PropertyListEntry({
+  label,
+  removal,
+  children,
+  ...controlDataAttributes
+}: {
+  label: string;
+  /** Takes the entry out of the list; absent while the list can't be edited. */
+  removal?: { label: string; onRemoved: () => void };
+  children: ReactNode;
+} & ControlDataAttributes) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1" {...controlDataAttributes}>
+      <div className="grid min-w-0 grid-cols-[minmax(0,2fr)_minmax(0,3fr)_1.5rem] items-center gap-2">
+        <span className="truncate text-right text-xs font-medium text-fg-2">{label}</span>
+        <span />
+        {removal === undefined ? <span /> : <IconButton icon={Minus} label={removal.label} size="compact" onPressed={removal.onRemoved} data-property-list-entry-remove />}
+      </div>
+      <div className="ml-3 flex min-w-0 flex-col gap-1 border-l pl-1">{children}</div>
+    </div>
+  );
+}
+
+/** How many entries a list property holds, in words, with an add beside them while the list can be edited. */
+export function PropertyListEntryCount({ fieldId, entryCount, isTheTypesDefault = false, addition }: { fieldId: string; entryCount: number; isTheTypesDefault?: boolean; addition?: { label: string; onAdded: () => void } }) {
+  return (
+    <div className="flex h-6 min-w-0 items-center gap-1">
+      <output id={fieldId} className={cn("min-w-0 flex-1 truncate px-2 text-[11.5px]", valueToneClassName(isTheTypesDefault))}>
+        {entryCount === 0 ? "No entries" : entryCount === 1 ? "1 entry" : `${entryCount} entries`}
+      </output>
+      {addition !== undefined && <IconButton icon={Plus} label={addition.label} size="compact" onPressed={addition.onAdded} data-property-list-entry-add />}
     </div>
   );
 }

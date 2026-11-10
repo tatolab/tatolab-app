@@ -214,6 +214,8 @@ export interface MockTatolabOptions {
   isTheCatalogUnserved: boolean;
   /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node; its import brings one that does not open. */
   isTheFixtureViewListed: boolean;
+  /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the effect's output. */
+  isTheCompositorInMain: boolean;
 }
 
 /** The query parameter a Module manager window's page is told by. */
@@ -336,6 +338,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     moduleManagerWorkspaceDependencies: mockWorkspaceDependenciesScenarioNamed(pageQuery.get(MODULE_MANAGER_QUERY_PARAMETER)),
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
+    isTheCompositorInMain: pageQuery.get("compositor") === "layered",
   };
 }
 
@@ -459,7 +462,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         ? fixtures.mainStreamWithItsMeterFallingBehind
         : mockTatolabOptions.isTheFixtureViewListed
           ? fixtures.mainStreamWithTheFixtureViewsNode
-          : fixtures.mainStream;
+          : mockTatolabOptions.isTheCompositorInMain
+            ? fixtures.mainStreamWithTheCompositorNode
+            : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
   const menusKeptForTheSystemMenuBar: SystemMenuBarMenu[] = [];

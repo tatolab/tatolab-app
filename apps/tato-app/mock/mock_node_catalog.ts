@@ -127,4 +127,26 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
     inputs: [port("video", "", "image")],
     outputs: [port("encoded", "Annex-B access units", "packets")],
   },
+  {
+    type: "tatolab.compositor:AlphaOverCompositor",
+    description: "Video layers stacked back to front, in premultiplied alpha, on the GPU",
+    config_schema: {
+      type: "object",
+      properties: {
+        width: { type: "integer", default: 1920 },
+        height: { type: "integer", default: 1080 },
+        layers: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { x: { type: "integer", default: 0 }, y: { type: "integer", default: 0 }, opacity: { type: "number", default: 1.0 } },
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+    inputs: [port("layer_0", "", "image"), port("layer_1", "", "image")],
+    outputs: [port("composite", "", "image")],
+  },
 ];

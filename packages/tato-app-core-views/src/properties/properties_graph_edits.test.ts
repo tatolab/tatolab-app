@@ -1,9 +1,12 @@
-import { NODE_STUDIO_FIELDS_NONE_SET, type StreamGraphDeclaredPort, type StreamGraphLink, type StreamGraphNode } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { NODE_STUDIO_FIELDS_NONE_SET, type JsonValue, type StreamGraphDeclaredPort, type StreamGraphLink, type StreamGraphNode } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { expect, test } from "vitest";
 import {
   configValueFromTheWordsTyped,
   disconnectTheLink,
   linkedEndsOfThePort,
+  listWithARecordAdded,
+  listWithoutTheRecord,
+  listWithTheRecordFieldSet,
   nodeIdInShort,
   pinValueFromTheWordsTyped,
   portsToConnect,
@@ -117,4 +120,15 @@ test("the Connect menu's note and the heading's short node id read as the panel 
   expect(portsToConnectNote("output", "Main", "Channels")).toBe("Inputs in Main that take Channels");
   expect(nodeIdInShort("ea646832-0f5f-45f4-bd5c-6b5b50a0b70a")).toBe("ea64…b70a");
   expect(nodeIdInShort("short-id")).toBe("short-id");
+});
+
+test("an entry of a list of records is edited, reset, added and removed with the rest of the list kept", () => {
+  const layers: JsonValue = [{}, { x: 640, y: 360, opacity: 0.5 }];
+  expect(listWithTheRecordFieldSet(layers, 1, "opacity", 0.25)).toEqual([{}, { x: 640, y: 360, opacity: 0.25 }]);
+  expect(listWithTheRecordFieldSet(layers, 0, "x", 10)).toEqual([{ x: 10 }, { x: 640, y: 360, opacity: 0.5 }]);
+  expect(listWithTheRecordFieldSet(layers, 1, "y", undefined)).toEqual([{}, { x: 640, opacity: 0.5 }]);
+  expect(listWithARecordAdded(layers, { x: 0, y: 0, opacity: 1 })).toEqual([{}, { x: 640, y: 360, opacity: 0.5 }, { x: 0, y: 0, opacity: 1 }]);
+  expect(listWithARecordAdded(null, { x: 0 })).toEqual([{ x: 0 }]);
+  expect(listWithoutTheRecord(layers, 0)).toEqual([{ x: 640, y: 360, opacity: 0.5 }]);
+  expect(layers).toEqual([{}, { x: 640, y: 360, opacity: 0.5 }]);
 });
