@@ -28,6 +28,8 @@ import type {
 import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_apps_child.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
+import type { ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
+import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { LocalApiClient, type LocalApiRequestFailure } from "./local_api_client.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import type { TatolabCommandLineToolLink } from "./platform/command_line_tool_link_in_the_home_folder.js";
@@ -305,6 +307,26 @@ export class TatolabAppController {
   /** Each import of the project in `projectDirectory`, each source read for a newer version with `checkForNewer`. */
   listDependencies(projectDirectory: string, checkForNewer: boolean): Promise<Result<ListedProjectDependency[], LocalApiRequestFailure>> {
     return this.localApiClient.listDependencies(projectDirectory, checkForNewer);
+  }
+
+  /** The files of the project in `projectDirectory`, or of its folder `under` alone. */
+  listProjectFiles(projectDirectory: string, under: string | null): Promise<Result<ProjectFileTheRuntimeListed[], LocalApiRequestFailure>> {
+    return this.localApiClient.listProjectFiles(projectDirectory, under);
+  }
+
+  /** The bytes of `filePath` in the project in `projectDirectory`. */
+  readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, LocalApiRequestFailure>> {
+    return this.localApiClient.readProjectFile(projectDirectory, filePath);
+  }
+
+  /** Write `text` whole to `filePath` in the project in `projectDirectory`, one transaction by `author` keyed by `idempotencyKey`. */
+  writeProjectFile(projectDirectory: string, filePath: string, text: string, author: ProjectTransactionAuthor, idempotencyKey: string): Promise<Result<ProjectFileWriteRecorded, LocalApiRequestFailure>> {
+    return this.localApiClient.writeProjectFile(projectDirectory, filePath, text, author, idempotencyKey);
+  }
+
+  /** Each view the project in `projectDirectory` and its imports bring. */
+  listProjectViews(projectDirectory: string): Promise<Result<ProjectViewTheRuntimeListed[], LocalApiRequestFailure>> {
+    return this.localApiClient.listProjectViews(projectDirectory);
   }
 
   /** The runtime's streams, or why listing them failed, which is logged on the round it starts failing. */

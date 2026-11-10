@@ -36,12 +36,16 @@ import type {
   ProjectFileRead,
   ProjectFileSaved,
   ProjectFolderChosenFor,
+  ListedStudioView,
   ProjectFiles,
   SystemMenuBarMenu,
 } from "./tatolab_backend_contract.js";
 
 /** The scheme the Electron app serves its window's page under: a page on it with no bridge is the app's window whose preload did not load. */
 export const TATOLAB_WINDOW_PAGE_SCHEME = "tatolab-app";
+
+/** The host of the window page's origin, which core views' pages and project views' files are served on too. */
+export const TATOLAB_WINDOW_PAGE_HOST = "app";
 
 /** Every command the window invokes, each an IPC channel the main process handles. */
 export const TATOLAB_COMMAND_NAMES = [
@@ -93,6 +97,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "read_project_file",
   "save_project_file",
   "list_project_files",
+  "list_studio_views_of_the_open_project",
   "run_open_project",
   "read_open_project_transactions",
   "undo_in_the_open_project",
@@ -274,6 +279,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   save_project_file: { commandArguments: { file: string; text: string; based_on_version: string | null }; answer: ProjectFileSaved };
   /** `project_folder` the folder of the open project or of one of its imports. */
   list_project_files: { commandArguments: { project_folder: string }; answer: ProjectFiles };
+  /** From a studio window only: the runtime's `list_project_views` of its open project, each view's folder served under the window page's scheme; refused while no project is open, and in the runtime's own words. */
+  list_studio_views_of_the_open_project: { commandArguments: undefined; answer: ListedStudioView[] };
   /** The runtime's `run_project` queued on the open project's folder, which the window never names; refused in the runtime's own words, or while no project is open. */
   run_open_project: { commandArguments: undefined; answer: ProjectRunQueued };
   /** The asking studio window's project's change feed as last read; refused in the Projects window. */
