@@ -1,3 +1,4 @@
+import { jsonValueSchema } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { MOCK_NODE_CATALOG_ENTRIES } from "./mock_node_catalog";
 import { mockPackageCatalogReading } from "./mock_package_catalog";
 import { MockWorkspaceDependencies, mockWorkspaceDependenciesScenarioNamed, type MockWorkspaceDependenciesScenario } from "./mock_workspace_dependencies";
@@ -37,7 +38,7 @@ import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
   type OpenProjectReading,
-  type PoppedOutViewerTarget,
+  type PoppedOutView,
   type ProjectLogRecord,
   type ProjectLogRecordsPage,
   type RuntimeDescription,
@@ -198,8 +199,8 @@ export interface MockTatolabOptions {
   arePortFamiliesServed: boolean;
   /** `?node_types=unreadable_project`: every module of the open project's own node code does not parse; one of them does not by default. */
   isEveryOwnNodeModuleUnreadable: boolean;
-  /** `?popped_out_viewer=<target as JSON>`: the page is a Viewer popped out of the studio, as Pop out opens it in a new tab; the studio by default. */
-  poppedOutViewer: PoppedOutViewerTarget | null;
+  /** `?popped_out_view=<popped-out view as JSON>`: the page is a view popped out of the studio, as Pop out into a window opens it in a new tab; the studio by default. */
+  poppedOutView: PoppedOutView | null;
   /** `?module_manager=open|edited_files|newer`: the page is the open project's Module manager window, as File › Module manager… opens it in a new tab, its import as copied, edited since, or with a newer version on its source; `null` for any other page. */
   moduleManagerWorkspaceDependencies: MockWorkspaceDependenciesScenario | null;
   /** `?catalog=unserved`: get.tatolab.com serves no catalog yet; the mock catalog by default. */
@@ -218,31 +219,30 @@ function mockPageUrlWith(pageUrl: string, parameterName: string, parameterValue:
   return pageUrlWithTheParameter.toString();
 }
 
-/** The query parameter a popped-out Viewer's page carries its pin in. */
-const POPPED_OUT_VIEWER_QUERY_PARAMETER = "popped_out_viewer";
+/** The query parameter a popped-out view's page carries what it is in, as JSON. */
+const POPPED_OUT_VIEW_QUERY_PARAMETER = "popped_out_view";
 
-/** What `?popped_out_viewer=` names: a pin as JSON, or `null` when it holds none that parses. */
-function mockPoppedOutViewerTargetFrom(poppedOutViewerInTheQuery: string | null): PoppedOutViewerTarget | null {
-  if (poppedOutViewerInTheQuery === null) return null;
+/** What `?popped_out_view=` names: a popped-out view as JSON, or `null` when it holds none that parses. */
+function mockPoppedOutViewFrom(poppedOutViewInTheQuery: string | null): PoppedOutView | null {
+  if (poppedOutViewInTheQuery === null) return null;
   let parsed: unknown;
   try {
-    parsed = JSON.parse(poppedOutViewerInTheQuery);
+    parsed = JSON.parse(poppedOutViewInTheQuery);
   } catch {
     return null;
   }
   if (typeof parsed !== "object" || parsed === null) return null;
   const field = (fieldName: string): unknown => Object.entries(parsed).find(([parsedFieldName]) => parsedFieldName === fieldName)?.[1];
-  const stream = field("stream");
-  const projectName = field("project_name");
-  const displayName = field("display_name");
-  const node = field("node");
-  if (typeof stream !== "string" || typeof projectName !== "string" || typeof displayName !== "string" || (typeof node !== "string" && node !== null)) return null;
-  return { stream, project_name: projectName, display_name: displayName, node };
+  const viewTypeId = field("view_type_id");
+  const windowTitle = field("window_title");
+  const pinnedTo = jsonValueSchema.safeParse(field("pinned_to"));
+  if (typeof viewTypeId !== "string" || typeof windowTitle !== "string" || !pinnedTo.success) return null;
+  return { view_type_id: viewTypeId, window_title: windowTitle, pinned_to: pinnedTo.data };
 }
 
-/** The mock page's address with `target` as its popped-out Viewer's pin, every other query parameter kept, so the tab opens with the same scenario. */
-export function mockPoppedOutViewerPageUrl(pageUrl: string, target: PoppedOutViewerTarget): string {
-  return mockPageUrlWith(pageUrl, POPPED_OUT_VIEWER_QUERY_PARAMETER, JSON.stringify(target));
+/** The mock page's address with `target` as the view it pops out, every other query parameter kept, so the tab opens with the same scenario. */
+export function mockPoppedOutViewPageUrl(pageUrl: string, target: PoppedOutView): string {
+  return mockPageUrlWith(pageUrl, POPPED_OUT_VIEW_QUERY_PARAMETER, JSON.stringify(target));
 }
 
 /** How long after the window listens the mock's notification click arrives. */
@@ -325,7 +325,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     recentProjectsInTheQuery: pageQuery.get("recent"),
     arePortFamiliesServed: pageQuery.get("port_families") !== "unserved",
     isEveryOwnNodeModuleUnreadable: pageQuery.get("node_types") === "unreadable_project",
-    poppedOutViewer: mockPoppedOutViewerTargetFrom(pageQuery.get(POPPED_OUT_VIEWER_QUERY_PARAMETER)),
+    poppedOutView: mockPoppedOutViewFrom(pageQuery.get(POPPED_OUT_VIEW_QUERY_PARAMETER)),
     moduleManagerWorkspaceDependencies: mockWorkspaceDependenciesScenarioNamed(pageQuery.get(MODULE_MANAGER_QUERY_PARAMETER)),
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
@@ -1239,10 +1239,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       return { folder, project_creation: { action, stream: mockStreamIdOf({ project_directory: folder, stream_name: "main" }), project_directory: folder } };
     },
     readOpenProject: async () => structuredClone(openProjectReading),
-    popOutViewer: async (target) => {
-      window.open(mockPoppedOutViewerPageUrl(window.location.href, target), "_blank");
+    popOutView: async (target) => {
+      window.open(mockPoppedOutViewPageUrl(window.location.href, target), "_blank");
     },
-    readPoppedOutViewer: async () => structuredClone(mockTatolabOptions.poppedOutViewer),
+    readPoppedOutView: async () => structuredClone(mockTatolabOptions.poppedOutView),
     openModuleManagerWindow: async () => {
       window.open(mockPageUrlWith(window.location.href, MODULE_MANAGER_QUERY_PARAMETER, "open"), "_blank");
     },

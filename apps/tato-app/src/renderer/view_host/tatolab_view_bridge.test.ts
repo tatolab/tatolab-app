@@ -102,7 +102,6 @@ function recordingHostServices() {
       file === STREAM_FILE_READ.file ? { kind: "read", file_read: STREAM_FILE_READ } : { kind: "not_read", because: `${file} is not in the project.` },
     saveProjectFile: async () => ({ kind: "not_saved", because: "no files in this test" }),
     listProjectFiles: async () => ({ kind: "not_listed", because: "no files in this test" }),
-    popOutViewer: async () => ({ kind: "not_popped_out", because: "no windows in this test" }),
     watchProjectLog: () => () => undefined,
     watchProjectNodeTypes: () => () => undefined,
     watchProjectTransactions: (projectFolder, listener) => {

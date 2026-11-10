@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { StreamGraphNode, StreamGraphSummary } from "../../view_host/studio_view_contract";
-import { outputPortTheViewerPlays, poppedOutViewerTargetOf, portTheViewerPlays } from "./viewer_view_type";
+import type { StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { outputPortTheViewerPlays, portTheViewerPlays, viewerChosenPortOf } from "./viewer_port_choice";
 
 const STREAM = "show-main-0a1b2c";
 
@@ -46,23 +46,18 @@ describe("the output port the Viewer plays", () => {
   });
 
   it("is the port chosen for this stream while the graph still has it, over the selection", () => {
-    const chosenTheCamera = { chosen_port: { stream: STREAM, node_id: "id-camera", port: "video" } };
+    const chosenTheCamera = { stream: STREAM, node_id: "id-camera", port: "video" };
     expect(portTheViewerPlays(GRAPH, { kind: "node", stream: STREAM, node: "brightnessmeter" }, chosenTheCamera)).toEqual({ node_id: "id-camera", node_name: "camera", port: "video" });
     expect(portTheViewerPlays({ ...GRAPH, nodes: [EFFECT, METER] }, null, chosenTheCamera)).toEqual({ node_id: "id-halftonelenseffect", node_name: "halftonelenseffect", port: "video_to_downstream" });
-    expect(portTheViewerPlays(GRAPH, null, { chosen_port: { ...chosenTheCamera.chosen_port, stream: "another-stream" } })).toEqual({ node_id: "id-halftonelenseffect", node_name: "halftonelenseffect", port: "video_to_downstream" });
+    expect(portTheViewerPlays(GRAPH, null, { ...chosenTheCamera, stream: "another-stream" })).toEqual({ node_id: "id-halftonelenseffect", node_name: "halftonelenseffect", port: "video_to_downstream" });
   });
 });
 
-describe("what Pop out pins a Viewer window to", () => {
-  const streamTab = { stream: STREAM, project_name: "show", display_name: "show /main" };
-
-  it("is the stream tab shown, and the node selected in it", () => {
-    expect(poppedOutViewerTargetOf(streamTab, { kind: "node", stream: streamTab.stream, node: "halftonelenseffect" })).toEqual({ ...streamTab, node: "halftonelenseffect" });
-  });
-
-  it("names no node while nothing of that stream is selected", () => {
-    expect(poppedOutViewerTargetOf(streamTab, { kind: "node", stream: "another-stream", node: "halftonelenseffect" })).toEqual({ ...streamTab, node: null });
-    expect(poppedOutViewerTargetOf(streamTab, { kind: "stream", stream: streamTab.stream, project_folder: "/show" })).toEqual({ ...streamTab, node: null });
-    expect(poppedOutViewerTargetOf(streamTab, null)).toEqual({ ...streamTab, node: null });
+describe("the port a Viewer area keeps", () => {
+  it("is its chosen_port setting, and follows the selection for anything that is not a port", () => {
+    expect(viewerChosenPortOf({ chosen_port: { stream: STREAM, node_id: "id-camera", port: "video" } })).toEqual({ stream: STREAM, node_id: "id-camera", port: "video" });
+    expect(viewerChosenPortOf({ chosen_port: null })).toBeNull();
+    expect(viewerChosenPortOf({ chosen_port: { stream: STREAM, node_id: 7, port: "video" } })).toBeNull();
+    expect(viewerChosenPortOf(null)).toBeNull();
   });
 });

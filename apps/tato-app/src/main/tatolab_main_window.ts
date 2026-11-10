@@ -1,5 +1,5 @@
 // One of the app's windows: the Projects window, which closing hides while the app keeps running
-// in the tray, or a project's studio window or a Viewer popped out of one, which closing closes.
+// in the tray, or a project's studio window or a view popped out of one, which closing closes.
 // `TatolabAppWindows` holds them all and shows the Dock icon on macOS while any is on screen.
 
 import type { OpenProjectReading, ProjectTransactionsReading, PortViewerEvent, PortViewerImageFrameFacts, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
@@ -75,12 +75,12 @@ export interface MainWindowHostFactory {
   ): Result<MainWindowHost, string>;
 }
 
-/** What a window is: the one Projects window, the studio window of one project, a Viewer popped out of a studio window, or a studio window's Module manager window. */
-export type TatolabWindowRole = "projects" | "studio" | "popped_out_viewer" | "module_manager";
+/** What a window is: the one Projects window, the studio window of one project, a view popped out of a studio window, or a studio window's Module manager window. */
+export type TatolabWindowRole = "projects" | "studio" | "popped_out_view" | "module_manager";
 
-/** A window's size when created, and the smallest it can be made: a popped-out Viewer is small enough to sit on a second monitor's corner, Module manager sits beside the studio, every other window is the studio's size. */
+/** A window's size when created, and the smallest it can be made: a popped-out view is small enough to sit on a second monitor's corner, Module manager sits beside the studio, every other window is the studio's size. */
 export function mainWindowSizesOf(windowRole: TatolabWindowRole): Pick<MainWindowSpecification, "width" | "height" | "minimumWidth" | "minimumHeight"> {
-  if (windowRole === "popped_out_viewer") return { width: 720, height: 450, minimumWidth: 320, minimumHeight: 200 };
+  if (windowRole === "popped_out_view") return { width: 720, height: 450, minimumWidth: 320, minimumHeight: 200 };
   if (windowRole === "module_manager") return { width: 960, height: 660, minimumWidth: 680, minimumHeight: 480 };
   return { width: 1040, height: 700, minimumWidth: 860, minimumHeight: 580 };
 }

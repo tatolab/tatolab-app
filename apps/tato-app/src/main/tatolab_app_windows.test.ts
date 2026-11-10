@@ -7,6 +7,7 @@ import type { ListedStream, TatolabStatus } from "../shared/tatolab_backend_cont
 import { FakeTatolabElectronAppShell } from "./fake_tatolab_electron_app_shell.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
+import type { LanguageServerOfAWindow } from "./python_language_servers.js";
 import { STOP_AND_CLOSE_BUTTON_LABEL, TatolabAppWindows } from "./tatolab_app_windows.js";
 
 const STUDIO_WINDOW_CONTENTS_ID = 2;
@@ -52,7 +53,7 @@ function aStreamOf(projectFolder: string, state: string): ListedStream {
 }
 
 /** The windows over a fake shell with the project `night-show` open in its studio window, stopping a project as `stopTheProject` answers. */
-async function windowsWithNightShowOpen(stopTheProject: (projectFolder: string) => Promise<Result<void, string>>) {
+async function windowsWithNightShowOpen(stopTheProject: (projectFolder: string) => Promise<Result<void, string>>, whenAWindowStartingLanguageServersClosed: (languageServerOfTheWindow: LanguageServerOfAWindow) => void = () => {}) {
   const projectFolder = await mkdtemp(path.join(os.tmpdir(), "night-show-"));
   foldersToRemove.push(projectFolder);
   await writeFile(path.join(projectFolder, "pyproject.toml"), '[project]\nname = "night-show"\n');
@@ -70,7 +71,7 @@ async function windowsWithNightShowOpen(stopTheProject: (projectFolder: string) 
       projectsStopped.push(folder);
       return stopTheProject(folder);
     },
-    whenAStudioWindowClosed: () => {},
+    whenAWindowStartingLanguageServersClosed,
     whenAWindowShowingPortViewersClosed: () => {},
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
@@ -168,4 +169,21 @@ test("a window closing as the app quits asks nothing", async () => {
   expect(fakeShell.requestTheCloseOfTheWindow(STUDIO_WINDOW_CONTENTS_ID)).toBe("let_it_close");
   expect(questionsAskedOverTheWindow(fakeShell)).toEqual([]);
   expect(projectsStopped).toEqual([]);
+});
+
+test("a popped-out view's language servers send it their events, and stop as it closes", async () => {
+  const languageServersStopped: LanguageServerOfAWindow[] = [];
+  const { fakeShell, appWindows } = await windowsWithNightShowOpen(async () => succeeded(undefined), (languageServerOfTheWindow) => languageServersStopped.push(languageServerOfTheWindow));
+  const studioWindow = appWindows.studioWindowWithContents(STUDIO_WINDOW_CONTENTS_ID) ?? expect.unreachable("no studio window");
+  appWindows.popOutTheViewOf(studioWindow, { view_type_id: "code", window_title: "night-show · Code", pinned_to: null });
+  const poppedOutWindowContentsId = STUDIO_WINDOW_CONTENTS_ID + 1;
+  const languageServerOfThePoppedOutView = appWindows.languageServerOfTheWindowWithContents(poppedOutWindowContentsId) ?? expect.unreachable("no language server for the popped-out view");
+  expect(languageServerOfThePoppedOutView).not.toBe(studioWindow.languageServerOfTheWindow);
+  expect(appWindows.studioWindowServingTheContents(poppedOutWindowContentsId)).toBe(studioWindow);
+
+  languageServerOfThePoppedOutView.sendTheWindowALanguageServerEvent({ session: "language-server-1", kind: "ended", because: "stopped" });
+  expect(fakeShell.records).toContainEqual(expect.objectContaining({ asked: "send_window_event", windowContentsId: poppedOutWindowContentsId }));
+
+  expect(fakeShell.requestTheCloseOfTheWindow(poppedOutWindowContentsId)).toBe("let_it_close");
+  expect(languageServersStopped).toEqual([languageServerOfThePoppedOutView]);
 });

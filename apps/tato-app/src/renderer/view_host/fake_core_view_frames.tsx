@@ -9,6 +9,7 @@ import { OutlinerView } from "@tatolab/tato-app-core-views/views/outliner";
 import { PaletteView } from "@tatolab/tato-app-core-views/views/palette";
 import { PropertiesView } from "@tatolab/tato-app-core-views/views/properties";
 import { StreamGraphView } from "@tatolab/tato-app-core-views/views/stream_graph";
+import { ViewerView } from "@tatolab/tato-app-core-views/views/viewer";
 import { TransactionsView } from "@tatolab/tato-app-core-views/views/transactions";
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -19,6 +20,7 @@ const CORE_VIEW_DRAWINGS: Record<string, (connection: TatoAppViewConnection) => 
   palette: (connection) => <PaletteView connection={connection} />,
   properties: (connection) => <PropertiesView connection={connection} />,
   history: (connection) => <HistoryView connection={connection} />,
+  viewer: (connection) => <ViewerView connection={connection} />,
   transactions: (connection) => <TransactionsView connection={connection} />,
 };
 
@@ -54,13 +56,13 @@ export function drawTheCoreViewsInTheirFrames(): () => void {
           : undefined,
     });
   }
-  const viewRootsByFrame = new Map<HTMLIFrameElement, Root>();
-  // happy-dom empties a frame's page as the frame leaves the window, so a view whose frame has left
-  // is forgotten rather than unmounted; Studio's bridge closed its port as the frame left.
+  const viewRootsByFrame = new Map<HTMLIFrameElement, { viewRoot: Root; viewElement: HTMLElement }>();
+  // happy-dom empties a frame's page as the frame leaves the window or loads its page again, so a view
+  // whose page is gone is forgotten rather than unmounted; Studio's bridge closed its port with the page.
   const unmountTheView = (frame: HTMLIFrameElement) => {
-    const viewRoot = viewRootsByFrame.get(frame);
+    const drawnView = viewRootsByFrame.get(frame);
     viewRootsByFrame.delete(frame);
-    if (viewRoot !== undefined && frame.isConnected) act(() => viewRoot.unmount());
+    if (drawnView !== undefined && frame.isConnected && drawnView.viewElement.isConnected) act(() => drawnView.viewRoot.unmount());
   };
   // Captured on the document, so it runs before the frame's own load listener posts the handover.
   const onAFrameLoaded = (loadEvent: Event) => {
@@ -76,10 +78,10 @@ export function drawTheCoreViewsInTheirFrames(): () => void {
       const port = transfer.find(isAMessagePort);
       if (!isTheHandover(message) || port === undefined) return postTheMessage(message, typeof targetOrigin === "string" ? targetOrigin : "*", transfer);
       void connectToTatoAppOverPort(port).then((connection) => {
-        if (!frame.isConnected) return;
+        if (!frame.isConnected || !viewElement.isConnected) return;
         unmountTheView(frame);
         const viewRoot = createRoot(viewElement);
-        viewRootsByFrame.set(frame, viewRoot);
+        viewRootsByFrame.set(frame, { viewRoot, viewElement });
         act(() => viewRoot.render(drawTheView(connection)));
       });
     };

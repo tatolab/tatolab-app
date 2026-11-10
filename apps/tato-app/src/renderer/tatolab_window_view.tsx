@@ -13,13 +13,13 @@ import {
 } from "./setup_and_preferences/tatolab_window_context";
 import { RUN_LIVE_KEY, studioMenusSentToTheSystemMenuBar, type StudioMenuBarCommands } from "./studio_shell/studio_menu_bar_model";
 import { ModuleManagerWindowView, type ModuleManagerSources } from "./studio_shell/module_manager_window_view";
-import { PoppedOutViewerWindowView } from "./studio_shell/popped_out_viewer_window_view";
+import { PoppedOutViewWindowView } from "./studio_shell/popped_out_view_window_view";
+import { poppedOutViewOfTheArea } from "./studio_shell/popped_out_view_pin";
 import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_window";
 import { StudioWindowModel } from "./studio_shell/studio_window_model";
 import { STUDIO_LAYOUTS, StudioLayoutsKeptInStorage } from "./studio_shell/studio_layouts";
 
 import { CODE_EDITOR_VIEW_TYPE } from "./studio_views/code_editor/code_editor_view_type";
-import { VIEWER_VIEW_TYPE } from "./studio_views/viewer/viewer_view_type";
 import { inWindowStudioViewHostServices, useWatchedStudioValue } from "./view_host/in_window_view_host";
 import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_catalog_readings";
 import { registeredStudioViewType, StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
@@ -49,7 +49,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
       ...coreViewTypeIn("palette"),
       ...coreViewTypeIn("properties"),
       ...coreViewTypeIn("history"),
-      registeredStudioViewType(VIEWER_VIEW_TYPE),
+      ...coreViewTypeIn("viewer"),
       registeredStudioViewType(CODE_EDITOR_VIEW_TYPE),
     ],
     (listed, manifest, projectName) => tatolabFrameViewType(listed, manifest, { kind: "project", project_name: projectName }),
@@ -80,7 +80,7 @@ function listTheOpenProjectsStudioViews(backend: TatolabBackend, studioWindowMod
   });
 }
 
-/** The studio, the Viewer alone in a window popped out of one, or a studio window's Module manager window: the window's one screen from the first status on. */
+/** The studio, one view alone in a window popped out of one, or a studio window's Module manager window: the window's one screen from the first status on. */
 function TatolabWindowRoot({
   studioWindowSources,
   moduleManagerSources,
@@ -91,15 +91,17 @@ function TatolabWindowRoot({
   noticeTheFirstStatusCommitted: () => void;
 }) {
   useEffect(noticeTheFirstStatusCommitted, [noticeTheFirstStatusCommitted]);
-  const poppedOutViewer = useWatchedStudioValue(studioWindowSources.model.poppedOutViewer);
+  const poppedOutView = useWatchedStudioValue(studioWindowSources.model.poppedOutView);
+  const projectOpeningRefusal = useWatchedStudioValue(studioWindowSources.model.projectOpeningRefusal);
   const moduleManagerWorkspace = useWatchedStudioValue(studioWindowSources.model.moduleManagerWorkspace);
   if (moduleManagerWorkspace !== null) return <ModuleManagerWindowView workspace={moduleManagerWorkspace} sources={moduleManagerSources} platform={studioWindowSources.platform} />;
-  if (poppedOutViewer !== null) {
+  if (poppedOutView !== null) {
     return (
-      <PoppedOutViewerWindowView
-        target={poppedOutViewer}
+      <PoppedOutViewWindowView
+        target={poppedOutView}
         viewTypeRegistry={studioWindowSources.viewTypeRegistry}
         viewHostServices={studioWindowSources.viewHostServices}
+        projectReadingRefusal={projectOpeningRefusal}
         platform={studioWindowSources.platform}
       />
     );
@@ -197,6 +199,21 @@ export function mountTatolabWindow(
       portViewerConnections,
     }),
     commands: studioMenuBarCommands,
+    popOutTheViewOfTheArea: (area) => {
+      const viewType = area.view_type_id === null ? null : viewTypeRegistry.viewTypeWithId(area.view_type_id);
+      if (viewType === null) return;
+      const openProject = studioWindowModel.openProject.readLatest();
+      studioWindowModel.viewPopOutRefusal.publish(null);
+      const poppedOutView = poppedOutViewOfTheArea({
+        view_type_id: viewType.view_type_id,
+        view_title: viewType.title,
+        settings: area.settings,
+        stream_tab: studioWindowModel.activeStreamTab.readLatest(),
+        selection: studioWindowModel.selection.readLatest(),
+        project_name: openProject.kind === "read" ? openProject.open_project.project.name : null,
+      });
+      backend.popOutView(poppedOutView).catch((rejection: unknown) => studioWindowModel.viewPopOutRefusal.publish(describeBackendRejection(rejection)));
+    },
     systemMenuBar: {
       showTheMenus: (menus) => {
         const menusSent = studioMenusSentToTheSystemMenuBar(menus);
@@ -238,14 +255,22 @@ export function mountTatolabWindow(
     pathOfADroppedFile: (droppedFile) => backend.pathOfADroppedFile(droppedFile),
     describeRejection: describeBackendRejection,
   };
-  const readTheOpenProject = () =>
+  const readTheOpenProject = (onceRead: () => void = () => undefined) =>
     void backend.readOpenProject().then(
-      (reading) => studioWindowModel.showOpenProject(reading),
-      (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
+      (reading) => {
+        studioWindowModel.showOpenProject(reading);
+        onceRead();
+      },
+      (rejection: unknown) => {
+        studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection));
+        onceRead();
+      },
     );
-  const whatTheWindowShowsIsRead = Promise.all([backend.readPoppedOutViewer().catch(() => null), backend.readModuleManagerWorkspace().catch(() => null)]).then(([poppedOutViewer, moduleManagerWorkspace]) => {
-    if (poppedOutViewer !== null) studioWindowModel.showAsPoppedOutViewer(poppedOutViewer);
-    else if (moduleManagerWorkspace !== null) studioWindowModel.moduleManagerWorkspace.publish(moduleManagerWorkspace);
+  const whatTheWindowShowsIsRead = Promise.all([backend.readPoppedOutView().catch(() => null), backend.readModuleManagerWorkspace().catch(() => null)]).then(([poppedOutView, moduleManagerWorkspace]) => {
+    if (poppedOutView !== null) {
+      studioWindowModel.showAsPoppedOutView(poppedOutView);
+      readTheOpenProject(() => studioWindowModel.pinThePoppedOutView());
+    } else if (moduleManagerWorkspace !== null) studioWindowModel.moduleManagerWorkspace.publish(moduleManagerWorkspace);
     else readTheOpenProject();
   });
   backend.onStreamPageRequested((streamId) => studioWindowModel.openStreamTabOfAListedStream(streamId));
@@ -277,7 +302,7 @@ export function mountTatolabWindow(
   }
 
   const runTheStudioShortcutOfTheKey = (keyboardEvent: KeyboardEvent) => {
-    if (statusStore === null || studioWindowModel.poppedOutViewer.readLatest() !== null || studioWindowModel.moduleManagerWorkspace.readLatest() !== null) return;
+    if (statusStore === null || studioWindowModel.poppedOutView.readLatest() !== null || studioWindowModel.moduleManagerWorkspace.readLatest() !== null) return;
     if (keyboardEvent.key === RUN_LIVE_KEY && !keyboardEvent.metaKey && !keyboardEvent.ctrlKey && !keyboardEvent.altKey) {
       if (studioWindowModel.studioLayouts.readLatest() === null) return;
       keyboardEvent.preventDefault();

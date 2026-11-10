@@ -1,13 +1,14 @@
 // What the studio window holds between renders: the open project and the runtime's streams it
 // serves its views, the selection, the open stream tabs, and the open project's layouts.
 
-import type { ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutViewerTarget, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutView, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import { WatchedStudioValue, type InWindowStudioViewHostSources } from "../view_host/in_window_view_host";
 import type { CodeFileAsked, JsonValue, ListedStreamsReading, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
 import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, type StudioAreaLayoutNode } from "./studio_area_layout";
 import { STUDIO_LAYOUTS, type StudioLayoutName, type StudioLayoutsKeptInStorage, type StudioLayoutsOfAFolder } from "./studio_layouts";
+import { poppedOutViewPinOf } from "./popped_out_view_pin";
 
 /** The view type id of the code pane, which a file the studio asks to open shows in. */
 export const CODE_VIEW_TYPE_ID = "code";
@@ -65,6 +66,8 @@ export class StudioWindowModel {
   readonly newProjectSheetOpenedWith = new WatchedStudioValue<NewProjectDefaults | null>(null);
   /** Why the last project asked for did not open, until it is dismissed or another opens. */
   readonly projectOpeningRefusal = new WatchedStudioValue<string | null>(null);
+  /** Why the last view popped out of an area did not, until it is dismissed or another pops out. */
+  readonly viewPopOutRefusal = new WatchedStudioValue<string | null>(null);
   /** The open project's layouts; `null` while none is open. */
   readonly studioLayouts = new WatchedStudioValue<StudioLayoutsOfAFolder | null>(null);
   /** The file a code view was last asked to show. */
@@ -80,8 +83,8 @@ export class StudioWindowModel {
   readonly openProjectStreamFailureRaised = new WatchedStudioValue<OpenProjectStreamFailure | null>(null);
   /** The workspace when the window is a studio window's Module manager window, as last read from disk; `null` in any other window. */
   readonly moduleManagerWorkspace = new WatchedStudioValue<OpenProjectReading | null>(null);
-  /** What the window is pinned to when it is a Viewer popped out of a studio window; `null` in the Projects and studio windows. */
-  readonly poppedOutViewer = new WatchedStudioValue<PoppedOutViewerTarget | null>(null);
+  /** The view the window shows when it is popped out of a studio window; `null` in the Projects and studio windows. */
+  readonly poppedOutView = new WatchedStudioValue<PoppedOutView | null>(null);
 
   /** The tab a project opens on once it is open and the runtime lists the stream: the stream New project just made, or with `stream` `null` the first the runtime lists from the folder; cleared when any tab is opened. */
   private streamTabAwaitedByTheOpeningProject: { project_folder: string; stream: string | null } | null = null;
@@ -107,11 +110,19 @@ export class StudioWindowModel {
     };
   }
 
-  /** Show the window as a Viewer pinned to `target`: its stream's tab shown and its node selected, which nothing in the window changes after. */
-  showAsPoppedOutViewer(target: PoppedOutViewerTarget): void {
-    this.poppedOutViewer.publish(target);
-    this.openStreamTab({ stream: target.stream, project_name: target.project_name, display_name: target.display_name });
-    this.selection.publish(target.node === null ? { kind: "nothing" } : { kind: "node", stream: target.stream, node: target.node });
+  /** Show the window as the view `target` names, alone. */
+  showAsPoppedOutView(target: PoppedOutView): void {
+    this.poppedOutView.publish(target);
+  }
+
+  /** Show the popped-out view's stream tab and selection as it popped out with them, once its project is shown. */
+  pinThePoppedOutView(): void {
+    const poppedOutView = this.poppedOutView.readLatest();
+    const pin = poppedOutView === null ? null : poppedOutViewPinOf(poppedOutView.pinned_to);
+    if (pin === null) return;
+    this.streamTabAwaitedByTheOpeningProject = null;
+    if (pin.stream_tab !== null) this.openStreamTab(pin.stream_tab);
+    this.selection.publish(pin.selection);
   }
 
   /** Ask the code view to show `file`; a layout with no code area switches to Code, which has one. */
@@ -121,6 +132,7 @@ export class StudioWindowModel {
 
   /** Open views of `viewTypeId` on `on`: in the chosen layout when an area of it shows that type, or else in the first layout with one, which is chosen. */
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening {
+    if (this.poppedOutView.readLatest() !== null) return { kind: "not_opened", because: "A popped-out view's window shows that view alone. Open it from the project's studio window." };
     const layouts = this.studioLayouts.readLatest();
     if (layouts !== null && !layoutShowsTheViewType(layouts.layouts[layouts.chosen_layout], viewTypeId)) {
       const layoutShowingTheViewType = STUDIO_LAYOUTS.find((layout) => layoutShowsTheViewType(layouts.layouts[layout.name], viewTypeId));

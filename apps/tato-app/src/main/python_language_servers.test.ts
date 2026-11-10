@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import type { PythonLanguageServerEvent } from "../shared/tatolab_backend_contract.js";
 import { frameLanguageServerMessage, LanguageServerMessageReader } from "./language_server_message_framing.js";
-import { PythonLanguageServers, type LanguageServerOfAStudioWindow, type NodeProgramListeners, type StartANodeLanguageServer } from "./python_language_servers.js";
+import { PythonLanguageServers, type LanguageServerOfAWindow, type NodeProgramListeners, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { failedWith, succeeded } from "./result.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 
@@ -42,7 +42,7 @@ function languageServersOverFakePrograms(startRefusal: string | null = null) {
     pyrightLanguageServerModulePath: "/app/node_modules/pyright/langserver.index.js",
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
-  const studioWindow: LanguageServerOfAStudioWindow = {
+  const studioWindow: LanguageServerOfAWindow = {
     projectFolderOfTheOpenProject: (projectFolder) =>
       projectFolder === OPEN_PROJECT_FOLDER ? succeeded(projectFolder) : failedWith(`${projectFolder} is not the folder of the open project or of one of its imports.`),
     sendTheWindowALanguageServerEvent: (event) => eventsSent.push(event),

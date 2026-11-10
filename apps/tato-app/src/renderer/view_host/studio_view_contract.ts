@@ -3,7 +3,7 @@
 // first-party view reaches in the window.
 
 import type { ReactNode } from "react";
-import type { JsonValue, OpenProjectReading, PoppedOutViewerTarget, PortViewerTarget } from "../../shared/tatolab_backend_contract";
+import type { JsonValue, OpenProjectReading, PortViewerTarget } from "../../shared/tatolab_backend_contract";
 import type { StudioIconName } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
 import type {
   ListedStreamsReading,
@@ -33,7 +33,6 @@ export type {
   NodeCatalogPort,
   OpenProject,
   OpenProjectReading,
-  PoppedOutViewerTarget,
   PortViewerArrayAttributeReading,
   PortViewerChannelWaveform,
   PortViewerMessageReading,
@@ -80,8 +79,6 @@ export type { PortViewerEvent as PortViewerConnectionEvent, ViewOpeningTarget } 
 /** Stops a watch; calling it again does nothing. */
 export type StopWatching = () => void;
 
-/** A Viewer popped out into a window of its own, or why it was not, in the words of what refused. */
-export type ViewerPopOut = { kind: "popped_out" } | { kind: "not_popped_out"; because: string };
 
 /** What views of one type were last opened on; `ask` counts up, so opening on the same file or port again is a new opening. */
 export interface ViewOpenedOnAsked {
@@ -150,8 +147,6 @@ export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
   undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** The runtime's `redo` by `author` on the open project, answering the redo it applied or its refusal. */
   redoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
-  /** Pop a Viewer pinned to `target` out into a window of its own, or bring forward the one already pinned there. */
-  popOutViewer(target: PoppedOutViewerTarget): Promise<ViewerPopOut>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
   /** Read `target`'s output port, each frame or message and the viewer's end arriving on `onEvent`. */
