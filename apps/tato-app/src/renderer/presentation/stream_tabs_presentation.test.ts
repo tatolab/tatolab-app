@@ -22,13 +22,11 @@ const OPEN_TABS = {
   active_stream: "main",
 };
 
-test("a tab is marked running only while the runtime lists its stream running", () => {
-  const listedStreams = { kind: "listed" as const, streams: [listed("main", "/p", "running"), listed("recorder", "/p", "preparing")] };
-  expect(streamTabsDrawnInTheStrip(OPEN_TABS, listedStreams).map((tab) => [tab.tab_id, tab.name, tab.is_running])).toEqual([
-    ["main", "Main", true],
-    ["recorder", "Recorder", false],
+test("a tab shows its stream's name alone, whatever the runtime lists it doing", () => {
+  expect(streamTabsDrawnInTheStrip(OPEN_TABS)).toEqual([
+    { tab_id: "main", name: "Main" },
+    { tab_id: "recorder", name: "Recorder" },
   ]);
-  expect(streamTabsDrawnInTheStrip(OPEN_TABS, { kind: "not_listed", because: "no runtime" }).map((tab) => tab.is_running)).toEqual([false, false]);
 });
 
 test("the + offers the open project's streams that no tab shows, other projects' streams aside", () => {
