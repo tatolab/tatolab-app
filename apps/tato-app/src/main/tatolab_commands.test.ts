@@ -117,7 +117,8 @@ async function sharedStateOverFakes(
   const statusPublisher = new TatolabStatusPublisher(controller, () => {}, () => 0, quietTatolabAppLog);
   const tatolabAppUpdater = new TatolabAppUpdater(
     { kind: "not_offered", reason: "this fake platform updates nothing" },
-    { notifyANewerVersionIsAvailable: () => {}, notifyANewerVersionIsReadyToInstall: () => {}, notifyTheAppIsUpToDate: () => {}, notifyTheUpdateFailed: () => {} },
+    { notifyANewerVersionIsAvailable: () => {}, notifyTheAppIsUpToDate: () => {}, notifyTheUpdateFailed: () => {} },
+    () => Promise.resolve("cancel"),
     () => {},
     quietTatolabAppLog,
   );
@@ -143,6 +144,7 @@ async function sharedStateOverFakes(
       listProjectFiles: async () => failedWith("no runtime answers"),
       readProjectFile: async () => failedWith("no runtime answers"),
       writeProjectFile: async () => failedWith("no runtime answers"),
+      createNodeFile: async () => failedWith("no runtime answers"),
     },
     personSavingTheFiles: { kind: "person", name: "sam" },
     mintAnIdempotencyKey: () => "a-save",

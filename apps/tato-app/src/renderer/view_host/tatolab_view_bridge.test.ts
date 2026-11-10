@@ -122,6 +122,7 @@ function recordingHostServices() {
     readProjectFile: async (file): Promise<ProjectFileReading> =>
       file === STREAM_FILE_READ.file ? { kind: "read", file_read: STREAM_FILE_READ } : { kind: "not_read", because: `${file} is not in the project.` },
     saveProjectFile: async () => ({ kind: "not_saved", because: "no files in this test" }),
+    createNodeFile: async () => ({ kind: "not_created", because: "no files in this test" }),
     listProjectFiles: async () => ({ kind: "not_listed", because: "no files in this test" }),
     watchProjectLog: () => () => undefined,
     watchProjectNodeTypes: () => () => undefined,

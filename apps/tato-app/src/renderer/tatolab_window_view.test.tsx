@@ -224,7 +224,7 @@ describe("the studio", () => {
     await mountedWindowOverTheMock("state=running");
     await waitFor(() => expect(document.querySelector("[data-studio-window-title]")?.textContent).toBe("pattern"));
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
-    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main, running"]));
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main"]));
   });
 
   it("leaves the project's name to the window's title bar on Linux", async () => {
@@ -447,7 +447,7 @@ describe("the studio", () => {
       },
     });
     await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
-    await waitFor(() => expect(within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main, running"]));
+    await waitFor(() => expect(within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main"]));
 
     fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
     fireEvent.keyDown(inTheCoreView("outliner").getByRole("tree", { name: "Outliner" }), { key: "Enter" });
@@ -455,7 +455,7 @@ describe("the studio", () => {
     act(() => askToShowAStream(cameraStream));
 
     const streamTabs = within(screen.getByRole("tablist", { name: "Open streams" }));
-    expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main, running", "camera, running"]);
+    expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main", "camera"]);
     expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["false", "true"]);
     fireEvent.click(screen.getByRole("button", { name: "Close camera" }));
     expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true"]);
@@ -468,10 +468,10 @@ describe("the studio", () => {
 
     fireEvent.keyDown(document, { key: "2", metaKey: true });
     expect(await shownLayout()).toBe("compose");
-    expect(document.querySelector('[data-studio-area="scene"]')).toBeNull();
+    expect(document.querySelector('[data-studio-area="controls"]')).toBeNull();
     fireEvent.keyDown(document, { key: "5", metaKey: true });
     expect(await shownLayout()).toBe("perform");
-    expect(document.querySelector('[data-studio-area="scene"]')).not.toBeNull();
+    expect(document.querySelector('[data-studio-area="controls"]')).not.toBeNull();
 
   });
 
@@ -727,6 +727,34 @@ describe("the studio", () => {
     await waitFor(() => expect(inTheCoreView("properties").getByRole("textbox", { name: "Node name" })).toHaveProperty("value", "Inverting Effect"));
   });
 
+  it("shows each entry of a list config as its own fields in Properties, and edits, adds and removes an entry as the node's whole config", { timeout: 20_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&compositor=layered");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="alphaovercompositor"]') ?? expect.unreachable("no compositor card")));
+    const properties = () => coreViewPage("properties");
+    const entryLabels = () => [...properties().querySelectorAll("[data-config-list-entry]")].map((entry) => entry.getAttribute("data-config-list-entry"));
+    await waitFor(() => expect(entryLabels()).toEqual(["layers:0", "layers:1"]));
+    expect(properties().querySelector('[data-config-field="layers"] output')?.textContent).toBe("2 entries");
+    const secondX = () => properties().querySelector<HTMLInputElement>('[data-config-field="layers:1:x"] input') ?? expect.unreachable("no x field on the second entry");
+    expect(secondX().value).toBe("640");
+    expect(properties().querySelector('[data-config-field="layers:0:opacity"]')?.getAttribute("data-config-field-value-source")).toBe("default");
+
+    fireEvent.change(secondX(), { target: { value: "100" } });
+    secondX().focus();
+    fireEvent.keyDown(secondX(), { key: "Enter" });
+    await waitFor(() => expect(secondX().value).toBe("100"), { timeout: 5000 });
+    expect(properties().querySelector('[data-config-field="layers:1:y"] input')).toHaveProperty("value", "360");
+
+    fireEvent.click(properties().querySelector<HTMLElement>('[data-config-field="layers"] [data-property-list-entry-add]') ?? expect.unreachable("no add"));
+    await waitFor(() => expect(entryLabels()).toEqual(["layers:0", "layers:1", "layers:2"]), { timeout: 5000 });
+    expect(properties().querySelector('[data-config-field="layers:2:opacity"]')?.getAttribute("data-config-field-value-source")).toBe("default");
+
+    fireEvent.click(properties().querySelector<HTMLElement>('[data-config-list-entry="layers:0"] [data-property-list-entry-remove]') ?? expect.unreachable("no remove"));
+    await waitFor(() => expect(entryLabels()).toEqual(["layers:0", "layers:1"]), { timeout: 5000 });
+    expect(secondX().value).toBe("0");
+    expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
+  });
+
   it("draws the Stream graph's Add node, Frame, Note and Subgraph in the window's toolbar, says why one can't be pressed, and a press opens the node search in the graph", async () => {
     await mountedWindowOverTheMock("state=running");
     const toolInTheToolbar = (tool: string) => document.querySelector<HTMLElement>(`[data-studio-graph-tool="${tool}"]`) ?? expect.unreachable(`no ${tool} in the toolbar`);
@@ -790,7 +818,7 @@ describe("the studio", () => {
   it("opens a saved layout that does not parse on its default, and says when an area names a view this build lacks", async () => {
     localStorage.setItem(
       studioLayoutsStorageKey(PATTERN_PROJECT),
-      JSON.stringify({ chosen_layout: "code", layouts: { code: { kind: "area", area_id: "venue", view_type_id: "venue-3d" }, build: { kind: "split", parts: [] } } }),
+      JSON.stringify({ chosen_layout: "code", layouts: { code: { kind: "area", area_id: "venue", view_type_id: "venue-3d" }, build: { kind: "split", parts: [] } }, default_revisions: { code: 2 } }),
     );
     await mountedWindowOverTheMock("state=running");
 
@@ -811,7 +839,7 @@ describe("the studio", () => {
     expect(await shownLayout()).toBe("build");
     expect(document.querySelector("[data-projects]")).toBeNull();
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
-    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => `${tab.textContent} ${tab.getAttribute("aria-selected")}`)).toEqual(["main, running true"]));
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => `${tab.textContent} ${tab.getAttribute("aria-selected")}`)).toEqual(["main true"]));
     await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).not.toBeNull());
   });
 

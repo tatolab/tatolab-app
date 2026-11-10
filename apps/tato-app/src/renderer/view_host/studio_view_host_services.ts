@@ -23,7 +23,7 @@ export interface StudioWindowValuesServedToViews {
 
 /** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types, assets and history, their language servers, and the port viewers of their running nodes. */
 export interface StudioViewHostProjectServices {
-  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "listProjectFiles" | "writeStudioViewOutput">;
+  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "writeStudioViewOutput">;
   projectLogReadings: ProjectLogReadings;
   projectNodeTypeReadings: ProjectListingReadingsPolledWhileWatched<ProjectNodeTypeListing>;
   projectAssetReadings: ProjectListingReadingsPolledWhileWatched<ProjectAssetListing>;
@@ -69,6 +69,11 @@ export function studioViewHostServicesOf(
       backend.saveProjectFile(file, text, basedOnVersion).then(
         (fileSaved) => ({ kind: "saved", version: fileSaved.version }),
         (rejection: unknown) => ({ kind: "not_saved", because: describeBackendRejection(rejection) }),
+      ),
+    createNodeFile: (file) =>
+      backend.createNodeFile(file).then(
+        (nodeFileCreated) => ({ kind: "created", file: nodeFileCreated.file, node_type: nodeFileCreated.node_type }),
+        (rejection: unknown) => ({ kind: "not_created", because: describeBackendRejection(rejection) }),
       ),
     listProjectFiles: (projectFolder) =>
       backend.listProjectFiles(projectFolder).then(

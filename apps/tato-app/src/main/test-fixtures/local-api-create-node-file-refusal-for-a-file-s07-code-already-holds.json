@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"create_node_file failed: the project already holds `nodes/invert.py`, and a new file is never written over it"}],"isError":true}}

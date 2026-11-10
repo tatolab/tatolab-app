@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"create_node_file failed: `nodes/my-effect.py` is not importable as a Python module: `my-effect` is not a Python identifier; use letters, digits and `_`, not starting with a digit"}],"isError":true}}

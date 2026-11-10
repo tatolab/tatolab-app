@@ -1,9 +1,12 @@
 // What a code area keeps in its settings, and the words its header and log show, apart from the
 // view so each is read the same way in a test.
 
-import type { CodeFileTab } from "@tatolab/tato-app-view-sdk/design_system/code_file_tab_strip";
 import type { LogRecordLine } from "@tatolab/tato-app-view-sdk/design_system/log_record_lines";
-import type { JsonValue, OpenProjectReading, ProjectLogRecord, ViewSettings } from "@tatolab/tato-app-view-sdk";
+import type { CodeFileTab, OpenableCodeFileGroup } from "@tatolab/tato-app-view-sdk/design_system/code_file_tab_strip";
+import type { JsonValue, ProjectLogRecord, ViewSettings } from "@tatolab/tato-app-view-sdk";
+import type { ProjectFilesListing } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { isAFileTheCodeViewOpens } from "../shared/files_the_code_view_opens";
+import type { ProjectWithFiles } from "../shared/projects_with_files";
 
 /** A code area's settings: the files it has open, in tab order, the one it shows, whether the project's log shows under it, and the opening it last took. */
 export interface CodeViewSettings {
@@ -72,16 +75,14 @@ export function codeFileTabsOf(openFiles: readonly string[], documentStateOf: (f
   return openFiles.map((file) => ({ file, name: names.get(file) ?? file, ...documentStateOf(file) }));
 }
 
-/** The projects whose files the file menu offers: the open project first, then each folder import. */
-export function projectsWithFilesToOffer(reading: OpenProjectReading | null): { project_name: string; project_folder: string }[] {
-  if (reading?.kind !== "read") return [];
-  const { open_project } = reading;
-  return [
-    { project_name: open_project.project.name, project_folder: open_project.project.folder },
-    ...open_project.imports.flatMap((importedProject) =>
-      importedProject.source.kind === "folder" ? [{ project_name: importedProject.source.project.name, project_folder: importedProject.source.project.folder }] : [],
-    ),
-  ];
+/** `project`'s group in the file menu: each file `listing` holds that Code opens, or why the runtime did not list them. */
+export function openableCodeFileGroupOf(project: ProjectWithFiles, listing: ProjectFilesListing): OpenableCodeFileGroup {
+  if (listing.kind === "not_listed") return { project_name: project.project_name, files: [], not_listed_because: listing.because };
+  return {
+    project_name: project.project_name,
+    files: listing.project_files.files.filter(isAFileTheCodeViewOpens).map((name) => ({ file: `${project.project_folder}/${name}`, name })),
+    not_listed_because: null,
+  };
 }
 
 function twoDigits(value: number): string {

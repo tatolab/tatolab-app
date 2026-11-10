@@ -16,6 +16,13 @@ export const STUDIO_LAYOUTS: readonly { name: StudioLayoutName; title: string; s
   { name: "perform", title: "Perform", shortcut_digit: "5" },
 ];
 
+/**
+ * Each layout's default as of the screens canvas it was last laid out after, saved beside the trees: a tree kept under an
+ * earlier revision is that layout's new default once, so a project reopens on a changed default. A tree saved with no
+ * revision is revision 1.
+ */
+const STUDIO_LAYOUT_DEFAULT_REVISIONS: Record<StudioLayoutName, number> = { build: 1, compose: 1, spatial: 1, code: 2, perform: 2 };
+
 /** Each layout's tree as the person left it, and the one chosen. */
 export interface StudioLayoutsOfAFolder {
   chosen_layout: StudioLayoutName;
@@ -30,7 +37,7 @@ function split(splitId: string, direction: "row" | "column", parts: [number, Stu
   return { kind: "split", split_id: splitId, direction, parts: parts.map(([sizePercent, part]) => ({ size_percent: sizePercent, part })) };
 }
 
-/** The column down the right edge every layout keeps: the outliner over properties. */
+/** The column down the right edge of the layouts that keep one: the outliner over properties. */
 function sideColumn(): StudioAreaSplit {
   return split("side", "column", [
     [42, area("outliner", "outliner")],
@@ -59,14 +66,20 @@ export function defaultStudioLayout(layoutName: StudioLayoutName): StudioAreaLay
       ]);
     case "code":
       return split("code-columns", "row", [
-        [43, area("code", "code")],
-        [39, split("code-middle", "column", [[50, area("stream-graph", "stream_graph")], [50, area("viewer", "viewer")]])],
-        [18, sideColumn()],
+        [15, area("files", "files")],
+        [40, area("code", "code")],
+        [45, split("code-right", "column", [[70, area("stream-graph", "stream_graph")], [30, area("viewer", "viewer")]])],
       ]);
     case "perform":
       return split("perform-columns", "row", [
-        [82, split("perform-main", "column", [[58, area("viewer", "viewer")], [42, split("perform-bottom", "row", [[50, area("scene", null)], [50, area("stream-graph", "stream_graph")]])]])],
-        [18, sideColumn()],
+        [
+          76,
+          split("perform-main", "column", [
+            [82, area("viewer", "viewer")],
+            [18, split("perform-previews", "row", [[34, area("preview-first", "viewer")], [33, area("preview-second", "viewer")], [33, area("preview-third", "viewer")]])],
+          ]),
+        ],
+        [24, area("controls", "controls")],
       ]);
   }
 }
@@ -85,7 +98,10 @@ function savedField(saved: unknown, fieldName: string): unknown {
 export function studioLayoutsFromSaved(saved: unknown): StudioLayoutsOfAFolder {
   const chosenLayout = savedField(saved, "chosen_layout");
   const savedLayouts = savedField(saved, "layouts");
-  const layoutOf = (layoutName: StudioLayoutName) => studioAreaLayoutFromSaved(savedField(savedLayouts, layoutName)) ?? defaultStudioLayout(layoutName);
+  const savedRevisions = savedField(saved, "default_revisions");
+  const isKeptUnderTheCurrentDefault = (layoutName: StudioLayoutName) => (savedField(savedRevisions, layoutName) ?? 1) === STUDIO_LAYOUT_DEFAULT_REVISIONS[layoutName];
+  const layoutOf = (layoutName: StudioLayoutName) =>
+    (isKeptUnderTheCurrentDefault(layoutName) ? studioAreaLayoutFromSaved(savedField(savedLayouts, layoutName)) : null) ?? defaultStudioLayout(layoutName);
   return {
     chosen_layout: isAStudioLayoutName(chosenLayout) ? chosenLayout : "build",
     layouts: { build: layoutOf("build"), compose: layoutOf("compose"), spatial: layoutOf("spatial"), code: layoutOf("code"), perform: layoutOf("perform") },
@@ -116,7 +132,7 @@ export class StudioLayoutsKeptInStorage {
   /** Keep `layouts` for `projectFolder`; a page that may not store keeps them only while it is open. */
   keepLayoutsOf(projectFolder: string, layouts: StudioLayoutsOfAFolder): void {
     try {
-      this.storage?.setItem(studioLayoutsStorageKey(projectFolder), JSON.stringify(layouts));
+      this.storage?.setItem(studioLayoutsStorageKey(projectFolder), JSON.stringify({ ...layouts, default_revisions: STUDIO_LAYOUT_DEFAULT_REVISIONS }));
     } catch {
       return;
     }

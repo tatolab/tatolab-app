@@ -11,6 +11,7 @@ import type {
   PortViewerTarget,
   ProjectFileReading,
   ProjectFileSaving,
+  NodeFileCreating,
   ProjectFilesListing,
   ProjectGraphTransactionApplying,
   ProjectLogReading,
@@ -127,6 +128,8 @@ export interface TatoAppViewConnection {
   readProjectFile(file: string): Promise<ProjectFileReading>;
   /** Write `text` to `file` whole when it is still at `basedOnVersion` on disk (`null` for a new file). */
   saveProjectFile(file: string, text: string, basedOnVersion: string | null): Promise<ProjectFileSaving>;
+  /** A new Python node file at `file` in the open project's own folder, from the runtime's node template, with the node type it declares, or why the runtime did not create it. */
+  createNodeFile(file: string): Promise<NodeFileCreating>;
   /** The files of the project in `projectFolder`, or why they were not listed. */
   listProjectFiles(projectFolder: string): Promise<ProjectFilesListing>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
@@ -282,6 +285,11 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
         ask({ kind: "save_project_file", file, text, based_on_version: basedOnVersion }).then((answer): ProjectFileSaving => {
           if (answer.kind === "project_file_saved") return { kind: "saved", version: answer.version };
           return { kind: "not_saved", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
+      createNodeFile: (file) =>
+        ask({ kind: "create_node_file", file }).then((answer): NodeFileCreating => {
+          if (answer.kind === "node_file_created") return { kind: "created", file: answer.file, node_type: answer.node_type };
+          return { kind: "not_created", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
         }),
       listProjectFiles: (projectFolder) =>
         ask({ kind: "list_project_files", project_folder: projectFolder }).then((answer): ProjectFilesListing => {

@@ -104,7 +104,7 @@ export function createElectronMainWindowHostFactory(
               message: question.message,
               detail: question.detail,
               buttons: [...question.buttonLabels],
-              defaultId: 0,
+              defaultId: question.defaultButtonIndex,
               cancelId: question.cancelButtonIndex,
               noLink: true,
             });

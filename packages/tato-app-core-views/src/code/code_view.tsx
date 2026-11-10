@@ -10,12 +10,13 @@ import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_on
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { ProjectLogReading, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import { CoreViewFrame } from "../shared/core_view_page";
+import { projectsWithFilesOf } from "../shared/projects_with_files";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import {
   codeFileTabsOf,
   codeViewSettingsOf,
   logRecordLineOf,
-  projectsWithFilesToOffer,
+  openableCodeFileGroupOf,
   withTheFileClosed,
   withTheFileShown,
   type CodeViewSettings,
@@ -68,26 +69,26 @@ function useOpenCodeDocuments(connection: TatoAppViewConnection): OpenCodeDocume
   return documents;
 }
 
-/** The files each of the open project and its imports offers to open, listed again whenever the project is read again. */
+/** The files each of the open project and its imports offers to open, listed again whenever the project is read again and after each transaction the runtime applies to it. */
 function useOpenableFileGroups(connection: TatoAppViewConnection): OpenableCodeFileGroup[] {
   const openProject = useViewReading(connection.watchOpenProject);
-  const projects = useMemo(() => projectsWithFilesToOffer(openProject), [openProject]);
+  const openProjectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
+  const projects = useMemo(() => (openProject?.kind === "read" ? projectsWithFilesOf(openProject.open_project) : []), [openProject]);
+  const [transactionsSeen, setTransactionsSeen] = useState(0);
   const [groups, setGroups] = useState<OpenableCodeFileGroup[]>([]);
   useEffect(() => {
+    if (openProjectFolder === null) return undefined;
+    return connection.watchProjectTransactions(openProjectFolder, () => setTransactionsSeen((count) => count + 1));
+  }, [connection, openProjectFolder]);
+  useEffect(() => {
     let isStale = false;
-    void Promise.all(
-      projects.map(async ({ project_name: projectName, project_folder: projectFolder }): Promise<OpenableCodeFileGroup> => {
-        const listing = await connection.listProjectFiles(projectFolder);
-        if (listing.kind === "not_listed") return { project_name: projectName, files: [], not_listed_because: listing.because };
-        return { project_name: projectName, files: listing.project_files.files.map((name) => ({ file: `${projectFolder}/${name}`, name })), not_listed_because: null };
-      }),
-    ).then((listedGroups) => {
+    void Promise.all(projects.map(async (project) => openableCodeFileGroupOf(project, await connection.listProjectFiles(project.project_folder)))).then((listedGroups) => {
       if (!isStale) setGroups(listedGroups);
     });
     return () => {
       isStale = true;
     };
-  }, [connection, projects]);
+  }, [connection, projects, transactionsSeen]);
   return groups;
 }
 

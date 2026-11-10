@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"path\": \"nodes/invert.py\",\n  \"node_type\": \"nodes.invert:Invert\",\n  \"transaction\": \"9c38b2ef-7d8b-4d89-b6fd-c226ca507521\",\n  \"commit\": \"665925378946a3db63451a5eff799202db9bc04b\"\n}"}],"isError":false}}

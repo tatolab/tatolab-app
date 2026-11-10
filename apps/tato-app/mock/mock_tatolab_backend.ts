@@ -214,6 +214,10 @@ export interface MockTatolabOptions {
   isTheCatalogUnserved: boolean;
   /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node; its import brings one that does not open. */
   isTheFixtureViewListed: boolean;
+  /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the effect's output. */
+  isTheCompositorInMain: boolean;
+  /** Whether the open project's main stream declares Graph Inputs, which Perform's Controls show. */
+  doesTheMainStreamDeclareGraphInputs: boolean;
 }
 
 /** The query parameter a Module manager window's page is told by. */
@@ -336,6 +340,8 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     moduleManagerWorkspaceDependencies: mockWorkspaceDependenciesScenarioNamed(pageQuery.get(MODULE_MANAGER_QUERY_PARAMETER)),
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
+    isTheCompositorInMain: pageQuery.get("compositor") === "layered",
+    doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",
   };
 }
 
@@ -459,7 +465,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         ? fixtures.mainStreamWithItsMeterFallingBehind
         : mockTatolabOptions.isTheFixtureViewListed
           ? fixtures.mainStreamWithTheFixtureViewsNode
-          : fixtures.mainStream;
+          : mockTatolabOptions.isTheCompositorInMain
+            ? fixtures.mainStreamWithTheCompositorNode
+            : mockTatolabOptions.doesTheMainStreamDeclareGraphInputs
+              ? fixtures.mainStreamDeclaringGraphInputs
+              : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
   const menusKeptForTheSystemMenuBar: SystemMenuBarMenu[] = [];
@@ -1467,6 +1477,18 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       refuseWithoutAnOpenProject();
       return mockProjectFiles.save(file, text, basedOnVersion);
+    },
+    createNodeFile: async (file) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      refuseWithoutAnOpenProject();
+      const created = mockProjectFiles.createNodeFile(file);
+      const pathInTheProject = mockProjectFiles.pathInTheOpenProjectOf(file);
+      mockProjectTransactions?.record(
+        MOCK_PERSON_EDITING_IN_STUDIO,
+        [{ operation: "write_project_file", path: pathInTheProject, content: { staged_copy: { staged_at: `.tatolab/staged-file-writes/${crypto.randomUUID()}` } }, replaced_a_file: false }],
+        [{ operation: "remove_project_file", path: pathInTheProject }],
+      );
+      return created;
     },
     listProjectFiles: async (projectFolder) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

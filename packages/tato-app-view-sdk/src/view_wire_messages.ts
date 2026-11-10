@@ -117,6 +117,8 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("read_project_file"), file: z.string() }),
   /** Write `text` to `file` whole when it is still at `based_on_version` on disk (`null` for a new file); never over a file changed since, or an import's. */
   z.object({ kind: z.literal("save_project_file"), file: z.string(), text: z.string(), based_on_version: z.string().nullable() }),
+  /** A new Python node file at `file`, absolute, in the open project's own folder, from the runtime's node template. */
+  z.object({ kind: z.literal("create_node_file"), file: z.string() }),
   z.object({ kind: z.literal("list_project_files"), project_folder: z.string() }),
   /** One JSON-RPC message for the language server the view's watch `watch_id` started. */
   z.object({ kind: z.literal("send_to_python_language_server"), watch_id: watchOrAskIdSchema, message: jsonValueSchema }),
@@ -185,6 +187,7 @@ export const viewAskAnswerSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("refused"), because: z.string() }),
   z.object({ kind: z.literal("project_file_read"), file_read: projectFileReadSchema }),
   z.object({ kind: z.literal("project_file_saved"), version: z.string() }),
+  z.object({ kind: z.literal("node_file_created"), file: z.string(), node_type: z.string() }),
   z.object({ kind: z.literal("project_files_listed"), project_files: projectFilesSchema }),
   z.object({ kind: z.literal("project_transaction_applied"), transaction: projectTransactionSchema }),
   z.object({ kind: z.literal("project_graph_transaction_applied"), transaction: projectGraphTransactionSchema }),

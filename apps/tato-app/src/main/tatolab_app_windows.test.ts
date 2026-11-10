@@ -69,6 +69,7 @@ async function windowsWithNightShowOpen(stopTheProject: (projectFolder: string) 
       listProjectFiles: async () => failedWith("no runtime answers"),
       readProjectFile: async () => failedWith("no runtime answers"),
       writeProjectFile: async () => failedWith("no runtime answers"),
+      createNodeFile: async () => failedWith("no runtime answers"),
     },
     personSavingTheFiles: { kind: "person", name: "sam" },
     mintAnIdempotencyKey: () => "a-save",
@@ -120,6 +121,7 @@ test("closing a running project's window asks first, and Stop and Close stops th
       message: `Closing this window stops ${projectName}.`,
       detail: `Every stream of ${projectName} stops running. Open the project and run it again to start it.`,
       buttonLabels: [STOP_AND_CLOSE_BUTTON_LABEL, "Cancel"],
+      defaultButtonIndex: 0,
       cancelButtonIndex: 1,
     },
   ]);
@@ -164,6 +166,7 @@ test("a stop the runtime refuses keeps the window open and shows the refusal in 
     message: `${projectName} did not stop, so its window stays open.`,
     detail: refusal,
     buttonLabels: ["OK"],
+    defaultButtonIndex: 0,
     cancelButtonIndex: 0,
   });
   expect(fakeShell.studioWindowsOpen()).toHaveLength(1);
@@ -221,4 +224,30 @@ test("a popped-out view's language servers send it their events, and stop as it 
 
   expect(fakeShell.requestTheCloseOfTheWindow(poppedOutWindowContentsId)).toBe("let_it_close");
   expect(languageServersStopped).toEqual([languageServerOfThePoppedOutView]);
+});
+
+test("a question for the window in front is asked over a studio window on screen, and over the Projects window, shown, when none is", async () => {
+  const anUpdateQuestion = { message: "Tato Studio 0.69.0 is ready to install.", detail: "", buttonLabels: ["Install Update", "Cancel"], defaultButtonIndex: 1, cancelButtonIndex: 1 };
+  const { fakeShell, appWindows, projectFolder } = await windowsWithNightShowOpen(async () => succeeded(undefined));
+  fakeShell.forgetTheRecords();
+  await appWindows.askAQuestionOverTheWindowInFront(anUpdateQuestion);
+  expect(fakeShell.records).toEqual([{ asked: "ask_a_question_over_the_window", question: anUpdateQuestion, windowContentsId: STUDIO_WINDOW_CONTENTS_ID }]);
+
+  appWindows.sendEveryWindowTheStatus(aStatusListing([aStreamOf(projectFolder, "stopped")]));
+  fakeShell.requestTheCloseOfTheWindow(STUDIO_WINDOW_CONTENTS_ID);
+  fakeShell.requestTheCloseOfTheWindow(PROJECTS_WINDOW_CONTENTS_ID);
+  fakeShell.forgetTheRecords();
+  await appWindows.askAQuestionOverTheWindowInFront(anUpdateQuestion);
+  expect(fakeShell.mainWindowShowing).toBe(true);
+  expect(fakeShell.records.at(-1)).toEqual({ asked: "ask_a_question_over_the_window", question: anUpdateQuestion });
+});
+
+test("a question for the window in front is asked over the window last in focus while it is on screen", async () => {
+  const anUpdateQuestion = { message: "Tato Studio 0.69.0 is ready to install.", detail: "", buttonLabels: ["Install Update", "Cancel"], defaultButtonIndex: 1, cancelButtonIndex: 1 };
+  const { fakeShell, appWindows } = await windowsWithNightShowOpen(async () => succeeded(undefined));
+  appWindows.showTheProjectsWindow();
+  appWindows.noticeTheWindowFocused(PROJECTS_WINDOW_CONTENTS_ID);
+  fakeShell.forgetTheRecords();
+  await appWindows.askAQuestionOverTheWindowInFront(anUpdateQuestion);
+  expect(fakeShell.records).toEqual([{ asked: "ask_a_question_over_the_window", question: anUpdateQuestion }]);
 });
