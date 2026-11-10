@@ -1,14 +1,15 @@
-import type { ListedStream, ProjectTransaction } from "@tatolab/tato-app-view-sdk";
+import type { ListedStream, ProjectTransaction, RefusedProjectAction } from "@tatolab/tato-app-view-sdk";
 import { describe, expect, it } from "vitest";
 import {
-  appliedAtWordsOf,
+  changeFeedEntryAsJson,
+  happenedAtWordsOf,
   NO_TRANSACTIONS_FILTER,
   streamWordsByOperationStream,
-  transactionAsJson,
   transactionsFilterButtonWordsOf,
   transactionsFilterChoicesOf,
   transactionsFiltersOnCount,
   transactionsViewRowOf,
+  transactionsViewRowsOf,
   transactionsViewRowsShownBy,
 } from "./transactions_view_rows";
 
@@ -42,6 +43,26 @@ function transactionWith(fields: Partial<ProjectTransaction>): ProjectTransactio
   };
 }
 
+function refusedActionWith(fields: Partial<RefusedProjectAction>): RefusedProjectAction {
+  return {
+    author_kind: "agent",
+    author_name: "claude-code",
+    mode: "commit",
+    operations: [{ operation: "set_node_config", stream: MAIN_STREAM_ASSET, node: "9c41", to: { softness: 2 } }],
+    idempotency_key: null,
+    refusal: {
+      action: "edit_graph",
+      refused_operation_index: 0,
+      refused_node: "9c41",
+      refused_link: null,
+      refused_field: "softness",
+      runtime_words: "softness 2 is above its maximum 1",
+    },
+    refused_at: "2026-11-09T18:42:31Z",
+    ...fields,
+  };
+}
+
 const streamWordsOf = streamWordsByOperationStream([MAIN_STREAM]);
 
 describe("a Transactions row", () => {
@@ -58,13 +79,13 @@ describe("a Transactions row", () => {
       "UTC",
     );
     expect(row).toMatchObject({
-      applied_at_words: "18:42:31.204",
+      happened_at_words: "18:42:31.204",
       author_words: "person · Sam",
       stream_words: ["Main"],
       operation_verbs: ["add_node", "connect"],
       operations_words: "add_node, connect",
       result: "applied",
-      commit_words: "3b0fc2d",
+      commit_cell_words: "3b0fc2d",
       time_cell_words: "18:42:31.204",
       stream_cell_words: "Main",
     });
@@ -83,14 +104,64 @@ describe("a Transactions row", () => {
   });
 
   it("has no time from a runtime that does not say, and shows a time it cannot read as sent", () => {
-    expect(appliedAtWordsOf(null)).toBeNull();
+    expect(happenedAtWordsOf(null)).toBeNull();
     expect(transactionsViewRowOf(transactionWith({ applied_at: null, operations: [] }), streamWordsOf).time_cell_words).toBe("—");
-    expect(appliedAtWordsOf("not a time")).toBe("not a time");
+    expect(happenedAtWordsOf("not a time")).toBe("not a time");
+    expect(happenedAtWordsOf("2026-11-09T18:42:31Z", "UTC"), "a time to the second shows no milliseconds it never had").toBe("18:42:31");
   });
 
   it("copies the transaction as JSON exactly as the runtime sent it", () => {
     const transaction = transactionWith({ operations: [{ operation: "set_pin_value", stream: MAIN_STREAM_ASSET, input: "dot_size", from: 1, to: 1.45 }] });
-    expect(JSON.parse(transactionAsJson(transaction))).toEqual(transaction);
+    expect(JSON.parse(changeFeedEntryAsJson({ kind: "applied", transaction }))).toEqual(transaction);
+  });
+});
+
+describe("a refused action's row", () => {
+  it("reads refused, names who asked and what, has no commit, and carries the runtime's own words", () => {
+    const refusedAction = refusedActionWith({});
+    const row = transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [], refused_actions: [refusedAction] }, streamWordsOf, "UTC")[0];
+    expect(row).toMatchObject({
+      result: "refused",
+      author_words: "agent · claude-code",
+      stream_cell_words: "Main",
+      operations_words: "set_node_config",
+      time_cell_words: "18:42:31",
+      commit_cell_words: "—",
+      refusal_words: "softness 2 is above its maximum 1",
+    });
+    expect(row?.row_id).toBe("refused:2026-11-09T18:42:31Z:0");
+    expect(JSON.parse(changeFeedEntryAsJson({ kind: "refused", refused_action: refusedAction }))).toEqual(refusedAction);
+  });
+
+  it("is found by a search for the runtime's words", () => {
+    const rows = transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [transactionWith({ transaction: "t1" })], refused_actions: [refusedActionWith({})] }, streamWordsOf);
+    expect(transactionsViewRowsShownBy(rows, { ...NO_TRANSACTIONS_FILTER, search_words: "MAXIMUM" }).map((row) => row.result)).toEqual(["refused"]);
+    expect(transactionsViewRowsShownBy(rows, { ...NO_TRANSACTIONS_FILTER, result: "refused" }).map((row) => row.result)).toEqual(["refused"]);
+    expect(transactionsFilterChoicesOf(rows).results).toEqual(["applied", "refused"]);
+  });
+});
+
+describe("the feed as one list", () => {
+  it("puts applied transactions and refused actions newest first, a refusal first within the same second", () => {
+    const rows = transactionsViewRowsOf(
+      {
+        project: "p",
+        project_directory: "/p",
+        transactions: [
+          transactionWith({ transaction: "t-newest", applied_at: "2026-11-09T18:45:00.250Z" }),
+          transactionWith({ transaction: "t-same-second", applied_at: "2026-11-09T18:44:00.900Z" }),
+          transactionWith({ transaction: "t-oldest", applied_at: "2026-11-09T18:40:00.000Z" }),
+        ],
+        refused_actions: [refusedActionWith({ refused_at: "2026-11-09T18:44:00Z" }), refusedActionWith({ refused_at: "2026-11-09T18:42:00Z" })],
+      },
+      streamWordsOf,
+    );
+    expect(rows.map((row) => row.row_id)).toEqual(["t-newest", "refused:2026-11-09T18:44:00Z:1", "t-same-second", "refused:2026-11-09T18:42:00Z:0", "t-oldest"]);
+  });
+
+  it("keeps the runtime's order of transactions from a runtime that sends no times", () => {
+    const rows = transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [transactionWith({ transaction: "a", applied_at: null }), transactionWith({ transaction: "b", applied_at: null })], refused_actions: [] }, streamWordsOf);
+    expect(rows.map((row) => row.row_id)).toEqual(["a", "b"]);
   });
 });
 
@@ -100,7 +171,7 @@ describe("the Filter popover", () => {
     transactionsViewRowOf(transactionWith({ transaction: "t2", author_kind: "agent", author_name: "claude-code", operations: [{ operation: "set_node_config", stream: MAIN_STREAM_ASSET, to: { softness: 0.64 } }] }), streamWordsOf),
     transactionsViewRowOf(transactionWith({ transaction: "t3", author_kind: "runtime", author_name: "tatolab", operations: [{ operation: "import_asset" }] }), streamWordsOf),
   ];
-  const shownTransactions = (filter: Partial<typeof NO_TRANSACTIONS_FILTER>) => transactionsViewRowsShownBy(rows, { ...NO_TRANSACTIONS_FILTER, ...filter }).map((row) => row.transaction);
+  const shownTransactions = (filter: Partial<typeof NO_TRANSACTIONS_FILTER>) => transactionsViewRowsShownBy(rows, { ...NO_TRANSACTIONS_FILTER, ...filter }).map((row) => row.row_id);
 
   it("offers every result, author, stream and operation the rows hold", () => {
     expect(transactionsFilterChoicesOf(rows)).toEqual({

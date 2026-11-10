@@ -1,19 +1,23 @@
 // What the Transactions view shows of a project's change feed: one row per transaction, the
 // choices its Filter popover offers, and what a row copies as JSON.
 
-import type { JsonValue, ListedStream, ProjectTransaction } from "@tatolab/tato-app-view-sdk";
+import type { JsonValue, ListedStream, ProjectTransaction, ProjectTransactions, RefusedProjectAction } from "@tatolab/tato-app-view-sdk";
 
-/** Whether the runtime applied a transaction or refused it; every row reads applied while the feed carries no refusals. */
+/** Whether the runtime applied a change or refused it. */
 export type TransactionResult = "applied" | "refused";
+
+/** A change-feed entry exactly as the runtime sent it: a transaction it applied, or an action it refused. */
+export type ChangeFeedEntryAsSent = { kind: "applied"; transaction: ProjectTransaction } | { kind: "refused"; refused_action: RefusedProjectAction };
 
 /** One row of the Transactions table and its detail pane. */
 export interface TransactionsViewRow {
-  transaction: string;
-  /** The time it applied, as this machine's clock reads it; `null` from a runtime that does not say. */
-  applied_at_words: string | null;
+  /** The transaction's UUID, or for a refused action its time and its place among the refusals kept. */
+  row_id: string;
+  /** The time it applied or was refused, as this machine's clock reads it; `null` from a runtime that does not say. */
+  happened_at_words: string | null;
   /** `person · Sam`, `agent · claude-code` or `runtime`. */
   author_words: string;
-  /** The Time cell: `applied_at_words`, or a dash when the runtime does not say. */
+  /** The Time cell: `happened_at_words`, or a dash when the runtime does not say. */
   time_cell_words: string;
   /** Each stream it touched, by the name the runtime lists it under; empty for a change to the project alone. */
   stream_words: readonly string[];
@@ -21,13 +25,14 @@ export interface TransactionsViewRow {
   stream_cell_words: string;
   /** Each operation's verb, once each, in order. */
   operation_verbs: readonly string[];
-  /** `undo · set_node_config`, or the verbs it ran. */
+  /** `undo · set_node_config`, or the verbs it ran or asked for. */
   operations_words: string;
   result: TransactionResult;
-  /** The commit's first seven hex digits. */
-  commit_words: string;
-  /** The transaction exactly as the runtime sent it. */
-  transaction_as_sent: ProjectTransaction;
+  /** The Commit cell: the commit's first seven hex digits, or a dash for a refused action, which no history records. */
+  commit_cell_words: string;
+  /** Why the runtime refused it, in its own words; `null` for an applied transaction. */
+  refusal_words: string | null;
+  sent: ChangeFeedEntryAsSent;
   /** Everything the search matches against, lowercased once. */
   searched_words: string;
 }
@@ -64,9 +69,9 @@ function distinctInOrder<Value extends string>(values: readonly Value[]): Value[
   return [...new Set(values)];
 }
 
-/** How a transaction's author reads: the runtime by its kind alone, anyone else by kind and name. */
-export function authorWordsOf(transaction: ProjectTransaction): string {
-  return transaction.author_kind === "runtime" ? "runtime" : `${transaction.author_kind} · ${transaction.author_name}`;
+/** How a change's author reads: the runtime by its kind alone, anyone else by kind and name. */
+export function authorWordsOf(author: { author_kind: string; author_name: string }): string {
+  return author.author_kind === "runtime" ? "runtime" : `${author.author_kind} · ${author.author_name}`;
 }
 
 /** The name each operation's `stream` reads as: the listed stream whose stream asset or stream id it names, or the value itself. */
@@ -75,41 +80,115 @@ export function streamWordsByOperationStream(listedStreams: readonly ListedStrea
     listedStreams.find((listedStream) => listedStream.location?.stream_asset === operationStream || listedStream.stream === operationStream)?.display_name ?? operationStream;
 }
 
-/** `appliedAt`, RFC 3339, as hours, minutes, seconds and milliseconds in `timeZone`, for display only. */
-export function appliedAtWordsOf(appliedAt: string | null, timeZone?: string): string | null {
-  if (appliedAt === null) return null;
-  const applied = new Date(appliedAt);
-  if (Number.isNaN(applied.getTime())) return appliedAt;
-  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3, hourCycle: "h23", timeZone }).format(applied);
+/** `happenedAt`, RFC 3339, as hours, minutes and seconds in `timeZone`, with milliseconds when the runtime sent a fraction, for display only. */
+export function happenedAtWordsOf(happenedAt: string | null, timeZone?: string): string | null {
+  if (happenedAt === null) return null;
+  const happened = new Date(happenedAt);
+  if (Number.isNaN(happened.getTime())) return happenedAt;
+  const sentAFraction = /T\d{2}:\d{2}:\d{2}\.\d/.test(happenedAt);
+  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", ...(sentAFraction ? { fractionalSecondDigits: 3 } : {}), hourCycle: "h23", timeZone }).format(happened);
 }
 
-/** The row `transaction` shows. */
-export function transactionsViewRowOf(transaction: ProjectTransaction, streamWordsOf: (operationStream: string) => string, timeZone?: string): TransactionsViewRow {
-  const operationVerbs = distinctInOrder(transaction.operations.map((operation) => stringFieldOf(operation, "operation") ?? "unnamed operation"));
-  const lineage = transaction.undoes !== null ? "undo · " : transaction.redoes !== null ? "redo · " : "";
-  const appliedAtWords = appliedAtWordsOf(transaction.applied_at, timeZone);
-  const authorWords = authorWordsOf(transaction);
-  const streamWords = distinctInOrder(
-    transaction.operations.flatMap((operation) => {
+function operationVerbsOf(operations: readonly JsonValue[]): string[] {
+  return distinctInOrder(operations.map((operation) => stringFieldOf(operation, "operation") ?? "unnamed operation"));
+}
+
+function streamWordsOfOperations(operations: readonly JsonValue[], streamWordsOf: (operationStream: string) => string): string[] {
+  return distinctInOrder(
+    operations.flatMap((operation) => {
       const operationStream = stringFieldOf(operation, "stream");
       return operationStream === null ? [] : [streamWordsOf(operationStream)];
     }),
   );
-  const operationsWords = `${lineage}${operationVerbs.length === 0 ? "no operations" : operationVerbs.join(", ")}`;
+}
+
+function verbsWords(operationVerbs: readonly string[]): string {
+  return operationVerbs.length === 0 ? "no operations" : operationVerbs.join(", ");
+}
+
+/** The row `transaction`, one the runtime applied, shows. */
+export function transactionsViewRowOf(transaction: ProjectTransaction, streamWordsOf: (operationStream: string) => string, timeZone?: string): TransactionsViewRow {
+  const operationVerbs = operationVerbsOf(transaction.operations);
+  const lineage = transaction.undoes !== null ? "undo · " : transaction.redoes !== null ? "redo · " : "";
+  const happenedAtWords = happenedAtWordsOf(transaction.applied_at, timeZone);
+  const authorWords = authorWordsOf(transaction);
+  const streamWords = streamWordsOfOperations(transaction.operations, streamWordsOf);
+  const operationsWords = `${lineage}${verbsWords(operationVerbs)}`;
   return {
-    transaction: transaction.transaction,
-    applied_at_words: appliedAtWords,
-    time_cell_words: appliedAtWords ?? "—",
+    row_id: transaction.transaction,
+    happened_at_words: happenedAtWords,
+    time_cell_words: happenedAtWords ?? "—",
     author_words: authorWords,
     stream_words: streamWords,
     stream_cell_words: streamWords.length === 0 ? "project" : streamWords.join(", "),
     operation_verbs: operationVerbs,
     operations_words: operationsWords,
     result: "applied",
-    commit_words: transaction.commit.slice(0, SHORT_COMMIT_LENGTH),
-    transaction_as_sent: transaction,
+    commit_cell_words: transaction.commit.slice(0, SHORT_COMMIT_LENGTH),
+    refusal_words: null,
+    sent: { kind: "applied", transaction },
     searched_words: [authorWords, operationsWords, ...streamWords, JSON.stringify(transaction)].join("\n").toLowerCase(),
   };
+}
+
+/** The row `refusedAction`, the `placeFromTheOldest`th refusal the runtime keeps, shows. */
+export function refusedActionsViewRowOf(refusedAction: RefusedProjectAction, placeFromTheOldest: number, streamWordsOf: (operationStream: string) => string, timeZone?: string): TransactionsViewRow {
+  const operationVerbs = operationVerbsOf(refusedAction.operations);
+  const happenedAtWords = happenedAtWordsOf(refusedAction.refused_at, timeZone);
+  const authorWords = authorWordsOf(refusedAction);
+  const streamWords = streamWordsOfOperations(refusedAction.operations, streamWordsOf);
+  const operationsWords = verbsWords(operationVerbs);
+  return {
+    row_id: `refused:${refusedAction.refused_at}:${placeFromTheOldest}`,
+    happened_at_words: happenedAtWords,
+    time_cell_words: happenedAtWords ?? "—",
+    author_words: authorWords,
+    stream_words: streamWords,
+    stream_cell_words: streamWords.length === 0 ? "project" : streamWords.join(", "),
+    operation_verbs: operationVerbs,
+    operations_words: operationsWords,
+    result: "refused",
+    commit_cell_words: "—",
+    refusal_words: refusedAction.refusal.runtime_words,
+    sent: { kind: "refused", refused_action: refusedAction },
+    searched_words: [authorWords, operationsWords, ...streamWords, JSON.stringify(refusedAction)].join("\n").toLowerCase(),
+  };
+}
+
+function happenedAtMilliseconds(happenedAt: string | null): number | null {
+  if (happenedAt === null) return null;
+  const milliseconds = new Date(happenedAt).getTime();
+  return Number.isNaN(milliseconds) ? null : milliseconds;
+}
+
+/** The feed's applied transactions and refused actions as one list, newest first; a refusal in the same second as a transaction comes first, as the runtime orders them. */
+export function transactionsViewRowsOf(feed: ProjectTransactions, streamWordsOf: (operationStream: string) => string, timeZone?: string): TransactionsViewRow[] {
+  const appliedRows = feed.transactions.map((transaction) => ({ second: secondOf(transaction.applied_at), row: transactionsViewRowOf(transaction, streamWordsOf, timeZone) }));
+  const refusedRows = feed.refused_actions.map((refusedAction, newestFirstIndex) => ({
+    second: secondOf(refusedAction.refused_at),
+    row: refusedActionsViewRowOf(refusedAction, feed.refused_actions.length - 1 - newestFirstIndex, streamWordsOf, timeZone),
+  }));
+  const rowsNewestFirst: TransactionsViewRow[] = [];
+  let appliedIndex = 0;
+  let refusedIndex = 0;
+  while (appliedIndex < appliedRows.length || refusedIndex < refusedRows.length) {
+    const nextApplied = appliedRows[appliedIndex];
+    const nextRefused = refusedRows[refusedIndex];
+    const theRefusalComesFirst = nextRefused !== undefined && (nextApplied === undefined || nextApplied.second === null || (nextRefused.second !== null && nextRefused.second >= nextApplied.second));
+    if (theRefusalComesFirst && nextRefused !== undefined) {
+      rowsNewestFirst.push(nextRefused.row);
+      refusedIndex += 1;
+    } else if (nextApplied !== undefined) {
+      rowsNewestFirst.push(nextApplied.row);
+      appliedIndex += 1;
+    }
+  }
+  return rowsNewestFirst;
+}
+
+function secondOf(happenedAt: string | null): number | null {
+  const milliseconds = happenedAtMilliseconds(happenedAt);
+  return milliseconds === null ? null : Math.floor(milliseconds / 1000);
 }
 
 /** Every value the rows hold for the Filter popover's Result, Author, Stream and Operation lists. */
@@ -134,9 +213,9 @@ export function transactionsFilterButtonWordsOf(filtersOnCount: number): { words
     : { words: `Filter · ${filtersOnCount}`, label: `Filter transactions: ${filtersOnCount} on` };
 }
 
-/** `transaction` as JSON, indented, exactly as the runtime sent it. */
-export function transactionAsJson(transaction: ProjectTransaction): string {
-  return JSON.stringify(transaction, null, 2);
+/** The entry as JSON, indented, exactly as the runtime sent it. */
+export function changeFeedEntryAsJson(sent: ChangeFeedEntryAsSent): string {
+  return JSON.stringify(sent.kind === "applied" ? sent.transaction : sent.refused_action, null, 2);
 }
 
 /** The rows `filter` keeps, in their order; the search matches the row's words or anything the runtime sent, ignoring case. */
