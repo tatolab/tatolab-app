@@ -1,0 +1,201 @@
+import type { ListedStreamsReading, OpenProjectReading, ProjectTransactionsReading, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import { CodeBlock } from "@tatolab/tato-app-view-sdk/design_system/code_block";
+import { KeyValueRows } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
+import { FieldMenu, MenuGroup, MenuItem, MenuSeparator, MenuSingleChoiceGroup, MoreActionsMenu } from "@tatolab/tato-app-view-sdk/design_system/menus";
+import { RecordTable, type RecordTableColumn } from "@tatolab/tato-app-view-sdk/design_system/record_table";
+import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
+import { SidePanel, WorkAreaWithSidePanel } from "@tatolab/tato-app-view-sdk/design_system/side_panel";
+import { writeTextToClipboard } from "@tatolab/tato-app-view-sdk/design_system/support/clipboard";
+import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
+import { useCallback, useMemo, useState } from "react";
+import { CoreViewFrame } from "../shared/core_view_page";
+import {
+  NO_TRANSACTIONS_FILTER,
+  streamWordsByOperationStream,
+  transactionAsJson,
+  transactionsFilterChoicesOf,
+  transactionsFiltersOnCount,
+  transactionsViewRowOf,
+  transactionsViewRowsShownBy,
+  type TransactionResult,
+  type TransactionsViewFilter,
+  type TransactionsViewRow,
+} from "./transactions_view_rows";
+
+const TRANSACTIONS_COLUMNS: readonly RecordTableColumn[] = [
+  { column_id: "time", heading: "Time", isMachineWords: true },
+  { column_id: "author", heading: "Author" },
+  { column_id: "stream", heading: "Stream" },
+  { column_id: "operations", heading: "Operations" },
+  { column_id: "result", heading: "Result" },
+  { column_id: "commit", heading: "Commit", isMachineWords: true },
+];
+
+/** Every value of one filter list, `any` first; `any` stands for no narrowing. */
+const ANY = "any";
+
+function choicesWithAny(anyWords: string, values: readonly string[]) {
+  return [{ choice: ANY, label: anyWords }, ...values.map((value) => ({ choice: value, label: value }))];
+}
+
+/** The labelled Filter ▾ menu: Result, Author, Stream and Operation, each one choice, and Clear filters. */
+function TransactionsFilterMenu({
+  rows,
+  filter,
+  onFilterChanged,
+}: {
+  rows: readonly TransactionsViewRow[];
+  filter: TransactionsViewFilter;
+  onFilterChanged: (filter: TransactionsViewFilter) => void;
+}) {
+  const choices = transactionsFilterChoicesOf(rows);
+  const filtersOn = transactionsFiltersOnCount(filter);
+  const narrowedTo = (value: string) => (value === ANY ? null : value);
+  return (
+    <FieldMenu label={filtersOn === 0 ? "Filter transactions: no filters on" : `Filter transactions: ${filtersOn} on`} words={filtersOn === 0 ? "Filter" : `Filter · ${filtersOn}`} isNarrowing={filtersOn > 0} data-transactions-filter="">
+      <MenuGroup label="Result">
+        <MenuSingleChoiceGroup<string>
+          choices={choicesWithAny("Any result", ["applied", "refused"])}
+          chosen={filter.result ?? ANY}
+          onChosen={(result) => onFilterChanged({ ...filter, result: result === "applied" || result === "refused" ? (result satisfies TransactionResult) : null })}
+          dataAttributeOfEachChoice="data-transactions-filter-result"
+        />
+      </MenuGroup>
+      <MenuGroup label="Author">
+        <MenuSingleChoiceGroup<string>
+          choices={choicesWithAny("Anyone", choices.author_words)}
+          chosen={filter.author_words ?? ANY}
+          onChosen={(author) => onFilterChanged({ ...filter, author_words: narrowedTo(author) })}
+          dataAttributeOfEachChoice="data-transactions-filter-author"
+        />
+      </MenuGroup>
+      <MenuGroup label="Stream">
+        <MenuSingleChoiceGroup<string>
+          choices={choicesWithAny("All streams", choices.stream_words)}
+          chosen={filter.stream_words ?? ANY}
+          onChosen={(stream) => onFilterChanged({ ...filter, stream_words: narrowedTo(stream) })}
+          dataAttributeOfEachChoice="data-transactions-filter-stream"
+        />
+      </MenuGroup>
+      <MenuGroup label="Operation">
+        <MenuSingleChoiceGroup<string>
+          choices={choicesWithAny("Any", choices.operation_verbs)}
+          chosen={filter.operation_verb ?? ANY}
+          onChosen={(operationVerb) => onFilterChanged({ ...filter, operation_verb: narrowedTo(operationVerb) })}
+          dataAttributeOfEachChoice="data-transactions-filter-operation"
+        />
+      </MenuGroup>
+      <MenuSeparator />
+      <MenuItem isDisabled={filtersOn === 0} onChosen={() => onFilterChanged({ ...NO_TRANSACTIONS_FILTER, search_words: filter.search_words })} data-transactions-filter-clear="">
+        Clear filters
+      </MenuItem>
+    </FieldMenu>
+  );
+}
+
+/** The selected transaction: who made it and from where, then what it ran and what undoes it, as the runtime sent them. */
+function TransactionDetail({ row }: { row: TransactionsViewRow }) {
+  const sent = row.transaction_as_sent;
+  return (
+    <SidePanel label="Selected transaction" title={row.operations_words} subtitle={row.result} hiding={null} data-transactions-detail={row.transaction}>
+      <div className="flex flex-col gap-3 px-4 py-3">
+        <KeyValueRows
+          rows={[
+            ["Transaction", <span className="font-mono text-2xs select-text">{sent.transaction}</span>],
+            ["Author", row.author_words],
+            ["Commit", <span className="font-mono text-2xs select-text">{sent.commit}</span>],
+            ["Parent", <span className="font-mono text-2xs select-text">{sent.parent_commit ?? "none, the project's first"}</span>],
+            ...(sent.undoes === null ? [] : [["Undoes", <span className="font-mono text-2xs select-text">{sent.undoes}</span>] as const]),
+            ...(sent.redoes === null ? [] : [["Redoes", <span className="font-mono text-2xs select-text">{sent.redoes}</span>] as const]),
+          ]}
+        />
+        <CodeBlock fileName="operations" code={JSON.stringify(sent.operations, null, 2)} data-transactions-detail-operations="" />
+        <CodeBlock fileName="inverse_operations" code={JSON.stringify(sent.inverse_operations, null, 2)} data-transactions-detail-inverse-operations="" />
+      </div>
+    </SidePanel>
+  );
+}
+
+/** The feed's rows, newest first, filtered, beside the selected one's detail, or why there are none to show. */
+function TransactionsTableAndDetail({ feed, rows, filter }: { feed: ProjectTransactionsReading | null; rows: readonly TransactionsViewRow[]; filter: TransactionsViewFilter }) {
+  const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
+  const shownRows = useMemo(() => transactionsViewRowsShownBy(rows, filter), [rows, filter]);
+  if (feed === null) return <WaitingState title="Reading the project's transactions" data-transactions-state="reading" />;
+  if (feed.kind === "not_read") return <WaitingState isFailure title="The project's transactions weren't read" explanation={feed.because} data-transactions-state="not_read" />;
+  if (rows.length === 0) {
+    return <WaitingState title="No transactions yet" explanation="Each change the runtime records in this project shows here as it applies." data-transactions-state="none_yet" />;
+  }
+  if (shownRows.length === 0) {
+    return <WaitingState title="No transaction matches" explanation="Clear the filters or the search to see every transaction." data-transactions-state="none_shown" />;
+  }
+  const selectedRow = shownRows.find((row) => row.transaction === selectedTransaction) ?? null;
+  return (
+    <WorkAreaWithSidePanel sidePanel={selectedRow === null ? null : <TransactionDetail row={selectedRow} />}>
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-auto" data-transactions-table="">
+        <RecordTable
+          label="Transactions"
+          columns={TRANSACTIONS_COLUMNS}
+          selectedRowId={selectedRow?.transaction ?? null}
+          onRowSelected={setSelectedTransaction}
+          rows={shownRows.map((row) => ({
+            row_id: row.transaction,
+            tone: row.result === "refused" ? "refused" : "plain",
+            cells: [row.applied_at_words ?? "—", row.author_words, row.stream_words.length === 0 ? "project" : row.stream_words.join(", "), row.operations_words, row.result, row.commit_words],
+            trailing: (
+              <MoreActionsMenu label={`More for ${row.operations_words}`} data-transactions-row-menu={row.transaction}>
+                <MenuItem onChosen={() => void writeTextToClipboard(transactionAsJson(row.transaction_as_sent))} data-transactions-copy-as-json={row.transaction}>
+                  Copy as JSON
+                </MenuItem>
+              </MoreActionsMenu>
+            ),
+          }))}
+        />
+      </div>
+    </WorkAreaWithSidePanel>
+  );
+}
+
+/** The open project's change feed, its search and Filter ▾ in the header row. */
+function TransactionsOfTheProject({ connection, projectFolder }: { connection: TatoAppViewConnection; projectFolder: string }) {
+  const watchTheFeed = useCallback(
+    (listener: (reading: ProjectTransactionsReading) => void): StopWatching => connection.watchProjectTransactions(projectFolder, listener),
+    [connection, projectFolder],
+  );
+  const feed = useViewReading(watchTheFeed);
+  const listedStreams = useViewReading(useCallback((listener: (reading: ListedStreamsReading) => void) => connection.watchListedStreams(listener), [connection]));
+  const [filter, setFilter] = useState<TransactionsViewFilter>(NO_TRANSACTIONS_FILTER);
+  const rows = useMemo(() => {
+    if (feed?.kind !== "read") return [];
+    const streamWordsOf = streamWordsByOperationStream(listedStreams?.kind === "listed" ? listedStreams.streams : []);
+    return feed.project_transactions.transactions.map((transaction) => transactionsViewRowOf(transaction, streamWordsOf));
+  }, [feed, listedStreams]);
+  return (
+    <CoreViewFrame
+      connection={connection}
+      headerTools={
+        <div className="ml-auto flex items-center gap-1.5 pr-1">
+          <SearchField label="Search transactions" placeholder="Search transactions" text={filter.search_words} onTextChanged={(searchWords) => setFilter({ ...filter, search_words: searchWords })} data-transactions-search="" />
+          <TransactionsFilterMenu rows={rows} filter={filter} onFilterChanged={setFilter} />
+        </div>
+      }
+    >
+      <TransactionsTableAndDetail feed={feed} rows={rows} filter={filter} />
+    </CoreViewFrame>
+  );
+}
+
+/** The Transactions view's whole frame: every transaction the runtime recorded in the open project, under its header row. */
+export function TransactionsView({ connection }: { connection: TatoAppViewConnection }) {
+  const openProject = useViewReading(useCallback((listener: (reading: OpenProjectReading) => void) => connection.watchOpenProject(listener), [connection]));
+  if (openProject?.kind === "read") return <TransactionsOfTheProject key={openProject.open_project.project.folder} connection={connection} projectFolder={openProject.open_project.project.folder} />;
+  return (
+    <CoreViewFrame connection={connection}>
+      {openProject === null ? null : openProject.kind === "none_open" ? (
+        <WaitingState title="No project is open" explanation="Open or create one from the File menu." data-transactions-state="no_project" />
+      ) : (
+        <WaitingState isFailure title={`${openProject.folder} can't be read`} explanation={openProject.refusal} data-transactions-state="project_unreadable" />
+      )}
+    </CoreViewFrame>
+  );
+}

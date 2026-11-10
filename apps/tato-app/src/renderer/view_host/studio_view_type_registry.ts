@@ -73,23 +73,32 @@ export class StudioViewTypeRegistry {
   /** What the backend lists of the open project's views; each area and the view-type menu redraw on a new listing. */
   readonly projectStudioViews = new WatchedStudioValue<ProjectStudioViewsReading>({ kind: "none_open" });
   private projectStudioViewTypesRead: ProjectStudioViewTypesRead | null = null;
+  private readonly viewTypesOfferedInDeveloperModeById = new Map<string, RegisteredStudioViewType>();
+  /** Whether Developer mode is on, as the status carries it; each area and the view-type menu redraw when it changes. */
+  readonly developerMode = new WatchedStudioValue<boolean>(false);
 
   constructor(
     viewTypes: readonly RegisteredStudioViewType[],
     private readonly projectStudioViewTypeOf: ProjectStudioViewTypeMaker | null = null,
     private readonly studioViewTypesNotOpenedList: readonly ProjectStudioViewNotOpened[] = [],
+    viewTypesOfferedInDeveloperMode: readonly RegisteredStudioViewType[] = [],
   ) {
     for (const viewType of viewTypes) this.viewTypesById.set(viewType.view_type_id, viewType);
+    for (const viewType of viewTypesOfferedInDeveloperMode) this.viewTypesOfferedInDeveloperModeById.set(viewType.view_type_id, viewType);
+  }
+
+  private viewTypesOfferedNow(): RegisteredStudioViewType[] {
+    return [...this.viewTypesById.values(), ...(this.developerMode.readLatest() ? this.viewTypesOfferedInDeveloperModeById.values() : [])];
   }
 
   /** The view type `viewTypeId` names, or `null` for one this build does not hold and the open project does not bring. */
   viewTypeWithId(viewTypeId: string): RegisteredStudioViewType | null {
-    return this.viewTypesById.get(viewTypeId) ?? this.readProjectStudioViewTypes().viewTypes.find((viewType) => viewType.view_type_id === viewTypeId) ?? null;
+    return this.viewTypesOfferedNow().find((viewType) => viewType.view_type_id === viewTypeId) ?? this.readProjectStudioViewTypes().viewTypes.find((viewType) => viewType.view_type_id === viewTypeId) ?? null;
   }
 
-  /** The studio's own view types, in the order the view-type menu lists them. */
+  /** The studio's own view types, in the order the view-type menu lists them, those Developer mode offers last while it is on. */
   studioViewTypes(): RegisteredStudioViewType[] {
-    return [...this.viewTypesById.values()].filter((viewType) => viewType.brought_by.kind === "built_in");
+    return this.viewTypesOfferedNow().filter((viewType) => viewType.brought_by.kind === "built_in");
   }
 
   /** Studio's own views that do not open, each with why. */
@@ -116,7 +125,7 @@ export class StudioViewTypeRegistry {
       for (const listed of reading.studio_views) {
         const manifestReading = readTatolabViewManifest(listed.manifest_json);
         if (manifestReading.kind === "not_read") notOpened.push({ view_type_id: listed.view_type_id, because: manifestReading.because });
-        else if (this.viewTypesById.has(listed.view_type_id)) notOpened.push({ view_type_id: listed.view_type_id, because: `The studio already has a view named ${listed.view_type_id}.` });
+        else if (this.viewTypesById.has(listed.view_type_id) || this.viewTypesOfferedInDeveloperModeById.has(listed.view_type_id)) notOpened.push({ view_type_id: listed.view_type_id, because: `The studio already has a view named ${listed.view_type_id}.` });
         else viewTypes.push(this.projectStudioViewTypeOf(listed, manifestReading.manifest, reading.project_name));
       }
     }

@@ -226,6 +226,31 @@ describe("the studio", () => {
     expect(inTheCoreView("palette").getByText("Outputs stated only by its native half")).toBeTruthy();
   });
 
+  it("offers Transactions only in Developer mode, listing the open project's transactions with their author, stream and operations, and each one's detail", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    await screen.findByRole("menuitemradio", { name: /^Palette/ });
+    expect(screen.queryByRole("menuitemradio", { name: /^Transactions/ })).toBeNull();
+
+    document.body.replaceChildren();
+    await mountedWindowOverTheMock("state=running&developer_mode=on");
+    const developerViewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(developerViewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Transactions/ }));
+
+    const transactionRows = () => [...coreViewPage("transactions").querySelectorAll<HTMLElement>("[data-record-table-row]")];
+    await waitFor(() => expect(transactionRows().length).toBeGreaterThan(0));
+    const rowWords = transactionRows().map((row) => [...row.querySelectorAll("td")].slice(1, 5).map((cell) => cell.textContent));
+    expect(rowWords).toContainEqual(["agent · claude-code", expect.any(String), "add_node, connect", "applied"]);
+    expect(rowWords[0]?.[2]).toBe("undo · set_node_config");
+
+    const addedRow = transactionRows().find((row) => row.textContent?.includes("add_node, connect")) ?? expect.unreachable("no add_node row");
+    fireEvent.click(addedRow);
+    await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-transactions-detail]")).not.toBeNull());
+    expect(coreViewPage("transactions").querySelector("[data-transactions-detail-operations]")?.textContent).toContain('"operation": "add_node"');
+  });
+
   it("says in the runtime's own words why the palette lists no node types", async () => {
     await mountedWindowOverTheMock("state=not-running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
@@ -870,7 +895,7 @@ describe("Preferences", () => {
     await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
     const sectionList = within(screen.getByRole("navigation", { name: "Preferences" }));
     expect(sectionList.getByRole("button", { name: "General" }).getAttribute("aria-current")).toBe("page");
-    expect(sectionList.getAllByRole("button").map((sectionButton) => sectionButton.textContent)).toEqual(["General", "Runtime", "Command line", "About"]);
+    expect(sectionList.getAllByRole("button").map((sectionButton) => sectionButton.textContent)).toEqual(["General", "Developer", "Runtime", "Command line", "About"]);
     expect(sectionList.getByText("This machine")).toBeTruthy();
   });
 
