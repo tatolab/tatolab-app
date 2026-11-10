@@ -242,10 +242,10 @@ describe("the studio", () => {
     const transactionRows = () => [...coreViewPage("transactions").querySelectorAll<HTMLElement>("[data-record-table-row]")];
     await waitFor(() => expect(transactionRows().length).toBeGreaterThan(0));
     const rowWords = transactionRows().map((row) => [...row.querySelectorAll("td")].slice(1, 5).map((cell) => cell.textContent));
-    expect(rowWords).toContainEqual(["agent · claude-code", expect.any(String), "add_node, connect", "applied"]);
+    expect(rowWords).toContainEqual(["agent · claude-code", "main", "add_node", "applied"]);
     expect(rowWords[0]?.[2]).toBe("undo · set_node_config");
 
-    const addedRow = transactionRows().find((row) => row.textContent?.includes("add_node, connect")) ?? expect.unreachable("no add_node row");
+    const addedRow = transactionRows().find((row) => row.textContent?.includes("add_node")) ?? expect.unreachable("no add_node row");
     fireEvent.click(addedRow);
     await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-transactions-detail]")).not.toBeNull());
     expect(coreViewPage("transactions").querySelector("[data-transactions-detail-operations]")?.textContent).toContain('"operation": "add_node"');
