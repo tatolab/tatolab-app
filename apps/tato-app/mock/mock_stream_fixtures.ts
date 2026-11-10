@@ -1,6 +1,6 @@
 import { STUDIO_VIEW_NODE_TYPE } from "../src/renderer/view_host/studio_view_node_wiring";
 import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
-import type { ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphLink, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
+import type { ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphGroup, StreamGraphLink, StreamGraphNote, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
 
 function fnv1aHashOf(text: string): number {
   let hash = 2166136261;
@@ -91,6 +91,8 @@ export interface MockGraphNode {
   config: Record<string, string | number | boolean>;
   input_ports: StreamGraphDeclaredPort[];
   output_ports: StreamGraphDeclaredPort[];
+  /** What its graph document's `studio` holds, as the runtime renders it; none when absent. */
+  studio?: Record<string, unknown>;
 }
 
 /** Ports of `family` stating no stream facts, as every input and most outputs do; a Records port carries the runtime's unchecked mark. */
@@ -116,6 +118,9 @@ export interface MockStreamGraph {
   nodes: MockGraphNode[];
   links: StreamGraphLink[];
   counterRates: MockCounterRates;
+  /** Its labelled groups and canvas notes; none when absent. */
+  groups?: StreamGraphGroup[];
+  notes?: StreamGraphNote[];
 }
 
 const NO_COUNTERS_CLIMB: MockCounterRates = { droppedPerSecondByLinkId: {}, refusedPerSecondByOutput: [] };

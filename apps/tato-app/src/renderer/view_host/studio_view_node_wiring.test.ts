@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { StreamGraphNode, StreamGraphSummary } from "./studio_view_contract";
 import { nodesOfTheStudioViewType, studioViewInputWiring, STUDIO_VIEW_NODE_TYPE } from "./studio_view_node_wiring";
+import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 function graphNode(name: string, type: string, config: StreamGraphNode["config"], outputs: StreamGraphNode["output_ports"]): StreamGraphNode {
-  return { id: `id-${name}`, name, type, state: "Running", failed_because: null, config, input_ports: [], output_ports: outputs, dropped_bags_by_link: {}, refused_bags_by_output_port: {} };
+  return { id: `id-${name}`, name, type, state: "Running", failed_because: null, config, input_ports: [], output_ports: outputs, dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET };
 }
 
 const DECK = graphNode("djdeck", STUDIO_VIEW_NODE_TYPE, { view_type: "acme-dj:deck" }, []);
@@ -20,6 +21,9 @@ const GRAPH: StreamGraphSummary = {
     { id: "L2", source_node: "camera", source_port: "video", target_node: "djdeck", target_port: "deck_b", state: "wired" },
     { id: "L3", source_node: "lobby-a1b2c3/player", source_port: "audio", target_node: "djdeck", target_port: "booth", state: "wired" },
   ],
+  stream_asset: null,
+  groups: [],
+  notes: [],
   graph_document_text: "{}",
 };
 

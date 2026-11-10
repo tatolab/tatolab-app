@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { outputPortTheViewerPlays, portTheViewerPlays, viewerChosenPortOf } from "./viewer_port_choice";
+import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 const STREAM = "show-main-0a1b2c";
 
 function nodeWithOutputs(name: string, outputPorts: StreamGraphNode["output_ports"]): StreamGraphNode {
-  return { id: `id-${name}`, name, type: "Processor", state: "Running", failed_because: null, config: {}, input_ports: [], output_ports: outputPorts, dropped_bags_by_link: {}, refused_bags_by_output_port: {} };
+  return { id: `id-${name}`, name, type: "Processor", state: "Running", failed_because: null, config: {}, input_ports: [], output_ports: outputPorts, dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET };
 }
 
 const CAMERA = nodeWithOutputs("camera", [{ name: "video", family: "image", stream_facts: null, values_checked: null }]);
@@ -16,6 +17,9 @@ const GRAPH: StreamGraphSummary = {
   stream: STREAM,
   nodes: [CAMERA, EFFECT, METER],
   links: [{ id: "camera-to-effect", source_node: "camera", source_port: "video", target_node: "halftonelenseffect", target_port: "video_in", state: "wired" }],
+  stream_asset: null,
+  groups: [],
+  notes: [],
   graph_document_text: "",
 };
 

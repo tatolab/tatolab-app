@@ -3,7 +3,8 @@
 // `machine` — and the summary the main process would read from it.
 
 import { mockNodeIdOf, type MockStreamGraph } from "./mock_stream_fixtures";
-import type { PortStreamFacts, StreamGraphDeclaredPort, StreamGraphNode, StreamGraphSummary } from "../src/shared/tatolab_backend_contract";
+import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { ListedStream, PortStreamFacts, StreamGraphDeclaredPort, StreamGraphNode, StreamGraphNodeStudioFields, StreamGraphSummary } from "../src/shared/tatolab_backend_contract";
 
 /** Where a mock stream's run stands when its graph is read. */
 export interface MockStreamGraphMoment {
@@ -45,14 +46,33 @@ function linkSourceAsTheRuntimeRendersIt(sourceNode: string, sourcePort: string)
   return { stream: sourceNode.slice(0, streamSeparator), node: sourceNode.slice(streamSeparator + 1), port: sourcePort };
 }
 
-/** The `graph {stream}` document of `graph` for the stream `streamId` on `machineName` at `moment`, and the summary read from it; its ports name their families only when `arePortFamiliesServed`. */
+/** A mock node's `studio` as the main process reads it: the fixed keys of their shapes, the rest under `metadata`. */
+function mockNodeStudioFields(studio: Record<string, unknown> | undefined): StreamGraphNodeStudioFields {
+  if (studio === undefined) return NODE_STUDIO_FIELDS_NONE_SET;
+  const position = studio["position"];
+  const textUnder = (key: string): string | null => (typeof studio[key] === "string" ? studio[key] : null);
+  return {
+    ...NODE_STUDIO_FIELDS_NONE_SET,
+    position: Array.isArray(position) && typeof position[0] === "number" && typeof position[1] === "number" ? [position[0], position[1]] : null,
+    group: textUnder("group"),
+    comment: textUnder("comment"),
+    colour: textUnder("colour"),
+    collapsed: studio["collapsed"] === true,
+  };
+}
+
+/** The `graph {stream}` document of `graph` for the stream `listing` lists, on `machineName` at `moment`, and the summary read from it; its ports name their families only when `arePortFamiliesServed`. */
 export function mockStreamGraphSummary(
-  streamId: string,
+  listing: ListedStream,
   machineName: string,
   graph: MockStreamGraph,
   moment: MockStreamGraphMoment,
   arePortFamiliesServed: boolean,
 ): StreamGraphSummary {
+  const streamId = listing.stream;
+  const streamAsset = listing.location?.stream_asset ?? null;
+  const groups = graph.groups ?? [];
+  const notes = graph.notes ?? [];
   const servedPorts = (ports: StreamGraphDeclaredPort[]): StreamGraphDeclaredPort[] => (arePortFamiliesServed ? ports : ports.map((port) => ({ ...port, family: null })));
   const familyAsTheRuntimeRendersIt = (port: StreamGraphDeclaredPort) => (arePortFamiliesServed && port.family !== null ? { family: port.family } : {});
   const nodeState = (state: string) => (moment.hasSettled ? state : "Pending");
@@ -65,6 +85,7 @@ export function mockStreamGraphSummary(
     state: nodeState(node.state),
     failed_because: moment.hasSettled ? (node.failed_because ?? null) : null,
     config: node.config,
+    pins: {},
     input_ports: servedPorts(node.input_ports),
     output_ports: servedPorts(node.output_ports),
     dropped_bags_by_link: Object.fromEntries(
@@ -76,8 +97,10 @@ export function mockStreamGraphSummary(
         climbed(graph.counterRates.refusedPerSecondByOutput.find((output) => output.node === node.name && output.port === port)?.perSecond ?? 0),
       ]),
     ),
+    studio: mockNodeStudioFields(node.studio),
   }));
   const graphDocument = {
+    ...(streamAsset === null ? {} : { asset: streamAsset }),
     stream: streamId,
     nodes: graph.nodes.map((node, nodeIndex) => ({
       id: mockNodeIdOf(streamId, node.name),
@@ -113,6 +136,7 @@ export function mockStreamGraphSummary(
           refused_bags_by_output_port: nodes[nodeIndex]?.refused_bags_by_output_port ?? {},
         },
       },
+      ...(node.studio === undefined ? {} : { studio: node.studio }),
     })),
     links: graph.links.map((link) => ({
       id: link.id,
@@ -122,10 +146,15 @@ export function mockStreamGraphSummary(
       state: linkState(link.state),
       components: { state: linkComponentState(linkState(link.state)) },
     })),
+    ...(groups.length === 0 ? {} : { groups }),
+    ...(notes.length === 0 ? {} : { studio: { contract: 1, notes } }),
     machine: machineName,
   };
   return {
     stream: streamId,
+    stream_asset: streamAsset,
+    groups,
+    notes,
     nodes,
     links: graph.links.map((link) => ({ ...link, state: linkState(link.state) })),
     graph_document_text: JSON.stringify(graphDocument, null, 2),

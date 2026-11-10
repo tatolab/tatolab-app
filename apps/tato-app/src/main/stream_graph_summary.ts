@@ -1,10 +1,15 @@
-// A stream's graph as the window draws it, read from the runtime's `graph {stream}` tool: its
-// nodes by name with their type, state, config, declared ports and drop counters, its links by id, node and port, and the
-// tool's text itself. Every other key the runtime renders stays only in that text.
+// A stream's graph as the window draws it, read from the runtime's `graph {stream}` tool: its stream
+// asset, its nodes by name with their type, state, config, declared ports, drop counters and studio
+// fields, its links by id, node and port, its labelled groups and canvas notes, and the tool's text
+// itself. Every other key the runtime renders stays only in that text.
 
 import type {
   JsonValue,
   StreamGraphDeclaredPort,
+  StreamGraphGroup,
+  StreamGraphNodeStudioFields,
+  StreamGraphNote,
+  StudioCanvasPair,
   StreamGraphLink,
   StreamGraphNode,
   StreamGraphSummary,
@@ -53,7 +58,73 @@ function streamGraphSummaryFromTheParsedGraph(
   if (!linksOnTheWire.ok) return linksOnTheWire;
   const links = everyOneRead(linksOnTheWire.value, streamGraphLinkOnTheWire);
   if (!links.ok) return links;
-  return succeeded({ stream: stream.value ?? requestedStream, nodes: nodes.value, links: links.value });
+  const streamAsset = optionalText(graph.value, "asset");
+  if (!streamAsset.ok) return streamAsset;
+  const groupsOnTheWire = arrayOrEmpty(graph.value, "groups");
+  if (!groupsOnTheWire.ok) return groupsOnTheWire;
+  const groups = everyOneRead(groupsOnTheWire.value, streamGraphGroupOnTheWire);
+  if (!groups.ok) return groups;
+  const documentStudio = objectOrEmpty(graph.value, "studio");
+  if (!documentStudio.ok) return documentStudio;
+  const notesOnTheWire = arrayOrEmpty(documentStudio.value, "notes");
+  if (!notesOnTheWire.ok) return notesOnTheWire;
+  const notes = everyOneRead(notesOnTheWire.value, streamGraphNoteOnTheWire);
+  if (!notes.ok) return notes;
+  return succeeded({ stream: stream.value ?? requestedStream, stream_asset: streamAsset.value, nodes: nodes.value, links: links.value, groups: groups.value, notes: notes.value });
+}
+
+/** `[x, y]` as two finite numbers; `null` for anything else. */
+function canvasPairOnTheWire(value: unknown): StudioCanvasPair | null {
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  const [first, second]: unknown[] = value;
+  return typeof first === "number" && Number.isFinite(first) && typeof second === "number" && Number.isFinite(second) ? [first, second] : null;
+}
+
+/** A node's `studio` under the runtime's studio contract: a fixed key of another shape reads as absent, since the runtime refuses to write one; a free `group` string an earlier runtime wrote reads ungrouped. */
+function nodeStudioFieldsOnTheWire(studioOnTheWire: unknown): StreamGraphNodeStudioFields {
+  const studio = isAJsonObject(studioOnTheWire) ? studioOnTheWire : {};
+  const textUnder = (key: string): string | null => (typeof studio[key] === "string" ? studio[key] : null);
+  const group = textUnder("group");
+  const metadata = studio["metadata"];
+  return {
+    position: canvasPairOnTheWire(studio["position"]),
+    group: group !== null && A_UUID.test(group) ? group : null,
+    comment: textUnder("comment"),
+    colour: textUnder("colour"),
+    collapsed: studio["collapsed"] === true,
+    metadata: isAJsonObject(metadata) ? Object.fromEntries(Object.entries(metadata).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]))) : {},
+  };
+}
+
+/** A UUID in its hyphenated text form, as the runtime writes a group's. */
+const A_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function streamGraphGroupOnTheWire(groupOnTheWire: unknown): Result<StreamGraphGroup, string> {
+  const group = jsonObject(groupOnTheWire, "a group");
+  if (!group.ok) return group;
+  const id = requiredText(group.value, "id");
+  if (!id.ok) return id;
+  const title = textOrDefault(group.value, "title", "");
+  if (!title.ok) return title;
+  const description = optionalText(group.value, "description");
+  if (!description.ok) return description;
+  const colour = optionalText(group.value, "colour");
+  if (!colour.ok) return colour;
+  return succeeded({ id: id.value, title: title.value, description: description.value, colour: colour.value });
+}
+
+function streamGraphNoteOnTheWire(noteOnTheWire: unknown): Result<StreamGraphNote, string> {
+  const note = jsonObject(noteOnTheWire, "a note");
+  if (!note.ok) return note;
+  const id = requiredText(note.value, "id");
+  if (!id.ok) return id;
+  const text = textOrDefault(note.value, "text", "");
+  if (!text.ok) return text;
+  const position = canvasPairOnTheWire(note.value["position"]);
+  if (position === null) return failedWith(`the note \`${id.value}\` has no \`position\` of two numbers`);
+  const size = canvasPairOnTheWire(note.value["size"]);
+  if (size === null) return failedWith(`the note \`${id.value}\` has no \`size\` of two numbers`);
+  return succeeded({ id: id.value, text: text.value, position, size });
 }
 
 /** A `{ name: count }` object of the node's `components.metrics`, keeping each count the runtime wrote as a number; `{}` when it wrote none. */
@@ -78,6 +149,8 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
   if (!components.ok) return components;
   const config = objectOrEmpty(node.value, "config");
   if (!config.ok) return config;
+  const pins = objectOrEmpty(node.value, "pins");
+  if (!pins.ok) return pins;
   const state = components.value["state"];
   const failedBecause = components.value["failed_because"];
   const metrics = components.value["metrics"];
@@ -94,10 +167,12 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
     state: typeof state === "string" ? state : null,
     failed_because: typeof failedBecause === "string" ? failedBecause : null,
     config: Object.fromEntries(Object.entries(config.value).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]))),
+    pins: Object.fromEntries(Object.entries(pins.value).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]))),
     input_ports: inputPorts.value,
     output_ports: outputPorts.value,
     dropped_bags_by_link: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "dropped_bags_by_link"),
     refused_bags_by_output_port: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "refused_bags_by_output_port"),
+    studio: nodeStudioFieldsOnTheWire(node.value["studio"]),
   });
 }
 
