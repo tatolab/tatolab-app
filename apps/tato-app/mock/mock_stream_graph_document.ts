@@ -4,7 +4,7 @@
 
 import { mockGraphNodeIdOf, type MockStreamGraph } from "./mock_stream_fixtures";
 import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { ListedStream, PortStreamFacts, StreamGraphDeclaredPort, StreamGraphNode, StreamGraphSummary } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, ListedStream, PortStreamFacts, StreamGraphDeclaredPort, StreamGraphNode, StreamGraphNodeStudioFields, StreamGraphSummary } from "../src/shared/tatolab_backend_contract";
 
 /** Where a mock stream's run stands when its graph is read. */
 export interface MockStreamGraphMoment {
@@ -39,6 +39,19 @@ function linkComponentState(linkState: string): string {
     .join("");
 }
 
+/** A node's studio fields as the runtime renders them: each one set, under the studio contract. */
+export function studioAsTheRuntimeRendersIt(studio: StreamGraphNodeStudioFields): Record<string, JsonValue> {
+  return {
+    contract: 1,
+    ...(studio.position === null ? {} : { position: studio.position }),
+    ...(studio.group === null ? {} : { group: studio.group }),
+    ...(studio.comment === null ? {} : { comment: studio.comment }),
+    ...(studio.colour === null ? {} : { colour: studio.colour }),
+    ...(studio.collapsed === null ? {} : { collapsed: studio.collapsed }),
+    ...(Object.keys(studio.metadata).length === 0 ? {} : { metadata: studio.metadata }),
+  };
+}
+
 /** A link's source, a node in another stream rendered with that stream beside it, as `<stream>/<node>` names it in the summary. */
 function linkSourceAsTheRuntimeRendersIt(sourceNode: string, sourcePort: string): { stream?: string; node: string; port: string } {
   const streamSeparator = sourceNode.indexOf("/");
@@ -68,7 +81,7 @@ export function mockStreamGraphSummary(
     state: nodeState(node.state),
     failed_because: moment.hasSettled ? (node.failed_because ?? null) : null,
     config: node.config,
-    pins: {},
+    pins: node.pins ?? {},
     input_ports: servedPorts(node.input_ports),
     output_ports: servedPorts(node.output_ports),
     dropped_bags_by_link: Object.fromEntries(
@@ -80,8 +93,10 @@ export function mockStreamGraphSummary(
         climbed(graph.counterRates.refusedPerSecondByOutput.find((output) => output.node === node.name && output.port === port)?.perSecond ?? 0),
       ]),
     ),
-    studio: NODE_STUDIO_FIELDS_NONE_SET,
+    studio: node.studio ?? NODE_STUDIO_FIELDS_NONE_SET,
   }));
+  const groups = graph.groups ?? [];
+  const notes = graph.notes ?? [];
   const graphDocument = {
     ...(streamAsset === null ? {} : { asset: streamAsset }),
     stream: streamId,
@@ -90,6 +105,8 @@ export function mockStreamGraphSummary(
       type: node.type,
       name: node.name,
       config: node.config,
+      ...(node.pins === undefined || Object.keys(node.pins).length === 0 ? {} : { pins: node.pins }),
+      ...(node.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(node.studio) }),
       ports: {
         inputs: node.input_ports.map((port) => ({
           name: port.name,
@@ -128,13 +145,15 @@ export function mockStreamGraphSummary(
       state: linkState(link.state),
       components: { state: linkComponentState(linkState(link.state)) },
     })),
+    ...(groups.length === 0 ? {} : { groups }),
+    ...(notes.length === 0 ? {} : { studio: { contract: 1, notes } }),
     machine: machineName,
   };
   return {
     stream: streamId,
     stream_asset: streamAsset,
-    groups: [],
-    notes: [],
+    groups,
+    notes,
     nodes,
     links: graph.links.map((link) => ({ ...link, state: linkState(link.state) })),
     graph_document_text: JSON.stringify(graphDocument, null, 2),

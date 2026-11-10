@@ -68,9 +68,9 @@ test("a pin value is refused on an input the node lacks, and an action the mock 
     kind: "refused",
     refusal: { refused_node: TEST_PATTERN, refused_field: "level", runtime_words: "Processor 'testpatternsource' has no input port named 'level'" },
   });
-  expect(applyMockGraphTransaction(targetsOf(graph), [{ operation: "remove_note", stream: STREAM_ASSET, note: "n" }])).toMatchObject({
+  expect(applyMockGraphTransaction(targetsOf(graph), [{ operation: "use_dependency_stream", stream: STREAM_ASSET, project: "p", dependency_stream: "d" }])).toMatchObject({
     kind: "refused",
-    refusal: { runtime_words: "the mock runtime does not apply `remove_note`" },
+    refusal: { runtime_words: "the mock runtime does not apply `use_dependency_stream`" },
   });
 });
 
@@ -98,4 +98,41 @@ test("an operation history records is turned back into the graph action that app
   expect(restored.kind).toBe("applied");
   expect(graph.nodes.map((node) => node.name)).toEqual(["testpatternsource"]);
   expect(graphActionApplyingTheHistoryOperation({ operation: "import_asset", asset: {} })).toBeNull();
+});
+
+test("a node's studio fields are replaced whole, unknown keys kept under metadata, and a wrong-shaped position is refused", () => {
+  const graph = aTestPatternAlone();
+  const moved = applyMockGraphTransaction(targetsOf(graph), [{ operation: "set_studio_fields", stream: STREAM_ASSET, node: TEST_PATTERN, studio: { position: [40, 80], pinned: true } }]);
+  if (moved.kind !== "applied") return expect.unreachable(moved.refusal.runtime_words);
+  expect(graph.nodes[0]?.studio).toEqual({ position: [40, 80], group: null, comment: null, colour: null, collapsed: null, metadata: { pinned: true } });
+  expect(moved.inverse_operations).toEqual([{ stream: STREAM_ASSET, operation: "set_studio_fields", node: TEST_PATTERN, from: { contract: 1, position: [40, 80], metadata: { pinned: true } }, to: { contract: 1 } }]);
+  expect(moved.inverse_operations.map(graphActionApplyingTheHistoryOperation)).toEqual([{ operation: "set_studio_fields", stream: STREAM_ASSET, node: TEST_PATTERN, studio: { contract: 1 } }]);
+  expect(applyMockGraphTransaction(targetsOf(graph), [{ operation: "set_studio_fields", stream: STREAM_ASSET, node: TEST_PATTERN, studio: { position: [1] } }])).toMatchObject({
+    kind: "refused",
+    refusal: { refused_node: TEST_PATTERN, refused_field: "position" },
+  });
+});
+
+test("a group frames its nodes until it is removed, and a note is added, changed and removed", () => {
+  const graph = aTestPatternAlone();
+  const grouped = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_group", stream: STREAM_ASSET, title: "Frame", nodes: [TEST_PATTERN] }]);
+  if (grouped.kind !== "applied") return expect.unreachable(grouped.refusal.runtime_words);
+  const group = grouped.transaction.added_groups[0]?.group ?? "";
+  expect(graph.groups).toEqual([{ id: group, title: "Frame", description: null, colour: null }]);
+  expect(graph.nodes[0]?.studio?.group).toBe(group);
+  const ungrouped = applyMockGraphTransaction(targetsOf(graph), [{ operation: "remove_group", stream: STREAM_ASSET, group }]);
+  if (ungrouped.kind !== "applied") return expect.unreachable(ungrouped.refusal.runtime_words);
+  expect(graph.groups).toEqual([]);
+  expect(graph.nodes[0]?.studio?.group).toBeNull();
+  expect(ungrouped.inverse_operations.map(graphActionApplyingTheHistoryOperation)).toEqual([{ operation: "add_group", stream: STREAM_ASSET, title: "Frame", nodes: [TEST_PATTERN] }]);
+
+  const noted = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_note", stream: STREAM_ASSET, text: "Note", position: [10, 20], size: [220, 110] }]);
+  if (noted.kind !== "applied") return expect.unreachable(noted.refusal.runtime_words);
+  const note = noted.transaction.added_notes[0]?.note ?? "";
+  expect(applyMockGraphTransaction(targetsOf(graph), [{ operation: "set_note_fields", stream: STREAM_ASSET, note, text: "Tune here" }]).kind).toBe("applied");
+  expect(graph.notes).toEqual([{ id: note, text: "Tune here", position: [10, 20], size: [220, 110] }]);
+  const unnoted = applyMockGraphTransaction(targetsOf(graph), [{ operation: "remove_note", stream: STREAM_ASSET, note }]);
+  if (unnoted.kind !== "applied") return expect.unreachable(unnoted.refusal.runtime_words);
+  expect(graph.notes).toEqual([]);
+  expect(unnoted.inverse_operations.map(graphActionApplyingTheHistoryOperation)).toEqual([{ operation: "add_note", stream: STREAM_ASSET, text: "Tune here", position: [10, 20], size: [220, 110] }]);
 });

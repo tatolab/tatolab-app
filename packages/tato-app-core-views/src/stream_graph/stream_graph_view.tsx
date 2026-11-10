@@ -1,15 +1,40 @@
 import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
-import { NodeGraphCanvas } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { NodeGraphCanvas, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
+import { SearchPopover } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { StopWatching, StudioSelection, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import type { ListedStreamsReading, OpenProjectReading, StreamGraphReading, StreamTabAddress } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { ListedStreamsReading, NodeCatalogReading, OpenProjectReading, StreamGraphReading, StreamTabAddress } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
+import { useStreamGraphEditsSentToTheRuntime } from "./stream_graph_edit_sending";
+import {
+  cardLetGoOverALinkEdits,
+  cardsMovedEdits,
+  deletedEdits,
+  editedStreamGraphOf,
+  nodePlacedEdits,
+  noteChangedEdits,
+  notePlacedEdits,
+  pinsWiredEdits,
+  selectionFramedEdits,
+  type LooseWire,
+} from "./stream_graph_edits";
+import { nodeTypeSearchItems } from "./stream_graph_node_type_search";
+
+/** How far each node placed with ⇧↵ lands from the one before, so a run of them can be told apart. */
+const NEXT_PLACED_NODE_OFFSET = 36;
+
+/** Where the Add node search was asked for, and the wire it was dragged off when it was. */
+interface NodeTypeSearchAsked {
+  at: NodeGraphCanvasPoint;
+  looseWire: LooseWire | null;
+}
 
 /** The issue that opens an import as a project of its own, where it can be edited. */
 const OPENING_AN_IMPORT_TO_EDIT_ARRIVES_WITH = "tatolab/tatolab-app#133";
@@ -34,17 +59,70 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   const openProject = useViewReading(connection.watchOpenProject);
   const listedStreams = useViewReading(connection.watchListedStreams);
   const canvasContents = useMemo(() => (graphReading?.kind === "read" ? streamGraphCanvasContents(graphReading.graph) : null), [graphReading]);
+  const watchTheTabsCatalog = useCallback(
+    (listener: (reading: NodeCatalogReading) => void): StopWatching => connection.watchNodeCatalog(streamTab.stream, listener),
+    [connection, streamTab.stream],
+  );
+  const catalogReading = useViewReading(watchTheTabsCatalog);
+  const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
+  const importedProjectName = importedProjectNameOfTheStream(streamTab.stream, openProject, listedStreams);
+  const { sendTheGesture, refusalOfTheLatestEdit } = useStreamGraphEditsSentToTheRuntime(connection, listedStream?.location?.project_directory ?? null);
+  const editedGraph = useMemo(() => (graphReading?.kind === "read" ? editedStreamGraphOf(graphReading.graph) : null), [graphReading]);
+  const [nodeTypeSearchAsked, setNodeTypeSearchAsked] = useState<NodeTypeSearchAsked | null>(null);
+  const closeTheNodeTypeSearch = useCallback(() => setNodeTypeSearchAsked(null), []);
+  const editing = useMemo((): NodeGraphCanvasEditing | null => {
+    if (importedProjectName !== null || editedGraph === null || "because" in editedGraph) return null;
+    return {
+      onCardsMoved: (moves) => sendTheGesture(cardsMovedEdits(editedGraph, moves)),
+      onPinsWired: (source, target) => void sendTheGesture(pinsWiredEdits(editedGraph, source, target)),
+      onWireLetGoOverTheCanvas: (looseWire, at) => setNodeTypeSearchAsked({ at, looseWire }),
+      onNodeAskedFor: (at) => setNodeTypeSearchAsked({ at, looseWire: null }),
+      onNoteAskedFor: (at) => void sendTheGesture(notePlacedEdits(editedGraph, at.on_the_canvas)),
+      onCardLetGoOverALink: (nodeId, linkId) => void sendTheGesture(cardLetGoOverALinkEdits(editedGraph, nodeId, linkId)),
+      onDeleted: (deleted) => void sendTheGesture(deletedEdits(editedGraph, deleted)),
+      onFrameAskedFor: (nodeIds) => void sendTheGesture(selectionFramedEdits(editedGraph, nodeIds)),
+      onNoteChanged: (noteId, change) => sendTheGesture(noteChangedEdits(editedGraph, noteId, change)),
+    };
+  }, [importedProjectName, editedGraph, sendTheGesture]);
+  const catalog = catalogReading?.kind === "listed" ? catalogReading.catalog.node_types : [];
+  const placeTheChosenNodeType = useCallback(
+    (nodeType: string, staysOpen: boolean) => {
+      const chosen = catalog.find((entry) => entry.type === nodeType);
+      if (nodeTypeSearchAsked === null || chosen === undefined || editedGraph === null || "because" in editedGraph) return;
+      void sendTheGesture(nodePlacedEdits(editedGraph, chosen, nodeTypeSearchAsked.at.on_the_canvas, nodeTypeSearchAsked.looseWire));
+      if (!staysOpen) {
+        setNodeTypeSearchAsked(null);
+        return;
+      }
+      const { on_the_canvas: onTheCanvas, in_the_element: inTheElement } = nodeTypeSearchAsked.at;
+      setNodeTypeSearchAsked({
+        at: {
+          on_the_canvas: {
+            x: onTheCanvas.x + NEXT_PLACED_NODE_OFFSET,
+            y: onTheCanvas.y + NEXT_PLACED_NODE_OFFSET,
+          },
+          in_the_element: inTheElement,
+        },
+        looseWire: null,
+      });
+    },
+    [catalog, nodeTypeSearchAsked, editedGraph, sendTheGesture],
+  );
   const onNodeSelected = useCallback(
     (nodeName: string | null) => {
       const projectFolder = listedStreams?.kind === "listed" ? listedStreams.streams.find((listedStream) => listedStream.stream === streamTab.stream)?.location?.project_directory : undefined;
       if (nodeName !== null) select({ kind: "node", stream: streamTab.stream, node: nodeName });
-      else if (projectFolder !== undefined) select({ kind: "stream", stream: streamTab.stream, project_folder: projectFolder });
+      else if (projectFolder !== undefined)
+        select({
+          kind: "stream",
+          stream: streamTab.stream,
+          project_folder: projectFolder,
+        });
       else select({ kind: "nothing" });
     },
     [select, listedStreams, streamTab.stream],
   );
 
-  const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
   if (listedStream?.state === "failed") {
     return (
       <WaitingState
@@ -73,43 +151,71 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
       />
     );
   }
-  if (canvasContents === null || canvasContents.nodes.length === 0) {
+  if (canvasContents === null || (canvasContents.nodes.length === 0 && editing === null)) {
     return <WaitingState title={`${streamTab.display_name} has no nodes`} explanation="Its graph document holds none." data-stream-graph-state="empty" />;
   }
-  const importedProjectName = importedProjectNameOfTheStream(streamTab.stream, openProject, listedStreams);
   return (
-    <NodeGraphCanvas
-      label={`Graph of ${streamTab.display_name}`}
-      nodes={canvasContents.nodes}
-      links={canvasContents.links}
-      selectedNodeId={selection?.kind === "node" && selection.stream === streamTab.stream ? selection.node : null}
-      onNodeSelected={onNodeSelected}
-      overlay={
-        importedProjectName !== null && (
-          <div className="absolute top-2 right-2 z-10">
-            <ReadOnlyBanner
-              words={
-                <>
-                  Read only · <span className="font-mono">{importedProjectName}</span> is an import
-                </>
-              }
-              action={
-                <ActionButton
-                  size="small"
-                  disabledReason={`Opening an import as its own project arrives with ${OPENING_AN_IMPORT_TO_EDIT_ARRIVES_WITH}`}
-                  onPressed={() => undefined}
-                  data-stream-graph-action="open_to_edit"
-                >
-                  Open to edit
-                </ActionButton>
-              }
-              data-stream-graph-read-only={importedProjectName}
-            />
-          </div>
-        )
-      }
-      data-stream-graph={streamTab.stream}
-    />
+    <>
+      {editedGraph !== null && "because" in editedGraph && importedProjectName === null && (
+        <RefusalLine layout="bar" tone="warning" lead="Read only:" words={editedGraph.because} />
+      )}
+      {refusalOfTheLatestEdit !== null && <RefusalLine layout="bar" lead={refusalOfTheLatestEdit.lead} words={refusalOfTheLatestEdit.words} />}
+      <NodeGraphCanvas
+        label={`Graph of ${streamTab.display_name}`}
+        nodes={canvasContents.nodes}
+        links={canvasContents.links}
+        frames={canvasContents.frames}
+        notes={canvasContents.notes}
+        selectedNodeId={selection?.kind === "node" && selection.stream === streamTab.stream ? selection.node : null}
+        onNodeSelected={onNodeSelected}
+        editing={editing}
+        overlay={
+          <>
+            {canvasContents.nodes.length === 0 && nodeTypeSearchAsked === null && (
+              <p className="pointer-events-none absolute inset-x-0 top-1/3 z-10 text-center text-xs text-fg-3" data-stream-graph-state="empty">
+                {streamTab.display_name} has no nodes yet. Press Tab to add one.
+              </p>
+            )}
+            {nodeTypeSearchAsked !== null && (
+              <SearchPopover
+                label="Add a node"
+                heading={nodeTypeSearchAsked.looseWire === null ? "Add node" : `Add node wired to ${nodeTypeSearchAsked.looseWire.node_id}.${nodeTypeSearchAsked.looseWire.pin}`}
+                placeholder="Search node types"
+                items={nodeTypeSearchItems(catalog, nodeTypeSearchAsked.looseWire)}
+                emptyWords={catalogReading?.kind === "not_listed" ? catalogReading.because : "No node type matches."}
+                at={nodeTypeSearchAsked.at.in_the_element}
+                onItemChosen={placeTheChosenNodeType}
+                onClosed={closeTheNodeTypeSearch}
+                data-stream-graph-node-type-search={streamTab.stream}
+              />
+            )}
+            {importedProjectName !== null && (
+              <div className="absolute top-2 right-2 z-10">
+                <ReadOnlyBanner
+                  words={
+                    <>
+                      Read only · <span className="font-mono">{importedProjectName}</span> is an import
+                    </>
+                  }
+                  action={
+                    <ActionButton
+                      size="small"
+                      disabledReason={`Opening an import as its own project arrives with ${OPENING_AN_IMPORT_TO_EDIT_ARRIVES_WITH}`}
+                      onPressed={() => undefined}
+                      data-stream-graph-action="open_to_edit"
+                    >
+                      Open to edit
+                    </ActionButton>
+                  }
+                  data-stream-graph-read-only={importedProjectName}
+                />
+              </div>
+            )}
+          </>
+        }
+        data-stream-graph={streamTab.stream}
+      />
+    </>
   );
 }
 

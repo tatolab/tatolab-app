@@ -1,6 +1,6 @@
 import { STUDIO_VIEW_NODE_TYPE } from "../src/renderer/view_host/studio_view_node_wiring";
 import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
-import type { JsonValue, ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphLink, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphGroup, StreamGraphLink, StreamGraphNodeStudioFields, StreamGraphNote, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
 
 function fnv1aHashOf(text: string): number {
   let hash = 2166136261;
@@ -39,7 +39,7 @@ function projectDirectoryUnderHomeOf(projectDirectory: string): string {
 }
 
 /** A stand-in UUID, the same for the same `text`. */
-function mockUuidOf(text: string): string {
+export function mockUuidOf(text: string): string {
   const hexDigits = [0, 1, 2, 3].map((part) => fnv1aHashOf(`${part}\n${text}`).toString(16).padStart(8, "0")).join("");
   return `${hexDigits.slice(0, 8)}-${hexDigits.slice(8, 12)}-4${hexDigits.slice(13, 16)}-8${hexDigits.slice(17, 20)}-${hexDigits.slice(20, 32)}`;
 }
@@ -100,6 +100,8 @@ export interface MockGraphNode {
   pins?: Record<string, JsonValue>;
   input_ports: StreamGraphDeclaredPort[];
   output_ports: StreamGraphDeclaredPort[];
+  /** Its studio fields; none set when absent. */
+  studio?: StreamGraphNodeStudioFields;
 }
 
 /** Ports of `family` stating no stream facts, as every input and most outputs do; a Records port carries the runtime's unchecked mark. */
@@ -125,6 +127,10 @@ export interface MockStreamGraph {
   nodes: MockGraphNode[];
   links: StreamGraphLink[];
   counterRates: MockCounterRates;
+  /** Its labelled groups; none when absent. */
+  groups?: StreamGraphGroup[];
+  /** Its canvas notes; none when absent. */
+  notes?: StreamGraphNote[];
 }
 
 const NO_COUNTERS_CLIMB: MockCounterRates = { droppedPerSecondByLinkId: {}, refusedPerSecondByOutput: [] };
