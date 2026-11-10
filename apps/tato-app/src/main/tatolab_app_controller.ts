@@ -35,7 +35,7 @@ import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import type { AssetImportedByTheRuntime, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
-import type { ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
+import type { NodeFileCreationRecorded, ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
 import type { ProjectViewTheRuntimeListed, StudioViewOutputWritten } from "./project_views_on_the_wire.js";
 import { LocalApiClient, type LocalApiRequestFailure, type StreamDisplayNameSet } from "./local_api_client.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
@@ -389,6 +389,11 @@ export class TatolabAppController {
   /** Write `text` whole to `filePath` in the project in `projectDirectory`, one transaction by `author` keyed by `idempotencyKey`. */
   writeProjectFile(projectDirectory: string, filePath: string, text: string, author: ProjectTransactionAuthor, idempotencyKey: string): Promise<Result<ProjectFileWriteRecorded, LocalApiRequestFailure>> {
     return this.localApiClient.writeProjectFile(projectDirectory, filePath, text, author, idempotencyKey);
+  }
+
+  /** The runtime's `create_node_file` of `filePath` in the project in `projectDirectory`. */
+  createNodeFile(projectDirectory: string, filePath: string, author: ProjectTransactionAuthor, idempotencyKey: string): Promise<Result<NodeFileCreationRecorded, LocalApiRequestFailure>> {
+    return this.localApiClient.createNodeFile(projectDirectory, filePath, author, idempotencyKey);
   }
 
   /** Publish `value` on the output `port` of the view node `node` in `stream`. */

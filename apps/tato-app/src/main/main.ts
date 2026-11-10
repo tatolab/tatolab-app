@@ -204,6 +204,11 @@ export async function startTatolabApp(
       const written = await controllerOnceBuilt.writeProjectFile(projectDirectory, filePath, text, author, idempotencyKey);
       return written.ok ? written : failedWith(written.failure.failureDescription);
     },
+    createNodeFile: async (projectDirectory, filePath, author, idempotencyKey) => {
+      if (controllerOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
+      const created = await controllerOnceBuilt.createNodeFile(projectDirectory, filePath, author, idempotencyKey);
+      return created.ok ? created : failedWith(created.failure.failureDescription);
+    },
   };
   let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
   let localApiSocketOnceKnown: string | null = null;

@@ -131,7 +131,7 @@ export function HistoryView({ connection }: { connection: TatoAppViewConnection 
   const activeStreamTab = useViewReading(connection.watchActiveStreamTab);
   const headerWords = openProject?.kind === "read" ? [openProject.open_project.project.name, activeStreamTab?.display_name].filter((words) => words !== undefined).join(" · ") : null;
   return (
-    <CoreViewFrame connection={connection} headerTools={headerWords === null ? undefined : <span className="truncate text-2xs text-fg-3">{headerWords}</span>}>
+    <CoreViewFrame connection={connection} headerCaption={headerWords}>
       {openProject === null ? null : openProject.kind === "none_open" ? (
         <WaitingState title="No project is open" explanation="Open or create one from the File menu." />
       ) : openProject.kind === "unreadable" ? (

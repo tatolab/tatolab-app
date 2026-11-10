@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "./ui/empty";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 
-/** What a place shows while it has nothing to show, centred in it: why, in a title and an explanation, and what to do about it. */
+/** What a place shows while it has nothing to show, centred in it, scrolling from its top where the place is too short to hold it: why, in a title and an explanation, and what to do about it. */
 export function EmptyState({
   icon: StateIcon,
   isFailure = false,
@@ -22,7 +22,7 @@ export function EmptyState({
   children?: ReactNode;
 } & ControlDataAttributes) {
   return (
-    <Empty className="min-h-0 gap-4 rounded-none p-6" {...controlDataAttributes}>
+    <Empty className="min-h-0 justify-center-safe gap-4 overflow-y-auto rounded-none p-6" {...controlDataAttributes}>
       <EmptyHeader className="max-w-md gap-1">
         {StateIcon !== undefined && (
           <EmptyMedia className="mb-1.5">

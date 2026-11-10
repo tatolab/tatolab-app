@@ -25,7 +25,7 @@ function fakeHost() {
     },
     saveProjectFile: async (file, text, basedOnVersion): Promise<ProjectFileSaving> => {
       const onDisk = disk.get(file);
-      if (onDisk !== undefined && String(onDisk.version) !== basedOnVersion) return { kind: "not_saved", because: "stream.py changed on disk since it was opened, so it was not saved." };
+      if (onDisk !== undefined && String(onDisk.version) !== basedOnVersion) return { kind: "not_saved", because: "stream.py changed since it was opened, so it was not saved." };
       versionCount += 1;
       disk.set(file, { text, version: versionCount });
       return { kind: "saved", version: String(versionCount) };
@@ -88,7 +88,7 @@ describe("the code pane's open documents", () => {
     changeOnDisk(STREAM_PY, "a = 3\n");
     documents.editText(STREAM_PY, "a = 4\n");
     await documents.save(STREAM_PY);
-    expect(readDocument(documents, STREAM_PY).save).toEqual({ kind: "refused", because: "stream.py changed on disk since it was opened, so it was not saved." });
+    expect(readDocument(documents, STREAM_PY).save).toEqual({ kind: "refused", because: "stream.py changed since it was opened, so it was not saved." });
     expect(disk.get(STREAM_PY)?.text).toBe("a = 3\n");
     await documents.saveOverTheFileOnDisk(STREAM_PY);
     expect(disk.get(STREAM_PY)?.text).toBe("a = 4\n");

@@ -6,6 +6,7 @@ import type {
   NodeCatalogReading,
   ProjectFileReading,
   ProjectFileSaving,
+  NodeFileCreating,
   ProjectFilesListing,
   ProjectLogReading,
   ProjectNodeTypesReading,
@@ -117,6 +118,8 @@ export interface StudioViewHostServices {
   readProjectFile(file: string): Promise<ProjectFileReading>;
   /** Write `text` to `file` whole when it is still at `basedOnVersion` on disk (`null` for a new file); never over a file changed since, or an import's. */
   saveProjectFile(file: string, text: string, basedOnVersion: string | null): Promise<ProjectFileSaving>;
+  /** A new Python node file at `file` in the open project's own folder, from the runtime's node template; never over a file the project holds, or in an import. */
+  createNodeFile(file: string): Promise<NodeFileCreating>;
   listProjectFiles(projectFolder: string): Promise<ProjectFilesListing>;
   /** `projectFolder`'s log, read while any view watches it and the window is shown; the first reading arrives once read. */
   watchProjectLog(projectFolder: string, listener: (reading: ProjectLogReading) => void): StopWatching;

@@ -91,7 +91,8 @@ export interface MockGraphNode {
   /** The id it had before a rename, which it keeps as the runtime keeps a node's UUID. */
   id_kept_through_renames?: string;
   type: string;
-  state: string;
+  /** `null` for an interface node, which runs nothing and so reads no state. */
+  state: string | null;
   /** Why it failed, in the runtime's words, while `state` reads `Error`. */
   failed_because?: string;
   config: Record<string, JsonValue>;
@@ -275,6 +276,12 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
   },
 ];
 
+/** The pattern's main stream declares two input ports, as the runtime renders a `GraphInput` back: no state, its `port` and `family` config, one `value` output. */
+const TEST_PATTERN_GRAPH_INPUTS: MockGraphNode[] = [
+  { name: "intensity", type: "tatolab.stream:GraphInput", state: null, config: { port: "intensity", family: "array" }, input_ports: [], output_ports: portsStatingNoStreamFacts("array", "value") },
+  { name: "overlay_text", type: "tatolab.stream:GraphInput", state: null, config: { port: "overlay_text", family: "records" }, input_ports: [], output_ports: portsStatingNoStreamFacts("records", "value") },
+];
+
 const TEST_PATTERN_LINKS: StreamGraphLink[] = [
   {
     id: "Lj17fu4mdczivji99oua37i06",
@@ -375,6 +382,7 @@ function createTestPatternStream(
     recordsTheStream: string | null;
     withTheFixtureViewsNode: boolean;
     withTheCompositorNode: boolean;
+    withGraphInputs: boolean;
   },
 ): MockStreamFixture {
   const { projectDirectory, recordsTheStream } = options;
@@ -398,6 +406,7 @@ function createTestPatternStream(
         ...(recordsTheStream === null ? [] : [RECORDER_OF_MAIN_NODE]),
         ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_NODE] : []),
         ...(options.withTheCompositorNode ? [ALPHA_OVER_COMPOSITOR_NODE] : []),
+        ...(options.withGraphInputs ? TEST_PATTERN_GRAPH_INPUTS : []),
       ],
       links: [
         ...TEST_PATTERN_LINKS.map((link) => (options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" } : link)),
@@ -603,6 +612,7 @@ export interface MockStreamFixtures {
   mainStreamWithTheFixtureViewsNode: MockStreamFixture;
   /** `main` with an alpha-over compositor of two layers on the effect's output. */
   mainStreamWithTheCompositorNode: MockStreamFixture;
+  mainStreamDeclaringGraphInputs: MockStreamFixture;
   cameraStream: MockStreamFixture;
   /** The camera stream as the runtime re-loads it at its start before anyone has asked for camera access. */
   cameraStreamWaitingForCameraAccess: MockStreamFixture;
@@ -633,6 +643,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     recordsTheStream: null,
     withTheFixtureViewsNode: false,
     withTheCompositorNode: false,
+    withGraphInputs: false,
   };
   const mainStream = createTestPatternStream(machine, mainStreamOptions);
   const cameraStream = createCameraStream(machine);
@@ -651,6 +662,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     mainStreamWithItsMeterFallingBehind: createTestPatternStream(machine, { ...mainStreamOptions, withTheMeterFallingBehind: true }),
     mainStreamWithTheFixtureViewsNode: createTestPatternStream(machine, { ...mainStreamOptions, withTheFixtureViewsNode: true }),
     mainStreamWithTheCompositorNode: createTestPatternStream(machine, { ...mainStreamOptions, withTheCompositorNode: true }),
+    mainStreamDeclaringGraphInputs: createTestPatternStream(machine, { ...mainStreamOptions, withGraphInputs: true }),
     cameraStream,
     cameraStreamWaitingForCameraAccess: { ...cameraStream, listing: { ...cameraStream.listing, capture_devices_whose_access_was_never_asked_for: ["camera"] } },
     recorderOfMainStream,
@@ -685,6 +697,7 @@ export function createMockStreamRunFromAProjectFolder(machine: MockMachine, proj
     recordsTheStream: null,
     withTheFixtureViewsNode: false,
     withTheCompositorNode: false,
+    withGraphInputs: false,
   });
   return { ...fixture, loadedForMillisecondsAtOpen: 0 };
 }
