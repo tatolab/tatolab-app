@@ -1,3 +1,4 @@
+import { localApiRequestFailure } from "./local_api_client.js";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -62,6 +63,7 @@ async function windowsWithNightShowOpen(stopTheProject: (projectFolder: string) 
     dockIconHost: fakeShell.tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: () => null,
     projectReadingsOfTheRuntime: { nameTheProject: async () => failedWith("no runtime answers"), listTheDependencies: async () => failedWith("no runtime answers") },
+    openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
     runAfter: () => () => {},
     stopTheProjectAsItsWindowCloses: (folder) => {
       projectsStopped.push(folder);

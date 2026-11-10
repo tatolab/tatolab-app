@@ -4,6 +4,7 @@
 // hands the frame.
 
 import { connectToTatoAppOverPort, VIEW_PORT_HANDOVER, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import { HistoryView } from "@tatolab/tato-app-core-views/views/history";
 import { OutlinerView } from "@tatolab/tato-app-core-views/views/outliner";
 import { PaletteView } from "@tatolab/tato-app-core-views/views/palette";
 import { PropertiesView } from "@tatolab/tato-app-core-views/views/properties";
@@ -14,6 +15,7 @@ const CORE_VIEW_DRAWINGS: Record<string, (connection: TatoAppViewConnection) => 
   outliner: (connection) => <OutlinerView connection={connection} />,
   palette: (connection) => <PaletteView connection={connection} />,
   properties: (connection) => <PropertiesView connection={connection} />,
+  history: (connection) => <HistoryView connection={connection} />,
 };
 
 const EMPTY_CORE_VIEW_PAGE = '<!doctype html><html lang="en" class="dark"><body><div id="view"></div></body></html>';

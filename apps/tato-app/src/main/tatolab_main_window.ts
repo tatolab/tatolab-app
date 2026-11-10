@@ -2,9 +2,10 @@
 // in the tray, or a project's studio window or a Viewer popped out of one, which closing closes.
 // `TatolabAppWindows` holds them all and shows the Dock icon on macOS while any is on screen.
 
-import type { OpenProjectReading, PortViewerEvent, PortViewerImageFrameFacts, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { OpenProjectReading, ProjectTransactionsReading, PortViewerEvent, PortViewerImageFrameFacts, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
   TATOLAB_OPEN_PROJECT_CHANGED_EVENT,
+  TATOLAB_PROJECT_TRANSACTIONS_CHANGED_EVENT,
   TATOLAB_PORT_VIEWER_EVENT,
   TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT,
   TATOLAB_STATUS_CHANGED_EVENT,
@@ -163,6 +164,11 @@ export class TatolabMainWindow implements WindowShowingPortViewers {
   /** Send the window `reading` as `tatolab-open-project-changed`; nothing, before the window is first shown, which reads its project when it opens. */
   sendTheWindowTheOpenProject(reading: OpenProjectReading): void {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_OPEN_PROJECT_CHANGED_EVENT, reading);
+  }
+
+  /** Send the window `reading` as `tatolab-project-transactions-changed`; nothing, before the window is first shown, which reads the feed when it opens. */
+  sendTheWindowTheProjectTransactions(reading: ProjectTransactionsReading): void {
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_PROJECT_TRANSACTIONS_CHANGED_EVENT, reading);
   }
 
   /** Send the window `event` as `tatolab-python-language-server-event`; nothing, before the window is first shown. */

@@ -130,6 +130,7 @@ async function sharedStateOverFakes(
     dockIconHost: fakeShellForTheWindows.tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: () => null,
     projectReadingsOfTheRuntime: NO_RUNTIME_READS_THE_PROJECTS,
+    openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
     runAfter: () => () => {},
     stopTheProjectAsItsWindowCloses: async () => succeeded(undefined),
     whenAStudioWindowClosed: () => {},
@@ -770,4 +771,31 @@ test("a window's menus are kept for the system menu bar on macOS, shown while it
   });
 
   expect(sharedState.menusShownInTheSystemMenuBar).toEqual([null, [fileMenu]]);
+});
+
+/** The window's `ProjectTransaction` and `ProjectTransactionsReading` read exactly this JSON. */
+test("undo and redo in the open project ask the runtime by the window's author and answer its transaction, or its refusal in its own words", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-undo-tool-result-of-sam-undoing-their-import-into-lobby.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-redo-tool-refusal-for-sam-with-nothing-left-to-redo.json")),
+    ],
+    "linux",
+  );
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "lobby-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const sam = { kind: "person", name: "Sam" };
+
+  expect(await commandHandlers.read_open_project_transactions(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: { kind: "not_read", because: expect.any(String) } });
+  const undone = await commandHandlers.undo_in_the_open_project({ author: sam }, fromTheStudioWindow);
+  expect(undone).toMatchObject({ ok: true, value: { author_kind: "person", author_name: "Sam", undoes: expect.stringMatching(/^7680e08a-/), redoes: null, applied_at: null } });
+  expect(await commandHandlers.redo_in_the_open_project({ author: sam }, fromTheStudioWindow)).toEqual({ ok: false, refusal: "redo failed: Sam has undone nothing that is left to redo" });
+  expect(await commandHandlers.undo_in_the_open_project({ author: { kind: "runtime", name: "tatolab" } }, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: "undo_in_the_open_project needs `author`, a person or an agent by the name history shows",
+  });
+  expect(await commandHandlers.undo_in_the_open_project({ author: sam }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });

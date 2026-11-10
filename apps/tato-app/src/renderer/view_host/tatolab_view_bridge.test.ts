@@ -15,6 +15,9 @@ import type {
   PortViewerTarget,
   ProjectFileRead,
   ProjectFileReading,
+  ProjectTransaction,
+  ProjectTransactionAuthor,
+  ProjectTransactionsReading,
   PythonLanguageServerConnectionEvent,
   StudioSelection,
   ViewHeaderRow,
@@ -48,6 +51,19 @@ const FULL_ACCESS_DJ_DECK_MANIFEST: TatolabViewManifest = { ...DJ_DECK_MANIFEST,
 
 const STREAM_FILE_READ: ProjectFileRead = { file: "/set/stream.py", project_folder: "/set", text: "print()", version: "v1", is_editable: true };
 
+const UNDO_APPLIED: ProjectTransaction = {
+  transaction: "t-undo",
+  commit: "c2",
+  parent_commit: "c1",
+  author_kind: "agent",
+  author_name: "claude-code",
+  operations: [{ operation: "remove_node" }],
+  inverse_operations: [{ operation: "add_node" }],
+  undoes: "t-add",
+  redoes: null,
+  applied_at: "2026-11-09T18:42:00Z",
+};
+
 const DECK_A_TARGET: PortViewerTarget = { stream: "set", node_id: "id-deck-a", port: "audio" };
 const DECK_B_TARGET: PortViewerTarget = { stream: "set", node_id: "id-deck-b", port: "audio" };
 
@@ -59,6 +75,7 @@ function recordingHostServices() {
   const viewsOpened: { viewTypeId: string; on: ViewOpeningTarget }[] = [];
   const viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
   const languageServerMessagesSent: JsonValue[] = [];
+  const undosAsked: { projectFolder: string; author: ProjectTransactionAuthor }[] = [];
   const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
   const hostServices: StudioViewHostServices = {
     watchOpenProject: (listener) => {
@@ -88,6 +105,15 @@ function recordingHostServices() {
     popOutViewer: async () => ({ kind: "not_popped_out", because: "no windows in this test" }),
     watchProjectLog: () => () => undefined,
     watchProjectNodeTypes: () => () => undefined,
+    watchProjectTransactions: (projectFolder, listener) => {
+      listener({ kind: "not_read", because: `No runtime follows ${projectFolder}.` });
+      return () => undefined;
+    },
+    undoInTheProject: async (projectFolder, author) => {
+      undosAsked.push({ projectFolder, author });
+      return { kind: "applied", transaction: UNDO_APPLIED };
+    },
+    redoInTheProject: async () => ({ kind: "not_applied", because: "redo failed: claude-code has nothing to redo" }),
     connectToPythonLanguageServer: (projectFolder, onEvent) => {
       const opened = { projectFolder, onEvent, closed: false };
       languageServers.push(opened);
@@ -108,7 +134,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent };
+  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked };
 }
 
 /** An area that keeps the settings it is asked to remember and says where the view's header row lies. */
@@ -149,6 +175,29 @@ function messagesDelivered(): Promise<void> {
 }
 
 describe("a view's connection to Studio, through the one bridge every view is served by", () => {
+  it("reads the project's history and undoes through it when it may write the project, and is refused both by name when sandboxed without them", async () => {
+    const { connection, undosAsked } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+    const readings: ProjectTransactionsReading[] = [];
+    connection.watchProjectTransactions("/set", (reading) => readings.push(reading));
+    const author = { kind: "agent", name: "claude-code" } as const;
+    const undone = await connection.undoInTheProject("/set", author);
+    const redone = await connection.redoInTheProject("/set", author);
+    await messagesDelivered();
+    expect(readings).toEqual([{ kind: "not_read", because: "No runtime follows /set." }]);
+    expect(undone).toEqual({ kind: "applied", transaction: UNDO_APPLIED });
+    expect(undosAsked).toEqual([{ projectFolder: "/set", author }]);
+    expect(redone).toEqual({ kind: "not_applied", because: "redo failed: claude-code has nothing to redo" });
+
+    const sandboxed = await connectedView(DJ_DECK_MANIFEST, {});
+    const refusals: string[] = [];
+    sandboxed.connection.watchProjectTransactions("/set", () => undefined, (because) => refusals.push(because));
+    const refusedUndo = await sandboxed.connection.undoInTheProject("/set", author);
+    await messagesDelivered();
+    expect(refusals).toEqual(["DJ Deck runs sandboxed and does not list read.project_assets in its tatolab_view.json, so Studio does not serve it."]);
+    expect(refusedUndo).toEqual({ kind: "not_applied", because: "DJ Deck runs sandboxed and does not list write.project_assets in its tatolab_view.json, so Studio does not serve it." });
+    expect(sandboxed.undosAsked).toEqual([]);
+  });
+
   it("is told what its manifest was granted as it connects", async () => {
     const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
     expect(connection.grant).toEqual({

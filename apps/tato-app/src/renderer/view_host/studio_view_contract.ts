@@ -13,6 +13,9 @@ import type {
   ProjectFilesListing,
   ProjectLogReading,
   ProjectNodeTypesReading,
+  ProjectTransactionApplying,
+  ProjectTransactionAuthor,
+  ProjectTransactionsReading,
   PythonLanguageServerConnectionEvent,
   StreamGraphReading,
   StreamTabAddress,
@@ -61,6 +64,10 @@ export type {
   ProjectFilesListing,
   ProjectLogReading,
   ProjectNodeTypesReading,
+  ProjectTransaction,
+  ProjectTransactionApplying,
+  ProjectTransactionAuthor,
+  ProjectTransactionsReading,
   PythonLanguageServerConnectionEvent,
   StreamGraphReading,
   StreamTabAddress,
@@ -137,6 +144,12 @@ export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
   watchProjectLog(projectFolder: string, listener: (reading: ProjectLogReading) => void): StopWatching;
   /** What `projectFolder` and each source it draws node code from declares, listed while any view watches it and the window is shown; the first reading arrives once listed. */
   watchProjectNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesReading) => void): StopWatching;
+  /** The open project's change feed, when `projectFolder` is its folder: read once, then again each time the runtime applies a transaction. */
+  watchProjectTransactions(projectFolder: string, listener: (reading: ProjectTransactionsReading) => void): StopWatching;
+  /** The runtime's `undo` by `author` on the open project, answering the undo it applied or its refusal. */
+  undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
+  /** The runtime's `redo` by `author` on the open project, answering the redo it applied or its refusal. */
+  redoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** Pop a Viewer pinned to `target` out into a window of its own, or bring forward the one already pinned there. */
   popOutViewer(target: PoppedOutViewerTarget): Promise<ViewerPopOut>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */

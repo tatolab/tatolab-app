@@ -12,6 +12,9 @@ import type {
   NodeCatalog,
   ProjectNodeTypeListing,
   OpenProjectReading,
+  ProjectTransaction,
+  ProjectTransactionAuthor,
+  ProjectTransactionsReading,
   PoppedOutViewerTarget,
   PackageCatalogReading,
   DependencySourceKind,
@@ -141,6 +144,14 @@ export interface TatolabBackend {
   openRecentProject(folder: string): Promise<void>;
   /** Calls `listener` with each reading of the open project: another folder opened, a change in one of its folders, or the runtime starting to answer; the returned function stops it. */
   onOpenProjectChanged(listener: (reading: OpenProjectReading) => void): () => void;
+  /** This window's project's change feed as the app last read it from the runtime; refused in the Projects window. Later readings arrive through `onProjectTransactionsChanged`. */
+  readOpenProjectTransactions(): Promise<ProjectTransactionsReading>;
+  /** Calls `listener` with each reading of the open project's change feed: a transaction the runtime applied, or the feed lost or followed again; the returned function stops it. */
+  onProjectTransactionsChanged(listener: (reading: ProjectTransactionsReading) => void): () => void;
+  /** The runtime's `undo` by `author` on the open project, resolving with the undo it applied and rejecting in the runtime's own words. */
+  undoInTheOpenProject(author: ProjectTransactionAuthor): Promise<ProjectTransaction>;
+  /** The runtime's `redo` by `author` on the open project, resolving with the redo it applied and rejecting in the runtime's own words. */
+  redoInTheOpenProject(author: ProjectTransactionAuthor): Promise<ProjectTransaction>;
   /** `file` of the open project and its imports, as read from disk, rejecting for a file outside them or in the filesystem's words. */
   readProjectFile(file: string): Promise<ProjectFileRead>;
   /** Write `text` to `file` whole when the file on disk is still at `basedOnVersion` (`null` for a new file), rejecting with nothing written when it changed, belongs to an import, or the filesystem refuses. */
