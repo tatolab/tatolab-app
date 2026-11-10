@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"path\": \"views/deck/icon.png\",\n  \"byte_len\": 75,\n  \"content_base64\": \"iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAEklEQVR4nGM4YRP1HxkzkC4AAAAXJdG9hqaJAAAAAElFTkSuQmCC\"\n}"}],"isError":false}}

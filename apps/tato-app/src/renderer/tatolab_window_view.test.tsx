@@ -39,6 +39,7 @@ afterEach(async () => {
   removeTheKeydownListenersOfEarlierWindows();
   stopDrawingTheCoreViews();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
   document.body.replaceChildren();
   localStorage.clear();
 });
@@ -280,6 +281,8 @@ describe("the studio", () => {
   });
 
   it("lists the project's edits in History, newest first, and choosing an earlier one undoes back to it by each edit's author", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(Date.UTC(2026, 10, 9, 18, 40)));
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
@@ -287,12 +290,12 @@ describe("the studio", () => {
 
     const historyRows = () => [...coreViewPage("history").querySelectorAll<HTMLElement>("[data-history-row]")];
     await waitFor(() => expect(historyRows()).toHaveLength(5));
-    expect(historyRows().map((row) => [row.getAttribute("aria-label")?.split(". ").slice(0, 2).join(". ").replace(/ · \d+ (min|h) ago| · just now/, ""), row.hasAttribute("data-undone")])).toEqual([
-      ["Set displaywindow scaling to fit. Sam · undone", true],
-      ["Added brightnessmeter and its link. claude-code (agent)", false],
-      ["Renamed invert to invertingeffect. Sam", false],
-      ["Refreshed mic_levels from its code. Runtime", false],
-      ["Imported warm.cube. Sam", false],
+    expect(historyRows().map((row) => [row.getAttribute("aria-label")?.split(". ").slice(0, 2).join(". "), row.hasAttribute("data-undone")])).toEqual([
+      ["Set displaywindow scaling to fit. Sam · 5 min ago · undone", true],
+      ["Added brightnessmeter and its link. claude-code (agent) · 12 min ago", false],
+      ["Renamed invert to invertingeffect. Sam · 19 min ago", false],
+      ["Refreshed mic_levels from its code. Runtime · 26 min ago", false],
+      ["Imported warm.cube. Sam · 33 min ago", false],
     ]);
 
     fireEvent.click(historyRows()[2] ?? expect.unreachable("no rename row"));
@@ -593,7 +596,7 @@ describe("the studio", () => {
     const viewFrame = await waitFor(
       () => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-tatolab-view]') ?? expect.unreachable("no project view frame"),
     );
-    expect(viewFrame.getAttribute("data-tatolab-view")).toBe("tatolab-fixture-views:picture-and-fader");
+    expect(viewFrame.getAttribute("data-tatolab-view")).toBe("pattern:picture_and_fader");
     expect(viewFrame.getAttribute("data-tatolab-view-access")).toBe("full");
     expect(viewFrame.hasAttribute("sandbox")).toBe(false);
     expect(viewFrame.getAttribute("allow")).toBe("camera; microphone");

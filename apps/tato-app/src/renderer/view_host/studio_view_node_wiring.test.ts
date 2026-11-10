@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
 import type { StreamGraphNode, StreamGraphSummary } from "./studio_view_contract";
-import { nodesOfTheStudioViewType, studioViewInputWiring, STUDIO_VIEW_NODE_TYPE } from "./studio_view_node_wiring";
+import { nodesOfTheStudioViewType, studioViewInputWiring } from "./studio_view_node_wiring";
 
 function graphNode(name: string, type: string, config: StreamGraphNode["config"], outputs: StreamGraphNode["output_ports"]): StreamGraphNode {
   return { id: `id-${name}`, name, type, state: "Running", failed_because: null, config, input_ports: [], output_ports: outputs, dropped_bags_by_link: {}, refused_bags_by_output_port: {} };
 }
 
-const DECK = graphNode("djdeck", STUDIO_VIEW_NODE_TYPE, { view_type: "acme-dj:deck" }, []);
+const DECK = graphNode("djdeck", "acme-dj:deck", { level: 0.5 }, []);
 const GRAPH: StreamGraphSummary = {
   stream: "set",
   nodes: [
     graphNode("player", "acme_dj:Player", {}, [{ name: "audio", family: "channels", stream_facts: null, values_checked: null }]),
     graphNode("camera", "tatolab.stream:Camera", {}, [{ name: "video", family: "image", stream_facts: null, values_checked: null }]),
     DECK,
-    graphNode("otherview", STUDIO_VIEW_NODE_TYPE, { view_type: "acme-stage:rig" }, []),
+    graphNode("otherview", "acme-stage:rig", {}, []),
   ],
   links: [
     { id: "L1", source_node: "player", source_port: "audio", target_node: "djdeck", target_port: "deck_a", state: "wired" },
@@ -24,7 +24,7 @@ const GRAPH: StreamGraphSummary = {
 };
 
 describe("a view node's wiring", () => {
-  it("finds the nodes standing for a view type by their config's view_type", () => {
+  it("finds the nodes of a view type by their type, the view type itself", () => {
     expect(nodesOfTheStudioViewType(GRAPH, "acme-dj:deck").map((node) => node.name)).toEqual(["djdeck"]);
     expect(nodesOfTheStudioViewType(GRAPH, "acme-dj:mixer")).toEqual([]);
   });

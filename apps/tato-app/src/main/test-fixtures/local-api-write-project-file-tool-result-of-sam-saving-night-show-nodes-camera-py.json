@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"path\": \"nodes/camera.py\",\n  \"transaction\": \"c394e90f-a850-4603-81c3-8d25ba25ea76\",\n  \"commit\": \"a85ff7d5a389463bfcf6af6a27e268b013849bf6\"\n}"}],"isError":false}}

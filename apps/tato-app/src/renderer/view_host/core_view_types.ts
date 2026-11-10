@@ -4,6 +4,7 @@
 import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk";
 import type { CoreView } from "@tatolab/tato-app-core-views";
 import type { JsonValue } from "./studio_view_contract";
+import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
 import type { ProjectStudioViewNotOpened, RegisteredStudioViewType } from "./studio_view_type_registry";
 import { tatolabFrameViewType } from "./tatolab_frame_view_type";
 
@@ -35,7 +36,7 @@ export function coreViewTypesOf(coreViews: readonly CoreView[], folderUrlOf: (fo
       notOpened.push({ view_type_id: coreView.folder, because: manifestReading.because });
       continue;
     }
-    const listed = { view_type_id: coreView.folder, distribution: "tato-app-core-views", entry_name: coreView.folder, manifest_json: manifestJson, folder_url: folderUrlOf(coreView.folder) };
+    const listed: ListedStudioView = { view_type_id: coreView.folder, project_name: "Tato Studio", import_folder: null, opens: true, not_opened_because: null, manifest_json: manifestJson, folder_url: folderUrlOf(coreView.folder) };
     viewTypesByFolder.set(coreView.folder, tatolabFrameViewType(listed, manifestReading.manifest, { kind: "tato_studio" }));
   }
   return { view_types_by_folder: viewTypesByFolder, not_opened: notOpened };

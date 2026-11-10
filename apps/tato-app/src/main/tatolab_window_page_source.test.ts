@@ -5,7 +5,7 @@ import {
   builtWindowFileForRequest,
   inlineScriptHashSources,
   isACommandFromTheWindowsOwnPage,
-  isACoreViewPageOfTheWindow,
+  isAViewPageTheWindowFrames,
   isOnTheWindowPagesOwnLocation,
   TATOLAB_WINDOW_PAGE_URL,
   windowPageContentSecurityPolicy,
@@ -43,7 +43,7 @@ test("the policy allows an inline script only by its hash, and the window page h
   const windowPageHtml = readFileSync(new URL("../renderer/index.html", import.meta.url), "utf8");
   expect(inlineScriptHashSources(windowPageHtml)).toEqual([]);
   expect(windowPageContentSecurityPolicy(windowPageHtml)).toBe(
-    "default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; frame-src tatolab-app://app/core_views/; object-src 'none'; base-uri 'self'",
+    "default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; frame-src tatolab-app://app/core_views/ tatolab-app://app/project_views/; object-src 'none'; base-uri 'self'",
   );
   const pageWithAnInlineScript = "<script>document.title = 'x';</script>";
   expect(inlineScriptHashSources(pageWithAnInlineScript)).toEqual([`'sha256-${createHash("sha256").update("document.title = 'x';").digest("base64")}'`]);
@@ -58,11 +58,14 @@ test("a command is answered only from the window page's own top frame, never a f
   expect(isACommandFromTheWindowsOwnPage(windowPageUrl, "https://example.com/", true)).toBe(false);
 });
 
-test("the window frames only its core views' pages, on its own location", () => {
-  expect(isACoreViewPageOfTheWindow(TATOLAB_WINDOW_PAGE_URL, "tatolab-app://app/core_views/outliner/index.html")).toBe(true);
-  expect(isACoreViewPageOfTheWindow("http://localhost:5173/", "http://localhost:5173/core_views/palette/index.html")).toBe(true);
-  expect(isACoreViewPageOfTheWindow(TATOLAB_WINDOW_PAGE_URL, "tatolab-app://app/index.html")).toBe(false);
-  expect(isACoreViewPageOfTheWindow(TATOLAB_WINDOW_PAGE_URL, "tatolab-app://app/views/deck/index.html")).toBe(false);
-  expect(isACoreViewPageOfTheWindow(TATOLAB_WINDOW_PAGE_URL, "https://example.com/core_views/outliner/index.html")).toBe(false);
-  expect(isACoreViewPageOfTheWindow(TATOLAB_WINDOW_PAGE_URL, "not a url")).toBe(false);
+test("the window frames its core views' pages on its own location, and project views' files served on its scheme, and nothing else", () => {
+  expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "tatolab-app://app/core_views/outliner/index.html")).toBe(true);
+  expect(isAViewPageTheWindowFrames("http://localhost:5173/", "http://localhost:5173/core_views/palette/index.html")).toBe(true);
+  expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "tatolab-app://app/project_views/L2hvbWUvc2FtL3N0cmVhbXMvbmlnaHQtc2hvdw/views/deck/index.html")).toBe(true);
+  expect(isAViewPageTheWindowFrames("http://localhost:5173/", "tatolab-app://app/project_views/L2hvbWUvc2FtL3N0cmVhbXMvbmlnaHQtc2hvdw/views/deck/index.html")).toBe(true);
+  expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "tatolab-app://app/index.html")).toBe(false);
+  expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "tatolab-app://app/views/deck/index.html")).toBe(false);
+  expect(isAViewPageTheWindowFrames("http://localhost:5173/", "http://localhost:5173/project_views/L2hvbWU/views/deck/index.html")).toBe(false);
+  expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "https://example.com/core_views/outliner/index.html")).toBe(false);
+  expect(isAViewPageTheWindowFrames(TATOLAB_WINDOW_PAGE_URL, "not a url")).toBe(false);
 });
