@@ -21,23 +21,25 @@ const PROJECT_COVER_CLASS_NAMES: Record<ProjectCoverNumber, string> = {
   6: "bg-project-cover-6-ground text-project-cover-6-mark",
 };
 
-/** How big a project's cover is drawn: the full width of a card, or a list row's thumbnail. */
-type ProjectCoverSize = "card" | "thumbnail";
+/** How big a plain cover is drawn: the full width of a project's card, a list row's thumbnail, a module card's band, or a details panel's picture. */
+type PlainCoverSize = "card" | "thumbnail" | "band" | "picture";
 
-const PROJECT_COVER_SIZE_CLASS_NAMES: Record<ProjectCoverSize, string> = {
+const PLAIN_COVER_SIZE_CLASS_NAMES: Record<PlainCoverSize, string> = {
   card: "aspect-16/10 w-full rounded-xl text-3xl",
   thumbnail: "h-11 w-20 shrink-0 rounded-md text-base",
+  band: "h-20 w-full shrink-0 rounded-lg text-2xl",
+  picture: "h-36 w-full shrink-0 rounded-xl text-4xl",
 };
 
-/** A project's plain cover: a ground in the colour picked from its name, with the name's initial on it. A card's lifts while its card is under the pointer or its open button has the keyboard's focus. */
-function ProjectCover({ coverNumber, coverInitial, size }: { coverNumber: ProjectCoverNumber; coverInitial: string; size: ProjectCoverSize }) {
+/** A plain cover: a ground in the colour picked from a name, with the name's initial on it. A project card's lifts while its card is under the pointer or its open button has the keyboard's focus. */
+export function PlainCover({ coverNumber, coverInitial, size }: { coverNumber: ProjectCoverNumber; coverInitial: string; size: PlainCoverSize }) {
   return (
     <span
       aria-hidden
       className={cn(
         "flex items-center justify-center overflow-hidden border border-line font-semibold select-none",
         PROJECT_COVER_CLASS_NAMES[coverNumber],
-        PROJECT_COVER_SIZE_CLASS_NAMES[size],
+        PLAIN_COVER_SIZE_CLASS_NAMES[size],
         size === "card" &&
           "transition-[transform,box-shadow,border-color] duration-150 ease-(--ease) group-hover/project:-translate-y-0.5 group-hover/project:border-line-strong group-hover/project:shadow-(--shadow-pop) group-has-[[data-popup-open]]/project:-translate-y-0.5 group-has-[[data-popup-open]]/project:shadow-(--shadow-pop) group-focus-visible/open:-translate-y-0.5 group-focus-visible/open:border-line-strong group-focus-visible/open:shadow-(--shadow-pop)",
       )}
@@ -115,7 +117,7 @@ export function ProjectCard({
         className={cn("group/open flex w-full min-w-0 flex-col gap-2.5 rounded-xl text-left outline-none", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
         data-project-open=""
       >
-        <ProjectCover coverNumber={coverNumber} coverInitial={coverInitial} size="card" />
+        <PlainCover coverNumber={coverNumber} coverInitial={coverInitial} size="card" />
         <span className="flex min-w-0 flex-col gap-1">
           <ProjectName name={name} isUnreadable={isUnreadable} className="text-base" />
           <span className={cn("line-clamp-2 min-h-9 text-xs leading-4.5", hasADescription ? "text-fg-2" : "text-fg-3")}>{description}</span>
@@ -185,7 +187,7 @@ export function ProjectListRow({
         className={cn(PROJECT_LIST_COLUMNS_CLASS_NAMES, "h-15 min-w-0 flex-1 rounded-lg text-left outline-none", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
         data-project-open=""
       >
-        <ProjectCover coverNumber={coverNumber} coverInitial={coverInitial} size="thumbnail" />
+        <PlainCover coverNumber={coverNumber} coverInitial={coverInitial} size="thumbnail" />
         <ProjectName name={name} isUnreadable={isUnreadable} className="text-base" />
         <span className={cn("truncate text-sm", hasADescription ? "text-fg-2" : "text-fg-3")}>{description}</span>
         <span className="truncate text-xs text-fg-3" data-project-pending={pendingWords === null ? undefined : ""}>

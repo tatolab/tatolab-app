@@ -168,7 +168,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, outputsWritten, graphTransactionsAsked };
+  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, graphTransactionsAsked, outputsWritten };
 }
 
 /** An area that keeps the settings it is asked to remember and says where the view's header row lies. */

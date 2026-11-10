@@ -23,6 +23,7 @@ import type { ViewHeaderRow } from "../view_host/studio_view_contract";
 import type { StudioViewHostServices, StudioViewTypeSource } from "../view_host/studio_view_contract";
 import type { RegisteredStudioViewType, StudioViewNotOpened, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
 import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet_view";
+import { StudioStatusBar } from "./studio_status_bar";
 import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
 import {
@@ -321,6 +322,12 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               sources={sources}
             />
           </main>
+          <StudioStatusBar
+            viewHostServices={sources.viewHostServices}
+            projectFolder={openProject.kind === "read" ? openProject.open_project.project.folder : openProject.kind === "unreadable" ? openProject.folder : null}
+            activeStream={openStreamTabs.active_stream}
+            platform={platform}
+          />
         </>
       )}
       <NewProjectSheetView openedWith={newProjectSheetOpenedWith} sources={sources.newProject} onClosed={() => model.newProjectSheetOpenedWith.publish(null)} />

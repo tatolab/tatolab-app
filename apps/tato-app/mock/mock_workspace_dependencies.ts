@@ -3,6 +3,7 @@
 // since, so Update waits on the overwrite; `?module_manager=newer` has its source hold a newer version.
 
 import type { DependencySourceKind, ProjectDependency, WorkspaceDependency, WorkspaceDependencyUpdate } from "../src/shared/tatolab_backend_contract";
+import { moduleFolderNameOf } from "../src/renderer/studio_shell/module_manager_listing";
 
 /** The state the mock workspace's imports start in. */
 export type MockWorkspaceDependenciesScenario = "copied" | "edited_files" | "newer";
@@ -58,9 +59,9 @@ export class MockWorkspaceDependencies {
     return sourceKind === "folder" ? `${besideTheWorkspace}/doorways` : `${besideTheWorkspace}/doorways.zip`;
   }
 
-  /** `source` copied into `imports/`, refused where it is held already. */
-  add(source: string): ProjectDependency {
-    const name = (source.split("/").pop() ?? source).replace(/\.zip$/, "").toLowerCase();
+  /** `source` copied into `imports/<name in its project file>`, the folder named as the runtime names it, refused where it is held already. */
+  add(source: string, nameInItsProjectFile: string = (source.split("/").pop() ?? source).replace(/\.zip$/, "")): ProjectDependency {
+    const name = moduleFolderNameOf(nameInItsProjectFile);
     if (this.dependencies.some((dependency) => dependency.source === source || dependency.folder === name)) throw `the project already imports ${source} in imports/${name}`;
     const dependency: WorkspaceDependency = {
       project: crypto.randomUUID(),

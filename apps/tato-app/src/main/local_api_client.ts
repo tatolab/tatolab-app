@@ -7,7 +7,8 @@
 // `remove_project` queues the removal of a project's streams, `delete_project` its removal and its
 // folder's move to the Trash, `rename_project` and `duplicate_project` rename and copy a project,
 // `import_project` makes one from a `.zip`, `set_stream_display_name` shows a stream under another
-// name, `transact` applies graph actions as one transaction and answers its structured refusal, `add_dependency`, `update_dependency` and `list_dependencies` copy, copy again and
+// name, `transact` applies graph actions as one transaction and answers its structured refusal,
+// `add_dependency`, `update_dependency` and `list_dependencies` copy, copy again and
 // list the projects a project imports, `GET /api/graph` names the machine, and `GET /api/registry` lists the node types a
 // stream can add.
 //
