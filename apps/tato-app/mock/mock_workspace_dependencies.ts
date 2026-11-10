@@ -58,9 +58,9 @@ export class MockWorkspaceDependencies {
     return sourceKind === "folder" ? `${besideTheWorkspace}/doorways` : `${besideTheWorkspace}/doorways.zip`;
   }
 
-  /** `source` copied into `imports/`, refused where it is held already. */
-  add(source: string): ProjectDependency {
-    const name = (source.split("/").pop() ?? source).replace(/\.zip$/, "").toLowerCase();
+  /** `source` copied into `imports/<name in its project file, lowercased>`, refused where it is held already. */
+  add(source: string, nameInItsProjectFile: string = (source.split("/").pop() ?? source).replace(/\.zip$/, "")): ProjectDependency {
+    const name = nameInItsProjectFile.toLowerCase();
     if (this.dependencies.some((dependency) => dependency.source === source || dependency.folder === name)) throw `the project already imports ${source} in imports/${name}`;
     const dependency: WorkspaceDependency = {
       project: crypto.randomUUID(),

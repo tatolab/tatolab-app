@@ -81,7 +81,7 @@ export function projectCoverNumberOfTheName(name: string): ProjectCoverNumber {
 }
 
 /** The first letter or digit of `name`, upper-cased, for its plain cover; empty when it holds none. */
-function coverInitialOfTheName(name: string): string {
+export function coverInitialOfTheName(name: string): string {
   return (name.match(/[\p{L}\p{N}]/u)?.[0] ?? "").toLocaleUpperCase("en");
 }
 

@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { SquareX, TriangleAlert } from "lucide-react";
+import type { ControlDataAttributes } from "./support/control_data_attributes";
 
 /** How bad what was said is: a failure (a refusal, red, announced at once) or a warning (amber, announced politely). */
 export type RefusalTone = "failure" | "warning";
@@ -13,6 +14,7 @@ export function RefusalLine({
   words,
   tone = "failure",
   layout = "line",
+  ...controlDataAttributes
 }: {
   /** The window's own words before the refusal's, as "Stop was refused:". */
   lead?: string;
@@ -20,12 +22,13 @@ export function RefusalLine({
   words: string;
   tone?: RefusalTone;
   layout?: "line" | "bar";
-}) {
+} & ControlDataAttributes) {
   const ToneIcon = tone === "failure" ? SquareX : TriangleAlert;
   return (
     <p
       role={tone === "failure" ? "alert" : "status"}
       className={cn("flex gap-1.5 text-xs text-fg-2", layout === "line" ? "mt-1 max-w-[640px]" : "min-h-8 items-start border-b px-3 py-1.5")}
+      {...controlDataAttributes}
     >
       <ToneIcon className={cn("mt-px size-3.5 shrink-0", tone === "failure" ? "text-danger" : "text-warn")} strokeWidth={1.75} aria-hidden />
       <span className="min-w-0 break-words select-text">

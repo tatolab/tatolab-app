@@ -1001,7 +1001,9 @@ describe("Module manager", () => {
 
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
-    expect(textOf('[data-module-manager-detail="lobby-wall"]')).toContain("Copied from");
+    expect(moduleManagerRow("lobby-wall").textContent).toContain("Added");
+    fireEvent.click(moduleManagerRow("lobby-wall"));
+    expect(textOf('[data-module-manager-detail="lobby-wall"]')).toContain("/Users/jonathanf/streams/lobby-wall");
     expect(textOf('[data-module-manager-detail="lobby-wall"]')).toContain("imports/lobby-wall");
     pressed('[data-module-manager-open-to-edit="lobby-wall"]');
     await waitFor(() => expect(foldersOpenedToEdit).toEqual(["lobby-wall"]));
@@ -1029,14 +1031,15 @@ describe("Module manager", () => {
 
   it("asks before an Update overwrites files edited since the copy, and Keep my edits leaves them", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=edited_files");
-    await waitFor(() => expect(moduleManagerRow("lobby-wall").textContent).toContain("Edited"));
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());
+    fireEvent.click(moduleManagerRow("lobby-wall"));
     expect(textOf("[data-module-manager-edited-files]")).toContain("nodes/wall_mapping.py");
 
     pressed('[data-module-manager-update="lobby-wall"]');
     await waitFor(() => expect(document.querySelector("[data-module-manager-overwrite-dialog]")?.textContent).toContain("nodes/wall_mapping.py"));
     pressed("[data-module-manager-keep-my-edits]");
     await waitFor(() => expect(document.querySelector("[data-module-manager-overwrite-dialog]")).toBeNull());
-    expect(moduleManagerRow("lobby-wall").textContent).toContain("Edited");
+    expect(textOf("[data-module-manager-edited-files]")).toContain("nodes/wall_mapping.py");
 
     pressed('[data-module-manager-update="lobby-wall"]');
     pressed(await waitFor(() => (document.querySelector("[data-module-manager-overwrite]") === null ? expect.unreachable("no Overwrite") : "[data-module-manager-overwrite]")));
@@ -1047,17 +1050,17 @@ describe("Module manager", () => {
   it("marks a module whose source holds a newer version once checked, and Update takes it", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=newer");
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());
+    fireEvent.click(moduleManagerRow("lobby-wall"));
     expect(document.querySelector("[data-module-manager-newer-version]")).toBeNull();
 
     pressed("[data-module-manager-check-for-newer]");
-    await waitFor(() => expect(moduleManagerRow("lobby-wall").textContent).toContain("Newer version"));
+    await waitFor(() => expect(document.querySelector("[data-module-manager-newer-version]")).not.toBeNull());
     pressed('[data-module-manager-update="lobby-wall"]');
-    await waitFor(() => expect(moduleManagerRow("lobby-wall").textContent).not.toContain("Newer version"));
+    await waitFor(() => expect(document.querySelector("[data-module-manager-newer-version]")).toBeNull());
   });
 
-  it("lists the Marketplace's projects, narrows to a search, and imports one into the project", async () => {
+  it("lists the catalog's packages and samples as cards, shows samples alone, narrows to a search, and adds one to the project", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open");
-    pressed(await waitFor(() => (document.querySelector('[data-module-manager-tab="marketplace"]') === null ? expect.unreachable("no Marketplace tab") : '[data-module-manager-tab="marketplace"]')));
 
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="tatolab-camera"]')).not.toBeNull());
     expect(moduleManagerRow("camera-halftone")).toBeTruthy();
@@ -1069,18 +1072,25 @@ describe("Module manager", () => {
     await waitFor(() => expect(document.querySelectorAll("[data-module-manager-row]").length).toBe(1));
     fireEvent.change(searchField, { target: { value: "" } });
 
+    pressed('[data-module-manager-show="sample_projects"]');
+    await waitFor(() => expect([...document.querySelectorAll("[data-module-manager-row]")].map((card) => card.getAttribute("data-module-manager-row"))).toContain("camera-halftone"));
+    expect(document.querySelector('[data-module-manager-row="tatolab-camera"]')).toBeNull();
+    pressed('[data-module-manager-show="everything"]');
+
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="tatolab-camera"]')).not.toBeNull());
     fireEvent.click(moduleManagerRow("tatolab-camera"));
+    expect(textOf('[data-module-manager-import="tatolab-camera"]')).toBe("Add to pattern");
     pressed('[data-module-manager-import="tatolab-camera"]');
-    await waitFor(() => expect(document.querySelector('[data-module-manager-row="tatolab-camera-0.68.29"]')).not.toBeNull());
+    await waitFor(() => expect(document.querySelector('[data-module-manager-update]')).not.toBeNull());
   });
 
-  it("says the catalog didn't load and what it waits on", async () => {
+  it("says the catalog didn't load and what it waits on, and still lists the project's modules", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open&catalog=unserved");
-    pressed(await waitFor(() => (document.querySelector('[data-module-manager-tab="marketplace"]') === null ? expect.unreachable("no Marketplace tab") : '[data-module-manager-tab="marketplace"]')));
 
     await waitFor(() => expect(document.querySelector('[data-module-manager-state="not_read"]')).not.toBeNull());
     expect(textOf('[data-module-manager-state="not_read"]')).toContain("HTTP 404 Not Found");
     expect(textOf('[data-module-manager-state="not_read"]')).toContain("tatolab/streamlib#3216");
+    expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull();
   });
 });
 
