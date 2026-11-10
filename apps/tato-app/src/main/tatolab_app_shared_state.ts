@@ -19,6 +19,7 @@ import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import type { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import type { ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
+import type { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 
 /** The controller, the status publisher, the updater, what opens a stream's project, adding a project, the stream-failure notifications, Developer mode, opening projects, the app's windows, the language servers, the port viewers and the system menu bar, which the tray's choices and the window's commands reach. */
 export interface TatolabAppSharedState {
@@ -52,6 +53,8 @@ export interface TatolabAppSharedState {
   thePersonEditingInStudio: ProjectTransactionAuthor;
   /** The views each studio window listed as ones that open, the only ones whose files are served. */
   projectViewsListed: ProjectViewsListedToTheWindows;
+  /** Asks the system for the camera and the microphone as a listed view declaring one arrives, never at its first use. */
+  systemMediaAccessAskedAheadForViews: SystemMediaAccessAskedAheadForViews;
   tatolabAppLog: TatolabAppLog;
 }
 

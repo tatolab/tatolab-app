@@ -11,6 +11,7 @@ import { tatolabAppNotOpenedAtLogin, UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL } from
 import { appBundleOfTheExecutable, carriedCommandLineToolIn, carriedRuntimeExecutableIn, tatolabMachinePathsOnMacosForThisBuild } from "./tatolab_machine_paths.js";
 import { TerminalAppOpenedByOpen } from "./terminal_app_opened_by_open.js";
 import { LoginItemOfTheAppBundle } from "./login_item_of_the_app_bundle.js";
+import { MediaAccessOfTheAppBundle } from "./media_access_of_the_app_bundle.js";
 import { tatolabAppUpdatePackagingOnMacos } from "./tatolab_app_update_packaging_on_macos.js";
 
 /** Why there is no `tatolab` link with no absolute home folder to make it in. */
@@ -19,7 +20,7 @@ const NO_HOME_FOLDER_LINK_REFUSAL = "Tato Studio found no home folder to link ta
 /** The runtime helper a packaged app's bundle carries, run as the app's child, and the CLI beside it linked in the home folder. */
 export async function macosTatolabPlatformForThisBuild(
   tatolabAppLog: TatolabAppLog,
-  { homeDirectory, appExecutable, appIsPackaged, appLoginItemSettings }: TatolabPlatformHostServices,
+  { homeDirectory, appExecutable, appIsPackaged, appLoginItemSettings, appMediaAccessSettings }: TatolabPlatformHostServices,
 ): Promise<TatolabPlatformForThisBuild> {
   const machinePaths = tatolabMachinePathsOnMacosForThisBuild(currentProcessUid(), homeDirectory);
   const packagedAppBundle = appIsPackaged ? await appBundleOfTheExecutable(appExecutable) : null;
@@ -55,5 +56,6 @@ export async function macosTatolabPlatformForThisBuild(
     tatolabAppOpenedAtLogin: appIsPackaged
       ? new LoginItemOfTheAppBundle(appLoginItemSettings)
       : tatolabAppNotOpenedAtLogin(UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL),
+    systemMediaAccess: new MediaAccessOfTheAppBundle(appMediaAccessSettings, tatolabAppLog),
   };
 }

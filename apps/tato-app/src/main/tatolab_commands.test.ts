@@ -12,9 +12,9 @@ import {
   FakeTatolabAppOpenedAtLogin,
   FakeTatolabCommandLineToolLink,
   FakeTerminalOpenedInAFolder,
-  fakeTatolabPlatformForThisBuild,
-} from "./fake_tatolab_platform_for_this_build.js";
+  fakeTatolabPlatformForThisBuild, FakeSystemMediaAccess } from "./fake_tatolab_platform_for_this_build.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
+import { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 import { HeldRememberedSwitch, RememberedSwitchFile } from "./remembered_switch_file.js";
 import { ProjectOpening, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import { PythonLanguageServers } from "./python_language_servers.js";
@@ -80,6 +80,7 @@ async function sharedStateOverFakes(
     foldersShownInTheFileManager: string[];
     localApiSocketPath: string;
     systemNotifications: FakeSystemNotifications;
+    systemMediaAccess: FakeSystemMediaAccess;
     tatolabAppOpenedAtLogin: FakeTatolabAppOpenedAtLogin;
     menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[];
   }
@@ -120,6 +121,7 @@ async function sharedStateOverFakes(
   );
   const foldersShownInTheFileManager: string[] = [];
   const systemNotifications = new FakeSystemNotifications();
+  const systemMediaAccess = new FakeSystemMediaAccess();
   const streamFailureNotifications = await StreamFailureNotifications.load(
     RememberedSwitchFile.streamFailureNotificationsInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog),
     systemNotifications,
@@ -213,6 +215,8 @@ async function sharedStateOverFakes(
     dependencySourceDialog: async () => succeeded(null),
     thePersonEditingInStudio: { kind: "person", name: "sam" },
     projectViewsListed: new ProjectViewsListedToTheWindows(),
+    systemMediaAccessAskedAheadForViews: new SystemMediaAccessAskedAheadForViews(systemMediaAccess, systemNotifications),
+    systemMediaAccess,
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLink,
     carriedRuntimeStarts,
@@ -1041,6 +1045,8 @@ test("the open project's views are the runtime's list_project_views of its folde
   ]);
   expect(sharedState.projectViewsListed.isListedAsOpening(recordedNightShowFolder, "views/deck")).toBe(true);
   expect(sharedState.projectViewsListed.isListedAsOpening(recordedNightShowFolder, "views/broken")).toBe(false);
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(sharedState.systemMediaAccess.devicesAsked).toEqual([]);
   expect(await commandHandlers.list_studio_views_of_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 
