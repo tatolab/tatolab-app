@@ -1,14 +1,17 @@
-import type { ListedStream, ProjectTransaction } from "@tatolab/tato-app-view-sdk";
+import type { ListedStream, ProjectTransaction, RefusedProjectAction } from "@tatolab/tato-app-view-sdk";
 import { describe, expect, it } from "vitest";
 import {
-  appliedAtWordsOf,
+  changeFeedEntryAsJson,
+  happenedAtWordsOf,
   NO_TRANSACTIONS_FILTER,
+  refusedNamesRowsOf,
+  refusedOperationWordsOf,
   streamWordsByOperationStream,
-  transactionAsJson,
   transactionsFilterButtonWordsOf,
   transactionsFilterChoicesOf,
   transactionsFiltersOnCount,
   transactionsViewRowOf,
+  transactionsViewRowsOf,
   transactionsViewRowsShownBy,
 } from "./transactions_view_rows";
 
@@ -45,6 +48,26 @@ function transactionWith(fields: Partial<ProjectTransaction>): ProjectTransactio
   };
 }
 
+function refusedActionWith(fields: Partial<RefusedProjectAction>): RefusedProjectAction {
+  return {
+    author_kind: "agent",
+    author_name: "claude-code",
+    mode: "commit",
+    operations: [{ operation: "set_node_config", stream: MAIN_STREAM_ASSET, node: "9c41", to: { softness: 2 } }],
+    idempotency_key: null,
+    refusal: {
+      action: "edit_graph",
+      refused_operation_index: 0,
+      refused_node: "9c41",
+      refused_link: null,
+      refused_field: "softness",
+      runtime_words: "softness 2 is above its maximum 1",
+    },
+    refused_at: "2026-11-09T18:42:31Z",
+    ...fields,
+  };
+}
+
 const streamWordsOf = streamWordsByOperationStream([MAIN_STREAM]);
 
 describe("a Transactions row", () => {
@@ -61,14 +84,13 @@ describe("a Transactions row", () => {
       "UTC",
     );
     expect(row).toMatchObject({
-      applied_at_words: "18:42:31.204",
+      happened_at_words: "18:42:31.204",
       author_words: "person · Sam",
       stream_words: ["Main"],
       operation_verbs: ["add_node", "connect"],
       operations_words: "add_node, connect",
       result: "applied",
-      commit_words: "3b0fc2d",
-      time_cell_words: "18:42:31.204",
+      commit_cell_words: "3b0fc2d",
       stream_cell_words: "Main",
     });
   });
@@ -85,13 +107,78 @@ describe("a Transactions row", () => {
     expect(transactionsViewRowOf(transactionWith({ redoes: "x", operations: [{ operation: "set_node_config" }] }), streamWordsOf).operations_words).toBe("redo · set_node_config");
   });
 
-  it("shows a time it cannot read as sent", () => {
-    expect(appliedAtWordsOf("not a time")).toBe("not a time");
+  it("shows a time it cannot read as sent, and a time to the second without milliseconds it never had", () => {
+    expect(happenedAtWordsOf("not a time")).toBe("not a time");
+    expect(happenedAtWordsOf("2026-11-09T18:42:31Z", "UTC")).toBe("18:42:31");
   });
 
   it("copies the transaction as JSON exactly as the runtime sent it", () => {
     const transaction = transactionWith({ operations: [{ operation: "set_pin_value", stream: MAIN_STREAM_ASSET, input: "dot_size", from: 1, to: 1.45 }] });
-    expect(JSON.parse(transactionAsJson(transaction))).toEqual(transaction);
+    expect(JSON.parse(changeFeedEntryAsJson({ kind: "applied", transaction }))).toEqual(transaction);
+  });
+});
+
+describe("a refused action's row", () => {
+  it("reads refused, names who asked and what, has no commit, and carries the runtime's own words", () => {
+    const refusedAction = refusedActionWith({});
+    const row = transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [], refused_actions: [refusedAction] }, streamWordsOf, "UTC")[0];
+    expect(row).toMatchObject({
+      result: "refused",
+      author_words: "agent · claude-code",
+      stream_cell_words: "Main",
+      operations_words: "set_node_config",
+      happened_at_words: "18:42:31",
+      commit_cell_words: "—",
+    });
+    expect(row?.sent).toEqual({ kind: "refused", refused_action: refusedAction });
+    expect(JSON.parse(changeFeedEntryAsJson({ kind: "refused", refused_action: refusedAction }))).toEqual(refusedAction);
+  });
+
+  it("is found by a search for the runtime's words", () => {
+    const rows = transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [transactionWith({ transaction: "t1" })], refused_actions: [refusedActionWith({})] }, streamWordsOf);
+    expect(transactionsViewRowsShownBy(rows, { ...NO_TRANSACTIONS_FILTER, search_words: "MAXIMUM" }).map((row) => row.result)).toEqual(["refused"]);
+    expect(transactionsViewRowsShownBy(rows, { ...NO_TRANSACTIONS_FILTER, result: "refused" }).map((row) => row.result)).toEqual(["refused"]);
+    expect(transactionsFilterChoicesOf(rows).results).toEqual(["refused", "applied"]);
+  });
+});
+
+describe("the feed as one list", () => {
+  it("puts applied transactions and refused actions newest first, a refusal first within the same second", () => {
+    const rows = transactionsViewRowsOf(
+      {
+        project: "p",
+        project_directory: "/p",
+        transactions: [
+          transactionWith({ transaction: "t-newest", applied_at: "2026-11-09T18:45:00.250Z" }),
+          transactionWith({ transaction: "t-same-second", applied_at: "2026-11-09T18:44:00.900Z" }),
+          transactionWith({ transaction: "t-oldest", applied_at: "2026-11-09T18:40:00.000Z" }),
+        ],
+        refused_actions: [refusedActionWith({ refused_at: "2026-11-09T18:44:00Z" }), refusedActionWith({ refused_at: "2026-11-09T18:42:00Z" })],
+      },
+      streamWordsOf,
+    );
+    expect(rows.map((row) => (row.sent.kind === "applied" ? row.sent.transaction.transaction : row.sent.refused_action.refused_at))).toEqual([
+      "t-newest",
+      "2026-11-09T18:44:00Z",
+      "t-same-second",
+      "2026-11-09T18:42:00Z",
+      "t-oldest",
+    ]);
+  });
+
+  it("keeps a refused row's id when the runtime drops its oldest refusal, and tells identical twins apart", () => {
+    const twin = refusedActionWith({ refused_at: "2026-11-09T18:44:00Z" });
+    const oldest = refusedActionWith({ refused_at: "2026-11-09T18:30:00Z" });
+    const feedOf = (refusedActions: RefusedProjectAction[]) => transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [], refused_actions: refusedActions }, streamWordsOf).map((row) => row.row_id);
+    const before = feedOf([twin, twin, oldest]);
+    expect(new Set(before).size).toBe(3);
+    expect(feedOf([twin, twin])).toEqual(before.slice(0, 2));
+  });
+
+  it("names a refused undo or redo, which asks for no operations, by its action", () => {
+    const refusedRedo = refusedActionWith({ operations: [], refusal: { action: "redo", refused_operation_index: null, refused_node: null, refused_link: null, refused_field: null, runtime_words: "nothing left to redo" } });
+    const row = transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [], refused_actions: [refusedRedo] }, streamWordsOf)[0];
+    expect(row).toMatchObject({ operations_words: "redo", operation_verbs: [], stream_cell_words: "project" });
   });
 });
 
@@ -101,7 +188,7 @@ describe("the Filter popover", () => {
     transactionsViewRowOf(transactionWith({ transaction: "t2", author_kind: "agent", author_name: "claude-code", operations: [{ operation: "set_node_config", stream: MAIN_STREAM_ASSET, to: { softness: 0.64 } }] }), streamWordsOf),
     transactionsViewRowOf(transactionWith({ transaction: "t3", author_kind: "runtime", author_name: "tatolab", operations: [{ operation: "import_asset" }] }), streamWordsOf),
   ];
-  const shownTransactions = (filter: Partial<typeof NO_TRANSACTIONS_FILTER>) => transactionsViewRowsShownBy(rows, { ...NO_TRANSACTIONS_FILTER, ...filter }).map((row) => row.transaction);
+  const shownTransactions = (filter: Partial<typeof NO_TRANSACTIONS_FILTER>) => transactionsViewRowsShownBy(rows, { ...NO_TRANSACTIONS_FILTER, ...filter }).map((row) => row.row_id);
 
   it("offers every result, author, stream and operation the rows hold", () => {
     expect(transactionsFilterChoicesOf(rows)).toEqual({
@@ -129,5 +216,24 @@ describe("the Filter popover", () => {
   it("counts the narrowings that are on, not the search", () => {
     expect(transactionsFiltersOnCount({ ...NO_TRANSACTIONS_FILTER, search_words: "x" })).toBe(0);
     expect(transactionsFiltersOnCount({ ...NO_TRANSACTIONS_FILTER, result: "refused", operation_verb: "connect" })).toBe(2);
+  });
+});
+
+describe("a refused action's detail words", () => {
+  it("names the refused operation as n of m, and nothing when the index is absent or past the operations", () => {
+    const refusedAction = refusedActionWith({});
+    expect(refusedOperationWordsOf(refusedAction)).toBe("1 of 1");
+    expect(refusedOperationWordsOf({ ...refusedAction, refusal: { ...refusedAction.refusal, refused_operation_index: null } })).toBeNull();
+    expect(refusedOperationWordsOf({ ...refusedAction, refusal: { ...refusedAction.refusal, refused_operation_index: 1 } })).toBeNull();
+  });
+
+  it("lists only the names the refusal carries, a link as node:port → node:port", () => {
+    const refusedAction = refusedActionWith({ idempotency_key: "k-1" });
+    const refusal = { ...refusedAction.refusal, refused_node: null, refused_field: null, refused_link: { source: { node: "camera", port: "video" }, target: { node: "display", port: "video" } } };
+    expect(refusedNamesRowsOf({ ...refusedAction, refusal })).toEqual([
+      ["Link", "camera:video → display:video"],
+      ["Key", "k-1"],
+    ]);
+    expect(refusedNamesRowsOf({ ...refusedAction, idempotency_key: null, refusal: { ...refusal, refused_link: null } })).toEqual([]);
   });
 });
