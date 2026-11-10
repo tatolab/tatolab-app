@@ -6,10 +6,10 @@ import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { WithControlTooltip } from "./control_tooltip";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 
-/** How an action button reads: primary (blue, the one action a place leads with), secondary (outlined), quiet (no frame until hovered) or destructive (red). */
-export type ActionButtonAppearance = "primary" | "secondary" | "quiet" | "destructive";
+/** How an action button reads: primary (blue, the one action a place leads with), secondary (outlined), quiet (no frame until hovered), destructive (red) or positive (green, what starts something running). */
+export type ActionButtonAppearance = "primary" | "secondary" | "quiet" | "destructive" | "positive";
 
-const STOCK_VARIANT_OF_APPEARANCE = { primary: "default", secondary: "outline", quiet: "ghost", destructive: "destructive" } as const;
+const STOCK_VARIANT_OF_APPEARANCE = { primary: "default", secondary: "outline", quiet: "ghost", destructive: "destructive", positive: "ghost" } as const;
 
 const APPEARANCE_CLASS_NAMES: Record<ActionButtonAppearance, string> = {
   primary: "",
@@ -17,6 +17,7 @@ const APPEARANCE_CLASS_NAMES: Record<ActionButtonAppearance, string> = {
   quiet: "text-fg-2 hover:bg-hover hover:text-fg dark:hover:bg-hover",
   destructive:
     "bg-danger text-primary-foreground hover:bg-danger-text focus-visible:border-transparent dark:bg-danger-soft dark:text-danger-text dark:hover:bg-danger/20",
+  positive: "bg-status-positive-ground font-semibold text-status-positive-text hover:bg-status-positive-text/20 hover:text-status-positive-text dark:bg-status-positive-ground dark:hover:bg-status-positive-text/20",
 };
 
 /** The text and icon sizes the window's controls take over stock's: stock's small size sets its words at 0.8rem, under the window's 13 px body text. */

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OpenProjectReading, PoppedOutView, RecentProject, SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
+import type { OpenProjectReading, PoppedOutView, ProjectTransaction, RecentProject, SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
 import { createMockTatolabBackend, readMockTatolabOptions } from "../../mock/mock_tatolab_backend";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
@@ -220,11 +220,25 @@ describe("the studio", () => {
     expect(outlinerRow(invertingEffectRowId).textContent).toBe("InvertingEffect");
   });
 
-  it("lists in the Library each source's node types by category, its generators under Show, and says why a module does not parse", async () => {
+  it("titles the window with the project's name once, centred in the toolbar on macOS, never on a stream tab", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await waitFor(() => expect(document.querySelector("[data-studio-window-title]")?.textContent).toBe("pattern"));
+    const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main, running"]));
+  });
+
+  it("leaves the project's name to the window's title bar on Linux", async () => {
+    await mountedWindowOverTheMock("platform=linux&state=running");
+    await screen.findByRole("tablist", { name: "Open streams" });
+    expect(document.querySelector("[data-studio-window-title]")).toBeNull();
+  });
+
+  it("closes the view-type menu on a choice, and lists in the Library each source's node types by category, its generators under Show, and says why a module does not parse", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
+    await waitFor(() => expect(screen.queryByRole("menuitemradio", { name: /^Library/ })).toBeNull());
 
     const libraryRow = (rowId: string) => coreViewPage("library").querySelector<HTMLElement>(`[data-library-declarations] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no Library row ${rowId}`);
     await waitFor(() => libraryRow("source:project"));
@@ -352,14 +366,15 @@ describe("the studio", () => {
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^History/ }));
 
     const historyRows = () => [...coreViewPage("history").querySelectorAll<HTMLElement>("[data-history-row]")];
-    await waitFor(() => expect(historyRows()).toHaveLength(5));
-    expect(historyRows().map((row) => [row.getAttribute("aria-label")?.split(". ").slice(0, 2).join(". ").replace(/ · (?!undone)[^·]*?(?= · |$)/g, ""), row.hasAttribute("data-undone")])).toEqual([
-      ["Set displaywindow scaling to fit. Sam · undone", true],
-      ["Added brightnessmeter and its link. claude-code (agent)", false],
-      ["Renamed invert to invertingeffect. Sam", false],
-      ["Refreshed mic_levels from its code. Runtime", false],
-      ["Imported warm.cube. Sam", false],
-    ]);
+    await waitFor(() =>
+      expect(historyRows().map((row) => [row.getAttribute("aria-label")?.split(". ").slice(0, 2).join(". ").replace(/ · (?!undone)[^·]*?(?= · |$)/g, ""), row.hasAttribute("data-undone")])).toEqual([
+        ["Set displaywindow scaling to fit. Sam · undone", true],
+        ["Added brightnessmeter and its link. claude-code (agent)", false],
+        ["Renamed invert to invertingeffect. Sam", false],
+        ["Refreshed mic_levels from its code. Runtime", false],
+        ["Imported warm.cube. Sam", false],
+      ]),
+    );
 
     fireEvent.click(historyRows()[2] ?? expect.unreachable("no rename row"));
     await waitFor(() => expect(historyRows()[1]?.hasAttribute("data-undone")).toBe(true));
@@ -370,6 +385,30 @@ describe("the studio", () => {
 
     fireEvent.click(historyRows()[4] ?? expect.unreachable("no import row"));
     await waitFor(() => expect(coreViewPage("history").querySelector('[role="alert"]')?.textContent).toBe("History can't go back there: The runtime's own edit after it (Refreshed mic_levels from its code) can't be undone."));
+  });
+
+  it("follows a ⌘Z in the window in History, and scrolls the edit the project is at into view as it moves", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^History/ }));
+    const historyRows = () => [...coreViewPage("history").querySelectorAll<HTMLElement>("[data-history-row]")];
+    await waitFor(() => expect(historyRows().map((row) => row.hasAttribute("data-undone"))).toEqual([true, false, false, false, false]));
+    const historyPageElement = coreViewPage("history").defaultView?.Element ?? expect.unreachable("the History frame has no window");
+    const rowsScrolledIntoView: (string | null)[] = [];
+    historyPageElement.prototype.scrollIntoView = function scrollIntoViewRecorded(this: Element) {
+      rowsScrolledIntoView.push(this.getAttribute("data-history-row"));
+    };
+
+    fireEvent.keyDown(document, { key: "z", metaKey: true });
+
+    await waitFor(() => expect(historyRows().map((row) => row.hasAttribute("data-undone"))).toEqual([true, false, true, false, false]));
+    expect(historyRows()[2]?.getAttribute("aria-label")).toContain("undone");
+
+    fireEvent.click(historyRows()[3] ?? expect.unreachable("no runtime row"));
+    await waitFor(() => expect(historyRows().map((row) => row.hasAttribute("data-undone"))).toEqual([true, true, true, false, false]));
+    await waitFor(() => expect(rowsScrolledIntoView.at(-1)).toBe(historyRows()[3]?.getAttribute("data-history-row")));
+    expect(coreViewPage("history").querySelector("[data-history]")?.textContent).toContain("Each row is one transaction from the project's change feed");
   });
 
   it("shows a project's streams waiting on the runtime while it lists none", async () => {
@@ -408,7 +447,7 @@ describe("the studio", () => {
       },
     });
     await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
-    await waitFor(() => expect(within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["pattern /main"]));
+    await waitFor(() => expect(within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main, running"]));
 
     fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
     fireEvent.keyDown(inTheCoreView("outliner").getByRole("tree", { name: "Outliner" }), { key: "Enter" });
@@ -416,7 +455,7 @@ describe("the studio", () => {
     act(() => askToShowAStream(cameraStream));
 
     const streamTabs = within(screen.getByRole("tablist", { name: "Open streams" }));
-    expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["pattern /main", "camera /camera"]);
+    expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main, running", "camera, running"]);
     expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["false", "true"]);
     fireEvent.click(screen.getByRole("button", { name: "Close camera" }));
     expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true"]);
@@ -436,6 +475,66 @@ describe("the studio", () => {
 
   });
 
+  it("undoes and redoes the person's last edit with ⌘Z and ⇧⌘Z, and leaves ⌘Z to a text field holding the focus", async () => {
+    const asked: string[] = [];
+    const transactionAnswered = (undoOrRedo: string): ProjectTransaction => ({
+      format_version: 2,
+      transaction: `${undoOrRedo}-1`,
+      commit: "c1",
+      parent_commit: null,
+      author_kind: "person",
+      author_name: "sam",
+      operations: [],
+      inverse_operations: [],
+      undoes: undoOrRedo === "undo" ? "t1" : null,
+      redoes: undoOrRedo === "redo" ? "t1" : null,
+      idempotency_key: null,
+      undo_state: null,
+      applied_at: "2026-11-10T12:00:00Z",
+    });
+    await mountedWindowOverTheMock("state=running", {
+      readThePersonEditingInStudio: async () => ({ kind: "person", name: "sam" }),
+      undoInTheOpenProject: async (author) => {
+        asked.push(`undo by ${author.name}`);
+        return transactionAnswered("undo");
+      },
+      redoInTheOpenProject: async (author) => {
+        asked.push(`redo by ${author.name}`);
+        return transactionAnswered("redo");
+      },
+    });
+    expect(await shownLayout()).toBe("build");
+
+    fireEvent.keyDown(document, { key: "z", metaKey: true });
+    await waitFor(() => expect(asked).toEqual(["undo by sam"]));
+    fireEvent.keyDown(document, { key: "Z", metaKey: true, shiftKey: true });
+    await waitFor(() => expect(asked).toEqual(["undo by sam", "redo by sam"]));
+
+    const textField = document.createElement("input");
+    document.body.append(textField);
+    fireEvent.keyDown(textField, { key: "z", metaKey: true });
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    document.body.append(checkbox);
+    fireEvent.keyDown(checkbox, { key: "z", metaKey: true });
+    await waitFor(() => expect(asked).toEqual(["undo by sam", "redo by sam", "undo by sam"]));
+    textField.remove();
+    checkbox.remove();
+  });
+
+  it("says in the runtime's words that nothing was undone when ⌘Z finds nothing left to undo", async () => {
+    await mountedWindowOverTheMock("state=running", {
+      readThePersonEditingInStudio: async () => ({ kind: "person", name: "Sam" }),
+      undoInTheOpenProject: () => Promise.reject(new Error("undo failed: Sam has no transaction left to undo")),
+    });
+    expect(await shownLayout()).toBe("build");
+
+    fireEvent.keyDown(document, { key: "z", metaKey: true });
+    const notice = await waitFor(() => document.querySelector<HTMLElement>("[data-project-edit-refusal]") ?? expect.unreachable("no notice"));
+    expect(notice.textContent).toContain("Nothing was undone");
+    expect(notice.textContent).toContain("Sam has no transaction left to undo");
+  });
+
   it("on Linux, switches layouts from the window's own Window › Layout, ticking the one shown", async () => {
     await mountedWindowOverTheMock("platform=linux&state=running");
     fireEvent.keyDown(document, { key: "5", ctrlKey: true });
@@ -453,7 +552,7 @@ describe("the studio", () => {
     await mountedWindowOverTheMock("state=running", backendChanges);
     expect(await shownLayout()).toBe("build");
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
-    expect(document.querySelector("[data-studio-run-live]")).not.toBeNull();
+    expect(document.querySelector("[data-studio-play-or-stop]")).not.toBeNull();
     expect(menusShownLast().map((menu) => [menu.label, menu.system_menu])).toEqual([
       ["Tato Studio", "app"],
       ["File", null],
@@ -698,7 +797,7 @@ describe("the studio", () => {
     expect(await shownLayout()).toBe("build");
     expect(document.querySelector("[data-projects]")).toBeNull();
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
-    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => `${tab.textContent} ${tab.getAttribute("aria-selected")}`)).toEqual(["pattern /main true"]));
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => `${tab.textContent} ${tab.getAttribute("aria-selected")}`)).toEqual(["main, running true"]));
     await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).not.toBeNull());
   });
 
@@ -1097,7 +1196,7 @@ describe("the studio", () => {
     expect(document.querySelector("[data-projects]")).toBeNull();
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
     await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true"]));
-    expect(streamTabs.getByRole("tab").textContent).toMatch(/^Night Show \//);
+    await waitFor(() => expect(streamTabs.getByRole("tab").textContent).toBe("main"));
   });
 
   it("refuses a name that is no folder name before Create, and a folder already there in the sheet, which stays open", async () => {

@@ -169,6 +169,10 @@
   --studio-graph-card-selected: #f0f0f2;
   --studio-graph-pin: #9a9aa3;
   --studio-graph-link: #7a7a84;
+  --studio-graph-note: #2b2920;
+  --studio-graph-note-line: #4a4532;
+  --studio-graph-card-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --studio-graph-frame: #9a9aa3;
   --studio-family-image: #6f9bff;
   --studio-family-array: #f0a845;
   --studio-family-channels: #3fcf8e;

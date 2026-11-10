@@ -4,9 +4,11 @@
 // operation as the runtime does: its stream by asset UUID, with `from` and `to`, the inverse swapping them. An
 // action the mock does not model is refused, naming it.
 
-import { mockGraphNodeIdOf, type MockGraphNode, type MockStreamGraph } from "./mock_stream_fixtures";
+import { mockGraphNodeIdOf, mockUuidOf, type MockGraphNode, type MockStreamGraph } from "./mock_stream_fixtures";
+import { studioAsTheRuntimeRendersIt } from "./mock_stream_graph_document";
+import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { MOCK_NODE_CATALOG_ENTRIES } from "./mock_node_catalog";
-import type { JsonValue, PortFamily, ProjectActionRefusal, ProjectGraphTransaction, StreamGraphAction, StreamGraphActionLinkEnd } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, PortFamily, ProjectActionRefusal, ProjectGraphTransaction, StreamGraphAction, StreamGraphActionLinkEnd, StreamGraphNodeStudioFields } from "../src/shared/tatolab_backend_contract";
 
 /** A mock stream a graph action can name: its id, and the graph the mock holds for it. */
 export interface MockStreamGraphTarget {
@@ -27,6 +29,21 @@ function refusedNaming(words: string, named: Partial<Omit<ProjectActionRefusal, 
   return new MockGraphActionRefused({ refused_node: null, refused_link: null, refused_field: null, ...named, runtime_words: words });
 }
 
+/** The studio fields of a `studio` object an action gives, as the runtime keeps them: a key of the wrong shape refused, every key it does not know under `metadata`. */
+function studioFieldsOfTheAction(studio: Record<string, JsonValue>, refusedNode: string): StreamGraphNodeStudioFields {
+  const { contract: _contract, position, group, comment, colour, collapsed, metadata, ...unknownKeys } = studio;
+  if (position !== undefined && !isACanvasPair(position)) throw refusedNaming("studio.position must be [x, y]", { refused_node: refusedNode, refused_field: "position" });
+  if (metadata !== undefined && (metadata === null || typeof metadata !== "object" || Array.isArray(metadata))) throw refusedNaming("studio.metadata must be an object", { refused_node: refusedNode, refused_field: "metadata" });
+  return {
+    position: position ?? null,
+    group: typeof group === "string" ? group : null,
+    comment: typeof comment === "string" ? comment : null,
+    colour: typeof colour === "string" ? colour : null,
+    collapsed: typeof collapsed === "boolean" ? collapsed : null,
+    metadata: { ...(metadata ?? {}), ...unknownKeys },
+  };
+}
+
 function shortNameOfTheType(nodeType: string): string {
   return (nodeType.split(":").at(-1) ?? nodeType).toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
@@ -36,6 +53,11 @@ function familyAsTheRuntimeNamesIt(family: PortFamily | null): string {
 }
 
 let mockLinksMade = 0;
+/** How many groups and notes the mock has made, so each one's UUID is new, as the runtime's always is. */
+let mockGroupsAndNotesMade = 0;
+
+const isAJsonObject = (value: JsonValue | undefined): value is { [key: string]: JsonValue } => typeof value === "object" && value !== null && !Array.isArray(value);
+const isACanvasPair = (value: JsonValue | undefined): value is [number, number] => Array.isArray(value) && value.length === 2 && value.every((part) => typeof part === "number");
 
 /** The graph action that applies `historyOperation`, an operation as history records it, to the mock graphs; `null` for one that names no graph. */
 export function graphActionApplyingTheHistoryOperation(historyOperation: JsonValue): StreamGraphAction | null {
@@ -57,10 +79,40 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
     case "add_node": {
       const added = historyOperation["node"];
       if (typeof added !== "object" || added === null || Array.isArray(added)) return null;
-      const { type, name, config, pins, id } = added;
+      const { type, name, config, pins, studio, id } = added;
       if (typeof type !== "string" || typeof name !== "string" || typeof id !== "string") return null;
-      const isAnObject = (value: JsonValue | undefined): value is { [key: string]: JsonValue } => typeof value === "object" && value !== null && !Array.isArray(value);
-      return { operation, stream, type, name, as: id, ...(isAnObject(config) ? { config } : {}), ...(isAnObject(pins) ? { pins } : {}) };
+      return { operation, stream, type, name, as: id, ...(isAJsonObject(config) ? { config } : {}), ...(isAJsonObject(pins) ? { pins } : {}), ...(isAJsonObject(studio) ? { studio } : {}) };
+    }
+    case "set_studio_fields":
+      return typeof node === "string" && isAJsonObject(to) ? { operation, stream, node, studio: to } : null;
+    case "set_group_fields": {
+      const group = historyOperation["group"];
+      if (typeof group !== "string" || !isAJsonObject(to)) return null;
+      const { title, description, colour } = to;
+      return { operation, stream, group, ...(typeof title === "string" ? { title } : {}), ...(typeof description === "string" ? { description } : {}), ...(typeof colour === "string" ? { colour } : {}) };
+    }
+    case "add_group":
+    case "remove_group": {
+      const group = historyOperation["group"];
+      if (!isAJsonObject(group) || typeof group["id"] !== "string" || typeof group["title"] !== "string") return null;
+      if (operation === "remove_group") return { operation, stream, group: group["id"] };
+      const { title, description, colour, nodes } = group;
+      const memberIds = Array.isArray(nodes) ? nodes.flatMap((member) => (typeof member === "string" ? [member] : [])) : [];
+      return { operation, stream, title, nodes: memberIds, ...(typeof description === "string" ? { description } : {}), ...(typeof colour === "string" ? { colour } : {}) };
+    }
+    case "set_note_fields": {
+      const note = historyOperation["note"];
+      if (typeof note !== "string" || !isAJsonObject(to)) return null;
+      const { text, position, size } = to;
+      return { operation, stream, note, ...(typeof text === "string" ? { text } : {}), ...(isACanvasPair(position) ? { position } : {}), ...(isACanvasPair(size) ? { size } : {}) };
+    }
+    case "add_note":
+    case "remove_note": {
+      const note = historyOperation["note"];
+      if (!isAJsonObject(note) || typeof note["id"] !== "string") return null;
+      if (operation === "remove_note") return { operation, stream, note: note["id"] };
+      const { text, position, size } = note;
+      return typeof text === "string" && isACanvasPair(position) && isACanvasPair(size) ? { operation, stream, text, position, size } : null;
     }
     case "connect":
     case "disconnect": {
@@ -80,12 +132,13 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
 /**
  * Apply `operations` to `targetsByStreamAsset`'s graphs as one transaction: each graph is changed only once every
  * operation has applied to a copy of it. Applied by an undo or a redo, an `add_node`'s `as` is the id the node had, which
- * it takes again.
+ * it takes again, and an `add_group` or `add_note` takes the id its operation in `historyOperationsReplayed` recorded.
  */
 export function applyMockGraphTransaction(
   targetsByStreamAsset: ReadonlyMap<string, MockStreamGraphTarget>,
   operations: readonly StreamGraphAction[],
   applying: "a_transaction" | "undo_or_redo" = "a_transaction",
+  historyOperationsReplayed: readonly JsonValue[] = [],
 ): MockGraphTransactionOutcome {
   const workingGraphs = new Map([...targetsByStreamAsset].map(([streamAsset, target]) => [streamAsset, structuredClone(target.graph)]));
   const nodeIdsByLabel = new Map<string, string>();
@@ -108,6 +161,11 @@ export function applyMockGraphTransaction(
     const linkEndNamed = (end: StreamGraphActionLinkEnd) => {
       const graphNode = nodeNamed(end.node);
       return { graphNode, end: { node: nodeIdOf(graphNode), port: end.port } };
+    };
+    const idTheReplayedOperationKept = (field: "group" | "note"): string | null => {
+      const replayed = historyOperationsReplayed[operationIndex];
+      const kept = isAJsonObject(replayed) ? replayed[field] : undefined;
+      return applying === "undo_or_redo" && isAJsonObject(kept) && typeof kept["id"] === "string" ? kept["id"] : null;
     };
     const recordInHistory = (historyOperation: { [key: string]: JsonValue }, inverseOperation: { [key: string]: JsonValue }) => {
       historyOperations.push({ stream: operation.stream, ...historyOperation });
@@ -166,12 +224,14 @@ export function applyMockGraphTransaction(
           const config = structuredClone(operation.config ?? {});
           const pins = structuredClone(operation.pins ?? {});
           const addedNode: MockGraphNode = { name, type: operation.type, state: "Running", config, pins, input_ports: portsOf(catalogEntry.inputs), output_ports: portsOf(catalogEntry.outputs) };
+          if (operation.studio !== undefined) addedNode.studio = studioFieldsOfTheAction(operation.studio, operation.as ?? name);
           if (applying === "undo_or_redo" && operation.as !== undefined) addedNode.id_kept_through_renames = operation.as;
           graph.nodes.push(addedNode);
           const nodeId = nodeIdOf(addedNode);
           if (operation.as !== undefined) nodeIdsByLabel.set(operation.as, nodeId);
           applied.added_nodes.push({ stream: target.stream_id, node: nodeId, name, as: operation.as ?? null });
-          recordInHistory({ operation: "add_node", node: { id: nodeId, name, type: operation.type, config, pins } }, { operation: "remove_node", node: nodeId });
+          const studio: { studio?: JsonValue } = addedNode.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(addedNode.studio) };
+          recordInHistory({ operation: "add_node", node: { id: nodeId, name, type: operation.type, config, pins, ...studio } }, { operation: "remove_node", node: nodeId });
           break;
         }
         case "remove_node": {
@@ -180,7 +240,8 @@ export function applyMockGraphTransaction(
           const linksOfTheNode = graph.links.filter((link) => link.source_node === node.name || link.target_node === node.name);
           graph.nodes.splice(graph.nodes.indexOf(node), 1);
           graph.links = graph.links.filter((link) => !linksOfTheNode.includes(link));
-          recordInHistory({ operation: "remove_node", node: nodeId }, { operation: "add_node", node: { id: nodeId, name: node.name, type: node.type, config: node.config, pins: node.pins ?? {} } });
+          const studio: { studio?: JsonValue } = node.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(node.studio) };
+          recordInHistory({ operation: "remove_node", node: nodeId }, { operation: "add_node", node: { id: nodeId, name: node.name, type: node.type, config: node.config, pins: node.pins ?? {}, ...studio } });
           for (const link of linksOfTheNode) {
             const endOf = (nodeName: string, port: string) => {
               const linked = nodeName === node.name ? node : graph.nodes.find((candidate) => candidate.name === nodeName);
@@ -226,6 +287,75 @@ export function applyMockGraphTransaction(
           if (graph.links.length === linkCount) throw refusedNaming("no such link in the stream's graph", { refused_link: { source: operation.source, target: operation.target } });
           const link = { source: source.end, target: targetEnd.end };
           recordInHistory({ operation: "disconnect", link }, { operation: "connect", link });
+          break;
+        }
+        case "set_studio_fields": {
+          const node = nodeNamed(operation.node);
+          const from = studioAsTheRuntimeRendersIt(node.studio ?? NODE_STUDIO_FIELDS_NONE_SET);
+          node.studio = studioFieldsOfTheAction(operation.studio, operation.node);
+          const to = studioAsTheRuntimeRendersIt(node.studio);
+          recordInHistory({ operation: "set_studio_fields", node: nodeIdOf(node), from, to }, { operation: "set_studio_fields", node: nodeIdOf(node), from: to, to: from });
+          break;
+        }
+        case "add_group": {
+          const members = operation.nodes.map(nodeNamed);
+          const groups = (graph.groups ??= []);
+          mockGroupsAndNotesMade += 1;
+          const group = idTheReplayedOperationKept("group") ?? mockUuidOf(`group\n${target.stream_id}\n${mockGroupsAndNotesMade}\n${operation.title}`);
+          const added = { id: group, title: operation.title, description: operation.description ?? null, colour: operation.colour ?? null };
+          groups.push(added);
+          for (const member of members) member.studio = { ...(member.studio ?? NODE_STUDIO_FIELDS_NONE_SET), group };
+          const memberIds = members.map(nodeIdOf);
+          applied.added_groups.push({ stream: target.stream_id, group, title: operation.title });
+          recordInHistory({ operation: "add_group", group: { ...added, nodes: memberIds } }, { operation: "remove_group", group: { ...added, nodes: memberIds } });
+          break;
+        }
+        case "set_group_fields": {
+          const group = graph.groups?.find((candidate) => candidate.id === operation.group);
+          if (group === undefined) throw refusedNaming(`no group ${operation.group} in the stream's graph`);
+          const from = { title: group.title, description: group.description, colour: group.colour };
+          if (operation.title !== undefined) group.title = operation.title;
+          if (operation.description !== undefined) group.description = operation.description;
+          if (operation.colour !== undefined) group.colour = operation.colour;
+          const to = { title: group.title, description: group.description, colour: group.colour };
+          recordInHistory({ operation: "set_group_fields", group: group.id, from, to }, { operation: "set_group_fields", group: group.id, from: to, to: from });
+          break;
+        }
+        case "remove_group": {
+          const group = graph.groups?.find((candidate) => candidate.id === operation.group);
+          if (group === undefined || graph.groups === undefined) throw refusedNaming(`no group ${operation.group} in the stream's graph`);
+          graph.groups.splice(graph.groups.indexOf(group), 1);
+          const members = graph.nodes.filter((node) => node.studio?.group === group.id);
+          for (const member of members) member.studio = { ...(member.studio ?? NODE_STUDIO_FIELDS_NONE_SET), group: null };
+          const removed = { ...group, nodes: members.map(nodeIdOf) };
+          recordInHistory({ operation: "remove_group", group: removed }, { operation: "add_group", group: removed });
+          break;
+        }
+        case "add_note": {
+          const notes = (graph.notes ??= []);
+          mockGroupsAndNotesMade += 1;
+          const note = { id: idTheReplayedOperationKept("note") ?? mockUuidOf(`note\n${target.stream_id}\n${mockGroupsAndNotesMade}\n${operation.text}\n${operation.position.join(",")}`), text: operation.text, position: operation.position, size: operation.size };
+          notes.push(note);
+          applied.added_notes.push({ stream: target.stream_id, note: note.id });
+          recordInHistory({ operation: "add_note", note }, { operation: "remove_note", note });
+          break;
+        }
+        case "set_note_fields": {
+          const note = graph.notes?.find((candidate) => candidate.id === operation.note);
+          if (note === undefined) throw refusedNaming(`no note ${operation.note} in the stream's graph`);
+          const from = { text: note.text, position: note.position, size: note.size };
+          if (operation.text !== undefined) note.text = operation.text;
+          if (operation.position !== undefined) note.position = operation.position;
+          if (operation.size !== undefined) note.size = operation.size;
+          const to = { text: note.text, position: note.position, size: note.size };
+          recordInHistory({ operation: "set_note_fields", note: note.id, from, to }, { operation: "set_note_fields", note: note.id, from: to, to: from });
+          break;
+        }
+        case "remove_note": {
+          const note = graph.notes?.find((candidate) => candidate.id === operation.note);
+          if (note === undefined || graph.notes === undefined) throw refusedNaming(`no note ${operation.note} in the stream's graph`);
+          graph.notes.splice(graph.notes.indexOf(note), 1);
+          recordInHistory({ operation: "remove_note", note: { ...note } }, { operation: "add_note", note: { ...note } });
           break;
         }
         default:

@@ -58,6 +58,11 @@ export function shortcutHint(platform: TatolabPlatform, key: string): string {
   return presentPlatform(platform).windowShortcutModifier === "meta" ? `⌘${key}` : `Ctrl ${key}`;
 }
 
+/** The key cap of a window shortcut held with Shift too: ⇧⌘Z on macOS, Ctrl Shift Z on Linux. */
+export function shiftedShortcutHint(platform: TatolabPlatform, key: string): string {
+  return presentPlatform(platform).windowShortcutModifier === "meta" ? `⇧⌘${key}` : `Ctrl Shift ${key}`;
+}
+
 /** A window shortcut as the window shows and announces it: its key cap, and its `aria-keyshortcuts` value. */
 export interface WindowShortcutPresentation {
   hint: string;

@@ -5,7 +5,7 @@
 import type { SystemMenuBarEntry, SystemMenuBarItems, SystemMenuBarMenu, SystemMenuOfTheDesktop, TatolabAppUpdateState, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import type { StudioMenu, StudioMenuEntry } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
 import { presentTatolabAppUpdateMenuEntry } from "../presentation/app_update_presentation";
-import { shortcutHint } from "../presentation/platform_presentation";
+import { shiftedShortcutHint, shortcutHint } from "../presentation/platform_presentation";
 import { STUDIO_LAYOUTS, type StudioLayoutName } from "./studio_layouts";
 
 /** Why an entry whose work a later issue builds cannot run. */
@@ -30,6 +30,10 @@ export interface StudioMenuBarCommands {
   runTheProjectLive(): void;
   /** Run › Stop: stop the open project's running streams. */
   stopTheProject(): void;
+  /** Edit › Undo: undo the last edit the person made in the open project that is not undone yet. */
+  undoYourLastEdit(): void;
+  /** Edit › Redo: redo what the person's last undo in the open project reversed. */
+  redoYourLastUndo(): void;
   /** File › Module manager…: open the project's Module manager window. */
   openModuleManager(): void;
 }
@@ -64,6 +68,8 @@ function appUpdateMenuEntry(appUpdate: TatolabAppUpdateState, commands: StudioMe
 interface StudioMenuParts {
   fileEntries: StudioMenuEntry[];
   undoAndRedoEntries: StudioMenuEntry[];
+  /** Undo and Redo beside macOS's own text editing, which keeps ⌘Z and ⇧⌘Z in its menu while the window's keys undo the project outside a text field. */
+  undoAndRedoBesideTextEditing: StudioMenuEntry[];
   preferencesEntry: StudioMenuEntry;
   addMenu: StudioMenu;
   streamMenu: StudioMenu;
@@ -111,7 +117,8 @@ function studioMenuParts(
       laterCommand("Save version…"),
       projectCommand("Module manager…", commands.openModuleManager),
     ],
-    undoAndRedoEntries: [laterCommand("Undo"), laterCommand("Redo")],
+    undoAndRedoEntries: [projectCommand("Undo", commands.undoYourLastEdit, shortcutHint(platform, "Z")), projectCommand("Redo", commands.redoYourLastUndo, shiftedShortcutHint(platform, "Z"))],
+    undoAndRedoBesideTextEditing: [projectCommand("Undo Your Last Edit", commands.undoYourLastEdit), projectCommand("Redo Your Last Undo", commands.redoYourLastUndo)],
     preferencesEntry: { kind: "command", label: preferencesLabel, shortcutHint: shortcutHint(platform, ","), onChosen: commands.openPreferences },
     addMenu: { label: "Add", entries: [laterCommand("Node…", "Shift A"), laterCommand("Connection…"), laterCommand("Variable…"), laterCommand("Frame")] },
     streamMenu: { label: "Stream", entries: [laterCommand("Run on…"), laterCommand("Stream clock")] },
@@ -160,7 +167,7 @@ export function studioMenusInTheSystemMenuBar(chosenLayout: StudioLayoutName | n
       entries: [parts.aboutEntry, parts.appUpdateEntry, { kind: "separator" }, parts.preferencesEntry, { kind: "separator" }, { kind: "system_items", systemItems: "app_services_hide_and_quit" }],
     },
     { label: "File", systemMenu: null, entries: [...parts.fileEntries, { kind: "separator" }, { kind: "system_items", systemItems: "close_window" }] },
-    { label: "Edit", systemMenu: null, entries: [{ kind: "system_items", systemItems: "text_editing" }] },
+    { label: "Edit", systemMenu: null, entries: [{ kind: "system_items", systemItems: "text_editing" }, { kind: "separator" }, ...parts.undoAndRedoBesideTextEditing] },
     { ...parts.addMenu, systemMenu: null },
     { ...parts.streamMenu, systemMenu: null },
     { ...parts.runMenu, systemMenu: null },
