@@ -1,6 +1,6 @@
 import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
-import type { JsonValue, PortViewerArrayAttributeReading, PortViewerChannelWaveform, PortViewerMessageReading } from "../../view_host/studio_view_contract";
-import { VALUES_UNCHECKED_MEANING } from "@tatolab/tato-app-core-views/shared/port_stream_facts_words";
+import type { JsonValue, PortViewerArrayAttributeReading, PortViewerChannelWaveform, PortViewerMessageReading } from "@tatolab/tato-app-view-sdk";
+import { VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
 
 /** One Packets unit the Viewer has read: when it was stamped, how many bytes it carried, and whether it was a keyframe. */
 export type PacketsUnitSeen = { timestamp_ns: number; byte_length: number; starts_group: boolean };

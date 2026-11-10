@@ -16,9 +16,10 @@ The tray menu shows a one-line status, "Open Tato Studio", "Check for Updates…
 name and a location, `Tato Studio` in the Documents folder until Browse… picks another, and has the
 runtime make the project in that folder. Each project opens in a studio window of its own, titled
 with the project's name, or brings forward the window it already has; the Projects window steps
-aside once it opens one, and File › Projects or the tray brings it back. The Viewer's Pop out
-opens it in a small window of its own, for a second monitor, pinned to the stream shown and the
-node selected; it closes with its project's window. File › Module manager… opens a window with two tabs. In
+aside once it opens one, and File › Projects or the tray brings it back. Pop out into a window,
+in any area's view-type menu, opens that area's view in a small window of its own, for a second monitor,
+pinned to the stream shown and the selection, on the project of the window it came from; it closes with
+its project's window. File › Module manager… opens a window with two tabs. In
 this project lists the projects the runtime's `list_dependencies` says the project imports, adds one
 from a folder or a `.zip` with `add_dependency`, copies a newer version in with `update_dependency`,
 asking before it overwrites a file edited since the copy, and opens an import to edit in its own window.
@@ -35,7 +36,7 @@ project's Reload queues `run_project` again; the window follows each load with
 on a stream the listing shows `preparing` or `stopping`, on a Reload, and on a New project or
 Import project, and shows the runtime's refusal in its own words. A stream's Logs tab reads its project's log with `logs`,
 narrowed to the stream or showing the whole project; a project's page lists its streams and reads
-its whole log, narrowed to one stream or one action. The window frames only its core views' pages (Stream graph, Outliner, Palette and Properties): its content
+its whole log, narrowed to one stream or one action. The window frames only its core views' pages (Stream graph, Outliner, Palette, Properties, History and Viewer): its content
 security policy allows frames only from `core_views/` on its own origin, and the main window refuses any other subframe navigation. "Open project" and "Open a terminal in the project" open the folder the runtime lists for
 the stream, in Finder or the file manager, and in Terminal.app or `x-terminal-emulator`.
 

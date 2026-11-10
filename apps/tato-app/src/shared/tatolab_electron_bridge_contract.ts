@@ -14,7 +14,7 @@ import type {
   WorkspaceDependencyUpdate,
   OpenProjectReading,
   PackageCatalogReading,
-  PoppedOutViewerTarget,
+  PoppedOutView,
   PortViewerEvent,
   PortViewerImageFrameFacts,
   PortViewerTarget,
@@ -78,8 +78,8 @@ export const TATOLAB_COMMAND_NAMES = [
   "read_recent_projects",
   "open_recent_project",
   "show_projects_window",
-  "pop_out_viewer",
-  "read_popped_out_viewer",
+  "pop_out_view",
+  "read_popped_out_view",
   "open_module_manager_window",
   "read_module_manager_workspace",
   "read_package_catalog",
@@ -109,7 +109,7 @@ export const TATOLAB_COMMAND_NAMES = [
  * One command the window invokes. Arguments: `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
  * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
- * `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_viewer` a `PoppedOutViewerTarget`, `list_workspace_dependencies` `{ check_for_newer }`, `choose_dependency_source` `{ source_kind }`, `add_dependency_to_the_workspace` `{ source }`, `update_workspace_dependency` `{ project, overwrite_edited_files }`, `import_from_the_marketplace` `{ name }`, `open_import_to_edit` `{ folder }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_view` a `PoppedOutView`, `list_workspace_dependencies` `{ check_for_newer }`, `choose_dependency_source` `{ source_kind }`, `add_dependency_to_the_workspace` `{ source }`, `update_workspace_dependency` `{ project, overwrite_edited_files }`, `import_from_the_marketplace` `{ name }`, `open_import_to_edit` `{ folder }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` only on one of the recent projects, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab
  * that installs in place, downloads it; `take_the_newer_tatolab_app_version` restarts into a downloaded one, downloads one a check found, or opens a `.deb`'s download, the person choosing it being the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
@@ -243,10 +243,10 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   open_recent_project: { commandArguments: { folder: string }; answer: null };
   /** Shows the Projects window and brings it forward. */
   show_projects_window: { commandArguments: undefined; answer: null };
-  /** From a studio window only: opens a Viewer window of its own pinned to the target, or brings forward the one already pinned to the same stream and node; it closes with the studio window. */
-  pop_out_viewer: { commandArguments: PoppedOutViewerTarget; answer: null };
-  /** The asking window's pin when it is a popped-out Viewer; `null` in the Projects and studio windows. */
-  read_popped_out_viewer: { commandArguments: undefined; answer: PoppedOutViewerTarget | null };
+  /** From a studio window only: opens the view in a window of its own, or brings forward the one already popped out with the same view type and pin; it closes with the studio window. */
+  pop_out_view: { commandArguments: PoppedOutView; answer: null };
+  /** The view the asking window shows when it is a popped-out view; `null` in the Projects and studio windows. */
+  read_popped_out_view: { commandArguments: undefined; answer: PoppedOutView | null };
   /** From a studio window only: opens its Module manager window, its project the workspace, or brings that window forward; it closes with the studio window. */
   open_module_manager_window: { commandArguments: undefined; answer: null };
   /** The asking Module manager window's workspace project as last read from disk; `null` in any other window. Each later reading arrives on `tatolab-open-project-changed`. */
@@ -286,7 +286,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   /** `message` one JSON-RPC message, framed onto the server's input; refused for a session that has ended. */
   send_to_python_language_server: { commandArguments: { session: string; message: JsonValue }; answer: null };
   stop_python_language_server: { commandArguments: { session: string }; answer: null };
-  /** From a studio window or a popped-out Viewer: the runtime's `open_viewer` on `node`'s output `port`, read as the main process; its events arrive under the port viewer answered, refused in the runtime's own words. */
+  /** From a studio window or a popped-out view: the runtime's `open_viewer` on `node`'s output `port`, read as the main process; its events arrive under the port viewer answered, refused in the runtime's own words. */
   open_port_viewer: { commandArguments: PortViewerTarget; answer: { port_viewer: string } };
   /** Closes the port viewer; one already closed is left as it is. */
   close_port_viewer: { commandArguments: { port_viewer: string }; answer: null };

@@ -224,12 +224,12 @@ export interface StreamActionCancelAnswer {
 /** What following a stream action read: its description, or the runtime's words that it no longer holds the action. */
 export type StreamActionFollowed = { kind: "described"; description: StreamActionDescription } | { kind: "not_held"; words: string };
 
-/** What a popped-out Viewer window is pinned to: the stream it plays and the words it is titled with, and the node whose output it plays, or `null` to play the stream's last picture. */
-export interface PoppedOutViewerTarget {
-  stream: string;
-  project_name: string;
-  display_name: string;
-  node: string | null;
+/** A view popped out of a studio window into a window of its own: its view type, the words that window is titled with, and what it is pinned to. */
+export interface PoppedOutView {
+  view_type_id: string;
+  window_title: string;
+  /** The stream tab, selection and area settings the view popped out with; the main process keeps it as given and only the window reads it. */
+  pinned_to: JsonValue;
 }
 
 /** A `@node` or `@stream` a catalog entry brings: its name, where it is imported from, and one line on what it does. */

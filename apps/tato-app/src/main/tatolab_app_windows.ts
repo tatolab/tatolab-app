@@ -1,11 +1,11 @@
-// The app's windows: one Projects window, one studio window per open project, and the Viewers
+// The app's windows: one Projects window, one studio window per open project, and the views
 // popped out of a studio window and its Module manager window, all sharing the one runtime. Opening a
 // project that already has a window brings that window forward. Closing a studio window closes it
 // and the windows it opened, first asking to stop its project while any stream of it runs; closing
 // the Projects window hides it; with every window gone the app stays in the tray. On macOS the Dock icon shows while any window is on screen.
 
 import path from "node:path";
-import type { OpenProjectReading, PoppedOutViewerTarget, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { OpenProjectReading, PoppedOutView, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import { OpenProjectFiles } from "./open_project_files.js";
 import { OpenProjectOfAStudioWindow, type FolderEntriesWatch, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import { ProjectTransactionsFeedOfAStudioWindow, type ProjectTransactionsFeedOfAStudioWindowSources } from "./project_transactions_feed.js";
@@ -31,14 +31,14 @@ export interface StudioWindowOfAProject {
   readonly projectTransactionsFeed: ProjectTransactionsFeedOfAStudioWindow;
   /** Where language servers this window starts send their events, and which folders they may serve. */
   readonly languageServerOfTheWindow: LanguageServerOfAStudioWindow;
-  /** The Viewers popped out of this window, by the stream and node each is pinned to. */
-  readonly poppedOutViewers: Map<string, PoppedOutViewerWindow>;
+  /** The views popped out of this window, by the view type and what each is pinned to. */
+  readonly poppedOutViews: Map<string, PoppedOutViewWindow>;
 }
 
-/** A Viewer popped out of a studio window into a window of its own, and what it is pinned to. */
-export interface PoppedOutViewerWindow {
+/** A view popped out of a studio window into a window of its own, and what it is pinned to. */
+export interface PoppedOutViewWindow {
   readonly tatolabMainWindow: TatolabMainWindow;
-  readonly target: PoppedOutViewerTarget;
+  readonly target: PoppedOutView;
 }
 
 /** What the windows reach: how a window is made, the platform's window chrome and Dock, a folder watch and a timer for each project, and what a closed window stops. */
@@ -57,7 +57,7 @@ export interface TatolabAppWindowsSources {
   stopTheProjectAsItsWindowCloses: (projectFolder: string) => Promise<Result<void, string>>;
   /** A studio window closed: stop the language servers its page started. */
   whenAStudioWindowClosed: (studioWindow: StudioWindowOfAProject) => void;
-  /** A studio window or a popped-out Viewer closed: close the port viewers its page opened. */
+  /** A studio window or a popped-out view closed: close the port viewers its page opened. */
   whenAWindowShowingPortViewersClosed: (tatolabMainWindow: TatolabMainWindow) => void;
   tatolabAppLog: TatolabAppLog;
 }
@@ -117,39 +117,50 @@ export class TatolabAppWindows {
     return null;
   }
 
+  /** The studio window whose project the page `windowContentsId` reads: the studio window's own page, or a view popped out of it; `null` for any other window. */
+  studioWindowServingTheContents(windowContentsId: number): StudioWindowOfAProject | null {
+    for (const studioWindow of this.studioWindowsByProjectFolder.values()) {
+      if (studioWindow.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return studioWindow;
+      for (const poppedOutView of studioWindow.poppedOutViews.values()) {
+        if (poppedOutView.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return studioWindow;
+      }
+    }
+    return null;
+  }
+
   /** The studio window of the project in `projectFolder`; `null` when none is open. */
   studioWindowOfTheProjectIn(projectFolder: string): StudioWindowOfAProject | null {
     return this.studioWindowsByProjectFolder.get(projectFolder) ?? null;
   }
 
-  /** Pop a Viewer pinned to `target` out of `studioWindow` into a window of its own, or bring forward the one already pinned to the same stream and node. */
-  popOutTheViewerOf(studioWindow: StudioWindowOfAProject, target: PoppedOutViewerTarget): void {
-    const pinKey = poppedOutViewerPinKeyOf(target);
-    const poppedOutViewerOpen = studioWindow.poppedOutViewers.get(pinKey);
-    if (poppedOutViewerOpen !== undefined) {
-      poppedOutViewerOpen.tatolabMainWindow.show();
+  /** Pop the view `target` names out of `studioWindow` into a window of its own, or bring forward the one already pinned the same way. */
+  popOutTheViewOf(studioWindow: StudioWindowOfAProject, target: PoppedOutView): void {
+    const pinKey = poppedOutViewPinKeyOf(target);
+    const poppedOutViewOpen = studioWindow.poppedOutViews.get(pinKey);
+    if (poppedOutViewOpen !== undefined) {
+      poppedOutViewOpen.tatolabMainWindow.show();
       return;
     }
-    let poppedOutViewerOnceMade: PoppedOutViewerWindow | null = null;
+    let poppedOutViewOnceMade: PoppedOutViewWindow | null = null;
     const tatolabMainWindow = new TatolabMainWindow(
       this.sources.mainWindowHostFactory,
       this.sources.platformItems.mainWindowChrome,
-      "popped_out_viewer",
-      poppedOutViewerWindowTitleOf(target),
+      "popped_out_view",
+      target.window_title,
       {
         whenItCameOnScreenOrWentOff: () => this.showTheDockIconWhileAWindowIsShown(),
         answerItsCloseRequest: () => "let_it_close",
         whenItClosed: () => {
-          if (poppedOutViewerOnceMade !== null && studioWindow.poppedOutViewers.get(pinKey) === poppedOutViewerOnceMade) studioWindow.poppedOutViewers.delete(pinKey);
-          if (poppedOutViewerOnceMade !== null) this.sources.whenAWindowShowingPortViewersClosed(poppedOutViewerOnceMade.tatolabMainWindow);
+          if (poppedOutViewOnceMade !== null && studioWindow.poppedOutViews.get(pinKey) === poppedOutViewOnceMade) studioWindow.poppedOutViews.delete(pinKey);
+          if (poppedOutViewOnceMade !== null) this.sources.whenAWindowShowingPortViewersClosed(poppedOutViewOnceMade.tatolabMainWindow);
         },
       },
       this.sources.tatolabAppLog,
     );
-    const poppedOutViewer: PoppedOutViewerWindow = { tatolabMainWindow, target };
-    poppedOutViewerOnceMade = poppedOutViewer;
-    studioWindow.poppedOutViewers.set(pinKey, poppedOutViewer);
-    this.sources.tatolabAppLog.info("popped a Viewer out into its own window", { stream: target.stream, node: target.node });
+    const poppedOutView: PoppedOutViewWindow = { tatolabMainWindow, target };
+    poppedOutViewOnceMade = poppedOutView;
+    studioWindow.poppedOutViews.set(pinKey, poppedOutView);
+    this.sources.tatolabAppLog.info("popped a view out into its own window", { view_type_id: target.view_type_id });
     tatolabMainWindow.show();
     if (this.lastStatusSent !== null) tatolabMainWindow.sendTheWindowTheStatus(this.lastStatusSent);
   }
@@ -190,22 +201,22 @@ export class TatolabAppWindows {
     return null;
   }
 
-  /** The studio window or popped-out Viewer whose page is `windowContentsId`, the windows that show port viewers; `null` for any other window. */
+  /** The studio window or popped-out view whose page is `windowContentsId`, the windows that show port viewers; `null` for any other window. */
   windowShowingPortViewersWithContents(windowContentsId: number): TatolabMainWindow | null {
     for (const studioWindow of this.studioWindowsByProjectFolder.values()) {
       if (studioWindow.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return studioWindow.tatolabMainWindow;
-      for (const poppedOutViewer of studioWindow.poppedOutViewers.values()) {
-        if (poppedOutViewer.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return poppedOutViewer.tatolabMainWindow;
+      for (const poppedOutView of studioWindow.poppedOutViews.values()) {
+        if (poppedOutView.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return poppedOutView.tatolabMainWindow;
       }
     }
     return null;
   }
 
-  /** What the popped-out Viewer whose page is `windowContentsId` is pinned to; `null` for the Projects window, a studio window, or a window that has closed. */
-  poppedOutViewerTargetOfTheWindowWithContents(windowContentsId: number): PoppedOutViewerTarget | null {
+  /** What the popped-out view whose page is `windowContentsId` is pinned to; `null` for the Projects window, a studio window, or a window that has closed. */
+  poppedOutViewOfTheWindowWithContents(windowContentsId: number): PoppedOutView | null {
     for (const studioWindow of this.studioWindowsByProjectFolder.values()) {
-      for (const poppedOutViewer of studioWindow.poppedOutViewers.values()) {
-        if (poppedOutViewer.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return poppedOutViewer.target;
+      for (const poppedOutView of studioWindow.poppedOutViews.values()) {
+        if (poppedOutView.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return poppedOutView.target;
       }
     }
     return null;
@@ -252,7 +263,7 @@ export class TatolabAppWindows {
       this.projectsWindow,
       ...[...this.studioWindowsByProjectFolder.values()].flatMap((studioWindow) => [
         studioWindow.tatolabMainWindow,
-        ...[...studioWindow.poppedOutViewers.values()].map((poppedOutViewer) => poppedOutViewer.tatolabMainWindow),
+        ...[...studioWindow.poppedOutViews.values()].map((poppedOutView) => poppedOutView.tatolabMainWindow),
         ...[this.moduleManagerWindowsByStudioWindow.get(studioWindow)].filter((moduleManagerWindow) => moduleManagerWindow !== undefined),
       ]),
     ];
@@ -267,7 +278,9 @@ export class TatolabAppWindows {
       runAfter: this.sources.runAfter,
       sendTheWindowTheOpenProject: (reading) => {
         windowOfTheProject?.sendTheWindowTheOpenProject(reading);
-        if (studioWindowOnceMade !== null) this.moduleManagerWindowsByStudioWindow.get(studioWindowOnceMade)?.sendTheWindowTheOpenProject(reading);
+        if (studioWindowOnceMade === null) return;
+        this.moduleManagerWindowsByStudioWindow.get(studioWindowOnceMade)?.sendTheWindowTheOpenProject(reading);
+        for (const poppedOutView of studioWindowOnceMade.poppedOutViews.values()) poppedOutView.tatolabMainWindow.sendTheWindowTheOpenProject(reading);
       },
     });
     await openProject.readAndWatch();
@@ -291,7 +304,10 @@ export class TatolabAppWindows {
     const projectTransactionsFeed = new ProjectTransactionsFeedOfAStudioWindow(openedProject.kind === "read" ? openedProject.open_project.project.folder : projectFolder, {
       openTheFeedConnection: this.sources.openTheProjectTransactionsFeedConnection,
       runAfter: this.sources.runAfter,
-      sendTheWindowTheProjectTransactions: (reading) => tatolabMainWindow.sendTheWindowTheProjectTransactions(reading),
+      sendTheWindowTheProjectTransactions: (reading) => {
+        tatolabMainWindow.sendTheWindowTheProjectTransactions(reading);
+        for (const poppedOutView of studioWindowOnceMade?.poppedOutViews.values() ?? []) poppedOutView.tatolabMainWindow.sendTheWindowTheProjectTransactions(reading);
+      },
     });
     const studioWindow: StudioWindowOfAProject = {
       tatolabMainWindow,
@@ -302,7 +318,7 @@ export class TatolabAppWindows {
         projectFolderOfTheOpenProject: (folder) => openProjectFiles.projectFolderOfTheOpenProject(folder),
         sendTheWindowALanguageServerEvent: (event: PythonLanguageServerEvent) => tatolabMainWindow.sendTheWindowALanguageServerEvent(event),
       },
-      poppedOutViewers: new Map(),
+      poppedOutViews: new Map(),
     };
     studioWindowOnceMade = studioWindow;
     this.studioWindowsByProjectFolder.set(projectFolder, studioWindow);
@@ -357,8 +373,8 @@ export class TatolabAppWindows {
     this.studioWindowsByProjectFolder.delete(projectFolder);
     studioWindow.openProject.stopWatching();
     studioWindow.projectTransactionsFeed.stopFollowing();
-    for (const poppedOutViewer of [...studioWindow.poppedOutViewers.values()]) poppedOutViewer.tatolabMainWindow.close();
-    studioWindow.poppedOutViewers.clear();
+    for (const poppedOutView of [...studioWindow.poppedOutViews.values()]) poppedOutView.tatolabMainWindow.close();
+    studioWindow.poppedOutViews.clear();
     this.moduleManagerWindowsByStudioWindow.get(studioWindow)?.close();
     this.moduleManagerWindowsByStudioWindow.delete(studioWindow);
     this.sources.whenAStudioWindowClosed(studioWindow);
@@ -386,15 +402,10 @@ function studioWindowTitleOf(reading: OpenProjectReading, projectFolder: string)
   return reading.kind === "read" ? reading.open_project.project.name : path.basename(projectFolder);
 }
 
-/** The key a popped-out Viewer is kept under in its studio window: the stream and node it is pinned to. */
-function poppedOutViewerPinKeyOf(target: PoppedOutViewerTarget): string {
-  return JSON.stringify([target.stream, target.node]);
+/** The key a popped-out view is kept under in its studio window: its view type and what it is pinned to. */
+function poppedOutViewPinKeyOf(target: PoppedOutView): string {
+  return JSON.stringify([target.view_type_id, target.pinned_to]);
 }
 
-/** A popped-out Viewer's title: the stream it plays, and the node where it is pinned to one. */
-export function poppedOutViewerWindowTitleOf(target: PoppedOutViewerTarget): string {
-  return target.node === null ? `${target.display_name} · Viewer` : `${target.display_name} › ${target.node} · Viewer`;
-}
-
-/** The reading a window with no project of its own is answered, the Projects window's and a popped-out Viewer's. */
+/** The reading a window with no project of its own is answered: the Projects window's. */
 export const NO_PROJECT_OPEN_IN_THE_WINDOW: OpenProjectReading = { kind: "none_open" };

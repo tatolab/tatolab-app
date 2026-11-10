@@ -1,11 +1,11 @@
-import { Play } from "lucide-react";
+import { PictureInPicture2, Play } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
 import { DocumentTabs } from "@tatolab/tato-app-view-sdk/design_system/document_tabs";
 import { StudioMenuBar } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
-import { MenuGroup, MenuNote, MenuSingleChoiceGroup } from "@tatolab/tato-app-view-sdk/design_system/menus";
+import { MenuGroup, MenuItem, MenuNote, MenuSeparator, MenuSingleChoiceGroup } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { StudioAreaFrame, StudioAreaHeaderMenu, StudioAreaOverAViewsOwnFrame } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { WindowNotice } from "@tatolab/tato-app-view-sdk/design_system/window_notice";
@@ -39,6 +39,8 @@ export interface StudioWindowSources {
   viewTypeRegistry: StudioViewTypeRegistry;
   viewHostServices: StudioViewHostServices;
   commands: StudioMenuBarCommands;
+  /** Pop the view `area` shows out into a window of its own, pinned to the stream tab shown and the selection, with the area's settings. */
+  popOutTheViewOfTheArea(area: StudioArea): void;
   systemMenuBar: StudioWindowSystemMenuBar;
   /** What the Projects window reads its projects from and opens them through. */
   projects: ProjectsSources;
@@ -99,6 +101,14 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
           />
         )}
       </MenuGroup>
+      {area.view_type_id !== null && sources.viewTypeRegistry.viewTypeWithId(area.view_type_id) !== null && (
+        <>
+          <MenuSeparator />
+          <MenuItem icon={PictureInPicture2} onChosen={() => sources.popOutTheViewOfTheArea(area)} data-area-pop-out={area.area_id}>
+            Pop out into a window
+          </MenuItem>
+        </>
+      )}
     </StudioAreaHeaderMenu>
   );
 }
@@ -195,6 +205,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const openStreamTabs = useWatchedStudioValue(model.openStreamTabs);
   const preferencesSection = useWatchedStudioValue(model.preferencesSection);
   const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
+  const viewPopOutRefusal = useWatchedStudioValue(model.viewPopOutRefusal);
   const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
   const appUpdateChoiceRefusal = useWatchedStudioValue(model.appUpdateChoiceRefusal);
   const openProjectStreamFailureRaised = useWatchedStudioValue(model.openProjectStreamFailureRaised);
@@ -271,6 +282,15 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               detail={projectOpeningRefusal}
               onDismissed={() => model.projectOpeningRefusal.publish(null)}
               data-project-opening-refusal=""
+            />
+          )}
+          {viewPopOutRefusal !== null && (
+            <WindowNotice
+              tone="failure"
+              title="The view didn't pop out"
+              detail={viewPopOutRefusal}
+              onDismissed={() => model.viewPopOutRefusal.publish(null)}
+              data-view-pop-out-refusal=""
             />
           )}
           {projectRunRefusal !== null && (

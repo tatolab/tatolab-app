@@ -1,6 +1,6 @@
 // macOS's one menu bar shows the menus of the window in focus: a studio window sends its menus
 // whenever they change, and the bar shows them while that window is focused, sending each choice
-// back to it. A window that sent none, such as a popped-out Viewer, gets the app's default bar.
+// back to it. A window that sent none, such as a popped-out view, gets the app's default bar.
 // Linux has no system menu bar; each window draws its own menus, so this keeps nothing there.
 
 import type { SystemMenuBarEntry, SystemMenuBarItems, SystemMenuBarMenu, SystemMenuOfTheDesktop } from "../shared/tatolab_backend_contract.js";

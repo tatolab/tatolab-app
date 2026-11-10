@@ -11,7 +11,7 @@ import type {
   ProjectDependency,
   WorkspaceDependency,
   WorkspaceDependencyUpdate,
-  PoppedOutViewerTarget,
+  PoppedOutView,
   PortViewerTarget,
   ProjectCreationQueued,
   ProjectLogNarrowing,
@@ -151,7 +151,7 @@ export function projectDirectoryTheWindowMayAskTheRuntimeAbout(
   projectDirectory: string,
   commandFromWindow: TatolabCommandFromWindow,
 ): Result<string, string> {
-  const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
+  const studioWindow = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId);
   const openProjectFolder = studioWindow?.openProjectFiles.projectFolderOfTheOpenProject(projectDirectory) ?? null;
   return openProjectFolder?.ok === true ? openProjectFolder : projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory);
 }
@@ -164,9 +164,9 @@ export interface TatolabCommandFromWindow {
 /** Why a command about a window's own project is refused in the Projects window. */
 export const NO_PROJECT_IN_THE_PROJECTS_WINDOW_REFUSAL = "No project is open in this window.";
 
-/** The studio window `commandFromWindow` names, or why there is none. */
+/** The studio window whose project `commandFromWindow` acts on, its own page or a view popped out of it, or why there is none. */
 function studioWindowTheCommandCameFrom(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Result<StudioWindowOfAProject, string> {
-  const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
+  const studioWindow = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId);
   return studioWindow === null ? failedWith(NO_PROJECT_IN_THE_PROJECTS_WINDOW_REFUSAL) : succeeded(studioWindow);
 }
 
@@ -481,30 +481,26 @@ export function undoOrRedoInTheOpenProject(
   });
 }
 
-/** `pop_out_viewer`'s arguments as the window sends them, or why they are not. */
-export function popOutViewerArgumentsFrom(commandArguments: unknown): Result<PoppedOutViewerTarget, string> {
+/** `pop_out_view`'s arguments as the window sends them, or why they are not. */
+export function popOutViewArgumentsFrom(commandArguments: unknown): Result<PoppedOutView, string> {
+  const pinnedTo = isAJsonObject(commandArguments) ? commandArguments["pinned_to"] : undefined;
   if (
     !isAJsonObject(commandArguments) ||
-    typeof commandArguments["stream"] !== "string" ||
-    typeof commandArguments["project_name"] !== "string" ||
-    typeof commandArguments["display_name"] !== "string" ||
-    !isTextOrNull(commandArguments["node"])
+    typeof commandArguments["view_type_id"] !== "string" ||
+    typeof commandArguments["window_title"] !== "string" ||
+    pinnedTo === undefined ||
+    !isAJsonValue(pinnedTo)
   ) {
-    return failedWith("pop_out_viewer needs `stream`, a stream's id, `project_name` and `display_name`, the words its tab is labelled with, and `node`, a node's name or null for the stream's last picture");
+    return failedWith("pop_out_view needs `view_type_id`, the view type to pop out, `window_title`, the words its window is titled with, and `pinned_to`, a JSON value the window reads back");
   }
-  return succeeded({
-    stream: commandArguments["stream"],
-    project_name: commandArguments["project_name"],
-    display_name: commandArguments["display_name"],
-    node: commandArguments["node"],
-  });
+  return succeeded({ view_type_id: commandArguments["view_type_id"], window_title: commandArguments["window_title"], pinned_to: pinnedTo });
 }
 
-/** `pop_out_viewer`: a Viewer pinned to `target` popped out of the asking studio window; refused from any other window. */
-export function popOutViewer(sharedState: TatolabAppSharedState, target: PoppedOutViewerTarget, commandFromWindow: TatolabCommandFromWindow): Result<void, string> {
+/** `pop_out_view`: a view pinned to `target` popped out of the asking studio window; refused from any other window. */
+export function popOutView(sharedState: TatolabAppSharedState, target: PoppedOutView, commandFromWindow: TatolabCommandFromWindow): Result<void, string> {
   const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
-  if (studioWindow === null) return failedWith("Only a project's studio window can pop out its Viewer.");
-  sharedState.appWindows.popOutTheViewerOf(studioWindow, target);
+  if (studioWindow === null) return failedWith("Only a project's studio window can pop out one of its views.");
+  sharedState.appWindows.popOutTheViewOf(studioWindow, target);
   return succeeded(undefined);
 }
 
@@ -774,7 +770,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     },
     read_open_project: async (_commandArguments, commandFromWindow) => ({
       ok: true,
-      value: sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId)?.openProject.readOpenProject() ?? NO_PROJECT_OPEN_IN_THE_WINDOW,
+      value: sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId)?.openProject.readOpenProject() ?? NO_PROJECT_OPEN_IN_THE_WINDOW,
     }),
     read_recent_projects: async () => ({ ok: true, value: await sharedState.projectOpening.readRecentProjects() }),
     open_recent_project: async (commandArguments, commandFromWindow) => {
@@ -786,14 +782,14 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       sharedState.appWindows.showTheProjectsWindow();
       return { ok: true, value: null };
     },
-    pop_out_viewer: async (commandArguments, commandFromWindow) => {
-      const target = popOutViewerArgumentsFrom(commandArguments);
+    pop_out_view: async (commandArguments, commandFromWindow) => {
+      const target = popOutViewArgumentsFrom(commandArguments);
       if (!target.ok) return { ok: false, refusal: target.failure };
-      return commandAnswerOfNothingFrom(popOutViewer(sharedState, target.value, commandFromWindow));
+      return commandAnswerOfNothingFrom(popOutView(sharedState, target.value, commandFromWindow));
     },
-    read_popped_out_viewer: async (_commandArguments, commandFromWindow) => ({
+    read_popped_out_view: async (_commandArguments, commandFromWindow) => ({
       ok: true,
-      value: sharedState.appWindows.poppedOutViewerTargetOfTheWindowWithContents(commandFromWindow.windowContentsId),
+      value: sharedState.appWindows.poppedOutViewOfTheWindowWithContents(commandFromWindow.windowContentsId),
     }),
     open_module_manager_window: async (_commandArguments, commandFromWindow) => {
       const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
@@ -879,9 +875,10 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     start_python_language_server: async (commandArguments, commandFromWindow) => {
       const projectFolder = oneTextArgumentFrom("start_python_language_server", commandArguments, "project_folder", "the folder of the open project or of one of its imports");
       if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };
-      const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-      if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
-      return commandAnswerFrom(sharedState.pythonLanguageServers.startALanguageServer(projectFolder.value, studioWindow.value.languageServerOfTheWindow));
+      // A language server's events go to the studio window that started it, so a popped-out view starts none.
+      const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
+      if (studioWindow === null) return { ok: false, refusal: "Only a project's studio window starts a language server." };
+      return commandAnswerFrom(sharedState.pythonLanguageServers.startALanguageServer(projectFolder.value, studioWindow.languageServerOfTheWindow));
     },
     send_to_python_language_server: async (commandArguments) => {
       const sendArguments = sendToPythonLanguageServerArgumentsFrom(commandArguments);
@@ -898,7 +895,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const target = openPortViewerArgumentsFrom(commandArguments);
       if (!target.ok) return { ok: false, refusal: target.failure };
       const windowShowingPortViewers = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
-      if (windowShowingPortViewers === null) return { ok: false, refusal: "Only a studio window or a popped-out Viewer shows a port." };
+      if (windowShowingPortViewers === null) return { ok: false, refusal: "Only a studio window or a popped-out view shows a port." };
       return commandAnswerFrom(await sharedState.runtimePortViewers.openAPortViewer(target.value, windowShowingPortViewers));
     },
     close_port_viewer: async (commandArguments, commandFromWindow) => {

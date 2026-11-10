@@ -19,7 +19,6 @@ const HOST_SERVICES: StudioViewHostServices = {
   readProjectFile: async () => ({ kind: "not_read", because: "no files in this test" }),
   saveProjectFile: async () => ({ kind: "not_saved", because: "no files in this test" }),
   listProjectFiles: async () => ({ kind: "not_listed", because: "no files in this test" }),
-  popOutViewer: async () => ({ kind: "not_popped_out", because: "no windows in this test" }),
   watchProjectLog: () => () => undefined,
   watchProjectNodeTypes: () => () => undefined,
   watchProjectTransactions: () => () => undefined,

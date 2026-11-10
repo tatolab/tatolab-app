@@ -1,108 +1,32 @@
-import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { PictureInPicture2 } from "lucide-react";
+import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FieldMenu, MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
-import { IconButton } from "@tatolab/tato-app-view-sdk/design_system/icon_button";
-import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
+import type { PortViewerEvent, StopWatching, TatoAppViewConnection, ViewAskDone } from "@tatolab/tato-app-view-sdk";
 import type {
-  JsonValue,
-  PoppedOutViewerTarget,
-  PortViewerConnectionEvent,
   PortViewerMessageReading,
   PortViewerTarget,
-  StopWatching,
   StreamGraphDeclaredPort,
   StreamGraphReading,
   StreamGraphSummary,
   StreamTabAddress,
-  StudioSelection,
-  StudioViewHostConnection,
-  StudioViewType,
-} from "../../view_host/studio_view_contract";
-import { nodeTitle } from "@tatolab/tato-app-core-views/shared/node_words";
-import { portStreamFactsWords } from "@tatolab/tato-app-core-views/shared/port_stream_facts_words";
+} from "@tatolab/tato-app-view-sdk/studio_readings";
+import { CoreViewFrame } from "../shared/core_view_page";
+import { portStreamFactsWords } from "../shared/port_stream_facts_words";
+import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk, type RefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { PortViewerMessageReadingShown, packetsUnitsSeenWith, type PacketsUnitSeen } from "./port_viewer_message_readings";
-
-/** One output port of a stream's graph: its node's id as `graph` lists it, that node's name, and the port's own name. */
-export type ViewerPortAddress = { node_id: string; node_name: string; port: string };
-
-/** What a Viewer area keeps with the layout: the port the person chose to play, by its node's id, or `null` to follow the selection. */
-export type ViewerSettings = { chosen_port: { stream: string; node_id: string; port: string } | null };
+import {
+  chosenPortStillInTheGraph,
+  everyOutputPortOf,
+  portTheViewerPlays,
+  portWordsOf,
+  viewerChosenPortOf,
+  viewerPortChoiceKey,
+  type ViewerChosenPort,
+  type ViewerPortAddress,
+} from "./viewer_port_choice";
 
 const FOLLOW_THE_SELECTION_CHOICE = "follow_the_selection";
-
-function viewerSettingsFrom(savedSettings: JsonValue): ViewerSettings | null {
-  if (typeof savedSettings !== "object" || savedSettings === null || Array.isArray(savedSettings)) return null;
-  const chosenPort = savedSettings["chosen_port"];
-  if (chosenPort === null) return { chosen_port: null };
-  if (typeof chosenPort !== "object" || chosenPort === undefined || Array.isArray(chosenPort)) return null;
-  const { stream, node_id, port } = chosenPort;
-  if (typeof stream !== "string" || typeof node_id !== "string" || typeof port !== "string") return null;
-  return { chosen_port: { stream, node_id, port } };
-}
-
-function viewerPortChoiceKey(portAddress: { node_id: string; port: string }): string {
-  return JSON.stringify([portAddress.node_id, portAddress.port]);
-}
-
-function everyOutputPortOf(graph: StreamGraphSummary): (ViewerPortAddress & { family: string | null })[] {
-  return graph.nodes.flatMap((node) => node.output_ports.map((outputPort) => ({ node_id: node.id, node_name: node.name, port: outputPort.name, family: outputPort.family })));
-}
-
-/**
- * The output port the Viewer plays for `graph`: the selected node's, its picture first; or else the stream's last picture, the first
- * Image port that feeds no other node's Image output, then a port whose family the runtime does not serve, which may be a picture;
- * or else its first port of any family.
- */
-export function outputPortTheViewerPlays(graph: StreamGraphSummary, selection: StudioSelection | null): ViewerPortAddress | null {
-  const outputPorts = everyOutputPortOf(graph);
-  const mayBeAPicture = (outputPort: { family: string | null }) => outputPort.family === "image" || outputPort.family === null;
-  const selectedNode = selection?.kind === "node" && selection.stream === graph.stream ? selection.node : null;
-  const selectedNodesPorts = outputPorts.filter((outputPort) => outputPort.node_name === selectedNode);
-  const pictures = outputPorts.filter(mayBeAPicture);
-  const imagePorts = outputPorts.filter((outputPort) => outputPort.family === "image");
-  const feedsANodeOf = (outputPort: ViewerPortAddress, nodeNames: Set<string>) =>
-    graph.links.some((link) => link.source_node === outputPort.node_name && link.source_port === outputPort.port && nodeNames.has(link.target_node));
-  const nodesWithAPicture = new Set(pictures.map((outputPort) => outputPort.node_name));
-  const nodesWithAnImagePort = new Set(imagePorts.map((outputPort) => outputPort.node_name));
-  const played =
-    selectedNodesPorts.find(mayBeAPicture) ??
-    selectedNodesPorts[0] ??
-    imagePorts.find((outputPort) => !feedsANodeOf(outputPort, nodesWithAnImagePort)) ??
-    pictures.find((outputPort) => !feedsANodeOf(outputPort, nodesWithAPicture)) ??
-    pictures[0] ??
-    outputPorts[0] ??
-    null;
-  return played === null ? null : { node_id: played.node_id, node_name: played.node_name, port: played.port };
-}
-
-function chosenPortStillInTheGraph(graph: StreamGraphSummary, settings: ViewerSettings): ViewerPortAddress | null {
-  const chosenPort = settings.chosen_port;
-  if (chosenPort === null || chosenPort.stream !== graph.stream) return null;
-  const outputPortInTheGraph = everyOutputPortOf(graph).find((outputPort) => outputPort.node_id === chosenPort.node_id && outputPort.port === chosenPort.port);
-  return outputPortInTheGraph === undefined ? null : { node_id: outputPortInTheGraph.node_id, node_name: outputPortInTheGraph.node_name, port: outputPortInTheGraph.port };
-}
-
-/** The port the Viewer plays: the one chosen for this stream while the graph still has it, or else the one the selection gives. */
-export function portTheViewerPlays(graph: StreamGraphSummary, selection: StudioSelection | null, settings: ViewerSettings): ViewerPortAddress | null {
-  return chosenPortStillInTheGraph(graph, settings) ?? outputPortTheViewerPlays(graph, selection);
-}
-
-/** What Pop out pins a Viewer window to: the stream tab shown, and the node selected in it, or `null` when no node of that stream is selected. */
-export function poppedOutViewerTargetOf(streamTab: StreamTabAddress, selection: StudioSelection | null): PoppedOutViewerTarget {
-  return {
-    stream: streamTab.stream,
-    project_name: streamTab.project_name,
-    display_name: streamTab.display_name,
-    node: selection?.kind === "node" && selection.stream === streamTab.stream ? selection.node : null,
-  };
-}
-
-function portWordsOf(graph: StreamGraphSummary, portAddress: ViewerPortAddress): string {
-  const node = graph.nodes.find((graphNode) => graphNode.id === portAddress.node_id);
-  return `${node === undefined ? portAddress.node_name : nodeTitle(node.name, node.type)} › ${portAddress.port}`;
-}
 
 const BGRA_BYTE_ORDER_FORMAT_WIRE_NAMES = new Set(["bgra32", "bgra8_unorm", "bgra8_unorm_srgb"]);
 const RGBA_BYTE_ORDER_FORMAT_WIRE_NAMES = new Set(["rgba32", "rgba8_unorm", "rgba8_unorm_srgb"]);
@@ -149,7 +73,7 @@ function PortViewerPicture({
   portWords,
   streamFactsOfThePort,
 }: {
-  connection: StudioViewHostConnection<ViewerSettings>;
+  connection: TatoAppViewConnection;
   target: PortViewerTarget;
   nodeName: string;
   portWords: string;
@@ -171,7 +95,7 @@ function PortViewerPicture({
     const showThePicture = (formatWireName: string) => {
       if (shownKind !== "picture") show({ kind: "picture", format_wire_name: formatWireName });
     };
-    const handleTheEvent = (event: PortViewerConnectionEvent) => {
+    const handleTheEvent = (event: PortViewerEvent) => {
       const canvas = canvasRef.current;
       if (event.kind === "image_frame") {
         const drawing = canvas?.getContext("2d") ?? null;
@@ -198,8 +122,7 @@ function PortViewerPicture({
         show(event);
       }
     };
-    const portViewer = connection.watchPortViewer({ stream, node_id, port }, handleTheEvent);
-    return () => portViewer.close();
+    return connection.watchPortViewer({ stream, node_id, port }, handleTheEvent, (because) => show({ kind: "ended", because }));
   }, [connection, stream, node_id, port]);
   const isAPicture = shown.kind === "picture";
   const streamFactsWords = portStreamFactsWords(streamFactsOfThePort).join(" · ");
@@ -243,20 +166,26 @@ function declaredOutputPortOf(graph: StreamGraphSummary, address: ViewerPortAddr
   return graph.nodes.find((node) => node.id === address.node_id)?.output_ports.find((outputPort) => outputPort.name === address.port);
 }
 
-function useTheGraphOfTheTab(connection: StudioViewHostConnection<ViewerSettings>, stream: string): StreamGraphReading | null {
+function useTheGraphOfTheTab(connection: TatoAppViewConnection, stream: string): StreamGraphReading | null {
   const watchTheTabsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(stream, listener), [connection, stream]);
   return useViewReading(watchTheTabsGraph);
 }
 
+/** The port the area keeps in its settings, or `null` to follow the selection. */
+function useTheChosenPort(connection: TatoAppViewConnection): ViewerChosenPort {
+  return viewerChosenPortOf(useViewReading(connection.watchSettings));
+}
+
 /** The Viewer of the stream tab shown: the live picture of the port it plays. */
-function ViewerOfTheTab({ connection, streamTab }: { connection: StudioViewHostConnection<ViewerSettings>; streamTab: StreamTabAddress }) {
+function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress }) {
   const graphReading = useTheGraphOfTheTab(connection, streamTab.stream);
   const selection = useViewReading(connection.watchSelection);
+  const chosenPort = useTheChosenPort(connection);
   if (graphReading === null) return null;
   if (graphReading.kind === "not_read") {
     return <WaitingState title={`Nothing of ${streamTab.display_name} to view yet`} explanation={graphReading.because} data-viewer-state="not_read" />;
   }
-  const playedPort = portTheViewerPlays(graphReading.graph, selection, connection.settings);
+  const playedPort = portTheViewerPlays(graphReading.graph, selection, chosenPort);
   if (playedPort === null) {
     return (
       <WaitingState
@@ -278,24 +207,16 @@ function ViewerOfTheTab({ connection, streamTab }: { connection: StudioViewHostC
   );
 }
 
-/** The Viewer of the active stream tab, or what to do while no tab is open. */
-function ViewerBody({ connection }: { connection: StudioViewHostConnection<ViewerSettings> }) {
-  const activeStreamTab = useViewReading(connection.watchActiveStreamTab);
-  if (activeStreamTab === null) {
-    return <WaitingState title="No stream is open" explanation="Double-click a stream in the outliner to view it here." data-viewer-state="no_tab" />;
-  }
-  return <ViewerOfTheTab key={activeStreamTab.stream} connection={connection} streamTab={activeStreamTab} />;
-}
-
-/** The port the Viewer plays, chosen from every output of the tab's graph, or following the selection. */
-function ViewerPortChooser({ connection, streamTab }: { connection: StudioViewHostConnection<ViewerSettings>; streamTab: StreamTabAddress }) {
+/** The port the Viewer plays, chosen from every output of the tab's graph, or following the selection; the choice is kept in the area's settings. */
+function ViewerPortChooser({ connection, streamTab, showTheRefusalOf }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress; showTheRefusalOf: (lead: string, asked: Promise<ViewAskDone>) => void }) {
   const graphReading = useTheGraphOfTheTab(connection, streamTab.stream);
   const selection = useViewReading(connection.watchSelection);
+  const chosenPortSetting = useTheChosenPort(connection);
   if (graphReading === null || graphReading.kind === "not_read") return null;
   const { graph } = graphReading;
-  const playedPort = portTheViewerPlays(graph, selection, connection.settings);
+  const playedPort = portTheViewerPlays(graph, selection, chosenPortSetting);
   if (playedPort === null) return null;
-  const chosenPort = chosenPortStillInTheGraph(graph, connection.settings);
+  const chosenPort = chosenPortStillInTheGraph(graph, chosenPortSetting);
   const portChoices: MenuSingleChoice<string>[] = [
     { choice: FOLLOW_THE_SELECTION_CHOICE, label: "Follow the selection" },
     ...everyOutputPortOf(graph).map((outputPort) => ({ choice: viewerPortChoiceKey(outputPort), label: portWordsOf(graph, outputPort) })),
@@ -309,55 +230,46 @@ function ViewerPortChooser({ connection, streamTab }: { connection: StudioViewHo
         dataAttributeOfEachChoice="data-viewer-port-choice"
         onChosen={(choice) => {
           const portChosenNow = everyOutputPortOf(graph).find((outputPort) => viewerPortChoiceKey(outputPort) === choice);
-          connection.rememberSettings({ chosen_port: portChosenNow === undefined ? null : { stream: graph.stream, node_id: portChosenNow.node_id, port: portChosenNow.port } });
+          showTheRefusalOf(
+            "Didn't keep the port:",
+            connection.rememberSettings({ chosen_port: portChosenNow === undefined ? null : { stream: graph.stream, node_id: portChosenNow.node_id, port: portChosenNow.port } }),
+          );
         }}
       />
     </FieldMenu>
   );
 }
 
-/** The port chooser and Pop out, in the Viewer's header while a stream tab is open, and why the last pop-out was refused. */
-function ViewerHeaderTools({ connection }: { connection: StudioViewHostConnection<ViewerSettings> }) {
-  const activeStreamTab = useViewReading(connection.watchActiveStreamTab);
-  const selection = useViewReading(connection.watchSelection);
-  const [popOutRefusal, setPopOutRefusal] = useState<string | null>(null);
-  if (activeStreamTab === null) return null;
-  const popOut = () => {
-    setPopOutRefusal(null);
-    void connection.popOutViewer(poppedOutViewerTargetOf(activeStreamTab, selection)).then((popOutAnswer) => {
-      setPopOutRefusal(popOutAnswer.kind === "not_popped_out" ? popOutAnswer.because : null);
-    });
-  };
+/** The Viewer's body: the active stream tab's picture under why the last port choice was refused, or what to do while no tab is open. */
+function ViewerBody({ connection, activeStreamTab, portChoiceRefusal }: { connection: TatoAppViewConnection; activeStreamTab: StreamTabAddress | null; portChoiceRefusal: RefusalOfTheLatestAsk | null }) {
+  if (activeStreamTab === null) {
+    return <WaitingState title="No stream is open" explanation="Double-click a stream in the outliner to view it here." data-viewer-state="no_tab" />;
+  }
   return (
-    <div className="ml-auto flex min-w-0 items-center gap-1.5">
-      {popOutRefusal !== null && (
-        <div className="min-w-0 truncate" data-viewer-pop-out-refusal="">
-          <RefusalLine lead="Didn't pop out:" words={popOutRefusal} />
-        </div>
-      )}
-      <ViewerPortChooser key={activeStreamTab.stream} connection={connection} streamTab={activeStreamTab} />
-      <IconButton
-        icon={PictureInPicture2}
-        size="compact"
-        label="Pop out the Viewer"
-        tooltip="Pop the Viewer out into its own window, pinned to this stream and the node selected"
-        onPressed={popOut}
-        data-viewer-pop-out=""
-      />
-    </div>
+    <>
+      <RefusalOfTheLatestAskBar refusal={portChoiceRefusal} />
+      <ViewerOfTheTab key={activeStreamTab.stream} connection={connection} streamTab={activeStreamTab} />
+    </>
   );
 }
 
-/** The Viewer: the live picture of any output port of the active stream's running nodes, the selected node's unless a port is chosen. */
-export const VIEWER_VIEW_TYPE: StudioViewType<ViewerSettings> = {
-  view_type_id: "viewer",
-  title: "Viewer",
-  icon: "viewer",
-  brought_by: { kind: "built_in" },
-  default_settings: { chosen_port: null },
-  settingsFromSavedLayout: viewerSettingsFrom,
-  renderStudioView: (connection) => ({
-    header_tools: <ViewerHeaderTools connection={connection} />,
-    body: <ViewerBody connection={connection} />,
-  }),
-};
+/** The Viewer view's whole frame: the live picture of any output port of the active stream's running nodes, the selected node's unless a port is chosen in its header row. */
+export function ViewerView({ connection }: { connection: TatoAppViewConnection }) {
+  const activeStreamTab = useViewReadingSoFar(connection.watchActiveStreamTab);
+  const [portChoiceRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
+  const streamTab = activeStreamTab.kind === "read" ? activeStreamTab.reading : null;
+  return (
+    <CoreViewFrame
+      connection={connection}
+      headerTools={
+        streamTab !== null && (
+          <div className="ml-auto flex min-w-0 items-center gap-1.5">
+            <ViewerPortChooser key={streamTab.stream} connection={connection} streamTab={streamTab} showTheRefusalOf={showTheRefusalOf} />
+          </div>
+        )
+      }
+    >
+      {activeStreamTab.kind === "read" && <ViewerBody connection={connection} activeStreamTab={streamTab} portChoiceRefusal={portChoiceRefusal} />}
+    </CoreViewFrame>
+  );
+}

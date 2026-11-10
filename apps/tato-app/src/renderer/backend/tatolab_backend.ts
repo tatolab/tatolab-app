@@ -15,7 +15,7 @@ import type {
   ProjectTransaction,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
-  PoppedOutViewerTarget,
+  PoppedOutView,
   PackageCatalogReading,
   DependencySourceKind,
   ProjectDependency,
@@ -112,10 +112,10 @@ export interface TatolabBackend {
   chooseNewProjectLocation(startingAt: string): Promise<string | null>;
   /** Create the project `name` in `location` with the runtime and open it, rejecting with nothing made in the app's or the runtime's own words. The project read arrives as the next open-project change. */
   createNewProject(name: string, location: string): Promise<ChosenProjectFolder>;
-  /** Pop a Viewer pinned to `target` out of this studio window into a window of its own, or bring forward the one already pinned there; rejects in words from any other window. */
-  popOutViewer(target: PoppedOutViewerTarget): Promise<void>;
-  /** What this window is pinned to when it is a popped-out Viewer; `null` in the Projects and studio windows. */
-  readPoppedOutViewer(): Promise<PoppedOutViewerTarget | null>;
+  /** Pop the view `target` names out of this studio window into a window of its own, or bring forward the one already popped out the same way; rejects in words from any other window. */
+  popOutView(target: PoppedOutView): Promise<void>;
+  /** The view this window shows when it is a popped-out view; `null` in the Projects and studio windows. */
+  readPoppedOutView(): Promise<PoppedOutView | null>;
   /** Open this studio window's Module manager window, or bring it forward; rejects in words from any other window. */
   openModuleManagerWindow(): Promise<void>;
   /** This window's workspace when it is a Module manager window, as last read from disk; `null` in any other window. Later readings arrive through `onOpenProjectChanged`. */
