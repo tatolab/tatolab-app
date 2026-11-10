@@ -9,8 +9,8 @@ import { tatolabFrameViewType } from "./tatolab_frame_view_type";
 
 /** The core views as view types, by folder, and each whose manifest does not open, with why. */
 export interface CoreViewTypes {
-  view_types_by_folder: ReadonlyMap<string, RegisteredStudioViewType>;
-  not_opened: ProjectStudioViewNotOpened[];
+  readonly view_types_by_folder: ReadonlyMap<string, RegisteredStudioViewType>;
+  readonly not_opened: readonly ProjectStudioViewNotOpened[];
 }
 
 /** Where the window serves the built folder of the core view `folder`. */

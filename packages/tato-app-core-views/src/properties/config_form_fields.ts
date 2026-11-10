@@ -42,10 +42,10 @@ function resolvedSchema(schema: JsonValue | undefined, documentRoot: JsonObject,
   if (!isAJsonObject(schema)) return {};
   const reference = schema["$ref"];
   if (typeof reference !== "string" || depth > 8) return schema;
-  const pointerMatch = /^#\/(\$defs|definitions)\/(.+)$/.exec(reference);
-  if (pointerMatch === null) return schema;
-  const definitions = documentRoot[pointerMatch[1]];
-  const target = isAJsonObject(definitions) ? definitions[decodeURIComponent(pointerMatch[2])] : undefined;
+  const [, definitionsKey, definitionName] = /^#\/(\$defs|definitions)\/(.+)$/.exec(reference) ?? [];
+  if (definitionsKey === undefined || definitionName === undefined) return schema;
+  const definitions = documentRoot[definitionsKey];
+  const target = isAJsonObject(definitions) ? definitions[decodeURIComponent(definitionName)] : undefined;
   const { $ref: _followedReference, ...ownKeywords } = schema;
   return { ...resolvedSchema(target, documentRoot, depth + 1), ...ownKeywords };
 }

@@ -92,9 +92,9 @@ function orderColumnsToReduceCrossings(columns: string[][], upstreamIdsByNode: M
   };
   for (let sweep = 0; sweep < CROSSING_REDUCTION_SWEEPS; sweep++) {
     if (sweep % 2 === 0) {
-      for (let columnIndex = 1; columnIndex < columns.length; columnIndex++) reorderColumn(columns[columnIndex], (nodeId) => upstreamIdsByNode.get(nodeId) ?? []);
+      for (let columnIndex = 1; columnIndex < columns.length; columnIndex++) reorderColumn(columns[columnIndex] ?? [], (nodeId) => upstreamIdsByNode.get(nodeId) ?? []);
     } else {
-      for (let columnIndex = columns.length - 2; columnIndex >= 0; columnIndex--) reorderColumn(columns[columnIndex], (nodeId) => downstreamIdsByNode.get(nodeId) ?? []);
+      for (let columnIndex = columns.length - 2; columnIndex >= 0; columnIndex--) reorderColumn(columns[columnIndex] ?? [], (nodeId) => downstreamIdsByNode.get(nodeId) ?? []);
     }
   }
 }
@@ -115,7 +115,7 @@ function balancedRunTop(run: PackedCardRun): number {
   let offsetWithinRun = 0;
   let sumOfWantedRunTops = 0;
   run.cardHeights.forEach((height, index) => {
-    sumOfWantedRunTops += run.wantedTops[index] - offsetWithinRun;
+    sumOfWantedRunTops += (run.wantedTops[index] ?? 0) - offsetWithinRun;
     offsetWithinRun += height + NODE_GRAPH_ROW_GAP;
   });
   return sumOfWantedRunTops / run.cardHeights.length;
@@ -125,7 +125,7 @@ function balancedRunTop(run: PackedCardRun): number {
 function packColumn(cardHeights: number[], wantedTops: number[]): number[] {
   const runs: PackedCardRun[] = [];
   cardHeights.forEach((height, index) => {
-    let run: PackedCardRun = { cardHeights: [height], wantedTops: [wantedTops[index]], top: wantedTops[index] };
+    let run: PackedCardRun = { cardHeights: [height], wantedTops: [wantedTops[index] ?? 0], top: wantedTops[index] ?? 0 };
     for (;;) {
       const previousRun = runs.at(-1);
       if (!previousRun || previousRun.top + runHeight(previousRun) + NODE_GRAPH_ROW_GAP <= run.top) break;
@@ -167,7 +167,7 @@ export function layOutNodeGraph(nodes: readonly NodeGraphLayoutNode[], links: re
   const nodesInLinkOrder = [...nodeIds].sort(
     (first, second) => (firstLinkIndexIntoNode.get(first) ?? Number.POSITIVE_INFINITY) - (firstLinkIndexIntoNode.get(second) ?? Number.POSITIVE_INFINITY),
   );
-  for (const nodeId of nodesInLinkOrder) columns[columnByNode.get(nodeId) ?? 0].push(nodeId);
+  for (const nodeId of nodesInLinkOrder) columns[columnByNode.get(nodeId) ?? 0]?.push(nodeId);
   orderColumnsToReduceCrossings(columns, upstreamIdsByNode, downstreamIdsByNode);
 
   const positionByNode = new Map<string, NodeGraphPosition>();
@@ -204,16 +204,16 @@ export function layOutNodeGraph(nodes: readonly NodeGraphLayoutNode[], links: re
         return feedingTops.reduce((sum, wantedTop) => sum + wantedTop, 0) / feedingTops.length;
       });
       // A node fed only from a later column, closing a cycle, goes under the node before it.
-      wantedTops = wantedTops.map((wantedTop, index) => (Number.isNaN(wantedTop) ? (index === 0 ? 0 : wantedTops[index - 1]) : wantedTop));
+      wantedTops = wantedTops.map((wantedTop, index) => (Number.isNaN(wantedTop) ? (index === 0 ? 0 : (wantedTops[index - 1] ?? 0)) : wantedTop));
     }
-    const placementOrder = columnNodes.map((_, index) => index).sort((first, second) => wantedTops[first] - wantedTops[second]);
+    const placementOrder = columnNodes.map((_, index) => index).sort((first, second) => (wantedTops[first] ?? 0) - (wantedTops[second] ?? 0));
     const packedTops = packColumn(
-      placementOrder.map((index) => cardHeights[index]),
-      placementOrder.map((index) => wantedTops[index]),
+      placementOrder.map((index) => cardHeights[index] ?? 0),
+      placementOrder.map((index) => wantedTops[index] ?? 0),
     );
     placementOrder.forEach((nodeIndex, placementIndex) => {
       const node = columnNodes[nodeIndex];
-      if (node !== undefined) positionByNode.set(node.node_id, { x: columnLeft, y: packedTops[placementIndex] });
+      if (node !== undefined) positionByNode.set(node.node_id, { x: columnLeft, y: packedTops[placementIndex] ?? 0 });
     });
     columnLeft += Math.max(0, ...columnNodes.map((node) => node.card_width)) + NODE_GRAPH_COLUMN_GAP;
   });

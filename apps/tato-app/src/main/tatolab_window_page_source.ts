@@ -55,7 +55,7 @@ export function inlineScriptHashSources(windowPageHtml: string): string[] {
 
 /**
  * The window page's content security policy: only its own origin, its inline theme script, inline styles, data: fonts
- * and images, and no frames.
+ * and images, and frames only from its own origin, where Studio serves each view's page.
  */
 export function windowPageContentSecurityPolicy(windowPageHtml: string): string {
   return [
@@ -65,7 +65,7 @@ export function windowPageContentSecurityPolicy(windowPageHtml: string): string 
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "img-src 'self' data:",
-    "frame-src 'none'",
+    "frame-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
   ].join("; ");

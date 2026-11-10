@@ -8,8 +8,8 @@ import propertiesManifestText from "./properties/tatolab_view.json?raw";
 
 /** One core view: its folder, which names it, and its `tatolab_view.json` as written, for Studio to read like any view's. */
 export interface CoreView {
-  folder: string;
-  manifest_text: string;
+  readonly folder: string;
+  readonly manifest_text: string;
 }
 
 /** The core views in the order the view-type menu lists Studio's own. */

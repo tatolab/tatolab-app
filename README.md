@@ -35,8 +35,8 @@ project's Reload queues `run_project` again; the window follows each load with
 on a stream the listing shows `preparing` or `stopping`, on a Reload, and on a New project or
 Import project, and shows the runtime's refusal in its own words. A stream's Logs tab reads its project's log with `logs`,
 narrowed to the stream or showing the whole project; a project's page lists its streams and reads
-its whole log, narrowed to one stream or one action. The window frames no page: its content
-security policy sets `frame-src 'none'`, and the main window refuses every subframe navigation. "Open project" and "Open a terminal in the project" open the folder the runtime lists for
+its whole log, narrowed to one stream or one action. Each view draws in a frame of its own: the window's content
+security policy sets `frame-src 'self'`, and the main window refuses a subframe navigation off the window page's own location. "Open project" and "Open a terminal in the project" open the folder the runtime lists for
 the stream, in Finder or the file manager, and in Terminal.app or `x-terminal-emulator`.
 
 |  | macOS | Linux |

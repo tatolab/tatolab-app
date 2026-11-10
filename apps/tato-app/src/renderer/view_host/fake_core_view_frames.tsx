@@ -37,6 +37,8 @@ function isTheHandover(message: unknown): boolean {
 export function drawTheCoreViewsInTheirFrames(): () => void {
   const settings = happyDomSettingsOfThisWindow();
   const fetchSettings: unknown = settings === null ? null : Reflect.get(settings, "fetch");
+  const iframePageLoadingBefore: unknown = settings === null ? undefined : Reflect.get(settings, "enableIframePageLoading");
+  const fetchInterceptorBefore: unknown = typeof fetchSettings === "object" && fetchSettings !== null ? Reflect.get(fetchSettings, "interceptor") : undefined;
   if (settings !== null) Reflect.set(settings, "enableIframePageLoading", true);
   if (typeof fetchSettings === "object" && fetchSettings !== null) {
     Reflect.set(fetchSettings, "interceptor", {
@@ -80,5 +82,7 @@ export function drawTheCoreViewsInTheirFrames(): () => void {
   return () => {
     document.removeEventListener("load", onAFrameLoaded, true);
     for (const frame of [...viewRootsByFrame.keys()]) unmountTheView(frame);
+    if (settings !== null) Reflect.set(settings, "enableIframePageLoading", iframePageLoadingBefore);
+    if (typeof fetchSettings === "object" && fetchSettings !== null) Reflect.set(fetchSettings, "interceptor", fetchInterceptorBefore);
   };
 }

@@ -41,7 +41,7 @@ test("the policy allows an inline script only by its hash, and the window page h
   const windowPageHtml = readFileSync(new URL("../renderer/index.html", import.meta.url), "utf8");
   expect(inlineScriptHashSources(windowPageHtml)).toEqual([]);
   expect(windowPageContentSecurityPolicy(windowPageHtml)).toBe(
-    "default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; frame-src 'none'; object-src 'none'; base-uri 'self'",
+    "default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'self'",
   );
   const pageWithAnInlineScript = "<script>document.title = 'x';</script>";
   expect(inlineScriptHashSources(pageWithAnInlineScript)).toEqual([`'sha256-${createHash("sha256").update("document.title = 'x';").digest("base64")}'`]);

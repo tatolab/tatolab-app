@@ -56,8 +56,9 @@ export function createElectronMainWindowHostFactory(
       windowContents.on("will-navigate", (navigationEvent) => {
         if (!isOnTheWindowPagesOwnLocation(windowPageUrl, navigationEvent.url)) navigationEvent.preventDefault();
       });
+      // A view's frame loads only from the window page's own location, where Studio serves every view's page.
       windowContents.on("will-frame-navigate", (frameNavigationEvent) => {
-        if (!frameNavigationEvent.isMainFrame) frameNavigationEvent.preventDefault();
+        if (!frameNavigationEvent.isMainFrame && !isOnTheWindowPagesOwnLocation(windowPageUrl, frameNavigationEvent.url)) frameNavigationEvent.preventDefault();
       });
       windowContents.session.setPermissionRequestHandler((_requestingContents, _permission, answerPermissionRequest) =>
         answerPermissionRequest(false),
