@@ -455,6 +455,57 @@ export const projectLogReadingSchema = z.discriminatedUnion("kind", [
 /** A project's log, or why none. */
 export type ProjectLogReading = z.infer<typeof projectLogReadingSchema>;
 
+/** One transaction on a project's change feed, as the runtime's `streamlib://project/<project>/transactions` resource carries it. */
+export const projectTransactionSchema = z.object({
+  /** The transaction's UUID. */
+  transaction: z.string(),
+  /** The commit on the project history's `main` that records it. */
+  commit: z.string(),
+  /** The commit history stood at when it applied, `null` for a project's first. */
+  parent_commit: z.string().nullable(),
+  /** `person`, `agent` or `runtime`, or a kind newer than this app. */
+  author_kind: z.string(),
+  /** The author's name as history shows it: an agent's MCP client name. */
+  author_name: z.string(),
+  /** What it changed, in order, each tagged by its `operation`, as the runtime sent them. */
+  operations: z.array(jsonValueSchema),
+  /** What undoes it, in order, as the runtime sent them. */
+  inverse_operations: z.array(jsonValueSchema),
+  /** The transaction this one undoes, when it is an undo. */
+  undoes: z.string().nullable(),
+  /** The transaction this one redoes, when it is a redo. */
+  redoes: z.string().nullable(),
+  /** When the runtime applied it, RFC 3339 in UTC, for display only; `null` from a runtime that does not say (streamlib #3426). */
+  applied_at: z.string().nullable(),
+});
+/** One transaction on a project's change feed. */
+export type ProjectTransaction = z.infer<typeof projectTransactionSchema>;
+
+/** A project's change feed: its UUID, its directory, and its newest transactions, newest first. */
+export const projectTransactionsSchema = z.object({
+  project: z.string(),
+  project_directory: z.string(),
+  transactions: z.array(projectTransactionSchema),
+});
+/** A project's change feed. */
+export type ProjectTransactions = z.infer<typeof projectTransactionsSchema>;
+
+/** A project's change feed as last read, or why the runtime gives none now, in its own words. */
+export const projectTransactionsReadingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("read"), project_transactions: projectTransactionsSchema }),
+  z.object({ kind: z.literal("not_read"), because: z.string() }),
+]);
+/** A project's change feed, or why none. */
+export type ProjectTransactionsReading = z.infer<typeof projectTransactionsReadingSchema>;
+
+/** Whose change an undo or a redo reverses: a person or an agent, by the name history shows. */
+export const projectTransactionAuthorSchema = z.object({ kind: z.enum(["person", "agent"]), name: z.string() });
+/** Whose change an undo or a redo reverses. */
+export type ProjectTransactionAuthor = z.infer<typeof projectTransactionAuthorSchema>;
+
+/** The transaction an undo or a redo applied, or why the runtime refused it, in its own words. */
+export type ProjectTransactionApplying = { kind: "applied"; transaction: ProjectTransaction } | { kind: "not_applied"; because: string };
+
 /** A file of the open project and its imports as read from disk, or why it was not, in the words of what refused. */
 export type ProjectFileReading = { kind: "read"; file_read: ProjectFileRead } | { kind: "not_read"; because: string };
 

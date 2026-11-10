@@ -130,6 +130,7 @@ async function sharedStateOverFakes(
     dockIconHost: fakeShellForTheWindows.tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: () => null,
     projectReadingsOfTheRuntime: NO_RUNTIME_READS_THE_PROJECTS,
+    openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
     runAfter: () => () => {},
     stopTheProjectAsItsWindowCloses: async () => succeeded(undefined),
     whenAStudioWindowClosed: () => {},

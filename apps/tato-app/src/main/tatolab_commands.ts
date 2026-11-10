@@ -17,6 +17,8 @@ import type {
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   ProjectRunQueued,
+  ProjectTransaction,
+  ProjectTransactionAuthor,
   RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
@@ -452,6 +454,33 @@ export async function stopOpenProject(sharedState: TatolabAppSharedState, comman
   return answerTheWindowOnceQueued(sharedState, "stop_open_project", () => sharedState.controller.stopProject(studioWindow.value.openProject.projectFolder));
 }
 
+/** `undo_in_the_open_project`'s and `redo_in_the_open_project`'s `{ author }` as the window sends it, or why it is not. */
+export function undoOrRedoArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<ProjectTransactionAuthor, string> {
+  const author = isAJsonObject(commandArguments) ? commandArguments["author"] : undefined;
+  if (!isAJsonObject(author) || (author["kind"] !== "person" && author["kind"] !== "agent") || typeof author["name"] !== "string") {
+    return failedWith(`${commandName} needs \`author\`, a person or an agent by the name history shows`);
+  }
+  return succeeded({ kind: author["kind"], name: author["name"] });
+}
+
+/** The runtime's `undo` or `redo` by `author` on the asking window's project, as the feed names its folder; refused in the Projects window, or in the runtime's own words. */
+export function undoOrRedoInTheOpenProject(
+  sharedState: TatolabAppSharedState,
+  undoOrRedo: "undo" | "redo",
+  author: ProjectTransactionAuthor,
+  commandFromWindow: TatolabCommandFromWindow,
+): Promise<Result<ProjectTransaction, string>> {
+  const commandName = undoOrRedo === "undo" ? "undo_in_the_open_project" : "redo_in_the_open_project";
+  return answerTheWindow(commandName, async () => {
+    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!studioWindow.ok) return studioWindow;
+    const projectFolder = studioWindow.value.projectTransactionsFeed.projectFolder;
+    const applied =
+      undoOrRedo === "undo" ? await sharedState.controller.undoInTheProject(projectFolder, author) : await sharedState.controller.redoInTheProject(projectFolder, author);
+    return applied.ok ? applied : failedWith(applied.failure.failureDescription);
+  });
+}
+
 /** `pop_out_viewer`'s arguments as the window sends them, or why they are not. */
 export function popOutViewerArgumentsFrom(commandArguments: unknown): Result<PoppedOutViewerTarget, string> {
   if (
@@ -833,6 +862,20 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     },
     run_open_project: async (_commandArguments, commandFromWindow) => commandAnswerFrom(await runOpenProject(sharedState, commandFromWindow)),
     stop_open_project: async (_commandArguments, commandFromWindow) => commandAnswerOfNothingFrom(await stopOpenProject(sharedState, commandFromWindow)),
+    read_open_project_transactions: async (_commandArguments, commandFromWindow) => {
+      const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+      return studioWindow.ok ? { ok: true, value: studioWindow.value.projectTransactionsFeed.readProjectTransactions() } : { ok: false, refusal: studioWindow.failure };
+    },
+    undo_in_the_open_project: async (commandArguments, commandFromWindow) => {
+      const author = undoOrRedoArgumentsFrom("undo_in_the_open_project", commandArguments);
+      if (!author.ok) return { ok: false, refusal: author.failure };
+      return commandAnswerFrom(await undoOrRedoInTheOpenProject(sharedState, "undo", author.value, commandFromWindow));
+    },
+    redo_in_the_open_project: async (commandArguments, commandFromWindow) => {
+      const author = undoOrRedoArgumentsFrom("redo_in_the_open_project", commandArguments);
+      if (!author.ok) return { ok: false, refusal: author.failure };
+      return commandAnswerFrom(await undoOrRedoInTheOpenProject(sharedState, "redo", author.value, commandFromWindow));
+    },
     start_python_language_server: async (commandArguments, commandFromWindow) => {
       const projectFolder = oneTextArgumentFrom("start_python_language_server", commandArguments, "project_folder", "the folder of the open project or of one of its imports");
       if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };

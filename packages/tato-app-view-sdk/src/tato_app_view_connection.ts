@@ -13,6 +13,9 @@ import type {
   ProjectFilesListing,
   ProjectLogReading,
   ProjectNodeTypesReading,
+  ProjectTransactionApplying,
+  ProjectTransactionAuthor,
+  ProjectTransactionsReading,
   PythonLanguageServerConnectionEvent,
   StreamGraphReading,
   StreamTabAddress,
@@ -72,6 +75,8 @@ export interface TatoAppViewConnection {
   watchProjectLog(projectFolder: string, listener: (reading: ProjectLogReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** Needs `read.project_assets`; the first reading arrives once listed. */
   watchProjectNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
+  /** Needs `read.project_assets`; the first reading arrives once read, and another each time the runtime applies a transaction to the project. */
+  watchProjectTransactions(projectFolder: string, listener: (reading: ProjectTransactionsReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** Needs `read.stream_graph`. Each frame or message of `target`'s output port; an Image frame arrives as a `VideoFrame` the view closes once drawn. */
   watchPortViewer(target: PortViewerTarget, onEvent: (event: PortViewerEvent) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** What the output wired into the `node` view's input `input` carries; an Image frame arrives as a `VideoFrame` the view closes once drawn. */
@@ -98,6 +103,10 @@ export interface TatoAppViewConnection {
   listProjectFiles(projectFolder: string): Promise<ProjectFilesListing>;
   /** Needs `read.project_assets`. Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
+  /** Needs `write.project_assets`. Undo `author`'s latest transaction in the project not undone yet, answering the undo the runtime applied. */
+  undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
+  /** Needs `write.project_assets`. Redo what `author`'s latest undo in the project reversed, answering the redo the runtime applied. */
+  redoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** Send `payload` on the `node` view's output `output`. */
   sendOutput(output: string, payload: ViewOutputPayload): Promise<ViewAskDone>;
   /** Stop every watch and close the port. */
@@ -139,6 +148,11 @@ function doneOf(answer: ViewAskAnswer): ViewAskDone {
   if (answer.kind === "done") return { kind: "done" };
   if (answer.kind === "refused") return answer;
   return { kind: "refused", because: `Tato Studio answered with ${answer.kind}, which this ask does not take.` };
+}
+
+function transactionApplyingOf(answer: ViewAskAnswer): ProjectTransactionApplying {
+  if (answer.kind === "project_transaction_applied") return { kind: "applied", transaction: answer.transaction };
+  return { kind: "not_applied", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
 }
 
 /** The view's connection over `port`, once Studio has said what it granted. */
@@ -215,6 +229,8 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
         watchFor({ kind: "project_log", project_folder: projectFolder }, (watched) => watched.subject === "project_log" && listener(watched.reading), whenRefused),
       watchProjectNodeTypes: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>
         watchFor({ kind: "project_node_types", project_folder: projectFolder }, (watched) => watched.subject === "project_node_types" && listener(watched.reading), whenRefused),
+      watchProjectTransactions: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>
+        watchFor({ kind: "project_transactions", project_folder: projectFolder }, (watched) => watched.subject === "project_transactions" && listener(watched.reading), whenRefused),
       watchPortViewer: (target, onEvent, whenRefused = IGNORE_THE_REFUSAL) =>
         watchFor({ kind: "port_viewer", target }, (watched) => watched.subject === "port_viewer" && onEvent(watched.reading.kind === "image_bitmap" ? imageFrameOf(watched.reading) : watched.reading), whenRefused),
       watchInput: (input, onEvent, whenRefused = IGNORE_THE_REFUSAL) =>
@@ -241,6 +257,8 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
           if (answer.kind === "project_files_listed") return { kind: "listed", project_files: answer.project_files };
           return { kind: "not_listed", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
         }),
+      undoInTheProject: (projectFolder, author) => ask({ kind: "undo_in_the_project", project_folder: projectFolder, author }).then(transactionApplyingOf),
+      redoInTheProject: (projectFolder, author) => ask({ kind: "redo_in_the_project", project_folder: projectFolder, author }).then(transactionApplyingOf),
       connectToPythonLanguageServer: (projectFolder, onEvent) => {
         const { watchId, stopWatching } = watch(
           { kind: "python_language_server", project_folder: projectFolder },

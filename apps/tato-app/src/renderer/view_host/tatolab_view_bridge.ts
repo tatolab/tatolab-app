@@ -181,6 +181,9 @@ export class TatolabViewBridge {
       case "project_node_types":
         keep(this.hostServices.watchProjectNodeTypes(subject.project_folder, (reading) => sendReading({ subject: "project_node_types", reading })));
         return;
+      case "project_transactions":
+        keep(this.hostServices.watchProjectTransactions(subject.project_folder, (reading) => sendReading({ subject: "project_transactions", reading })));
+        return;
       case "port_viewer": {
         const portViewerConnection = this.readThePortViewer(subject.target, (reading, transfer) => sendReading({ subject: "port_viewer", reading }, transfer));
         keep(() => portViewerConnection.close());
@@ -308,6 +311,12 @@ export class TatolabViewBridge {
         if (pythonLanguageServer === undefined) return { kind: "refused", because: `The view holds no language server under ${ask.watch_id}.` };
         pythonLanguageServer.send(ask.message);
         return { kind: "done" };
+      }
+      case "undo_in_the_project":
+      case "redo_in_the_project": {
+        const applying =
+          ask.kind === "undo_in_the_project" ? await this.hostServices.undoInTheProject(ask.project_folder, ask.author) : await this.hostServices.redoInTheProject(ask.project_folder, ask.author);
+        return applying.kind === "applied" ? { kind: "project_transaction_applied", transaction: applying.transaction } : { kind: "refused", because: applying.because };
       }
       case "send_output":
         if (!this.manifest.outputs.some((declaredOutput) => declaredOutput.name === ask.output)) {

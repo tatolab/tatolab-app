@@ -28,6 +28,7 @@ import { tatolabFrameViewType } from "./view_host/tatolab_frame_view_type";
 import { coreViewTypesOf, servedCoreViewFolderUrl } from "./view_host/core_view_types";
 import { CORE_VIEWS } from "@tatolab/tato-app-core-views";
 import { ProjectLogReadings } from "./view_host/project_log_readings";
+import { ProjectTransactionsReadings } from "./view_host/project_transactions_readings";
 import { ProjectNodeTypeReadings } from "./view_host/project_node_type_readings";
 import { PythonLanguageServerConnections } from "./view_host/python_language_server_connections";
 import { PortViewerConnections } from "./view_host/port_viewer_connections";
@@ -129,6 +130,7 @@ export function mountTatolabWindow(
   const projectNodeTypeReadings = new ProjectNodeTypeReadings(backend);
   projectNodeTypeReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => projectNodeTypeReadings.setPollingAllowed(isVisible));
+  const projectTransactionsReadings = new ProjectTransactionsReadings(backend);
   const pythonLanguageServerConnections = new PythonLanguageServerConnections(backend);
   const portViewerConnections = new PortViewerConnections(backend);
   const studioWindowModel = new StudioWindowModel(new StudioLayoutsKeptInStorage(tatolabWindowLocalStorage()));
@@ -186,6 +188,7 @@ export function mountTatolabWindow(
       backend,
       projectLogReadings,
       projectNodeTypeReadings,
+      projectTransactionsReadings,
       pythonLanguageServerConnections,
       portViewerConnections,
     }),

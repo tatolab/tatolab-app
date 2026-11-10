@@ -8,6 +8,7 @@ import path from "node:path";
 import type { OpenProjectReading, PoppedOutViewerTarget, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import { OpenProjectFiles } from "./open_project_files.js";
 import { OpenProjectOfAStudioWindow, type FolderEntriesWatch, type ProjectReadingsOfTheRuntime } from "./open_project.js";
+import { ProjectTransactionsFeedOfAStudioWindow, type ProjectTransactionsFeedOfAStudioWindowSources } from "./project_transactions_feed.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
 import type { TatolabPlatformItems } from "./platform/tatolab_platform_items.js";
 import type { LanguageServerOfAStudioWindow } from "./python_language_servers.js";
@@ -26,6 +27,8 @@ export interface StudioWindowOfAProject {
   readonly tatolabMainWindow: TatolabMainWindow;
   readonly openProject: OpenProjectOfAStudioWindow;
   readonly openProjectFiles: OpenProjectFiles;
+  /** The project's change feed, followed while the window is open. */
+  readonly projectTransactionsFeed: ProjectTransactionsFeedOfAStudioWindow;
   /** Where language servers this window starts send their events, and which folders they may serve. */
   readonly languageServerOfTheWindow: LanguageServerOfAStudioWindow;
   /** The Viewers popped out of this window, by the stream and node each is pinned to. */
@@ -46,6 +49,8 @@ export interface TatolabAppWindowsSources {
   watchFolderEntries: FolderEntriesWatch;
   /** The runtime's list of what a project imports. */
   projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime;
+  /** A connection each studio window follows its project's change feed over. */
+  openTheProjectTransactionsFeedConnection: ProjectTransactionsFeedOfAStudioWindowSources["openTheFeedConnection"];
   /** Runs `work` once after `delayMs`; the answer cancels it. */
   runAfter: (delayMs: number, work: () => void) => () => void;
   /** Queue the stop of every stream of the project in `projectFolder`, as the person chose in closing its window; refused in the runtime's own words. */
@@ -220,7 +225,12 @@ export class TatolabAppWindows {
   sendEveryWindowTheStatus(status: TatolabStatus): void {
     const theRuntimeStartedAnswering = status.runtime_state === "running" && this.lastStatusSent?.runtime_state !== "running";
     this.lastStatusSent = status;
-    if (theRuntimeStartedAnswering) for (const studioWindow of this.studioWindowsByProjectFolder.values()) void studioWindow.openProject.readAgain();
+    if (theRuntimeStartedAnswering) {
+      for (const studioWindow of this.studioWindowsByProjectFolder.values()) {
+        void studioWindow.openProject.readAgain();
+        void studioWindow.projectTransactionsFeed.followAgain();
+      }
+    }
     for (const tatolabMainWindow of this.everyWindow()) tatolabMainWindow.sendTheWindowTheStatus(status);
   }
 
@@ -231,7 +241,10 @@ export class TatolabAppWindows {
 
   /** Stop watching every studio window's project, as the app quits. */
   stopWatchingEveryProject(): void {
-    for (const studioWindow of this.studioWindowsByProjectFolder.values()) studioWindow.openProject.stopWatching();
+    for (const studioWindow of this.studioWindowsByProjectFolder.values()) {
+      studioWindow.openProject.stopWatching();
+      studioWindow.projectTransactionsFeed.stopFollowing();
+    }
   }
 
   private everyWindow(): TatolabMainWindow[] {
@@ -274,10 +287,17 @@ export class TatolabAppWindows {
     );
     windowOfTheProject = tatolabMainWindow;
     const openProjectFiles = new OpenProjectFiles(() => openProject.readOpenProject());
+    const openedProject = openProject.readOpenProject();
+    const projectTransactionsFeed = new ProjectTransactionsFeedOfAStudioWindow(openedProject.kind === "read" ? openedProject.open_project.project.folder : projectFolder, {
+      openTheFeedConnection: this.sources.openTheProjectTransactionsFeedConnection,
+      runAfter: this.sources.runAfter,
+      sendTheWindowTheProjectTransactions: (reading) => tatolabMainWindow.sendTheWindowTheProjectTransactions(reading),
+    });
     const studioWindow: StudioWindowOfAProject = {
       tatolabMainWindow,
       openProject,
       openProjectFiles,
+      projectTransactionsFeed,
       languageServerOfTheWindow: {
         projectFolderOfTheOpenProject: (folder) => openProjectFiles.projectFolderOfTheOpenProject(folder),
         sendTheWindowALanguageServerEvent: (event: PythonLanguageServerEvent) => tatolabMainWindow.sendTheWindowALanguageServerEvent(event),
@@ -290,6 +310,7 @@ export class TatolabAppWindows {
     this.sources.tatolabAppLog.info("opened a project in its own window", { project_folder: projectFolder });
     tatolabMainWindow.show();
     if (this.lastStatusSent !== null) tatolabMainWindow.sendTheWindowTheStatus(this.lastStatusSent);
+    void projectTransactionsFeed.follow();
   }
 
   /** Close a studio window whose project runs no stream; for one that runs any, keep it open and ask whether to stop the project and close it. */
@@ -335,6 +356,7 @@ export class TatolabAppWindows {
     if (this.studioWindowsByProjectFolder.get(projectFolder) !== studioWindow) return;
     this.studioWindowsByProjectFolder.delete(projectFolder);
     studioWindow.openProject.stopWatching();
+    studioWindow.projectTransactionsFeed.stopFollowing();
     for (const poppedOutViewer of [...studioWindow.poppedOutViewers.values()]) poppedOutViewer.tatolabMainWindow.close();
     studioWindow.poppedOutViewers.clear();
     this.moduleManagerWindowsByStudioWindow.get(studioWindow)?.close();

@@ -27,6 +27,8 @@ import type {
   ProjectLogRecordsPage,
   ProjectRunQueued,
   ProjectTheRuntimeNames,
+  ProjectTransaction,
+  ProjectTransactionAuthor,
   RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
@@ -50,6 +52,7 @@ import { describeCaughtFailure, failedWith, succeeded, type Result } from "./res
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
 import { projectTheRuntimeNamesFromTheListAssetsToolResult } from "./project_the_runtime_names.js";
+import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
 import {
   dependencyUpdateFromTheUpdateDependencyToolResult,
   type ListedProjectDependency,
@@ -69,7 +72,7 @@ import {
 export const LOCAL_API_MCP_PROTOCOL_VERSION = "2026-07-28";
 
 /** The client name the app gives the runtime in every MCP request's `_meta`. */
-const LOCAL_API_MCP_CLIENT_NAME = "tatolab-app";
+export const LOCAL_API_MCP_CLIENT_NAME = "tatolab-app";
 
 /** The most bytes one local API response may carry before the client gives up on it. */
 const LARGEST_LOCAL_API_RESPONSE_BYTES = 8 * 1024 * 1024;
@@ -417,6 +420,23 @@ export class LocalApiClient {
     if (!toolResultText.ok) return toolResultText;
     const dependencies = workspaceDependenciesFromTheListDependenciesToolResult(toolResultText.value);
     return dependencies.ok ? dependencies : localApiRequestFailure(dependencies.failure);
+  }
+
+  /** Undo `author`'s latest transaction in the project in `projectDirectory` not undone yet, through the runtime's `undo`, answering the undo it applied; refused in the runtime's own words. */
+  undoInTheProject(projectDirectory: string, author: ProjectTransactionAuthor): Promise<Result<ProjectTransaction, LocalApiRequestFailure>> {
+    return this.undoOrRedoInTheProject("undo", projectDirectory, author);
+  }
+
+  /** Redo what `author`'s latest undo in the project in `projectDirectory` reversed, through the runtime's `redo`, answering the redo it applied; refused in the runtime's own words. */
+  redoInTheProject(projectDirectory: string, author: ProjectTransactionAuthor): Promise<Result<ProjectTransaction, LocalApiRequestFailure>> {
+    return this.undoOrRedoInTheProject("redo", projectDirectory, author);
+  }
+
+  private async undoOrRedoInTheProject(toolName: "undo" | "redo", projectDirectory: string, author: ProjectTransactionAuthor): Promise<Result<ProjectTransaction, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool(toolName, { project_directory: projectDirectory, author: { kind: author.kind, name: author.name } });
+    if (!toolResultText.ok) return toolResultText;
+    const transaction = projectTransactionFromTheUndoOrRedoToolResult(toolName, toolResultText.value);
+    return transaction.ok ? transaction : localApiRequestFailure(transaction.failure);
   }
 
   /** `GET requestTarget`, answering the body of a `200`; any other answer is refused in the runtime's own words when its body carries them. */

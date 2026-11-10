@@ -105,6 +105,10 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("open_recent_project", { folder });
     },
     onOpenProjectChanged: (listener) => tatolabElectronBridge.onOpenProjectChanged(listener),
+    readOpenProjectTransactions: () => invokeTatolabCommand("read_open_project_transactions", undefined),
+    onProjectTransactionsChanged: (listener) => tatolabElectronBridge.onProjectTransactionsChanged(listener),
+    undoInTheOpenProject: (author) => invokeTatolabCommand("undo_in_the_open_project", { author }),
+    redoInTheOpenProject: (author) => invokeTatolabCommand("redo_in_the_open_project", { author }),
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),
     readProjectFile: (file) => invokeTatolabCommand("read_project_file", { file }),
     saveProjectFile: (file, text, basedOnVersion) => invokeTatolabCommand("save_project_file", { file, text, based_on_version: basedOnVersion }),
