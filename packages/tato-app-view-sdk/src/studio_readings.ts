@@ -308,6 +308,34 @@ export const projectNodeTypeListingSchema = z.object({
 /** What a project and its sources declare. */
 export type ProjectNodeTypeListing = z.infer<typeof projectNodeTypeListingSchema>;
 
+/** One asset of a project as the runtime's `list_assets` lists it. */
+export const projectAssetSchema = z.object({
+  /** The asset's UUID, which a node's config names it by as `{"asset": <uuid>}`. */
+  asset: z.string(),
+  /** `media` (video, audio, an image), `scene`, `data` (a LUT, model weights, a font…) or `stream` (a graph document); a kind the runtime adds later reads as it spells it. */
+  kind: z.string(),
+  /** Where it sits, `/`-separated and relative to the project's folder. */
+  path: z.string(),
+  content_sha256: z.string(),
+  content_byte_len: z.number().int().nonnegative(),
+  /** The settings its import took, kept in its sidecar. */
+  import_settings: z.record(z.string(), jsonValueSchema),
+});
+/** One asset of a project. */
+export type ProjectAsset = z.infer<typeof projectAssetSchema>;
+
+/** A project's assets as the runtime's `list_assets` lists them, in its order, which is by path. */
+export const projectAssetListingSchema = z.object({
+  /** The project's folder, its links resolved. */
+  project_directory: z.string(),
+  /** The project's UUID. */
+  project: z.string(),
+  project_name: z.string(),
+  assets: z.array(projectAssetSchema),
+});
+/** A project's assets. */
+export type ProjectAssetListing = z.infer<typeof projectAssetListingSchema>;
+
 /** A project as the runtime's `list_assets` names it, from its `tatolab-project.json`. */
 export const projectTheRuntimeNamesSchema = z.object({
   /** The folder, absolute with its links resolved. */
@@ -495,6 +523,14 @@ export const projectNodeTypesReadingSchema = z.discriminatedUnion("kind", [
 ]);
 /** What a project's sources declare, or why none. */
 export type ProjectNodeTypesReading = z.infer<typeof projectNodeTypesReadingSchema>;
+
+/** A project's assets, or why the runtime lists none, in its own words. */
+export const projectAssetsReadingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("listed"), listing: projectAssetListingSchema }),
+  z.object({ kind: z.literal("not_listed"), because: z.string() }),
+]);
+/** A project's assets, or why none. */
+export type ProjectAssetsReading = z.infer<typeof projectAssetsReadingSchema>;
 
 /** A project's log as read so far, its latest records last, or why the runtime gives none now, in its own words. */
 export const projectLogReadingSchema = z.discriminatedUnion("kind", [

@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from "vitest";
 import type { ProjectNodeTypeListing } from "../../shared/tatolab_backend_contract";
-import { ProjectNodeTypeReadings } from "./project_node_type_readings";
+import { ProjectListingReadingsPolledWhileWatched } from "./project_listing_readings_polled_while_watched";
 import type { ProjectNodeTypesReading } from "./studio_view_contract";
 
 afterEach(() => {
@@ -46,9 +46,9 @@ test("a_watched_projects_node_types_are_listed_again_each_round_and_told_only_wh
   vi.useFakeTimers();
   const { backend, served, foldersAsked } = listingBackend();
   served.listing = listingDeclaring(["nodes.a:A"]);
-  const readings = new ProjectNodeTypeReadings(backend, POLL_MILLISECONDS);
+  const readings = new ProjectListingReadingsPolledWhileWatched(backend.listProjectNodeTypes, POLL_MILLISECONDS);
   const seen: ProjectNodeTypesReading[] = [];
-  const stop = readings.watchProjectNodeTypes(PROJECT_FOLDER, (reading) => seen.push(reading));
+  const stop = readings.watchTheProject(PROJECT_FOLDER, (reading) => seen.push(reading));
   await vi.advanceTimersByTimeAsync(10);
   await vi.advanceTimersByTimeAsync(POLL_MILLISECONDS);
   served.listing = listingDeclaring(["nodes.a:A", "nodes.b:B"]);
@@ -64,10 +64,10 @@ test("a_refused_listing_is_told_in_the_runtimes_words_and_a_hidden_window_lists_
   vi.useFakeTimers();
   const { backend, served, foldersAsked } = listingBackend();
   served.refusal = "list_project_node_types failed: the project's interpreter printed no listing";
-  const readings = new ProjectNodeTypeReadings(backend, POLL_MILLISECONDS);
+  const readings = new ProjectListingReadingsPolledWhileWatched(backend.listProjectNodeTypes, POLL_MILLISECONDS);
   readings.setPollingAllowed(false);
   const seen: ProjectNodeTypesReading[] = [];
-  readings.watchProjectNodeTypes(PROJECT_FOLDER, (reading) => seen.push(reading));
+  readings.watchTheProject(PROJECT_FOLDER, (reading) => seen.push(reading));
   await vi.advanceTimersByTimeAsync(POLL_MILLISECONDS * 3);
   expect(foldersAsked).toEqual([]);
   readings.setPollingAllowed(true);
@@ -80,11 +80,11 @@ test("a_second_view_watching_the_same_project_is_told_the_latest_listing_at_once
   vi.useFakeTimers();
   const { backend, served, foldersAsked } = listingBackend();
   served.listing = listingDeclaring(["nodes.a:A"]);
-  const readings = new ProjectNodeTypeReadings(backend, POLL_MILLISECONDS);
-  readings.watchProjectNodeTypes(PROJECT_FOLDER, () => undefined);
+  const readings = new ProjectListingReadingsPolledWhileWatched(backend.listProjectNodeTypes, POLL_MILLISECONDS);
+  readings.watchTheProject(PROJECT_FOLDER, () => undefined);
   await vi.advanceTimersByTimeAsync(10);
   const seenBySecond: ProjectNodeTypesReading[] = [];
-  readings.watchProjectNodeTypes(PROJECT_FOLDER, (reading) => seenBySecond.push(reading));
+  readings.watchTheProject(PROJECT_FOLDER, (reading) => seenBySecond.push(reading));
 
   expect(typesSeen(seenBySecond)).toEqual([["nodes.a:A"]]);
   expect(foldersAsked).toEqual([PROJECT_FOLDER]);

@@ -7,6 +7,7 @@ import type {
   NewProjectDefaults,
   NodeCatalog,
   ProjectNodeTypeListing,
+  ProjectAssetListing,
   JsonValue,
   DependencySourceKind,
   ProjectDependency,
@@ -60,6 +61,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "describe_stream_graph",
   "describe_node_catalog",
   "list_project_node_types",
+  "list_project_assets",
   "check_for_tatolab_app_updates",
   "take_the_newer_tatolab_app_version",
   "remove_project",
@@ -223,6 +225,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   describe_node_catalog: { commandArguments: { stream: string }; answer: NodeCatalog };
   /** `project_directory` the asking window's project, one of its imports, or a project the runtime lists; refused in the runtime's own words. */
   list_project_node_types: { commandArguments: { project_directory: string }; answer: ProjectNodeTypeListing };
+  list_project_assets: { commandArguments: { project_directory: string }; answer: ProjectAssetListing };
   check_for_tatolab_app_updates: { commandArguments: undefined; answer: null };
   take_the_newer_tatolab_app_version: { commandArguments: undefined; answer: null };
   /** Answers once the runtime has queued the removal of every stream it holds from the project; deletes no file. */

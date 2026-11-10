@@ -19,6 +19,7 @@ export function SectionNavigationList({
   onSectionChosen,
   dataAttributeOfEachSection,
   width = "regular",
+  footnote,
 }: {
   label: string;
   sectionGroups: readonly { groupLabel: string; sections: readonly NavigationSection[] }[];
@@ -28,6 +29,8 @@ export function SectionNavigationList({
   dataAttributeOfEachSection: ControlDataAttributeName;
   /** Regular for short names; wide for longer ones and counts. */
   width?: "regular" | "wide";
+  /** Quiet words at the list's foot, as where to find more. */
+  footnote?: string;
 }) {
   return (
     <nav aria-label={label} className={cn("scrollbar-thin flex shrink-0 flex-col gap-5 overflow-y-auto border-r px-2 pt-3 pb-4", width === "wide" ? "w-56" : "w-48")}>
@@ -54,6 +57,7 @@ export function SectionNavigationList({
           ))}
         </section>
       ))}
+      {footnote !== undefined && <p className="mt-auto px-2 text-2xs text-fg-3">{footnote}</p>}
     </nav>
   );
 }

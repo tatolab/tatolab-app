@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { paletteTreeOfTheListing } from "./palette_tree_of_the_listing";
+import { libraryTreeOfTheListing } from "./library_tree_of_the_listing";
 import type { PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
 import type { ProjectNodeType, ProjectNodeTypeListing, ProjectNodeTypePort, ProjectNodeTypeSource } from "@tatolab/tato-app-view-sdk/studio_readings";
 
@@ -155,9 +155,9 @@ function patternListing(isEveryOwnModuleUnreadable = false): ProjectNodeTypeList
   };
 }
 
-describe("the palette's tree", () => {
-  it("lists each source by its title, the project first, each node type under its category and the generators after", () => {
-    const rows = paletteTreeOfTheListing(patternListing(), {});
+describe("the Library's tree", () => {
+  it("lists each source by its title, the project first, each node type under its category and each module that does not parse", () => {
+    const rows = libraryTreeOfTheListing(patternListing(), {}, "node_types");
     expect(rows.map(({ row }) => `${"  ".repeat(row.depth)}${row.label} ${row.expansion}`)).toEqual([
       "pattern expanded",
       "  Effects expanded",
@@ -165,8 +165,6 @@ describe("the palette's tree", () => {
       "    InvertingEffect leaf",
       "  nodes.brightness_meter expanded",
       "    BrightnessMeter leaf",
-      "  Graph generators expanded",
-      "    two_cameras_side_by_side leaf",
       "  nodes/half_written.py:12:5: SyntaxError: expected ':' leaf",
       "imports/hall-of-light expanded",
       "  Lighting expanded",
@@ -178,20 +176,19 @@ describe("the palette's tree", () => {
   });
 
   it("opens the project's own declarations in its folder, and nothing for a source not the project's", () => {
-    const rows = paletteTreeOfTheListing(patternListing(), { "source:distribution:camera": true });
+    const rows = libraryTreeOfTheListing(patternListing(), { "source:distribution:camera": true }, "node_types");
     const fileOfRow = (label: string) => {
       const meaning = rows.find(({ row }) => row.label === label)?.meaning;
       return meaning === undefined || meaning.kind === "nothing_to_select" ? undefined : meaning.file;
     };
     expect(fileOfRow("InvertingEffect")).toBe(`${STREAMS_FOLDER}/pattern/nodes/inverting_effect.py`);
-    expect(fileOfRow("two_cameras_side_by_side")).toBe(`${STREAMS_FOLDER}/pattern/nodes/scenes.py`);
     expect(fileOfRow("nodes/half_written.py:12:5: SyntaxError: expected ':'")).toBe(`${STREAMS_FOLDER}/pattern/nodes/half_written.py`);
     expect(fileOfRow("Gripper")).toBeNull();
     expect(fileOfRow("CameraTilt")).toBeNull();
   });
 
   it("shows each module that does not parse in the parser's words, for that module only", () => {
-    const rows = paletteTreeOfTheListing(patternListing(true), {});
+    const rows = libraryTreeOfTheListing(patternListing(true), {}, "node_types");
     expect(rows.slice(0, 3).map(({ row }) => [row.label, row.tone ?? "plain"])).toEqual([
       ["pattern", "plain"],
       ["nodes/half_written.py:12:5: SyntaxError: expected ':'", "unreadable"],
@@ -202,7 +199,15 @@ describe("the palette's tree", () => {
 
   it("says a source declares no node types, and keeps a row the person closed closed", () => {
     const listing = { ...patternListing(), sources: [{ origin: { source: "project" as const }, node_types: [], graph_generators: [], unreadable_modules: [] }] };
-    expect(paletteTreeOfTheListing(listing, {}).map(({ row }) => row.label)).toEqual(["pattern", "Declares no node types"]);
-    expect(paletteTreeOfTheListing(listing, { "source:project": false }).map(({ row }) => row.label)).toEqual(["pattern"]);
+    expect(libraryTreeOfTheListing(listing, {}, "node_types").map(({ row }) => row.label)).toEqual(["pattern", "Declares no node types"]);
+    expect(libraryTreeOfTheListing(listing, { "source:project": false }, "node_types").map(({ row }) => row.label)).toEqual(["pattern"]);
+  });
+
+  it("lists only the graph generators, straight under each source that declares one, opening each in the project's folder", () => {
+    const rows = libraryTreeOfTheListing(patternListing(), {}, "graph_generators");
+    expect(rows.map(({ row }) => `${"  ".repeat(row.depth)}${row.label} ${row.expansion}`)).toEqual(["pattern expanded", "  two_cameras_side_by_side leaf"]);
+    const generator = rows[1]?.meaning;
+    expect(generator?.kind === "graph_generator_declaration" ? generator.file : null).toBe(`${STREAMS_FOLDER}/pattern/nodes/scenes.py`);
+    expect(libraryTreeOfTheListing({ ...patternListing(), sources: [LIGHTING_RIG_DEPENDENCY] }, {}, "graph_generators")).toEqual([]);
   });
 });

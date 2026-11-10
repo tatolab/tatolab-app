@@ -27,6 +27,7 @@ import type {
   ListedStream,
   NodeCatalog,
   ProjectNodeTypeListing,
+  ProjectAssetListing,
   ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -59,6 +60,7 @@ import {
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
+import { projectAssetListingFromTheListAssetsToolResult } from "./project_asset_listing.js";
 import {
   duplicateFromTheDuplicateProjectToolResult,
   projectFromTheImportProjectToolResult,
@@ -455,6 +457,14 @@ export class LocalApiClient {
     const toolResultText = await this.callMcpTool("list_project_node_types", { project_directory: projectDirectory }, PROJECT_NODE_TYPE_LISTING_RESPONSE_TIMEOUT_MS);
     if (!toolResultText.ok) return toolResultText;
     const listing = projectNodeTypeListingFromTheToolResult(toolResultText.value);
+    return listing.ok ? listing : localApiRequestFailure(listing.failure);
+  }
+
+  /** Every asset of the project in `projectDirectory`, its graph documents among them, from the runtime's `list_assets`; refused in the runtime's own words, as for a folder holding no `tatolab-project.json`. */
+  async listProjectAssets(projectDirectory: string): Promise<Result<ProjectAssetListing, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("list_assets", { project_directory: projectDirectory });
+    if (!toolResultText.ok) return toolResultText;
+    const listing = projectAssetListingFromTheListAssetsToolResult(toolResultText.value);
     return listing.ok ? listing : localApiRequestFailure(listing.failure);
   }
 

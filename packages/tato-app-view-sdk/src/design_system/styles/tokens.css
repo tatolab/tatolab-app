@@ -36,6 +36,10 @@
   --color-studio-read-only-banner: var(--studio-read-only-banner);
   --color-studio-property-fill: var(--studio-property-fill);
   --color-studio-port-row: var(--studio-port-row);
+  --color-studio-asset-card: var(--studio-asset-card);
+  --color-studio-asset-media: var(--studio-asset-media);
+  --color-studio-asset-scene: var(--studio-asset-scene);
+  --color-studio-asset-data: var(--studio-asset-data);
   --color-studio-person-avatar: var(--studio-person-avatar);
   --color-studio-agent-avatar: var(--studio-agent-avatar);
   --color-studio-agent-text: var(--studio-agent-text);
@@ -172,6 +176,10 @@
   --studio-family-records: #a0a4ad;
   --studio-property-fill: #3d4f86;
   --studio-port-row: #232327;
+  --studio-asset-card: #232327;
+  --studio-asset-media: #1d2440;
+  --studio-asset-scene: #251f3a;
+  --studio-asset-data: #2c2416;
   --studio-code-text: #d6d6dc;
   --studio-code-line-number: #5a5a63;
   --studio-code-keyword: #8fa8ff;

@@ -27,6 +27,7 @@ import type {
   StreamGraphSummary,
   NodeCatalog,
   ProjectNodeTypeListing,
+  ProjectAssetListing,
   StreamProjectFolderChosenFor,
   TatolabStatus,
   ProjectFolderChosenFor,
@@ -120,6 +121,14 @@ export function describeNodeCatalog(sharedState: TatolabAppSharedState, stream: 
 export function listProjectNodeTypes(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectNodeTypeListing, string>> {
   return answerTheWindow("list_project_node_types", async () => {
     const listing = await sharedState.controller.listProjectNodeTypes(projectDirectory);
+    return listing.ok ? listing : failedWith(listing.failure.failureDescription);
+  });
+}
+
+/** `list_project_assets { project_directory }`: every asset of the project, its graph documents among them, as the runtime's `list_assets` lists them; refused in the runtime's own words. */
+export function listProjectAssets(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectAssetListing, string>> {
+  return answerTheWindow("list_project_assets", async () => {
+    const listing = await sharedState.controller.listProjectAssets(projectDirectory);
     return listing.ok ? listing : failedWith(listing.failure.failureDescription);
   });
 }
@@ -805,6 +814,13 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const askableProjectDirectory = projectDirectoryTheWindowMayAskTheRuntimeAbout(sharedState, projectDirectory.value, commandFromWindow);
       if (!askableProjectDirectory.ok) return { ok: false, refusal: askableProjectDirectory.failure };
       return commandAnswerFrom(await listProjectNodeTypes(sharedState, askableProjectDirectory.value));
+    },
+    list_project_assets: async (commandArguments, commandFromWindow) => {
+      const projectDirectory = oneTextArgumentFrom("list_project_assets", commandArguments, "project_directory", "a project's folder");
+      if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
+      const askableProjectDirectory = projectDirectoryTheWindowMayAskTheRuntimeAbout(sharedState, projectDirectory.value, commandFromWindow);
+      if (!askableProjectDirectory.ok) return { ok: false, refusal: askableProjectDirectory.failure };
+      return commandAnswerFrom(await listProjectAssets(sharedState, askableProjectDirectory.value));
     },
     remove_project: async (commandArguments) => {
       const projectDirectory = oneTextArgumentFrom("remove_project", commandArguments, "project_directory", "a project's folder as the runtime lists it");

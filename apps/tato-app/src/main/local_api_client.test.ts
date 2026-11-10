@@ -784,7 +784,7 @@ test("a_chunked_response_is_dechunked", async () => {
 
 /** Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src/main/local_api_client.test.ts`. */
 const noLiveRuntimeSocketIsNamed = !process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"];
-test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_description_its_streams_their_graphs_logs_node_types_and_dependencies_and_its_machine_name", async () => {
+test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_description_its_streams_their_graphs_logs_node_types_assets_and_dependencies_and_its_machine_name", async () => {
   const client = new LocalApiClient(process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"] ?? "", 5_000, "0.45.0");
 
   answerOf(await client.checkHealth());
@@ -803,6 +803,8 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
     const nodeTypeListing = answerOf(await client.listProjectNodeTypes(projectDirectory));
     answerOf(await client.listDependencies(projectDirectory, false));
     expect(nodeTypeListing.sources[0]?.origin).toEqual({ source: "project" });
+    const assetListing = answerOf(await client.listProjectAssets(projectDirectory));
+    expect(assetListing.assets.filter((asset) => asset.kind === "stream").length).toBeGreaterThanOrEqual(projectStreams.length);
     const wholeLog = answerOf(await client.readProjectLogRecords(projectDirectory, { stream: null, action: null }, null, 500));
     expect(wholeLog.project_directory).toBe(projectDirectory);
     expect(wholeLog.records.length).toBeGreaterThan(0);
@@ -1042,6 +1044,38 @@ test("a_real_asset_listing_names_the_project_and_a_folder_that_is_not_a_project_
     "list_assets failed: /tmp/tatolab-proof-projects/not-a-project holds no project: it has no tatolab-project.json",
   );
   expect(toolCallsReceivedBy(server).map(([toolName]) => toolName)).toEqual(["list_assets", "list_assets", "list_assets"]);
+});
+
+test("a_real_asset_listing_lists_each_imported_file_and_graph_document_and_a_folder_that_is_not_a_project_is_refused_in_the_runtimes_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-assets-tool-result-of-lobby-camera-holding-a-video-an-image-and-a-lut.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-assets-refusal-for-a-folder-that-is-not-a-project.json")),
+  ]);
+  const lobbyCameraFolder = "/tmp/claude-0/-home-user/4632618e-7712-59e1-9bd8-72d7c92c4d42/scratchpad/live/home/Tato Studio/Lobby Camera";
+
+  const listing = answerOf(await server.client().listProjectAssets(lobbyCameraFolder));
+  expect([listing.project_directory, listing.project, listing.project_name]).toEqual([lobbyCameraFolder, "9ffa289f-60a1-48ed-a867-f19e3726aa96", "Lobby Camera"]);
+  expect(listing.assets.map((asset) => [asset.kind, asset.path, asset.content_byte_len])).toEqual([
+    ["data", "luts/warm.cube", 75],
+    ["media", "media/lobby-intro.mp4", 48493],
+    ["media", "media/poster.png", 11194],
+    ["stream", "streams/main.graph.json", 336],
+  ]);
+  expect(listing.assets[1]).toEqual({
+    asset: "207ef246-3d00-4167-b394-bb591f7c4b8f",
+    kind: "media",
+    path: "media/lobby-intro.mp4",
+    content_sha256: "16e89515f01295ded2534fd319db70fbd6bce1e95ed619b0127105489cc82700",
+    content_byte_len: 48493,
+    import_settings: {},
+  });
+  expect(failureOf(await server.client().listProjectAssets("/tmp/tatolab-proof-projects/not-a-project")).failureDescription).toBe(
+    "list_assets failed: /tmp/tatolab-proof-projects/not-a-project holds no project: it has no tatolab-project.json",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["list_assets", { project_directory: lobbyCameraFolder }],
+    ["list_assets", { project_directory: "/tmp/tatolab-proof-projects/not-a-project" }],
+  ]);
 });
 
 test("a_node_type_listing_waits_past_the_ordinary_request_timeout_for_the_projects_interpreter", async () => {

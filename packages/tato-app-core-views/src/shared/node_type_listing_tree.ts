@@ -1,4 +1,4 @@
-// The rows the palette and the outliner show of a project's node types, derived from what
+// The rows the Library and the outliner show of a project's node types, derived from what
 // `list_project_node_types` lists: each source's node types by category, its graph generators, and
 // each module of it that does not parse, with why in the parser's own words.
 
@@ -94,12 +94,16 @@ function compareByText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-/** The rows under a source's row `sourceRowId`: each category with its node types, its graph generators, then each module that does not parse. */
+/** Which of a source's declarations its rows show: all of them; its node types and the modules that do not parse; or only its graph generators, with no heading over them. */
+export type SourceDeclarationsShown = "every_declaration" | "node_types" | "graph_generators";
+
+/** The rows under a source's row `sourceRowId`: each category with its node types, its graph generators, then each module that does not parse, as far as `declarationsShown` has them. */
 export function nodeTypeSourceChildren(
   source: ProjectNodeTypeSource,
   sourceRowId: string,
   sourceTitle: string,
   projectDirectory: string,
+  declarationsShown: SourceDeclarationsShown = "every_declaration",
 ): StudioTreeNode<DeclarationRowMeaning | NothingToChooseRowMeaning>[] {
   const nodeTypesByCategory = new Map<string, ProjectNodeType[]>();
   for (const nodeType of [...source.node_types].sort((left, right) => compareByText(left.type, right.type))) {
@@ -122,24 +126,21 @@ export function nodeTypeSourceChildren(
       };
     });
   const graphGeneratorsRowId = `${sourceRowId}/graph_generators`;
+  const graphGeneratorLeaves = [...source.graph_generators]
+    .sort((left, right) => compareByText(left.generator, right.generator))
+    .map(
+      (graphGenerator): StudioTreeNode<DeclarationRowMeaning | NothingToChooseRowMeaning> => ({
+        row: { row_id: `${graphGeneratorsRowId}/${graphGenerator.generator}`, label: nodeTypeShortName(graphGenerator.generator), icon: "graph_generator", isMachineWords: true },
+        meaning: { kind: "graph_generator_declaration", graph_generator: graphGenerator, source_title: sourceTitle, file: declaringFileOf(source.origin, projectDirectory, graphGenerator.path) },
+        isOpenByDefault: false,
+        children: [],
+      }),
+    );
+  if (declarationsShown === "graph_generators") return graphGeneratorLeaves;
   const graphGeneratorNodes: StudioTreeNode<DeclarationRowMeaning | NothingToChooseRowMeaning>[] =
-    source.graph_generators.length === 0
+    graphGeneratorLeaves.length === 0 || declarationsShown === "node_types"
       ? []
-      : [
-          {
-            row: { row_id: graphGeneratorsRowId, label: "Graph generators", icon: "node_category", isHeading: true },
-            meaning: { kind: "nothing_to_select" },
-            isOpenByDefault: true,
-            children: [...source.graph_generators]
-              .sort((left, right) => compareByText(left.generator, right.generator))
-              .map((graphGenerator) => ({
-                row: { row_id: `${graphGeneratorsRowId}/${graphGenerator.generator}`, label: nodeTypeShortName(graphGenerator.generator), icon: "graph_generator", isMachineWords: true },
-                meaning: { kind: "graph_generator_declaration", graph_generator: graphGenerator, source_title: sourceTitle, file: declaringFileOf(source.origin, projectDirectory, graphGenerator.path) },
-                isOpenByDefault: false,
-                children: [],
-              })),
-          },
-        ];
+      : [{ row: { row_id: graphGeneratorsRowId, label: "Graph generators", icon: "node_category", isHeading: true }, meaning: { kind: "nothing_to_select" }, isOpenByDefault: true, children: graphGeneratorLeaves }];
   const unreadableModuleNodes = source.unreadable_modules.map(
     (unreadableModule): StudioTreeNode<DeclarationRowMeaning | NothingToChooseRowMeaning> => ({
       row: {

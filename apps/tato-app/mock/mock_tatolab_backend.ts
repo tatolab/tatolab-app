@@ -35,6 +35,7 @@ import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./m
 import { MockProjectFiles } from "./mock_project_files";
 import { MOCK_PERSON_EDITING_IN_STUDIO, MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
+import { mockProjectAssetListing } from "./mock_project_assets";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import type { ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
@@ -1112,6 +1113,13 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
       const listing = mockProjectNodeTypeListing(projectDirectory, `${fixtures.machine.homeDirectory}/streams`, mockTatolabOptions.isEveryOwnNodeModuleUnreadable);
       if (listing === null) throw `list_project_node_types failed: ${projectDirectory} holds no tatolab-project.json`;
+      return listing;
+    },
+    listProjectAssets: async (projectDirectory) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const listing = mockProjectAssetListing(projectDirectory, `${fixtures.machine.homeDirectory}/streams`);
+      if (listing === null) throw `list_assets failed: ${projectDirectory} holds no project: it has no tatolab-project.json`;
       return listing;
     },
     checkForTatolabAppUpdates: async () => {
