@@ -224,9 +224,14 @@ verify_app_bundle() {
   [ -f "$helper_contents/Resources/lend/tatolab/runtime/_processor_interpreter_bootstrap.py" ] \
     && pass "the helper's Resources/lend carries the runtime package" || fail "the helper's Resources/lend has no tatolab/runtime package"
 
-  compgen -G "$helper_contents/Resources/imports/tatolab_testpattern-*.whl" >/dev/null \
-    && pass "the helper's Resources/imports carries the first-party module wheels beside the lend" \
-    || fail "the helper's Resources/imports has no tatolab_testpattern wheel: a new project's starter would not import"
+  local core_first_party_module missing_core_first_party_modules=""
+  for core_first_party_module in tatolab_compositor tatolab_ops tatolab_testpattern; do
+    compgen -G "$helper_contents/Resources/imports/$core_first_party_module-*.whl" >/dev/null \
+      || missing_core_first_party_modules="$missing_core_first_party_modules $core_first_party_module"
+  done
+  [ -z "$missing_core_first_party_modules" ] \
+    && pass "the helper's Resources/imports carries a wheel of each core first-party module beside the lend" \
+    || fail "the helper's Resources/imports has no wheel of:$missing_core_first_party_modules, so a project's .venv would lack them"
   [ ! -e "$contents/Resources/python" ] && [ ! -e "$contents/Frameworks/tatolab-python" ] && [ ! -e "$contents/MacOS/uv" ] \
     && pass "the bundle carries no Python or uv of the app's own" || fail "the bundle carries a Python or uv of the app's own (Resources/python, Frameworks/tatolab-python or MacOS/uv)"
   [ "$lend_mach_o_links" -gt 0 ] && pass "the helper's Resources/lend links $lend_mach_o_links Mach-O into its Frameworks/tatolab-runtime" \

@@ -66,19 +66,27 @@ for runtime_unit_entry in "$runtime_unit_directory"/bin/* "$runtime_unit_directo
     *) echo "runtime unit $runtime_unit_directory ships ${runtime_unit_entry#"$runtime_unit_directory/"}, which this script does not place in the bundle" >&2; exit 1 ;;
   esac
 done
+is_mach_o() { [[ "$(file -b "$1")" == Mach-O* ]]; }
+
 # Resources/ is sealed as data, so a wheel carrying a native extension would ship unsigned code.
 first_party_module_wheel_count=0
-for first_party_modules_entry in "$first_party_modules_source"/*; do
+unpacked_first_party_module_wheel="$(mktemp -d)"
+trap 'rm -rf "$unpacked_first_party_module_wheel"' EXIT
+for first_party_modules_entry in "$first_party_modules_source"/* "$first_party_modules_source"/.[!.]*; do
   [ -e "$first_party_modules_entry" ] || continue
-  case "$first_party_modules_entry" in
-    *.whl) ;;
-    *) echo "runtime unit $runtime_unit_directory ships ${first_party_modules_entry#"$runtime_unit_directory/"}, which is not a wheel" >&2; exit 1 ;;
-  esac
-  wheel_members="$(unzip -Z1 "$first_party_modules_entry" 2>/dev/null)" \
-    || { echo "runtime unit $runtime_unit_directory ships ${first_party_modules_entry#"$runtime_unit_directory/"}, which unzip cannot read" >&2; exit 1; }
-  native_wheel_member="$(grep -m1 -E '\.(so|dylib|bundle|pyd)$' <<<"$wheel_members" || true)"
-  [ -z "$native_wheel_member" ] \
-    || { echo "runtime unit $runtime_unit_directory ships ${first_party_modules_entry#"$runtime_unit_directory/"}, whose $native_wheel_member is native code Resources/imports cannot carry" >&2; exit 1; }
+  first_party_modules_entry_in_the_unit="${first_party_modules_entry#"$runtime_unit_directory/"}"
+  [[ -f "$first_party_modules_entry" && "$first_party_modules_entry" == *.whl ]] \
+    || { echo "runtime unit $runtime_unit_directory ships $first_party_modules_entry_in_the_unit, which is not a wheel" >&2; exit 1; }
+  rm -rf "${unpacked_first_party_module_wheel:?}"/*
+  unzip -q "$first_party_modules_entry" -d "$unpacked_first_party_module_wheel" \
+    || { echo "runtime unit $runtime_unit_directory ships $first_party_modules_entry_in_the_unit, which unzip cannot unpack" >&2; exit 1; }
+  while IFS= read -r -d '' wheel_member; do
+    wheel_member_name="${wheel_member#"$unpacked_first_party_module_wheel/"}"
+    if [[ "$wheel_member_name" =~ \.(so(\.[0-9]+)*|dylib|bundle|pyd|node)$ ]] || is_mach_o "$wheel_member"; then
+      echo "runtime unit $runtime_unit_directory ships $first_party_modules_entry_in_the_unit, whose $wheel_member_name is native code Resources/imports cannot carry" >&2
+      exit 1
+    fi
+  done < <(find "$unpacked_first_party_module_wheel" -type f -print0)
   first_party_module_wheel_count=$((first_party_module_wheel_count + 1))
 done
 [ "$first_party_module_wheel_count" -gt 0 ] || { echo "runtime unit $runtime_unit_directory carries no first-party module wheel in lib/tatolab/imports" >&2; exit 1; }
@@ -104,7 +112,6 @@ else
   }
 fi
 
-is_mach_o() { [[ "$(file -b "$1")" == Mach-O* ]]; }
 
 # The symlink target from Contents/<link_path_relative_to_contents> to Contents/<target_relative_to_contents>.
 relative_path_from_contents_link() {
@@ -175,4 +182,4 @@ if $local_proof_test_root; then
   cp "$runtime_unit_directory/$marker_file_name" "$helper_contents/Resources/$marker_file_name"
 fi
 
-echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: $runtime_helper_bundle_name with tatolabd, tatolab-cli, uv, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime $first_party_module_wheel_count first-party module wheels in Resources/imports and lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]})$($local_proof_test_root && echo ' (local proof)')"
+echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: $runtime_helper_bundle_name with tatolabd, tatolab-cli, uv, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, the lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}) and $first_party_module_wheel_count first-party module wheel(s) in Resources/imports$($local_proof_test_root && echo ' (local proof)')"
