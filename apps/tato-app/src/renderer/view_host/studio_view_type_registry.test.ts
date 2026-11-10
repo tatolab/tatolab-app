@@ -56,6 +56,25 @@ describe("the view-type registry", () => {
     expect(registry.projectViewTypes().map((viewType) => viewType.view_type_id)).toEqual(["venue-3d"]);
   });
 
+  it("offers a view type held for Developer mode only while Developer mode is on, last among the studio's", () => {
+    const registry = new StudioViewTypeRegistry([registeredStudioViewType(countingViewType("outliner", { kind: "built_in" }, []))], null, [], [
+      registeredStudioViewType(countingViewType("transactions", { kind: "built_in" }, [])),
+    ]);
+    expect(registry.studioViewTypes().map((viewType) => viewType.view_type_id)).toEqual(["outliner"]);
+    expect(registry.viewTypeWithId("transactions")).toBeNull();
+
+    registry.developerMode.publish(true);
+    expect(registry.studioViewTypes().map((viewType) => viewType.view_type_id)).toEqual(["outliner", "transactions"]);
+    expect(registry.viewTypeWithId("transactions")?.title).toBe("transactions");
+
+    expect(registry.viewTypeHeldForDeveloperMode("transactions")).toBeNull();
+
+    registry.developerMode.publish(false);
+    expect(registry.viewTypeWithId("transactions")).toBeNull();
+    expect(registry.viewTypeHeldForDeveloperMode("transactions")?.title).toBe("transactions");
+    expect(registry.viewTypeHeldForDeveloperMode("outliner")).toBeNull();
+  });
+
   it("draws a view on the settings its area saved, on its defaults where they no longer fit, and keeps the next ones with the area", () => {
     const connections: StudioViewHostConnection<number>[] = [];
     const kept: JsonValue[] = [];

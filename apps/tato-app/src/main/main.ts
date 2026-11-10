@@ -30,7 +30,7 @@ import { tatolabWindowCommandHandlers, type TatolabWindowCommandHandlers } from 
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
-import { RememberedSwitchFile } from "./remembered_switch_file.js";
+import { HeldRememberedSwitch, RememberedSwitchFile } from "./remembered_switch_file.js";
 import { StreamFailureNotifications } from "./stream_failure_notifications.js";
 import { TatolabCommandLineToolVersionReadOncePerLaunch } from "./tatolab_command_line_tool_version.js";
 import type { SystemNotifications } from "./system_notifications.js";
@@ -258,6 +258,7 @@ export async function startTatolabApp(
     },
     tatolabAppLog,
   );
+  const developerModeSwitch = await HeldRememberedSwitch.load(RememberedSwitchFile.developerModeInAppConfigDirectory(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog));
   const tatolabCommandLineToolVersion = new TatolabCommandLineToolVersionReadOncePerLaunch(
     platformForThisBuild.tatolabCommandLineTool,
     runProgramToCompletion,
@@ -272,6 +273,7 @@ export async function startTatolabApp(
     readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     readTheAppUpdateState: () => tatolabAppUpdater.state(),
     readStreamFailureNotifications: () => streamFailureNotifications.stateNow(),
+    readDeveloperMode: () => developerModeSwitch.isOnNow(),
     readTheCommandLineToolVersion: () => tatolabCommandLineToolVersion.versionNow(),
     whenTheRuntimeExits: () => statusPublisherOnceBuilt?.requestRefresh(),
     tatolabAppLog,
@@ -336,6 +338,7 @@ export async function startTatolabApp(
       projectLoadsOnTheRuntime: controller,
     }),
     streamFailureNotifications,
+    developerModeSwitch,
     projectOpening,
     appWindows: tatolabAppWindows,
     pythonLanguageServers,

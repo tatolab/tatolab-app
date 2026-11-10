@@ -142,6 +142,8 @@ export interface TatolabStatus {
   /** The socket this build reads the runtime's local API at. */
   local_api_socket: string;
   stream_failure_notifications: StreamFailureNotificationsState;
+  /** Whether Developer mode is on, which offers the Transactions view in every area's view menu. */
+  developer_mode: boolean;
   open_at_login: TatolabAppOpenAtLogin;
   command_line_tool_version: TatolabCommandLineToolVersion;
 }

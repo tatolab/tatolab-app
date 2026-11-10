@@ -52,6 +52,7 @@ export interface StudioWindowSources {
 /** An area's view-type menu: the studio's views, each ticked when the area shows it, then the views the open project and its imports bring. */
 function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources: StudioWindowSources; words: string }) {
   const projectStudioViews = useWatchedStudioValue(sources.viewTypeRegistry.projectStudioViews);
+  useWatchedStudioValue(sources.viewTypeRegistry.developerMode);
   const projectViewTypes = sources.viewTypeRegistry.projectViewTypes();
   const projectViewTypesNotOpened = sources.viewTypeRegistry.projectViewTypesNotOpened();
   const viewTypeChoice = (viewTypeId: string, title: string, broughtBy: string) => ({
@@ -119,6 +120,7 @@ const HEADER_ROW_BEFORE_IT_IS_MEASURED: ViewHeaderRow = { leading_inset_px: 0, h
 /** One area: its header with the view-type menu and the view's tools, over the view, or the view's own frame under the menu; a view that fails to draw says why there and nowhere else. */
 function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWindowSources }) {
   const projectStudioViews = useWatchedStudioValue(sources.viewTypeRegistry.projectStudioViews);
+  useWatchedStudioValue(sources.viewTypeRegistry.developerMode);
   const [headerRowInTheFrame] = useState(() => new WatchedStudioValue<ViewHeaderRow>(HEADER_ROW_BEFORE_IT_IS_MEASURED));
   if (area.view_type_id === null) {
     return (
@@ -135,6 +137,18 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
     );
   }
   const viewType = sources.viewTypeRegistry.viewTypeWithId(area.view_type_id);
+  const viewTypeHeldForDeveloperMode = viewType === null ? sources.viewTypeRegistry.viewTypeHeldForDeveloperMode(area.view_type_id) : null;
+  if (viewTypeHeldForDeveloperMode !== null) {
+    return (
+      <StudioAreaFrame label={viewTypeHeldForDeveloperMode.title} header={<AreaViewTypeMenu area={area} sources={sources} words={viewTypeHeldForDeveloperMode.title} />} data-studio-area={area.area_id}>
+        <WaitingState
+          title={`${viewTypeHeldForDeveloperMode.title} shows only in Developer mode`}
+          explanation="Turn on Developer mode in Preferences › Developer, or choose another view from the menu above."
+          data-studio-area-held-for-developer-mode=""
+        />
+      </StudioAreaFrame>
+    );
+  }
   if (viewType === null) {
     return (
       <StudioAreaFrame label={area.view_type_id} header={<AreaViewTypeMenu area={area} sources={sources} words={area.view_type_id} />} data-studio-area={area.area_id}>

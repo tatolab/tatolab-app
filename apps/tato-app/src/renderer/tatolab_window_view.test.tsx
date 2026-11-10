@@ -226,6 +226,44 @@ describe("the studio", () => {
     expect(inTheCoreView("palette").getByText("Outputs stated only by its native half")).toBeTruthy();
   });
 
+  it("offers Transactions only in Developer mode, listing the open project's transactions with their author, stream and operations, and each one's detail", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    await screen.findByRole("menuitemradio", { name: /^Palette/ });
+    expect(screen.queryByRole("menuitemradio", { name: /^Transactions/ })).toBeNull();
+
+    document.body.replaceChildren();
+    await mountedWindowOverTheMock("state=running&developer_mode=on");
+    const developerViewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(developerViewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Transactions/ }));
+
+    const transactionRows = () => [...coreViewPage("transactions").querySelectorAll<HTMLElement>("[data-record-table-row]")];
+    await waitFor(() => expect(transactionRows().length).toBeGreaterThan(0));
+    const rowWords = transactionRows().map((row) => [...row.querySelectorAll("td")].slice(1, 5).map((cell) => cell.textContent));
+    expect(rowWords).toContainEqual(["agent · claude-code", "main", "add_node", "applied"]);
+    expect(rowWords[0]?.[2]).toBe("undo · set_node_config");
+
+    const addedRow = transactionRows().find((row) => row.textContent?.includes("add_node")) ?? expect.unreachable("no add_node row");
+    fireEvent.click(addedRow);
+    await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-transactions-detail]")).not.toBeNull());
+    expect(coreViewPage("transactions").querySelector("[data-transactions-detail-operations]")?.textContent).toContain('"operation": "add_node"');
+  });
+
+  it("says an area left on Transactions shows it only in Developer mode once Developer mode is turned off", async () => {
+    const { backend } = await mountedWindowOverTheMock("state=running&developer_mode=on");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Transactions/ }));
+    await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-record-table-row]")).not.toBeNull());
+
+    await act(async () => {
+      await backend.setDeveloperMode(false);
+    });
+    await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] [data-studio-area-held-for-developer-mode]')?.textContent).toContain("Transactions shows only in Developer mode"));
+  });
+
   it("says in the runtime's own words why the palette lists no node types", async () => {
     await mountedWindowOverTheMock("state=not-running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
@@ -904,7 +942,7 @@ describe("Preferences", () => {
     await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
     const sectionList = within(screen.getByRole("navigation", { name: "Preferences" }));
     expect(sectionList.getByRole("button", { name: "General" }).getAttribute("aria-current")).toBe("page");
-    expect(sectionList.getAllByRole("button").map((sectionButton) => sectionButton.textContent)).toEqual(["General", "Runtime", "Command line", "About"]);
+    expect(sectionList.getAllByRole("button").map((sectionButton) => sectionButton.textContent)).toEqual(["General", "Developer", "Runtime", "Command line", "About"]);
     expect(sectionList.getByText("This machine")).toBeTruthy();
   });
 
@@ -1001,6 +1039,27 @@ describe("Preferences", () => {
     await openSettingsOn("general");
     expect(within(settingsRow("open-at-login")).queryByRole("switch")).toBeNull();
     expect(within(settingsRow("open-at-login")).getByText("Only a packaged Tato Studio opens at login.")).toBeTruthy();
+  });
+
+  it("lists Developer under App and switches Developer mode on through the backend, off by default", async () => {
+    const switchesAsked: boolean[] = [];
+    await mountedWindowOverTheMock("state=running", {
+      setDeveloperMode: async (enabled) => {
+        switchesAsked.push(enabled);
+      },
+    });
+    await openSettingsOn("developer");
+
+    const developerModeSwitch = within(settingsRow("developer-mode")).getByRole("switch", { name: "Developer mode" });
+    expect(developerModeSwitch.getAttribute("aria-checked")).toBe("false");
+    expect(within(settingsRow("developer-mode")).getByText(/Adds the Transactions view/)).toBeTruthy();
+    fireEvent.click(developerModeSwitch);
+    await waitFor(() => expect(switchesAsked).toEqual([true]));
+
+    document.body.replaceChildren();
+    await mountedWindowOverTheMock("state=running&developer_mode=on");
+    await openSettingsOn("developer");
+    expect(within(settingsRow("developer-mode")).getByRole("switch", { name: "Developer mode" }).getAttribute("aria-checked")).toBe("true");
   });
 
   it("goes back to the status's position when the backend accepts a switch and no status follows", { timeout: 8_000 }, async () => {

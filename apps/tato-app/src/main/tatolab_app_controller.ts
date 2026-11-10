@@ -74,6 +74,8 @@ export interface TatolabAppControllerSources {
   readTheAppUpdateState: () => TatolabAppUpdateState;
   /** Whether a stream failing shows a notification, which each status carries. */
   readStreamFailureNotifications: () => StreamFailureNotificationsState;
+  /** Whether Developer mode is on, which each status carries. */
+  readDeveloperMode: () => boolean;
   /** The `tatolab` CLI's version as read so far this launch, which each status carries. */
   readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion;
   /** Called each time the app's runtime exits, so the status is read again at once. */
@@ -97,6 +99,7 @@ export class TatolabAppController {
     private readonly localApiClient: LocalApiClient,
     private readonly readTheAppUpdateState: () => TatolabAppUpdateState,
     private readonly readStreamFailureNotifications: () => StreamFailureNotificationsState,
+    private readonly readDeveloperMode: () => boolean,
     private readonly readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion,
     private readonly tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin,
     private readonly tatolabAppLog: TatolabAppLog,
@@ -120,6 +123,7 @@ export class TatolabAppController {
       new LocalApiClient(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS, sources.appVersion),
       sources.readTheAppUpdateState,
       sources.readStreamFailureNotifications,
+      sources.readDeveloperMode,
       sources.readTheCommandLineToolVersion,
       sources.platformForThisBuild.tatolabAppOpenedAtLogin,
       sources.tatolabAppLog,
@@ -202,6 +206,7 @@ export class TatolabAppController {
       app_update: this.readTheAppUpdateState(),
       local_api_socket: this.localApiSocket,
       stream_failure_notifications: this.readStreamFailureNotifications(),
+      developer_mode: this.readDeveloperMode(),
       open_at_login: await this.tatolabAppOpenedAtLogin.readOpenAtLogin(),
       command_line_tool_version: this.readTheCommandLineToolVersion(),
     };

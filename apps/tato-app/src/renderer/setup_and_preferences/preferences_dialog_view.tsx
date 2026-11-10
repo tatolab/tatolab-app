@@ -1,4 +1,4 @@
-import { Cpu, FolderOpen, Info, RotateCw, SlidersHorizontal, SquareTerminal, type LucideIcon } from "lucide-react";
+import { Code, Cpu, FolderOpen, Info, RotateCw, SlidersHorizontal, SquareTerminal, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { useEffect, useState, type ReactNode } from "react";
 import { describeBackendRejection } from "../backend/tatolab_backend";
@@ -22,6 +22,7 @@ import {
   presentRuntimeLogFolder,
   presentRuntimeStatusRow,
   presentStreamFailureNotifications,
+  DEVELOPER_MODE_DESCRIPTION,
   restartRuntimeUnavailableBecause,
   RUNTIME_LICENCE,
   SETTINGS_SECTION_GROUPS,
@@ -34,6 +35,7 @@ import { useRuntimeDescriptionReading, useTatolabStatus, useTatolabWindowEnviron
 
 const SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
   general: SlidersHorizontal,
+  developer: Code,
   runtime: Cpu,
   "command-line": SquareTerminal,
   about: Info,
@@ -162,6 +164,36 @@ function GeneralSection() {
         />
       </SettingsGroup>
     </>
+  );
+}
+
+function DeveloperSection() {
+  const { backend } = useTatolabWindowEnvironment();
+  const status = useTatolabStatus();
+  const developerModeSwitch = useSwitchSetThroughTheBackend(
+    status.developer_mode,
+    (isOn) => backend.setDeveloperMode(isOn),
+    (isOn) => `Couldn't turn Developer mode ${isOn ? "on" : "off"}:`,
+  );
+  return (
+    <SettingsGroup>
+      <SettingsRow
+        label="Developer mode"
+        description={DEVELOPER_MODE_DESCRIPTION}
+        refusal={developerModeSwitch.refusal}
+        data-settings-row="developer-mode"
+        control={({ labelId, descriptionId }) => (
+          <ToggleSwitch
+            isOn={developerModeSwitch.isOn}
+            isDisabled={developerModeSwitch.isSwitching}
+            onSwitched={developerModeSwitch.onSwitched}
+            labelledBy={labelId}
+            describedBy={descriptionId}
+            data-settings-switch="developer-mode"
+          />
+        )}
+      />
+    </SettingsGroup>
   );
 }
 
@@ -369,6 +401,7 @@ function AboutSection() {
 
 const SECTION_VIEWS: Record<SettingsSection, () => ReactNode> = {
   general: GeneralSection,
+  developer: DeveloperSection,
   runtime: RuntimeSection,
   "command-line": CommandLineSection,
   about: AboutSection,
@@ -378,7 +411,7 @@ function isASettingsSection(sectionId: string): sectionId is SettingsSection {
   return sectionId in SECTION_VIEWS;
 }
 
-/** Preferences over the studio, open on `shownSection` while it is not `null`: General, Runtime, Command line and About. */
+/** Preferences over the studio, open on `shownSection` while it is not `null`: General, Developer, Runtime, Command line and About. */
 export function PreferencesDialogView({
   shownSection,
   onSectionChosen,

@@ -32,6 +32,7 @@ function aStatusListing(streams: ListedStream[]): TatolabStatus {
     app_update: { kind: "not_offered", reason: "a test updates nothing" },
     local_api_socket: "/tmp/streamlib-501/local-api.sock",
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
+    developer_mode: false,
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "reading" },
   };
