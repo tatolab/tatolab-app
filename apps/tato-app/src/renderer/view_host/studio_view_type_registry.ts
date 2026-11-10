@@ -12,6 +12,8 @@ export interface StudioAreaOfTheView {
   rememberSettings(nextSettings: JsonValue): void;
   header_row: WatchedStudioValue<ViewHeaderRow>;
   offerGraphTools: TatolabViewAreaServices["offerGraphTools"];
+  /** Tells the window toolbar the person pressed or focused inside the view, so its graph tools follow this area; `null` where there is no toolbar. */
+  personWorksInTheArea: (() => void) | null;
 }
 
 /** A view type as the registry holds it, made from its manifest: what the view-type menu lists, and how an area draws its frame. */

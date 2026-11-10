@@ -198,6 +198,7 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
             rememberSettings: (nextSettings) => sources.model.keepAreaSettings(area.area_id, nextSettings),
             header_row: headerRowInTheFrame,
             offerGraphTools: (onToolPressed) => sources.model.windowToolbarGraphToolOffers.offerFrom(area.area_id, onToolPressed),
+            personWorksInTheArea: () => sources.model.windowToolbarGraphToolOffers.personWorkedInTheArea(area.area_id),
           },
           sources.viewHostServices,
         )}

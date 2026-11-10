@@ -35,9 +35,14 @@ export function isTheSamePlaceLeft(one: WhereAStreamWasLeft, other: WhereAStream
   return sameViewport && one.selected_node === other.selected_node;
 }
 
-/** `settings` with `stream` left at `left`, keeping the other streams' records, only those in `streamsStillListed` when it is known. */
-export function settingsWithTheStreamLeft(settings: ViewSettings, stream: string, left: WhereAStreamWasLeft, streamsStillListed: ReadonlySet<string> | null): { [settingName: string]: JsonValue } {
+/** How many streams' records the area keeps; the streams left longest ago go first. */
+export const STREAMS_WHOSE_PLACE_LEFT_IS_KEPT = 50;
+
+/** `settings` with `stream` left at `left`, as the newest record, keeping the other streams' records up to the limit. */
+export function settingsWithTheStreamLeft(settings: ViewSettings, stream: string, left: WhereAStreamWasLeft): { [settingName: string]: JsonValue } {
   const everyStream = settings?.[WHERE_EACH_STREAM_WAS_LEFT];
-  const otherStreamsKept = Object.fromEntries(Object.entries(isAJsonObject(everyStream) ? everyStream : {}).filter(([keptStream]) => keptStream !== stream && (streamsStillListed === null || streamsStillListed.has(keptStream))));
-  return { ...settings, [WHERE_EACH_STREAM_WAS_LEFT]: { ...otherStreamsKept, [stream]: { viewport: left.viewport === null ? null : { ...left.viewport }, selected_node: left.selected_node } } };
+  const otherStreamsKept = Object.entries(isAJsonObject(everyStream) ? everyStream : {})
+    .filter(([keptStream]) => keptStream !== stream)
+    .slice(-(STREAMS_WHOSE_PLACE_LEFT_IS_KEPT - 1));
+  return { ...settings, [WHERE_EACH_STREAM_WAS_LEFT]: { ...Object.fromEntries(otherStreamsKept), [stream]: { viewport: left.viewport === null ? null : { ...left.viewport }, selected_node: left.selected_node } } };
 }

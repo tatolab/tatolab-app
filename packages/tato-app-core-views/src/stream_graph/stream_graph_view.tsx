@@ -77,7 +77,10 @@ function useTheCanvasToolsInTheWindowToolbar(connection: TatoAppViewConnection):
   useEffect(() => {
     const offerMade = connection.offerGraphToolsToTheWindow(
       (tool) => pressFromTheToolbar.current?.(tool),
-      () => setIsTakenByTheToolbar(false),
+      () => {
+        if (offer.current === offerMade) offer.current = null;
+        setIsTakenByTheToolbar(false);
+      },
     );
     offer.current = offerMade;
     if (toolsLastReported.current !== null) showTheTools(offerMade, toolsLastReported.current);
@@ -124,9 +127,8 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   const viewportWhereTheStreamWasLeft = useMemo(() => whereTheStreamWasLeft(areaSettingsRead, streamTab.stream)?.viewport ?? null, [areaSettingsRead, streamTab.stream]);
   const areaSettingsLastSent = useRef<{ settings: ViewSettings } | null>(null);
   const settingsToBuildOn = useRef<ViewSettings>(null);
+  if (areaSettingsLastSent.current !== null && JSON.stringify(areaSettingsLastSent.current.settings) === JSON.stringify(areaSettingsRead)) areaSettingsLastSent.current = null;
   settingsToBuildOn.current = areaSettingsLastSent.current?.settings ?? areaSettingsRead;
-  const streamsOfTheProjectListed = useRef<ReadonlySet<string> | null>(null);
-  streamsOfTheProjectListed.current = listedStreams?.kind === "listed" ? new Set(listedStreams.streams.map((listed) => listed.stream)) : null;
   const keepWhereTheStreamWasLeft = useCallback(
     (left: Partial<WhereAStreamWasLeft>) => {
       const before = whereTheStreamWasLeft(settingsToBuildOn.current, streamTab.stream);
@@ -135,7 +137,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
         selected_node: left.selected_node !== undefined ? left.selected_node : (before?.selected_node ?? null),
       };
       if (before !== null && isTheSamePlaceLeft(before, whereNow)) return;
-      const sent = { settings: settingsWithTheStreamLeft(settingsToBuildOn.current, streamTab.stream, whereNow, streamsOfTheProjectListed.current) };
+      const sent = { settings: settingsWithTheStreamLeft(settingsToBuildOn.current, streamTab.stream, whereNow) };
       areaSettingsLastSent.current = sent;
       settingsToBuildOn.current = sent.settings;
       void connection.rememberSettings(sent.settings).then((answer) => {

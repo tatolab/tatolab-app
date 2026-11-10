@@ -53,7 +53,7 @@ export function PoppedOutViewWindowView({
           <WaitingState title={`This build has no ${target.view_type_id} view`} explanation="Close this window and open the view in the studio." />
         ) : (
           <StudioViewFailureBoundary viewTitle={viewType.title}>
-            {viewType.renderInAnArea({ saved_settings: settingsKept, rememberSettings: keepSettings, header_row: headerRow, offerGraphTools: GRAPH_TOOLS_STAY_IN_A_POPPED_OUT_VIEW }, viewHostServices)}
+            {viewType.renderInAnArea({ saved_settings: settingsKept, rememberSettings: keepSettings, header_row: headerRow, offerGraphTools: GRAPH_TOOLS_STAY_IN_A_POPPED_OUT_VIEW, personWorksInTheArea: null }, viewHostServices)}
           </StudioViewFailureBoundary>
         )}
       </main>

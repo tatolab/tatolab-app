@@ -68,6 +68,7 @@ export class TatolabViewBridge {
   private readonly inputWatchesByWatchId = new Map<number, InputWatch>();
   private readonly pythonLanguageServersByWatchId = new Map<number, PythonLanguageServerConnection>();
   private readonly graphToolOffersByWatchId = new Map<number, Extract<GraphToolsOfferInTheWindowToolbar, { kind: "offered" }>>();
+  private readonly whyGraphToolsHaveNoToolbarByWatchId = new Map<number, string>();
   private isClosed = false;
 
   private readonly onMessageFromTheView = (event: MessageEvent<unknown>): void => {
@@ -221,6 +222,7 @@ export class TatolabViewBridge {
       case "graph_tool_presses": {
         const offer = this.areaServices.offerGraphTools((tool) => sendReading({ subject: "graph_tool_presses", reading: { tool } }));
         if (offer.kind === "no_toolbar") {
+          this.whyGraphToolsHaveNoToolbarByWatchId.set(watchId, offer.because);
           this.send({ kind: "watch_refused", watch_id: watchId, because: offer.because });
           return;
         }
@@ -332,7 +334,7 @@ export class TatolabViewBridge {
       }
       case "offer_graph_tools": {
         const offer = this.graphToolOffersByWatchId.get(ask.watch_id);
-        if (offer === undefined) return { kind: "refused", because: `The view watches no graph tool presses under ${ask.watch_id}.` };
+        if (offer === undefined) return { kind: "refused", because: this.whyGraphToolsHaveNoToolbarByWatchId.get(ask.watch_id) ?? `The view watches no graph tool presses under ${ask.watch_id}.` };
         offer.show(ask.tools);
         return { kind: "done" };
       }

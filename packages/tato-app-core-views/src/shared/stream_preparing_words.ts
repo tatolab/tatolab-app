@@ -3,7 +3,7 @@ import type { ListedStream } from "@tatolab/tato-app-view-sdk/studio_readings";
 /** What a view says of a stream the runtime lists `preparing` or `stopping`, naming the step under way; `null` for a stream in any other state. */
 export function streamPreparingWords(listedStream: ListedStream | undefined, streamWords: string): { title: string; explanation: string } | null {
   if (listedStream === undefined) return null;
-  if (listedStream.state === "stopping") return { title: `${streamWords} is stopping`, explanation: "It shows again once the runtime runs it." };
+  if (listedStream.state === "stopping") return { title: `${streamWords} is stopping`, explanation: "The runtime is stopping its nodes." };
   if (listedStream.state !== "preparing") return null;
   return { title: `${streamWords} is preparing`, explanation: preparingStepWords(listedStream.step) };
 }
