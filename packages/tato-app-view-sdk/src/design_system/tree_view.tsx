@@ -21,6 +21,8 @@ export interface TreeViewRow {
   isReadOnly?: boolean;
   /** How the row reads: plainly, as the project's imports, or as something unreadable, failed or waiting. */
   tone?: "plain" | "imports" | "unreadable" | "failed" | "waiting";
+  /** Quiet words at the row's end that say what kind of thing it is, as a node's type or `group`. */
+  aside?: string;
   expansion: TreeRowExpansion;
 }
 
@@ -123,7 +125,7 @@ export function TreeView({
   };
 
   return (
-    <div ref={treeElement} role="tree" aria-label={label} onKeyDown={answerKey} className="flex flex-col p-1 text-xs">
+    <div ref={treeElement} role="tree" aria-label={label} onKeyDown={answerKey} className="@container flex flex-col p-1 text-xs">
       {rows.map((row) => {
         const RowIcon = studioIconNamed(row.icon);
         const isSelected = row.row_id === selectedRowId;
@@ -168,6 +170,7 @@ export function TreeView({
               <span className={cn("min-w-0 flex-1 truncate", row.isMachineWords && "font-mono text-2xs", row.isHeading && "font-semibold", row.tone === "imports" && "text-studio-imports")}>
                 {row.label}
               </span>
+              {row.aside !== undefined && <span className={cn("hidden max-w-[40%] shrink-0 truncate text-2xs @3xs:block", isSelected ? "text-fg-2" : "text-fg-3")}>{row.aside}</span>}
             </span>
             <span className="flex w-5 shrink-0 justify-center text-studio-read-only">
               {row.isReadOnly === true && <Lock className="size-[11px]" strokeWidth={1.75} role="img" aria-label="Read only" />}

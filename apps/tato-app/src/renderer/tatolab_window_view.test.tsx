@@ -143,6 +143,18 @@ async function showInTheLibrary(shown: string): Promise<void> {
   fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>(shownChoice) ?? expect.unreachable(`no Show choice ${shown}`)));
 }
 
+function libraryRow(rowId: string): HTMLElement {
+  return coreViewPage("library").querySelector<HTMLElement>(`[data-library-declarations] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no Library row ${rowId}`);
+}
+
+/** Chooses the Library in the Build layout's viewer area's view-type menu, and waits for the menu to close. */
+async function showTheLibraryInTheViewerArea(): Promise<void> {
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
+    await waitFor(() => expect(screen.queryByRole("menuitemradio", { name: /^Library/ })).toBeNull());
+}
+
 function outlinerRow(rowId: string): HTMLElement {
   return coreViewPage("outliner").querySelector<HTMLElement>(`[data-outliner] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no outliner row ${rowId}`);
 }
@@ -151,73 +163,39 @@ function outlinerRowIds(): string[] {
   return [...coreViewPage("outliner").querySelectorAll<HTMLElement>("[data-outliner] [data-tree-row-id]")].map((row) => row.dataset.treeRowId ?? "");
 }
 
-/** Opens the row, which the Outliner keeps in its area's settings and draws open once Studio has kept them. */
-async function openTheOutlinerRow(rowId: string): Promise<void> {
-  const row = await waitFor(() => outlinerRow(rowId));
-  fireEvent.click(row.querySelector<HTMLElement>("[data-tree-row-toggle]") ?? expect.unreachable(`no toggle on ${rowId}`));
-  await waitFor(() => expect(outlinerRow(rowId).getAttribute("aria-expanded")).toBe("true"));
-}
-
 async function shownLayout(): Promise<string> {
   return waitFor(() => document.querySelector<HTMLElement>("[data-studio-layout]")?.dataset.studioLayout ?? expect.unreachable("no layout shown"));
 }
 
 describe("the studio", () => {
-  it("opens the project in Build, the outliner showing the open project, its streams and its closed, read-only imports", async () => {
+  it("opens the project in Build, the outliner showing the project's streams, the open tab's stream open on its nodes, each with its type", async () => {
     await mountedWindowOverTheMock("state=running");
 
     expect(await shownLayout()).toBe("build");
-    await waitFor(() => expect(outlinerRowIds()).toContain(`project:${PATTERN_PROJECT}`));
+    const mainNodeRowId = (node: string) => `node:${PATTERN_MAIN_STREAM}/${node}`;
+    await waitFor(() => expect(outlinerRowIds()).toContain(mainNodeRowId("testpatternsource")));
     expect(outlinerRowIds()).toEqual([
-      "open_project_folder",
-      `project:${PATTERN_PROJECT}`,
-      `project:${PATTERN_PROJECT}/project_file`,
       `stream:${PATTERN_MAIN_STREAM}`,
+      mainNodeRowId("testpatternsource"),
+      mainNodeRowId("invertingeffect"),
+      mainNodeRowId("displaywindow"),
+      mainNodeRowId("brightnessmeter"),
       `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "recorder" })}`,
       `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" })}`,
-      `project:${PATTERN_PROJECT}/node_types`,
-      "imports",
     ]);
-    expect(outlinerRow("open_project_folder").getAttribute("aria-level")).toBe("1");
-    expect(outlinerRow(`project:${PATTERN_PROJECT}`).textContent).toBe("pattern");
-    expect(outlinerRow(`project:${PATTERN_PROJECT}/project_file`).textContent).toBe("tatolab-project.json");
+    expect(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).getAttribute("aria-level")).toBe("1");
     expect(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).textContent).toBe("main");
-    expect(outlinerRow("imports").getAttribute("aria-expanded")).toBe("false");
-    expect(outlinerRow("imports").textContent).toBe("Imports");
-    expect(within(outlinerRow("imports")).getByRole("img", { name: "Read only" })).toBeTruthy();
+    expect(outlinerRow(mainNodeRowId("testpatternsource")).getAttribute("aria-level")).toBe("2");
+    expect(outlinerRow(mainNodeRowId("testpatternsource")).textContent).toBe("Test Pattern SourceTestPatternSource");
+    expect(coreViewPage("outliner").body.textContent).not.toContain("pattern-two pattern");
+
+    fireEvent.click(outlinerRow(mainNodeRowId("invertingeffect")));
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("invertingeffect")).getAttribute("aria-selected")).toBe("true"));
+    await waitFor(() => expect(coreViewPage("properties").body.textContent).toContain("InvertingEffect"));
 
     const outlinerFrame = document.querySelector<HTMLIFrameElement>('[data-studio-area="outliner"] iframe[data-tatolab-view="outliner"]') ?? expect.unreachable("no Outliner frame");
     expect(outlinerFrame.hasAttribute("sandbox")).toBe(false);
     expect(outlinerFrame.getAttribute("src")).toMatch(/\/core_views\/outliner\/index\.html$/);
-  });
-
-  it("opens Imports on each import, read-only: its streams and node types, or an unreadable one's refusal", async () => {
-    await mountedWindowOverTheMock("state=running");
-    await waitFor(() => outlinerRow("imports"));
-    await openTheOutlinerRow("imports");
-    await openTheOutlinerRow(`project:${CAMERA_PROJECT}`);
-    await openTheOutlinerRow(`project:${PATTERN_PROJECT}/imports/stage-lights`);
-
-    expect(within(outlinerRow(`project:${CAMERA_PROJECT}`)).getByRole("img", { name: "Read only" })).toBeTruthy();
-    expect(outlinerRow(`stream:${mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_name: "main" })}`).getAttribute("aria-level")).toBe("4");
-    expect(outlinerRow(`project:${PATTERN_PROJECT}/imports/stage-lights/refusal`).textContent).toBe(
-      `list_assets failed: ${PATTERN_PROJECT}/imports/stage-lights holds no project: it has no tatolab-project.json`,
-    );
-    await waitFor(() => outlinerRow(`project:${CAMERA_PROJECT}/node_types`));
-    await openTheOutlinerRow(`project:${CAMERA_PROJECT}/node_types`);
-    expect(outlinerRow(`project:${CAMERA_PROJECT}/node_types/category:Camera/node_type:camera.nodes:CameraTilt`).textContent).toBe("CameraTilt");
-  });
-
-  it("lists the open project's own node types in the outliner, and each module that does not parse in the parser's words", async () => {
-    await mountedWindowOverTheMock("state=running");
-    const nodeTypesRowId = `project:${PATTERN_PROJECT}/node_types`;
-    await waitFor(() => outlinerRow(nodeTypesRowId));
-    await openTheOutlinerRow(nodeTypesRowId);
-    const invertingEffectRowId = `${nodeTypesRowId}/category:Effects/node_type:nodes.inverting_effect:InvertingEffect`;
-    await waitFor(() => outlinerRow(invertingEffectRowId));
-    expect(outlinerRow(`${nodeTypesRowId}/unreadable:nodes.half_written`).textContent).toBe("nodes/half_written.py:12:5: SyntaxError: expected ':'");
-
-    expect(outlinerRow(invertingEffectRowId).textContent).toBe("InvertingEffect");
   });
 
   it("titles the window with the project's name once, centred in the toolbar on macOS, never on a stream tab", async () => {
@@ -235,12 +213,8 @@ describe("the studio", () => {
 
   it("closes the view-type menu on a choice, and lists in the Library each source's node types by category, its generators under Show, and says why a module does not parse", async () => {
     await mountedWindowOverTheMock("state=running");
-    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
-    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
-    await waitFor(() => expect(screen.queryByRole("menuitemradio", { name: /^Library/ })).toBeNull());
+    await showTheLibraryInTheViewerArea();
 
-    const libraryRow = (rowId: string) => coreViewPage("library").querySelector<HTMLElement>(`[data-library-declarations] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no Library row ${rowId}`);
     await waitFor(() => libraryRow("source:project"));
     expect(libraryRow("source:project").textContent).toBe("pattern");
     expect(coreViewPage("library").querySelector('[data-tree-row-id="source:project/graph_generators"]')).toBeNull();
@@ -413,29 +387,30 @@ describe("the studio", () => {
 
   it("shows a project's streams waiting on the runtime while it lists none", async () => {
     await mountedWindowOverTheMock("state=not-running");
-    await waitFor(() => outlinerRow(`project:${PATTERN_PROJECT}/waiting`));
-    expect(outlinerRow(`project:${PATTERN_PROJECT}/waiting`).textContent).toBe("Streams and nodes not read yet");
+    await waitFor(() => outlinerRow("streams-waiting"));
+    expect(outlinerRow("streams-waiting").textContent).toBe("Streams not read yet");
   });
 
   it("moves through the outliner from the keyboard, opening and closing rows and selecting as it goes", async () => {
     await mountedWindowOverTheMock("state=running");
-    await waitFor(() => outlinerRow("imports"));
+    const mainStreamRowId = `stream:${PATTERN_MAIN_STREAM}`;
+    const patternTwoRowId = `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" })}`;
+    await waitFor(() => outlinerRow(`node:${PATTERN_MAIN_STREAM}/testpatternsource`));
     const tree = inTheCoreView("outliner").getByRole("tree", { name: "Outliner" });
-    outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).focus();
+    outlinerRow(mainStreamRowId).focus();
 
     fireEvent.keyDown(tree, { key: "End" });
-    expect(outlinerRow("imports").getAttribute("aria-selected")).toBe("false");
-    expect(coreViewPage("outliner").activeElement).toBe(outlinerRow("imports"));
-    fireEvent.keyDown(tree, { key: "ArrowRight" });
-    await waitFor(() => expect(outlinerRow("imports").getAttribute("aria-expanded")).toBe("true"));
-    fireEvent.keyDown(tree, { key: "ArrowLeft" });
-    await waitFor(() => expect(outlinerRow("imports").getAttribute("aria-expanded")).toBe("false"));
+    expect(coreViewPage("outliner").activeElement).toBe(outlinerRow(patternTwoRowId));
+    await waitFor(() => expect(outlinerRow(patternTwoRowId).getAttribute("aria-selected")).toBe("true"));
     fireEvent.keyDown(tree, { key: "Home" });
-    fireEvent.keyDown(tree, { key: "ArrowDown" });
-    await waitFor(() => expect(outlinerRow(`project:${PATTERN_PROJECT}`).getAttribute("aria-selected")).toBe("true"));
-    fireEvent.keyDown(tree, { key: "ArrowDown" });
     fireEvent.keyDown(tree, { key: "ArrowLeft" });
-    expect(coreViewPage("outliner").activeElement).toBe(outlinerRow(`project:${PATTERN_PROJECT}`));
+    await waitFor(() => expect(outlinerRow(mainStreamRowId).getAttribute("aria-expanded")).toBe("false"));
+    fireEvent.keyDown(tree, { key: "ArrowRight" });
+    await waitFor(() => expect(outlinerRow(mainStreamRowId).getAttribute("aria-expanded")).toBe("true"));
+    fireEvent.keyDown(tree, { key: "ArrowDown" });
+    await waitFor(() => expect(outlinerRow(`node:${PATTERN_MAIN_STREAM}/testpatternsource`).getAttribute("aria-selected")).toBe("true"));
+    fireEvent.keyDown(tree, { key: "ArrowLeft" });
+    expect(coreViewPage("outliner").activeElement).toBe(outlinerRow(mainStreamRowId));
   });
 
   it("opens a stream's tab from the outliner and from the app's request, shows one tab per stream, and closes it", async () => {
@@ -604,12 +579,11 @@ describe("the studio", () => {
     expect(localStorage.getItem(studioLayoutsStorageKey(PATTERN_PROJECT))).toMatch(/"area_id":"viewer","view_type_id":"viewer","settings":\{"chosen_port":\{"stream":"[^"]+","node_id":"[^"]+","port":"[^"]+"\}\}/);
   });
 
-  it("opens a node type's file in Code's own frame from the outliner, in the first layout with a Code area, its tab and the log's toggle in Code's header row, a closed tab staying closed as the frame loads again until the file is opened again, and the Code layout's own area left as it was", async () => {
+  it("opens a node type's file in Code's own frame from the Library, in the first layout with a Code area, its tab and the log's toggle in Code's header row, a closed tab staying closed as the frame loads again until the file is opened again, and the Code layout's own area left as it was", async () => {
     await mountedWindowOverTheMock("state=running");
-    const nodeTypesRowId = `project:${PATTERN_PROJECT}/node_types`;
-    await openTheOutlinerRow(nodeTypesRowId);
-    const invertingEffectRowId = `${nodeTypesRowId}/category:Effects/node_type:nodes.inverting_effect:InvertingEffect`;
-    fireEvent.doubleClick(await waitFor(() => outlinerRow(invertingEffectRowId)));
+    await showTheLibraryInTheViewerArea();
+    const invertingEffectRowId = "source:project/category:Effects/node_type:nodes.inverting_effect:InvertingEffect";
+    fireEvent.doubleClick(await waitFor(() => libraryRow(invertingEffectRowId)));
 
     await waitFor(async () => expect(await shownLayout()).toBe("compose"));
     const invertingEffectFile = `${PATTERN_PROJECT}/nodes/inverting_effect.py`;
@@ -635,7 +609,7 @@ describe("the studio", () => {
 
     fireEvent.keyDown(document, { key: "1", metaKey: true });
     expect(await shownLayout()).toBe("build");
-    fireEvent.doubleClick(await waitFor(() => outlinerRow(invertingEffectRowId)));
+    fireEvent.doubleClick(await waitFor(() => libraryRow(invertingEffectRowId)));
     await waitFor(async () => expect(await shownLayout()).toBe("compose"));
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(invertingEffectFile));
 

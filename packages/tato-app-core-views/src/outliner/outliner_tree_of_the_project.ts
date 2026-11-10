@@ -1,25 +1,16 @@
-// The outliner's tree, derived from what the view is handed: the project and its imports as the
-// runtime names and lists them, each project's streams as the runtime lists them, and the node
-// types the open project and each import declare, as the runtime reads them from source.
+// The outliner's tree, derived from what the view is handed: the streams the runtime lists from the open
+// project's folder, and each one's graph as the runtime renders it, its groups holding the nodes that name
+// them as their `studio.group`.
 
 import type { TreeViewRow } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
-import type {
-  ImportedProject,
-  ListedStream,
-  ListedStreamsReading,
-  OpenProject,
-  ProjectNodeTypeSource,
-  ProjectNodeTypesReading,
-  ProjectTheRuntimeNames,
-  StudioSelection,
-} from "@tatolab/tato-app-view-sdk/studio_readings";
-import { nodeTypeSourceChildren, nodeTypeSourceTitle, shownStudioTreeRows, type DeclarationRowMeaning, type StudioTreeNode } from "../shared/node_type_listing_tree";
+import type { ListedStream, ListedStreamsReading, OpenProject, StreamGraphNode, StreamGraphReading, StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { shownStudioTreeRows, type StudioTreeNode } from "../shared/node_type_listing_tree";
+import { nodeTitle, nodeTypeClassName } from "../shared/node_words";
 
 /** What a row stands for, so choosing it selects or opens the right thing. */
 export type OutlinerRowMeaning =
-  | { kind: "project"; project_name: string; project_folder: string | null }
   | { kind: "stream"; stream: string; display_name: string; project_name: string; project_folder: string }
-  | DeclarationRowMeaning
+  | { kind: "node"; stream: string; node: string; display_name: string; project_name: string }
   | { kind: "nothing_to_select" };
 
 /** A row of the outliner and what it stands for. */
@@ -31,18 +22,31 @@ export interface OutlinerRow {
 /** Rows the person opened or closed, by row id; every other row opens as the outliner opens it by default. */
 export type OutlinerRowExpansionChoices = Readonly<Record<string, boolean>>;
 
+/** Each stream's graph as last read, by stream id; a stream absent from it has not been read yet. */
+export type OutlinerStreamGraphReadings = Readonly<Record<string, StreamGraphReading>>;
+
 type OutlinerTreeNode = StudioTreeNode<OutlinerRowMeaning>;
+
+/** The id of the outliner's row for the stream `stream`. */
+function streamRowId(stream: string): string {
+  return `stream:${stream}`;
+}
+
+/** The id of the outliner's row for the node named `node` of the stream `stream`. */
+function nodeRowId(stream: string, node: string): string {
+  return `node:${stream}/${node}`;
+}
 
 /** The id of the row that stands for `selection`, or `null` when no row does. */
 export function outlinerRowIdOfTheSelection(selection: StudioSelection): string | null {
   switch (selection.kind) {
     case "nothing":
-      return null;
     case "project":
-      return `project:${selection.project_folder ?? selection.project_name}`;
+      return null;
     case "stream":
+      return streamRowId(selection.stream);
     case "node":
-      return `stream:${selection.stream}`;
+      return nodeRowId(selection.stream, selection.node);
   }
 }
 
@@ -50,161 +54,95 @@ function leafNode(row: OutlinerTreeNode["row"]): OutlinerTreeNode {
   return { row, meaning: { kind: "nothing_to_select" }, isOpenByDefault: false, children: [] };
 }
 
-function waitingNodeUnder(parentRowId: string): OutlinerTreeNode {
-  return leafNode({
-    row_id: `${parentRowId}/waiting`,
-    label: "Streams and nodes not read yet",
-    icon: "waiting",
-    tone: "waiting",
-  });
-}
-
-/** The source of the open project's listing that is the import of the project `importedProject`, by its UUID; `null` while none is listed. */
-function importedProjectSourceOf(importedProject: string, projectNodeTypes: ProjectNodeTypesReading | null): ProjectNodeTypeSource | null {
-  if (projectNodeTypes?.kind !== "listed") return null;
-  return projectNodeTypes.listing.sources.find((source) => source.origin.source === "dependency" && source.origin.project === importedProject) ?? null;
-}
-
-/** A "Node types" row under `parentRowId` holding `source`'s node types, generators and unreadable modules. */
-function nodeTypesNode(parentRowId: string, source: ProjectNodeTypeSource, sourceTitle: string, projectDirectory: string): OutlinerTreeNode {
-  const nodeTypesRowId = `${parentRowId}/node_types`;
-  const children = nodeTypeSourceChildren(source, nodeTypesRowId, sourceTitle, projectDirectory);
-  return {
-    row: { row_id: nodeTypesRowId, label: "Node types", icon: "node_type", isHeading: true },
-    meaning: { kind: "nothing_to_select" },
-    isOpenByDefault: false,
-    children: children.length > 0 ? children : [leafNode({ row_id: `${nodeTypesRowId}/none`, label: "Declares no node types", icon: "waiting", tone: "waiting" })],
-  };
-}
-
-/** The open project's own node types: listed, waiting on the runtime, or why the runtime lists none. */
-function openProjectNodeTypesNode(projectRowId: string, projectNodeTypes: ProjectNodeTypesReading | null): OutlinerTreeNode {
-  if (projectNodeTypes?.kind === "listed") {
-    const { listing } = projectNodeTypes;
-    const ownSource = listing.sources.find((source) => source.origin.source === "project") ?? { origin: { source: "project" as const }, node_types: [], graph_generators: [], unreadable_modules: [] };
-    return nodeTypesNode(projectRowId, ownSource, nodeTypeSourceTitle(ownSource.origin, listing.project_name), listing.project_directory);
-  }
-  const nodeTypesRowId = `${projectRowId}/node_types`;
-  return {
-    row: { row_id: nodeTypesRowId, label: "Node types", icon: "node_type", isHeading: true },
-    meaning: { kind: "nothing_to_select" },
-    isOpenByDefault: false,
-    children: [
-      projectNodeTypes === null
-        ? leafNode({ row_id: `${nodeTypesRowId}/waiting`, label: "Node types not read yet", icon: "waiting", tone: "waiting" })
-        : leafNode({ row_id: `${nodeTypesRowId}/not-listed`, label: projectNodeTypes.because, icon: "unreadable", tone: "unreadable" }),
-    ],
-  };
-}
-
-/** `project`'s rows: its `tatolab-project.json`, then the streams the runtime lists from its folder, a row saying they wait on the runtime, or why listing them failed. */
-function projectChildren(project: ProjectTheRuntimeNames, projectRowId: string, listedStreams: ListedStreamsReading): OutlinerTreeNode[] {
-  const descriptionNode = leafNode({
-    row_id: `${projectRowId}/project_file`,
-    label: "tatolab-project.json",
-    icon: "file",
-    isMachineWords: true,
-  });
-  if (listedStreams.kind === "listing_failed") {
-    return [descriptionNode, leafNode({ row_id: `${projectRowId}/streams-not-listed`, label: listedStreams.because, icon: "unreadable", tone: "unreadable" })];
-  }
-  const streamsOfTheProject: ListedStream[] =
-    listedStreams.kind === "listed" ? listedStreams.streams.filter((stream) => stream.location?.project_directory === project.folder) : [];
-  if (streamsOfTheProject.length === 0) return [descriptionNode, waitingNodeUnder(projectRowId)];
-  return [
-    descriptionNode,
-    ...streamsOfTheProject.map(
-      (stream): OutlinerTreeNode => ({
-        row: {
-          row_id: `stream:${stream.stream}`,
-          label: stream.display_name,
-          icon: stream.state === "failed" ? "failed" : "stream",
-          tone: stream.state === "failed" ? "failed" : undefined,
-        },
-        meaning: { kind: "stream", stream: stream.stream, display_name: stream.display_name, project_name: project.name, project_folder: project.folder },
-        isOpenByDefault: false,
-        children: [],
-      }),
-    ),
-  ];
-}
-
-function importNode(importedProject: ImportedProject, listedStreams: ListedStreamsReading, projectNodeTypes: ProjectNodeTypesReading | null): OutlinerTreeNode {
-  const source = importedProject.source;
-  const projectFolder = source.kind === "folder" ? source.project.folder : source.folder;
-  const rowId = `project:${projectFolder}`;
-  const importedSource = importedProjectSourceOf(importedProject.project, projectNodeTypes);
-  const importsNodeTypes =
-    importedSource === null || projectNodeTypes?.kind !== "listed"
-      ? []
-      : [nodeTypesNode(rowId, importedSource, importedProject.name, projectNodeTypes.listing.project_directory)];
-  const children = (() => {
-    switch (source.kind) {
-      case "folder":
-        return [...projectChildren(source.project, rowId, listedStreams), ...importsNodeTypes];
-      case "folder_unreadable":
-        return [leafNode({ row_id: `${rowId}/refusal`, label: source.refusal, icon: "unreadable", tone: "unreadable" })];
-    }
-  })();
+function graphNodeRow(stream: ListedStream, projectName: string, node: StreamGraphNode): OutlinerTreeNode {
   return {
     row: {
-      row_id: rowId,
-      label: importedProject.name,
-      icon: source.kind === "folder_unreadable" ? "unreadable" : "project",
-      isHeading: true,
-      isReadOnly: true,
+      row_id: nodeRowId(stream.stream, node.name),
+      label: nodeTitle(node.name, node.type),
+      icon: node.failed_because === null ? "graph_node" : "failed",
+      tone: node.failed_because === null ? undefined : "failed",
+      aside: nodeTypeClassName(node.type),
     },
-    meaning: { kind: "project", project_name: importedProject.name, project_folder: projectFolder },
+    meaning: { kind: "node", stream: stream.stream, node: node.name, display_name: stream.display_name, project_name: projectName },
     isOpenByDefault: false,
-    children,
+    children: [],
   };
 }
 
-/** The base name of `folder`, the project's name in the tree. */
-function folderBaseName(folder: string): string {
-  return folder.split(/[\\/]/).filter((pathPart) => pathPart !== "").at(-1) ?? folder;
+/** The rows of the nodes in the group `group`, or a row saying it holds none. */
+function groupChildren(stream: ListedStream, projectName: string, group: string, nodes: readonly StreamGraphNode[]): OutlinerTreeNode[] {
+  const nodeRows = nodes.filter((node) => node.studio.group === group).map((node) => graphNodeRow(stream, projectName, node));
+  return nodeRows.length > 0 ? nodeRows : [leafNode({ row_id: `group:${stream.stream}/${group}/empty`, label: "No nodes", icon: "waiting", tone: "waiting" })];
 }
 
-function projectTree(project: OpenProject, listedStreams: ListedStreamsReading, projectNodeTypes: ProjectNodeTypesReading | null): OutlinerTreeNode {
+/** The rows under a stream: its groups, each holding its nodes, then the nodes in no group; or why none show. */
+function streamChildren(stream: ListedStream, projectName: string, graphReading: StreamGraphReading | undefined): OutlinerTreeNode[] {
+  const rowId = streamRowId(stream.stream);
+  if (stream.state === "failed" && stream.failed_because !== null) {
+    return [leafNode({ row_id: `${rowId}/failed`, label: stream.failed_because, icon: "unreadable", tone: "failed" })];
+  }
+  if (graphReading === undefined) return [leafNode({ row_id: `${rowId}/waiting`, label: "Nodes not read yet", icon: "waiting", tone: "waiting" })];
+  if (graphReading.kind === "not_read") return [leafNode({ row_id: `${rowId}/not-read`, label: graphReading.because, icon: "unreadable", tone: "unreadable" })];
+  const { groups, nodes } = graphReading.graph;
+  if (nodes.length === 0 && groups.length === 0) return [leafNode({ row_id: `${rowId}/empty`, label: "No nodes yet", icon: "waiting", tone: "waiting" })];
+  const groupIds = new Set(groups.map((group) => group.id));
+  const groupRows = groups.map(
+    (group): OutlinerTreeNode => ({
+      row: { row_id: `group:${stream.stream}/${group.id}`, label: group.title, icon: "graph_group", aside: "group" },
+      meaning: { kind: "nothing_to_select" },
+      isOpenByDefault: true,
+      children: groupChildren(stream, projectName, group.id, nodes),
+    }),
+  );
+  const ungroupedNodeRows = nodes.filter((node) => node.studio.group === null || !groupIds.has(node.studio.group)).map((node) => graphNodeRow(stream, projectName, node));
+  return [...groupRows, ...ungroupedNodeRows];
+}
+
+/** The streams of `streams` the runtime loaded from `project`'s folder. */
+function streamsOfTheOpenProject(project: OpenProject, streams: readonly ListedStream[]): ListedStream[] {
+  return streams.filter((stream) => stream.location?.project_directory === project.project.folder);
+}
+
+/** The open project's streams, each holding its groups and nodes; a row saying none are listed yet, or why listing them failed. */
+function projectStreamNodes(project: OpenProject, listedStreams: ListedStreamsReading, streamGraphs: OutlinerStreamGraphReadings, openStream: string | null): OutlinerTreeNode[] {
   const openProject = project.project;
-  const openProjectRowId = `project:${openProject.folder}`;
-  return {
-    row: { row_id: "open_project_folder", label: folderBaseName(openProject.folder), icon: "project_folder", isHeading: true },
-    meaning: { kind: "nothing_to_select" },
-    isOpenByDefault: true,
-    children: [
-      {
-        row: { row_id: openProjectRowId, label: openProject.name, icon: "project", isHeading: true },
-        meaning: { kind: "project", project_name: openProject.name, project_folder: openProject.folder },
-        isOpenByDefault: true,
-        children: [...projectChildren(openProject, openProjectRowId, listedStreams), openProjectNodeTypesNode(openProjectRowId, projectNodeTypes)],
-      },
-      {
-        row: {
-          row_id: "imports",
-          label: "Imports",
-          icon: "imports",
-          tone: "imports",
-          isHeading: true,
-          isReadOnly: true,
-        },
-        meaning: { kind: "nothing_to_select" },
-        isOpenByDefault: false,
-        children:
-          project.imports_not_listed_because === null
-            ? project.imports.map((importedProject) => importNode(importedProject, listedStreams, projectNodeTypes))
-            : [leafNode({ row_id: "imports/not-listed", label: `Not listed: ${project.imports_not_listed_because}`, icon: "unreadable", tone: "unreadable" })],
-      },
-    ],
-  };
+  switch (listedStreams.kind) {
+    case "listing_failed":
+      return [leafNode({ row_id: "streams-not-listed", label: listedStreams.because, icon: "unreadable", tone: "unreadable" })];
+    case "not_listed":
+      return [leafNode({ row_id: "streams-waiting", label: "Streams not read yet", icon: "waiting", tone: "waiting" })];
+    case "listed": {
+      const streamsOfTheProject = streamsOfTheOpenProject(project, listedStreams.streams);
+      if (streamsOfTheProject.length === 0) return [leafNode({ row_id: "streams-none", label: "No streams yet", icon: "waiting", tone: "waiting" })];
+      return streamsOfTheProject.map(
+        (stream): OutlinerTreeNode => ({
+          row: {
+            row_id: streamRowId(stream.stream),
+            label: stream.display_name,
+            icon: stream.state === "failed" ? "failed" : "stream",
+            tone: stream.state === "failed" ? "failed" : undefined,
+          },
+          meaning: { kind: "stream", stream: stream.stream, display_name: stream.display_name, project_name: openProject.name, project_folder: openProject.folder },
+          isOpenByDefault: stream.stream === openStream,
+          children: streamChildren(stream, openProject.name, streamGraphs[stream.stream]),
+        }),
+      );
+    }
+  }
 }
 
-/** The outliner's rows that show for `project`, with what each stands for: a row shows when every row above it is open. `projectNodeTypes` is `null` until the open project's node types are first read. */
+/** The ids of the streams the outliner shows for `project`, whose graphs it reads. */
+export function streamsTheOutlinerShows(project: OpenProject, listedStreams: ListedStreamsReading): string[] {
+  return listedStreams.kind === "listed" ? streamsOfTheOpenProject(project, listedStreams.streams).map((stream) => stream.stream) : [];
+}
+
+/** The outliner's rows that show for `project`, with what each stands for: a row shows when every row above it is open, and the stream of the active tab, `openStream`, opens by default. */
 export function outlinerTreeOfTheProject(
   project: OpenProject,
   listedStreams: ListedStreamsReading,
-  projectNodeTypes: ProjectNodeTypesReading | null,
+  streamGraphs: OutlinerStreamGraphReadings,
+  openStream: string | null,
   expansionChoices: OutlinerRowExpansionChoices,
 ): OutlinerRow[] {
-  return shownStudioTreeRows([projectTree(project, listedStreams, projectNodeTypes)], expansionChoices);
+  return shownStudioTreeRows(projectStreamNodes(project, listedStreams, streamGraphs, openStream), expansionChoices);
 }
