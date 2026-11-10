@@ -147,7 +147,7 @@ export function tatolabFrameViewType(listed: ListedStudioView, manifest: Tatolab
   return {
     view_type_id: listed.view_type_id,
     title: manifest.title,
-    icon: "project_view",
+    icon: manifest.icon === undefined ? "project_view" : { image_url: new URL(manifest.icon, listed.folder_url).href },
     brought_by: broughtBy,
     renderInAnArea: (area, hostServices) => ({
       kind: "frame",

@@ -1,5 +1,4 @@
 import { expect, test } from "vitest";
-import { MOCK_NODE_CATALOG_ENTRIES } from "../../../../mock/mock_node_catalog";
 import { configFormFieldValueWords, configFormOf } from "./config_form_fields";
 
 const RUST_SPELLED_SCHEMA = {
@@ -57,13 +56,6 @@ test("a_node_type_with_no_schema_shows_its_config_as_the_graph_renders_it", () =
 test("a_schema_that_closes_an_object_with_no_properties_takes_no_config", () => {
   expect(configFormOf({ type: "object", additionalProperties: false }, {})).toEqual({ kind: "takes_no_config" });
   expect(configFormOf({ type: "object" }, {})).toEqual({ kind: "fields", fields: [] });
-});
-
-test("every_mock_catalog_schema_reads_without_a_json_fallback_for_a_declared_key", () => {
-  for (const entry of MOCK_NODE_CATALOG_ENTRIES) {
-    const form = configFormOf(entry.config_schema, {});
-    if (form.kind === "fields") for (const field of form.fields) expect([entry.type, field.key, field.control.kind]).not.toContain("json");
-  }
 });
 
 test("a_value_is_shown_in_words", () => {

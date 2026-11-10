@@ -5,18 +5,11 @@ import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { PropertyCheckbox, PropertyChoiceField, PropertyNumberField, PropertyRow, PropertySection, PropertyTextField } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type {
-  NodeCatalogEntry,
-  NodeCatalogPort,
-  NodeCatalogReading,
-  StopWatching,
-  StreamGraphDeclaredPort,
-  StreamGraphReading,
-  StudioViewHostConnection,
-  StudioViewType,
-} from "../../view_host/studio_view_contract";
-import { portStreamFactsWords, streamFactsAnInputReceives, VALUES_UNCHECKED_MEANING } from "../port_stream_facts_words";
-import { isANameTheCodeGave, nameInWords, nodeTitle, nodeTypeClassName } from "../node_words";
+import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import type { NodeCatalogEntry, NodeCatalogPort, NodeCatalogReading, StreamGraphDeclaredPort, StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { CoreViewFrame } from "../shared/core_view_page";
+import { portStreamFactsWords, streamFactsAnInputReceives, VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
+import { isANameTheCodeGave, nameInWords, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { configFormFieldValueWords, configFormOf, type ConfigFormField } from "./config_form_fields";
 
 /** A config field's value in the field its control draws. */
@@ -79,7 +72,7 @@ function PortRows({
 }
 
 /** The selected node's name and type, its config read against its type's schema, and its ports, as a details panel. */
-function PropertiesOfTheSelectedNode({ connection, stream, nodeName }: { connection: StudioViewHostConnection<null>; stream: string; nodeName: string }) {
+function PropertiesOfTheSelectedNode({ connection, stream, nodeName }: { connection: TatoAppViewConnection; stream: string; nodeName: string }) {
   const watchTheStreamsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(stream, listener), [connection, stream]);
   const watchTheStreamsCatalog = useCallback((listener: (reading: NodeCatalogReading) => void): StopWatching => connection.watchNodeCatalog(stream, listener), [connection, stream]);
   const graphReading = useViewReading(watchTheStreamsGraph);
@@ -149,19 +142,17 @@ function PropertiesOfTheSelectedNode({ connection, stream, nodeName }: { connect
   );
 }
 
-function PropertiesBody({ connection }: { connection: StudioViewHostConnection<null> }) {
+function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
   const selection = useViewReading(connection.watchSelection);
   if (selection?.kind !== "node") return <WaitingState title="Nothing to show" explanation="Select a node in the stream graph to see its config and ports." data-properties-state="no_node" />;
   return <PropertiesOfTheSelectedNode key={`${selection.stream}/${selection.node}`} connection={connection} stream={selection.stream} nodeName={selection.node} />;
 }
 
-/** Properties: the selected node's name and type, its config read against its type's schema, and its ports. */
-export const PROPERTIES_VIEW_TYPE: StudioViewType<null> = {
-  view_type_id: "properties",
-  title: "Properties",
-  icon: "properties",
-  brought_by: { kind: "built_in" },
-  default_settings: null,
-  settingsFromSavedLayout: () => null,
-  renderStudioView: (connection) => ({ header_tools: null, body: <PropertiesBody connection={connection} /> }),
-};
+/** The Properties view's whole frame: the selection's properties, under its header row. */
+export function PropertiesView({ connection }: { connection: TatoAppViewConnection }) {
+  return (
+    <CoreViewFrame connection={connection}>
+      <PropertiesBody connection={connection} />
+    </CoreViewFrame>
+  );
+}

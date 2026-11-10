@@ -1,0 +1,7 @@
+{
+  "contract": "1.0",
+  "title": "Properties",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "placement": "area"
+}

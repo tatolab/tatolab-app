@@ -12,6 +12,9 @@ const TATOLAB_WINDOW_PAGE_HOST = "app";
 /** The shipped window's page. */
 export const TATOLAB_WINDOW_PAGE_URL = `${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}/index.html`;
 
+/** Where the window serves its core views' pages, the only pages it frames. */
+const CORE_VIEW_PAGES_PATH = "/core_views/";
+
 /** The file under `builtWindowDirectory` that `requestUrl` asks for, or `null` when it asks for another origin or a path outside it. */
 export function builtWindowFileForRequest(builtWindowDirectory: string, requestUrl: string): string | null {
   let parsedRequestUrl: URL;
@@ -41,6 +44,14 @@ export function isOnTheWindowPagesOwnLocation(windowPageUrl: string, navigationU
   return navigationLocation.protocol === windowPageLocation.protocol && navigationLocation.host === windowPageLocation.host;
 }
 
+/**
+ * Whether a frame of the window may load `frameUrl`: only a core view's page, on the window page's own location. A
+ * frame on that origin can reach the window page's bridge through `window.parent`, so nothing else is framed there.
+ */
+export function isACoreViewPageOfTheWindow(windowPageUrl: string, frameUrl: string): boolean {
+  return isOnTheWindowPagesOwnLocation(windowPageUrl, frameUrl) && new URL(frameUrl).pathname.startsWith(CORE_VIEW_PAGES_PATH);
+}
+
 /** Whether a command came from the window's own page at `windowPageUrl`: its top frame, on the page's own location, rather than a frame it embeds, a frame already gone, or a page it navigated to. */
 export function isACommandFromTheWindowsOwnPage(windowPageUrl: string, senderFrameUrl: string | null, senderIsTheTopFrame: boolean): boolean {
   return senderFrameUrl !== null && senderIsTheTopFrame && isOnTheWindowPagesOwnLocation(windowPageUrl, senderFrameUrl);
@@ -55,7 +66,7 @@ export function inlineScriptHashSources(windowPageHtml: string): string[] {
 
 /**
  * The window page's content security policy: only its own origin, its inline theme script, inline styles, data: fonts
- * and images, and no frames.
+ * and images, and frames only of its core views' pages.
  */
 export function windowPageContentSecurityPolicy(windowPageHtml: string): string {
   return [
@@ -65,7 +76,7 @@ export function windowPageContentSecurityPolicy(windowPageHtml: string): string 
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "img-src 'self' data:",
-    "frame-src 'none'",
+    `frame-src ${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}${CORE_VIEW_PAGES_PATH}`,
     "object-src 'none'",
     "base-uri 'self'",
   ].join("; ");

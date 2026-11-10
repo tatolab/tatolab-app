@@ -5,8 +5,8 @@
   "type": "module",
   "main": "out/main/electron_app_entry.js",
   "scripts": {
-    "dev": "electron-vite dev --watch",
-    "build": "npm run typecheck && electron-vite build && node scripts/tatolab_app_build_features.mjs write out/main/tatolab_app_build_features.json",
+    "dev": "npm run build --workspace @tatolab/tato-app-core-views && electron-vite dev --watch",
+    "build": "npm run typecheck && npm run build --workspace @tatolab/tato-app-core-views && electron-vite build && node scripts/tatolab_app_build_features.mjs write out/main/tatolab_app_build_features.json",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "lint": "eslint . && stylelint \"src/renderer/**/*.css\""
@@ -23,6 +23,7 @@
     "@fontsource-variable/geist": "^5.3.0",
     "@fontsource-variable/geist-mono": "^5.3.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@tatolab/tato-app-core-views": "*",
     "@tatolab/tato-app-view-sdk": "*",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",

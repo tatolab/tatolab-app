@@ -19,15 +19,14 @@ import { StudioWindowModel } from "./studio_shell/studio_window_model";
 import { STUDIO_LAYOUTS, StudioLayoutsKeptInStorage } from "./studio_shell/studio_layouts";
 
 import { CODE_EDITOR_VIEW_TYPE } from "./studio_views/code_editor/code_editor_view_type";
-import { PROPERTIES_VIEW_TYPE } from "./studio_views/properties/properties_view_type";
 import { VIEWER_VIEW_TYPE } from "./studio_views/viewer/viewer_view_type";
 import { STREAM_GRAPH_VIEW_TYPE } from "./studio_views/stream_graph/stream_graph_view_type";
-import { OUTLINER_VIEW_TYPE } from "./studio_views/outliner/outliner_view_type";
-import { PALETTE_VIEW_TYPE } from "./studio_views/palette/palette_view_type";
 import { inWindowStudioViewHostServices, useWatchedStudioValue } from "./view_host/in_window_view_host";
 import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_catalog_readings";
 import { registeredStudioViewType, StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
 import { tatolabFrameViewType } from "./view_host/tatolab_frame_view_type";
+import { coreViewTypesOf, servedCoreViewFolderUrl } from "./view_host/core_view_types";
+import { CORE_VIEWS } from "@tatolab/tato-app-core-views";
 import { ProjectLogReadings } from "./view_host/project_log_readings";
 import { ProjectNodeTypeReadings } from "./view_host/project_node_type_readings";
 import { PythonLanguageServerConnections } from "./view_host/python_language_server_connections";
@@ -38,14 +37,23 @@ import { tatolabWindowLocalStorage } from "./tatolab_window_local_storage";
 
 /** The view types every studio area can show, in the view-type menu's order. */
 function studioViewTypeRegistry(): StudioViewTypeRegistry {
-  return new StudioViewTypeRegistry([
-    registeredStudioViewType(STREAM_GRAPH_VIEW_TYPE),
-    registeredStudioViewType(OUTLINER_VIEW_TYPE),
-    registeredStudioViewType(PALETTE_VIEW_TYPE),
-    registeredStudioViewType(PROPERTIES_VIEW_TYPE),
-    registeredStudioViewType(VIEWER_VIEW_TYPE),
-    registeredStudioViewType(CODE_EDITOR_VIEW_TYPE),
-  ], (listed, manifest, projectName) => tatolabFrameViewType(listed, manifest, { kind: "project", project_name: projectName }));
+  const coreViewTypes = coreViewTypesOf(CORE_VIEWS, (folder) => servedCoreViewFolderUrl(folder, document.baseURI));
+  const coreViewTypeIn = (folder: string) => {
+    const coreViewType = coreViewTypes.view_types_by_folder.get(folder);
+    return coreViewType === undefined ? [] : [coreViewType];
+  };
+  return new StudioViewTypeRegistry(
+    [
+      registeredStudioViewType(STREAM_GRAPH_VIEW_TYPE),
+      ...coreViewTypeIn("outliner"),
+      ...coreViewTypeIn("palette"),
+      ...coreViewTypeIn("properties"),
+      registeredStudioViewType(VIEWER_VIEW_TYPE),
+      registeredStudioViewType(CODE_EDITOR_VIEW_TYPE),
+    ],
+    (listed, manifest, projectName) => tatolabFrameViewType(listed, manifest, { kind: "project", project_name: projectName }),
+    coreViewTypes.not_opened,
+  );
 }
 
 /** Keeps `viewTypeRegistry` listing the views of the project `studioWindowModel` has open, listed again each time another is read. */

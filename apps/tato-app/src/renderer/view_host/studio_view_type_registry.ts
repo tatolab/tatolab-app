@@ -1,7 +1,7 @@
 import { readTatolabViewManifest, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
 import type { ReactNode } from "react";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
-import type { StudioIconName } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
+import type { StudioAreaHeaderMenuIcon } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WatchedStudioValue } from "./in_window_view_host";
 import type { JsonValue, StudioViewHostConnection, StudioViewType, StudioViewTypeSource, ViewHeaderRow } from "./studio_view_contract";
 
@@ -22,7 +22,7 @@ export interface StudioAreaOfTheView {
 export interface RegisteredStudioViewType {
   view_type_id: string;
   title: string;
-  icon: StudioIconName;
+  icon: StudioAreaHeaderMenuIcon;
   brought_by: StudioViewTypeSource;
   /** The view drawn in `area`, on the settings it saved, or on the defaults when they no longer fit. */
   renderInAnArea(area: StudioAreaOfTheView, hostServices: StudioViewHostServices): StudioAreaRendering;
@@ -77,6 +77,7 @@ export class StudioViewTypeRegistry {
   constructor(
     viewTypes: readonly RegisteredStudioViewType[],
     private readonly projectStudioViewTypeOf: ProjectStudioViewTypeMaker | null = null,
+    private readonly studioViewTypesNotOpenedList: readonly ProjectStudioViewNotOpened[] = [],
   ) {
     for (const viewType of viewTypes) this.viewTypesById.set(viewType.view_type_id, viewType);
   }
@@ -89,6 +90,11 @@ export class StudioViewTypeRegistry {
   /** The studio's own view types, in the order the view-type menu lists them. */
   studioViewTypes(): RegisteredStudioViewType[] {
     return [...this.viewTypesById.values()].filter((viewType) => viewType.brought_by.kind === "built_in");
+  }
+
+  /** Studio's own views that do not open, each with why. */
+  studioViewTypesNotOpened(): readonly ProjectStudioViewNotOpened[] {
+    return this.studioViewTypesNotOpenedList;
   }
 
   /** The view types the open project and its imports bring. */

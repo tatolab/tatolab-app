@@ -66,6 +66,11 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
   return (
     <StudioAreaHeaderMenu icon={iconOfTheArea} words={words} label={`${words}: change this area's view`} data-area-view-type-menu={area.area_id}>
       <MenuGroup label="Studio views">
+        {sources.viewTypeRegistry.studioViewTypesNotOpened().map((notOpened) => (
+          <MenuNote key={notOpened.view_type_id}>
+            {notOpened.view_type_id} doesn't open: {notOpened.because}
+          </MenuNote>
+        ))}
         <MenuSingleChoiceGroup
           choices={sources.viewTypeRegistry.studioViewTypes().map((viewType) => viewTypeChoice(viewType.view_type_id, viewType.title, "built in"))}
           chosen={area.view_type_id ?? ""}

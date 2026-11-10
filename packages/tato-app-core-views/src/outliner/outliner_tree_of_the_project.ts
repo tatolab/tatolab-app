@@ -12,8 +12,8 @@ import type {
   ProjectNodeTypesReading,
   ProjectTheRuntimeNames,
   StudioSelection,
-} from "../../view_host/studio_view_contract";
-import { nodeTypeSourceChildren, nodeTypeSourceTitle, shownStudioTreeRows, type DeclarationRowMeaning, type StudioTreeNode } from "../node_type_listing_tree";
+} from "@tatolab/tato-app-view-sdk/studio_readings";
+import { nodeTypeSourceChildren, nodeTypeSourceTitle, shownStudioTreeRows, type DeclarationRowMeaning, type StudioTreeNode } from "../shared/node_type_listing_tree";
 
 /** What a row stands for, so choosing it selects or opens the right thing. */
 export type OutlinerRowMeaning =

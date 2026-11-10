@@ -6,24 +6,12 @@ import { PropertySection } from "@tatolab/tato-app-view-sdk/design_system/proper
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { JsonValue, ProjectNodeTypePort, ProjectNodeTypesReading, StopWatching, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
-import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../node_type_listing_tree";
+import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import type { ProjectNodeTypePort, ProjectNodeTypesReading } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { CoreViewFrame } from "../shared/core_view_page";
+import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
+import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../shared/node_type_listing_tree";
 import { paletteTreeOfTheListing, type PaletteRowMeaning } from "./palette_tree_of_the_listing";
-
-/** What a palette area keeps with the layout: the rows the person opened or closed. */
-export type PaletteSettings = { row_expansion: { [rowId: string]: boolean } };
-
-function paletteSettingsFrom(savedSettings: JsonValue): PaletteSettings | null {
-  if (typeof savedSettings !== "object" || savedSettings === null || Array.isArray(savedSettings)) return null;
-  const rowExpansion = savedSettings["row_expansion"];
-  if (typeof rowExpansion !== "object" || rowExpansion === null || Array.isArray(rowExpansion)) return null;
-  const choices: { [rowId: string]: boolean } = {};
-  for (const [rowId, isOpen] of Object.entries(rowExpansion)) {
-    if (typeof isOpen !== "boolean") return null;
-    choices[rowId] = isOpen;
-  }
-  return { row_expansion: choices };
-}
 
 function PortsOfTheDeclaration({ direction, ports }: { direction: "In" | "Out"; ports: ProjectNodeTypePort[] | null }) {
   if (ports === null) return <p className="px-1 text-xs text-fg-3">{direction === "In" ? "Inputs" : "Outputs"} stated only by its native half</p>;
@@ -116,13 +104,14 @@ function DetailsOfTheDeclaration({ declaration }: { declaration: DeclarationRowM
 }
 
 /** The open project's node types and graph generators, by source and category, as the runtime reads them from source. */
-function PaletteOfTheProject({ connection, projectFolder }: { connection: StudioViewHostConnection<PaletteSettings>; projectFolder: string }) {
+function PaletteOfTheProject({ connection, projectFolder }: { connection: TatoAppViewConnection; projectFolder: string }) {
   const watchTheProjectsNodeTypes = useCallback(
     (listener: (reading: ProjectNodeTypesReading) => void): StopWatching => connection.watchProjectNodeTypes(projectFolder, listener),
     [connection, projectFolder],
   );
   const nodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
-  const expansionChoices = connection.settings.row_expansion;
+  const settings = useViewReading(connection.watchSettings);
+  const [expansionChoices, toggleTheRow] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
   const [chosenRowId, setChosenRowId] = useState<string | null>(null);
   const paletteRows = useMemo(
     () => (nodeTypesReading?.kind === "listed" ? paletteTreeOfTheListing(nodeTypesReading.listing, expansionChoices) : []),
@@ -148,9 +137,9 @@ function PaletteOfTheProject({ connection, projectFolder }: { connection: Studio
           onRowSelected={(rowId) => setChosenRowId(meaningOfRow(rowId).kind === "nothing_to_select" ? null : rowId)}
           onRowActivated={(rowId) => {
             const meaning = meaningOfRow(rowId);
-            if (meaning.kind !== "nothing_to_select" && meaning.file !== null) connection.openCodeFile(meaning.file);
+            if (meaning.kind !== "nothing_to_select" && meaning.file !== null) void connection.openView("code", { kind: "file", file: meaning.file });
           }}
-          onExpansionToggled={(rowId, expand) => connection.rememberSettings({ row_expansion: { ...expansionChoices, [rowId]: expand } })}
+          onExpansionToggled={toggleTheRow}
         />
       </div>
       {chosenMeaning !== null && chosenMeaning.kind !== "nothing_to_select" && (
@@ -162,7 +151,7 @@ function PaletteOfTheProject({ connection, projectFolder }: { connection: Studio
   );
 }
 
-function PaletteBody({ connection }: { connection: StudioViewHostConnection<PaletteSettings> }) {
+function PaletteBody({ connection }: { connection: TatoAppViewConnection }) {
   const openProject = useViewReading(connection.watchOpenProject);
   if (openProject === null) return null;
   if (openProject.kind === "none_open") return <WaitingState title="No project is open" explanation="Open or create one from the File menu." />;
@@ -170,13 +159,11 @@ function PaletteBody({ connection }: { connection: StudioViewHostConnection<Pale
   return <PaletteOfTheProject key={openProject.open_project.project.folder} connection={connection} projectFolder={openProject.open_project.project.folder} />;
 }
 
-/** The palette: the node types and graph generators the open project, its imports and its installed distributions declare. */
-export const PALETTE_VIEW_TYPE: StudioViewType<PaletteSettings> = {
-  view_type_id: "palette",
-  title: "Palette",
-  icon: "palette",
-  brought_by: { kind: "built_in" },
-  default_settings: { row_expansion: {} },
-  settingsFromSavedLayout: paletteSettingsFrom,
-  renderStudioView: (connection) => ({ header_tools: null, body: <PaletteBody connection={connection} /> }),
-};
+/** The Palette view's whole frame: the node types the project can place, under its header row. */
+export function PaletteView({ connection }: { connection: TatoAppViewConnection }) {
+  return (
+    <CoreViewFrame connection={connection}>
+      <PaletteBody connection={connection} />
+    </CoreViewFrame>
+  );
+}

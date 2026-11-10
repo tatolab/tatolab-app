@@ -36,9 +36,9 @@ function castAsTheRuntimeNamesAnUnnamedNode(className: string): string {
 function ordinalAsAnUnnamedNode(nodeName: string, nodeType: string): number | null {
   const defaultName = castAsTheRuntimeNamesAnUnnamedNode(nodeTypeClassName(nodeType));
   if (nodeName === defaultName) return 1;
-  const ordinalMatch = /^(.*)-(\d+)$/.exec(nodeName);
-  if (ordinalMatch === null || !defaultName.startsWith(ordinalMatch[1])) return null;
-  return Number(ordinalMatch[2]);
+  const [, namePrefix, ordinalDigits] = /^(.*)-(\d+)$/.exec(nodeName) ?? [];
+  if (namePrefix === undefined || ordinalDigits === undefined || !defaultName.startsWith(namePrefix)) return null;
+  return Number(ordinalDigits);
 }
 
 /** Whether the stream's code gave the node `nodeName` of `nodeType` a name of its own. */

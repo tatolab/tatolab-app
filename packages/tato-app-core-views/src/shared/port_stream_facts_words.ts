@@ -2,7 +2,7 @@
 // Image output's frame rate and HDR light levels, a Packets output's codec, picture size, sample rate, channels and
 // configuration record, and a Records port's unchecked values.
 
-import type { PortStreamFacts, StreamGraphDeclaredPort, StreamGraphSummary } from "../view_host/studio_view_contract";
+import type { PortStreamFacts, StreamGraphDeclaredPort, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The H.265 SEI's luminance unit: 0.0001 cd/m². */
 const MASTERING_LUMINANCE_STEPS_PER_CANDELA_PER_SQUARE_METRE = 10_000;
