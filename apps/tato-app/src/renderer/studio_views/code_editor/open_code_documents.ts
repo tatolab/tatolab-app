@@ -3,7 +3,7 @@
 // how its last save went. One Pyright session serves each project with a Python file open, and ends
 // when the project's last one closes.
 
-import type { CodeEditorDiagnostic, CodeEditorLanguageHelp } from "../../design_system/code_text_editor_types";
+import type { CodeEditorDiagnostic, CodeEditorLanguageHelp } from "@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_types";
 import type { StudioViewHostConnection, JsonValue, PythonLanguageServerConnection } from "../../view_host/studio_view_contract";
 import { PythonLanguageClient } from "./python_language_client";
 

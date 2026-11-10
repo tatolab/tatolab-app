@@ -3,7 +3,7 @@
 // the top of the window; macOS shows them in its one system menu bar, laid out as a Mac app's are.
 
 import type { SystemMenuBarEntry, SystemMenuBarItems, SystemMenuBarMenu, SystemMenuOfTheDesktop, TatolabAppUpdateState, TatolabPlatform } from "../../shared/tatolab_backend_contract";
-import type { StudioMenu, StudioMenuEntry } from "../design_system/menu_bar";
+import type { StudioMenu, StudioMenuEntry } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
 import { presentTatolabAppUpdateMenuEntry } from "../presentation/app_update_presentation";
 import { shortcutHint } from "../presentation/platform_presentation";
 import { STUDIO_LAYOUTS, type StudioLayoutName } from "./studio_layouts";

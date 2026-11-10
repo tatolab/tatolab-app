@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { TatolabAppUpdateState } from "../../shared/tatolab_backend_contract";
-import type { StudioMenuEntry } from "../design_system/menu_bar";
+import type { StudioMenuEntry } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
 import {
   APP_UPDATE_UNDER_WAY_REASON,
   NO_PROJECT_OPEN_REASON,

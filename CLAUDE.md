@@ -5,7 +5,7 @@
 Tatolab.app is dual-licensed (`LICENSE`): AGPL-3.0-only, or a commercial licence from the
 copyright holder. `LICENSE` covers every file in the repository, so a source file carries no
 licence header of its own. Never suggest another licence for it or drop the commercial option.
-shadcn's generated components (`apps/tato-app/src/renderer/components/ui/`) keep their MIT form.
+shadcn's generated components (`packages/tato-app-view-sdk/src/design_system/ui/`) keep their MIT form.
 The runtime the app bundles is streamlib's, BUSL-1.1, and keeps its own licence. Do not modify
 `LICENSE` without explicit approval.
 
@@ -23,8 +23,8 @@ a parallel one. Search first.
      owner's call, recorded in the tatolab-app issue that builds it. What it needs from the
      runtime — a capability, a local API contract — is streamlib's: filed there, and the app waits
      on it. This repository has no `docs/plan/`; never start one.
-  2. How the window looks, reads and flows is the design system in code — `apps/tato-app/src/renderer/styles/tokens.css`,
-     then shadcn, then `apps/tato-app/src/renderer/design_system/` and its variants, then a rare call-site class —
+  2. How the window looks, reads and flows is the design system in code — `packages/tato-app-view-sdk/src/design_system/styles/tokens.css`,
+     then shadcn, then `packages/tato-app-view-sdk/src/design_system/` and its variants, then a rare call-site class —
      changed with the owner's say-so in the same PR.
   3. How the app's own code is shaped — modules, interfaces, platform items, the window's IPC
      commands, the backend contract — goes in the issue's Design section, settled by `/module-design` before

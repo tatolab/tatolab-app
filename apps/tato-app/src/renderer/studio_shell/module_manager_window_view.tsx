@@ -9,16 +9,16 @@ import type {
   WorkspaceDependency,
   WorkspaceDependencyUpdate,
 } from "../../shared/tatolab_backend_contract";
-import { ActionButton } from "../design_system/action_button";
-import { ChoosableItemList } from "../design_system/choosable_item_list";
-import { FormDialog, FormDialogFooter } from "../design_system/form_dialog";
-import { PanelListRow, PanelSection } from "../design_system/panel_section";
-import { PendingActionWords } from "../design_system/pending_action_words";
-import { RefusalLine } from "../design_system/refusal_line";
-import { SearchField } from "../design_system/search_field";
-import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
-import { Toolbar, ToolbarGroup } from "../design_system/toolbar";
-import { WaitingState } from "../design_system/waiting_state";
+import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
+import { ChoosableItemList } from "@tatolab/tato-app-view-sdk/design_system/choosable_item_list";
+import { FormDialog, FormDialogFooter } from "@tatolab/tato-app-view-sdk/design_system/form_dialog";
+import { PanelListRow, PanelSection } from "@tatolab/tato-app-view-sdk/design_system/panel_section";
+import { PendingActionWords } from "@tatolab/tato-app-view-sdk/design_system/pending_action_words";
+import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
+import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
+import { SegmentedChoiceControl } from "@tatolab/tato-app-view-sdk/design_system/segmented_choice_control";
+import { Toolbar, ToolbarGroup } from "@tatolab/tato-app-view-sdk/design_system/toolbar";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { marketplaceRowsOf, modulesOfTheProjectRowsOf, shortVersionOf, type MarketplaceRow, type ModuleManagerTab, type ModuleOfTheProjectRow } from "./module_manager_listing";
 

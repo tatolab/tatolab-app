@@ -13,7 +13,7 @@ const tatoAppRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const monorepoRoot = path.resolve(tatoAppRoot, "..", "..");
 const buildDirectory = mkdtempSync(path.join(os.tmpdir(), "tatolab-window-notices-"));
 const LICENCE_FILE_NAMES = /^(licen[cs]e|copying|notice)(\.(md|txt|markdown))?$/i;
-/** The packages src/renderer/styles/window.css imports, which the JavaScript bundle's source maps do not name. */
+/** The packages the design system's stylesheet, which the window imports, pulls in, and which the JavaScript bundle's source maps do not name. */
 const STYLESHEET_PACKAGES = ["tailwindcss", "tw-animate-css", "shadcn", "@fontsource-variable/geist", "@fontsource-variable/geist-mono"];
 
 /**

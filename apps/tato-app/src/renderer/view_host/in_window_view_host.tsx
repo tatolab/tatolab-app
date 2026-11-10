@@ -1,9 +1,9 @@
 // The host a first-party view is served by, in the window itself: the contract's connection answered
 // synchronously from what the studio holds.
 
-import { Component, useLayoutEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Component, useSyncExternalStore, type ReactNode } from "react";
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
-import { WaitingState } from "../design_system/waiting_state";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { ProjectLogReadings } from "./project_log_readings";
 import type { ProjectNodeTypeReadings } from "./project_node_type_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
@@ -117,13 +117,6 @@ export function inWindowStudioViewHostServices(
     connectToPythonLanguageServer: projectServices.pythonLanguageServerConnections.connectToPythonLanguageServer,
     watchPortViewer: projectServices.portViewerConnections.watchPortViewer,
   };
-}
-
-/** The latest reading `watch` gives, re-rendering the caller on each; `null` until the first arrives. `watch` must keep its identity between renders. */
-export function useStudioViewReading<Reading>(watch: (listener: (reading: Reading) => void) => StopWatching): Reading | null {
-  const [reading, setReading] = useState<{ latest: Reading } | null>(null);
-  useLayoutEffect(() => watch((latest) => setReading({ latest })), [watch]);
-  return reading === null ? null : reading.latest;
 }
 
 /** Shows a view that failed while drawing, in the failure's own words, so the other areas keep running. */

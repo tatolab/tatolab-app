@@ -1,10 +1,10 @@
+import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useMemo } from "react";
-import { ActionButton } from "../../design_system/action_button";
-import { NodeGraphCanvas } from "../../design_system/node_graph_canvas";
-import { ReadOnlyBanner } from "../../design_system/read_only_banner";
-import { RuntimeFailureWords } from "../../design_system/runtime_failure_words";
-import { WaitingState } from "../../design_system/waiting_state";
-import { useStudioViewReading } from "../../view_host/in_window_view_host";
+import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
+import { NodeGraphCanvas } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
+import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { ListedStreamsReading, OpenProjectReading, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 
@@ -26,10 +26,10 @@ function StreamGraphOfTheTab({ connection, streamTab }: { connection: StudioView
     (listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(streamTab.stream, listener),
     [connection, streamTab.stream],
   );
-  const graphReading = useStudioViewReading(watchTheTabsGraph);
-  const selection = useStudioViewReading(connection.watchSelection);
-  const openProject = useStudioViewReading(connection.watchOpenProject);
-  const listedStreams = useStudioViewReading(connection.watchListedStreams);
+  const graphReading = useViewReading(watchTheTabsGraph);
+  const selection = useViewReading(connection.watchSelection);
+  const openProject = useViewReading(connection.watchOpenProject);
+  const listedStreams = useViewReading(connection.watchListedStreams);
   const canvasContents = useMemo(() => (graphReading?.kind === "read" ? streamGraphCanvasContents(graphReading.graph) : null), [graphReading]);
   const onNodeSelected = useCallback(
     (nodeName: string | null) => {
@@ -112,7 +112,7 @@ function StreamGraphOfTheTab({ connection, streamTab }: { connection: StudioView
 
 /** The stream graph of the active stream tab, or what to do while no tab is open. */
 function StreamGraphBody({ connection }: { connection: StudioViewHostConnection<null> }) {
-  const activeStreamTab = useStudioViewReading(connection.watchActiveStreamTab);
+  const activeStreamTab = useViewReading(connection.watchActiveStreamTab);
   if (activeStreamTab === null) return <WaitingState title="No stream is open" explanation="Double-click a stream in the outliner to open its tab." data-stream-graph-state="no_tab" />;
   return <StreamGraphOfTheTab key={activeStreamTab.stream} connection={connection} streamTab={activeStreamTab} />;
 }

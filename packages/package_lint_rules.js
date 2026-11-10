@@ -4,6 +4,36 @@
 import path from "node:path";
 import tseslint from "typescript-eslint";
 
+// What the design system draws, Studio's window draws too, so the window's lint takes these from here.
+
+const SMALL_SIZE = String.raw`(0\.5|1|1\.5|2|2\.5|3)`;
+
+/** Selectors matched against string literals, template literals and JSX text, with the message each reports. */
+const stringPatterns = (regexSource, message) => [
+  { selector: `Literal[value=/${regexSource}/]`, message },
+  { selector: `TemplateElement[value.raw=/${regexSource}/]`, message },
+  { selector: `JSXText[value=/${regexSource}/]`, message },
+];
+
+const DOT_MESSAGE = "A small rounded-full element is a dot. Status is a word, and a problem is an icon.";
+
+export const DOT_INDICATOR_SELECTORS = [
+  ...stringPatterns(String.raw`rounded-full[^"\x60]*\bsize-${SMALL_SIZE}\b|\bsize-${SMALL_SIZE}\b[^"\x60]*rounded-full`, DOT_MESSAGE),
+  ...stringPatterns(String.raw`^(?=.*rounded-full)(?=.*\bw-${SMALL_SIZE}\b)(?=.*\bh-${SMALL_SIZE}\b)`, DOT_MESSAGE),
+  { selector: String.raw`CallExpression:has(> Literal[value=/\brounded-full\b/]):has(> Literal[value=/\bsize-${SMALL_SIZE}\b/])`, message: DOT_MESSAGE },
+  { selector: String.raw`CallExpression:has(> Literal[value=/\brounded-full\b/]):has(> Literal[value=/\bw-${SMALL_SIZE}\b/]):has(> Literal[value=/\bh-${SMALL_SIZE}\b/])`, message: DOT_MESSAGE },
+  ...stringPatterns(String.raw`animate-(ping|pulse|breathe)`, "No pulsing indicators."),
+  ...stringPatterns("[•●◉⬤]", "No bullet glyphs."),
+];
+export const SVG_CIRCLE_SELECTORS = [
+  { selector: "JSXOpeningElement[name.name='circle']", message: "No SVG circle in UI markup: it reads as a dot." },
+  ...stringPatterns(String.raw`<circle\b`, "No SVG circle in UI markup: it reads as a dot."),
+];
+const ROUND_STATUS_ICONS = ["OctagonX", "OctagonAlert", "CircleX", "XCircle", "CircleAlert", "AlertCircle", "CircleDot", "CircleSlash", "CirclePlay", "CirclePause", "CircleStop"];
+export const ROUND_STATUS_ICON_IMPORTS = [
+  { name: "lucide-react", importNames: ROUND_STATUS_ICONS, message: "A round status icon reads as a dot: use TriangleAlert or SquareX." },
+];
+
 /** A rule refusing a relative import that leaves `packageFolder`: another package is imported by its name, and the app never. */
 function importsStayInsideThePackageRule(packageFolder) {
   return {
@@ -51,6 +81,18 @@ export function packageLintConfig(packageFolder) {
         "@typescript-eslint/no-non-null-assertion": "error",
         "@typescript-eslint/ban-ts-comment": "error",
       },
+    },
+    {
+      files: ["src/design_system/**/*.ts", "src/design_system/**/*.tsx"],
+      ignores: ["src/design_system/ui/**", "src/design_system/**/*.test.ts", "src/design_system/**/*.test.tsx"],
+      rules: {
+        "no-restricted-syntax": ["error", ...DOT_INDICATOR_SELECTORS, ...SVG_CIRCLE_SELECTORS],
+        "no-restricted-imports": ["error", { paths: ROUND_STATUS_ICON_IMPORTS, patterns: IMPORTS_OUTSIDE_THE_PACKAGE }],
+      },
+    },
+    {
+      files: ["src/design_system/ui/**"],
+      rules: { "@typescript-eslint/consistent-type-assertions": "off", "@typescript-eslint/no-non-null-assertion": "off", "@typescript-eslint/no-explicit-any": "off" },
     },
     {
       files: ["src/**/*.test.ts", "src/**/*.test.tsx"],

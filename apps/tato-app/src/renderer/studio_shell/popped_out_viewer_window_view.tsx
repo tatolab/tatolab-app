@@ -1,5 +1,5 @@
 import type { PoppedOutViewerTarget, TatolabPlatform } from "../../shared/tatolab_backend_contract";
-import { WaitingState } from "../design_system/waiting_state";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { StudioViewFailureBoundary, WatchedStudioValue } from "../view_host/in_window_view_host";
 import type { StudioAreaOfTheView, StudioViewHostServices, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";

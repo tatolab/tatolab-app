@@ -6,14 +6,20 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { ESLint } from "eslint";
 import stylelint from "stylelint";
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 
 const TATO_APP_ROOT = new URL("../..", import.meta.url).pathname;
 const MONOREPO_ROOT = new URL("../../../..", import.meta.url).pathname;
+const VIEW_SDK_ROOT = `${MONOREPO_ROOT}packages/tato-app-view-sdk/`;
 const eslint = new ESLint({ cwd: TATO_APP_ROOT });
+const viewSdkEslint = new ESLint({ cwd: VIEW_SDK_ROOT });
 
+/** The rules reported for `plantedSource` at `filePath`: a path under `view-sdk:` is in the view SDK's package, linted by its config, and any other is in the app. */
 async function ruleIdsReportedFor(filePath: string, plantedSource: string): Promise<string[]> {
-  const [lintResult] = await eslint.lintText(plantedSource, { filePath });
+  const isInTheViewSdk = filePath.startsWith("view-sdk:");
+  const [lintResult] = isInTheViewSdk
+    ? await viewSdkEslint.lintText(plantedSource, { filePath: `${VIEW_SDK_ROOT}${filePath.slice("view-sdk:".length)}` })
+    : await eslint.lintText(plantedSource, { filePath });
   return (lintResult?.messages ?? []).map((lintMessage) => lintMessage.ruleId ?? lintMessage.message);
 }
 
@@ -26,17 +32,17 @@ const reportedCases: [string, string, string, string][] = [
   ["process.stderr written outside tatolab_app_log.ts", "src/main/zz_planted.ts", 'process.stderr.write("planted");\n', "no-restricted-syntax"],
   ["a small rounded-full element", "src/renderer/studio_shell/zz_planted.tsx", 'export const plantedDot = () => <span className="size-2 rounded-full bg-danger" />;\n', "no-restricted-syntax"],
   ["a rounded-full element sized by width and height", "src/renderer/studio_shell/zz_planted.tsx", 'export const plantedDot = () => <span className="h-1.5 w-1.5 rounded-full" />;\n', "no-restricted-syntax"],
-  ["a dot class in a template literal", "src/renderer/design_system/zz_planted.tsx", "export const plantedDot = (tone: string) => <span className={`rounded-full size-1.5 ${tone}`} />;\n", "no-restricted-syntax"],
-  ["a dot whose classes are split across cn()'s arguments", "src/renderer/design_system/zz_planted.tsx", 'import { cn } from "cn";\nexport const plantedDot = () => <span className={cn("rounded-full", "size-2")} />;\n', "no-restricted-syntax"],
+  ["a dot class in a template literal", "view-sdk:src/design_system/zz_planted.tsx", "export const plantedDot = (tone: string) => <span className={`rounded-full size-1.5 ${tone}`} />;\n", "no-restricted-syntax"],
+  ["a dot whose classes are split across cn()'s arguments", "view-sdk:src/design_system/zz_planted.tsx", 'import { cn } from "cn";\nexport const plantedDot = () => <span className={cn("rounded-full", "size-2")} />;\n', "no-restricted-syntax"],
   ["a bullet glyph as JSX text", "src/renderer/studio_shell/zz_planted.tsx", "export const plantedBullet = () => <span>• planted</span>;\n", "no-restricted-syntax"],
-  ["a console.log in a shadcn component", "src/renderer/components/ui/zz-planted.tsx", 'export const plantedLog = () => console.log("planted");\n', "no-console"],
+  ["a console.log in a shadcn component", "view-sdk:src/design_system/ui/zz-planted.tsx", 'export const plantedLog = () => console.log("planted");\n', "no-console"],
   ["a pulsing indicator", "src/renderer/studio_shell/zz_planted.tsx", 'export const plantedPulse = () => <span className="animate-pulse" />;\n', "no-restricted-syntax"],
   ["an SVG circle in a screen", "src/renderer/studio_shell/zz_planted.tsx", 'export const plantedCircle = () => <svg><circle r="3" /></svg>;\n', "no-restricted-syntax"],
   ["an SVG circle in a DOM page's markup", "src/renderer/studio_shell/zz_planted.ts", 'export const PLANTED_SVG = \'<svg><circle r="3" /></svg>\';\n', "no-restricted-syntax"],
   ["a bullet glyph in a string", "src/renderer/presentation/zz_planted.ts", 'export const plantedBullet = "• planted";\n', "no-restricted-syntax"],
   ["a round status icon", "src/renderer/studio_shell/zz_planted.tsx", 'import { CircleAlert } from "lucide-react";\nexport const plantedIcon = CircleAlert;\n', "no-restricted-imports"],
-  ["a screen importing a shadcn component", "src/renderer/studio_shell/zz_planted.tsx", 'import { Button } from "@/components/ui/button";\nexport const PlantedScreen = () => <Button>Planted</Button>;\n', "no-restricted-imports"],
-  ["a screen importing a shadcn component by a relative path", "src/renderer/studio_shell/zz_planted.tsx", 'import { Toggle } from "../components/ui/toggle";\nexport const PlantedScreen = Toggle;\n', "no-restricted-imports"],
+  ["a screen importing a shadcn component", "src/renderer/studio_shell/zz_planted.tsx", 'import { Button } from "@tatolab/tato-app-view-sdk/design_system/ui/button";\nexport const PlantedScreen = () => <Button>Planted</Button>;\n', "no-restricted-imports"],
+  ["a view importing another package's files by a path", "view-sdk:src/design_system/zz_planted.tsx", 'import { PlantedThing } from "../../../tato-app-core-views/src/index";\nexport const PlantedScreen = PlantedThing;\n', "tatolab_package/imports_stay_inside_the_package"],
   ["a screen importing base-ui directly", "src/renderer/studio_shell/zz_planted.tsx", 'import { Menu } from "@base-ui/react/menu";\nexport const PlantedScreen = Menu.Root;\n', "no-restricted-imports"],
   ["a raw button in a screen", "src/renderer/studio_shell/zz_planted.tsx", 'export const PlantedScreen = () => <button type="button">Planted</button>;\n', "no-restricted-syntax"],
   ["a raw input in a screen", "src/renderer/studio_shell/zz_planted.tsx", 'export const PlantedScreen = () => (\n  <input\n    value="planted"\n  />\n);\n', "no-restricted-syntax"],
@@ -73,11 +79,11 @@ test.each(reportedCases)("reports %s", async (_caseDescription, filePath, plante
 const quietCases: [string, string, string][] = [
   ["a console.log in a window test", "src/renderer/zz_planted.test.ts", 'console.log("planted");\n'],
   ["a spinner, which is not a dot", "src/renderer/studio_shell/zz_planted.tsx", 'export const plantedSpinner = () => <span className="size-3.5 animate-spin" />;\n'],
-  ["a screen composed from the design system", "src/renderer/studio_shell/zz_planted.tsx", 'import { ActionButton } from "../design_system/action_button";\nexport const PlantedScreen = () => <ActionButton onPressed={() => {}}>Planted</ActionButton>;\n'],
-  ["a studio view on the view host's contract and the design system", "src/renderer/studio_views/zz_planted/zz_planted.tsx", 'import type { StudioSelection } from "../../view_host/studio_view_contract";\nimport { WaitingState } from "../../design_system/waiting_state";\nexport const plantedSelection: StudioSelection = { kind: "nothing" };\nexport const PlantedView = () => <WaitingState title="Planted" />;\n'],
+  ["a screen composed from the design system", "src/renderer/studio_shell/zz_planted.tsx", 'import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";\nexport const PlantedScreen = () => <ActionButton onPressed={() => {}}>Planted</ActionButton>;\n'],
+  ["a studio view on the view host's contract and the design system", "src/renderer/studio_views/zz_planted/zz_planted.tsx", 'import type { StudioSelection } from "../../view_host/studio_view_contract";\nimport { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";\nexport const plantedSelection: StudioSelection = { kind: "nothing" };\nexport const PlantedView = () => <WaitingState title="Planted" />;\n'],
   ["a raw button in a window test", "src/renderer/studio_shell/zz_planted.test.tsx", 'export const plantedTestMarkup = () => <button type="button">Planted</button>;\n'],
-  ["the design system built on a shadcn component", "src/renderer/design_system/zz_planted.tsx", 'import { Button } from "@/components/ui/button";\nexport const PlantedControl = () => <Button>Planted</Button>;\n'],
-  ["a round shape inside a shadcn component", "src/renderer/components/ui/zz-planted.tsx", 'export const PlantedDot = () => <span className="size-2 rounded-full bg-border" />;\n'],
+  ["the design system built on a shadcn component", "view-sdk:src/design_system/zz_planted.tsx", 'import { Button } from "./ui/button";\nexport const PlantedControl = () => <Button>Planted</Button>;\n'],
+  ["a round shape inside a shadcn component", "view-sdk:src/design_system/ui/zz-planted.tsx", 'export const PlantedDot = () => <span className="size-2 rounded-full bg-border" />;\n'],
   ["an icon's circle in icons.ts", "src/renderer/icons.ts", 'export const PLANTED_ICON = \'<svg><circle r="3" /></svg>\';\n'],
   ["a process.platform read inside platform/", "src/main/platform/zz_planted.ts", "export const plantedPlatform = process.platform;\n"],
   ["process.platform named in a comment", "src/main/zz_planted.ts", "// process.platform differs here, so the platform layer decides\nexport const plantedValue = 1;\n"],
@@ -106,9 +112,16 @@ const stylesheetCases: [string, string, boolean][] = [
   ["a large round applied by Tailwind", ".planted { @apply size-8 rounded-full; }\n", false],
 ];
 
-test.each(stylesheetCases)("stylelint on %s", async (_caseDescription, plantedStylesheet, isReported) => {
-  const { results } = await stylelint.lint({ code: plantedStylesheet, codeFilename: `${TATO_APP_ROOT}src/renderer/styles/zz_planted.css`, cwd: TATO_APP_ROOT });
-  expect((results[0]?.warnings ?? []).length > 0).toBe(isReported);
+const stylesheetFolders: [string, string, string][] = [
+  ["the window's styles", TATO_APP_ROOT, "src/renderer/styles/"],
+  ["the design system's styles", VIEW_SDK_ROOT, "src/design_system/styles/"],
+];
+
+describe.each(stylesheetFolders)("in %s", (_folderDescription, packageRoot, stylesFolder) => {
+  test.each(stylesheetCases)("stylelint on %s", async (_caseDescription, plantedStylesheet, isReported) => {
+    const { results } = await stylelint.lint({ code: plantedStylesheet, codeFilename: `${packageRoot}${stylesFolder}zz_planted.css`, cwd: packageRoot });
+    expect((results[0]?.warnings ?? []).length > 0).toBe(isReported);
+  });
 });
 
 const pullRequestTitleCases: [string, boolean][] = [
