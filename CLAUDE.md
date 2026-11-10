@@ -108,6 +108,11 @@ attention spent on settled things is unavailable for real forks.
 
 ## Non-negotiables
 
+- **Every view runs with full access on Studio's origin and gets `VideoFrame`s with no copy.** Studio
+  drives live projection, so frame performance is load-bearing. There is no sandbox mode, no
+  capability list, and no `ImageBitmap` or other copy on a frame's path. The owner settled this;
+  never add isolation, never convert frames, never ask again:
+  @docs/views-run-with-full-access.md
 - **Platform code lives in `apps/tato-app/src/main/platform/`** (enforced); both platforms are checked
   on every change: `npm test` runs both platform modules on any OS, and Linux is proven on an
   x86_64 Linux machine or, from a Mac, in an `ubuntu:22.04` container — a Mac cannot exercise the
