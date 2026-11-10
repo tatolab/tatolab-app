@@ -1,20 +1,21 @@
-// The update feed through electron-updater: `MacUpdater` downloads the signed `.zip` and hands it to
-// Squirrel.Mac, which stages it and replaces the bundle as the app quits; `AppImageUpdater` downloads
-// the AppImage and replaces its file as the app quits; `DebUpdater` only reads the feed, and the
-// `.deb`'s download opens in the browser. Nothing downloads but when the updater asks.
+// The update feed through electron-updater: `MacUpdater` downloads the signed `.zip`, and hands it to
+// Squirrel.Mac only when the person chooses to install it, which then replaces the bundle and
+// reopens; `AppImageUpdater` downloads the AppImage and replaces its file as it reopens; `DebUpdater`
+// only reads the feed, and the `.deb`'s download opens in the browser. Nothing downloads but when the
+// updater asks, and quitting never installs.
 
-import { shell } from "electron";
 import electronUpdater, { type AppUpdater, type Logger, type UpdateCheckResult } from "electron-updater";
 import type { TatolabAppUpdatePackaging } from "../platform/tatolab_app_update_packaging.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
+import { openAWebPageInTheBrowserThroughElectron } from "./electron_web_page_in_the_browser.js";
 import type {
   TatolabAppUpdateFeedForThisBuild,
   TatolabAppUpdateFeedInstallingInPlace,
   TatolabAppUpdateFeedOpeningTheDownload,
 } from "../tatolab_app_updater.js";
 
-/** How long Squirrel.Mac may take to install a downloaded update and quit before the update reads as failed. */
+/** How long Squirrel.Mac may take to take the downloaded update, install it and quit before the update reads as failed. */
 const SQUIRREL_MAC_INSTALL_LIMIT_MS = 120_000;
 
 /** electron-updater's own log lines, at debug in the app's log. */
@@ -23,15 +24,12 @@ function electronUpdaterLogger(tatolabAppLog: TatolabAppLog): Logger {
   return { info: logAt("info"), warn: logAt("warn"), error: logAt("error"), debug: logAt("debug") };
 }
 
-/**
- * One of electron-updater's updaters over the generic feed at `appUpdateFeedUrl`, downloading only when asked; a downloaded version
- * installs as the app quits when `installsADownloadedVersionOnQuit`, which the `.deb`'s must never, since `DebUpdater` would install through pkexec.
- */
-function electronUpdaterReading(appUpdater: AppUpdater, appUpdateFeedUrl: string, installsADownloadedVersionOnQuit: boolean, tatolabAppLog: TatolabAppLog): AppUpdater {
+/** One of electron-updater's updaters over the generic feed at `appUpdateFeedUrl`, downloading only when asked and installing only through `quitAndInstall`. */
+function electronUpdaterReading(appUpdater: AppUpdater, appUpdateFeedUrl: string, tatolabAppLog: TatolabAppLog): AppUpdater {
   appUpdater.setFeedURL({ provider: "generic", url: appUpdateFeedUrl });
   appUpdater.autoDownload = false;
-  // MacUpdater hands the downloaded `.zip` to Squirrel.Mac only when this is set, and Squirrel.Mac then stages it for the next quit.
-  appUpdater.autoInstallOnAppQuit = installsADownloadedVersionOnQuit;
+  // Off, MacUpdater hands the downloaded `.zip` to Squirrel.Mac only in `quitAndInstall`, since Squirrel.Mac installs whatever it stages on the next quit.
+  appUpdater.autoInstallOnAppQuit = false;
   appUpdater.allowDowngrade = false;
   // The feed publishes no blockmaps, so every update downloads whole.
   appUpdater.disableDifferentialDownload = true;
@@ -51,17 +49,17 @@ export function createElectronTatolabAppUpdateFeed(
     case "squirrel_mac_zip":
       return {
         kind: "offered",
-        feed: new ElectronInstallingTatolabAppUpdateFeed(electronUpdaterReading(new electronUpdater.MacUpdater(), appUpdateFeedUrl, true, tatolabAppLog), SQUIRREL_MAC_INSTALL_LIMIT_MS),
+        feed: new ElectronInstallingTatolabAppUpdateFeed(electronUpdaterReading(new electronUpdater.MacUpdater(), appUpdateFeedUrl, tatolabAppLog), SQUIRREL_MAC_INSTALL_LIMIT_MS),
       };
     case "appimage":
       return {
         kind: "offered",
-        feed: new ElectronInstallingTatolabAppUpdateFeed(electronUpdaterReading(new electronUpdater.AppImageUpdater(), appUpdateFeedUrl, true, tatolabAppLog), null),
+        feed: new ElectronInstallingTatolabAppUpdateFeed(electronUpdaterReading(new electronUpdater.AppImageUpdater(), appUpdateFeedUrl, tatolabAppLog), null),
       };
     case "deb":
       return {
         kind: "offered",
-        feed: new ElectronDownloadOpeningTatolabAppUpdateFeed(electronUpdaterReading(new electronUpdater.DebUpdater(), appUpdateFeedUrl, false, tatolabAppLog), appUpdateFeedUrl),
+        feed: new ElectronDownloadOpeningTatolabAppUpdateFeed(electronUpdaterReading(new electronUpdater.DebUpdater(), appUpdateFeedUrl, tatolabAppLog), appUpdateFeedUrl),
       };
   }
 }
@@ -77,7 +75,7 @@ async function newerVersionFoundBy(appUpdater: AppUpdater): Promise<Result<Updat
   }
 }
 
-/** A feed whose newer version downloads, is staged, and installs in place as the app quits or restarts: Squirrel.Mac's `.zip`, or the AppImage. */
+/** A feed whose newer version downloads, and installs in place as the app restarts to update: Squirrel.Mac's `.zip`, or the AppImage. */
 class ElectronInstallingTatolabAppUpdateFeed implements TatolabAppUpdateFeedInstallingInPlace {
   readonly delivery = "install_and_relaunch";
 
@@ -144,11 +142,6 @@ class ElectronDownloadOpeningTatolabAppUpdateFeed implements TatolabAppUpdateFee
 
   async openTheNewerVersionsDownload(): Promise<Result<void, string>> {
     if (this.newerDebUrl === null) return failedWith("no newer version has been found to download");
-    try {
-      await shell.openExternal(this.newerDebUrl);
-    } catch (openFailure) {
-      return failedWith(describeCaughtFailure(openFailure));
-    }
-    return succeeded(undefined);
+    return openAWebPageInTheBrowserThroughElectron(this.newerDebUrl);
   }
 }

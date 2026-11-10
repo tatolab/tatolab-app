@@ -57,6 +57,7 @@ export type FakeShellRecord = (
   | { asked: "repeat_every"; intervalMs: number }
   | { asked: "set_application_menu"; applicationMenu: ApplicationMenu; menusOfTheFocusedWindow: readonly SystemMenuBarMenu[] | null }
   | { asked: "open_folder_in_the_file_manager"; folder: string }
+  | { asked: "open_web_page_in_the_browser"; webPageUrl: string }
   | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }
   | { asked: "ask_for_a_project_folder"; chosenFor: ProjectFolderDialogPurpose; defaultFolder: string }
   | { asked: "ask_for_a_dependency_source"; sourceKind: DependencySourceKind; defaultFolder: string }
@@ -201,6 +202,10 @@ export class FakeTatolabElectronAppShell {
     },
     documentsDirectory: path.join(this.appConfigDirectory, "home", "Documents"),
     createTheAppUpdateFeed: () => this.appUpdateFeedForThisBuild,
+    openAWebPageInTheBrowser: (webPageUrl) => {
+      this.records.push({ asked: "open_web_page_in_the_browser", webPageUrl });
+      return Promise.resolve(succeeded(undefined));
+    },
     systemNotifications: this.systemNotifications,
     repeatingTimer: (intervalMs) => this.records.push({ asked: "repeat_every", intervalMs }),
     appConfigDirectory: this.appConfigDirectory,

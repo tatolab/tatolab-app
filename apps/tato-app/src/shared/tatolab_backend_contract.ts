@@ -78,7 +78,7 @@ export type TatolabAppUpdateDelivery = "install_and_relaunch" | "open_the_downlo
  * Where checking for a newer Tatolab stands. `not_offered` is an app that cannot update itself (an
  * unpackaged one), with why; `available` is a newer version a check found that has not downloaded (a
  * `.deb`'s, or one whose background download failed); `ready_to_restart` is a newer version downloaded
- * and staged, which installs as the app restarts or quits; `failed` carries the updater's own words, and
+ * and staged, which installs only when the person restarts to update; `failed` carries the updater's own words, and
  * the installed app keeps working.
  */
 export type TatolabAppUpdateState =

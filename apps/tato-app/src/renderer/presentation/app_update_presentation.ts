@@ -68,7 +68,7 @@ export function presentTatolabAppUpdate(appUpdate: TatolabAppUpdateState): Tatol
     case "downloading":
       return { description: `Downloading Tato Studio ${appUpdate.version}… ${appUpdate.percent}%`, action, failure: null };
     case "ready_to_restart":
-      return { description: `Tato Studio ${appUpdate.version} is ready. Restart to update, or it installs the next time you quit.`, action, failure: null };
+      return { description: `Tato Studio ${appUpdate.version} is ready. Restart to Update installs it.`, action, failure: null };
     case "installing":
       return { description: `Installing Tato Studio ${appUpdate.version}. Tato Studio reopens when it's done.`, action, failure: null };
     case "failed":

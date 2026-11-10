@@ -33,6 +33,7 @@ import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_hand
 import { createElectronTatolabAppUpdateFeed } from "./electron_tatolab_app_update_feed.js";
 import { createElectronSystemNotifications } from "./electron_system_notifications.js";
 import { ELECTRON_APP_MEDIA_ACCESS_SETTINGS } from "./electron_app_media_access_settings.js";
+import { openAWebPageInTheBrowserThroughElectron } from "./electron_web_page_in_the_browser.js";
 import { ELECTRON_APP_LOGIN_ITEM_SETTINGS } from "./electron_app_login_item_settings.js";
 import { createElectronTrayIconHostFactory } from "./electron_tray_icon.js";
 import { answerProjectViewFileRequestsWith, registerTheWindowPageSchemeBeforeReady, serveTheWindowPageScheme } from "./electron_window_page_protocol.js";
@@ -167,6 +168,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   personSignedInToThisMachine: nameOfThePersonSignedInToThisMachine(),
   answerProjectViewFileRequestsWith,
   createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
+  openAWebPageInTheBrowser: openAWebPageInTheBrowserThroughElectron,
   systemNotifications: createElectronSystemNotifications(),
   repeatingTimer: (intervalMs, work) => {
     setInterval(work, intervalMs);
