@@ -67,7 +67,7 @@ describe("the studio's Edit menu", () => {
     }
     expect(commands.undoYourLastEdit).toHaveBeenCalledOnce();
     expect(commands.redoYourLastUndo).toHaveBeenCalledOnce();
-    expect(entryOf(studioMenuBarMenus("linux", null, UP_TO_DATE, commands), "Edit", "Undo")).toEqual({ kind: "unavailable_command", label: "Undo", unavailableBecause: NO_PROJECT_OPEN_REASON });
+    expect(entryOf(studioMenuBarMenus("linux", null, UP_TO_DATE, commands), "Edit", "Undo")).toEqual({ kind: "unavailable_command", label: "Undo", shortcutHint: "Ctrl Z", unavailableBecause: NO_PROJECT_OPEN_REASON });
   });
 });
 

@@ -36,6 +36,13 @@ import { ProjectsHomeChoicesKeptInStorage } from "./studio_shell/projects_home_c
 import { tatolabWindowLocalStorage } from "./tatolab_window_local_storage";
 
 /** The view types every studio area can show, in the view-type menu's order, Transactions only in Developer mode. */
+/** Whether `keyTarget` is a field taking typed text, whose own undo ⌘Z keeps; checked by shape, since a key in a view's frame comes from that frame's document. */
+function isTextBeingEditedIn(keyTarget: EventTarget | null): boolean {
+  if (keyTarget === null || !("tagName" in keyTarget) || typeof keyTarget.tagName !== "string") return false;
+  if ("isContentEditable" in keyTarget && keyTarget.isContentEditable === true) return true;
+  return keyTarget.tagName === "INPUT" || keyTarget.tagName === "TEXTAREA" || keyTarget.tagName === "SELECT";
+}
+
 function studioViewTypeRegistry(): StudioViewTypeRegistry {
   const coreViewTypes = coreViewTypesOf(CORE_VIEWS, (folder) => servedCoreViewFolderUrl(folder, document.baseURI));
   const coreViewTypeIn = (folder: string) => {
@@ -326,6 +333,13 @@ export function mountTatolabWindow(
     }
     if (!holdsWindowShortcutModifier(platform, keyboardEvent)) return;
     const key = keyboardEvent.key.length === 1 ? keyboardEvent.key.toLowerCase() : keyboardEvent.key;
+    if (key === "z" && !keyboardEvent.altKey && !isTextBeingEditedIn(keyboardEvent.target)) {
+      if (studioWindowModel.studioLayouts.readLatest() === null) return;
+      keyboardEvent.preventDefault();
+      if (keyboardEvent.shiftKey) studioMenuBarCommands.redoYourLastUndo();
+      else studioMenuBarCommands.undoYourLastEdit();
+      return;
+    }
     if (runStudioShortcut(key)) keyboardEvent.preventDefault();
   };
   document.addEventListener("keydown", runTheStudioShortcutOfTheKey);

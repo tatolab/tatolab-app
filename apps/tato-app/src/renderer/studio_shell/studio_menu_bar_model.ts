@@ -113,7 +113,7 @@ function studioMenuParts(
       laterCommand("Save version…"),
       projectCommand("Module manager…", commands.openModuleManager),
     ],
-    undoAndRedoEntries: [projectCommand("Undo", commands.undoYourLastEdit), projectCommand("Redo", commands.redoYourLastUndo)],
+    undoAndRedoEntries: [projectCommand("Undo", commands.undoYourLastEdit, shortcutHint(platform, "Z")), projectCommand("Redo", commands.redoYourLastUndo, shortcutHint(platform, "⇧Z"))],
     preferencesEntry: { kind: "command", label: preferencesLabel, shortcutHint: shortcutHint(platform, ","), onChosen: commands.openPreferences },
     addMenu: { label: "Add", entries: [laterCommand("Node…", "Shift A"), laterCommand("Connection…"), laterCommand("Variable…"), laterCommand("Frame")] },
     streamMenu: { label: "Stream", entries: [laterCommand("Run on…"), laterCommand("Stream clock")] },
