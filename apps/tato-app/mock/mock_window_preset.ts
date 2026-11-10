@@ -71,6 +71,7 @@ async function openEveryOutlinerRow(): Promise<void> {
     while (closedRow?.getAttribute("aria-expanded") === "false" && performance.now() - startedAt < PRESET_STEP_TIMEOUT_MILLISECONDS) {
       await new Promise((settled) => window.setTimeout(settled, PRESET_POLL_MILLISECONDS));
     }
+    if (closedRow?.getAttribute("aria-expanded") === "false") return;
   }
 }
 

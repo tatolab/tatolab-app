@@ -5,7 +5,7 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { ProjectNodeTypesReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
-import { rowExpansionChoicesOf } from "../shared/row_expansion_settings";
+import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
 import { outlinerRowIdOfTheSelection, outlinerTreeOfTheProject, type OutlinerRowExpansionChoices } from "./outliner_tree_of_the_project";
 
 const NO_PROJECT_FOLDER_TO_LIST: StopWatching = () => undefined;
@@ -23,7 +23,7 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
   );
   const projectNodeTypes = useViewReading(watchTheOpenProjectsNodeTypes);
   const settings = useViewReading(connection.watchSettings);
-  const expansionChoices: OutlinerRowExpansionChoices = useMemo(() => rowExpansionChoicesOf(settings), [settings]);
+  const [expansionChoices, toggleTheRow]: [OutlinerRowExpansionChoices, (rowId: string, expand: boolean) => void] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
   const outlinerRows = useMemo(
     () =>
       openProject?.kind === "read"
@@ -53,7 +53,7 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
             void connection.openView("code", { kind: "file", file: meaning.file });
           }
         }}
-        onExpansionToggled={(rowId, expand) => void connection.rememberSettings({ row_expansion: { ...expansionChoices, [rowId]: expand } })}
+        onExpansionToggled={toggleTheRow}
       />
     </div>
   );

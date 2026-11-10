@@ -9,7 +9,7 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { ProjectNodeTypePort, ProjectNodeTypesReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
-import { rowExpansionChoicesOf } from "../shared/row_expansion_settings";
+import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
 import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../shared/node_type_listing_tree";
 import { paletteTreeOfTheListing, type PaletteRowMeaning } from "./palette_tree_of_the_listing";
 
@@ -111,7 +111,7 @@ function PaletteOfTheProject({ connection, projectFolder }: { connection: TatoAp
   );
   const nodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
   const settings = useViewReading(connection.watchSettings);
-  const expansionChoices = useMemo(() => rowExpansionChoicesOf(settings), [settings]);
+  const [expansionChoices, toggleTheRow] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
   const [chosenRowId, setChosenRowId] = useState<string | null>(null);
   const paletteRows = useMemo(
     () => (nodeTypesReading?.kind === "listed" ? paletteTreeOfTheListing(nodeTypesReading.listing, expansionChoices) : []),
@@ -139,7 +139,7 @@ function PaletteOfTheProject({ connection, projectFolder }: { connection: TatoAp
             const meaning = meaningOfRow(rowId);
             if (meaning.kind !== "nothing_to_select" && meaning.file !== null) void connection.openView("code", { kind: "file", file: meaning.file });
           }}
-          onExpansionToggled={(rowId, expand) => void connection.rememberSettings({ row_expansion: { ...expansionChoices, [rowId]: expand } })}
+          onExpansionToggled={toggleTheRow}
         />
       </div>
       {chosenMeaning !== null && chosenMeaning.kind !== "nothing_to_select" && (

@@ -38,14 +38,16 @@ function installedPackageDirectory(packageName) {
 }
 
 try {
+  execFileSync("npm", ["run", "build", "--workspace", "@tatolab/tato-app-core-views", "--", "--sourcemap"], { cwd: monorepoRoot, stdio: "ignore" });
   execFileSync("npx", ["electron-vite", "build", "--sourcemap", "--outDir", buildDirectory], { cwd: tatoAppRoot, stdio: "ignore" });
   const packageDirectories = new Set(STYLESHEET_PACKAGES.map(installedPackageDirectory));
-  const assetsDirectory = path.join(buildDirectory, "renderer", "assets");
-  for (const mapFile of readdirSync(assetsDirectory).filter((fileName) => fileName.endsWith(".map"))) {
-    const { sources } = JSON.parse(readFileSync(path.join(assetsDirectory, mapFile), "utf8"));
-    for (const source of sources) {
-      const packageDirectory = packageDirectoryOf(path.resolve(assetsDirectory, source));
-      if (packageDirectory !== null) packageDirectories.add(packageDirectory);
+  for (const assetsDirectory of [path.join(buildDirectory, "renderer", "assets"), path.join(buildDirectory, "renderer", "core_views", "assets")]) {
+    for (const mapFile of readdirSync(assetsDirectory).filter((fileName) => fileName.endsWith(".map"))) {
+      const { sources } = JSON.parse(readFileSync(path.join(assetsDirectory, mapFile), "utf8"));
+      for (const source of sources) {
+        const packageDirectory = packageDirectoryOf(path.resolve(assetsDirectory, source));
+        if (packageDirectory !== null) packageDirectories.add(packageDirectory);
+      }
     }
   }
   const notices = [...packageDirectories].sort().map((packageDirectory) => {

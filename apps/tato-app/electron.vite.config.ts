@@ -72,7 +72,12 @@ function builtCoreViewsBesideTheWindow(): Plugin {
         if (!requestPath.startsWith(SERVED_CORE_VIEWS_PATH)) return next();
         const servedPath = requestPath.endsWith("/") ? `${requestPath}index.html` : requestPath;
         const builtFile = path.resolve(BUILT_CORE_VIEWS_FOLDER, `.${servedPath.slice(SERVED_CORE_VIEWS_PATH.length - 1)}`);
-        if (!builtFile.startsWith(`${BUILT_CORE_VIEWS_FOLDER}${path.sep}`) || !existsSync(builtFile) || !statSync(builtFile).isFile()) return next();
+        // Answered here even when missing, or Vite's fallback would draw the whole window inside the view's frame.
+        if (!builtFile.startsWith(`${BUILT_CORE_VIEWS_FOLDER}${path.sep}`) || !existsSync(builtFile) || !statSync(builtFile).isFile()) {
+          response.statusCode = 404;
+          response.end(`${requestPath} is not among the built core views`);
+          return;
+        }
         response.setHeader("Content-Type", CONTENT_TYPE_BY_EXTENSION[path.extname(builtFile)] ?? "application/octet-stream");
         createReadStream(builtFile).pipe(response);
       });
