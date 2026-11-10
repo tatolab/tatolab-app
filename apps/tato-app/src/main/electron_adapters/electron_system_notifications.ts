@@ -18,5 +18,22 @@ export function createElectronSystemNotifications(): SystemNotifications {
       notification.on("close", () => notificationsShown.delete(notification));
       notification.show();
     },
+    whenAnEarlierRunsNotificationIsClicked: (listener) => {
+      // macOS keeps an earlier run's notifications in Notification Center, and Electron delivers a click on one only to
+      // the live objects `getHistory` hands back; no other desktop has `getHistory`.
+      if (typeof Notification.getHistory !== "function") return;
+      Notification.getHistory().then(
+        (earlierRunsNotifications) => {
+          for (const earlierRunsNotification of earlierRunsNotifications) {
+            notificationsShown.add(earlierRunsNotification);
+            earlierRunsNotification.on("click", () => {
+              notificationsShown.delete(earlierRunsNotification);
+              listener(earlierRunsNotification.id);
+            });
+          }
+        },
+        () => undefined,
+      );
+    },
   };
 }

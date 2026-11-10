@@ -7,4 +7,6 @@ export interface SystemNotifications {
    * the desktop shows none. `notificationIdentifier` names it, so a click after the app quit names it to the launch it causes.
    */
   showNotification(title: string, body: string, onClicked: () => void, notificationIdentifier?: string): void;
+  /** Call `listener` with the identifier of each notification an earlier run showed that the person clicks in the desktop's history while this run lives; never where the desktop keeps none. */
+  whenAnEarlierRunsNotificationIsClicked(listener: (notificationIdentifier: string) => void): void;
 }

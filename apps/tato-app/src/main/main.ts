@@ -405,12 +405,13 @@ export async function startTatolabApp(
     systemMediaAccessAskedAheadForViews: new SystemMediaAccessAskedAheadForViews(platformForThisBuild.systemMediaAccess, tatolabElectronAppShell.systemNotifications),
     tatolabAppLog,
   };
-  const launchingNotificationIdentifier = tatolabElectronAppShell.notificationThatLaunchedTheApp();
-  if (launchingNotificationIdentifier !== null) {
-    sharedState.systemMediaAccessAskedAheadForViews.answerTheNotificationThatLaunchedTheApp(launchingNotificationIdentifier).catch((unexpectedFailure: unknown) => {
-      tatolabAppLog.error("answering the notification that launched the app ended without finishing", { failure: describeCaughtFailure(unexpectedFailure) });
+  const answerAClickOnAnEarlierRunsNotification = (notificationIdentifier: string) =>
+    sharedState.systemMediaAccessAskedAheadForViews.answerAClickOnAnEarlierRunsNotification(notificationIdentifier).catch((unexpectedFailure: unknown) => {
+      tatolabAppLog.error("answering a click on an earlier run's notification ended without finishing", { failure: describeCaughtFailure(unexpectedFailure) });
     });
-  }
+  const launchingNotificationIdentifier = tatolabElectronAppShell.notificationThatLaunchedTheApp();
+  if (launchingNotificationIdentifier !== null) void answerAClickOnAnEarlierRunsNotification(launchingNotificationIdentifier);
+  tatolabElectronAppShell.systemNotifications.whenAnEarlierRunsNotificationIsClicked((notificationIdentifier) => void answerAClickOnAnEarlierRunsNotification(notificationIdentifier));
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.stopWatchingEveryProject());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.pythonLanguageServers.stopEveryLanguageServer());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.runtimePortViewers.closeEveryPortViewer());

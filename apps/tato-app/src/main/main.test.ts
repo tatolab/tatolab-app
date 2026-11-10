@@ -116,6 +116,14 @@ test("an app launched by a click on a camera refusal in Notification Center open
   await vi.waitFor(() => expect(fakeShell.systemMediaAccess.privacyPanesOpened).toEqual(["camera"]));
 });
 
+test("a running app opens the microphone's privacy pane when an earlier run's microphone refusal is clicked in Notification Center", async () => {
+  const fakeShell = fakeShellQuitAfterTheTest();
+  fakeShell.systemMediaAccess.answerByDevice = { microphone: "refused" };
+  await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+  fakeShell.systemNotifications.clickAnEarlierRunsNotification("com.tatolab.tatolab.media-access-refused.microphone");
+  await vi.waitFor(() => expect(fakeShell.systemMediaAccess.privacyPanesOpened).toEqual(["microphone"]));
+});
+
 test("an app launched any other way asks the system for nothing as it starts", async () => {
   const fakeShell = fakeShellQuitAfterTheTest();
   await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);

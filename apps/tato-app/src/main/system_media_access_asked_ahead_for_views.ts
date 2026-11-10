@@ -77,11 +77,11 @@ export class SystemMediaAccessAskedAheadForViews {
   }
 
   /**
-   * Answer a launch the person caused by clicking `launchingNotificationIdentifier` in Notification Center after the run
-   * that showed it quit: for a refusal notification whose device the system still refuses, open where they allow it.
+   * Answer a click in Notification Center on `notificationIdentifier`, shown by an earlier run of the app: for a refusal
+   * notification whose device the system still refuses, open where the person allows it.
    */
-  async answerTheNotificationThatLaunchedTheApp(launchingNotificationIdentifier: string): Promise<void> {
-    const device = deviceOfAMediaAccessRefusedNotification(launchingNotificationIdentifier);
+  async answerAClickOnAnEarlierRunsNotification(notificationIdentifier: string): Promise<void> {
+    const device = deviceOfAMediaAccessRefusedNotification(notificationIdentifier);
     if (device === null) return;
     this.devicesAskedThisRun.add(device);
     const answer = await this.systemMediaAccess.askAheadFor(device);

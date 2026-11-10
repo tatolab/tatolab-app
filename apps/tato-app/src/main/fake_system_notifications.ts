@@ -31,6 +31,17 @@ export class FakeSystemNotifications implements SystemNotifications {
     this.onShown(notificationShown);
   }
 
+  private readonly earlierRunsNotificationClickListeners: ((notificationIdentifier: string) => void)[] = [];
+
+  whenAnEarlierRunsNotificationIsClicked(listener: (notificationIdentifier: string) => void): void {
+    this.earlierRunsNotificationClickListeners.push(listener);
+  }
+
+  /** Click, in the desktop's history, a notification an earlier run showed under `notificationIdentifier`, as the person does. */
+  clickAnEarlierRunsNotification(notificationIdentifier: string): void {
+    for (const listener of this.earlierRunsNotificationClickListeners) listener(notificationIdentifier);
+  }
+
   /** Click the most recent notification shown, as the person does. */
   clickTheLastNotification(): void {
     this.clickHandlers.at(-1)?.();

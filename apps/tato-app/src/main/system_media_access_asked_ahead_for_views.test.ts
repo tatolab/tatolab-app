@@ -93,7 +93,7 @@ test("a launch from a refusal notification clicked after its run quit opens wher
   const systemNotifications = new FakeSystemNotifications();
   const askedAhead = new SystemMediaAccessAskedAheadForViews(systemMediaAccess, systemNotifications);
 
-  await askedAhead.answerTheNotificationThatLaunchedTheApp(mediaAccessRefusedNotificationIdentifier("microphone"));
+  await askedAhead.answerAClickOnAnEarlierRunsNotification(mediaAccessRefusedNotificationIdentifier("microphone"));
   await askedAhead.askForTheDevicesTheViewsDeclare([MIC_METER]);
 
   expect(systemMediaAccess.privacyPanesOpened).toEqual(["microphone"]);
@@ -105,8 +105,8 @@ test("a launch from a refusal notification opens nothing once the person allowed
   const systemMediaAccess = new FakeSystemMediaAccess();
   const askedAhead = new SystemMediaAccessAskedAheadForViews(systemMediaAccess, new FakeSystemNotifications());
 
-  await askedAhead.answerTheNotificationThatLaunchedTheApp(mediaAccessRefusedNotificationIdentifier("camera"));
-  await askedAhead.answerTheNotificationThatLaunchedTheApp("3f6c2a8e-6f5d-4bb0-9a3c-0c1d2e3f4a5b");
+  await askedAhead.answerAClickOnAnEarlierRunsNotification(mediaAccessRefusedNotificationIdentifier("camera"));
+  await askedAhead.answerAClickOnAnEarlierRunsNotification("3f6c2a8e-6f5d-4bb0-9a3c-0c1d2e3f4a5b");
 
   expect(systemMediaAccess.devicesAsked).toEqual(["camera"]);
   expect(systemMediaAccess.privacyPanesOpened).toEqual([]);
