@@ -1,7 +1,7 @@
 // The browser mock's `list_assets`: the pattern project's graph documents, under the stream asset
 // UUIDs its streams are listed with, beside the media, scene and data files imported into it.
 
-import type { ProjectAsset, ProjectAssetListing } from "../src/shared/tatolab_backend_contract";
+import type { ProjectAsset, ProjectAssetListing, ProjectAssetsImported } from "../src/shared/tatolab_backend_contract";
 import { mockStreamLocationOf } from "./mock_stream_fixtures";
 
 const PATTERN_PROJECT = "2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90";
@@ -41,8 +41,32 @@ const IMPORTED_INTO_THE_PATTERN_PROJECT: readonly ProjectAsset[] = [
   },
 ];
 
-/** The mock runtime's `list_assets` for `projectDirectory` in `streamsFolder`, or `null` for a folder it holds no project in. */
-export function mockProjectAssetListing(projectDirectory: string, streamsFolder: string): ProjectAssetListing | null {
+/** The file the browser mock's open dialog answers Import asset… with, as the runtime would describe it once imported. */
+const MOCK_FILE_CHOSEN_TO_IMPORT = { name: "night-sky", extension: ".jpg", kind: "media", content_sha256: "4f1b7e0c9a2d5e8f1b4c7a0d3e6f9b2c5a8d1e4f7b0c3a6d9e2f5b8c1a4d7e0f", content_byte_len: 2_202_009 } as const;
+
+/** The mock runtime's `import_asset` of the one file its dialog answers with, into `intoFolder` of the pattern project in `streamsFolder` under the file's name numbered past one already there, kept in `assetsImportedWhileTheMockRuns`; refused for any other project in the runtime's words. */
+export function mockImportTheFileChosenInto(projectDirectory: string, streamsFolder: string, intoFolder: string, assetsImportedWhileTheMockRuns: ProjectAsset[]): ProjectAssetsImported {
+  const listing = mockProjectAssetListing(projectDirectory, streamsFolder, assetsImportedWhileTheMockRuns);
+  if (listing === null) return { imported: [], refused: [{ file_name: `${MOCK_FILE_CHOSEN_TO_IMPORT.name}${MOCK_FILE_CHOSEN_TO_IMPORT.extension}`, because: `import_asset failed: ${projectDirectory} holds no project` }] };
+  const pathsHeld = new Set(listing.assets.map((asset) => asset.path));
+  const folderPrefix = intoFolder === "" ? "" : `${intoFolder}/`;
+  let number = 1;
+  const pathNumbered = () => `${folderPrefix}${MOCK_FILE_CHOSEN_TO_IMPORT.name}${number === 1 ? "" : ` ${number}`}${MOCK_FILE_CHOSEN_TO_IMPORT.extension}`;
+  while (pathsHeld.has(pathNumbered())) number += 1;
+  const imported: ProjectAsset = {
+    asset: `5e0c6a1d-7f2b-4c93-8a1e-${String(assetsImportedWhileTheMockRuns.length + 1).padStart(12, "0")}`,
+    kind: MOCK_FILE_CHOSEN_TO_IMPORT.kind,
+    path: pathNumbered(),
+    content_sha256: MOCK_FILE_CHOSEN_TO_IMPORT.content_sha256,
+    content_byte_len: MOCK_FILE_CHOSEN_TO_IMPORT.content_byte_len,
+    import_settings: {},
+  };
+  assetsImportedWhileTheMockRuns.push(imported);
+  return { imported: [{ asset: imported.asset, path: imported.path }], refused: [] };
+}
+
+/** The mock runtime's `list_assets` for `projectDirectory` in `streamsFolder`, `assetsImportedWhileTheMockRuns` among them, or `null` for a folder it holds no project in. */
+export function mockProjectAssetListing(projectDirectory: string, streamsFolder: string, assetsImportedWhileTheMockRuns: readonly ProjectAsset[]): ProjectAssetListing | null {
   if (projectDirectory !== `${streamsFolder}/pattern`) return null;
   const graphDocuments = ["main", "pattern_two", "recorder"].map(
     (streamName): ProjectAsset => ({
@@ -58,6 +82,6 @@ export function mockProjectAssetListing(projectDirectory: string, streamsFolder:
     project_directory: projectDirectory,
     project: PATTERN_PROJECT,
     project_name: "pattern",
-    assets: [...IMPORTED_INTO_THE_PATTERN_PROJECT, ...graphDocuments].sort((first, second) => first.path.localeCompare(second.path)),
+    assets: [...IMPORTED_INTO_THE_PATTERN_PROJECT, ...assetsImportedWhileTheMockRuns, ...graphDocuments].sort((first, second) => first.path.localeCompare(second.path)),
   };
 }

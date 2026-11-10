@@ -36,10 +36,10 @@ import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./m
 import { MockProjectFiles } from "./mock_project_files";
 import { MOCK_PERSON_EDITING_IN_STUDIO, MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
-import { mockProjectAssetListing } from "./mock_project_assets";
+import { mockImportTheFileChosenInto, mockProjectAssetListing } from "./mock_project_assets";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
-import type { ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
+import type { ProjectAsset, ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
 import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
@@ -452,6 +452,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     recentProjectsInTheQuery,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
+  const assetsImportedWhileTheMockRuns: ProjectAsset[] = [];
   const mainStream =
     scenario === "node-error"
       ? fixtures.mainStreamWithDisplayWindowInError
@@ -1121,9 +1122,15 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     listProjectAssets: async (projectDirectory) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      const listing = mockProjectAssetListing(projectDirectory, `${fixtures.machine.homeDirectory}/streams`);
+      const listing = mockProjectAssetListing(projectDirectory, `${fixtures.machine.homeDirectory}/streams`, assetsImportedWhileTheMockRuns);
       if (listing === null) throw `list_assets failed: ${projectDirectory} holds no project: it has no tatolab-project.json`;
       return listing;
+    },
+    importAssetsIntoTheOpenProject: async (intoFolder) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openProjectReading.kind !== "read") throw "No project is open in this window.";
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      return mockImportTheFileChosenInto(openProjectReading.open_project.project.folder, `${fixtures.machine.homeDirectory}/streams`, intoFolder, assetsImportedWhileTheMockRuns);
     },
     checkForTatolabAppUpdates: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

@@ -97,6 +97,7 @@ function recordingHostServices() {
   const viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
   const languageServerMessagesSent: JsonValue[] = [];
   const undosAsked: { projectFolder: string; author: ProjectTransactionAuthor }[] = [];
+  const assetImportsAsked: { projectFolder: string; intoFolder: string }[] = [];
   const graphTransactionsAsked: { projectFolder: string; operations: readonly unknown[]; mode: string; idempotencyKey: string | null }[] = [];
   const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
   const outputsWritten: { viewNode: StudioViewNodeAddress; port: string; value: JsonValue }[] = [];
@@ -132,6 +133,14 @@ function recordingHostServices() {
     watchProjectAssets: (projectFolder, listener) => {
       listener({ kind: "not_listed", because: `list_assets failed: ${projectFolder} holds no project: it has no tatolab-project.json` });
       return () => undefined;
+    },
+    importAssetsIntoTheProject: async (projectFolder, intoFolder) => {
+      assetImportsAsked.push({ projectFolder, intoFolder });
+      if (intoFolder === "nowhere") return { kind: "nothing_chosen" };
+      return {
+        kind: "imported",
+        assets_imported: { imported: [{ asset: "a-uuid", path: `${intoFolder}/intro.mp4` }], refused: [{ file_name: "notes.txt", because: "import_asset failed: `media/notes.txt` is already the path of the asset b-uuid" }] },
+      };
     },
     watchProjectTransactions: (projectFolder, listener) => {
       listener({ kind: "not_read", because: `No runtime follows ${projectFolder}.` });
@@ -173,7 +182,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, graphTransactionsAsked, outputsWritten };
+  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, graphTransactionsAsked, outputsWritten };
 }
 
 /** An area that keeps the settings it is asked to remember and says where the view's header row lies. */
@@ -254,6 +263,24 @@ describe("a view's connection to Studio, through the one bridge every view is se
     await messagesDelivered();
     expect(readings).toEqual([{ kind: "not_listed", because: "list_assets failed: /set holds no project: it has no tatolab-project.json" }]);
     expect(refusals).toEqual(["DJ Deck runs sandboxed and does not list read.project_assets in its tatolab_view.json, so Studio does not serve it."]);
+  });
+
+  it("imports the files the person chooses for a view granted write.project_assets, each refusal in the runtime's words, and refuses a sandboxed view by name", async () => {
+    const { connection, assetImportsAsked } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+    expect(await connection.importAssetsIntoTheProject("/set", "media")).toEqual({
+      kind: "imported",
+      assets_imported: { imported: [{ asset: "a-uuid", path: "media/intro.mp4" }], refused: [{ file_name: "notes.txt", because: "import_asset failed: `media/notes.txt` is already the path of the asset b-uuid" }] },
+    });
+    expect(await connection.importAssetsIntoTheProject("/set", "nowhere")).toEqual({ kind: "nothing_chosen" });
+    expect(assetImportsAsked).toEqual([
+      { projectFolder: "/set", intoFolder: "media" },
+      { projectFolder: "/set", intoFolder: "nowhere" },
+    ]);
+    const sandboxed = await connectedView(DJ_DECK_MANIFEST, {});
+    expect(await sandboxed.connection.importAssetsIntoTheProject("/set", "media")).toEqual({
+      kind: "not_imported",
+      because: "DJ Deck runs sandboxed and does not list write.project_assets in its tatolab_view.json, so Studio does not serve it.",
+    });
   });
 
   it("reads the project's history and undoes through it when it may write the project, and is refused both by name when sandboxed without them", async () => {

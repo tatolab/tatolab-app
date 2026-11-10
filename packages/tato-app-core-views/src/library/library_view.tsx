@@ -1,6 +1,6 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useMemo, useState } from "react";
-import { Boxes, Folder } from "lucide-react";
+import { Boxes, FilePlus2, Folder } from "lucide-react";
 import { MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { ProjectAssetCard, ProjectAssetPicture } from "@tatolab/tato-app-view-sdk/design_system/project_asset_card";
 import { CardGrid } from "@tatolab/tato-app-view-sdk/design_system/card_grid";
@@ -11,6 +11,8 @@ import { StudioAreaHeaderChoiceMenu } from "@tatolab/tato-app-view-sdk/design_sy
 import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
 import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import { PropertySection } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
+import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
+import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
@@ -23,6 +25,7 @@ import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../s
 import { libraryTreeOfTheListing, type LibraryDeclarationsShown, type LibraryRowMeaning } from "./library_tree_of_the_listing";
 import {
   assetFileName,
+  assetFolderOfTheShownFolder,
   assetFormatWords,
   assetKindAndSizeWords,
   assetPictureToneOf,
@@ -30,7 +33,9 @@ import {
   assetsTheLibraryLists,
   byteLengthInWords,
   EVERY_ASSET_FOLDER_ID,
+  importRefusalsOf,
   libraryAssetFoldersOf,
+  type LibraryImportRefusal,
   noAssetShownWords,
   shortenedDigest,
 } from "./library_assets_of_the_listing";
@@ -238,12 +243,28 @@ function DetailsOfTheAsset({ asset, onHidden }: { asset: ProjectAsset; onHidden:
   );
 }
 
+/** The folder of the open project's assets the Library shows, and the asset chosen in it. */
+interface AssetsShownInTheLibrary {
+  shownFolderId: string;
+  chosenAssetUuid: string | null;
+}
+
 /** The open project's assets as the runtime lists them: its folders down the left, the chosen folder's assets as cards, and the chosen asset's details. */
-function AssetsOfTheProject({ connection, projectFolder, searchText }: { connection: TatoAppViewConnection; projectFolder: string; searchText: string }) {
+function AssetsOfTheProject({
+  connection,
+  projectFolder,
+  searchText,
+  assetsShown: { shownFolderId, chosenAssetUuid },
+  onAssetsShownChanged,
+}: {
+  connection: TatoAppViewConnection;
+  projectFolder: string;
+  searchText: string;
+  assetsShown: AssetsShownInTheLibrary;
+  onAssetsShownChanged: (assetsShown: AssetsShownInTheLibrary) => void;
+}) {
   const watchTheProjectsAssets = useCallback((listener: (reading: ProjectAssetsReading) => void): StopWatching => connection.watchProjectAssets(projectFolder, listener), [connection, projectFolder]);
   const assetsReading = useViewReading(watchTheProjectsAssets);
-  const [shownFolderId, setShownFolderId] = useState(EVERY_ASSET_FOLDER_ID);
-  const [chosenAssetUuid, setChosenAssetUuid] = useState<string | null>(null);
   if (assetsReading === null) return <WaitingState title="Reading the project's assets" data-library-state="waiting" />;
   if (assetsReading.kind === "not_listed") {
     return (
@@ -255,8 +276,8 @@ function AssetsOfTheProject({ connection, projectFolder, searchText }: { connect
   const assets = assetsTheLibraryLists(assetsReading.listing);
   const folders = libraryAssetFoldersOf(assets);
   const folderShown = folders.some((folder) => folder.folder_id === shownFolderId) ? shownFolderId : EVERY_ASSET_FOLDER_ID;
-  const assetsShown = assetsShownInTheFolder(assets, folderShown, searchText);
-  const chosenAsset = assetsShown.find((asset) => asset.asset === chosenAssetUuid) ?? null;
+  const assetsInTheFolder = assetsShownInTheFolder(assets, folderShown, searchText);
+  const chosenAsset = assetsInTheFolder.find((asset) => asset.asset === chosenAssetUuid) ?? null;
   const folderShownLabel = folders.find((folder) => folder.folder_id === folderShown)?.label ?? "this folder";
   const noAssetShown = noAssetShownWords(assets.length, folderShownLabel, searchText);
   return (
@@ -266,21 +287,23 @@ function AssetsOfTheProject({ connection, projectFolder, searchText }: { connect
         width="wide"
         sectionGroups={[
           {
-            groupLabel: assetsReading.listing.project_name,
+            groupLabel: "Folders",
             sections: folders.map((folder) => ({ section_id: folder.folder_id, label: folder.label, icon: folder.folder_id === EVERY_ASSET_FOLDER_ID ? Boxes : Folder, count: folder.asset_count })),
           },
         ]}
         shownSectionId={folderShown}
-        onSectionChosen={setShownFolderId}
+        onSectionChosen={(folderId) => onAssetsShownChanged({ shownFolderId: folderId, chosenAssetUuid })}
         dataAttributeOfEachSection="data-library-asset-folder"
       />
-      <WorkAreaWithSidePanel sidePanel={chosenAsset === null ? null : <DetailsOfTheAsset asset={chosenAsset} onHidden={() => setChosenAssetUuid(null)} />}>
+      <WorkAreaWithSidePanel
+        sidePanel={chosenAsset === null ? null : <DetailsOfTheAsset asset={chosenAsset} onHidden={() => onAssetsShownChanged({ shownFolderId, chosenAssetUuid: null })} />}
+      >
         <div className="scrollbar-thin min-w-0 flex-1 overflow-y-auto p-3">
-          {assetsShown.length === 0 ? (
+          {assetsInTheFolder.length === 0 ? (
             <WaitingState title={noAssetShown.title} explanation={noAssetShown.explanation} data-library-state={assets.length === 0 ? "no_assets" : "no_asset_matches"} />
           ) : (
             <CardGrid size="studio_compact" label={`Assets in ${folderShownLabel}`}>
-              {assetsShown.map((asset) => (
+              {assetsInTheFolder.map((asset) => (
                 <ProjectAssetCard
                   key={asset.asset}
                   name={assetFileName(asset.path)}
@@ -288,7 +311,7 @@ function AssetsOfTheProject({ connection, projectFolder, searchText }: { connect
                   pictureTone={assetPictureToneOf(asset)}
                   pictureWords={assetFormatWords(asset)}
                   isSelected={asset.asset === chosenAsset?.asset}
-                  onSelected={() => setChosenAssetUuid(asset.asset)}
+                  onSelected={() => onAssetsShownChanged({ shownFolderId, chosenAssetUuid: asset.asset })}
                   data-library-asset={asset.path}
                 />
               ))}
@@ -300,23 +323,38 @@ function AssetsOfTheProject({ connection, projectFolder, searchText }: { connect
   );
 }
 
-function LibraryBody({ connection, shown, searchText }: { connection: TatoAppViewConnection; shown: LibraryShown; searchText: string }) {
-  const openProject = useViewReading(connection.watchOpenProject);
-  if (openProject === null) return null;
-  if (openProject.kind === "none_open") return <WaitingState title="No project is open" explanation="Open or create one from the File menu." />;
-  if (openProject.kind === "unreadable") return <WaitingState isFailure title={`${openProject.folder} can't be read`} explanation={openProject.refusal} />;
-  const projectFolder = openProject.open_project.project.folder;
-  return shown === "assets" ? (
-    <AssetsOfTheProject key={projectFolder} connection={connection} projectFolder={projectFolder} searchText={searchText} />
-  ) : (
-    <DeclarationsOfTheProject key={`${projectFolder}/${shown}`} connection={connection} projectFolder={projectFolder} declarationsShown={shown} />
-  );
+/** What the Library keeps for the project it shows: the asset search, the folder and asset shown, and the latest import's refusals. */
+interface LibraryOfTheProjectChoices {
+  projectFolder: string | null;
+  searchText: string;
+  assetsShown: AssetsShownInTheLibrary;
+  importRefusals: readonly LibraryImportRefusal[];
 }
 
-/** The Library view's whole frame: what the project can use, as node types, generators or assets, chosen in its header row's Show menu. */
+function libraryChoicesForANewProject(projectFolder: string | null): LibraryOfTheProjectChoices {
+  return { projectFolder, searchText: "", assetsShown: { shownFolderId: EVERY_ASSET_FOLDER_ID, chosenAssetUuid: null }, importRefusals: [] };
+}
+
+/** The Library view's whole frame: what the project can use, as node types, generators or assets, chosen in its header row's Show menu, and for its assets a search and Import asset…. */
 export function LibraryView({ connection }: { connection: TatoAppViewConnection }) {
   const [shown, setShown] = useState<LibraryShown>("node_types");
-  const [searchText, setSearchText] = useState("");
+  const openProject = useViewReading(connection.watchOpenProject);
+  const projectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
+  const [choicesKept, setChoicesKept] = useState<LibraryOfTheProjectChoices>(() => libraryChoicesForANewProject(projectFolder));
+  const choices = choicesKept.projectFolder === projectFolder ? choicesKept : libraryChoicesForANewProject(projectFolder);
+  const changeTheChoices = (change: Partial<LibraryOfTheProjectChoices>) =>
+    setChoicesKept((latest) => ({ ...(latest.projectFolder === projectFolder ? latest : libraryChoicesForANewProject(projectFolder)), ...change }));
+  const importIntoTheShownFolder = (folderOfTheProject: string) => {
+    changeTheChoices({ importRefusals: [] });
+    void connection.importAssetsIntoTheProject(folderOfTheProject, assetFolderOfTheShownFolder(choices.assetsShown.shownFolderId)).then((importing) => {
+      const firstImported = importing.kind === "imported" ? importing.assets_imported.imported[0] : undefined;
+      setChoicesKept((latest) =>
+        latest.projectFolder !== folderOfTheProject
+          ? latest
+          : { ...latest, importRefusals: importRefusalsOf(importing), assetsShown: firstImported === undefined ? latest.assetsShown : { ...latest.assetsShown, chosenAssetUuid: firstImported.asset } },
+      );
+    });
+  };
   return (
     <CoreViewFrame
       connection={connection}
@@ -325,15 +363,38 @@ export function LibraryView({ connection }: { connection: TatoAppViewConnection 
           <StudioAreaHeaderChoiceMenu leadingWord="Show" words={LIBRARY_SHOWN_WORDS[shown]} label={`Show: ${LIBRARY_SHOWN_WORDS[shown]}`} data-library-shown={shown}>
             <MenuSingleChoiceGroup choices={LIBRARY_SHOWN_CHOICES} chosen={shown} onChosen={setShown} dataAttributeOfEachChoice="data-library-shown-choice" closesTheMenuOnChoice />
           </StudioAreaHeaderChoiceMenu>
-          {shown === "assets" && (
-            <span className="ml-auto flex min-w-0 justify-end">
-              <SearchField label="Search assets" placeholder="Search assets" text={searchText} onTextChanged={setSearchText} data-library-asset-search="" />
+          {shown === "assets" && projectFolder !== null && (
+            <span className="ml-auto flex min-w-0 items-center justify-end gap-1.5">
+              <SearchField label="Search assets" placeholder="Search assets" text={choices.searchText} onTextChanged={(searchText) => changeTheChoices({ searchText })} data-library-asset-search="" />
+              <ActionButton appearance="quiet" size="small" icon={FilePlus2} tooltip="Copy files into the folder shown" onPressed={() => importIntoTheShownFolder(projectFolder)} data-library-import-asset="">
+                Import asset…
+              </ActionButton>
             </span>
           )}
         </>
       }
     >
-      <LibraryBody connection={connection} shown={shown} searchText={searchText} />
+      {openProject === null ? null : openProject.kind === "none_open" ? (
+        <WaitingState title="No project is open" explanation="Open or create one from the File menu." />
+      ) : openProject.kind === "unreadable" ? (
+        <WaitingState isFailure title={`${openProject.folder} can't be read`} explanation={openProject.refusal} />
+      ) : shown === "assets" ? (
+        <>
+          {choices.importRefusals.map((importRefusal, refusalIndex) => (
+            <RefusalLine key={refusalIndex} layout="bar" lead={importRefusal.lead} words={importRefusal.because} data-library-import-refused="" />
+          ))}
+          <AssetsOfTheProject
+            key={openProject.open_project.project.folder}
+            connection={connection}
+            projectFolder={openProject.open_project.project.folder}
+            searchText={choices.searchText}
+            assetsShown={choices.assetsShown}
+            onAssetsShownChanged={(assetsShown) => changeTheChoices({ assetsShown })}
+          />
+        </>
+      ) : (
+        <DeclarationsOfTheProject key={`${openProject.open_project.project.folder}/${shown}`} connection={connection} projectFolder={openProject.open_project.project.folder} declarationsShown={shown} />
+      )}
     </CoreViewFrame>
   );
 }

@@ -23,7 +23,12 @@ import { TATOLAB_WINDOW_PAGE_URL } from "../tatolab_window_page_source.js";
 import { electronApplicationMenu } from "./electron_application_menu.js";
 import { openAFolderInTheFileManagerThroughElectron } from "./electron_folder_in_the_file_manager.js";
 import { askThePersonForAStreamProjectFolderThroughElectron } from "./electron_stream_project_folder_dialog.js";
-import { askThePersonForAProjectArchiveThroughElectron, askThePersonForAProjectCoverImageThroughElectron, askThePersonForAProjectFolderThroughElectron } from "./electron_project_folder_dialog.js";
+import {
+  askThePersonForAProjectArchiveThroughElectron,
+  askThePersonForAProjectCoverImageThroughElectron,
+  askThePersonForAProjectFolderThroughElectron,
+  askThePersonForFilesToImportAsAssetsThroughElectron,
+} from "./electron_project_folder_dialog.js";
 import { askThePersonForADependencySourceThroughElectron } from "./electron_dependency_source_dialog.js";
 import { startANodeLanguageServerInAUtilityProcess } from "./electron_node_language_server_in_a_utility_process.js";
 import { fetchBytesOverHttpsThroughElectron, fetchTextOverHttpsThroughElectron } from "./electron_text_over_https.js";
@@ -145,6 +150,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   askThePersonForAProjectArchive: askThePersonForAProjectArchiveThroughElectron,
   askThePersonForAProjectCoverImage: askThePersonForAProjectCoverImageThroughElectron,
   askThePersonForADependencySource: askThePersonForADependencySourceThroughElectron,
+  askThePersonForFilesToImportAsAssets: askThePersonForFilesToImportAsAssetsThroughElectron,
   startANodeLanguageServer: startANodeLanguageServerInAUtilityProcess,
   // A packaged app carries Pyright outside app.asar, in app.asar.unpacked, so its worker threads and typeshed stubs load from plain files;
   // an unpackaged one finds it where the npm workspace installed it, which is usually the monorepo root's node_modules.

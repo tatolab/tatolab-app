@@ -48,6 +48,7 @@ import {
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { StreamProjectAdding } from "./stream_project_adding.js";
 import { TatolabAppUpdater } from "./tatolab_app_updater.js";
+import { ProjectAssetsImportedFromChosenFiles } from "./project_assets_imported_from_chosen_files.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
 
@@ -80,6 +81,7 @@ async function sharedStateOverFakes(
     systemNotifications: FakeSystemNotifications;
     tatolabAppOpenedAtLogin: FakeTatolabAppOpenedAtLogin;
     menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[];
+    assetFilesTheDialogAnswers: { files: readonly string[] | null };
   }
 > {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
@@ -127,6 +129,7 @@ async function sharedStateOverFakes(
   const developerModeSwitch = await HeldRememberedSwitch.load(RememberedSwitchFile.developerModeInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog));
   const fakeShellForTheWindows = new FakeTatolabElectronAppShell();
   const menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[] = [];
+  const assetFilesTheDialogAnswers: { files: readonly string[] | null } = { files: null };
   const appWindows = new TatolabAppWindows({
     mainWindowHostFactory: fakeShellForTheWindows.tatolabElectronAppShell.mainWindowHostFactory,
     platformItems: { mainWindowChrome: { titleBarStyle: "default" }, setDockIconVisible: () => {} },
@@ -208,6 +211,12 @@ async function sharedStateOverFakes(
     fetchBytesOverHttps: async () => failedWith("these tests reach no network"),
     moduleDownloadsFolder: path.join(appConfigDirectory, "module-downloads"),
     dependencySourceDialog: async () => succeeded(null),
+    projectAssetsImportedFromChosenFiles: new ProjectAssetsImportedFromChosenFiles({
+      homeDirectory: appConfigDirectory,
+      projectAssetFilesDialog: async () => succeeded(assetFilesTheDialogAnswers.files),
+      importAsset: (projectDirectory, source, assetPath, author) => controller.importAsset(projectDirectory, source, assetPath, author),
+    }),
+    assetFilesTheDialogAnswers,
     thePersonEditingInStudio: { kind: "person", name: "sam" },
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLink,
@@ -880,6 +889,37 @@ test("undo and redo in the open project ask the runtime by the window's author a
     refusal: "undo_in_the_open_project needs `author`, a person or an agent by the name history shows",
   });
   expect(await commandHandlers.undo_in_the_open_project({ author: sam }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+});
+
+/** The window's `ProjectAssetsImported` reads exactly this JSON. */
+test("importing assets into the open project copies each file the person chooses into its folder by the person editing, answering each one imported and each refusal in the runtime's words", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-answer-for-stills-poster-png-imported-by-a-person.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-refusal-for-a-path-night-show-already-holds.json")),
+    ],
+    "linux",
+  );
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "gallery-wall-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(await commandHandlers.import_assets_into_the_open_project({ into_folder: "stills" }, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  sharedState.assetFilesTheDialogAnswers.files = ["/home/sam/poster.png", "/home/sam/cover-art.png"];
+  expect(await commandHandlers.import_assets_into_the_open_project({ into_folder: "stills" }, fromTheStudioWindow)).toEqual({
+    ok: true,
+    value: {
+      imported: [{ asset: "0f10d6b7-3e8b-414f-aca0-30ded70632dc", path: "stills/poster.png" }],
+      refused: [{ file_name: "cover-art.png", because: "import_asset failed: `media/cover-art.png` is already the path of the asset 7593be3b-210b-4656-ab21-2213bfa307b5" }],
+    },
+  });
+  expect(await commandHandlers.import_assets_into_the_open_project({}, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: 'import_assets_into_the_open_project needs `into_folder`, the folder in the project the assets go in, "" for its top',
+  });
+  expect(await commandHandlers.import_assets_into_the_open_project({ into_folder: "stills" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 
 /** The window's `ProjectGraphTransactionTheRuntimeAnswered` reads exactly this JSON. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ProjectAsset, ProjectAssetListing } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { assetFileName, assetKindAndSizeWords, noAssetShownWords, assetFormatWords, assetPictureToneOf, assetsShownInTheFolder, assetsTheLibraryLists, byteLengthInWords, EVERY_ASSET_FOLDER_ID, libraryAssetFoldersOf, shortenedDigest } from "./library_assets_of_the_listing";
+import { assetFileName, assetFolderOfTheShownFolder, importRefusalsOf, assetKindAndSizeWords, noAssetShownWords, assetFormatWords, assetPictureToneOf, assetsShownInTheFolder, assetsTheLibraryLists, byteLengthInWords, EVERY_ASSET_FOLDER_ID, libraryAssetFoldersOf, shortenedDigest } from "./library_assets_of_the_listing";
 
 const assetAt = (path: string, kind: string, contentByteLen = 1): ProjectAsset => ({ asset: `uuid-of-${path}`, kind, path, content_sha256: "0".repeat(64), content_byte_len: contentByteLen, import_settings: {} });
 
@@ -51,5 +51,20 @@ describe("the Library's assets", () => {
     expect(assetKindAndSizeWords(assetAt("media/poster.png", "media", 11_194))).toBe("media · 11 KB");
     expect(noAssetShownWords(0, "All assets", "")).toEqual({ title: "No assets yet", explanation: "A file imported into the project, a video, an image, a LUT or a model, is listed here." });
     expect(noAssetShownWords(4, "luts", " poster ")).toEqual({ title: "No asset matches", explanation: "Nothing in luts has “poster” in its path." });
+  });
+
+  it("imports into the folder shown, or the project's top for every asset or the top's own", () => {
+    expect([EVERY_ASSET_FOLDER_ID, "folder:.", "folder:media"].map(assetFolderOfTheShownFolder)).toEqual(["", "", "media"]);
+  });
+
+  it("names each file the runtime refused to import in its words, and why nothing was imported", () => {
+    expect(
+      importRefusalsOf({
+        kind: "imported",
+        assets_imported: { imported: [{ asset: "a", path: "media/intro.mp4" }], refused: [{ file_name: "poster.png", because: "import_asset failed: `media/poster.png` is already the path of the asset b" }] },
+      }),
+    ).toEqual([{ lead: "Didn't import poster.png:", because: "import_asset failed: `media/poster.png` is already the path of the asset b" }]);
+    expect(importRefusalsOf({ kind: "nothing_chosen" })).toEqual([]);
+    expect(importRefusalsOf({ kind: "not_imported", because: "No project is open in this window." })).toEqual([{ lead: "Didn't import:", because: "No project is open in this window." }]);
   });
 });

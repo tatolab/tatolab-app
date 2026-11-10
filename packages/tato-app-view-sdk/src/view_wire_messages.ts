@@ -16,6 +16,7 @@ import {
   projectFilesSchema,
   projectLogReadingSchema,
   projectNodeTypesReadingSchema,
+  projectAssetsImportedSchema,
   projectAssetsReadingSchema,
   projectTransactionAuthorSchema,
   projectTransactionSchema,
@@ -125,6 +126,8 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   }),
   /** The person editing in Studio, the author history records their edits under and their own undo takes. */
   z.object({ kind: z.literal("read_the_person_editing") }),
+  /** Ask the person for files in the desktop's open dialog and import each into `into_folder` of the project, `/`-separated and `""` for its top, through the runtime's `import_asset`. */
+  z.object({ kind: z.literal("import_assets_into_the_project"), project_folder: z.string(), into_folder: z.string() }),
 ]);
 /** What a view may ask Studio to do. */
 export type ViewAsk = z.infer<typeof viewAskSchema>;
@@ -187,6 +190,9 @@ export const viewAskAnswerSchema = z.discriminatedUnion("kind", [
   /** The runtime refused the action, structured; a refusal before it reached the runtime is `refused`. */
   z.object({ kind: z.literal("project_action_refused"), refusal: projectActionRefusalSchema }),
   z.object({ kind: z.literal("the_person_editing"), author: projectTransactionAuthorSchema }),
+  z.object({ kind: z.literal("project_assets_imported"), assets_imported: projectAssetsImportedSchema }),
+  /** The person closed the open dialog choosing no file. */
+  z.object({ kind: z.literal("nothing_chosen") }),
 ]);
 /** What Studio answers an ask with. */
 export type ViewAskAnswer = z.infer<typeof viewAskAnswerSchema>;
@@ -253,6 +259,7 @@ export function capabilityToAsk(ask: ViewAsk): ViewCapability | null {
     case "read_the_person_editing":
       return "read.project_assets";
     case "save_project_file":
+    case "import_assets_into_the_project":
     case "undo_in_the_project":
     case "redo_in_the_project":
       return "write.project_assets";

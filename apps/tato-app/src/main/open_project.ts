@@ -18,6 +18,7 @@ import type {
   StreamActionFollowed,
   ProjectFolderChosenFor,
   ProjectTheRuntimeNames,
+  ProjectTransactionAuthor,
 } from "../shared/tatolab_backend_contract.js";
 import { realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
@@ -95,8 +96,8 @@ export interface ProjectChangesThroughTheRuntime {
   setProjectDescription(projectDirectory: string, description: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>>;
   /** `set_project_cover` with the media asset `cover`, a UUID the project holds; `null` clears it. */
   setProjectCover(projectDirectory: string, cover: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>>;
-  /** `import_asset` of the file at `source` to `assetPath` in the project. */
-  importAsset(projectDirectory: string, source: string, assetPath: string): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>>;
+  /** `import_asset` of the file at `source` to `assetPath` in the project, by `author` or, for `null`, the runtime's own. */
+  importAsset(projectDirectory: string, source: string, assetPath: string, author: ProjectTransactionAuthor | null): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>>;
   /** `read_project_file`: the bytes of `filePath` in the project. */
   readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, LocalApiRequestFailure>>;
 }
@@ -166,7 +167,7 @@ export interface ProjectReadingsOfTheRuntime {
 }
 
 /** The first of `name`, `name 2`, `name 3`, … that nothing in `location` holds as `<that name><extension>`; `name` itself when every one tried is taken, for the runtime or the sheet to refuse. */
-async function firstNumberedNameNothingHoldsIn(location: string, name: string, extension = ""): Promise<string> {
+export async function firstNumberedNameNothingHoldsIn(location: string, name: string, extension = ""): Promise<string> {
   for (let number = 1; number <= NUMBERED_NAMES_TRIED; number += 1) {
     const numberedName = projectNameNumbered(name, number);
     if (!(await somethingIsAt(path.join(location, `${numberedName}${extension}`)))) return numberedName;
@@ -336,7 +337,7 @@ export class ProjectOpening {
     if (projectCoverImageMediaTypeOf(image) === undefined) return failedWith(`${path.basename(image)} is not a PNG, JPEG, WebP or GIF image.`);
     const coverImagesFolder = path.join(folder, PROJECT_COVER_IMAGES_FOLDER);
     const imageFileName = `${await firstNumberedNameNothingHoldsIn(coverImagesFolder, path.basename(image, extension), extension)}${extension}`;
-    const imported = await this.sources.projectChanges.importAsset(folder, image, `${PROJECT_COVER_IMAGES_FOLDER}/${imageFileName}`);
+    const imported = await this.sources.projectChanges.importAsset(folder, image, `${PROJECT_COVER_IMAGES_FOLDER}/${imageFileName}`, null);
     if (!imported.ok) return failedWith(imported.failure.failureDescription);
     const covered = await this.sources.projectChanges.setProjectCover(folder, imported.value.asset);
     return covered.ok ? succeeded(undefined) : failedWith(covered.failure.failureDescription);

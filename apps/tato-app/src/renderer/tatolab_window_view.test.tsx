@@ -228,7 +228,7 @@ describe("the studio", () => {
 
     const libraryRow = (rowId: string) => coreViewPage("library").querySelector<HTMLElement>(`[data-library-declarations] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no Library row ${rowId}`);
     await waitFor(() => libraryRow("source:project"));
-    expect(libraryRow("source:project").textContent).toBe("pattern");
+    expect(libraryRow("source:project").textContent).toBe("This project");
     expect(coreViewPage("library").querySelector('[data-tree-row-id="source:project/graph_generators"]')).toBeNull();
     expect(libraryRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11").textContent).toBe("imports/hall-of-light");
     expect(libraryRow("source:distribution:tatolab-testpattern").getAttribute("aria-expanded")).toBe("false");
@@ -268,6 +268,24 @@ describe("the studio", () => {
     expect(details.textContent).toContain("poster.png");
     expect(details.textContent).toContain("sha256 c59c…fa05");
     expect(details.textContent).toContain("11 KB");
+  });
+
+  it("imports the file the person chooses into the Library's shown folder, shows it at once and opens its details", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
+    await showInTheLibrary("assets");
+
+    const library = coreViewPage("library");
+    fireEvent.click(await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset-folder="folder:media"]') ?? expect.unreachable("no media folder")));
+    fireEvent.click(library.querySelector<HTMLElement>("[data-library-import-asset]") ?? expect.unreachable("no Import asset button"));
+
+    const imported = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset="media/night-sky.jpg"]') ?? expect.unreachable("the imported file is not shown"));
+    expect(imported.textContent).toBe("JPGnight-sky.jpgmedia · 2.2 MB");
+    const details = await waitFor(() => library.querySelector<HTMLElement>("[data-library-asset-details]") ?? expect.unreachable("no details"));
+    expect(details.textContent).toContain("media/night-sky.jpg");
+    expect(library.querySelector("[data-library-import-refused]")).toBeNull();
   });
 
   it("lists in an area's view-type menu each view with who brought it, and a view that does not open as a row that cannot be chosen, with why", async () => {

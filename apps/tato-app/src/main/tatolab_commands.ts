@@ -28,6 +28,7 @@ import type {
   NodeCatalog,
   ProjectNodeTypeListing,
   ProjectAssetListing,
+  ProjectAssetsImported,
   StreamProjectFolderChosenFor,
   TatolabStatus,
   ProjectFolderChosenFor,
@@ -637,6 +638,15 @@ export function undoOrRedoInTheOpenProject(
   });
 }
 
+/** `import_assets_into_the_open_project`: the files the person chooses imported into `intoFolder` of the asking window's project by the person editing; `null` when they choose nothing, refused in the Projects window. */
+export function importAssetsIntoTheOpenProject(sharedState: TatolabAppSharedState, intoFolder: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectAssetsImported | null, string>> {
+  return answerTheWindow("import_assets_into_the_open_project", async () => {
+    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!studioWindow.ok) return studioWindow;
+    return sharedState.projectAssetsImportedFromChosenFiles.importTheFilesThePersonChooses(studioWindow.value.projectTransactionsFeed.projectFolder, intoFolder, sharedState.thePersonEditingInStudio);
+  });
+}
+
 /** `pop_out_view`'s arguments as the window sends them, or why they are not. */
 export function popOutViewArgumentsFrom(commandArguments: unknown): Result<PoppedOutView, string> {
   const pinnedTo = isAJsonObject(commandArguments) ? commandArguments["pinned_to"] : undefined;
@@ -1107,6 +1117,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const transacting = transactArgumentsFrom(commandArguments);
       if (!transacting.ok) return { ok: false, refusal: transacting.failure };
       return commandAnswerFrom(await transactInTheOpenProject(sharedState, transacting.value, commandFromWindow));
+    },
+    import_assets_into_the_open_project: async (commandArguments, commandFromWindow) => {
+      const intoFolder = oneTextArgumentFrom("import_assets_into_the_open_project", commandArguments, "into_folder", "the folder in the project the assets go in, \"\" for its top");
+      if (!intoFolder.ok) return { ok: false, refusal: intoFolder.failure };
+      return commandAnswerFrom(await importAssetsIntoTheOpenProject(sharedState, intoFolder.value, commandFromWindow));
     },
     read_the_person_editing_in_studio: async () => ({ ok: true, value: sharedState.thePersonEditingInStudio }),
     redo_in_the_open_project: async (commandArguments, commandFromWindow) => {

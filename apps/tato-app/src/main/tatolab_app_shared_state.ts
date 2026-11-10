@@ -16,6 +16,7 @@ import type { PythonLanguageServers } from "./python_language_servers.js";
 import type { RuntimePortViewers } from "./runtime_port_viewers.js";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
+import type { ProjectAssetsImportedFromChosenFiles } from "./project_assets_imported_from_chosen_files.js";
 import type { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import type { ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 
@@ -47,6 +48,8 @@ export interface TatolabAppSharedState {
   moduleDownloadsFolder: string;
   /** How Module manager asks for a project's folder or `.zip` to import. */
   dependencySourceDialog: DependencySourceDialog;
+  /** How the Library's Import asset… imports the files the person chooses. */
+  projectAssetsImportedFromChosenFiles: ProjectAssetsImportedFromChosenFiles;
   /** The person signed in to this computer, the author Studio's graph edits are recorded under. */
   thePersonEditingInStudio: ProjectTransactionAuthor;
   tatolabAppLog: TatolabAppLog;

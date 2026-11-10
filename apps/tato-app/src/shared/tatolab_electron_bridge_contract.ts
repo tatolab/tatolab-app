@@ -8,6 +8,7 @@ import type {
   NodeCatalog,
   ProjectNodeTypeListing,
   ProjectAssetListing,
+  ProjectAssetsImported,
   JsonValue,
   DependencySourceKind,
   ProjectDependency,
@@ -62,6 +63,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "describe_node_catalog",
   "list_project_node_types",
   "list_project_assets",
+  "import_assets_into_the_open_project",
   "check_for_tatolab_app_updates",
   "take_the_newer_tatolab_app_version",
   "remove_project",
@@ -336,6 +338,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   undo_in_the_open_project: { commandArguments: { author: ProjectTransactionAuthor }; answer: ProjectTransaction };
   /** The runtime's `transact` of `operations` on the graphs of the asking studio window's project's streams, as one transaction by the person editing; a stream outside the project is refused in Studio's words, a refusal the runtime structures is answered as `refused`, any other refusal in its own words. */
   transact_in_the_open_project: { commandArguments: ProjectGraphTransactionSentByTheWindow; answer: ProjectGraphTransactionTheRuntimeAnswered };
+  /** From a studio window only: the desktop's open dialog for files, each one chosen copied by the runtime's `import_asset` into `into_folder` of the window's project (`/`-separated, `""` for its top) under its own name, numbered past a file already there, by the person editing; `null` when they choose nothing. A file refused leaves the rest to import. */
+  import_assets_into_the_open_project: { commandArguments: { into_folder: string }; answer: ProjectAssetsImported | null };
   /** The person editing in Studio, whose graph edits the runtime records under them. */
   read_the_person_editing_in_studio: { commandArguments: undefined; answer: ProjectTransactionAuthor };
   /** The runtime's `redo` by `author` on the asking studio window's project, answering the redo it applied; refused in the runtime's own words. */

@@ -336,6 +336,23 @@ export const projectAssetListingSchema = z.object({
 /** A project's assets. */
 export type ProjectAssetListing = z.infer<typeof projectAssetListingSchema>;
 
+/** What importing the files the person chose answered: each asset the runtime's `import_asset` made, by its UUID and path, and each file it refused, in its own words. */
+export const projectAssetsImportedSchema = z.object({
+  imported: z.array(z.object({ asset: z.string(), path: z.string() })),
+  refused: z.array(z.object({ file_name: z.string(), because: z.string() })),
+});
+/** What importing the chosen files answered. */
+export type ProjectAssetsImported = z.infer<typeof projectAssetsImportedSchema>;
+
+/** Files the person chose imported into the project, nothing chosen, or why nothing was asked of the runtime. */
+export const projectAssetsImportingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("imported"), assets_imported: projectAssetsImportedSchema }),
+  z.object({ kind: z.literal("nothing_chosen") }),
+  z.object({ kind: z.literal("not_imported"), because: z.string() }),
+]);
+/** Files the person chose imported, nothing chosen, or why not. */
+export type ProjectAssetsImporting = z.infer<typeof projectAssetsImportingSchema>;
+
 /** A project as the runtime's `list_assets` names it, from its `tatolab-project.json`. */
 export const projectTheRuntimeNamesSchema = z.object({
   /** The folder, absolute with its links resolved. */
