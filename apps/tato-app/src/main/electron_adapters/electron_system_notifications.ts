@@ -7,9 +7,9 @@ export function createElectronSystemNotifications(): SystemNotifications {
   const notificationsShown = new Set<Notification>();
   return {
     shownByThisDesktop: () => Notification.isSupported(),
-    showNotification: (title, body, onClicked) => {
+    showNotification: (title, body, onClicked, notificationIdentifier) => {
       if (!Notification.isSupported()) return;
-      const notification = new Notification({ title, body, silent: true });
+      const notification = new Notification({ title, body, silent: true, ...(notificationIdentifier === undefined ? {} : { id: notificationIdentifier }) });
       notificationsShown.add(notification);
       notification.on("click", () => {
         notificationsShown.delete(notification);

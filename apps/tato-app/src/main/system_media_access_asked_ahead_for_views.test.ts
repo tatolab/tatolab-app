@@ -2,7 +2,12 @@ import { expect, test } from "vitest";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { FakeSystemMediaAccess } from "./fake_tatolab_platform_for_this_build.js";
 import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
-import { SystemMediaAccessAskedAheadForViews, viewsDeclaringEachSystemMediaDevice } from "./system_media_access_asked_ahead_for_views.js";
+import {
+  deviceOfAMediaAccessRefusedNotification,
+  mediaAccessRefusedNotificationIdentifier,
+  SystemMediaAccessAskedAheadForViews,
+  viewsDeclaringEachSystemMediaDevice,
+} from "./system_media_access_asked_ahead_for_views.js";
 
 function listedView(viewType: string, manifest: ProjectViewTheRuntimeListed["manifest"], opens = true): ProjectViewTheRuntimeListed {
   const viewFolder = viewType.split(":")[1] ?? viewType;
@@ -53,7 +58,13 @@ test("tells the person once when the system refuses a device, naming the view, a
   await askedAhead.askForTheDevicesTheViewsDeclare([CAMERA_DECK]);
   systemNotifications.clickTheLastNotification();
 
-  expect(systemNotifications.notificationsShown).toEqual([{ title: "Tato Studio can't use the camera", body: "DJ Deck needs it. Click to allow Tato Studio in System Settings." }]);
+  expect(systemNotifications.notificationsShown).toEqual([
+    {
+      title: "Tato Studio can't use the camera",
+      body: "DJ Deck needs it. Click to allow Tato Studio in System Settings.",
+      notificationIdentifier: "com.tatolab.tatolab.media-access-refused.camera",
+    },
+  ]);
   expect(systemMediaAccess.privacyPanesOpened).toEqual(["camera"]);
 });
 
@@ -67,4 +78,36 @@ test("asks two listings arriving together once, and tells nothing where no syste
 
   expect(systemMediaAccess.devicesAsked).toEqual(["camera"]);
   expect(systemNotifications.notificationsShown).toEqual([]);
+});
+
+test("a refusal notification's identifier names its device, the same in every run, and no other notification names one", () => {
+  expect(deviceOfAMediaAccessRefusedNotification(mediaAccessRefusedNotificationIdentifier("camera"))).toBe("camera");
+  expect(deviceOfAMediaAccessRefusedNotification(mediaAccessRefusedNotificationIdentifier("microphone"))).toBe("microphone");
+  expect(deviceOfAMediaAccessRefusedNotification("com.tatolab.tatolab.media-access-refused.screen")).toBeNull();
+  expect(deviceOfAMediaAccessRefusedNotification("3f6c2a8e-6f5d-4bb0-9a3c-0c1d2e3f4a5b")).toBeNull();
+});
+
+test("a launch from a refusal notification clicked after its run quit opens where the person allows the device, and the views then listed tell nothing more", async () => {
+  const systemMediaAccess = new FakeSystemMediaAccess();
+  systemMediaAccess.answerByDevice = { microphone: "refused" };
+  const systemNotifications = new FakeSystemNotifications();
+  const askedAhead = new SystemMediaAccessAskedAheadForViews(systemMediaAccess, systemNotifications);
+
+  await askedAhead.answerTheNotificationThatLaunchedTheApp(mediaAccessRefusedNotificationIdentifier("microphone"));
+  await askedAhead.askForTheDevicesTheViewsDeclare([MIC_METER]);
+
+  expect(systemMediaAccess.privacyPanesOpened).toEqual(["microphone"]);
+  expect(systemMediaAccess.devicesAsked).toEqual(["microphone", "camera"]);
+  expect(systemNotifications.notificationsShown).toEqual([]);
+});
+
+test("a launch from a refusal notification opens nothing once the person allowed the device, or from any other notification", async () => {
+  const systemMediaAccess = new FakeSystemMediaAccess();
+  const askedAhead = new SystemMediaAccessAskedAheadForViews(systemMediaAccess, new FakeSystemNotifications());
+
+  await askedAhead.answerTheNotificationThatLaunchedTheApp(mediaAccessRefusedNotificationIdentifier("camera"));
+  await askedAhead.answerTheNotificationThatLaunchedTheApp("3f6c2a8e-6f5d-4bb0-9a3c-0c1d2e3f4a5b");
+
+  expect(systemMediaAccess.devicesAsked).toEqual(["camera"]);
+  expect(systemMediaAccess.privacyPanesOpened).toEqual([]);
 });

@@ -108,6 +108,20 @@ async function theFirstPublishedStatus(tatolabRunningApp: TatolabRunningApp | nu
   return (await tatolabRunningApp?.statusPublisher.lastPublishedStatusWaitingUpTo(5_000)) ?? null;
 }
 
+test("an app launched by a click on a camera refusal in Notification Center opens the camera's privacy pane while macOS still refuses it", async () => {
+  const fakeShell = fakeShellQuitAfterTheTest();
+  fakeShell.notificationThatLaunchedTheApp = "com.tatolab.tatolab.media-access-refused.camera";
+  fakeShell.systemMediaAccess.answerByDevice = { camera: "refused" };
+  await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+  await vi.waitFor(() => expect(fakeShell.systemMediaAccess.privacyPanesOpened).toEqual(["camera"]));
+});
+
+test("an app launched any other way asks the system for nothing as it starts", async () => {
+  const fakeShell = fakeShellQuitAfterTheTest();
+  await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+  expect(fakeShell.systemMediaAccess.devicesAsked).toEqual([]);
+});
+
 describe("the app on macOS", () => {
   let fakeShell: FakeTatolabElectronAppShell;
   let tatolabRunningApp: TatolabRunningApp | null;

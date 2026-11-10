@@ -70,6 +70,13 @@ function accountNameOfThePersonSignedIn(): string {
 // directory rather than in it.
 app.setPath("userData", appConfigDirectory);
 registerTheWindowPageSchemeBeforeReady();
+// macOS hands the notification whose click in Notification Center launched the app (its `UNNotificationRequest`
+// identifier) only to `ready`'s listeners, as `launchInfo`, so it is kept from there. Linux passes no `launchInfo`.
+let notificationIdentifierThatLaunchedTheApp: string | null = null;
+app.once("ready", (_readyEvent, launchInfo: unknown) => {
+  const launchingIdentifier: unknown = typeof launchInfo === "object" && launchInfo !== null && "identifier" in launchInfo ? launchInfo.identifier : null;
+  notificationIdentifierThatLaunchedTheApp = typeof launchingIdentifier === "string" && launchingIdentifier !== "" ? launchingIdentifier : null;
+});
 
 function windowDevServerUrlNamedIn(windowDevServerUrlText: string | undefined): string | null {
   if (windowDevServerUrlText === undefined) return null;
@@ -97,6 +104,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
     appBuild: tatolabAppBuildForTheWindow(TATOLAB_APP_BUILD_FEATURES.tatolabAppBuildId),
     carriedStreamlibCommit: await streamlibCommitTheAppCarries(tatolabPlatformItems?.streamlibCommitFileTheAppCarries(process.resourcesPath) ?? null),
   }),
+  notificationThatLaunchedTheApp: () => notificationIdentifierThatLaunchedTheApp,
   requestTheSingleInstanceLock: (thisCopy) => app.requestSingleInstanceLock(tatolabAppCopyOnTheSingleInstanceLock(thisCopy)),
   whenReady: async () => {
     await app.whenReady();

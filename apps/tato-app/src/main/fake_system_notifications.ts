@@ -7,6 +7,7 @@ import type { SystemNotifications } from "./system_notifications.js";
 export interface FakeNotificationShown {
   title: string;
   body: string;
+  notificationIdentifier?: string;
 }
 
 /** A desktop that shows notifications unless the test says it shows none, recording each one shown. */
@@ -22,11 +23,12 @@ export class FakeSystemNotifications implements SystemNotifications {
     return this.desktopShowsNotifications;
   }
 
-  showNotification(title: string, body: string, onClicked: () => void): void {
+  showNotification(title: string, body: string, onClicked: () => void, notificationIdentifier?: string): void {
     if (!this.desktopShowsNotifications) return;
-    this.notificationsShown.push({ title, body });
+    const notificationShown = notificationIdentifier === undefined ? { title, body } : { title, body, notificationIdentifier };
+    this.notificationsShown.push(notificationShown);
     this.clickHandlers.push(onClicked);
-    this.onShown({ title, body });
+    this.onShown(notificationShown);
   }
 
   /** Click the most recent notification shown, as the person does. */

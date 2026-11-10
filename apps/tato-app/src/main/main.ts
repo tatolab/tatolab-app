@@ -65,6 +65,8 @@ const TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET = "Tato Studio has not reached the
 
 /** The Electron app as the lifecycle drives it. */
 export interface TatolabElectronAppShell {
+  /** The identifier of the notification whose click in Notification Center launched the app, once ready; `null` for any other launch. */
+  notificationThatLaunchedTheApp(): string | null;
   /** Which build this copy of the app is and the executable that opens it. */
   readThisCopyOfTatolab(): Promise<TatolabAppCopy>;
   /** Whether this is the one running app; a second launch gets false and hands `thisCopy` to the first. */
@@ -403,6 +405,12 @@ export async function startTatolabApp(
     systemMediaAccessAskedAheadForViews: new SystemMediaAccessAskedAheadForViews(platformForThisBuild.systemMediaAccess, tatolabElectronAppShell.systemNotifications),
     tatolabAppLog,
   };
+  const launchingNotificationIdentifier = tatolabElectronAppShell.notificationThatLaunchedTheApp();
+  if (launchingNotificationIdentifier !== null) {
+    sharedState.systemMediaAccessAskedAheadForViews.answerTheNotificationThatLaunchedTheApp(launchingNotificationIdentifier).catch((unexpectedFailure: unknown) => {
+      tatolabAppLog.error("answering the notification that launched the app ended without finishing", { failure: describeCaughtFailure(unexpectedFailure) });
+    });
+  }
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.stopWatchingEveryProject());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.pythonLanguageServers.stopEveryLanguageServer());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.runtimePortViewers.closeEveryPortViewer());
