@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import type { StreamGraphNode, StreamGraphSummary } from "../../view_host/studio_view_contract";
+import type { StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 
 function graphNode(name: string, inputs: string[], outputs: string[]): StreamGraphNode {

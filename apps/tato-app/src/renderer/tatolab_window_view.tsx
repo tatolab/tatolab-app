@@ -20,7 +20,6 @@ import { STUDIO_LAYOUTS, StudioLayoutsKeptInStorage } from "./studio_shell/studi
 
 import { CODE_EDITOR_VIEW_TYPE } from "./studio_views/code_editor/code_editor_view_type";
 import { VIEWER_VIEW_TYPE } from "./studio_views/viewer/viewer_view_type";
-import { STREAM_GRAPH_VIEW_TYPE } from "./studio_views/stream_graph/stream_graph_view_type";
 import { inWindowStudioViewHostServices, useWatchedStudioValue } from "./view_host/in_window_view_host";
 import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_catalog_readings";
 import { registeredStudioViewType, StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
@@ -45,7 +44,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
   };
   return new StudioViewTypeRegistry(
     [
-      registeredStudioViewType(STREAM_GRAPH_VIEW_TYPE),
+      ...coreViewTypeIn("stream_graph"),
       ...coreViewTypeIn("outliner"),
       ...coreViewTypeIn("palette"),
       ...coreViewTypeIn("properties"),
@@ -276,7 +275,7 @@ export function mountTatolabWindow(
     }
   }
 
-  document.addEventListener("keydown", (keyboardEvent) => {
+  const runTheStudioShortcutOfTheKey = (keyboardEvent: KeyboardEvent) => {
     if (statusStore === null || studioWindowModel.poppedOutViewer.readLatest() !== null || studioWindowModel.moduleManagerWorkspace.readLatest() !== null) return;
     if (keyboardEvent.key === RUN_LIVE_KEY && !keyboardEvent.metaKey && !keyboardEvent.ctrlKey && !keyboardEvent.altKey) {
       if (studioWindowModel.studioLayouts.readLatest() === null) return;
@@ -288,7 +287,19 @@ export function mountTatolabWindow(
     if (!holdsWindowShortcutModifier(platform, keyboardEvent)) return;
     const key = keyboardEvent.key.length === 1 ? keyboardEvent.key.toLowerCase() : keyboardEvent.key;
     if (runStudioShortcut(key)) keyboardEvent.preventDefault();
-  });
+  };
+  document.addEventListener("keydown", runTheStudioShortcutOfTheKey);
+  // A key pressed while a view's frame holds the focus reaches only the frame's own document; a
+  // full-access frame is on the window's origin, so Studio listens there too, as each page loads.
+  document.addEventListener(
+    "load",
+    (loadEvent) => {
+      const viewFrame = loadEvent.target;
+      if (!(viewFrame instanceof HTMLIFrameElement) || viewFrame.dataset.tatolabViewAccess !== "full") return;
+      viewFrame.contentWindow?.addEventListener("keydown", runTheStudioShortcutOfTheKey);
+    },
+    true,
+  );
 
   let runtimeStateLastShown: TatolabStatus["runtime_state"] | null = null;
   const showStatusOutsideReact = (status: TatolabStatus) => {

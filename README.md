@@ -35,7 +35,7 @@ project's Reload queues `run_project` again; the window follows each load with
 on a stream the listing shows `preparing` or `stopping`, on a Reload, and on a New project or
 Import project, and shows the runtime's refusal in its own words. A stream's Logs tab reads its project's log with `logs`,
 narrowed to the stream or showing the whole project; a project's page lists its streams and reads
-its whole log, narrowed to one stream or one action. The window frames only its core views' pages (Outliner, Palette and Properties): its content
+its whole log, narrowed to one stream or one action. The window frames only its core views' pages (Stream graph, Outliner, Palette and Properties): its content
 security policy allows frames only from `core_views/` on its own origin, and the main window refuses any other subframe navigation. "Open project" and "Open a terminal in the project" open the folder the runtime lists for
 the stream, in Finder or the file manager, and in Terminal.app or `x-terminal-emulator`.
 
