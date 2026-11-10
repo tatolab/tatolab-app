@@ -65,9 +65,6 @@ const NODE_GRAPH_PIN_FAMILY_WORDS: Record<NodeGraphPinFamily, string> = {
   records: "Records",
 };
 
-/** The families in the order the legend names them. */
-const NODE_GRAPH_PIN_FAMILIES_IN_ORDER: readonly NodeGraphPinFamily[] = ["image", "array", "channels", "packets", "records"];
-
 /** One pin of a card: its name, its family, `null` drawn as a plain bar while none is known, and what it states about its stream, shown while the pointer rests on it. */
 export interface NodeGraphCanvasPin {
   name: string;
@@ -1069,11 +1066,6 @@ function NodeGraphFlow({
     [editing, pinFamilyOf, canvasPointOf],
   );
 
-  const familiesOnTheCanvas = useMemo(
-    () => NODE_GRAPH_PIN_FAMILIES_IN_ORDER.filter((family) => nodes.some((node) => [...node.input_pins, ...node.output_pins].some((pin) => pin.family === family))),
-    [nodes],
-  );
-
   const [frameIdBeingRenamed, setFrameIdBeingRenamed] = useState<string | null>(null);
   const frameIdsWhenAFrameWasAskedFor = useRef<ReadonlySet<string> | null>(null);
   const frameTheSelection = useCallback(() => {
@@ -1211,16 +1203,6 @@ function NodeGraphFlow({
                     </>
                   )}
                 </div>
-                {familiesOnTheCanvas.length > 0 && (
-                  <ul aria-label="Pin families" className="pointer-events-none absolute bottom-2.5 left-2.5 z-10 flex gap-2.5 rounded-md bg-studio-graph-tools px-2.5 py-1 text-2xs text-fg-2" data-node-graph-legend="">
-                    {familiesOnTheCanvas.map((family) => (
-                      <li key={family} className="flex items-center gap-1.5">
-                        <NodeGraphPinMark family={family} />
-                        {nodeGraphPinFamilyWords(family)}
-                      </li>
-                    ))}
-                  </ul>
-                )}
                 <MiniMap
                   className="node-graph-minimap"
                   style={{ width: 168, height: 108 }}

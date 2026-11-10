@@ -26,6 +26,7 @@ import {
   mockOpenProjectReading,
   mockOpenProjectScenarioNamed,
   mockRecentProjectReading,
+  mockProjectCoverImageUrl,
   mockRecentProjects,
   type MockOpenProjectScenario,
 } from "./mock_open_project";
@@ -35,6 +36,7 @@ import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./m
 import { MockProjectFiles } from "./mock_project_files";
 import { MOCK_PERSON_EDITING_IN_STUDIO, MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
+import { mockProjectAssetListing } from "./mock_project_assets";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import type { JsonValue, ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
@@ -467,6 +469,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     mockTatolabOptions.moduleManagerWorkspaceDependencies ?? "copied",
   );
   let recentProjects = mockRecentProjects(recentProjectsInTheQuery, fixtures.machine.homeDirectory, Date.now());
+  const coverImageUrlsByFolder = new Map<string, string>();
   const mockFoldersOnDisk = () => [...mockFoldersInDocumentsTatoStudio(fixtures.machine.homeDirectory), ...recentProjects.map((recent) => recent.folder)];
   const openTheProjectInTheMock = (reading: OpenProjectReading, folder: string, projectName: string | null) => {
     openProjectReading = reading;
@@ -477,6 +480,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         project_name: projectName,
         project_description: recentBefore?.project_description ?? null,
         last_edited_at_wall_clock_ms: recentBefore?.last_edited_at_wall_clock_ms ?? null,
+        has_a_chosen_cover: recentBefore?.has_a_chosen_cover ?? false,
         last_opened_at_wall_clock_ms: Date.now(),
       },
       ...recentProjects.filter((recent) => recent.folder !== folder),
@@ -1114,6 +1118,13 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (listing === null) throw `list_project_node_types failed: ${projectDirectory} holds no tatolab-project.json`;
       return listing;
     },
+    listProjectAssets: async (projectDirectory) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const listing = mockProjectAssetListing(projectDirectory, `${fixtures.machine.homeDirectory}/streams`);
+      if (listing === null) throw `list_assets failed: ${projectDirectory} holds no project: it has no tatolab-project.json`;
+      return listing;
+    },
     checkForTatolabAppUpdates: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       const updateUnderWay = mockStatus.app_update.kind;
@@ -1359,6 +1370,34 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
       if (recentProject.project_name === null) throw `delete_project failed: ${folder} holds no project: it has no tatolab-project.json`;
       recentProjects = recentProjects.filter((recent) => recent.folder !== folder);
+    },
+    readRecentProjectCover: async (folder) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const recentProject = recentProjects.find((recent) => recent.folder === folder);
+      if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      return recentProject.has_a_chosen_cover ? (coverImageUrlsByFolder.get(folder) ?? mockProjectCoverImageUrl(folder.endsWith("pattern") ? "arcs" : "stripes")) : null;
+    },
+    setRecentProjectDescription: async (folder, description) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const recentProject = recentProjects.find((recent) => recent.folder === folder);
+      if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      if (recentProject.project_name === null) throw `set_project_description failed: ${folder} holds no project: it has no tatolab-project.json`;
+      const trimmedDescription = description.trim();
+      recentProjects = recentProjects.map((recent) =>
+        recent.folder === folder ? { ...recent, project_description: trimmedDescription === "" ? null : trimmedDescription, last_edited_at_wall_clock_ms: Date.now() } : recent,
+      );
+    },
+    chooseProjectCoverImage: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      return `${fixtures.machine.homeDirectory}/Pictures/night-market-poster.png`;
+    },
+    setRecentProjectCover: async (folder, image) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 2);
+      const recentProject = recentProjects.find((recent) => recent.folder === folder);
+      if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      if (recentProject.project_name === null) throw `import_asset failed: ${folder} holds no project: it has no tatolab-project.json`;
+      if (image !== null) coverImageUrlsByFolder.set(folder, mockProjectCoverImageUrl("stripes"));
+      recentProjects = recentProjects.map((recent) => (recent.folder === folder ? { ...recent, has_a_chosen_cover: image !== null, last_edited_at_wall_clock_ms: Date.now() } : recent));
     },
     chooseProjectArchiveToImport: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

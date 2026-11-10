@@ -28,6 +28,8 @@ export type {
   ProjectNodeTypeSourceOrigin,
   ProjectNodeTypeSource,
   ProjectNodeTypeListing,
+  ProjectAsset,
+  ProjectAssetListing,
   ProjectTheRuntimeNames,
   ImportedProjectSource,
   ImportedProject,
@@ -338,6 +340,8 @@ export interface RecentProject {
   project_description: string | null;
   /** When the project's history last changed, in milliseconds since the epoch on the wall clock, for display only; `null` before its first edit or where the runtime names no project. */
   last_edited_at_wall_clock_ms: number | null;
+  /** Whether the project is shown by an image chosen for it, which `read_recent_project_cover` reads; otherwise its card wears a plain cover. */
+  has_a_chosen_cover: boolean;
   /** When it was last opened, in milliseconds since the epoch on the wall clock: for display only. */
   last_opened_at_wall_clock_ms: number;
 }

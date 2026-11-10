@@ -1,14 +1,13 @@
-import { Copy, FileArchive, FolderInput, FolderPlus, LayoutGrid, List, Pencil, Plus, Settings, Trash2 } from "lucide-react";
+import { Copy, FileArchive, FolderInput, FolderPlus, LayoutGrid, List, PanelRight, Pencil, Plus, Settings, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { RecentProject, TatolabPlatform } from "../../shared/tatolab_backend_contract";
-import projectsBannerStillImageUrl from "../assets/projects_banner_still.jpg";
-import { BANNER_HEADER_HEIGHT_PX, BannerHeader } from "@tatolab/tato-app-view-sdk/design_system/banner_header";
 import { ConfirmationDialog } from "@tatolab/tato-app-view-sdk/design_system/confirmation_dialog";
 import { EmptyState } from "@tatolab/tato-app-view-sdk/design_system/empty_state";
 import { ExpandingSearchField } from "@tatolab/tato-app-view-sdk/design_system/expanding_search_field";
 import { IconButton } from "@tatolab/tato-app-view-sdk/design_system/icon_button";
 import { FieldMenu, IconButtonMenu, MenuItem, MenuSeparator, MenuSingleChoiceGroup } from "@tatolab/tato-app-view-sdk/design_system/menus";
-import { ProjectCard, ProjectListHeading, ProjectListRow } from "@tatolab/tato-app-view-sdk/design_system/project_card";
+import { NewProjectCard, ProjectCard, ProjectListHeading, ProjectListRow } from "@tatolab/tato-app-view-sdk/design_system/project_card";
+import { SectionNavigationList } from "@tatolab/tato-app-view-sdk/design_system/section_navigation_list";
 import { SplitActionButton } from "@tatolab/tato-app-view-sdk/design_system/split_action_button";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { shortcutHint } from "../presentation/platform_presentation";
@@ -30,7 +29,7 @@ import {
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
 import { useWatchedStudioValue } from "../view_host/watched_studio_value";
-import { PROJECTS_BANNER_STILL_SECONDS, ProjectsBannerScene } from "./projects_banner_scene";
+import { ProjectDetailsPanelView, type ProjectDetailsSources } from "./project_details_panel_view";
 import type { ProjectsHomeChoicesKeptInStorage } from "./projects_home_choices_kept_in_storage";
 import { RenameProjectDialogView, type ProjectToRename } from "./rename_project_dialog_view";
 import type { StudioMenuBarCommands } from "./studio_menu_bar_model";
@@ -38,15 +37,15 @@ import type { StudioWindowModel } from "./studio_window_model";
 import { isTatolabWindowVisible } from "../window_visibility";
 
 /** What the Projects window reads its projects from and opens them through. */
-export interface ProjectsSources {
+export interface ProjectsSources extends ProjectDetailsSources {
   /** Where the chosen order and layout are kept between launches. */
   projectsHomeChoices: Pick<ProjectsHomeChoicesKeptInStorage, "readKeptChoices" | "keepChoices">;
   /** The projects opened before, recent first. */
   readRecentProjects(): Promise<RecentProject[]>;
   /** Open `folder`, one of them, in the studio. */
   openARecentProject(folder: string): void;
-  /** Name `folder`, one of them, `name` through the runtime; rejects in the runtime's own words. */
-  renameARecentProject(folder: string, name: string): Promise<void>;
+  /** The image `folder`, one of them, is shown by, as a URL; `null` for its plain cover. */
+  readARecentProjectCover(folder: string): Promise<string | null>;
   /** Duplicate `folder`, one of them, beside itself; rejects in the runtime's own words. */
   duplicateARecentProject(folder: string): Promise<void>;
   /** Delete `folder`, one of them, its folder moved to the Trash; rejects in the runtime's own words. */
@@ -94,38 +93,51 @@ function useRecentProjects(projectsSources: ProjectsSources, model: StudioWindow
   return recentProjects;
 }
 
-/** The banner's live scene at the width of the window, playing while it shows; one still frame under reduced motion, and the still picture where WebGL is not offered. */
-function ProjectsBanner() {
-  const sceneHostElement = useRef<HTMLDivElement>(null);
-  const [isTheSceneDrawn, setIsTheSceneDrawn] = useState(false);
-  useEffect(() => {
-    const sceneHost = sceneHostElement.current;
-    if (sceneHost === null) return;
-    const scene = ProjectsBannerScene.create(sceneHost.clientWidth, BANNER_HEADER_HEIGHT_PX);
-    if (scene === null) return;
-    scene.canvas.className = "block size-full";
-    sceneHost.append(scene.canvas);
-    const isMotionReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (isMotionReduced) scene.drawAt(PROJECTS_BANNER_STILL_SECONDS);
-    else scene.play(() => performance.now());
-    const resizeObserver = new ResizeObserver(() => {
-      scene.resize(sceneHost.clientWidth, BANNER_HEADER_HEIGHT_PX);
-      if (isMotionReduced) scene.drawAt(PROJECTS_BANNER_STILL_SECONDS);
-    });
-    resizeObserver.observe(sceneHost);
-    setIsTheSceneDrawn(true);
-    return () => {
-      resizeObserver.disconnect();
-      scene.stop();
-      scene.canvas.remove();
-    };
-  }, []);
-  return (
-    <div ref={sceneHostElement} className="absolute inset-0" data-projects-banner={isTheSceneDrawn ? "live" : "still"}>
-      {!isTheSceneDrawn && <img src={projectsBannerStillImageUrl} alt="" draggable={false} className="size-full object-cover select-none" />}
-    </div>
-  );
+/** A cover image read for a project, and the project's last edit when it was read, since choosing or removing a cover is an edit. */
+interface CoverImageReadAtAnEdit {
+  editedAtWallClockMs: number | null;
+  coverImageUrl: string | null;
 }
+
+/**
+ * The images the recent projects shown by a chosen cover are shown by, each read again only once its project has been edited since; a project whose
+ * image could not be read shows its plain cover.
+ */
+function useRecentProjectCoverImages(recentProjects: RecentProject[] | null, projectsSources: ProjectsSources): ReadonlyMap<string, string> {
+  const [coverImagesReadByFolder, setCoverImagesReadByFolder] = useState<ReadonlyMap<string, CoverImageReadAtAnEdit>>(new Map());
+  const coverImagesRead = useRef(coverImagesReadByFolder);
+  coverImagesRead.current = coverImagesReadByFolder;
+  useEffect(() => {
+    let isStillShown = true;
+    const coveredProjects = (recentProjects ?? []).filter((recentProject) => recentProject.has_a_chosen_cover);
+    void Promise.all(
+      coveredProjects.map(async ({ folder, last_edited_at_wall_clock_ms }): Promise<[string, CoverImageReadAtAnEdit]> => {
+        const readBefore = coverImagesRead.current.get(folder);
+        if (readBefore !== undefined && readBefore.editedAtWallClockMs === last_edited_at_wall_clock_ms) return [folder, readBefore];
+        const coverImageUrl = await projectsSources.readARecentProjectCover(folder).catch(() => null);
+        return [folder, { editedAtWallClockMs: last_edited_at_wall_clock_ms, coverImageUrl }];
+      }),
+    ).then((coversRead) => {
+      if (isStillShown) setCoverImagesReadByFolder(new Map(coversRead));
+    });
+    return () => {
+      isStillShown = false;
+    };
+  }, [recentProjects, projectsSources]);
+  return new Map([...coverImagesReadByFolder].flatMap(([folder, { coverImageUrl }]) => (coverImageUrl === null ? [] : [[folder, coverImageUrl] as const])));
+}
+
+/**
+ * Which project the Project details panel shows: the first one shown, until the person works in the panel, which keeps it on that project, picks one
+ * from its ⋯ menu, or hides the panel. One it keeps by itself stays out of a narrow window.
+ */
+type ProjectShownInTheDetailsPanel =
+  | { kind: "the_first_project_shown" }
+  | { kind: "the_project_in"; folder: string; isShownOnlyInAWideWindow: boolean }
+  | { kind: "none" };
+
+/** The one place the Projects window's sidebar leads to. */
+const ALL_PROJECTS_SECTION = { section_id: "all_projects", label: "All projects", icon: LayoutGrid };
 
 /** The icon each layout is shown by, on the View button and in its menu. */
 const PROJECTS_LAYOUT_ICONS = { grid: LayoutGrid, list: List } as const;
@@ -141,7 +153,10 @@ function useProjectsHomeChoices(projectsSources: ProjectsSources): [ProjectsHome
   return [projectsHomeChoices, changeTheProjectsHomeChoices];
 }
 
-/** The Projects window, the app's project manager: the banner with Preferences, then the projects as cards or rows, narrowed by a search, ordered by a sort, and New project with Import project…. */
+/**
+ * The Projects window, the app's project manager: a sidebar with the app's name and Preferences; All projects as cards or rows, narrowed by a search,
+ * ordered by a sort, with New project and its imports; and the Project details panel for one of them.
+ */
 export function ProjectsView({
   model,
   projectsSources,
@@ -184,6 +199,9 @@ export function ProjectsView({
   };
   const moreActionsOf = (card: RecentProjectCardPresentation) => (
     <>
+      <MenuItem icon={PanelRight} onChosen={() => setProjectShownInTheDetailsPanel({ kind: "the_project_in", folder: card.folder, isShownOnlyInAWideWindow: false })} data-project-action="details">
+        Details
+      </MenuItem>
       <MenuItem icon={Pencil} onChosen={() => setProjectToRename({ folder: card.folder, name: card.name })} data-project-action="rename">
         Rename…
       </MenuItem>
@@ -213,20 +231,43 @@ export function ProjectsView({
   const openTheProject = (folder: string) => {
     projectsSources.openARecentProject(folder);
   };
+  const coverImageUrlsByFolder = useRecentProjectCoverImages(recentProjects, projectsSources);
+  const coverImageUrlOf = (card: RecentProjectCardPresentation) => (card.hasAChosenCover ? (coverImageUrlsByFolder.get(card.folder) ?? null) : null);
+  const [projectShownInTheDetailsPanel, setProjectShownInTheDetailsPanel] = useState<ProjectShownInTheDetailsPanel>({ kind: "the_first_project_shown" });
+  const cardInTheDetailsPanel =
+    projectShownInTheDetailsPanel.kind === "none"
+      ? undefined
+      : projectShownInTheDetailsPanel.kind === "the_first_project_shown"
+        ? cardsShown[0]
+        : cardsShown.find((card) => card.folder === projectShownInTheDetailsPanel.folder);
+  const keepTheDetailsPanelOn = (folder: string) => {
+    if (projectShownInTheDetailsPanel.kind === "the_first_project_shown") setProjectShownInTheDetailsPanel({ kind: "the_project_in", folder, isShownOnlyInAWideWindow: true });
+  };
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-window text-fg" data-projects="" data-projects-layout={projectsHomeChoices.layout}>
-      <BannerHeader
-        appName="Tato Studio"
-        versionWords={`v${status.app_version}`}
-        banner={<ProjectsBanner />}
-        actions={<IconButton icon={Settings} label="Preferences" tooltip={`Preferences (${shortcutHint(platform, ",")})`} onPressed={commands.openPreferences} data-projects-action="preferences" />}
+    <div className="flex min-h-0 flex-1 bg-window text-fg" data-projects="" data-projects-layout={projectsHomeChoices.layout}>
+      <SectionNavigationList
+        label="Projects"
+        sectionGroups={[{ groupLabel: "Projects", sections: [ALL_PROJECTS_SECTION] }]}
+        shownSectionId={ALL_PROJECTS_SECTION.section_id}
+        onSectionChosen={() => setSearchText("")}
+        placement="window"
+        width="sidebar"
+        dataAttributeOfEachSection="data-projects-section"
+        footer={
+          <div className="flex items-center gap-2 pl-2">
+            <span className="min-w-0 flex-1 truncate text-xs text-fg-3">
+              Tato Studio <span>{`v${status.app_version}`}</span>
+            </span>
+            <IconButton icon={Settings} label="Preferences" tooltip={`Preferences (${shortcutHint(platform, ",")})`} onPressed={commands.openPreferences} data-projects-action="preferences" />
+          </div>
+        }
       />
-      <main className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-4.5 overflow-y-auto px-8 pt-5.5 pb-7">
-        <div className="flex items-center gap-2">
-          <h2 className="mr-auto text-base font-semibold">Projects</h2>
+      <main className="scrollbar-thin flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-9 pt-8 pb-7">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="mr-auto shrink-0 text-2xl font-semibold whitespace-nowrap">All projects</h1>
           <ExpandingSearchField label="Search projects" placeholder="Search projects" text={searchText} onTextChanged={setSearchText} data-projects-search="" />
           <FieldMenu label={projectsHomeChoicesShown.sortButtonLabel} words={projectsHomeChoicesShown.sortWords} data-projects-sort="">
-            <MenuSingleChoiceGroup<ProjectsOrder> menuAfterAChoice="closes"
+            <MenuSingleChoiceGroup<ProjectsOrder> closesTheMenuOnChoice
               choices={PROJECTS_ORDERS.map(({ order, words }) => ({ choice: order, label: words }))}
               chosen={projectsHomeChoices.order}
               onChosen={(order) => changeTheProjectsHomeChoices({ order })}
@@ -234,7 +275,7 @@ export function ProjectsView({
             />
           </FieldMenu>
           <IconButtonMenu icon={PROJECTS_LAYOUT_ICONS[projectsHomeChoices.layout]} label={projectsHomeChoicesShown.viewButtonLabel} data-projects-view="">
-            <MenuSingleChoiceGroup<ProjectsLayout> menuAfterAChoice="closes"
+            <MenuSingleChoiceGroup<ProjectsLayout> closesTheMenuOnChoice
               choices={PROJECTS_LAYOUTS.map(({ layout, words }) => {
                 const LayoutIcon = PROJECTS_LAYOUT_ICONS[layout];
                 return {
@@ -282,7 +323,7 @@ export function ProjectsView({
             <EmptyState icon={LayoutGrid} title={noCards.title} explanation={noCards.explanation} data-projects-empty="" />
           </div>
         ) : projectsHomeChoices.layout === "grid" ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-x-6 gap-y-7" role="list" aria-label="Projects">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-x-6 gap-y-7" role="list" aria-label="Projects">
             {cardsShown.map((card) => (
               <div key={card.folder} role="listitem" className="flex min-w-0">
                 <ProjectCard
@@ -293,6 +334,7 @@ export function ProjectsView({
                   when={card.whenWords}
                   coverNumber={card.coverNumber}
                   coverInitial={card.coverInitial}
+                  coverImageUrl={coverImageUrlOf(card)}
                   isUnreadable={card.isUnreadable}
                   onOpened={() => openTheProject(card.folder)}
                   moreActions={moreActionsOf(card)}
@@ -302,9 +344,14 @@ export function ProjectsView({
                 />
               </div>
             ))}
+            {searchText.trim() === "" && (
+              <div role="listitem" className="flex min-w-0">
+                <NewProjectCard onPressed={commands.createAProject} data-projects-action="new-card" />
+              </div>
+            )}
           </div>
         ) : (
-          <div className="flex flex-col">
+          <div className="@container/projects flex flex-col">
             <ProjectListHeading />
             <div className="flex flex-col" role="list" aria-label="Projects">
               {cardsShown.map((card) => (
@@ -317,11 +364,12 @@ export function ProjectsView({
                     when={card.whenWordsInTheList}
                     coverNumber={card.coverNumber}
                     coverInitial={card.coverInitial}
+                    coverImageUrl={coverImageUrlOf(card)}
                     isUnreadable={card.isUnreadable}
                     onOpened={() => openTheProject(card.folder)}
                     moreActions={moreActionsOf(card)}
                     moreActionsLabel={card.moreActionsLabel}
-                  pendingWords={pendingWordsOf(card)}
+                    pendingWords={pendingWordsOf(card)}
                     data-projects-project={card.folder}
                   />
                 </div>
@@ -330,6 +378,19 @@ export function ProjectsView({
           </div>
         )}
       </main>
+      {cardInTheDetailsPanel !== undefined && (
+        <div className="contents" onFocus={() => keepTheDetailsPanelOn(cardInTheDetailsPanel.folder)}>
+          <ProjectDetailsPanelView
+            key={cardInTheDetailsPanel.folder}
+            card={cardInTheDetailsPanel}
+            coverImageUrl={coverImageUrlOf(cardInTheDetailsPanel)}
+            projectDetailsSources={projectsSources}
+            onTheProjectChanged={readTheProjectsAgain}
+            onHidden={() => setProjectShownInTheDetailsPanel({ kind: "none" })}
+            isShownOnlyInAWideWindow={projectShownInTheDetailsPanel.kind !== "the_project_in" || projectShownInTheDetailsPanel.isShownOnlyInAWideWindow}
+          />
+        </div>
+      )}
       <RenameProjectDialogView
         projectToRename={projectToRename}
         renameTheProject={async (folder, name) => {

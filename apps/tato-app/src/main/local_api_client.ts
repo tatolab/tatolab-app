@@ -27,6 +27,7 @@ import type {
   ListedStream,
   NodeCatalog,
   ProjectNodeTypeListing,
+  ProjectAssetListing,
   ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -59,10 +60,15 @@ import {
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
+import { projectAssetListingFromTheListAssetsToolResult } from "./project_asset_listing.js";
 import {
   duplicateFromTheDuplicateProjectToolResult,
   projectFromTheImportProjectToolResult,
-  projectNameFromTheRenameProjectToolResult,
+  assetFromTheImportAssetToolResult,
+  projectSettingsFromTheToolResult,
+  type AssetImportedByTheRuntime,
+  type ProjectSettingsAfterTheTransaction,
+  type ProjectSettingsTool,
 } from "./project_changes_on_the_wire.js";
 import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTheListAssetsToolResult, type ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
@@ -111,7 +117,7 @@ const PROJECT_NODE_TYPE_LISTING_RESPONSE_TIMEOUT_MS = 65_000;
 const PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS = 180_000;
 
 /** How long a tool that copies a whole project may go without a byte: a duplicate copies its files and history, an import unpacks a `.zip`. */
-const PROJECT_COPY_RESPONSE_TIMEOUT_MS = 120_000;
+const FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS = 120_000;
 
 /** Why a local API request came back without an answer. */
 export interface LocalApiRequestFailure {
@@ -347,15 +353,31 @@ export class LocalApiClient {
 
   /** Name the project in `projectDirectory` `name` through the runtime's `rename_project`, one transaction on its history; answers its name now, refused in the runtime's own words, as for a blank name. */
   async renameProject(projectDirectory: string, name: string): Promise<Result<string, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("rename_project", { project_directory: projectDirectory, name });
+    const settings = await this.changeProjectSettings("rename_project", { project_directory: projectDirectory, name });
+    return settings.ok ? succeeded(settings.value.name) : settings;
+  }
+
+  /** Describe the project in `projectDirectory` as `description` through `set_project_description`, one transaction on its history; `null` or a blank one clears it, refused in the runtime's own words. */
+  setProjectDescription(projectDirectory: string, description: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>> {
+    return this.changeProjectSettings("set_project_description", { project_directory: projectDirectory, description });
+  }
+
+  /** Show the project in `projectDirectory` by the media asset `cover`, a UUID it holds, through `set_project_cover`, one transaction on its history; `null` clears it, refused in the runtime's own words. */
+  setProjectCover(projectDirectory: string, cover: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>> {
+    return this.changeProjectSettings("set_project_cover", { project_directory: projectDirectory, cover });
+  }
+
+  /** Copy the file at `source`, an absolute path on this machine, into the project in `projectDirectory` as an asset at `assetPath` through `import_asset`, the kind its extension implies; refused in the runtime's own words. */
+  async importAsset(projectDirectory: string, source: string, assetPath: string): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("import_asset", { project_directory: projectDirectory, source, asset_path: assetPath }, FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS);
     if (!toolResultText.ok) return toolResultText;
-    const renamed = projectNameFromTheRenameProjectToolResult(toolResultText.value);
-    return renamed.ok ? renamed : localApiRequestFailure(renamed.failure);
+    const imported = assetFromTheImportAssetToolResult(toolResultText.value);
+    return imported.ok ? imported : localApiRequestFailure(imported.failure);
   }
 
   /** Copy the project in `projectDirectory` with its history into `into`, a folder that does not exist yet, as a project of its own; refused in the runtime's own words. */
   async duplicateProject(projectDirectory: string, into: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("duplicate_project", { project_directory: projectDirectory, into }, PROJECT_COPY_RESPONSE_TIMEOUT_MS);
+    const toolResultText = await this.callMcpTool("duplicate_project", { project_directory: projectDirectory, into }, FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS);
     if (!toolResultText.ok) return toolResultText;
     const duplicate = duplicateFromTheDuplicateProjectToolResult(toolResultText.value);
     return duplicate.ok ? duplicate : localApiRequestFailure(duplicate.failure);
@@ -363,10 +385,18 @@ export class LocalApiClient {
 
   /** Make a project in `projectDirectory`, a folder that does not exist yet, from `source`, an absolute `.zip` of one, through the runtime's `import_project`; runs nothing, refused in the runtime's own words. */
   async importProject(source: string, projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("import_project", { source, project_directory: projectDirectory }, PROJECT_COPY_RESPONSE_TIMEOUT_MS);
+    const toolResultText = await this.callMcpTool("import_project", { source, project_directory: projectDirectory }, FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS);
     if (!toolResultText.ok) return toolResultText;
     const imported = projectFromTheImportProjectToolResult(toolResultText.value);
     return imported.ok ? imported : localApiRequestFailure(imported.failure);
+  }
+
+  /** Call `toolName`, one of the tools that change how people see a project, answering its settings after the transaction; refused in the runtime's own words. */
+  private async changeProjectSettings(toolName: ProjectSettingsTool, toolArguments: Record<string, string | null>): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool(toolName, toolArguments);
+    if (!toolResultText.ok) return toolResultText;
+    const settings = projectSettingsFromTheToolResult(toolName, toolResultText.value);
+    return settings.ok ? settings : localApiRequestFailure(settings.failure);
   }
 
   /** Call the tool `toolName` that queues an action, answering the id of the action the runtime queued; refused in the runtime's own words. */
@@ -455,6 +485,14 @@ export class LocalApiClient {
     const toolResultText = await this.callMcpTool("list_project_node_types", { project_directory: projectDirectory }, PROJECT_NODE_TYPE_LISTING_RESPONSE_TIMEOUT_MS);
     if (!toolResultText.ok) return toolResultText;
     const listing = projectNodeTypeListingFromTheToolResult(toolResultText.value);
+    return listing.ok ? listing : localApiRequestFailure(listing.failure);
+  }
+
+  /** Every asset of the project in `projectDirectory`, its graph documents among them, from the runtime's `list_assets`; refused in the runtime's own words, as for a folder holding no `tatolab-project.json`. */
+  async listProjectAssets(projectDirectory: string): Promise<Result<ProjectAssetListing, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("list_assets", { project_directory: projectDirectory });
+    if (!toolResultText.ok) return toolResultText;
+    const listing = projectAssetListingFromTheListAssetsToolResult(toolResultText.value);
     return listing.ok ? listing : localApiRequestFailure(listing.failure);
   }
 

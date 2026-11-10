@@ -99,6 +99,11 @@ export function StudioAreaHeaderRowOfAWaitingView() {
   return <div className="h-(--studio-area-header-height) shrink-0 border-b border-studio-area-header-line bg-studio-area-header" />;
 }
 
+const STUDIO_AREA_HEADER_MENU_BUTTON_CLASS_NAMES = cn(
+  "h-[22px] gap-1.5 rounded-sm bg-studio-control px-1.5 text-studio font-normal text-fg hover:bg-studio-control-open data-popup-open:bg-studio-control-open",
+  FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
+);
+
 /** The menu at an area header's start that says what the area shows and changes it. */
 export function StudioAreaHeaderMenu({
   icon,
@@ -119,10 +124,7 @@ export function StudioAreaHeaderMenu({
         render={
           <Button
             variant="ghost"
-            className={cn(
-              "h-[22px] gap-1.5 rounded-sm bg-studio-control px-1.5 text-studio font-normal text-fg hover:bg-studio-control-open data-popup-open:bg-studio-control-open",
-              FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
-            )}
+            className={STUDIO_AREA_HEADER_MENU_BUTTON_CLASS_NAMES}
           />
         }
         aria-label={label}
@@ -136,5 +138,35 @@ export function StudioAreaHeaderMenu({
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** A choice in a view's own header row, as "Show [Assets ▾]": a quiet word naming what it chooses, then a header menu of the choices. */
+export function StudioAreaHeaderChoiceMenu({
+  leadingWord,
+  words,
+  label,
+  children,
+  ...controlDataAttributes
+}: {
+  leadingWord: string;
+  words: string;
+  /** The button's accessible name, saying what is chosen now, as "Show: Assets". */
+  label: string;
+  children: ReactNode;
+} & ControlDataAttributes) {
+  return (
+    <span className="flex shrink-0 items-center gap-1.5">
+      <span className="text-2xs text-fg-3">{leadingWord}</span>
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<Button variant="ghost" className={STUDIO_AREA_HEADER_MENU_BUTTON_CLASS_NAMES} />} aria-label={label} {...controlDataAttributes}>
+          {words}
+          <ChevronDown className="size-3 text-fg-3" strokeWidth={1.75} aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-auto min-w-44">
+          {children}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
   );
 }

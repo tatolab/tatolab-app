@@ -105,7 +105,7 @@ export function mockStreamGraphSummary(
       type: node.type,
       name: node.name,
       config: node.config,
-      ...(node.pins === undefined || Object.keys(node.pins).length === 0 ? {} : { pins: node.pins }),
+      pins: node.pins ?? {},
       ...(node.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(node.studio) }),
       ports: {
         inputs: node.input_ports.map((port) => ({

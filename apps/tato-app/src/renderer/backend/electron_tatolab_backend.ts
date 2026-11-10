@@ -28,6 +28,7 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     describeStreamGraph: (streamId) => invokeTatolabCommand("describe_stream_graph", { stream: streamId }),
     describeNodeCatalog: (streamId) => invokeTatolabCommand("describe_node_catalog", { stream: streamId }),
     listProjectNodeTypes: (projectDirectory) => invokeTatolabCommand("list_project_node_types", { project_directory: projectDirectory }),
+    listProjectAssets: (projectDirectory) => invokeTatolabCommand("list_project_assets", { project_directory: projectDirectory }),
     checkForTatolabAppUpdates: async () => {
       await invokeTatolabCommand("check_for_tatolab_app_updates", undefined);
     },
@@ -112,6 +113,14 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     duplicateRecentProject: (folder) => invokeTatolabCommand("duplicate_recent_project", { folder }),
     deleteRecentProject: async (folder) => {
       await invokeTatolabCommand("delete_recent_project", { folder });
+    },
+    readRecentProjectCover: (folder) => invokeTatolabCommand("read_recent_project_cover", { folder }),
+    setRecentProjectDescription: async (folder, description) => {
+      await invokeTatolabCommand("set_recent_project_description", { folder, description });
+    },
+    chooseProjectCoverImage: () => invokeTatolabCommand("choose_project_cover_image", undefined),
+    setRecentProjectCover: async (folder, image) => {
+      await invokeTatolabCommand("set_recent_project_cover", { folder, image });
     },
     chooseProjectArchiveToImport: () => invokeTatolabCommand("choose_project_archive_to_import", undefined),
     importProjectArchive: (archive, name, location) => invokeTatolabCommand("import_project_archive", { archive, name, location }),

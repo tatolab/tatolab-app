@@ -36,16 +36,35 @@ async function writeAProject(folder: string, name: string, cardFacts: { descript
   await writeFile(path.join(folder, "tatolab-project.json"), JSON.stringify({ project: `uuid-of-${name}`, name, ...cardFacts }));
 }
 
-async function readAProjectFile(folder: string): Promise<{ project: string; name: string; description?: string; edited_at_seconds?: number } | null> {
+/** A fake `tatolab-project.json`: the project's settings, and the path of each media asset it holds, by its UUID. */
+interface FakeProjectFile {
+  project: string;
+  name: string;
+  description?: string;
+  edited_at_seconds?: number;
+  cover?: string;
+  asset_paths?: Record<string, string>;
+}
+
+async function readAProjectFile(folder: string): Promise<FakeProjectFile | null> {
   try {
     const projectFile: unknown = JSON.parse(await readFile(path.join(folder, "tatolab-project.json"), "utf8"));
     if (typeof projectFile !== "object" || projectFile === null || !("project" in projectFile) || !("name" in projectFile)) return null;
     const description = "description" in projectFile && typeof projectFile.description === "string" ? projectFile.description : undefined;
     const editedAtSeconds = "edited_at_seconds" in projectFile && typeof projectFile.edited_at_seconds === "number" ? projectFile.edited_at_seconds : undefined;
-    return { project: String(projectFile.project), name: String(projectFile.name), description, edited_at_seconds: editedAtSeconds };
+    const cover = "cover" in projectFile && typeof projectFile.cover === "string" ? projectFile.cover : undefined;
+    const assetPaths: Record<string, string> = {};
+    if ("asset_paths" in projectFile && typeof projectFile.asset_paths === "object" && projectFile.asset_paths !== null) {
+      for (const [asset, assetPath] of Object.entries(projectFile.asset_paths)) if (typeof assetPath === "string") assetPaths[asset] = assetPath;
+    }
+    return { project: String(projectFile.project), name: String(projectFile.name), description, edited_at_seconds: editedAtSeconds, cover, asset_paths: assetPaths };
   } catch {
     return null;
   }
+}
+
+async function writeAProjectFile(folder: string, projectFile: FakeProjectFile): Promise<void> {
+  await writeFile(path.join(folder, "tatolab-project.json"), JSON.stringify(projectFile));
 }
 
 function aRefusalOfTheRuntime(failureDescription: string): { ok: false; failure: LocalApiRequestFailure } {
@@ -62,6 +81,7 @@ const THE_FAKE_RUNTIMES_REFUSAL_OF_A_ZIP_HOLDING_NO_PROJECT = "import_project fa
  */
 function aFakeRuntimeChangingProjects(options: { deletionStates: readonly StreamActionFollowed[] }) {
   const deletionsQueued: string[] = [];
+  const assetsImported: Array<{ projectDirectory: string; source: string; assetPath: string }> = [];
   let describedDeletions = 0;
   const deletionStatesLeft = [...options.deletionStates];
   const projectChanges: ProjectChangesThroughTheRuntime = {
@@ -74,7 +94,39 @@ function aFakeRuntimeChangingProjects(options: { deletionStates: readonly Stream
         name: projectFile.name,
         description: projectFile.description ?? null,
         last_edited_at_wall_clock_ms: projectFile.edited_at_seconds === undefined ? null : projectFile.edited_at_seconds * 1000,
+        cover_path: projectFile.cover === undefined ? null : (projectFile.asset_paths?.[projectFile.cover] ?? null),
       });
+    },
+    setProjectDescription: async (projectDirectory, description) => {
+      const projectFile = await readAProjectFile(projectDirectory);
+      if (projectFile === null) return aRefusalOfTheRuntime(refusalOfAFolderHoldingNoProject(projectDirectory));
+      await writeAProjectFile(projectDirectory, { ...projectFile, description: description ?? undefined });
+      return succeeded({ name: projectFile.name, description, cover: projectFile.cover ?? null });
+    },
+    setProjectCover: async (projectDirectory, cover) => {
+      const projectFile = await readAProjectFile(projectDirectory);
+      if (projectFile === null) return aRefusalOfTheRuntime(refusalOfAFolderHoldingNoProject(projectDirectory));
+      if (cover !== null && projectFile.asset_paths?.[cover] === undefined) return aRefusalOfTheRuntime(`set_project_cover failed: the project holds no asset ${cover}`);
+      await writeAProjectFile(projectDirectory, { ...projectFile, cover: cover ?? undefined });
+      return succeeded({ name: projectFile.name, description: projectFile.description ?? null, cover });
+    },
+    importAsset: async (projectDirectory, source, assetPath) => {
+      const projectFile = await readAProjectFile(projectDirectory);
+      if (projectFile === null) return aRefusalOfTheRuntime(refusalOfAFolderHoldingNoProject(projectDirectory));
+      if (Object.values(projectFile.asset_paths ?? {}).includes(assetPath)) return aRefusalOfTheRuntime(`import_asset failed: the project already holds ${assetPath}`);
+      await mkdir(path.dirname(path.join(projectDirectory, assetPath)), { recursive: true });
+      await cp(source, path.join(projectDirectory, assetPath));
+      const asset = `uuid-of-asset-${assetPath}`;
+      assetsImported.push({ projectDirectory, source, assetPath });
+      await writeAProjectFile(projectDirectory, { ...projectFile, asset_paths: { ...projectFile.asset_paths, [asset]: assetPath } });
+      return succeeded({ asset, path: assetPath });
+    },
+    readProjectFile: async (projectDirectory, filePath) => {
+      try {
+        return succeeded(await readFile(path.join(projectDirectory, filePath)));
+      } catch {
+        return aRefusalOfTheRuntime(`read_project_file failed: ${projectDirectory} holds no ${filePath}`);
+      }
     },
     renameProject: async (projectDirectory, name) => {
       const projectFile = await readAProjectFile(projectDirectory);
@@ -109,7 +161,7 @@ function aFakeRuntimeChangingProjects(options: { deletionStates: readonly Stream
       return succeeded({ folder: projectDirectory, project: `uuid-of-${String(archive.name)}`, name: String(archive.name) });
     },
   };
-  return { projectChanges, deletionsQueued, describedDeletions: () => describedDeletions };
+  return { projectChanges, deletionsQueued, assetsImported, describedDeletions: () => describedDeletions };
 }
 
 /** The deletion of `projectDirectory` as `describe_stream_action` describes it in `state`. */
@@ -197,6 +249,7 @@ test("a folder the runtime names no project in is unreadable, in the runtime's w
 async function anOpenProject(options: {
   dialogAnswers: string | null;
   archiveDialogAnswers?: string | null;
+  coverImageDialogAnswers?: string | null;
   recentFolders?: RecentProjectFolderOpened[];
   creationRefusal?: string;
   deletionStates?: readonly StreamActionFollowed[];
@@ -215,8 +268,9 @@ async function anOpenProject(options: {
   const studioWindowsClosed: string[] = [];
   const waitsMs: number[] = [];
   const archiveDialogsAsked: string[] = [];
+  const coverImageDialogsAsked: string[] = [];
   let monotonicClockMs = 0;
-  const { projectChanges, deletionsQueued, describedDeletions } = aFakeRuntimeChangingProjects({ deletionStates: options.deletionStates ?? [] });
+  const { projectChanges, deletionsQueued, assetsImported, describedDeletions } = aFakeRuntimeChangingProjects({ deletionStates: options.deletionStates ?? [] });
   const homeDirectory = await aFolder();
   const projectOpening = new ProjectOpening({
     homeDirectory,
@@ -228,6 +282,10 @@ async function anOpenProject(options: {
     projectArchiveDialog: async (defaultFolder) => {
       archiveDialogsAsked.push(defaultFolder);
       return succeeded(options.archiveDialogAnswers ?? null);
+    },
+    projectCoverImageDialog: async (defaultFolder) => {
+      coverImageDialogsAsked.push(defaultFolder);
+      return succeeded(options.coverImageDialogAnswers ?? null);
     },
     recentProjectFolders: {
       readRecentFolders: async () => recentFolders,
@@ -293,6 +351,10 @@ async function anOpenProject(options: {
     deleteRecentProject: (folder: string) => projectOpening.deleteRecentProject(folder),
     chooseProjectArchiveToImport: () => projectOpening.chooseProjectArchiveToImport(),
     importProjectArchive: (archive: string, name: string, location: string) => projectOpening.importProjectArchive(archive, name, location),
+    readRecentProjectCover: (folder: string) => projectOpening.readRecentProjectCover(folder),
+    setRecentProjectDescription: (folder: string, description: string) => projectOpening.setRecentProjectDescription(folder, description),
+    chooseProjectCoverImage: () => projectOpening.chooseProjectCoverImage(),
+    setRecentProjectCover: (folder: string, image: string | null) => projectOpening.setRecentProjectCover(folder, image),
     readOpenProject: (): OpenProjectReading => projectOpenedLast?.readOpenProject() ?? { kind: "none_open" },
   };
   return {
@@ -308,6 +370,8 @@ async function anOpenProject(options: {
     pendingTimers,
     homeDirectory,
     archiveDialogsAsked,
+    coverImageDialogsAsked,
+    assetsImported,
     deletionsQueued,
     describedDeletions,
     studioWindowsClosed,
@@ -418,8 +482,8 @@ test("a recent project opens, moves first, and one that is gone reads as unreada
     ],
   });
   expect(await openProject.readRecentProjects()).toEqual([
-    { folder: studioFolder, project_name: "studio", project_description: null, last_edited_at_wall_clock_ms: null, last_opened_at_wall_clock_ms: 200 },
-    { folder: goneFolder, project_name: null, project_description: null, last_edited_at_wall_clock_ms: null, last_opened_at_wall_clock_ms: 100 },
+    { folder: studioFolder, project_name: "studio", project_description: null, last_edited_at_wall_clock_ms: null, has_a_chosen_cover: false, last_opened_at_wall_clock_ms: 200 },
+    { folder: goneFolder, project_name: null, project_description: null, last_edited_at_wall_clock_ms: null, has_a_chosen_cover: false, last_opened_at_wall_clock_ms: 100 },
   ]);
 
   setTheWallClock(300);
@@ -477,6 +541,7 @@ test("a recent project's card reads its description and its last edit, in millis
       project_name: "studio",
       project_description: "A test pattern through a halftone effect.",
       last_edited_at_wall_clock_ms: 1_790_000_100_000,
+      has_a_chosen_cover: false,
       last_opened_at_wall_clock_ms: 200,
     },
   ]);
@@ -492,6 +557,60 @@ test("a recent project is renamed through the runtime, its folder kept; a blank 
   expect(await openProject.renameRecentProject(studioFolder, "   ")).toEqual(failedWith("Give the project a name."));
   expect(await openProject.renameRecentProject("/etc", "Night Show")).toEqual(failedWith("/etc is not one of the recent projects."));
   expect(await openProject.readRecentProjects()).toMatchObject([{ project_name: "Night Show" }]);
+});
+
+test("a recent project is described through the runtime, trimmed, and a blank description clears it; a folder not among the recent projects is refused", async () => {
+  const studioFolder = await aFolder();
+  await writeAProject(studioFolder, "studio");
+  const { openProject } = await anOpenProject({ dialogAnswers: null, recentFolders: [{ folder: studioFolder, opened_at_wall_clock_ms: 200 }] });
+
+  expect(await openProject.setRecentProjectDescription(studioFolder, "  Projection for the night market.  ")).toEqual(succeeded(undefined));
+  expect(await openProject.readRecentProjects()).toMatchObject([{ project_description: "Projection for the night market." }]);
+  expect(await openProject.setRecentProjectDescription(studioFolder, "   ")).toEqual(succeeded(undefined));
+  expect(await openProject.readRecentProjects()).toMatchObject([{ project_description: null }]);
+  expect(await openProject.setRecentProjectDescription("/etc", "a show")).toEqual(failedWith("/etc is not one of the recent projects."));
+});
+
+test("a cover image is asked for in the dialog opened at home, and a cancel answers null", async () => {
+  const { openProject, coverImageDialogsAsked, homeDirectory } = await anOpenProject({ dialogAnswers: null, coverImageDialogAnswers: "/pictures/poster.png" });
+  expect(await openProject.chooseProjectCoverImage()).toEqual(succeeded("/pictures/poster.png"));
+  expect(coverImageDialogsAsked).toEqual([homeDirectory]);
+  const cancelled = await anOpenProject({ dialogAnswers: null });
+  expect(await cancelled.openProject.chooseProjectCoverImage()).toEqual(succeeded(null));
+});
+
+test("a recent project is covered by an image the runtime imports into media/ under its own name, numbered past one already there, and read back as a data URL", async () => {
+  const studioFolder = await aFolder();
+  await writeAProject(studioFolder, "studio");
+  const picturesFolder = await aFolder();
+  const poster = path.join(picturesFolder, "Poster.PNG");
+  await writeFile(poster, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  await mkdir(path.join(studioFolder, "media"));
+  await writeFile(path.join(studioFolder, "media/Poster.PNG"), "someone else's poster");
+  const { openProject, assetsImported } = await anOpenProject({ dialogAnswers: null, recentFolders: [{ folder: studioFolder, opened_at_wall_clock_ms: 200 }] });
+
+  expect(await openProject.readRecentProjects()).toMatchObject([{ has_a_chosen_cover: false }]);
+  expect(await openProject.readRecentProjectCover(studioFolder)).toEqual(succeeded(null));
+  expect(await openProject.setRecentProjectCover(studioFolder, poster)).toEqual(succeeded(undefined));
+  expect(assetsImported).toEqual([{ projectDirectory: studioFolder, source: poster, assetPath: "media/Poster 2.PNG" }]);
+  expect(await openProject.readRecentProjects()).toMatchObject([{ has_a_chosen_cover: true }]);
+  expect(await openProject.readRecentProjectCover(studioFolder)).toEqual(succeeded("data:image/png;base64,iVBORw=="));
+
+  expect(await openProject.setRecentProjectCover(studioFolder, null)).toEqual(succeeded(undefined));
+  expect(await openProject.readRecentProjects()).toMatchObject([{ has_a_chosen_cover: false }]);
+  expect(await openProject.readRecentProjectCover(studioFolder)).toEqual(succeeded(null));
+});
+
+test("a cover that is no image a window shows, a relative path, or a folder not among the recent projects is refused before the runtime is asked", async () => {
+  const studioFolder = await aFolder();
+  await writeAProject(studioFolder, "studio");
+  const { openProject, assetsImported } = await anOpenProject({ dialogAnswers: null, recentFolders: [{ folder: studioFolder, opened_at_wall_clock_ms: 200 }] });
+
+  expect(await openProject.setRecentProjectCover(studioFolder, "/pictures/poster.tiff")).toEqual(failedWith("poster.tiff is not a PNG, JPEG, WebP or GIF image."));
+  expect(await openProject.setRecentProjectCover(studioFolder, "poster.png")).toEqual(failedWith("poster.png is not a full path to an image."));
+  expect(await openProject.setRecentProjectCover("/etc", "/pictures/poster.png")).toEqual(failedWith("/etc is not one of the recent projects."));
+  expect(await openProject.readRecentProjectCover("/etc")).toEqual(failedWith("/etc is not one of the recent projects."));
+  expect(assetsImported).toEqual([]);
 });
 
 test("a recent project is duplicated beside itself into the first free `<folder> copy`, put first among the recent projects and left unopened", async () => {

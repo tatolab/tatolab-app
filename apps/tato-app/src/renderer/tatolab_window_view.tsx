@@ -28,7 +28,7 @@ import { coreViewTypesOf, servedCoreViewFolderUrl } from "./view_host/core_view_
 import { CORE_VIEWS } from "@tatolab/tato-app-core-views";
 import { ProjectLogReadings } from "./view_host/project_log_readings";
 import { ProjectTransactionsReadings } from "./view_host/project_transactions_readings";
-import { ProjectNodeTypeReadings } from "./view_host/project_node_type_readings";
+import { ProjectListingReadingsPolledWhileWatched } from "./view_host/project_listing_readings_polled_while_watched";
 import { PythonLanguageServerConnections } from "./view_host/python_language_server_connections";
 import { PortViewerConnections } from "./view_host/port_viewer_connections";
 import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "./window_visibility";
@@ -57,7 +57,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
     [
       ...coreViewTypeIn("stream_graph"),
       ...coreViewTypeIn("outliner"),
-      ...coreViewTypeIn("palette"),
+      ...coreViewTypeIn("library"),
       ...coreViewTypeIn("properties"),
       ...coreViewTypeIn("history"),
       ...coreViewTypeIn("viewer"),
@@ -140,9 +140,12 @@ export function mountTatolabWindow(
   const projectLogReadings = new ProjectLogReadings(backend);
   projectLogReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => projectLogReadings.setPollingAllowed(isVisible));
-  const projectNodeTypeReadings = new ProjectNodeTypeReadings(backend);
+  const projectNodeTypeReadings = new ProjectListingReadingsPolledWhileWatched((projectFolder) => backend.listProjectNodeTypes(projectFolder));
   projectNodeTypeReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => projectNodeTypeReadings.setPollingAllowed(isVisible));
+  const projectAssetReadings = new ProjectListingReadingsPolledWhileWatched((projectFolder) => backend.listProjectAssets(projectFolder));
+  projectAssetReadings.setPollingAllowed(isTatolabWindowVisible());
+  onTatolabWindowVisibilityChanged((isVisible) => projectAssetReadings.setPollingAllowed(isVisible));
   const pythonLanguageServerConnections = new PythonLanguageServerConnections(backend);
   const portViewerConnections = new PortViewerConnections(backend);
   const studioWindowModel = new StudioWindowModel(new StudioLayoutsKeptInStorage(tatolabWindowLocalStorage()));
@@ -224,6 +227,7 @@ export function mountTatolabWindow(
       backend,
       projectLogReadings,
       projectNodeTypeReadings,
+      projectAssetReadings,
       projectTransactionsReadings,
       pythonLanguageServerConnections,
       portViewerConnections,
@@ -260,6 +264,10 @@ export function mountTatolabWindow(
         backend.openRecentProject(folder).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
       },
       renameARecentProject: (folder, name) => backend.renameRecentProject(folder, name),
+      readARecentProjectCover: (folder) => backend.readRecentProjectCover(folder),
+      setARecentProjectDescription: (folder, description) => backend.setRecentProjectDescription(folder, description),
+      chooseAProjectCoverImage: () => backend.chooseProjectCoverImage(),
+      setARecentProjectCover: (folder, image) => backend.setRecentProjectCover(folder, image),
       duplicateARecentProject: async (folder) => {
         await backend.duplicateRecentProject(folder);
       },

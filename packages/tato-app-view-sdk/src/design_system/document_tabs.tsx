@@ -4,11 +4,9 @@ import type { ReactNode } from "react";
 import { IconButtonMenu } from "./menus";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 
-/** One open document's tab: its id, the quiet words it sits under, and its name. */
+/** One open document's tab: its id and its name. */
 export interface DocumentTab {
   tab_id: string;
-  /** Where the document belongs, before its name, as a stream's project. */
-  context_words: string;
   name: string;
   /** Marked running in green, as a stream the runtime lists running. */
   is_running: boolean;
@@ -55,7 +53,6 @@ export function DocumentTabs({
                   data-document-tab={tab.tab_id}
                   className={cn("flex h-full items-center gap-1.5 rounded-t-[7px] pl-3 outline-none", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
                 >
-                  <span className="text-fg-3">{tab.context_words} /</span>
                   <span className="font-mono text-2xs">{tab.name}</span>
                   {tab.is_running && (
                     <span className="text-2xs font-medium text-status-positive-text" data-document-tab-running="">

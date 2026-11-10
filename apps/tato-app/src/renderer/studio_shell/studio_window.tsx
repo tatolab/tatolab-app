@@ -104,7 +104,7 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
   return (
     <StudioAreaHeaderMenu icon={iconOfTheArea} words={words} label={`${words}: change this area's view`} data-area-view-type-menu={area.area_id}>
       <MenuGroup label="Studio views">
-        <MenuSingleChoiceGroup menuAfterAChoice="closes"
+        <MenuSingleChoiceGroup closesTheMenuOnChoice
           choices={sources.viewTypeRegistry.studioViewTypes().map(viewTypeChoice)}
           chosen={area.view_type_id ?? ""}
           onChosen={onChosen}
@@ -118,7 +118,7 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
           <MenuNote>This project and its imports bring no views.</MenuNote>
         )}
         {projectViewTypes.length > 0 && (
-          <MenuSingleChoiceGroup menuAfterAChoice="closes" choices={projectViewTypes.map(viewTypeChoice)} chosen={area.view_type_id ?? ""} onChosen={onChosen} dataAttributeOfEachChoice="data-view-type-choice" />
+          <MenuSingleChoiceGroup closesTheMenuOnChoice choices={projectViewTypes.map(viewTypeChoice)} chosen={area.view_type_id ?? ""} onChosen={onChosen} dataAttributeOfEachChoice="data-view-type-choice" />
         )}
         <ViewTypesNotOpenedInTheMenu viewTypesNotOpened={projectViewTypesNotOpened} />
       </MenuGroup>

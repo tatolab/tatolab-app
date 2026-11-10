@@ -134,6 +134,15 @@ function inTheCoreView(viewTypeId: string) {
   return within(coreViewPage(viewTypeId).body);
 }
 
+/** Chooses `shown` in the Library's Show menu. */
+async function showInTheLibrary(shown: string): Promise<void> {
+  const library = coreViewPage("library");
+  pressAsAPointerDoes(await waitFor(() => library.querySelector<HTMLElement>("[data-library-shown]") ?? expect.unreachable("no Show menu")));
+  // A fake core view frame is drawn by the window's own React, so its menu's portal opens in the window's document.
+  const shownChoice = `[data-library-shown-choice="${shown}"]`;
+  fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>(shownChoice) ?? expect.unreachable(`no Show choice ${shown}`)));
+}
+
 function outlinerRow(rowId: string): HTMLElement {
   return coreViewPage("outliner").querySelector<HTMLElement>(`[data-outliner] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no outliner row ${rowId}`);
 }
@@ -211,26 +220,55 @@ describe("the studio", () => {
     expect(outlinerRow(invertingEffectRowId).textContent).toBe("InvertingEffect");
   });
 
-  it("closes the view-type menu on a choice, and lists in the palette each source's node types by category and its generators, and says why a module does not parse", async () => {
+  it("closes the view-type menu on a choice, and lists in the Library each source's node types by category, its generators under Show, and says why a module does not parse", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Palette/ }));
-    await waitFor(() => expect(screen.queryByRole("menuitemradio", { name: /^Palette/ })).toBeNull());
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
+    await waitFor(() => expect(screen.queryByRole("menuitemradio", { name: /^Library/ })).toBeNull());
 
-    const paletteRow = (rowId: string) => coreViewPage("palette").querySelector<HTMLElement>(`[data-palette] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no palette row ${rowId}`);
-    await waitFor(() => paletteRow("source:project"));
-    expect(paletteRow("source:project").textContent).toBe("pattern");
-    expect(paletteRow("source:project/graph_generators/nodes.scenes:two_cameras_side_by_side").textContent).toBe("two_cameras_side_by_side");
-    expect(paletteRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11").textContent).toBe("imports/hall-of-light");
-    expect(paletteRow("source:distribution:tatolab-testpattern").getAttribute("aria-expanded")).toBe("false");
+    const libraryRow = (rowId: string) => coreViewPage("library").querySelector<HTMLElement>(`[data-library-declarations] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no Library row ${rowId}`);
+    await waitFor(() => libraryRow("source:project"));
+    expect(libraryRow("source:project").textContent).toBe("pattern");
+    expect(coreViewPage("library").querySelector('[data-tree-row-id="source:project/graph_generators"]')).toBeNull();
+    expect(libraryRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11").textContent).toBe("imports/hall-of-light");
+    expect(libraryRow("source:distribution:tatolab-testpattern").getAttribute("aria-expanded")).toBe("false");
 
-    fireEvent.click(paletteRow("source:project/unreadable:nodes.half_written"));
-    await waitFor(() => expect(coreViewPage("palette").querySelector('[data-palette-unreadable-why="nodes.half_written"]')?.textContent).toBe("SyntaxError: expected ':'"));
-    fireEvent.click(paletteRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11/category:Lighting/node_type:nodes.gripper:Gripper"));
-    await waitFor(() => expect(coreViewPage("palette").querySelector('[data-palette-details="nodes.gripper:Gripper"]')).not.toBeNull());
-    expect(coreViewPage("palette").querySelector('[data-palette-port="grip"]')?.textContent).toContain("grip");
-    expect(inTheCoreView("palette").getByText("Outputs stated only by its native half")).toBeTruthy();
+    fireEvent.click(libraryRow("source:project/unreadable:nodes.half_written"));
+    await waitFor(() => expect(coreViewPage("library").querySelector('[data-library-unreadable-why="nodes.half_written"]')?.textContent).toBe("SyntaxError: expected ':'"));
+    fireEvent.click(libraryRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11/category:Lighting/node_type:nodes.gripper:Gripper"));
+    await waitFor(() => expect(coreViewPage("library").querySelector('[data-library-details="nodes.gripper:Gripper"]')).not.toBeNull());
+    expect(coreViewPage("library").querySelector('[data-library-port="grip"]')?.textContent).toContain("grip");
+    expect(inTheCoreView("library").getByText("Outputs stated only by its native half")).toBeTruthy();
+
+    await showInTheLibrary("graph_generators");
+    await waitFor(() => expect(libraryRow("source:project/graph_generators/nodes.scenes:two_cameras_side_by_side").textContent).toBe("two_cameras_side_by_side"));
+    expect(coreViewPage("library").querySelector('[data-tree-row-id="source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11"]')).toBeNull();
+  });
+
+  it("shows the project's assets in the Library by folder, narrowed by the search, with the chosen asset's details, its graph documents left out", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
+    await showInTheLibrary("assets");
+
+    const library = coreViewPage("library");
+    const assetCardPaths = () => [...library.querySelectorAll<HTMLElement>("[data-library-asset]")].map((card) => card.dataset.libraryAsset);
+    await waitFor(() => expect(assetCardPaths()).toEqual(["luts/warm.cube", "media/lobby-intro.mp4", "media/poster.png", "scenes/stage.usdz"]));
+    expect([...library.querySelectorAll<HTMLElement>("[data-library-asset-folder]")].map((folder) => folder.textContent)).toEqual(["All assets4", "luts1", "media2", "scenes1"]);
+    expect(library.querySelector('[data-library-asset="media/lobby-intro.mp4"]')?.textContent).toBe("MP4lobby-intro.mp4media · 40 MB");
+
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-asset-folder="folder:media"]') ?? expect.unreachable("no media folder"));
+    await waitFor(() => expect(assetCardPaths()).toEqual(["media/lobby-intro.mp4", "media/poster.png"]));
+    fireEvent.change(library.querySelector<HTMLInputElement>("[data-library-asset-search]") ?? expect.unreachable("no search field"), { target: { value: "POSTER" } });
+    await waitFor(() => expect(assetCardPaths()).toEqual(["media/poster.png"]));
+
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-asset="media/poster.png"]') ?? expect.unreachable("no poster card"));
+    const details = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset-details="baaf9e5a-0aff-45f7-a7ea-b83db51e5a3b"]') ?? expect.unreachable("no details"));
+    expect(details.textContent).toContain("poster.png");
+    expect(details.textContent).toContain("sha256 c59c…fa05");
+    expect(details.textContent).toContain("11 KB");
   });
 
   it("lists in an area's view-type menu each view with who brought it, and a view that does not open as a row that cannot be chosen, with why", async () => {
@@ -250,7 +288,7 @@ describe("the studio", () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
-    await screen.findByRole("menuitemradio", { name: /^Palette/ });
+    await screen.findByRole("menuitemradio", { name: /^Library/ });
     expect(screen.queryByRole("menuitemradio", { name: /^Transactions/ })).toBeNull();
 
     document.body.replaceChildren();
@@ -299,13 +337,13 @@ describe("the studio", () => {
     await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] [data-studio-area-held-for-developer-mode]')?.textContent).toContain("Transactions shows only in Developer mode"));
   });
 
-  it("says in the runtime's own words why the palette lists no node types", async () => {
+  it("says in the runtime's own words why the Library lists no node types", async () => {
     await mountedWindowOverTheMock("state=not-running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Palette/ }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
 
-    await waitFor(() => expect(coreViewPage("palette").querySelector("[data-palette-not-listed-because]")?.textContent).toMatch(/^no runtime answers at /));
+    await waitFor(() => expect(coreViewPage("library").querySelector("[data-library-not-listed-because]")?.textContent).toMatch(/^no runtime answers at /));
   });
 
   it("lists the project's edits in History, newest first, and choosing an earlier one undoes back to it by each edit's author", async () => {
@@ -396,7 +434,7 @@ describe("the studio", () => {
       },
     });
     await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
-    await waitFor(() => expect(within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["pattern /main, running"]));
+    await waitFor(() => expect(within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main, running"]));
 
     fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
     fireEvent.keyDown(inTheCoreView("outliner").getByRole("tree", { name: "Outliner" }), { key: "Enter" });
@@ -404,7 +442,7 @@ describe("the studio", () => {
     act(() => askToShowAStream(cameraStream));
 
     const streamTabs = within(screen.getByRole("tablist", { name: "Open streams" }));
-    expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["pattern /main, running", "camera /camera, running"]);
+    expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main, running", "camera, running"]);
     expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["false", "true"]);
     fireEvent.click(screen.getByRole("button", { name: "Close camera" }));
     expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true"]);
@@ -673,7 +711,7 @@ describe("the studio", () => {
     expect(streamGraph.querySelector('[aria-label="Graph of main"]')).not.toBeNull();
     const invertingEffectCard = await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card"));
     fireEvent.click(invertingEffectCard);
-    await waitFor(() => expect(inTheCoreView("properties").getByText("Inverting Effect")).toBeTruthy());
+    await waitFor(() => expect(inTheCoreView("properties").getByRole("textbox", { name: "Node name" })).toHaveProperty("value", "Inverting Effect"));
   });
 
   it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {
@@ -747,7 +785,7 @@ describe("the studio", () => {
     expect(await shownLayout()).toBe("build");
     expect(document.querySelector("[data-projects]")).toBeNull();
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
-    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => `${tab.textContent} ${tab.getAttribute("aria-selected")}`)).toEqual(["pattern /main, running true"]));
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => `${tab.textContent} ${tab.getAttribute("aria-selected")}`)).toEqual(["main, running true"]));
     await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).not.toBeNull());
   });
 
@@ -896,6 +934,102 @@ describe("the studio", () => {
     expect(textOf('[data-recent-project-change-refusal="duplicate"]')).toContain("holds no project: it has no tatolab-project.json");
   });
 
+  it("shows a project covered by a chosen image by that image, one with none by its initial's tile, and ends the grid with New project", async () => {
+    const { backend } = await mountedWindowOverTheMock("state=running&project=none");
+    const createAProject = vi.spyOn(backend, "readNewProjectDefaults");
+    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
+    await waitFor(() => expect(patternCard.querySelector('[data-project-cover="image"] img')?.getAttribute("src")).toMatch(/^data:image\/svg\+xml;base64,/));
+    const galleryCard = document.querySelector<HTMLElement>(`[data-projects-project$="/streams/gallery-wall"]`) ?? expect.unreachable("no gallery card");
+    expect(galleryCard.querySelector('[data-project-cover="plain"]')?.textContent).toBe("G");
+
+    const listItems = [...document.querySelectorAll('[role="list"][aria-label="Projects"] > [role="listitem"]')];
+    expect(listItems.at(-1)?.querySelector('[data-projects-action="new-card"]')).not.toBeNull();
+    fireEvent.click(document.querySelector<HTMLElement>('[data-projects-action="new-card"]') ?? expect.unreachable("no New project card"));
+    await waitFor(() => expect(createAProject).toHaveBeenCalled());
+  });
+
+  it("shows the first project in Project details, another chosen from its ⋯ menu, and saves a description and a name as their fields lose focus", async () => {
+    const setRecentProjectDescription = vi.fn<(folder: string, description: string) => Promise<void>>(async () => undefined);
+    const renameRecentProject = vi.fn<(folder: string, name: string) => Promise<void>>(async () => undefined);
+    await mountedWindowOverTheMock("state=running&project=none", { setRecentProjectDescription, renameRecentProject });
+    const detailsPanel = () => document.querySelector<HTMLElement>("[data-project-details]") ?? expect.unreachable("no Project details");
+    await waitFor(() => expect(detailsPanel().getAttribute("data-project-details")).toBe(PATTERN_PROJECT));
+    expect(detailsPanel().querySelector<HTMLInputElement>("[data-project-details-name]")?.value).toBe("pattern");
+
+    const cameraCard = document.querySelector<HTMLElement>(`[data-projects-project$="/streams/camera"]`) ?? expect.unreachable("no camera card");
+    pressAsAPointerDoes(within(cameraCard).getByRole("button", { name: /^Actions for camera,/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Details/ }));
+    await waitFor(() => expect(detailsPanel().getAttribute("data-project-details")).toMatch(/\/streams\/camera$/));
+    const cameraFolder = detailsPanel().getAttribute("data-project-details") ?? "";
+    const descriptionField = detailsPanel().querySelector<HTMLTextAreaElement>("[data-project-details-description]") ?? expect.unreachable("no description field");
+    expect(descriptionField.value).toBe("Camera test bench for the new capture cards.");
+
+    fireEvent.blur(descriptionField);
+    expect(setRecentProjectDescription).not.toHaveBeenCalled();
+    fireEvent.change(descriptionField, { target: { value: "The capture-card bench." } });
+    fireEvent.blur(descriptionField);
+    await waitFor(() => expect(setRecentProjectDescription).toHaveBeenCalledWith(cameraFolder, "The capture-card bench."));
+
+    const nameField = detailsPanel().querySelector<HTMLInputElement>("[data-project-details-name]") ?? expect.unreachable("no name field");
+    fireEvent.change(nameField, { target: { value: "  " } });
+    fireEvent.keyDown(nameField, { key: "Enter" });
+    await waitFor(() => expect(detailsPanel().textContent).toContain("Give the project a name."));
+    fireEvent.change(nameField, { target: { value: "Capture bench" } });
+    fireEvent.keyDown(nameField, { key: "Enter" });
+    await waitFor(() => expect(renameRecentProject).toHaveBeenCalledWith(cameraFolder, "Capture bench"));
+
+    fireEvent.click(within(detailsPanel()).getByRole("button", { name: "Hide project details" }));
+    await waitFor(() => expect(document.querySelector("[data-project-details]")).toBeNull());
+  });
+
+  it("keeps Project details on a project renamed from it under the Name sort, and renames it once for an Enter then a blur", async () => {
+    const { backend } = await mountedWindowOverTheMock("state=running&project=none");
+    const renameRecentProject = vi.spyOn(backend, "renameRecentProject");
+    await waitFor(() => expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6));
+    pressAsAPointerDoes(screen.getByRole("button", { name: "Sort: Last edited" }));
+    fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-projects-sort-choice="name"]') ?? expect.unreachable("no Name choice")));
+    const detailsPanel = () => document.querySelector<HTMLElement>("[data-project-details]") ?? expect.unreachable("no Project details");
+    await waitFor(() => expect(detailsPanel().getAttribute("data-project-details")).toMatch(/\/streams\/camera$/));
+    const cameraFolder = detailsPanel().getAttribute("data-project-details") ?? "";
+
+    const nameField = detailsPanel().querySelector<HTMLInputElement>("[data-project-details-name]") ?? expect.unreachable("no name field");
+    fireEvent.focus(nameField);
+    fireEvent.change(nameField, { target: { value: "zebra" } });
+    fireEvent.keyDown(nameField, { key: "Enter" });
+    fireEvent.blur(nameField);
+
+    await waitFor(() => expect(within(document.querySelector<HTMLElement>(`[data-projects-project="${cameraFolder}"]`) ?? expect.unreachable("no camera card")).getByRole("button", { name: /^Actions for zebra,/ })).toBeTruthy());
+    expect(renameRecentProject).toHaveBeenCalledTimes(1);
+    expect(renameRecentProject).toHaveBeenCalledWith(cameraFolder, "zebra");
+    expect(detailsPanel().getAttribute("data-project-details")).toBe(cameraFolder);
+  });
+
+  it("covers a project by an image chosen in Project details, removes it again, and says why when the runtime refuses", async () => {
+    const { backend } = await mountedWindowOverTheMock("state=running&project=none");
+    const setRecentProjectCover = vi.spyOn(backend, "setRecentProjectCover");
+    const detailsPanel = () => document.querySelector<HTMLElement>("[data-project-details]") ?? expect.unreachable("no Project details");
+    const galleryCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project$="/streams/gallery-wall"]`) ?? expect.unreachable("no gallery card"));
+    pressAsAPointerDoes(within(galleryCard).getByRole("button", { name: /^Actions for gallery-wall,/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Details/ }));
+    await waitFor(() => expect(detailsPanel().getAttribute("data-project-details")).toMatch(/\/streams\/gallery-wall$/));
+    expect(detailsPanel().querySelector('[data-project-details-action="remove-image"]')).toBeNull();
+
+    fireEvent.click(detailsPanel().querySelector<HTMLElement>('[data-project-details-action="choose-image"]') ?? expect.unreachable("no Choose image…"));
+    await waitFor(() => expect(setRecentProjectCover).toHaveBeenCalledWith(expect.stringMatching(/\/streams\/gallery-wall$/), expect.stringMatching(/night-market-poster\.png$/)));
+    await waitFor(() => expect(galleryCard.querySelector('[data-project-cover="image"] img')).not.toBeNull());
+    expect(detailsPanel().querySelector('[data-project-cover="image"] img')).not.toBeNull();
+
+    setRecentProjectCover.mockImplementationOnce(async () => {
+      throw "set_project_cover failed: the project file is read-only";
+    });
+    fireEvent.click(detailsPanel().querySelector<HTMLElement>('[data-project-details-action="remove-image"]') ?? expect.unreachable("no Remove"));
+    await waitFor(() => expect(detailsPanel().textContent).toContain("The cover wasn't removed: set_project_cover failed: the project file is read-only"));
+
+    fireEvent.click(detailsPanel().querySelector<HTMLElement>('[data-project-details-action="remove-image"]') ?? expect.unreachable("no Remove"));
+    await waitFor(() => expect(galleryCard.querySelector('[data-project-cover="plain"]')).not.toBeNull());
+    expect(detailsPanel().querySelector('[data-project-details-action="remove-image"]')).toBeNull();
+  });
+
   it("deletes a project from its ⋯ menu only once the question is answered, and its card leaves", async () => {
     const deleteRecentProject = vi.fn<(folder: string) => Promise<void>>();
     const { backend } = await mountedWindowOverTheMock("state=running&project=none");
@@ -986,7 +1120,7 @@ describe("the studio", () => {
     await mountedWindowOverTheMock("state=running&project=none&recent=none", { readRecentProjects: () => Promise.resolve([...recentProjectsOnDisk]) });
     await waitFor(() => expect(textOf("[data-projects-empty]")).toContain("No projects yet"));
 
-    recentProjectsOnDisk.push({ folder: PATTERN_PROJECT, project_name: "pattern", project_description: null, last_edited_at_wall_clock_ms: null, last_opened_at_wall_clock_ms: Date.now() });
+    recentProjectsOnDisk.push({ folder: PATTERN_PROJECT, project_name: "pattern", project_description: null, last_edited_at_wall_clock_ms: null, has_a_chosen_cover: false, last_opened_at_wall_clock_ms: Date.now() });
     act(() => {
       window.dispatchEvent(new FocusEvent("focus"));
     });
@@ -995,11 +1129,13 @@ describe("the studio", () => {
     expect(document.querySelector("[data-projects-empty]")).toBeNull();
   });
 
-  it("opens first run on the empty Projects window, its banner a still picture where WebGL is not offered, and Import project folder… opens the one chosen", async () => {
+  it("opens first run on the empty Projects window, All projects in its sidebar beside the app's version, and Import project folder… opens the one chosen", async () => {
     await mountedWindowOverTheMock("state=running&project=none&recent=none");
     await waitFor(() => expect(textOf("[data-projects-empty]")).toContain("No projects yet"));
-    expect(document.querySelector('[data-projects-banner="still"] img')).not.toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "All projects" })).toBeTruthy();
+    expect(document.querySelector('[data-projects-section="all_projects"]')?.getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("v0.45.0")).toBeTruthy();
+    expect(document.querySelector("[data-project-details]")).toBeNull();
 
     pressAsAPointerDoes(screen.getByRole("button", { name: "More ways to start a project" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Import project folder…/ }));
@@ -1048,7 +1184,7 @@ describe("the studio", () => {
     expect(document.querySelector("[data-projects]")).toBeNull();
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
     await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true"]));
-    expect(streamTabs.getByRole("tab").textContent).toMatch(/^Night Show \//);
+    await waitFor(() => expect(streamTabs.getByRole("tab").textContent).toBe("main"));
   });
 
   it("refuses a name that is no folder name before Create, and a folder already there in the sheet, which stays open", async () => {

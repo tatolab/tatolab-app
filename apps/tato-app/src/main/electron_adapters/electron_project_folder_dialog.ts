@@ -1,4 +1,4 @@
-import type { ProjectFolderDialogPurpose } from "../open_project.js";
+import { PROJECT_COVER_IMAGE_MEDIA_TYPES, type ProjectFolderDialogPurpose } from "../open_project.js";
 import type { Result } from "../result.js";
 import { askThePersonThroughAnOpenDialogOverTheFocusedWindow } from "./electron_open_dialog_over_the_focused_window.js";
 
@@ -20,5 +20,19 @@ export async function askThePersonForAProjectArchiveThroughElectron(defaultFolde
   return askThePersonThroughAnOpenDialogOverTheFocusedWindow(
     { title: "Import a project .zip", buttonLabel: "Import", defaultPath: defaultFolder, properties: ["openFile"], filters: [{ name: "Project archive", extensions: ["zip"] }] },
     "The import dialog",
+  );
+}
+
+/** The desktop's open dialog, sheeted over the focused window, for an image to cover a project; `null` when the person cancels. */
+export async function askThePersonForAProjectCoverImageThroughElectron(defaultFolder: string): Promise<Result<string | null, string>> {
+  return askThePersonThroughAnOpenDialogOverTheFocusedWindow(
+    {
+      title: "Choose a cover image",
+      buttonLabel: "Choose",
+      defaultPath: defaultFolder,
+      properties: ["openFile"],
+      filters: [{ name: "Image", extensions: Object.keys(PROJECT_COVER_IMAGE_MEDIA_TYPES).map((extension) => extension.slice(1)) }],
+    },
+    "The cover image dialog",
   );
 }

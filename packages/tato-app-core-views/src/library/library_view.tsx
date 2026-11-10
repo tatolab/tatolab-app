@@ -1,0 +1,339 @@
+import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
+import { useCallback, useMemo, useState } from "react";
+import { Boxes, Folder } from "lucide-react";
+import { MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
+import { ProjectAssetCard, ProjectAssetPicture } from "@tatolab/tato-app-view-sdk/design_system/project_asset_card";
+import { CardGrid } from "@tatolab/tato-app-view-sdk/design_system/card_grid";
+import { SidePanel, WorkAreaWithSidePanel } from "@tatolab/tato-app-view-sdk/design_system/side_panel";
+import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
+import { SectionNavigationList } from "@tatolab/tato-app-view-sdk/design_system/section_navigation_list";
+import { StudioAreaHeaderChoiceMenu } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
+import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
+import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { PropertySection } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
+import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
+import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
+import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import type { ProjectAsset, ProjectAssetsReading, ProjectNodeTypePort, ProjectNodeTypesReading } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { CoreViewFrame } from "../shared/core_view_page";
+import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
+import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
+import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../shared/node_type_listing_tree";
+import { libraryTreeOfTheListing, type LibraryDeclarationsShown, type LibraryRowMeaning } from "./library_tree_of_the_listing";
+import {
+  assetFileName,
+  assetFormatWords,
+  assetKindAndSizeWords,
+  assetPictureToneOf,
+  assetsShownInTheFolder,
+  assetsTheLibraryLists,
+  byteLengthInWords,
+  EVERY_ASSET_FOLDER_ID,
+  libraryAssetFoldersOf,
+  noAssetShownWords,
+  shortenedDigest,
+} from "./library_assets_of_the_listing";
+
+function PortsOfTheDeclaration({ direction, ports }: { direction: "In" | "Out"; ports: ProjectNodeTypePort[] | null }) {
+  if (ports === null) return <p className="px-1 text-xs text-fg-3">{direction === "In" ? "Inputs" : "Outputs"} stated only by its native half</p>;
+  return ports.map((port) => (
+    <div
+      key={`${direction}:${port.name}`}
+      className="flex h-6 min-w-0 items-center gap-2 text-xs"
+      title={port.description === "" ? (port.annotation ?? undefined) : port.description}
+      data-library-port={port.name}
+    >
+      <span className="w-6 shrink-0 text-right text-2xs text-fg-3">{direction}</span>
+      <NodeGraphPinMark family={port.family} />
+      <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-fg">{port.name}</span>
+      <span className="shrink-0 text-fg-3">{port.family === null ? (port.annotation ?? "Family not stated") : nodeGraphPinFamilyWords(port.family)}</span>
+    </div>
+  ));
+}
+
+function placeInWords(path: string | null, line: number | null): string {
+  if (path === null) return "Not stated";
+  return line === null ? path : `${path}:${line}`;
+}
+
+/** The chosen row's declaration: what it is, where it is declared, and its ports or promoted config; for a module that does not parse, why, in the parser's words. */
+function DetailsOfTheDeclaration({ declaration }: { declaration: DeclarationRowMeaning }) {
+  switch (declaration.kind) {
+    case "node_type_declaration": {
+      const { node_type: nodeType } = declaration;
+      const facts: KeyValueRow[] = [
+        ["Type", <span className="font-mono">{nodeType.type}</span>],
+        ["Kind", nodeType.kind ?? "Not stated"],
+        ["Category", nodeType.category],
+        ["From", declaration.source_title],
+        ["Declared", <span className="font-mono">{placeInWords(nodeType.path, nodeType.line)}</span>],
+      ];
+      return (
+        <>
+          <PropertySection title="Node type" data-library-details={nodeType.type}>
+            {nodeType.description !== "" && <p className="px-1 pb-2 text-xs text-fg-2">{nodeType.description}</p>}
+            <div className="px-1 pb-2">
+              <KeyValueRows rows={facts} />
+            </div>
+          </PropertySection>
+          <PropertySection title="Ports">
+            {nodeType.inputs?.length === 0 && nodeType.outputs?.length === 0 ? (
+              <p className="px-1 text-xs text-fg-3">None</p>
+            ) : (
+              <>
+                <PortsOfTheDeclaration direction="In" ports={nodeType.inputs} />
+                <PortsOfTheDeclaration direction="Out" ports={nodeType.outputs} />
+              </>
+            )}
+          </PropertySection>
+        </>
+      );
+    }
+    case "graph_generator_declaration": {
+      const { graph_generator: graphGenerator } = declaration;
+      return (
+        <>
+          <PropertySection title="Graph generator" data-library-details={graphGenerator.generator}>
+            {graphGenerator.description !== "" && <p className="px-1 pb-2 text-xs text-fg-2">{graphGenerator.description}</p>}
+            <div className="px-1 pb-2">
+              <KeyValueRows
+                rows={[
+                  ["Generator", <span className="font-mono">{graphGenerator.generator}</span>],
+                  ["From", declaration.source_title],
+                  ["Declared", <span className="font-mono">{placeInWords(graphGenerator.path, graphGenerator.line)}</span>],
+                ]}
+              />
+            </div>
+          </PropertySection>
+          <PropertySection title="Promoted config">
+            {graphGenerator.promoted_config.length === 0 ? (
+              <p className="px-1 text-xs text-fg-3">None</p>
+            ) : (
+              <div className="px-1 pb-2">
+                <KeyValueRows look="fields" rows={graphGenerator.promoted_config.map((setting): KeyValueRow => [setting.name, setting.annotation ?? ""])} />
+              </div>
+            )}
+          </PropertySection>
+        </>
+      );
+    }
+    case "unreadable_module":
+      return (
+        <PropertySection title={`${declaration.unreadable_module.module} does not parse`} data-library-details={declaration.unreadable_module.module}>
+          <div className="px-1 pb-1 font-mono text-xs text-fg-3">{whereTheModuleStoppedTheParser(declaration.unreadable_module)}</div>
+          <div className="px-1 pb-2">
+            <RuntimeFailureWords words={declaration.unreadable_module.why} data-library-unreadable-why={declaration.unreadable_module.module} />
+          </div>
+        </PropertySection>
+      );
+  }
+}
+
+/** What the Library shows: the node types the project can place, its graph generators, or its assets. */
+type LibraryShown = LibraryDeclarationsShown | "assets";
+
+const LIBRARY_SHOWN_CHOICES: readonly MenuSingleChoice<LibraryShown>[] = [
+  { choice: "node_types", label: "Node types" },
+  { choice: "graph_generators", label: "Generators" },
+  { choice: "assets", label: "Assets" },
+];
+
+const LIBRARY_SHOWN_WORDS: Record<LibraryShown, string> = { node_types: "Node types", graph_generators: "Generators", assets: "Assets" };
+
+/** The open project's node types or graph generators, by source, as the runtime reads them from source. */
+function DeclarationsOfTheProject({ connection, projectFolder, declarationsShown }: { connection: TatoAppViewConnection; projectFolder: string; declarationsShown: LibraryDeclarationsShown }) {
+  const watchTheProjectsNodeTypes = useCallback(
+    (listener: (reading: ProjectNodeTypesReading) => void): StopWatching => connection.watchProjectNodeTypes(projectFolder, listener),
+    [connection, projectFolder],
+  );
+  const nodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
+  const settings = useViewReading(connection.watchSettings);
+  const [expansionChoices, toggleTheRow] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
+  const [chosenRowId, setChosenRowId] = useState<string | null>(null);
+  const [openingRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
+  const libraryRows = useMemo(
+    () => (nodeTypesReading?.kind === "listed" ? libraryTreeOfTheListing(nodeTypesReading.listing, expansionChoices, declarationsShown) : []),
+    [nodeTypesReading, expansionChoices, declarationsShown],
+  );
+  if (nodeTypesReading === null) return <WaitingState title="Reading the project's node types" data-library-state="waiting" />;
+  if (nodeTypesReading.kind === "not_listed") {
+    return (
+      <WaitingState isFailure title="The runtime lists no node types" data-library-state="not_listed">
+        <RuntimeFailureWords words={nodeTypesReading.because} data-library-not-listed-because="" />
+      </WaitingState>
+    );
+  }
+  if (libraryRows.length === 0 && declarationsShown === "graph_generators")
+    return <WaitingState title="No graph generators" explanation="Neither the project nor anything it imports declares one." data-library-state="no_graph_generators" />;
+  const meaningOfRow = (rowId: string): LibraryRowMeaning => libraryRows.find((libraryRow) => libraryRow.row.row_id === rowId)?.meaning ?? { kind: "nothing_to_select" };
+  const chosenMeaning = chosenRowId === null ? null : meaningOfRow(chosenRowId);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col" data-library-declarations={declarationsShown}>
+      <RefusalOfTheLatestAskBar refusal={openingRefusal} />
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
+        <TreeView
+          label={LIBRARY_SHOWN_WORDS[declarationsShown]}
+          rows={libraryRows.map((libraryRow) => libraryRow.row)}
+          selectedRowId={chosenMeaning === null || chosenMeaning.kind === "nothing_to_select" ? null : chosenRowId}
+          onRowSelected={(rowId) => setChosenRowId(meaningOfRow(rowId).kind === "nothing_to_select" ? null : rowId)}
+          onRowActivated={(rowId) => {
+            const meaning = meaningOfRow(rowId);
+            if (meaning.kind !== "nothing_to_select" && meaning.file !== null) showTheRefusalOf("Didn't open the file:", connection.openView("code", { kind: "file", file: meaning.file }));
+          }}
+          onExpansionToggled={toggleTheRow}
+        />
+      </div>
+      {chosenMeaning !== null && chosenMeaning.kind !== "nothing_to_select" && (
+        <div className="scrollbar-thin max-h-[55%] shrink-0 overflow-y-auto border-t">
+          <DetailsOfTheDeclaration declaration={chosenMeaning} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The chosen asset: its file's name and path, what it is, its UUID, its bytes' digest and size, and each setting its import took. */
+function DetailsOfTheAsset({ asset, onHidden }: { asset: ProjectAsset; onHidden: () => void }) {
+  const importSettings = Object.entries(asset.import_settings);
+  return (
+    <SidePanel
+      label="Chosen asset"
+      title={assetFileName(asset.path)}
+      subtitle={<span className="font-mono">{asset.path}</span>}
+      hiding={{ hideLabel: "Hide details", onHidden }}
+      data-library-asset-details={asset.asset}
+    >
+      <div className="flex flex-col gap-3 px-4 py-3">
+        <ProjectAssetPicture tone={assetPictureToneOf(asset)} words={assetFormatWords(asset)} size="details_band" />
+        <KeyValueRows
+          rows={[
+            ["Kind", asset.kind],
+            [
+              "UUID",
+              <span className="font-mono" title={asset.asset}>
+                {shortenedDigest(asset.asset)}
+              </span>,
+            ],
+            [
+              "Content",
+              <span className="font-mono" title={asset.content_sha256}>
+                sha256 {shortenedDigest(asset.content_sha256)}
+              </span>,
+            ],
+            ["Size", byteLengthInWords(asset.content_byte_len)],
+          ]}
+        />
+        <PropertySection title="Import settings">
+          {importSettings.length === 0 ? (
+            <p className="px-1 text-xs text-fg-3">None</p>
+          ) : (
+            <div className="px-1 pb-2">
+              <KeyValueRows look="fields" rows={importSettings.map(([key, value]): KeyValueRow => [key, <span className="font-mono break-all">{JSON.stringify(value)}</span>])} />
+            </div>
+          )}
+        </PropertySection>
+      </div>
+    </SidePanel>
+  );
+}
+
+/** The open project's assets as the runtime lists them: its folders down the left, the chosen folder's assets as cards, and the chosen asset's details. */
+function AssetsOfTheProject({ connection, projectFolder, searchText }: { connection: TatoAppViewConnection; projectFolder: string; searchText: string }) {
+  const watchTheProjectsAssets = useCallback((listener: (reading: ProjectAssetsReading) => void): StopWatching => connection.watchProjectAssets(projectFolder, listener), [connection, projectFolder]);
+  const assetsReading = useViewReading(watchTheProjectsAssets);
+  const [shownFolderId, setShownFolderId] = useState(EVERY_ASSET_FOLDER_ID);
+  const [chosenAssetUuid, setChosenAssetUuid] = useState<string | null>(null);
+  if (assetsReading === null) return <WaitingState title="Reading the project's assets" data-library-state="waiting" />;
+  if (assetsReading.kind === "not_listed") {
+    return (
+      <WaitingState isFailure title="The runtime lists no assets" data-library-state="not_listed">
+        <RuntimeFailureWords words={assetsReading.because} data-library-not-listed-because="" />
+      </WaitingState>
+    );
+  }
+  const assets = assetsTheLibraryLists(assetsReading.listing);
+  const folders = libraryAssetFoldersOf(assets);
+  const folderShown = folders.some((folder) => folder.folder_id === shownFolderId) ? shownFolderId : EVERY_ASSET_FOLDER_ID;
+  const assetsShown = assetsShownInTheFolder(assets, folderShown, searchText);
+  const chosenAsset = assetsShown.find((asset) => asset.asset === chosenAssetUuid) ?? null;
+  const folderShownLabel = folders.find((folder) => folder.folder_id === folderShown)?.label ?? "this folder";
+  const noAssetShown = noAssetShownWords(assets.length, folderShownLabel, searchText);
+  return (
+    <div className="flex min-h-0 flex-1" data-library-assets="">
+      <SectionNavigationList
+        label="Folders of the project's assets"
+        width="wide"
+        sectionGroups={[
+          {
+            groupLabel: assetsReading.listing.project_name,
+            sections: folders.map((folder) => ({ section_id: folder.folder_id, label: folder.label, icon: folder.folder_id === EVERY_ASSET_FOLDER_ID ? Boxes : Folder, count: folder.asset_count })),
+          },
+        ]}
+        shownSectionId={folderShown}
+        onSectionChosen={setShownFolderId}
+        dataAttributeOfEachSection="data-library-asset-folder"
+      />
+      <WorkAreaWithSidePanel sidePanel={chosenAsset === null ? null : <DetailsOfTheAsset asset={chosenAsset} onHidden={() => setChosenAssetUuid(null)} />}>
+        <div className="scrollbar-thin min-w-0 flex-1 overflow-y-auto p-3">
+          {assetsShown.length === 0 ? (
+            <WaitingState title={noAssetShown.title} explanation={noAssetShown.explanation} data-library-state={assets.length === 0 ? "no_assets" : "no_asset_matches"} />
+          ) : (
+            <CardGrid size="studio_compact" label={`Assets in ${folderShownLabel}`}>
+              {assetsShown.map((asset) => (
+                <ProjectAssetCard
+                  key={asset.asset}
+                  name={assetFileName(asset.path)}
+                  kindAndSizeWords={assetKindAndSizeWords(asset)}
+                  pictureTone={assetPictureToneOf(asset)}
+                  pictureWords={assetFormatWords(asset)}
+                  isSelected={asset.asset === chosenAsset?.asset}
+                  onSelected={() => setChosenAssetUuid(asset.asset)}
+                  data-library-asset={asset.path}
+                />
+              ))}
+            </CardGrid>
+          )}
+        </div>
+      </WorkAreaWithSidePanel>
+    </div>
+  );
+}
+
+function LibraryBody({ connection, shown, searchText }: { connection: TatoAppViewConnection; shown: LibraryShown; searchText: string }) {
+  const openProject = useViewReading(connection.watchOpenProject);
+  if (openProject === null) return null;
+  if (openProject.kind === "none_open") return <WaitingState title="No project is open" explanation="Open or create one from the File menu." />;
+  if (openProject.kind === "unreadable") return <WaitingState isFailure title={`${openProject.folder} can't be read`} explanation={openProject.refusal} />;
+  const projectFolder = openProject.open_project.project.folder;
+  return shown === "assets" ? (
+    <AssetsOfTheProject key={projectFolder} connection={connection} projectFolder={projectFolder} searchText={searchText} />
+  ) : (
+    <DeclarationsOfTheProject key={`${projectFolder}/${shown}`} connection={connection} projectFolder={projectFolder} declarationsShown={shown} />
+  );
+}
+
+/** The Library view's whole frame: what the project can use, as node types, generators or assets, chosen in its header row's Show menu. */
+export function LibraryView({ connection }: { connection: TatoAppViewConnection }) {
+  const [shown, setShown] = useState<LibraryShown>("node_types");
+  const [searchText, setSearchText] = useState("");
+  return (
+    <CoreViewFrame
+      connection={connection}
+      headerTools={
+        <>
+          <StudioAreaHeaderChoiceMenu leadingWord="Show" words={LIBRARY_SHOWN_WORDS[shown]} label={`Show: ${LIBRARY_SHOWN_WORDS[shown]}`} data-library-shown={shown}>
+            <MenuSingleChoiceGroup choices={LIBRARY_SHOWN_CHOICES} chosen={shown} onChosen={setShown} dataAttributeOfEachChoice="data-library-shown-choice" closesTheMenuOnChoice />
+          </StudioAreaHeaderChoiceMenu>
+          {shown === "assets" && (
+            <span className="ml-auto flex min-w-0 justify-end">
+              <SearchField label="Search assets" placeholder="Search assets" text={searchText} onTextChanged={setSearchText} data-library-asset-search="" />
+            </span>
+          )}
+        </>
+      }
+    >
+      <LibraryBody connection={connection} shown={shown} searchText={searchText} />
+    </CoreViewFrame>
+  );
+}

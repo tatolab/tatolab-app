@@ -27,6 +27,7 @@ import type {
   StreamGraphSummary,
   NodeCatalog,
   ProjectNodeTypeListing,
+  ProjectAssetListing,
   StreamProjectFolderChosenFor,
   TatolabStatus,
   ProjectFolderChosenFor,
@@ -124,6 +125,14 @@ export function listProjectNodeTypes(sharedState: TatolabAppSharedState, project
   });
 }
 
+/** `list_project_assets { project_directory }`: every asset of the project, its graph documents among them, as the runtime's `list_assets` lists them; refused in the runtime's own words. */
+export function listProjectAssets(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectAssetListing, string>> {
+  return answerTheWindow("list_project_assets", async () => {
+    const listing = await sharedState.controller.listProjectAssets(projectDirectory);
+    return listing.ok ? listing : failedWith(listing.failure.failureDescription);
+  });
+}
+
 /** The window's `commandName` answered once the runtime queued its action or refused it, then a status round either way, so the listing shows the action under way; the action's id is read only to check the answer. */
 function answerTheWindowOnceQueued(
   sharedState: TatolabAppSharedState,
@@ -158,6 +167,18 @@ export function projectDirectoryTheWindowMayAskTheRuntimeAbout(
   const studioWindow = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId);
   const openProjectFolder = studioWindow?.openProjectFiles.projectFolderOfTheOpenProject(projectDirectory) ?? null;
   return openProjectFolder?.ok === true ? openProjectFolder : projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory);
+}
+
+/** `commandName`'s `project_directory` argument when it is a folder the window `commandFromWindow` may ask the runtime about, or why not. */
+function projectDirectoryArgumentTheWindowMayAskTheRuntimeAbout(
+  sharedState: TatolabAppSharedState,
+  commandName: TatolabCommandName,
+  commandArguments: unknown,
+  commandFromWindow: TatolabCommandFromWindow,
+): Result<string, string> {
+  const projectDirectory = oneTextArgumentFrom(commandName, commandArguments, "project_directory", "a project's folder");
+  if (!projectDirectory.ok) return projectDirectory;
+  return projectDirectoryTheWindowMayAskTheRuntimeAbout(sharedState, projectDirectory.value, commandFromWindow);
 }
 
 /** The window a command came from, by its page's contents id. */
@@ -489,6 +510,24 @@ export function renameRecentProjectArgumentsFrom(commandArguments: unknown): Res
   return succeeded({ folder: folder.value, name: name.value });
 }
 
+/** `set_recent_project_description`'s arguments as the window sends them, or why they are not. */
+export function setRecentProjectDescriptionArgumentsFrom(commandArguments: unknown): Result<{ folder: string; description: string }, string> {
+  const folder = oneTextArgumentFrom("set_recent_project_description", commandArguments, "folder", "one of the recent projects' folders");
+  if (!folder.ok) return folder;
+  const description = oneTextArgumentFrom("set_recent_project_description", commandArguments, "description", "what the project is, blank to clear it");
+  if (!description.ok) return description;
+  return succeeded({ folder: folder.value, description: description.value });
+}
+
+/** `set_recent_project_cover`'s arguments as the window sends them, or why they are not. */
+export function setRecentProjectCoverArgumentsFrom(commandArguments: unknown): Result<{ folder: string; image: string | null }, string> {
+  const folder = oneTextArgumentFrom("set_recent_project_cover", commandArguments, "folder", "one of the recent projects' folders");
+  if (!folder.ok) return folder;
+  const image = isAJsonObject(commandArguments) ? commandArguments["image"] : undefined;
+  if (image !== null && typeof image !== "string") return failedWith("set_recent_project_cover needs `image`, the full path of an image, or null for the plain cover");
+  return succeeded({ folder: folder.value, image });
+}
+
 /** `create_new_project`'s arguments as the window sends them, or why they are not. */
 export function createNewProjectArgumentsFrom(commandArguments: unknown): Result<{ name: string; location: string }, string> {
   const name = oneTextArgumentFrom("create_new_project", commandArguments, "name", "the new project's name");
@@ -800,11 +839,14 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       return commandAnswerFrom(await describeNodeCatalog(sharedState, describeNodeCatalogArguments.value.stream));
     },
     list_project_node_types: async (commandArguments, commandFromWindow) => {
-      const projectDirectory = oneTextArgumentFrom("list_project_node_types", commandArguments, "project_directory", "a project's folder");
-      if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
-      const askableProjectDirectory = projectDirectoryTheWindowMayAskTheRuntimeAbout(sharedState, projectDirectory.value, commandFromWindow);
+      const askableProjectDirectory = projectDirectoryArgumentTheWindowMayAskTheRuntimeAbout(sharedState, "list_project_node_types", commandArguments, commandFromWindow);
       if (!askableProjectDirectory.ok) return { ok: false, refusal: askableProjectDirectory.failure };
       return commandAnswerFrom(await listProjectNodeTypes(sharedState, askableProjectDirectory.value));
+    },
+    list_project_assets: async (commandArguments, commandFromWindow) => {
+      const askableProjectDirectory = projectDirectoryArgumentTheWindowMayAskTheRuntimeAbout(sharedState, "list_project_assets", commandArguments, commandFromWindow);
+      if (!askableProjectDirectory.ok) return { ok: false, refusal: askableProjectDirectory.failure };
+      return commandAnswerFrom(await listProjectAssets(sharedState, askableProjectDirectory.value));
     },
     remove_project: async (commandArguments) => {
       const projectDirectory = oneTextArgumentFrom("remove_project", commandArguments, "project_directory", "a project's folder as the runtime lists it");
@@ -917,6 +959,26 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!folder.ok) return { ok: false, refusal: folder.failure };
       return commandAnswerOfNothingFrom(
         await answerTheWindowThenRefreshTheStatus(sharedState, "delete_recent_project", () => sharedState.projectOpening.deleteRecentProject(folder.value)),
+      );
+    },
+    read_recent_project_cover: async (commandArguments) => {
+      const folder = oneTextArgumentFrom("read_recent_project_cover", commandArguments, "folder", "one of the recent projects' folders");
+      if (!folder.ok) return { ok: false, refusal: folder.failure };
+      return commandAnswerFrom(await answerTheWindow("read_recent_project_cover", () => sharedState.projectOpening.readRecentProjectCover(folder.value)));
+    },
+    set_recent_project_description: async (commandArguments) => {
+      const descriptionArguments = setRecentProjectDescriptionArgumentsFrom(commandArguments);
+      if (!descriptionArguments.ok) return { ok: false, refusal: descriptionArguments.failure };
+      return commandAnswerOfNothingFrom(
+        await answerTheWindow("set_recent_project_description", () => sharedState.projectOpening.setRecentProjectDescription(descriptionArguments.value.folder, descriptionArguments.value.description)),
+      );
+    },
+    choose_project_cover_image: async () => commandAnswerFrom(await answerTheWindow("choose_project_cover_image", () => sharedState.projectOpening.chooseProjectCoverImage())),
+    set_recent_project_cover: async (commandArguments) => {
+      const coverArguments = setRecentProjectCoverArgumentsFrom(commandArguments);
+      if (!coverArguments.ok) return { ok: false, refusal: coverArguments.failure };
+      return commandAnswerOfNothingFrom(
+        await answerTheWindow("set_recent_project_cover", () => sharedState.projectOpening.setRecentProjectCover(coverArguments.value.folder, coverArguments.value.image)),
       );
     },
     choose_project_archive_to_import: async () =>

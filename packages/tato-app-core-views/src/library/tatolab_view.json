@@ -1,6 +1,6 @@
 {
   "contract": "1.0",
-  "title": "Palette",
+  "title": "Library",
   "icon": "icon.svg",
   "entry": "index.html",
   "placement": "area",

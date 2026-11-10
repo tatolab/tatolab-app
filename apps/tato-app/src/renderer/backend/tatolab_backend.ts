@@ -11,6 +11,7 @@ import type {
   ProjectFiles,
   NodeCatalog,
   ProjectNodeTypeListing,
+  ProjectAssetListing,
   OpenProjectReading,
   ProjectTransaction,
   ProjectTransactionAuthor,
@@ -63,6 +64,8 @@ export interface TatolabBackend {
   describeNodeCatalog(streamId: string): Promise<NodeCatalog>;
   /** What the project in `projectDirectory` and each source it draws node code from declares, read from source without running it; rejects in the runtime's own words. */
   listProjectNodeTypes(projectDirectory: string): Promise<ProjectNodeTypeListing>;
+  /** Every asset of the project in `projectDirectory`, its graph documents among them; rejects in the runtime's own words. */
+  listProjectAssets(projectDirectory: string): Promise<ProjectAssetListing>;
   /** Check for a newer Tato Studio, downloading one that installs in place; how that goes arrives as the status's `app_update`. */
   checkForTatolabAppUpdates(): Promise<void>;
   /** Restart into a downloaded Tato Studio, download one a check found, or open a `.deb`'s download; how that goes arrives as the status's `app_update`. */
@@ -154,6 +157,14 @@ export interface TatolabBackend {
   duplicateRecentProject(folder: string): Promise<string>;
   /** Delete `folder`, one of the recent projects, through the runtime, which moves its folder to the Trash; answers once it has, rejecting in the runtime's own words. */
   deleteRecentProject(folder: string): Promise<void>;
+  /** The image `folder`, one of the recent projects, is shown by, as a `data:` URL; `null` for its plain cover. Rejects in the runtime's own words. */
+  readRecentProjectCover(folder: string): Promise<string | null>;
+  /** Describe `folder`, one of the recent projects, as `description` through the runtime; a blank one clears it. Rejects in the runtime's own words. */
+  setRecentProjectDescription(folder: string, description: string): Promise<void>;
+  /** An image chosen in the desktop's dialog to show a project by; `null` when the person cancels. */
+  chooseProjectCoverImage(): Promise<string | null>;
+  /** Show `folder`, one of the recent projects, by the image file `image`, which the runtime imports into the project; `null` shows its plain cover. Rejects in the app's or the runtime's own words. */
+  setRecentProjectCover(folder: string, image: string | null): Promise<void>;
   /** A project `.zip` chosen in the desktop's dialog, with where the Import project sheet starts for it; `null` when the person cancels. */
   chooseProjectArchiveToImport(): Promise<ProjectArchiveChosenToImport | null>;
   /** Make the project `name` in `location` from the `.zip` `archive` with the runtime and open it, rejecting with nothing made in the app's or the runtime's own words. */
