@@ -30,8 +30,8 @@ Studio's origin.
   Studio asks for each device as soon as a studio window lists a view that opens and declares it:
   on opening or creating a project, and after an import brings one. The prompt never waits for a
   view's first capture, which could land mid-show. A device already answered is not asked again,
-  and a refused one is told once in a notification naming the view, which opens System Settings'
-  privacy pane. Linux has no such prompt.
+  and a refused one is told once a run of the app in a notification naming the view, which opens
+  System Settings' privacy pane. Linux has no such prompt.
 - **Every view is framed on Studio's origin.** That is `tatolab-app://app/core_views/…` for
   Studio's own views and `tatolab-app://app/project_views/…` for a project's. Every view gets every
   part of the view contract.

@@ -5,10 +5,12 @@ import type { TatolabAppLog } from "../../tatolab_app_log.js";
 import type { Result } from "../../result.js";
 import type { SystemMediaAccess, SystemMediaAccessAnswer, SystemMediaDevice } from "../system_media_access.js";
 
+/** TCC's status for a device, as Electron spells it. */
+export type TccMediaAccessStatus = "not-determined" | "granted" | "denied" | "restricted" | "unknown";
+
 /** Electron's media access for the app bundle, which the macOS module is handed. */
 export interface AppMediaAccessSettings {
-  /** TCC's status for `device`, as Electron spells it: `not-determined`, `granted`, `denied`, `restricted` or `unknown`. */
-  readMediaAccessStatus(device: SystemMediaDevice): string;
+  readMediaAccessStatus(device: SystemMediaDevice): TccMediaAccessStatus;
   /** Show TCC's prompt for `device`, answering whether the person allowed it; macOS shows it only while the status is `not-determined`. */
   askForMediaAccess(device: SystemMediaDevice): Promise<Result<boolean, string>>;
   /** Open System Settings on Privacy & Security's pane for `device`. */

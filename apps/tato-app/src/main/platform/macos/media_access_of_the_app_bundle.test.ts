@@ -2,12 +2,12 @@ import { expect, test } from "vitest";
 import { failedWith, succeeded, type Result } from "../../result.js";
 import { createTatolabAppLog } from "../../tatolab_app_log.js";
 import type { SystemMediaDevice } from "../system_media_access.js";
-import { MediaAccessOfTheAppBundle, type AppMediaAccessSettings } from "./media_access_of_the_app_bundle.js";
+import { MediaAccessOfTheAppBundle, type AppMediaAccessSettings, type TccMediaAccessStatus } from "./media_access_of_the_app_bundle.js";
 
 const quietTatolabAppLog = createTatolabAppLog("error", () => {});
 
 /** Electron's media access, answering TCC's status as scripted and recording each prompt and each pane opened. */
-function scriptedAppMediaAccessSettings(status: string, promptAnswer: Result<boolean, string> = succeeded(true)) {
+function scriptedAppMediaAccessSettings(status: TccMediaAccessStatus, promptAnswer: Result<boolean, string> = succeeded(true)) {
   const promptsShown: SystemMediaDevice[] = [];
   const panesOpened: SystemMediaDevice[] = [];
   const appMediaAccessSettings: AppMediaAccessSettings = {

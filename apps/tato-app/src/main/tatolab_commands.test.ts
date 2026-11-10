@@ -12,7 +12,9 @@ import {
   FakeTatolabAppOpenedAtLogin,
   FakeTatolabCommandLineToolLink,
   FakeTerminalOpenedInAFolder,
-  fakeTatolabPlatformForThisBuild, FakeSystemMediaAccess } from "./fake_tatolab_platform_for_this_build.js";
+  fakeTatolabPlatformForThisBuild,
+  FakeSystemMediaAccess,
+} from "./fake_tatolab_platform_for_this_build.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 import { HeldRememberedSwitch, RememberedSwitchFile } from "./remembered_switch_file.js";
@@ -1001,6 +1003,36 @@ test("a graph transaction in the open project reaches the runtime's transact hel
   expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "commit", idempotency_key: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 
+test("listing the open project's views asks the system ahead for the camera and the microphone a view declares, once however often it is listed", async () => {
+  const nightShow = "/private/tmp/tl-rec-cam/projects/night-show";
+  const listingDeclaringTheCamera = await recordedResponseBody("local-api-list-project-views-tool-result-of-night-show-with-a-view-declaring-the-camera-and-microphone.json");
+  const sharedState = await sharedStateOverFakes(
+    [httpResponse("200 OK", "application/json", listingDeclaringTheCamera), httpResponse("200 OK", "application/json", listingDeclaringTheCamera)],
+    "macos",
+    [],
+    null,
+    {
+      nameTheProject: async () => succeeded({ folder: nightShow, project: "a06ae4a5-e1ae-48f7-a660-7380b0815e71", name: "night-show" }),
+      listTheDependencies: async () => succeeded([]),
+    },
+  );
+  sharedState.systemMediaAccess.answerByDevice = { microphone: "refused" };
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "night-show-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+
+  expect((await commandHandlers.list_studio_views_of_the_open_project(undefined, fromTheStudioWindow)).ok).toBe(true);
+  expect((await commandHandlers.list_studio_views_of_the_open_project(undefined, fromTheStudioWindow)).ok).toBe(true);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  expect(sharedState.systemMediaAccess.devicesAsked).toEqual(["camera", "microphone"]);
+  expect(sharedState.systemNotifications.notificationsShown).toEqual([
+    { title: "Tato Studio can't use the microphone", body: "Stage camera needs it. Click to allow Tato Studio in System Settings." },
+  ]);
+});
+
 /** The window's `ListedStudioView` reads exactly this JSON. */
 test("the open project's views are the runtime's list_project_views of its folder, each folder served under the window page's scheme, and refused in the Projects window", async () => {
   const nightShow = "/private/tmp/tl-rec053/projects/night-show";
@@ -1045,8 +1077,6 @@ test("the open project's views are the runtime's list_project_views of its folde
   ]);
   expect(sharedState.projectViewsListed.isListedAsOpening(recordedNightShowFolder, "views/deck")).toBe(true);
   expect(sharedState.projectViewsListed.isListedAsOpening(recordedNightShowFolder, "views/broken")).toBe(false);
-  await new Promise((resolve) => setImmediate(resolve));
-  expect(sharedState.systemMediaAccess.devicesAsked).toEqual([]);
   expect(await commandHandlers.list_studio_views_of_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 

@@ -191,7 +191,6 @@ export interface TatolabCommandFromWindow {
 /** Why a command about a window's own project is refused in the Projects window. */
 export const NO_PROJECT_IN_THE_PROJECTS_WINDOW_REFUSAL = "No project is open in this window.";
 
-/** The studio window whose project `commandFromWindow` acts on, its own page or a view popped out of it, or why there is none. */
 /** Ask the system for each device the views in `listedViews` declare, off the listing's answer path, logging a failure nothing expected. */
 function askTheSystemAheadForTheDevicesTheViewsDeclare(sharedState: TatolabAppSharedState, listedViews: readonly ProjectViewTheRuntimeListed[]): void {
   sharedState.systemMediaAccessAskedAheadForViews.askForTheDevicesTheViewsDeclare(listedViews).catch((unexpectedFailure: unknown) => {
@@ -199,6 +198,7 @@ function askTheSystemAheadForTheDevicesTheViewsDeclare(sharedState: TatolabAppSh
   });
 }
 
+/** The studio window whose project `commandFromWindow` acts on, its own page or a view popped out of it, or why there is none. */
 function studioWindowTheCommandCameFrom(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Result<StudioWindowOfAProject, string> {
   const studioWindow = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId);
   return studioWindow === null ? failedWith(NO_PROJECT_IN_THE_PROJECTS_WINDOW_REFUSAL) : succeeded(studioWindow);
