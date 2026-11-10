@@ -43,8 +43,32 @@ describe("every design-system control", () => {
         </SplitActionButton>
         <ExpandingSearchField label="Search projects" placeholder="Search projects" text="" onTextChanged={() => {}} />
         <ExpandingSearchField label="Search more projects" placeholder="Search projects" text="cam" onTextChanged={() => {}} />
-        <ProjectCard name="pattern" detail="~/streams/pattern · Opened 2 hours ago" coverNumber={1} coverInitial="P" isUnreadable={false} onOpened={() => {}} />
-        <ProjectListRow name="pattern" folderWords="~/streams/pattern" lastOpenedWords="2 hours ago" coverNumber={1} coverInitial="P" isUnreadable={false} onOpened={() => {}} />
+        <ProjectCard
+          name="pattern"
+          description="A test pattern through a halftone effect."
+          hasADescription
+          folderWords="~/streams/pattern"
+          when="Edited 2 hours ago"
+          coverNumber={1}
+          coverInitial="P"
+          isUnreadable={false}
+          onOpened={() => {}}
+          moreActions={<MenuItem onChosen={() => {}}>Rename…</MenuItem>}
+          moreActionsLabel="Actions for pattern"
+        />
+        <ProjectListRow
+          name="pattern"
+          description="No description yet"
+          hasADescription={false}
+          folderWords="~/streams/pattern"
+          when="2 hours ago"
+          coverNumber={1}
+          coverInitial="P"
+          isUnreadable={false}
+          onOpened={() => {}}
+          moreActions={<MenuItem onChosen={() => {}}>Rename…</MenuItem>}
+          moreActionsLabel="Actions for pattern"
+        />
       </>,
     );
     const focusableControls = [...container.querySelectorAll<HTMLElement>("button, a")];

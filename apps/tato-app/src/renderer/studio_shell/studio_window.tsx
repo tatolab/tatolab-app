@@ -11,6 +11,7 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import { WindowNotice } from "@tatolab/tato-app-view-sdk/design_system/window_notice";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
+import { presentRecentProjectChangeRefusalTitle } from "../presentation/projects_presentation";
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
 import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
 import { StudioViewFailureBoundary } from "../view_host/studio_view_failure_boundary";
@@ -206,6 +207,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const preferencesSection = useWatchedStudioValue(model.preferencesSection);
   const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
   const viewPopOutRefusal = useWatchedStudioValue(model.viewPopOutRefusal);
+  const recentProjectChangeRefusal = useWatchedStudioValue(model.recentProjectChangeRefusal);
   const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
   const appUpdateChoiceRefusal = useWatchedStudioValue(model.appUpdateChoiceRefusal);
   const openProjectStreamFailureRaised = useWatchedStudioValue(model.openProjectStreamFailureRaised);
@@ -282,6 +284,15 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               detail={projectOpeningRefusal}
               onDismissed={() => model.projectOpeningRefusal.publish(null)}
               data-project-opening-refusal=""
+            />
+          )}
+          {recentProjectChangeRefusal !== null && (
+            <WindowNotice
+              tone="failure"
+              title={presentRecentProjectChangeRefusalTitle(recentProjectChangeRefusal.asked_to)}
+              detail={recentProjectChangeRefusal.because}
+              onDismissed={() => model.recentProjectChangeRefusal.publish(null)}
+              data-recent-project-change-refusal={recentProjectChangeRefusal.asked_to}
             />
           )}
           {viewPopOutRefusal !== null && (

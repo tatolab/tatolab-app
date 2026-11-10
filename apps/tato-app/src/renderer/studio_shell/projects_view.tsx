@@ -1,12 +1,13 @@
-import { FolderInput, FolderPlus, LayoutGrid, List, Plus, Settings } from "lucide-react";
+import { Copy, FileArchive, FolderInput, FolderPlus, LayoutGrid, List, Pencil, Plus, Settings, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { RecentProject, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import projectsBannerStillImageUrl from "../assets/projects_banner_still.jpg";
 import { BANNER_HEADER_HEIGHT_PX, BannerHeader } from "@tatolab/tato-app-view-sdk/design_system/banner_header";
+import { ConfirmationDialog } from "@tatolab/tato-app-view-sdk/design_system/confirmation_dialog";
 import { EmptyState } from "@tatolab/tato-app-view-sdk/design_system/empty_state";
 import { ExpandingSearchField } from "@tatolab/tato-app-view-sdk/design_system/expanding_search_field";
 import { IconButton } from "@tatolab/tato-app-view-sdk/design_system/icon_button";
-import { FieldMenu, IconButtonMenu, MenuItem, MenuSingleChoiceGroup } from "@tatolab/tato-app-view-sdk/design_system/menus";
+import { FieldMenu, IconButtonMenu, MenuItem, MenuSeparator, MenuSingleChoiceGroup } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { ProjectCard, ProjectListHeading, ProjectListRow } from "@tatolab/tato-app-view-sdk/design_system/project_card";
 import { SplitActionButton } from "@tatolab/tato-app-view-sdk/design_system/split_action_button";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
@@ -14,17 +15,22 @@ import { shortcutHint } from "../presentation/platform_presentation";
 import {
   PROJECTS_LAYOUTS,
   PROJECTS_ORDERS,
+  presentProjectDeletionQuestion,
   presentProjectsHomeChoices,
   presentProjectsWithNoCards,
   presentRecentProjectCards,
   type ProjectsHomeChoices,
+  type RecentProjectCardPresentation,
+  type RecentProjectChange,
   type ProjectsLayout,
   type ProjectsOrder,
 } from "../presentation/projects_presentation";
+import { describeBackendRejection } from "../backend/tatolab_backend";
 import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
 import { useWatchedStudioValue } from "../view_host/watched_studio_value";
 import { PROJECTS_BANNER_STILL_SECONDS, ProjectsBannerScene } from "./projects_banner_scene";
 import type { ProjectsHomeChoicesKeptInStorage } from "./projects_home_choices_kept_in_storage";
+import { RenameProjectDialogView, type ProjectToRename } from "./rename_project_dialog_view";
 import type { StudioMenuBarCommands } from "./studio_menu_bar_model";
 import type { StudioWindowModel } from "./studio_window_model";
 import { isTatolabWindowVisible } from "../window_visibility";
@@ -37,6 +43,14 @@ export interface ProjectsSources {
   readRecentProjects(): Promise<RecentProject[]>;
   /** Open `folder`, one of them, in the studio. */
   openARecentProject(folder: string): void;
+  /** Name `folder`, one of them, `name` through the runtime; rejects in the runtime's own words. */
+  renameARecentProject(folder: string, name: string): Promise<void>;
+  /** Duplicate `folder`, one of them, beside itself; rejects in the runtime's own words. */
+  duplicateARecentProject(folder: string): Promise<void>;
+  /** Delete `folder`, one of them, its folder moved to the Trash; rejects in the runtime's own words. */
+  deleteARecentProject(folder: string): Promise<void>;
+  /** Say why a change asked of a project did not happen, as `because` words it; `null` clears what was said. */
+  sayWhyTheChangeDidNotHappen(refusal: { asked_to: RecentProjectChange; because: string } | null): void;
 }
 
 /** How many times the window has come back to the person, focused or shown again, since it opened. */
@@ -58,10 +72,10 @@ function useTimesTheWindowCameBack(): number {
 }
 
 /**
- * The recent projects, read as the Projects window shows, each time it is focused or shown again, and each time the open project changes; `null`
- * until the first read answers. A project opens in its own studio window, so coming back to this window is when one opened since shows.
+ * The recent projects, read as the Projects window shows, each time it is focused or shown again, each time the open project changes, and each time
+ * one is renamed, duplicated or deleted from here; `null` until the first read answers. A project opens in its own studio window, so coming back to this window is when one opened since shows.
  */
-function useRecentProjects(projectsSources: ProjectsSources, model: StudioWindowModel): RecentProject[] | null {
+function useRecentProjects(projectsSources: ProjectsSources, model: StudioWindowModel, timesTheProjectsChanged: number): RecentProject[] | null {
   const openProject = useWatchedStudioValue(model.openProject);
   const timesTheWindowCameBack = useTimesTheWindowCameBack();
   const [recentProjects, setRecentProjects] = useState<RecentProject[] | null>(null);
@@ -74,7 +88,7 @@ function useRecentProjects(projectsSources: ProjectsSources, model: StudioWindow
     return () => {
       isStillShown = false;
     };
-  }, [projectsSources, openProject, timesTheWindowCameBack]);
+  }, [projectsSources, openProject, timesTheWindowCameBack, timesTheProjectsChanged]);
   return recentProjects;
 }
 
@@ -138,7 +152,41 @@ export function ProjectsView({
   platform: TatolabPlatform;
 }) {
   const status = useTatolabStatus();
-  const recentProjects = useRecentProjects(projectsSources, model);
+  const [timesTheProjectsChanged, setTimesTheProjectsChanged] = useState(0);
+  const recentProjects = useRecentProjects(projectsSources, model, timesTheProjectsChanged);
+  const [projectToRename, setProjectToRename] = useState<ProjectToRename | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<RecentProjectCardPresentation | null>(null);
+  const [isTheDeletionQuestionOpen, setIsTheDeletionQuestionOpen] = useState(false);
+  const readTheProjectsAgain = () => setTimesTheProjectsChanged((timesBefore) => timesBefore + 1);
+  const changeAProject = (askedTo: RecentProjectChange, change: () => Promise<void>) => {
+    projectsSources.sayWhyTheChangeDidNotHappen(null);
+    change().then(readTheProjectsAgain, (rejection: unknown) => {
+      projectsSources.sayWhyTheChangeDidNotHappen({ asked_to: askedTo, because: describeBackendRejection(rejection) });
+      readTheProjectsAgain();
+    });
+  };
+  const moreActionsOf = (card: RecentProjectCardPresentation) => (
+    <>
+      <MenuItem icon={Pencil} onChosen={() => setProjectToRename({ folder: card.folder, name: card.name })} data-project-action="rename">
+        Rename…
+      </MenuItem>
+      <MenuItem icon={Copy} onChosen={() => changeAProject("duplicate", () => projectsSources.duplicateARecentProject(card.folder))} data-project-action="duplicate">
+        Duplicate
+      </MenuItem>
+      <MenuSeparator />
+      <MenuItem
+        icon={Trash2}
+        isDestructive
+        onChosen={() => {
+          setProjectToDelete(card);
+          setIsTheDeletionQuestionOpen(true);
+        }}
+        data-project-action="delete"
+      >
+        Delete…
+      </MenuItem>
+    </>
+  );
   const [searchText, setSearchText] = useState("");
   const [projectsHomeChoices, changeTheProjectsHomeChoices] = useProjectsHomeChoices(projectsSources);
   const projectsHomeChoicesShown = presentProjectsHomeChoices(projectsHomeChoices);
@@ -198,7 +246,10 @@ export function ProjectsView({
                   New project
                 </MenuItem>
                 <MenuItem icon={FolderInput} onChosen={commands.openAProject} data-projects-new-menu-choice="import">
-                  Import project…
+                  Import project folder…
+                </MenuItem>
+                <MenuItem icon={FileArchive} onChosen={commands.importAProjectArchive} data-projects-new-menu-choice="import-archive">
+                  Import project .zip…
                 </MenuItem>
               </>
             }
@@ -219,11 +270,16 @@ export function ProjectsView({
               <div key={card.folder} role="listitem" className="flex min-w-0">
                 <ProjectCard
                   name={card.name}
-                  detail={card.detailWords}
+                  description={card.descriptionWords}
+                  hasADescription={card.hasADescription}
+                  folderWords={card.folderWords}
+                  when={card.whenWords}
                   coverNumber={card.coverNumber}
                   coverInitial={card.coverInitial}
                   isUnreadable={card.isUnreadable}
                   onOpened={() => openTheProject(card.folder)}
+                  moreActions={moreActionsOf(card)}
+                  moreActionsLabel={`Actions for ${card.name}`}
                   data-projects-project={card.folder}
                 />
               </div>
@@ -237,12 +293,16 @@ export function ProjectsView({
                 <div key={card.folder} role="listitem" className="flex min-w-0 border-b border-line">
                   <ProjectListRow
                     name={card.name}
+                    description={card.descriptionWords}
+                    hasADescription={card.hasADescription}
                     folderWords={card.folderWords}
-                    lastOpenedWords={card.lastOpenedWords}
+                    when={card.whenWordsInTheList}
                     coverNumber={card.coverNumber}
                     coverInitial={card.coverInitial}
                     isUnreadable={card.isUnreadable}
                     onOpened={() => openTheProject(card.folder)}
+                    moreActions={moreActionsOf(card)}
+                    moreActionsLabel={`Actions for ${card.name}`}
                     data-projects-project={card.folder}
                   />
                 </div>
@@ -251,6 +311,30 @@ export function ProjectsView({
           </div>
         )}
       </main>
+      <RenameProjectDialogView
+        projectToRename={projectToRename}
+        renameTheProject={async (folder, name) => {
+          await projectsSources.renameARecentProject(folder, name);
+          readTheProjectsAgain();
+        }}
+        onClosed={() => setProjectToRename(null)}
+      />
+      <ConfirmationDialog
+        isOpen={isTheDeletionQuestionOpen}
+        onOpenChange={setIsTheDeletionQuestionOpen}
+        onClosedCompletely={() => setProjectToDelete(null)}
+        question={projectToDelete === null ? null : presentProjectDeletionQuestion(projectToDelete.name)}
+        isDestructive
+        onConfirmed={() => {
+          setIsTheDeletionQuestionOpen(false);
+          if (projectToDelete !== null) {
+            const folderToDelete = projectToDelete.folder;
+            changeAProject("delete", () => projectsSources.deleteARecentProject(folderToDelete));
+          }
+        }}
+        confirmDataAttributes={{ "data-project-deletion-action": "confirm" }}
+        data-project-deletion-question=""
+      />
     </div>
   );
 }

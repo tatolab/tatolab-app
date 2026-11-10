@@ -1,14 +1,17 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
-import type { OpenProjectReading, ProjectCreationQueued, ProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
+import type { OpenProjectReading, ProjectCreationQueued, ProjectFolderChosenFor, StreamActionFollowed } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
 import {
   OPEN_PROJECT_REREAD_QUIET_MS,
   OpenProjectOfAStudioWindow,
+  PROJECT_DELETION_FOLLOW_INTERVAL_MS,
+  PROJECT_DELETION_LONGEST_WAIT_MS,
   ProjectOpening,
   readTheProjectIn,
+  type ProjectChangesThroughTheRuntime,
   type ProjectFolderDialogPurpose,
   type ProjectReadingsOfTheRuntime,
   type RecentProjectFolderOpened,
@@ -27,10 +30,89 @@ async function aFolder(): Promise<string> {
   return folder;
 }
 
-/** Writes the `tatolab-project.json` the fake runtime names a project by. */
-async function writeAProject(folder: string, name: string): Promise<void> {
+/** Writes the `tatolab-project.json` the fake runtime names a project by, with the description and last edit, in seconds, its `list_assets` serves. */
+async function writeAProject(folder: string, name: string, cardFacts: { description?: string; edited_at_seconds?: number } = {}): Promise<void> {
   await mkdir(folder, { recursive: true });
-  await writeFile(path.join(folder, "tatolab-project.json"), JSON.stringify({ project: `uuid-of-${name}`, name }));
+  await writeFile(path.join(folder, "tatolab-project.json"), JSON.stringify({ project: `uuid-of-${name}`, name, ...cardFacts }));
+}
+
+async function readAProjectFile(folder: string): Promise<{ project: string; name: string; description?: string; edited_at_seconds?: number } | null> {
+  try {
+    const projectFile: unknown = JSON.parse(await readFile(path.join(folder, "tatolab-project.json"), "utf8"));
+    if (typeof projectFile !== "object" || projectFile === null || !("project" in projectFile) || !("name" in projectFile)) return null;
+    const description = "description" in projectFile && typeof projectFile.description === "string" ? projectFile.description : undefined;
+    const editedAtSeconds = "edited_at_seconds" in projectFile && typeof projectFile.edited_at_seconds === "number" ? projectFile.edited_at_seconds : undefined;
+    return { project: String(projectFile.project), name: String(projectFile.name), description, edited_at_seconds: editedAtSeconds };
+  } catch {
+    return null;
+  }
+}
+
+function aRefusalOfTheRuntime(failureDescription: string): { ok: false; failure: LocalApiRequestFailure } {
+  return failedWith({ failureDescription, isTheRuntimesRefusal: true });
+}
+
+/** The words of a `.zip` the fake runtime's `import_project` refuses, as the real one does a zip holding no project. */
+const THE_FAKE_RUNTIMES_REFUSAL_OF_A_ZIP_HOLDING_NO_PROJECT = "import_project failed: the zip holds no tatolab-project.json";
+
+/**
+ * A runtime that changes projects on disk as its project verbs do: `rename_project` rewrites the name, `duplicate_project` copies the folder under a new
+ * UUID and `<name> copy`, `import_project` unpacks a fake `.zip` (a JSON file naming the project), and `delete_project` queues an action that walks the
+ * states `deletionStates` gives, the folder gone once it reaches `done`.
+ */
+function aFakeRuntimeChangingProjects(options: { deletionStates: readonly StreamActionFollowed[] }) {
+  const deletionsQueued: string[] = [];
+  const deletionStatesLeft = [...options.deletionStates];
+  const projectChanges: ProjectChangesThroughTheRuntime = {
+    summarizeTheProject: async (projectDirectory) => {
+      const projectFile = await readAProjectFile(projectDirectory);
+      if (projectFile === null) return aRefusalOfTheRuntime(refusalOfAFolderHoldingNoProject(projectDirectory));
+      return succeeded({
+        folder: projectDirectory,
+        project: projectFile.project,
+        name: projectFile.name,
+        description: projectFile.description ?? null,
+        last_edited_at_wall_clock_ms: projectFile.edited_at_seconds === undefined ? null : projectFile.edited_at_seconds * 1000,
+      });
+    },
+    renameProject: async (projectDirectory, name) => {
+      const projectFile = await readAProjectFile(projectDirectory);
+      if (projectFile === null) return aRefusalOfTheRuntime(refusalOfAFolderHoldingNoProject(projectDirectory));
+      await writeFile(path.join(projectDirectory, "tatolab-project.json"), JSON.stringify({ ...projectFile, name }));
+      return succeeded(name);
+    },
+    duplicateProject: async (projectDirectory, into) => {
+      const projectFile = await readAProjectFile(projectDirectory);
+      if (projectFile === null) return aRefusalOfTheRuntime(refusalOfAFolderHoldingNoProject(projectDirectory));
+      await cp(projectDirectory, into, { recursive: true, errorOnExist: true, force: false });
+      const duplicate = { ...projectFile, project: `uuid-of-a-copy-of-${projectFile.name}`, name: `${projectFile.name} copy` };
+      await writeFile(path.join(into, "tatolab-project.json"), JSON.stringify(duplicate));
+      return succeeded({ folder: into, project: duplicate.project, name: duplicate.name });
+    },
+    deleteProject: async (projectDirectory) => {
+      if ((await readAProjectFile(projectDirectory)) === null) return aRefusalOfTheRuntime(refusalOfAFolderHoldingNoProject(projectDirectory));
+      deletionsQueued.push(projectDirectory);
+      return succeeded(`deletion-${deletionsQueued.length}`);
+    },
+    describeStreamAction: async (action) => {
+      const followed = deletionStatesLeft.length > 1 ? deletionStatesLeft.shift() : deletionStatesLeft[0];
+      if (followed === undefined) return aRefusalOfTheRuntime(`no state scripted for ${action}`);
+      if (followed.kind === "described" && followed.description.state === "done") await rm(followed.description.project_directory, { recursive: true, force: true });
+      return succeeded(followed);
+    },
+    importProject: async (source, projectDirectory) => {
+      const archive: unknown = JSON.parse(await readFile(source, "utf8"));
+      if (typeof archive !== "object" || archive === null || !("name" in archive)) return aRefusalOfTheRuntime(THE_FAKE_RUNTIMES_REFUSAL_OF_A_ZIP_HOLDING_NO_PROJECT);
+      await writeAProject(projectDirectory, String(archive.name));
+      return succeeded({ folder: projectDirectory, project: `uuid-of-${String(archive.name)}`, name: String(archive.name) });
+    },
+  };
+  return { projectChanges, deletionsQueued };
+}
+
+/** The deletion of `projectDirectory` as `describe_stream_action` describes it in `state`. */
+function aDeletionIn(projectDirectory: string, state: string, failedBecause: string | null = null): StreamActionFollowed {
+  return { kind: "described", description: { action: "deletion-1", project_directory: projectDirectory, kind: "delete", state, step: null, streams: [], failed_because: failedBecause } };
 }
 
 function refusalOfAFolderHoldingNoProject(folder: string): string {
@@ -110,7 +192,13 @@ test("a folder the runtime names no project in is unreadable, in the runtime's w
 });
 
 /** An open project over a scripted dialog, a Documents folder of its own, recent projects in memory, a wall clock the test sets, a runtime that creates projects on disk, watches the test fires by hand, and timers it runs by hand. */
-async function anOpenProject(options: { dialogAnswers: string | null; recentFolders?: RecentProjectFolderOpened[]; creationRefusal?: string }) {
+async function anOpenProject(options: {
+  dialogAnswers: string | null;
+  archiveDialogAnswers?: string | null;
+  recentFolders?: RecentProjectFolderOpened[];
+  creationRefusal?: string;
+  deletionStates?: readonly StreamActionFollowed[];
+}) {
   const sentReadings: OpenProjectReading[] = [];
   const dialogsAsked: Array<{ purpose: ProjectFolderDialogPurpose; defaultFolder: string }> = [];
   const projectDirectoriesCreated: string[] = [];
@@ -122,17 +210,30 @@ async function anOpenProject(options: { dialogAnswers: string | null; recentFold
   let recentFolders = options.recentFolders ?? [];
   let wallClockNowMs = 1_790_000_000_000;
   let projectOpenedLast: OpenProjectOfAStudioWindow | null = null;
+  const studioWindowsClosed: string[] = [];
+  const waitsMs: number[] = [];
+  const archiveDialogsAsked: string[] = [];
+  const { projectChanges, deletionsQueued } = aFakeRuntimeChangingProjects({ deletionStates: options.deletionStates ?? [] });
+  const homeDirectory = await aFolder();
   const projectOpening = new ProjectOpening({
-    homeDirectory: await aFolder(),
+    homeDirectory,
     documentsDirectory,
     projectFolderDialog: async (purpose, defaultFolder) => {
       dialogsAsked.push({ purpose, defaultFolder });
       return succeeded(options.dialogAnswers);
     },
+    projectArchiveDialog: async (defaultFolder) => {
+      archiveDialogsAsked.push(defaultFolder);
+      return succeeded(options.archiveDialogAnswers ?? null);
+    },
     recentProjectFolders: {
       readRecentFolders: async () => recentFolders,
       rememberOpened: async (folder, openedAtWallClockMs) => {
         recentFolders = [{ folder, opened_at_wall_clock_ms: openedAtWallClockMs }, ...recentFolders.filter((recentFolder) => recentFolder.folder !== folder)];
+        return succeeded(undefined);
+      },
+      forget: async (folder) => {
+        recentFolders = recentFolders.filter((recentFolder) => recentFolder.folder !== folder);
         return succeeded(undefined);
       },
     },
@@ -146,6 +247,16 @@ async function anOpenProject(options: { dialogAnswers: string | null; recentFold
       },
     },
     projectReadingsOfTheRuntime: fakeRuntime,
+    projectChanges,
+    waitFor: async (delayMs) => {
+      waitsMs.push(delayMs);
+    },
+    closeTheStudioWindowOf: (folder) => {
+      studioWindowsClosed.push(folder);
+      if (projectOpenedLast?.projectFolder !== folder) return;
+      projectOpenedLast.stopWatching();
+      projectOpenedLast = null;
+    },
     openTheProjectInItsStudioWindow: async (folder) => {
       projectOpenedLast?.stopWatching();
       projectOpenedLast = new OpenProjectOfAStudioWindow(folder, {
@@ -172,6 +283,11 @@ async function anOpenProject(options: { dialogAnswers: string | null; recentFold
     createNewProject: (name: string, location: string) => projectOpening.createNewProject(name, location),
     openRecentProject: (folder: string) => projectOpening.openRecentProject(folder),
     readRecentProjects: () => projectOpening.readRecentProjects(),
+    renameRecentProject: (folder: string, name: string) => projectOpening.renameRecentProject(folder, name),
+    duplicateRecentProject: (folder: string) => projectOpening.duplicateRecentProject(folder),
+    deleteRecentProject: (folder: string) => projectOpening.deleteRecentProject(folder),
+    chooseProjectArchiveToImport: () => projectOpening.chooseProjectArchiveToImport(),
+    importProjectArchive: (archive: string, name: string, location: string) => projectOpening.importProjectArchive(archive, name, location),
     readOpenProject: (): OpenProjectReading => projectOpenedLast?.readOpenProject() ?? { kind: "none_open" },
   };
   return {
@@ -185,6 +301,12 @@ async function anOpenProject(options: { dialogAnswers: string | null; recentFold
       importFoldersTheRuntimeLists = folders;
     },
     pendingTimers,
+    homeDirectory,
+    archiveDialogsAsked,
+    deletionsQueued,
+    studioWindowsClosed,
+    waitsMs,
+    recentFolders: () => recentFolders.map((recentFolder) => recentFolder.folder),
     rememberedFolder: () => recentFolders[0]?.folder ?? null,
     setTheWallClock: (nowMs: number) => {
       wallClockNowMs = nowMs;
@@ -290,8 +412,8 @@ test("a recent project opens, moves first, and one that is gone reads as unreada
     ],
   });
   expect(await openProject.readRecentProjects()).toEqual([
-    { folder: studioFolder, project_name: "studio", last_opened_at_wall_clock_ms: 200 },
-    { folder: goneFolder, project_name: null, last_opened_at_wall_clock_ms: 100 },
+    { folder: studioFolder, project_name: "studio", project_description: null, last_edited_at_wall_clock_ms: null, last_opened_at_wall_clock_ms: 200 },
+    { folder: goneFolder, project_name: null, project_description: null, last_edited_at_wall_clock_ms: null, last_opened_at_wall_clock_ms: 100 },
   ]);
 
   setTheWallClock(300);
@@ -337,4 +459,159 @@ test("a project opened before the runtime answers says so, and reads again once 
   openProject.stopWatching();
   await openProject.readAgain();
   expect(sentReadings).toHaveLength(2);
+});
+
+test("a recent project's card reads its description and its last edit, in milliseconds, from the runtime", async () => {
+  const studioFolder = await aFolder();
+  await writeAProject(studioFolder, "studio", { description: "A test pattern through a halftone effect.", edited_at_seconds: 1_790_000_100 });
+  const { openProject } = await anOpenProject({ dialogAnswers: null, recentFolders: [{ folder: studioFolder, opened_at_wall_clock_ms: 200 }] });
+  expect(await openProject.readRecentProjects()).toEqual([
+    {
+      folder: studioFolder,
+      project_name: "studio",
+      project_description: "A test pattern through a halftone effect.",
+      last_edited_at_wall_clock_ms: 1_790_000_100_000,
+      last_opened_at_wall_clock_ms: 200,
+    },
+  ]);
+});
+
+test("a recent project is renamed through the runtime, its folder kept; a blank name and a folder not among the recent projects are refused before the runtime is asked", async () => {
+  const studioFolder = await aFolder();
+  await writeAProject(studioFolder, "studio");
+  const { openProject } = await anOpenProject({ dialogAnswers: null, recentFolders: [{ folder: studioFolder, opened_at_wall_clock_ms: 200 }] });
+
+  expect(await openProject.renameRecentProject(studioFolder, "  Night Show  ")).toEqual(succeeded(undefined));
+  expect(await openProject.readRecentProjects()).toMatchObject([{ folder: studioFolder, project_name: "Night Show" }]);
+  expect(await openProject.renameRecentProject(studioFolder, "   ")).toEqual(failedWith("Give the project a name."));
+  expect(await openProject.renameRecentProject("/etc", "Night Show")).toEqual(failedWith("/etc is not one of the recent projects."));
+  expect(await openProject.readRecentProjects()).toMatchObject([{ project_name: "Night Show" }]);
+});
+
+test("a recent project is duplicated beside itself into the first free `<folder> copy`, put first among the recent projects and left unopened", async () => {
+  const parentFolder = await aFolder();
+  const studioFolder = path.join(parentFolder, "studio");
+  await writeAProject(studioFolder, "studio");
+  await mkdir(path.join(parentFolder, "studio copy"));
+  const { openProject, recentFolders, setTheWallClock } = await anOpenProject({ dialogAnswers: null, recentFolders: [{ folder: studioFolder, opened_at_wall_clock_ms: 200 }] });
+  setTheWallClock(500);
+
+  const duplicateFolder = path.join(parentFolder, "studio copy 2");
+  expect(await openProject.duplicateRecentProject(studioFolder)).toEqual(succeeded(duplicateFolder));
+  expect(recentFolders()).toEqual([duplicateFolder, studioFolder]);
+  expect(await openProject.readRecentProjects()).toMatchObject([
+    { folder: duplicateFolder, project_name: "studio copy", last_opened_at_wall_clock_ms: 500 },
+    { folder: studioFolder, project_name: "studio" },
+  ]);
+  expect(openProject.readOpenProject()).toEqual({ kind: "none_open" });
+  expect(await openProject.duplicateRecentProject("/etc")).toEqual(failedWith("/etc is not one of the recent projects."));
+});
+
+test("a recent project the runtime cannot duplicate is refused in its own words and nothing is remembered", async () => {
+  const goneFolder = path.join(await aFolder(), "gone");
+  const { openProject, recentFolders } = await anOpenProject({ dialogAnswers: null, recentFolders: [{ folder: goneFolder, opened_at_wall_clock_ms: 200 }] });
+  expect(await openProject.duplicateRecentProject(goneFolder)).toEqual(failedWith(refusalOfAFolderHoldingNoProject(goneFolder)));
+  expect(recentFolders()).toEqual([goneFolder]);
+});
+
+test("a deleted recent project is followed until the runtime has moved it to the Trash, then its studio window closes and it is forgotten", async () => {
+  const studioFolder = await aFolder();
+  const otherFolder = await aFolder();
+  await writeAProject(studioFolder, "studio");
+  const { openProject, deletionsQueued, studioWindowsClosed, waitsMs, recentFolders } = await anOpenProject({
+    dialogAnswers: null,
+    recentFolders: [
+      { folder: studioFolder, opened_at_wall_clock_ms: 200 },
+      { folder: otherFolder, opened_at_wall_clock_ms: 100 },
+    ],
+    deletionStates: [aDeletionIn(studioFolder, "queued"), aDeletionIn(studioFolder, "in_progress"), aDeletionIn(studioFolder, "done")],
+  });
+  await openProject.openRecentProject(studioFolder);
+
+  expect(await openProject.deleteRecentProject(studioFolder)).toEqual(succeeded(undefined));
+  expect(deletionsQueued).toEqual([studioFolder]);
+  expect(waitsMs).toEqual([PROJECT_DELETION_FOLLOW_INTERVAL_MS, PROJECT_DELETION_FOLLOW_INTERVAL_MS]);
+  expect(studioWindowsClosed).toEqual([studioFolder]);
+  expect(recentFolders()).toEqual([otherFolder]);
+  expect(openProject.readOpenProject()).toEqual({ kind: "none_open" });
+});
+
+test("a deletion that fails, is cancelled or is no longer held is refused in the runtime's words, and the project stays among the recent projects with its window open", async () => {
+  const studioFolder = await aFolder();
+  await writeAProject(studioFolder, "studio");
+  const recentFolders = [{ folder: studioFolder, opened_at_wall_clock_ms: 200 }];
+  const notHeld: StreamActionFollowed = { kind: "not_held", words: "describe_stream_action failed: no action deletion-1" };
+  const refusalsOfEachEnd = [
+    { deletionStates: [aDeletionIn(studioFolder, "failed", "the folder is on another disk than the Trash")], refusal: "the folder is on another disk than the Trash" },
+    { deletionStates: [aDeletionIn(studioFolder, "failed")], refusal: `The runtime could not delete ${studioFolder}.` },
+    { deletionStates: [aDeletionIn(studioFolder, "cancelled")], refusal: `Deleting ${studioFolder} was cancelled; the project is where it was.` },
+    { deletionStates: [notHeld], refusal: notHeld.words },
+  ];
+  for (const { deletionStates, refusal } of refusalsOfEachEnd) {
+    const deleting = await anOpenProject({ dialogAnswers: null, recentFolders, deletionStates });
+    expect(await deleting.openProject.deleteRecentProject(studioFolder)).toEqual(failedWith(refusal));
+    expect(deleting.recentFolders()).toEqual([studioFolder]);
+    expect(deleting.studioWindowsClosed).toEqual([]);
+  }
+});
+
+test("a deletion still running past the longest wait is refused saying so, and one of a folder not among the recent projects is never queued", async () => {
+  const studioFolder = await aFolder();
+  await writeAProject(studioFolder, "studio");
+  const { openProject, waitsMs, deletionsQueued, recentFolders } = await anOpenProject({
+    dialogAnswers: null,
+    recentFolders: [{ folder: studioFolder, opened_at_wall_clock_ms: 200 }],
+    deletionStates: [aDeletionIn(studioFolder, "in_progress")],
+  });
+  expect(await openProject.deleteRecentProject("/etc")).toEqual(failedWith("/etc is not one of the recent projects."));
+  expect(deletionsQueued).toEqual([]);
+
+  expect(await openProject.deleteRecentProject(studioFolder)).toEqual(failedWith(`The runtime is still deleting ${studioFolder}. It leaves the Projects window once it has.`));
+  expect(waitsMs.reduce((waitedMs, waitMs) => waitedMs + waitMs, 0)).toBe(PROJECT_DELETION_LONGEST_WAIT_MS + PROJECT_DELETION_FOLLOW_INTERVAL_MS);
+  expect(recentFolders()).toEqual([studioFolder]);
+});
+
+test("a project .zip chosen to import suggests Documents/Tato Studio and the zip's own name, numbered past one taken there; a cancelled dialog suggests nothing", async () => {
+  const downloadsFolder = await aFolder();
+  const archive = path.join(downloadsFolder, "halftone-webcam-main.ZIP");
+  const chosen = await anOpenProject({ dialogAnswers: null, archiveDialogAnswers: archive });
+  const tatoStudioFolder = path.join(chosen.documentsDirectory, "Tato Studio");
+  await mkdir(path.join(tatoStudioFolder, "halftone-webcam-main"), { recursive: true });
+
+  expect(await chosen.openProject.chooseProjectArchiveToImport()).toEqual(succeeded({ archive, location: tatoStudioFolder, name: "halftone-webcam-main 2" }));
+  expect(chosen.archiveDialogsAsked).toEqual([chosen.homeDirectory]);
+
+  const cancelled = await anOpenProject({ dialogAnswers: null, archiveDialogAnswers: null });
+  expect(await cancelled.openProject.chooseProjectArchiveToImport()).toEqual(succeeded(null));
+
+  const onlyAnExtension = await anOpenProject({ dialogAnswers: null, archiveDialogAnswers: path.join(downloadsFolder, ".zip") });
+  expect(await onlyAnExtension.openProject.chooseProjectArchiveToImport()).toMatchObject(succeeded({ name: "Imported project" }));
+});
+
+test("a project .zip is imported by the runtime into its location, which is made when missing, then opened and remembered", async () => {
+  const archive = path.join(await aFolder(), "pattern.zip");
+  await writeFile(archive, JSON.stringify({ name: "Pattern" }));
+  const { openProject, documentsDirectory, rememberedFolder } = await anOpenProject({ dialogAnswers: null });
+  const location = path.join(documentsDirectory, "Tato Studio");
+  const projectFolder = path.join(location, "Pattern show");
+
+  expect(await openProject.importProjectArchive(archive, " Pattern show ", location)).toEqual(succeeded({ folder: projectFolder, project_creation: null }));
+  expect(rememberedFolder()).toBe(projectFolder);
+  expect(openProject.readOpenProject()).toMatchObject({ kind: "read", open_project: { project: { folder: projectFolder, name: "Pattern" } } });
+});
+
+test("a project .zip import is refused before the runtime is asked for a relative zip, a bad name or a folder already there, and in the runtime's words for a zip holding no project", async () => {
+  const archive = path.join(await aFolder(), "not-a-project.zip");
+  await writeFile(archive, JSON.stringify({ files: [] }));
+  const { openProject, documentsDirectory, rememberedFolder } = await anOpenProject({ dialogAnswers: null });
+  await mkdir(path.join(documentsDirectory, "Taken"), { recursive: true });
+
+  expect(await openProject.importProjectArchive("pattern.zip", "Show", documentsDirectory)).toEqual(failedWith("pattern.zip is not a full path to a .zip."));
+  expect(await openProject.importProjectArchive(archive, "lights/left", documentsDirectory)).toEqual(failedWith("A project's name can't hold a /."));
+  expect(await openProject.importProjectArchive(archive, "Taken", documentsDirectory)).toEqual(
+    failedWith(`${path.join(documentsDirectory, "Taken")} already exists. Choose another name or location.`),
+  );
+  expect(await openProject.importProjectArchive(archive, "Show", documentsDirectory)).toEqual(failedWith(THE_FAKE_RUNTIMES_REFUSAL_OF_A_ZIP_HOLDING_NO_PROJECT));
+  expect(rememberedFolder()).toBeNull();
+  expect(openProject.readOpenProject()).toEqual({ kind: "none_open" });
 });

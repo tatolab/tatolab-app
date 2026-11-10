@@ -144,11 +144,15 @@ async function sharedStateOverFakes(
     homeDirectory: appConfigDirectory,
     documentsDirectory: path.join(appConfigDirectory, "Documents"),
     projectFolderDialog: async () => succeeded(null),
+    projectArchiveDialog: async () => succeeded(null),
     recentProjectFolders: recentProjectFoldersFileIn(appConfigDirectory, quietTatolabAppLog),
     readWallClockNowMs: () => 1_790_000_000_000,
     newProjectCreation: controller,
     projectReadingsOfTheRuntime: NO_RUNTIME_READS_THE_PROJECTS,
+    projectChanges: controller,
+    waitFor: async () => {},
     openTheProjectInItsStudioWindow: (folder) => appWindows.openTheProjectInItsStudioWindow(folder),
+    closeTheStudioWindowOf: (folder) => appWindows.studioWindowOfTheProjectIn(folder)?.tatolabMainWindow.close(),
   });
   return {
     controller,
@@ -652,6 +656,22 @@ test("The Projects window's commands list no recent project on a fresh install, 
   expect(await commandHandlers.read_recent_projects(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: [] });
   expect(await commandHandlers.open_recent_project({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "open_recent_project needs `folder`, one of the recent projects' folders" });
   expect(await commandHandlers.open_recent_project({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "/etc is not one of the recent projects." });
+});
+
+test("A recent project's ⋯ commands and Import project .zip… read their arguments as the window sends them, and change only a recent project", async () => {
+  const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
+  expect(await commandHandlers.rename_recent_project({ name: "Show" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "rename_recent_project needs `folder`, one of the recent projects' folders" });
+  expect(await commandHandlers.rename_recent_project({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "rename_recent_project needs `name`, the project's new name" });
+  expect(await commandHandlers.rename_recent_project({ folder: "/etc", name: "Show" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "/etc is not one of the recent projects." });
+  expect(await commandHandlers.duplicate_recent_project({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "duplicate_recent_project needs `folder`, one of the recent projects' folders" });
+  expect(await commandHandlers.duplicate_recent_project({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "/etc is not one of the recent projects." });
+  expect(await commandHandlers.delete_recent_project({ folder: 7 }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "delete_recent_project needs `folder`, one of the recent projects' folders" });
+  expect(await commandHandlers.delete_recent_project({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "/etc is not one of the recent projects." });
+  expect(await commandHandlers.choose_project_archive_to_import(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.import_project_archive({ name: "Show", location: "/tmp" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "import_project_archive needs `archive`, the project .zip chosen in the dialog" });
+  expect(await commandHandlers.import_project_archive({ archive: "/tmp/a.zip", location: "/tmp" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "import_project_archive needs `name`, the imported project's name" });
+  expect(await commandHandlers.import_project_archive({ archive: "/tmp/a.zip", name: "Show" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "import_project_archive needs `location`, the folder the project goes in" });
+  expect(await commandHandlers.import_project_archive({ archive: "/tmp/a.zip", name: "a/b", location: "/tmp" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "A project's name can't hold a /." });
 });
 
 test("New project's commands suggest an untitled project in Documents/Tato Studio and read their arguments as the window sends them", async () => {

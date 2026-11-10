@@ -1,7 +1,8 @@
 // What the studio window holds between renders: the open project and the runtime's streams it
 // serves its views, the selection, the open stream tabs, and the open project's layouts.
 
-import type { ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutView, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutView, ProjectArchiveChosenToImport, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { RecentProjectChange } from "../presentation/projects_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import type { StudioWindowValuesServedToViews } from "../view_host/studio_view_host_services";
@@ -51,6 +52,9 @@ function openProjectFolderOf(reading: OpenProjectReading): string | null {
   }
 }
 
+/** What the New project sheet opens with: a new project's suggested name and location, or a project `.zip` to import with the name and location it suggests. */
+export type NewProjectSheetOpening = { kind: "new_project"; defaults: NewProjectDefaults } | { kind: "project_archive"; chosen: ProjectArchiveChosenToImport };
+
 /** The studio window's state, each part watched by the shell and served to the views through their bridges. */
 export class StudioWindowModel {
   readonly openProject = new WatchedStudioValue<OpenProjectReading>({ kind: "none_open" });
@@ -60,8 +64,10 @@ export class StudioWindowModel {
   readonly activeStreamTab = new WatchedStudioValue<StreamTabAddress | null>(null);
   /** The section Preferences shows while it is open; `null` while it is closed. */
   readonly preferencesSection = new WatchedStudioValue<SettingsSection | null>(null);
-  /** The name and location the New project sheet opened with while it shows; `null` while it is closed. */
-  readonly newProjectSheetOpenedWith = new WatchedStudioValue<NewProjectDefaults | null>(null);
+  /** What the New project sheet opened with while it shows, a new project's name and location or a `.zip` to import; `null` while it is closed. */
+  readonly newProjectSheetOpenedWith = new WatchedStudioValue<NewProjectSheetOpening | null>(null);
+  /** Why the last rename, duplicate or delete the Projects window asked of a project did not happen, until it is dismissed or another is asked for. */
+  readonly recentProjectChangeRefusal = new WatchedStudioValue<{ asked_to: RecentProjectChange; because: string } | null>(null);
   /** Why the last project asked for did not open, until it is dismissed or another opens. */
   readonly projectOpeningRefusal = new WatchedStudioValue<string | null>(null);
   /** Why the last view popped out of an area did not, until it is dismissed or another pops out. */

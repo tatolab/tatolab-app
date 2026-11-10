@@ -19,7 +19,12 @@ export function newProjectFolderNameRefusal(name: string): string | null {
   return null;
 }
 
+/** `name` with `number` after it: `name` itself, then `name 2`, `name 3`, …. */
+export function projectNameNumbered(name: string, number: number): string {
+  return number <= 1 ? name : `${name} ${number}`;
+}
+
 /** The suggested name with `number` after it: `Untitled project`, then `Untitled project 2`, `3`, …. */
 export function untitledProjectNameNumbered(number: number): string {
-  return number <= 1 ? UNTITLED_PROJECT_NAME : `${UNTITLED_PROJECT_NAME} ${number}`;
+  return projectNameNumbered(UNTITLED_PROJECT_NAME, number);
 }

@@ -320,8 +320,21 @@ export interface RecentProject {
   folder: string;
   /** The project's name as the runtime reads it now, or `null` when the runtime names no project there. */
   project_name: string | null;
+  /** What the project is, as the runtime reads it now; `null` when nobody has described it or the runtime names no project there. */
+  project_description: string | null;
+  /** When the project's history last changed, in milliseconds since the epoch on the wall clock, for display only; `null` before its first edit or where the runtime names no project. */
+  last_edited_at_wall_clock_ms: number | null;
   /** When it was last opened, in milliseconds since the epoch on the wall clock: for display only. */
   last_opened_at_wall_clock_ms: number;
+}
+
+/** A project `.zip` chosen to import, and where the Import project sheet starts: the folder new projects go in, and the zip's own name where nothing there holds it yet. */
+export interface ProjectArchiveChosenToImport {
+  /** The `.zip`, absolute. */
+  archive: string;
+  location: string;
+  /** The zip's name without `.zip`, or that name numbered (`pattern 2`, …) where it is taken in `location`. */
+  name: string;
 }
 
 /** What `save_project_file` answers: the version the file now has on disk. */

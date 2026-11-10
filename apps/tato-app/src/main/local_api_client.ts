@@ -4,7 +4,9 @@
 // `POST /mcp` list its streams, read a project's log records and draw one stream's graph,
 // `create_project` and `run_project` queue a project's load, which `describe_stream_action` follows,
 // `stop_project` queues the stop of every stream of a project, `remove_project` queues the
-// removal of a project's streams, `rename_stream`
+// removal of a project's streams, `delete_project` its removal and its folder's move to the
+// Trash, `rename_project` and `duplicate_project` rename and copy a project, `import_project`
+// makes one from a `.zip`, `rename_stream`
 // renames one, `add_dependency`, `update_dependency` and `list_dependencies` copy, copy again and
 // list the projects a project imports, `GET /api/graph` names the machine, and `GET /api/registry` lists the node types a
 // stream can add.
@@ -52,7 +54,13 @@ import {
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
-import { projectTheRuntimeNamesFromTheListAssetsToolResult } from "./project_the_runtime_names.js";
+import {
+  duplicateFromTheDuplicateProjectToolResult,
+  projectFromTheImportProjectToolResult,
+  projectNameFromTheRenameProjectToolResult,
+  type ProjectMadeByTheRuntime,
+} from "./project_changes_on_the_wire.js";
+import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTheListAssetsToolResult, type ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
 import {
   dependencyUpdateFromTheUpdateDependencyToolResult,
@@ -83,6 +91,9 @@ const PROJECT_NODE_TYPE_LISTING_RESPONSE_TIMEOUT_MS = 65_000;
 
 /** How long a dependency tool may go without a byte: an add or an update locks the project's Python requirements with uv, which may resolve them over the network, and a check for newer versions reads every source. */
 const PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS = 180_000;
+
+/** How long a tool that copies a whole project may go without a byte: a duplicate copies its files and history, an import unpacks a `.zip`. */
+const PROJECT_COPY_RESPONSE_TIMEOUT_MS = 120_000;
 
 /** Why a local API request came back without an answer. */
 export interface LocalApiRequestFailure {
@@ -232,7 +243,7 @@ export function queuedStreamActionFromTheToolResult(toolName: ProjectActionToolN
 }
 
 /** A runtime tool that queues an action on a whole project. */
-type ProjectActionToolName = "stop_project" | "remove_project";
+type ProjectActionToolName = "stop_project" | "remove_project" | "delete_project";
 
 /** `durationMs` as a timeout refusal spells it: whole seconds as `3s`, anything else as `200ms`. */
 function durationAsTheTimeoutRefusalSpellsIt(durationMs: number): string {
@@ -309,6 +320,35 @@ export class LocalApiClient {
   /** Queue the removal of every stream the runtime holds from the project in `projectDirectory`, answering the id of the action it queued; refused in the runtime's own words. */
   removeProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
     return this.queueRuntimeAction("remove_project", { project_directory: projectDirectory });
+  }
+
+  /** Queue the deletion of the project in `projectDirectory`: its streams unloaded and forgotten, then its folder moved to the Trash; answers the id of the action it queued, refused in the runtime's own words. */
+  deleteProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.queueRuntimeAction("delete_project", { project_directory: projectDirectory });
+  }
+
+  /** Name the project in `projectDirectory` `name` through the runtime's `rename_project`, one transaction on its history; answers its name now, refused in the runtime's own words, as for a blank name. */
+  async renameProject(projectDirectory: string, name: string): Promise<Result<string, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("rename_project", { project_directory: projectDirectory, name });
+    if (!toolResultText.ok) return toolResultText;
+    const renamed = projectNameFromTheRenameProjectToolResult(toolResultText.value);
+    return renamed.ok ? renamed : localApiRequestFailure(renamed.failure);
+  }
+
+  /** Copy the project in `projectDirectory` with its history into `into`, a folder that does not exist yet, as a project of its own; refused in the runtime's own words. */
+  async duplicateProject(projectDirectory: string, into: string): Promise<Result<ProjectMadeByTheRuntime, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("duplicate_project", { project_directory: projectDirectory, into }, PROJECT_COPY_RESPONSE_TIMEOUT_MS);
+    if (!toolResultText.ok) return toolResultText;
+    const duplicate = duplicateFromTheDuplicateProjectToolResult(toolResultText.value);
+    return duplicate.ok ? duplicate : localApiRequestFailure(duplicate.failure);
+  }
+
+  /** Make a project in `projectDirectory`, a folder that does not exist yet, from `source`, an absolute `.zip` of one, through the runtime's `import_project`; runs nothing, refused in the runtime's own words. */
+  async importProject(source: string, projectDirectory: string): Promise<Result<ProjectMadeByTheRuntime, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("import_project", { source, project_directory: projectDirectory }, PROJECT_COPY_RESPONSE_TIMEOUT_MS);
+    if (!toolResultText.ok) return toolResultText;
+    const imported = projectFromTheImportProjectToolResult(toolResultText.value);
+    return imported.ok ? imported : localApiRequestFailure(imported.failure);
   }
 
   /** Call the tool `toolName` that queues an action, answering the id of the action the runtime queued; refused in the runtime's own words. */
@@ -393,6 +433,14 @@ export class LocalApiClient {
     if (!toolResultText.ok) return toolResultText;
     const project = projectTheRuntimeNamesFromTheListAssetsToolResult(toolResultText.value);
     return project.ok ? project : localApiRequestFailure(project.failure);
+  }
+
+  /** The project in `projectDirectory` as its card shows it, from `list_assets`: its name, description and last edit; refused in the runtime's own words. */
+  async summarizeTheProject(projectDirectory: string): Promise<Result<ProjectSummaryTheRuntimeServes, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("list_assets", { project_directory: projectDirectory });
+    if (!toolResultText.ok) return toolResultText;
+    const summary = projectSummaryFromTheListAssetsToolResult(toolResultText.value);
+    return summary.ok ? summary : localApiRequestFailure(summary.failure);
   }
 
   /** Copy the project in `source`, an absolute folder or `.zip`, into `imports/` of the project in `projectDirectory` through the runtime's `add_dependency`; refused in the runtime's own words. */

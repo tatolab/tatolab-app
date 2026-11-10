@@ -33,6 +33,7 @@ import type {
   StreamProjectFolderChosenFor,
   TatolabStatus,
   ProjectFolderChosenFor,
+  ProjectArchiveChosenToImport,
   NewProjectDefaults,
   SystemMenuBarMenu,
 } from "../../shared/tatolab_backend_contract";
@@ -144,6 +145,16 @@ export interface TatolabBackend {
   readRecentProjects(): Promise<RecentProject[]>;
   /** Open `folder`, one of the recent projects, in its own window, rejecting for any other folder or in the words of what refused. */
   openRecentProject(folder: string): Promise<void>;
+  /** Name `folder`, one of the recent projects, `name` through the runtime, its folder kept; rejects for a blank name or in the runtime's own words. */
+  renameRecentProject(folder: string, name: string): Promise<void>;
+  /** Duplicate `folder`, one of the recent projects, with its history beside it, first among them and unopened; answers the duplicate's folder, rejecting in the runtime's own words. */
+  duplicateRecentProject(folder: string): Promise<string>;
+  /** Delete `folder`, one of the recent projects, through the runtime, which moves its folder to the Trash; answers once it has, rejecting in the runtime's own words. */
+  deleteRecentProject(folder: string): Promise<void>;
+  /** A project `.zip` chosen in the desktop's dialog, with where the Import project sheet starts for it; `null` when the person cancels. */
+  chooseProjectArchiveToImport(): Promise<ProjectArchiveChosenToImport | null>;
+  /** Make the project `name` in `location` from the `.zip` `archive` with the runtime and open it, rejecting with nothing made in the app's or the runtime's own words. */
+  importProjectArchive(archive: string, name: string, location: string): Promise<ChosenProjectFolder>;
   /** Calls `listener` with each reading of the open project: another folder opened, a change in one of its folders, or the runtime starting to answer; the returned function stops it. */
   onOpenProjectChanged(listener: (reading: OpenProjectReading) => void): () => void;
   /** This window's project's change feed as the app last read it from the runtime; refused in the Projects window. Later readings arrive through `onProjectTransactionsChanged`. */

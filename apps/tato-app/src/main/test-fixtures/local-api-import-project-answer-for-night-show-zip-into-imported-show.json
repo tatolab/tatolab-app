@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"project_directory\": \"/tmp/tatolab-proof-projects/imported-show\",\n  \"project\": \"cba1d286-8a36-4113-bf10-8630cf9a52b2\",\n  \"name\": \"Night Show\",\n  \"commit\": \"6e9bf712f50159cf8b93aa40a7e366eab060e352\"\n}"}],"isError":false}}

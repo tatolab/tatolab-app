@@ -435,6 +435,41 @@ export async function openRecentProject(sharedState: TatolabAppSharedState, fold
   return opened;
 }
 
+/** `import_project_archive { archive, name, location }`: the runtime's `import_project` of `archive` into `<location>/<name>`, opened in its own studio window, then a status round; refused in the app's words or the runtime's own. */
+export async function importProjectArchive(
+  sharedState: TatolabAppSharedState,
+  importArguments: { archive: string; name: string; location: string },
+  commandFromWindow: TatolabCommandFromWindow,
+): Promise<Result<ChosenProjectFolder, string>> {
+  const imported = await answerTheWindow("import_project_archive", async () => {
+    const importedProject = await sharedState.projectOpening.importProjectArchive(importArguments.archive, importArguments.name, importArguments.location);
+    sharedState.statusPublisher.requestRefresh();
+    return importedProject;
+  });
+  stepTheProjectsWindowAsideOnceItOpenedAProject(sharedState, commandFromWindow, imported);
+  return imported;
+}
+
+/** `import_project_archive`'s arguments as the window sends them, or why they are not. */
+export function importProjectArchiveArgumentsFrom(commandArguments: unknown): Result<{ archive: string; name: string; location: string }, string> {
+  const archive = oneTextArgumentFrom("import_project_archive", commandArguments, "archive", "the project .zip chosen in the dialog");
+  if (!archive.ok) return archive;
+  const name = oneTextArgumentFrom("import_project_archive", commandArguments, "name", "the imported project's name");
+  if (!name.ok) return name;
+  const location = oneTextArgumentFrom("import_project_archive", commandArguments, "location", "the folder the project goes in");
+  if (!location.ok) return location;
+  return succeeded({ archive: archive.value, name: name.value, location: location.value });
+}
+
+/** `rename_recent_project`'s arguments as the window sends them, or why they are not. */
+export function renameRecentProjectArgumentsFrom(commandArguments: unknown): Result<{ folder: string; name: string }, string> {
+  const folder = oneTextArgumentFrom("rename_recent_project", commandArguments, "folder", "one of the recent projects' folders");
+  if (!folder.ok) return folder;
+  const name = oneTextArgumentFrom("rename_recent_project", commandArguments, "name", "the project's new name");
+  if (!name.ok) return name;
+  return succeeded({ folder: folder.value, name: name.value });
+}
+
 /** `create_new_project`'s arguments as the window sends them, or why they are not. */
 export function createNewProjectArgumentsFrom(commandArguments: unknown): Result<{ name: string; location: string }, string> {
   const name = oneTextArgumentFrom("create_new_project", commandArguments, "name", "the new project's name");
@@ -791,6 +826,32 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const folder = oneTextArgumentFrom("open_recent_project", commandArguments, "folder", "one of the recent projects' folders");
       if (!folder.ok) return { ok: false, refusal: folder.failure };
       return commandAnswerOfNothingFrom(await openRecentProject(sharedState, folder.value, commandFromWindow));
+    },
+    rename_recent_project: async (commandArguments) => {
+      const renameArguments = renameRecentProjectArgumentsFrom(commandArguments);
+      if (!renameArguments.ok) return { ok: false, refusal: renameArguments.failure };
+      return commandAnswerOfNothingFrom(
+        await answerTheWindow("rename_recent_project", () => sharedState.projectOpening.renameRecentProject(renameArguments.value.folder, renameArguments.value.name)),
+      );
+    },
+    duplicate_recent_project: async (commandArguments) => {
+      const folder = oneTextArgumentFrom("duplicate_recent_project", commandArguments, "folder", "one of the recent projects' folders");
+      if (!folder.ok) return { ok: false, refusal: folder.failure };
+      return commandAnswerFrom(await answerTheWindow("duplicate_recent_project", () => sharedState.projectOpening.duplicateRecentProject(folder.value)));
+    },
+    delete_recent_project: async (commandArguments) => {
+      const folder = oneTextArgumentFrom("delete_recent_project", commandArguments, "folder", "one of the recent projects' folders");
+      if (!folder.ok) return { ok: false, refusal: folder.failure };
+      return commandAnswerOfNothingFrom(
+        await answerTheWindowThenRefreshTheStatus(sharedState, "delete_recent_project", () => sharedState.projectOpening.deleteRecentProject(folder.value)),
+      );
+    },
+    choose_project_archive_to_import: async () =>
+      commandAnswerFrom(await answerTheWindow("choose_project_archive_to_import", () => sharedState.projectOpening.chooseProjectArchiveToImport())),
+    import_project_archive: async (commandArguments, commandFromWindow) => {
+      const importArguments = importProjectArchiveArgumentsFrom(commandArguments);
+      if (!importArguments.ok) return { ok: false, refusal: importArguments.failure };
+      return commandAnswerFrom(await importProjectArchive(sharedState, importArguments.value, commandFromWindow));
     },
     show_projects_window: async () => {
       sharedState.appWindows.showTheProjectsWindow();
