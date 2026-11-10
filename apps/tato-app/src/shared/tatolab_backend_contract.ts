@@ -42,6 +42,7 @@ export type {
   PortViewerMessageReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 export { PORT_FAMILIES, type PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
+export { TATO_STUDIO_MCP_CLIENT_NAME } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { JsonValue, ListedStream, PortViewerMessageReading, ProjectLogRecord } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The platform the app runs on, which decides the window's chrome. */

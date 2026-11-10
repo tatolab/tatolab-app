@@ -1,11 +1,11 @@
 // The open project's change feed for every view that watches it: read once from the backend when
 // the first view watches, then each reading the main process sends as the runtime applies a
-// transaction. A window follows only its own project's feed.
+// transaction. A window follows, undoes and redoes only in its own open project.
 
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import type { ProjectTransaction, ProjectTransactionApplying, ProjectTransactionAuthor, ProjectTransactionsReading, StopWatching } from "./studio_view_contract";
 
-/** Why a view watching a folder other than the open project's reads no feed. */
+/** Why a view naming a folder other than the window's open project reads, undoes and redoes nothing there. */
 export function onlyTheOpenProjectsFeedRefusal(projectFolder: string): string {
   return `Tato Studio follows the history of this window's project only, not ${projectFolder}.`;
 }
@@ -16,11 +16,15 @@ export class ProjectTransactionsReadings {
   private readonly listeners = new Set<(reading: ProjectTransactionsReading) => void>();
   private stopListeningToTheBackend: (() => void) | null = null;
 
-  constructor(private readonly backend: Pick<TatolabBackend, "readOpenProjectTransactions" | "onProjectTransactionsChanged" | "undoInTheOpenProject" | "redoInTheOpenProject">) {}
+  constructor(
+    private readonly backend: Pick<TatolabBackend, "readOpenProjectTransactions" | "onProjectTransactionsChanged" | "undoInTheOpenProject" | "redoInTheOpenProject">,
+    private readonly readTheOpenProjectFolder: () => string | null,
+  ) {}
 
-  /** `projectFolder`'s feed: the latest reading at once when there is one, then each new one. */
+  /** `projectFolder`'s feed: the latest reading at once when there is one, then each new one; refused for a folder that is not the window's open project. */
   readonly watchProjectTransactions = (projectFolder: string, listener: (reading: ProjectTransactionsReading) => void): StopWatching => {
-    const listenerOfTheFolder = (reading: ProjectTransactionsReading) => listener(readingOfTheFolder(reading, projectFolder));
+    const listenerOfTheFolder = (reading: ProjectTransactionsReading) =>
+      listener(this.readTheOpenProjectFolder() === projectFolder ? reading : { kind: "not_read", because: onlyTheOpenProjectsFeedRefusal(projectFolder) });
     this.listeners.add(listenerOfTheFolder);
     this.listenToTheBackend();
     if (this.latestReading !== null) listenerOfTheFolder(this.latestReading);
@@ -42,10 +46,7 @@ export class ProjectTransactionsReadings {
     this.undoOrRedo(projectFolder, () => this.backend.redoInTheOpenProject(author));
 
   private async undoOrRedo(projectFolder: string, apply: () => Promise<ProjectTransaction>): Promise<ProjectTransactionApplying> {
-    const reading = this.latestReading;
-    if (reading !== null && reading.kind === "read" && reading.project_transactions.project_directory !== projectFolder) {
-      return { kind: "not_applied", because: onlyTheOpenProjectsFeedRefusal(projectFolder) };
-    }
+    if (this.readTheOpenProjectFolder() !== projectFolder) return { kind: "not_applied", because: onlyTheOpenProjectsFeedRefusal(projectFolder) };
     return apply().then(
       (transaction) => ({ kind: "applied", transaction }),
       (rejection: unknown) => ({ kind: "not_applied", because: describeBackendRejection(rejection) }),
@@ -70,9 +71,4 @@ export class ProjectTransactionsReadings {
     this.latestReading = reading;
     for (const listener of [...this.listeners]) listener(reading);
   }
-}
-
-function readingOfTheFolder(reading: ProjectTransactionsReading, projectFolder: string): ProjectTransactionsReading {
-  if (reading.kind === "read" && reading.project_transactions.project_directory !== projectFolder) return { kind: "not_read", because: onlyTheOpenProjectsFeedRefusal(projectFolder) };
-  return reading;
 }

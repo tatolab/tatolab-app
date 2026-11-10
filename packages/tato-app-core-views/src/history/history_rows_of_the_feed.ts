@@ -3,11 +3,8 @@
 // rule (`what_the_author_can_undo_and_redo` in streamlib's project repository). An author's undone edits stay,
 // dimmed, until that author edits again, when the runtime can no longer redo them.
 
-import type { JsonValue, ProjectTransaction, ProjectTransactionAuthor } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { TATO_STUDIO_MCP_CLIENT_NAME, type JsonValue, type ProjectTransaction, type ProjectTransactionAuthor } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { whatAnEditChanged, type NodeNamesById } from "./what_an_edit_changed";
-
-/** Studio's own MCP client name, which the runtime records an edit Studio makes under while Studio names no author. */
-export const TATO_STUDIO_AGENT_NAME = "tatolab-app";
 
 /** Who made an edit, as a row shows them. */
 export type HistoryRowAuthorKind = "person" | "agent" | "runtime";
@@ -61,7 +58,7 @@ function authorKindOf(authorKind: string): HistoryRowAuthorKind {
 /** The author as a row names them. */
 export function whoMadeTheEdit(authorKind: string, authorName: string): string {
   if (authorKind === "person") return authorName;
-  if (authorKind === "agent") return authorName === TATO_STUDIO_AGENT_NAME ? "Tato Studio" : `${authorName} (agent)`;
+  if (authorKind === "agent") return authorName === TATO_STUDIO_MCP_CLIENT_NAME ? "Tato Studio" : `${authorName} (agent)`;
   return "Runtime";
 }
 

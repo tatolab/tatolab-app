@@ -82,7 +82,28 @@ test("opens the project with list_assets, sends the feed it reads, and reads it 
   expect(transactionIdsOf(feed.readProjectTransactions())).toEqual(["t2", "t1"]);
 });
 
-test("tells the window why the feed ended in the runtime's words, and follows it again after a while", async () => {
+test("a listen that ends is followed again at once, keeping the last reading, and the window hears nothing", async () => {
+  const fake = fakeFeedConnection(["t1"]);
+  const readingsSent: ProjectTransactionsReading[] = [];
+  let connectionsOpened = 0;
+  const feed = new ProjectTransactionsFeedOfAStudioWindow(PROJECT_FOLDER, {
+    openTheFeedConnection: async () => {
+      connectionsOpened += 1;
+      return succeeded(fake.connection);
+    },
+    runAfter: () => () => undefined,
+    sendTheWindowTheProjectTransactions: (reading) => readingsSent.push(reading),
+  });
+  await feed.follow();
+  fake.endTheListen("the runtime ended the listen");
+  await settled();
+
+  expect(connectionsOpened).toBe(2);
+  expect(fake.recorded.toolCalls).toEqual(["list_assets", "list_assets"]);
+  expect(readingsSent.map(transactionIdsOf)).toEqual([["t1"]]);
+});
+
+test("tells the window why the feed ended in the runtime's words when following it again fails, and tries again after a while", async () => {
   const fake = fakeFeedConnection(["t1"]);
   const readingsSent: ProjectTransactionsReading[] = [];
   const followsLater: { delayMs: number; work: () => void }[] = [];
@@ -100,19 +121,13 @@ test("tells the window why the feed ended in the runtime's words, and follows it
   });
   await feed.follow();
   fake.endTheListen("`listening to the feed` was not answered: the runtime closed the /mcp/stdio connection");
+  await settled();
   expect(fake.recorded.closed).toBe(true);
   expect(followsLater.map((later) => later.delayMs)).toEqual([PROJECT_TRANSACTIONS_FOLLOWED_AGAIN_AFTER_MS]);
   followsLater[0]?.work();
   await settled();
-  followsLater[1]?.work();
-  await settled();
 
-  expect(readingsSent.map(transactionIdsOf)).toEqual([
-    ["t1"],
-    "`listening to the feed` was not answered: the runtime closed the /mcp/stdio connection",
-    "no runtime answers at /run/tatolab/local-api.sock",
-    ["t1"],
-  ]);
+  expect(readingsSent.map(transactionIdsOf)).toEqual([["t1"], "no runtime answers at /run/tatolab/local-api.sock", ["t1"]]);
 });
 
 test("stops listening and closes its connection when the window closes, and sends nothing after", async () => {

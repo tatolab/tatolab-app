@@ -498,6 +498,9 @@ export const projectTransactionsReadingSchema = z.discriminatedUnion("kind", [
 /** A project's change feed, or why none. */
 export type ProjectTransactionsReading = z.infer<typeof projectTransactionsReadingSchema>;
 
+/** The name Tato Studio gives the runtime as its MCP client, which the runtime records Studio's own edits under while Studio names no author. */
+export const TATO_STUDIO_MCP_CLIENT_NAME = "tatolab-app";
+
 /** Whose change an undo or a redo reverses: a person or an agent, by the name history shows. */
 export const projectTransactionAuthorSchema = z.object({ kind: z.enum(["person", "agent"]), name: z.string() });
 /** Whose change an undo or a redo reverses. */

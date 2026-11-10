@@ -131,10 +131,13 @@ export function mountTatolabWindow(
   const projectNodeTypeReadings = new ProjectNodeTypeReadings(backend);
   projectNodeTypeReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => projectNodeTypeReadings.setPollingAllowed(isVisible));
-  const projectTransactionsReadings = new ProjectTransactionsReadings(backend);
   const pythonLanguageServerConnections = new PythonLanguageServerConnections(backend);
   const portViewerConnections = new PortViewerConnections(backend);
   const studioWindowModel = new StudioWindowModel(new StudioLayoutsKeptInStorage(tatolabWindowLocalStorage()));
+  const projectTransactionsReadings = new ProjectTransactionsReadings(backend, () => {
+    const openProject = studioWindowModel.openProject.readLatest();
+    return openProject.kind === "read" ? openProject.open_project.project.folder : null;
+  });
 
   const chooseProjectFolder = (chosenFor: ProjectFolderChosenFor) => {
     studioWindowModel.projectOpeningRefusal.publish(null);

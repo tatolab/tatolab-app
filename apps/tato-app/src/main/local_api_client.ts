@@ -14,6 +14,7 @@
 // required): the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers, an `Accept` of
 // both JSON and SSE, and `_meta` carrying the protocol version, client info and capabilities.
 
+import { TATO_STUDIO_MCP_CLIENT_NAME } from "../shared/tatolab_backend_contract.js";
 import { isUtf8 } from "node:buffer";
 import net from "node:net";
 import type {
@@ -72,7 +73,7 @@ import {
 export const LOCAL_API_MCP_PROTOCOL_VERSION = "2026-07-28";
 
 /** The client name the app gives the runtime in every MCP request's `_meta`. */
-export const LOCAL_API_MCP_CLIENT_NAME = "tatolab-app";
+export const LOCAL_API_MCP_CLIENT_NAME = TATO_STUDIO_MCP_CLIENT_NAME;
 
 /** The most bytes one local API response may carry before the client gives up on it. */
 const LARGEST_LOCAL_API_RESPONSE_BYTES = 8 * 1024 * 1024;

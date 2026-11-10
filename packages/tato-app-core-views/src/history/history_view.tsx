@@ -35,7 +35,7 @@ function authoredChangeOf(row: HistoryRow, nowMs: number, isTheLatestApplied: bo
     byline,
     operation_lines: row.operation_lines,
     is_undone: row.is_undone,
-    choice_words: row.author_kind === "runtime" && !isTheLatestApplied ? "The runtime's own edits can't be undone" : choiceWords,
+    choice_words: choiceWords,
   };
 }
 

@@ -1,8 +1,9 @@
 // The change feed of the project a studio window shows, followed over one `/mcp/stdio`
 // connection: `list_assets` opens the project in the runtime and names its feed's resource, a
 // `subscriptions/listen` on that resource is told of each transaction the runtime applies, and
-// the resource is read again after each. When the runtime goes away the window is told why, and
-// the feed is followed again once it answers.
+// the resource is read again after each. A listen that ends is followed again at once, keeping the
+// last reading; when that fails too the window is told why, and the feed is followed again every
+// few seconds until the runtime answers.
 
 import type { ProjectTransactionsReading } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
@@ -37,8 +38,9 @@ export class ProjectTransactionsFeedOfAStudioWindow {
   private cancelTheNextFollow: (() => void) | null = null;
   private isFollowing = false;
   private hasStopped = false;
-  private readInFlight: Promise<void> | null = null;
+  private readInFlight: { feedConnection: ProjectTransactionsFeedConnection; read: Promise<void> } | null = null;
   private isAnotherReadWanted = false;
+  private hasFollowedAgainAtOnce = false;
 
   constructor(
     readonly projectFolder: string,
@@ -62,7 +64,7 @@ export class ProjectTransactionsFeedOfAStudioWindow {
       return;
     }
     if (!opened.ok) {
-      this.endBecause(opened.failure.failureDescription);
+      this.endBecause(opened.failure.failureDescription, "tell_the_window");
       return;
     }
     const feedConnection = opened.value;
@@ -71,16 +73,24 @@ export class ProjectTransactionsFeedOfAStudioWindow {
     if (this.feedConnection !== feedConnection) return;
     const uri = listed.ok ? transactionsResourceUriFromTheListAssetsToolResult(listed.value) : { ok: false as const, failure: listed.failure.failureDescription };
     if (!uri.ok) {
-      this.endBecause(uri.failure);
+      this.endBecause(uri.failure, "tell_the_window");
       return;
     }
-    this.resourceListen = feedConnection.listenForUpdatesOfTheResource(
+    const resourceListen = feedConnection.listenForUpdatesOfTheResource(
       uri.value,
       () => void this.readTheFeed(feedConnection, uri.value),
       (whyItEnded) => {
-        if (this.feedConnection === feedConnection) this.endBecause(whyItEnded);
+        if (this.feedConnection !== feedConnection) return;
+        const followsAgainAtOnce = this.lastReading.kind === "read" && !this.hasFollowedAgainAtOnce;
+        this.hasFollowedAgainAtOnce = followsAgainAtOnce;
+        this.endBecause(whyItEnded, followsAgainAtOnce ? "follow_again_at_once" : "tell_the_window");
       },
     );
+    if (this.feedConnection !== feedConnection) {
+      resourceListen.stop();
+      return;
+    }
+    this.resourceListen = resourceListen;
     await this.readTheFeed(feedConnection, uri.value);
   }
 
@@ -98,29 +108,35 @@ export class ProjectTransactionsFeedOfAStudioWindow {
   }
 
   private readTheFeed(feedConnection: ProjectTransactionsFeedConnection, uri: string): Promise<void> {
-    if (this.readInFlight !== null) {
+    if (this.readInFlight !== null && this.readInFlight.feedConnection === feedConnection) {
       this.isAnotherReadWanted = true;
-      return this.readInFlight;
+      return this.readInFlight.read;
     }
-    this.readInFlight = (async () => {
+    const read = (async () => {
       do {
         this.isAnotherReadWanted = false;
-        const read = await feedConnection.readResourceText(uri);
+        const resourceRead = await feedConnection.readResourceText(uri);
         if (this.feedConnection !== feedConnection) return;
-        const transactions = read.ok ? projectTransactionsFromTheResourceText(read.value) : { ok: false as const, failure: read.failure.failureDescription };
+        const transactions = resourceRead.ok ? projectTransactionsFromTheResourceText(resourceRead.value) : { ok: false as const, failure: resourceRead.failure.failureDescription };
+        if (transactions.ok) this.hasFollowedAgainAtOnce = false;
         this.publish(transactions.ok ? { kind: "read", project_transactions: transactions.value } : { kind: "not_read", because: transactions.failure });
       } while (this.isAnotherReadWanted);
     })().finally(() => {
-      this.readInFlight = null;
+      if (this.readInFlight?.read === read) this.readInFlight = null;
     });
-    return this.readInFlight;
+    this.readInFlight = { feedConnection, read };
+    return read;
   }
 
-  private endBecause(why: string): void {
+  private endBecause(why: string, thenWhat: "tell_the_window" | "follow_again_at_once"): void {
     this.closeTheConnection();
     this.isFollowing = false;
-    this.publish({ kind: "not_read", because: why });
     if (this.hasStopped) return;
+    if (thenWhat === "follow_again_at_once") {
+      void this.follow();
+      return;
+    }
+    this.publish({ kind: "not_read", because: why });
     this.cancelTheNextFollow = this.sources.runAfter(PROJECT_TRANSACTIONS_FOLLOWED_AGAIN_AFTER_MS, () => {
       this.cancelTheNextFollow = null;
       void this.follow();
@@ -135,7 +151,7 @@ export class ProjectTransactionsFeedOfAStudioWindow {
   }
 
   private publish(reading: ProjectTransactionsReading): void {
-    if (this.hasStopped) return;
+    if (this.hasStopped || JSON.stringify(reading) === JSON.stringify(this.lastReading)) return;
     this.lastReading = reading;
     this.sources.sendTheWindowTheProjectTransactions(reading);
   }

@@ -114,9 +114,9 @@ interface McpStdioRequestAwaitingItsAnswer {
 }
 
 /** The JSON-RPC `method` and `params` of one request the connection sends. */
-interface McpStdioRequest {
-  method: string;
-  params: Readonly<Record<string, unknown>>;
+/** The JSON-RPC request line for `method` with `params`, under request id `requestId`. */
+function jsonRpcRequestLine(requestId: number, method: string, params: Readonly<Record<string, unknown>>): string {
+  return JSON.stringify({ jsonrpc: "2.0", id: requestId, method, params });
 }
 
 /** The `_meta` every request carries, so no handshake comes first. */
@@ -277,7 +277,7 @@ export class LocalApiMcpStdioConnection {
   readResourceText(uri: string): Promise<Result<string, LocalApiRequestFailure>> {
     return new Promise((settle) => {
       this.sendRequest(
-        { method: "resources/read", params: { uri, _meta: perRequestMeta(this.appVersion) } },
+        (requestId) => jsonRpcRequestLine(requestId, "resources/read", { uri, _meta: perRequestMeta(this.appVersion) }),
         { askedFor: `reading ${uri}`, settleWithTheAnswerLine: (answerLineText) => settle(resourceTextFromTheResourcesReadAnswer(uri, answerLineText)), failUnanswered: (failure) => settle({ ok: false, failure }) },
         true,
       );
@@ -296,22 +296,25 @@ export class LocalApiMcpStdioConnection {
       if (isListening) whenUpdated();
     };
     listenersOfTheUri.add(updated);
-    const endWith = (whyItEnded: string) => {
-      if (!isListening) return;
+    const forgetTheListener = () => {
       isListening = false;
       listenersOfTheUri.delete(updated);
+      if (listenersOfTheUri.size === 0 && this.resourceUpdateListenersByUri.get(uri) === listenersOfTheUri) this.resourceUpdateListenersByUri.delete(uri);
+    };
+    const endWith = (whyItEnded: string) => {
+      if (!isListening) return;
+      forgetTheListener();
       whenEnded(whyItEnded);
     };
     const requestId = this.sendRequest(
-      { method: "subscriptions/listen", params: { notifications: { resourceSubscriptions: [uri] }, _meta: perRequestMeta(this.appVersion) } },
+      (listenRequestId) => jsonRpcRequestLine(listenRequestId, "subscriptions/listen", { notifications: { resourceSubscriptions: [uri] }, _meta: perRequestMeta(this.appVersion) }),
       { askedFor: `listening to ${uri}`, settleWithTheAnswerLine: (answerLineText) => endWith(whyTheListenEnded(answerLineText)), failUnanswered: (failure) => endWith(failure.failureDescription) },
       false,
     );
     return {
       stop: () => {
         if (!isListening) return;
-        isListening = false;
-        listenersOfTheUri.delete(updated);
+        forgetTheListener();
         this.requestsAwaitingTheirAnswers.delete(requestId);
         this.writeLine({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId, reason: "the app stopped listening" } });
       },
@@ -340,25 +343,19 @@ export class LocalApiMcpStdioConnection {
   private sendToolCallAndAwaitItsAnswer(toolName: string, toolArguments: Readonly<Record<string, unknown>>): Promise<Result<McpToolAnswer, LocalApiRequestFailure>> {
     return new Promise((settle) => {
       this.sendRequest(
-        toolName,
+        (requestId) => mcpToolCallRequestBody(requestId, toolName, toolArguments, this.appVersion),
         {
           askedFor: `\`${toolName}\``,
           settleWithTheAnswerLine: (answerLineText) => settle(mcpToolAnswerFromTheJsonRpcResponse(toolName, answerLineText, MCP_STDIO_UPGRADE_REQUEST_TARGET)),
           failUnanswered: (failure) => settle({ ok: false, failure }),
         },
         true,
-        toolArguments,
       );
     });
   }
 
-  /** Send `request` (a tool's name, with `toolArguments`), its answer settling `awaiting`; one that `timesOut` fails after the request timeout. Answers the request's id. */
-  private sendRequest(
-    request: McpStdioRequest | string,
-    awaiting: Omit<McpStdioRequestAwaitingItsAnswer, "answerTimeout">,
-    timesOut: boolean,
-    toolArguments: Readonly<Record<string, unknown>> = {},
-  ): number {
+  /** Send the request line `requestLineOf` makes for its id, its answer settling `awaiting`; one that `timesOut` fails after the request timeout. Answers the request's id. */
+  private sendRequest(requestLineOf: (requestId: number) => string, awaiting: Omit<McpStdioRequestAwaitingItsAnswer, "answerTimeout">, timesOut: boolean): number {
     const requestId = this.nextRequestId;
     this.nextRequestId += 1;
     if (this.whyTheConnectionClosed !== null) {
@@ -373,11 +370,7 @@ export class LocalApiMcpStdioConnection {
         }, this.requestTimeoutMs)
       : null;
     this.requestsAwaitingTheirAnswers.set(requestId, { ...awaiting, answerTimeout });
-    const requestLine =
-      typeof request === "string"
-        ? mcpToolCallRequestBody(requestId, request, toolArguments, this.appVersion)
-        : JSON.stringify({ jsonrpc: "2.0", id: requestId, method: request.method, params: request.params });
-    this.upgradedConnection.write(`${requestLine}\n`);
+    this.upgradedConnection.write(`${requestLineOf(requestId)}\n`);
     return requestId;
   }
 
