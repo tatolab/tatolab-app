@@ -45,11 +45,9 @@ describe("connectToTatoAppOverPort", () => {
     );
     const selections: unknown[] = [];
     const stopWatching = connection.watchSelection((selection) => selections.push(selection));
-    await nextTurns();
-    expect(selections).toEqual([{ kind: "node", stream: "s", node: "camera" }]);
+    await vi.waitFor(() => expect(selections).toEqual([{ kind: "node", stream: "s", node: "camera" }]));
     stopWatching();
-    await nextTurns();
-    expect(messagesFromTheView.at(-1)).toEqual({ kind: "stop_watching", watch_id: 1 });
+    await vi.waitFor(() => expect(messagesFromTheView.at(-1)).toEqual({ kind: "stop_watching", watch_id: 1 }));
   });
 
   it("ignores a message from Studio out of the contract's shape", async () => {
