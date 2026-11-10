@@ -1220,3 +1220,20 @@ test("a project's views are listed from its views/ folders and its imports', eac
   expect(listed[1]?.manifest).toMatchObject({ title: "DJ Deck", placement: "node", entry: "index.html" });
   expect(refusal.failureDescription).toBe("list_project_views failed: /private/tmp/tl-rec053/not-a-project holds no project: it has no tatolab-project.json");
 });
+
+test("a value a view writes is handed to its node's output with the stream, the node's UUID and the port, and a stream that is not loaded refused in the runtime's words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-studio-view-output-tool-result-of-the-deck-node-cue.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-studio-view-output-refusal-for-the-stopped-stream-night-show.json")),
+  ]);
+  const deckNode = "fdca90ae-f25d-4551-86e2-11f5cdb65d16";
+
+  expect(answerOf(await server.client().writeStudioViewOutput("night-show-main-aa298d", deckNode, "cue", { track: "Opening" }))).toEqual({ stream: "night-show-main-aa298d", node: deckNode, port: "cue" });
+  expect(failureOf(await server.client().writeStudioViewOutput("night-show-main-aa298d", deckNode, "cue", { track: "Opening" })).failureDescription).toBe(
+    "write_studio_view_output failed: Resource not found: no stream with the id `night-show-main-aa298d` is loaded in this runtime. Loaded: lobby-wall-main-c95d53",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["write_studio_view_output", { stream: "night-show-main-aa298d", node: deckNode, port: "cue", value: { track: "Opening" } }],
+    ["write_studio_view_output", { stream: "night-show-main-aa298d", node: deckNode, port: "cue", value: { track: "Opening" } }],
+  ]);
+});

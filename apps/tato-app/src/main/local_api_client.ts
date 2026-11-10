@@ -20,6 +20,7 @@ import { TATO_STUDIO_MCP_CLIENT_NAME } from "../shared/tatolab_backend_contract.
 import { isUtf8 } from "node:buffer";
 import net from "node:net";
 import type {
+  JsonValue,
   ProjectDependency,
   WorkspaceDependencyUpdate,
   ListedStream,
@@ -68,7 +69,12 @@ import {
   type ProjectFileTheRuntimeListed,
   type ProjectFileWriteRecorded,
 } from "./project_files_on_the_wire.js";
-import { projectViewsFromTheListProjectViewsToolResult, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
+import {
+  projectViewsFromTheListProjectViewsToolResult,
+  studioViewOutputFromTheWriteStudioViewOutputToolResult,
+  type ProjectViewTheRuntimeListed,
+  type StudioViewOutputWritten,
+} from "./project_views_on_the_wire.js";
 import {
   dependencyUpdateFromTheUpdateDependencyToolResult,
   type ListedProjectDependency,
@@ -520,6 +526,14 @@ export class LocalApiClient {
     if (!toolResultText.ok) return toolResultText;
     const listed = projectViewsFromTheListProjectViewsToolResult(toolResultText.value);
     return listed.ok ? listed : localApiRequestFailure(listed.failure);
+  }
+
+  /** Publish `value` on the output `port` of the view node `node` in `stream`, through the runtime's `write_studio_view_output`; live data, recorded nowhere; refused in the runtime's own words. */
+  async writeStudioViewOutput(stream: string, node: string, port: string, value: JsonValue): Promise<Result<StudioViewOutputWritten, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("write_studio_view_output", { stream, node, port, value });
+    if (!toolResultText.ok) return toolResultText;
+    const written = studioViewOutputFromTheWriteStudioViewOutputToolResult(toolResultText.value);
+    return written.ok ? written : localApiRequestFailure(written.failure);
   }
 
   /** Undo `author`'s latest transaction in the project in `projectDirectory` not undone yet, through the runtime's `undo`, answering the undo it applied; refused in the runtime's own words. */

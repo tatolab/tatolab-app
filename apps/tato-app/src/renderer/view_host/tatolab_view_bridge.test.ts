@@ -21,6 +21,7 @@ import type {
   PythonLanguageServerConnectionEvent,
   StudioSelection,
   StudioViewHostServices,
+  StudioViewNodeAddress,
   ViewHeaderRow,
   ViewOpenedOn,
   ViewOpenedOnAsked,
@@ -41,7 +42,10 @@ const DJ_DECK_MANIFEST = manifestOf({
   entry: "index.html",
   placement: "node",
   inputs: [{ name: "deck_a", family: "channels" }],
-  outputs: [{ name: "crossfader", family: "array" }],
+  outputs: [
+    { name: "crossfader", family: "array" },
+    { name: "play_a", family: "array" },
+  ],
   settings: { type: "object", properties: { show_waveform: { type: "boolean", default: true }, zoom: { type: "number", minimum: 1, default: 1 } } },
   capabilities: ["read.selection"],
   sandbox: true,
@@ -80,6 +84,7 @@ function recordingHostServices() {
   const languageServerMessagesSent: JsonValue[] = [];
   const undosAsked: { projectFolder: string; author: ProjectTransactionAuthor }[] = [];
   const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
+  const outputsWritten: { viewNode: StudioViewNodeAddress; port: string; value: JsonValue }[] = [];
   const hostServices: StudioViewHostServices = {
     watchOpenProject: (listener) => {
       listener({ kind: "none_open" });
@@ -128,6 +133,10 @@ function recordingHostServices() {
         },
       };
     },
+    writeStudioViewOutput: async (viewNode, port, value) => {
+      outputsWritten.push({ viewNode, port, value });
+      return port === "play_a" ? { kind: "not_written", because: "write_studio_view_output failed: `play_a` takes a number or a list of numbers" } : { kind: "written" };
+    },
     watchPortViewer: (target, onEvent) => {
       const opened = { target, onEvent, closed: false };
       portViewersOpened.push(opened);
@@ -138,7 +147,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked };
+  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, outputsWritten };
 }
 
 /** An area that keeps the settings it is asked to remember and says where the view's header row lies. */
@@ -160,11 +169,11 @@ afterEach(() => {
   for (const connection of connectionsOpen.splice(0)) connection.close();
 });
 
-async function connectedView(manifest: TatolabViewManifest, inputWiring: Record<string, StudioViewInputWiring>, savedSettings?: JsonValue) {
+async function connectedView(manifest: TatolabViewManifest, inputWiring: Record<string, StudioViewInputWiring>, savedSettings?: JsonValue, viewNode: StudioViewNodeAddress | null = null) {
   const host = recordingHostServices();
   const area = recordingAreaServices(savedSettings);
   const channel = new MessageChannel();
-  const bridge = new TatolabViewBridge(channel.port1, "acme-dj:deck", manifest, host.hostServices, area.areaServices, inputWiring);
+  const bridge = new TatolabViewBridge(channel.port1, "acme-dj:deck", manifest, host.hostServices, area.areaServices, inputWiring, viewNode);
   bridgesOpen.push(bridge);
   const connecting = connectToTatoAppOverPort(channel.port2);
   bridge.start();
@@ -210,7 +219,10 @@ describe("a view's connection to Studio, through the one bridge every view is se
       placement: "node",
       sandboxed: true,
       inputs: [{ name: "deck_a", family: "channels" }],
-      outputs: [{ name: "crossfader", family: "array" }],
+      outputs: [
+        { name: "crossfader", family: "array" },
+        { name: "play_a", family: "array" },
+      ],
       capabilities: ["read.selection"],
     });
   });
@@ -288,13 +300,24 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(portViewersOpened.map((opened) => opened.closed)).toEqual([true]);
   });
 
-  it("is refused an output it did not declare, and told a declared one waits on the runtime's view node", async () => {
-    const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
+  it("writes what it sends on a declared output onto its node through the runtime, refused an undeclared output, and the runtime's refusal in its own words", async () => {
+    const deckNode: StudioViewNodeAddress = { stream: "set", node_id: "id-dj-deck" };
+    const { connection, outputsWritten } = await connectedView(DJ_DECK_MANIFEST, {}, undefined, deckNode);
+
     expect(await connection.sendOutput("tempo", 0.5)).toEqual({ kind: "refused", because: "DJ Deck declares no output named tempo." });
-    expect(await connection.sendOutput("crossfader", 0.42)).toEqual({
-      kind: "refused",
-      because: "What a view sends on crossfader reaches its stream once the runtime runs a view's node (tatolab/streamlib#3306); until then Studio holds nothing it sends.",
-    });
+    expect(await connection.sendOutput("crossfader", 0.42)).toEqual({ kind: "done" });
+    expect(await connection.sendOutput("play_a", { playing: true })).toEqual({ kind: "refused", because: "write_studio_view_output failed: `play_a` takes a number or a list of numbers" });
+    expect(outputsWritten).toEqual([
+      { viewNode: deckNode, port: "crossfader", value: 0.42 },
+      { viewNode: deckNode, port: "play_a", value: { playing: true } },
+    ]);
+  });
+
+  it("is refused an output while it shows in an area with no node, writing nothing", async () => {
+    const { connection, outputsWritten } = await connectedView(DJ_DECK_MANIFEST, {});
+
+    expect(await connection.sendOutput("crossfader", 0.42)).toEqual({ kind: "refused", because: "DJ Deck shows in an area and has no node, so what it sends on crossfader reaches no stream." });
+    expect(outputsWritten).toEqual([]);
   });
 
   it("stops every watch and port viewer when the studio closes the view", async () => {
@@ -339,6 +362,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
       host.hostServices,
       recordingAreaServices(undefined).areaServices,
       { deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "camera › video" } },
+      null,
       async () => imageBitmapNamed(bitmapsMade++ === 0 ? "first" : "second"),
     );
     bridgesOpen.push(bridge);
@@ -385,6 +409,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
       host.hostServices,
       recordingAreaServices(undefined).areaServices,
       { deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "camera › video" } },
+      null,
       async () => {
         bitmapsMade.push("bitmap");
         return Object.create(null);

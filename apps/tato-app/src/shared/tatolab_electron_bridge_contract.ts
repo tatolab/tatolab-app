@@ -104,6 +104,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "save_project_file",
   "list_project_files",
   "list_studio_views_of_the_open_project",
+  "write_studio_view_output",
   "run_open_project",
   "read_open_project_transactions",
   "undo_in_the_open_project",
@@ -297,6 +298,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   list_project_files: { commandArguments: { project_folder: string }; answer: ProjectFiles };
   /** From a studio window only: the runtime's `list_project_views` of its open project, each view's folder served under the window page's scheme; refused while no project is open, and in the runtime's own words. */
   list_studio_views_of_the_open_project: { commandArguments: undefined; answer: ListedStudioView[] };
+  /** From a studio window or a popped-out view only: `value` published on the output `port` of the view node `node` (its UUID) in `stream`, as the port's family takes it: a Records port a JSON object, an Array port a number, nested lists of numbers or an object of such attributes by name, a Channels port a number or `{ samples, sample_rate }`, an Image or Packets port refused; live data, recorded nowhere; refused in the runtime's own words. */
+  write_studio_view_output: { commandArguments: { stream: string; node: string; port: string; value: JsonValue }; answer: null };
   /** The runtime's `run_project` queued on the open project's folder, which the window never names; refused in the runtime's own words, or while no project is open. */
   run_open_project: { commandArguments: undefined; answer: ProjectRunQueued };
   /** The asking studio window's project's change feed as last read; refused in the Projects window. */

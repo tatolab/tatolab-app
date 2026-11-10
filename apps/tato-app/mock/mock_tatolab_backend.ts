@@ -1421,6 +1421,12 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (openProjectReading.kind !== "read") throw "No project is open in this window.";
       return mockTatolabOptions.isTheFixtureViewListed ? [mockStudioViewListing()] : [];
     },
+    writeStudioViewOutput: async (stream, node, port) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const viewNode = loadedStreamOfTheId(stream).fixture.graph.nodes.find((graphNode) => mockNodeIdOf(stream, graphNode.name) === node);
+      if (viewNode === undefined) throw `write_studio_view_output failed: no node with the id \`${node}\` in stream \`${stream}\``;
+      if (!viewNode.output_ports.some((outputPort) => outputPort.name === port)) throw `write_studio_view_output failed: \`${viewNode.name}\` has no output port named \`${port}\``;
+    },
     openPortViewer: async (target) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       const node = loadedStreamOfTheId(target.stream).fixture.graph.nodes.find((graphNode) => mockNodeIdOf(target.stream, graphNode.name) === target.node_id);
