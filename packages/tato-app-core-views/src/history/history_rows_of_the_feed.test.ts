@@ -9,12 +9,18 @@ const DISPLAY = "7d1f0c2a-3333-4c1d-8e55-000000000003";
 const SAM = { kind: "person", name: "Sam" } as const;
 const CLAUDE = { kind: "agent", name: "claude-code" } as const;
 const THE_RUNTIME = { kind: "runtime", name: "tatolab" };
+const TATO_STUDIO = { kind: "agent", name: "tatolab-app" };
 
 let transactionsMade = 0;
 
-function transaction(author: { kind: string; name: string }, operations: JsonValue[], lineage: { undoes?: string; redoes?: string } = {}): ProjectTransaction {
+function transaction(
+  author: { kind: string; name: string },
+  operations: JsonValue[],
+  lineage: { undoes?: string; redoes?: string; undo_state?: string } = {},
+): ProjectTransaction {
   transactionsMade += 1;
   return {
+    format_version: 2,
     transaction: `t${transactionsMade}`,
     commit: `c${transactionsMade}`,
     parent_commit: null,
@@ -24,7 +30,9 @@ function transaction(author: { kind: string; name: string }, operations: JsonVal
     inverse_operations: [],
     undoes: lineage.undoes ?? null,
     redoes: lineage.redoes ?? null,
-    applied_at: null,
+    idempotency_key: null,
+    undo_state: lineage.undoes === undefined ? (lineage.undo_state ?? "applied") : null,
+    applied_at: `2026-11-10T18:${String(transactionsMade % 60).padStart(2, "0")}:00Z`,
   };
 }
 
@@ -70,35 +78,34 @@ test("each edit is a row, newest first, naming who made it and what it changed, 
   expect(rows[1]?.operation_lines).toEqual(["add_node BrightnessMeter", "connect invertingeffect.video_to_downstream → brightnessmeter.video_from_upstream"]);
 });
 
-test("an undo dims the edit it reverses and is no row of its own; a redo brightens it again", () => {
+/** `transaction` as the runtime serves it once its author's undo and redo stand at `undoState`. */
+function standingAt(edit: ProjectTransaction, undoState: string): ProjectTransaction {
+  return { ...edit, undo_state: undoState };
+}
+
+test("an edit the runtime holds undone and redoable is dimmed, an undo or a redo is no row of its own, and one no longer redoable is gone", () => {
   const { imported, refreshed, renamed, added, fitted } = anEditedProject();
   const fittedUndone = transaction(SAM, [], { undoes: fitted.transaction });
   const renamedUndone = transaction(SAM, [], { undoes: renamed.transaction });
-  const undoneRows = historyRowsOfTheFeed(newestFirst(imported, refreshed, renamed, added, fitted, fittedUndone, renamedUndone), new Map());
-  expect(undoneRows.map((row) => [row.transaction, row.is_undone])).toEqual([
+  const renamedRedone = transaction(SAM, [], { redoes: renamed.transaction });
+  const rows = historyRowsOfTheFeed(
+    newestFirst(standingAt(imported, "undone_not_redoable"), refreshed, renamed, added, standingAt(fitted, "undone_redoable"), fittedUndone, renamedUndone, renamedRedone),
+    new Map(),
+  );
+
+  expect(rows.map((row) => [row.transaction, row.is_undone])).toEqual([
     [fitted.transaction, true],
     [added.transaction, false],
-    [renamed.transaction, true],
+    [renamed.transaction, false],
     [refreshed.transaction, false],
-    [imported.transaction, false],
   ]);
-
-  const renamedRedone = transaction(SAM, [], { redoes: renamed.transaction });
-  const redoneRows = historyRowsOfTheFeed(newestFirst(imported, refreshed, renamed, added, fitted, fittedUndone, renamedUndone, renamedRedone), new Map());
-  expect(redoneRows.filter((row) => row.is_undone).map((row) => row.transaction)).toEqual([fitted.transaction]);
 });
 
-test("an author's undone rows stay until that author edits again, and another author's edit leaves them", () => {
-  const { imported, refreshed, renamed, added, fitted } = anEditedProject();
-  const fittedUndone = transaction(SAM, [], { undoes: fitted.transaction });
-  const claudesNextEdit = transaction(CLAUDE, [{ stream: STREAM, operation: "rename_node", node: METER, from: "brightnessmeter", to: "meter" }]);
-  const samsNextEdit = transaction(SAM, [{ stream: STREAM, operation: "rename_node", node: INVERT, from: "invertingeffect", to: "invert" }]);
+test("Studio's own edits, recorded under its MCP client name, are Tato Studio's, and each row carries when the runtime applied it", () => {
+  const described = transaction(TATO_STUDIO, [{ operation: "set_project_description", from: null, to: "The lobby screens" }]);
+  const rows = historyRowsOfTheFeed([described], new Map());
 
-  const afterClaudeEdits = historyRowsOfTheFeed(newestFirst(imported, refreshed, renamed, added, fitted, fittedUndone, claudesNextEdit), new Map());
-  expect(afterClaudeEdits.find((row) => row.transaction === fitted.transaction)?.is_undone).toBe(true);
-
-  const afterSamEdits = historyRowsOfTheFeed(newestFirst(imported, refreshed, renamed, added, fitted, fittedUndone, claudesNextEdit, samsNextEdit), new Map());
-  expect(afterSamEdits.map((row) => row.transaction)).not.toContain(fitted.transaction);
+  expect(rows.map((row) => [row.who, row.author_kind, row.applied_at])).toEqual([["Tato Studio", "agent", described.applied_at]]);
 });
 
 test("choosing an earlier row undoes every later edit still applied, newest first, each by its own author", () => {
@@ -120,7 +127,7 @@ test("choosing a dimmed row redoes it and every undone row before it, oldest fir
   const { imported, refreshed, renamed, added, fitted } = anEditedProject();
   const fittedUndone = transaction(SAM, [], { undoes: fitted.transaction });
   const addedUndone = transaction(CLAUDE, [], { undoes: added.transaction });
-  const rows = historyRowsOfTheFeed(newestFirst(imported, refreshed, renamed, added, fitted, fittedUndone, addedUndone), new Map());
+  const rows = historyRowsOfTheFeed(newestFirst(imported, refreshed, renamed, standingAt(added, "undone_redoable"), standingAt(fitted, "undone_redoable"), fittedUndone, addedUndone), new Map());
 
   expect(historyStepsToTheRow(rows, fitted.transaction)).toEqual({
     kind: "steps",

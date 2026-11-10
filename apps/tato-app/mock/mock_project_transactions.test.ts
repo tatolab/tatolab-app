@@ -9,6 +9,10 @@ function transactionsOf(reading: ProjectTransactionsReading) {
   return reading.kind === "read" ? reading.project_transactions.transactions : expect.unreachable(reading.because);
 }
 
+function refusedActionsOf(reading: ProjectTransactionsReading) {
+  return reading.kind === "read" ? reading.project_transactions.refused_actions : expect.unreachable(reading.because);
+}
+
 test("undo and redo follow the runtime's per-author rule, each a transaction of its own told to every listener", () => {
   const history = new MockProjectTransactions("p", "/w/pattern", "edited");
   const readingsHeard: ProjectTransactionsReading[] = [];
@@ -24,7 +28,40 @@ test("undo and redo follow the runtime's per-author rule, each a transaction of 
   expect(claudesUndo).toMatchObject({ author_kind: "agent", author_name: "claude-code" });
   expect(() => history.undo(CLAUDE)).toThrow("undo failed: claude-code has no transaction left to undo");
   expect(transactionsOf(readingsHeard.at(-1) ?? history.read())[0]?.transaction).toBe(claudesUndo.transaction);
-  expect(readingsHeard).toHaveLength(4);
+  expect(readingsHeard).toHaveLength(5);
+  expect(refusedActionsOf(history.read())[0]).toMatchObject({ author_name: "claude-code", refusal: { action: "undo", runtime_words: "claude-code has no transaction left to undo" } });
+});
+
+test("each edit carries the undo_state the per-author rule gives it, shared by its redos; an undo carries none", () => {
+  const history = new MockProjectTransactions("p", "/w/pattern", "edited");
+  const undoStates = () => transactionsOf(history.read()).map((transaction) => [transaction.author_name, transaction.undoes === null ? (transaction.redoes === null ? "edit" : "redo") : "undo", transaction.undo_state]);
+  expect(undoStates()).toEqual([
+    ["Sam", "undo", null],
+    ["Sam", "edit", "undone_redoable"],
+    ["claude-code", "edit", "applied"],
+    ["Sam", "edit", "applied"],
+    ["tatolab", "edit", "applied"],
+    ["Sam", "edit", "applied"],
+  ]);
+
+  const samsRedo = history.redo(SAM);
+  expect(samsRedo.undo_state).toBe("applied");
+  history.undo(SAM);
+  history.undo(SAM);
+  expect(undoStates().slice(0, 5)).toEqual([
+    ["Sam", "undo", null],
+    ["Sam", "undo", null],
+    ["Sam", "redo", "undone_redoable"],
+    ["Sam", "undo", null],
+    ["Sam", "edit", "undone_redoable"],
+  ]);
+});
+
+test("the edited project holds a refusal the runtime kept, in its recorded words", () => {
+  expect(refusedActionsOf(new MockProjectTransactions("p", "/w/pattern", "edited").read())).toMatchObject([
+    { author_kind: "agent", author_name: "claude-code", operations: [], refusal: { action: "redo", runtime_words: "claude-code has undone nothing that is left to redo" } },
+  ]);
+  expect(refusedActionsOf(new MockProjectTransactions("p", "/w/pattern", "empty").read())).toEqual([]);
 });
 
 test("an empty history has nothing to undo or redo, in the runtime's words", () => {

@@ -28,6 +28,7 @@ const MAIN_STREAM: ListedStream = {
 
 function transactionWith(fields: Partial<ProjectTransaction>): ProjectTransaction {
   return {
+    format_version: 2,
     transaction: "7d21a9c4-0000-4000-8000-000000000001",
     commit: "3b0fc2d9e1a4b5c6d7e8f90123456789abcdef01",
     parent_commit: "e72d1189e1a4b5c6d7e8f90123456789abcdef01",
@@ -37,6 +38,8 @@ function transactionWith(fields: Partial<ProjectTransaction>): ProjectTransactio
     inverse_operations: [],
     undoes: null,
     redoes: null,
+    idempotency_key: null,
+    undo_state: "applied",
     applied_at: "2026-11-09T18:42:31.204Z",
     ...fields,
   };
@@ -82,9 +85,7 @@ describe("a Transactions row", () => {
     expect(transactionsViewRowOf(transactionWith({ redoes: "x", operations: [{ operation: "set_node_config" }] }), streamWordsOf).operations_words).toBe("redo · set_node_config");
   });
 
-  it("has no time from a runtime that does not say, and shows a time it cannot read as sent", () => {
-    expect(appliedAtWordsOf(null)).toBeNull();
-    expect(transactionsViewRowOf(transactionWith({ applied_at: null, operations: [] }), streamWordsOf).time_cell_words).toBe("—");
+  it("shows a time it cannot read as sent", () => {
     expect(appliedAtWordsOf("not a time")).toBe("not a time");
   });
 
