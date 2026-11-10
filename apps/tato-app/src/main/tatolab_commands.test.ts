@@ -819,7 +819,7 @@ test("undo and redo in the open project ask the runtime by the window's author a
 
   expect(await commandHandlers.read_open_project_transactions(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: { kind: "not_read", because: expect.any(String) } });
   const undone = await commandHandlers.undo_in_the_open_project({ author: sam }, fromTheStudioWindow);
-  expect(undone).toMatchObject({ ok: true, value: { author_kind: "person", author_name: "Sam", undoes: expect.stringMatching(/^7680e08a-/), redoes: null, applied_at: null } });
+  expect(undone).toMatchObject({ ok: true, value: { author_kind: "person", author_name: "Sam", undoes: "a25a70ab-229d-4e68-9e05-27cfb771da50", redoes: null, undo_state: null, applied_at: "2026-11-10T18:17:12Z" } });
   expect(await commandHandlers.redo_in_the_open_project({ author: sam }, fromTheStudioWindow)).toEqual({ ok: false, refusal: "redo failed: Sam has undone nothing that is left to redo" });
   expect(await commandHandlers.undo_in_the_open_project({ author: { kind: "runtime", name: "tatolab" } }, fromTheStudioWindow)).toEqual({
     ok: false,

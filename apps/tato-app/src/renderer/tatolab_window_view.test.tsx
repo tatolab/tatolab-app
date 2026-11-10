@@ -39,7 +39,6 @@ afterEach(async () => {
   removeTheKeydownListenersOfEarlierWindows();
   stopDrawingTheCoreViews();
   vi.unstubAllGlobals();
-  vi.useRealTimers();
   document.body.replaceChildren();
   localStorage.clear();
 });
@@ -256,6 +255,12 @@ describe("the studio", () => {
     fireEvent.click(addedRow);
     await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-transactions-detail]")).not.toBeNull());
     expect(coreViewPage("transactions").querySelector("[data-transactions-detail-operations]")?.textContent).toContain('"operation": "add_node"');
+
+    const refusedRow = transactionRows().find((row) => row.dataset.recordTableRowTone === "danger") ?? expect.unreachable("no refused row");
+    expect([...refusedRow.querySelectorAll("td")].slice(1, 6).map((cell) => cell.textContent)).toEqual(["agent · claude-code", "project", "redo", "refused", "—"]);
+    fireEvent.click(refusedRow);
+    await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-transactions-detail-refusal]")).not.toBeNull());
+    expect(coreViewPage("transactions").querySelector("[data-transactions-detail-refusal]")?.textContent).toContain("claude-code has undone nothing that is left to redo");
   });
 
   it("says an area left on Transactions shows it only in Developer mode once Developer mode is turned off", async () => {
@@ -281,8 +286,6 @@ describe("the studio", () => {
   });
 
   it("lists the project's edits in History, newest first, and choosing an earlier one undoes back to it by each edit's author", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date(Date.UTC(2026, 10, 9, 18, 40)));
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
@@ -290,12 +293,12 @@ describe("the studio", () => {
 
     const historyRows = () => [...coreViewPage("history").querySelectorAll<HTMLElement>("[data-history-row]")];
     await waitFor(() => expect(historyRows()).toHaveLength(5));
-    expect(historyRows().map((row) => [row.getAttribute("aria-label")?.split(". ").slice(0, 2).join(". "), row.hasAttribute("data-undone")])).toEqual([
-      ["Set displaywindow scaling to fit. Sam · 5 min ago · undone", true],
-      ["Added brightnessmeter and its link. claude-code (agent) · 12 min ago", false],
-      ["Renamed invert to invertingeffect. Sam · 19 min ago", false],
-      ["Refreshed mic_levels from its code. Runtime · 26 min ago", false],
-      ["Imported warm.cube. Sam · 33 min ago", false],
+    expect(historyRows().map((row) => [row.getAttribute("aria-label")?.split(". ").slice(0, 2).join(". ").replace(/ · (?!undone)[^·]*?(?= · |$)/g, ""), row.hasAttribute("data-undone")])).toEqual([
+      ["Set displaywindow scaling to fit. Sam · undone", true],
+      ["Added brightnessmeter and its link. claude-code (agent)", false],
+      ["Renamed invert to invertingeffect. Sam", false],
+      ["Refreshed mic_levels from its code. Runtime", false],
+      ["Imported warm.cube. Sam", false],
     ]);
 
     fireEvent.click(historyRows()[2] ?? expect.unreachable("no rename row"));

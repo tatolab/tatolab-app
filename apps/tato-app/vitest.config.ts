@@ -5,6 +5,14 @@ const EXCLUDED_FROM_EVERY_PROJECT = [...configDefaults.exclude, "out/**", "build
 
 export default defineConfig({
   test: {
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["**/*.test.{ts,tsx}", "src/main/test-fixtures/**"],
+      reporter: ["text-summary", "json-summary"],
+      reportsDirectory: "coverage",
+      reportOnFailure: true,
+    },
     projects: [
       {
         test: {

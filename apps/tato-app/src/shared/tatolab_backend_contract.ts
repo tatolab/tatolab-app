@@ -36,6 +36,8 @@ export type {
   ProjectTransactions,
   ProjectTransactionsReading,
   ProjectTransactionAuthor,
+  ProjectActionRefusal,
+  RefusedProjectAction,
   PortViewerTarget,
   PortViewerChannelWaveform,
   PortViewerArrayAttributeReading,

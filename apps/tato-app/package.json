@@ -9,6 +9,7 @@
     "build": "npm run typecheck && npm run build --workspace @tatolab/tato-app-core-views && electron-vite build && node scripts/tatolab_app_build_features.mjs write out/main/tatolab_app_build_features.json",
     "typecheck": "tsc -b",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint . && stylelint \"src/renderer/**/*.css\""
   },
   "dependencies": {
@@ -32,6 +33,7 @@
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.170.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "@vitest/coverage-v8": "5.0.3",
     "@xyflow/react": "^12.12.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.0",

@@ -5,7 +5,7 @@
 # and the runtime helper's Contents/MacOS and Contents/Frameworks, every symlink resolving inside the
 # bundle, the runtime helper Contents/Helpers/Tatolab Runtime.app and its Info.plist, no install.sh,
 # the Info.plist usage strings, the helper's runtime version at or below the app's and the streamlib
-# commit it was built from, the lend's CPython 3.10-3.14 bytecode, the
+# commit it was built from, the lend's CPython 3.10-3.14 bytecode, the first-party module wheels beside it, the
 # runtime's uv beside the helper's tatolabd and no Python of the app's own, the entitlements of the
 # helper's tatolabd, uv and tatolab-cli, the app and Electron's helpers, Electron's
 # fuses, and the build features the app was built with and the tatolab-app commit they name.
@@ -224,6 +224,14 @@ verify_app_bundle() {
   [ -f "$helper_contents/Resources/lend/tatolab/runtime/_processor_interpreter_bootstrap.py" ] \
     && pass "the helper's Resources/lend carries the runtime package" || fail "the helper's Resources/lend has no tatolab/runtime package"
 
+  local core_first_party_module missing_core_first_party_modules=""
+  for core_first_party_module in tatolab_compositor tatolab_ops tatolab_testpattern; do
+    compgen -G "$helper_contents/Resources/imports/$core_first_party_module-*.whl" >/dev/null \
+      || missing_core_first_party_modules="$missing_core_first_party_modules $core_first_party_module"
+  done
+  [ -z "$missing_core_first_party_modules" ] \
+    && pass "the helper's Resources/imports carries a wheel of each core first-party module beside the lend" \
+    || fail "the helper's Resources/imports has no wheel of:$missing_core_first_party_modules, so a project's .venv would lack them"
   [ ! -e "$contents/Resources/python" ] && [ ! -e "$contents/Frameworks/tatolab-python" ] && [ ! -e "$contents/MacOS/uv" ] \
     && pass "the bundle carries no Python or uv of the app's own" || fail "the bundle carries a Python or uv of the app's own (Resources/python, Frameworks/tatolab-python or MacOS/uv)"
   [ "$lend_mach_o_links" -gt 0 ] && pass "the helper's Resources/lend links $lend_mach_o_links Mach-O into its Frameworks/tatolab-runtime" \
