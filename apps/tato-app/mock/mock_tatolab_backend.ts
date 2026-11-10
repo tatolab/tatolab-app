@@ -34,6 +34,8 @@ import { MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProj
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
+import { TATO_STUDIO_MCP_CLIENT_NAME } from "../src/shared/tatolab_backend_contract";
+import { applyMockGraphTransaction } from "./mock_graph_transactions";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
@@ -473,6 +475,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const mockLanguageServersBySession = new Map<string, MockPythonLanguageServer>();
   const mockPortViewers = new MockPortViewers();
   let languageServerSessionCount = 0;
+  const graphTransactionsAnsweredByIdempotencyKey = new Map<string, Awaited<ReturnType<TatolabBackend["transactInTheOpenProject"]>>>();
   const mockProjectTransactions =
     openProjectReading.kind === "read" ? new MockProjectTransactions(openProjectReading.open_project.project.project, openProjectReading.open_project.project.folder, projectHistoryScenario) : null;
   const refuseWithoutAnOpenProject = (): void => {
@@ -1300,6 +1303,28 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (mockProjectTransactions === null) throw "No project is open in this window.";
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
       return mockProjectTransactions.undo(author);
+    },
+    transactInTheOpenProject: async (operations, mode, idempotencyKey) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockProjectTransactions === null || openProjectReading.kind !== "read") throw "No project is open in this window.";
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const answeredBefore = idempotencyKey === null ? undefined : graphTransactionsAnsweredByIdempotencyKey.get(idempotencyKey);
+      if (answeredBefore !== undefined) return structuredClone(answeredBefore);
+      const openProjectFolder = openProjectReading.open_project.project.folder;
+      const targetsByStreamAsset = new Map(
+        [...loadedStreams.values()]
+          .filter((loadedStream) => loadedStream.fixture.listing.location?.project_directory === openProjectFolder)
+          .flatMap((loadedStream) => {
+            const location = loadedStream.fixture.listing.location;
+            return location === null ? [] : [[location.stream_asset, { stream_id: loadedStream.fixture.listing.stream, graph: loadedStream.fixture.graph }] as const];
+          }),
+      );
+      const outcome = applyMockGraphTransaction(targetsByStreamAsset, operations);
+      if (outcome.kind === "refused") return outcome;
+      const recorded = mode === "commit" ? mockProjectTransactions.record({ kind: "agent", name: TATO_STUDIO_MCP_CLIENT_NAME }, outcome.transaction.operations, outcome.inverse_operations) : null;
+      const answer = { kind: "applied" as const, transaction: { mode, transaction: recorded?.transaction ?? null, commit: recorded?.commit ?? null, ...outcome.transaction } };
+      if (idempotencyKey !== null) graphTransactionsAnsweredByIdempotencyKey.set(idempotencyKey, answer);
+      return structuredClone(answer);
     },
     redoInTheOpenProject: async (author) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

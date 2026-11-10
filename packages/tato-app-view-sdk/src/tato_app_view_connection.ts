@@ -3,6 +3,7 @@
 // framework, and parses everything Studio sends against the contract's schemas.
 
 import type {
+  GraphEditMode,
   JsonValue,
   ListedStreamsReading,
   NodeCatalogReading,
@@ -11,12 +12,14 @@ import type {
   ProjectFileReading,
   ProjectFileSaving,
   ProjectFilesListing,
+  ProjectGraphTransactionApplying,
   ProjectLogReading,
   ProjectNodeTypesReading,
   ProjectTransactionApplying,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
   PythonLanguageServerConnectionEvent,
+  StreamGraphAction,
   StreamGraphReading,
   StreamTabAddress,
   StudioSelection,
@@ -47,6 +50,17 @@ export type WhenStudioRefuses = (because: string) => void;
 
 /** What a view sends on an output: a `VideoFrame` or `ImageBitmap` for Image, which Studio then owns, or JSON. */
 export type ViewOutputPayload = JsonValue | ImageBitmap | VideoFrame;
+
+/** How a graph transaction is sent: kept or live, and the key of the person's gesture it belongs to, `null` for none. */
+export interface GraphTransactionSending {
+  mode: GraphEditMode;
+  idempotencyKey: string | null;
+}
+
+/** A new idempotency key for one gesture of the person's: mint one as the gesture starts and send every transaction of it under it, so a retry answers the first. */
+export function newGestureIdempotencyKey(): string {
+  return crypto.randomUUID();
+}
 
 /** Studio done, or refused in its own words. */
 export type ViewAskDone = { kind: "done" } | { kind: "refused"; because: string };
@@ -107,6 +121,8 @@ export interface TatoAppViewConnection {
   undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** Needs `write.project_assets`. Redo what `author`'s latest undo in the project reversed, answering the redo the runtime applied. */
   redoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
+  /** Needs `edit.stream_graph`. Apply `operations` on the graphs of the project's streams as one transaction, whole or not at all, answering what it applied or the runtime's structured refusal. */
+  transactInTheProject(projectFolder: string, operations: readonly StreamGraphAction[], sending: GraphTransactionSending): Promise<ProjectGraphTransactionApplying>;
   /** Send `payload` on the `node` view's output `output`. */
   sendOutput(output: string, payload: ViewOutputPayload): Promise<ViewAskDone>;
   /** Stop every watch and close the port. */
@@ -153,6 +169,12 @@ function doneOf(answer: ViewAskAnswer): ViewAskDone {
 function transactionApplyingOf(answer: ViewAskAnswer): ProjectTransactionApplying {
   if (answer.kind === "project_transaction_applied") return { kind: "applied", transaction: answer.transaction };
   return { kind: "not_applied", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+}
+
+function graphTransactionApplyingOf(answer: ViewAskAnswer): ProjectGraphTransactionApplying {
+  if (answer.kind === "project_graph_transaction_applied") return { kind: "applied", transaction: answer.transaction };
+  if (answer.kind === "project_action_refused") return { kind: "refused", refusal: answer.refusal };
+  return { kind: "not_sent", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
 }
 
 /** The view's connection over `port`, once Studio has said what it granted. */
@@ -259,6 +281,8 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
         }),
       undoInTheProject: (projectFolder, author) => ask({ kind: "undo_in_the_project", project_folder: projectFolder, author }).then(transactionApplyingOf),
       redoInTheProject: (projectFolder, author) => ask({ kind: "redo_in_the_project", project_folder: projectFolder, author }).then(transactionApplyingOf),
+      transactInTheProject: (projectFolder, operations, sending) =>
+        ask({ kind: "transact_in_the_project", project_folder: projectFolder, operations: [...operations], mode: sending.mode, idempotency_key: sending.idempotencyKey }).then(graphTransactionApplyingOf),
       connectToPythonLanguageServer: (projectFolder, onEvent) => {
         const { watchId, stopWatching } = watch(
           { kind: "python_language_server", project_folder: projectFolder },

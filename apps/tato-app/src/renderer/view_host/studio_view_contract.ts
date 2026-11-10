@@ -17,6 +17,9 @@ import type {
   StreamTabAddress,
   StudioSelection,
   ViewOpenedOn,
+  GraphEditMode,
+  ProjectGraphTransactionApplying,
+  StreamGraphAction,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { PortViewerEvent, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
 
@@ -43,6 +46,9 @@ export type {
   StreamTabAddress,
   StudioSelection,
   ViewHeaderRow,
+  GraphEditMode,
+  ProjectGraphTransactionApplying,
+  StreamGraphAction,
   ViewOpenedOn,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 export type {
@@ -109,6 +115,8 @@ export interface StudioViewHostServices {
   undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** The runtime's `redo` by `author` on the open project, answering the redo it applied or its refusal. */
   redoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
+  /** The runtime's `transact` of `operations` on the open project's streams as one transaction, answering what it applied, its structured refusal, or why it was never sent. */
+  transactInTheProject(projectFolder: string, operations: StreamGraphAction[], mode: GraphEditMode, idempotencyKey: string | null): Promise<ProjectGraphTransactionApplying>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
   /** Read `target`'s output port, each frame or message and the viewer's end arriving on `onEvent`. */

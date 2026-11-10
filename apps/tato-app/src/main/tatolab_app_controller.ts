@@ -9,6 +9,9 @@ import type {
   ProjectRunQueued,
   ProjectTransaction,
   ProjectTransactionAuthor,
+  GraphEditMode,
+  ProjectGraphTransactionApplying,
+  StreamGraphAction,
   RuntimeDescription,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
@@ -250,6 +253,15 @@ export class TatolabAppController {
   /** Undo `author`'s latest transaction in the project in `projectDirectory` not undone yet, answering the undo the runtime applied. */
   undoInTheProject(projectDirectory: string, author: ProjectTransactionAuthor): Promise<Result<ProjectTransaction, LocalApiRequestFailure>> {
     return this.localApiClient.undoInTheProject(projectDirectory, author);
+  }
+
+  /** Apply `operations` on the graphs of a project's streams as one transaction through the runtime's `transact`, recorded as Studio's own. */
+  transactInTheProject(
+    operations: readonly StreamGraphAction[],
+    mode: GraphEditMode,
+    idempotencyKey: string | null,
+  ): Promise<Result<ProjectGraphTransactionApplying, LocalApiRequestFailure>> {
+    return this.localApiClient.transactInTheProject(operations, mode, idempotencyKey);
   }
 
   /** Redo what `author`'s latest undo in the project in `projectDirectory` reversed, answering the redo the runtime applied. */

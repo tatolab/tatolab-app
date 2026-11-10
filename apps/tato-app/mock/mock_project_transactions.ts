@@ -182,6 +182,11 @@ export class MockProjectTransactions {
     return reading;
   }
 
+  /** Record a graph transaction `author` applied, with what undoes it. */
+  record(author: ProjectTransactionAuthor, operations: JsonValue[], inverseOperations: JsonValue[]): ProjectTransaction {
+    return this.apply(author, operations, inverseOperations, {});
+  }
+
   private apply(author: ProjectTransactionAuthor, operations: JsonValue[], inverseOperations: JsonValue[], lineage: { undoes?: string; redoes?: string }): ProjectTransaction {
     const applied = mockTransaction(this.transactionsOldestFirst.length + 1, author, operations, inverseOperations, lineage);
     this.transactionsOldestFirst.push(applied);
