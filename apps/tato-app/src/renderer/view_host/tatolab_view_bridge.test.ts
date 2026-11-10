@@ -52,6 +52,7 @@ const FULL_ACCESS_DJ_DECK_MANIFEST: TatolabViewManifest = { ...DJ_DECK_MANIFEST,
 const STREAM_FILE_READ: ProjectFileRead = { file: "/set/stream.py", project_folder: "/set", text: "print()", version: "v1", is_editable: true };
 
 const UNDO_APPLIED: ProjectTransaction = {
+  format_version: 2,
   transaction: "t-undo",
   commit: "c2",
   parent_commit: "c1",
@@ -61,6 +62,8 @@ const UNDO_APPLIED: ProjectTransaction = {
   inverse_operations: [{ operation: "add_node" }],
   undoes: "t-add",
   redoes: null,
+  idempotency_key: null,
+  undo_state: null,
   applied_at: "2026-11-09T18:42:00Z",
 };
 

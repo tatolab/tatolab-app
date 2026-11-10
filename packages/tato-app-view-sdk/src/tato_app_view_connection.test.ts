@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { connectToTatoAppOverPort, type TatoAppViewConnection } from "./tato_app_view_connection.js";
 import { messageFromTheViewSchema, type MessageFromStudio, type MessageFromTheView, type ViewGrant } from "./view_wire_messages.js";
+import type { ProjectTransaction } from "./studio_readings.js";
 
 const GRANT: ViewGrant = { view_type_id: "notes", contract: "1.0", placement: "area", sandboxed: false, inputs: [], outputs: [], capabilities: [] };
 
@@ -91,7 +92,21 @@ describe("connectToTatoAppOverPort", () => {
   });
 
   it("hands the project's change feed to its listener, and answers an undo with the transaction the runtime applied or its refusal", async () => {
-    const undo = { transaction: "t-undo", commit: "c2", parent_commit: "c1", author_kind: "agent", author_name: "claude-code", operations: [{ operation: "remove_node" }], inverse_operations: [{ operation: "add_node" }], undoes: "t-add", redoes: null, applied_at: null };
+    const undo: ProjectTransaction = {
+      format_version: 2,
+      transaction: "t-undo",
+      commit: "c2",
+      parent_commit: "c1",
+      author_kind: "agent",
+      author_name: "claude-code",
+      operations: [{ operation: "remove_node" }],
+      inverse_operations: [{ operation: "add_node" }],
+      undoes: "t-add",
+      redoes: null,
+      idempotency_key: null,
+      undo_state: null,
+      applied_at: "2026-11-10T18:17:14Z",
+    };
     const { connection, messagesFromTheView } = await connectionToAStandInStudio((message) => {
       if (message.kind === "watch" && message.subject.kind === "project_transactions") {
         return [{ kind: "watched", watch_id: message.watch_id, watched: { subject: "project_transactions", reading: { kind: "not_read", because: "No runtime answers." } } }];
