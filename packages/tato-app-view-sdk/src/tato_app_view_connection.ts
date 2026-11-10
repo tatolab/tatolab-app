@@ -81,21 +81,21 @@ export interface TatoAppViewConnection {
   watchOpenProject(listener: (reading: OpenProjectReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   watchListedStreams(listener: (reading: ListedStreamsReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   watchActiveStreamTab(listener: (activeStreamTab: StreamTabAddress | null) => void, whenRefused?: WhenStudioRefuses): StopWatching;
-  /** Needs `read.selection`. */
+  /** What is selected in Studio, at once and on each change. */
   watchSelection(listener: (selection: StudioSelection) => void, whenRefused?: WhenStudioRefuses): StopWatching;
-  /** Needs `read.stream_graph`; the first reading arrives once read. */
+  /** `stream`'s graph; the first reading arrives once read. */
   watchStreamGraph(stream: string, listener: (reading: StreamGraphReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
-  /** Needs `read.stream_graph`. */
+  /** The node types `stream` can add. */
   watchNodeCatalog(stream: string, listener: (reading: NodeCatalogReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
-  /** Needs `read.project_assets`; the first reading arrives once read. */
+  /** The log of the project in `projectFolder`; the first reading arrives once read. */
   watchProjectLog(projectFolder: string, listener: (reading: ProjectLogReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
-  /** Needs `read.project_assets`; the first reading arrives once listed. */
+  /** The node types the project in `projectFolder` offers; the first reading arrives once listed. */
   watchProjectNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
-  /** Needs `read.project_assets`; the first reading arrives once listed, and another whenever the listing changes. */
+  /** The assets of the project in `projectFolder`; the first reading arrives once listed, and another whenever the listing changes. */
   watchProjectAssets(projectFolder: string, listener: (reading: ProjectAssetsReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
-  /** Needs `read.project_assets`; the first reading arrives once read, and another each time the runtime applies a transaction to the project. */
+  /** The history of the project in `projectFolder`; the first reading arrives once read, and another each time the runtime applies a transaction to the project. */
   watchProjectTransactions(projectFolder: string, listener: (reading: ProjectTransactionsReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
-  /** Needs `read.stream_graph`. Each frame or message of `target`'s output port; an Image frame arrives as a `VideoFrame` the view closes once drawn. */
+  /** Each frame or message of `target`'s output port; an Image frame arrives as a `VideoFrame` the view closes once drawn. */
   watchPortViewer(target: PortViewerTarget, onEvent: (event: PortViewerEvent) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** What the output wired into the `node` view's input `input` carries; an Image frame arrives as a `VideoFrame` the view closes once drawn. */
   watchInput(input: string, onEvent: (inputEvent: ViewInputEvent) => void, whenRefused?: WhenStudioRefuses): StopWatching;
@@ -105,29 +105,29 @@ export interface TatoAppViewConnection {
   watchOpenedOn(listener: (openedOn: ViewOpenedOn) => void): StopWatching;
   /** Where the view's own header row lies in its frame, after Studio's view-type menu, at once and on each change. */
   watchHeaderRow(listener: (headerRow: ViewHeaderRow) => void): StopWatching;
-  /** Needs `write.selection`. */
+  /** Select `selection` in Studio. */
   select(selection: StudioSelection): Promise<ViewAskDone>;
-  /** Needs `write.selection`. */
+  /** Open `streamTab` in Studio. */
   openStreamTab(streamTab: StreamTabAddress): Promise<ViewAskDone>;
-  /** Needs `write.selection`. Open a view of `viewTypeId` on `on`, a file or a running node's output port. */
+  /** Open a view of `viewTypeId` on `on`, a file or a running node's output port. */
   openView(viewTypeId: string, on: ViewOpeningTarget): Promise<ViewAskDone>;
   /** Keep `settings` with the view's area; refused when they do not fit what the view declares. */
   rememberSettings(settings: ViewSettings): Promise<ViewAskDone>;
-  /** Needs `read.project_assets`. */
+  /** `file`'s text and the version it is at, or why it was not read. */
   readProjectFile(file: string): Promise<ProjectFileReading>;
-  /** Needs `write.project_assets`. Write `text` to `file` whole when it is still at `basedOnVersion` on disk (`null` for a new file). */
+  /** Write `text` to `file` whole when it is still at `basedOnVersion` on disk (`null` for a new file). */
   saveProjectFile(file: string, text: string, basedOnVersion: string | null): Promise<ProjectFileSaving>;
-  /** Needs `read.project_assets`. */
+  /** The files of the project in `projectFolder`, or why they were not listed. */
   listProjectFiles(projectFolder: string): Promise<ProjectFilesListing>;
-  /** Needs `read.project_assets`. Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
+  /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
-  /** Needs `write.project_assets`. Undo `author`'s latest transaction in the project not undone yet, answering the undo the runtime applied. */
+  /** Undo `author`'s latest transaction in the project not undone yet, answering the undo the runtime applied. */
   undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
-  /** Needs `write.project_assets`. Redo what `author`'s latest undo in the project reversed, answering the redo the runtime applied. */
+  /** Redo what `author`'s latest undo in the project reversed, answering the redo the runtime applied. */
   redoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
-  /** Needs `read.project_assets`. The person editing in Studio: the author their graph edits are recorded under, and so whose edits their own Undo reverts. */
+  /** The person editing in Studio: the author their graph edits are recorded under, and so whose edits their own Undo reverts. */
   readThePersonEditing(): Promise<ThePersonEditingReading>;
-  /** Needs `edit.stream_graph`. Apply `operations` on the graphs of the project's streams as one transaction, whole or not at all, answering what it applied or the runtime's structured refusal. */
+  /** Apply `operations` on the graphs of the project's streams as one transaction, whole or not at all, answering what it applied or the runtime's structured refusal. */
   transactInTheProject(projectFolder: string, operations: readonly StreamGraphAction[], sending: GraphTransactionSending): Promise<ProjectGraphTransactionApplying>;
   /** Send `payload` on the `node` view's output `output`. */
   sendOutput(output: string, payload: ViewOutputPayload): Promise<ViewAskDone>;
