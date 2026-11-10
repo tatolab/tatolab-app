@@ -1478,6 +1478,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       refuseWithoutAnOpenProject();
       return mockProjectFiles.save(file, text, basedOnVersion);
     },
+    createNodeFile: async (file) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      refuseWithoutAnOpenProject();
+      return mockProjectFiles.createNodeFile(file);
+    },
     listProjectFiles: async (projectFolder) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       refuseWithoutAnOpenProject();

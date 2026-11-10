@@ -360,6 +360,12 @@ export interface ProjectFileSaved {
   version: string;
 }
 
+/** What `create_node_file` answers: the new file, absolute, and the node type it declares, `<module>:<class>`, as a graph adds it. */
+export interface NodeFileCreated {
+  file: string;
+  node_type: string;
+}
+
 /** What `tatolab-python-language-server-message` carries: one JSON-RPC message a session's language server sent, or its end, with why. */
 export type PythonLanguageServerEvent =
   | { session: string; kind: "message"; message: JsonValue }

@@ -1,8 +1,13 @@
+import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
+import { IconButton } from "@tatolab/tato-app-view-sdk/design_system/icon_button";
+import { PendingActionWords } from "@tatolab/tato-app-view-sdk/design_system/pending_action_words";
+import { TextField } from "@tatolab/tato-app-view-sdk/design_system/text_field";
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { FilePlus } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { OpenProject, OpenProjectReading, ProjectTransactionsReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
@@ -43,9 +48,96 @@ function useProjectFilesListedForTheTree(connection: TatoAppViewConnection, open
 /** The latest file chosen that no view of the build opens, or `null`. */
 type FileNotOpenedNote = { file_name: string } | null;
 
+/** What the New node file field holds as it opens: the folder the runtime's node files usually sit in. */
+const NEW_NODE_FILE_PATH_TO_START_FROM = "nodes/";
+
+/** The New node file form under the header: a path in the open project, created from the runtime's node template and opened in Code; a refusal in the runtime's words. */
+function NewNodeFileForm({ connection, openProject, onClosed }: { connection: TatoAppViewConnection; openProject: OpenProject; onClosed: () => void }) {
+  const pathFieldId = useId();
+  const formElement = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const pathField = formElement.current?.querySelector("input") ?? null;
+    pathField?.focus();
+    pathField?.setSelectionRange(pathField.value.length, pathField.value.length);
+  }, []);
+  const [pathInTheProject, setPathInTheProject] = useState(NEW_NODE_FILE_PATH_TO_START_FROM);
+  const [creationRefusal, setCreationRefusal] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [askRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
+  const typedPath = pathInTheProject.trim();
+  const nothingNamedYet = typedPath === "" || typedPath.endsWith("/") ? "Name the file, as nodes/invert.py." : null;
+  const createIt = () => {
+    if (nothingNamedYet !== null || isCreating) return;
+    setIsCreating(true);
+    setCreationRefusal(null);
+    void connection.createNodeFile(`${openProject.project.folder}/${typedPath}`).then((nodeFileCreating) => {
+      setIsCreating(false);
+      if (nodeFileCreating.kind === "not_created") {
+        setCreationRefusal(nodeFileCreating.because);
+        return;
+      }
+      showTheRefusalOf("Didn't open the new file:", connection.openView(CODE_VIEW_TYPE_ID, { kind: "file", file: nodeFileCreating.file }));
+      onClosed();
+    });
+  };
+  const answerTheKeyInTheField = (keyboardEvent: KeyboardEvent<HTMLDivElement>) => {
+    if (keyboardEvent.nativeEvent.isComposing) return;
+    if (keyboardEvent.key === "Escape") onClosed();
+    if (keyboardEvent.key !== "Enter") return;
+    keyboardEvent.preventDefault();
+    createIt();
+  };
+  return (
+    <div ref={formElement} className="shrink-0 border-b px-3 py-2" onKeyDown={answerTheKeyInTheField} data-new-node-file-form="">
+      <label htmlFor={pathFieldId} className="block pb-1 text-2xs text-fg-3">
+        New node file, from the runtime's node template
+      </label>
+      <TextField
+        id={pathFieldId}
+        label="New node file"
+        text={pathInTheProject}
+        onTextChanged={(typedPath) => {
+          setPathInTheProject(typedPath);
+          setCreationRefusal(null);
+        }}
+        isMachineWord
+        isRequired
+        isRefused={creationRefusal !== null}
+        placeholder="nodes/invert.py"
+        className="w-full"
+        data-new-node-file-path=""
+      />
+      <div className="flex items-center justify-end gap-2 pt-2">
+        <ActionButton appearance="quiet" size="small" onPressed={onClosed} data-new-node-file-action="cancel">
+          Cancel
+        </ActionButton>
+        {isCreating ? (
+          <PendingActionWords words="Creating…" />
+        ) : (
+          <ActionButton appearance="primary" size="small" disabledReason={nothingNamedYet} onPressed={createIt} data-new-node-file-action="create">
+            Create
+          </ActionButton>
+        )}
+      </div>
+      {creationRefusal !== null && <RefusalLine layout="under_field" lead="Didn't create the file:" words={creationRefusal} data-new-node-file-refusal="" />}
+      <RefusalOfTheLatestAskBar refusal={askRefusal} />
+    </div>
+  );
+}
+
 const WHAT_CODE_OPENS = `Code opens ${extensionsTheCodeViewOpens().join(" ")} files.`;
 
-function FilesOfTheProject({ connection, openProject }: { connection: TatoAppViewConnection; openProject: OpenProject }) {
+function FilesOfTheProject({
+  connection,
+  openProject,
+  isTheNewNodeFileFormOpen,
+  closeTheNewNodeFileForm,
+}: {
+  connection: TatoAppViewConnection;
+  openProject: OpenProject;
+  isTheNewNodeFileFormOpen: boolean;
+  closeTheNewNodeFileForm: () => void;
+}) {
   const listedProjects = useProjectFilesListedForTheTree(connection, openProject);
   const settings = useViewReading(connection.watchSettings);
   const [expansionChoices, toggleTheRow] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
@@ -56,6 +148,7 @@ function FilesOfTheProject({ connection, openProject }: { connection: TatoAppVie
   const meaningOfRow = (rowId: string) => filesTreeRows.find((filesTreeRow) => filesTreeRow.row.row_id === rowId);
   return (
     <>
+      {isTheNewNodeFileFormOpen && <NewNodeFileForm connection={connection} openProject={openProject} onClosed={closeTheNewNodeFileForm} />}
       {fileNotOpened === null ? <RefusalOfTheLatestAskBar refusal={askRefusal} /> : <RefusalLine layout="bar" tone="warning" lead={`Didn't open ${fileNotOpened.file_name}:`} words={WHAT_CODE_OPENS} />}
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto" data-files-tree="">
         <TreeView
@@ -87,20 +180,46 @@ function FilesOfTheProject({ connection, openProject }: { connection: TatoAppVie
   );
 }
 
-function FilesBody({ connection, openProject }: { connection: TatoAppViewConnection; openProject: OpenProjectReading | null }) {
+function FilesBody({
+  connection,
+  openProject,
+  isTheNewNodeFileFormOpen,
+  closeTheNewNodeFileForm,
+}: {
+  connection: TatoAppViewConnection;
+  openProject: OpenProjectReading | null;
+  isTheNewNodeFileFormOpen: boolean;
+  closeTheNewNodeFileForm: () => void;
+}) {
   if (openProject === null) return null;
   if (openProject.kind === "none_open") return <WaitingState title="No project is open" explanation="Open or create one from the File menu." />;
   if (openProject.kind === "unreadable") return <WaitingState isFailure title={`${openProject.folder} can't be read`} explanation={openProject.refusal} />;
-  return <FilesOfTheProject connection={connection} openProject={openProject.open_project} />;
+  return <FilesOfTheProject connection={connection} openProject={openProject.open_project} isTheNewNodeFileFormOpen={isTheNewNodeFileFormOpen} closeTheNewNodeFileForm={closeTheNewNodeFileForm} />;
 }
 
-/** Files: the open project's folder and its imports' as a tree under the project's name, every file listed by the runtime; choosing a file opens it in Code. */
+/** Files: the open project's folder and its imports' as a tree under the project's name, every file listed by the runtime; choosing a file opens it in Code, and New node file makes one from the runtime's node template. */
 export function FilesView({ connection }: { connection: TatoAppViewConnection }) {
   const openProject = useViewReading(connection.watchOpenProject);
+  const [isTheNewNodeFileFormOpen, setIsTheNewNodeFileFormOpen] = useState(false);
   const projectName = openProject?.kind === "read" ? openProject.open_project.project.name : null;
   return (
-    <CoreViewFrame connection={connection} headerCaption={projectName}>
-      <FilesBody connection={connection} openProject={openProject} />
+    <CoreViewFrame
+      connection={connection}
+      headerCaption={projectName}
+      headerTools={
+        <span className="ml-auto flex">
+          <IconButton
+            icon={FilePlus}
+            label="New node file"
+            size="compact"
+            disabledReason={projectName === null ? "Open a project to add a node file to it." : null}
+            onPressed={() => setIsTheNewNodeFileFormOpen(true)}
+            data-files-new-node-file=""
+          />
+        </span>
+      }
+    >
+      <FilesBody connection={connection} openProject={openProject} isTheNewNodeFileFormOpen={isTheNewNodeFileFormOpen} closeTheNewNodeFileForm={() => setIsTheNewNodeFileFormOpen(false)} />
     </CoreViewFrame>
   );
 }

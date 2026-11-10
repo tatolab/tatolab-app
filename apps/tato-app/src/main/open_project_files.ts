@@ -6,12 +6,9 @@
 
 import { createHash } from "node:crypto";
 import path from "node:path";
-import type { OpenProjectReading, ProjectFileRead, ProjectFileSaved, ProjectFiles, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
-import type { ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
+import type { NodeFileCreated, OpenProjectReading, ProjectFileRead, ProjectFileSaved, ProjectFiles, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
+import type { NodeFileCreationRecorded, ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
-
-/** The Python project file at a project's root, which the code pane edits beside its Python files. */
-const PYTHON_PROJECT_FILE_NAME = "pyproject.toml";
 
 /** The folder every import's copy sits in, inside the project that imports it. */
 const IMPORTS_FOLDER_NAME = "imports";
@@ -27,6 +24,8 @@ export interface ProjectFilesOfTheRuntime {
   readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, string>>;
   /** `write_project_file`, one transaction by `author` keyed by `idempotencyKey`. */
   writeProjectFile(projectDirectory: string, filePath: string, text: string, author: ProjectTransactionAuthor, idempotencyKey: string): Promise<Result<ProjectFileWriteRecorded, string>>;
+  /** `create_node_file`, one transaction by `author` keyed by `idempotencyKey`. */
+  createNodeFile(projectDirectory: string, filePath: string, author: ProjectTransactionAuthor, idempotencyKey: string): Promise<Result<NodeFileCreationRecorded, string>>;
 }
 
 /** What the open project's files are read and saved through: the open project, the runtime's file tools, who a save is by, and a fresh idempotency key for each save. */
@@ -66,11 +65,6 @@ function isInsideTheFolder(fileSystemPath: string, folder: string): boolean {
 
 function refusalOfAFileOutsideTheProject(file: string): string {
   return `${file} is not a file of the open project or its imports, so Tatolab does not open it.`;
-}
-
-/** Whether the code pane lists `pathInTheProject`: a Python file anywhere, and the project's own `pyproject.toml`. */
-function isAFileTheCodePaneLists(pathInTheProject: string): boolean {
-  return pathInTheProject.endsWith(".py") || pathInTheProject === PYTHON_PROJECT_FILE_NAME;
 }
 
 /** The files of the open project and its imports, read and saved for the window through the runtime. */
@@ -134,7 +128,22 @@ export class OpenProjectFiles {
     return succeeded({ version: versionSaved });
   }
 
-  /** The Python files and `pyproject.toml` of `projectFolder`, the folder of the open project or of one of its imports, relative to it in name order; an import's files are left out of the open project's. */
+  /** A new node file at `file`, inside the open project's own folder, from the runtime's node template as one transaction on its history; refused for an import's file or in the runtime's words. */
+  async createNodeFile(file: string): Promise<Result<NodeFileCreated, string>> {
+    const fileAddress = this.addressOf(file);
+    if (!fileAddress.ok) return fileAddress;
+    if (!fileAddress.value.is_editable) return failedWith(`${file} belongs to an imported project, which the studio opens read-only.`);
+    const created = await this.sources.projectFilesOfTheRuntime.createNodeFile(
+      fileAddress.value.open_project_folder,
+      fileAddress.value.path_in_the_open_project,
+      this.sources.personSavingTheFiles,
+      this.sources.mintAnIdempotencyKey(),
+    );
+    if (!created.ok) return created;
+    return succeeded({ file: path.resolve(file), node_type: created.value.node_type });
+  }
+
+  /** Every file the runtime lists of `projectFolder`, the folder of the open project or of one of its imports, relative to it in name order; an import's files are left out of the open project's. */
   async listProjectFiles(projectFolder: string): Promise<Result<ProjectFiles, string>> {
     const folders = this.foldersOfTheOpenProject();
     const listedFolder = this.listedFolderOfTheOpenProject(projectFolder, folders);
@@ -145,7 +154,7 @@ export class OpenProjectFiles {
     if (!listed.ok) return listed;
     const files = listed.value
       .map((listedFile) => (under === null ? listedFile.path : listedFile.path.slice(under.length + 1)))
-      .filter((pathInTheProject) => (under !== null || !pathInTheProject.startsWith(`${IMPORTS_FOLDER_NAME}/`)) && isAFileTheCodePaneLists(pathInTheProject))
+      .filter((pathInTheProject) => under !== null || !pathInTheProject.startsWith(`${IMPORTS_FOLDER_NAME}/`))
       .sort((first, second) => first.localeCompare(second))
       .slice(0, PROJECT_LISTING_FILE_LIMIT);
     return succeeded({ project_folder: listedFolder.value, files });

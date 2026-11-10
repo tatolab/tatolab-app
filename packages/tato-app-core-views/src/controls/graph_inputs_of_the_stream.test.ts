@@ -1,14 +1,17 @@
-import type { StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { NODE_STUDIO_FIELDS_NONE_SET, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { expect, test } from "vitest";
 import { graphInputsOfTheStream } from "./graph_inputs_of_the_stream";
 
 function node(id: string, name: string, type: string, config: StreamGraphNode["config"]): StreamGraphNode {
-  return { id, name, type, state: null, failed_because: null, config, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} };
+  return { id, name, type, state: null, failed_because: null, config, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET };
 }
 
 test("each GraphInput the graph renders is a control, by the port and family its config declares, in the graph's order", () => {
   const graph: StreamGraphSummary = {
     stream: "gallery-main-018195",
+    stream_asset: null,
+    groups: [],
+    notes: [],
     nodes: [
       node("a1", "intensity", "tatolab.stream:GraphInput", { port: "intensity", family: "array" }),
       node("b2", "glow", "nodes.glow:Glow", {}),

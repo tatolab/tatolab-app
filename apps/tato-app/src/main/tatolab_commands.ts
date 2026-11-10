@@ -1088,6 +1088,13 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const { file, text, based_on_version } = saveArguments.value;
       return commandAnswerFrom(await answerTheWindow("save_project_file", () => studioWindow.value.openProjectFiles.saveProjectFile(file, text, based_on_version)));
     },
+    create_node_file: async (commandArguments, commandFromWindow) => {
+      const file = oneTextArgumentFrom("create_node_file", commandArguments, "file", "an absolute path for a new .py file in the open project");
+      if (!file.ok) return { ok: false, refusal: file.failure };
+      const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+      if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
+      return commandAnswerFrom(await answerTheWindow("create_node_file", () => studioWindow.value.openProjectFiles.createNodeFile(file.value)));
+    },
     list_project_files: async (commandArguments, commandFromWindow) => {
       const projectFolder = oneTextArgumentFrom("list_project_files", commandArguments, "project_folder", "the folder of the open project or of one of its imports");
       if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };

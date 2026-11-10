@@ -1,7 +1,7 @@
 // The mock's files of the open project as the runtime lists them: the pattern project's graph documents, its two node modules,
 // `pyproject.toml`, `tatolab-project.json` and a view's files, which the code pane reads and saves as it would on disk. A save at a version the mock no longer holds is refused as a change on disk.
 
-import type { ProjectFileRead, ProjectFileSaved, ProjectFiles } from "../src/shared/tatolab_backend_contract";
+import type { NodeFileCreated, ProjectFileRead, ProjectFileSaved, ProjectFiles } from "../src/shared/tatolab_backend_contract";
 import { mockStreamLocationOf } from "./mock_stream_fixtures";
 
 /** A graph document as the runtime writes one: the stream asset's UUID as `asset`, then its nodes and links. */
@@ -140,6 +140,26 @@ const PATTERN_DECK_VIEW_INDEX_HTML = `<!doctype html>
 </html>
 `;
 
+const PYTHON_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** The runtime's node template as `create_node_file` writes it, for a class named `className`. */
+function nodeFileFromTheTemplate(className: string): string {
+  return `from tatolab.stream import Image, Input, Output, RuntimeContextLimitedAccess, node
+
+
+@node.process(description="Hands on each frame it reads, unchanged.")
+class ${className}:
+    video_in = Input(Image, delivery="newest", description="The frames this node reads.")
+    video_out = Output(Image, description="Each frame read from \`video_in\`, unchanged.")
+
+    def process(self, ctx: RuntimeContextLimitedAccess) -> None:
+        frame = ctx.inputs.read(self.video_in)
+        if frame is None:
+            return
+        ctx.outputs.write(self.video_out, frame)
+`;
+}
+
 interface MockProjectFile {
   text: string;
   version: number;
@@ -190,6 +210,24 @@ export class MockProjectFiles {
     const saved = { text, version: this.nextVersion() };
     this.filesByPath.set(file, saved);
     return { version: String(saved.version) };
+  }
+
+  /** A new node file at `file` from the runtime's node template, refused in the runtime's words as `create_node_file` refuses. */
+  createNodeFile(file: string): NodeFileCreated {
+    const projectFolder = this.projectFolderOf(file);
+    if (projectFolder === null) throw `${file} is not a file of the open project or its imports, so Tato Studio does not open it.`;
+    if (projectFolder !== this.openProjectFolder) throw `${file} belongs to an imported project, which the studio opens read-only.`;
+    const pathInTheProject = file.slice(projectFolder.length + 1);
+    if (this.filesByPath.has(file)) throw `create_node_file failed: the project already holds \`${pathInTheProject}\`, and a new file is never written over it`;
+    if (!pathInTheProject.endsWith(".py")) throw `create_node_file failed: \`${pathInTheProject}\` is not a Python file; name it \`<name>.py\``;
+    const moduleParts = pathInTheProject.slice(0, -".py".length).split("/");
+    const notAnIdentifier = moduleParts.find((part) => !PYTHON_IDENTIFIER.test(part));
+    if (notAnIdentifier !== undefined) {
+      throw `create_node_file failed: \`${pathInTheProject}\` is not importable as a Python module: \`${notAnIdentifier}\` is not a Python identifier; use letters, digits and \`_\`, not starting with a digit`;
+    }
+    const className = (moduleParts.at(-1) ?? "").split("_").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join("");
+    this.filesByPath.set(file, { text: nodeFileFromTheTemplate(className), version: this.nextVersion() });
+    return { file, node_type: `${moduleParts.join(".")}:${className}` };
   }
 
   list(projectFolder: string): ProjectFiles {

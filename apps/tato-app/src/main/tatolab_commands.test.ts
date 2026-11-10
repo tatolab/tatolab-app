@@ -143,6 +143,7 @@ async function sharedStateOverFakes(
       listProjectFiles: async () => failedWith("no runtime answers"),
       readProjectFile: async () => failedWith("no runtime answers"),
       writeProjectFile: async () => failedWith("no runtime answers"),
+      createNodeFile: async () => failedWith("no runtime answers"),
     },
     personSavingTheFiles: { kind: "person", name: "sam" },
     mintAnIdempotencyKey: () => "a-save",

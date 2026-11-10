@@ -1,6 +1,7 @@
 // A project's files as the runtime's file tools answer them: `list_project_files` names each by its
 // `/`-separated path in the project and its length, `read_project_file` carries the bytes as
-// standard base64 with padding, and `write_project_file` names the transaction that recorded it.
+// standard base64 with padding, and `write_project_file` and `create_node_file` name the transaction that recorded
+// it, `create_node_file` with the node type, `<module>:<class>`, the new file declares.
 
 import { everyOneRead, jsonObject, parseJsonOnTheWire, requiredArray, requiredText, requiredUnsignedInteger } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
@@ -84,4 +85,29 @@ function writeFromTheParsedToolResult(parsedToolResult: Result<unknown, string>)
   const commit = requiredText(toolResult.value, "commit");
   if (!commit.ok) return commit;
   return succeeded({ path: filePath.value, transaction: transaction.value, commit: commit.value });
+}
+
+/** What `create_node_file` recorded: the file's path, the node type it declares as `add_node` takes it, the transaction's UUID and the commit holding it. */
+export interface NodeFileCreationRecorded {
+  path: string;
+  node_type: string;
+  transaction: string;
+  commit: string;
+}
+
+/** The node file `create_node_file` answered with `toolResultText`, or why it could not be read. */
+export function nodeFileCreationFromTheCreateNodeFileToolResult(toolResultText: string): Result<NodeFileCreationRecorded, string> {
+  const created = nodeFileCreationFromTheParsedToolResult(parseJsonOnTheWire(toolResultText));
+  return created.ok ? created : failedWith(`the runtime's create_node_file result could not be read: ${created.failure}`);
+}
+
+function nodeFileCreationFromTheParsedToolResult(parsedToolResult: Result<unknown, string>): Result<NodeFileCreationRecorded, string> {
+  const written = writeFromTheParsedToolResult(parsedToolResult);
+  if (!written.ok) return written;
+  if (!parsedToolResult.ok) return parsedToolResult;
+  const toolResult = jsonObject(parsedToolResult.value, "the node file created");
+  if (!toolResult.ok) return toolResult;
+  const nodeType = requiredText(toolResult.value, "node_type");
+  if (!nodeType.ok) return nodeType;
+  return succeeded({ ...written.value, node_type: nodeType.value });
 }
