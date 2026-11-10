@@ -43,6 +43,7 @@ import {
   runTatolabAppUpdateWorkInTheBackground,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
+import { studioViewsOfTheOpenProject } from "./open_project_views.js";
 import { openTheRuntimesLogFolder } from "./runtime_log_folder_opening.js";
 import { openStreamProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
 import { NO_PROJECT_OPEN_IN_THE_WINDOW, type StudioWindowOfAProject } from "./tatolab_app_windows.js";
@@ -917,6 +918,18 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
       if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
       return commandAnswerFrom(await answerTheWindow("list_project_files", () => studioWindow.value.openProjectFiles.listProjectFiles(projectFolder.value)));
+    },
+    list_studio_views_of_the_open_project: async (_commandArguments, commandFromWindow) => {
+      const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+      if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
+      return commandAnswerFrom(
+        await answerTheWindow("list_studio_views_of_the_open_project", () =>
+          studioViewsOfTheOpenProject(studioWindow.value.openProject.readOpenProject(), async (projectDirectory) => {
+            const listed = await sharedState.controller.listProjectViews(projectDirectory);
+            return listed.ok ? listed : failedWith(listed.failure.failureDescription);
+          }),
+        ),
+      );
     },
     run_open_project: async (_commandArguments, commandFromWindow) => commandAnswerFrom(await runOpenProject(sharedState, commandFromWindow)),
     stop_open_project: async (_commandArguments, commandFromWindow) => commandAnswerOfNothingFrom(await stopOpenProject(sharedState, commandFromWindow)),

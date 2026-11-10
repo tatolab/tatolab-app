@@ -255,6 +255,12 @@ describe("the studio", () => {
     fireEvent.click(addedRow);
     await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-transactions-detail]")).not.toBeNull());
     expect(coreViewPage("transactions").querySelector("[data-transactions-detail-operations]")?.textContent).toContain('"operation": "add_node"');
+
+    const refusedRow = transactionRows().find((row) => row.dataset.recordTableRowTone === "danger") ?? expect.unreachable("no refused row");
+    expect([...refusedRow.querySelectorAll("td")].slice(1, 6).map((cell) => cell.textContent)).toEqual(["agent · claude-code", "project", "redo", "refused", "—"]);
+    fireEvent.click(refusedRow);
+    await waitFor(() => expect(coreViewPage("transactions").querySelector("[data-transactions-detail-refusal]")).not.toBeNull());
+    expect(coreViewPage("transactions").querySelector("[data-transactions-detail-refusal]")?.textContent).toContain("claude-code has undone nothing that is left to redo");
   });
 
   it("says an area left on Transactions shows it only in Developer mode once Developer mode is turned off", async () => {
@@ -593,7 +599,7 @@ describe("the studio", () => {
     const viewFrame = await waitFor(
       () => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-tatolab-view]') ?? expect.unreachable("no project view frame"),
     );
-    expect(viewFrame.getAttribute("data-tatolab-view")).toBe("tatolab-fixture-views:picture-and-fader");
+    expect(viewFrame.getAttribute("data-tatolab-view")).toBe("pattern:picture_and_fader");
     expect(viewFrame.getAttribute("data-tatolab-view-access")).toBe("full");
     expect(viewFrame.hasAttribute("sandbox")).toBe(false);
     expect(viewFrame.getAttribute("allow")).toBe("camera; microphone");

@@ -1,15 +1,16 @@
 import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk";
 import { describe, expect, it } from "vitest";
-import type { StudioViewTypeSource } from "./studio_view_contract";
+import type { JsonValue, StudioViewTypeSource } from "./studio_view_contract";
+import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
 import { StudioViewTypeRegistry, type RegisteredStudioViewType } from "./studio_view_type_registry";
 import { tatolabFrameViewType } from "./tatolab_frame_view_type";
 
 /** The view type an `area` view's manifest titled `viewTypeId` declares, brought by `broughtBy`. */
 function viewTypeFromItsManifest(viewTypeId: string, broughtBy: StudioViewTypeSource): RegisteredStudioViewType {
-  const manifestJson = { contract: "1.0", title: viewTypeId, entry: "index.html", placement: "area" };
+  const manifestJson: JsonValue = { contract: "1.0", title: viewTypeId, entry: "index.html", placement: "area" };
   const manifestReading = readTatolabViewManifest(manifestJson);
   if (manifestReading.kind === "not_read") throw new Error(manifestReading.because);
-  return tatolabFrameViewType({ view_type_id: viewTypeId, distribution: "tests", entry_name: viewTypeId, manifest_json: manifestJson, folder_url: `https://views.example/${viewTypeId}/` }, manifestReading.manifest, broughtBy);
+  return tatolabFrameViewType({ view_type_id: viewTypeId, project_name: "tests", import_folder: null, opens: true, not_opened_because: null, manifest_json: manifestJson, folder_url: `https://views.example/${viewTypeId}/` }, manifestReading.manifest, broughtBy);
 }
 
 describe("the view-type registry", () => {
@@ -43,32 +44,41 @@ describe("the view-type registry", () => {
     expect(registry.viewTypeHeldForDeveloperMode("outliner")).toBeNull();
   });
 
-  it("lists the views the open project brings from their manifests, and each one that does not open with why", () => {
-    const registry = new StudioViewTypeRegistry([viewTypeFromItsManifest("outliner", { kind: "tato_studio" })], (listed, manifest, projectName) =>
-      tatolabFrameViewType(listed, manifest, { kind: "project", project_name: projectName }),
+  it("lists the views the open project and its imports bring, each under the project bringing it, and each one that does not open with the runtime's reason", () => {
+    const registry = new StudioViewTypeRegistry([viewTypeFromItsManifest("outliner", { kind: "tato_studio" })], (listed, manifest) =>
+      tatolabFrameViewType(listed, manifest, { kind: "project", project_name: listed.project_name }),
     );
-    const folder_url = "https://views.example/";
+    const listedView = (viewTypeId: string, projectName: string, importFolder: string | null, manifestJson: JsonValue): ListedStudioView => ({
+      view_type_id: viewTypeId,
+      project_name: projectName,
+      import_folder: importFolder,
+      opens: true,
+      not_opened_because: null,
+      manifest_json: manifestJson,
+      folder_url: `https://views.example/${viewTypeId}/`,
+    });
     registry.projectStudioViews.publish({
       kind: "listed",
-      project_name: "friday-set",
       studio_views: [
-        { view_type_id: "acme-dj:deck", distribution: "acme-dj", entry_name: "deck", manifest_json: { contract: "1.0", title: "DJ Deck", entry: "index.html", placement: "node" }, folder_url },
-        { view_type_id: "acme-dj:future", distribution: "acme-dj", entry_name: "future", manifest_json: { contract: "1.9", title: "Future", entry: "index.html", placement: "area" }, folder_url },
-        { view_type_id: "outliner", distribution: "acme-dj", entry_name: "outliner", manifest_json: { contract: "1.0", title: "Outliner", entry: "index.html", placement: "area" }, folder_url },
+        listedView("friday-set:deck", "friday-set", null, { contract: "1.0", title: "DJ Deck", entry: "index.html", placement: "node" }),
+        { ...listedView("friday-set:future", "friday-set", null, { contract: "9.0" }), opens: false, not_opened_because: "`contract`: this runtime reads view contract 1.0" },
+        listedView("lobby-wall:meter", "lobby-wall", "lobby-wall", { contract: "1.0", title: "Meter", entry: "index.html", placement: "area" }),
+        listedView("outliner", "friday-set", null, { contract: "1.0", title: "Outliner", entry: "index.html", placement: "area" }),
       ],
     });
 
     expect(registry.projectViewTypes().map((viewType) => [viewType.view_type_id, viewType.title, viewType.brought_by])).toEqual([
-      ["acme-dj:deck", "DJ Deck", { kind: "project", project_name: "friday-set" }],
+      ["friday-set:deck", "DJ Deck", { kind: "project", project_name: "friday-set" }],
+      ["lobby-wall:meter", "Meter", { kind: "project", project_name: "lobby-wall" }],
     ]);
-    expect(registry.viewTypeWithId("acme-dj:deck")?.title).toBe("DJ Deck");
+    expect(registry.viewTypeWithId("friday-set:deck")?.title).toBe("DJ Deck");
     expect(registry.projectViewTypesNotOpened()).toEqual([
-      { view_type_id: "acme-dj:future", because: "`contract`: this Tato Studio serves view contract 1.0." },
+      { view_type_id: "friday-set:future", because: "`contract`: this runtime reads view contract 1.0" },
       { view_type_id: "outliner", because: "The studio already has a view named outliner." },
     ]);
 
     registry.projectStudioViews.publish({ kind: "none_open" });
     expect(registry.projectViewTypes()).toEqual([]);
-    expect(registry.viewTypeWithId("acme-dj:deck")).toBeNull();
+    expect(registry.viewTypeWithId("friday-set:deck")).toBeNull();
   });
 });

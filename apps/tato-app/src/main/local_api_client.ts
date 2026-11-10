@@ -60,6 +60,14 @@ import { projectTheRuntimeNamesFromTheListAssetsToolResult } from "./project_the
 import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
 import { projectActionRefusalFromTheStructuredContent, projectGraphTransactionFromTheTransactToolResult } from "./project_graph_transaction_on_the_wire.js";
 import {
+  projectFileBytesFromTheReadProjectFileToolResult,
+  projectFilesFromTheListProjectFilesToolResult,
+  projectFileWriteFromTheWriteProjectFileToolResult,
+  type ProjectFileTheRuntimeListed,
+  type ProjectFileWriteRecorded,
+} from "./project_files_on_the_wire.js";
+import { projectViewsFromTheListProjectViewsToolResult, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
+import {
   dependencyUpdateFromTheUpdateDependencyToolResult,
   type ListedProjectDependency,
   projectDependencyFromTheAddDependencyToolResult,
@@ -426,6 +434,50 @@ export class LocalApiClient {
     if (!toolResultText.ok) return toolResultText;
     const dependencies = workspaceDependenciesFromTheListDependenciesToolResult(toolResultText.value);
     return dependencies.ok ? dependencies : localApiRequestFailure(dependencies.failure);
+  }
+
+  /** The files of the project in `projectDirectory`, or of its folder `under` alone, from the runtime's `list_project_files`; refused in the runtime's own words. */
+  async listProjectFiles(projectDirectory: string, under: string | null): Promise<Result<ProjectFileTheRuntimeListed[], LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("list_project_files", under === null ? { project_directory: projectDirectory } : { project_directory: projectDirectory, under });
+    if (!toolResultText.ok) return toolResultText;
+    const listed = projectFilesFromTheListProjectFilesToolResult(toolResultText.value);
+    return listed.ok ? listed : localApiRequestFailure(listed.failure);
+  }
+
+  /** The bytes of the file `filePath`, `/`-separated in the project in `projectDirectory`, from the runtime's `read_project_file`; refused in the runtime's own words. */
+  async readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("read_project_file", { project_directory: projectDirectory, path: filePath });
+    if (!toolResultText.ok) return toolResultText;
+    const fileBytes = projectFileBytesFromTheReadProjectFileToolResult(toolResultText.value);
+    return fileBytes.ok ? fileBytes : localApiRequestFailure(fileBytes.failure);
+  }
+
+  /** Write `text` whole to `filePath` in the project in `projectDirectory` as one transaction by `author`, keyed by `idempotencyKey`, through the runtime's `write_project_file`; refused in the runtime's own words. */
+  async writeProjectFile(
+    projectDirectory: string,
+    filePath: string,
+    text: string,
+    author: ProjectTransactionAuthor,
+    idempotencyKey: string,
+  ): Promise<Result<ProjectFileWriteRecorded, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("write_project_file", {
+      project_directory: projectDirectory,
+      path: filePath,
+      content: text,
+      author: { kind: author.kind, name: author.name },
+      idempotency_key: idempotencyKey,
+    });
+    if (!toolResultText.ok) return toolResultText;
+    const written = projectFileWriteFromTheWriteProjectFileToolResult(toolResultText.value);
+    return written.ok ? written : localApiRequestFailure(written.failure);
+  }
+
+  /** Each view the project in `projectDirectory` and its imports bring, from the runtime's `list_project_views`; refused in the runtime's own words. */
+  async listProjectViews(projectDirectory: string): Promise<Result<ProjectViewTheRuntimeListed[], LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("list_project_views", { project_directory: projectDirectory });
+    if (!toolResultText.ok) return toolResultText;
+    const listed = projectViewsFromTheListProjectViewsToolResult(toolResultText.value);
+    return listed.ok ? listed : localApiRequestFailure(listed.failure);
   }
 
   /** Undo `author`'s latest transaction in the project in `projectDirectory` not undone yet, through the runtime's `undo`, answering the undo it applied; refused in the runtime's own words. */

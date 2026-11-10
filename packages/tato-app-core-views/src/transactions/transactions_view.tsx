@@ -1,8 +1,9 @@
-import type { ListedStreamsReading, OpenProjectReading, ProjectTransactionsReading, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import type { ListedStreamsReading, OpenProjectReading, ProjectTransaction, ProjectTransactionsReading, RefusedProjectAction, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import { CodeBlock } from "@tatolab/tato-app-view-sdk/design_system/code_block";
 import { KeyValueRows } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
 import { FieldMenu, MenuGroup, MenuItem, MenuSeparator, MenuSingleChoiceGroup, MoreActionsMenu } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { RecordTable, type RecordTableColumn } from "@tatolab/tato-app-view-sdk/design_system/record_table";
+import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { SidePanel, WorkAreaWithSidePanel } from "@tatolab/tato-app-view-sdk/design_system/side_panel";
 import { writeTextToClipboard } from "@tatolab/tato-app-view-sdk/design_system/support/clipboard";
@@ -11,13 +12,15 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import { useCallback, useMemo, useState } from "react";
 import { CoreViewFrame } from "../shared/core_view_page";
 import {
+  changeFeedEntryAsJson,
   NO_TRANSACTIONS_FILTER,
+  refusedNamesRowsOf,
+  refusedOperationWordsOf,
   streamWordsByOperationStream,
-  transactionAsJson,
   transactionsFilterButtonWordsOf,
   transactionsFilterChoicesOf,
   transactionsFiltersOnCount,
-  transactionsViewRowOf,
+  transactionsViewRowsOf,
   transactionsViewRowsShownBy,
   type TransactionsViewFilter,
   type TransactionsViewRow,
@@ -104,58 +107,84 @@ function TransactionsFilterMenu({
 }
 
 /** The selected transaction: who made it and from where, then what it ran and what undoes it, as the runtime sent them. */
-function TransactionDetail({ row }: { row: TransactionsViewRow }) {
-  const sent = row.transaction_as_sent;
+function AppliedTransactionDetail({ row, transaction }: { row: TransactionsViewRow; transaction: ProjectTransaction }) {
   return (
-    <SidePanel label="Selected transaction" title={row.operations_words} subtitle={row.result} hiding={null} data-transactions-detail={row.transaction}>
+    <SidePanel label="Selected transaction" title={row.operations_words} subtitle={row.result} hiding={null} data-transactions-detail={row.row_id}>
       <div className="flex flex-col gap-3 px-4 py-3">
         <KeyValueRows rows={[["Author", row.author_words]]} />
         <KeyValueRows
           look="fields"
           rows={[
-            ["Transaction", sent.transaction],
-            ["Commit", sent.commit],
-            ["Parent", sent.parent_commit ?? "none, the project's first"],
-            ...(sent.undoes === null ? [] : [["Undoes", sent.undoes] as const]),
-            ...(sent.redoes === null ? [] : [["Redoes", sent.redoes] as const]),
+            ["Transaction", transaction.transaction],
+            ["Commit", transaction.commit],
+            ["Parent", transaction.parent_commit ?? "none, the project's first"],
+            ...(transaction.undoes === null ? [] : [["Undoes", transaction.undoes] as const]),
+            ...(transaction.redoes === null ? [] : [["Redoes", transaction.redoes] as const]),
           ]}
           data-transactions-detail-ids=""
         />
-        <CodeBlock fileName="operations" code={JSON.stringify(sent.operations, null, 2)} data-transactions-detail-operations="" />
-        <CodeBlock fileName="inverse_operations" code={JSON.stringify(sent.inverse_operations, null, 2)} data-transactions-detail-inverse-operations="" />
+        <CodeBlock fileName="operations" code={JSON.stringify(transaction.operations, null, 2)} data-transactions-detail-operations="" />
+        <CodeBlock fileName="inverse_operations" code={JSON.stringify(transaction.inverse_operations, null, 2)} data-transactions-detail-inverse-operations="" />
       </div>
     </SidePanel>
   );
 }
 
+/** The selected refused action: why the runtime refused it, in its own words, who asked and what it asked for. */
+function RefusedActionDetail({ row, refusedAction }: { row: TransactionsViewRow; refusedAction: RefusedProjectAction }) {
+  const refusedOperationWords = refusedOperationWordsOf(refusedAction);
+  const refusedNamesRows = refusedNamesRowsOf(refusedAction);
+  return (
+    <SidePanel label="Selected refused action" title={row.operations_words} subtitle={row.result} hiding={null} data-transactions-detail={row.row_id}>
+      <div className="flex flex-col gap-3 px-4 py-3">
+        <RuntimeFailureWords words={refusedAction.refusal.runtime_words} data-transactions-detail-refusal="" />
+        <KeyValueRows
+          rows={[
+            ["Author", row.author_words],
+            ["Mode", refusedAction.mode],
+            ["Action", refusedAction.refusal.action],
+            ...(refusedOperationWords === null ? [] : [["Operation", refusedOperationWords] as const]),
+          ]}
+        />
+        {refusedNamesRows.length === 0 ? null : <KeyValueRows look="fields" rows={refusedNamesRows} data-transactions-detail-refused-names="" />}
+        {refusedAction.operations.length === 0 ? null : <CodeBlock fileName="operations" code={JSON.stringify(refusedAction.operations, null, 2)} data-transactions-detail-operations="" />}
+      </div>
+    </SidePanel>
+  );
+}
+
+function TransactionDetail({ row }: { row: TransactionsViewRow }) {
+  return row.sent.kind === "applied" ? <AppliedTransactionDetail row={row} transaction={row.sent.transaction} /> : <RefusedActionDetail row={row} refusedAction={row.sent.refused_action} />;
+}
+
 /** The feed's rows, newest first, filtered, beside the selected one's detail, or why there are none to show. */
 function TransactionsTableAndDetail({ feed, rows, filter }: { feed: ProjectTransactionsReading | null; rows: readonly TransactionsViewRow[]; filter: TransactionsViewFilter }) {
-  const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const shownRows = useMemo(() => transactionsViewRowsShownBy(rows, filter), [rows, filter]);
   if (feed === null) return <WaitingState title="Reading the project's transactions" data-transactions-state="reading" />;
   if (feed.kind === "not_read") return <WaitingState isFailure title="The project's transactions weren't read" explanation={feed.because} data-transactions-state="not_read" />;
   if (rows.length === 0) {
-    return <WaitingState title="No transactions yet" explanation="Each change the runtime records in this project shows here as it applies." data-transactions-state="none_yet" />;
+    return <WaitingState title="No transactions yet" explanation="Each change the runtime applies or refuses in this project shows here." data-transactions-state="none_yet" />;
   }
   if (shownRows.length === 0) {
     return <WaitingState title="No transaction matches" explanation="Clear the filters or the search to see every transaction." data-transactions-state="none_shown" />;
   }
-  const selectedRow = shownRows.find((row) => row.transaction === selectedTransaction) ?? null;
+  const selectedRow = shownRows.find((row) => row.row_id === selectedRowId) ?? null;
   return (
     <WorkAreaWithSidePanel sidePanel={selectedRow === null ? null : <TransactionDetail row={selectedRow} />}>
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto" data-transactions-table="">
         <RecordTable
           label="Transactions"
           columns={TRANSACTIONS_COLUMNS}
-          selectedRowId={selectedRow?.transaction ?? null}
-          onRowSelected={setSelectedTransaction}
+          selectedRowId={selectedRow?.row_id ?? null}
+          onRowSelected={setSelectedRowId}
           rows={shownRows.map((row) => ({
-            row_id: row.transaction,
+            row_id: row.row_id,
             tone: row.result === "refused" ? "danger" : "plain",
-            cells: [row.time_cell_words, row.author_words, row.stream_cell_words, row.operations_words, row.result, row.commit_words],
+            cells: [row.happened_at_words, row.author_words, row.stream_cell_words, row.operations_words, row.result, row.commit_cell_words],
             trailing: (
-              <MoreActionsMenu label={`More for ${row.operations_words}`} data-transactions-row-menu={row.transaction}>
-                <MenuItem onChosen={() => void writeTextToClipboard(transactionAsJson(row.transaction_as_sent))} data-transactions-copy-as-json={row.transaction}>
+              <MoreActionsMenu label={`More for ${row.operations_words}`} data-transactions-row-menu={row.row_id}>
+                <MenuItem onChosen={() => void writeTextToClipboard(changeFeedEntryAsJson(row.sent))} data-transactions-copy-as-json={row.row_id}>
                   Copy as JSON
                 </MenuItem>
               </MoreActionsMenu>
@@ -179,7 +208,7 @@ function TransactionsOfTheProject({ connection, projectFolder }: { connection: T
   const rows = useMemo(() => {
     if (feed?.kind !== "read") return [];
     const streamWordsOf = streamWordsByOperationStream(listedStreams?.kind === "listed" ? listedStreams.streams : []);
-    return feed.project_transactions.transactions.map((transaction) => transactionsViewRowOf(transaction, streamWordsOf));
+    return transactionsViewRowsOf(feed.project_transactions, streamWordsOf);
   }, [feed, listedStreams]);
   return (
     <CoreViewFrame

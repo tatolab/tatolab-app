@@ -1,4 +1,3 @@
-import { STUDIO_VIEW_NODE_TYPE } from "../src/renderer/view_host/studio_view_node_wiring";
 import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
 import type { JsonValue, ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphLink, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
 
@@ -293,9 +292,9 @@ const TEST_PATTERN_LINKS: StreamGraphLink[] = [
 /** The fixture view's node, its picture wired from the effect, as a project's view stands in its stream's graph. */
 const PICTURE_AND_FADER_VIEW_NODE: MockGraphNode = {
   name: "pictureandfader",
-  type: STUDIO_VIEW_NODE_TYPE,
+  type: MOCK_STUDIO_VIEW_TYPE_ID,
   state: "Running",
-  config: { view_type: MOCK_STUDIO_VIEW_TYPE_ID },
+  config: {},
   input_ports: portsStatingNoStreamFacts("image", "picture"),
   output_ports: portsStatingNoStreamFacts("array", "fader"),
 };

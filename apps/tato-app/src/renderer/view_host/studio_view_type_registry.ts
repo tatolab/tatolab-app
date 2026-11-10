@@ -25,7 +25,7 @@ export interface RegisteredStudioViewType {
 /** The views the open project and its imports bring, as the backend lists them, or why it lists none. */
 export type ProjectStudioViewsReading =
   | { kind: "none_open" }
-  | { kind: "listed"; project_name: string; studio_views: ListedStudioView[] }
+  | { kind: "listed"; studio_views: ListedStudioView[] }
   | { kind: "not_listed"; because: string };
 
 /** A view the open project brings that does not open, and why, in words naming its manifest's field. */
@@ -34,8 +34,8 @@ export interface ProjectStudioViewNotOpened {
   because: string;
 }
 
-/** Makes the view type a listed view's manifest declares, brought by the project `projectName`. */
-export type ProjectStudioViewTypeMaker = (listed: ListedStudioView, manifest: TatolabViewManifest, projectName: string) => RegisteredStudioViewType;
+/** Makes the view type a listed view's manifest declares, brought by the project its `project_name` names: the open project or the import whose `views/` holds it. */
+export type ProjectStudioViewTypeMaker = (listed: ListedStudioView, manifest: TatolabViewManifest) => RegisteredStudioViewType;
 
 interface ProjectStudioViewTypesRead {
   readFrom: ProjectStudioViewsReading;
@@ -104,10 +104,14 @@ export class StudioViewTypeRegistry {
     const notOpened: ProjectStudioViewNotOpened[] = [];
     if (reading.kind === "listed" && this.projectStudioViewTypeOf !== null) {
       for (const listed of reading.studio_views) {
+        if (!listed.opens) {
+          notOpened.push({ view_type_id: listed.view_type_id, because: listed.not_opened_because });
+          continue;
+        }
         const manifestReading = readTatolabViewManifest(listed.manifest_json);
         if (manifestReading.kind === "not_read") notOpened.push({ view_type_id: listed.view_type_id, because: manifestReading.because });
         else if (this.viewTypesById.has(listed.view_type_id) || this.viewTypesOfferedInDeveloperModeById.has(listed.view_type_id)) notOpened.push({ view_type_id: listed.view_type_id, because: `The studio already has a view named ${listed.view_type_id}.` });
-        else viewTypes.push(this.projectStudioViewTypeOf(listed, manifestReading.manifest, reading.project_name));
+        else viewTypes.push(this.projectStudioViewTypeOf(listed, manifestReading.manifest));
       }
     }
     this.projectStudioViewTypesRead = { readFrom: reading, viewTypes, notOpened };

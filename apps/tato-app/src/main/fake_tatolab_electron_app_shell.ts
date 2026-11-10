@@ -8,6 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import type { DependencySourceKind, PortViewerImageFrameFacts, StreamProjectFolderChosenFor, SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
 import type { ProjectFolderDialogPurpose } from "./open_project.js";
+import type { AnswerAProjectViewFileRequest } from "./project_view_files.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import type { CarriedRuntime } from "./platform/carried_runtime.js";
@@ -98,6 +99,8 @@ export class FakeTatolabElectronAppShell {
   readonly bytesServedByUrl = new Map<string, Buffer>();
   /** Every URL the app fetched over HTTPS, in order. */
   readonly urlsFetched: string[] = [];
+  /** How the running app answers a request for a project view's file, once it has handed that over. */
+  answerAProjectViewFileRequest: AnswerAProjectViewFileRequest | null = null;
   /** The folder the project dialog answers, or `null` for the person cancelling. */
   projectFolderTheDialogAnswers: string | null = null;
   /** The folder or `.zip` the dependency source dialog answers, or `null` for the person cancelling. */
@@ -178,6 +181,10 @@ export class FakeTatolabElectronAppShell {
     runtimeViewerFrameImportAddonPath: "/fake/out/native/tatolab_runtime_viewer_frame_import.node",
     mainProcessId: 4242,
     homeDirectory: path.join(this.appConfigDirectory, "home"),
+    personSignedInToThisMachine: "sam",
+    answerProjectViewFileRequestsWith: (answerAProjectViewFileRequest) => {
+      this.answerAProjectViewFileRequest = answerAProjectViewFileRequest;
+    },
     documentsDirectory: path.join(this.appConfigDirectory, "home", "Documents"),
     createTheAppUpdateFeed: () => this.appUpdateFeedForThisBuild,
     systemNotifications: this.systemNotifications,

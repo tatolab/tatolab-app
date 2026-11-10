@@ -5,8 +5,8 @@
 // the Projects window hides it; with every window gone the app stays in the tray. On macOS the Dock icon shows while any window is on screen.
 
 import path from "node:path";
-import type { OpenProjectReading, PoppedOutView, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
-import { OpenProjectFiles } from "./open_project_files.js";
+import type { OpenProjectReading, PoppedOutView, ProjectTransactionAuthor, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import { OpenProjectFiles, type ProjectFilesOfTheRuntime } from "./open_project_files.js";
 import { OpenProjectOfAStudioWindow, type FolderEntriesWatch, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import { ProjectTransactionsFeedOfAStudioWindow, type ProjectTransactionsFeedOfAStudioWindowSources } from "./project_transactions_feed.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
@@ -50,6 +50,12 @@ export interface TatolabAppWindowsSources {
   watchFolderEntries: FolderEntriesWatch;
   /** The runtime's list of what a project imports. */
   projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime;
+  /** The runtime's file tools, which every project file a window reads or saves goes through. */
+  projectFilesOfTheRuntime: ProjectFilesOfTheRuntime;
+  /** Who a save in a studio window is by, as the project's history records it. */
+  personSavingTheFiles: ProjectTransactionAuthor;
+  /** A fresh idempotency key, one for each save. */
+  mintAnIdempotencyKey: () => string;
   /** A connection each studio window follows its project's change feed over. */
   openTheProjectTransactionsFeedConnection: ProjectTransactionsFeedOfAStudioWindowSources["openTheFeedConnection"];
   /** Runs `work` once after `delayMs`; the answer cancels it. */
@@ -139,6 +145,15 @@ export class TatolabAppWindows {
     const windows = this.studioWindowAndPoppedOutViewWithContents(windowContentsId);
     if (windows === null) return null;
     return (windows.poppedOutView ?? windows.studioWindow).languageServerOfTheWindow;
+  }
+
+  /** Whether a studio window holds the project in `projectFolder` open, as the runtime named its folder. */
+  aStudioWindowHoldsTheProjectIn(projectFolder: string): boolean {
+    for (const studioWindow of this.studioWindowsByProjectFolder.values()) {
+      const reading = studioWindow.openProject.readOpenProject();
+      if (reading.kind === "read" && reading.open_project.project.folder === projectFolder) return true;
+    }
+    return false;
   }
 
   /** The studio window of the project in `projectFolder`; `null` when none is open. */
@@ -312,7 +327,12 @@ export class TatolabAppWindows {
       this.sources.tatolabAppLog,
     );
     windowOfTheProject = tatolabMainWindow;
-    const openProjectFiles = new OpenProjectFiles(() => openProject.readOpenProject());
+    const openProjectFiles = new OpenProjectFiles({
+      readOpenProject: () => openProject.readOpenProject(),
+      projectFilesOfTheRuntime: this.sources.projectFilesOfTheRuntime,
+      personSavingTheFiles: this.sources.personSavingTheFiles,
+      mintAnIdempotencyKey: this.sources.mintAnIdempotencyKey,
+    });
     const openedProject = openProject.readOpenProject();
     const projectTransactionsFeed = new ProjectTransactionsFeedOfAStudioWindow(openedProject.kind === "read" ? openedProject.open_project.project.folder : projectFolder, {
       openTheFeedConnection: this.sources.openTheProjectTransactionsFeedConnection,
