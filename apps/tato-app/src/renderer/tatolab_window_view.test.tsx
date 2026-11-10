@@ -599,7 +599,7 @@ describe("the studio", () => {
     const viewFrame = await waitFor(
       () => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-tatolab-view]') ?? expect.unreachable("no project view frame"),
     );
-    expect(viewFrame.getAttribute("data-tatolab-view")).toBe("tatolab-fixture-views:picture-and-fader");
+    expect(viewFrame.getAttribute("data-tatolab-view")).toBe("pattern:picture_and_fader");
     expect(viewFrame.getAttribute("data-tatolab-view-access")).toBe("full");
     expect(viewFrame.hasAttribute("sandbox")).toBe(false);
     expect(viewFrame.getAttribute("allow")).toBe("camera; microphone");
