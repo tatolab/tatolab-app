@@ -2,11 +2,11 @@
 // camera and lobby-recorder projects, and one import whose copy the runtime cannot read.
 // `?project=none|unreadable` opens none, or one that cannot be read.
 // The Projects window lists the recent projects: the pattern, camera and lobby-recorder projects and three more,
-// one gone from disk; `?recent=none` lists none, as on first run. Documents/Tato Studio already
+// one gone from disk, four described and four with a last edit; `?recent=none` lists none, as on first run. Documents/Tato Studio already
 // holds an `Untitled project`, so New project suggests `Untitled project 2`, and Browse… answers ~/Shows.
 
-import { untitledProjectNameNumbered } from "../src/shared/new_project_folder_name";
-import type { NewProjectDefaults, OpenProjectReading, ProjectTheRuntimeNames, RecentProject } from "../src/shared/tatolab_backend_contract";
+import { projectNameNumbered, untitledProjectNameNumbered } from "../src/shared/new_project_folder_name";
+import type { NewProjectDefaults, OpenProjectReading, ProjectArchiveChosenToImport, ProjectTheRuntimeNames, RecentProject } from "../src/shared/tatolab_backend_contract";
 import { MOCK_CAMERA_IMPORT_PROJECT, MOCK_LOBBY_RECORDER_IMPORT_PROJECT } from "./mock_project_node_types";
 
 /** What `?project=` names. */
@@ -79,13 +79,20 @@ export function mockRecentProjects(recentInTheQuery: string | null, homeDirector
   if (recentInTheQuery === "none") return [];
   const streamsFolder = `${homeDirectory}/streams`;
   const openedHoursAgo = (hours: number) => wallClockNowMs - hours * MILLISECONDS_IN_AN_HOUR;
+  const recentProject = (folder: string, projectName: string | null, projectDescription: string | null, editedHoursAgo: number | null, openedHours: number): RecentProject => ({
+    folder,
+    project_name: projectName,
+    project_description: projectDescription,
+    last_edited_at_wall_clock_ms: editedHoursAgo === null ? null : openedHoursAgo(editedHoursAgo),
+    last_opened_at_wall_clock_ms: openedHoursAgo(openedHours),
+  });
   return [
-    { folder: `${streamsFolder}/pattern`, project_name: "pattern", last_opened_at_wall_clock_ms: openedHoursAgo(2) },
-    { folder: `${streamsFolder}/night-market-visuals`, project_name: "night-market-visuals", last_opened_at_wall_clock_ms: openedHoursAgo(26) },
-    { folder: `${streamsFolder}/camera`, project_name: "camera", last_opened_at_wall_clock_ms: openedHoursAgo(75) },
-    { folder: `${streamsFolder}/lobby-recorder`, project_name: "lobby-recorder", last_opened_at_wall_clock_ms: openedHoursAgo(170) },
-    { folder: `${streamsFolder}/gallery-wall`, project_name: "gallery-wall", last_opened_at_wall_clock_ms: openedHoursAgo(400) },
-    { folder: `${homeDirectory}/Desktop/old-sketch`, project_name: null, last_opened_at_wall_clock_ms: openedHoursAgo(900) },
+    recentProject(`${streamsFolder}/pattern`, "pattern", "The project tatolab new makes: a test pattern through a halftone effect into a brightness meter.", 0.1, 2),
+    recentProject(`${streamsFolder}/night-market-visuals`, "night-market-visuals", "Projection loops for the night market's north wall.", 20, 26),
+    recentProject(`${streamsFolder}/camera`, "camera", "Camera test bench for the new capture cards.", 75, 75),
+    recentProject(`${streamsFolder}/lobby-recorder`, "lobby-recorder", null, 170, 170),
+    recentProject(`${streamsFolder}/gallery-wall`, "gallery-wall", null, null, 400),
+    recentProject(`${homeDirectory}/Desktop/old-sketch`, null, null, null, 900),
   ];
 }
 
@@ -120,6 +127,20 @@ export function mockNewProjectDefaults(homeDirectory: string, foldersOnDisk: rea
   for (let number = 1; ; number += 1) {
     const name = untitledProjectNameNumbered(number);
     if (!foldersOnDisk.includes(`${location}/${name}`)) return { location, name };
+  }
+}
+
+/** The `.zip` the mock's import dialog answers, in Downloads, and where the Import project sheet starts for it among `foldersOnDisk`. */
+export function mockProjectArchiveTheDialogAnswers(homeDirectory: string, foldersOnDisk: readonly string[]): ProjectArchiveChosenToImport {
+  const location = mockNewProjectsFolder(homeDirectory);
+  return { archive: `${homeDirectory}/Downloads/halftone-webcam-main.zip`, location, name: mockFirstNameNothingHolds(location, "halftone-webcam-main", foldersOnDisk) };
+}
+
+/** The first of `name`, `name 2`, … that no folder in `foldersOnDisk` holds in `location`. */
+export function mockFirstNameNothingHolds(location: string, name: string, foldersOnDisk: readonly string[]): string {
+  for (let number = 1; ; number += 1) {
+    const numberedName = projectNameNumbered(name, number);
+    if (!foldersOnDisk.includes(`${location}/${numberedName}`)) return numberedName;
   }
 }
 

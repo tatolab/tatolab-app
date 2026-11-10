@@ -14,6 +14,7 @@ function commandsCounted(): StudioMenuBarCommands {
   return {
     showProjects: vi.fn(),
     openAProject: vi.fn(),
+    importAProjectArchive: vi.fn(),
     createAProject: vi.fn(),
     openPreferences: vi.fn(),
     openAbout: vi.fn(),

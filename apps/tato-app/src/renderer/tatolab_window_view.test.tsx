@@ -642,7 +642,7 @@ describe("the studio", () => {
     const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
     expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6);
 
-    fireEvent.click(patternCard);
+    fireEvent.click(patternCard.querySelector<HTMLElement>("[data-project-open]") ?? expect.unreachable("no open button"));
 
     expect(await shownLayout()).toBe("build");
     expect(document.querySelector("[data-projects]")).toBeNull();
@@ -702,8 +702,9 @@ describe("the studio", () => {
     expect(screen.getByRole("button", { name: "View: List" })).toBeTruthy();
     expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6);
     const patternRow = document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern row");
-    expect(patternRow.textContent).toContain("~/streams/pattern");
-    expect(patternRow.textContent).toMatch(/ago$|just now$/);
+    expect(patternRow.querySelector("[data-project-open]")?.getAttribute("title")).toBe("~/streams/pattern");
+    expect(patternRow.textContent).toContain("The project tatolab new makes");
+    expect(patternRow.textContent).toMatch(/(ago|just now)$/);
 
     await hideTheWindowsOfEarlierTestsAndLetTheirReadsSettle();
     removeTheKeydownListenersOfEarlierWindows();
@@ -712,24 +713,157 @@ describe("the studio", () => {
     await waitFor(() => expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6));
     expect(document.querySelector("[data-projects]")?.getAttribute("data-projects-layout")).toBe("list");
 
-    fireEvent.click(document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern row"));
+    fireEvent.click(document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"] [data-project-open]`) ?? expect.unreachable("no pattern row"));
 
     expect(await shownLayout()).toBe("build");
     expect(document.querySelector("[data-projects]")).toBeNull();
   });
 
-  it("orders the Projects window by last opened, or by name from its sort menu", async () => {
+  it("orders the Projects window by last edited, or by name from its sort menu", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
     await waitFor(() => expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6));
-    const namesShown = () => [...document.querySelectorAll("[data-projects-project]")].map((project) => project.textContent ?? "");
+    const namesShown = () => [...document.querySelectorAll("[data-projects-project] [data-project-more-actions]")].map((moreActions) => (moreActions.getAttribute("aria-label") ?? "").replace(/^Actions for (.*), [^,]*$/, "$1"));
     const namesByLastOpened = namesShown();
+    expect(namesByLastOpened.slice(0, 3)).toEqual(["pattern", "night-market-visuals", "camera"]);
 
-    pressAsAPointerDoes(screen.getByRole("button", { name: "Sort: Last opened" }));
+    pressAsAPointerDoes(screen.getByRole("button", { name: "Sort: Last edited" }));
     fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-projects-sort-choice="name"]') ?? expect.unreachable("no Name choice")));
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Sort: Name" })).toBeTruthy());
     expect(namesShown()).toEqual([...namesByLastOpened].sort((first, second) => first.localeCompare(second, "en", { sensitivity: "base", numeric: true })));
     expect(namesShown()).not.toEqual(namesByLastOpened);
+  });
+
+  it("shows each project's description, or that it has none, and when it was edited, or opened for a project with no edit", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
+    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
+    expect(patternCard.textContent).toContain("The project tatolab new makes: a test pattern through a halftone effect into a brightness meter.");
+    expect(patternCard.textContent).toMatch(/Edited (\d+ minutes? ago|just now)/);
+    const galleryCard = document.querySelector<HTMLElement>(`[data-projects-project$="/streams/gallery-wall"]`) ?? expect.unreachable("no gallery card");
+    expect(galleryCard.textContent).toContain("No description yet");
+    expect(galleryCard.textContent).toContain("Opened 2 weeks ago");
+  });
+
+  it("renames a project from its ⋯ menu through the runtime, refusing a blank name and keeping the dialog open with the runtime's words", async () => {
+    const renameRecentProject = vi.fn(async (folder: string, name: string) => {
+      if (name === "Refused") throw "rename_project failed: the project file is read-only";
+      renamedNames.set(folder, name);
+    });
+    const renamedNames = new Map<string, string>();
+    const { backend } = await mountedWindowOverTheMock("state=running&project=none", { renameRecentProject });
+    const readRecentProjectsOfTheMock = backend.readRecentProjects.bind(backend);
+    backend.readRecentProjects = async () => (await readRecentProjectsOfTheMock()).map((recent) => ({ ...recent, project_name: renamedNames.get(recent.folder) ?? recent.project_name }));
+    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
+
+    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Rename…/ }));
+    const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-rename-project-name]") ?? expect.unreachable("no Rename dialog"));
+    expect(nameField.value).toBe("pattern");
+    fireEvent.change(nameField, { target: { value: "   " } });
+    fireEvent.keyDown(nameField, { key: "Enter" });
+    expect(renameRecentProject).not.toHaveBeenCalled();
+
+    fireEvent.change(nameField, { target: { value: "Refused" } });
+    fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+    await waitFor(() => expect(textOf("[data-rename-project-refusal]")).toContain("rename_project failed: the project file is read-only"));
+    expect(document.querySelector("[data-rename-project-dialog]")).not.toBeNull();
+
+    fireEvent.change(nameField, { target: { value: "Night Show" } });
+    fireEvent.keyDown(nameField, { key: "Enter" });
+
+    await waitFor(() => expect(document.querySelector("[data-rename-project-dialog]")).toBeNull());
+    expect(renameRecentProject).toHaveBeenLastCalledWith(PATTERN_PROJECT, "Night Show");
+    await waitFor(() => expect(within(patternCard).getByRole("button", { name: /^Actions for Night Show,/ })).toBeTruthy());
+  });
+
+  it("duplicates a project from its ⋯ menu into a card of its own, and says why in a notice when the runtime refuses", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
+    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
+
+    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Duplicate/ }));
+
+    await waitFor(() => expect(document.querySelector(`[data-projects-project="${PATTERN_PROJECT} copy"]`)).not.toBeNull());
+    expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(7);
+    expect(screen.getByRole("button", { name: /^Actions for pattern copy,/ })).toBeTruthy();
+
+    const goneCard = document.querySelector<HTMLElement>(`[data-projects-project$="/Desktop/old-sketch"]`) ?? expect.unreachable("no card of the project gone from disk");
+    pressAsAPointerDoes(within(goneCard).getByRole("button", { name: /^Actions for old-sketch,/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Duplicate/ }));
+
+    await waitFor(() => expect(document.querySelector('[data-recent-project-change-refusal="duplicate"]')).not.toBeNull());
+    expect(textOf('[data-recent-project-change-refusal="duplicate"]')).toContain("The project wasn't duplicated");
+    expect(textOf('[data-recent-project-change-refusal="duplicate"]')).toContain("holds no project: it has no tatolab-project.json");
+  });
+
+  it("deletes a project from its ⋯ menu only once the question is answered, and its card leaves", async () => {
+    const deleteRecentProject = vi.fn<(folder: string) => Promise<void>>();
+    const { backend } = await mountedWindowOverTheMock("state=running&project=none");
+    const deleteRecentProjectOfTheMock = backend.deleteRecentProject.bind(backend);
+    backend.deleteRecentProject = async (folder) => {
+      deleteRecentProject(folder);
+      await deleteRecentProjectOfTheMock(folder);
+    };
+    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
+
+    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Delete…/ }));
+    await waitFor(() => expect(screen.getByText("Delete “pattern”?")).toBeTruthy());
+    expect(screen.getByText("Its streams stop, and Tato Studio moves its folder to the Trash, where you can put it back.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByText("Delete “pattern”?")).toBeNull());
+    expect(deleteRecentProject).not.toHaveBeenCalled();
+
+    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Delete…/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Move to Trash" }));
+    await waitFor(() => expect(within(patternCard).getByText("Moving to Trash…")).toBeTruthy());
+    expect(patternCard.querySelector<HTMLButtonElement>("[data-project-open]")?.disabled).toBe(true);
+    expect(patternCard.querySelector("[data-project-more-actions]")).toBeNull();
+
+    await waitFor(() => expect(document.querySelector(`[data-projects-project="${PATTERN_PROJECT}"]`)).toBeNull());
+    expect(deleteRecentProject).toHaveBeenCalledExactlyOnceWith(PATTERN_PROJECT);
+    expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(5);
+  });
+
+  it("imports a project .zip from New project's menu on a sheet named after the zip, and opens the project made", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
+    pressAsAPointerDoes(await screen.findByRole("button", { name: "More ways to start a project" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Import project \.zip…/ }));
+
+    const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-new-project-name]") ?? expect.unreachable("no Import project sheet"));
+    expect(screen.getByText("Import project")).toBeTruthy();
+    expect(screen.getByText("Tato Studio makes a project of its own from halftone-webcam-main.zip, in a new folder. It keeps the name it was saved with.")).toBeTruthy();
+    expect(screen.getByLabelText("Folder name")).toBe(nameField);
+    expect(nameField.value).toBe("halftone-webcam-main");
+    expect(textOf("[data-new-project-folder]")).toBe("~/Documents/Tato Studio/halftone-webcam-main");
+
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+
+    expect(await shownLayout()).toBe("build");
+    expect(document.querySelector("[data-new-project-sheet]")).toBeNull();
+    expect(document.querySelector("[data-projects]")).toBeNull();
+  });
+
+  it("keeps the Import project sheet open with the runtime's words when it refuses the zip, and a cancelled dialog opens no sheet", async () => {
+    const chosenArchives = [null, { archive: "/Users/jonathanf/Downloads/notes.zip", location: "/Users/jonathanf/Documents/Tato Studio", name: "notes" }];
+    await mountedWindowOverTheMock("state=running&project=none", {
+      chooseProjectArchiveToImport: async () => chosenArchives.shift() ?? null,
+      importProjectArchive: () => Promise.reject("import_project failed: /Users/jonathanf/Downloads/notes.zip holds no tatolab-project.json"),
+    });
+    pressAsAPointerDoes(await screen.findByRole("button", { name: "More ways to start a project" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Import project \.zip…/ }));
+    await act(() => new Promise<void>((settled) => setTimeout(settled, 50)));
+    expect(document.querySelector("[data-new-project-sheet]")).toBeNull();
+
+    pressAsAPointerDoes(await screen.findByRole("button", { name: "More ways to start a project" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Import project \.zip…/ }));
+    await waitFor(() => expect(document.querySelector("[data-new-project-sheet]")).not.toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+
+    await waitFor(() => expect(textOf("[data-new-project-refusal]")).toContain("The project wasn't imported:"));
+    expect(textOf("[data-new-project-refusal]")).toContain("holds no tatolab-project.json");
+    expect(document.querySelector("[data-projects]")).not.toBeNull();
   });
 
   it("opens New project from ⌘N on the Projects window, and leaves an open sheet as it is", async () => {
@@ -752,7 +886,7 @@ describe("the studio", () => {
     await mountedWindowOverTheMock("state=running&project=none&recent=none", { readRecentProjects: () => Promise.resolve([...recentProjectsOnDisk]) });
     await waitFor(() => expect(textOf("[data-projects-empty]")).toContain("No projects yet"));
 
-    recentProjectsOnDisk.push({ folder: PATTERN_PROJECT, project_name: "pattern", last_opened_at_wall_clock_ms: Date.now() });
+    recentProjectsOnDisk.push({ folder: PATTERN_PROJECT, project_name: "pattern", project_description: null, last_edited_at_wall_clock_ms: null, last_opened_at_wall_clock_ms: Date.now() });
     act(() => {
       window.dispatchEvent(new FocusEvent("focus"));
     });
@@ -761,14 +895,14 @@ describe("the studio", () => {
     expect(document.querySelector("[data-projects-empty]")).toBeNull();
   });
 
-  it("opens first run on the empty Projects window, its banner a still picture where WebGL is not offered, and Import project… opens the one chosen", async () => {
+  it("opens first run on the empty Projects window, its banner a still picture where WebGL is not offered, and Import project folder… opens the one chosen", async () => {
     await mountedWindowOverTheMock("state=running&project=none&recent=none");
     await waitFor(() => expect(textOf("[data-projects-empty]")).toContain("No projects yet"));
     expect(document.querySelector('[data-projects-banner="still"] img')).not.toBeNull();
     expect(screen.getByText("v0.45.0")).toBeTruthy();
 
     pressAsAPointerDoes(screen.getByRole("button", { name: "More ways to start a project" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /Import project…/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Import project folder…/ }));
 
     expect(await shownLayout()).toBe("build");
     expect(document.querySelector("[data-projects]")).toBeNull();
@@ -787,7 +921,7 @@ describe("the studio", () => {
       chooseProjectFolder: () => Promise.reject("The project dialog did not open: no window"),
     });
     pressAsAPointerDoes(await screen.findByRole("button", { name: "More ways to start a project" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /Import project…/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Import project folder…/ }));
 
     await waitFor(() => expect(textOf("[data-project-opening-refusal]")).toContain("The project dialog did not open: no window"));
     expect(document.querySelector("[data-projects]")).not.toBeNull();
