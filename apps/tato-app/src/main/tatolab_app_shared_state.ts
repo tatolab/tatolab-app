@@ -2,10 +2,11 @@
 // controller, the status publisher, the updater, and the requests the tray and the window both make.
 
 import type { ProjectViewsListedToTheWindows } from "./project_view_files.js";
-import { describeCaughtFailure } from "./result.js";
+import { describeCaughtFailure, type Result } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabAppUpdater } from "./tatolab_app_updater.js";
+import type { TatolabAppUpdateAnnouncements } from "./tatolab_app_update_announcements.js";
 import type { TatolabAppWindows } from "./tatolab_app_windows.js";
 import type { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import type { StreamProjectFolderOpeners } from "./stream_project_folder_opening.js";
@@ -26,6 +27,10 @@ export interface TatolabAppSharedState {
   controller: TatolabAppController;
   statusPublisher: TatolabStatusPublisher;
   tatolabAppUpdater: TatolabAppUpdater;
+  /** The update dialog the Projects and studio windows show. */
+  tatolabAppUpdateAnnouncements: TatolabAppUpdateAnnouncements;
+  /** Open a web page in the person's browser, as an update's release notes open. */
+  openAWebPageInTheBrowser: (webPageUrl: string) => Promise<Result<void, string>>;
   streamProjectFolderOpeners: StreamProjectFolderOpeners;
   streamProjectAdding: StreamProjectAdding;
   streamFailureNotifications: StreamFailureNotifications;

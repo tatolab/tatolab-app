@@ -36,6 +36,8 @@ import type {
   StreamActionFollowed,
   StreamGraphSummary,
   StreamProjectFolderChosenFor,
+  TatolabAppUpdateAnnouncementKind,
+  TatolabAppUpdateAnnouncementAnswer,
   TatolabStatus,
   ProjectFileRead,
   ProjectFileSaved,
@@ -65,6 +67,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "list_project_assets",
   "check_for_tatolab_app_updates",
   "take_the_newer_tatolab_app_version",
+  "answer_the_app_update_announcement",
   "remove_project",
   "rename_stream",
   "open_stream_project_folder",
@@ -235,6 +238,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   list_project_assets: { commandArguments: { project_directory: string }; answer: ProjectAssetListing };
   check_for_tatolab_app_updates: { commandArguments: undefined; answer: null };
   take_the_newer_tatolab_app_version: { commandArguments: undefined; answer: null };
+  /** The `kind` and `version` of the announcement the dialog answered, as the status carried it; an answer to one no longer waiting does nothing. */
+  answer_the_app_update_announcement: { commandArguments: { kind: TatolabAppUpdateAnnouncementKind; version: string; answer: TatolabAppUpdateAnnouncementAnswer }; answer: null };
   /** Answers once the runtime has queued the removal of every stream it holds from the project; deletes no file. */
   remove_project: { commandArguments: { project_directory: string }; answer: null };
   /** `stream` a stream's id; answers once the runtime has recorded `display_name`, refused in its own words. */

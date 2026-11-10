@@ -14,6 +14,7 @@ function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
     streams_not_listed_because: null,
     command_line_tool_link: { kind: "linked", path: "/Users/ada/.local/bin/tatolab" },
     app_update: { kind: "not_checked" },
+    app_update_announcement: null,
     local_api_socket: "/tmp/streamlib-501/local-api.sock",
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
     developer_mode: false,

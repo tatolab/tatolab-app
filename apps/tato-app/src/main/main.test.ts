@@ -10,7 +10,7 @@ import { TatolabTrayMenu } from "./tatolab_tray_menu.js";
 import { tatolabPlatformItemsFor } from "./platform/tatolab_platform_items.js";
 import { failedWith, succeeded } from "./result.js";
 import { APP_UPDATE_CHECK_INTERVAL_MS, type TatolabAppUpdateFeedInstallingInPlace } from "./tatolab_app_updater.js";
-import { LAST_OPENED_APP_VERSION_FILE_NAME } from "./tatolab_app_update_dialogs.js";
+import { LAST_OPENED_APP_VERSION_FILE_NAME } from "./tatolab_app_update_announcements.js";
 import { tatolabAppCopyOnTheSingleInstanceLock } from "./tatolab_app_copy_handoff.js";
 
 const MACOS_PLATFORM_ITEMS = tatolabPlatformItemsFor("darwin");
@@ -446,26 +446,23 @@ function fakeAppUpdateFeedOffering(newerVersion: string | null) {
   return { feed, takenFrom };
 }
 
+/** The update announcement the windows show now, read through the window's status command. */
+async function theAppUpdateAnnouncementShown(fakeShell: FakeTatolabElectronAppShell) {
+  const statusAnswer = await fakeShell.invokeTheCommand("get_tatolab_status");
+  return statusAnswer.ok ? statusAnswer.value.app_update_announcement : "the status could not be read";
+}
+
 describe("updating the app", () => {
-  test("the app checks at launch and once a day, downloads a newer version, says it is ready in a dialog, and after Cancel the tray restarts into it", async () => {
+  test("the app checks at launch and once a day, downloads a newer version, announces it ready over the window, and after Cancel the tray restarts into it", async () => {
     const fakeShell = fakeShellQuitAfterTheTest();
     const { feed, takenFrom } = fakeAppUpdateFeedOffering("0.47.0");
     fakeShell.appUpdateFeedForThisBuild = { kind: "offered", feed };
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
-    await expect.poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "ask_a_question_over_the_window")).toEqual([
-      {
-        asked: "ask_a_question_over_the_window",
-        question: {
-          message: "Tato Studio 0.47.0 is ready to install.",
-          detail: "Installing it restarts Tato Studio, which stops every stream it runs until you run it again.",
-          buttonLabels: ["Install Update", "Cancel"],
-          defaultButtonIndex: 1,
-          cancelButtonIndex: 1,
-        },
-      },
-    ]);
+    await expect.poll(() => theAppUpdateAnnouncementShown(fakeShell)).toEqual({ kind: "update_ready", version: "0.47.0" });
     expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "notify")).toEqual([]);
     expect(fakeShell.records).toContainEqual({ asked: "repeat_every", intervalMs: APP_UPDATE_CHECK_INTERVAL_MS });
+    expect(await fakeShell.invokeTheCommand("answer_the_app_update_announcement", { kind: "update_ready", version: "0.47.0", answer: "dismiss" })).toEqual({ ok: true, value: null });
+    await expect.poll(() => theAppUpdateAnnouncementShown(fakeShell)).toBeNull();
     await expect
       .poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "show_tray_menu").at(-1))
       .toMatchObject({ trayMenuItems: expect.arrayContaining([{ kind: "item", id: "app_updates", label: "Restart to Update to 0.47.0", enabled: true }]) });
@@ -474,31 +471,37 @@ describe("updating the app", () => {
     await expect.poll(() => takenFrom.installs).toBe(1);
   });
 
-  test("Install Update in the update-ready dialog installs the downloaded version", async () => {
+  test("Install Update in the update-ready dialog installs the downloaded version, and an answer for another version installs nothing", async () => {
     const fakeShell = fakeShellQuitAfterTheTest();
     const { feed, takenFrom } = fakeAppUpdateFeedOffering("0.47.0");
     fakeShell.appUpdateFeedForThisBuild = { kind: "offered", feed };
-    fakeShell.buttonsChosenInTheNextQuestionsOverAWindow.push(0);
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+    await expect.poll(() => theAppUpdateAnnouncementShown(fakeShell)).toEqual({ kind: "update_ready", version: "0.47.0" });
+    expect(await fakeShell.invokeTheCommand("answer_the_app_update_announcement", { kind: "update_ready", version: "0.46.9", answer: "take_its_action" })).toEqual({ ok: true, value: null });
+    expect(takenFrom.installs).toBe(0);
+    expect(await fakeShell.invokeTheCommand("answer_the_app_update_announcement", { kind: "update_ready", version: "0.47.0", answer: "take_its_action" })).toEqual({ ok: true, value: null });
     await expect.poll(() => takenFrom.installs).toBe(1);
   });
 
-  test("the first launch after an update says which version the app is now, over the Projects window, and an app that cannot update itself says nothing", async () => {
+  test("the first launch after an update announces which version the app is now, and Release Notes opens its notes; an app that cannot update itself announces nothing", async () => {
     const appThatCannotUpdateItself = fakeShellQuitAfterTheTest();
     await mkdir(appThatCannotUpdateItself.appConfigDirectory, { recursive: true });
     await writeFile(path.join(appThatCannotUpdateItself.appConfigDirectory, LAST_OPENED_APP_VERSION_FILE_NAME), JSON.stringify({ app_version: "0.0.1" }));
     const tatolabRunningApp = await startTatolabApp(appThatCannotUpdateItself.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, appThatCannotUpdateItself.tatolabAppLog);
     await theFirstPublishedStatus(tatolabRunningApp);
-    expect(appThatCannotUpdateItself.askedFor()).not.toContain("ask_a_question_over_the_window");
+    expect(await theAppUpdateAnnouncementShown(appThatCannotUpdateItself)).toBeNull();
 
     const fakeShell = fakeShellQuitAfterTheTest();
     fakeShell.appUpdateFeedForThisBuild = { kind: "offered", feed: fakeAppUpdateFeedOffering(null).feed };
     await mkdir(fakeShell.appConfigDirectory, { recursive: true });
     await writeFile(path.join(fakeShell.appConfigDirectory, LAST_OPENED_APP_VERSION_FILE_NAME), JSON.stringify({ app_version: "0.0.1" }));
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
-    await expect
-      .poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "ask_a_question_over_the_window"))
-      .toEqual([{ asked: "ask_a_question_over_the_window", question: expect.objectContaining({ message: `Tato Studio is now version ${fakeShell.thisCopyOfTatolab.appVersion}.` }) }]);
+    const appVersion = fakeShell.thisCopyOfTatolab.appVersion;
+    const releaseNotesUrl = `https://github.com/tatolab/tatolab-app/releases/tag/v${appVersion}`;
+    await expect.poll(() => theAppUpdateAnnouncementShown(fakeShell)).toEqual({ kind: "update_landed", version: appVersion, release_notes_url: releaseNotesUrl });
+    expect(await fakeShell.invokeTheCommand("answer_the_app_update_announcement", { kind: "update_landed", version: appVersion, answer: "take_its_action" })).toEqual({ ok: true, value: null });
+    expect(fakeShell.records).toContainEqual({ asked: "open_web_page_in_the_browser", webPageUrl: releaseNotesUrl });
+    await expect.poll(() => theAppUpdateAnnouncementShown(fakeShell)).toBeNull();
   });
 
   test("the window's Restart to Update installs the staged version, and the status follows it to installing", async () => {

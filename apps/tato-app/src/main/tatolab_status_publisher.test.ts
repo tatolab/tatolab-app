@@ -52,6 +52,7 @@ function controllerReadingTheLocalApiAt(localApiSocket: string, carriedRuntimeSt
     appBuild: null,
     readMonotonicClockMs,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readTheAppUpdateAnnouncement: () => null,
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readDeveloperMode: () => false,
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),

@@ -57,6 +57,7 @@ import {
   type StreamActionCancelAnswer,
   type StreamActionFollowed,
   type StreamProjectFolderChosenFor,
+  type TatolabAppUpdateAnnouncement,
   type TatolabAppUpdateState,
   type TatolabPlatform,
   type TatolabStatus,
@@ -108,11 +109,14 @@ const MOCK_STREAM_ACTION_STEP_MILLISECONDS = 700;
 /**
  * What a check for updates finds in the mock, picked with `?update=`: nothing newer (the default), a newer
  * version installed in place not yet downloaded (`available`), one already downloaded and staged (`ready`),
- * one whose download opens (`download`), or a check that fails.
+ * one whose download opens (`download`), a check that fails, or the first launch since an update landed (`landed`).
  */
-export type MockTatolabAppUpdateScenario = "up-to-date" | "available" | "ready" | "download" | "failed";
+export type MockTatolabAppUpdateScenario = "up-to-date" | "available" | "ready" | "download" | "failed" | "landed";
 
-const MOCK_TATOLAB_APP_UPDATE_SCENARIOS: readonly MockTatolabAppUpdateScenario[] = ["up-to-date", "available", "ready", "download", "failed"];
+const MOCK_TATOLAB_APP_UPDATE_SCENARIOS: readonly MockTatolabAppUpdateScenario[] = ["up-to-date", "available", "ready", "download", "failed", "landed"];
+
+/** The version the mock app runs as. */
+const MOCK_APP_VERSION = "0.45.0";
 
 /** The newer version the mock's feed offers. */
 const MOCK_NEWER_TATOLAB_VERSION = "0.46.0";
@@ -376,8 +380,16 @@ function initialMockAppUpdateState(appUpdateScenario: MockTatolabAppUpdateScenar
       return { kind: "available", version: MOCK_NEWER_TATOLAB_VERSION, delivery: "open_the_download" };
     case "up-to-date":
     case "failed":
+    case "landed":
       return { kind: "not_checked" };
   }
+}
+
+/** The update dialog the mock shows as the page opens: the staged version's in `ready`, and the version the app is now in `landed`. */
+function initialMockAppUpdateAnnouncement(appUpdateScenario: MockTatolabAppUpdateScenario, appVersion: string): TatolabAppUpdateAnnouncement | null {
+  if (appUpdateScenario === "ready") return { kind: "update_ready", version: MOCK_NEWER_TATOLAB_VERSION };
+  if (appUpdateScenario === "landed") return { kind: "update_landed", version: appVersion, release_notes_url: `https://github.com/tatolab/tatolab-app/releases/tag/v${appVersion}` };
+  return null;
 }
 
 function initialMockStatus(
@@ -395,7 +407,7 @@ function initialMockStatus(
   }: MockTatolabOptions,
 ): TatolabStatus {
   const runningStatus: TatolabStatus = {
-    app_version: "0.45.0",
+    app_version: MOCK_APP_VERSION,
     app_build: appBuild,
     platform,
     runtime_state: "running",
@@ -410,6 +422,7 @@ function initialMockStatus(
           ? { kind: "taken_by_something_else", path: machine.commandLineToolLinkedAt }
           : { kind: "not_linked", path: machine.commandLineToolLinkedAt },
     app_update: initialMockAppUpdateState(appUpdateScenario),
+    app_update_announcement: initialMockAppUpdateAnnouncement(appUpdateScenario, MOCK_APP_VERSION),
     local_api_socket: machine.localApiSocket,
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: !doesTheDesktopShowNoNotifications },
     developer_mode: isDeveloperModeOn,
@@ -1058,7 +1071,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
 
   const downloadTheNewerVersion = (percent: number): void => {
     if (percent >= 100) {
-      publishStatus({ app_update: { kind: "ready_to_restart", version: MOCK_NEWER_TATOLAB_VERSION } });
+      publishStatus({ app_update: { kind: "ready_to_restart", version: MOCK_NEWER_TATOLAB_VERSION }, app_update_announcement: { kind: "update_ready", version: MOCK_NEWER_TATOLAB_VERSION } });
       return;
     }
     publishStatus({ app_update: { kind: "downloading", version: MOCK_NEWER_TATOLAB_VERSION, percent } });
@@ -1150,6 +1163,14 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         return;
       }
       if (appUpdate.kind === "available" && appUpdate.delivery === "install_and_relaunch") downloadTheNewerVersion(0);
+    },
+    answerTheAppUpdateAnnouncement: async (kind, version, answer) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const answered = mockStatus.app_update_announcement;
+      if (answered === null || answered.kind !== kind || answered.version !== version) return;
+      publishStatus({ app_update_announcement: null });
+      const appUpdate = mockStatus.app_update;
+      if (answer === "take_its_action" && answered.kind === "update_ready" && appUpdate.kind === "ready_to_restart") publishStatus({ app_update: { kind: "installing", version: appUpdate.version } });
     },
     removeProject: async (projectDirectory) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

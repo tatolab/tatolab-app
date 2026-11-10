@@ -63,6 +63,7 @@ async function controllerOverFakes(scriptedLocalApiResponses: readonly Buffer[],
     appBuild: null,
     readMonotonicClockMs: options.readMonotonicClockMs ?? (() => 0),
     readTheAppUpdateState: options.readTheAppUpdateState ?? (() => ({ kind: "not_checked" })),
+    readTheAppUpdateAnnouncement: () => null,
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readDeveloperMode: () => false,
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
@@ -88,7 +89,7 @@ test("a healthy runtime's status names its streams and machine, read as the wind
       '"machine_name":"jonathanf-macbook","streams":[{"stream":"p-main-0a1b2c","display_name":"main","location":{"project_directory":"/p","project":"0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55","stream_asset":"7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68"},' +
       '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"streams_not_listed_because":null,' +
       '"command_line_tool_link":{"kind":"not_linked","path":"/Users/someone/.local/bin/tatolab"},' +
-      '"app_update":{"kind":"not_checked"},' +
+      '"app_update":{"kind":"not_checked"},"app_update_announcement":null,' +
       `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
       '"developer_mode":false,' +

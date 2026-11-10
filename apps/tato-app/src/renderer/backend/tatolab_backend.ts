@@ -36,6 +36,8 @@ import type {
   StreamActionCancelAnswer,
   StreamActionFollowed,
   StreamProjectFolderChosenFor,
+  TatolabAppUpdateAnnouncementAnswer,
+  TatolabAppUpdateAnnouncementKind,
   TatolabStatus,
   ProjectFolderChosenFor,
   ProjectArchiveChosenToImport,
@@ -71,6 +73,8 @@ export interface TatolabBackend {
   checkForTatolabAppUpdates(): Promise<void>;
   /** Restart into a downloaded Tato Studio, download one a check found, or open a `.deb`'s download; how that goes arrives as the status's `app_update`. */
   takeTheNewerTatolabAppVersion(): Promise<void>;
+  /** Answer the update dialog for the announcement of `kind` for `version`: Install Update or Release Notes for `take_its_action`, or closing it; the status's `app_update_announcement` moves on. */
+  answerTheAppUpdateAnnouncement(kind: TatolabAppUpdateAnnouncementKind, version: string, answer: TatolabAppUpdateAnnouncementAnswer): Promise<void>;
   /** Queue the removal of every stream the runtime holds from `projectDirectory`, resolving once it is queued and rejecting with its refusal; the streams stopping, then gone, arrive as the next statuses. */
   removeProject(projectDirectory: string): Promise<void>;
   /** Show the stream `streamId` under `displayName`, resolving once the runtime has recorded it and rejecting with its refusal; the new name arrives as the next status. */

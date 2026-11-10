@@ -14,7 +14,7 @@ import type { TatolabPlatformItems } from "./platform/tatolab_platform_items.js"
 import type { LanguageServerOfAWindow } from "./python_language_servers.js";
 import type { Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-import { TatolabMainWindow, type MainWindowHostFactory, type QuestionOverTheWindow } from "./tatolab_main_window.js";
+import { TatolabMainWindow, type MainWindowHostFactory } from "./tatolab_main_window.js";
 
 /** The button of the question asked before a running project's window closes that stops the project and closes the window. */
 export const STOP_AND_CLOSE_BUTTON_LABEL = "Stop and Close";
@@ -78,7 +78,6 @@ export class TatolabAppWindows {
   private lastStatusSent: TatolabStatus | null = null;
   private readonly studioWindowsAskingToStopTheirProject = new Set<StudioWindowOfAProject>();
   private isTheAppQuitting = false;
-  private lastFocusedWindowContentsId: number | null = null;
 
   constructor(private readonly sources: TatolabAppWindowsSources) {
     this.projectsWindow = new TatolabMainWindow(
@@ -96,20 +95,13 @@ export class TatolabAppWindows {
     this.projectsWindow.show();
   }
 
-  /** Keep `windowContentsId` as the window last in focus, which a question for the window in front is asked over. */
-  noticeTheWindowFocused(windowContentsId: number): void {
-    this.lastFocusedWindowContentsId = windowContentsId;
-  }
-
-  /** Ask `question` over the window last in focus while it is on screen, else over a studio window on screen, else over the Projects window, shown for it; answers the index of the button chosen. */
-  askAQuestionOverTheWindowInFront(question: QuestionOverTheWindow): Promise<Result<number, string>> {
-    const lastFocusedWindow = this.lastFocusedWindowContentsId === null ? null : this.windowWithContents(this.lastFocusedWindowContentsId);
-    if (lastFocusedWindow?.isShowing() === true) return lastFocusedWindow.askAQuestionOverTheWindow(question);
+  /** Show the Projects window unless it or a studio window is on screen, so the update dialog the Projects and studio windows show has a window to show in. */
+  showAWindowForTheUpdateDialog(): void {
+    if (this.projectsWindow.isShowing()) return;
     for (const studioWindow of this.studioWindowsByProjectFolder.values()) {
-      if (studioWindow.tatolabMainWindow.isShowing()) return studioWindow.tatolabMainWindow.askAQuestionOverTheWindow(question);
+      if (studioWindow.tatolabMainWindow.isShowing()) return;
     }
     this.showTheProjectsWindow();
-    return this.projectsWindow.askAQuestionOverTheWindow(question);
   }
 
   /** Open the project in `projectFolder` in its own studio window, reading it first, or bring its window forward when one is open; answers once the window shows it, with which of the two it did. */
