@@ -79,6 +79,7 @@ export function studioViewHostServicesOf(
     undoInTheProject: projectServices.projectTransactionsReadings.undoInTheProject,
     redoInTheProject: projectServices.projectTransactionsReadings.redoInTheProject,
     transactInTheProject: projectServices.projectTransactionsReadings.transactInTheProject,
+    readThePersonEditing: projectServices.projectTransactionsReadings.readThePersonEditing,
     connectToPythonLanguageServer: projectServices.pythonLanguageServerConnections.connectToPythonLanguageServer,
     watchPortViewer: projectServices.portViewerConnections.watchPortViewer,
   };

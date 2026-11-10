@@ -4,7 +4,7 @@ import { localApiRequestFailure } from "./local_api_client.js";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
-import type { SystemMenuBarMenu, TatolabPlatform } from "../shared/tatolab_backend_contract.js";
+import type { ListedStream, SystemMenuBarMenu, TatolabPlatform } from "../shared/tatolab_backend_contract.js";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
 import {
   FakeCarriedRuntimeStarts,
@@ -193,6 +193,7 @@ async function sharedStateOverFakes(
     fetchBytesOverHttps: async () => failedWith("these tests reach no network"),
     moduleDownloadsFolder: path.join(appConfigDirectory, "module-downloads"),
     dependencySourceDialog: async () => succeeded(null),
+    thePersonEditingInStudio: { kind: "person", name: "sam" },
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLink,
     carriedRuntimeStarts,
@@ -820,11 +821,11 @@ test("undo and redo in the open project ask the runtime by the window's author a
   expect(await commandHandlers.undo_in_the_open_project({ author: sam }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 
-/** The window's `ProjectGraphTransactionApplying` reads exactly this JSON. */
-test("a graph transaction in the open project reaches the runtime's transact held to its shape, answering what it applied or the runtime's structured refusal", async () => {
+/** The window's `ProjectGraphTransactionTheRuntimeAnswered` reads exactly this JSON. */
+test("a graph transaction in the open project reaches the runtime's transact held to its shape and to the project's streams, by the person editing, answering what it applied or the runtime's structured refusal", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-transact-tool-result-of-sam-setting-the-test-pattern-to-640-by-360.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-transact-tool-result-of-setting-the-test-pattern-to-640-by-360.json")),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-transact-refusal-for-an-image-output-into-a-channels-input.json")),
     ],
     "linux",
@@ -837,7 +838,41 @@ test("a graph transaction in the open project reaches the runtime's transact hel
   const stream = "ab38b36d-ea2a-4948-bc01-f231ca4fa043";
   const testPattern = "ea646832-0f5f-45f4-bd5c-6b5b50a0b70a";
   const setTheSize = { operation: "set_node_config", stream, node: testPattern, config: { width: 640, height: 360 } };
+  const hallwaysMainListed: ListedStream = {
+    stream: "hallways-main-3990b7",
+    display_name: "main",
+    location: { project_directory: projectFolder, project: "6f1d0b7e-hallways", stream_asset: stream },
+    state: "running",
+    node_count: 3,
+    failed_because: null,
+    capture_devices_whose_access_was_never_asked_for: [],
+    action: null,
+    step: null,
+  };
+  vi.spyOn(sharedState.statusPublisher, "lastPublishedStatusNow").mockReturnValue({
+    app_version: "0.68.55",
+    app_build: null,
+    platform: "linux",
+    runtime_state: "running",
+    runtime_not_running_because: null,
+    machine_name: "hallways-box",
+    streams: [hallwaysMainListed],
+    streams_not_listed_because: null,
+    command_line_tool_link: { kind: "not_linked", path: "/home/sam/.local/bin/tatolab" },
+    app_update: { kind: "not_offered", reason: "a test updates nothing" },
+    local_api_socket: sharedState.localApiSocketPath,
+    stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
+    developer_mode: false,
+    open_at_login: { kind: "off" },
+    command_line_tool_version: { kind: "reading" },
+  });
 
+  expect(await commandHandlers.read_the_person_editing_in_studio(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: { kind: "person", name: "sam" } });
+  const anotherProjectsStream = "0c4e2f9a-7b13-4d58-a6e1-3f9b2c7d8e10";
+  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize, { ...setTheSize, stream: anotherProjectsStream }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: `The stream asset ${anotherProjectsStream} is not one of the streams the runtime lists in ${projectFolder}.`,
+  });
   expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "commit", idempotency_key: "5a8e1c3f-2d47-4b6a-9f01-8c7d6e5b4a32" }, fromTheStudioWindow)).toEqual({
     ok: true,
     value: {

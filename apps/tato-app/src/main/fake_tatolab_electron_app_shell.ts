@@ -183,6 +183,7 @@ export class FakeTatolabElectronAppShell {
     systemNotifications: this.systemNotifications,
     repeatingTimer: (intervalMs) => this.records.push({ asked: "repeat_every", intervalMs }),
     appConfigDirectory: this.appConfigDirectory,
+    thePersonSignedInToThisComputer: { kind: "person", name: "sam" },
     readMonotonicClockMs: () => 0,
     readWallClockMsForDisplay: () => 1_790_000_000_000,
     mainWindowHostFactory: {

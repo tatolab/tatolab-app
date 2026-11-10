@@ -14,6 +14,11 @@ export function mockNodeIdOf(streamId: string, nodeName: string): string {
   return `P${fnv1aHashOf(name).toString(36).padStart(7, "0")}${name.length.toString(36)}mockgraph`.slice(0, 26);
 }
 
+/** The id the graph names `node` of the stream `streamId` by: its own name's, or the one it kept through a rename. */
+export function mockGraphNodeIdOf(streamId: string, node: Pick<MockGraphNode, "name" | "id_kept_through_renames">): string {
+  return node.id_kept_through_renames ?? mockNodeIdOf(streamId, node.name);
+}
+
 /** A part of a stream id as the runtime casts one: lower case, each run of other characters one `-`, none at either end. */
 function castAsAStreamIdPart(name: string): string {
   return name
@@ -84,6 +89,8 @@ export type MockLiveLogWriter = (millisecondsSinceLoad: number) => MockLogRecord
 /** A node of a mock stream's graph, as the runtime's `graph` names it, with the config and ports it renders. */
 export interface MockGraphNode {
   name: string;
+  /** The id it had before a rename, which it keeps as the runtime keeps a node's UUID. */
+  id_kept_through_renames?: string;
   type: string;
   state: string;
   /** Why it failed, in the runtime's words, while `state` reads `Error`. */

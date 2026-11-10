@@ -2,6 +2,7 @@
 // lifecycle in main.ts drives.
 
 import { createRequire } from "node:module";
+import os from "node:os";
 import path from "node:path";
 import { app, autoUpdater as electronNativeAutoUpdater, Menu } from "electron";
 import { startTatolabApp, type TatolabElectronAppShell, type TatolabRunningApp } from "../main.js";
@@ -54,6 +55,15 @@ const tatolabPlatformHostServices: TatolabPlatformHostServices = {
   appLoginItemSettings: ELECTRON_APP_LOGIN_ITEM_SETTINGS,
 };
 const appConfigDirectory = path.join(app.getPath("appData"), TATOLAB_APP_IDENTIFIER);
+
+/** The account name of the person signed in; `os.userInfo()` throws when the account has no passwd entry, as in some containers, and the home folder's name stands in. */
+function accountNameOfThePersonSignedIn(): string {
+  try {
+    return os.userInfo().username;
+  } catch {
+    return path.basename(os.homedir());
+  }
+}
 // Chromium's profile would otherwise land in `<appData>/<productName>`, beside the app's own config
 // directory rather than in it.
 app.setPath("userData", appConfigDirectory);
@@ -148,6 +158,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   },
   startTheCarriedRuntime: startTheCarriedRuntimeAsAChildProcess,
   appConfigDirectory,
+  thePersonSignedInToThisComputer: { kind: "person", name: accountNameOfThePersonSignedIn() },
   readMonotonicClockMs: () => performance.now(),
   // The one wall-clock read in the main process: it stamps when a project was opened, which the Projects window only displays.
   // eslint-disable-next-line no-restricted-properties

@@ -68,7 +68,7 @@ const UNDO_APPLIED: ProjectTransaction = {
 };
 
 const GRAPH_TRANSACTION_APPLIED = {
-  mode: "commit",
+  mode: "commit" as const,
   transaction: "t-add",
   commit: "c3",
   operations: [{ operation: "add_node" }],
@@ -92,7 +92,7 @@ function recordingHostServices() {
   const viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
   const languageServerMessagesSent: JsonValue[] = [];
   const undosAsked: { projectFolder: string; author: ProjectTransactionAuthor }[] = [];
-  const graphTransactionsAsked: { projectFolder: string; operations: unknown[]; mode: string; idempotencyKey: string | null }[] = [];
+  const graphTransactionsAsked: { projectFolder: string; operations: readonly unknown[]; mode: string; idempotencyKey: string | null }[] = [];
   const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
   const hostServices: StudioViewHostServices = {
     watchOpenProject: (listener) => {
@@ -138,6 +138,7 @@ function recordingHostServices() {
       if (operations[0]?.operation === "remove_node") return { kind: "not_sent", because: "No runtime answers." };
       return { kind: "applied", transaction: GRAPH_TRANSACTION_APPLIED };
     },
+    readThePersonEditing: async () => ({ kind: "read", author: { kind: "person", name: "sam" } }),
     connectToPythonLanguageServer: (projectFolder, onEvent) => {
       const opened = { projectFolder, onEvent, closed: false };
       languageServers.push(opened);
@@ -216,6 +217,16 @@ describe("a view's connection to Studio, through the one bridge every view is se
       because: "DJ Deck runs sandboxed and does not list edit.stream_graph in its tatolab_view.json, so Studio does not serve it.",
     });
     expect(sandboxed.graphTransactionsAsked).toEqual([]);
+  });
+
+  it("names the person editing, whose own edits Undo reverts, to a view granted read.project_assets, and refuses it by name to a sandboxed one without it", async () => {
+    const { connection } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+    expect(await connection.readThePersonEditing()).toEqual({ kind: "read", author: { kind: "person", name: "sam" } });
+    const sandboxed = await connectedView(DJ_DECK_MANIFEST, {});
+    expect(await sandboxed.connection.readThePersonEditing()).toEqual({
+      kind: "not_read",
+      because: "DJ Deck runs sandboxed and does not list read.project_assets in its tatolab_view.json, so Studio does not serve it.",
+    });
   });
 
 

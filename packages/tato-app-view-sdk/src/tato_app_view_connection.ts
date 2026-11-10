@@ -23,6 +23,7 @@ import type {
   StreamGraphReading,
   StreamTabAddress,
   StudioSelection,
+  ThePersonEditingReading,
   ViewHeaderRow,
   ViewOpenedOn,
 } from "./studio_readings.js";
@@ -57,7 +58,7 @@ export interface GraphTransactionSending {
   idempotencyKey: string | null;
 }
 
-/** A new idempotency key for one gesture of the person's: mint one as the gesture starts and send every transaction of it under it, so a retry answers the first. */
+/** A new idempotency key for one gesture of the person's: its live edits may share it, its one committed transaction is sent under it, and a retry of that commit answers the first. */
 export function newGestureIdempotencyKey(): string {
   return crypto.randomUUID();
 }
@@ -121,6 +122,8 @@ export interface TatoAppViewConnection {
   undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** Needs `write.project_assets`. Redo what `author`'s latest undo in the project reversed, answering the redo the runtime applied. */
   redoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
+  /** Needs `read.project_assets`. The person editing in Studio: the author their graph edits are recorded under, and so whose edits their own Undo reverts. */
+  readThePersonEditing(): Promise<ThePersonEditingReading>;
   /** Needs `edit.stream_graph`. Apply `operations` on the graphs of the project's streams as one transaction, whole or not at all, answering what it applied or the runtime's structured refusal. */
   transactInTheProject(projectFolder: string, operations: readonly StreamGraphAction[], sending: GraphTransactionSending): Promise<ProjectGraphTransactionApplying>;
   /** Send `payload` on the `node` view's output `output`. */
@@ -283,6 +286,11 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       redoInTheProject: (projectFolder, author) => ask({ kind: "redo_in_the_project", project_folder: projectFolder, author }).then(transactionApplyingOf),
       transactInTheProject: (projectFolder, operations, sending) =>
         ask({ kind: "transact_in_the_project", project_folder: projectFolder, operations: [...operations], mode: sending.mode, idempotency_key: sending.idempotencyKey }).then(graphTransactionApplyingOf),
+      readThePersonEditing: () =>
+        ask({ kind: "read_the_person_editing" }).then((answer): ThePersonEditingReading => {
+          if (answer.kind === "the_person_editing") return { kind: "read", author: answer.author };
+          return { kind: "not_read", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
       connectToPythonLanguageServer: (projectFolder, onEvent) => {
         const { watchId, stopWatching } = watch(
           { kind: "python_language_server", project_folder: projectFolder },

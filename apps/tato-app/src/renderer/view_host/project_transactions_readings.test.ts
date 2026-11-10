@@ -37,6 +37,7 @@ function readingsOverAFakeBackend(openProjectFolder: string | null) {
         if (operations[0]?.operation === "remove_node") return Promise.reject(new Error("No runtime answers."));
         return { kind: "refused", refusal: { action: "transact", refused_operation_index: 0, refused_node: "n", refused_link: null, refused_field: null, runtime_words: "no node n" } };
       },
+      readThePersonEditingInStudio: async () => (openProjectFolder === null ? Promise.reject(new Error("No project is open in this window.")) : { kind: "person", name: "sam" }),
     },
     () => openProjectFolder,
   );
@@ -68,4 +69,9 @@ test("a graph transaction reaches the backend only for the window's open project
     { operations: [rename], mode: "commit", idempotencyKey: "k1" },
     { operations: [{ operation: "remove_node", stream: "s", node: "n" }], mode: "live", idempotencyKey: null },
   ]);
+});
+
+test("the person editing is read from the main process, or why it was not", async () => {
+  expect(await readingsOverAFakeBackend(OPEN_PROJECT_FOLDER).readings.readThePersonEditing()).toEqual({ kind: "read", author: { kind: "person", name: "sam" } });
+  expect(await readingsOverAFakeBackend(null).readings.readThePersonEditing()).toEqual({ kind: "not_read", because: "No project is open in this window." });
 });

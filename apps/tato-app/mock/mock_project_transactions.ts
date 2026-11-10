@@ -66,7 +66,9 @@ function mockRefusedUndoOrRedo(author: ProjectTransactionAuthor, undoOrRedo: "un
   };
 }
 
-const YOU = { kind: "person", name: "Sam" };
+/** The person editing in the mock Studio, whose edits the mock history records under them. */
+export const MOCK_PERSON_EDITING_IN_STUDIO = { kind: "person", name: "Sam" } as const;
+const YOU = MOCK_PERSON_EDITING_IN_STUDIO;
 const REFUSED_ACTIONS_THE_RUNTIME_KEEPS = 100;
 const CLAUDE = { kind: "agent", name: "claude-code" } as const;
 const THE_RUNTIME = { kind: "runtime", name: "tatolab" };

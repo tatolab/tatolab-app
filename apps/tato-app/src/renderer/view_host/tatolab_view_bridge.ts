@@ -323,6 +323,10 @@ export class TatolabViewBridge {
         if (applying.kind === "refused") return { kind: "project_action_refused", refusal: applying.refusal };
         return { kind: "refused", because: applying.because };
       }
+      case "read_the_person_editing": {
+        const reading = await this.hostServices.readThePersonEditing();
+        return reading.kind === "read" ? { kind: "the_person_editing", author: reading.author } : { kind: "refused", because: reading.because };
+      }
       case "send_output":
         if (!this.manifest.outputs.some((declaredOutput) => declaredOutput.name === ask.output)) {
           return { kind: "refused", because: `${this.manifest.title} declares no output named ${ask.output}.` };

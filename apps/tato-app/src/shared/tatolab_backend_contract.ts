@@ -36,18 +36,16 @@ export type {
   ProjectTransactions,
   ProjectTransactionsReading,
   ProjectTransactionAuthor,
-<<<<<<< HEAD
   ProjectActionRefusal,
   RefusedProjectAction,
-=======
   StreamGraphActionLinkEnd,
   StreamGraphAction,
   GraphEditMode,
   GraphLinkEnd,
   ProjectGraphTransaction,
-  ProjectActionRefusal,
   ProjectGraphTransactionApplying,
->>>>>>> a128567 (feat(view-sdk): views edit the project's graphs through the runtime's transact)
+  ProjectGraphTransactionTheRuntimeAnswered,
+  ThePersonEditingReading,
   PortViewerTarget,
   PortViewerChannelWaveform,
   PortViewerArrayAttributeReading,

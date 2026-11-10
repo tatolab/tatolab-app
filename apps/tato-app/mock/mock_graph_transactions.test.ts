@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { applyMockGraphTransaction, type MockStreamGraphTarget } from "./mock_graph_transactions";
+import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import { mockNodeIdOf, type MockStreamGraph } from "./mock_stream_fixtures";
 
 const STREAM_ASSET = "a-stream-asset";
@@ -37,6 +37,13 @@ test("a node added under `as` is wired by that label in the same transaction, an
   if (added.kind !== "applied") return expect.unreachable(added.refusal.runtime_words);
   expect(added.transaction.added_nodes).toEqual([{ stream: STREAM_ID, node: mockNodeIdOf(STREAM_ID, "displaywindow"), name: "displaywindow", as: "window" }]);
   expect(graph.links).toMatchObject([{ source_node: "testpatternsource", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired" }]);
+  const window = mockNodeIdOf(STREAM_ID, "displaywindow");
+  expect(added.transaction.connected_links).toEqual([{ stream: STREAM_ID, source: { node: TEST_PATTERN, port: "video" }, target: { node: window, port: "video" }, state: "wired", error_reason: null }]);
+  expect(added.history_operations[1]).toEqual({ stream: STREAM_ASSET, operation: "connect", link: { source: { node: TEST_PATTERN, port: "video" }, target: { node: window, port: "video" } } });
+  expect(added.inverse_operations).toEqual([
+    { stream: STREAM_ASSET, operation: "disconnect", link: { source: { node: TEST_PATTERN, port: "video" }, target: { node: window, port: "video" } } },
+    { stream: STREAM_ASSET, operation: "remove_node", node: window },
+  ]);
 
   const configured = applyMockGraphTransaction(targetsOf(graph), [{ operation: "set_node_config", stream: STREAM_ASSET, node: TEST_PATTERN, config: { width: 640 } }]);
   expect(configured.kind).toBe("applied");
@@ -65,4 +72,30 @@ test("a pin value is refused on an input the node lacks, and an action the mock 
     kind: "refused",
     refusal: { runtime_words: "the mock runtime does not apply `remove_note`" },
   });
+});
+
+test("a renamed node keeps its id, and each change answers its `from` as the runtime does, its inverse swapping `from` and `to`", () => {
+  const graph = aTestPatternAlone();
+  const renamed = applyMockGraphTransaction(targetsOf(graph), [{ operation: "rename_node", stream: STREAM_ASSET, node: TEST_PATTERN, name: "Pattern" }]);
+  if (renamed.kind !== "applied") return expect.unreachable(renamed.refusal.runtime_words);
+  expect(renamed.transaction.operations).toEqual([{ operation: "rename_node", node: TEST_PATTERN, from: "testpatternsource", to: "pattern", stream: STREAM_ID }]);
+  expect(renamed.inverse_operations).toEqual([{ stream: STREAM_ASSET, operation: "rename_node", node: TEST_PATTERN, from: "pattern", to: "testpatternsource" }]);
+
+  const configured = applyMockGraphTransaction(targetsOf(graph), [{ operation: "set_node_config", stream: STREAM_ASSET, node: TEST_PATTERN, config: { width: 640 } }]);
+  if (configured.kind !== "applied") return expect.unreachable(configured.refusal.runtime_words);
+  expect(configured.history_operations).toEqual([{ stream: STREAM_ASSET, operation: "set_node_config", node: TEST_PATTERN, from: {}, to: { width: 640 } }]);
+  expect(graph.nodes[0]).toMatchObject({ name: "pattern", config: { width: 640 } });
+});
+
+test("an operation history records is turned back into the graph action that applies it, so an undo or a redo changes the mock graph", () => {
+  const graph = aTestPatternAlone();
+  const removed = applyMockGraphTransaction(targetsOf(graph), [{ operation: "remove_node", stream: STREAM_ASSET, node: TEST_PATTERN }]);
+  if (removed.kind !== "applied") return expect.unreachable(removed.refusal.runtime_words);
+  expect(graph.nodes).toEqual([]);
+  const restoring = removed.inverse_operations.map(graphActionApplyingTheHistoryOperation);
+  expect(restoring).toEqual([{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:TestPatternSource", name: "testpatternsource", as: TEST_PATTERN, config: {}, pins: {} }]);
+  const restored = applyMockGraphTransaction(targetsOf(graph), restoring.flatMap((action) => (action === null ? [] : [action])), "undo_or_redo");
+  expect(restored.kind).toBe("applied");
+  expect(graph.nodes.map((node) => node.name)).toEqual(["testpatternsource"]);
+  expect(graphActionApplyingTheHistoryOperation({ operation: "import_asset", asset: {} })).toBeNull();
 });

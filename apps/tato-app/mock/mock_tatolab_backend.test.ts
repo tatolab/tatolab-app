@@ -113,6 +113,36 @@ describe("the mock backend's stream actions", () => {
     expect(await settledRename("camera", "Desk")).toEqual({ refusal: expect.stringMatching(/^Resource not found: no stream with the id \`camera\` is loaded or recorded in this runtime\./) });
   });
 
+  it("keeps a slider's live edits apart from its one commit under the gesture's key, records the commit as the person editing, and an undo puts the graph back", async () => {
+    const { backend } = await runningMockBackend();
+    const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
+      await vi.advanceTimersByTimeAsync(100);
+      return answering;
+    };
+    const mainListed = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN);
+    const streamAsset = mainListed?.location?.stream_asset ?? "";
+    const graphBefore = await settled(backend.describeStreamGraph(MAIN));
+    const firstNode = graphBefore.nodes[0];
+    if (firstNode === undefined) return expect.unreachable("the main stream holds a node");
+    const setSoftness = (softness: number) => ({ operation: "set_node_config" as const, stream: streamAsset, node: firstNode.id, config: { ...firstNode.config, softness } });
+    const gesture = "drag-1";
+
+    await settled(backend.transactInTheOpenProject([setSoftness(0.2)], "live", gesture));
+    const secondLiveEdit = await settled(backend.transactInTheOpenProject([setSoftness(0.4)], "live", gesture));
+    expect(secondLiveEdit).toMatchObject({ kind: "applied", transaction: { mode: "live", transaction: null } });
+    expect((await settled(backend.describeStreamGraph(MAIN))).nodes[0]?.config).toMatchObject({ softness: 0.4 });
+    const committed = await settled(backend.transactInTheOpenProject([setSoftness(0.6)], "commit", gesture));
+    const retried = await settled(backend.transactInTheOpenProject([setSoftness(0.6)], "commit", gesture));
+    if (committed.kind !== "applied" || retried.kind !== "applied") return expect.unreachable("the commit applied");
+    expect(committed.transaction.operations).toMatchObject([{ operation: "set_node_config", from: firstNode.config, to: { softness: 0.6 } }]);
+    expect(retried.transaction.transaction).toBe(committed.transaction.transaction);
+    expect(await settled(backend.readThePersonEditingInStudio())).toEqual({ kind: "person", name: "Sam" });
+
+    const undone = await settled(backend.undoInTheOpenProject({ kind: "person", name: "Sam" }));
+    expect(undone).toMatchObject({ author_kind: "person", author_name: "Sam", undoes: committed.transaction.transaction });
+    expect((await settled(backend.describeStreamGraph(MAIN))).nodes[0]?.config).toEqual(firstNode.config);
+  });
+
   it("lists a record an earlier runtime wrote, failed with no location, with ?streams=earlier_record", async () => {
     vi.useFakeTimers();
     const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("streams=earlier_record")));

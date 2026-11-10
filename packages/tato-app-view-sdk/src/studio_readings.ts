@@ -651,7 +651,7 @@ export type GraphLinkEnd = z.infer<typeof graphLinkEndSchema>;
 
 /** What a graph transaction applied, as `transact` answers it (`GraphTransactionToolResult` in `local_api_wire_contract.rs`); each `stream` here is a stream id. */
 export const projectGraphTransactionSchema = z.object({
-  mode: z.string(),
+  mode: graphEditModeSchema,
   /** The transaction's UUID; `null` on a live one, which history never records. */
   transaction: z.string().nullable(),
   /** The commit on the project history's `main` recording it; `null` on a live one. */
@@ -670,11 +670,14 @@ export const projectGraphTransactionSchema = z.object({
 /** What a graph transaction applied. */
 export type ProjectGraphTransaction = z.infer<typeof projectGraphTransactionSchema>;
 
-/** A graph transaction applied whole, or refused with nothing changed: by the runtime, structured, or by Studio before it reached the runtime, in Studio's words alone. */
-export type ProjectGraphTransactionApplying =
-  | { kind: "applied"; transaction: ProjectGraphTransaction }
-  | { kind: "refused"; refusal: ProjectActionRefusal }
-  | { kind: "not_sent"; because: string };
+/** A graph transaction the runtime answered: applied whole, or refused, structured, with nothing changed. */
+export type ProjectGraphTransactionTheRuntimeAnswered = { kind: "applied"; transaction: ProjectGraphTransaction } | { kind: "refused"; refusal: ProjectActionRefusal };
+
+/** A graph transaction the runtime answered, or one Studio refused before it reached the runtime, in Studio's words alone. */
+export type ProjectGraphTransactionApplying = ProjectGraphTransactionTheRuntimeAnswered | { kind: "not_sent"; because: string };
+
+/** The person editing in Studio, as history records their edits, or why Studio did not say. */
+export type ThePersonEditingReading = { kind: "read"; author: ProjectTransactionAuthor } | { kind: "not_read"; because: string };
 
 /** The transaction an undo or a redo applied, or why the runtime refused it, in its own words. */
 export type ProjectTransactionApplying = { kind: "applied"; transaction: ProjectTransaction } | { kind: "not_applied"; because: string };

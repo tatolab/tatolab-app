@@ -6,8 +6,9 @@ import {
   createMockStreamFixtures,
   createMockStreamRunFromAProjectFolder,
   MOCK_RUNTIME_ID,
-  mockNodeIdOf,
+  mockGraphNodeIdOf,
   mockStreamIdOf,
+  type MockStreamGraph,
   type MockLiveLogWriter,
   type MockLogRecordDraft,
   type MockMachine,
@@ -30,12 +31,12 @@ import { MockPythonLanguageServer } from "./mock_python_language_server";
 import { MockPortViewers } from "./mock_port_viewers";
 import { mockStudioViewListing } from "./mock_studio_view/mock_studio_view_listing";
 import { MockProjectFiles } from "./mock_project_files";
-import { MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
+import { MOCK_PERSON_EDITING_IN_STUDIO, MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
-import { TATO_STUDIO_MCP_CLIENT_NAME } from "../src/shared/tatolab_backend_contract";
-import { applyMockGraphTransaction } from "./mock_graph_transactions";
+import type { ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
+import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
@@ -475,13 +476,47 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const mockLanguageServersBySession = new Map<string, MockPythonLanguageServer>();
   const mockPortViewers = new MockPortViewers();
   let languageServerSessionCount = 0;
-  const graphTransactionsAnsweredByIdempotencyKey = new Map<string, Awaited<ReturnType<TatolabBackend["transactInTheOpenProject"]>>>();
+  /** Each committed graph transaction by its gesture's key; a live edit's key is never kept, as the runtime keeps none. */
+  const graphTransactionsCommittedByIdempotencyKey = new Map<string, ProjectGraphTransaction>();
   const mockProjectTransactions =
     openProjectReading.kind === "read" ? new MockProjectTransactions(openProjectReading.open_project.project.project, openProjectReading.open_project.project.folder, projectHistoryScenario) : null;
   const refuseWithoutAnOpenProject = (): void => {
     if (openProjectReading.kind !== "read") throw "No project is open, so its files cannot be read.";
   };
   const loadedStreams = new Map<string, MockLoadedStream>();
+  /** The graph of each loaded stream of the open project, by its stream asset, which a graph action names it by. */
+  const graphTargetsOfTheOpenProject = (): Map<string, MockStreamGraphTarget> => {
+    const openProjectFolder = openProjectReading.kind === "read" ? openProjectReading.open_project.project.folder : null;
+    return new Map(
+      [...loadedStreams.values()].flatMap((loadedStream) => {
+        const location = loadedStream.fixture.listing.location;
+        return location === null || location.project_directory !== openProjectFolder ? [] : [[location.stream_asset, { stream_id: loadedStream.fixture.listing.stream, graph: loadedStream.fixture.graph }] as const];
+      }),
+    );
+  };
+  /** Each graph as last committed, by stream asset, which a commit's `from` reads as the runtime's does; a live edit changes only the running graph. */
+  const savedGraphsByStreamAsset = new Map<string, MockStreamGraph>();
+  const savedGraphTargetsOfTheOpenProject = (): Map<string, MockStreamGraphTarget> =>
+    new Map(
+      [...graphTargetsOfTheOpenProject()].map(([streamAsset, runningTarget]) => {
+        const savedGraph = savedGraphsByStreamAsset.get(streamAsset) ?? structuredClone(runningTarget.graph);
+        savedGraphsByStreamAsset.set(streamAsset, savedGraph);
+        return [streamAsset, { stream_id: runningTarget.stream_id, graph: savedGraph }] as const;
+      }),
+    );
+  /** Commit `operations`: applied to the saved graphs, which answer, then to the running ones. */
+  const commitGraphActions = (operations: readonly StreamGraphAction[], applying: "a_transaction" | "undo_or_redo") => {
+    const outcome = applyMockGraphTransaction(savedGraphTargetsOfTheOpenProject(), operations, applying);
+    if (outcome.kind === "applied") applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations, applying);
+    return outcome;
+  };
+  /** `undoOrRedo`, its graph operations applied to the mock graphs as the runtime applies them; a transaction naming no graph changes none. */
+  const applyingItsGraphOperations = (undoOrRedo: ProjectTransaction): ProjectTransaction => {
+    const graphActions = undoOrRedo.operations.map(graphActionApplyingTheHistoryOperation);
+    const everyOneNamesAGraph = graphActions.every((graphAction): graphAction is StreamGraphAction => graphAction !== null);
+    if (everyOneNamesAGraph && graphActions.length > 0) commitGraphActions(graphActions, "undo_or_redo");
+    return undoOrRedo;
+  };
   const listedStreamsNotLoaded = new Map<string, ListedStream>([
     [fixtures.stoppedPatternTwo.stream, fixtures.stoppedPatternTwo],
     [fixtures.failedLobbyRecorder.stream, fixtures.failedLobbyRecorder],
@@ -1302,35 +1337,30 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockProjectTransactions === null) throw "No project is open in this window.";
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      return mockProjectTransactions.undo(author);
+      return applyingItsGraphOperations(mockProjectTransactions.undo(author));
     },
     transactInTheOpenProject: async (operations, mode, idempotencyKey) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockProjectTransactions === null || openProjectReading.kind !== "read") throw "No project is open in this window.";
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      const answeredBefore = idempotencyKey === null ? undefined : graphTransactionsAnsweredByIdempotencyKey.get(idempotencyKey);
-      if (answeredBefore !== undefined) return structuredClone(answeredBefore);
-      const openProjectFolder = openProjectReading.open_project.project.folder;
-      const targetsByStreamAsset = new Map(
-        [...loadedStreams.values()]
-          .filter((loadedStream) => loadedStream.fixture.listing.location?.project_directory === openProjectFolder)
-          .flatMap((loadedStream) => {
-            const location = loadedStream.fixture.listing.location;
-            return location === null ? [] : [[location.stream_asset, { stream_id: loadedStream.fixture.listing.stream, graph: loadedStream.fixture.graph }] as const];
-          }),
-      );
-      const outcome = applyMockGraphTransaction(targetsByStreamAsset, operations);
+      const committedBefore = idempotencyKey === null || mode !== "commit" ? undefined : graphTransactionsCommittedByIdempotencyKey.get(idempotencyKey);
+      if (committedBefore !== undefined) {
+        return { kind: "applied", transaction: { ...structuredClone(committedBefore), added_nodes: committedBefore.added_nodes.map((addedNode) => ({ ...addedNode, as: null })) } };
+      }
+      savedGraphTargetsOfTheOpenProject();
+      const outcome = mode === "commit" ? commitGraphActions(operations, "a_transaction") : applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations);
       if (outcome.kind === "refused") return outcome;
-      const recorded = mode === "commit" ? mockProjectTransactions.record({ kind: "agent", name: TATO_STUDIO_MCP_CLIENT_NAME }, outcome.transaction.operations, outcome.inverse_operations) : null;
-      const answer = { kind: "applied" as const, transaction: { mode, transaction: recorded?.transaction ?? null, commit: recorded?.commit ?? null, ...outcome.transaction } };
-      if (idempotencyKey !== null) graphTransactionsAnsweredByIdempotencyKey.set(idempotencyKey, answer);
-      return structuredClone(answer);
+      const recorded = mode === "commit" ? mockProjectTransactions.record(MOCK_PERSON_EDITING_IN_STUDIO, outcome.history_operations, outcome.inverse_operations) : null;
+      const transaction: ProjectGraphTransaction = { mode, transaction: recorded?.transaction ?? null, commit: recorded?.commit ?? null, ...outcome.transaction };
+      if (idempotencyKey !== null && mode === "commit") graphTransactionsCommittedByIdempotencyKey.set(idempotencyKey, structuredClone(transaction));
+      return { kind: "applied", transaction };
     },
+    readThePersonEditingInStudio: async () => structuredClone(MOCK_PERSON_EDITING_IN_STUDIO),
     redoInTheOpenProject: async (author) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockProjectTransactions === null) throw "No project is open in this window.";
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      return mockProjectTransactions.redo(author);
+      return applyingItsGraphOperations(mockProjectTransactions.redo(author));
     },
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);
@@ -1395,7 +1425,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     },
     openPortViewer: async (target) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      const node = loadedStreamOfTheId(target.stream).fixture.graph.nodes.find((graphNode) => mockNodeIdOf(target.stream, graphNode.name) === target.node_id);
+      const node = loadedStreamOfTheId(target.stream).fixture.graph.nodes.find((graphNode) => mockGraphNodeIdOf(target.stream, graphNode) === target.node_id);
       if (node === undefined) throw `no node with the id \`${target.node_id}\` in stream \`${target.stream}\``;
       const outputPort = node.output_ports.find((port) => port.name === target.port);
       if (outputPort === undefined) throw `\`${node.name}\` has no output port named \`${target.port}\``;
