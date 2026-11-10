@@ -21,6 +21,7 @@ const GIT_IDENTITY_ENVIRONMENT = {
 };
 // Plays `cargo xtask build-runtime`: lays a whole unit into $CARGO_TARGET_DIR/tatolab-runtime, or
 // with STAND_IN_CARGO_FAILS=1 replaces only part of it and fails, as a build cut off part-way does.
+// Like xtask, it stages the browser host only when CEF_PATH names a CEF distribution.
 const STAND_IN_CARGO_SCRIPT = `#!/bin/sh
 touch "$STAND_IN_CARGO_RAN_SENTINEL"
 unit="$CARGO_TARGET_DIR/tatolab-runtime"
@@ -28,6 +29,8 @@ mkdir -p "$unit/bin" "$unit/lib/tatolab/lend/tatolab/runtime"
 echo replaced > "$unit/lib/tatolab/lend/tatolab/runtime/__init__.py"
 [ "$STAND_IN_CARGO_FAILS" = 1 ] && exit 1
 for binary in tatolabd tatolab uv; do echo built > "$unit/bin/$binary"; done
+mkdir -p "$unit/lib/tatolab/imports"
+[ -n "$CEF_PATH" ] && mkdir -p "$unit/lib/tatolab/browser-host"
 exit 0
 `;
 
@@ -129,4 +132,11 @@ test("a checkout with uncommitted changes is refused before anything builds", as
   expect(buildOutcome.exitCode).toBe(1);
   expect(buildOutcome.stderr).toContain("uncommitted changes");
   expect(await standInCargoRan()).toBe(false);
+});
+
+test("the unit is built without the browser host even when CEF_PATH is set", async () => {
+  const buildOutcome = await buildTheRuntimeUnit({ CEF_PATH: path.join(scratchDirectory, "a-cef-distribution") });
+  expect(buildOutcome).toMatchObject({ exitCode: 0 });
+  await expect(stat(path.join(plantedStreamlibCheckout, "target", "tatolab-runtime", "lib", "tatolab", "imports"))).resolves.toBeTruthy();
+  await expect(stat(path.join(plantedStreamlibCheckout, "target", "tatolab-runtime", "lib", "tatolab", "browser-host"))).rejects.toThrow();
 });
