@@ -35,14 +35,18 @@ import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "./wind
 import { ProjectsHomeChoicesKeptInStorage } from "./studio_shell/projects_home_choices_kept_in_storage";
 import { tatolabWindowLocalStorage } from "./tatolab_window_local_storage";
 
-/** The view types every studio area can show, in the view-type menu's order, Transactions only in Developer mode. */
+/** The `<input>` types a person types text into, each with an undo of its own. */
+const TEXT_ENTRY_INPUT_TYPES = new Set(["text", "search", "email", "url", "tel", "password", "number"]);
+
 /** Whether `keyTarget` is a field taking typed text, whose own undo ⌘Z keeps; checked by shape, since a key in a view's frame comes from that frame's document. */
 function isTextBeingEditedIn(keyTarget: EventTarget | null): boolean {
   if (keyTarget === null || !("tagName" in keyTarget) || typeof keyTarget.tagName !== "string") return false;
   if ("isContentEditable" in keyTarget && keyTarget.isContentEditable === true) return true;
-  return keyTarget.tagName === "INPUT" || keyTarget.tagName === "TEXTAREA" || keyTarget.tagName === "SELECT";
+  if (keyTarget.tagName === "TEXTAREA") return true;
+  return keyTarget.tagName === "INPUT" && "type" in keyTarget && typeof keyTarget.type === "string" && TEXT_ENTRY_INPUT_TYPES.has(keyTarget.type);
 }
 
+/** The view types every studio area can show, in the view-type menu's order, Transactions only in Developer mode. */
 function studioViewTypeRegistry(): StudioViewTypeRegistry {
   const coreViewTypes = coreViewTypesOf(CORE_VIEWS, (folder) => servedCoreViewFolderUrl(folder, document.baseURI));
   const coreViewTypeIn = (folder: string) => {
@@ -151,6 +155,17 @@ export function mountTatolabWindow(
     studioWindowModel.projectOpeningRefusal.publish(null);
     backend.chooseProjectFolder(chosenFor).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
   };
+  const undoOrRedoTheOpenProject = (askedTo: "undo" | "redo") => {
+    studioWindowModel.projectEditRefusal.publish(null);
+    const openProject = studioWindowModel.openProject.readLatest();
+    if (openProject.kind !== "read") return;
+    const openProjectFolder = openProject.open_project.project.folder;
+    void projectTransactionsReadings.readThePersonEditing().then(async (thePersonEditing) => {
+      if (thePersonEditing.kind === "not_read") return studioWindowModel.projectEditRefusal.publish({ asked_to: askedTo, because: thePersonEditing.because });
+      const applying = await (askedTo === "undo" ? projectTransactionsReadings.undoInTheProject : projectTransactionsReadings.redoInTheProject)(openProjectFolder, thePersonEditing.author);
+      if (applying.kind === "not_applied") studioWindowModel.projectEditRefusal.publish({ asked_to: askedTo, because: applying.because });
+    });
+  };
   const studioMenuBarCommands: StudioMenuBarCommands = {
     showProjects: () => {
       backend.showTheProjectsWindow().catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
@@ -191,20 +206,8 @@ export function mountTatolabWindow(
       studioWindowModel.projectRunRefusal.publish(null);
       backend.stopOpenProject().catch((rejection: unknown) => studioWindowModel.projectRunRefusal.publish({ asked_to: "stop", because: describeBackendRejection(rejection) }));
     },
-    undoYourLastEdit: () => {
-      studioWindowModel.projectEditRefusal.publish(null);
-      backend
-        .readThePersonEditingInStudio()
-        .then((person) => backend.undoInTheOpenProject(person))
-        .catch((rejection: unknown) => studioWindowModel.projectEditRefusal.publish({ asked_to: "undo", because: describeBackendRejection(rejection) }));
-    },
-    redoYourLastUndo: () => {
-      studioWindowModel.projectEditRefusal.publish(null);
-      backend
-        .readThePersonEditingInStudio()
-        .then((person) => backend.redoInTheOpenProject(person))
-        .catch((rejection: unknown) => studioWindowModel.projectEditRefusal.publish({ asked_to: "redo", because: describeBackendRejection(rejection) }));
-    },
+    undoYourLastEdit: () => undoOrRedoTheOpenProject("undo"),
+    redoYourLastUndo: () => undoOrRedoTheOpenProject("redo"),
     openModuleManager: () => {
       studioWindowModel.projectOpeningRefusal.publish(null);
       backend.openModuleManagerWindow().catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));

@@ -8,6 +8,7 @@ import {
   deletedEdits,
   editedStreamGraphOf,
   frameRenamedEdits,
+  studioFieldsSetBy,
   nodePlacedEdits,
   noteChangedEdits,
   notePlacedEdits,
@@ -171,4 +172,15 @@ test("a_card_collapsed_keeps_its_other_studio_fields_and_one_already_so_asks_not
   ]);
   const collapsed = edited({ ...GRAPH, nodes: [{ ...DISPLAY, studio: { ...NODE_STUDIO_FIELDS_NONE_SET, collapsed: true } }] });
   expect(cardCollapsedEdits(collapsed, "display", true)).toEqual([]);
+});
+
+test("a_second_studio_edit_sent_before_the_graph_shows_the_first_builds_on_it_instead_of_undoing_it", () => {
+  const collapsing = cardCollapsedEdits(edited(), "halftone", true);
+  const sentAhead = studioFieldsSetBy(collapsing);
+  const editedAhead = editedStreamGraphOf(GRAPH, sentAhead);
+  if ("because" in editedAhead) return expect.unreachable(editedAhead.because);
+  expect(cardsMovedEdits(editedAhead, [{ node_id: "halftone", position: { x: 10, y: 20 } }])).toEqual([
+    { operation: "set_studio_fields", stream: STREAM_ASSET, node: "uuid-halftone", studio: { position: [10, 20], collapsed: true } },
+  ]);
+  expect(cardCollapsedEdits(editedAhead, "halftone", true)).toEqual([]);
 });

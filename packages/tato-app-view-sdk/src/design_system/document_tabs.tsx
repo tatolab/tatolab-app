@@ -59,7 +59,7 @@ export function DocumentTabs({
                   <span className="font-mono text-2xs">{tab.name}</span>
                   {tab.is_running && (
                     <span className="text-2xs font-medium text-status-positive-text" data-document-tab-running="">
-                      running
+                      <span className="sr-only">, </span>running
                     </span>
                   )}
                 </button>

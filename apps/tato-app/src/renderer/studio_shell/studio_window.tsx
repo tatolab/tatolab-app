@@ -1,6 +1,6 @@
 import { PictureInPicture2, Play, Redo2, Square, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { ListedStream, TatolabPlatform } from "../../shared/tatolab_backend_contract";
+import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
 import { DocumentTabs } from "@tatolab/tato-app-view-sdk/design_system/document_tabs";
@@ -12,7 +12,7 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import { WindowNotice } from "@tatolab/tato-app-view-sdk/design_system/window_notice";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { playOrStopOfferedForTheProject } from "../presentation/project_play_presentation";
-import { streamsOfTheProjectNoTabShows, streamTabsDrawnInTheStrip } from "../presentation/stream_tabs_presentation";
+import { streamsOfTheProjectNoTabShows, streamTabsDrawnInTheStrip, type StreamsToOpenAsTabs } from "../presentation/stream_tabs_presentation";
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { presentRecentProjectChangeRefusalTitle } from "../presentation/projects_presentation";
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
@@ -216,11 +216,11 @@ function StudioAreaLayoutNodeView({ node, layoutKey, sources }: { node: StudioAr
 }
 
 /** The + menu's choices: each stream of the open project no tab shows, opened as a tab when chosen. */
-function StreamsOfTheProjectToOpenAsTabs({ model, streams }: { model: StudioWindowModel; streams: readonly ListedStream[] }) {
-  if (streams.length === 0) return <MenuNote>Every stream of the project is open.</MenuNote>;
+function StreamsOfTheProjectToOpenAsTabs({ model, offered }: { model: StudioWindowModel; offered: StreamsToOpenAsTabs }) {
+  if (offered.kind === "none_to_offer") return <MenuNote>{offered.because}</MenuNote>;
   return (
     <MenuGroup label="Open a stream">
-      {streams.map((stream) => (
+      {offered.streams.map((stream) => (
         <MenuItem key={stream.stream} onChosen={() => model.openStreamTabOfAListedStream(stream.stream)} data-stream-tab-to-open={stream.stream}>
           {stream.display_name}
         </MenuItem>
@@ -312,7 +312,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
             onTabChosen={(stream) => model.chooseStreamTab(stream)}
             onTabClosed={(stream) => model.closeStreamTab(stream)}
             whenNoneIsOpen="Open a stream from the outliner to see it here."
-            tabsToOpen={{ label: "Open a stream of the project", choices: <StreamsOfTheProjectToOpenAsTabs model={model} streams={streamsOfTheProjectNoTabShows(openProjectFolder, listedStreams, openStreamTabs)} /> }}
+            tabsToOpen={{ label: "Open a stream of the project", choices: <StreamsOfTheProjectToOpenAsTabs model={model} offered={streamsOfTheProjectNoTabShows(openProjectFolder, listedStreams, openStreamTabs)} /> }}
           />
           <main className="flex min-h-0 flex-1 px-(--studio-area-gap) pb-(--studio-area-gap)" data-studio-layout={studioLayouts.chosen_layout}>
             <StudioAreaLayoutNodeView

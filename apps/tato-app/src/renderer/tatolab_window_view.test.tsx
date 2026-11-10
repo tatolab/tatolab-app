@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OpenProjectReading, PoppedOutView, RecentProject, SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
+import type { OpenProjectReading, PoppedOutView, ProjectTransaction, RecentProject, SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
 import { createMockTatolabBackend, readMockTatolabOptions } from "../../mock/mock_tatolab_backend";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
@@ -370,7 +370,7 @@ describe("the studio", () => {
       },
     });
     await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
-    await waitFor(() => expect(within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["pattern /mainrunning"]));
+    await waitFor(() => expect(within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["pattern /main, running"]));
 
     fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
     fireEvent.keyDown(inTheCoreView("outliner").getByRole("tree", { name: "Outliner" }), { key: "Enter" });
@@ -378,7 +378,7 @@ describe("the studio", () => {
     act(() => askToShowAStream(cameraStream));
 
     const streamTabs = within(screen.getByRole("tablist", { name: "Open streams" }));
-    expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["pattern /mainrunning", "camera /camerarunning"]);
+    expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["pattern /main, running", "camera /camera, running"]);
     expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["false", "true"]);
     fireEvent.click(screen.getByRole("button", { name: "Close camera" }));
     expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true"]);
@@ -396,6 +396,53 @@ describe("the studio", () => {
     expect(await shownLayout()).toBe("perform");
     expect(document.querySelector('[data-studio-area="scene"]')).not.toBeNull();
 
+  });
+
+  it("undoes and redoes the person's last edit with ⌘Z and ⇧⌘Z, and leaves ⌘Z to a text field holding the focus", async () => {
+    const asked: string[] = [];
+    const transactionAnswered = (undoOrRedo: string): ProjectTransaction => ({
+      format_version: 2,
+      transaction: `${undoOrRedo}-1`,
+      commit: "c1",
+      parent_commit: null,
+      author_kind: "person",
+      author_name: "sam",
+      operations: [],
+      inverse_operations: [],
+      undoes: undoOrRedo === "undo" ? "t1" : null,
+      redoes: undoOrRedo === "redo" ? "t1" : null,
+      idempotency_key: null,
+      undo_state: null,
+      applied_at: "2026-11-10T12:00:00Z",
+    });
+    await mountedWindowOverTheMock("state=running", {
+      readThePersonEditingInStudio: async () => ({ kind: "person", name: "sam" }),
+      undoInTheOpenProject: async (author) => {
+        asked.push(`undo by ${author.name}`);
+        return transactionAnswered("undo");
+      },
+      redoInTheOpenProject: async (author) => {
+        asked.push(`redo by ${author.name}`);
+        return transactionAnswered("redo");
+      },
+    });
+    expect(await shownLayout()).toBe("build");
+
+    fireEvent.keyDown(document, { key: "z", metaKey: true });
+    await waitFor(() => expect(asked).toEqual(["undo by sam"]));
+    fireEvent.keyDown(document, { key: "Z", metaKey: true, shiftKey: true });
+    await waitFor(() => expect(asked).toEqual(["undo by sam", "redo by sam"]));
+
+    const textField = document.createElement("input");
+    document.body.append(textField);
+    fireEvent.keyDown(textField, { key: "z", metaKey: true });
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    document.body.append(checkbox);
+    fireEvent.keyDown(checkbox, { key: "z", metaKey: true });
+    await waitFor(() => expect(asked).toEqual(["undo by sam", "redo by sam", "undo by sam"]));
+    textField.remove();
+    checkbox.remove();
   });
 
   it("on Linux, switches layouts from the window's own Window › Layout, ticking the one shown", async () => {
@@ -661,7 +708,7 @@ describe("the studio", () => {
     expect(await shownLayout()).toBe("build");
     expect(document.querySelector("[data-projects]")).toBeNull();
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
-    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => `${tab.textContent} ${tab.getAttribute("aria-selected")}`)).toEqual(["pattern /mainrunning true"]));
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => `${tab.textContent} ${tab.getAttribute("aria-selected")}`)).toEqual(["pattern /main, running true"]));
     await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).not.toBeNull());
   });
 

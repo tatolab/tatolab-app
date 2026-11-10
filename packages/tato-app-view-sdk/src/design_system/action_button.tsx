@@ -17,7 +17,7 @@ const APPEARANCE_CLASS_NAMES: Record<ActionButtonAppearance, string> = {
   quiet: "text-fg-2 hover:bg-hover hover:text-fg dark:hover:bg-hover",
   destructive:
     "bg-danger text-primary-foreground hover:bg-danger-text focus-visible:border-transparent dark:bg-danger-soft dark:text-danger-text dark:hover:bg-danger/20",
-  positive: "bg-status-positive-ground font-semibold text-status-positive-text hover:bg-status-positive-ground/70 hover:text-status-positive-text dark:bg-status-positive-ground dark:hover:bg-status-positive-ground/70",
+  positive: "bg-status-positive-ground font-semibold text-status-positive-text hover:bg-status-positive-text/20 hover:text-status-positive-text dark:bg-status-positive-ground dark:hover:bg-status-positive-text/20",
 };
 
 /** The text and icon sizes the window's controls take over stock's: stock's small size sets its words at 0.8rem, under the window's 13 px body text. */

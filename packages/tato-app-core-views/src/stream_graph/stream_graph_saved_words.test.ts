@@ -28,7 +28,7 @@ test("the_latest_edit_by_the_person_editing_reads_as_by_you_and_an_agents_by_its
   expect(streamGraphSavedWords([transaction("person", "Jonathan")], null)).toBe("Saved · last edit by Jonathan");
 });
 
-test("an_undo_is_no_edit_of_its_own_and_a_project_with_no_edit_says_nothing", () => {
-  expect(streamGraphSavedWords([transaction("person", "Jonathan", "t1"), transaction("agent", "claude-code")], JONATHAN)).toBe("Saved · last edit by claude-code (agent)");
+test("an_undo_counts_as_the_latest_edit_and_a_project_with_no_edit_says_nothing", () => {
+  expect(streamGraphSavedWords([transaction("person", "Jonathan", "t1"), transaction("agent", "claude-code")], JONATHAN)).toBe("Saved · last edit by you");
   expect(streamGraphSavedWords([], JONATHAN)).toBeNull();
 });

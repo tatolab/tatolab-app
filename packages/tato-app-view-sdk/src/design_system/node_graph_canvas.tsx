@@ -21,6 +21,7 @@ import {
   type OnResizeEnd,
 } from "@xyflow/react";
 import { cn } from "cn";
+import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 import { ChevronDown, ChevronRight, Frame, Plus, Scan, SquareX, StickyNote } from "lucide-react";
 import {
   createContext,
@@ -165,8 +166,8 @@ const NODE_GRAPH_PLACED_ROOM = { width: 240, height: 120 };
 
 /** What a person's edits on the canvas ask for; each call is one gesture. */
 export interface NodeGraphCanvasEditing {
-  /** Cards dragged and let go, each at its new top-left corner, together with every card that had no saved place, so the layout stays as seen. */
-  onCardsMoved(moves: readonly { node_id: string; position: NodeGraphPosition }[]): Promise<NodeGraphCanvasEditAnswer>;
+  /** Cards dragged and let go, each at its new top-left corner, together with every card that had no saved place, so the layout stays as seen; a lone card with no links let go of over a link is spliced into it in the same gesture. */
+  onCardsMoved(moves: readonly { node_id: string; position: NodeGraphPosition }[], cardLetGoOverALink: { node_id: string; link_id: string } | null): Promise<NodeGraphCanvasEditAnswer>;
   /** A wire drawn from an output pin to an input pin of a family it can carry. */
   onPinsWired(source: NodeGraphCanvasPinEnd, target: NodeGraphCanvasPinEnd): void;
   /** A wire dragged off a pin and let go of over empty canvas, to place a node there that it feeds or reads. */
@@ -175,12 +176,10 @@ export interface NodeGraphCanvasEditing {
   onNodeAskedFor(at: NodeGraphCanvasPoint): void;
   /** Note pressed, to place a note in the middle of the view. */
   onNoteAskedFor(at: NodeGraphCanvasPoint): void;
-  /** A card with no links let go of over a link, to splice it in. */
-  onCardLetGoOverALink(nodeId: string, linkId: string): void;
   /** The selected cards, links and notes, deleted with Backspace or Delete. */
   onDeleted(deleted: { node_ids: readonly string[]; link_ids: readonly string[]; note_ids: readonly string[] }): void;
   /** F, ⌘G or Frame pressed with cards selected, to frame them. */
-  onFrameAskedFor(nodeIds: readonly string[]): void;
+  onFrameAskedFor(nodeIds: readonly string[]): Promise<NodeGraphCanvasEditAnswer>;
   /** A frame's title edited on its tab. */
   onFrameRenamed(frameId: string, title: string): void;
   /** A card's chevron pressed, to collapse it to its header or open it again. */
@@ -256,10 +255,13 @@ function NodeGraphPinHandle({
   nodeId,
   side,
   pin,
+  takesNewWires,
 }: {
   nodeId: string;
   side: "input" | "output";
   pin: NodeGraphCanvasPin;
+  /** False on a collapsed card, whose pins all meet at its header's edge, so no one pin can be told apart to wire. */
+  takesNewWires: boolean;
 }) {
   const linkedPins = useContext(NodeGraphLinkedPinsContext);
   const isEditable = useContext(NodeGraphEditableContext);
@@ -272,7 +274,7 @@ function NodeGraphPinHandle({
           ? inputPinHandleId(pin.name)
           : outputPinHandleId(pin.name)
       }
-      isConnectable={isEditable}
+      isConnectable={isEditable && takesNewWires}
       className="node-graph-pin"
       data-family={pin.family ?? undefined}
       title={nodeGraphPinTooltip(pin)}
@@ -312,8 +314,8 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
         {cardAndFrameEditing !== null && (
           <button
             type="button"
-            className="nodrag -mr-1 flex size-4 shrink-0 items-center justify-center rounded-sm text-fg-3 hover:bg-hover hover:text-fg"
-            aria-label={graphNode.is_collapsed ? `Expand ${graphNode.title}` : `Collapse ${graphNode.title}`}
+            className={cn("nodrag -mr-1 flex size-4 shrink-0 items-center justify-center rounded-sm text-fg-3 outline-none hover:bg-hover hover:text-fg", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
+            aria-label={`${graphNode.title} pins`}
             aria-expanded={!graphNode.is_collapsed}
             onClick={() => cardAndFrameEditing.onCardCollapsed(graphNode.node_id, !graphNode.is_collapsed)}
             data-node-graph-card-collapse={graphNode.node_id}
@@ -333,10 +335,10 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
         {graphNode.is_collapsed && (
           <>
             {graphNode.input_pins.map((pin) => (
-              <NodeGraphPinHandle key={`input:${pin.name}`} nodeId={graphNode.node_id} side="input" pin={pin} />
+              <NodeGraphPinHandle key={`input:${pin.name}`} nodeId={graphNode.node_id} side="input" pin={pin} takesNewWires={false} />
             ))}
             {graphNode.output_pins.map((pin) => (
-              <NodeGraphPinHandle key={`output:${pin.name}`} nodeId={graphNode.node_id} side="output" pin={pin} />
+              <NodeGraphPinHandle key={`output:${pin.name}`} nodeId={graphNode.node_id} side="output" pin={pin} takesNewWires={false} />
             ))}
           </>
         )}
@@ -349,7 +351,7 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
           return (
             <div
               key={rowIndex}
-              className="relative flex items-center justify-between gap-4 px-3 text-[11px] text-fg-2"
+              className="relative flex items-center justify-between gap-4 px-3 text-2xs text-fg-2"
               style={{ height: NODE_GRAPH_PIN_ROW_HEIGHT }}
             >
               <span
@@ -369,6 +371,7 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
                   nodeId={graphNode.node_id}
                   side="input"
                   pin={inputPin}
+                  takesNewWires
                 />
               )}
               {outputPin !== undefined && (
@@ -376,6 +379,7 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
                   nodeId={graphNode.node_id}
                   side="output"
                   pin={outputPin}
+                  takesNewWires
                 />
               )}
             </div>
@@ -385,7 +389,7 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
       )}
       {failureWords !== null && !graphNode.is_collapsed && (
         <p
-          className="node-graph-card-failure-words w-0 min-w-full px-2.5 py-1.5 text-[11px] leading-4 text-danger-text"
+          className="node-graph-card-failure-words w-0 min-w-full px-2.5 py-1.5 text-2xs leading-4 text-danger-text"
           style={{ height: NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT }}
           title={failureWords}
           data-node-graph-failure-words
@@ -472,7 +476,8 @@ function NodeGraphFrameView({ data }: NodeProps<NodeGraphFrameFlowNode>) {
   const frameRenaming = useContext(NodeGraphFrameRenamingContext);
   const isBeingRenamed = frameRenaming?.frameIdBeingRenamed === graphFrame.frame_id;
   const keepTheTitle = (title: string) => {
-    cardAndFrameEditing?.onFrameRenamed(graphFrame.frame_id, title);
+    const trimmedTitle = title.trim();
+    if (trimmedTitle !== "" && trimmedTitle !== graphFrame.title) cardAndFrameEditing?.onFrameRenamed(graphFrame.frame_id, trimmedTitle);
     frameRenaming?.renameTheFrame(null);
   };
   const titleTabStyle = graphFrame.colour === null ? undefined : { backgroundColor: `color-mix(in srgb, ${graphFrame.colour} 30%, var(--studio-area))` };
@@ -500,7 +505,7 @@ function NodeGraphFrameView({ data }: NodeProps<NodeGraphFrameFlowNode>) {
         />
       ) : (
         <span
-          className="node-graph-frame-title truncate text-xs font-semibold"
+          className="node-graph-frame-title nopan truncate text-xs font-semibold"
           style={titleTabStyle}
           onDoubleClick={cardAndFrameEditing === null ? undefined : () => frameRenaming?.renameTheFrame(graphFrame.frame_id)}
           data-node-graph-frame-title={graphFrame.frame_id}
@@ -509,7 +514,7 @@ function NodeGraphFrameView({ data }: NodeProps<NodeGraphFrameFlowNode>) {
         </span>
       )}
       {graphFrame.description !== null && graphFrame.description !== "" && (
-        <p className="node-graph-frame-description truncate px-2.5 text-[11px] text-fg-2">{graphFrame.description}</p>
+        <p className="node-graph-frame-description truncate px-2.5 text-2xs text-fg-2">{graphFrame.description}</p>
       )}
     </div>
   );
@@ -936,11 +941,14 @@ function NodeGraphFlow({
     return canvasPointOf({ x: (elementBox?.left ?? 0) + inTheElement.x, y: (elementBox?.top ?? 0) + inTheElement.y });
   }, [canvasPointOf, placingPointInTheElement]);
 
-  /** A place clear of every card, the view moved so it sits at the placing point, for what a tool places. */
+  /** A place clear of every card and note, the view moved so it sits at the placing point, for what a tool places. */
   const clearPlaceBroughtIntoView = useCallback((): NodeGraphCanvasPoint => {
     const middle = middleOfTheView();
     const clearPlace = placeClearBelowTheCards(
-      nodes.map((node) => ({ position: positionOfTheCard(node), ...sizeOfTheCard(node) })),
+      [
+        ...nodes.map((node) => ({ position: positionOfTheCard(node), ...sizeOfTheCard(node) })),
+        ...notes.map((note) => ({ position: heldNotePositions.get(note.note_id) ?? note.position, ...(heldNoteSizes.get(note.note_id) ?? note.size) })),
+      ],
       middle.on_the_canvas,
     );
     const elementBox = canvasElement.current?.getBoundingClientRect();
@@ -957,7 +965,7 @@ function NodeGraphFlow({
     const placingPointFromTheCentre = { x: middle.in_the_element.x - elementBox.width / 2, y: middle.in_the_element.y - elementBox.height / 2 };
     void reactFlow.setCenter(clearPlace.x - placingPointFromTheCentre.x / zoom, clearPlace.y - placingPointFromTheCentre.y / zoom, { zoom, duration: 200 });
     return { on_the_canvas: clearPlace, in_the_element: middle.in_the_element };
-  }, [middleOfTheView, nodes, positionOfTheCard, sizeOfTheCard, reactFlow]);
+  }, [middleOfTheView, nodes, notes, heldNotePositions, heldNoteSizes, positionOfTheCard, sizeOfTheCard, reactFlow]);
 
   /** Each link's midpoint on the canvas, read off the path drawn for it. */
   const linkMidpointsDrawn = useCallback((): NodeGraphLinkMidpoint[] => {
@@ -987,10 +995,10 @@ function NodeGraphFlow({
       const draggedIds = new Set(draggedCards.map((card) => card.id));
       const onlyCard = draggedCards.length === 1 ? draggedCards[0] : undefined;
       const onlyNode = onlyCard === undefined ? undefined : nodeById.get(onlyCard.id);
-      if (onlyCard !== undefined && onlyNode !== undefined && !links.some((link) => link.source_node_id === onlyCard.id || link.target_node_id === onlyCard.id)) {
-        const linkLetGoOver = linkUnderACard({ position: onlyCard.position, ...sizeOfTheCard(onlyNode) }, linkMidpointsDrawn());
-        if (linkLetGoOver !== null) editing.onCardLetGoOverALink(onlyCard.id, linkLetGoOver);
-      }
+      const linkLetGoOver =
+        onlyCard !== undefined && onlyNode !== undefined && !links.some((link) => link.source_node_id === onlyCard.id || link.target_node_id === onlyCard.id)
+          ? linkUnderACard({ position: onlyCard.position, ...sizeOfTheCard(onlyNode) }, linkMidpointsDrawn())
+          : null;
       const moves = [
         ...draggedCards.map((card) => ({ node_id: card.id, position: card.position })),
         ...nodes.filter((node) => node.saved_position === null && !draggedIds.has(node.node_id)).map((node) => ({ node_id: node.node_id, position: positionOfTheCard(node) })),
@@ -1000,7 +1008,7 @@ function NodeGraphFlow({
         for (const move of moves) after.set(move.node_id, move.position);
         return after;
       });
-      void editing.onCardsMoved(moves).then((answer) => {
+      void editing.onCardsMoved(moves, onlyCard === undefined || linkLetGoOver === null ? null : { node_id: onlyCard.id, link_id: linkLetGoOver }).then((answer) => {
         if (answer === "refused") setHeldCardPositions((held) => withoutTheIds(held, moves.map((move) => move.node_id)));
       });
     },
@@ -1056,8 +1064,11 @@ function NodeGraphFlow({
   const frameIdsWhenAFrameWasAskedFor = useRef<ReadonlySet<string> | null>(null);
   const frameTheSelection = useCallback(() => {
     if (editing === null) return;
-    frameIdsWhenAFrameWasAskedFor.current = new Set(frames.map((frame) => frame.frame_id));
-    editing.onFrameAskedFor([...selectedIds]);
+    const frameIdsBefore = new Set(frames.map((frame) => frame.frame_id));
+    frameIdsWhenAFrameWasAskedFor.current = frameIdsBefore;
+    void editing.onFrameAskedFor([...selectedIds]).then((answer) => {
+      if (answer === "refused" && frameIdsWhenAFrameWasAskedFor.current === frameIdsBefore) frameIdsWhenAFrameWasAskedFor.current = null;
+    });
   }, [editing, frames, selectedIds]);
   useEffect(() => {
     const frameIdsBefore = frameIdsWhenAFrameWasAskedFor.current;
@@ -1181,7 +1192,7 @@ function NodeGraphFlow({
                   )}
                 </div>
                 {familiesOnTheCanvas.length > 0 && (
-                  <ul aria-label="Pin families" className="pointer-events-none absolute bottom-2.5 left-2.5 z-10 flex gap-2.5 rounded-md bg-studio-graph-tools px-2.5 py-1 text-[11px] text-fg-2" data-node-graph-legend="">
+                  <ul aria-label="Pin families" className="pointer-events-none absolute bottom-2.5 left-2.5 z-10 flex gap-2.5 rounded-md bg-studio-graph-tools px-2.5 py-1 text-2xs text-fg-2" data-node-graph-legend="">
                     {familiesOnTheCanvas.map((family) => (
                       <li key={family} className="flex items-center gap-1.5">
                         <NodeGraphPinMark family={family} />
@@ -1199,7 +1210,7 @@ function NodeGraphFlow({
                   nodeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--fg-3)" : "transparent")}
                   nodeStrokeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--studio-graph-card-line)" : "transparent")}
                   maskColor="var(--scrim)"
-                  bgColor="var(--studio-area)"
+                  bgColor="var(--studio-graph-tools)"
                 />
                 {overlay}
               </ReactFlow>

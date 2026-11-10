@@ -14,7 +14,7 @@ const ITEMS: SearchPopoverItem[] = [
 function openedPopover() {
   const onItemChosen = vi.fn();
   const onClosed = vi.fn();
-  render(<SearchPopover label="Add a node" heading="Add node" placeholder="Search nodes" items={ITEMS} emptyWords="No node type matches." at={{ x: 10, y: 10 }} onItemChosen={onItemChosen} onClosed={onClosed} />);
+  render(<SearchPopover label="Add a node" heading="Add node" placeholder="Search nodes" items={ITEMS} emptyWords="No node type matches." chooseWords="place" chooseAndStayWords="place another" at={{ x: 10, y: 10 }} onItemChosen={onItemChosen} onClosed={onClosed} />);
   return { onItemChosen, onClosed, searchInput: screen.getByRole("combobox", { name: "Add a node" }) };
 }
 
@@ -45,5 +45,17 @@ describe("the search popover", () => {
     expect(onClosed).toHaveBeenCalledTimes(1);
     fireEvent.pointerDown(document.body);
     expect(onClosed).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives the focus back to what held it when it closes, so the next Tab opens it again", () => {
+    const canvas = document.createElement("div");
+    canvas.tabIndex = 0;
+    document.body.append(canvas);
+    canvas.focus();
+    const { unmount } = render(<SearchPopover label="Add a node" heading="Add node" placeholder="Search nodes" items={ITEMS} emptyWords="No node type matches." chooseWords="place" chooseAndStayWords="place another" at={{ x: 10, y: 10 }} onItemChosen={vi.fn()} onClosed={vi.fn()} />);
+    expect(document.activeElement).not.toBe(canvas);
+    unmount();
+    expect(document.activeElement).toBe(canvas);
+    canvas.remove();
   });
 });

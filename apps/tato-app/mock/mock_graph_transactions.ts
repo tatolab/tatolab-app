@@ -53,6 +53,8 @@ function familyAsTheRuntimeNamesIt(family: PortFamily | null): string {
 }
 
 let mockLinksMade = 0;
+/** How many groups and notes the mock has made, so each one's UUID is new, as the runtime's always is. */
+let mockGroupsAndNotesMade = 0;
 
 const isAJsonObject = (value: JsonValue | undefined): value is { [key: string]: JsonValue } => typeof value === "object" && value !== null && !Array.isArray(value);
 const isACanvasPair = (value: JsonValue | undefined): value is [number, number] => Array.isArray(value) && value.length === 2 && value.every((part) => typeof part === "number");
@@ -292,7 +294,8 @@ export function applyMockGraphTransaction(
         case "add_group": {
           const members = operation.nodes.map(nodeNamed);
           const groups = (graph.groups ??= []);
-          const group = mockUuidOf(`group\n${target.stream_id}\n${groups.length}\n${operation.title}`);
+          mockGroupsAndNotesMade += 1;
+          const group = mockUuidOf(`group\n${target.stream_id}\n${mockGroupsAndNotesMade}\n${operation.title}`);
           const added = { id: group, title: operation.title, description: operation.description ?? null, colour: operation.colour ?? null };
           groups.push(added);
           for (const member of members) member.studio = { ...(member.studio ?? NODE_STUDIO_FIELDS_NONE_SET), group };
@@ -324,7 +327,8 @@ export function applyMockGraphTransaction(
         }
         case "add_note": {
           const notes = (graph.notes ??= []);
-          const note = { id: mockUuidOf(`note\n${target.stream_id}\n${notes.length}\n${operation.text}\n${operation.position.join(",")}`), text: operation.text, position: operation.position, size: operation.size };
+          mockGroupsAndNotesMade += 1;
+          const note = { id: mockUuidOf(`note\n${target.stream_id}\n${mockGroupsAndNotesMade}\n${operation.text}\n${operation.position.join(",")}`), text: operation.text, position: operation.position, size: operation.size };
           notes.push(note);
           applied.added_notes.push({ stream: target.stream_id, note: note.id });
           recordInHistory({ operation: "add_note", note }, { operation: "remove_note", note });

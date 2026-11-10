@@ -12,9 +12,14 @@ export function streamTabsDrawnInTheStrip(openStreamTabs: OpenStreamTabs, listed
   return openStreamTabs.tabs.map((tab) => ({ tab_id: tab.stream, context_words: tab.project_name, name: tab.display_name, is_running: runningStreams.has(tab.stream) }));
 }
 
-/** The streams of the project in `projectFolder` the runtime lists that no tab shows yet, in the order it lists them. */
-export function streamsOfTheProjectNoTabShows(projectFolder: string | null, listedStreams: ListedStreamsReading, openStreamTabs: OpenStreamTabs): ListedStream[] {
-  if (projectFolder === null || listedStreams.kind !== "listed") return [];
+/** The streams of the project in `projectFolder` the runtime lists that no tab shows yet, in the order it lists them, or why there are none to offer. */
+export type StreamsToOpenAsTabs = { kind: "to_open"; streams: ListedStream[] } | { kind: "none_to_offer"; because: string };
+
+/** What the + after the tabs offers for the project in `projectFolder`. */
+export function streamsOfTheProjectNoTabShows(projectFolder: string | null, listedStreams: ListedStreamsReading, openStreamTabs: OpenStreamTabs): StreamsToOpenAsTabs {
+  if (projectFolder === null) return { kind: "none_to_offer", because: "No project is open." };
+  if (listedStreams.kind !== "listed") return { kind: "none_to_offer", because: listedStreams.because };
   const shownStreams = new Set(openStreamTabs.tabs.map((tab) => tab.stream));
-  return listedStreams.streams.filter((stream) => stream.location?.project_directory === projectFolder && !shownStreams.has(stream.stream));
+  const streams = listedStreams.streams.filter((stream) => stream.location?.project_directory === projectFolder && !shownStreams.has(stream.stream));
+  return streams.length === 0 ? { kind: "none_to_offer", because: "Every stream of the project is open." } : { kind: "to_open", streams };
 }

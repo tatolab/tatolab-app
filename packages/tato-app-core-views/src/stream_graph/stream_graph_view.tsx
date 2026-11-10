@@ -14,6 +14,8 @@ import type {
   OpenProjectReading,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
+  StreamGraphAction,
+  StreamGraphNodeStudioFields,
   StreamGraphReading,
   StreamTabAddress,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
@@ -26,6 +28,7 @@ import {
   cardLetGoOverALinkEdits,
   cardsMovedEdits,
   deletedEdits,
+  doesTheGraphShowTheStudioSentAhead,
   editedStreamGraphOf,
   frameRenamedEdits,
   nodePlacedEdits,
@@ -33,6 +36,7 @@ import {
   notePlacedEdits,
   pinsWiredEdits,
   selectionFramedEdits,
+  studioFieldsSetBy,
   type LooseWire,
 } from "./stream_graph_edits";
 import { nodeTypeSearchItems } from "./stream_graph_node_type_search";
@@ -78,25 +82,48 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
   const importedProjectName = importedProjectNameOfTheStream(streamTab.stream, openProject, listedStreams);
   const { sendTheGesture, refusalOfTheLatestEdit } = useStreamGraphEditsSentToTheRuntime(connection, listedStream?.location?.project_directory ?? null);
-  const editedGraph = useMemo(() => (graphReading?.kind === "read" ? editedStreamGraphOf(graphReading.graph) : null), [graphReading]);
+  const [studioSentAheadByNodeId, setStudioSentAheadByNodeId] = useState<ReadonlyMap<string, StreamGraphNodeStudioFields>>(new Map());
+  useEffect(() => {
+    if (graphReading?.kind !== "read") return;
+    setStudioSentAheadByNodeId((sentAhead) => {
+      const stillAhead = [...sentAhead].filter(([nodeId, studio]) => !doesTheGraphShowTheStudioSentAhead(graphReading.graph, nodeId, studio));
+      return stillAhead.length === sentAhead.size ? sentAhead : new Map(stillAhead);
+    });
+  }, [graphReading]);
+  const editedGraph = useMemo(() => (graphReading?.kind === "read" ? editedStreamGraphOf(graphReading.graph, studioSentAheadByNodeId) : null), [graphReading, studioSentAheadByNodeId]);
+  const sendTheStudioGesture = useCallback(
+    (actions: StreamGraphAction[]) => {
+      const studioSet = studioFieldsSetBy(actions);
+      if (studioSet.size > 0) setStudioSentAheadByNodeId((sentAhead) => new Map([...sentAhead, ...studioSet]));
+      return sendTheGesture(actions).then((answer) => {
+        if (answer === "refused" && studioSet.size > 0)
+          setStudioSentAheadByNodeId((sentAhead) => new Map([...sentAhead].filter(([nodeId, studio]) => studioSet.get(nodeId) !== studio)));
+        return answer;
+      });
+    },
+    [sendTheGesture],
+  );
   const [nodeTypeSearchAsked, setNodeTypeSearchAsked] = useState<NodeTypeSearchAsked | null>(null);
   const closeTheNodeTypeSearch = useCallback(() => setNodeTypeSearchAsked(null), []);
   const editing = useMemo((): NodeGraphCanvasEditing | null => {
     if (importedProjectName !== null || editedGraph === null || "because" in editedGraph) return null;
     return {
-      onCardsMoved: (moves) => sendTheGesture(cardsMovedEdits(editedGraph, moves)),
+      onCardsMoved: (moves, cardLetGoOverALink) =>
+        sendTheStudioGesture([
+          ...(cardLetGoOverALink === null ? [] : cardLetGoOverALinkEdits(editedGraph, cardLetGoOverALink.node_id, cardLetGoOverALink.link_id)),
+          ...cardsMovedEdits(editedGraph, moves),
+        ]),
       onPinsWired: (source, target) => void sendTheGesture(pinsWiredEdits(editedGraph, source, target)),
       onWireLetGoOverTheCanvas: (looseWire, at) => setNodeTypeSearchAsked({ at, looseWire }),
       onNodeAskedFor: (at) => setNodeTypeSearchAsked({ at, looseWire: null }),
       onNoteAskedFor: (at) => void sendTheGesture(notePlacedEdits(editedGraph, at.on_the_canvas)),
-      onCardLetGoOverALink: (nodeId, linkId) => void sendTheGesture(cardLetGoOverALinkEdits(editedGraph, nodeId, linkId)),
       onDeleted: (deleted) => void sendTheGesture(deletedEdits(editedGraph, deleted)),
-      onFrameAskedFor: (nodeIds) => void sendTheGesture(selectionFramedEdits(editedGraph, nodeIds)),
+      onFrameAskedFor: (nodeIds) => sendTheGesture(selectionFramedEdits(editedGraph, nodeIds)),
       onNoteChanged: (noteId, change) => sendTheGesture(noteChangedEdits(editedGraph, noteId, change)),
       onFrameRenamed: (frameId, title) => void sendTheGesture(frameRenamedEdits(editedGraph, frameId, title)),
-      onCardCollapsed: (nodeId, collapsed) => void sendTheGesture(cardCollapsedEdits(editedGraph, nodeId, collapsed)),
+      onCardCollapsed: (nodeId, collapsed) => void sendTheStudioGesture(cardCollapsedEdits(editedGraph, nodeId, collapsed)),
     };
-  }, [importedProjectName, editedGraph, sendTheGesture]);
+  }, [importedProjectName, editedGraph, sendTheGesture, sendTheStudioGesture]);
   const catalog = catalogReading?.kind === "listed" ? catalogReading.catalog.node_types : [];
   const placeTheChosenNodeType = useCallback(
     (nodeType: string, staysOpen: boolean) => {
@@ -186,7 +213,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
           <>
             {canvasContents.nodes.length === 0 && nodeTypeSearchAsked === null && (
               <p className="pointer-events-none absolute inset-x-0 top-1/3 z-10 text-center text-xs text-fg-3" data-stream-graph-state="empty">
-                {streamTab.display_name} has no nodes yet. Press Tab to add one.
+                {streamTab.display_name} has no nodes yet. Click the graph and press Tab to add one.
               </p>
             )}
             {nodeTypeSearchAsked !== null && (
@@ -196,6 +223,8 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
                 placeholder="Search node types"
                 items={nodeTypeSearchItems(catalog, nodeTypeSearchAsked.looseWire)}
                 emptyWords={catalogReading?.kind === "not_listed" ? catalogReading.because : "No node type matches."}
+                chooseWords="place"
+                chooseAndStayWords="place another"
                 at={nodeTypeSearchAsked.at.in_the_element}
                 onItemChosen={placeTheChosenNodeType}
                 onClosed={closeTheNodeTypeSearch}

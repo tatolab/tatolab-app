@@ -24,3 +24,6 @@ apps/tato-app/native/*/Cargo.lock.pinned-to-git
 # Turborepo's local task cache and logs
 .turbo/
 coverage/
+
+# TypeScript incremental build state
+*.tsbuildinfo

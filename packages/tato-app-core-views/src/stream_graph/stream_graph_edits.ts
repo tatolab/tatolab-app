@@ -2,7 +2,16 @@
 // naming the stream by its stream asset and a node by its UUID, as the runtime's action contract spells them.
 // The canvas names a card by its node's name, which a link end names it by too.
 
-import type { JsonValue, NodeCatalogEntry, StreamGraphAction, StreamGraphNodeStudioFields, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import {
+  NODE_STUDIO_FIELDS_NONE_SET,
+  streamGraphNodeStudioFieldsSchema,
+  type JsonValue,
+  type NodeCatalogEntry,
+  type StreamGraphAction,
+  type StreamGraphNode,
+  type StreamGraphNodeStudioFields,
+  type StreamGraphSummary,
+} from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** A point on the canvas. */
 export interface StreamGraphCanvasPosition {
@@ -25,19 +34,20 @@ export const PLACED_FRAME_TITLE = "Frame";
 /** The canvas's rounding of a position, so a drag writes whole canvas pixels. */
 const toTheCanvasPixel = (position: StreamGraphCanvasPosition): [number, number] => [Math.round(position.x), Math.round(position.y)];
 
-/** One stream's graph as the edits read it: its stream asset and each node's UUID by its name. */
+/** One stream's graph as the edits read it: its stream asset, each node's UUID by its name, and the studio fields sent for a node that the graph doesn't show yet, by node UUID. */
 export interface EditedStreamGraph {
   streamAsset: string;
   graph: StreamGraphSummary;
   nodeIdByName: ReadonlyMap<string, string>;
+  studioSentAheadByNodeId: ReadonlyMap<string, StreamGraphNodeStudioFields>;
 }
 
 /** `graph` read for edits; why not when the runtime renders it without its stream asset or a node without its UUID. */
-export function editedStreamGraphOf(graph: StreamGraphSummary): EditedStreamGraph | { because: string } {
+export function editedStreamGraphOf(graph: StreamGraphSummary, studioSentAheadByNodeId: ReadonlyMap<string, StreamGraphNodeStudioFields> = new Map()): EditedStreamGraph | { because: string } {
   if (graph.stream_asset === null) return { because: "The runtime's graph names no stream asset, so an edit has no stream to name." };
   const nodeWithoutAnId = graph.nodes.find((node) => node.id === "");
   if (nodeWithoutAnId !== undefined) return { because: `The runtime's graph gives ${nodeWithoutAnId.name} no UUID, so an edit cannot name it.` };
-  return { streamAsset: graph.stream_asset, graph, nodeIdByName: new Map(graph.nodes.map((node) => [node.name, node.id])) };
+  return { streamAsset: graph.stream_asset, graph, nodeIdByName: new Map(graph.nodes.map((node) => [node.name, node.id])), studioSentAheadByNodeId };
 }
 
 /** A node's studio fields as the `studio` object `set_studio_fields` replaces whole: each field the node has kept, and its metadata. */
@@ -52,6 +62,28 @@ function studioObjectOf(studio: StreamGraphNodeStudioFields): Record<string, Jso
   };
 }
 
+/** A node's studio fields as the next `set_studio_fields` builds on: those sent ahead of the graph, else the graph's. */
+function studioToBuildOn(edited: EditedStreamGraph, node: StreamGraphNode): StreamGraphNodeStudioFields {
+  return edited.studioSentAheadByNodeId.get(node.id) ?? node.studio;
+}
+
+/** Each node's studio fields that `actions` set, by node UUID, so a second edit sent before the graph shows the first builds on it. */
+export function studioFieldsSetBy(actions: readonly StreamGraphAction[]): Map<string, StreamGraphNodeStudioFields> {
+  const studioByNodeId = new Map<string, StreamGraphNodeStudioFields>();
+  for (const action of actions) {
+    if (action.operation !== "set_studio_fields") continue;
+    const studio = streamGraphNodeStudioFieldsSchema.safeParse({ ...NODE_STUDIO_FIELDS_NONE_SET, ...action.studio });
+    if (studio.success) studioByNodeId.set(action.node, studio.data);
+  }
+  return studioByNodeId;
+}
+
+/** Whether the graph now shows each studio field set ahead for its node. */
+export function doesTheGraphShowTheStudioSentAhead(graph: StreamGraphSummary, nodeId: string, studioSentAhead: StreamGraphNodeStudioFields): boolean {
+  const node = graph.nodes.find((graphNode) => graphNode.id === nodeId);
+  return node === undefined || JSON.stringify(studioObjectOf(node.studio)) === JSON.stringify(studioObjectOf(studioSentAhead));
+}
+
 /** The UUID of the node named `nodeName`; the canvas names only nodes the graph holds. */
 function nodeIdOf(edited: EditedStreamGraph, nodeName: string): string {
   return edited.nodeIdByName.get(nodeName) ?? nodeName;
@@ -63,8 +95,9 @@ export function cardsMovedEdits(edited: EditedStreamGraph, moves: readonly { nod
     const node = edited.graph.nodes.find((graphNode) => graphNode.name === move.node_id);
     if (node === undefined) return [];
     const position = toTheCanvasPixel(move.position);
-    if (node.studio.position !== null && node.studio.position[0] === position[0] && node.studio.position[1] === position[1]) return [];
-    return [{ operation: "set_studio_fields", stream: edited.streamAsset, node: node.id, studio: studioObjectOf({ ...node.studio, position }) }];
+    const studio = studioToBuildOn(edited, node);
+    if (studio.position !== null && studio.position[0] === position[0] && studio.position[1] === position[1]) return [];
+    return [{ operation: "set_studio_fields", stream: edited.streamAsset, node: node.id, studio: studioObjectOf({ ...studio, position }) }];
   });
 }
 
@@ -176,8 +209,10 @@ export function frameRenamedEdits(edited: EditedStreamGraph, group: string, titl
 /** A card collapsed to its header, or opened again: its node's studio fields as they are, with `collapsed`. */
 export function cardCollapsedEdits(edited: EditedStreamGraph, nodeName: string, collapsed: boolean): StreamGraphAction[] {
   const node = edited.graph.nodes.find((graphNode) => graphNode.name === nodeName);
-  if (node === undefined || node.studio.collapsed === collapsed) return [];
-  return [{ operation: "set_studio_fields", stream: edited.streamAsset, node: node.id, studio: studioObjectOf({ ...node.studio, collapsed }) }];
+  if (node === undefined) return [];
+  const studio = studioToBuildOn(edited, node);
+  if (studio.collapsed === collapsed) return [];
+  return [{ operation: "set_studio_fields", stream: edited.streamAsset, node: node.id, studio: studioObjectOf({ ...studio, collapsed }) }];
 }
 
 /** A note placed with its top-left corner at `position`. */

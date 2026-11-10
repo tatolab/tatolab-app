@@ -136,7 +136,7 @@ describe("the studio's menus in macOS's system menu bar", () => {
       menus.find((menu) => menu.label === menuLabel)?.entries.map((entry) => (entry.kind === "system_items" ? `[${entry.system_items}]` : entry.kind === "separator" ? "—" : entry.label));
     expect(labelsOf("Tato Studio")).toEqual(["About Tato Studio", "Check for Updates…", "—", "Settings…", "—", "[app_services_hide_and_quit]"]);
     expect(labelsOf("File")?.slice(-2)).toEqual(["—", "[close_window]"]);
-    expect(labelsOf("Edit")).toEqual(["[text_editing]"]);
+    expect(labelsOf("Edit")).toEqual(["[text_editing]", "—", "Undo Your Last Edit", "Redo Your Last Undo"]);
     expect(labelsOf("View")).toEqual(["[full_screen]"]);
     expect(labelsOf("Window")).toEqual(["[window_arrangement]", "—", "Layout", "Save layout as…", "Maximise area", "New window", "—", "[bring_all_to_front]"]);
     expect(labelsOf("Help")).toEqual(["Documentation"]);

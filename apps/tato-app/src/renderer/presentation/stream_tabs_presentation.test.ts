@@ -33,6 +33,15 @@ test("a tab is marked running only while the runtime lists its stream running", 
 
 test("the + offers the open project's streams that no tab shows, other projects' streams aside", () => {
   const listedStreams = { kind: "listed" as const, streams: [listed("main", "/p", "running"), listed("lights", "/p", "stopped"), listed("other", "/q", "running")] };
-  expect(streamsOfTheProjectNoTabShows("/p", listedStreams, OPEN_TABS).map((stream) => stream.stream)).toEqual(["lights"]);
-  expect(streamsOfTheProjectNoTabShows(null, listedStreams, OPEN_TABS)).toEqual([]);
+  const offered = streamsOfTheProjectNoTabShows("/p", listedStreams, OPEN_TABS);
+  expect(offered.kind === "to_open" && offered.streams.map((stream) => stream.stream)).toEqual(["lights"]);
+  expect(streamsOfTheProjectNoTabShows(null, listedStreams, OPEN_TABS)).toEqual({ kind: "none_to_offer", because: "No project is open." });
+});
+
+test("the + says why it offers nothing, in the runtime's own words when it lists no streams", () => {
+  expect(streamsOfTheProjectNoTabShows("/p", { kind: "not_listed", because: "No runtime answers." }, OPEN_TABS)).toEqual({ kind: "none_to_offer", because: "No runtime answers." });
+  expect(streamsOfTheProjectNoTabShows("/p", { kind: "listed", streams: [listed("main", "/p", "running")] }, { tabs: [{ stream: "main", project_name: "pattern", display_name: "Main" }], active_stream: "main" })).toEqual({
+    kind: "none_to_offer",
+    because: "Every stream of the project is open.",
+  });
 });

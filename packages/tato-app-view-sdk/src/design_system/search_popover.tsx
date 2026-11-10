@@ -20,6 +20,8 @@ export function SearchPopover({
   items,
   emptyWords,
   at,
+  chooseWords,
+  chooseAndStayWords,
   onItemChosen,
   onClosed,
   ...controlDataAttributes
@@ -34,6 +36,10 @@ export function SearchPopover({
   emptyWords: string;
   /** Its top-left corner, in pixels of the element it opens over. */
   at: { x: number; y: number };
+  /** What ↵ does, as the footer names it, as "place". */
+  chooseWords: string;
+  /** What ⇧↵ does, as the footer names it, as "place another". */
+  chooseAndStayWords: string;
   /** `staysOpen` is set when ⇧↵ chose it. */
   onItemChosen: (itemId: string, staysOpen: boolean) => void;
   onClosed: () => void;
@@ -45,6 +51,14 @@ export function SearchPopover({
   const highlighted = highlightedItemId !== null && shownItemIds.includes(highlightedItemId) ? highlightedItemId : (shownItemIds[0] ?? null);
   const popoverElement = useRef<HTMLDivElement>(null);
   const listId = useId();
+  const optionIdOf = (itemId: string) => `${listId}-option-${shownItemIds.indexOf(itemId)}`;
+
+  const [focusedBeforeOpening] = useState(() => document.activeElement);
+  useEffect(() => {
+    return () => {
+      if (focusedBeforeOpening instanceof HTMLElement && focusedBeforeOpening.isConnected) focusedBeforeOpening.focus();
+    };
+  }, [focusedBeforeOpening]);
 
   useEffect(() => {
     const closeOnAPressOutside = (pointerEvent: PointerEvent) => {
@@ -100,15 +114,19 @@ export function SearchPopover({
             role="combobox"
             aria-expanded
             aria-controls={listId}
-            aria-activedescendant={highlighted === null ? undefined : `${listId}-${highlighted}`}
+            aria-activedescendant={highlighted === null ? undefined : optionIdOf(highlighted)}
             spellCheck={false}
             autoComplete="off"
             className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-3"
           />
         </div>
       </div>
+      {categories.length === 0 && (
+        <p role="status" className="px-2.5 py-3 text-xs text-fg-3">
+          {emptyWords}
+        </p>
+      )}
       <ul id={listId} role="listbox" aria-label={label} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-1">
-        {categories.length === 0 && <li className="px-2 py-3 text-xs text-fg-3">{emptyWords}</li>}
         {categories.map(({ category, items: categoryItems }) => (
           <li key={category} role="presentation">
             <div className="px-2 pt-1.5 pb-0.5 text-2xs text-fg-3" aria-hidden>
@@ -118,13 +136,13 @@ export function SearchPopover({
               {categoryItems.map((item) => (
                 <li
                   key={item.item_id}
-                  id={`${listId}-${item.item_id}`}
+                  id={optionIdOf(item.item_id)}
                   role="option"
                   aria-selected={item.item_id === highlighted}
                   data-search-popover-item={item.item_id}
                   onPointerMove={() => setHighlightedItemId(item.item_id)}
                   onClick={(clickEvent) => onItemChosen(item.item_id, clickEvent.shiftKey)}
-                  className={cn("flex min-w-0 cursor-default items-baseline gap-2 rounded-md px-2 py-1 text-[13px]", item.item_id === highlighted && "bg-selected")}
+                  className={cn("flex min-w-0 cursor-default items-baseline gap-2 rounded-md px-2 py-1 text-sm", item.item_id === highlighted && "bg-selected")}
                 >
                   <span className="shrink-0 text-fg">{item.title}</span>
                   <span className="min-w-0 truncate text-xs text-fg-3">{item.summary}</span>
@@ -139,10 +157,10 @@ export function SearchPopover({
           <KeyboardKey>↑↓</KeyboardKey> move
         </span>
         <span>
-          <KeyboardKey>↵</KeyboardKey> place
+          <KeyboardKey>↵</KeyboardKey> {chooseWords}
         </span>
         <span>
-          <KeyboardKey>⇧↵</KeyboardKey> place another
+          <KeyboardKey>⇧↵</KeyboardKey> {chooseAndStayWords}
         </span>
         <span className="ml-auto">
           <KeyboardKey>esc</KeyboardKey>
