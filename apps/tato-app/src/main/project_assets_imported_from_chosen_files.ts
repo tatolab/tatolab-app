@@ -4,9 +4,8 @@
 
 import path from "node:path";
 import type { ProjectAssetsImported, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
-import type { LocalApiRequestFailure } from "./local_api_client.js";
-import { firstNumberedNameNothingHoldsIn } from "./open_project.js";
-import type { AssetImportedByTheRuntime } from "./project_changes_on_the_wire.js";
+import { firstNumberedNameNothingHoldsIn, type ProjectChangesThroughTheRuntime } from "./open_project.js";
+import { assetFolderRefusal } from "../shared/asset_folder_in_a_project.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** Asks the person for the files to import as assets, in the desktop's open dialog opened at `defaultFolder`; `null` when they cancel. */
@@ -16,15 +15,7 @@ export type ProjectAssetFilesDialog = (defaultFolder: string) => Promise<Result<
 export interface ProjectAssetsImportedFromChosenFilesSources {
   homeDirectory: string;
   projectAssetFilesDialog: ProjectAssetFilesDialog;
-  importAsset(projectDirectory: string, source: string, assetPath: string, author: ProjectTransactionAuthor | null): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>>;
-}
-
-/** Why `intoFolder` cannot hold an imported asset, or `null` when it can: a `/`-separated folder inside the project, `""` for its top. */
-export function assetFolderRefusal(intoFolder: string): string | null {
-  if (intoFolder === "") return null;
-  const folderNames = intoFolder.split("/");
-  const isInsideTheProject = !intoFolder.startsWith("/") && !intoFolder.includes("\\") && folderNames.every((folderName) => folderName !== "" && folderName !== "." && folderName !== "..");
-  return isInsideTheProject ? null : `${intoFolder} is not a folder inside the project.`;
+  projectChanges: Pick<ProjectChangesThroughTheRuntime, "importAsset">;
 }
 
 /** The files the person chooses, imported into a project one after another. */
@@ -44,7 +35,7 @@ export class ProjectAssetsImportedFromChosenFiles {
       const extension = path.extname(fileName);
       const freeName = await firstNumberedNameNothingHoldsIn(path.join(projectDirectory, intoFolder), path.basename(fileName, extension), extension);
       const assetPath = intoFolder === "" ? `${freeName}${extension}` : `${intoFolder}/${freeName}${extension}`;
-      const imported = await this.sources.importAsset(projectDirectory, path.resolve(chosenFile), assetPath, author);
+      const imported = await this.sources.projectChanges.importAsset(projectDirectory, chosenFile, assetPath, author);
       if (imported.ok) assetsImported.imported.push(imported.value);
       else assetsImported.refused.push({ file_name: fileName, because: imported.failure.failureDescription });
     }

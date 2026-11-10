@@ -35,6 +35,11 @@ export function libraryAssetFoldersOf(assets: readonly ProjectAsset[]): LibraryA
   return [{ folder_id: EVERY_ASSET_FOLDER_ID, label: "All assets", asset_count: assets.length }, ...folders];
 }
 
+/** The folder shown for the choice `shownFolderId`: that folder while the project still has it, every asset otherwise. */
+export function assetFolderIdShownOf(folders: readonly LibraryAssetFolder[], shownFolderId: string): string {
+  return folders.some((folder) => folder.folder_id === shownFolderId) ? shownFolderId : EVERY_ASSET_FOLDER_ID;
+}
+
 /** The folder Import asset… copies into while `folderId` is shown, `/`-separated in the project: the folder itself, or the project's top for every asset or the top's own. */
 export function assetFolderOfTheShownFolder(folderId: string): string {
   if (!folderId.startsWith("folder:")) return "";

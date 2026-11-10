@@ -36,7 +36,7 @@ import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./m
 import { MockProjectFiles } from "./mock_project_files";
 import { MOCK_PERSON_EDITING_IN_STUDIO, MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
-import { mockImportTheFileChosenInto, mockProjectAssetListing } from "./mock_project_assets";
+import { mockImportTheFilesChosenInto, mockProjectAssetListing, type MockAssetImportScenario } from "./mock_project_assets";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import type { ProjectAsset, ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
@@ -206,6 +206,8 @@ export interface MockTatolabOptions {
   arePortFamiliesServed: boolean;
   /** `?node_types=unreadable_project`: every module of the open project's own node code does not parse; one of them does not by default. */
   isEveryOwnNodeModuleUnreadable: boolean;
+  /** `?asset_import=refuses_one`: Import asset… also refuses a graph document chosen beside the file it imports. */
+  assetImportScenario: MockAssetImportScenario;
   /** `?popped_out_view=<popped-out view as JSON>`: the page is a view popped out of the studio, as Pop out into a window opens it in a new tab; the studio by default. */
   poppedOutView: PoppedOutView | null;
   /** `?module_manager=open|edited_files|newer`: the page is the open project's Module manager window, as File › Module manager… opens it in a new tab, its import as copied, edited since, or with a newer version on its source; `null` for any other page. */
@@ -332,6 +334,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     recentProjectsInTheQuery: pageQuery.get("recent"),
     arePortFamiliesServed: pageQuery.get("port_families") !== "unserved",
     isEveryOwnNodeModuleUnreadable: pageQuery.get("node_types") === "unreadable_project",
+    assetImportScenario: pageQuery.get("asset_import") === "refuses_one" ? "refuses_one" : "imports_one",
     poppedOutView: mockPoppedOutViewFrom(pageQuery.get(POPPED_OUT_VIEW_QUERY_PARAMETER)),
     moduleManagerWorkspaceDependencies: mockWorkspaceDependenciesScenarioNamed(pageQuery.get(MODULE_MANAGER_QUERY_PARAMETER)),
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
@@ -1130,7 +1133,15 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (openProjectReading.kind !== "read") throw "No project is open in this window.";
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      return mockImportTheFileChosenInto(openProjectReading.open_project.project.folder, `${fixtures.machine.homeDirectory}/streams`, intoFolder, assetsImportedWhileTheMockRuns);
+      const assetsImported = mockImportTheFilesChosenInto(
+        openProjectReading.open_project.project.folder,
+        `${fixtures.machine.homeDirectory}/streams`,
+        intoFolder,
+        assetsImportedWhileTheMockRuns,
+        mockTatolabOptions.assetImportScenario,
+      );
+      if (typeof assetsImported === "string") throw assetsImported;
+      return assetsImported;
     },
     checkForTatolabAppUpdates: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

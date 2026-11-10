@@ -4,7 +4,8 @@ import path from "node:path";
 import { expect, test } from "vitest";
 import type { ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import { localApiRequestFailure } from "./local_api_client.js";
-import { assetFolderRefusal, ProjectAssetsImportedFromChosenFiles } from "./project_assets_imported_from_chosen_files.js";
+import { assetFolderRefusal } from "../shared/asset_folder_in_a_project.js";
+import { ProjectAssetsImportedFromChosenFiles } from "./project_assets_imported_from_chosen_files.js";
 import { succeeded } from "./result.js";
 
 const SAM: ProjectTransactionAuthor = { kind: "person", name: "sam" };
@@ -25,10 +26,12 @@ function importingFilesTheDialogAnswers(filesTheDialogAnswers: readonly string[]
       dialogsOpenedAt.push(defaultFolder);
       return succeeded(filesTheDialogAnswers);
     },
-    importAsset: async (projectDirectory, source, assetPath, author) => {
-      importsAsked.push({ projectDirectory, source, assetPath, author });
-      if (source.endsWith("notes.txt")) return localApiRequestFailure("import_asset failed: a stream is never imported");
-      return succeeded({ asset: `uuid-of-${assetPath}`, path: assetPath });
+    projectChanges: {
+      importAsset: async (projectDirectory, source, assetPath, author) => {
+        importsAsked.push({ projectDirectory, source, assetPath, author });
+        if (source.endsWith("notes.txt")) return localApiRequestFailure("import_asset failed: a stream is never imported");
+        return succeeded({ asset: `uuid-of-${assetPath}`, path: assetPath });
+      },
     },
   });
   return { assetImport, importsAsked, dialogsOpenedAt };

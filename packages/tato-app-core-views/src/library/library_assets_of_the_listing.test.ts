@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ProjectAsset, ProjectAssetListing } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { assetFileName, assetFolderOfTheShownFolder, importRefusalsOf, assetKindAndSizeWords, noAssetShownWords, assetFormatWords, assetPictureToneOf, assetsShownInTheFolder, assetsTheLibraryLists, byteLengthInWords, EVERY_ASSET_FOLDER_ID, libraryAssetFoldersOf, shortenedDigest } from "./library_assets_of_the_listing";
+import { assetFileName, assetFolderIdShownOf, assetFolderOfTheShownFolder, importRefusalsOf, assetKindAndSizeWords, noAssetShownWords, assetFormatWords, assetPictureToneOf, assetsShownInTheFolder, assetsTheLibraryLists, byteLengthInWords, EVERY_ASSET_FOLDER_ID, libraryAssetFoldersOf, shortenedDigest } from "./library_assets_of_the_listing";
 
 const assetAt = (path: string, kind: string, contentByteLen = 1): ProjectAsset => ({ asset: `uuid-of-${path}`, kind, path, content_sha256: "0".repeat(64), content_byte_len: contentByteLen, import_settings: {} });
 
@@ -55,6 +55,8 @@ describe("the Library's assets", () => {
 
   it("imports into the folder shown, or the project's top for every asset or the top's own", () => {
     expect([EVERY_ASSET_FOLDER_ID, "folder:.", "folder:media"].map(assetFolderOfTheShownFolder)).toEqual(["", "", "media"]);
+    const folders = libraryAssetFoldersOf(assetsTheLibraryLists(LOBBY_CAMERA_LISTING));
+    expect([assetFolderIdShownOf(folders, "folder:media"), assetFolderIdShownOf(folders, "folder:fonts")]).toEqual(["folder:media", EVERY_ASSET_FOLDER_ID]);
   });
 
   it("names each file the runtime refused to import in its words, and why nothing was imported", () => {

@@ -371,7 +371,7 @@ export class LocalApiClient {
   async importAsset(projectDirectory: string, source: string, assetPath: string, author: ProjectTransactionAuthor | null): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>> {
     const toolResultText = await this.callMcpTool(
       "import_asset",
-      { project_directory: projectDirectory, source, asset_path: assetPath, ...(author === null ? {} : { author: { kind: author.kind, name: author.name } }) },
+      { project_directory: projectDirectory, source, asset_path: assetPath, ...(author === null ? {} : { author: authorOnTheWire(author) }) },
       FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS,
     );
     if (!toolResultText.ok) return toolResultText;
@@ -572,7 +572,7 @@ export class LocalApiClient {
       project_directory: projectDirectory,
       path: filePath,
       content: text,
-      author: { kind: author.kind, name: author.name },
+      author: authorOnTheWire(author),
       idempotency_key: idempotencyKey,
     });
     if (!toolResultText.ok) return toolResultText;
@@ -607,7 +607,7 @@ export class LocalApiClient {
   }
 
   private async undoOrRedoInTheProject(toolName: "undo" | "redo", projectDirectory: string, author: ProjectTransactionAuthor): Promise<Result<ProjectTransaction, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool(toolName, { project_directory: projectDirectory, author: { kind: author.kind, name: author.name } });
+    const toolResultText = await this.callMcpTool(toolName, { project_directory: projectDirectory, author: authorOnTheWire(author) });
     if (!toolResultText.ok) return toolResultText;
     const transaction = projectTransactionFromTheUndoOrRedoToolResult(toolName, toolResultText.value);
     return transaction.ok ? transaction : localApiRequestFailure(transaction.failure);
@@ -623,7 +623,7 @@ export class LocalApiClient {
     const toolAnswer = await this.callMcpToolKeepingItsRefusal("transact", {
       operations,
       mode,
-      author: { kind: author.kind, name: author.name },
+      author: authorOnTheWire(author),
       ...(idempotencyKey === null ? {} : { idempotency_key: idempotencyKey }),
     });
     if (!toolAnswer.ok) return toolAnswer;
@@ -855,4 +855,9 @@ function dechunkedBody(chunkedBody: Buffer): Result<Buffer, string> {
     if (remaining.length < chunkSize + 2) return failedWith("the body ended after a chunk");
     remaining = remaining.subarray(chunkSize + 2);
   }
+}
+
+/** `author` as the runtime's tools take it: its kind and name, nothing else. */
+function authorOnTheWire(author: ProjectTransactionAuthor): { kind: ProjectTransactionAuthor["kind"]; name: string } {
+  return { kind: author.kind, name: author.name };
 }

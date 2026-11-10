@@ -214,7 +214,7 @@ async function sharedStateOverFakes(
     projectAssetsImportedFromChosenFiles: new ProjectAssetsImportedFromChosenFiles({
       homeDirectory: appConfigDirectory,
       projectAssetFilesDialog: async () => succeeded(assetFilesTheDialogAnswers.files),
-      importAsset: (projectDirectory, source, assetPath, author) => controller.importAsset(projectDirectory, source, assetPath, author),
+      projectChanges: controller,
     }),
     assetFilesTheDialogAnswers,
     thePersonEditingInStudio: { kind: "person", name: "sam" },

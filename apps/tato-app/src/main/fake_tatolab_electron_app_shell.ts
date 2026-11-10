@@ -108,6 +108,7 @@ export class FakeTatolabElectronAppShell {
   projectFolderTheDialogAnswers: string | null = null;
   /** The folder or `.zip` the dependency source dialog answers, or `null` for the person cancelling. */
   dependencySourceTheDialogAnswers: string | null = null;
+  /** The files the import-assets dialog answers, or `null` for the person cancelling. */
   assetFilesTheDialogAnswers: readonly string[] | null = null;
   /** The `.zip` the project archive dialog answers, or `null` for the person cancelling. */
   projectArchiveTheDialogAnswers: string | null = null;

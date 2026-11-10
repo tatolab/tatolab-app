@@ -288,6 +288,25 @@ describe("the studio", () => {
     expect(library.querySelector("[data-library-import-refused]")).toBeNull();
   });
 
+  it("shows each file the runtime refused to import in its words, beside the file it imported, the search cleared so the import shows", async () => {
+    await mountedWindowOverTheMock("state=running&asset_import=refuses_one");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
+    await showInTheLibrary("assets");
+
+    const library = coreViewPage("library");
+    await waitFor(() => library.querySelector('[data-library-asset="luts/warm.cube"]') ?? expect.unreachable("no assets listed"));
+    fireEvent.change(library.querySelector<HTMLInputElement>("[data-library-asset-search]") ?? expect.unreachable("no search field"), { target: { value: "cube" } });
+    fireEvent.click(library.querySelector<HTMLElement>("[data-library-import-asset]") ?? expect.unreachable("no Import asset button"));
+
+    const refusal = await waitFor(() => library.querySelector<HTMLElement>("[data-library-import-refused]") ?? expect.unreachable("no refusal"));
+    expect(refusal.textContent).toBe("Didn't import main.graph.json: import_asset failed: `main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write");
+    expect(library.querySelector<HTMLInputElement>("[data-library-asset-search]")?.value).toBe("");
+    await waitFor(() => library.querySelector('[data-library-asset="night-sky.jpg"]') ?? expect.unreachable("the imported file is not shown"));
+    expect(library.querySelector("[data-library-asset-details]")?.textContent).toContain("night-sky.jpg");
+  });
+
   it("lists in an area's view-type menu each view with who brought it, and a view that does not open as a row that cannot be chosen, with why", async () => {
     await mountedWindowOverTheMock("state=running&studio_views=fixture");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));

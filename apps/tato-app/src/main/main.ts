@@ -400,7 +400,7 @@ export async function startTatolabApp(
     projectAssetsImportedFromChosenFiles: new ProjectAssetsImportedFromChosenFiles({
       homeDirectory: tatolabElectronAppShell.homeDirectory,
       projectAssetFilesDialog: tatolabElectronAppShell.askThePersonForFilesToImportAsAssets,
-      importAsset: (projectDirectory, source, assetPath, author) => controller.importAsset(projectDirectory, source, assetPath, author),
+      projectChanges: controller,
     }),
     thePersonEditingInStudio: tatolabElectronAppShell.thePersonSignedInToThisComputer,
     tatolabAppLog,

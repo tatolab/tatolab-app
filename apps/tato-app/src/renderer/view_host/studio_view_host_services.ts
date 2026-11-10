@@ -37,6 +37,26 @@ export function onlyTheOpenProjectImportsAssetsRefusal(projectFolder: string): s
   return `Tato Studio imports assets into this window's project only, not ${projectFolder}.`;
 }
 
+/** What a view's Import asset… reaches: the window's open project, the backend that asks the person and imports, and the project's asset listing to read again. */
+export interface AssetImportForAViewSources {
+  readTheOpenProject: () => OpenProjectReading;
+  backend: Pick<TatolabBackend, "importAssetsIntoTheOpenProject">;
+  listTheProjectAgainNow: (projectFolder: string) => void;
+}
+
+/** The files the person chooses imported into `intoFolder` of `projectFolder` when it is the window's open project, its asset listing read again at once; refused for any other folder. */
+export async function importAssetsIntoTheOpenProjectForAView(projectFolder: string, intoFolder: string, assetImportSources: AssetImportForAViewSources): Promise<ProjectAssetsImporting> {
+  const openProject = assetImportSources.readTheOpenProject();
+  if (openProject.kind !== "read" || openProject.open_project.project.folder !== projectFolder) return { kind: "not_imported", because: onlyTheOpenProjectImportsAssetsRefusal(projectFolder) };
+  return assetImportSources.backend.importAssetsIntoTheOpenProject(intoFolder).then(
+    (assetsImported): ProjectAssetsImporting => {
+      assetImportSources.listTheProjectAgainNow(projectFolder);
+      return assetsImported === null ? { kind: "nothing_chosen" } : { kind: "imported", assets_imported: assetsImported };
+    },
+    (rejection: unknown): ProjectAssetsImporting => ({ kind: "not_imported", because: describeBackendRejection(rejection) }),
+  );
+}
+
 /** What every view's bridge answers its frame from, read from `sources`, for a stream's graph and catalog from `streamReadings`, and for the open project and its imports from `projectServices`. */
 export function studioViewHostServicesOf(
   sources: StudioWindowValuesServedToViews,
@@ -83,17 +103,12 @@ export function studioViewHostServicesOf(
     watchProjectLog: projectServices.projectLogReadings.watchProjectLog,
     watchProjectNodeTypes: projectServices.projectNodeTypeReadings.watchTheProject,
     watchProjectAssets: projectServices.projectAssetReadings.watchTheProject,
-    importAssetsIntoTheProject: async (projectFolder, intoFolder) => {
-      const openProject = sources.openProject.readLatest();
-      if (openProject.kind !== "read" || openProject.open_project.project.folder !== projectFolder) return { kind: "not_imported", because: onlyTheOpenProjectImportsAssetsRefusal(projectFolder) };
-      return backend.importAssetsIntoTheOpenProject(intoFolder).then(
-        (assetsImported): ProjectAssetsImporting => {
-          projectServices.projectAssetReadings.listTheProjectAgainNow(projectFolder);
-          return assetsImported === null ? { kind: "nothing_chosen" } : { kind: "imported", assets_imported: assetsImported };
-        },
-        (rejection: unknown): ProjectAssetsImporting => ({ kind: "not_imported", because: describeBackendRejection(rejection) }),
-      );
-    },
+    importAssetsIntoTheProject: (projectFolder, intoFolder) =>
+      importAssetsIntoTheOpenProjectForAView(projectFolder, intoFolder, {
+        readTheOpenProject: sources.openProject.readLatest,
+        backend,
+        listTheProjectAgainNow: (folder) => projectServices.projectAssetReadings.listTheProjectAgainNow(folder),
+      }),
     watchProjectTransactions: projectServices.projectTransactionsReadings.watchProjectTransactions,
     undoInTheProject: projectServices.projectTransactionsReadings.undoInTheProject,
     redoInTheProject: projectServices.projectTransactionsReadings.redoInTheProject,
