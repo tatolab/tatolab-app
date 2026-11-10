@@ -1,7 +1,6 @@
 import {
   connectToTatoAppOverPort,
   readTatolabViewManifest,
-  VIEW_CAPABILITIES,
   type TatoAppViewConnection,
   type TatolabViewManifest,
   type ViewInputEvent,
@@ -48,11 +47,7 @@ const DJ_DECK_MANIFEST = manifestOf({
     { name: "play_a", family: "array" },
   ],
   settings: { type: "object", properties: { show_waveform: { type: "boolean", default: true }, zoom: { type: "number", minimum: 1, default: 1 } } },
-  capabilities: ["read.selection"],
-  sandbox: true,
 });
-
-const FULL_ACCESS_DJ_DECK_MANIFEST: TatolabViewManifest = { ...DJ_DECK_MANIFEST, sandbox: false, capabilities: [] };
 
 const STREAM_FILE_READ: ProjectFileRead = { file: "/set/stream.py", project_folder: "/set", text: "print()", version: "v1", is_editable: true };
 
@@ -214,8 +209,8 @@ function messagesDelivered(): Promise<void> {
 }
 
 describe("a view's connection to Studio, through the one bridge every view is served by", () => {
-  it("edits the project's graphs through it when granted edit.stream_graph, the runtime's structured refusal reaching the view whole, and is refused by name when sandboxed without it", async () => {
-    const { connection, graphTransactionsAsked } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+  it("edits the project's graphs through it, the runtime's structured refusal reaching the view whole", async () => {
+    const { connection, graphTransactionsAsked } = await connectedView(DJ_DECK_MANIFEST, {});
     const addHoldFrame = { operation: "add_node", stream: "s-uuid", type: "tatolab.ops:HoldFrame", as: "hold" } as const;
     expect(await connection.transactInTheProject("/set", [addHoldFrame], { mode: "commit", idempotencyKey: "gesture-1" })).toEqual({ kind: "applied", transaction: GRAPH_TRANSACTION_APPLIED });
     expect(await connection.transactInTheProject("/set", [{ operation: "rename_node", stream: "s-uuid", node: "n-uuid", name: "camera" }], { mode: "commit", idempotencyKey: null })).toEqual({
@@ -224,40 +219,24 @@ describe("a view's connection to Studio, through the one bridge every view is se
     });
     expect(await connection.transactInTheProject("/set", [{ operation: "remove_node", stream: "s-uuid", node: "n-uuid" }], { mode: "live", idempotencyKey: null })).toEqual({ kind: "not_sent", because: "No runtime answers." });
     expect(graphTransactionsAsked[0]).toEqual({ projectFolder: "/set", operations: [addHoldFrame], mode: "commit", idempotencyKey: "gesture-1" });
-
-    const sandboxed = await connectedView(DJ_DECK_MANIFEST, {});
-    expect(await sandboxed.connection.transactInTheProject("/set", [addHoldFrame], { mode: "commit", idempotencyKey: null })).toEqual({
-      kind: "not_sent",
-      because: "DJ Deck runs sandboxed and does not list edit.stream_graph in its tatolab_view.json, so Studio does not serve it.",
-    });
-    expect(sandboxed.graphTransactionsAsked).toEqual([]);
   });
 
-  it("names the person editing, whose own edits Undo reverts, to a view granted read.project_assets, and refuses it by name to a sandboxed one without it", async () => {
-    const { connection } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+  it("names the person editing, whose own edits Undo reverts", async () => {
+    const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
     expect(await connection.readThePersonEditing()).toEqual({ kind: "read", author: { kind: "person", name: "sam" } });
-    const sandboxed = await connectedView(DJ_DECK_MANIFEST, {});
-    expect(await sandboxed.connection.readThePersonEditing()).toEqual({
-      kind: "not_read",
-      because: "DJ Deck runs sandboxed and does not list read.project_assets in its tatolab_view.json, so Studio does not serve it.",
-    });
   });
 
 
-  it("lists the project's assets to a view granted read.project_assets, the runtime's refusal in its words, and refuses a sandboxed view by name", async () => {
-    const { connection } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+  it("lists the project's assets, the runtime's refusal in its words", async () => {
+    const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
     const readings: ProjectAssetsReading[] = [];
     connection.watchProjectAssets("/set", (reading) => readings.push(reading));
-    const sandboxed = await connectedView(DJ_DECK_MANIFEST, {});
-    const refusals: string[] = [];
-    sandboxed.connection.watchProjectAssets("/set", () => undefined, (because) => refusals.push(because));
     await messagesDelivered();
     expect(readings).toEqual([{ kind: "not_listed", because: "list_assets failed: /set holds no project: it has no tatolab-project.json" }]);
-    expect(refusals).toEqual(["DJ Deck runs sandboxed and does not list read.project_assets in its tatolab_view.json, so Studio does not serve it."]);
   });
 
-  it("reads the project's history and undoes through it when it may write the project, and is refused both by name when sandboxed without them", async () => {
-    const { connection, undosAsked } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+  it("reads the project's history and undoes through it", async () => {
+    const { connection, undosAsked } = await connectedView(DJ_DECK_MANIFEST, {});
     const readings: ProjectTransactionsReading[] = [];
     connection.watchProjectTransactions("/set", (reading) => readings.push(reading));
     const author = { kind: "agent", name: "claude-code" } as const;
@@ -268,48 +247,23 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(undone).toEqual({ kind: "applied", transaction: UNDO_APPLIED });
     expect(undosAsked).toEqual([{ projectFolder: "/set", author }]);
     expect(redone).toEqual({ kind: "not_applied", because: "redo failed: claude-code has nothing to redo" });
-
-    const sandboxed = await connectedView(DJ_DECK_MANIFEST, {});
-    const refusals: string[] = [];
-    sandboxed.connection.watchProjectTransactions("/set", () => undefined, (because) => refusals.push(because));
-    const refusedUndo = await sandboxed.connection.undoInTheProject("/set", author);
-    await messagesDelivered();
-    expect(refusals).toEqual(["DJ Deck runs sandboxed and does not list read.project_assets in its tatolab_view.json, so Studio does not serve it."]);
-    expect(refusedUndo).toEqual({ kind: "not_applied", because: "DJ Deck runs sandboxed and does not list write.project_assets in its tatolab_view.json, so Studio does not serve it." });
-    expect(sandboxed.undosAsked).toEqual([]);
   });
 
-  it("is told what its manifest was granted as it connects", async () => {
+  it("is told its id, contract, placement and declared ports as it connects", async () => {
     const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
     expect(connection.grant).toEqual({
       view_type_id: "acme-dj:deck",
       contract: "1.0",
       placement: "node",
-      sandboxed: true,
       inputs: [{ name: "deck_a", family: "channels" }],
       outputs: [
         { name: "crossfader", family: "array" },
         { name: "play_a", family: "array" },
       ],
-      capabilities: ["read.selection"],
     });
   });
 
-  it("grants a full-access view every capability, whatever its manifest lists", async () => {
-    const { connection, selectionsAsked } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
-    const refusals: string[] = [];
-    connection.watchStreamGraph("set", () => undefined, (because) => refusals.push(because));
-    const selectAnswer = await connection.select({ kind: "nothing" });
-    await messagesDelivered();
-
-    expect(connection.grant.sandboxed).toBe(false);
-    expect(connection.grant.capabilities).toEqual([...VIEW_CAPABILITIES]);
-    expect(refusals).toEqual([]);
-    expect(selectAnswer).toEqual({ kind: "done" });
-    expect(selectionsAsked).toEqual([{ kind: "nothing" }]);
-  });
-
-  it("reads what every view gets and what it declared, and is refused, in words naming the capability, what it did not declare", async () => {
+  it("reads the open project, the selection and a stream's graph, and selects", async () => {
     const { connection, selection } = await connectedView(DJ_DECK_MANIFEST, {});
     const selectionsSeen: StudioSelection[] = [];
     const refusals: string[] = [];
@@ -324,12 +278,12 @@ describe("a view's connection to Studio, through the one bridge every view is se
 
     expect(openProjectReadings).toEqual(["none_open"]);
     expect(selectionsSeen).toEqual([{ kind: "nothing" }, { kind: "node", stream: "set", node: "mixer" }]);
-    expect(refusals).toEqual(["DJ Deck runs sandboxed and does not list read.stream_graph in its tatolab_view.json, so Studio does not serve it."]);
-    expect(selectAnswer).toEqual({ kind: "refused", because: "DJ Deck runs sandboxed and does not list write.selection in its tatolab_view.json, so Studio does not serve it." });
+    expect(refusals).toEqual([]);
+    expect(selectAnswer).toEqual({ kind: "done" });
   });
 
-  it("asks the studio to select when it declared write.selection", async () => {
-    const { connection, selectionsAsked } = await connectedView({ ...DJ_DECK_MANIFEST, capabilities: ["write.selection"] }, {});
+  it("asks the studio to select", async () => {
+    const { connection, selectionsAsked } = await connectedView(DJ_DECK_MANIFEST, {});
     expect(await connection.select({ kind: "node", stream: "set", node: "deck_a" })).toEqual({ kind: "done" });
     expect(selectionsAsked).toEqual([{ kind: "node", stream: "set", node: "deck_a" }]);
   });
@@ -403,7 +357,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(portViewersOpened.map((opened) => opened.closed)).toEqual([true]);
   });
 
-  it("hands an Image frame over as an ImageBitmap it transfers, closing the frame, and closes one that arrives after the view stopped watching", async () => {
+  it("hands a view an Image frame as the VideoFrame itself, transferred with no copy", async () => {
     const host = recordingHostServices();
     const postedToTheView: { message: unknown; transfer: Transferable[] }[] = [];
     const listenersOfThePort: ((event: MessageEvent<unknown>) => void)[] = [];
@@ -418,11 +372,8 @@ describe("a view's connection to Studio, through the one bridge every view is se
       start: () => undefined,
       close: () => undefined,
     };
-    let bitmapsMade = 0;
     const framesClosed: string[] = [];
-    const bitmapsClosed: string[] = [];
-    const videoFrameNamed = (name: string) => Object.assign(Object.create(null), { timestamp: 33_000, close: () => framesClosed.push(name) });
-    const imageBitmapNamed = (name: string) => Object.assign(Object.create(null), { name, close: () => bitmapsClosed.push(name) });
+    const videoFrame = Object.assign(Object.create(null), { timestamp: 33_000, close: () => framesClosed.push("frame") });
     const bridge = new TatolabViewBridge(
       portDouble,
       "acme-dj:deck",
@@ -431,57 +382,6 @@ describe("a view's connection to Studio, through the one bridge every view is se
       recordingAreaServices(undefined).areaServices,
       { deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "camera › video" } },
       null,
-      async () => imageBitmapNamed(bitmapsMade++ === 0 ? "first" : "second"),
-    );
-    bridgesOpen.push(bridge);
-    bridge.start();
-    const sendFromTheView = (data: unknown) => {
-      for (const listener of listenersOfThePort) listener(new MessageEvent("message", { data }));
-    };
-    sendFromTheView({ kind: "watch", watch_id: 1, subject: { kind: "input", input: "deck_a" } });
-    host.portViewersOpened[0]?.onEvent({ kind: "image_frame", video_frame: videoFrameNamed("first"), format_wire_name: "bgra8", skipped_since_last_read: 2 });
-    await messagesDelivered();
-    sendFromTheView({ kind: "stop_watching", watch_id: 1 });
-    host.portViewersOpened[0]?.onEvent({ kind: "image_frame", video_frame: videoFrameNamed("second"), format_wire_name: "bgra8", skipped_since_last_read: 0 });
-    await messagesDelivered();
-
-    const imageBitmapsPosted = postedToTheView.filter((posted) => posted.transfer.length > 0);
-    expect(imageBitmapsPosted).toHaveLength(1);
-    expect(imageBitmapsPosted[0]?.message).toMatchObject({ kind: "watched", watch_id: 1, watched: { subject: "input", reading: { kind: "image_bitmap", timestamp_microseconds: 33_000, format_wire_name: "bgra8", skipped_since_last_read: 2 } } });
-    expect(framesClosed).toEqual(["first", "second"]);
-    expect(bitmapsClosed).toEqual(["second"]);
-  });
-
-  it("hands a full-access view an Image frame as the VideoFrame itself, transferred with no copy", async () => {
-    const host = recordingHostServices();
-    const postedToTheView: { message: unknown; transfer: Transferable[] }[] = [];
-    const listenersOfThePort: ((event: MessageEvent<unknown>) => void)[] = [];
-    const portDouble = {
-      postMessage: (message: unknown, transfer: Transferable[]) => {
-        postedToTheView.push({ message, transfer });
-      },
-      addEventListener: (_type: string, listener: (event: MessageEvent<unknown>) => void) => {
-        listenersOfThePort.push(listener);
-      },
-      removeEventListener: () => undefined,
-      start: () => undefined,
-      close: () => undefined,
-    };
-    const bitmapsMade: string[] = [];
-    const framesClosed: string[] = [];
-    const videoFrame = Object.assign(Object.create(null), { timestamp: 33_000, close: () => framesClosed.push("frame") });
-    const bridge = new TatolabViewBridge(
-      portDouble,
-      "acme-dj:deck",
-      { ...FULL_ACCESS_DJ_DECK_MANIFEST, inputs: [{ name: "deck_a", family: "image" }] },
-      host.hostServices,
-      recordingAreaServices(undefined).areaServices,
-      { deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "camera › video" } },
-      null,
-      async () => {
-        bitmapsMade.push("bitmap");
-        return Object.create(null);
-      },
     );
     bridgesOpen.push(bridge);
     bridge.start();
@@ -492,7 +392,6 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(framesPosted).toHaveLength(1);
     expect(framesPosted[0]?.transfer[0]).toBe(videoFrame);
     expect(framesPosted[0]?.message).toMatchObject({ kind: "watched", watch_id: 1, watched: { subject: "input", reading: { kind: "image_frame", format_wire_name: "bgra8" } } });
-    expect(bitmapsMade).toEqual([]);
     expect(framesClosed).toEqual([]);
   });
 
@@ -515,7 +414,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
   });
 
   it("opens a view of a type on a file, tells views of that type what they were opened on, and says why when no area can show it", async () => {
-    const { connection, viewsOpened } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+    const { connection, viewsOpened } = await connectedView(DJ_DECK_MANIFEST, {});
     const openedOnSeen: ViewOpenedOn[] = [];
     connection.watchOpenedOn((openedOn) => openedOnSeen.push(openedOn));
     await messagesDelivered();
@@ -543,20 +442,15 @@ describe("a view's connection to Studio, through the one bridge every view is se
     ]);
   });
 
-  it("reads a project file for a view granted read.project_assets, saying why in the reader's words when it was not read, and refuses a sandboxed view that lacks it", async () => {
-    const fullAccess = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
-    const sandboxed = await connectedView(DJ_DECK_MANIFEST, {});
+  it("reads a project file, saying why in the reader's words when it was not read", async () => {
+    const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
 
-    expect(await fullAccess.connection.readProjectFile("/set/stream.py")).toEqual({ kind: "read", file_read: STREAM_FILE_READ });
-    expect(await fullAccess.connection.readProjectFile("/elsewhere.py")).toEqual({ kind: "not_read", because: "/elsewhere.py is not in the project." });
-    expect(await sandboxed.connection.readProjectFile("/set/stream.py")).toEqual({
-      kind: "not_read",
-      because: "DJ Deck runs sandboxed and does not list read.project_assets in its tatolab_view.json, so Studio does not serve it.",
-    });
+    expect(await connection.readProjectFile("/set/stream.py")).toEqual({ kind: "read", file_read: STREAM_FILE_READ });
+    expect(await connection.readProjectFile("/elsewhere.py")).toEqual({ kind: "not_read", because: "/elsewhere.py is not in the project." });
   });
 
   it("starts a Python language server for the watch, carries its messages both ways, and stops it with the watch", async () => {
-    const { connection, languageServers, languageServerMessagesSent } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+    const { connection, languageServers, languageServerMessagesSent } = await connectedView(DJ_DECK_MANIFEST, {});
     const eventsSeen: PythonLanguageServerConnectionEvent[] = [];
     const languageServer = connection.connectToPythonLanguageServer("/set", (event) => eventsSeen.push(event));
     await messagesDelivered();
@@ -574,7 +468,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
   it("ignores a message that is not the contract's, and answers the next one", async () => {
     const host = recordingHostServices();
     const channel = new MessageChannel();
-    const bridge = new TatolabViewBridge(channel.port1, "acme-dj:deck", FULL_ACCESS_DJ_DECK_MANIFEST, host.hostServices, recordingAreaServices(undefined).areaServices);
+    const bridge = new TatolabViewBridge(channel.port1, "acme-dj:deck", DJ_DECK_MANIFEST, host.hostServices, recordingAreaServices(undefined).areaServices);
     bridgesOpen.push(bridge);
     const connecting = connectToTatoAppOverPort(channel.port2);
     bridge.start();

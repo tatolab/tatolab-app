@@ -33,14 +33,12 @@ const mockStudioViewPagesTransformedByVite = {
     });
   },
 };
-// A project's view that opts into the sandbox runs on an opaque origin, which fetches its module
-// scripts with `Origin: null`, which Vite's default CORS refuses.
 const mockWindowServer = await createServer({
   ...electronViteConfig.renderer,
   root: path.resolve(tatoAppRoot, electronViteConfig.renderer.root),
   configFile: false,
   plugins: [...(electronViteConfig.renderer.plugins ?? []), mockStudioViewPagesTransformedByVite],
-  server: { ...electronViteConfig.renderer.server, cors: { origin: ["null", /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/] } },
+  server: electronViteConfig.renderer.server,
 });
 await mockWindowServer.listen();
 mockWindowServer.printUrls();
