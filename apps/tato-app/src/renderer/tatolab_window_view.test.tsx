@@ -587,7 +587,7 @@ describe("the studio", () => {
     expect(streamGraph.querySelector('[aria-label="Graph of main"]')).not.toBeNull();
     const invertingEffectCard = await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card"));
     fireEvent.click(invertingEffectCard);
-    await waitFor(() => expect(inTheCoreView("properties").getByText("Inverting Effect")).toBeTruthy());
+    await waitFor(() => expect(inTheCoreView("properties").getByRole("textbox", { name: "Node name" })).toHaveProperty("value", "Inverting Effect"));
   });
 
   it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {
