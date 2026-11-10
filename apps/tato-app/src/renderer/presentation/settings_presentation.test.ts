@@ -29,6 +29,7 @@ function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
     app_update: { kind: "not_checked" },
     local_api_socket: "/tmp/streamlib-501/local-api.sock",
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
+    developer_mode: false,
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "read", version: "0.55.2" },
     ...statusChanges,
@@ -49,8 +50,8 @@ function describedAs(runtimeDescriptionChanges: Partial<RuntimeDescription>) {
 }
 
 describe("Preferences' sections", () => {
-  it("lists General, Runtime, Command line and About, in that order", () => {
-    expect(SETTINGS_SECTION_GROUPS.flatMap((group) => group.sections.map(({ section }) => section))).toEqual(["general", "runtime", "command-line", "about"]);
+  it("lists General, Developer, Runtime, Command line and About, in that order", () => {
+    expect(SETTINGS_SECTION_GROUPS.flatMap((group) => group.sections.map(({ section }) => section))).toEqual(["general", "developer", "runtime", "command-line", "about"]);
   });
 
   it("titles a section with the words its list names it by", () => {

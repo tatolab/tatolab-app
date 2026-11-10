@@ -93,6 +93,8 @@ export interface TatolabBackend {
   openRuntimeLogFolder(): Promise<void>;
   /** Turn the notifications shown when a stream fails on or off, resolving once it is remembered and rejecting with why it was not; the switch arrives as the next status. */
   setStreamFailureNotifications(enabled: boolean): Promise<void>;
+  /** Turn Developer mode on or off, resolving once it is remembered and rejecting with why it was not; the switch arrives as the next status. */
+  setDeveloperMode(enabled: boolean): Promise<void>;
   /** Have the desktop open Tatolab at login, or stop, resolving once it has and rejecting in its words; what it reports arrives as the next status. */
   setOpenTatolabAtLogin(enabled: boolean): Promise<void>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;

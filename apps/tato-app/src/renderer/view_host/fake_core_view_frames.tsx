@@ -9,6 +9,7 @@ import { OutlinerView } from "@tatolab/tato-app-core-views/views/outliner";
 import { PaletteView } from "@tatolab/tato-app-core-views/views/palette";
 import { PropertiesView } from "@tatolab/tato-app-core-views/views/properties";
 import { StreamGraphView } from "@tatolab/tato-app-core-views/views/stream_graph";
+import { TransactionsView } from "@tatolab/tato-app-core-views/views/transactions";
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
@@ -18,6 +19,7 @@ const CORE_VIEW_DRAWINGS: Record<string, (connection: TatoAppViewConnection) => 
   palette: (connection) => <PaletteView connection={connection} />,
   properties: (connection) => <PropertiesView connection={connection} />,
   history: (connection) => <HistoryView connection={connection} />,
+  transactions: (connection) => <TransactionsView connection={connection} />,
 };
 
 const EMPTY_CORE_VIEW_PAGE = '<!doctype html><html lang="en" class="dark"><body><div id="view"></div></body></html>';

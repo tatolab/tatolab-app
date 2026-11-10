@@ -35,7 +35,7 @@ import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "./wind
 import { ProjectsHomeChoicesKeptInStorage } from "./studio_shell/projects_home_choices_kept_in_storage";
 import { tatolabWindowLocalStorage } from "./tatolab_window_local_storage";
 
-/** The view types every studio area can show, in the view-type menu's order. */
+/** The view types every studio area can show, in the view-type menu's order, Transactions only in Developer mode. */
 function studioViewTypeRegistry(): StudioViewTypeRegistry {
   const coreViewTypes = coreViewTypesOf(CORE_VIEWS, (folder) => servedCoreViewFolderUrl(folder, document.baseURI));
   const coreViewTypeIn = (folder: string) => {
@@ -54,6 +54,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
     ],
     (listed, manifest, projectName) => tatolabFrameViewType(listed, manifest, { kind: "project", project_name: projectName }),
     coreViewTypes.not_opened,
+    coreViewTypeIn("transactions"),
   );
 }
 
@@ -333,6 +334,7 @@ export function mountTatolabWindow(
 
   return (status) => {
     showStatusOutsideReact(status);
+    viewTypeRegistry.developerMode.publish(status.developer_mode);
     if (statusStore === null) {
       const firstStatusStore = new TatolabWindowStatusStore(status);
       statusStore = firstStatusStore;

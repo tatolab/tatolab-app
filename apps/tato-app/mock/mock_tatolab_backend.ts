@@ -174,6 +174,8 @@ export interface MockTatolabOptions {
   openAtLogin: TatolabAppOpenAtLogin;
   /** `?notifications=unsupported`: this desktop shows no notifications. */
   doesTheDesktopShowNoNotifications: boolean;
+  /** `?developer_mode=on`: Developer mode is on, so every area's view menu offers Transactions; off by default. */
+  isDeveloperModeOn: boolean;
   /** `?cli_version=reading|unreadable`: the CLI's version still being read, or unreadable; read by default. */
   commandLineToolVersion: TatolabCommandLineToolVersion;
   /** `?stream_page_requested=<stream id>`: a click on that stream's failure notification, a moment after the window listens. */
@@ -311,6 +313,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isTheRuntimeRestartRefused: pageQuery.get("restart") === "refused",
     openAtLogin: mockOpenAtLogin(pageQuery.get("open_at_login")),
     doesTheDesktopShowNoNotifications: pageQuery.get("notifications") === "unsupported",
+    isDeveloperModeOn: pageQuery.get("developer_mode") === "on",
     commandLineToolVersion: mockCommandLineToolVersion(pageQuery.get("cli_version")),
     streamPageRequestedByANotification: pageQuery.get("stream_page_requested"),
     commandLineToolLinkScenario: pageQuery.get("cli_link") === "not_linked" ? "not_linked" : pageQuery.get("cli_link") === "taken" ? "taken" : "linked",
@@ -372,6 +375,7 @@ function initialMockStatus(
     appUpdateScenario,
     openAtLogin,
     doesTheDesktopShowNoNotifications,
+    isDeveloperModeOn,
     commandLineToolVersion,
     commandLineToolLinkScenario,
     appBuild,
@@ -395,6 +399,7 @@ function initialMockStatus(
     app_update: initialMockAppUpdateState(appUpdateScenario),
     local_api_socket: machine.localApiSocket,
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: !doesTheDesktopShowNoNotifications },
+    developer_mode: isDeveloperModeOn,
     open_at_login: openAtLogin,
     command_line_tool_version: commandLineToolVersion,
   };
@@ -1183,6 +1188,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     setStreamFailureNotifications: async (enabled) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       publishStatus({ stream_failure_notifications: { ...mockStatus.stream_failure_notifications, enabled } });
+    },
+    setDeveloperMode: async (enabled) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      publishStatus({ developer_mode: enabled });
     },
     setOpenTatolabAtLogin: async (enabled) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

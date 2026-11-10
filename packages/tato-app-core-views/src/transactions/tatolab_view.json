@@ -1,0 +1,8 @@
+{
+  "contract": "1.0",
+  "title": "Transactions",
+  "description": "Every change the runtime recorded in the open project, with its author, operations and result, raw.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "placement": "area"
+}

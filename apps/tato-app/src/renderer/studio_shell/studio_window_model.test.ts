@@ -34,6 +34,7 @@ function runningRuntimeListing(streams: ListedStream[]): TatolabStatus {
     app_update: { kind: "not_checked" },
     local_api_socket: "/tmp/local-api.sock",
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
+    developer_mode: false,
     open_at_login: { kind: "not_offered", reason: "a test" },
     command_line_tool_version: { kind: "not_offered", reason: "a test" },
   };

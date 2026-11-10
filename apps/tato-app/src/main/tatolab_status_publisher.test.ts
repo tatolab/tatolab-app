@@ -53,6 +53,7 @@ function controllerReadingTheLocalApiAt(localApiSocket: string, carriedRuntimeSt
     readMonotonicClockMs,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readDeveloperMode: () => false,
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     whenTheRuntimeExits: () => {},
     tatolabAppLog: createTatolabAppLog("error", () => {}),

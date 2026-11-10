@@ -66,6 +66,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     setStreamFailureNotifications: async (enabled) => {
       await invokeTatolabCommand("set_stream_failure_notifications", { enabled });
     },
+    setDeveloperMode: async (enabled) => {
+      await invokeTatolabCommand("set_developer_mode", { enabled });
+    },
     setOpenTatolabAtLogin: async (enabled) => {
       await invokeTatolabCommand("set_open_tatolab_at_login", { enabled });
     },
