@@ -1,4 +1,4 @@
-// The view SDK: the one way every panel of Tato Studio, built in or brought by a project, is made.
+// The view SDK: the one way every panel of Tato Studio, its own or brought by a project, is made.
 
 export * from "./port_families.js";
 export * from "./studio_readings.js";

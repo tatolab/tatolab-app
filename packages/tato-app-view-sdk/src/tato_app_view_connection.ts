@@ -1,4 +1,4 @@
-// A view's side of the view contract: the one way any panel, built in or brought by a project,
+// A view's side of the view contract: the one way any panel, Tato Studio's own or brought by a project,
 // reads from and asks of Tato Studio. It runs inside the view's own frame, depends on no UI
 // framework, and parses everything Studio sends against the contract's schemas.
 

@@ -3,7 +3,7 @@ import type { TatolabPlatform } from "../src/shared/tatolab_backend_contract";
 const PRESET_STEP_TIMEOUT_MILLISECONDS = 3000;
 const PRESET_POLL_MILLISECONDS = 40;
 
-/** The first element `selector` matches in the window, or else in a view's frame; a built-in view's frame is on the window's origin, so its page is reachable. */
+/** The first element `selector` matches in the window, or else in a view's frame; a core view's frame is on the window's origin, so its page is reachable. */
 function queryTheWindowAndItsViewFrames<ElementType extends Element>(selector: string): ElementType | null {
   const inTheWindow = document.querySelector<ElementType>(selector);
   if (inTheWindow !== null) return inTheWindow;
