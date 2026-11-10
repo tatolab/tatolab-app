@@ -250,10 +250,13 @@ export function MenuSingleChoiceGroup<Choice extends string>({
   chosen,
   onChosen,
   dataAttributeOfEachChoice,
+  menuAfterAChoice,
 }: {
   choices: readonly MenuSingleChoice<Choice>[];
   chosen: Choice;
   onChosen: (choice: Choice) => void;
+  /** Whether a choice closes the menu, or leaves it open for the menu's other choices. */
+  menuAfterAChoice: "closes" | "stays_open";
   /** Set on each choice to its value, as `data-streams-list-state-choice="failed"`. */
   dataAttributeOfEachChoice?: ControlDataAttributeName;
 }) {
@@ -266,7 +269,7 @@ export function MenuSingleChoiceGroup<Choice extends string>({
       }}
     >
       {choices.map(({ choice, label }) => (
-        <DropdownMenuRadioItem key={choice} value={choice} className="pl-2" {...(dataAttributeOfEachChoice === undefined ? {} : { [dataAttributeOfEachChoice]: choice })}>
+        <DropdownMenuRadioItem key={choice} value={choice} closeOnClick={menuAfterAChoice === "closes"} className="pl-2" {...(dataAttributeOfEachChoice === undefined ? {} : { [dataAttributeOfEachChoice]: choice })}>
           {label}
         </DropdownMenuRadioItem>
       ))}

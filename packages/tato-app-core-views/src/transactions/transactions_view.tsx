@@ -96,7 +96,7 @@ function TransactionsFilterMenu({
   return (
     <FieldMenu label={buttonWords.label} words={buttonWords.words} isNarrowing={filtersOn > 0} data-transactions-filter="">
       <MenuGroup label="Result">
-        <MenuSingleChoiceGroup<string>
+        <MenuSingleChoiceGroup<string> menuAfterAChoice="stays_open"
           choices={choicesWithAny("Any result", choices.results)}
           chosen={choiceOf(filter.result)}
           onChosen={(choice) => onFilterChanged({ ...filter, result: choices.results.find((result) => result === narrowingOf(choice)) ?? null })}
@@ -104,7 +104,7 @@ function TransactionsFilterMenu({
         />
       </MenuGroup>
       <MenuGroup label="Author">
-        <MenuSingleChoiceGroup<string>
+        <MenuSingleChoiceGroup<string> menuAfterAChoice="stays_open"
           choices={choicesWithAny("Anyone", choices.author_words)}
           chosen={choiceOf(filter.author_words)}
           onChosen={(choice) => onFilterChanged({ ...filter, author_words: narrowingOf(choice) })}
@@ -112,7 +112,7 @@ function TransactionsFilterMenu({
         />
       </MenuGroup>
       <MenuGroup label="Stream">
-        <MenuSingleChoiceGroup<string>
+        <MenuSingleChoiceGroup<string> menuAfterAChoice="stays_open"
           choices={choicesWithAny("All streams", choices.stream_words)}
           chosen={choiceOf(filter.stream_words)}
           onChosen={(choice) => onFilterChanged({ ...filter, stream_words: narrowingOf(choice) })}
@@ -120,7 +120,7 @@ function TransactionsFilterMenu({
         />
       </MenuGroup>
       <MenuGroup label="Operation">
-        <MenuSingleChoiceGroup<string>
+        <MenuSingleChoiceGroup<string> menuAfterAChoice="stays_open"
           choices={choicesWithAny("Any", choices.operation_verbs)}
           chosen={choiceOf(filter.operation_verb)}
           onChosen={(choice) => onFilterChanged({ ...filter, operation_verb: narrowingOf(choice) })}

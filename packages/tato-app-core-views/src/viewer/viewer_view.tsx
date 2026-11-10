@@ -217,7 +217,7 @@ function ViewerPortChooser({
   return (
     <div className="ml-auto flex min-w-0 items-center gap-1.5">
       <FieldMenu label={`Port: ${playedPortWords}`} words={playedPortWords} menuWidth="fit" data-viewer-port-chooser="">
-        <MenuSingleChoiceGroup
+        <MenuSingleChoiceGroup menuAfterAChoice="closes"
           choices={portChoices}
           chosen={chosenPort === null ? FOLLOW_THE_SELECTION_CHOICE : viewerPortChoiceKey(chosenPort)}
           dataAttributeOfEachChoice="data-viewer-port-choice"

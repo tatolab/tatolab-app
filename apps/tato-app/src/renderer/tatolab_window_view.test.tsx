@@ -211,11 +211,12 @@ describe("the studio", () => {
     expect(outlinerRow(invertingEffectRowId).textContent).toBe("InvertingEffect");
   });
 
-  it("lists in the palette each source's node types by category and its generators, and says why a module does not parse", async () => {
+  it("closes the view-type menu on a choice, and lists in the palette each source's node types by category and its generators, and says why a module does not parse", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Palette/ }));
+    await waitFor(() => expect(screen.queryByRole("menuitemradio", { name: /^Palette/ })).toBeNull());
 
     const paletteRow = (rowId: string) => coreViewPage("palette").querySelector<HTMLElement>(`[data-palette] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no palette row ${rowId}`);
     await waitFor(() => paletteRow("source:project"));
@@ -443,6 +444,19 @@ describe("the studio", () => {
     await waitFor(() => expect(asked).toEqual(["undo by sam", "redo by sam", "undo by sam"]));
     textField.remove();
     checkbox.remove();
+  });
+
+  it("says in the runtime's words that nothing was undone when ⌘Z finds nothing left to undo", async () => {
+    await mountedWindowOverTheMock("state=running", {
+      readThePersonEditingInStudio: async () => ({ kind: "person", name: "Sam" }),
+      undoInTheOpenProject: () => Promise.reject(new Error("undo failed: Sam has no transaction left to undo")),
+    });
+    expect(await shownLayout()).toBe("build");
+
+    fireEvent.keyDown(document, { key: "z", metaKey: true });
+    const notice = await waitFor(() => document.querySelector<HTMLElement>("[data-project-edit-refusal]") ?? expect.unreachable("no notice"));
+    expect(notice.textContent).toContain("Nothing was undone");
+    expect(notice.textContent).toContain("Sam has no transaction left to undo");
   });
 
   it("on Linux, switches layouts from the window's own Window › Layout, ticking the one shown", async () => {
