@@ -85,11 +85,13 @@ function recordItemSchemaOfAnArray(schema: JsonObject, documentRoot: JsonObject)
   return { ...carriedDefinitions, ...itemSchema };
 }
 
-/** A record added to a list: each property the item schema gives a default, at that default. */
+/** A record added to a list: empty, so it reads its type's defaults, but for each required property with a default, at that default. */
 function newItemOfTheRecordSchema(itemSchema: JsonObject): JsonObject {
   const properties = isAJsonObject(itemSchema["properties"]) ? itemSchema["properties"] : {};
+  const requiredKeys = Array.isArray(itemSchema["required"]) ? itemSchema["required"] : [];
   return Object.fromEntries(
     Object.entries(properties).flatMap(([key, propertySchema]) => {
+      if (!requiredKeys.includes(key)) return [];
       const defaultValue = withNullUnionUnwrapped(resolvedSchema(propertySchema, itemSchema), itemSchema).schema["default"];
       return defaultValue === undefined ? [] : [[key, defaultValue]];
     }),
@@ -166,6 +168,12 @@ export function configFormOf(configSchema: JsonValue | null, config: { [key: str
   const fields = [...fieldsTheSchemaNames, ...fieldsOfKeysTheSchemaDoesNotName];
   if (fields.length === 0 && rootSchema["additionalProperties"] === false) return { kind: "takes_no_config" };
   return { kind: "fields", fields };
+}
+
+/** The form of one entry of a list of records: its fields, a list nested in it shown as JSON. */
+export function configFormOfAListEntry(itemSchema: JsonObject, record: JsonObject): ConfigForm {
+  const entryForm = configFormOf(itemSchema, record);
+  return entryForm.kind === "fields" ? { kind: "fields", fields: entryForm.fields.map((field) => (field.control.kind === "list_of_records" ? { ...field, control: { kind: "json" } } : field)) } : entryForm;
 }
 
 /** The records of a list field's value, an absent or malformed list read as none and a non-object entry as an empty record. */

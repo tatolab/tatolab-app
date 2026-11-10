@@ -46,6 +46,9 @@ export function PropertySection({
   );
 }
 
+/** A property row's columns: its name, its field, and room for its reset. */
+const PROPERTY_ROW_GRID_CLASS_NAMES = "grid-cols-[minmax(0,2fr)_minmax(0,3fr)_1.5rem]";
+
 /**
  * One property: its name in words in a right-aligned column, what it means while the pointer rests on the name, its
  * value's field, a reset beside it while the value is the node's own, and the runtime's refusal of an edit under it.
@@ -69,7 +72,7 @@ export function PropertyRow({
   const fieldId = useId();
   return (
     <div className="flex min-w-0 flex-col" {...controlDataAttributes}>
-      <div className="grid min-w-0 grid-cols-[minmax(0,2fr)_minmax(0,3fr)_1.5rem] items-center gap-2">
+      <div className={cn("grid min-w-0 items-center gap-2", PROPERTY_ROW_GRID_CLASS_NAMES)}>
         <WithControlTooltip
           tooltip={meaning}
           isWide
@@ -83,7 +86,7 @@ export function PropertyRow({
         {reset === undefined ? <span /> : <IconButton icon={RotateCcw} label={reset.label} size="compact" onPressed={reset.onReset} data-property-reset />}
       </div>
       {refusal !== null && (
-        <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_1.5rem] gap-2" data-property-refusal>
+        <div className={cn("grid gap-2", PROPERTY_ROW_GRID_CLASS_NAMES)} data-property-refusal>
           <div className="col-span-2 col-start-2 min-w-0">
             <RefusalLine words={refusal} layout="under_field" />
           </div>
@@ -105,10 +108,13 @@ export function PropertyListEntry({
   removal?: { label: string; onRemoved: () => void };
   children: ReactNode;
 } & ControlDataAttributes) {
+  const entryLabelId = useId();
   return (
-    <div className="flex min-w-0 flex-col gap-1" {...controlDataAttributes}>
-      <div className="grid min-w-0 grid-cols-[minmax(0,2fr)_minmax(0,3fr)_1.5rem] items-center gap-2">
-        <span className="truncate text-right text-xs font-medium text-fg-2">{label}</span>
+    <div role="group" aria-labelledby={entryLabelId} className="flex min-w-0 flex-col gap-1" {...controlDataAttributes}>
+      <div className={cn("grid min-w-0 items-center gap-2", PROPERTY_ROW_GRID_CLASS_NAMES)}>
+        <span id={entryLabelId} className="truncate text-right text-xs font-medium text-fg-2">
+          {label}
+        </span>
         <span />
         {removal === undefined ? <span /> : <IconButton icon={Minus} label={removal.label} size="compact" onPressed={removal.onRemoved} data-property-list-entry-remove />}
       </div>

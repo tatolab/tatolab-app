@@ -124,11 +124,18 @@ test("the Connect menu's note and the heading's short node id read as the panel 
 
 test("an entry of a list of records is edited, reset, added and removed with the rest of the list kept", () => {
   const layers: JsonValue = [{}, { x: 640, y: 360, opacity: 0.5 }];
-  expect(listWithTheRecordFieldSet(layers, 1, "opacity", 0.25)).toEqual([{}, { x: 640, y: 360, opacity: 0.25 }]);
-  expect(listWithTheRecordFieldSet(layers, 0, "x", 10)).toEqual([{ x: 10 }, { x: 640, y: 360, opacity: 0.5 }]);
-  expect(listWithTheRecordFieldSet(layers, 1, "y", undefined)).toEqual([{}, { x: 640, opacity: 0.5 }]);
-  expect(listWithARecordAdded(layers, { x: 0, y: 0, opacity: 1 })).toEqual([{}, { x: 640, y: 360, opacity: 0.5 }, { x: 0, y: 0, opacity: 1 }]);
+  const second = { x: 640, y: 360, opacity: 0.5 };
+  expect(listWithTheRecordFieldSet(layers, 1, second, "opacity", 0.25)).toEqual([{}, { x: 640, y: 360, opacity: 0.25 }]);
+  expect(listWithTheRecordFieldSet(layers, 0, {}, "x", 10)).toEqual([{ x: 10 }, second]);
+  expect(listWithTheRecordFieldSet(layers, 1, second, "y", undefined)).toEqual([{}, { x: 640, opacity: 0.5 }]);
+  expect(listWithARecordAdded(layers, {})).toEqual([{}, second, {}]);
   expect(listWithARecordAdded(null, { x: 0 })).toEqual([{ x: 0 }]);
-  expect(listWithoutTheRecord(layers, 0)).toEqual([{ x: 640, y: 360, opacity: 0.5 }]);
+  expect(listWithoutTheRecord(layers, 0, {})).toEqual([second]);
   expect(layers).toEqual([{}, { x: 640, y: 360, opacity: 0.5 }]);
+});
+
+test("an edit of an entry the list has moved on from changes nothing", () => {
+  const layersAfterTheFirstWasRemoved: JsonValue = [{ x: 640, y: 360, opacity: 0.5 }];
+  expect(listWithoutTheRecord(layersAfterTheFirstWasRemoved, 0, {})).toBeNull();
+  expect(listWithTheRecordFieldSet(layersAfterTheFirstWasRemoved, 1, { x: 640, y: 360, opacity: 0.5 }, "x", 0)).toBeNull();
 });

@@ -129,13 +129,22 @@ export function portsToConnect(stream: string, graph: Pick<StreamGraphSummary, "
   return [...candidates.filter((candidate) => candidate.isOfTheFamily), ...candidates.filter((candidate) => !candidate.isOfTheFamily)].map(({ isOfTheFamily: _isOfTheFamily, ...portToConnect }) => portToConnect);
 }
 
-/** `listEditedFrom` with the record at `index` holding `value` at `key`, or without `key` when `value` is `undefined`. */
-export function listWithTheRecordFieldSet(listEditedFrom: JsonValue, index: number, key: string, value: JsonValue | undefined): JsonObject[] {
-  return recordsOfAListField(listEditedFrom).map((record, recordIndex) => {
-    if (recordIndex !== index) return record;
-    const { [key]: _replaced, ...recordWithoutTheKey } = record;
-    return value === undefined ? recordWithoutTheKey : { ...recordWithoutTheKey, [key]: value };
-  });
+/** The list edited from's record at `index` when it is still `recordTheRowShows`; `null` when the list has moved on, so the edit would land on another entry. */
+function theRecordStillShown(listEditedFrom: JsonValue, index: number, recordTheRowShows: JsonObject): JsonObject[] | null {
+  const records = recordsOfAListField(listEditedFrom);
+  return JSON.stringify(records[index]) === JSON.stringify(recordTheRowShows) ? records : null;
+}
+
+/** `listEditedFrom` with the record at `index` holding `value` at `key`, or without `key` when `value` is `undefined`; `null` when that record is no longer `recordTheRowShows`. */
+export function listWithTheRecordFieldSet(listEditedFrom: JsonValue, index: number, recordTheRowShows: JsonObject, key: string, value: JsonValue | undefined): JsonObject[] | null {
+  const records = theRecordStillShown(listEditedFrom, index, recordTheRowShows);
+  return (
+    records?.map((record, recordIndex) => {
+      if (recordIndex !== index) return record;
+      const { [key]: _replaced, ...recordWithoutTheKey } = record;
+      return value === undefined ? recordWithoutTheKey : { ...recordWithoutTheKey, [key]: value };
+    }) ?? null
+  );
 }
 
 /** `listEditedFrom` with `newItem` added at its end. */
@@ -143,7 +152,10 @@ export function listWithARecordAdded(listEditedFrom: JsonValue, newItem: JsonObj
   return [...recordsOfAListField(listEditedFrom), newItem];
 }
 
-/** `listEditedFrom` without the record at `index`, the records after it moving up one. */
-export function listWithoutTheRecord(listEditedFrom: JsonValue, index: number): JsonObject[] {
-  return recordsOfAListField(listEditedFrom).filter((_record, recordIndex) => recordIndex !== index);
+/** `listEditedFrom` without the record at `index`, the records after it moving up one; `null` when that record is no longer `recordTheRowShows`. */
+export function listWithoutTheRecord(listEditedFrom: JsonValue, index: number, recordTheRowShows: JsonObject): JsonObject[] | null {
+  return theRecordStillShown(listEditedFrom, index, recordTheRowShows)?.filter((_record, recordIndex) => recordIndex !== index) ?? null;
 }
+
+/** Why an edit of a list entry was not sent: the list changed under it. */
+export const LIST_ENTRY_MOVED_ON_REFUSAL = "This entry changed before the edit was sent, so nothing was changed. Try again on the entry as it shows now.";

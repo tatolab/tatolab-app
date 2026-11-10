@@ -314,7 +314,7 @@ const PICTURE_AND_FADER_VIEW_LINK: StreamGraphLink = {
   state: "wired",
 };
 
-/** An alpha-over compositor stacking the effect's output under a second placement, as the S02 scenario lays two layers. */
+/** An alpha-over compositor of two layers over the effect's output, the second offset and half transparent. */
 const ALPHA_OVER_COMPOSITOR_NODE: MockGraphNode = {
   name: "alphaovercompositor",
   type: "tatolab.compositor:AlphaOverCompositor",

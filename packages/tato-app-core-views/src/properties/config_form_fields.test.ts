@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { configFormFieldValueWords, configFormOf, recordsOfAListField } from "./config_form_fields";
+import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, recordsOfAListField } from "./config_form_fields";
 
 const RUST_SPELLED_SCHEMA = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -85,7 +85,7 @@ test("a_list_of_records_reads_as_its_entries_each_with_its_own_fields_and_a_new_
   const form = configFormOf(PYTHON_DERIVED_ALPHA_OVER_SCHEMA, { layers: [{}, { x: 640, y: 360, opacity: 0.5 }] });
   const layers = form.kind === "fields" ? form.fields.find((field) => field.key === "layers") : undefined;
   if (layers?.control.kind !== "list_of_records") return expect.unreachable("layers is not a list of records");
-  expect(layers.control.new_item).toEqual({ x: 0, y: 0, opacity: 1.0 });
+  expect(layers.control.new_item).toEqual({});
   expect(recordsOfAListField(layers.value)).toEqual([{}, { x: 640, y: 360, opacity: 0.5 }]);
 
   const secondEntry = configFormOf(layers.control.item_schema, { x: 640, y: 360, opacity: 0.5 });
@@ -117,4 +117,29 @@ test("a_list_item_named_by_a_ref_keeps_the_documents_defs_and_a_list_of_plain_va
   const cueForm = configFormOf(cues.control.item_schema, { fade: "cut" });
   expect(cueForm.kind === "fields" && cueForm.fields[0]?.control).toEqual({ kind: "choice", choices: ["cut", "dissolve"] });
   expect(recordsOfAListField(null)).toEqual([]);
+});
+
+test("a_new_entry_holds_only_the_required_keys_defaults_and_a_list_nested_in_an_entry_shows_as_json", () => {
+  const form = configFormOf(
+    {
+      type: "object",
+      properties: {
+        cues: {
+          type: "array",
+          items: { type: "object", properties: { at: { type: "number", default: 0 }, fade: { type: "string", default: "cut" }, points: { type: "array", items: { type: "object", properties: { x: { type: "number" } } } } }, required: ["fade"] },
+        },
+      },
+    },
+    {},
+  );
+  const cues = form.kind === "fields" ? form.fields[0] : undefined;
+  if (cues?.control.kind !== "list_of_records") return expect.unreachable("cues is not a list of records");
+  expect(cues.control.new_item).toEqual({ fade: "cut" });
+  expect(configFormOf(cues.control.item_schema, {}).kind === "fields" && configFormOf(cues.control.item_schema, {})).toMatchObject({ fields: [{}, {}, { key: "points", control: { kind: "list_of_records" } }] });
+  const entryForm = configFormOfAListEntry(cues.control.item_schema, { fade: "cut" });
+  expect(entryForm.kind === "fields" && entryForm.fields.map((field) => [field.key, field.control.kind])).toEqual([
+    ["at", "number"],
+    ["fade", "text"],
+    ["points", "json"],
+  ]);
 });

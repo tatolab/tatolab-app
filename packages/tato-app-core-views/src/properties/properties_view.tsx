@@ -34,11 +34,12 @@ import type {
 import { CoreViewFrame } from "../shared/core_view_page";
 import { portStreamFactsWords, streamFactsAnInputReceives, VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
 import { nameInWords, nodeTitle, nodeTypeClassName } from "../shared/node_words";
-import { configFormFieldValueWords, configFormOf, recordsOfAListField, type ConfigFormField } from "./config_form_fields";
+import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, recordsOfAListField, type ConfigFormField } from "./config_form_fields";
 import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
 import {
   configValueFromTheWordsTyped,
   disconnectTheLink,
+  LIST_ENTRY_MOVED_ON_REFUSAL,
   linkedEndsOfThePort,
   listWithARecordAdded,
   listWithoutTheRecord,
@@ -60,7 +61,10 @@ function pinValueFieldId(nodeId: string, portName: string): string {
 /** Where a config field's edits go: the place its refusal shows, and the node's whole config with the field at a new value. */
 interface ConfigFieldEditTarget {
   place: PlaceOfAnEdit;
-  configActionWithTheFieldAt: (stream: string, newValue: JsonValue) => SetNodeConfigAction;
+  /** The node's whole config with the field at `newValue`; `null` when the entry it sits in changed under the edit. */
+  configActionWithTheFieldAt: (stream: string, newValue: JsonValue) => SetNodeConfigAction | null;
+  /** Adds an entry to a list of records; absent for any other field and while the stream can't be edited. */
+  addAnEntry?: () => void;
 }
 
 /** A config field's control, each change written back as the node's whole config; read only while the stream can't be edited. */
@@ -83,13 +87,18 @@ function ConfigFieldControl({
   const { place } = editTarget;
   const idempotencyKeyOfTheDragInProgress = useRef<string | null>(null);
   const { control, value } = field;
-  const configFieldSetTo = (stream: string, newValue: JsonValue): SetNodeConfigAction => {
+  const configFieldSetTo = (stream: string, newValue: JsonValue): SetNodeConfigAction | null => {
     const configEdit = editTarget.configActionWithTheFieldAt(stream, newValue);
+    if (configEdit === null) {
+      graphEdits.keepTheRefusal(place, LIST_ENTRY_MOVED_ON_REFUSAL);
+      return null;
+    }
     graphEdits.rememberTheConfigSent(node.config, configEdit.config);
     return configEdit;
   };
   const commitTheConfigFieldValue = (newValue: (typeof field)["value"]) => {
-    if (streamAsset !== null) void graphEdits.commit(place, [configFieldSetTo(streamAsset, newValue)]);
+    const configEdit = streamAsset === null ? null : configFieldSetTo(streamAsset, newValue);
+    if (configEdit !== null) void graphEdits.commit(place, [configEdit]);
   };
   const commitTheWords = (words: string) => {
     const valueTyped = configValueFromTheWordsTyped(field, words);
@@ -112,12 +121,14 @@ function ConfigFieldControl({
               idempotencyKeyOfTheDragInProgress.current = newGestureIdempotencyKey();
             }}
             onLiveEdit={(moved) => {
-              if (idempotencyKeyOfTheDragInProgress.current !== null) graphEdits.sendLive(place, [configFieldSetTo(streamAsset, moved)], idempotencyKeyOfTheDragInProgress.current);
+              const configEdit = configFieldSetTo(streamAsset, moved);
+              if (idempotencyKeyOfTheDragInProgress.current !== null && configEdit !== null) graphEdits.sendLive(place, [configEdit], idempotencyKeyOfTheDragInProgress.current);
             }}
             onCommitted={(released) => {
               const idempotencyKeyOfTheRelease = idempotencyKeyOfTheDragInProgress.current ?? newGestureIdempotencyKey();
               idempotencyKeyOfTheDragInProgress.current = null;
-              void graphEdits.commit(place, [configFieldSetTo(streamAsset, released)], idempotencyKeyOfTheRelease);
+              const configEdit = configFieldSetTo(streamAsset, released);
+              if (configEdit !== null) void graphEdits.commit(place, [configEdit], idempotencyKeyOfTheRelease);
             }}
           />
         );
@@ -156,7 +167,7 @@ function ConfigFieldControl({
           fieldId={fieldId}
           entryCount={recordsOfAListField(value).length}
           isTheTypesDefault={isTheTypesDefault}
-          addition={isEditable ? { label: `Add an entry to ${nameInWords(field.key)}`, onAdded: () => commitTheConfigFieldValue(listWithARecordAdded(graphEdits.configToEditFrom(node.config)[field.key] ?? value, control.new_item)) } : undefined}
+          addition={editTarget.addAnEntry === undefined ? undefined : { label: `Add an entry to ${nameInWords(field.key)}`, onAdded: editTarget.addAnEntry }}
         />
       );
     case "text":
@@ -175,12 +186,18 @@ function ConfigFieldControl({
 /** A top-level config field's row, and for a list of records, each entry's own rows under it. */
 function ConfigFieldRows({ field, node, streamAsset, graphEdits }: { field: ConfigFormField; node: StreamGraphNode; streamAsset: string | null; graphEdits: GraphEditsOfTheNode }) {
   const configEditedFrom = () => graphEdits.configToEditFrom(node.config);
-  const commitTheConfig = (place: PlaceOfAnEdit, configAction: SetNodeConfigAction) => {
+  const commitTheConfig = (place: PlaceOfAnEdit, configAction: SetNodeConfigAction | null) => {
+    if (configAction === null) {
+      graphEdits.keepTheRefusal(place, LIST_ENTRY_MOVED_ON_REFUSAL);
+      return;
+    }
     graphEdits.rememberTheConfigSent(node.config, configAction.config);
     void graphEdits.commit(place, [configAction]);
   };
   const fieldPlace: PlaceOfAnEdit = `config:${field.key}`;
+  const listControl = field.control.kind === "list_of_records" ? field.control : null;
   const listEditedFrom = () => configEditedFrom()[field.key] ?? field.value;
+  const configWithTheList = (stream: string, list: JsonValue[] | null) => (list === null ? null : setTheConfigField(stream, node.id, configEditedFrom(), field.key, list));
   return (
     <>
       <ConfigFieldRow
@@ -189,37 +206,41 @@ function ConfigFieldRows({ field, node, streamAsset, graphEdits }: { field: Conf
         node={node}
         streamAsset={streamAsset}
         graphEdits={graphEdits}
-        editTarget={{ place: fieldPlace, configActionWithTheFieldAt: (stream, newValue) => setTheConfigField(stream, node.id, configEditedFrom(), field.key, newValue) }}
+        editTarget={{
+          place: fieldPlace,
+          configActionWithTheFieldAt: (stream, newValue) => setTheConfigField(stream, node.id, configEditedFrom(), field.key, newValue),
+          addAnEntry: listControl === null || streamAsset === null ? undefined : () => commitTheConfig(fieldPlace, configWithTheList(streamAsset, listWithARecordAdded(listEditedFrom(), listControl.new_item))),
+        }}
         onReset={streamAsset === null ? undefined : () => commitTheConfig(fieldPlace, resetTheConfigField(streamAsset, node.id, configEditedFrom(), field.key))}
         data-config-field={field.key}
       />
-      {field.control.kind === "list_of_records" &&
+      {listControl !== null &&
         recordsOfAListField(field.value).map((record, index) => {
-          const itemForm = configFormOf(field.control.kind === "list_of_records" ? field.control.item_schema : null, record);
+          const entryForm = configFormOfAListEntry(listControl.item_schema, record);
           const entryLabel = `${nameInWords(field.key)} ${index}`;
           return (
             <PropertyListEntry
               key={index}
               label={entryLabel}
-              removal={streamAsset === null ? undefined : { label: `Remove ${entryLabel}`, onRemoved: () => commitTheConfig(fieldPlace, setTheConfigField(streamAsset, node.id, configEditedFrom(), field.key, listWithoutTheRecord(listEditedFrom(), index))) }}
+              removal={streamAsset === null ? undefined : { label: `Remove ${entryLabel}`, onRemoved: () => commitTheConfig(fieldPlace, configWithTheList(streamAsset, listWithoutTheRecord(listEditedFrom(), index, record))) }}
               data-config-list-entry={`${field.key}:${index}`}
             >
-              {itemForm.kind === "fields" &&
-                itemForm.fields.map((itemField) => {
-                  const itemPlace: PlaceOfAnEdit = `config:${field.key}:${index}:${itemField.key}`;
-                  const configWithTheItemFieldAt = (stream: string, newValue: JsonValue | undefined) =>
-                    setTheConfigField(stream, node.id, configEditedFrom(), field.key, listWithTheRecordFieldSet(listEditedFrom(), index, itemField.key, newValue));
+              {entryForm.kind === "fields" &&
+                entryForm.fields.map((entryField) => {
+                  const entryFieldPlace: PlaceOfAnEdit = `config:${field.key}:${index}:${entryField.key}`;
+                  const configWithTheEntryFieldAt = (stream: string, newValue: JsonValue | undefined) => configWithTheList(stream, listWithTheRecordFieldSet(listEditedFrom(), index, record, entryField.key, newValue));
                   return (
                     <ConfigFieldRow
-                      key={itemField.key}
-                      field={itemField}
-                      label={nameInWords(itemField.key)}
+                      key={entryField.key}
+                      field={entryField}
+                      label={nameInWords(entryField.key)}
+                      resetLabel={`Reset ${entryLabel} ${nameInWords(entryField.key)} to its type's default`}
                       node={node}
                       streamAsset={streamAsset}
                       graphEdits={graphEdits}
-                      editTarget={{ place: itemPlace, configActionWithTheFieldAt: configWithTheItemFieldAt }}
-                      onReset={streamAsset === null ? undefined : () => commitTheConfig(itemPlace, configWithTheItemFieldAt(streamAsset, undefined))}
-                      data-config-field={`${field.key}:${index}:${itemField.key}`}
+                      editTarget={{ place: entryFieldPlace, configActionWithTheFieldAt: configWithTheEntryFieldAt }}
+                      onReset={streamAsset === null ? undefined : () => commitTheConfig(entryFieldPlace, configWithTheEntryFieldAt(streamAsset, undefined))}
+                      data-config-field={`${field.key}:${index}:${entryField.key}`}
                     />
                   );
                 })}
@@ -234,6 +255,7 @@ function ConfigFieldRows({ field, node, streamAsset, graphEdits }: { field: Conf
 function ConfigFieldRow({
   field,
   label,
+  resetLabel = `Reset ${label} to its type's default`,
   node,
   streamAsset,
   graphEdits,
@@ -243,6 +265,7 @@ function ConfigFieldRow({
 }: {
   field: ConfigFormField;
   label: string;
+  resetLabel?: string;
   node: StreamGraphNode;
   streamAsset: string | null;
   graphEdits: GraphEditsOfTheNode;
@@ -255,7 +278,7 @@ function ConfigFieldRow({
       label={label}
       meaning={meaningOfAConfigKey(field)}
       refusal={graphEdits.refusalsByPlace.get(editTarget.place) ?? null}
-      reset={onReset === undefined || field.value_source !== "config" ? undefined : { label: `Reset ${label} to its type's default`, onReset }}
+      reset={onReset === undefined || field.value_source !== "config" ? undefined : { label: resetLabel, onReset }}
       data-config-field={configFieldDataAttribute}
       data-config-field-value-source={field.value_source}
     >
