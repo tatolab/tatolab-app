@@ -38,6 +38,7 @@ import {
 } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { IconButton } from "./icon_button";
+import type { WindowToolbarGraphTool, WindowToolbarGraphToolOffered } from "../view_wire_messages";
 import {
   layOutNodeGraph,
   NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT,
@@ -65,16 +66,19 @@ const NODE_GRAPH_PIN_FAMILY_WORDS: Record<NodeGraphPinFamily, string> = {
   records: "Records",
 };
 
-/** One pin of a card: its name, its family, `null` drawn as a plain bar while none is known, and what it states about its stream, shown while the pointer rests on it. */
+/** One pin of a card: its name, its family, `null` drawn as a plain bar while none is known, what its node type says of it, and what it states about its stream, shown while the pointer rests on it. */
 export interface NodeGraphCanvasPin {
   name: string;
   family: NodeGraphPinFamily | null;
+  /** The port's description as its node type declares it; `null` for none. */
+  description: string | null;
   stream_facts_words: readonly string[];
 }
 
-/** What a pin shows while the pointer rests on it: its name, its family and the facts of its stream. */
+/** What a pin shows while the pointer rests on it: its name, its family and the facts of its stream, then its description. */
 function nodeGraphPinTooltip(pin: NodeGraphCanvasPin): string {
-  return [pin.name, ...(pin.family === null ? [] : [NODE_GRAPH_PIN_FAMILY_WORDS[pin.family]]), ...pin.stream_facts_words].join(" · ");
+  const facts = [pin.name, ...(pin.family === null ? [] : [NODE_GRAPH_PIN_FAMILY_WORDS[pin.family]]), ...pin.stream_facts_words].join(" · ");
+  return pin.description === null ? facts : `${facts}\n${pin.description}`;
 }
 
 /** How a card shows its node is doing: as every healthy card, restarting (a quiet tag), or failed (red, with why in the runtime's words when it gave them). */
@@ -89,6 +93,8 @@ export interface NodeGraphCanvasNode {
   title: string;
   /** Its type's short name, quiet beside the title; `null` when the title already says it. */
   type_name: string | null;
+  /** Its node type's description, shown while the pointer rests on the card's header; `null` for none. */
+  description: string | null;
   condition: NodeGraphCardCondition;
   input_pins: readonly NodeGraphCanvasPin[];
   output_pins: readonly NodeGraphCanvasPin[];
@@ -155,6 +161,26 @@ export interface NodeGraphCanvasPoint {
   in_the_element: { x: number; y: number };
 }
 
+/** The canvas's Add node, Frame, Note and Subgraph tools drawn in the window's toolbar instead of on the canvas. */
+export interface NodeGraphCanvasToolsInTheWindowToolbar {
+  /** The tools as they can be pressed now, at once and each time that changes. */
+  onToolsChanged(tools: readonly WindowToolbarGraphToolOffered[]): void;
+  /** Where the canvas puts how it carries out a toolbar press, while it is drawn. */
+  pressFromTheToolbar: { current: ((tool: WindowToolbarGraphTool) => void) | null };
+  /** Whether the window took the offer, so the canvas draws no tools of its own; until then, and where it never does, they stay on the canvas. */
+  isTakenByTheToolbar: boolean;
+}
+
+/** The canvas's pan and zoom, as React Flow keeps its viewport. */
+export interface NodeGraphCanvasViewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+/** Why the toolbar's Subgraph cannot be pressed yet. */
+const SUBGRAPH_NOT_BUILT_YET = "Making a subgraph from the selection isn't built yet";
+
 /** Whether an edit the canvas asked for was applied; a refused one puts what it moved back. */
 export type NodeGraphCanvasEditAnswer = "applied" | "refused";
 
@@ -187,6 +213,10 @@ export interface NodeGraphCanvasEditing {
 
 /** The narrowest a card is drawn; a card with longer names grows to fit them. */
 const NODE_GRAPH_CARD_SMALLEST_WIDTH = 180;
+const NODE_GRAPH_TOOLS_WHILE_NO_GRAPH_IS_SHOWN: readonly WindowToolbarGraphToolOffered[] = (["add_node", "frame_selection", "add_note", "add_subgraph"] as const).map((tool) => ({
+  tool,
+  disabled_reason: "Show the stream's graph to use its tools",
+}));
 const FIT_TO_VIEW_OPTIONS = { padding: 0.18, maxZoom: 1, duration: 0 };
 const NODE_GRAPH_NOTE_SMALLEST_SIZE = { width: 120, height: 60 };
 
@@ -310,6 +340,7 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
       <div
         className="node-graph-card-header relative flex items-center gap-2 px-2"
         style={{ height: NODE_GRAPH_CARD_HEADER_HEIGHT }}
+        title={graphNode.description ?? undefined}
       >
         {cardAndFrameEditing !== null && (
           <button
@@ -357,12 +388,14 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
               <span
                 className="truncate"
                 data-node-graph-input-pin={inputPin?.name}
+                title={inputPin === undefined ? undefined : nodeGraphPinTooltip(inputPin)}
               >
                 {inputPin?.name}
               </span>
               <span
                 className="truncate text-right"
                 data-node-graph-output-pin={outputPin?.name}
+                title={outputPin === undefined ? undefined : nodeGraphPinTooltip(outputPin)}
               >
                 {outputPin?.name}
               </span>
@@ -648,6 +681,9 @@ function NodeGraphFlow({
   selectedNodeId,
   onNodeSelected,
   editing,
+  toolsInTheWindowToolbar,
+  viewportWhereItWasLeft,
+  onViewportLeft,
   overlay,
 }: {
   label: string;
@@ -658,6 +694,9 @@ function NodeGraphFlow({
   selectedNodeId: string | null;
   onNodeSelected: (nodeId: string | null) => void;
   editing: NodeGraphCanvasEditing | null;
+  toolsInTheWindowToolbar: NodeGraphCanvasToolsInTheWindowToolbar | null;
+  viewportWhereItWasLeft: NodeGraphCanvasViewport | null;
+  onViewportLeft: ((viewport: NodeGraphCanvasViewport) => void) | null;
   overlay?: ReactNode;
 }) {
   const reactFlow = useReactFlow();
@@ -848,9 +887,10 @@ function NodeGraphFlow({
 
   useEffect(() => {
     if (!isLaidOutOnMeasuredWidths || hasBeenFramed) return;
-    void reactFlow.fitView(FIT_TO_VIEW_OPTIONS);
+    if (viewportWhereItWasLeft === null) void reactFlow.fitView(FIT_TO_VIEW_OPTIONS);
+    else void reactFlow.setViewport(viewportWhereItWasLeft);
     setHasBeenFramed(true);
-  }, [isLaidOutOnMeasuredWidths, hasBeenFramed, reactFlow]);
+  }, [isLaidOutOnMeasuredWidths, hasBeenFramed, reactFlow, viewportWhereItWasLeft]);
 
   const followTheChanges = useCallback(
     (changes: NodeChange<NodeGraphFlowNode>[]) => {
@@ -1087,6 +1127,37 @@ function NodeGraphFlow({
   const frameRenaming = useMemo(() => ({ frameIdBeingRenamed, renameTheFrame: setFrameIdBeingRenamed }), [frameIdBeingRenamed]);
   const cardAndFrameEditing = useMemo(() => (editing === null ? null : { onFrameRenamed: editing.onFrameRenamed, onCardCollapsed: editing.onCardCollapsed }), [editing]);
 
+  const frameSelectionDisabledReason = selectedIds.size === 0 ? "Select the nodes to frame first" : null;
+  const onToolbarToolsChanged = toolsInTheWindowToolbar?.onToolsChanged;
+  const isEditable = editing !== null;
+  useEffect(() => {
+    if (onToolbarToolsChanged === undefined) return;
+    const disabledReasonWhileReadOnly = isEditable ? null : "This graph is read only";
+    onToolbarToolsChanged([
+      { tool: "add_node", disabled_reason: disabledReasonWhileReadOnly },
+      { tool: "frame_selection", disabled_reason: disabledReasonWhileReadOnly ?? frameSelectionDisabledReason },
+      { tool: "add_note", disabled_reason: disabledReasonWhileReadOnly },
+      { tool: "add_subgraph", disabled_reason: disabledReasonWhileReadOnly ?? SUBGRAPH_NOT_BUILT_YET },
+    ]);
+  }, [onToolbarToolsChanged, isEditable, frameSelectionDisabledReason]);
+  useEffect(() => {
+    if (onToolbarToolsChanged === undefined) return;
+    return () => onToolbarToolsChanged(NODE_GRAPH_TOOLS_WHILE_NO_GRAPH_IS_SHOWN);
+  }, [onToolbarToolsChanged]);
+  const pressFromTheToolbar = toolsInTheWindowToolbar?.pressFromTheToolbar;
+  useEffect(() => {
+    if (pressFromTheToolbar === undefined) return;
+    pressFromTheToolbar.current = (tool) => {
+      if (editing === null) return;
+      if (tool === "add_node") editing.onNodeAskedFor(clearPlaceBroughtIntoView());
+      else if (tool === "add_note") editing.onNoteAskedFor(clearPlaceBroughtIntoView());
+      else if (tool === "frame_selection" && selectedIds.size > 0) frameTheSelection();
+    };
+    return () => {
+      pressFromTheToolbar.current = null;
+    };
+  }, [pressFromTheToolbar, editing, clearPlaceBroughtIntoView, frameTheSelection, selectedIds]);
+
   const followTheKeys = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (editing === null || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) return;
@@ -1147,6 +1218,9 @@ function NodeGraphFlow({
                 onNodesChange={followTheChanges}
                 onEdgesChange={followTheLinkChanges}
                 onNodeDragStop={(_event, _node, draggedNodes) => keepTheMovedCards(draggedNodes)}
+                onMoveEnd={(event, viewport) => {
+                  if (event !== null && hasBeenFramed) onViewportLeft?.({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
+                }}
                 onConnect={wireThePins}
                 onConnectEnd={followTheWireLetGo}
                 isValidConnection={canTheConnectionBeWired}
@@ -1180,21 +1254,21 @@ function NodeGraphFlow({
                     label="Frame the whole graph"
                     size="compact"
                     onPressed={() =>
-                      void reactFlow.fitView({
-                        ...FIT_TO_VIEW_OPTIONS,
-                        duration: 200,
+                      void reactFlow.fitView({ ...FIT_TO_VIEW_OPTIONS, duration: 200 }).then(() => {
+                        const { x, y, zoom } = reactFlow.getViewport();
+                        onViewportLeft?.({ x, y, zoom });
                       })
                     }
                     data-node-graph-tool="frame_all"
                   />
-                  {editing !== null && (
+                  {editing !== null && toolsInTheWindowToolbar?.isTakenByTheToolbar !== true && (
                     <>
                       <IconButton icon={Plus} label="Add node" tooltip="Add node (Tab)" size="compact" onPressed={() => editing.onNodeAskedFor(clearPlaceBroughtIntoView())} data-node-graph-tool="add_node" />
                       <IconButton
                         icon={Frame}
                         label="Frame the selected nodes"
                         tooltip="Frame the selected nodes (F)"
-                        disabledReason={selectedIds.size === 0 ? "Select the nodes to frame first" : null}
+                        disabledReason={frameSelectionDisabledReason}
                         size="compact"
                         onPressed={frameTheSelection}
                         data-node-graph-tool="frame_selection"
@@ -1243,6 +1317,9 @@ export function NodeGraphCanvas({
   selectedNodeId,
   onNodeSelected,
   editing = null,
+  toolsInTheWindowToolbar = null,
+  viewportWhereItWasLeft = null,
+  onViewportLeft = null,
   overlay,
   ...controlDataAttributes
 }: {
@@ -1255,6 +1332,12 @@ export function NodeGraphCanvas({
   onNodeSelected: (nodeId: string | null) => void;
   /** What a person's edits ask for; `null` draws the graph read only. */
   editing?: NodeGraphCanvasEditing | null;
+  /** Where the canvas's tools are drawn when the window's toolbar draws them; `null` draws them on the canvas. */
+  toolsInTheWindowToolbar?: NodeGraphCanvasToolsInTheWindowToolbar | null;
+  /** Where the person left the canvas's pan and zoom, which it opens on; `null` frames the whole graph. */
+  viewportWhereItWasLeft?: NodeGraphCanvasViewport | null;
+  /** Told where the person leaves the pan and zoom after each pan or zoom of theirs. */
+  onViewportLeft?: ((viewport: NodeGraphCanvasViewport) => void) | null;
   overlay?: ReactNode;
 } & ControlDataAttributes) {
   return (
@@ -1269,6 +1352,9 @@ export function NodeGraphCanvas({
           selectedNodeId={selectedNodeId}
           onNodeSelected={onNodeSelected}
           editing={editing}
+          toolsInTheWindowToolbar={toolsInTheWindowToolbar}
+          viewportWhereItWasLeft={viewportWhereItWasLeft}
+          onViewportLeft={onViewportLeft}
           overlay={overlay}
         />
       </ReactFlowProvider>

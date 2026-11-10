@@ -41,6 +41,8 @@ function TatolabViewFrame({
   const inputWiringAsJson = JSON.stringify(inputWiring);
   const rememberSettingsRef = useRef(area.rememberSettings);
   rememberSettingsRef.current = area.rememberSettings;
+  const offerGraphToolsRef = useRef(area.offerGraphTools);
+  offerGraphToolsRef.current = area.offerGraphTools;
   const [savedSettings] = useState(() => new WatchedStudioValue<{ saved: JsonValue | undefined }>({ saved: area.saved_settings }));
   const savedSettingsAsJson = JSON.stringify(area.saved_settings) ?? "";
   const savedSettingsRef = useRef(area.saved_settings);
@@ -63,6 +65,7 @@ function TatolabViewFrame({
       watchSavedSettings: (listener) => savedSettings.watch(({ saved }) => listener(saved)),
       rememberSettings: (settings) => rememberSettingsRef.current(settings),
       watchHeaderRow: area.header_row.watch,
+      offerGraphTools: (onToolPressed) => offerGraphToolsRef.current(onToolPressed),
     };
     const channel = new MessageChannel();
     const bridge = new TatolabViewBridge(channel.port1, listed.view_type_id, manifest, hostServices, areaServices, inputWiringRef.current, viewNode);

@@ -11,6 +11,7 @@ import type { JsonValue, ListedStreamsReading, StreamTabAddress, StudioSelection
 import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, type StudioAreaLayoutNode } from "./studio_area_layout";
 import { STUDIO_LAYOUTS, type StudioLayoutName, type StudioLayoutsKeptInStorage, type StudioLayoutsOfAFolder } from "./studio_layouts";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
+import { WindowToolbarGraphToolOffers } from "./window_toolbar_graph_tool_offers";
 
 /** The streams the runtime lists in `status`, or why it lists none now. */
 export function listedStreamsReadingOf(status: TatolabStatus): ListedStreamsReading {
@@ -78,6 +79,8 @@ export class StudioWindowModel {
   readonly viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
   /** Why the last run or stop of the open project was refused, until it is dismissed or another is asked for. */
   readonly projectRunRefusal = new WatchedStudioValue<{ asked_to: "run" | "stop"; because: string } | null>(null);
+  /** The graph tools the window's areas offer its toolbar, and the offer it shows. */
+  readonly windowToolbarGraphToolOffers = new WindowToolbarGraphToolOffers();
   /** Why the person's last undo or redo was refused, in the runtime's words, until it is dismissed or another is asked for. */
   readonly projectEditRefusal = new WatchedStudioValue<{ asked_to: "undo" | "redo"; because: string } | null>(null);
   /** Why the last update choice from the menus did not reach the app, until it is dismissed or another is made. */

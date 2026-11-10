@@ -42,6 +42,8 @@ import {
   type ViewOpeningTarget,
   type ViewWatchedReading,
   type ViewWatchedSubject,
+  type WindowToolbarGraphTool,
+  type WindowToolbarGraphToolOffered,
 } from "./view_wire_messages.js";
 
 /** Stops a watch; calling it again does nothing. */
@@ -73,6 +75,14 @@ export interface PythonLanguageServerConnection {
   send(message: JsonValue): void;
   /** Stop the server; nothing arrives after. */
   close(): void;
+}
+
+/** The view's graph tools as the window's toolbar draws them, offered until withdrawn. */
+export interface WindowToolbarGraphToolsOffer {
+  /** Offer `tools` in place of any offer before; refused where the window draws no toolbar, as a popped-out view's window does. */
+  show(tools: readonly WindowToolbarGraphToolOffered[]): Promise<ViewAskDone>;
+  /** Take the offer back; no press arrives after. */
+  withdraw(): void;
 }
 
 /** A view's connection to Studio: what it was granted, and each part of the contract it may read or ask for. */
@@ -121,6 +131,8 @@ export interface TatoAppViewConnection {
   listProjectFiles(projectFolder: string): Promise<ProjectFilesListing>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
+  /** Offer graph tools to the window's toolbar, each press of one arriving on `onToolPressed` while the toolbar shows this view's offer. */
+  offerGraphToolsToTheWindow(onToolPressed: (tool: WindowToolbarGraphTool) => void, whenRefused?: WhenStudioRefuses): WindowToolbarGraphToolsOffer;
   /** Undo `author`'s latest transaction in the project not undone yet, answering the undo the runtime applied. */
   undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** Redo what `author`'s latest undo in the project reversed, answering the redo the runtime applied. */
@@ -299,6 +311,18 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
           send: (message) => void ask({ kind: "send_to_python_language_server", watch_id: watchId, message }),
           close: stopWatching,
         };
+      },
+      offerGraphToolsToTheWindow: (onToolPressed, whenRefused = IGNORE_THE_REFUSAL) => {
+        const { watchId, stopWatching } = watch(
+          { kind: "graph_tool_presses" },
+          {
+            onWatched: (watched) => {
+              if (watched.subject === "graph_tool_presses") onToolPressed(watched.reading.tool);
+            },
+            whenRefused,
+          },
+        );
+        return { show: (tools) => ask({ kind: "offer_graph_tools", watch_id: watchId, tools: [...tools] }).then(doneOf), withdraw: stopWatching };
       },
       sendOutput: async (output, payload) => doneOf(await ask({ kind: "send_output", output }, payload)),
       close: () => {

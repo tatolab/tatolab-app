@@ -29,6 +29,7 @@ import type {
 } from "./studio_view_contract";
 import type { StudioViewInputWiring } from "./studio_view_node_wiring";
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
+import { WindowToolbarGraphToolOffers } from "../studio_shell/window_toolbar_graph_tool_offers";
 
 function manifestOf(manifestJson: unknown): TatolabViewManifest {
   const reading = readTatolabViewManifest(manifestJson);
@@ -175,12 +176,14 @@ function recordingHostServices() {
 function recordingAreaServices(savedSettings: JsonValue | undefined) {
   const saved = new WatchedStudioValue<{ saved: JsonValue | undefined }>({ saved: savedSettings });
   const headerRow = new WatchedStudioValue<ViewHeaderRow>({ leading_inset_px: 120, height_px: 30 });
+  const toolbarGraphToolOffers = new WindowToolbarGraphToolOffers();
   const areaServices: TatolabViewAreaServices = {
     watchSavedSettings: (listener) => saved.watch((latest) => listener(latest.saved)),
     rememberSettings: (settings) => saved.publish({ saved: settings }),
     watchHeaderRow: headerRow.watch,
+    offerGraphTools: (onToolPressed) => toolbarGraphToolOffers.offerFrom("graph", onToolPressed),
   };
-  return { areaServices, saved, headerRow };
+  return { areaServices, saved, headerRow, toolbarGraphToolOffers };
 }
 
 const bridgesOpen: TatolabViewBridge[] = [];
@@ -219,6 +222,33 @@ describe("a view's connection to Studio, through the one bridge every view is se
     });
     expect(await connection.transactInTheProject("/set", [{ operation: "remove_node", stream: "s-uuid", node: "n-uuid" }], { mode: "live", idempotencyKey: null })).toEqual({ kind: "not_sent", because: "No runtime answers." });
     expect(graphTransactionsAsked[0]).toEqual({ projectFolder: "/set", operations: [addHoldFrame], mode: "commit", idempotencyKey: "gesture-1" });
+  });
+
+  it("offers graph tools to the window's toolbar, a press of an enabled one reaching the view, and withdraws them when the view stops", async () => {
+    const { connection, toolbarGraphToolOffers } = await connectedView(DJ_DECK_MANIFEST, {});
+    const toolsPressed: string[] = [];
+    const offer = connection.offerGraphToolsToTheWindow((tool) => toolsPressed.push(tool));
+    expect(
+      await offer.show([
+        { tool: "add_node", disabled_reason: null },
+        { tool: "frame_selection", disabled_reason: "Select the nodes to frame first" },
+      ]),
+    ).toEqual({ kind: "done" });
+    const shown = toolbarGraphToolOffers.shown.readLatest() ?? expect.unreachable("no tools shown");
+    expect(shown.tools.map(({ tool, disabled_reason }) => [tool, disabled_reason])).toEqual([
+      ["add_node", null],
+      ["frame_selection", "Select the nodes to frame first"],
+    ]);
+    shown.press("frame_selection");
+    shown.press("add_node");
+    await messagesDelivered();
+    expect(toolsPressed).toEqual(["add_node"]);
+
+    offer.withdraw();
+    await messagesDelivered();
+    expect(toolbarGraphToolOffers.shown.readLatest()).toBeNull();
+    expect(await offer.show([{ tool: "add_note", disabled_reason: null }])).toEqual({ kind: "refused", because: "The view watches no graph tool presses under 1." });
+
   });
 
   it("names the person editing, whose own edits Undo reverts", async () => {
