@@ -1,4 +1,3 @@
-import { STUDIO_VIEW_LISTING_ISSUE } from "../view_host/studio_view_node_wiring";
 import type { TatolabBackend } from "./tatolab_backend";
 import type {
   TatolabCommandName,
@@ -137,9 +136,7 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("stop_python_language_server", { session });
     },
     onPythonLanguageServerEvent: (listener) => tatolabElectronBridge.onPythonLanguageServerEvent(listener),
-    listStudioViewsOfTheOpenProject: async () => {
-      throw `Tato Studio lists a project's views once the runtime lists the tatolab.views of a stream's packages (${STUDIO_VIEW_LISTING_ISSUE}).`;
-    },
+    listStudioViewsOfTheOpenProject: () => invokeTatolabCommand("list_studio_views_of_the_open_project", undefined),
     openPortViewer: async (target) => (await invokeTatolabCommand("open_port_viewer", target)).port_viewer,
     closePortViewer: async (portViewer) => {
       await invokeTatolabCommand("close_port_viewer", { port_viewer: portViewer });

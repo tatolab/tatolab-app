@@ -65,6 +65,13 @@ async function windowsWithNightShowOpen(stopTheProject: (projectFolder: string) 
     dockIconHost: fakeShell.tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: () => null,
     projectReadingsOfTheRuntime: { nameTheProject: async () => failedWith("no runtime answers"), listTheDependencies: async () => failedWith("no runtime answers") },
+    projectFilesOfTheRuntime: {
+      listProjectFiles: async () => failedWith("no runtime answers"),
+      readProjectFile: async () => failedWith("no runtime answers"),
+      writeProjectFile: async () => failedWith("no runtime answers"),
+    },
+    personSavingTheFiles: { kind: "person", name: "sam" },
+    mintAnIdempotencyKey: () => "a-save",
     openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
     runAfter: () => () => {},
     stopTheProjectAsItsWindowCloses: (folder) => {

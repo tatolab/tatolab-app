@@ -2,6 +2,7 @@
 // lifecycle in main.ts drives.
 
 import { createRequire } from "node:module";
+import os from "node:os";
 import path from "node:path";
 import { app, autoUpdater as electronNativeAutoUpdater, Menu } from "electron";
 import { startTatolabApp, type TatolabElectronAppShell, type TatolabRunningApp } from "../main.js";
@@ -33,7 +34,7 @@ import { createElectronTatolabAppUpdateFeed } from "./electron_tatolab_app_updat
 import { createElectronSystemNotifications } from "./electron_system_notifications.js";
 import { ELECTRON_APP_LOGIN_ITEM_SETTINGS } from "./electron_app_login_item_settings.js";
 import { createElectronTrayIconHostFactory } from "./electron_tray_icon.js";
-import { registerTheWindowPageSchemeBeforeReady, serveTheBuiltWindow } from "./electron_window_page_protocol.js";
+import { answerProjectViewFileRequestsWith, registerTheWindowPageSchemeBeforeReady, serveTheWindowPageScheme } from "./electron_window_page_protocol.js";
 
 const tatolabAppLog = createTatolabAppLogToStandardError();
 const tatolabPlatformItems = tatolabPlatformItemsForThisBuild();
@@ -68,6 +69,15 @@ function windowDevServerUrlNamedIn(windowDevServerUrlText: string | undefined): 
   return null;
 }
 
+/** The account the app runs as, which a save is recorded by; `os.userInfo()` throws for a uid with no passwd entry, as in some containers. */
+function nameOfThePersonSignedInToThisMachine(): string {
+  try {
+    return os.userInfo().username;
+  } catch {
+    return process.env["USER"] ?? "person";
+  }
+}
+
 const tatolabElectronAppShell: TatolabElectronAppShell = {
   readThisCopyOfTatolab: async () => ({
     // An AppImage runs from a mount that goes when it exits; `APPIMAGE` names the file that opens it again.
@@ -79,7 +89,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   requestTheSingleInstanceLock: (thisCopy) => app.requestSingleInstanceLock(tatolabAppCopyOnTheSingleInstanceLock(thisCopy)),
   whenReady: async () => {
     await app.whenReady();
-    if (windowDevServerUrl === null) await serveTheBuiltWindow(builtWindowDirectory, tatolabAppLog);
+    await serveTheWindowPageScheme(windowDevServerUrl === null ? builtWindowDirectory : null, tatolabAppLog);
   },
   onTheAppOpenedAgain: (listener) => {
     app.on("second-instance", (_event, _argv, _workingDirectory, additionalData) => listener(tatolabAppCopyHandedOverOnTheSingleInstanceLock(additionalData)));
@@ -142,6 +152,8 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   homeDirectory: app.getPath("home"),
   // On Linux Electron reads XDG_DOCUMENTS_DIR from user-dirs.dirs, falling back to ~/Documents.
   documentsDirectory: app.getPath("documents"),
+  personSignedInToThisMachine: nameOfThePersonSignedInToThisMachine(),
+  answerProjectViewFileRequestsWith,
   createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
   systemNotifications: createElectronSystemNotifications(),
   repeatingTimer: (intervalMs, work) => {

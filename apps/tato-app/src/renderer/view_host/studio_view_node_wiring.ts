@@ -4,21 +4,15 @@
 import type { ViewDeclaredPort } from "@tatolab/tato-app-view-sdk";
 import type { PortViewerTarget, StreamGraphNode, StreamGraphSummary } from "./studio_view_contract";
 
-/** The node type a view stands in its stream's graph as, its view type named by `config.view_type`. */
-export const STUDIO_VIEW_NODE_TYPE = "tatolab.studio:StudioView";
-
 /** The issue that brings the runtime's view node, which carries what a view sends on its outputs into the stream. */
 export const STUDIO_VIEW_NODE_ISSUE = "tatolab/streamlib#3306";
-
-/** The issue that brings the runtime's listing of the views a stream's packages bring. */
-export const STUDIO_VIEW_LISTING_ISSUE = "tatolab/streamlib#3307";
 
 /** What one input of a view reads: the output wired into it, named as `Node › port`, or why it reads nothing. */
 export type StudioViewInputWiring = { kind: "wired"; target: PortViewerTarget; wired_from_words: string } | { kind: "unwired"; because: string };
 
-/** The nodes of `graph` standing for the view type `viewTypeId`, in the graph's order. */
+/** The nodes of `graph` of the view type `viewTypeId`, which is a node type of its own, in the graph's order. */
 export function nodesOfTheStudioViewType(graph: StreamGraphSummary, viewTypeId: string): StreamGraphNode[] {
-  return graph.nodes.filter((node) => node.type === STUDIO_VIEW_NODE_TYPE && node.config["view_type"] === viewTypeId);
+  return graph.nodes.filter((node) => node.type === viewTypeId);
 }
 
 /** What each of `declaredInputs` of the view node `viewNode` reads in `graph`, by input name. */

@@ -52,7 +52,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
       ...coreViewTypeIn("viewer"),
       ...coreViewTypeIn("code"),
     ],
-    (listed, manifest, projectName) => tatolabFrameViewType(listed, manifest, { kind: "project", project_name: projectName }),
+    (listed, manifest) => tatolabFrameViewType(listed, manifest, { kind: "project", project_name: listed.project_name }),
     coreViewTypes.not_opened,
     coreViewTypeIn("transactions"),
   );
@@ -68,10 +68,9 @@ function listTheOpenProjectsStudioViews(backend: TatolabBackend, studioWindowMod
       viewTypeRegistry.projectStudioViews.publish({ kind: "none_open" });
       return;
     }
-    const projectName = openProjectReading.open_project.project.name;
     backend.listStudioViewsOfTheOpenProject().then(
       (studioViews) => {
-        if (thisListing === listingsAsked) viewTypeRegistry.projectStudioViews.publish({ kind: "listed", project_name: projectName, studio_views: studioViews });
+        if (thisListing === listingsAsked) viewTypeRegistry.projectStudioViews.publish({ kind: "listed", studio_views: studioViews });
       },
       (rejection: unknown) => {
         if (thisListing === listingsAsked) viewTypeRegistry.projectStudioViews.publish({ kind: "not_listed", because: describeBackendRejection(rejection) });

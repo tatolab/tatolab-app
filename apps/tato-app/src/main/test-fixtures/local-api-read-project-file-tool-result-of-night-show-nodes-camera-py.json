@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"path\": \"nodes/camera.py\",\n  \"byte_len\": 43,\n  \"content_base64\": \"aW1wb3J0IHN0cmVhbWxpYgoKCkNBTUVSQV9ERVZJQ0VfSU5ERVggPSAwCg==\"\n}"}],"isError":false}}

@@ -6,6 +6,7 @@
 // working; quitting stops both. The first opening also links the `tatolab` command in the home
 // folder and starts checking for updates on its own.
 
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
 import { MODULE_DOWNLOADS_FOLDER_NAME } from "./marketplace_module_download.js";
@@ -39,10 +40,12 @@ import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "
 import type { Result } from "./result.js";
 import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
+import type { ProjectFilesOfTheRuntime } from "./open_project_files.js";
 import { ProjectOpening, type FolderEntriesWatch, type ProjectArchiveDialog, type ProjectFolderDialog, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { localApiRequestFailure } from "./local_api_client.js";
+import { answerAProjectViewFileRequest, type AnswerAProjectViewFileRequest } from "./project_view_files.js";
 import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
@@ -116,6 +119,10 @@ export interface TatolabElectronAppShell {
   homeDirectory: string;
   /** The platform's Documents folder, where new projects go under `Tato Studio/`. */
   documentsDirectory: string;
+  /** The account name of the person signed in to this machine, whom a project's history names as the author of a save in the studio. */
+  personSignedInToThisMachine: string;
+  /** Serve every request for a project view's file with `answerAProjectViewFileRequest`. */
+  answerProjectViewFileRequestsWith(answerAProjectViewFileRequest: AnswerAProjectViewFileRequest): void;
   /** The update feed `appUpdatePackaging` reads and takes from, or why this app cannot update itself. */
   createTheAppUpdateFeed(appUpdatePackaging: TatolabAppUpdatePackaging): TatolabAppUpdateFeedForThisBuild;
   /** The desktop's notifications, which updates and failing streams are told through. */
@@ -176,6 +183,23 @@ export async function startTatolabApp(
       return listed.ok ? listed : failedWith(listed.failure.failureDescription);
     },
   };
+  const projectFilesOfTheRuntime: ProjectFilesOfTheRuntime = {
+    listProjectFiles: async (projectDirectory, under) => {
+      if (controllerOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
+      const listed = await controllerOnceBuilt.listProjectFiles(projectDirectory, under);
+      return listed.ok ? listed : failedWith(listed.failure.failureDescription);
+    },
+    readProjectFile: async (projectDirectory, filePath) => {
+      if (controllerOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
+      const fileBytes = await controllerOnceBuilt.readProjectFile(projectDirectory, filePath);
+      return fileBytes.ok ? fileBytes : failedWith(fileBytes.failure.failureDescription);
+    },
+    writeProjectFile: async (projectDirectory, filePath, text, author, idempotencyKey) => {
+      if (controllerOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
+      const written = await controllerOnceBuilt.writeProjectFile(projectDirectory, filePath, text, author, idempotencyKey);
+      return written.ok ? written : failedWith(written.failure.failureDescription);
+    },
+  };
   let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
   let localApiSocketOnceKnown: string | null = null;
   const tatolabAppWindows = new TatolabAppWindows({
@@ -184,6 +208,9 @@ export async function startTatolabApp(
     dockIconHost: tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: tatolabElectronAppShell.watchFolderEntries,
     projectReadingsOfTheRuntime,
+    projectFilesOfTheRuntime,
+    personSavingTheFiles: { kind: "person", name: tatolabElectronAppShell.personSignedInToThisMachine },
+    mintAnIdempotencyKey: () => randomUUID(),
     openTheProjectTransactionsFeedConnection: async () =>
       localApiSocketOnceKnown === null
         ? localApiRequestFailure(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET)
@@ -295,6 +322,12 @@ export async function startTatolabApp(
     const runtimeStopped = stopTheRuntimeWithinTheQuitWaitLimit(() => controller.stopTheRuntimeAsTheAppQuits(), tatolabAppLog);
     return aRuntimeTheAppStartedIsRunning ? runtimeStopped : null;
   });
+  tatolabElectronAppShell.answerProjectViewFileRequestsWith((requestUrl) =>
+    answerAProjectViewFileRequest(requestUrl, {
+      aStudioWindowHoldsTheProjectIn: (projectFolder) => tatolabAppWindows.aStudioWindowHoldsTheProjectIn(projectFolder),
+      readProjectFile: projectFilesOfTheRuntime.readProjectFile,
+    }),
+  );
   const projectOpening = new ProjectOpening({
     homeDirectory: tatolabElectronAppShell.homeDirectory,
     documentsDirectory: tatolabElectronAppShell.documentsDirectory,
