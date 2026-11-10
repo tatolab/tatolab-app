@@ -29,6 +29,7 @@ import { MockPythonLanguageServer } from "./mock_python_language_server";
 import { MockPortViewers } from "./mock_port_viewers";
 import { mockStudioViewListing } from "./mock_studio_view/mock_studio_view_listing";
 import { MockProjectFiles } from "./mock_project_files";
+import { MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
@@ -187,6 +188,8 @@ export interface MockTatolabOptions {
   doesTheRuntimeListAnEarlierRuntimesRecord: boolean;
   /** `?project=none|unreadable`: no project open, or one the runtime names no project in; the pattern project by default. */
   openProjectScenario: MockOpenProjectScenario;
+  /** `?history=empty`: the open project has no transactions yet; a few by the person, an agent and the runtime by default. */
+  projectHistoryScenario: MockProjectHistoryScenario;
   /** `?recent=none`: no project opened before, as on first run; six recent ones by default. */
   recentProjectsInTheQuery: string | null;
   /** Each port's family is served in the graph and the node catalog, as the runtime serves it; `?port_families=unserved` serves none, as a runtime from before strict-port-families. */
@@ -315,6 +318,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isMakingThePythonEnvironmentRefused: pageQuery.get("add_venv") === "refused",
     doesTheRuntimeListAnEarlierRuntimesRecord: pageQuery.get("streams") === "earlier_record",
     openProjectScenario: mockOpenProjectScenarioNamed(pageQuery.get("project")),
+    projectHistoryScenario: mockProjectHistoryScenarioNamed(pageQuery.get("history")),
     recentProjectsInTheQuery: pageQuery.get("recent"),
     arePortFamiliesServed: pageQuery.get("port_families") !== "unserved",
     isEveryOwnNodeModuleUnreadable: pageQuery.get("node_types") === "unreadable_project",
@@ -432,6 +436,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     isMakingThePythonEnvironmentRefused,
     doesTheRuntimeListAnEarlierRuntimesRecord,
     openProjectScenario,
+    projectHistoryScenario,
     recentProjectsInTheQuery,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
@@ -463,6 +468,8 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const mockLanguageServersBySession = new Map<string, MockPythonLanguageServer>();
   const mockPortViewers = new MockPortViewers();
   let languageServerSessionCount = 0;
+  const mockProjectTransactions =
+    openProjectReading.kind === "read" ? new MockProjectTransactions(openProjectReading.open_project.project.project, openProjectReading.open_project.project.folder, projectHistoryScenario) : null;
   const refuseWithoutAnOpenProject = (): void => {
     if (openProjectReading.kind !== "read") throw "No project is open, so its files cannot be read.";
   };
@@ -1272,6 +1279,24 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     onOpenProjectChanged: (openProjectListener) => {
       openProjectListeners.add(openProjectListener);
       return () => openProjectListeners.delete(openProjectListener);
+    },
+    readOpenProjectTransactions: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockProjectTransactions === null) throw "No project is open in this window.";
+      return mockStatus.runtime_state === "running" ? mockProjectTransactions.read() : { kind: "not_read", because: noRuntimeAnswersRefusal() };
+    },
+    onProjectTransactionsChanged: (listener) => mockProjectTransactions?.onChanged(listener) ?? (() => undefined),
+    undoInTheOpenProject: async (author) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockProjectTransactions === null) throw "No project is open in this window.";
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      return mockProjectTransactions.undo(author);
+    },
+    redoInTheOpenProject: async (author) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockProjectTransactions === null) throw "No project is open in this window.";
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      return mockProjectTransactions.redo(author);
     },
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);

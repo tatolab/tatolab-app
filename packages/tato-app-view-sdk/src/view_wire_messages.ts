@@ -16,6 +16,9 @@ import {
   projectFilesSchema,
   projectLogReadingSchema,
   projectNodeTypesReadingSchema,
+  projectTransactionAuthorSchema,
+  projectTransactionSchema,
+  projectTransactionsReadingSchema,
   pythonLanguageServerConnectionEventSchema,
   streamGraphReadingSchema,
   streamTabAddressSchema,
@@ -63,6 +66,8 @@ export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("node_catalog"), stream: z.string() }),
   z.object({ kind: z.literal("project_log"), project_folder: z.string() }),
   z.object({ kind: z.literal("project_node_types"), project_folder: z.string() }),
+  /** The project's change feed, read again each time the runtime applies a transaction to it. */
+  z.object({ kind: z.literal("project_transactions"), project_folder: z.string() }),
   /** A running node's output port, read until the watch stops. */
   z.object({ kind: z.literal("port_viewer"), target: portViewerTargetSchema }),
   /** What is wired into one of a `node` view's own inputs. */
@@ -99,6 +104,10 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   /** One JSON-RPC message for the language server the view's watch `watch_id` started. */
   z.object({ kind: z.literal("send_to_python_language_server"), watch_id: watchOrAskIdSchema, message: jsonValueSchema }),
   z.object({ kind: z.literal("send_output"), output: z.string() }),
+  /** Undo `author`'s latest transaction in the project not undone yet, through the runtime's `undo`. */
+  z.object({ kind: z.literal("undo_in_the_project"), project_folder: z.string(), author: projectTransactionAuthorSchema }),
+  /** Redo what `author`'s latest undo in the project reversed, through the runtime's `redo`. */
+  z.object({ kind: z.literal("redo_in_the_project"), project_folder: z.string(), author: projectTransactionAuthorSchema }),
 ]);
 /** What a view may ask Studio to do. */
 export type ViewAsk = z.infer<typeof viewAskSchema>;
@@ -137,6 +146,7 @@ export const viewWatchedReadingSchema = z.discriminatedUnion("subject", [
   z.object({ subject: z.literal("node_catalog"), reading: nodeCatalogReadingSchema }),
   z.object({ subject: z.literal("project_log"), reading: projectLogReadingSchema }),
   z.object({ subject: z.literal("project_node_types"), reading: projectNodeTypesReadingSchema }),
+  z.object({ subject: z.literal("project_transactions"), reading: projectTransactionsReadingSchema }),
   z.object({ subject: z.literal("port_viewer"), reading: z.union([portViewerEventSchema, imageBitmapEventSchema]) }),
   z.object({ subject: z.literal("input"), reading: z.union([viewInputEventSchema, imageBitmapEventSchema]) }),
   z.object({ subject: z.literal("python_language_server"), reading: pythonLanguageServerConnectionEventSchema }),
@@ -154,6 +164,7 @@ export const viewAskAnswerSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("project_file_read"), file_read: projectFileReadSchema }),
   z.object({ kind: z.literal("project_file_saved"), version: z.string() }),
   z.object({ kind: z.literal("project_files_listed"), project_files: projectFilesSchema }),
+  z.object({ kind: z.literal("project_transaction_applied"), transaction: projectTransactionSchema }),
 ]);
 /** What Studio answers an ask with. */
 export type ViewAskAnswer = z.infer<typeof viewAskAnswerSchema>;
@@ -192,6 +203,7 @@ export function capabilityToWatch(subject: ViewWatchedSubject): ViewCapability |
       return "read.stream_graph";
     case "project_log":
     case "project_node_types":
+    case "project_transactions":
     case "python_language_server":
       return "read.project_assets";
     case "open_project":
@@ -217,6 +229,8 @@ export function capabilityToAsk(ask: ViewAsk): ViewCapability | null {
     case "send_to_python_language_server":
       return "read.project_assets";
     case "save_project_file":
+    case "undo_in_the_project":
+    case "redo_in_the_project":
       return "write.project_assets";
     case "remember_settings":
     case "send_output":

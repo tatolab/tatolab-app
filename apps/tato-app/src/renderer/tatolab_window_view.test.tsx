@@ -235,6 +235,33 @@ describe("the studio", () => {
     await waitFor(() => expect(coreViewPage("palette").querySelector("[data-palette-not-listed-because]")?.textContent).toMatch(/^no runtime answers at /));
   });
 
+  it("lists the project's edits in History, newest first, and choosing an earlier one undoes back to it by each edit's author", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^History/ }));
+
+    const historyRows = () => [...coreViewPage("history").querySelectorAll<HTMLElement>("[data-history-row]")];
+    await waitFor(() => expect(historyRows()).toHaveLength(5));
+    expect(historyRows().map((row) => [row.getAttribute("aria-label")?.split(". ").slice(0, 2).join(". ").replace(/ · \d+ (min|h) ago| · just now/, ""), row.hasAttribute("data-undone")])).toEqual([
+      ["Set displaywindow scaling to fit. Sam · undone", true],
+      ["Added brightnessmeter and its link. claude-code (agent)", false],
+      ["Renamed invert to invertingeffect. Sam", false],
+      ["Refreshed mic_levels from its code. Runtime", false],
+      ["Imported warm.cube. Sam", false],
+    ]);
+
+    fireEvent.click(historyRows()[2] ?? expect.unreachable("no rename row"));
+    await waitFor(() => expect(historyRows()[1]?.hasAttribute("data-undone")).toBe(true));
+    expect(historyRows().map((row) => row.hasAttribute("data-undone"))).toEqual([true, true, false, false, false]);
+
+    fireEvent.click(historyRows()[0] ?? expect.unreachable("no config row"));
+    await waitFor(() => expect(historyRows().map((row) => row.hasAttribute("data-undone"))).toEqual([false, false, false, false, false]));
+
+    fireEvent.click(historyRows()[4] ?? expect.unreachable("no import row"));
+    await waitFor(() => expect(coreViewPage("history").querySelector('[role="alert"]')?.textContent).toBe("History can't go back there: The runtime's own edit after it (Refreshed mic_levels from its code) can't be undone."));
+  });
+
   it("shows a project's streams waiting on the runtime while it lists none", async () => {
     await mountedWindowOverTheMock("state=not-running");
     await waitFor(() => outlinerRow(`project:${PATTERN_PROJECT}/waiting`));

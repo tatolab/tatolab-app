@@ -7,6 +7,8 @@ import type {
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   ProjectRunQueued,
+  ProjectTransaction,
+  ProjectTransactionAuthor,
   RuntimeDescription,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
@@ -238,6 +240,16 @@ export class TatolabAppController {
   /** Queue a run of the project in `projectDirectory` through the runtime's `run_project`. */
   runProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
     return this.localApiClient.runProject(projectDirectory);
+  }
+
+  /** Undo `author`'s latest transaction in the project in `projectDirectory` not undone yet, answering the undo the runtime applied. */
+  undoInTheProject(projectDirectory: string, author: ProjectTransactionAuthor): Promise<Result<ProjectTransaction, LocalApiRequestFailure>> {
+    return this.localApiClient.undoInTheProject(projectDirectory, author);
+  }
+
+  /** Redo what `author`'s latest undo in the project in `projectDirectory` reversed, answering the redo the runtime applied. */
+  redoInTheProject(projectDirectory: string, author: ProjectTransactionAuthor): Promise<Result<ProjectTransaction, LocalApiRequestFailure>> {
+    return this.localApiClient.redoInTheProject(projectDirectory, author);
   }
 
   /** The stream action `action` as the runtime's `describe_stream_action` describes it. */

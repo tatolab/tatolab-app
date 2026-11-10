@@ -91,6 +91,26 @@ describe("connectToTatoAppOverPort", () => {
     expect(messagesFromTheView.at(-1)).toMatchObject({ kind: "ask", ask: { kind: "send_to_python_language_server", watch_id: watchMessage?.kind === "watch" ? watchMessage.watch_id : -1 } });
   });
 
+  it("hands the project's change feed to its listener, and answers an undo with the transaction the runtime applied or its refusal", async () => {
+    const undo = { transaction: "t-undo", commit: "c2", parent_commit: "c1", author_kind: "agent", author_name: "claude-code", operations: [{ operation: "remove_node" }], inverse_operations: [{ operation: "add_node" }], undoes: "t-add", redoes: null, applied_at: null };
+    const { connection, messagesFromTheView } = await connectionToAStandInStudio((message) => {
+      if (message.kind === "watch" && message.subject.kind === "project_transactions") {
+        return [{ kind: "watched", watch_id: message.watch_id, watched: { subject: "project_transactions", reading: { kind: "not_read", because: "No runtime answers." } } }];
+      }
+      if (message.kind === "ask" && message.ask.kind === "undo_in_the_project") return [{ kind: "answered", ask_id: message.ask_id, answer: { kind: "project_transaction_applied", transaction: undo } }];
+      if (message.kind === "ask" && message.ask.kind === "redo_in_the_project") return [{ kind: "answered", ask_id: message.ask_id, answer: { kind: "refused", because: "redo failed: claude-code has nothing to redo" } }];
+      return [];
+    });
+    const readings: unknown[] = [];
+    connection.watchProjectTransactions("/p", (reading) => readings.push(reading));
+    await nextTurns();
+    expect(readings).toEqual([{ kind: "not_read", because: "No runtime answers." }]);
+    const author = { kind: "agent", name: "claude-code" } as const;
+    expect(await connection.undoInTheProject("/p", author)).toEqual({ kind: "applied", transaction: undo });
+    expect(messagesFromTheView.at(-1)).toMatchObject({ kind: "ask", ask: { kind: "undo_in_the_project", project_folder: "/p", author } });
+    expect(await connection.redoInTheProject("/p", author)).toEqual({ kind: "not_applied", because: "redo failed: claude-code has nothing to redo" });
+  });
+
   it("answers every ask still waiting as refused once the view closes its connection", async () => {
     const { connection } = await connectionToAStandInStudio(() => []);
     const waiting = connection.rememberSettings({ shown: true });

@@ -24,6 +24,9 @@ import type {
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   ProjectRunQueued,
+  ProjectTransaction,
+  ProjectTransactionAuthor,
+  ProjectTransactionsReading,
   RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
@@ -90,6 +93,9 @@ export const TATOLAB_COMMAND_NAMES = [
   "save_project_file",
   "list_project_files",
   "run_open_project",
+  "read_open_project_transactions",
+  "undo_in_the_open_project",
+  "redo_in_the_open_project",
   "stop_open_project",
   "start_python_language_server",
   "send_to_python_language_server",
@@ -118,6 +124,9 @@ export const TATOLAB_STREAM_PAGE_REQUESTED_EVENT = "tatolab-stream-page-requeste
 
 /** The event each change of the open project arrives on: another folder opened, a change in one of its folders, or the runtime starting to answer; it carries an `OpenProjectReading`. */
 export const TATOLAB_OPEN_PROJECT_CHANGED_EVENT = "tatolab-open-project-changed";
+
+/** The event each new reading of a studio window's project's change feed arrives on: a transaction applied, or the feed lost or followed again; it carries a `ProjectTransactionsReading`. */
+export const TATOLAB_PROJECT_TRANSACTIONS_CHANGED_EVENT = "tatolab-project-transactions-changed";
 
 /** The event each message a Python language server sends, and each server's end, arrives on; it carries a `PythonLanguageServerEvent`. */
 export const TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT = "tatolab-python-language-server-event";
@@ -264,6 +273,12 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   list_project_files: { commandArguments: { project_folder: string }; answer: ProjectFiles };
   /** The runtime's `run_project` queued on the open project's folder, which the window never names; refused in the runtime's own words, or while no project is open. */
   run_open_project: { commandArguments: undefined; answer: ProjectRunQueued };
+  /** The asking studio window's project's change feed as last read; refused in the Projects window. */
+  read_open_project_transactions: { commandArguments: undefined; answer: ProjectTransactionsReading };
+  /** The runtime's `undo` by `author` on the asking studio window's project, answering the undo it applied; refused in the runtime's own words. */
+  undo_in_the_open_project: { commandArguments: { author: ProjectTransactionAuthor }; answer: ProjectTransaction };
+  /** The runtime's `redo` by `author` on the asking studio window's project, answering the redo it applied; refused in the runtime's own words. */
+  redo_in_the_open_project: { commandArguments: { author: ProjectTransactionAuthor }; answer: ProjectTransaction };
   /** The runtime's `stop_project` queued on the open project's folder, which the window never names; every stream of the project shows `stopping` until it has run. Refused in the runtime's own words, or while no project is open. */
   stop_open_project: { commandArguments: undefined; answer: null };
   /** Starts Pyright's language server in `project_folder`, the folder of the open project or of one of its imports; its messages arrive on `tatolab-python-language-server-event` under the session answered. */
@@ -296,6 +311,8 @@ export interface TatolabElectronBridge {
   onStreamPageRequested(listener: (stream: string) => void): () => void;
   /** Calls `listener` with each reading of the open project the main process sends; the returned function stops it. */
   onOpenProjectChanged(listener: (reading: OpenProjectReading) => void): () => void;
+  /** Calls `listener` with each reading of the window's project's change feed the main process sends; the returned function stops it. */
+  onProjectTransactionsChanged(listener: (reading: ProjectTransactionsReading) => void): () => void;
   /** Calls `listener` with each message a Python language server sends and each server's end; the returned function stops it. */
   onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
   /** Calls `listener` with each event of every port viewer the window opened; the returned function stops it. */

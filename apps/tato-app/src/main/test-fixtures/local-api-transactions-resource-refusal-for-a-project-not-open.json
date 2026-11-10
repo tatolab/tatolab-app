@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":9,"error":{"code":-32602,"message":"no project 00000000-3988-4afd-aa77-5569cbfeb081 is open in this runtime; an asset tool such as `list_assets` opens it by its directory","data":{"project":"00000000-3988-4afd-aa77-5569cbfeb081"}}}

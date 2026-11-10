@@ -42,6 +42,7 @@ import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_pr
 import { ProjectOpening, type FolderEntriesWatch, type ProjectFolderDialog, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
+import { localApiRequestFailure } from "./local_api_client.js";
 import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
@@ -52,6 +53,9 @@ import { isAnotherBuildOfTatolab, type TatolabAppCopy } from "./tatolab_app_copy
 
 /** How long a port viewer's `open_viewer` or `close_viewer` waits on the runtime. */
 const PORT_VIEWER_REQUEST_TIMEOUT_MS = 5_000;
+
+/** How long a read of a project's change feed waits on the runtime. */
+const PROJECT_TRANSACTIONS_FEED_REQUEST_TIMEOUT_MS = 10_000;
 
 const TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET = "Tato Studio has not reached the runtime yet.";
 
@@ -171,12 +175,17 @@ export async function startTatolabApp(
     },
   };
   let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
+  let localApiSocketOnceKnown: string | null = null;
   const tatolabAppWindows = new TatolabAppWindows({
     mainWindowHostFactory: tatolabElectronAppShell.mainWindowHostFactory,
     platformItems,
     dockIconHost: tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: tatolabElectronAppShell.watchFolderEntries,
     projectReadingsOfTheRuntime,
+    openTheProjectTransactionsFeedConnection: async () =>
+      localApiSocketOnceKnown === null
+        ? localApiRequestFailure(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET)
+        : LocalApiMcpStdioConnection.open(localApiSocketOnceKnown, PROJECT_TRANSACTIONS_FEED_REQUEST_TIMEOUT_MS, thisCopyOfTatolab.appVersion),
     runAfter: (delayMs, work) => {
       const timer = setTimeout(work, delayMs);
       return () => clearTimeout(timer);
@@ -224,6 +233,7 @@ export async function startTatolabApp(
     sharedStateOnceBuilt.statusPublisher.requestRefresh();
   });
   const platformForThisBuild = await tatolabElectronAppShell.buildTheTatolabPlatformForThisBuild(platformItems);
+  localApiSocketOnceKnown = platformForThisBuild.localApiSocket;
   let statusPublisherOnceBuilt: TatolabStatusPublisher | null = null;
   const tatolabAppUpdater = new TatolabAppUpdater(
     tatolabElectronAppShell.createTheAppUpdateFeed(platformForThisBuild.appUpdatePackaging),

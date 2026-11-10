@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":6,"result":{"resultType":"complete","content":[{"type":"text","text":"undo failed: Sam has no transaction left to undo"}],"isError":true}}

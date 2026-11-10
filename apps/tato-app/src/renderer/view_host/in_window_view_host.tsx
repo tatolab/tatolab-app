@@ -6,6 +6,7 @@ import { describeBackendRejection, type TatolabBackend } from "../backend/tatola
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { ProjectLogReadings } from "./project_log_readings";
 import type { ProjectNodeTypeReadings } from "./project_node_type_readings";
+import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
 import type { CodeFileAsked, ListedStreamsReading, OpenProjectReading, StopWatching, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
@@ -54,11 +55,12 @@ export interface InWindowStudioViewHostSources {
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening;
 }
 
-/** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs and node types, their language servers, and the port viewers of their running nodes. */
+/** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types and history, their language servers, and the port viewers of their running nodes. */
 export interface InWindowProjectServices {
   backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "listProjectFiles" | "popOutViewer">;
   projectLogReadings: ProjectLogReadings;
   projectNodeTypeReadings: ProjectNodeTypeReadings;
+  projectTransactionsReadings: ProjectTransactionsReadings;
   pythonLanguageServerConnections: PythonLanguageServerConnections;
   portViewerConnections: PortViewerConnections;
 }
@@ -114,6 +116,9 @@ export function inWindowStudioViewHostServices(
       ),
     watchProjectLog: projectServices.projectLogReadings.watchProjectLog,
     watchProjectNodeTypes: projectServices.projectNodeTypeReadings.watchProjectNodeTypes,
+    watchProjectTransactions: projectServices.projectTransactionsReadings.watchProjectTransactions,
+    undoInTheProject: projectServices.projectTransactionsReadings.undoInTheProject,
+    redoInTheProject: projectServices.projectTransactionsReadings.redoInTheProject,
     connectToPythonLanguageServer: projectServices.pythonLanguageServerConnections.connectToPythonLanguageServer,
     watchPortViewer: projectServices.portViewerConnections.watchPortViewer,
   };
