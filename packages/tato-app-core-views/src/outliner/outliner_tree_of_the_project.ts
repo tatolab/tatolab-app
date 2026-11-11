@@ -4,7 +4,7 @@
 
 import type { TreeViewRow } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import type { ListedStream, ListedStreamsReading, OpenProject, StreamGraphNode, StreamGraphReading, StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { shownStudioTreeRows, type StudioTreeNode } from "../shared/node_type_listing_tree";
+import { shownStudioTreeRows, studioTreeNodesMatching, type StudioTreeNode } from "../shared/node_type_listing_tree";
 import { nodeTitle, nodeTypeClassName } from "../shared/node_words";
 
 /** What a row stands for, so choosing it selects or opens the right thing. */
@@ -137,13 +137,18 @@ export function streamsTheOutlinerShows(project: OpenProject, listedStreams: Lis
   return listedStreams.kind === "listed" ? streamsOfTheOpenProject(project, listedStreams.streams).map((stream) => stream.stream) : [];
 }
 
-/** The outliner's rows that show for `project`, with what each stands for: a row shows when every row above it is open, and the stream of the active tab, `openStream`, opens by default and reads as the current row. */
+/**
+ * The outliner's rows that show for `project`, with what each stands for: a row shows when every row above it is open, and
+ * the stream of the active tab, `openStream`, opens by default and reads as the current row. A search for `searchWords`
+ * keeps only the rows whose name or type matches, with the rows above them, all open.
+ */
 export function outlinerTreeOfTheProject(
   project: OpenProject,
   listedStreams: ListedStreamsReading,
   streamGraphs: OutlinerStreamGraphReadings,
   openStream: string | null,
   expansionChoices: OutlinerRowExpansionChoices,
+  searchWords = "",
 ): OutlinerRow[] {
-  return shownStudioTreeRows(projectStreamNodes(project, listedStreams, streamGraphs, openStream), expansionChoices);
+  return shownStudioTreeRows(studioTreeNodesMatching(projectStreamNodes(project, listedStreams, streamGraphs, openStream), searchWords), expansionChoices);
 }

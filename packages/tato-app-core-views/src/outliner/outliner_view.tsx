@@ -1,6 +1,8 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useEffect, useMemo, useState } from "react";
 import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
+import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
+import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
@@ -50,12 +52,22 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
   const settings = useViewReading(connection.watchSettings);
   const [expansionChoices, toggleTheRow]: [OutlinerRowExpansionChoices, (rowId: string, expand: boolean) => void] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
   const [askRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
+  const [searchWords, setSearchWords] = useState("");
+  const [expansionChoicesWhileSearching, setExpansionChoicesWhileSearching] = useState<OutlinerRowExpansionChoices>({});
+  const isSearching = searchWords.trim() !== "";
   const outlinerRows = useMemo(
     () =>
       openProject?.kind === "read"
-        ? outlinerTreeOfTheProject(openProject.open_project, listedStreams ?? { kind: "not_listed", because: "" }, streamGraphs, activeStreamTab?.stream ?? null, expansionChoices)
+        ? outlinerTreeOfTheProject(
+            openProject.open_project,
+            listedStreams ?? { kind: "not_listed", because: "" },
+            streamGraphs,
+            activeStreamTab?.stream ?? null,
+            isSearching ? expansionChoicesWhileSearching : expansionChoices,
+            searchWords,
+          )
         : [],
-    [openProject, listedStreams, streamGraphs, activeStreamTab, expansionChoices],
+    [openProject, listedStreams, streamGraphs, activeStreamTab, expansionChoices, expansionChoicesWhileSearching, isSearching, searchWords],
   );
   if (openProject === null) return null;
   if (openProject.kind === "none_open") return <WaitingState title="No project is open" explanation="Open or create one from the File menu." />;
@@ -63,25 +75,42 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
   const meaningOfRow = (rowId: string) => outlinerRows.find((outlinerRow) => outlinerRow.row.row_id === rowId)?.meaning ?? { kind: "nothing_to_select" as const };
   return (
     <>
+      <StudioViewToolbarTools label="Outliner search">
+        <SearchField
+          label="Search the outliner"
+          placeholder="Search streams and nodes"
+          text={searchWords}
+          onTextChanged={(typedWords) => {
+            setSearchWords(typedWords);
+            setExpansionChoicesWhileSearching({});
+          }}
+          width="fills_the_row"
+          data-outliner-search=""
+        />
+      </StudioViewToolbarTools>
       <RefusalOfTheLatestAskBar refusal={askRefusal} />
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto" data-outliner="">
-        <TreeView
-          label="Outliner"
-          rows={outlinerRows.map((outlinerRow) => outlinerRow.row)}
-          selectedRowId={selection === null ? null : outlinerRowIdOfTheSelection(selection)}
-          onRowSelected={(rowId) => {
-            const meaning = meaningOfRow(rowId);
-            if (meaning.kind === "stream") showTheRefusalOf("Didn't select:", connection.select({ kind: "stream", stream: meaning.stream, project_folder: meaning.project_folder }));
-            if (meaning.kind === "node") showTheRefusalOf("Didn't select:", connection.select({ kind: "node", stream: meaning.stream, node: meaning.node }));
-          }}
-          onRowActivated={(rowId) => {
-            const meaning = meaningOfRow(rowId);
-            if (meaning.kind === "stream" || meaning.kind === "node") {
-              showTheRefusalOf("Didn't open the stream:", connection.openStreamTab({ stream: meaning.stream, project_name: meaning.project_name, display_name: meaning.display_name }));
-            }
-          }}
-          onExpansionToggled={toggleTheRow}
-        />
+        {isSearching && outlinerRows.length === 0 ? (
+          <WaitingState title={`Nothing matches “${searchWords.trim()}”`} data-outliner-state="no_row_matches" />
+        ) : (
+          <TreeView
+            label="Outliner"
+            rows={outlinerRows.map((outlinerRow) => outlinerRow.row)}
+            selectedRowId={selection === null ? null : outlinerRowIdOfTheSelection(selection)}
+            onRowSelected={(rowId) => {
+              const meaning = meaningOfRow(rowId);
+              if (meaning.kind === "stream") showTheRefusalOf("Didn't select:", connection.select({ kind: "stream", stream: meaning.stream, project_folder: meaning.project_folder }));
+              if (meaning.kind === "node") showTheRefusalOf("Didn't select:", connection.select({ kind: "node", stream: meaning.stream, node: meaning.node }));
+            }}
+            onRowActivated={(rowId) => {
+              const meaning = meaningOfRow(rowId);
+              if (meaning.kind === "stream" || meaning.kind === "node") {
+                showTheRefusalOf("Didn't open the stream:", connection.openStreamTab({ stream: meaning.stream, project_name: meaning.project_name, display_name: meaning.display_name }));
+              }
+            }}
+            onExpansionToggled={(rowId, expand) => (isSearching ? setExpansionChoicesWhileSearching((choicesSoFar) => ({ ...choicesSoFar, [rowId]: expand })) : toggleTheRow(rowId, expand))}
+          />
+        )}
       </div>
     </>
   );

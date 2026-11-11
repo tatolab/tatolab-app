@@ -1,9 +1,12 @@
+import { cn } from "cn";
 import { Search, X } from "lucide-react";
 import type { Ref } from "react";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "./ui/input-group";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 import { KeyboardKey } from "./keyboard_key";
+
+const SEARCH_FIELD_WIDTH_CLASS_NAMES = { beside_other_tools: "w-auto max-w-56 min-w-32 flex-1 basis-32", fills_the_row: "w-full min-w-0 flex-1" } as const;
 
 /**
  * A field that filters or searches what a page shows: a magnifier, the text, and a button that clears it once there is
@@ -16,6 +19,7 @@ export function SearchField({
   onTextChanged,
   shortcut,
   inputRef,
+  width = "beside_other_tools",
   ...controlDataAttributes
 }: {
   /** The field's accessible name, as "Search main logs". */
@@ -27,9 +31,11 @@ export function SearchField({
   shortcut?: { hint: string; ariaKeyShortcuts: string };
   /** For a page that moves focus into the field. */
   inputRef?: Ref<HTMLInputElement>;
+  /** Beside other tools in a bar, or across a view's whole toolbar row, as the Outliner's. */
+  width?: "beside_other_tools" | "fills_the_row";
 } & ControlDataAttributes) {
   return (
-    <InputGroup className="h-7 w-auto max-w-56 min-w-32 flex-1 basis-32 rounded-md border-line bg-window dark:bg-window has-[[data-slot=input-group-control]:focus-visible]:border-line-strong has-[[data-slot=input-group-control]:focus-visible]:ring-ring">
+    <InputGroup className={cn(SEARCH_FIELD_WIDTH_CLASS_NAMES[width], "h-7 rounded-md border-line bg-window dark:bg-window has-[[data-slot=input-group-control]:focus-visible]:border-line-strong has-[[data-slot=input-group-control]:focus-visible]:ring-ring")}>
       <InputGroupAddon className="py-0 pl-2 text-fg-3">
         <Search className="size-3.5" strokeWidth={1.75} aria-hidden />
       </InputGroupAddon>

@@ -218,7 +218,7 @@ describe("the node graph canvas while it takes edits", () => {
     const tool = (name: string) => container.querySelector<HTMLElement>(`[data-node-graph-tool="${name}"]`) ?? expect.unreachable(`no ${name}`);
     await vi.waitFor(() => tool("add_node"));
     expect(tool("add_note").closest('[role="toolbar"]')?.getAttribute("aria-label")).toBe("Stream graph tools");
-    expect([...container.querySelectorAll("[data-node-graph-tool]")].map((button) => button.getAttribute("data-node-graph-tool"))).toEqual(["add_node", "frame_selection", "add_note", "add_subgraph", "frame_all", "zoom_in", "zoom_out"]);
+    expect([...container.querySelectorAll("[data-node-graph-tool]")].map((button) => button.getAttribute("data-node-graph-tool"))).toEqual(["add_node", "frame_selection", "add_note", "add_subgraph", "frame_all", "zoom_in", "zoom_out", "find"]);
     expect(tool("frame_selection").getAttribute("aria-disabled")).toBe("true");
     expect(tool("add_subgraph").getAttribute("aria-label")).toBe("Collapse the selection into a subgraph: Select the nodes to collapse into a subgraph first");
     fireEvent.click(tool("add_node"));
@@ -266,10 +266,10 @@ describe("the node graph canvas while it takes edits", () => {
     expect(onDeleted).toHaveBeenCalledWith({ node_ids: ["pattern"], link_ids: [], note_ids: [] });
   });
 
-  it("leaves only Frame the whole graph and the zooms in a read-only graph's ribbon", async () => {
+  it("leaves only Frame the whole graph, the zooms and Find in a read-only graph's ribbon", async () => {
     const { container } = drawnCanvas(null);
     await vi.waitFor(() => container.querySelector('[data-node-graph-tool="frame_all"]') ?? expect.unreachable("no ribbon"));
-    expect([...container.querySelectorAll("[data-node-graph-tool]")].map((button) => button.getAttribute("data-node-graph-tool"))).toEqual(["frame_all", "zoom_in", "zoom_out"]);
+    expect([...container.querySelectorAll("[data-node-graph-tool]")].map((button) => button.getAttribute("data-node-graph-tool"))).toEqual(["frame_all", "zoom_in", "zoom_out", "find"]);
   });
 
   it("offers no right-click menu on a read-only canvas's frame", async () => {
@@ -300,5 +300,64 @@ describe("the node graph canvas while it takes edits", () => {
     );
     await vi.waitFor(() => expect(container.querySelector('[data-node-graph-card="pattern"]')?.getAttribute("data-collapsed")).toBe("true"));
     expect(container.querySelector('[data-node-graph-input-pin="video_in"]')).toBeNull();
+  });
+});
+
+describe("finding nodes in the graph", () => {
+  const namedCard = (nodeId: string, title: string, typeName: string | null, x: number): NodeGraphCanvasNode => ({ ...card(nodeId, false), title, type_name: typeName, frame_id: null, saved_position: { x, y: 0 } });
+
+  function drawnGraphToFindIn(onNodeSelected = vi.fn()) {
+    return render(
+      <NodeGraphCanvas
+        label="Stream graph"
+        nodes={[namedCard("pattern", "Test Pattern Source", null, 0), namedCard("invert", "Inverting Effect", null, 300), namedCard("meter", "Brightness Meter", "Meter", 600), namedCard("display", "Display Window", null, 900)]}
+        links={[]}
+        selectedNodeId={null}
+        onNodeSelected={onNodeSelected}
+        editing={editingRecorded().editing}
+      />,
+    );
+  }
+
+  it("opens from the ribbon, highlights every match by name or type, the current one more strongly, and moves between them with ↵ and ⇧↵", async () => {
+    const onNodeSelected = vi.fn();
+    const { container } = drawnGraphToFindIn(onNodeSelected);
+    const findLookOf = (nodeId: string) => container.querySelector(`[data-node-graph-card="${nodeId}"]`)?.getAttribute("data-found") ?? null;
+    fireEvent.click(await vi.waitFor(() => container.querySelector<HTMLElement>('[data-node-graph-tool="find"]') ?? expect.unreachable("no Find in the ribbon")));
+    const findWords = container.querySelector<HTMLInputElement>("[data-node-graph-find-words]") ?? expect.unreachable("no find bar");
+    const progress = () => container.querySelector("[data-node-graph-find-progress]")?.textContent;
+
+    fireEvent.change(findWords, { target: { value: "IN" } });
+    expect(progress()).toBe("1 of 2");
+    fireEvent.change(findWords, { target: { value: "t" } });
+    expect(progress()).toBe("1 of 3");
+    expect(["pattern", "invert", "meter", "display"].map(findLookOf)).toEqual(["current", "found", "found", null]);
+
+    fireEvent.keyDown(findWords, { key: "Enter" });
+    expect(progress()).toBe("2 of 3");
+    expect(findLookOf("invert")).toBe("current");
+    fireEvent.keyDown(findWords, { key: "Enter", shiftKey: true });
+    fireEvent.keyDown(findWords, { key: "Enter", shiftKey: true });
+    expect(progress()).toBe("3 of 3");
+    expect(findLookOf("meter")).toBe("current");
+
+    fireEvent.change(findWords, { target: { value: "meter" } });
+    expect(["pattern", "invert", "meter", "display"].map(findLookOf)).toEqual([null, null, "current", null]);
+    expect(progress()).toBe("1 of 1");
+    fireEvent.change(findWords, { target: { value: "zzz" } });
+    expect(progress()).toBe("No results");
+    expect(onNodeSelected).not.toHaveBeenCalled();
+  });
+
+  it("opens with ⌘F on the canvas, and Esc closes it and takes the highlights away", async () => {
+    const { container } = drawnGraphToFindIn();
+    const canvas = await vi.waitFor(() => container.querySelector<HTMLElement>("[data-node-graph-editable]") ?? expect.unreachable("no canvas"));
+    fireEvent.keyDown(canvas, { key: "f", metaKey: true });
+    const findWords = container.querySelector<HTMLInputElement>("[data-node-graph-find-words]") ?? expect.unreachable("⌘F opened no find bar");
+    fireEvent.change(findWords, { target: { value: "pattern" } });
+    expect(container.querySelector('[data-node-graph-card="pattern"]')?.getAttribute("data-found")).toBe("current");
+    fireEvent.keyDown(findWords, { key: "Escape" });
+    expect(container.querySelector("[data-node-graph-find-bar]")).toBeNull();
+    expect(container.querySelector("[data-found]")).toBeNull();
   });
 });

@@ -80,11 +80,31 @@ const LOBBY_WALL_GRAPH: StreamGraphReading = {
   },
 };
 
-function tree(streams: ListedStream[], graphs: Record<string, StreamGraphReading>, openStream: string | null, expansion: Record<string, boolean> = {}): string[] {
-  return outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams }, graphs, openStream, expansion).map(
+function tree(streams: ListedStream[], graphs: Record<string, StreamGraphReading>, openStream: string | null, expansion: Record<string, boolean> = {}, searchWords = ""): string[] {
+  return outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams }, graphs, openStream, expansion, searchWords).map(
     ({ row }) => `${"  ".repeat(row.depth)}${row.label}${row.aside === undefined ? "" : ` · ${row.aside}`} ${row.expansion}`,
   );
 }
+
+describe("searching the outliner", () => {
+  const streams = [listedStream("/w/studio", "lobby_wall"), listedStream("/w/studio", "door")];
+
+  it("keeps the rows whose name or type matches, ignoring case, with the rows above them open, marked with the search", () => {
+    expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, null, { "lobby_wall-id": false }, "HALF")).toEqual(["lobby_wall expanded", "  The look · group expanded", "    Halftone · HalftoneLensEffect leaf"]);
+    expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, null, {}, "display")).toEqual(["lobby_wall expanded", "  Display · Display leaf", "  stray · Display leaf"]);
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams }, { "lobby_wall-id": LOBBY_WALL_GRAPH }, null, {}, "half");
+    expect(rows.every(({ row }) => row.searchWords === "half")).toBe(true);
+  });
+
+  it("keeps a stream whose name matches, and nothing when no row does", () => {
+    expect(tree(streams, {}, null, {}, "door")).toEqual(["door leaf"]);
+    expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, null, {}, "zzz")).toEqual([]);
+  });
+
+  it("shows the whole tree again for a blank search", () => {
+    expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, "lobby_wall-id", {}, "  ")).toEqual(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, "lobby_wall-id"));
+  });
+});
 
 describe("the outliner's tree", () => {
   it("lists only the open project's streams at its top, the active tab's stream open on its groups, their nodes, then the nodes in no group", () => {

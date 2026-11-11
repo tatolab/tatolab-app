@@ -7,6 +7,7 @@ import { RefusalLine } from "./refusal_line";
 import { IconButton } from "./icon_button";
 import { FieldMenu, MenuItem, MenuNote } from "./menus";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { MatchedWords } from "./matched_words";
 
 /** A titled group of a details panel that folds away, as Blender's and Unreal's property panels do; open at first. */
 export function PropertySection({
@@ -58,11 +59,14 @@ export function PropertyRow({
   meaning,
   reset,
   refusal = null,
+  searchWords = "",
   children,
   ...controlDataAttributes
 }: {
   label: string;
   meaning?: string;
+  /** What a search field over the properties holds: the part of the name it matches is marked. */
+  searchWords?: string;
   /** Puts the type's default back; absent while the value is already its type's. */
   reset?: { label: string; onReset: () => void };
   /** Why the runtime refused the last edit of this property, in its own words. */
@@ -78,7 +82,7 @@ export function PropertyRow({
           isWide
           control={
             <label htmlFor={fieldId} className="truncate text-right text-xs text-fg-2">
-              {label}
+              <MatchedWords words={label} searchWords={searchWords} />
             </label>
           }
         />
@@ -450,9 +454,12 @@ export function PropertyPortRow({
   unlinkedValue,
   connectMenu,
   refusal = null,
+  searchWords = "",
 }: {
   direction: "input" | "output";
   portName: string;
+  /** What a search field over the properties holds: the part of the port's name it matches is marked. */
+  searchWords?: string;
   familyWords: string;
   pinMark: ReactNode;
   meaning?: string;
@@ -473,7 +480,9 @@ export function PropertyPortRow({
             control={
               <span className="flex min-w-0 flex-1 items-center gap-1.5">
                 {pinMark}
-                <span className="truncate text-fg">{portName}</span>
+                <span className="truncate text-fg">
+                  <MatchedWords words={portName} searchWords={searchWords} />
+                </span>
               </span>
             }
           />

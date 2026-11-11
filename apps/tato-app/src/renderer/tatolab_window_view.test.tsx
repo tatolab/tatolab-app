@@ -926,6 +926,43 @@ describe("the studio", () => {
     await waitFor(() => expect(inTheCoreView("properties").getByRole("textbox", { name: "Node name" })).toHaveProperty("value", "Inverting Effect"));
   });
 
+  it("narrows Properties to the matching properties from its toolbar's search field, and shows them all again once cleared", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card")));
+    const properties = () => coreViewPage("properties");
+    const portsListed = () => [...properties().querySelectorAll("[data-properties-port]")].map((port) => port.getAttribute("data-properties-port"));
+    await waitFor(() => expect(portsListed()).toEqual(["video_from_upstream", "video_to_downstream"]));
+    const search = properties().querySelector<HTMLInputElement>("[data-properties-search]") ?? expect.unreachable("no search field in Properties' toolbar");
+    expect(search.closest('[role="toolbar"]')?.getAttribute("aria-label")).toBe("Properties tools");
+
+    fireEvent.change(search, { target: { value: "UPSTREAM" } });
+    await waitFor(() => expect(portsListed()).toEqual(["video_from_upstream"]));
+    expect(properties().querySelector("[data-properties-listed-count]")?.textContent).toMatch(/^1 of \d+ propert/);
+    expect(properties().querySelector('[data-properties-port="video_from_upstream"] [data-matched-words]')?.textContent).toBe("upstream");
+    expect(properties().querySelector('[data-properties-section="outputs"]')).toBeNull();
+
+    fireEvent.keyDown(search, { key: "Escape" });
+    await waitFor(() => expect(portsListed()).toEqual(["video_from_upstream", "video_to_downstream"]));
+    expect(properties().querySelector("[data-properties-listed-count]")).toBeNull();
+  });
+
+  it("filters the Outliner's tree in place from its toolbar's search field, keeping each match's stream", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const outliner = () => coreViewPage("outliner");
+    const rowLabels = () => [...outliner().querySelectorAll('[role="treeitem"]')].map((row) => row.textContent);
+    await waitFor(() => expect(rowLabels().some((label) => label?.startsWith("Brightness Meter"))).toBe(true));
+    const search = outliner().querySelector<HTMLInputElement>("[data-outliner-search]") ?? expect.unreachable("no search field in the Outliner's toolbar");
+    fireEvent.change(search, { target: { value: "bright" } });
+    await waitFor(() => expect(rowLabels().slice(0, 2).map((label) => label?.replace(/BrightnessMeter$/, ""))).toEqual(["main", "Brightness Meter"]));
+    expect(rowLabels().some((label) => label?.startsWith("Test Pattern Source"))).toBe(false);
+    expect(outliner().querySelector("[data-matched-words]")?.textContent).toBe("Bright");
+    fireEvent.change(search, { target: { value: "nothing-is-called-this" } });
+    await waitFor(() => expect(outliner().querySelector('[data-outliner-state="no_row_matches"]')).not.toBeNull());
+    fireEvent.keyDown(search, { key: "Escape" });
+    await waitFor(() => expect(rowLabels().length).toBeGreaterThan(2));
+  });
+
   it("shows each entry of a list config as its own fields in Properties, and edits, adds and removes an entry as the node's whole config", { timeout: 20_000 }, async () => {
     await mountedWindowOverTheMock("state=running&compositor=layered");
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
