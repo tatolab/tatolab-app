@@ -60,29 +60,43 @@ export function drawTheCoreViewsInTheirFrames(): () => void {
   }
   const viewRootsByFrame = new Map<HTMLIFrameElement, { viewRoot: Root; viewElement: HTMLElement }>();
   const framesByTheirPage = new Map<Document, HTMLIFrameElement>();
-  // happy-dom empties a frame's page the moment the frame leaves the window, while its view, drawn from
-  // the test's module graph, can still commit a removal there; in Electron the page and its view go
-  // together, so a removal from the page of a frame that has left is a removal already done.
-  const removeChildPatches = new Map<object, unknown>();
-  const takeRemovalsFromPagesOfFramesThatLeft = (nodeOfThePage: Node) => {
-    let prototypeHoldingRemoveChild: object | null = Object.getPrototypeOf(nodeOfThePage);
-    while (prototypeHoldingRemoveChild !== null && !Object.hasOwn(prototypeHoldingRemoveChild, "removeChild")) prototypeHoldingRemoveChild = Object.getPrototypeOf(prototypeHoldingRemoveChild);
-    if (prototypeHoldingRemoveChild === null || removeChildPatches.has(prototypeHoldingRemoveChild)) return;
-    const removeChild: unknown = Reflect.get(prototypeHoldingRemoveChild, "removeChild");
-    if (typeof removeChild !== "function") return;
-    removeChildPatches.set(prototypeHoldingRemoveChild, removeChild);
-    Reflect.set(prototypeHoldingRemoveChild, "removeChild", function removeChildUnlessThePagesFrameLeft(this: Node, child: Node): unknown {
-      const frameOfThePage = this.ownerDocument === null ? undefined : framesByTheirPage.get(this.ownerDocument);
-      if (frameOfThePage !== undefined && !frameOfThePage.isConnected && child.parentNode !== this) return child;
+  // happy-dom empties a frame's page the moment the frame leaves the window or loads its page again,
+  // while its view, drawn from the test's module graph, can still commit a removal or an insertion
+  // there; in Electron the page and its view go together, so a change to a page that is gone is one
+  // that never happens.
+  const childListPatches = new Map<object, { removeChild: unknown; insertBefore: unknown }>();
+  const isInAPageThatIsGone = (nodeOfThePage: Node) => {
+    if (nodeOfThePage.ownerDocument === null) return false;
+    const frameOfThePage = framesByTheirPage.get(nodeOfThePage.ownerDocument);
+    return frameOfThePage !== undefined && (!frameOfThePage.isConnected || !nodeOfThePage.isConnected);
+  };
+  const takeChangesToPagesThatAreGone = (nodeOfThePage: Node) => {
+    let prototypeHoldingTheChildList: object | null = Object.getPrototypeOf(nodeOfThePage);
+    while (prototypeHoldingTheChildList !== null && !Object.hasOwn(prototypeHoldingTheChildList, "removeChild")) prototypeHoldingTheChildList = Object.getPrototypeOf(prototypeHoldingTheChildList);
+    if (prototypeHoldingTheChildList === null || childListPatches.has(prototypeHoldingTheChildList)) return;
+    const removeChild: unknown = Reflect.get(prototypeHoldingTheChildList, "removeChild");
+    const insertBefore: unknown = Reflect.get(prototypeHoldingTheChildList, "insertBefore");
+    if (typeof removeChild !== "function" || typeof insertBefore !== "function") return;
+    childListPatches.set(prototypeHoldingTheChildList, { removeChild, insertBefore });
+    Reflect.set(prototypeHoldingTheChildList, "removeChild", function removeChildUnlessThePageIsGone(this: Node, child: Node): unknown {
+      if (child.parentNode !== this && isInAPageThatIsGone(this)) return child;
       return Reflect.apply(removeChild, this, [child]);
+    });
+    Reflect.set(prototypeHoldingTheChildList, "insertBefore", function insertBeforeUnlessThePageIsGone(this: Node, newChild: Node, referenceChild: Node | null): unknown {
+      if (referenceChild !== null && referenceChild.parentNode !== this && isInAPageThatIsGone(this)) return newChild;
+      return Reflect.apply(insertBefore, this, [newChild, referenceChild]);
     });
   };
   // happy-dom empties a frame's page as the frame leaves the window or loads its page again, so a view
-  // whose page is gone is forgotten rather than unmounted; Studio's bridge closed its port with the page.
+  // whose page is gone is set aside rather than unmounted; Studio's bridge closed its port with the page.
+  // The test's cleanup unmounts each one set aside, so none commits into a later test's window.
+  const viewRootsWhosePageIsGone = new Set<Root>();
   const unmountTheView = (frame: HTMLIFrameElement) => {
     const drawnView = viewRootsByFrame.get(frame);
     viewRootsByFrame.delete(frame);
-    if (drawnView !== undefined && frame.isConnected && drawnView.viewElement.isConnected) act(() => drawnView.viewRoot.unmount());
+    if (drawnView === undefined) return;
+    if (frame.isConnected && drawnView.viewElement.isConnected) act(() => drawnView.viewRoot.unmount());
+    else viewRootsWhosePageIsGone.add(drawnView.viewRoot);
   };
   // Captured on the document, so it runs before the frame's own load listener posts the handover.
   const onAFrameLoaded = (loadEvent: Event) => {
@@ -93,7 +107,7 @@ export function drawTheCoreViewsInTheirFrames(): () => void {
     const viewElement = frame.contentDocument?.getElementById("view");
     if (drawTheView === undefined || frameWindow === null || viewElement === null || viewElement === undefined) return;
     framesByTheirPage.set(viewElement.ownerDocument, frame);
-    takeRemovalsFromPagesOfFramesThatLeft(viewElement);
+    takeChangesToPagesThatAreGone(viewElement);
     const postTheMessage = frameWindow.postMessage.bind(frameWindow);
     // happy-dom's window.postMessage drops what it transfers, so the handover's port is taken here.
     frameWindow.postMessage = (message: unknown, targetOrigin: string | WindowPostMessageOptions = "*", transfer: Transferable[] = []) => {
@@ -111,8 +125,13 @@ export function drawTheCoreViewsInTheirFrames(): () => void {
   document.addEventListener("load", onAFrameLoaded, true);
   return () => {
     document.removeEventListener("load", onAFrameLoaded, true);
-    for (const [nodePrototype, removeChild] of removeChildPatches) Reflect.set(nodePrototype, "removeChild", removeChild);
     for (const frame of [...viewRootsByFrame.keys()]) unmountTheView(frame);
+    for (const viewRoot of viewRootsWhosePageIsGone) act(() => viewRoot.unmount());
+    viewRootsWhosePageIsGone.clear();
+    for (const [nodePrototype, { removeChild, insertBefore }] of childListPatches) {
+      Reflect.set(nodePrototype, "removeChild", removeChild);
+      Reflect.set(nodePrototype, "insertBefore", insertBefore);
+    }
     if (settings !== null) Reflect.set(settings, "enableIframePageLoading", iframePageLoadingBefore);
     if (typeof fetchSettings === "object" && fetchSettings !== null) Reflect.set(fetchSettings, "interceptor", fetchInterceptorBefore);
   };

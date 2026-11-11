@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ListedStream, OpenProject, ProjectNodeTypesReading } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { outlinerRowIdOfTheSelection, outlinerTreeOfTheProject } from "./outliner_tree_of_the_project";
+import { NODE_STUDIO_FIELDS_NONE_SET, type ListedStream, type OpenProject, type StreamGraphNode, type StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { outlinerRowIdOfTheSelection, outlinerTreeOfTheProject, streamsTheOutlinerShows } from "./outliner_tree_of_the_project";
 
 const HALL_OF_LIGHT_PROJECT = "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11";
 
@@ -37,121 +37,130 @@ function listedStream(projectFolder: string, displayName: string): ListedStream 
   };
 }
 
+function graphNode(name: string, type: string, group: string | null, failedBecause: string | null = null): StreamGraphNode {
+  return {
+    id: `${name}-uuid`,
+    name,
+    type,
+    state: failedBecause === null ? "Running" : "Error",
+    failed_because: failedBecause,
+    config: {},
+    pins: {},
+    input_ports: [],
+    output_ports: [],
+    dropped_bags_by_link: {},
+    refused_bags_by_output_port: {},
+    studio: { ...NODE_STUDIO_FIELDS_NONE_SET, group },
+  };
+}
+
+const INPUTS_GROUP = "9b1e4c2a-1111-4d55-9a57-1f1b8f6f0a11";
+const LOOK_GROUP = "9b1e4c2a-2222-4d55-9a57-1f1b8f6f0a11";
+
+const LOBBY_WALL_GRAPH: StreamGraphReading = {
+  kind: "read",
+  graph: {
+    stream: "lobby_wall-id",
+    stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68",
+    groups: [
+      { id: INPUTS_GROUP, title: "Inputs", description: null, colour: null },
+      { id: LOOK_GROUP, title: "The look", description: null, colour: null },
+    ],
+    notes: [],
+    nodes: [
+      graphNode("camerasource", "tatolab.stream:CameraSource", INPUTS_GROUP),
+      graphNode("Halftone", "lens.nodes:HalftoneLensEffect", LOOK_GROUP, "the shader did not compile"),
+      graphNode("display", "tatolab.stream:Display", null),
+      graphNode("stray", "tatolab.stream:Display", "a-group-the-graph-no-longer-has"),
+    ],
+    links: [],
+    graph_document_text: "{}",
+  },
+};
+
+function tree(streams: ListedStream[], graphs: Record<string, StreamGraphReading>, openStream: string | null, expansion: Record<string, boolean> = {}): string[] {
+  return outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams }, graphs, openStream, expansion).map(
+    ({ row }) => `${"  ".repeat(row.depth)}${row.label}${row.aside === undefined ? "" : ` · ${row.aside}`} ${row.expansion}`,
+  );
+}
+
 describe("the outliner's tree", () => {
-  it("opens on the open project and its listed streams, with Imports closed", () => {
-    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [listedStream("/w/studio", "lobby_wall"), listedStream("/elsewhere", "other")] }, null, {});
-    expect(rows.map(({ row }) => `${"  ".repeat(row.depth)}${row.label} ${row.expansion}`)).toEqual([
-      "studio expanded",
-      "  studio expanded",
-      "    tatolab-project.json leaf",
-      "    lobby_wall leaf",
-      "    Node types collapsed",
-      "  Imports collapsed",
-    ]);
-    expect(rows[3]?.meaning).toEqual({ kind: "stream", stream: "lobby_wall-id", display_name: "lobby_wall", project_name: "studio", project_folder: "/w/studio" });
-  });
-
-  it("labels each stream by its display name and marks a failed one", () => {
-    const failedStream: ListedStream = { ...listedStream("/w/studio", "Lobby Wall"), stream: "studio-main-ff588e", state: "failed", node_count: null, failed_because: "`uv sync` did not make /w/studio/.venv" };
-    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [failedStream, listedStream("/w/studio", "door")] }, null, {});
-    expect(rows.slice(3, 5).map(({ row }) => [row.label, row.icon, row.tone ?? "plain"])).toEqual([
-      ["Lobby Wall", "failed", "failed"],
-      ["door", "stream", "plain"],
+  it("lists only the open project's streams at its top, the active tab's stream open on its groups, their nodes, then the nodes in no group", () => {
+    const streams = [listedStream("/w/studio", "lobby_wall"), listedStream("/w/studio", "door"), listedStream("/elsewhere", "other")];
+    expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, "lobby_wall-id")).toEqual([
+      "lobby_wall expanded",
+      "  Inputs · group expanded",
+      "    Camera Source · CameraSource leaf",
+      "  The look · group expanded",
+      "    Halftone · HalftoneLensEffect leaf",
+      "  Display · Display leaf",
+      "  stray · Display leaf",
+      "door collapsed",
     ]);
   });
 
-  it("says in the failure's own words why the streams could not be listed, in place of waiting on them", () => {
-    const because = "the runtime's list_streams result could not be read: missing field `stream_asset`";
-    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listing_failed", because }, null, {});
-    expect(rows.slice(2, 4).map(({ row }) => [row.row_id, row.label, row.tone ?? "plain"])).toEqual([
-      ["project:/w/studio/project_file", "tatolab-project.json", "plain"],
-      ["project:/w/studio/streams-not-listed", because, "unreadable"],
-    ]);
-  });
-
-  it("opens the rows the person opened: each import read-only, its streams or why they wait", () => {
-    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "not_listed", because: "Stopped" }, null, {
-      imports: true,
-      "project:/w/studio/imports/hall-of-light": true,
-      "project:/w/studio/imports/broken": true,
-    });
-    expect(rows.map(({ row }) => [row.row_id, row.label, row.isReadOnly === true])).toEqual([
-      ["open_project_folder", "studio", false],
-      ["project:/w/studio", "studio", false],
-      ["project:/w/studio/project_file", "tatolab-project.json", false],
-      ["project:/w/studio/waiting", "Streams and nodes not read yet", false],
-      ["project:/w/studio/node_types", "Node types", false],
-      ["imports", "Imports", true],
-      ["project:/w/studio/imports/hall-of-light", "hall-of-light", true],
-      ["project:/w/studio/imports/hall-of-light/project_file", "tatolab-project.json", false],
-      ["project:/w/studio/imports/hall-of-light/waiting", "Streams and nodes not read yet", false],
-      ["project:/w/studio/imports/broken", "broken", true],
-      ["project:/w/studio/imports/broken/refusal", "list_assets failed: /w/studio/imports/broken holds no project: it has no tatolab-project.json", false],
-    ]);
-  });
-
-  it("closes a row the person closed, and names the row a selection stands for", () => {
-    expect(outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [] }, null, { open_project_folder: false }).map(({ row }) => row.row_id)).toEqual(["open_project_folder"]);
+  it("marks a failed node and selects each node by its stream and name", () => {
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [listedStream("/w/studio", "lobby_wall")] }, { "lobby_wall-id": LOBBY_WALL_GRAPH }, "lobby_wall-id", {});
+    const halftone = rows.find(({ row }) => row.label === "Halftone");
+    expect([halftone?.row.icon, halftone?.row.tone]).toEqual(["failed", "failed"]);
+    expect(halftone?.row.row_id).toBe("node:lobby_wall-id/Halftone");
+    expect(halftone?.meaning).toEqual({ kind: "node", stream: "lobby_wall-id", node: "Halftone", display_name: "lobby_wall", project_name: "studio" });
+    expect(rows[0]?.meaning).toEqual({ kind: "stream", stream: "lobby_wall-id", display_name: "lobby_wall", project_name: "studio", project_folder: "/w/studio" });
+    expect(outlinerRowIdOfTheSelection({ kind: "node", stream: "lobby_wall-id", node: "Halftone" })).toBe("node:lobby_wall-id/Halftone");
     expect(outlinerRowIdOfTheSelection({ kind: "stream", stream: "s", project_folder: "/w" })).toBe("stream:s");
-    expect(outlinerRowIdOfTheSelection({ kind: "project", project_name: "tatolab-stream", project_folder: null })).toBe("project:tatolab-stream");
+    expect(outlinerRowIdOfTheSelection({ kind: "project", project_name: "studio", project_folder: "/w/studio" })).toBeNull();
     expect(outlinerRowIdOfTheSelection({ kind: "nothing" })).toBeNull();
   });
 
-  it("lists the open project's own node types and each import's by its UUID, or why the runtime lists none", () => {
-    const nodeTypes: ProjectNodeTypesReading = {
-      kind: "listed",
-      listing: {
-        project_directory: "/w/studio",
-        project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55",
-        project_name: "studio",
-        sources: [
-          {
-            origin: { source: "project" },
-            node_types: [{ type: "nodes.glow:Glow", kind: "process", description: "", category: "Effects", inputs: [], outputs: [], path: "nodes/glow.py", line: 3 }],
-            graph_generators: [],
-            unreadable_modules: [{ module: "nodes.draft", path: "nodes/draft.py", line: 2, column: 1, why: "SyntaxError: invalid syntax" }],
-          },
-          {
-            origin: { source: "dependency", project: HALL_OF_LIGHT_PROJECT, folder: "hall-of-light", version: "ab".repeat(32) },
-            node_types: [{ type: "hall_of_light:Beam", kind: null, description: "", category: "hall_of_light", inputs: null, outputs: null, path: null, line: null }],
-            graph_generators: [],
-            unreadable_modules: [],
-          },
-          { origin: { source: "installed_distribution", distribution: "tatolab-stream", distribution_version: "0.68.40" }, node_types: [], graph_generators: [], unreadable_modules: [] },
-        ],
-      },
-    };
-    const expansion = {
-      imports: true,
-      "project:/w/studio/node_types": true,
-      "project:/w/studio/imports/hall-of-light": true,
-      "project:/w/studio/imports/hall-of-light/node_types": true,
-    };
-    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [] }, nodeTypes, expansion);
-    expect(rows.map(({ row }) => `${"  ".repeat(row.depth)}${row.label}`)).toEqual([
-      "studio",
-      "  studio",
-      "    tatolab-project.json",
-      "    Streams and nodes not read yet",
-      "    Node types",
-      "      Effects",
-      "        Glow",
-      "      nodes/draft.py:2:1: SyntaxError: invalid syntax",
-      "  Imports",
-      "    hall-of-light",
-      "      tatolab-project.json",
-      "      Streams and nodes not read yet",
-      "      Node types",
-      "        hall_of_light",
-      "          Beam",
-      "    broken",
+  it("keeps the rows the person opened or closed over the active tab's default", () => {
+    const streams = [listedStream("/w/studio", "lobby_wall")];
+    expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, "lobby_wall-id", { "stream:lobby_wall-id": false })).toEqual(["lobby_wall collapsed"]);
+    expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, null, { "stream:lobby_wall-id": true, [`group:lobby_wall-id/${INPUTS_GROUP}`]: false }).slice(0, 3)).toEqual([
+      "lobby_wall expanded",
+      "  Inputs · group collapsed",
+      "  The look · group expanded",
     ]);
-    expect(rows.find(({ row }) => row.label === "Glow")?.meaning).toMatchObject({ kind: "node_type_declaration", file: "/w/studio/nodes/glow.py" });
+  });
 
-    const refused = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [] }, { kind: "not_listed", because: "list_project_node_types failed: no venv" }, expansion);
-    expect(refused.slice(4, 6).map(({ row }) => [row.label, row.tone ?? "plain"])).toEqual([
-      ["Node types", "plain"],
-      ["list_project_node_types failed: no venv", "unreadable"],
+  it("says why a stream shows no nodes: not read yet, the runtime's refusal, none yet, or why it failed", () => {
+    const failedStream: ListedStream = { ...listedStream("/w/studio", "Lobby Wall"), stream: "studio-main-ff588e", state: "failed", node_count: null, failed_because: "`uv sync` did not make /w/studio/.venv" };
+    const streams = [listedStream("/w/studio", "waiting"), listedStream("/w/studio", "refused"), listedStream("/w/studio", "empty"), failedStream];
+    const graphs: Record<string, StreamGraphReading> = {
+      "refused-id": { kind: "not_read", because: "graph failed: no stream refused-id" },
+      "empty-id": { kind: "read", graph: { stream: "empty-id", stream_asset: null, groups: [], notes: [], nodes: [], links: [], graph_document_text: "{}" } },
+    };
+    const expansion = { "stream:waiting-id": true, "stream:refused-id": true, "stream:empty-id": true, "stream:studio-main-ff588e": true };
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams }, graphs, null, expansion);
+    expect(rows.map(({ row }) => [row.label, row.icon, row.tone ?? "plain"])).toEqual([
+      ["waiting", "stream", "plain"],
+      ["Nodes not read yet", "waiting", "waiting"],
+      ["refused", "stream", "plain"],
+      ["graph failed: no stream refused-id", "unreadable", "unreadable"],
+      ["empty", "stream", "plain"],
+      ["No nodes yet", "waiting", "waiting"],
+      ["Lobby Wall", "failed", "failed"],
+      ["`uv sync` did not make /w/studio/.venv", "unreadable", "failed"],
     ]);
+  });
+
+  it("says when the project has no streams, while they wait on the runtime, or why listing them failed, in the failure's own words", () => {
+    expect(tree([listedStream("/elsewhere", "other")], {}, null)).toEqual(["No streams yet leaf"]);
+    expect(outlinerTreeOfTheProject(PROJECT, { kind: "not_listed", because: "Stopped" }, {}, null, {}).map(({ row }) => row.label)).toEqual(["Streams not read yet"]);
+    const because = "the runtime's list_streams result could not be read: missing field `stream_asset`";
+    expect(outlinerTreeOfTheProject(PROJECT, { kind: "listing_failed", because }, {}, null, {}).map(({ row }) => [row.label, row.tone])).toEqual([[because, "unreadable"]]);
+  });
+
+  it("says a group holds no nodes", () => {
+    const emptyGroupGraph: StreamGraphReading = {
+      kind: "read",
+      graph: { stream: "lobby_wall-id", stream_asset: null, groups: [{ id: INPUTS_GROUP, title: "Inputs", description: null, colour: null }], notes: [], nodes: [], links: [], graph_document_text: "{}" },
+    };
+    expect(tree([listedStream("/w/studio", "lobby_wall")], { "lobby_wall-id": emptyGroupGraph }, "lobby_wall-id")).toEqual(["lobby_wall expanded", "  Inputs · group expanded", "    No nodes leaf"]);
+  });
+
+  it("reads the graphs of the open project's streams only", () => {
+    const streams = [listedStream("/w/studio", "lobby_wall"), listedStream("/elsewhere", "other")];
+    expect(streamsTheOutlinerShows(PROJECT, { kind: "listed", streams })).toEqual(["lobby_wall-id"]);
+    expect(streamsTheOutlinerShows(PROJECT, { kind: "not_listed", because: "Stopped" })).toEqual([]);
   });
 });
