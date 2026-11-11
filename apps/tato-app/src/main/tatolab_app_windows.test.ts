@@ -38,6 +38,7 @@ function aStatusListing(streams: ListedStream[]): TatolabStatus {
     developer_mode: false,
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "reading" },
+    studio_warnings: [],
   };
 }
 

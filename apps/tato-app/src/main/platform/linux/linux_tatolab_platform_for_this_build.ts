@@ -18,6 +18,7 @@ import {
   carriedRuntimeExecutableInTheAppResources,
   tatolabMachinePathsOnLinuxForThisBuild,
 } from "./tatolab_machine_paths.js";
+import { viewerImageFrameReadingOfTheLinuxSession } from "./viewer_image_frame_reading_on_linux.js";
 import { XTerminalEmulatorOnThePath } from "./x_terminal_emulator_on_the_path.js";
 
 /** Why a local-proof build, or one with no home directory, links no `tatolab`. */
@@ -44,6 +45,8 @@ export async function linuxTatolabPlatformForThisBuild(
     appUpdatePackaging.kind === "appimage" ? commandLineToolCopyOutsideTheAppImage(process.env["XDG_DATA_HOME"], homeDirectory) : null,
     tatolabAppLog,
   );
+  const viewerImageFrameReading = viewerImageFrameReadingOfTheLinuxSession({ xdgSessionType: process.env["XDG_SESSION_TYPE"], waylandDisplay: process.env["WAYLAND_DISPLAY"] });
+  tatolabAppLog.info("viewer frame reading", { viewer_image_frame_reading: viewerImageFrameReading, xdg_session_type: process.env["XDG_SESSION_TYPE"] ?? null });
   return {
     carriedRuntime: appIsPackaged
       ? {
@@ -61,6 +64,7 @@ export async function linuxTatolabPlatformForThisBuild(
     tatolabCommandLineTool: tatolabCommandLineToolAt(carriedCommandLineTool),
     tatolabAppOpenedAtLogin: tatolabAppOpenedAtLoginOnLinux(appUpdatePackaging, appExecutable, process.env["XDG_CONFIG_HOME"], os.homedir(), tatolabAppLog),
     systemMediaAccess: MEDIA_DEVICES_ASKED_BY_NO_SYSTEM_ON_LINUX,
+    viewerImageFrameReading,
   };
 }
 

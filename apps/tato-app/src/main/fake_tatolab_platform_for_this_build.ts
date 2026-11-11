@@ -10,6 +10,7 @@ import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_too
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { TerminalOpenedInAFolder } from "./platform/terminal_opened_in_a_folder.js";
 import type { SystemMediaAccess, SystemMediaAccessAnswer, SystemMediaDevice } from "./platform/system_media_access.js";
+import type { ViewerImageFrameReading } from "./platform/viewer_image_frame_reading.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** The carried runtime a fake platform names. */
@@ -139,6 +140,7 @@ export interface FakeTatolabPlatformParts {
   tatolabCommandLineTool?: TatolabCommandLineTool;
   tatolabAppOpenedAtLogin?: TatolabAppOpenedAtLogin;
   systemMediaAccess?: SystemMediaAccess;
+  viewerImageFrameReading?: ViewerImageFrameReading;
 }
 
 /** A platform of these fakes, serving its local API at `localApiSocket` and carrying `FAKE_CARRIED_RUNTIME` unless told otherwise. */
@@ -152,5 +154,6 @@ export function fakeTatolabPlatformForThisBuild(parts: FakeTatolabPlatformParts)
     tatolabCommandLineTool: parts.tatolabCommandLineTool ?? { kind: "not_offered", reason: "this fake platform has no tatolab command" },
     tatolabAppOpenedAtLogin: parts.tatolabAppOpenedAtLogin ?? new FakeTatolabAppOpenedAtLogin(),
     systemMediaAccess: parts.systemMediaAccess ?? new FakeSystemMediaAccess(),
+    viewerImageFrameReading: parts.viewerImageFrameReading ?? "display_import",
   };
 }

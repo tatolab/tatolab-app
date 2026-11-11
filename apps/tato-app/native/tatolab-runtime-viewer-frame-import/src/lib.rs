@@ -46,7 +46,8 @@ pub struct RuntimeViewerImageFrame {
     pub bytes_per_row: u32,
     /// Linux: each plane's DMA-BUF, first plane first; `null` when the memory crossed as OPAQUE_FD.
     pub dma_buf_planes: Option<Vec<RuntimeViewerDmaBufPlane>>,
-    /// Linux: Electron's `nativePixmap.modifier` for the planes, a pool slot being linear memory.
+    /// Linux: Electron's `nativePixmap.modifier` for the planes, the DRM format modifier the runtime
+    /// states for them, in decimal.
     pub dma_buf_modifier: Option<String>,
     /// Linux: the first plane's bytes, copied, for memory that crossed as OPAQUE_FD.
     pub cpu_read_bytes: Option<Buffer>,
@@ -131,14 +132,18 @@ pub struct RuntimeViewerChannelReader {
 #[napi]
 impl RuntimeViewerChannelReader {
     /// Subscribe to `channel` in the iceoryx2 domain at `iceoryx2DomainRoot` as `viewerNodeName`,
-    /// importing Image frames from `surfaceShareAddress` (`null` reads every family but Image).
+    /// importing Image frames from `surfaceShareAddress` (`null` reads every family but Image). On
+    /// Linux `viewedFrameReadBy` asks the runtime for each frame as DMA-BUF planes the display imports
+    /// (`display_import`) or as rows the CPU reads (`cpu_read`); macOS always hands an IOSurface.
     #[napi(constructor)]
     pub fn new(
         iceoryx2_domain_root: String,
         channel: String,
         surface_share_address: Option<String>,
         viewer_node_name: String,
+        viewed_frame_read_by: String,
     ) -> Result<Self> {
+        let gpu_pool_frame_importer_for = gpu_pool_frame_importer_reading_by(&viewed_frame_read_by)?;
         let output_port_viewer_reader = OutputPortViewerReader::subscribe(
             std::path::Path::new(&iceoryx2_domain_root),
             &channel,
@@ -148,7 +153,7 @@ impl RuntimeViewerChannelReader {
         Ok(Self {
             reader_state: Arc::new(Mutex::new(Some(RuntimeViewerReaderState {
                 output_port_viewer_reader,
-                gpu_pool_frame_importer: surface_share_address.map(GpuPoolFrameImporterOfAViewer::new),
+                gpu_pool_frame_importer: surface_share_address.map(gpu_pool_frame_importer_for),
                 held_image_frames_by_id: BTreeMap::new(),
                 next_held_frame_id: 1,
                 #[cfg(target_os = "linux")]
@@ -178,6 +183,30 @@ impl RuntimeViewerChannelReader {
     pub fn close(&self) {
         self.reader_state.lock().take();
     }
+}
+
+/// What makes the importer of a surface-sharing address for a viewer whose frames are read by
+/// `viewed_frame_read_by_wire_name`, or why that reading is not one the runtime offers.
+#[cfg(target_os = "linux")]
+fn gpu_pool_frame_importer_reading_by(
+    viewed_frame_read_by_wire_name: &str,
+) -> Result<impl FnOnce(String) -> GpuPoolFrameImporterOfAViewer> {
+    let viewed_frame_read_by = streamlib_surface_client::ViewedFrameReadBy::from_wire_name(viewed_frame_read_by_wire_name)
+        .ok_or_else(|| {
+            Error::from_reason(format!(
+                "a viewer's frames are read by display_import or cpu_read, not {viewed_frame_read_by_wire_name:?}"
+            ))
+        })?;
+    Ok(move |surface_share_address: String| GpuPoolFrameImporterOfAViewer::new(surface_share_address, viewed_frame_read_by))
+}
+
+/// What makes the importer of a surface-sharing address: every macOS frame crosses as an IOSurface,
+/// whatever reading the caller names.
+#[cfg(target_os = "macos")]
+fn gpu_pool_frame_importer_reading_by(
+    _viewed_frame_read_by_wire_name: &str,
+) -> Result<impl FnOnce(String) -> GpuPoolFrameImporterOfAViewer> {
+    Ok(|surface_share_address: String| GpuPoolFrameImporterOfAViewer::new(surface_share_address))
 }
 
 /// One `readLatestMessage`, run on libuv's thread pool.
@@ -212,7 +241,8 @@ pub struct ImageFrameReadOffTheEventLoop {
     height: u32,
     format_wire_name: String,
     bytes_per_row: u64,
-    dma_buf_planes: Option<Vec<(i32, u64)>>,
+    dma_buf_planes: Option<Vec<RuntimeViewerDmaBufPlane>>,
+    dma_buf_drm_format_modifier: Option<u64>,
     cpu_read_bytes: Option<Vec<u8>>,
     io_surface_pointer: Option<usize>,
 }
@@ -255,18 +285,8 @@ impl Task for ReadTheLatestViewerMessage {
                 electron_pixel_format: electron_pixel_format_of(&image_frame.format_wire_name).map(str::to_owned),
                 format_wire_name: image_frame.format_wire_name,
                 bytes_per_row: saturating_u32(image_frame.bytes_per_row),
-                dma_buf_modifier: image_frame.dma_buf_planes.as_ref().map(|_| DRM_FORMAT_MOD_LINEAR.to_owned()),
-                dma_buf_planes: image_frame.dma_buf_planes.map(|planes| {
-                    planes
-                        .into_iter()
-                        .map(|(fd, size)| RuntimeViewerDmaBufPlane {
-                            fd,
-                            stride: saturating_u32(image_frame.bytes_per_row),
-                            offset: 0,
-                            size: saturating_u32(size),
-                        })
-                        .collect()
-                }),
+                dma_buf_modifier: image_frame.dma_buf_drm_format_modifier.map(|modifier| modifier.to_string()),
+                dma_buf_planes: image_frame.dma_buf_planes,
                 cpu_read_bytes: image_frame.cpu_read_bytes.map(Buffer::from),
                 io_surface: image_frame
                     .io_surface_pointer
@@ -275,9 +295,6 @@ impl Task for ReadTheLatestViewerMessage {
         }))
     }
 }
-
-/// `DRM_FORMAT_MOD_LINEAR`, as Electron's `nativePixmap.modifier` spells it.
-const DRM_FORMAT_MOD_LINEAR: &str = "0";
 
 /// Electron's `sharedTexture` pixel format for a runtime wire format it can import: a pixel buffer's
 /// format, or a GPU pool slot's texture format.
@@ -443,19 +460,22 @@ fn hold_and_describe_the_image_frame(
     let bytes_per_row = pool_slot.bytes_per_row();
 
     #[cfg(target_os = "linux")]
-    let (dma_buf_planes, cpu_read_bytes, io_surface_pointer) = {
+    let (dma_buf_planes, dma_buf_drm_format_modifier, cpu_read_bytes, io_surface_pointer) = {
         use std::os::fd::AsRawFd as _;
-        let plane_sizes = pool_slot.plane_sizes().to_vec();
-        match pool_slot.dma_buf_plane_fds() {
-            Some(plane_fds) => {
-                let planes = plane_fds
+        match (pool_slot.dma_buf_planes(), pool_slot.dma_buf_drm_format_modifier()) {
+            (Some(planes), Some(drm_format_modifier)) => {
+                let planes = planes
                     .iter()
-                    .zip(plane_sizes.iter().copied().chain(std::iter::repeat(0)))
-                    .map(|(plane_fd, plane_size)| (plane_fd.as_raw_fd(), plane_size))
+                    .map(|plane| RuntimeViewerDmaBufPlane {
+                        fd: plane.fd.as_raw_fd(),
+                        offset: saturating_u32(plane.offset),
+                        stride: saturating_u32(plane.stride),
+                        size: saturating_u32(plane.size),
+                    })
                     .collect();
-                (Some(planes), None, None::<usize>)
+                (Some(planes), Some(drm_format_modifier), None, None::<usize>)
             }
-            None => {
+            _ => {
                 let cpu_read_vulkan_device = match &reader_state.cpu_read_vulkan_device {
                     Some(device) => Arc::clone(device),
                     None => {
@@ -475,15 +495,15 @@ fn hold_and_describe_the_image_frame(
                     }
                 };
                 let bytes = pool_slot.bytes_for_a_cpu_read(&cpu_read_vulkan_device).map_err(Error::from_reason)?;
-                (None, Some(bytes.to_vec()), None::<usize>)
+                (None, None, Some(bytes.to_vec()), None::<usize>)
             }
         }
     };
 
     #[cfg(target_os = "macos")]
-    let (dma_buf_planes, cpu_read_bytes, io_surface_pointer) = {
+    let (dma_buf_planes, dma_buf_drm_format_modifier, cpu_read_bytes, io_surface_pointer) = {
         let io_surface: &objc2_io_surface::IOSurfaceRef = pool_slot.iosurface();
-        (None::<Vec<(i32, u64)>>, None::<Vec<u8>>, Some(std::ptr::from_ref(io_surface) as usize))
+        (None::<Vec<RuntimeViewerDmaBufPlane>>, None::<u64>, None::<Vec<u8>>, Some(std::ptr::from_ref(io_surface) as usize))
     };
 
     let held_frame_id = reader_state.next_held_frame_id;
@@ -496,6 +516,7 @@ fn hold_and_describe_the_image_frame(
         format_wire_name,
         bytes_per_row,
         dma_buf_planes,
+        dma_buf_drm_format_modifier,
         cpu_read_bytes,
         io_surface_pointer,
     })

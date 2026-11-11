@@ -33,6 +33,7 @@ import type {
   ProjectAssetListing,
   ProjectAssetsImported,
   StreamProjectFolderChosenFor,
+  StudioWarningKind,
   TatolabAppUpdateAnnouncementAnswer,
   TatolabAppUpdateAnnouncementKind,
   TatolabStatus,
@@ -440,6 +441,23 @@ export function setDeveloperMode(sharedState: TatolabAppSharedState, enabled: bo
     sharedState.statusPublisher.requestRefresh();
     return set;
   });
+}
+
+/** `dismiss_the_studio_warning_dialog { kind }`: remember that the warning's dialog was shown, then a status round, so no window shows it again; refused when that could not be remembered. */
+export function dismissTheStudioWarningDialog(sharedState: TatolabAppSharedState, kind: StudioWarningKind): Promise<Result<void, string>> {
+  return answerTheWindow("dismiss_the_studio_warning_dialog", async () => {
+    const remembered = await sharedState.studioWarnings.rememberTheDialogWasShown(kind);
+    sharedState.statusPublisher.requestRefresh();
+    return remembered;
+  });
+}
+
+/** `dismiss_the_studio_warning_dialog`'s arguments as the window sends them, or why they are not. */
+export function dismissTheStudioWarningDialogArgumentsFrom(commandArguments: unknown): Result<{ kind: StudioWarningKind }, string> {
+  const kind = oneTextArgumentFrom("dismiss_the_studio_warning_dialog", commandArguments, "kind", "the warning's kind");
+  if (!kind.ok) return kind;
+  if (kind.value !== "viewer_frames_copied_on_x11") return failedWith(`dismiss_the_studio_warning_dialog takes \`kind\` viewer_frames_copied_on_x11, not ${kind.value}`);
+  return succeeded({ kind: kind.value });
 }
 
 /** `set_open_tatolab_at_login { enabled }`: have the desktop open the app at login, or stop, then a status round; refused in the desktop's words. */
@@ -1094,6 +1112,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const enabledArguments = enabledArgumentsFrom("set_developer_mode", commandArguments);
       if (!enabledArguments.ok) return { ok: false, refusal: enabledArguments.failure };
       return commandAnswerOfNothingFrom(await setDeveloperMode(sharedState, enabledArguments.value.enabled));
+    },
+    dismiss_the_studio_warning_dialog: async (commandArguments) => {
+      const dismissed = dismissTheStudioWarningDialogArgumentsFrom(commandArguments);
+      if (!dismissed.ok) return { ok: false, refusal: dismissed.failure };
+      return commandAnswerOfNothingFrom(await dismissTheStudioWarningDialog(sharedState, dismissed.value.kind));
     },
     set_open_tatolab_at_login: async (commandArguments) => {
       const enabledArguments = enabledArgumentsFrom("set_open_tatolab_at_login", commandArguments);

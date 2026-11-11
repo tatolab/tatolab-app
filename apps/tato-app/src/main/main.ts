@@ -54,6 +54,7 @@ import { ProjectVenvSyncsOnTheStreamActionsFeed } from "./project_venv_syncs_on_
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import { runtimeViewerChannelReaderOpenerOver } from "./runtime_viewer_frame_import_addon.js";
+import { StudioWarningsOfThisRun } from "./studio_warnings.js";
 import { recentProjectFoldersFileIn } from "./recent_project_folders_file.js";
 import { runProgramToCompletion } from "./platform/run_program_to_completion.js";
 import { isAnotherBuildOfTatolab, type TatolabAppCopy } from "./tatolab_app_copy_handoff.js";
@@ -318,6 +319,10 @@ export async function startTatolabApp(
     tatolabAppLog,
   );
   const developerModeSwitch = await HeldRememberedSwitch.load(RememberedSwitchFile.developerModeInAppConfigDirectory(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog));
+  const studioWarnings = new StudioWarningsOfThisRun(
+    platformForThisBuild.viewerImageFrameReading,
+    await HeldRememberedSwitch.load(RememberedSwitchFile.x11WarningDialogShownInAppConfigDirectory(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog)),
+  );
   const tatolabCommandLineToolVersion = new TatolabCommandLineToolVersionReadOncePerLaunch(
     platformForThisBuild.tatolabCommandLineTool,
     runProgramToCompletion,
@@ -341,6 +346,7 @@ export async function startTatolabApp(
     readStreamFailureNotifications: () => streamFailureNotifications.stateNow(),
     readDeveloperMode: () => developerModeSwitch.isOnNow(),
     readTheCommandLineToolVersion: () => tatolabCommandLineToolVersion.versionNow(),
+    readTheStudioWarnings: () => studioWarnings.warningsNow(),
     whenTheRuntimeExits: () => statusPublisherOnceBuilt?.requestRefresh(),
     projectVenvSyncsOnTheStreamActionsFeed,
     tatolabAppLog,
@@ -393,7 +399,7 @@ export async function startTatolabApp(
   pythonLanguageServersOnceBuilt = pythonLanguageServers;
   const runtimePortViewers = new RuntimePortViewers({
     openTheViewerConnection: () => LocalApiMcpStdioConnection.open(platformForThisBuild.localApiSocket, PORT_VIEWER_REQUEST_TIMEOUT_MS, thisCopyOfTatolab.appVersion),
-    openAChannelReader: runtimeViewerChannelReaderOpenerOver(tatolabElectronAppShell.runtimeViewerFrameImportAddonPath),
+    openAChannelReader: runtimeViewerChannelReaderOpenerOver(tatolabElectronAppShell.runtimeViewerFrameImportAddonPath, platformForThisBuild.viewerImageFrameReading),
     viewerProcessId: tatolabElectronAppShell.mainProcessId,
     repeatEvery: (everyMs, tick) => {
       const repeatingTimer = setInterval(tick, everyMs);
@@ -425,6 +431,7 @@ export async function startTatolabApp(
     }),
     streamFailureNotifications,
     developerModeSwitch,
+    studioWarnings,
     projectOpening,
     appWindows: tatolabAppWindows,
     pythonLanguageServers,

@@ -40,6 +40,7 @@ import type {
   StreamProjectFolderChosenFor,
   TatolabAppUpdateAnnouncementKind,
   TatolabAppUpdateAnnouncementAnswer,
+  StudioWarningKind,
   TatolabStatus,
   ProjectFileRead,
   ProjectFileSaved,
@@ -94,6 +95,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "open_runtime_log_folder",
   "set_stream_failure_notifications",
   "set_developer_mode",
+  "dismiss_the_studio_warning_dialog",
   "set_open_tatolab_at_login",
   "choose_project_folder",
   "read_open_project",
@@ -302,6 +304,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   set_stream_failure_notifications: { commandArguments: { enabled: boolean }; answer: null };
   /** Refused when the choice could not be remembered, though it holds until the app quits. */
   set_developer_mode: { commandArguments: { enabled: boolean }; answer: null };
+  /** Remembers that the warning's dialog was shown, so no window shows it again; refused when that could not be remembered. */
+  dismiss_the_studio_warning_dialog: { commandArguments: { kind: StudioWarningKind }; answer: null };
   /** Answers once the desktop has; refused in its words, or with why this build does not offer it. */
   set_open_tatolab_at_login: { commandArguments: { enabled: boolean }; answer: null };
   /** `chosen_in_a_file_dialog` opens the app's own file dialog and answers once the person picks or cancels; refused naming why, the choice unchanged. */

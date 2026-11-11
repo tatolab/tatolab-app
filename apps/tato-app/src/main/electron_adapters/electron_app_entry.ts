@@ -75,6 +75,10 @@ function accountNameOfThePersonSignedIn(): string {
 // Chromium's profile would otherwise land in `<appData>/<productName>`, beside the app's own config
 // directory rather than in it.
 app.setPath("userData", appConfigDirectory);
+for (const chromiumCommandLineSwitch of tatolabPlatformItems?.chromiumCommandLineSwitches ?? []) {
+  if (chromiumCommandLineSwitch.value === null) app.commandLine.appendSwitch(chromiumCommandLineSwitch.name);
+  else app.commandLine.appendSwitch(chromiumCommandLineSwitch.name, chromiumCommandLineSwitch.value);
+}
 registerTheWindowPageSchemeBeforeReady();
 // macOS hands the notification whose click in Notification Center launched the app (its `UNNotificationRequest`
 // identifier) only to `ready`'s listeners, as `launchInfo`, so it is kept from there. Linux passes no `launchInfo`.

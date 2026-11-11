@@ -15,6 +15,7 @@ import { streamTabsDrawnInTheTitleRow } from "../presentation/stream_tabs_presen
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { presentRecentProjectChangeRefusalTitle } from "../presentation/projects_presentation";
 import { AppUpdateAnnouncementDialogView } from "./app_update_announcement_dialog_view";
+import { StudioWarningDialogView } from "./studio_warning_dialog_view";
 import { SettingsDialogView } from "../setup_and_settings/settings_dialog_view";
 import { useTatolabStatus } from "../setup_and_settings/tatolab_window_context";
 import { StudioViewFailureBoundary } from "../view_host/studio_view_failure_boundary";
@@ -256,6 +257,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
   const projectEditRefusal = useWatchedStudioValue(model.projectEditRefusal);
   const appUpdateChoiceRefusal = useWatchedStudioValue(model.appUpdateChoiceRefusal);
+  const studioWarningDismissRefusal = useWatchedStudioValue(model.studioWarningDismissRefusal);
   const openProjectStreamFailureRaised = useWatchedStudioValue(model.openProjectStreamFailureRaised);
   const newProjectSheetOpenedWith = useWatchedStudioValue(model.newProjectSheetOpenedWith);
   const isAProjectShown = openProject.kind !== "none_open" && studioLayout !== null;
@@ -369,6 +371,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         }}
         onAnswerRefused={(because) => model.appUpdateChoiceRefusal.publish(because)}
       />
+      <StudioWarningDialogView onDismissRefused={(because) => model.studioWarningDismissRefusal.publish(because)} />
       <div className="pointer-events-none absolute right-4 bottom-4 z-40 flex flex-col-reverse gap-2">
         <div aria-live="assertive" aria-atomic="true">
           {projectOpeningRefusal !== null && (
@@ -432,6 +435,15 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               detail={appUpdateChoiceRefusal}
               onDismissed={() => model.appUpdateChoiceRefusal.publish(null)}
               data-app-update-choice-refusal=""
+            />
+          )}
+          {studioWarningDismissRefusal !== null && (
+            <WindowNotice
+              tone="failure"
+              title="Tato Studio couldn't remember the warning was read"
+              detail={studioWarningDismissRefusal}
+              onDismissed={() => model.studioWarningDismissRefusal.publish(null)}
+              data-studio-warning-dismiss-refusal=""
             />
           )}
           {openProjectStreamFailureRaised !== null && isAProjectShown && (
