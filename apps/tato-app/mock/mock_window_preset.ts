@@ -138,7 +138,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     [...document.querySelectorAll<HTMLElement>(`[role="menuitem"]`)].find((menuItem) => menuItem.textContent?.trim().startsWith(menuEntry) === true)?.click();
   }
   const streamName = pageQuery.get("stream_name");
-  if (streamName !== null) await typeWhenShown(`[data-name-form-name]`, streamName);
+  if (streamName !== null) await typeWhenShown(`[data-naming-dialog-name]`, streamName);
 
   const page = pageQuery.get("page");
   if (page === "projects") {

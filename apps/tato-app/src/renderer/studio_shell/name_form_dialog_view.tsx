@@ -1,10 +1,6 @@
-import { useId, useState, type KeyboardEvent } from "react";
+import { useState } from "react";
 import { describeBackendRejection } from "../backend/tatolab_backend";
-import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
-import { FormDialog, FormDialogFooter, FormDialogRow, FormDialogRows } from "@tatolab/tato-app-view-sdk/design_system/form_dialog";
-import { PendingActionWords } from "@tatolab/tato-app-view-sdk/design_system/pending_action_words";
-import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
-import { TextField } from "@tatolab/tato-app-view-sdk/design_system/text_field";
+import { NamingDialog } from "@tatolab/tato-app-view-sdk/design_system/naming_dialog";
 
 /** The words of a dialog that asks for one thing's name: its title and what it does, the button that names the thing and what it says while the runtime does, and the lead of a refusal. */
 export interface NameFormDialogWords {
@@ -36,7 +32,6 @@ export function NameFormDialog({
   nameTheThing: (name: string) => Promise<void>;
   onClosed: () => void;
 }) {
-  const nameFieldId = useId();
   const [name, setName] = useState(startingName);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [isAsking, setIsAsking] = useState(false);
@@ -54,58 +49,24 @@ export function NameFormDialog({
       setRefusal(describeBackendRejection(rejection));
     });
   };
-  const nameOnEnterInTheField = (keyboardEvent: KeyboardEvent<HTMLDivElement>) => {
-    if (keyboardEvent.key !== "Enter" || keyboardEvent.nativeEvent.isComposing || !(keyboardEvent.target instanceof HTMLInputElement)) return;
-    keyboardEvent.preventDefault();
-    nameIt();
-  };
   return (
-    <FormDialog
+    <NamingDialog
       isOpen
-      onOpenChange={(isOpen) => !isOpen && !isAsking && onClosed()}
+      onOpenChange={(isOpen) => !isOpen && onClosed()}
       title={words.title}
-      description={words.description}
-      focusOnOpen="first_field_selected"
-      footer={
-        <FormDialogFooter>
-          <span className="mr-auto" />
-          <ActionButton appearance="quiet" disabledReason={isAsking ? words.pendingWords : null} onPressed={onClosed} data-name-form-action="cancel">
-            Cancel
-          </ActionButton>
-          {isAsking ? (
-            <PendingActionWords words={words.pendingWords} />
-          ) : (
-            <ActionButton appearance="primary" disabledReason={typedNameRefusal} onPressed={nameIt} data-name-form-action="name">
-              {words.actionWords}
-            </ActionButton>
-          )}
-        </FormDialogFooter>
-      }
+      explanation={words.description}
+      name={name}
+      onNameChanged={(typedName) => {
+        setName(typedName);
+        setRefusal(null);
+      }}
+      nameRefusal={typedNameRefusal}
+      confirmWords={words.actionWords}
+      pendingWords={words.pendingWords}
+      isAsking={isAsking}
+      refusal={refusal === null ? null : { lead: words.refusalLead, words: refusal }}
+      onConfirmed={nameIt}
       data-name-form-dialog={dialogKind}
-    >
-      <div onKeyDown={nameOnEnterInTheField}>
-        <FormDialogRows>
-          <FormDialogRow label="Name" labelFor={nameFieldId}>
-            <TextField
-              id={nameFieldId}
-              label="Name"
-              text={name}
-              onTextChanged={(typedName) => {
-                setName(typedName);
-                setRefusal(null);
-              }}
-              isRequired
-              className="w-72"
-              data-name-form-name=""
-            />
-          </FormDialogRow>
-        </FormDialogRows>
-        {refusal !== null && (
-          <div data-name-form-refusal="">
-            <RefusalLine lead={words.refusalLead} words={refusal} />
-          </div>
-        )}
-      </div>
-    </FormDialog>
+    />
   );
 }

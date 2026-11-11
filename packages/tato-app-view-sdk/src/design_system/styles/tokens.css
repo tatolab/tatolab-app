@@ -76,6 +76,8 @@
   --color-danger: var(--danger);
   --color-danger-text: var(--danger-text);
   --color-danger-soft: var(--danger-soft);
+  --color-danger-solid: var(--danger-solid);
+  --color-danger-solid-hover: var(--danger-solid-hover);
   --color-status-positive-ground: var(--status-positive-ground);
   --color-status-positive-text: var(--status-positive-text);
   --color-status-danger-ground: var(--status-danger-ground);
@@ -214,6 +216,8 @@
   --warn-text: #f0a63a;
   --danger-text: #ff6b62;
   --danger-soft: rgba(242, 85, 77, 0.1);
+  --danger-solid: #d93a33;
+  --danger-solid-hover: #c62f28;
   --status-positive-ground: #13261d;
   --status-positive-text: #9fe3c2;
   --status-danger-ground: #3a1a18;

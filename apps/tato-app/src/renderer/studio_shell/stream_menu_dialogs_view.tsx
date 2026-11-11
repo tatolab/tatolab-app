@@ -24,7 +24,7 @@ export function StreamMenuDialogsView({
     return (
       <NameFormDialog
         dialogKind="new_stream"
-        words={{ title: "New stream", description: "A new stream in this project, which plays with the project.", actionWords: "Create", pendingWords: "Creating…", refusalLead: "The stream wasn't created:" }}
+        words={{ title: "New stream", description: "Add an empty stream to this project. It plays along with the project.", actionWords: "Create", pendingWords: "Creating…", refusalLead: "The stream wasn't created:" }}
         startingName=""
         nameRefusal={streamDisplayNameRefusal}
         nameTheThing={(displayName) => streamEdits.createStream(displayName)}
@@ -37,7 +37,7 @@ export function StreamMenuDialogsView({
       <NameFormDialog
         key={question.stream}
         dialogKind="rename_stream"
-        words={{ title: "Rename stream", description: "The name the project shows this stream under.", actionWords: "Rename", pendingWords: "Renaming…", refusalLead: "The stream wasn't renamed:" }}
+        words={{ title: "Rename stream", description: "Choose a new name for this stream.", actionWords: "Rename", pendingWords: "Renaming…", refusalLead: "The stream wasn't renamed:" }}
         startingName={question.display_name}
         nameRefusal={streamDisplayNameRefusal}
         nameTheThing={(displayName) => streamEdits.renameStream(question.stream, displayName)}
@@ -52,9 +52,9 @@ export function StreamMenuDialogsView({
       question={
         question?.kind === "delete_stream"
           ? {
-              title: `Delete ${question.display_name}?`,
-              explanation: `${question.display_name} and its graph leave the project. Edit › Undo brings them back.`,
-              confirmWords: "Delete stream",
+              title: `Delete “${question.display_name}”?`,
+              explanation: "This removes the stream and everything in its graph from the project. You can undo it with Edit › Undo.",
+              confirmWords: "Delete",
             }
           : null
       }

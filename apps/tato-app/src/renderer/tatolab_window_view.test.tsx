@@ -484,7 +484,7 @@ describe("the studio", () => {
     await waitFor(() => expect(streamTabNames()).toEqual(["main"]));
 
     await chooseFromTheMenuBar("Stream", /^New stream…/);
-    const newStreamName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-name-form-dialog=\"new_stream\"] [data-name-form-name]") ?? expect.unreachable("no New stream dialog"));
+    const newStreamName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-name-form-dialog=\"new_stream\"] [data-naming-dialog-name]") ?? expect.unreachable("no New stream dialog"));
     fireEvent.change(newStreamName, { target: { value: "  " } });
     fireEvent.keyDown(newStreamName, { key: "Enter" });
     expect(document.querySelector("[data-name-form-dialog]")).not.toBeNull();
@@ -494,15 +494,15 @@ describe("the studio", () => {
     await waitFor(() => expect(streamTabNames()).toEqual(["main", "Lobby preview"]));
 
     await chooseFromTheMenuBar("Stream", /^Rename stream…/);
-    const newName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-name-form-dialog=\"rename_stream\"] [data-name-form-name]") ?? expect.unreachable("no Rename stream dialog"));
+    const newName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-name-form-dialog=\"rename_stream\"] [data-naming-dialog-name]") ?? expect.unreachable("no Rename stream dialog"));
     expect(newName.value).toBe("Lobby preview");
     fireEvent.change(newName, { target: { value: "Lobby loop" } });
     fireEvent.click(screen.getByRole("button", { name: "Rename" }));
     await waitFor(() => expect(streamTabNames()).toEqual(["main", "Lobby loop"]));
 
     await chooseFromTheMenuBar("Stream", /^Delete stream…/);
-    await waitFor(() => expect(textOf("[data-delete-stream-dialog]")).toContain("Delete Lobby loop?"));
-    fireEvent.click(screen.getByRole("button", { name: "Delete stream" }));
+    await waitFor(() => expect(textOf("[data-delete-stream-dialog]")).toContain("Delete “Lobby loop”?"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(streamTabNames()).toEqual(["main"]));
     expect(document.querySelector(`[data-outliner-row-name="Lobby loop"]`)).toBeNull();
   });
@@ -514,10 +514,10 @@ describe("the studio", () => {
       },
     });
     await chooseFromTheMenuBar("Stream", /^New stream…/);
-    const newStreamName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-name-form-name]") ?? expect.unreachable("no New stream dialog"));
+    const newStreamName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-naming-dialog-name]") ?? expect.unreachable("no New stream dialog"));
     fireEvent.change(newStreamName, { target: { value: "Lobby preview" } });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
-    await waitFor(() => expect(textOf("[data-name-form-refusal]")).toContain("streams/lobby_preview.json already holds a stream asset"));
+    await waitFor(() => expect(textOf("[data-naming-dialog-refusal]")).toContain("streams/lobby_preview.json already holds a stream asset"));
     expect(document.querySelector("[data-name-form-dialog]")).not.toBeNull();
   });
 
@@ -1058,7 +1058,7 @@ describe("the studio", () => {
 
     pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Rename…/ }));
-    const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-name-form-name]") ?? expect.unreachable("no Rename dialog"));
+    const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-naming-dialog-name]") ?? expect.unreachable("no Rename dialog"));
     expect(nameField.value).toBe("pattern");
     fireEvent.change(nameField, { target: { value: "   " } });
     fireEvent.keyDown(nameField, { key: "Enter" });
@@ -1066,7 +1066,7 @@ describe("the studio", () => {
 
     fireEvent.change(nameField, { target: { value: "Refused" } });
     fireEvent.click(screen.getByRole("button", { name: "Rename" }));
-    await waitFor(() => expect(textOf("[data-name-form-refusal]")).toContain("rename_project failed: the project file is read-only"));
+    await waitFor(() => expect(textOf("[data-naming-dialog-refusal]")).toContain("rename_project failed: the project file is read-only"));
     expect(document.querySelector("[data-name-form-dialog='rename_project']")).not.toBeNull();
 
     fireEvent.change(nameField, { target: { value: "Night Show" } });
