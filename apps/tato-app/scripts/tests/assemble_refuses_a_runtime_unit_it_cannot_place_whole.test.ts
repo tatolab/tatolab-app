@@ -1,9 +1,9 @@
 // scripts/assemble-tatolab-app-bundle.sh places everything the runtime unit ships: it refuses a
-// unit without uv, which tatolabd runs from beside itself, a unit without the carried wheels and
-// the uv metadata naming its carried Python, a unit whose bin/ or lib/tatolab/ holds
-// something it does not place, a unit whose lib/tatolab/imports/ holds anything but pure-Python
-// wheels, and a unit built from any streamlib commit but the one the build resolved. Every refusal
-// comes before it touches the bundle.
+// unit without uv or the video poster frame helper, which tatolabd runs from beside itself, a unit
+// without the carried wheels and the uv metadata naming its carried Python, a unit whose bin/ or
+// lib/tatolab/ holds something it does not place, a unit whose lib/tatolab/imports/ holds anything
+// but pure-Python wheels, and a unit built from any streamlib commit but the one the build
+// resolved. Every refusal comes before it touches the bundle.
 
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
@@ -15,7 +15,7 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 
 const TATO_APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const ASSEMBLE_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "assemble-tatolab-app-bundle.sh");
-const PLACED_RUNTIME_UNIT_BINARIES = ["tatolab", "tatolabd", "uv"];
+const PLACED_RUNTIME_UNIT_BINARIES = ["tatolab", "tatolabd", "uv", "tatolab-video-poster-frame"];
 const PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES = ["lend", "imports", "carried-wheels", "python-downloads"];
 const PURE_PYTHON_TESTPATTERN_WHEEL = "tatolab_testpattern-0.68.54-py3-none-any.whl";
 const RESOLVED_STREAMLIB_COMMIT = "ef5c8b22995a90b1f7ae671e214c96480615c911";
@@ -132,8 +132,8 @@ async function plantAWheelInTheUnitsImports(
 
 const PURE_PYTHON_WHEEL_MEMBER = { memberPath: "tatolab/testpattern/__init__.py", memberBytes: Buffer.from("") };
 
-test("a unit without uv is refused and the bundle is untouched", async () => {
-  for (const missingBinaryName of ["uv"]) {
+test("a unit without uv or the video poster frame helper is refused and the bundle is untouched", async () => {
+  for (const missingBinaryName of ["uv", "tatolab-video-poster-frame"]) {
     await rm(path.join(scratchDirectory, "tatolab-runtime"), { recursive: true, force: true });
     const runtimeUnitDirectory = await runtimeUnitPlantedWith(
       PLACED_RUNTIME_UNIT_BINARIES.filter((binaryName) => binaryName !== missingBinaryName),
