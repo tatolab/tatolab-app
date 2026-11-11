@@ -6,6 +6,7 @@
 
 import path from "node:path";
 import type { OpenProjectReading, PoppedOutView, ProjectTransactionAuthor, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { ModulesShown } from "../shared/tatolab_electron_bridge_contract.js";
 import { OpenProjectFiles, type ProjectFilesOfTheRuntime } from "./open_project_files.js";
 import { OpenProjectOfAStudioWindow, type FolderEntriesWatch, type ProjectReadingsOfTheRuntime, type StudioWindowOfTheProjectShown } from "./open_project.js";
 import { ProjectTransactionsFeedOfAStudioWindow, type ProjectTransactionsFeedOfAStudioWindowSources } from "./project_transactions_feed.js";
@@ -42,6 +43,12 @@ export interface PoppedOutViewWindow {
   readonly languageServerOfTheWindow: LanguageServerOfAWindow;
 }
 
+/** A studio window's Module manager window and the section it was last asked to show. */
+interface ModuleManagerWindowOfAStudioWindow {
+  readonly tatolabMainWindow: TatolabMainWindow;
+  sectionLastAsked: ModulesShown;
+}
+
 /** What the windows reach: how a window is made, the platform's window chrome and Dock, a folder watch and a timer for each project, and what a closed window stops. */
 export interface TatolabAppWindowsSources {
   mainWindowHostFactory: MainWindowHostFactory;
@@ -74,7 +81,7 @@ export class TatolabAppWindows {
   readonly projectsWindow: TatolabMainWindow;
   private readonly studioWindowsByProjectFolder = new Map<string, StudioWindowOfAProject>();
   private readonly studioWindowsOpening = new Map<string, Promise<void>>();
-  private readonly moduleManagerWindowsByStudioWindow = new Map<StudioWindowOfAProject, TatolabMainWindow>();
+  private readonly moduleManagerWindowsByStudioWindow = new Map<StudioWindowOfAProject, ModuleManagerWindowOfAStudioWindow>();
   private lastStatusSent: TatolabStatus | null = null;
   private readonly studioWindowsAskingToStopTheirProject = new Set<StudioWindowOfAProject>();
   private isTheAppQuitting = false;
@@ -213,11 +220,13 @@ export class TatolabAppWindows {
     if (this.lastStatusSent !== null) tatolabMainWindow.sendTheWindowTheStatus(this.lastStatusSent);
   }
 
-  /** Open `studioWindow`'s Module manager window, its project the workspace imports go into, or bring it forward when it is open. */
-  openTheModuleManagerWindowOf(studioWindow: StudioWindowOfAProject): void {
+  /** Open `studioWindow`'s Module manager window on the section `shows`, its project the workspace imports go into, or bring it forward and have it show `shows` when it is open. */
+  openTheModuleManagerWindowOf(studioWindow: StudioWindowOfAProject, shows: ModulesShown): void {
     const moduleManagerWindowOpen = this.moduleManagerWindowsByStudioWindow.get(studioWindow);
     if (moduleManagerWindowOpen !== undefined) {
-      moduleManagerWindowOpen.show();
+      moduleManagerWindowOpen.sectionLastAsked = shows;
+      moduleManagerWindowOpen.tatolabMainWindow.show();
+      moduleManagerWindowOpen.tatolabMainWindow.askTheWindowToShowTheModuleManagerSection(shows);
       return;
     }
     let moduleManagerWindowOnceMade: TatolabMainWindow | null = null;
@@ -225,26 +234,34 @@ export class TatolabAppWindows {
       this.sources.mainWindowHostFactory,
       this.sources.platformItems.mainWindowChrome,
       "module_manager",
-      `Module manager · ${studioWindowTitleOf(studioWindow.openProject.readOpenProject(), studioWindow.openProject.projectFolder)}`,
+      `Modules and Marketplace · ${studioWindowTitleOf(studioWindow.openProject.readOpenProject(), studioWindow.openProject.projectFolder)}`,
       {
         whenItCameOnScreenOrWentOff: () => this.showTheDockIconWhileAWindowIsShown(),
         answerItsCloseRequest: () => "let_it_close",
         whenItClosed: () => {
-          if (moduleManagerWindowOnceMade !== null && this.moduleManagerWindowsByStudioWindow.get(studioWindow) === moduleManagerWindowOnceMade) this.moduleManagerWindowsByStudioWindow.delete(studioWindow);
+          if (moduleManagerWindowOnceMade !== null && this.moduleManagerWindowsByStudioWindow.get(studioWindow)?.tatolabMainWindow === moduleManagerWindowOnceMade) this.moduleManagerWindowsByStudioWindow.delete(studioWindow);
         },
       },
       this.sources.tatolabAppLog,
     );
     moduleManagerWindowOnceMade = moduleManagerWindow;
-    this.moduleManagerWindowsByStudioWindow.set(studioWindow, moduleManagerWindow);
+    this.moduleManagerWindowsByStudioWindow.set(studioWindow, { tatolabMainWindow: moduleManagerWindow, sectionLastAsked: shows });
     moduleManagerWindow.show();
     if (this.lastStatusSent !== null) moduleManagerWindow.sendTheWindowTheStatus(this.lastStatusSent);
+  }
+
+  /** The section the Module manager window whose page is `windowContentsId` was last asked to show; `null` for any other window. */
+  moduleManagerSectionLastAskedOfTheWindowWithContents(windowContentsId: number): ModulesShown | null {
+    for (const moduleManagerWindow of this.moduleManagerWindowsByStudioWindow.values()) {
+      if (moduleManagerWindow.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return moduleManagerWindow.sectionLastAsked;
+    }
+    return null;
   }
 
   /** The studio window whose Module manager window's page is `windowContentsId`; `null` for any other window. */
   studioWindowOfTheModuleManagerWindowWithContents(windowContentsId: number): StudioWindowOfAProject | null {
     for (const [studioWindow, moduleManagerWindow] of this.moduleManagerWindowsByStudioWindow) {
-      if (moduleManagerWindow.isTheWindowWithContents(windowContentsId)) return studioWindow;
+      if (moduleManagerWindow.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return studioWindow;
     }
     return null;
   }
@@ -304,7 +321,7 @@ export class TatolabAppWindows {
       ...[...this.studioWindowsByProjectFolder.values()].flatMap((studioWindow) => [
         studioWindow.tatolabMainWindow,
         ...[...studioWindow.poppedOutViews.values()].map((poppedOutView) => poppedOutView.tatolabMainWindow),
-        ...[this.moduleManagerWindowsByStudioWindow.get(studioWindow)].filter((moduleManagerWindow) => moduleManagerWindow !== undefined),
+        ...[this.moduleManagerWindowsByStudioWindow.get(studioWindow)?.tatolabMainWindow].filter((moduleManagerWindow) => moduleManagerWindow !== undefined),
       ]),
     ];
   }
@@ -319,7 +336,7 @@ export class TatolabAppWindows {
       sendTheWindowTheOpenProject: (reading) => {
         windowOfTheProject?.sendTheWindowTheOpenProject(reading);
         if (studioWindowOnceMade === null) return;
-        this.moduleManagerWindowsByStudioWindow.get(studioWindowOnceMade)?.sendTheWindowTheOpenProject(reading);
+        this.moduleManagerWindowsByStudioWindow.get(studioWindowOnceMade)?.tatolabMainWindow.sendTheWindowTheOpenProject(reading);
         for (const poppedOutView of studioWindowOnceMade.poppedOutViews.values()) poppedOutView.tatolabMainWindow.sendTheWindowTheOpenProject(reading);
       },
     });
@@ -422,7 +439,7 @@ export class TatolabAppWindows {
     studioWindow.projectTransactionsFeed.stopFollowing();
     for (const poppedOutView of [...studioWindow.poppedOutViews.values()]) poppedOutView.tatolabMainWindow.close();
     studioWindow.poppedOutViews.clear();
-    this.moduleManagerWindowsByStudioWindow.get(studioWindow)?.close();
+    this.moduleManagerWindowsByStudioWindow.get(studioWindow)?.tatolabMainWindow.close();
     this.moduleManagerWindowsByStudioWindow.delete(studioWindow);
     this.sources.whenAWindowStartingLanguageServersClosed(studioWindow.languageServerOfTheWindow);
     this.sources.whenAWindowShowingPortViewersClosed(studioWindow.tatolabMainWindow);

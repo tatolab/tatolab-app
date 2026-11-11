@@ -159,9 +159,32 @@ export const streamGraphNodeSchema = z.object({
   refused_bags_by_output_port: z.record(z.string(), z.number()),
   /** What Tato Studio draws it with, from its `studio` key under the runtime's studio contract. */
   studio: streamGraphNodeStudioFieldsSchema,
+  /** What it holds when it is a subgraph, from its `fragment` key; `null` on every other node. */
+  get fragment() {
+    return streamGraphFragmentSchema.nullable();
+  },
 });
 /** One node of a stream's graph. */
 export type StreamGraphNode = z.infer<typeof streamGraphNodeSchema>;
+
+/** How a subgraph came to be: `generated` is a `@graph_generator`'s frozen output, its node's `type` the generator; `authored` a collapsed selection (`tatolab.project:AuthoredFragment`); `placed_stream` another stream placed by reference (`tatolab.project:StreamFragment`). */
+export const streamGraphFragmentKindSchema = z.enum(["generated", "authored", "placed_stream"]);
+/** How a subgraph came to be. */
+export type StreamGraphFragmentKind = z.infer<typeof streamGraphFragmentKindSchema>;
+
+/** The graph a subgraph node holds: its nodes, each read as a stream's node is, the links between them and its labelled groups. */
+export const streamGraphFragmentSchema = z.object({
+  kind: streamGraphFragmentKindSchema,
+  get nodes() {
+    return z.array(streamGraphNodeSchema);
+  },
+  get links() {
+    return z.array(streamGraphLinkSchema);
+  },
+  groups: z.array(streamGraphGroupSchema),
+});
+/** The graph a subgraph node holds. */
+export type StreamGraphFragment = z.infer<typeof streamGraphFragmentSchema>;
 
 /** One link of a stream's graph, from an output port to an input port; the source may be in another stream. */
 export const streamGraphLinkSchema = z.object({
@@ -335,6 +358,23 @@ export const projectAssetListingSchema = z.object({
 });
 /** A project's assets. */
 export type ProjectAssetListing = z.infer<typeof projectAssetListingSchema>;
+
+/** What importing the files the person chose answered: each asset the runtime's `import_asset` made, by its UUID and path, and each file it refused, in its own words. */
+export const projectAssetsImportedSchema = z.object({
+  imported: z.array(z.object({ asset: z.string(), path: z.string() })),
+  refused: z.array(z.object({ file_name: z.string(), because: z.string() })),
+});
+/** What importing the chosen files answered. */
+export type ProjectAssetsImported = z.infer<typeof projectAssetsImportedSchema>;
+
+/** Files the person chose imported into the project, nothing chosen, or why nothing was asked of the runtime. */
+export const projectAssetsImportingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("imported"), assets_imported: projectAssetsImportedSchema }),
+  z.object({ kind: z.literal("nothing_chosen") }),
+  z.object({ kind: z.literal("not_imported"), because: z.string() }),
+]);
+/** Files the person chose imported, nothing chosen, or why not. */
+export type ProjectAssetsImporting = z.infer<typeof projectAssetsImportingSchema>;
 
 /** A project as the runtime's `list_assets` names it, from its `tatolab-project.json`. */
 export const projectTheRuntimeNamesSchema = z.object({

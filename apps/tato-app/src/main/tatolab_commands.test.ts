@@ -46,6 +46,8 @@ import {
   removeProject,
   streamArgumentsFrom,
   linkCommandLineTool,
+  runTheSavedPythonFileOfAPlayingOrFailedProject,
+  whatASavedNodeFileAsksOfTheRuntime,
   startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded,
   tatolabWindowCommandHandlers,
 } from "./tatolab_commands.js";
@@ -53,6 +55,7 @@ import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { StreamProjectAdding } from "./stream_project_adding.js";
 import { TatolabAppUpdateAnnouncements } from "./tatolab_app_update_announcements.js";
 import { TatolabAppUpdater } from "./tatolab_app_updater.js";
+import { ProjectAssetsImportedFromChosenFiles } from "./project_assets_imported_from_chosen_files.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
 
@@ -87,6 +90,7 @@ async function sharedStateOverFakes(
     systemMediaAccess: FakeSystemMediaAccess;
     tatolabAppOpenedAtLogin: FakeTatolabAppOpenedAtLogin;
     menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[];
+    assetFilesTheDialogAnswers: { files: readonly string[] | null };
   }
 > {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
@@ -138,6 +142,7 @@ async function sharedStateOverFakes(
   const developerModeSwitch = await HeldRememberedSwitch.load(RememberedSwitchFile.developerModeInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog));
   const fakeShellForTheWindows = new FakeTatolabElectronAppShell();
   const menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[] = [];
+  const assetFilesTheDialogAnswers: { files: readonly string[] | null } = { files: null };
   const appWindows = new TatolabAppWindows({
     mainWindowHostFactory: fakeShellForTheWindows.tatolabElectronAppShell.mainWindowHostFactory,
     platformItems: { mainWindowChrome: { titleBarStyle: "default" }, setDockIconVisible: () => {} },
@@ -226,6 +231,12 @@ async function sharedStateOverFakes(
     fetchBytesOverHttps: async () => failedWith("these tests reach no network"),
     moduleDownloadsFolder: path.join(appConfigDirectory, "module-downloads"),
     dependencySourceDialog: async () => succeeded(null),
+    projectAssetsImportedFromChosenFiles: new ProjectAssetsImportedFromChosenFiles({
+      homeDirectory: appConfigDirectory,
+      projectAssetFilesDialog: async () => succeeded(assetFilesTheDialogAnswers.files),
+      projectChanges: controller,
+    }),
+    assetFilesTheDialogAnswers,
     thePersonEditingInStudio: { kind: "person", name: "sam" },
     projectViewsListed: new ProjectViewsListedToTheWindows(),
     systemMediaAccessAskedAheadForViews: new SystemMediaAccessAskedAheadForViews(systemMediaAccess, systemNotifications),
@@ -359,10 +370,10 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
     '{"stream":"main","stream_asset":null,"nodes":[' +
       '{"id":"P1","name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running","failed_because":null,"config":{},"pins":{},' +
       '"input_ports":[],"output_ports":[{"name":"video","family":null,"stream_facts":null,"values_checked":null}],' +
-      '"dropped_bags_by_link":{},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}}},' +
+      '"dropped_bags_by_link":{},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}},"fragment":null},' +
       '{"id":"","name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null,"failed_because":null,"config":{},"pins":{},' +
       '"input_ports":[],"output_ports":[],' +
-      '"dropped_bags_by_link":{"L1":12},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}}}],' +
+      '"dropped_bags_by_link":{"L1":12},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}},"fragment":null}],' +
       '"links":[{"id":"L1","source_node":"testpatternsource","source_port":"video",' +
       '"target_node":"invertingeffect","target_port":"video_from_upstream","state":"wired"}],"groups":[],"notes":[],' +
       `"graph_document_text":${JSON.stringify(graphToolResultText)}}`,
@@ -531,6 +542,53 @@ test("reloading a project the runtime lists running queues reload_project, one i
     ok: false,
     refusal: "reload_project needs `project_directory`, a project's folder as the runtime lists it",
   });
+});
+
+test("a saved Python file of a project the runtime lists running queues reload_project, as tatolab dev does; another file, or a stopped project, is left as it is", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "text/plain", "ok"),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
+      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-reload-project-answer-for-the-folder-hallways.json")),
+    ],
+    "linux"
+  );
+  const reloads = vi.spyOn(sharedState.controller, "reloadProject");
+  const starts = vi.spyOn(sharedState.controller, "startProject");
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  await sharedState.statusPublisher.refreshAndPublish();
+  const doorways = "/home/jonathan-fontanez/scratch/app176/projects/doorways";
+  const pattern = "/home/jonathan-fontanez/scratch/app176/projects/pattern";
+
+  await runTheSavedPythonFileOfAPlayingOrFailedProject(sharedState, doorways, path.join(doorways, "tatolab_view.json"));
+  await runTheSavedPythonFileOfAPlayingOrFailedProject(sharedState, pattern, path.join(pattern, "nodes", "invert.py"));
+  expect(reloads).not.toHaveBeenCalled();
+
+  await runTheSavedPythonFileOfAPlayingOrFailedProject(sharedState, doorways, path.join(doorways, "nodes", "invert.py"));
+  expect(reloads.mock.calls).toEqual([[doorways]]);
+  expect(starts).not.toHaveBeenCalled();
+  expect(refreshRequests).toHaveBeenCalledTimes(1);
+});
+
+test("a saved node file reloads a project with a stream running, starts again one whose streams failed, and leaves a stopped one alone", () => {
+  const hallways = "/projects/hallways";
+  const listedStreamOfHallways = (state: string): ListedStream => ({
+    stream: `hallways-${state}`,
+    display_name: state,
+    location: { project_directory: hallways, project: "4be1ae19-0c7f-4cff-a959-d596c611e05b", stream_asset: `asset-${state}` },
+    state,
+    node_count: null,
+    failed_because: state === "failed" ? "process() raised SyntaxError" : null,
+    capture_devices_whose_access_was_never_asked_for: [],
+    action: null,
+    step: null,
+  });
+
+  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfHallways("running"), listedStreamOfHallways("failed")], hallways)).toBe("reload");
+  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfHallways("failed"), listedStreamOfHallways("stopped")], hallways)).toBe("start");
+  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfHallways("stopped")], hallways)).toBe("nothing");
+  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfHallways("failed")], "/projects/doorways")).toBe("nothing");
 });
 
 test("opening a project starts it only when the runtime, asked then, lists none of its streams or each stopped, observing again after; its refusal in its own words", async () => {
@@ -960,6 +1018,33 @@ test("undo and redo in the open project ask the runtime by the window's author a
     refusal: "undo_in_the_open_project needs `author`, a person or an agent by the name history shows",
   });
   expect(await commandHandlers.undo_in_the_open_project({ author: sam }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+});
+
+/** The window's `ProjectAssetsImported` reads exactly this JSON. */
+test("importing assets into the open project copies each file the person chooses into the project, naming no path, by the person editing, answering each one imported and each refusal in the runtime's words", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-answer-for-poster-png-numbered-poster-3-in-media-imported-by-a-person.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-refusal-for-main-graph-json-a-stream-graph-document.json")),
+    ],
+    "linux",
+  );
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "tide-pool-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(await commandHandlers.import_assets_into_the_open_project(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  sharedState.assetFilesTheDialogAnswers.files = ["/home/sam/poster.png", "/home/sam/main.graph.json"];
+  expect(await commandHandlers.import_assets_into_the_open_project(undefined, fromTheStudioWindow)).toEqual({
+    ok: true,
+    value: {
+      imported: [{ asset: "d18ac59c-d741-45fc-8d21-d3febd0d14a0", path: "media/poster-3.png" }],
+      refused: [{ file_name: "main.graph.json", because: "import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write" }],
+    },
+  });
+  expect(await commandHandlers.import_assets_into_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 
 /** The window's `ProjectGraphTransactionTheRuntimeAnswered` reads exactly this JSON. */

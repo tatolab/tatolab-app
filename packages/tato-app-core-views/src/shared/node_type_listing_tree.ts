@@ -43,11 +43,11 @@ export function shownStudioTreeRows<RowMeaning>(
   return shownRows;
 }
 
-/** The words a source is titled with: the project's name for its own code, an import's folder, or a distribution's name and version. */
-export function nodeTypeSourceTitle(origin: ProjectNodeTypeSourceOrigin, projectName: string): string {
+/** The words a source is titled with: "This project" for its own code, an import's folder, or a distribution's name and version. */
+export function nodeTypeSourceTitle(origin: ProjectNodeTypeSourceOrigin): string {
   switch (origin.source) {
     case "project":
-      return projectName;
+      return "This project";
     case "dependency":
       return `imports/${origin.folder}`;
     case "installed_distribution":

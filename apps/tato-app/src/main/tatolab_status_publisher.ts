@@ -6,6 +6,7 @@ import type { TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import { describeCaughtFailure } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
+import type { RuntimePortViewers } from "./runtime_port_viewers.js";
 import type { StreamFailureNotifications } from "./stream_failure_notifications.js";
 
 /** How often the poller observes the runtime when nothing asks it to sooner. */
@@ -57,6 +58,7 @@ export class TatolabStatusPublisher {
   private readonly waitingForTheFirstStatus: (() => void)[] = [];
   private tatolabTrayMenu: TatolabStatusShownInTheTray | null = null;
   private streamFailureNotifications: Pick<StreamFailureNotifications, "noticeStatus"> | null = null;
+  private runtimePortViewers: Pick<RuntimePortViewers, "noticeStatus"> | null = null;
   private readonly refreshRequests = new TatolabStatusRefreshRequests();
   private polling = false;
 
@@ -83,6 +85,11 @@ export class TatolabStatusPublisher {
     this.streamFailureNotifications = streamFailureNotifications;
   }
 
+  /** Hand the port viewers every later change, so they open again the viewers of a stream a load replaced. */
+  attachRuntimePortViewers(runtimePortViewers: Pick<RuntimePortViewers, "noticeStatus">): void {
+    this.runtimePortViewers = runtimePortViewers;
+  }
+
   /** The poller's one round: observe everything, which starts the app's runtime when none answers, and publish the status if it changed. Everyone else asks for a round with `requestRefresh`. */
   async refreshAndPublish(): Promise<void> {
     const status = await this.controller.composeStatus(this.readMonotonicClockMs());
@@ -97,6 +104,7 @@ export class TatolabStatusPublisher {
     this.sendTheLastPublishedStatusToTheWindow();
     this.tatolabTrayMenu?.showStatus(status);
     this.streamFailureNotifications?.noticeStatus(status);
+    this.runtimePortViewers?.noticeStatus(status);
   }
 
   /** Remember `status` when it differs from the last one published, waking whoever waits for the first; whether it did. */

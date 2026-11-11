@@ -390,9 +390,9 @@ export class TatolabAppController {
     return this.localApiClient.setProjectCover(projectDirectory, cover);
   }
 
-  /** Copy the file at `source` into the project in `projectDirectory` at `assetPath` through the runtime's `import_asset`. */
-  importAsset(projectDirectory: string, source: string, assetPath: string): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>> {
-    return this.localApiClient.importAsset(projectDirectory, source, assetPath);
+  /** Copy the file at `source` into the project in `projectDirectory` at `assetPath` or, for `null`, in its kind's folder, through the runtime's `import_asset`, by `author` or, for `null`, the runtime's own. */
+  importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>> {
+    return this.localApiClient.importAsset(projectDirectory, source, assetPath, author);
   }
 
   /** Make a project in `projectDirectory` from the `.zip` `source` through the runtime's `import_project`. */

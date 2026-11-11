@@ -5,6 +5,7 @@ import type { OpenProjectReading, PoppedOutView, ProjectTransaction, RecentProje
 import { createMockTatolabBackend, readMockTatolabOptions } from "../../mock/mock_tatolab_backend";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
+import type { ModulesShown } from "../shared/tatolab_electron_bridge_contract";
 import { studioLayoutsStorageKey } from "./studio_shell/studio_layouts";
 import { mountTatolabWindow } from "./tatolab_window_view";
 import { drawTheCoreViewsInTheirFrames } from "./view_host/fake_core_view_frames";
@@ -143,6 +144,18 @@ async function showInTheLibrary(shown: string): Promise<void> {
   fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>(shownChoice) ?? expect.unreachable(`no Show choice ${shown}`)));
 }
 
+function libraryRow(rowId: string): HTMLElement {
+  return coreViewPage("library").querySelector<HTMLElement>(`[data-library-declarations] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no Library row ${rowId}`);
+}
+
+/** Chooses the Library in the Build layout's viewer area's view-type menu, and waits for the menu to close. */
+async function showTheLibraryInTheViewerArea(): Promise<void> {
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
+    await waitFor(() => expect(screen.queryByRole("menuitemradio", { name: /^Library/ })).toBeNull());
+}
+
 function outlinerRow(rowId: string): HTMLElement {
   return coreViewPage("outliner").querySelector<HTMLElement>(`[data-outliner] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no outliner row ${rowId}`);
 }
@@ -151,73 +164,39 @@ function outlinerRowIds(): string[] {
   return [...coreViewPage("outliner").querySelectorAll<HTMLElement>("[data-outliner] [data-tree-row-id]")].map((row) => row.dataset.treeRowId ?? "");
 }
 
-/** Opens the row, which the Outliner keeps in its area's settings and draws open once Studio has kept them. */
-async function openTheOutlinerRow(rowId: string): Promise<void> {
-  const row = await waitFor(() => outlinerRow(rowId));
-  fireEvent.click(row.querySelector<HTMLElement>("[data-tree-row-toggle]") ?? expect.unreachable(`no toggle on ${rowId}`));
-  await waitFor(() => expect(outlinerRow(rowId).getAttribute("aria-expanded")).toBe("true"));
-}
-
 async function shownLayout(): Promise<string> {
   return waitFor(() => document.querySelector<HTMLElement>("[data-studio-layout]")?.dataset.studioLayout ?? expect.unreachable("no layout shown"));
 }
 
 describe("the studio", () => {
-  it("opens the project in Build, the outliner showing the open project, its streams and its closed, read-only imports", async () => {
+  it("opens the project in Build, the outliner showing the project's streams, the open tab's stream open on its nodes, each with its type", async () => {
     await mountedWindowOverTheMock("state=running");
 
     expect(await shownLayout()).toBe("build");
-    await waitFor(() => expect(outlinerRowIds()).toContain(`project:${PATTERN_PROJECT}`));
+    const mainNodeRowId = (node: string) => `node:${PATTERN_MAIN_STREAM}/${node}`;
+    await waitFor(() => expect(outlinerRowIds()).toContain(mainNodeRowId("testpatternsource")));
     expect(outlinerRowIds()).toEqual([
-      "open_project_folder",
-      `project:${PATTERN_PROJECT}`,
-      `project:${PATTERN_PROJECT}/project_file`,
       `stream:${PATTERN_MAIN_STREAM}`,
+      mainNodeRowId("testpatternsource"),
+      mainNodeRowId("invertingeffect"),
+      mainNodeRowId("displaywindow"),
+      mainNodeRowId("brightnessmeter"),
       `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "recorder" })}`,
       `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" })}`,
-      `project:${PATTERN_PROJECT}/node_types`,
-      "imports",
     ]);
-    expect(outlinerRow("open_project_folder").getAttribute("aria-level")).toBe("1");
-    expect(outlinerRow(`project:${PATTERN_PROJECT}`).textContent).toBe("pattern");
-    expect(outlinerRow(`project:${PATTERN_PROJECT}/project_file`).textContent).toBe("tatolab-project.json");
+    expect(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).getAttribute("aria-level")).toBe("1");
     expect(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).textContent).toBe("main");
-    expect(outlinerRow("imports").getAttribute("aria-expanded")).toBe("false");
-    expect(outlinerRow("imports").textContent).toBe("Imports");
-    expect(within(outlinerRow("imports")).getByRole("img", { name: "Read only" })).toBeTruthy();
+    expect(outlinerRow(mainNodeRowId("testpatternsource")).getAttribute("aria-level")).toBe("2");
+    expect(outlinerRow(mainNodeRowId("testpatternsource")).textContent).toBe("Test Pattern SourceTestPatternSource");
+    expect(coreViewPage("outliner").body.textContent).not.toContain("pattern-two pattern");
+
+    fireEvent.click(outlinerRow(mainNodeRowId("invertingeffect")));
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("invertingeffect")).getAttribute("aria-selected")).toBe("true"));
+    await waitFor(() => expect(coreViewPage("properties").body.textContent).toContain("InvertingEffect"));
 
     const outlinerFrame = document.querySelector<HTMLIFrameElement>('[data-studio-area="outliner"] iframe[data-tatolab-view="outliner"]') ?? expect.unreachable("no Outliner frame");
     expect(outlinerFrame.hasAttribute("sandbox")).toBe(false);
     expect(outlinerFrame.getAttribute("src")).toMatch(/\/core_views\/outliner\/index\.html$/);
-  });
-
-  it("opens Imports on each import, read-only: its streams and node types, or an unreadable one's refusal", async () => {
-    await mountedWindowOverTheMock("state=running");
-    await waitFor(() => outlinerRow("imports"));
-    await openTheOutlinerRow("imports");
-    await openTheOutlinerRow(`project:${CAMERA_PROJECT}`);
-    await openTheOutlinerRow(`project:${PATTERN_PROJECT}/imports/stage-lights`);
-
-    expect(within(outlinerRow(`project:${CAMERA_PROJECT}`)).getByRole("img", { name: "Read only" })).toBeTruthy();
-    expect(outlinerRow(`stream:${mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_name: "main" })}`).getAttribute("aria-level")).toBe("4");
-    expect(outlinerRow(`project:${PATTERN_PROJECT}/imports/stage-lights/refusal`).textContent).toBe(
-      `list_assets failed: ${PATTERN_PROJECT}/imports/stage-lights holds no project: it has no tatolab-project.json`,
-    );
-    await waitFor(() => outlinerRow(`project:${CAMERA_PROJECT}/node_types`));
-    await openTheOutlinerRow(`project:${CAMERA_PROJECT}/node_types`);
-    expect(outlinerRow(`project:${CAMERA_PROJECT}/node_types/category:Camera/node_type:camera.nodes:CameraTilt`).textContent).toBe("CameraTilt");
-  });
-
-  it("lists the open project's own node types in the outliner, and each module that does not parse in the parser's words", async () => {
-    await mountedWindowOverTheMock("state=running");
-    const nodeTypesRowId = `project:${PATTERN_PROJECT}/node_types`;
-    await waitFor(() => outlinerRow(nodeTypesRowId));
-    await openTheOutlinerRow(nodeTypesRowId);
-    const invertingEffectRowId = `${nodeTypesRowId}/category:Effects/node_type:nodes.inverting_effect:InvertingEffect`;
-    await waitFor(() => outlinerRow(invertingEffectRowId));
-    expect(outlinerRow(`${nodeTypesRowId}/unreadable:nodes.half_written`).textContent).toBe("nodes/half_written.py:12:5: SyntaxError: expected ':'");
-
-    expect(outlinerRow(invertingEffectRowId).textContent).toBe("InvertingEffect");
   });
 
   it("titles the window with the project's name once, centred in the toolbar on macOS, never on a stream tab", async () => {
@@ -235,14 +214,10 @@ describe("the studio", () => {
 
   it("closes the view-type menu on a choice, and lists in the Library each source's node types by category, its generators under Show, and says why a module does not parse", async () => {
     await mountedWindowOverTheMock("state=running");
-    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
-    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
-    await waitFor(() => expect(screen.queryByRole("menuitemradio", { name: /^Library/ })).toBeNull());
+    await showTheLibraryInTheViewerArea();
 
-    const libraryRow = (rowId: string) => coreViewPage("library").querySelector<HTMLElement>(`[data-library-declarations] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no Library row ${rowId}`);
     await waitFor(() => libraryRow("source:project"));
-    expect(libraryRow("source:project").textContent).toBe("pattern");
+    expect(libraryRow("source:project").textContent).toBe("This project");
     expect(coreViewPage("library").querySelector('[data-tree-row-id="source:project/graph_generators"]')).toBeNull();
     expect(libraryRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11").textContent).toBe("imports/hall-of-light");
     expect(libraryRow("source:distribution:tatolab-testpattern").getAttribute("aria-expanded")).toBe("false");
@@ -282,6 +257,43 @@ describe("the studio", () => {
     expect(details.textContent).toContain("poster.png");
     expect(details.textContent).toContain("sha256 c59c…fa05");
     expect(details.textContent).toContain("11 KB");
+  });
+
+  it("imports the file the person chooses, which the runtime places in its kind's folder, shows it at once and opens its details", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
+    await showInTheLibrary("assets");
+
+    const library = coreViewPage("library");
+    await waitFor(() => library.querySelector('[data-library-asset="luts/warm.cube"]') ?? expect.unreachable("no assets listed"));
+    fireEvent.click(library.querySelector<HTMLElement>("[data-library-import-asset]") ?? expect.unreachable("no Import asset button"));
+
+    const imported = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset="media/night-sky.jpg"]') ?? expect.unreachable("the imported file is not shown"));
+    expect(imported.textContent).toBe("JPGnight-sky.jpgmedia · 2.2 MB");
+    const details = await waitFor(() => library.querySelector<HTMLElement>("[data-library-asset-details]") ?? expect.unreachable("no details"));
+    expect(details.textContent).toContain("media/night-sky.jpg");
+    expect(library.querySelector("[data-library-import-refused]")).toBeNull();
+  });
+
+  it("shows each file the runtime refused to import in its words, beside the file it imported, the search cleared so the import shows", async () => {
+    await mountedWindowOverTheMock("state=running&asset_import=refuses_one");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
+    await showInTheLibrary("assets");
+
+    const library = coreViewPage("library");
+    await waitFor(() => library.querySelector('[data-library-asset="luts/warm.cube"]') ?? expect.unreachable("no assets listed"));
+    fireEvent.change(library.querySelector<HTMLInputElement>("[data-library-asset-search]") ?? expect.unreachable("no search field"), { target: { value: "cube" } });
+    fireEvent.click(library.querySelector<HTMLElement>("[data-library-import-asset]") ?? expect.unreachable("no Import asset button"));
+
+    const refusal = await waitFor(() => library.querySelector<HTMLElement>("[data-library-import-refused]") ?? expect.unreachable("no refusal"));
+    expect(refusal.textContent).toBe("Didn't import main.graph.json: import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write");
+    expect(library.querySelector<HTMLInputElement>("[data-library-asset-search]")?.value).toBe("");
+    await waitFor(() => library.querySelector('[data-library-asset="media/night-sky.jpg"]') ?? expect.unreachable("the imported file is not shown"));
+    expect(library.querySelector("[data-library-asset-details]")?.textContent).toContain("media/night-sky.jpg");
   });
 
   it("lists in an area's view-type menu each view with who brought it, and a view that does not open as a row that cannot be chosen, with why", async () => {
@@ -413,29 +425,30 @@ describe("the studio", () => {
 
   it("shows a project's streams waiting on the runtime while it lists none", async () => {
     await mountedWindowOverTheMock("state=not-running");
-    await waitFor(() => outlinerRow(`project:${PATTERN_PROJECT}/waiting`));
-    expect(outlinerRow(`project:${PATTERN_PROJECT}/waiting`).textContent).toBe("Streams and nodes not read yet");
+    await waitFor(() => outlinerRow("streams-waiting"));
+    expect(outlinerRow("streams-waiting").textContent).toBe("Streams not read yet");
   });
 
   it("moves through the outliner from the keyboard, opening and closing rows and selecting as it goes", async () => {
     await mountedWindowOverTheMock("state=running");
-    await waitFor(() => outlinerRow("imports"));
+    const mainStreamRowId = `stream:${PATTERN_MAIN_STREAM}`;
+    const patternTwoRowId = `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" })}`;
+    await waitFor(() => outlinerRow(`node:${PATTERN_MAIN_STREAM}/testpatternsource`));
     const tree = inTheCoreView("outliner").getByRole("tree", { name: "Outliner" });
-    outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).focus();
+    outlinerRow(mainStreamRowId).focus();
 
     fireEvent.keyDown(tree, { key: "End" });
-    expect(outlinerRow("imports").getAttribute("aria-selected")).toBe("false");
-    expect(coreViewPage("outliner").activeElement).toBe(outlinerRow("imports"));
-    fireEvent.keyDown(tree, { key: "ArrowRight" });
-    await waitFor(() => expect(outlinerRow("imports").getAttribute("aria-expanded")).toBe("true"));
-    fireEvent.keyDown(tree, { key: "ArrowLeft" });
-    await waitFor(() => expect(outlinerRow("imports").getAttribute("aria-expanded")).toBe("false"));
+    expect(coreViewPage("outliner").activeElement).toBe(outlinerRow(patternTwoRowId));
+    await waitFor(() => expect(outlinerRow(patternTwoRowId).getAttribute("aria-selected")).toBe("true"));
     fireEvent.keyDown(tree, { key: "Home" });
-    fireEvent.keyDown(tree, { key: "ArrowDown" });
-    await waitFor(() => expect(outlinerRow(`project:${PATTERN_PROJECT}`).getAttribute("aria-selected")).toBe("true"));
-    fireEvent.keyDown(tree, { key: "ArrowDown" });
     fireEvent.keyDown(tree, { key: "ArrowLeft" });
-    expect(coreViewPage("outliner").activeElement).toBe(outlinerRow(`project:${PATTERN_PROJECT}`));
+    await waitFor(() => expect(outlinerRow(mainStreamRowId).getAttribute("aria-expanded")).toBe("false"));
+    fireEvent.keyDown(tree, { key: "ArrowRight" });
+    await waitFor(() => expect(outlinerRow(mainStreamRowId).getAttribute("aria-expanded")).toBe("true"));
+    fireEvent.keyDown(tree, { key: "ArrowDown" });
+    await waitFor(() => expect(outlinerRow(`node:${PATTERN_MAIN_STREAM}/testpatternsource`).getAttribute("aria-selected")).toBe("true"));
+    fireEvent.keyDown(tree, { key: "ArrowLeft" });
+    expect(coreViewPage("outliner").activeElement).toBe(outlinerRow(mainStreamRowId));
   });
 
   it("opens a stream's tab from the outliner and from the app's request, shows one tab per stream, and closes it", async () => {
@@ -604,12 +617,11 @@ describe("the studio", () => {
     expect(localStorage.getItem(studioLayoutsStorageKey(PATTERN_PROJECT))).toMatch(/"area_id":"viewer","view_type_id":"viewer","settings":\{"chosen_port":\{"stream":"[^"]+","node_id":"[^"]+","port":"[^"]+"\}\}/);
   });
 
-  it("opens a node type's file in Code's own frame from the outliner, in the first layout with a Code area, its tab and the log's toggle in Code's header row, a closed tab staying closed as the frame loads again until the file is opened again, and the Code layout's own area left as it was", async () => {
+  it("opens a node type's file in Code's own frame from the Library, in the first layout with a Code area, its tab and the log's toggle in Code's header row, a closed tab staying closed as the frame loads again until the file is opened again, and the Code layout's own area left as it was", async () => {
     await mountedWindowOverTheMock("state=running");
-    const nodeTypesRowId = `project:${PATTERN_PROJECT}/node_types`;
-    await openTheOutlinerRow(nodeTypesRowId);
-    const invertingEffectRowId = `${nodeTypesRowId}/category:Effects/node_type:nodes.inverting_effect:InvertingEffect`;
-    fireEvent.doubleClick(await waitFor(() => outlinerRow(invertingEffectRowId)));
+    await showTheLibraryInTheViewerArea();
+    const invertingEffectRowId = "source:project/category:Effects/node_type:nodes.inverting_effect:InvertingEffect";
+    fireEvent.doubleClick(await waitFor(() => libraryRow(invertingEffectRowId)));
 
     await waitFor(async () => expect(await shownLayout()).toBe("compose"));
     const invertingEffectFile = `${PATTERN_PROJECT}/nodes/inverting_effect.py`;
@@ -635,7 +647,7 @@ describe("the studio", () => {
 
     fireEvent.keyDown(document, { key: "1", metaKey: true });
     expect(await shownLayout()).toBe("build");
-    fireEvent.doubleClick(await waitFor(() => outlinerRow(invertingEffectRowId)));
+    fireEvent.doubleClick(await waitFor(() => libraryRow(invertingEffectRowId)));
     await waitFor(async () => expect(await shownLayout()).toBe("compose"));
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(invertingEffectFile));
 
@@ -1295,7 +1307,7 @@ describe("Module manager", () => {
 
   it("lists the project's modules as the runtime does, each saying where it was copied from, and opens one to edit by its folder", async () => {
     let foldersOpenedToEdit: string[] = [];
-    await mountedWindowOverTheMock("state=running&module_manager=open", {
+    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project", {
       openImportToEdit: async (folder) => {
         foldersOpenedToEdit = [...foldersOpenedToEdit, folder];
       },
@@ -1311,8 +1323,49 @@ describe("Module manager", () => {
     await waitFor(() => expect(foldersOpenedToEdit).toEqual(["lobby-wall"]));
   });
 
+  it("opens on the section File › Modules… asked for, and shows each section asked of it once open", async () => {
+    let askTheOpenWindowToShow: ((shows: ModulesShown) => void) | null = null;
+    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project", {
+      onModuleManagerSectionAsked: (listener) => {
+        askTheOpenWindowToShow = listener;
+        return () => undefined;
+      },
+    });
+    const shownSection = () => document.querySelector('[data-module-manager-show][aria-current="page"]')?.getAttribute("data-module-manager-show");
+
+    await waitFor(() => expect(shownSection()).toBe("added_to_this_project"));
+    pressed('[data-module-manager-show="marketplace"]');
+    expect(shownSection()).toBe("marketplace");
+    act(() => askTheOpenWindowToShow?.("added_to_this_project"));
+    expect(shownSection()).toBe("added_to_this_project");
+    pressed('[data-module-manager-show="marketplace"]');
+    act(() => askTheOpenWindowToShow?.("added_to_this_project"));
+    expect(shownSection()).toBe("added_to_this_project");
+  });
+
+  it("keeps a section asked of it while it was still reading the one it opened on", async () => {
+    let askTheOpenWindowToShow: ((shows: ModulesShown) => void) | null = null;
+    let answerTheSectionLastAsked: ((shows: ModulesShown) => void) | null = null;
+    await mountedWindowOverTheMock("state=running&module_manager=open", {
+      onModuleManagerSectionAsked: (listener) => {
+        askTheOpenWindowToShow = listener;
+        return () => undefined;
+      },
+      readModuleManagerSectionLastAsked: () =>
+        new Promise((resolve) => {
+          answerTheSectionLastAsked = resolve;
+        }),
+    });
+    const shownSection = () => document.querySelector('[data-module-manager-show][aria-current="page"]')?.getAttribute("data-module-manager-show");
+
+    act(() => askTheOpenWindowToShow?.("marketplace"));
+    await act(async () => answerTheSectionLastAsked?.("added_to_this_project"));
+
+    await waitFor(() => expect(shownSection()).toBe("marketplace"));
+  });
+
   it("adds a project's folder chosen in the dialog, or one dropped on the window, and lists it", async () => {
-    await mountedWindowOverTheMock("state=running&module_manager=open");
+    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project");
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());
 
     pressed('[data-module-manager-add="folder"]');
@@ -1323,8 +1376,32 @@ describe("Module manager", () => {
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="night-lights"]')).not.toBeNull());
   });
 
+  it("shows a folder dropped on the Marketplace in Modules, picked, and clears the search on each section change", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=marketplace");
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="tatolab-camera"]')).not.toBeNull());
+    const searchField = document.querySelector<HTMLInputElement>("[data-module-manager-search] input") ?? document.querySelector<HTMLInputElement>("input[data-module-manager-search]") ?? expect.unreachable("no search");
+    fireEvent.change(searchField, { target: { value: "camera" } });
+
+    const moduleManagerWindow = document.querySelector<HTMLElement>("[data-module-manager-window]") ?? expect.unreachable("no window");
+    fireEvent.drop(moduleManagerWindow, { dataTransfer: { files: [new File(["zip"], "night-lights.zip")], types: ["Files"] } });
+
+    await waitFor(() => expect(document.querySelector('[data-module-manager-show][aria-current="page"]')?.getAttribute("data-module-manager-show")).toBe("added_to_this_project"));
+    await waitFor(() => expect(document.querySelector('[data-module-manager-detail="night-lights"]')).not.toBeNull());
+    expect((document.querySelector<HTMLInputElement>("[data-module-manager-search] input") ?? document.querySelector<HTMLInputElement>("input[data-module-manager-search]"))?.value).toBe("");
+  });
+
+  it("shows the first card's details in a section the picked card is not in", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project");
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());
+    fireEvent.click(moduleManagerRow("lobby-wall"));
+
+    pressed('[data-module-manager-show="marketplace"]');
+
+    await waitFor(() => expect(document.querySelector("[data-module-manager-detail]")?.getAttribute("data-module-manager-detail")).toBe(document.querySelector("[data-module-manager-row]")?.getAttribute("data-module-manager-row")));
+  });
+
   it("shows the runtime's refusal of an import in its own words", async () => {
-    await mountedWindowOverTheMock("state=running&module_manager=open", { addDependencyToTheWorkspace: () => Promise.reject("/Users/jonathanf/streams/doorways is not a project: it holds no tatolab-project.json") });
+    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project", { addDependencyToTheWorkspace: () => Promise.reject("/Users/jonathanf/streams/doorways is not a project: it holds no tatolab-project.json") });
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());
 
     pressed('[data-module-manager-add="folder"]');
@@ -1332,7 +1409,7 @@ describe("Module manager", () => {
   });
 
   it("asks before an Update overwrites files edited since the copy, and Keep my edits leaves them", async () => {
-    await mountedWindowOverTheMock("state=running&module_manager=edited_files");
+    await mountedWindowOverTheMock("state=running&module_manager=edited_files&module_manager_section=added_to_this_project");
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());
     fireEvent.click(moduleManagerRow("lobby-wall"));
     expect(textOf("[data-module-manager-edited-files]")).toContain("nodes/wall_mapping.py");
@@ -1349,23 +1426,25 @@ describe("Module manager", () => {
     await waitFor(() => expect(document.querySelector("[data-module-manager-edited-files]")).toBeNull());
   });
 
-  it("marks a module whose source holds a newer version once checked, and Update takes it", async () => {
-    await mountedWindowOverTheMock("state=running&module_manager=newer");
+  it("marks a module with an update where it was copied from once checked, and Update takes it", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=newer&module_manager_section=added_to_this_project");
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());
     fireEvent.click(moduleManagerRow("lobby-wall"));
-    expect(document.querySelector("[data-module-manager-newer-version]")).toBeNull();
+    expect(document.querySelector("[data-module-manager-update-available]")).toBeNull();
 
-    pressed("[data-module-manager-check-for-newer]");
-    await waitFor(() => expect(document.querySelector("[data-module-manager-newer-version]")).not.toBeNull());
+    pressed("[data-module-manager-check-for-updates]");
+    await waitFor(() => expect(document.querySelector("[data-module-manager-update-available]")).not.toBeNull());
     pressed('[data-module-manager-update="lobby-wall"]');
-    await waitFor(() => expect(document.querySelector("[data-module-manager-newer-version]")).toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-module-manager-update-available]")).toBeNull());
   });
 
-  it("lists the catalog's packages and samples as cards, shows samples alone, narrows to a search, and adds one to the project", async () => {
+  it("lists the catalog's packages and samples in the Marketplace, not a module it does not list, narrows to a search, and adds one to the project", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open");
 
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="tatolab-camera"]')).not.toBeNull());
     expect(moduleManagerRow("camera-halftone")).toBeTruthy();
+    expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).toBeNull();
+    expect(document.querySelector("[data-module-manager-add]")).toBeNull();
     fireEvent.click(moduleManagerRow("tatolab-compositor"));
     expect(textOf('[data-module-manager-detail="tatolab-compositor"]')).toContain("LowerThird");
 
@@ -1374,14 +1453,9 @@ describe("Module manager", () => {
     await waitFor(() => expect(document.querySelectorAll("[data-module-manager-row]").length).toBe(1));
     fireEvent.change(searchField, { target: { value: "" } });
 
-    pressed('[data-module-manager-show="sample_projects"]');
-    await waitFor(() => expect([...document.querySelectorAll("[data-module-manager-row]")].map((card) => card.getAttribute("data-module-manager-row"))).toContain("camera-halftone"));
-    expect(document.querySelector('[data-module-manager-row="tatolab-camera"]')).toBeNull();
-    pressed('[data-module-manager-show="everything"]');
-
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="tatolab-camera"]')).not.toBeNull());
     fireEvent.click(moduleManagerRow("tatolab-camera"));
-    expect(textOf('[data-module-manager-import="tatolab-camera"]')).toBe("Add to pattern");
+    expect(textOf('[data-module-manager-import="tatolab-camera"]')).toBe("Add to this project");
     pressed('[data-module-manager-import="tatolab-camera"]');
     await waitFor(() => expect(document.querySelector('[data-module-manager-update]')).not.toBeNull());
   });
@@ -1392,7 +1466,8 @@ describe("Module manager", () => {
     await waitFor(() => expect(document.querySelector('[data-module-manager-state="not_read"]')).not.toBeNull());
     expect(textOf('[data-module-manager-state="not_read"]')).toContain("HTTP 404 Not Found");
     expect(textOf('[data-module-manager-state="not_read"]')).toContain("tatolab/streamlib#3216");
-    expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull();
+    pressed('[data-module-manager-show="added_to_this_project"]');
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());
   });
 });
 

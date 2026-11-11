@@ -22,7 +22,7 @@ function node(
   nodeId = "",
   config: StreamGraphNode["config"] = {},
 ): StreamGraphNode {
-  return { id: nodeId, name, type: nodeType, state, failed_because: null, config, ...ports, ...counters, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET };
+  return { id: nodeId, name, type: nodeType, state, failed_because: null, config, ...ports, ...counters, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null };
 }
 
 function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
@@ -355,4 +355,80 @@ test("a_group_in_any_uuid_form_the_runtime_parses_reads_and_a_studio_under_a_con
     { ...NODE_STUDIO_FIELDS_NONE_SET, group: "{21D9C0EE-A01D-40A0-AD61-BD05476819E7}" },
     { ...NODE_STUDIO_FIELDS_NONE_SET, comment: "c", metadata: { contract: 2, anchor: [1, 2] } },
   ]);
+});
+
+test("a_subgraph_node_holds_its_fragments_nodes_links_and_groups_read_as_the_streams_are_and_its_kind_from_its_type", () => {
+  const fragment = {
+    nodes: [
+      { id: "in-id", name: "in", type: "tatolab.stream:GraphInput", ports: { inputs: [], outputs: [{ name: "value" }] }, components: {} },
+      { id: "blur-id", name: "blur", type: "nodes.blur:Blur", components: { state: "Running" } },
+    ],
+    links: [{ id: "L1", source: { node: "in", port: "value" }, target: { node: "blur", port: "video_in" }, state: "wired" }],
+    groups: [{ id: "g", title: "Inside" }],
+  };
+  const graph = {
+    nodes: [
+      { id: "look-id", name: "look", type: "tatolab.project:AuthoredFragment", kind: "fragment", fragment },
+      { id: "levels-id", name: "levels", type: "generators.mics:mic_levels", kind: "fragment", fragment: { nodes: [], links: [] } },
+      { id: "lobby-id", name: "lobby", type: "tatolab.project:StreamFragment", kind: "fragment" },
+      { id: "cam-id", name: "camera", type: "nodes.camera:Camera", kind: "process" },
+    ],
+  };
+
+  const summary = streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify(graph));
+
+  expect(summary.ok && summary.value.nodes.map((graphNode) => graphNode.fragment)).toEqual([
+    {
+      kind: "authored",
+      nodes: [node("in", "tatolab.stream:GraphInput", null, undefined, { input_ports: [], output_ports: portsStatingNoStreamFacts("value") }, "in-id"), node("blur", "nodes.blur:Blur", "Running", undefined, undefined, "blur-id")],
+      links: [link("L1", ["in", "value"], ["blur", "video_in"], "wired")],
+      groups: [{ id: "g", title: "Inside", description: null, colour: null }],
+    },
+    { kind: "generated", nodes: [], links: [], groups: [] },
+    { kind: "placed_stream", nodes: [], links: [], groups: [] },
+    null,
+  ]);
+  expect(streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify({ nodes: [{ name: "bad", fragment: "nodes" }] })).ok).toBe(false);
+});
+
+/** The graph text of a recorded `graph` tool response under `test-fixtures/`. */
+async function recordedGraphToolResultText(fixtureName: string): Promise<string> {
+  const recordedResponse: { result: { content: { text: string }[] } } = JSON.parse(await readFile(new URL(`./test-fixtures/${fixtureName}`, import.meta.url), "utf8"));
+  return recordedResponse.result.content[0]?.text ?? expect.unreachable("the recorded graph holds no tool result text");
+}
+
+test("a_recorded_graph_reads_a_collapsed_selection_as_an_authored_fragment_holding_its_nodes_and_the_interface_nodes_the_collapse_made", async () => {
+  const summary = streamGraphSummaryFromTheGraphToolResult("fx-main-5fef64", await recordedGraphToolResultText("local-api-graph-tool-result-of-a-stream-holding-an-authored-fragment.json"));
+
+  if (!summary.ok) return expect.unreachable(summary.failure);
+  const subgraph = summary.value.nodes.find((graphNode) => graphNode.name === "look") ?? expect.unreachable("no subgraph node");
+  expect(subgraph.type).toBe("tatolab.project:AuthoredFragment");
+  expect(subgraph.fragment?.kind).toBe("authored");
+  expect(subgraph.fragment?.nodes.map((graphNode) => [graphNode.name, graphNode.type, graphNode.fragment])).toEqual([
+    ["look-in", "nodes.invert:Invert", null],
+    ["look-in-video-in", "tatolab.stream:GraphInput", null],
+    ["look-in-video-out", "tatolab.stream:GraphOutput", null],
+  ]);
+  expect(subgraph.fragment?.links.map((link) => [link.source_node, link.source_port, link.target_node, link.target_port])).toEqual([
+    ["look-in-video-in", "value", "look-in", "video_in"],
+    ["look-in", "video_out", "look-in-video-out", "value"],
+  ]);
+  expect(subgraph.fragment?.groups).toEqual([]);
+  expect(summary.value.links.map((link) => [link.source_node, link.source_port, link.target_node, link.target_port])).toEqual([
+    ["testpatternsource", "video", "look", "look-in-video-in"],
+    ["look", "look-in-video-out", "sink", "video_in"],
+  ]);
+  expect(summary.value.nodes.filter((graphNode) => graphNode.name !== "look").every((graphNode) => graphNode.fragment === null)).toBe(true);
+});
+
+test("a_recorded_graph_reads_a_graph_generators_output_as_a_generated_fragment_named_by_the_generator", async () => {
+  const summary = streamGraphSummaryFromTheGraphToolResult("lib-main-045632", await recordedGraphToolResultText("local-api-graph-tool-result-of-a-stream-holding-a-generator-fragment.json"));
+
+  if (!summary.ok) return expect.unreachable(summary.failure);
+  const subgraph = summary.value.nodes.find((graphNode) => graphNode.name === "bars") ?? expect.unreachable("no generated subgraph");
+  expect(subgraph.type).toBe("generators.looks:bars");
+  expect(subgraph.config).toEqual({ width: 480 });
+  expect(subgraph.fragment?.kind).toBe("generated");
+  expect(subgraph.fragment?.nodes.map((graphNode) => [graphNode.name, graphNode.type])).toEqual([["bars", "tatolab.testpattern:TestPatternSource"]]);
+  expect(subgraph.fragment?.links).toEqual([]);
 });

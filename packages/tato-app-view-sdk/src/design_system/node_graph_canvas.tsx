@@ -10,6 +10,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useStore,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -22,7 +23,7 @@ import {
 } from "@xyflow/react";
 import { cn } from "cn";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
-import { ChevronDown, ChevronRight, Frame, Plus, Scan, SquareX, StickyNote } from "lucide-react";
+import { ChevronDown, ChevronRight, Combine, Frame, Plus, Scan, SquareX, StickyNote } from "lucide-react";
 import {
   createContext,
   memo,
@@ -48,6 +49,7 @@ import {
   nodeGraphCardHeight,
   type NodeGraphPosition,
 } from "./support/node_graph_layout";
+import { isPartOfTheGraphOutsideTheView } from "./support/node_graph_map_visibility";
 import { canPinsOfTheseFamiliesBeWired, frameRectangleAroundCards, linkUnderACard, placeClearBelowTheCards, type NodeGraphLinkMidpoint } from "./support/node_graph_editing";
 
 /** The family a pin carries, which picks its shape and colour and its links' colour. */
@@ -104,7 +106,12 @@ export interface NodeGraphCanvasNode {
   frame_id: string | null;
   /** Drawn as its header alone, its wires meeting the header's edges. */
   is_collapsed: boolean;
+  /** How the subgraph it holds came to be, which a double-click steps inside; `null` for a node that holds none. */
+  subgraph: NodeGraphSubgraphKind | null;
 }
+
+/** How a subgraph came to be: a graph generator's read-only output, a collapsed selection, or another stream placed by reference. */
+export type NodeGraphSubgraphKind = "generated" | "authored" | "placed_stream";
 
 /** A labelled frame drawn around the cards that name it, with its title on a tab, its description under it, and a tint of its colour. */
 export interface NodeGraphCanvasFrame {
@@ -178,8 +185,6 @@ export interface NodeGraphCanvasViewport {
   zoom: number;
 }
 
-/** Why the toolbar's Subgraph cannot be pressed yet. */
-const SUBGRAPH_NOT_BUILT_YET = "Making a subgraph from the selection isn't built yet";
 
 /** Whether an edit the canvas asked for was applied; a refused one puts what it moved back. */
 export type NodeGraphCanvasEditAnswer = "applied" | "refused";
@@ -203,6 +208,8 @@ export interface NodeGraphCanvasEditing {
   onDeleted(deleted: { node_ids: readonly string[]; link_ids: readonly string[]; note_ids: readonly string[] }): void;
   /** F, ⌘G or Frame pressed with cards selected, to frame them. */
   onFrameAskedFor(nodeIds: readonly string[]): Promise<NodeGraphCanvasEditAnswer>;
+  /** ⌘⇧G or Subgraph pressed with cards selected, to collapse them into one subgraph. */
+  onSubgraphAskedFor(nodeIds: readonly string[]): void;
   /** A frame's title edited on its tab. */
   onFrameRenamed(frameId: string, title: string): void;
   /** A card's chevron pressed, to collapse it to its header or open it again. */
@@ -336,6 +343,7 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
       data-selected={isSelected || undefined}
       data-condition={graphNode.condition.look}
       data-collapsed={graphNode.is_collapsed || undefined}
+      data-subgraph={graphNode.subgraph ?? undefined}
     >
       <div
         className="node-graph-card-header relative flex items-center gap-2 px-2"
@@ -354,6 +362,7 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
             {graphNode.is_collapsed ? <ChevronRight className="size-3" strokeWidth={2} aria-hidden /> : <ChevronDown className="size-3" strokeWidth={2} aria-hidden />}
           </button>
         )}
+        {graphNode.subgraph !== null && <Combine className="size-3 shrink-0 text-fg-2" strokeWidth={2} aria-label="Subgraph" data-node-graph-card-subgraph={graphNode.subgraph} />}
         <span className="truncate text-xs font-semibold text-fg">
           {graphNode.title}
         </span>
@@ -684,6 +693,7 @@ function NodeGraphFlow({
   toolsInTheWindowToolbar,
   viewportWhereItWasLeft,
   onViewportLeft,
+  onSubgraphOpened,
   overlay,
 }: {
   label: string;
@@ -697,9 +707,11 @@ function NodeGraphFlow({
   toolsInTheWindowToolbar: NodeGraphCanvasToolsInTheWindowToolbar | null;
   viewportWhereItWasLeft: NodeGraphCanvasViewport | null;
   onViewportLeft: ((viewport: NodeGraphCanvasViewport) => void) | null;
+  onSubgraphOpened: ((nodeId: string) => void) | null;
   overlay?: ReactNode;
 }) {
   const reactFlow = useReactFlow();
+  const isTheMapShown = useStore(isPartOfTheGraphOutsideTheView);
   const canvasElement = useRef<HTMLDivElement>(null);
   const pointerRestsAt = useRef<NodeGraphCanvasPoint | null>(null);
   const [cardSizeByNode, setCardSizeByNode] = useState<
@@ -1128,6 +1140,10 @@ function NodeGraphFlow({
   const cardAndFrameEditing = useMemo(() => (editing === null ? null : { onFrameRenamed: editing.onFrameRenamed, onCardCollapsed: editing.onCardCollapsed }), [editing]);
 
   const frameSelectionDisabledReason = selectedIds.size === 0 ? "Select the nodes to frame first" : null;
+  const subgraphDisabledReason = selectedIds.size === 0 ? "Select the nodes to collapse into a subgraph first" : null;
+  const collapseTheSelectionIntoASubgraph = useCallback(() => {
+    if (editing !== null && selectedIds.size > 0) editing.onSubgraphAskedFor([...selectedIds]);
+  }, [editing, selectedIds]);
   const onToolbarToolsChanged = toolsInTheWindowToolbar?.onToolsChanged;
   const isEditable = editing !== null;
   useEffect(() => {
@@ -1137,9 +1153,9 @@ function NodeGraphFlow({
       { tool: "add_node", disabled_reason: disabledReasonWhileReadOnly },
       { tool: "frame_selection", disabled_reason: disabledReasonWhileReadOnly ?? frameSelectionDisabledReason },
       { tool: "add_note", disabled_reason: disabledReasonWhileReadOnly },
-      { tool: "add_subgraph", disabled_reason: disabledReasonWhileReadOnly ?? SUBGRAPH_NOT_BUILT_YET },
+      { tool: "add_subgraph", disabled_reason: disabledReasonWhileReadOnly ?? subgraphDisabledReason },
     ]);
-  }, [onToolbarToolsChanged, isEditable, frameSelectionDisabledReason]);
+  }, [onToolbarToolsChanged, isEditable, frameSelectionDisabledReason, subgraphDisabledReason]);
   useEffect(() => {
     if (onToolbarToolsChanged === undefined) return;
     return () => onToolbarToolsChanged(NODE_GRAPH_TOOLS_WHILE_NO_GRAPH_IS_SHOWN);
@@ -1152,11 +1168,12 @@ function NodeGraphFlow({
       if (tool === "add_node") editing.onNodeAskedFor(clearPlaceBroughtIntoView());
       else if (tool === "add_note") editing.onNoteAskedFor(clearPlaceBroughtIntoView());
       else if (tool === "frame_selection" && selectedIds.size > 0) frameTheSelection();
+      else if (tool === "add_subgraph") collapseTheSelectionIntoASubgraph();
     };
     return () => {
       pressFromTheToolbar.current = null;
     };
-  }, [pressFromTheToolbar, editing, clearPlaceBroughtIntoView, frameTheSelection, selectedIds]);
+  }, [pressFromTheToolbar, editing, clearPlaceBroughtIntoView, frameTheSelection, collapseTheSelectionIntoASubgraph, selectedIds]);
 
   const followTheKeys = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -1172,6 +1189,9 @@ function NodeGraphFlow({
       ) {
         event.preventDefault();
         frameTheSelection();
+      } else if (selectedIds.size > 0 && (event.key === "g" || event.key === "G") && (event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey) {
+        event.preventDefault();
+        collapseTheSelectionIntoASubgraph();
       } else if (event.key === "Backspace" || event.key === "Delete") {
         if (selectedIds.size === 0 && selectedLinkIds.size === 0 && selectedNoteIds.size === 0) return;
         event.preventDefault();
@@ -1184,7 +1204,7 @@ function NodeGraphFlow({
         }
       }
     },
-    [editing, middleOfTheView, selectedIds, selectedLinkIds, selectedNoteIds, frameTheSelection, onNodeSelected],
+    [editing, middleOfTheView, selectedIds, selectedLinkIds, selectedNoteIds, frameTheSelection, collapseTheSelectionIntoASubgraph, onNodeSelected],
   );
 
   return (
@@ -1220,6 +1240,9 @@ function NodeGraphFlow({
                 onNodeDragStop={(_event, _node, draggedNodes) => keepTheMovedCards(draggedNodes)}
                 onMoveEnd={(event, viewport) => {
                   if (event !== null && hasBeenFramed) onViewportLeft?.({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
+                }}
+                onNodeDoubleClick={(_event, flowNode) => {
+                  if (flowNode.type === "node_graph_card" && (nodeById.get(flowNode.id)?.subgraph ?? null) !== null) onSubgraphOpened?.(flowNode.id);
                 }}
                 onConnect={wireThePins}
                 onConnectEnd={followTheWireLetGo}
@@ -1277,17 +1300,19 @@ function NodeGraphFlow({
                     </>
                   )}
                 </div>
-                <MiniMap
-                  className="node-graph-minimap"
-                  style={{ width: 168, height: 108 }}
-                  ariaLabel="Map of the whole graph"
-                  pannable
-                  zoomable
-                  nodeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--fg-3)" : "transparent")}
-                  nodeStrokeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--studio-graph-card-line)" : "transparent")}
-                  maskColor="var(--scrim)"
-                  bgColor="var(--studio-graph-tools)"
-                />
+                {isTheMapShown && (
+                  <MiniMap
+                    className="node-graph-minimap"
+                    style={{ width: 168, height: 108 }}
+                    ariaLabel="Map of the whole graph"
+                    pannable
+                    zoomable
+                    nodeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--fg-3)" : "transparent")}
+                    nodeStrokeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--studio-graph-card-line)" : "transparent")}
+                    maskColor="var(--scrim)"
+                    bgColor="var(--studio-graph-tools)"
+                  />
+                )}
                 {overlay}
               </ReactFlow>
             </div>
@@ -1320,6 +1345,7 @@ export function NodeGraphCanvas({
   toolsInTheWindowToolbar = null,
   viewportWhereItWasLeft = null,
   onViewportLeft = null,
+  onSubgraphOpened = null,
   overlay,
   ...controlDataAttributes
 }: {
@@ -1338,6 +1364,8 @@ export function NodeGraphCanvas({
   viewportWhereItWasLeft?: NodeGraphCanvasViewport | null;
   /** Told where the person leaves the pan and zoom after each pan or zoom of theirs. */
   onViewportLeft?: ((viewport: NodeGraphCanvasViewport) => void) | null;
+  /** Told when a person double-clicks a card that holds a subgraph, to step inside it; `null` steps nowhere. */
+  onSubgraphOpened?: ((nodeId: string) => void) | null;
   overlay?: ReactNode;
 } & ControlDataAttributes) {
   return (
@@ -1355,6 +1383,7 @@ export function NodeGraphCanvas({
           toolsInTheWindowToolbar={toolsInTheWindowToolbar}
           viewportWhereItWasLeft={viewportWhereItWasLeft}
           onViewportLeft={onViewportLeft}
+          onSubgraphOpened={onSubgraphOpened}
           overlay={overlay}
         />
       </ReactFlowProvider>

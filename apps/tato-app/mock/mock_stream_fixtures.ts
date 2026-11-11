@@ -1,5 +1,5 @@
 import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
-import type { JsonValue, ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphGroup, StreamGraphLink, StreamGraphNodeStudioFields, StreamGraphNote, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphFragmentKind, StreamGraphGroup, StreamGraphLink, StreamGraphNodeStudioFields, StreamGraphNote, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
 
 function fnv1aHashOf(text: string): number {
   let hash = 2166136261;
@@ -102,6 +102,16 @@ export interface MockGraphNode {
   output_ports: StreamGraphDeclaredPort[];
   /** Its studio fields; none set when absent. */
   studio?: StreamGraphNodeStudioFields;
+  /** What it holds when it is a subgraph; absent on every other node. */
+  fragment?: MockGraphFragment;
+}
+
+/** The graph a mock subgraph node holds, as the runtime renders a node's `fragment`. */
+export interface MockGraphFragment {
+  kind: StreamGraphFragmentKind;
+  nodes: MockGraphNode[];
+  links: StreamGraphLink[];
+  groups: StreamGraphGroup[];
 }
 
 /** Ports of `family` stating no stream facts, as every input and most outputs do; a Records port carries the runtime's unchecked mark. */
@@ -282,6 +292,33 @@ const TEST_PATTERN_GRAPH_INPUTS: MockGraphNode[] = [
   { name: "overlay_text", type: "tatolab.stream:GraphInput", state: null, config: { port: "overlay_text", family: "records" }, input_ports: [], output_ports: portsStatingNoStreamFacts("records", "value") },
 ];
 
+/** A graph generator's frozen output beside the pattern: a halftone look, its dot size promoted to the subgraph's config, read only until unlocked. */
+const HALFTONE_LOOK_GENERATED_SUBGRAPH: MockGraphNode = {
+  name: "halftone-look",
+  type: "generators.looks:halftone_look",
+  state: null,
+  config: { dot_size: 6 },
+  input_ports: portsStatingNoStreamFacts("image", "video_in"),
+  output_ports: portsStatingNoStreamFacts("image", "video_out"),
+  studio: { position: [520, 380], group: null, comment: null, colour: null, collapsed: null, metadata: {} },
+  fragment: {
+    kind: "generated",
+    nodes: [
+      { name: "video_in", type: "tatolab.stream:GraphInput", state: null, config: { port: "video_in", family: "image" }, input_ports: [], output_ports: portsStatingNoStreamFacts("image", "value"), studio: { position: [0, 40], group: null, comment: null, colour: null, collapsed: null, metadata: {} } },
+      { name: "halftone", type: "nodes.halftone:HalftoneEffect", state: "Running", config: { dot_size: 6 }, input_ports: portsStatingNoStreamFacts("image", "video_in"), output_ports: portsStatingNoStreamFacts("image", "video_out"), studio: { position: [260, 20], group: null, comment: null, colour: null, collapsed: null, metadata: {} } },
+      { name: "video_out", type: "tatolab.stream:GraphOutput", state: null, config: { port: "video_out", family: "image" }, input_ports: portsStatingNoStreamFacts("image", "value"), output_ports: [], studio: { position: [540, 40], group: null, comment: null, colour: null, collapsed: null, metadata: {} } },
+    ],
+    links: [
+      { id: "Lhalftonelookin00000000001", source_node: "video_in", source_port: "value", target_node: "halftone", target_port: "video_in", state: "wired" },
+      { id: "Lhalftonelookout0000000001", source_node: "halftone", source_port: "video_out", target_node: "video_out", target_port: "value", state: "wired" },
+    ],
+    groups: [],
+  },
+};
+
+/** The pattern feeding the generated halftone look. */
+const HALFTONE_LOOK_LINK: StreamGraphLink = { id: "Lhalftonelookfeed000000001", source_node: "testpatternsource", source_port: "video", target_node: "halftone-look", target_port: "video_in", state: "wired" };
+
 const TEST_PATTERN_LINKS: StreamGraphLink[] = [
   {
     id: "Lj17fu4mdczivji99oua37i06",
@@ -383,10 +420,11 @@ function createTestPatternStream(
     withTheFixtureViewsNode: boolean;
     withTheCompositorNode: boolean;
     withGraphInputs: boolean;
+    withAGeneratedSubgraph: boolean;
   },
 ): MockStreamFixture {
   const { projectDirectory, recordsTheStream } = options;
-  const nodeCount = 4 + (recordsTheStream === null ? 0 : 1) + (options.withTheFixtureViewsNode ? 1 : 0) + (options.withTheCompositorNode ? 1 : 0);
+  const nodeCount = 4 + (recordsTheStream === null ? 0 : 1) + (options.withTheFixtureViewsNode ? 1 : 0) + (options.withTheCompositorNode ? 1 : 0) + (options.withAGeneratedSubgraph ? 1 : 0);
   const listing = runningListing({ project_directory: projectDirectory, stream_name: options.streamName }, options.displayName, nodeCount);
   const streamId = listing.stream;
   const brightness = (dueAt: number): MockLogRecordDraft => ({
@@ -407,12 +445,14 @@ function createTestPatternStream(
         ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_NODE] : []),
         ...(options.withTheCompositorNode ? [ALPHA_OVER_COMPOSITOR_NODE] : []),
         ...(options.withGraphInputs ? TEST_PATTERN_GRAPH_INPUTS : []),
+        ...(options.withAGeneratedSubgraph ? [HALFTONE_LOOK_GENERATED_SUBGRAPH] : []),
       ],
       links: [
         ...TEST_PATTERN_LINKS.map((link) => (options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" } : link)),
         ...(recordsTheStream === null ? [] : [recorderOfMainLink(recordsTheStream)]),
         ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_LINK] : []),
         ...(options.withTheCompositorNode ? [ALPHA_OVER_COMPOSITOR_LINK] : []),
+        ...(options.withAGeneratedSubgraph ? [HALFTONE_LOOK_LINK] : []),
       ],
       counterRates: options.withTheMeterFallingBehind ? TEST_PATTERN_METER_FALLING_BEHIND : NO_COUNTERS_CLIMB,
     },
@@ -613,6 +653,8 @@ export interface MockStreamFixtures {
   /** `main` with an alpha-over compositor of two layers on the effect's output. */
   mainStreamWithTheCompositorNode: MockStreamFixture;
   mainStreamDeclaringGraphInputs: MockStreamFixture;
+  /** `main` with a graph generator's frozen output wired from the pattern. */
+  mainStreamHoldingAGeneratedSubgraph: MockStreamFixture;
   cameraStream: MockStreamFixture;
   /** The camera stream as the runtime re-loads it at its start before anyone has asked for camera access. */
   cameraStreamWaitingForCameraAccess: MockStreamFixture;
@@ -644,6 +686,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     withTheFixtureViewsNode: false,
     withTheCompositorNode: false,
     withGraphInputs: false,
+    withAGeneratedSubgraph: false,
   };
   const mainStream = createTestPatternStream(machine, mainStreamOptions);
   const cameraStream = createCameraStream(machine);
@@ -663,6 +706,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     mainStreamWithTheFixtureViewsNode: createTestPatternStream(machine, { ...mainStreamOptions, withTheFixtureViewsNode: true }),
     mainStreamWithTheCompositorNode: createTestPatternStream(machine, { ...mainStreamOptions, withTheCompositorNode: true }),
     mainStreamDeclaringGraphInputs: createTestPatternStream(machine, { ...mainStreamOptions, withGraphInputs: true }),
+    mainStreamHoldingAGeneratedSubgraph: createTestPatternStream(machine, { ...mainStreamOptions, withAGeneratedSubgraph: true }),
     cameraStream,
     cameraStreamWaitingForCameraAccess: { ...cameraStream, listing: { ...cameraStream.listing, capture_devices_whose_access_was_never_asked_for: ["camera"] } },
     recorderOfMainStream,
@@ -698,6 +742,7 @@ export function createMockStreamRunFromAProjectFolder(machine: MockMachine, proj
     withTheFixtureViewsNode: false,
     withTheCompositorNode: false,
     withGraphInputs: false,
+    withAGeneratedSubgraph: false,
   });
   return { ...fixture, loadedForMillisecondsAtOpen: 0 };
 }

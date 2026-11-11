@@ -238,3 +238,33 @@ export function noteChangedEdits(
     },
   ];
 }
+
+/** What a collapsed selection's subgraph is named: `subgraph`, or the first of `subgraph-2`, `subgraph-3` … no node of the graph has. */
+export function nameOfTheNewSubgraph(graph: Pick<StreamGraphSummary, "nodes">): string {
+  const takenNames = new Set(graph.nodes.map((node) => node.name));
+  let name = "subgraph";
+  for (let suffix = 2; takenNames.has(name); suffix += 1) name = `subgraph-${suffix}`;
+  return name;
+}
+
+/** The selected cards collapsed into one new subgraph named `subgraphName`, which the runtime makes an authored fragment wired as they were. */
+export function selectionCollapsedEdits(edited: EditedStreamGraph, nodeNames: readonly string[], subgraphName: string): StreamGraphAction[] {
+  const nodes = nodeNames.flatMap((nodeName) => {
+    const nodeId = edited.nodeIdByName.get(nodeName);
+    return nodeId === undefined ? [] : [nodeId];
+  });
+  return nodes.length === 0 ? [] : [{ operation: "collapse_selection_into_subgraph", stream: edited.streamAsset, nodes, name: subgraphName }];
+}
+
+/** A subgraph unlocked: its nodes become plain nodes of the stream, wired as they were. */
+export function subgraphUnlockedEdits(edited: EditedStreamGraph, subgraphName: string): StreamGraphAction[] {
+  const fragment = edited.nodeIdByName.get(subgraphName);
+  return fragment === undefined ? [] : [{ operation: "unlock_generator_fragment", stream: edited.streamAsset, fragment }];
+}
+
+/** A graph generator's subgraph run again from its code with the settings it holds, which the runtime replaces in place under its name. */
+export function subgraphRefreshedEdits(edited: EditedStreamGraph, subgraphName: string): StreamGraphAction[] {
+  const subgraph = edited.graph.nodes.find((node) => node.name === subgraphName);
+  if (subgraph === undefined || subgraph.fragment?.kind !== "generated") return [];
+  return [{ operation: "import_graph_generator", stream: edited.streamAsset, generator: subgraph.type, name: subgraph.name, config: subgraph.config }];
+}

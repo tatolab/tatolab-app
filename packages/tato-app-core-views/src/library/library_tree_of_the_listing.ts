@@ -29,7 +29,7 @@ export function libraryTreeOfTheListing(
 ): ShownStudioTreeRow<LibraryRowMeaning>[] {
   const sourceNodes = listing.sources.flatMap((source): StudioTreeNode<LibraryRowMeaning>[] => {
     const sourceRowId = `source:${nodeTypeSourceKey(source.origin)}`;
-    const sourceTitle = nodeTypeSourceTitle(source.origin, listing.project_name);
+    const sourceTitle = nodeTypeSourceTitle(source.origin);
     const children = nodeTypeSourceChildren(source, sourceRowId, sourceTitle, listing.project_directory, declarationsShown);
     if (children.length === 0 && declarationsShown === "graph_generators") return [];
     return [

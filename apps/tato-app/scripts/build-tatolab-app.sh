@@ -136,7 +136,8 @@ streamlib_commit="$("$scripts_directory/fetch-streamlib-for-the-app-build.sh" "$
 if [ -n "$prebuilt_runtime_unit" ]; then
   runtime_unit_directory="$(cd "$prebuilt_runtime_unit" && pwd)"
 else
-  runtime_unit_directory="$("$scripts_directory/build-tatolab-runtime-unit.sh" "$fetched_streamlib" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"})"
+  runtime_unit_directory="$("$scripts_directory/build-tatolab-runtime-unit.sh" "$fetched_streamlib" \
+    --developer-id-application-identity "$signing_identity" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"})"
 fi
 unit_streamlib_commit="$(cat "$runtime_unit_directory/streamlib-commit" 2>/dev/null || true)"
 [ "$unit_streamlib_commit" = "$streamlib_commit" ] || {

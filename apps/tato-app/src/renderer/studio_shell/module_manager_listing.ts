@@ -1,10 +1,8 @@
-// What the Modules window lists: the catalog's packages and samples in its order, each saying
+// What the Modules and Marketplace window lists: the catalog's packages and samples in its order, each saying
 // whether the project has added it, then the project's modules the catalog does not list.
 
+import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { PackageCatalogEntry, PackageCatalogMember, PackageCatalogReading, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
-
-/** Which of the Modules window's cards it shows: every one, the project's own, or the catalog's samples. */
-export type ModulesShown = "everything" | "added_to_this_project" | "sample_projects";
 
 /** One card of the Modules window: a catalog entry, the project's module of it, or both. */
 export interface ModuleCardRow {
@@ -62,8 +60,7 @@ export function everyModuleCardRowOf(catalog: PackageCatalogReading | null, depe
 
 function rowIsShown(row: ModuleCardRow, modulesShown: ModulesShown): boolean {
   if (modulesShown === "added_to_this_project") return row.module_of_the_project !== null;
-  if (modulesShown === "sample_projects") return row.catalog_entry?.kind === "sample";
-  return true;
+  return row.catalog_entry !== null;
 }
 
 function rowMatchesTheSearch(row: ModuleCardRow, searchText: string): boolean {
@@ -86,7 +83,7 @@ export function moduleCardRowsShownOf(everyRow: readonly ModuleCardRow[], module
 /** How many of `everyRow` each choice of what to show holds, before the search narrows them. */
 export function moduleCardCountsOf(everyRow: readonly ModuleCardRow[]): Record<ModulesShown, number> {
   const countOf = (modulesShown: ModulesShown) => everyRow.filter((row) => rowIsShown(row, modulesShown)).length;
-  return { everything: countOf("everything"), added_to_this_project: countOf("added_to_this_project"), sample_projects: countOf("sample_projects") };
+  return { added_to_this_project: countOf("added_to_this_project"), marketplace: countOf("marketplace") };
 }
 
 /** The card `pickedId` names: the one whose catalog name or folder is `pickedId`, a row's own id winning over another's module folder. */
@@ -94,11 +91,11 @@ export function moduleCardRowPickedBy(rows: readonly ModuleCardRow[], pickedId: 
   return rows.find((row) => row.row_id === pickedId) ?? rows.find((row) => row.module_of_the_project?.folder === pickedId) ?? null;
 }
 
-/** What a card says beside its name about the project's module of it: a newer version at its source, its files edited since the copy, or just that it is added. */
+/** What a card says beside its name about the project's module of it: an update at the source it was copied from, its files edited since the copy, or just that it is added. */
 export function moduleCardMarkOf(row: ModuleCardRow): { words: string; isNews: boolean } | null {
   const dependency = row.module_of_the_project;
   if (dependency === null) return null;
-  if (dependency.newer_version_exists === true) return { words: "Newer version", isNews: true };
+  if (dependency.newer_version_exists === true) return { words: "Update available", isNews: true };
   if (dependency.edited_files.length > 0) return { words: "Added · edited", isNews: false };
   return { words: "Added", isNews: false };
 }

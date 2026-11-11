@@ -11,6 +11,7 @@ import type { StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings
 import type {
   ListedStreamsReading,
   NodeCatalogReading,
+  ProjectNodeTypesReading,
   OpenProjectReading,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
@@ -36,11 +37,18 @@ import {
   noteChangedEdits,
   notePlacedEdits,
   pinsWiredEdits,
+  selectionCollapsedEdits,
   selectionFramedEdits,
   studioFieldsSetBy,
+  subgraphRefreshedEdits,
+  subgraphUnlockedEdits,
+  nameOfTheNewSubgraph,
+  type EditedStreamGraph,
   type LooseWire,
 } from "./stream_graph_edits";
-import { nodeTypeSearchItems } from "./stream_graph_node_type_search";
+import { streamGraphLevelReached } from "./stream_graph_levels";
+import { nodeTypeSearchItems, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
+import { StreamGraphSubgraphReadOnlyBanner, StreamGraphSubgraphTrail } from "./stream_graph_subgraph_strip";
 import { streamGraphSavedWords } from "./stream_graph_saved_words";
 import { isTheSamePlaceLeft, settingsWithTheStreamLeft, whereTheStreamWasLeft, type WhereAStreamWasLeft } from "./stream_graph_where_left";
 
@@ -64,6 +72,9 @@ function importedProjectNameOfTheStream(stream: string, openProject: OpenProject
   const importedProject = openProject.open_project.imports.find((imported) => imported.source.kind === "folder" && imported.source.project.folder === projectDirectory);
   return importedProject === undefined ? null : importedProject.name;
 }
+
+/** Stops nothing: a stream the runtime lists in no project has no project node types to watch. */
+const NO_PROJECT_FOLDER_TO_LIST: StopWatching = () => undefined;
 
 /** The canvas's tools offered to the window's toolbar for as long as the graph is drawn, each press reaching the canvas. */
 function useTheCanvasToolsInTheWindowToolbar(connection: TatoAppViewConnection): NodeGraphCanvasToolsInTheWindowToolbar {
@@ -115,10 +126,47 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
     [connection, streamTab.stream],
   );
   const catalogReading = useViewReading(watchTheTabsCatalog);
+  const [subgraphNamesSteppedThrough, setSubgraphNamesSteppedThrough] = useState<readonly string[]>([]);
+  const levelShown = useMemo(() => (graphReading?.kind === "read" ? streamGraphLevelReached(graphReading.graph, subgraphNamesSteppedThrough) : null), [graphReading, subgraphNamesSteppedThrough]);
+  const subgraphsSteppedThrough = levelShown?.subgraphs_stepped_through ?? [];
+  const innermostSubgraph = subgraphsSteppedThrough.at(-1) ?? null;
   const canvasContents = useMemo(
-    () => (graphReading?.kind === "read" ? streamGraphCanvasContents(graphReading.graph, catalogReading?.kind === "listed" ? catalogReading.catalog : null) : null),
-    [graphReading, catalogReading],
+    () => (levelShown === null ? null : streamGraphCanvasContents(levelShown.graph, catalogReading?.kind === "listed" ? catalogReading.catalog : null)),
+    [levelShown, catalogReading],
   );
+  const [selectedNodeInsideTheSubgraph, setSelectedNodeInsideTheSubgraph] = useState<string | null>(null);
+  const subgraphNamesReached = subgraphsSteppedThrough.map((subgraph) => subgraph.name).join("/");
+  useEffect(() => {
+    if (levelShown !== null && levelShown.subgraphs_stepped_through.length < subgraphNamesSteppedThrough.length) {
+      setSubgraphNamesSteppedThrough(levelShown.subgraphs_stepped_through.map((subgraph) => subgraph.name));
+    }
+  }, [levelShown, subgraphNamesSteppedThrough.length]);
+  const stepToTheLevel = useCallback(
+    (depth: number) => {
+      setSubgraphNamesSteppedThrough((namesBefore) => namesBefore.slice(0, Math.max(depth, 0)));
+      setSelectedNodeInsideTheSubgraph(null);
+    },
+    [],
+  );
+  const stepInsideTheSubgraph = useCallback(
+    (subgraphName: string) => {
+      setSubgraphNamesSteppedThrough(subgraphNamesReached === "" ? [subgraphName] : [...subgraphNamesReached.split("/"), subgraphName]);
+      setSelectedNodeInsideTheSubgraph(null);
+    },
+    [subgraphNamesReached],
+  );
+  const subgraphDepth = subgraphsSteppedThrough.length;
+  useEffect(() => {
+    if (subgraphDepth === 0) return;
+    const stepUpOnU = (event: KeyboardEvent) => {
+      const isTyping = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLElement && event.target.isContentEditable);
+      if (isTyping || event.repeat || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || (event.key !== "u" && event.key !== "U")) return;
+      event.preventDefault();
+      stepToTheLevel(subgraphDepth - 1);
+    };
+    window.addEventListener("keydown", stepUpOnU);
+    return () => window.removeEventListener("keydown", stepUpOnU);
+  }, [subgraphDepth, stepToTheLevel]);
   const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
   const importedProjectName = importedProjectNameOfTheStream(streamTab.stream, openProject, listedStreams);
   const toolsInTheWindowToolbar = useTheCanvasToolsInTheWindowToolbar(connection);
@@ -179,6 +227,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   );
   const [nodeTypeSearchAsked, setNodeTypeSearchAsked] = useState<NodeTypeSearchAsked | null>(null);
   const closeTheNodeTypeSearch = useCallback(() => setNodeTypeSearchAsked(null), []);
+  useEffect(() => setNodeTypeSearchAsked(null), [subgraphNamesReached]);
   const editing = useMemo((): NodeGraphCanvasEditing | null => {
     if (importedProjectName !== null || editedGraph === null || "because" in editedGraph) return null;
     return {
@@ -193,12 +242,43 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
       onNoteAskedFor: (at) => void sendTheGesture(notePlacedEdits(editedGraph, at.on_the_canvas)),
       onDeleted: (deleted) => void sendTheGesture(deletedEdits(editedGraph, deleted)),
       onFrameAskedFor: (nodeIds) => sendTheGesture(selectionFramedEdits(editedGraph, nodeIds)),
+      onSubgraphAskedFor: (nodeIds) => {
+        const subgraphName = nameOfTheNewSubgraph(editedGraph.graph);
+        void sendTheGesture(selectionCollapsedEdits(editedGraph, nodeIds, subgraphName)).then((answer) => {
+          if (answer !== "applied") return;
+          keepWhereTheStreamWasLeft({ selected_node: subgraphName });
+          select({ kind: "node", stream: streamTab.stream, node: subgraphName });
+        });
+      },
       onNoteChanged: (noteId, change) => sendTheGesture(noteChangedEdits(editedGraph, noteId, change)),
       onFrameRenamed: (frameId, title) => void sendTheGesture(frameRenamedEdits(editedGraph, frameId, title)),
       onCardCollapsed: (nodeId, collapsed) => void sendTheStudioGesture(cardCollapsedEdits(editedGraph, nodeId, collapsed)),
     };
-  }, [importedProjectName, editedGraph, sendTheGesture, sendTheStudioGesture]);
-  const catalog = useMemo(() => (catalogReading?.kind === "listed" ? catalogReading.catalog.node_types : []), [catalogReading]);
+  }, [importedProjectName, editedGraph, sendTheGesture, sendTheStudioGesture, select, streamTab.stream, keepWhereTheStreamWasLeft]);
+  const editingOfTheLevelShown = innermostSubgraph === null ? editing : null;
+  const sendTheSubgraphGesture = useCallback(
+    (actionsOf: (edited: EditedStreamGraph, subgraphName: string) => StreamGraphAction[], returnsToTheStreamsLevel: boolean) => {
+      const outermostSubgraph = subgraphsSteppedThrough[0];
+      if (editedGraph === null || "because" in editedGraph || outermostSubgraph === undefined) return;
+      void sendTheGesture(actionsOf(editedGraph, outermostSubgraph.name)).then((answer) => {
+        if (answer !== "applied" || !returnsToTheStreamsLevel) return;
+        stepToTheLevel(0);
+        select({ kind: "nothing" });
+      });
+    },
+    [editedGraph, subgraphsSteppedThrough, sendTheGesture, stepToTheLevel, select],
+  );
+  const projectFolderOfTheStream = listedStream?.location?.project_directory ?? null;
+  const watchTheProjectsNodeTypes = useCallback(
+    (listener: (reading: ProjectNodeTypesReading) => void): StopWatching =>
+      projectFolderOfTheStream === null ? NO_PROJECT_FOLDER_TO_LIST : connection.watchProjectNodeTypes(projectFolderOfTheStream, listener),
+    [connection, projectFolderOfTheStream],
+  );
+  const projectNodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
+  const catalog = useMemo(
+    () => nodeTypesTheSearchOffers(catalogReading?.kind === "listed" ? catalogReading.catalog.node_types : [], projectNodeTypesReading?.kind === "listed" ? projectNodeTypesReading.listing : null),
+    [catalogReading, projectNodeTypesReading],
+  );
   const looseWireOfTheSearch = nodeTypeSearchAsked?.looseWire ?? null;
   const nodeTypeSearchItemsOffered = useMemo(() => nodeTypeSearchItems(catalog, looseWireOfTheSearch), [catalog, looseWireOfTheSearch]);
   const placeTheChosenNodeType = useCallback(
@@ -272,7 +352,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
     );
   }
   if (areaSettings.kind !== "read") return null;
-  if (canvasContents === null || (canvasContents.nodes.length === 0 && editing === null)) {
+  if (canvasContents === null || (canvasContents.nodes.length === 0 && editing === null && innermostSubgraph === null)) {
     return <WaitingState title={`${streamTab.display_name} has no nodes`} explanation="Its graph document holds none." data-stream-graph-state="empty" />;
   }
   return (
@@ -281,21 +361,24 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
         <RefusalLine layout="bar" tone="warning" lead="Read only:" words={editedGraph.because} />
       )}
       {refusalOfTheLatestEdit !== null && <RefusalLine layout="bar" lead={refusalOfTheLatestEdit.lead} words={refusalOfTheLatestEdit.words} />}
+      {innermostSubgraph !== null && <StreamGraphSubgraphTrail streamDisplayName={streamTab.display_name} subgraphsSteppedThrough={subgraphsSteppedThrough} onLevelChosen={stepToTheLevel} />}
       <NodeGraphCanvas
-        label={`Graph of ${streamTab.display_name}`}
+        key={subgraphsSteppedThrough.map((subgraph) => subgraph.name).join("/")}
+        label={innermostSubgraph === null ? `Graph of ${streamTab.display_name}` : `Graph inside ${innermostSubgraph.name}`}
         nodes={canvasContents.nodes}
         links={canvasContents.links}
         frames={canvasContents.frames}
         notes={canvasContents.notes}
-        selectedNodeId={selection?.kind === "node" && selection.stream === streamTab.stream ? selection.node : null}
-        onNodeSelected={onNodeSelected}
-        editing={editing}
+        selectedNodeId={innermostSubgraph !== null ? selectedNodeInsideTheSubgraph : selection?.kind === "node" && selection.stream === streamTab.stream ? selection.node : null}
+        onNodeSelected={innermostSubgraph !== null ? setSelectedNodeInsideTheSubgraph : onNodeSelected}
+        editing={editingOfTheLevelShown}
         toolsInTheWindowToolbar={toolsInTheWindowToolbar}
-        viewportWhereItWasLeft={viewportWhereTheStreamWasLeft}
-        onViewportLeft={onViewportLeft}
+        viewportWhereItWasLeft={innermostSubgraph === null ? viewportWhereTheStreamWasLeft : null}
+        onViewportLeft={innermostSubgraph === null ? onViewportLeft : null}
+        onSubgraphOpened={stepInsideTheSubgraph}
         overlay={
           <>
-            {canvasContents.nodes.length === 0 && nodeTypeSearchAsked === null && (
+            {canvasContents.nodes.length === 0 && nodeTypeSearchAsked === null && innermostSubgraph === null && (
               <p className="pointer-events-none absolute inset-x-0 top-1/3 z-10 text-center text-xs text-fg-3" data-stream-graph-state="empty">
                 {streamTab.display_name} has no nodes yet. Click the graph and press Tab to add one.
               </p>
@@ -315,7 +398,18 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
                 data-stream-graph-node-type-search={streamTab.stream}
               />
             )}
-            {importedProjectName !== null && (
+            {innermostSubgraph !== null && (
+              <div className="absolute top-2 right-2 z-10 max-w-[calc(100%-4rem)]">
+                <StreamGraphSubgraphReadOnlyBanner
+                  subgraph={innermostSubgraph}
+                  isOnTheStreamsOwnLevel={subgraphsSteppedThrough.length === 1}
+                  editsRefusedBecause={importedProjectName !== null ? `${importedProjectName} is an import` : editedGraph === null ? "The graph isn't read yet" : "because" in editedGraph ? editedGraph.because : null}
+                  onRefreshed={() => sendTheSubgraphGesture(subgraphRefreshedEdits, false)}
+                  onUnlocked={() => sendTheSubgraphGesture(subgraphUnlockedEdits, true)}
+                />
+              </div>
+            )}
+            {importedProjectName !== null && innermostSubgraph === null && (
               <div className="absolute top-2 right-2 z-10">
                 <ReadOnlyBanner
                   words={

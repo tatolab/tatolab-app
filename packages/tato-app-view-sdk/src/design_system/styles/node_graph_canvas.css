@@ -101,3 +101,6 @@
   border: 1px solid var(--studio-graph-card-line);
   border-radius: var(--radius-md);
 }
+
+/* A graph generator's output is read only until it is unlocked, so its card's edge is dashed. */
+.node-graph-card[data-subgraph="generated"] { border-style: dashed; }

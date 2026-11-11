@@ -47,13 +47,20 @@ describe("the studio's File menu", () => {
     }
   });
 
-  it("opens Module manager while a project is open, and says why it waits while none is", () => {
+  it("opens the Module manager window on the marketplace or on the project's modules while a project is open, and says why each waits while none is", () => {
     const commands = commandsCounted();
-    const moduleManager = entryOf(studioMenuBarMenus("macos", "build", UP_TO_DATE, commands), "File", "Module manager…");
-    if (moduleManager?.kind !== "command") throw new Error("File › Module manager… is not a command");
-    moduleManager.onChosen();
-    expect(commands.openModuleManager).toHaveBeenCalledOnce();
-    expect(entryOf(studioMenuBarMenus("macos", null, UP_TO_DATE, commands), "File", "Module manager…")).toEqual({ kind: "unavailable_command", label: "Module manager…", unavailableBecause: NO_PROJECT_OPEN_REASON });
+    const menus = studioMenuBarMenus("macos", "build", UP_TO_DATE, commands);
+    const marketplace = entryOf(menus, "File", "Marketplace…");
+    const modules = entryOf(menus, "File", "Modules…");
+    if (marketplace?.kind !== "command" || modules?.kind !== "command") throw new Error("File › Marketplace… or Modules… is not a command");
+    marketplace.onChosen();
+    modules.onChosen();
+    expect(commands.openModuleManager).toHaveBeenNthCalledWith(1, "marketplace");
+    expect(commands.openModuleManager).toHaveBeenNthCalledWith(2, "added_to_this_project");
+    expect(entryOf(menus, "File", "Module manager…")).toBeUndefined();
+    for (const label of ["Marketplace…", "Modules…"]) {
+      expect(entryOf(studioMenuBarMenus("macos", null, UP_TO_DATE, commands), "File", label)).toEqual({ kind: "unavailable_command", label, unavailableBecause: NO_PROJECT_OPEN_REASON });
+    }
   });
 });
 

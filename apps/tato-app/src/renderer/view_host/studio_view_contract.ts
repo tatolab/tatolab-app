@@ -10,6 +10,7 @@ import type {
   ProjectFilesListing,
   ProjectLogReading,
   ProjectNodeTypesReading,
+  ProjectAssetsImporting,
   ProjectAssetsReading,
   ProjectTransactionApplying,
   ProjectTransactionAuthor,
@@ -40,6 +41,7 @@ export type {
   ProjectFileReading,
   ProjectLogReading,
   ProjectNodeTypesReading,
+  ProjectAssetsImporting,
   ProjectAssetsReading,
   ProjectTransaction,
   ProjectTransactionApplying,
@@ -127,6 +129,8 @@ export interface StudioViewHostServices {
   watchProjectNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesReading) => void): StopWatching;
   /** `projectFolder`'s assets, listed while any view watches it and the window is shown; the first reading arrives once listed. */
   watchProjectAssets(projectFolder: string, listener: (reading: ProjectAssetsReading) => void): StopWatching;
+  /** The files the person chooses imported into `projectFolder`, the open project only. */
+  importAssetsIntoTheProject(projectFolder: string): Promise<ProjectAssetsImporting>;
   /** The open project's change feed, when `projectFolder` is its folder: read once, then again each time the runtime applies a transaction. */
   watchProjectTransactions(projectFolder: string, listener: (reading: ProjectTransactionsReading) => void): StopWatching;
   /** The runtime's `undo` by `author` on the open project, answering the undo it applied or its refusal. */

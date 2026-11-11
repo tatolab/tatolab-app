@@ -1,4 +1,4 @@
-import { Box, CircleCheck, Download, FileArchive, FolderOpen, FolderPlus, LayoutGrid, RefreshCw, Search, Shapes, Workflow, X, type LucideIcon } from "lucide-react";
+import { Box, Download, FileArchive, FolderOpen, FolderPlus, Package, RefreshCw, Store, Workflow, X, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import type {
   DependencySourceKind,
@@ -22,11 +22,12 @@ import { PlainCover } from "@tatolab/tato-app-view-sdk/design_system/project_car
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { SectionNavigationList } from "@tatolab/tato-app-view-sdk/design_system/section_navigation_list";
-import { Toolbar, ToolbarGroup } from "@tatolab/tato-app-view-sdk/design_system/toolbar";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { coverInitialOfTheName, projectCoverNumberOfTheName } from "../presentation/projects_presentation";
-import { everyModuleCardRowOf, moduleCardCountsOf, moduleCardMarkOf, moduleCardRowPickedBy, moduleCardRowsShownOf, shortVersionOf, type ModuleCardRow, type ModulesShown } from "./module_manager_listing";
+import { everyModuleCardRowOf, moduleCardCountsOf, moduleCardMarkOf, moduleCardRowPickedBy, moduleCardRowsShownOf, shortVersionOf, type ModuleCardRow } from "./module_manager_listing";
+import { isModulesShown, MODULES_SHOWN, type ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
+import type { ModuleManagerSectionAskNumbered } from "./studio_window_model";
 
 /** The streamlib issue that serves the catalog. */
 const THE_CATALOG_IS_SERVED_WITH = "tatolab/streamlib#3216";
@@ -85,7 +86,6 @@ function MembersSections({ nodes, streams }: { nodes: readonly PackageCatalogMem
 /** The picked card at length: what it brings and where it came from, Add for one the project has not added, and Update and Open to edit for one it has. */
 function ModuleCardDetails({
   row,
-  projectName,
   isBusy,
   onAdded,
   onUpdated,
@@ -93,7 +93,6 @@ function ModuleCardDetails({
   onClosed,
 }: {
   row: ModuleCardRow;
-  projectName: string;
   isBusy: boolean;
   onAdded: () => void;
   onUpdated: () => void;
@@ -118,11 +117,11 @@ function ModuleCardDetails({
         <h2 className="text-lg font-semibold text-fg">{row.title}</h2>
         {entry !== null && <p className="text-[13px] text-fg-2">{entry.summary}</p>}
         {dependency !== null && dependency.newer_version_exists === true && (
-          <p className="text-xs font-medium text-brand-text" data-module-manager-newer-version="">
-            Its source holds a newer version.
+          <p className="text-xs font-medium text-brand-text" data-module-manager-update-available="">
+            An update is available from where it was copied.
           </p>
         )}
-        {dependency !== null && dependency.check_refused_because !== null && <RefusalLine tone="warning" lead="Its source could not be checked:" words={dependency.check_refused_because} />}
+        {dependency !== null && dependency.check_refused_because !== null && <RefusalLine tone="warning" lead="Where it was copied from could not be checked:" words={dependency.check_refused_because} />}
         {entry !== null && <MembersSections nodes={entry.nodes} streams={entry.streams} />}
         {dependency !== null && (
           <PanelSection title={`Edited since its copy (${dependency.edited_files.length})`}>
@@ -166,7 +165,7 @@ function ModuleCardDetails({
         ) : (
           entry !== null && (
             <ActionButton appearance="primary" icon={Download} isDisabled={isBusy} onPressed={onAdded} data-module-manager-import={entry.name}>
-              {`Add to ${projectName}`}
+              Add to this project
             </ActionButton>
           )
         )}
@@ -175,23 +174,35 @@ function ModuleCardDetails({
   );
 }
 
-/** What the Modules window's Show list offers, each with its icon. */
-const MODULES_SHOWN_SECTIONS: readonly { modulesShown: ModulesShown; label: string; icon: LucideIcon }[] = [
-  { modulesShown: "everything", label: "Everything", icon: LayoutGrid },
-  { modulesShown: "added_to_this_project", label: "Added to this project", icon: CircleCheck },
-  { modulesShown: "sample_projects", label: "Sample projects", icon: Shapes },
-];
+/** Each section of the window's sidebar: its group, its name, its icon, and what its search field asks for. */
+const MODULES_SHOWN_SECTIONS: Record<ModulesShown, { groupLabel: string; label: string; icon: LucideIcon; searchPlaceholder: string }> = {
+  added_to_this_project: { groupLabel: "This project", label: "Modules", icon: Package, searchPlaceholder: "Search this project's modules" },
+  marketplace: { groupLabel: "Catalog", label: "Marketplace", icon: Store, searchPlaceholder: "Search packages and samples" },
+};
 
-function isModulesShown(sectionId: string): sectionId is ModulesShown {
-  return MODULES_SHOWN_SECTIONS.some((section) => section.modulesShown === sectionId);
-}
-
-/** The Modules window: the catalog's packages and samples and the project's modules as cards, shown all, added or samples only and narrowed by a search, the picked one at length beside them; more added from a folder or `.zip`. */
-export function ModuleManagerWindowView({ workspace, sources, platform }: { workspace: OpenProjectReading; sources: ModuleManagerSources; platform: TatolabPlatform }) {
-  const [modulesShown, setModulesShown] = useState<ModulesShown>("everything");
+/** The Modules and Marketplace window: the project's modules, added from the Marketplace, a folder or a `.zip` and checked for updates, or the catalog's packages and samples, as cards narrowed by a search, the picked one at length beside them. */
+export function ModuleManagerWindowView({
+  workspace,
+  sectionAsked,
+  sources,
+  platform,
+}: {
+  workspace: OpenProjectReading;
+  sectionAsked: ModuleManagerSectionAskNumbered | null;
+  sources: ModuleManagerSources;
+  platform: TatolabPlatform;
+}) {
+  const [modulesShown, setModulesShown] = useState<ModulesShown>(sectionAsked?.shows ?? "marketplace");
+  const [searchText, setSearchText] = useState("");
+  const showTheSection = useCallback((sectionToShow: ModulesShown) => {
+    setModulesShown(sectionToShow);
+    setSearchText("");
+  }, []);
+  useEffect(() => {
+    if (sectionAsked !== null) showTheSection(sectionAsked.shows);
+  }, [sectionAsked, showTheSection]);
   const [catalog, setCatalog] = useState<PackageCatalogReading | null>(null);
   const [modulesOfTheProject, setModulesOfTheProject] = useState<ModulesOfTheProjectListing>({ kind: "listing" });
-  const [searchText, setSearchText] = useState("");
   const [pickedRowId, setPickedRowId] = useState<string | null>(null);
   const [isTheDetailsPanelClosed, setIsTheDetailsPanelClosed] = useState(false);
   const [workUnderWay, setWorkUnderWay] = useState<string | null>(null);
@@ -230,7 +241,7 @@ export function ModuleManagerWindowView({ workspace, sources, platform }: { work
   const pickedRow = (() => {
     if (isTheDetailsPanelClosed) return null;
     if (pickedRowId === null) return cardRows[0] ?? null;
-    return moduleCardRowPickedBy(cardRows, pickedRowId);
+    return moduleCardRowPickedBy(cardRows, pickedRowId) ?? cardRows[0] ?? null;
   })();
   const pickTheCard = (rowId: string) => {
     setPickedRowId(rowId);
@@ -238,6 +249,7 @@ export function ModuleManagerWindowView({ workspace, sources, platform }: { work
   };
   const projectName = workspace.kind === "read" ? workspace.open_project.project.name : workspace.kind === "unreadable" ? workspace.folder : "";
   const isBusy = workUnderWay !== null;
+  const shownSection = MODULES_SHOWN_SECTIONS[modulesShown];
 
   const doTheWork = <Answer,>(wordsWhileItRuns: string, work: () => Promise<Answer>, thenWith: (answer: Answer) => void) => {
     setActionRefusal(null);
@@ -255,6 +267,7 @@ export function ModuleManagerWindowView({ workspace, sources, platform }: { work
   };
   const addFrom = (source: string) =>
     doTheWork(`Importing ${source}`, () => sources.addDependencyToTheWorkspace(source), (added) => {
+      showTheSection("added_to_this_project");
       pickTheCard(added.folder);
       void listTheModulesOfTheProject();
     });
@@ -285,7 +298,7 @@ export function ModuleManagerWindowView({ workspace, sources, platform }: { work
     setActionRefusal(null);
     sources.openImportToEdit(dependency.folder).catch((rejection: unknown) => setActionRefusal(sources.describeRejection(rejection)));
   };
-  const checkForNewer = () => doTheWork("Checking each module's source for a newer version", () => sources.listWorkspaceDependencies(true), showTheModulesOfTheProject);
+  const checkForUpdates = () => doTheWork("Checking where each module was copied from for an update", () => sources.listWorkspaceDependencies(true), showTheModulesOfTheProject);
 
   const onDragOver = (dragEvent: DragEvent<HTMLDivElement>) => {
     if (!dragEvent.dataTransfer.types.includes("Files")) return;
@@ -307,7 +320,7 @@ export function ModuleManagerWindowView({ workspace, sources, platform }: { work
     if (modulesOfTheProject.kind === "listing") return <WaitingState title="Reading the catalog and the project's modules" data-module-manager-state="reading" />;
     if (cardRows.length > 0) {
       return (
-        <div className="grid auto-rows-min grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3.5 overflow-y-auto p-5" data-module-manager-cards="">
+        <div className="grid auto-rows-min grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3.5 overflow-y-auto px-9 py-5" data-module-manager-cards="">
           {cardRows.map((row) => (
             <ModuleCard
               key={row.row_id}
@@ -329,7 +342,7 @@ export function ModuleManagerWindowView({ workspace, sources, platform }: { work
       return <WaitingState title="The project's modules could not be listed" explanation="The runtime's words are above." data-module-manager-state="refused" />;
     }
     if (modulesShown === "added_to_this_project") {
-      return <WaitingState title="The project has no modules yet" explanation="Add one from the catalog, from a project's folder or .zip, or drop one here." data-module-manager-state="empty" />;
+      return <WaitingState title="The project has no modules yet" explanation="Add one from the Marketplace, from a project's folder or .zip, or drop one here." data-module-manager-state="empty" />;
     }
     if (catalog === null) return <WaitingState title="Reading the catalog" data-module-manager-state="reading" />;
     if (catalog.kind === "not_read") return <WaitingState title="The catalog didn't load" explanation="Its reason is above." data-module-manager-state="not_read" />;
@@ -350,74 +363,80 @@ export function ModuleManagerWindowView({ workspace, sources, platform }: { work
           className="flex h-(--studio-menu-bar-height) shrink-0 items-center justify-center border-b bg-studio-menu-bar px-20 text-xs text-fg-2"
           data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined}
         >
-          <span className="truncate">Modules · {projectName}</span>
+          <span className="truncate">{projectName}</span>
         </div>
       )}
-      <Toolbar label="Modules">
-        <h1 className="px-1 text-base font-semibold">Modules</h1>
-        <ToolbarGroup>
-          <SearchField label="Search modules" placeholder="Search modules and samples" text={searchText} onTextChanged={setSearchText} data-module-manager-search="" />
-        </ToolbarGroup>
-        {workUnderWay !== null && (
-          <ToolbarGroup>
-            <PendingActionWords words={`${workUnderWay}…`} />
-          </ToolbarGroup>
-        )}
-        <ToolbarGroup isAtTheEnd>
-          <ActionButton size="small" icon={FolderPlus} isDisabled={isBusy} onPressed={() => chooseAndAdd("folder")} data-module-manager-add="folder">
-            Add from folder…
-          </ActionButton>
-          <ActionButton size="small" icon={FileArchive} isDisabled={isBusy} onPressed={() => chooseAndAdd("zip")} data-module-manager-add="zip">
-            Add from .zip…
-          </ActionButton>
-          <ActionButton size="small" appearance="quiet" icon={Search} isDisabled={isBusy || dependencies.length === 0} onPressed={checkForNewer} data-module-manager-check-for-newer="">
-            Check for newer
-          </ActionButton>
-        </ToolbarGroup>
-      </Toolbar>
-      {catalog?.kind === "not_read" && (
-        <RefusalLine layout="bar" lead={`The catalog didn't load (it waits on ${THE_CATALOG_IS_SERVED_WITH}):`} words={catalog.because} data-module-manager-state="not_read" />
-      )}
-      {catalog?.kind === "read" && catalog.unreadable_entry_count > 0 && (
-        <RefusalLine tone="warning" layout="bar" words={`The catalog lists ${catalog.unreadable_entry_count} more this Tato Studio cannot read. A newer Tato Studio may list them.`} />
-      )}
-      {modulesOfTheProject.kind === "refused" && <RefusalLine layout="bar" lead="The project's modules could not be listed:" words={modulesOfTheProject.because} data-module-manager-state="refused" />}
-      {actionRefusal !== null && <RefusalLine layout="bar" words={actionRefusal} />}
-      <main className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1">
         <SectionNavigationList
-          label="Show"
-          sectionGroups={[
-            {
-              groupLabel: "Show",
-              sections: MODULES_SHOWN_SECTIONS.map((section) => ({ section_id: section.modulesShown, label: section.label, icon: section.icon, count: cardCounts[section.modulesShown] })),
-            },
-          ]}
+          label="Modules and Marketplace"
+          sectionGroups={MODULES_SHOWN.map((sectionShown) => ({
+            groupLabel: MODULES_SHOWN_SECTIONS[sectionShown].groupLabel,
+            sections: [{ section_id: sectionShown, label: MODULES_SHOWN_SECTIONS[sectionShown].label, icon: MODULES_SHOWN_SECTIONS[sectionShown].icon, count: cardCounts[sectionShown] }],
+          }))}
           shownSectionId={modulesShown}
           onSectionChosen={(sectionId) => {
-            if (isModulesShown(sectionId)) setModulesShown(sectionId);
+            if (isModulesShown(sectionId)) showTheSection(sectionId);
           }}
           dataAttributeOfEachSection="data-module-manager-show"
-          width="wide"
+          placement="window"
+          width="sidebar"
         />
-        <div className="flex min-w-0 flex-1 flex-col">{cardGrid}</div>
-        {pickedRow !== null && (
-          <ModuleCardDetails
-            row={pickedRow}
-            projectName={projectName}
-            isBusy={isBusy}
-            onAdded={() => {
-              if (pickedRow.catalog_entry !== null) addFromTheCatalog(pickedRow.catalog_entry);
-            }}
-            onUpdated={() => {
-              if (pickedRow.module_of_the_project !== null) update(pickedRow.module_of_the_project, pickedRow.title, false);
-            }}
-            onOpenedToEdit={() => {
-              if (pickedRow.module_of_the_project !== null) openToEdit(pickedRow.module_of_the_project);
-            }}
-            onClosed={() => setIsTheDetailsPanelClosed(true)}
-          />
-        )}
-      </main>
+        <main className="flex min-w-0 flex-1">
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 px-9 pt-8 pb-1">
+              <h1 className="mr-auto shrink-0 text-2xl font-semibold whitespace-nowrap">{shownSection.label}</h1>
+              {workUnderWay !== null && <PendingActionWords words={`${workUnderWay}…`} />}
+              <SearchField label={shownSection.searchPlaceholder} placeholder={shownSection.searchPlaceholder} text={searchText} onTextChanged={setSearchText} data-module-manager-search="" />
+            </div>
+            {modulesShown === "added_to_this_project" && (
+              <div className="flex shrink-0 flex-wrap items-center gap-2 px-9 pt-3 pb-1">
+                <ActionButton size="small" icon={FolderPlus} isDisabled={isBusy} onPressed={() => chooseAndAdd("folder")} data-module-manager-add="folder">
+                  Add from folder…
+                </ActionButton>
+                <ActionButton size="small" icon={FileArchive} isDisabled={isBusy} onPressed={() => chooseAndAdd("zip")} data-module-manager-add="zip">
+                  Add from .zip…
+                </ActionButton>
+                <ActionButton
+                  size="small"
+                  appearance="quiet"
+                  icon={RefreshCw}
+                  isDisabled={isBusy || dependencies.length === 0}
+                  tooltip="Ask the folder, .zip or Marketplace each module was copied from whether it has changed since"
+                  onPressed={checkForUpdates}
+                  data-module-manager-check-for-updates=""
+                >
+                  Check for updates
+                </ActionButton>
+              </div>
+            )}
+            {modulesShown === "marketplace" && catalog?.kind === "not_read" && (
+              <RefusalLine layout="bar" lead={`The catalog didn't load (it waits on ${THE_CATALOG_IS_SERVED_WITH}):`} words={catalog.because} data-module-manager-state="not_read" />
+            )}
+            {modulesShown === "marketplace" && catalog?.kind === "read" && catalog.unreadable_entry_count > 0 && (
+              <RefusalLine tone="warning" layout="bar" words={`The catalog lists ${catalog.unreadable_entry_count} more this Tato Studio cannot read. A newer Tato Studio may list them.`} />
+            )}
+            {modulesOfTheProject.kind === "refused" && <RefusalLine layout="bar" lead="The project's modules could not be listed:" words={modulesOfTheProject.because} data-module-manager-state="refused" />}
+            {actionRefusal !== null && <RefusalLine layout="bar" words={actionRefusal} />}
+            <div className="flex min-h-0 flex-1 flex-col">{cardGrid}</div>
+          </div>
+          {pickedRow !== null && (
+            <ModuleCardDetails
+              row={pickedRow}
+              isBusy={isBusy}
+              onAdded={() => {
+                if (pickedRow.catalog_entry !== null) addFromTheCatalog(pickedRow.catalog_entry);
+              }}
+              onUpdated={() => {
+                if (pickedRow.module_of_the_project !== null) update(pickedRow.module_of_the_project, pickedRow.title, false);
+              }}
+              onOpenedToEdit={() => {
+                if (pickedRow.module_of_the_project !== null) openToEdit(pickedRow.module_of_the_project);
+              }}
+              onClosed={() => setIsTheDetailsPanelClosed(true)}
+            />
+          )}
+        </main>
+      </div>
       <FormDialog
         isOpen={updateWaitingOnTheOverwrite !== null}
         onOpenChange={(isOpen) => {

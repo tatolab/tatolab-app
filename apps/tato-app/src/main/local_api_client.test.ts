@@ -1387,6 +1387,19 @@ test("describing_a_project_calls_set_project_description_and_reads_its_settings_
   ]);
 });
 
+test("an_asset_the_person_imports_naming_no_path_lands_in_its_kinds_folder_numbered_past_a_name_taken_recorded_under_them_and_answered_by_its_uuid_and_path", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-answer-for-poster-png-numbered-poster-3-in-media-imported-by-a-person.json")),
+  ]);
+  const tidePool = "/tmp/tatolab-proof-projects/tide-pool";
+
+  expect(answerOf(await server.client().importAsset(tidePool, "/tmp/poster.png", null, { kind: "person", name: "sam" }))).toEqual({
+    asset: "d18ac59c-d741-45fc-8d21-d3febd0d14a0",
+    path: "media/poster-3.png",
+  });
+  expect(toolCallsReceivedBy(server)).toEqual([["import_asset", { project_directory: tidePool, source: "/tmp/poster.png", author: { kind: "person", name: "sam" } }]]);
+});
+
 test("covering_a_project_imports_the_image_with_import_asset_then_names_it_with_set_project_cover_and_each_refusal_is_in_the_runtimes_words", async () => {
   const server = await fakeLocalApiServerAnswering([
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-answer-for-cover-art-png-into-night-show.json")),
@@ -1396,8 +1409,8 @@ test("covering_a_project_imports_the_image_with_import_asset_then_names_it_with_
   ]);
   const nightShow = "/tmp/tatolab-proof-projects/night-show";
 
-  expect(answerOf(await server.client().importAsset(nightShow, "/tmp/cover-art.png", "media/cover-art.png"))).toEqual({ asset: "7593be3b-210b-4656-ab21-2213bfa307b5", path: "media/cover-art.png" });
-  expect(failureOf(await server.client().importAsset(nightShow, "/tmp/cover-art.png", "media/cover-art.png")).failureDescription).toBe(
+  expect(answerOf(await server.client().importAsset(nightShow, "/tmp/cover-art.png", "media/cover-art.png", null))).toEqual({ asset: "7593be3b-210b-4656-ab21-2213bfa307b5", path: "media/cover-art.png" });
+  expect(failureOf(await server.client().importAsset(nightShow, "/tmp/cover-art.png", "media/cover-art.png", null)).failureDescription).toBe(
     "import_asset failed: `media/cover-art.png` is already the path of the asset 7593be3b-210b-4656-ab21-2213bfa307b5",
   );
   expect(answerOf(await server.client().setProjectCover(nightShow, "7593be3b-210b-4656-ab21-2213bfa307b5"))).toMatchObject({ cover: "7593be3b-210b-4656-ab21-2213bfa307b5" });

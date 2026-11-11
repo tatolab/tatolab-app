@@ -4,6 +4,7 @@
 
 import type { OpenProjectReading, ProjectTransactionsReading, PortViewerEvent, PortViewerImageFrameFacts, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
+  TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT,
   TATOLAB_OPEN_PROJECT_CHANGED_EVENT,
   TATOLAB_PROJECT_TRANSACTIONS_CHANGED_EVENT,
   TATOLAB_PORT_VIEWER_EVENT,
@@ -11,6 +12,8 @@ import {
   TATOLAB_STATUS_CHANGED_EVENT,
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
   TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT,
+  type ModuleManagerSectionAsked,
+  type ModulesShown,
   type SystemMenuBarEntryChosen,
   type TatolabStreamPageRequest,
 } from "../shared/tatolab_electron_bridge_contract.js";
@@ -166,6 +169,11 @@ export class TatolabMainWindow implements WindowShowingPortViewers {
   /** Send the window `reading` as `tatolab-open-project-changed`; nothing, before the window is first shown, which reads its project when it opens. */
   sendTheWindowTheOpenProject(reading: OpenProjectReading): void {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_OPEN_PROJECT_CHANGED_EVENT, reading);
+  }
+
+  /** Ask the Module manager window to show `shows` as `tatolab-module-manager-section-asked`; nothing, before the window is first shown, which reads the section last asked when it opens. */
+  askTheWindowToShowTheModuleManagerSection(shows: ModulesShown): void {
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT, { shows } satisfies ModuleManagerSectionAsked);
   }
 
   /** Send the window `reading` as `tatolab-project-transactions-changed`; nothing, before the window is first shown, which reads the feed when it opens. */

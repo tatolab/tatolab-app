@@ -13,6 +13,7 @@ import type {
   NodeCatalog,
   ProjectNodeTypeListing,
   ProjectAssetListing,
+  ProjectAssetsImported,
   OpenProjectReading,
   ProjectTransaction,
   ProjectTransactionAuthor,
@@ -44,7 +45,7 @@ import type {
   NewProjectDefaults,
   SystemMenuBarMenu,
 } from "../../shared/tatolab_backend_contract";
-import { TATOLAB_WINDOW_PAGE_SCHEME, type TatolabElectronBridge } from "../../shared/tatolab_electron_bridge_contract";
+import { TATOLAB_WINDOW_PAGE_SCHEME, type ModulesShown, type TatolabElectronBridge } from "../../shared/tatolab_electron_bridge_contract";
 
 declare global {
   interface Window {
@@ -69,6 +70,8 @@ export interface TatolabBackend {
   listProjectNodeTypes(projectDirectory: string): Promise<ProjectNodeTypeListing>;
   /** Every asset of the project in `projectDirectory`, its graph documents among them; rejects in the runtime's own words. */
   listProjectAssets(projectDirectory: string): Promise<ProjectAssetListing>;
+  /** Ask the person for files and import each into the window's project, where the runtime places it in its kind's folder, by the person editing; `null` when they choose nothing, rejecting in Studio's or the runtime's words. */
+  importAssetsIntoTheOpenProject(): Promise<ProjectAssetsImported | null>;
   /** Check for a newer Tato Studio, downloading one that installs in place; how that goes arrives as the status's `app_update`. */
   checkForTatolabAppUpdates(): Promise<void>;
   /** Restart into a downloaded Tato Studio, download one a check found, or open a `.deb`'s download; how that goes arrives as the status's `app_update`. */
@@ -130,10 +133,14 @@ export interface TatolabBackend {
   popOutView(target: PoppedOutView): Promise<void>;
   /** The view this window shows when it is a popped-out view; `null` in the Projects and studio windows. */
   readPoppedOutView(): Promise<PoppedOutView | null>;
-  /** Open this studio window's Module manager window, or bring it forward; rejects in words from any other window. */
-  openModuleManagerWindow(): Promise<void>;
+  /** Open this studio window's Module manager window on the section `shows`, or bring it forward showing `shows`; rejects in words from any other window. */
+  openModuleManagerWindow(shows: ModulesShown): Promise<void>;
   /** This window's workspace when it is a Module manager window, as last read from disk; `null` in any other window. Later readings arrive through `onOpenProjectChanged`. */
   readModuleManagerWorkspace(): Promise<OpenProjectReading | null>;
+  /** The section this window was last asked to show when it is a Module manager window; `null` in any other window. Later asks arrive through `onModuleManagerSectionAsked`. */
+  readModuleManagerSectionLastAsked(): Promise<ModulesShown | null>;
+  /** Calls `listener` with each section this Module manager window is asked to show once open; the returned function stops it. */
+  onModuleManagerSectionAsked(listener: (shows: ModulesShown) => void): () => void;
   /** The catalog get.tatolab.com serves, or why it was not read. */
   readPackageCatalog(): Promise<PackageCatalogReading>;
   /** The workspace's imports as the runtime lists them, each source read for a newer version with `checkForNewer`; rejects in the runtime's own words. */

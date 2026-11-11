@@ -110,7 +110,8 @@ function aFakeRuntimeChangingProjects(options: { deletionStates: readonly Stream
       await writeAProjectFile(projectDirectory, { ...projectFile, cover: cover ?? undefined });
       return succeeded({ name: projectFile.name, description: projectFile.description ?? null, cover });
     },
-    importAsset: async (projectDirectory, source, assetPath) => {
+    importAsset: async (projectDirectory, source, assetPathNamed) => {
+      const assetPath = assetPathNamed ?? `media/${path.basename(source)}`;
       const projectFile = await readAProjectFile(projectDirectory);
       if (projectFile === null) return aRefusalOfTheRuntime(refusalOfAFolderHoldingNoProject(projectDirectory));
       if (Object.values(projectFile.asset_paths ?? {}).includes(assetPath)) return aRefusalOfTheRuntime(`import_asset failed: the project already holds ${assetPath}`);

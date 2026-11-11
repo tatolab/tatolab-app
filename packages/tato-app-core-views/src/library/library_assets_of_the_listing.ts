@@ -2,7 +2,7 @@
 // graph documents left to the Outliner, grouped by the folder each sits in at the project's top.
 
 import type { ProjectAssetPictureTone } from "@tatolab/tato-app-view-sdk/design_system/project_asset_card";
-import type { ProjectAsset, ProjectAssetListing } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { ProjectAsset, ProjectAssetListing, ProjectAssetsImporting } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The id of the choice that shows every asset, whatever its folder. */
 export const EVERY_ASSET_FOLDER_ID = "every_asset";
@@ -33,6 +33,29 @@ export function libraryAssetFoldersOf(assets: readonly ProjectAsset[]): LibraryA
     .sort(([leftFolder], [rightFolder]) => leftFolder.localeCompare(rightFolder))
     .map(([folder, assetCount]): LibraryAssetFolder => ({ folder_id: `folder:${folder}`, label: folder === "." ? "Project folder" : folder, asset_count: assetCount }));
   return [{ folder_id: EVERY_ASSET_FOLDER_ID, label: "All assets", asset_count: assets.length }, ...folders];
+}
+
+/** The folder shown for the choice `shownFolderId`: that folder while the project still has it, every asset otherwise. */
+export function assetFolderIdShownOf(folders: readonly LibraryAssetFolder[], shownFolderId: string): string {
+  return folders.some((folder) => folder.folder_id === shownFolderId) ? shownFolderId : EVERY_ASSET_FOLDER_ID;
+}
+
+/** One file Import asset… did not import, or the import as a whole, with the words of whoever refused it. */
+export interface LibraryImportRefusal {
+  lead: string;
+  because: string;
+}
+
+/** What to say of an import that refused anything: each file the runtime refused, or why nothing was imported. */
+export function importRefusalsOf(importing: ProjectAssetsImporting): LibraryImportRefusal[] {
+  switch (importing.kind) {
+    case "imported":
+      return importing.assets_imported.refused.map((refused) => ({ lead: `Didn't import ${refused.file_name}:`, because: refused.because }));
+    case "nothing_chosen":
+      return [];
+    case "not_imported":
+      return [{ lead: "Didn't import:", because: importing.because }];
+  }
 }
 
 /** The assets in the folder `folderId` whose path holds `searchText`, ignoring case. */
