@@ -484,17 +484,17 @@ describe("the studio", () => {
     await waitFor(() => expect(streamTabNames()).toEqual(["main"]));
 
     await chooseFromTheMenuBar("Stream", /^New stream…/);
-    const newStreamName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-stream-name-dialog=\"new_stream\"] [data-stream-name]") ?? expect.unreachable("no New stream dialog"));
+    const newStreamName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-name-form-dialog=\"new_stream\"] [data-name-form-name]") ?? expect.unreachable("no New stream dialog"));
     fireEvent.change(newStreamName, { target: { value: "  " } });
     fireEvent.keyDown(newStreamName, { key: "Enter" });
-    expect(document.querySelector("[data-stream-name-dialog]")).not.toBeNull();
+    expect(document.querySelector("[data-name-form-dialog]")).not.toBeNull();
     fireEvent.change(newStreamName, { target: { value: "Lobby preview" } });
     fireEvent.keyDown(newStreamName, { key: "Enter" });
-    await waitFor(() => expect(document.querySelector("[data-stream-name-dialog]")).toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-name-form-dialog]")).toBeNull());
     await waitFor(() => expect(streamTabNames()).toEqual(["main", "Lobby preview"]));
 
     await chooseFromTheMenuBar("Stream", /^Rename stream…/);
-    const newName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-stream-name-dialog=\"rename_stream\"] [data-stream-name]") ?? expect.unreachable("no Rename stream dialog"));
+    const newName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-name-form-dialog=\"rename_stream\"] [data-name-form-name]") ?? expect.unreachable("no Rename stream dialog"));
     expect(newName.value).toBe("Lobby preview");
     fireEvent.change(newName, { target: { value: "Lobby loop" } });
     fireEvent.click(screen.getByRole("button", { name: "Rename" }));
@@ -514,14 +514,14 @@ describe("the studio", () => {
       },
     });
     await chooseFromTheMenuBar("Stream", /^New stream…/);
-    const newStreamName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-stream-name]") ?? expect.unreachable("no New stream dialog"));
+    const newStreamName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-name-form-name]") ?? expect.unreachable("no New stream dialog"));
     fireEvent.change(newStreamName, { target: { value: "Lobby preview" } });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
-    await waitFor(() => expect(textOf("[data-stream-name-refusal]")).toContain("streams/lobby_preview.json already holds a stream asset"));
-    expect(document.querySelector("[data-stream-name-dialog]")).not.toBeNull();
+    await waitFor(() => expect(textOf("[data-name-form-refusal]")).toContain("streams/lobby_preview.json already holds a stream asset"));
+    expect(document.querySelector("[data-name-form-dialog]")).not.toBeNull();
   });
 
-  it("closes the shown tab with ⌘W, reopens it with ⇧⌘T, and moves between tabs with ⌃Tab and ⌃⇧Tab", async () => {
+  it("closes the shown tab with ⌘W, reopens it with ⇧⌘T, and moves between tabs with ⌃Tab and ⌃⇧Tab, none of them behind a dialog", async () => {
     let askToShowAStream: (streamId: string) => void = () => expect.unreachable("the window did not listen for stream requests");
     await mountedWindowOverTheMock("state=running", {
       onStreamPageRequested: (listener) => {
@@ -529,7 +529,7 @@ describe("the studio", () => {
         return () => undefined;
       },
     });
-    const streamTabs = () => within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab");
+    const streamTabs = () => within(screen.getByRole("tablist", { name: "Open streams", hidden: true })).getAllByRole("tab", { hidden: true });
     const shownTabName = () => streamTabs().find((tab) => tab.getAttribute("aria-selected") === "true")?.textContent;
     await waitFor(() => expect(streamTabs().map((tab) => tab.textContent)).toEqual(["main"]));
     act(() => askToShowAStream(mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_name: "main" })));
@@ -543,6 +543,13 @@ describe("the studio", () => {
     fireEvent.keyDown(document, { key: "w", metaKey: true });
     expect(streamTabs().map((tab) => tab.textContent)).toEqual(["main"]);
     fireEvent.keyDown(document, { key: "T", metaKey: true, shiftKey: true });
+    expect(streamTabs().map((tab) => tab.textContent)).toEqual(["main", "camera"]);
+    expect(shownTabName()).toBe("camera");
+
+    fireEvent.keyDown(document, { key: ",", metaKey: true });
+    await waitFor(() => expect(document.querySelector("[role=dialog]")).not.toBeNull());
+    fireEvent.keyDown(document, { key: "w", metaKey: true });
+    fireEvent.keyDown(document, { key: "Tab", ctrlKey: true });
     expect(streamTabs().map((tab) => tab.textContent)).toEqual(["main", "camera"]);
     expect(shownTabName()).toBe("camera");
   });
@@ -561,9 +568,9 @@ describe("the studio", () => {
 
     chooseFromTheSystemMenuBar("Stream › Close tab");
     await waitFor(() => expect(streamEntry("Reopen closed tab")).toMatchObject({ unavailable_because: null }));
-    expect(streamEntry("Close tab").kind === "command" && streamEntry("Close tab").unavailable_because).toBeTruthy();
+    expect(streamEntry("Close tab")).toMatchObject({ unavailable_because: "Open a stream's tab first" });
     chooseFromTheSystemMenuBar("Stream › New stream…");
-    await waitFor(() => expect(document.querySelector("[data-stream-name-dialog=\"new_stream\"]")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-name-form-dialog=\"new_stream\"]")).not.toBeNull());
   });
 
   it("switches layouts from Window › Layout and with ⌘1 to ⌘5, each keeping its own areas", async () => {
@@ -1051,7 +1058,7 @@ describe("the studio", () => {
 
     pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Rename…/ }));
-    const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-rename-project-name]") ?? expect.unreachable("no Rename dialog"));
+    const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-name-form-name]") ?? expect.unreachable("no Rename dialog"));
     expect(nameField.value).toBe("pattern");
     fireEvent.change(nameField, { target: { value: "   " } });
     fireEvent.keyDown(nameField, { key: "Enter" });
@@ -1059,13 +1066,13 @@ describe("the studio", () => {
 
     fireEvent.change(nameField, { target: { value: "Refused" } });
     fireEvent.click(screen.getByRole("button", { name: "Rename" }));
-    await waitFor(() => expect(textOf("[data-rename-project-refusal]")).toContain("rename_project failed: the project file is read-only"));
-    expect(document.querySelector("[data-rename-project-dialog]")).not.toBeNull();
+    await waitFor(() => expect(textOf("[data-name-form-refusal]")).toContain("rename_project failed: the project file is read-only"));
+    expect(document.querySelector("[data-name-form-dialog='rename_project']")).not.toBeNull();
 
     fireEvent.change(nameField, { target: { value: "Night Show" } });
     fireEvent.keyDown(nameField, { key: "Enter" });
 
-    await waitFor(() => expect(document.querySelector("[data-rename-project-dialog]")).toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-name-form-dialog='rename_project']")).toBeNull());
     expect(renameRecentProject).toHaveBeenLastCalledWith(PATTERN_PROJECT, "Night Show");
     await waitFor(() => expect(within(patternCard).getByRole("button", { name: /^Actions for Night Show,/ })).toBeTruthy());
   });

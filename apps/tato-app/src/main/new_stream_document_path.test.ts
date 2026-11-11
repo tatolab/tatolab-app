@@ -12,4 +12,5 @@ test("a new stream's graph document is named for its display name in streams/, n
   ).toBe("streams/main-3.graph.json");
   expect(newStreamDocumentPathNoFileHolds("Préview ✨", [])).toBe("streams/pr_view.graph.json");
   expect(newStreamDocumentPathNoFileHolds("✨", [])).toBe("streams/stream.graph.json");
+  expect(newStreamDocumentPathNoFileHolds("Preview", [{ path: "streams/Preview.graph.json", byte_len: 287 }])).toBe("streams/preview-2.graph.json");
 });

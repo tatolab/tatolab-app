@@ -15,7 +15,6 @@ import type {
   PoppedOutView,
   PortViewerTarget,
   ProjectCreationQueued,
-  StreamAssetCreated,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   ProjectRunQueued,
@@ -26,7 +25,9 @@ import type {
   RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
+  StreamAssetCreated,
   StreamGraphSummary,
+  StreamLocation,
   NodeCatalog,
   ProjectNodeTypeListing,
   ProjectAssetListing,
@@ -220,20 +221,23 @@ function stepTheProjectsWindowAsideOnceItOpenedAProject(
   }
 }
 
-/** The stream the runtime last listed under the id `stream`, with its project folder and stream asset, or why Tato Studio cannot act on it, the act named as `act` ("rename") and `actedOn` ("renamed"). */
-function listedStreamWithItsStreamAsset(sharedState: TatolabAppSharedState, stream: string, act: string, actedOn: string): Result<{ display_name: string; project_directory: string; stream_asset: string }, string> {
+/** What Tato Studio calls each stream edit in a refusal, as it asks and once done. */
+const STREAM_EDIT_WORDS = { rename: "renamed", delete: "deleted" } as const;
+
+/** Where the runtime last listed the stream with the id `stream`, its project folder and stream asset, or why Tato Studio cannot `edit` it. */
+function streamLocationTheRuntimeLastListedFor(sharedState: TatolabAppSharedState, stream: string, edit: keyof typeof STREAM_EDIT_WORDS): Result<StreamLocation, string> {
   const listedStream = sharedState.statusPublisher.lastPublishedStatusNow()?.streams?.find((candidateListedStream) => candidateListedStream.stream === stream) ?? null;
-  if (listedStream === null) return failedWith(`The runtime does not list ${stream}, so Tato Studio has no stream to ${act}.`);
-  if (listedStream.location === null) return failedWith(`The runtime lists no project for ${listedStream.display_name}, so it cannot be ${actedOn}.`);
-  return succeeded({ display_name: listedStream.display_name, project_directory: listedStream.location.project_directory, stream_asset: listedStream.location.stream_asset });
+  if (listedStream === null) return failedWith(`The runtime does not list ${stream}, so Tato Studio has no stream to ${edit}.`);
+  if (listedStream.location === null) return failedWith(`The runtime lists no project for ${listedStream.display_name}, so it cannot be ${STREAM_EDIT_WORDS[edit]}.`);
+  return succeeded(listedStream.location);
 }
 
 /** `rename_stream { stream, display_name }`: the runtime's `set_stream_display_name` by the person editing on the stream asset the runtime last listed for `stream`, then a status round whether it renamed or refused; refused in the runtime's own words, or for a stream it lists no project for. */
 export function renameStream(sharedState: TatolabAppSharedState, stream: string, displayName: string): Promise<Result<void, string>> {
   return answerTheWindow("rename_stream", async () => {
-    const listedStream = listedStreamWithItsStreamAsset(sharedState, stream, "rename", "renamed");
-    if (!listedStream.ok) return listedStream;
-    const renamed = await sharedState.controller.setStreamDisplayName(listedStream.value.project_directory, listedStream.value.stream_asset, displayName, sharedState.thePersonEditingInStudio);
+    const streamLocation = streamLocationTheRuntimeLastListedFor(sharedState, stream, "rename");
+    if (!streamLocation.ok) return streamLocation;
+    const renamed = await sharedState.controller.setStreamDisplayName(streamLocation.value.project_directory, streamLocation.value.stream_asset, displayName, sharedState.thePersonEditingInStudio);
     sharedState.statusPublisher.requestRefresh();
     return renamed.ok ? succeeded(undefined) : failedWith(renamed.failure.failureDescription);
   });
@@ -242,9 +246,9 @@ export function renameStream(sharedState: TatolabAppSharedState, stream: string,
 /** `delete_stream { stream }`: the runtime's `delete_stream` by the person editing on the stream asset the runtime last listed for `stream`, then a status round whether it deleted or refused; refused in the runtime's own words, or for a stream it lists no project for. */
 export function deleteStream(sharedState: TatolabAppSharedState, stream: string): Promise<Result<void, string>> {
   return answerTheWindow("delete_stream", async () => {
-    const listedStream = listedStreamWithItsStreamAsset(sharedState, stream, "delete", "deleted");
-    if (!listedStream.ok) return listedStream;
-    const deleted = await sharedState.controller.deleteStream(listedStream.value.project_directory, listedStream.value.stream_asset, sharedState.thePersonEditingInStudio);
+    const streamLocation = streamLocationTheRuntimeLastListedFor(sharedState, stream, "delete");
+    if (!streamLocation.ok) return streamLocation;
+    const deleted = await sharedState.controller.deleteStream(streamLocation.value.project_directory, streamLocation.value.stream_asset, sharedState.thePersonEditingInStudio);
     sharedState.statusPublisher.requestRefresh();
     return deleted.ok ? succeeded(undefined) : failedWith(deleted.failure.failureDescription);
   });

@@ -147,12 +147,24 @@ describe("Help's updates entry", () => {
 });
 
 describe("the studio's menus in macOS's system menu bar", () => {
+  it("leave ⌘W to Close Window while no project is open, and give it to Close tab while one is", () => {
+    const menusWith = (chosenLayout: "build" | null) => studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(chosenLayout, NO_STREAM_TABS, UP_TO_DATE, commandsCounted())).menus;
+    const closeEntriesOf = (chosenLayout: "build" | null) => {
+      const menus = menusWith(chosenLayout);
+      const closeWindow = menus.find((menu) => menu.label === "File")?.entries.at(-1);
+      const closeTab = menus.find((menu) => menu.label === "Stream")?.entries.find((entry) => entry.kind === "command" && entry.label === "Close tab");
+      return { closeWindow, closeTabShortcut: closeTab?.kind === "command" ? closeTab.shortcut_hint : undefined };
+    };
+    expect(closeEntriesOf(null)).toEqual({ closeWindow: { kind: "system_items", system_items: "close_window" }, closeTabShortcut: null });
+    expect(closeEntriesOf("build")).toEqual({ closeWindow: { kind: "system_items", system_items: "close_window_beside_close_tab" }, closeTabShortcut: "⌘W" });
+  });
+
   it("keep About and Settings… in the app menu, and the desktop's own items where a Mac app keeps them", () => {
     const { menus } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar("build", NO_STREAM_TABS, UP_TO_DATE, commandsCounted()));
     const labelsOf = (menuLabel: string) =>
       menus.find((menu) => menu.label === menuLabel)?.entries.map((entry) => (entry.kind === "system_items" ? `[${entry.system_items}]` : entry.kind === "separator" ? "—" : entry.label));
     expect(labelsOf("Tato Studio")).toEqual(["About Tato Studio", "Check for Updates…", "—", "Settings…", "—", "[app_services_hide_and_quit]"]);
-    expect(labelsOf("File")?.slice(-2)).toEqual(["—", "[close_window]"]);
+    expect(labelsOf("File")?.slice(-2)).toEqual(["—", "[close_window_beside_close_tab]"]);
     expect(labelsOf("Edit")).toEqual(["[text_editing]", "—", "Undo Your Last Edit", "Redo Your Last Undo"]);
     expect(labelsOf("View")).toEqual(["[full_screen]"]);
     expect(labelsOf("Window")).toEqual(["[window_arrangement]", "—", "Layout", "Save layout as…", "Maximise area", "New window", "—", "[bring_all_to_front]"]);

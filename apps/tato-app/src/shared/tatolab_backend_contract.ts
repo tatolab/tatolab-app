@@ -486,8 +486,8 @@ export type PortViewerEvent =
   | { port_viewer: string; kind: "reopening"; because: string }
   | { port_viewer: string; kind: "ended"; because: string };
 
-/** The items of the system menu bar only the desktop draws, which a studio menu places among its own entries: macOS's Services, Hide and Quit; Undo through Select All; Close Window; Minimize and Zoom; Bring All to Front; and Enter Full Screen. */
-export type SystemMenuBarItems = "app_services_hide_and_quit" | "text_editing" | "close_window" | "window_arrangement" | "bring_all_to_front" | "full_screen";
+/** The items of the system menu bar only the desktop draws, which a studio menu places among its own entries: macOS's Services, Hide and Quit; Undo through Select All; Close Window, on ⇧⌘W beside a Close tab that holds ⌘W; Minimize and Zoom; Bring All to Front; and Enter Full Screen. */
+export type SystemMenuBarItems = "app_services_hide_and_quit" | "text_editing" | "close_window" | "close_window_beside_close_tab" | "window_arrangement" | "bring_all_to_front" | "full_screen";
 
 /** The menus macOS treats as its own: the app menu, named for the app whatever its label; the Window menu, which lists the open windows; and the Help menu, which holds the menu search. */
 export type SystemMenuOfTheDesktop = "app" | "window" | "help";

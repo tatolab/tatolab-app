@@ -66,7 +66,7 @@ export class SystemMenuBarOfTheFocusedWindow {
   }
 }
 
-const SYSTEM_MENU_BAR_ITEMS: readonly SystemMenuBarItems[] = ["app_services_hide_and_quit", "text_editing", "close_window", "window_arrangement", "bring_all_to_front", "full_screen"];
+const SYSTEM_MENU_BAR_ITEMS: readonly SystemMenuBarItems[] = ["app_services_hide_and_quit", "text_editing", "close_window", "close_window_beside_close_tab", "window_arrangement", "bring_all_to_front", "full_screen"];
 const SYSTEM_MENUS_OF_THE_DESKTOP: readonly SystemMenuOfTheDesktop[] = ["app", "window", "help"];
 
 function textOrNullFrom(onTheWire: unknown): Result<string | null, null> {

@@ -41,6 +41,7 @@ import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_na
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { isModulesShown, type ModulesShown } from "../src/shared/tatolab_electron_bridge_contract";
 import type { JsonValue, ProjectAsset, ProjectGraphTransaction, ProjectTransaction, StreamAssetCreated, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
+import { streamDocumentNameNumberedPast, streamDocumentNameOfTheDisplayName } from "../src/shared/stream_document_name";
 import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
@@ -1166,14 +1167,16 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     if (openProjectReading.kind !== "read") throw "No project is open in this window.";
     if (displayName.trim() === "") throw `create_stream failed: ${JSON.stringify(displayName)} cannot be a stream's display name: it shows nothing`;
     const projectDirectory = openProjectReading.open_project.project.folder;
-    const streamName = displayName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "stream";
+    const streamNamesHeld = projectFolders.get(projectDirectory)?.streamNames ?? [];
+    const streamName = streamDocumentNameNumberedPast(streamDocumentNameOfTheDisplayName(displayName), (candidateName) => streamNamesHeld.includes(candidateName));
     const fixture = createMockStreamRunFromAProjectFolder(fixtures.machine, projectDirectory, streamName, displayName);
     projectFolders.set(projectDirectory, { ...(projectFolders.get(projectDirectory) ?? { hasAPythonEnvironment: true }), streamNames: [...(projectFolders.get(projectDirectory)?.streamNames ?? []), streamName] });
     streamIdsRunFromTheWindow.push(fixture.listing.stream);
     forgottenStreamIds.delete(fixture.listing.stream);
     loadStream(fixture, Date.now());
     publishStatus({ streams: listStreams() });
-    return { stream_asset: fixture.listing.location?.stream_asset ?? "" };
+    if (fixture.listing.location === null) throw `create_stream failed: the mock lists ${displayName} under no project`;
+    return { stream_asset: fixture.listing.location.stream_asset };
   };
 
   /** `delete_stream` as the runtime does it: refused for a stream it does not hold, else the stream unloaded and forgotten. */

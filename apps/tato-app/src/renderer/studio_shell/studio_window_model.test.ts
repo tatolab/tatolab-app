@@ -151,6 +151,17 @@ describe("the Stream menu's tab commands", () => {
     expect(studioWindowModel.closedStreamTabs.readLatest()).toEqual([]);
   });
 
+  it("forget a closed tab once its stream's tab opens again another way", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    studioWindowModel.showStatus(runningRuntimeListing([MAIN_RUNNING, PREVIEW_RUNNING]));
+    studioWindowModel.openStreamTab(PREVIEW_TAB);
+    studioWindowModel.closeStreamTab(PREVIEW_TAB.stream);
+
+    studioWindowModel.openStreamTab(PREVIEW_TAB);
+
+    expect(studioWindowModel.closedStreamTabs.readLatest()).toEqual([]);
+  });
+
   it("never reopen the tab of a deleted stream", () => {
     const studioWindowModel = studioWindowModelOpenOnSheetCheck();
     studioWindowModel.showStatus(runningRuntimeListing([MAIN_RUNNING, PREVIEW_RUNNING]));

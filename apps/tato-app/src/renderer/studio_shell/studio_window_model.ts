@@ -110,7 +110,6 @@ export class StudioWindowModel {
   /** The tab a project opens on once it is open and the runtime lists the stream: the stream New project just made, or with `stream` `null` the first the runtime lists from the folder; cleared when any tab is opened. */
   private streamTabAwaitedByTheOpeningProject: { project_folder: string; stream: string | null } | null = null;
 
-
   /** The stream asset of a stream New stream just made, whose tab opens once the runtime lists a stream of it; `null` while none is awaited. */
   private streamAssetAwaitedAsATab: string | null = null;
 
@@ -225,6 +224,8 @@ export class StudioWindowModel {
     this.streamTabAwaitedByTheOpeningProject = null;
     const { tabs } = this.openStreamTabs.readLatest();
     const isOpen = tabs.some((tab) => tab.stream === streamTab.stream);
+    const closedStreamTabs = this.closedStreamTabs.readLatest();
+    if (closedStreamTabs.some((tab) => tab.stream === streamTab.stream)) this.closedStreamTabs.publish(closedStreamTabs.filter((tab) => tab.stream !== streamTab.stream));
     this.publishStreamTabs({ tabs: isOpen ? tabs : [...tabs, streamTab], active_stream: streamTab.stream });
   }
 
@@ -251,6 +252,17 @@ export class StudioWindowModel {
     if (closedTab === undefined) return;
     this.closedStreamTabs.publish([...this.closedStreamTabs.readLatest(), closedTab]);
     this.takeTheStreamTabAway(stream);
+  }
+
+  /** Ask, in the Stream menu's dialog, for a new stream's name. */
+  askForANewStreamName(): void {
+    this.streamDeletionRefusal.publish(null);
+    this.streamMenuQuestion.publish({ kind: "name_a_new_stream" });
+  }
+
+  /** Whether the studio window shows a dialog of its own over its stream tabs: the Stream menu's, Preferences, or the New project sheet. */
+  isADialogShownOverTheStreamTabs(): boolean {
+    return this.streamMenuQuestion.readLatest() !== null || this.preferencesSection.readLatest() !== null || this.newProjectSheetOpenedWith.readLatest() !== null;
   }
 
   /** Ask, in the Stream menu's dialog, about the shown tab's stream: its new name, or whether to delete it. */

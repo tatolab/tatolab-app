@@ -216,7 +216,7 @@ export function mountTatolabWindow(
     },
     undoYourLastEdit: () => undoOrRedoTheOpenProject("undo"),
     redoYourLastUndo: () => undoOrRedoTheOpenProject("redo"),
-    createAStream: () => studioWindowModel.streamMenuQuestion.publish({ kind: "name_a_new_stream" }),
+    createAStream: () => studioWindowModel.askForANewStreamName(),
     renameTheShownStream: () => studioWindowModel.askAboutTheShownStream("rename_stream"),
     deleteTheShownStream: () => studioWindowModel.askAboutTheShownStream("delete_stream"),
     closeTheShownStreamTab: () => {
@@ -391,7 +391,7 @@ export function mountTatolabWindow(
       return;
     }
     if (keyboardEvent.key === "Tab" && keyboardEvent.ctrlKey && !keyboardEvent.metaKey && !keyboardEvent.altKey) {
-      if (studioWindowModel.studioLayouts.readLatest() === null) return;
+      if (studioWindowModel.studioLayouts.readLatest() === null || studioWindowModel.isADialogShownOverTheStreamTabs()) return;
       keyboardEvent.preventDefault();
       studioMenuBarCommands.showTheStreamTabBeside(keyboardEvent.shiftKey ? "previous" : "next");
       return;
@@ -399,7 +399,7 @@ export function mountTatolabWindow(
     if (!holdsWindowShortcutModifier(platform, keyboardEvent)) return;
     const key = keyboardEvent.key.length === 1 ? keyboardEvent.key.toLowerCase() : keyboardEvent.key;
     if ((key === "w" || key === "t") && !keyboardEvent.altKey && keyboardEvent.shiftKey === (key === "t")) {
-      if (studioWindowModel.studioLayouts.readLatest() === null) return;
+      if (studioWindowModel.studioLayouts.readLatest() === null || studioWindowModel.isADialogShownOverTheStreamTabs()) return;
       keyboardEvent.preventDefault();
       if (key === "w") studioMenuBarCommands.closeTheShownStreamTab();
       else studioMenuBarCommands.reopenTheLastClosedStreamTab();
