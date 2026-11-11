@@ -572,17 +572,22 @@ function NodeGraphFrameWordsField({
 }
 
 /** What a right-click on a frame's tab offers on an editable canvas: rename it, describe it, colour it, or remove it and keep its cards. */
-function NodeGraphFrameRightClickChoices({ graphFrame }: { graphFrame: NodeGraphCanvasFrame }) {
-  const cardAndFrameEditing = useContext(NodeGraphCardAndFrameEditingContext);
-  const frameWordsEditing = useContext(NodeGraphFrameWordsEditingContext);
-  if (cardAndFrameEditing === null) return null;
+function NodeGraphFrameRightClickChoices({
+  graphFrame,
+  frameEditing,
+  editTheFrameWords,
+}: {
+  graphFrame: NodeGraphCanvasFrame;
+  frameEditing: Pick<NodeGraphCanvasEditing, "onFrameChanged" | "onFrameRemoved">;
+  editTheFrameWords: (field: NodeGraphFrameWordsField) => void;
+}) {
   const hasADescription = graphFrame.description !== null && graphFrame.description !== "";
   return (
     <>
-      <RightClickMenuItem icon={Pencil} onChosen={() => frameWordsEditing?.editTheFrameWords({ frame_id: graphFrame.frame_id, field: "title" })} data-node-graph-frame-choice="rename">
+      <RightClickMenuItem icon={Pencil} onChosen={() => editTheFrameWords("title")} data-node-graph-frame-choice="rename">
         Rename
       </RightClickMenuItem>
-      <RightClickMenuItem icon={Text} onChosen={() => frameWordsEditing?.editTheFrameWords({ frame_id: graphFrame.frame_id, field: "description" })} data-node-graph-frame-choice="describe">
+      <RightClickMenuItem icon={Text} onChosen={() => editTheFrameWords("description")} data-node-graph-frame-choice="describe">
         {hasADescription ? "Edit description" : "Add description"}
       </RightClickMenuItem>
       <RightClickSubmenu label="Colour" icon={Palette} data-node-graph-frame-choice="colour">
@@ -597,12 +602,12 @@ function NodeGraphFrameRightClickChoices({ graphFrame }: { graphFrame: NodeGraph
             ),
           }))}
           chosen={graphFrame.colour}
-          onChosen={(colour) => cardAndFrameEditing.onFrameChanged(graphFrame.frame_id, { colour })}
+          onChosen={(colour) => frameEditing.onFrameChanged(graphFrame.frame_id, { colour })}
           dataAttributeOfEachChoice="data-node-graph-frame-colour"
         />
       </RightClickSubmenu>
       <RightClickMenuSeparator />
-      <RightClickMenuItem icon={Ungroup} isDestructive onChosen={() => cardAndFrameEditing.onFrameRemoved(graphFrame.frame_id)} data-node-graph-frame-choice="remove">
+      <RightClickMenuItem icon={Ungroup} isDestructive onChosen={() => frameEditing.onFrameRemoved(graphFrame.frame_id)} data-node-graph-frame-choice="remove">
         Remove frame
       </RightClickMenuItem>
     </>
@@ -626,13 +631,14 @@ function NodeGraphFrameView({ data }: NodeProps<NodeGraphFrameFlowNode>) {
     if (trimmedDescription !== description) cardAndFrameEditing?.onFrameChanged(graphFrame.frame_id, { description: trimmedDescription });
     frameWordsEditing?.editTheFrameWords(null);
   };
-  const editTheWords = (field: NodeGraphFrameWordsField) => (cardAndFrameEditing === null ? undefined : () => frameWordsEditing?.editTheFrameWords({ frame_id: graphFrame.frame_id, field }));
+  const editTheWords = (field: NodeGraphFrameWordsField) => frameWordsEditing?.editTheFrameWords({ frame_id: graphFrame.frame_id, field });
+  const editTheWordsOnADoubleClick = (field: NodeGraphFrameWordsField) => (cardAndFrameEditing === null ? undefined : () => editTheWords(field));
   const titleTabStyle = graphFrame.colour === null ? undefined : { backgroundColor: `color-mix(in srgb, ${graphFrame.colour} 30%, var(--studio-area))` };
   const titleTab = (
     <span
       className="node-graph-frame-title nopan truncate text-xs font-semibold"
       style={titleTabStyle}
-      onDoubleClick={editTheWords("title")}
+      onDoubleClick={editTheWordsOnADoubleClick("title")}
       data-node-graph-frame-title={graphFrame.frame_id}
     >
       {graphFrame.title}
@@ -656,7 +662,11 @@ function NodeGraphFrameView({ data }: NodeProps<NodeGraphFrameFlowNode>) {
       ) : cardAndFrameEditing === null ? (
         titleTab
       ) : (
-        <RightClickMenu label={`Frame ${graphFrame.title}`} choices={<NodeGraphFrameRightClickChoices graphFrame={graphFrame} />}>
+        <RightClickMenu
+          label={`Frame ${graphFrame.title}`}
+          choices={<NodeGraphFrameRightClickChoices graphFrame={graphFrame} frameEditing={cardAndFrameEditing} editTheFrameWords={editTheWords} />}
+          returnsFocusToTheRowOnClosing={false}
+        >
           {titleTab}
         </RightClickMenu>
       )}
@@ -671,7 +681,11 @@ function NodeGraphFrameView({ data }: NodeProps<NodeGraphFrameFlowNode>) {
         />
       ) : (
         description !== "" && (
-          <p className="node-graph-frame-description nopan truncate px-2.5 text-2xs text-fg-2" onDoubleClick={editTheWords("description")} data-node-graph-frame-description={graphFrame.frame_id}>
+          <p
+            className={cn("node-graph-frame-description truncate px-2.5 text-2xs text-fg-2", cardAndFrameEditing !== null && "node-graph-frame-description-editable nopan")}
+            onDoubleClick={editTheWordsOnADoubleClick("description")}
+            data-node-graph-frame-description={graphFrame.frame_id}
+          >
             {description}
           </p>
         )

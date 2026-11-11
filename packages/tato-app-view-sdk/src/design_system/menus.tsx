@@ -218,11 +218,22 @@ export function MenuItemThatCannotBeChosen({
 }
 
 /** A menu a right-click on `children` opens at the pointer; `children` is the row itself, so a click in the menu never reaches the row. */
-export function RightClickMenu({ label, choices, children }: { label: string; choices: ReactNode; children: ReactElement }) {
+export function RightClickMenu({
+  label,
+  choices,
+  returnsFocusToTheRowOnClosing = true,
+  children,
+}: {
+  label: string;
+  choices: ReactNode;
+  /** False for a menu whose choices open a field that takes the focus, which the row taking it back would close. */
+  returnsFocusToTheRowOnClosing?: boolean;
+  children: ReactElement;
+}) {
   return (
     <ContextMenu>
       <ContextMenuTrigger render={children} />
-      <ContextMenuContent aria-label={label} className={MENU_WIDTH_CLASS_NAMES.fit}>
+      <ContextMenuContent aria-label={label} className={MENU_WIDTH_CLASS_NAMES.fit} finalFocus={returnsFocusToTheRowOnClosing}>
         {choices}
       </ContextMenuContent>
     </ContextMenu>
@@ -258,7 +269,7 @@ export function RightClickSubmenu({ label, icon: ItemIcon, children, ...controlD
         {ItemIcon !== undefined && <ItemIcon className={MENU_ITEM_ICON_CLASS_NAMES} strokeWidth={1.75} aria-hidden />}
         {label}
       </ContextMenuSubTrigger>
-      <ContextMenuSubContent aria-label={label} className={MENU_WIDTH_CLASS_NAMES.fit}>
+      <ContextMenuSubContent aria-label={label} className={cn(MENU_WIDTH_CLASS_NAMES.fit, "shadow-lg")}>
         {children}
       </ContextMenuSubContent>
     </ContextMenuSub>

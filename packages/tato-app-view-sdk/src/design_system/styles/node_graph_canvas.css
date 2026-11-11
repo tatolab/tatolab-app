@@ -110,15 +110,15 @@
   height: 10px;
   border-radius: 9999px;
 }
+.node-graph-frame-description-editable {
+  pointer-events: auto;
+  width: fit-content;
+  max-width: 100%;
+}
 .node-graph-frame-description-field {
   pointer-events: auto;
   display: block;
   width: calc(100% - 20px);
   border-radius: var(--radius-sm);
   background: var(--studio-control);
-}
-.node-graph-frame-description {
-  pointer-events: auto;
-  width: fit-content;
-  max-width: 100%;
 }
