@@ -600,7 +600,7 @@ describe("the studio", () => {
   it("switches layouts from Window › Layout and with ⌘1 to ⌘5, each keeping its own areas", async () => {
     await mountedWindowOverTheMock("state=running");
     expect(await shownLayout()).toBe("build");
-    expect([...document.querySelectorAll("[data-studio-area]")].map((area) => area.getAttribute("data-studio-area"))).toEqual(["viewer", "stream-graph", "outliner", "properties"]);
+    expect([...document.querySelectorAll("[data-studio-area]")].map((area) => area.getAttribute("data-studio-area"))).toEqual(["outliner", "stream-graph", "viewer", "properties"]);
 
     fireEvent.keyDown(document, { key: "2", metaKey: true });
     expect(await shownLayout()).toBe("compose");

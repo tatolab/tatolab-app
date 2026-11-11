@@ -13,9 +13,11 @@ function storageInMemory() {
 }
 
 describe("the five layouts", () => {
-  it("lays each out after the canvas: the outliner over properties down the right of Build, Compose and Spatial, Files beside Code, and Controls beside Perform's viewers", () => {
+  it("lays each out after the canvas: Build with the outliner left, the graph centre and the viewer over properties on the right, the outliner over properties down the right of Compose and Spatial, Files beside Code, and Controls beside Perform's viewers", () => {
     expect(STUDIO_LAYOUTS.map(({ title, shortcut_digit }) => `${title} ${shortcut_digit}`)).toEqual(["Build 1", "Compose 2", "Spatial 3", "Code 4", "Perform 5"]);
-    expect(areaIdsOf(defaultStudioLayout("build"))).toEqual(["viewer", "stream-graph", "outliner", "properties"]);
+    expect(areaIdsOf(defaultStudioLayout("build"))).toEqual(["outliner", "stream-graph", "viewer", "properties"]);
+    const buildColumns = defaultStudioLayout("build");
+    expect(buildColumns.kind === "split" && buildColumns.parts.map(({ size_percent }) => size_percent)).toEqual([18, 60, 22]);
     expect(areaIdsOf(defaultStudioLayout("compose"))).toEqual(["stream-graph", "viewer", "code", "outliner", "properties"]);
     expect(areaIdsOf(defaultStudioLayout("spatial"))).toEqual(["scene", "viewer", "stream-graph", "outliner", "properties"]);
     expect(areaIdsOf(defaultStudioLayout("code"))).toEqual(["files", "code", "stream-graph", "viewer"]);
@@ -50,9 +52,9 @@ describe("a saved layout", () => {
   it("changes an area's view, its settings and a split's sizes without touching the rest", () => {
     const build = defaultStudioLayout("build");
     const withOutlinerInTheViewer = layoutWithAreaSettings(layoutWithAreaShowing(build, "viewer", "outliner"), "viewer", { row_expansion: { imports: true } });
-    const resized = layoutWithSplitSizes(withOutlinerInTheViewer, "side", { outliner: 70 });
-    const sideColumn = resized.kind === "split" ? resized.parts[1]?.part : undefined;
-    expect(sideColumn?.kind === "split" && sideColumn.parts.map(({ size_percent }) => size_percent)).toEqual([70, 58]);
+    const resized = layoutWithSplitSizes(withOutlinerInTheViewer, "build-right", { viewer: 50 });
+    const rightColumn = resized.kind === "split" ? resized.parts[2]?.part : undefined;
+    expect(rightColumn?.kind === "split" && rightColumn.parts.map(({ size_percent }) => size_percent)).toEqual([50, 62]);
     expect(JSON.stringify(resized)).toContain('{"kind":"area","area_id":"viewer","view_type_id":"outliner","settings":{"row_expansion":{"imports":true}}}');
     expect(areaIdsOf(resized)).toEqual(areaIdsOf(build));
   });
@@ -62,10 +64,11 @@ describe("a layout whose default changed since it was kept", () => {
   it("opens once on its new default, while a layout whose default held keeps what the person left", () => {
     const keptBuild: StudioAreaLayoutNode = { kind: "area", area_id: "only", view_type_id: "viewer" };
     const keptPerform: StudioAreaLayoutNode = { kind: "area", area_id: "only", view_type_id: "stream_graph" };
-    const savedBeforeTheCanvasLayouts = studioLayoutsFromSaved({ chosen_layout: "perform", layouts: { build: keptBuild, perform: keptPerform } });
+    const savedBeforeTheCanvasLayouts = studioLayoutsFromSaved({ chosen_layout: "perform", layouts: { build: keptBuild, perform: keptPerform }, default_revisions: { build: 2 } });
 
     expect(savedBeforeTheCanvasLayouts.layouts.build).toEqual(keptBuild);
     expect(savedBeforeTheCanvasLayouts.layouts.perform).toEqual(defaultStudioLayout("perform"));
+    expect(studioLayoutsFromSaved({ layouts: { build: keptBuild } }).layouts.build).toEqual(defaultStudioLayout("build"));
   });
 
   it("keeps an edited layout once it was saved under its current default", () => {

@@ -21,7 +21,7 @@ export const STUDIO_LAYOUTS: readonly { name: StudioLayoutName; title: string; s
  * earlier revision is that layout's new default once, so a project reopens on a changed default. A tree saved with no
  * revision is revision 1.
  */
-const STUDIO_LAYOUT_DEFAULT_REVISIONS: Record<StudioLayoutName, number> = { build: 1, compose: 1, spatial: 1, code: 2, perform: 2 };
+const STUDIO_LAYOUT_DEFAULT_REVISIONS: Record<StudioLayoutName, number> = { build: 2, compose: 1, spatial: 1, code: 2, perform: 2 };
 
 /** Each layout's tree as the person left it, and the one chosen. */
 export interface StudioLayoutsOfAFolder {
@@ -50,8 +50,9 @@ export function defaultStudioLayout(layoutName: StudioLayoutName): StudioAreaLay
   switch (layoutName) {
     case "build":
       return split("build-columns", "row", [
-        [82, split("build-main", "column", [[42, area("viewer", "viewer")], [58, area("stream-graph", "stream_graph")]])],
-        [18, sideColumn()],
+        [18, area("outliner", "outliner")],
+        [60, area("stream-graph", "stream_graph")],
+        [22, split("build-right", "column", [[38, area("viewer", "viewer")], [62, area("properties", "properties")]])],
       ]);
     case "compose":
       return split("compose-columns", "row", [
