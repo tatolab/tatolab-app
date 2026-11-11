@@ -2,7 +2,7 @@ import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_re
 import { useCallback, useMemo, useState } from "react";
 import { Boxes, FilePlus2, Folder } from "lucide-react";
 import { MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
-import { ProjectAssetCard, ProjectAssetPicture } from "@tatolab/tato-app-view-sdk/design_system/project_asset_card";
+import { ProjectAssetCard } from "@tatolab/tato-app-view-sdk/design_system/project_asset_card";
 import { CardGrid } from "@tatolab/tato-app-view-sdk/design_system/card_grid";
 import { SidePanel, WorkAreaWithSidePanel } from "@tatolab/tato-app-view-sdk/design_system/side_panel";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
@@ -210,7 +210,6 @@ function DetailsOfTheAsset({ asset, onHidden }: { asset: ProjectAsset; onHidden:
       data-library-asset-details={asset.asset}
     >
       <div className="flex flex-col gap-3 px-4 py-3">
-        <ProjectAssetPicture tone={assetPictureToneOf(asset)} words={assetFormatWords(asset)} size="details_band" />
         <KeyValueRows
           rows={[
             ["Kind", asset.kind],
