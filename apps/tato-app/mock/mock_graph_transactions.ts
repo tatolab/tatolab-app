@@ -114,6 +114,13 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
       const { text, position, size } = note;
       return typeof text === "string" && isACanvasPair(position) && isACanvasPair(size) ? { operation, stream, text, position, size } : null;
     }
+    case "fold_into_fragment":
+    case "unfold_fragment": {
+      const { fragment, name, nodes } = historyOperation;
+      if (typeof fragment !== "string" || typeof name !== "string" || !Array.isArray(nodes)) return null;
+      if (operation === "unfold_fragment") return { operation: "unlock_generator_fragment", stream, fragment };
+      return { operation: "collapse_selection_into_subgraph", stream, name, nodes: nodes.flatMap((member) => (typeof member === "string" ? [member] : [])) };
+    }
     case "connect":
     case "disconnect": {
       const link = historyOperation["link"];
@@ -356,6 +363,94 @@ export function applyMockGraphTransaction(
           if (note === undefined || graph.notes === undefined) throw refusedNaming(`no note ${operation.note} in the stream's graph`);
           graph.notes.splice(graph.notes.indexOf(note), 1);
           recordInHistory({ operation: "remove_note", note: { ...note } }, { operation: "add_note", note: { ...note } });
+          break;
+        }
+        case "collapse_selection_into_subgraph": {
+          const members = operation.nodes.map(nodeNamed);
+          const interfaceMember = members.find((member) => member.type === "tatolab.stream:GraphInput" || member.type === "tatolab.stream:GraphOutput");
+          if (interfaceMember !== undefined) throw refusedNaming(`node ${interfaceMember.name} is one of the stream's own GraphInput or GraphOutput nodes, which a subgraph cannot take`, { refused_node: nodeIdOf(interfaceMember) });
+          const name = operation.name.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+          if (graph.nodes.some((node) => !members.includes(node) && node.name === name)) throw refusedNaming(`node \`${name}\` in this graph already has that name`, { refused_node: operation.as ?? name });
+          const memberNames = new Set(members.map((member) => member.name));
+          const familyOfTheOutput = (nodeName: string, port: string) => graph.nodes.find((node) => node.name === nodeName)?.output_ports.find((output) => output.name === port)?.family ?? null;
+          const interfaceNode = (interfaceName: string, type: "tatolab.stream:GraphInput" | "tatolab.stream:GraphOutput", family: PortFamily | null): MockGraphNode => ({
+            name: interfaceName,
+            type,
+            state: null,
+            config: {},
+            input_ports: type === "tatolab.stream:GraphOutput" ? [{ name: "value", family, stream_facts: null, values_checked: null }] : [],
+            output_ports: type === "tatolab.stream:GraphInput" ? [{ name: "value", family, stream_facts: null, values_checked: null }] : [],
+          });
+          const insideNodes: MockGraphNode[] = [...members];
+          const insideLinks: typeof graph.links = [];
+          const outsideLinks: typeof graph.links = [];
+          const subgraph: MockGraphNode = { name, type: "tatolab.project:AuthoredFragment", state: null, config: {}, input_ports: [], output_ports: [] };
+          for (const link of graph.links) {
+            const isSourceInside = memberNames.has(link.source_node);
+            const isTargetInside = memberNames.has(link.target_node);
+            if (isSourceInside && isTargetInside) insideLinks.push(link);
+            else if (isTargetInside) {
+              const interfaceName = `${link.target_node}-${link.target_port}`;
+              const family = familyOfTheOutput(link.source_node, link.source_port);
+              if (!insideNodes.some((node) => node.name === interfaceName)) {
+                insideNodes.push(interfaceNode(interfaceName, "tatolab.stream:GraphInput", family));
+                subgraph.input_ports.push({ name: interfaceName, family, stream_facts: null, values_checked: null });
+              }
+              insideLinks.push({ ...link, id: `${link.id}-in`, source_node: interfaceName, source_port: "value" });
+              outsideLinks.push({ ...link, target_node: name, target_port: interfaceName });
+            } else if (isSourceInside) {
+              const interfaceName = `${link.source_node}-${link.source_port}`;
+              const family = familyOfTheOutput(link.source_node, link.source_port);
+              if (!insideNodes.some((node) => node.name === interfaceName)) {
+                insideNodes.push(interfaceNode(interfaceName, "tatolab.stream:GraphOutput", family));
+                subgraph.output_ports.push({ name: interfaceName, family, stream_facts: null, values_checked: null });
+                insideLinks.push({ ...link, id: `${link.id}-out`, target_node: interfaceName, target_port: "value" });
+              }
+              outsideLinks.push({ ...link, source_node: name, source_port: interfaceName });
+            } else outsideLinks.push(link);
+          }
+          subgraph.fragment = { kind: "authored", nodes: insideNodes, links: insideLinks, groups: [] };
+          const firstMember = members[0];
+          if (firstMember?.studio?.position !== undefined && firstMember.studio.position !== null) subgraph.studio = { ...NODE_STUDIO_FIELDS_NONE_SET, position: firstMember.studio.position };
+          graph.nodes = [...graph.nodes.filter((node) => !members.includes(node)), subgraph];
+          graph.links = outsideLinks;
+          const memberIds = members.map(nodeIdOf);
+          const fragment = nodeIdOf(subgraph);
+          applied.added_nodes.push({ stream: target.stream_id, node: fragment, name, as: operation.as ?? null });
+          recordInHistory({ operation: "fold_into_fragment", fragment, name, nodes: memberIds }, { operation: "unfold_fragment", fragment, name, nodes: memberIds });
+          break;
+        }
+        case "import_graph_generator": {
+          const subgraph = graph.nodes.find((node) => node.name === operation.name && node.type === operation.generator && node.fragment?.kind === "generated");
+          if (subgraph === undefined) throw refusedNaming(`the mock runtime runs no graph generator; it refreshes only a fragment of \`${operation.generator}\` the graph holds`);
+          const from = structuredClone(subgraph.config);
+          subgraph.config = structuredClone(operation.config ?? subgraph.config);
+          const fragment = nodeIdOf(subgraph);
+          recordInHistory({ operation: "refresh_fragment", node: fragment, from: { type: subgraph.type, config: from }, to: { type: subgraph.type, config: subgraph.config } }, { operation: "refresh_fragment", node: fragment, from: { type: subgraph.type, config: subgraph.config }, to: { type: subgraph.type, config: from } });
+          break;
+        }
+        case "unlock_generator_fragment": {
+          const subgraph = nodeNamed(operation.fragment);
+          if (subgraph.fragment === undefined) throw refusedNaming(`node ${operation.fragment} is not a fragment`, { refused_node: operation.fragment });
+          if (subgraph.fragment.kind === "placed_stream") throw refusedNaming("a placed stream cannot be unlocked; edit that stream instead", { refused_node: operation.fragment });
+          const isAnInterfaceNode = (node: MockGraphNode) => node.type === "tatolab.stream:GraphInput" || node.type === "tatolab.stream:GraphOutput";
+          const interfaceNames = new Set(subgraph.fragment.nodes.filter(isAnInterfaceNode).map((node) => node.name));
+          const plainNodes = subgraph.fragment.nodes.filter((node) => !isAnInterfaceNode(node));
+          const links: typeof graph.links = [];
+          for (const link of graph.links) {
+            if (link.target_node === subgraph.name) {
+              for (const inside of subgraph.fragment.links.filter((candidate) => candidate.source_node === link.target_port)) links.push({ ...link, target_node: inside.target_node, target_port: inside.target_port });
+            } else if (link.source_node === subgraph.name) {
+              const inside = subgraph.fragment.links.find((candidate) => candidate.target_node === link.source_port);
+              if (inside !== undefined) links.push({ ...link, source_node: inside.source_node, source_port: inside.source_port });
+            } else links.push(link);
+          }
+          links.push(...subgraph.fragment.links.filter((link) => !interfaceNames.has(link.source_node) && !interfaceNames.has(link.target_node)));
+          const fragment = nodeIdOf(subgraph);
+          graph.nodes = [...graph.nodes.filter((node) => node !== subgraph), ...plainNodes];
+          graph.links = links;
+          const memberIds = plainNodes.map(nodeIdOf);
+          recordInHistory({ operation: "unfold_fragment", fragment, name: subgraph.name, nodes: memberIds }, { operation: "fold_into_fragment", fragment, name: subgraph.name, nodes: memberIds });
           break;
         }
         default:

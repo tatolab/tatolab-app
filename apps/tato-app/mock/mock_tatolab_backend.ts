@@ -227,6 +227,8 @@ export interface MockTatolabOptions {
   isTheCompositorInMain: boolean;
   /** Whether the open project's main stream declares Graph Inputs, which Perform's Controls show. */
   doesTheMainStreamDeclareGraphInputs: boolean;
+  /** `?subgraphs=generated`: `main` holds a graph generator's frozen output. */
+  doesTheMainStreamHoldAGeneratedSubgraph: boolean;
 }
 
 /** The query parameter a Module manager window's page is told by. */
@@ -361,6 +363,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
     isTheCompositorInMain: pageQuery.get("compositor") === "layered",
     doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",
+    doesTheMainStreamHoldAGeneratedSubgraph: pageQuery.get("subgraphs") === "generated",
   };
 }
 
@@ -498,7 +501,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
             ? fixtures.mainStreamWithTheCompositorNode
             : mockTatolabOptions.doesTheMainStreamDeclareGraphInputs
               ? fixtures.mainStreamDeclaringGraphInputs
-              : fixtures.mainStream;
+              : mockTatolabOptions.doesTheMainStreamHoldAGeneratedSubgraph
+                ? fixtures.mainStreamHoldingAGeneratedSubgraph
+                : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
   const menusKeptForTheSystemMenuBar: SystemMenuBarMenu[] = [];

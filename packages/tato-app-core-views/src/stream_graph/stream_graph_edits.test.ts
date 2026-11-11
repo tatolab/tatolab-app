@@ -15,6 +15,10 @@ import {
   notePlacedEdits,
   pinsWiredEdits,
   selectionFramedEdits,
+  nameOfTheNewSubgraph,
+  selectionCollapsedEdits,
+  subgraphRefreshedEdits,
+  subgraphUnlockedEdits,
   type EditedStreamGraph,
 } from "./stream_graph_edits";
 
@@ -35,6 +39,7 @@ function graphNode(name: string, id: string, ports: { inputs?: [string, "image" 
     dropped_bags_by_link: {},
     refused_bags_by_output_port: {},
     studio,
+    fragment: null,
   };
 }
 
@@ -196,4 +201,24 @@ test("a_second_studio_edit_sent_before_the_graph_shows_the_first_builds_on_it_in
     { operation: "set_studio_fields", stream: STREAM_ASSET, node: "uuid-halftone", studio: { position: [10, 20], collapsed: true } },
   ]);
   expect(cardCollapsedEdits(editedAhead, "halftone", true)).toEqual([]);
+});
+
+describe("subgraphs", () => {
+  const LEVELS = { ...graphNode("levels", "uuid-levels", { outputs: [["level", "array"]] }), type: "generators.mics:mic_levels", config: { mic_count: 2 }, fragment: { kind: "generated" as const, nodes: [], links: [], groups: [] } };
+  const LOOK = { ...graphNode("subgraph", "uuid-look", {}), type: "tatolab.project:AuthoredFragment", fragment: { kind: "authored" as const, nodes: [], links: [], groups: [] } };
+
+  test("a_collapsed_selection_names_its_nodes_by_uuid_and_takes_the_first_free_subgraph_name", () => {
+    expect(selectionCollapsedEdits(edited(), ["pattern", "halftone", "gone"], nameOfTheNewSubgraph(GRAPH))).toEqual([
+      { operation: "collapse_selection_into_subgraph", stream: STREAM_ASSET, nodes: ["uuid-pattern", "uuid-halftone"], name: "subgraph" },
+    ]);
+    expect(nameOfTheNewSubgraph({ nodes: [LOOK, { ...LOOK, name: "subgraph-2" }] })).toBe("subgraph-3");
+    expect(selectionCollapsedEdits(edited(), ["gone"], "subgraph")).toEqual([]);
+  });
+
+  test("unlock_names_the_subgraph_by_uuid_and_refresh_runs_its_generator_again_under_its_name_with_its_settings", () => {
+    const graph = edited({ ...GRAPH, nodes: [...GRAPH.nodes, LEVELS, LOOK] });
+    expect(subgraphUnlockedEdits(graph, "subgraph")).toEqual([{ operation: "unlock_generator_fragment", stream: STREAM_ASSET, fragment: "uuid-look" }]);
+    expect(subgraphRefreshedEdits(graph, "levels")).toEqual([{ operation: "import_graph_generator", stream: STREAM_ASSET, generator: "generators.mics:mic_levels", name: "levels", config: { mic_count: 2 } }]);
+    expect(subgraphRefreshedEdits(graph, "subgraph")).toEqual([]);
+  });
 });
