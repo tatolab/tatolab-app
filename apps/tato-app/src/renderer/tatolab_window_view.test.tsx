@@ -781,6 +781,41 @@ describe("the studio", () => {
     await waitFor(() => expect(within(streamGraph.body).getByRole("dialog", { name: "Add a node" })).toBeTruthy());
   });
 
+  it("opens the Marketplace from Install modules… at the foot of the node search, closing the search", async () => {
+    const modulesAndMarketplaceSectionsOpened: string[] = [];
+    await mountedWindowOverTheMock("state=running", {
+      openModuleManagerWindow: async (shows) => {
+        modulesAndMarketplaceSectionsOpened.push(shows);
+      },
+    });
+    const toolInTheToolbar = () => document.querySelector<HTMLElement>('[data-studio-graph-tool="add_node"]') ?? expect.unreachable("no Add node in the toolbar");
+    await waitFor(() => expect(toolInTheToolbar().getAttribute("aria-disabled")).toBeNull());
+    const streamGraph = coreViewPage("stream_graph", "stream-graph");
+    fireEvent.click(toolInTheToolbar());
+    const nodeSearch = await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Add a node" }));
+
+    fireEvent.click(within(nodeSearch).getByRole("button", { name: "Install modules…" }));
+    await waitFor(() => expect(modulesAndMarketplaceSectionsOpened).toEqual(["marketplace"]));
+    expect(within(streamGraph.body).queryByRole("dialog", { name: "Add a node" })).toBeNull();
+  });
+
+  it("shows a view node's view in an area from Properties' Show in an area, in place of what that area showed", async () => {
+    await mountedWindowOverTheMock("state=running&studio_views=fixture");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="pictureandfader"]') ?? expect.unreachable("no view node card")));
+    const properties = () => coreViewPage("properties");
+    const shownInWords = () => properties().querySelector("[data-properties-view-shown-in-words]")?.textContent;
+    await waitFor(() => expect(shownInWords()).toBe("Not shown"));
+
+    pressAsAPointerDoes(properties().querySelector<HTMLElement>("[data-properties-show-in-an-area]") ?? expect.unreachable("no Show in an area"));
+    const viewerChoice = await screen.findByRole("menuitem", { name: "In place of Viewer" });
+    expect(screen.queryByRole("menuitem", { name: "In place of Properties" })).toBeNull();
+    fireEvent.click(viewerChoice);
+
+    await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] iframe[data-tatolab-view]')?.getAttribute("data-tatolab-view")).toBe("pattern:picture_and_fader"));
+    await waitFor(() => expect(shownInWords()).toBe("1 area"));
+  });
+
   it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {
     await mountedWindowOverTheMock("state=running");
     expect(await shownLayout()).toBe("build");
@@ -855,13 +890,13 @@ describe("the studio", () => {
     await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).not.toBeNull());
   });
 
-  it("shows the Projects window with no menu bar, a bare strip for the window buttons on macOS only, and a gear that opens Preferences", async () => {
+  it("shows the Projects window with no menu bar, a bare strip for the window buttons on macOS only, and a gear that opens Settings", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
     await waitFor(() => expect(document.querySelector("[data-projects]")).not.toBeNull());
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
     expect(document.querySelector("[data-projects-title-bar]")).not.toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Preferences" }));
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
 
     await waitFor(() => expect(document.querySelector('[data-settings-page="general"]')).not.toBeNull());
   });
@@ -1503,8 +1538,8 @@ describe("the window's first status", () => {
   });
 });
 
-describe("Preferences", () => {
-  it("opens on macOS from Tato Studio › Settings… in the system menu bar, after About and Check for Updates…, on General", async () => {
+describe("Settings", () => {
+  it("opens on macOS from Tato Studio › Settings… in the system menu bar, after About and Check for Updates…, on Project while a project is open", async () => {
     const { backendChanges, menusShownLast, chooseFromTheSystemMenuBar } = systemMenuBarOverTheMock();
     await mountedWindowOverTheMock("state=running", backendChanges);
     await waitFor(() =>
@@ -1519,18 +1554,53 @@ describe("Preferences", () => {
     );
 
     await chooseFromTheSystemMenuBar("Tato Studio › Settings…");
-    await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
+    await waitFor(() => expect(document.querySelector(`[data-settings-page="project"]`)).not.toBeNull());
   });
 
-  it("opens on Linux from Edit › Preferences… on General, listing every section under its group beside it", async () => {
+  it("opens on Linux from Edit › Settings… on Project while a project is open, listing every section under its group beside it", async () => {
     await mountedWindowOverTheMock("platform=linux&state=running");
-    await chooseFromTheMenuBar("Edit", /^Preferences…/);
+    await chooseFromTheMenuBar("Edit", /^Settings…/);
 
-    await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
-    const sectionList = within(screen.getByRole("navigation", { name: "Preferences" }));
-    expect(sectionList.getByRole("button", { name: "General" }).getAttribute("aria-current")).toBe("page");
-    expect(sectionList.getAllByRole("button").map((sectionButton) => sectionButton.textContent)).toEqual(["General", "Developer", "Runtime", "Command line", "About"]);
+    await waitFor(() => expect(document.querySelector(`[data-settings-page="project"]`)).not.toBeNull());
+    const sectionList = within(screen.getByRole("navigation", { name: "Settings" }));
+    expect(sectionList.getByRole("button", { name: "Project" }).getAttribute("aria-current")).toBe("page");
+    expect(sectionList.getAllByRole("button").map((sectionButton) => sectionButton.textContent)).toEqual(["Project", "General", "Developer", "Runtime", "Command line", "About"]);
     expect(sectionList.getByText("This machine")).toBeTruthy();
+    expect(sectionList.getByText("This project")).toBeTruthy();
+  });
+
+  it("changes the open project's name, description and cover in Settings' Project section", async () => {
+    const setRecentProjectDescription = vi.fn<(folder: string, description: string) => Promise<void>>(async () => undefined);
+    const renameRecentProject = vi.fn<(folder: string, name: string) => Promise<void>>(async () => undefined);
+    const setRecentProjectCover = vi.fn<(folder: string, image: string | null) => Promise<void>>(async () => undefined);
+    const chooseProjectCoverImage = vi.fn<() => Promise<string | null>>(async () => "/Users/jonathanf/Pictures/stage.png");
+    await mountedWindowOverTheMock("state=running", { setRecentProjectDescription, renameRecentProject, setRecentProjectCover, chooseProjectCoverImage });
+    await openSettingsOn("project");
+    const projectSettings = await waitFor(() => document.querySelector<HTMLElement>(`[data-project-settings="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no Project section"));
+    const nameField = await waitFor(() => projectSettings.querySelector<HTMLInputElement>("[data-project-details-name]") ?? expect.unreachable("no name field"));
+    expect(nameField.value).toBe("pattern");
+
+    fireEvent.change(nameField, { target: { value: "Lobby pattern" } });
+    fireEvent.keyDown(nameField, { key: "Enter" });
+    await waitFor(() => expect(renameRecentProject).toHaveBeenCalledWith(PATTERN_PROJECT, "Lobby pattern"));
+
+    const descriptionField = projectSettings.querySelector<HTMLTextAreaElement>("[data-project-details-description]") ?? expect.unreachable("no description field");
+    fireEvent.change(descriptionField, { target: { value: "The lobby's test pattern." } });
+    fireEvent.blur(descriptionField);
+    await waitFor(() => expect(setRecentProjectDescription).toHaveBeenCalledWith(PATTERN_PROJECT, "The lobby's test pattern."));
+
+    fireEvent.click(within(projectSettings).getByRole("button", { name: "Choose image…" }));
+    await waitFor(() => expect(setRecentProjectCover).toHaveBeenCalledWith(PATTERN_PROJECT, "/Users/jonathanf/Pictures/stage.png"));
+  });
+
+  it("lists no Project section in Settings opened from the Projects window", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
+    await waitFor(() => expect(document.querySelectorAll("[data-projects-project]").length).toBeGreaterThan(0));
+    fireEvent.keyDown(document, { key: ",", metaKey: true });
+    fireEvent.keyDown(document, { key: ",", ctrlKey: true });
+    await waitFor(() => expect(document.querySelector('[data-settings-page="general"]')).not.toBeNull());
+    expect(document.querySelector('[data-settings-section="project"]')).toBeNull();
+    expect(screen.queryByText("This project")).toBeNull();
   });
 
   it("names the running runtime's version and uptime and its local API socket, and restarts it through Starting", { timeout: 10_000 }, async () => {
@@ -1751,7 +1821,7 @@ describe("the update dialog", () => {
   });
 });
 
-describe("Preferences › Command line › tatolab", () => {
+describe("Settings › Command line › tatolab", () => {
   it("links ~/.local/bin/tatolab with no password, then shows the link and the PATH line", async () => {
     await mountedWindowOverTheMock("state=running&cli_link=not_linked");
     await openSettingsOn("command-line");

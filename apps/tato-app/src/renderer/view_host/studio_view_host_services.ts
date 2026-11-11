@@ -5,7 +5,7 @@ import type { ProjectAssetListing, ProjectNodeTypeListing } from "../../shared/t
 import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
-import type { ListedStreamsReading, OpenProjectReading, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
+import type { AreasForAViewTypeInTheWindow, ListedStreamsReading, OpenProjectReading, StopWatching, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { WatchedStudioValue } from "./watched_studio_value";
 
@@ -19,11 +19,13 @@ export interface StudioWindowValuesServedToViews {
   viewsOpenedOn: WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>;
   chosenLayout(): string | null;
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening;
+  watchAreasForTheViewType(viewTypeId: string, listener: (reading: AreasForAViewTypeInTheWindow) => void): StopWatching;
+  showViewTypeInArea(viewTypeId: string, areaId: string): ViewOpening;
 }
 
 /** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types, assets and history, their language servers, and the port viewers of their running nodes. */
 export interface StudioViewHostProjectServices {
-  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "writeStudioViewOutput">;
+  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "writeStudioViewOutput" | "openModuleManagerWindow">;
   projectLogReadings: ProjectLogReadings;
   projectNodeTypeReadings: ProjectListingReadingsPolledWhileWatched<ProjectNodeTypeListing>;
   projectAssetReadings: ProjectListingReadingsPolledWhileWatched<ProjectAssetListing>;
@@ -74,6 +76,8 @@ export function studioViewHostServicesOf(
     watchStreamGraph: streamReadings.watchStreamGraph,
     watchNodeCatalog: streamReadings.watchNodeCatalog,
     openView: (viewTypeId, on) => sources.openView(viewTypeId, on),
+    watchAreasForTheViewType: (viewTypeId, listener) => sources.watchAreasForTheViewType(viewTypeId, listener),
+    showViewTypeInArea: (viewTypeId, areaId) => sources.showViewTypeInArea(viewTypeId, areaId),
     watchViewOpenedOn: (viewTypeId, listener) => {
       let openingLastTold: string | null | undefined = undefined;
       return sources.viewsOpenedOn.watch((viewsOpenedOn) => {
@@ -114,6 +118,11 @@ export function studioViewHostServicesOf(
         backend,
         listTheProjectAgainNow: (folder) => projectServices.projectAssetReadings.listTheProjectAgainNow(folder),
       }),
+    openModulesAndMarketplace: (shows) =>
+      backend.openModuleManagerWindow(shows).then(
+        (): ViewOpening => ({ kind: "opened" }),
+        (rejection: unknown): ViewOpening => ({ kind: "not_opened", because: describeBackendRejection(rejection) }),
+      ),
     watchProjectTransactions: projectServices.projectTransactionsReadings.watchProjectTransactions,
     undoInTheProject: projectServices.projectTransactionsReadings.undoInTheProject,
     redoInTheProject: projectServices.projectTransactionsReadings.redoInTheProject,

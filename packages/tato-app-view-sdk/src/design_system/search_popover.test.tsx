@@ -37,6 +37,30 @@ describe("the search popover", () => {
     expect(onItemChosen).toHaveBeenCalledTimes(1);
   });
 
+  it("draws a foot link that asks to close, then does what it names", () => {
+    const pressesInOrder: string[] = [];
+    render(
+      <SearchPopover
+        label="Add a node"
+        heading="Add node"
+        placeholder="Search nodes"
+        items={ITEMS}
+        emptyWords="No node type matches."
+        chooseWords="place"
+        chooseAndStayWords="place another"
+        at={{ x: 10, y: 10 }}
+        onItemChosen={vi.fn()}
+        onClosed={() => pressesInOrder.push("closed")}
+        footLink={{ words: "Install modules…", onPressed: () => pressesInOrder.push("install") }}
+      />,
+    );
+    const footLink = screen.getByRole("button", { name: "Install modules…" });
+    fireEvent.pointerDown(footLink);
+    expect(pressesInOrder).toEqual([]);
+    fireEvent.click(footLink);
+    expect(pressesInOrder).toEqual(["closed", "install"]);
+  });
+
   it("closes on escape and on a press outside it, but not on a press inside", () => {
     const { onClosed, searchInput } = openedPopover();
     fireEvent.pointerDown(searchInput);

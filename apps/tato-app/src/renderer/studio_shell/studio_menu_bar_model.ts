@@ -20,7 +20,7 @@ export interface StudioMenuBarCommands {
   createAProject(): void;
   /** Import project .zip…: ask for a project `.zip`, then open the Import project sheet for it. */
   importAProjectArchive(): void;
-  openPreferences(): void;
+  openSettings(): void;
   openAbout(): void;
   /** Check for Updates…: check for a newer Tato Studio, which downloads in the background. */
   checkForAppUpdates(): void;
@@ -71,7 +71,7 @@ interface StudioMenuParts {
   undoAndRedoEntries: StudioMenuEntry[];
   /** Undo and Redo beside macOS's own text editing, which keeps ⌘Z and ⇧⌘Z in its menu while the window's keys undo the project outside a text field. */
   undoAndRedoBesideTextEditing: StudioMenuEntry[];
-  preferencesEntry: StudioMenuEntry;
+  settingsEntry: StudioMenuEntry;
   addMenu: StudioMenu;
   streamMenu: StudioMenu;
   runMenu: StudioMenu;
@@ -86,7 +86,7 @@ function studioMenuParts(
   chosenLayout: StudioLayoutName | null,
   appUpdate: TatolabAppUpdateState,
   commands: StudioMenuBarCommands,
-  preferencesLabel: string,
+  settingsLabel: string,
 ): StudioMenuParts {
   const projectCommand = (label: string, onChosen: () => void, shortcut?: string): StudioMenuEntry => {
     if (chosenLayout === null) return shortcut === undefined ? { kind: "unavailable_command", label, unavailableBecause: NO_PROJECT_OPEN_REASON } : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause: NO_PROJECT_OPEN_REASON };
@@ -121,7 +121,7 @@ function studioMenuParts(
     ],
     undoAndRedoEntries: [projectCommand("Undo", commands.undoYourLastEdit, shortcutHint(platform, "Z")), projectCommand("Redo", commands.redoYourLastUndo, shiftedShortcutHint(platform, "Z"))],
     undoAndRedoBesideTextEditing: [projectCommand("Undo Your Last Edit", commands.undoYourLastEdit), projectCommand("Redo Your Last Undo", commands.redoYourLastUndo)],
-    preferencesEntry: { kind: "command", label: preferencesLabel, shortcutHint: shortcutHint(platform, ","), onChosen: commands.openPreferences },
+    settingsEntry: { kind: "command", label: settingsLabel, shortcutHint: shortcutHint(platform, ","), onChosen: commands.openSettings },
     addMenu: { label: "Add", entries: [laterCommand("Node…", "Shift A"), laterCommand("Connection…"), laterCommand("Variable…"), laterCommand("Frame")] },
     streamMenu: { label: "Stream", entries: [laterCommand("Run on…"), laterCommand("Stream clock")] },
     runMenu: {
@@ -137,10 +137,10 @@ function studioMenuParts(
 
 /** The studio's menus along the top of its window, as Linux shows them, Window › Layout ticking `chosenLayout`, or naming why it waits while no project is open, and Help's updates entry following `appUpdate`. */
 export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: StudioLayoutName | null, appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenu[] {
-  const parts = studioMenuParts(platform, chosenLayout, appUpdate, commands, "Preferences…");
+  const parts = studioMenuParts(platform, chosenLayout, appUpdate, commands, "Settings…");
   return [
     { label: "File", entries: parts.fileEntries },
-    { label: "Edit", entries: [...parts.undoAndRedoEntries, { kind: "separator" }, parts.preferencesEntry] },
+    { label: "Edit", entries: [...parts.undoAndRedoEntries, { kind: "separator" }, parts.settingsEntry] },
     parts.addMenu,
     parts.streamMenu,
     parts.runMenu,
@@ -166,7 +166,7 @@ export function studioMenusInTheSystemMenuBar(chosenLayout: StudioLayoutName | n
     {
       label: "Tato Studio",
       systemMenu: "app",
-      entries: [parts.aboutEntry, parts.appUpdateEntry, { kind: "separator" }, parts.preferencesEntry, { kind: "separator" }, { kind: "system_items", systemItems: "app_services_hide_and_quit" }],
+      entries: [parts.aboutEntry, parts.appUpdateEntry, { kind: "separator" }, parts.settingsEntry, { kind: "separator" }, { kind: "system_items", systemItems: "app_services_hide_and_quit" }],
     },
     { label: "File", systemMenu: null, entries: [...parts.fileEntries, { kind: "separator" }, { kind: "system_items", systemItems: "close_window" }] },
     { label: "Edit", systemMenu: null, entries: [{ kind: "system_items", systemItems: "text_editing" }, { kind: "separator" }, ...parts.undoAndRedoBesideTextEditing] },
