@@ -172,7 +172,7 @@ export interface ProjectReadingsOfTheRuntime {
 }
 
 /** The first of `name`, `name 2`, `name 3`, … that nothing in `location` holds as `<that name><extension>`; `name` itself when every one tried is taken, for the runtime or the sheet to refuse. */
-export async function firstNumberedNameNothingHoldsIn(location: string, name: string, extension = ""): Promise<string> {
+async function firstNumberedNameNothingHoldsIn(location: string, name: string, extension = ""): Promise<string> {
   for (let number = 1; number <= NUMBERED_NAMES_TRIED; number += 1) {
     const numberedName = projectNameNumbered(name, number);
     if (!(await somethingIsAt(path.join(location, `${numberedName}${extension}`)))) return numberedName;
