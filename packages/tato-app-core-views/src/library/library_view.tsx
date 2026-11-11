@@ -412,7 +412,7 @@ export function LibraryView({ connection }: { connection: TatoAppViewConnection 
                 size="small"
                 icon={FilePlus2}
                 label="Import asset…"
-                tooltip="Copy files into the folder shown"
+                tooltip="Copy files into the project, each into its kind's folder"
                 disabledReason={importDisabledReason}
                 onPressed={() => importTheFilesThePersonChooses(projectFolder)}
                 data-library-import-asset=""

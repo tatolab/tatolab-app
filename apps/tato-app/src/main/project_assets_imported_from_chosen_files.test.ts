@@ -1,3 +1,4 @@
+import path from "node:path";
 import { expect, test } from "vitest";
 import type { ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import { localApiRequestFailure } from "./local_api_client.js";
@@ -19,7 +20,7 @@ function importingFilesTheDialogAnswers(filesTheDialogAnswers: readonly string[]
       importAsset: async (projectDirectory, source, assetPath, author) => {
         importsAsked.push({ projectDirectory, source, assetPath, author });
         if (source.endsWith("notes.txt")) return localApiRequestFailure("import_asset failed: a stream is never imported");
-        const fileName = source.slice(source.lastIndexOf("/") + 1);
+        const fileName = path.basename(source);
         return succeeded({ asset: `uuid-of-${fileName}`, path: `media/${fileName}` });
       },
     },

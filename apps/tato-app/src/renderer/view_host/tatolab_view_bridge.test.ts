@@ -136,7 +136,7 @@ function recordingHostServices() {
       if (projectFolder === "/cancelled") return { kind: "nothing_chosen" };
       return {
         kind: "imported",
-        assets_imported: { imported: [{ asset: "a-uuid", path: "media/intro.mp4" }], refused: [{ file_name: "notes.txt", because: "import_asset failed: `media/notes.txt` is already the path of the asset b-uuid" }] },
+        assets_imported: { imported: [{ asset: "a-uuid", path: "media/intro.mp4" }], refused: [{ file_name: "main.graph.json", because: "import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write" }] },
       };
     },
     watchProjectTransactions: (projectFolder, listener) => {
@@ -279,7 +279,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
     const { connection, assetImportsAsked } = await connectedView(DJ_DECK_MANIFEST, {});
     expect(await connection.importAssetsIntoTheProject("/set")).toEqual({
       kind: "imported",
-      assets_imported: { imported: [{ asset: "a-uuid", path: "media/intro.mp4" }], refused: [{ file_name: "notes.txt", because: "import_asset failed: `media/notes.txt` is already the path of the asset b-uuid" }] },
+      assets_imported: { imported: [{ asset: "a-uuid", path: "media/intro.mp4" }], refused: [{ file_name: "main.graph.json", because: "import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write" }] },
     });
     expect(await connection.importAssetsIntoTheProject("/cancelled")).toEqual({ kind: "nothing_chosen" });
     expect(assetImportsAsked).toEqual(["/set", "/cancelled"]);
