@@ -25,7 +25,9 @@ import type {
   RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
+  StreamAssetCreated,
   StreamGraphSummary,
+  StreamLocation,
   NodeCatalog,
   ProjectNodeTypeListing,
   ProjectAssetListing,
@@ -52,6 +54,7 @@ import { studioViewsOfTheOpenProject } from "./open_project_views.js";
 import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { openTheRuntimesLogFolder } from "./runtime_log_folder_opening.js";
 import { openStreamProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
+import { newStreamDocumentPathNoFileHolds, PROJECT_STREAMS_FOLDER } from "./new_stream_document_path.js";
 import { NO_PROJECT_OPEN_IN_THE_WINDOW, type StudioWindowOfAProject } from "./tatolab_app_windows.js";
 import { systemMenuBarMenusFrom } from "./system_menu_bar_of_the_focused_window.js";
 
@@ -218,15 +221,55 @@ function stepTheProjectsWindowAsideOnceItOpenedAProject(
   }
 }
 
-/** `rename_stream { stream, display_name }`: the runtime's `set_stream_display_name` on the stream asset the runtime last listed for `stream`, then a status round whether it renamed or refused; refused in the runtime's own words, or for a stream it lists no project for. */
+/** What Tato Studio calls each stream edit in a refusal, as it asks and once done. */
+const STREAM_EDIT_WORDS = { rename: "renamed", delete: "deleted" } as const;
+
+/** Where the runtime last listed the stream with the id `stream`, its project folder and stream asset, or why Tato Studio cannot `edit` it. */
+function streamLocationTheRuntimeLastListedFor(sharedState: TatolabAppSharedState, stream: string, edit: keyof typeof STREAM_EDIT_WORDS): Result<StreamLocation, string> {
+  const listedStream = sharedState.statusPublisher.lastPublishedStatusNow()?.streams?.find((candidateListedStream) => candidateListedStream.stream === stream) ?? null;
+  if (listedStream === null) return failedWith(`The runtime does not list ${stream}, so Tato Studio has no stream to ${edit}.`);
+  if (listedStream.location === null) return failedWith(`The runtime lists no project for ${listedStream.display_name}, so it cannot be ${STREAM_EDIT_WORDS[edit]}.`);
+  return succeeded(listedStream.location);
+}
+
+/** `rename_stream { stream, display_name }`: the runtime's `set_stream_display_name` by the person editing on the stream asset the runtime last listed for `stream`, then a status round whether it renamed or refused; refused in the runtime's own words, or for a stream it lists no project for. */
 export function renameStream(sharedState: TatolabAppSharedState, stream: string, displayName: string): Promise<Result<void, string>> {
   return answerTheWindow("rename_stream", async () => {
-    const listedStream = sharedState.statusPublisher.lastPublishedStatusNow()?.streams?.find((candidateListedStream) => candidateListedStream.stream === stream) ?? null;
-    if (listedStream === null) return failedWith(`The runtime does not list ${stream}, so Tato Studio has no stream to rename.`);
-    if (listedStream.location === null) return failedWith(`The runtime lists no project for ${listedStream.display_name}, so it cannot be renamed.`);
-    const renamed = await sharedState.controller.setStreamDisplayName(listedStream.location.project_directory, listedStream.location.stream_asset, displayName);
+    const streamLocation = streamLocationTheRuntimeLastListedFor(sharedState, stream, "rename");
+    if (!streamLocation.ok) return streamLocation;
+    const renamed = await sharedState.controller.setStreamDisplayName(streamLocation.value.project_directory, streamLocation.value.stream_asset, displayName, sharedState.thePersonEditingInStudio);
     sharedState.statusPublisher.requestRefresh();
     return renamed.ok ? succeeded(undefined) : failedWith(renamed.failure.failureDescription);
+  });
+}
+
+/** `delete_stream { stream }`: the runtime's `delete_stream` by the person editing on the stream asset the runtime last listed for `stream`, then a status round whether it deleted or refused; refused in the runtime's own words, or for a stream it lists no project for. */
+export function deleteStream(sharedState: TatolabAppSharedState, stream: string): Promise<Result<void, string>> {
+  return answerTheWindow("delete_stream", async () => {
+    const streamLocation = streamLocationTheRuntimeLastListedFor(sharedState, stream, "delete");
+    if (!streamLocation.ok) return streamLocation;
+    const deleted = await sharedState.controller.deleteStream(streamLocation.value.project_directory, streamLocation.value.stream_asset, sharedState.thePersonEditingInStudio);
+    sharedState.statusPublisher.requestRefresh();
+    return deleted.ok ? succeeded(undefined) : failedWith(deleted.failure.failureDescription);
+  });
+}
+
+/** `create_stream_in_the_open_project { display_name }`: the runtime's `create_stream` by the person editing in the asking window's project, its graph document in `streams/` under a name no file there holds, then a status round; refused in the Projects window, or in the runtime's own words. */
+export function createStreamInTheOpenProject(sharedState: TatolabAppSharedState, displayName: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<StreamAssetCreated, string>> {
+  return answerTheWindow("create_stream_in_the_open_project", async () => {
+    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!studioWindow.ok) return studioWindow;
+    const projectFolder = studioWindow.value.projectTransactionsFeed.projectFolder;
+    const filesUnderTheStreamsFolder = await sharedState.controller.listProjectFiles(projectFolder, PROJECT_STREAMS_FOLDER);
+    if (!filesUnderTheStreamsFolder.ok) return failedWith(filesUnderTheStreamsFolder.failure.failureDescription);
+    const created = await sharedState.controller.createStream(
+      projectFolder,
+      newStreamDocumentPathNoFileHolds(displayName, filesUnderTheStreamsFolder.value),
+      displayName,
+      sharedState.thePersonEditingInStudio,
+    );
+    sharedState.statusPublisher.requestRefresh();
+    return created.ok ? succeeded({ stream_asset: created.value.stream_asset }) : failedWith(created.failure.failureDescription);
   });
 }
 
@@ -469,6 +512,18 @@ export function renameStreamArgumentsFrom(commandArguments: unknown): Result<{ s
   if (!stream.ok) return stream;
   const displayName = oneTextArgumentFrom("rename_stream", commandArguments, "display_name", "the display name to show it under");
   return displayName.ok ? succeeded({ stream: stream.value, display_name: displayName.value }) : displayName;
+}
+
+/** `delete_stream`'s arguments as the window sends them, or why they are not. */
+export function deleteStreamArgumentsFrom(commandArguments: unknown): Result<{ stream: string }, string> {
+  const stream = oneTextArgumentFrom("delete_stream", commandArguments, "stream", "a stream's id");
+  return stream.ok ? succeeded({ stream: stream.value }) : stream;
+}
+
+/** `create_stream_in_the_open_project`'s arguments as the window sends them, or why they are not. */
+export function createStreamInTheOpenProjectArgumentsFrom(commandArguments: unknown): Result<{ display_name: string }, string> {
+  const displayName = oneTextArgumentFrom("create_stream_in_the_open_project", commandArguments, "display_name", "the display name to show the new stream under");
+  return displayName.ok ? succeeded({ display_name: displayName.value }) : displayName;
 }
 
 /** The text argument `argumentName` of the command `commandName`, or why the window's arguments carry none, naming what it is. */
@@ -948,6 +1003,16 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const renameStreamArguments = renameStreamArgumentsFrom(commandArguments);
       if (!renameStreamArguments.ok) return { ok: false, refusal: renameStreamArguments.failure };
       return commandAnswerOfNothingFrom(await renameStream(sharedState, renameStreamArguments.value.stream, renameStreamArguments.value.display_name));
+    },
+    delete_stream: async (commandArguments) => {
+      const deleteStreamArguments = deleteStreamArgumentsFrom(commandArguments);
+      if (!deleteStreamArguments.ok) return { ok: false, refusal: deleteStreamArguments.failure };
+      return commandAnswerOfNothingFrom(await deleteStream(sharedState, deleteStreamArguments.value.stream));
+    },
+    create_stream_in_the_open_project: async (commandArguments, commandFromWindow) => {
+      const createStreamArguments = createStreamInTheOpenProjectArgumentsFrom(commandArguments);
+      if (!createStreamArguments.ok) return { ok: false, refusal: createStreamArguments.failure };
+      return commandAnswerFrom(await createStreamInTheOpenProject(sharedState, createStreamArguments.value.display_name, commandFromWindow));
     },
     open_stream_project_folder: async (commandArguments) =>
       commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_stream_project_folder", commandArguments)),

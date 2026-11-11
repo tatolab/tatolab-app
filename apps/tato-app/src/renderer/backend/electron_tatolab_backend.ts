@@ -45,6 +45,10 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     renameStream: async (streamId, displayName) => {
       await invokeTatolabCommand("rename_stream", { stream: streamId, display_name: displayName });
     },
+    createStreamInTheOpenProject: (displayName) => invokeTatolabCommand("create_stream_in_the_open_project", { display_name: displayName }),
+    deleteStream: async (streamId) => {
+      await invokeTatolabCommand("delete_stream", { stream: streamId });
+    },
     openStreamProjectFolder: async (streamId) => {
       await invokeTatolabCommand("open_stream_project_folder", { stream: streamId });
     },

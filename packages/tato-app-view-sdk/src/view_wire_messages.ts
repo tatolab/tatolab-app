@@ -61,16 +61,6 @@ export const VIEW_PORT_HANDOVER = "tatolab_view_port";
 
 const watchOrAskIdSchema = z.number().int().nonnegative();
 
-/** A graph tool the window's toolbar draws and a stream graph view carries out. */
-export const windowToolbarGraphToolSchema = z.enum(["add_node", "frame_selection", "add_note", "add_subgraph"]);
-/** A graph tool the window's toolbar draws and a stream graph view carries out. */
-export type WindowToolbarGraphTool = z.infer<typeof windowToolbarGraphToolSchema>;
-
-/** One graph tool as the view offers it, and why it cannot be pressed now (`null` when it can). */
-export const windowToolbarGraphToolOfferedSchema = z.object({ tool: windowToolbarGraphToolSchema, disabled_reason: z.string().nullable() });
-/** One graph tool as the view offers it. */
-export type WindowToolbarGraphToolOffered = z.infer<typeof windowToolbarGraphToolOfferedSchema>;
-
 /** A section of the window that lists modules: the modules added to the open project, or the Marketplace's packages and samples. */
 export const modulesAndMarketplaceSectionSchema = z.enum(["added_to_this_project", "marketplace"]);
 /** A section of the Modules and Marketplace window. */
@@ -123,8 +113,6 @@ export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("header_row") }),
   /** The chosen layout's areas for the view type `view_type_id`, read again as the layout or the view types change. */
   z.object({ kind: z.literal("areas_for_the_view_type"), view_type_id: z.string() }),
-  /** Each press of a graph tool in the window's toolbar while the view's offer, made with `offer_graph_tools`, is the one it shows; stopping the watch withdraws the offer. */
-  z.object({ kind: z.literal("graph_tool_presses") }),
 ]);
 /** What a view may watch. */
 export type ViewWatchedSubject = z.infer<typeof viewWatchedSubjectSchema>;
@@ -174,8 +162,6 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("show_view_type_in_area"), view_type_id: z.string(), area_id: z.string() }),
   /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
   z.object({ kind: z.literal("open_modules_and_marketplace"), shows: modulesAndMarketplaceSectionSchema }),
-  /** The graph tools the view's watch `watch_id` of `graph_tool_presses` offers the window's toolbar, replacing any offer before; refused where the window draws no toolbar. */
-  z.object({ kind: z.literal("offer_graph_tools"), watch_id: watchOrAskIdSchema, tools: z.array(windowToolbarGraphToolOfferedSchema) }),
 ]);
 /** What a view may ask Studio to do. */
 export type ViewAsk = z.infer<typeof viewAskSchema>;
@@ -214,7 +200,6 @@ export const viewWatchedReadingSchema = z.discriminatedUnion("subject", [
   z.object({ subject: z.literal("settings"), reading: jsonValueSchema }),
   z.object({ subject: z.literal("opened_on"), reading: viewOpenedOnSchema }),
   z.object({ subject: z.literal("header_row"), reading: viewHeaderRowSchema }),
-  z.object({ subject: z.literal("graph_tool_presses"), reading: z.object({ tool: windowToolbarGraphToolSchema }) }),
   z.object({ subject: z.literal("areas_for_the_view_type"), reading: areasForAViewTypeReadingSchema }),
 ]);
 /** One reading of a watched subject. */

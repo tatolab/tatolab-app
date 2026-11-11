@@ -44,7 +44,7 @@ export function ToggleIconButton({
           onPressedChange={onToggled}
           tabIndex={isOutOfTheTabOrder ? -1 : undefined}
           className={cn(
-            "rounded-md px-0 text-fg-3 hover:bg-hover hover:text-fg aria-pressed:bg-selected aria-pressed:text-fg",
+            "rounded-md px-0 text-fg-3 hover:bg-selected hover:text-brand-text hover:shadow-(--icon-button-hover-ring) aria-pressed:bg-brand aria-pressed:text-primary-foreground aria-pressed:hover:bg-brand aria-pressed:hover:text-primary-foreground",
             TOGGLE_SIZE_CLASS_NAMES[size],
             FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
           )}

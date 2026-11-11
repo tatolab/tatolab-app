@@ -108,6 +108,9 @@ test("each key cap the window shows reads as the accelerator the bar draws, and 
   expect(electronAcceleratorOfTheShortcutHint("⌘O")).toBe("Command+O");
   expect(electronAcceleratorOfTheShortcutHint("⌘,")).toBe("Command+,");
   expect(electronAcceleratorOfTheShortcutHint("⌘1")).toBe("Command+1");
+  expect(electronAcceleratorOfTheShortcutHint("⇧⌘T")).toBe("Shift+Command+T");
+  expect(electronAcceleratorOfTheShortcutHint("⌃Tab")).toBe("Control+Tab");
+  expect(electronAcceleratorOfTheShortcutHint("⌃⇧Tab")).toBe("Control+Shift+Tab");
   expect(electronAcceleratorOfTheShortcutHint("F5")).toBe("F5");
   expect(electronAcceleratorOfTheShortcutHint("Shift F5")).toBe("Shift+F5");
   expect(electronAcceleratorOfTheShortcutHint("Shift A")).toBe("Shift+A");

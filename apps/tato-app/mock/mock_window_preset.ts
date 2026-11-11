@@ -79,8 +79,8 @@ async function openEveryOutlinerRow(): Promise<void> {
  * Drives the mock window to the screen the page's query names, as a person would get there, once the window has
  * mounted. In the studio: `?layout=build|compose|spatial|code|perform` (chosen with its shortcut), `?outliner=open`
  * (every row opened), `?select=<row id>` (that outliner row clicked, as `stream:<stream id>`), `?open_stream=<stream id>`
- * (its row double-clicked, opening its tab), `?select_node=<node name>` (that node's card clicked in the stream graph), `?code_file=<file>` (that file of the open project, as `nodes/inverting_effect.py`, opened from the code area's + menu, with a layout that shows one), `?run=live` (Play pressed), `?menu=<menu>` (that menu of the bar opened, as `Window`) with
- * `?submenu=<entry>` (that entry's submenu opened, as `Layout`), and `?area_menu=<area id>` (that area's
+ * (its row double-clicked, opening its tab), `?select_node=<node name>` (that node's card clicked in the stream graph), `?code_file=<file>` (that file of the open project, as `nodes/inverting_effect.py`, opened from the code area's + menu, with a layout that shows one), `?run=live` (F5 pressed), `?menu=<menu>` (that menu of the bar opened, as `Window`) with
+ * `?submenu=<entry>` (that entry's submenu opened, as `Layout`) or `?menu_entry=<entry>` (that entry chosen, as `New stream…`; on macOS the backend's `?system_menu_entry=Stream › New stream…` chooses it), `?stream_name=<name>` (that name typed in New stream's or Rename stream's dialog), and `?area_menu=<area id>` (that area's
  * view-type menu opened) with `?area_view=<view type id>` (that view chosen in it, as a project's view with the backend's `?studio_views=fixture`), `?library_shown=node_types|views|graph_generators|assets` (that choice of the Library's Show menu, with `?library_asset=<path>` that asset's card clicked, as `media/lobby-intro.mp4`), `?library_row=<row id>` (that Library row clicked, as `source:project/category:Effects/node_type:nodes.inverting_effect:InvertingEffect`, with the backend's `?node_types=unreadable_project` listing every module of the project's own unreadable), `?transaction_row=<transaction>` (that row of Transactions clicked, with the backend's `?developer_mode=on` and `?area_view=transactions`) and `?transactions_filter=open` (its Filter ▾ opened); with the backend's `?project=none|unreadable` (none shows the Projects window, empty with `?recent=none`), `?popped_out_view=<popped-out view as JSON>` (the window an area's Pop out into a window opens), `?module_manager=open` (the window File › Marketplace… and Modules… open) with `?module_manager_section=<section>` (the section it opens on, as `added_to_this_project`) and `?catalog=unserved` (get.tatolab.com serving no catalog), `?subgraphs=generated` (the main stream holding a graph generator's frozen output), `?node_states=stopped` (every node of the main stream reading `Stopped`, so the Node visualizer shows its placeholders), `?graph_inputs=declared` (the main stream declaring two Graph Inputs, which Perform's Controls show; `?state=node-error|dropping` and `?studio_views=fixture` take precedence), and `?port_families=unserved` (no port's family in the graph or the catalog, as a runtime from before strict-port-families). `?page=projects` opens the Projects window from File › Projects; `?page=settings` opens Settings, on
  * `?section=general|developer|project|runtime|command-line|about`; there `?restart=pressed|refused` presses Restart and `?link=pressed`
  * presses Link tatolab, with the backend's `?cli_link=not_linked`. `?sheet=new_project` presses the Projects window's New project, then
@@ -109,7 +109,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     await pressWhenShown(`[data-code-file-menu="open"]`);
     await clickWhenShown(`[data-code-file-choice$="/${CSS.escape(codeFile)}"]`);
   }
-  if (pageQuery.get("run") === "live") await clickWhenShown(`[data-studio-play-or-stop="play"]`);
+  if (pageQuery.get("run") === "live" && (await waitForElement("[data-studio-title-row]")) !== null) document.dispatchEvent(new KeyboardEvent("keydown", { key: "F5", bubbles: true }));
   const areaMenu = pageQuery.get("area_menu");
   if (areaMenu !== null) await pressWhenShown(`[data-area-view-type-menu="${CSS.escape(areaMenu)}"]`);
   const areaView = pageQuery.get("area_view");
@@ -133,6 +133,12 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     const submenuTrigger = await waitForElement<HTMLElement>(`[data-slot="dropdown-menu-sub-trigger"]`);
     if (submenuTrigger?.textContent?.includes(submenu) === true) submenuTrigger.click();
   }
+  const menuEntry = pageQuery.get("menu_entry");
+  if (menu !== null && menuEntry !== null && (await waitForElement(`[role="menuitem"]`)) !== null) {
+    [...document.querySelectorAll<HTMLElement>(`[role="menuitem"]`)].find((menuItem) => menuItem.textContent?.trim().startsWith(menuEntry) === true)?.click();
+  }
+  const streamName = pageQuery.get("stream_name");
+  if (streamName !== null) await typeWhenShown(`[data-naming-dialog-name]`, streamName);
 
   const page = pageQuery.get("page");
   if (page === "projects") {

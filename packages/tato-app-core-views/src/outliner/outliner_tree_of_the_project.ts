@@ -121,6 +121,7 @@ function projectStreamNodes(project: OpenProject, listedStreams: ListedStreamsRe
             label: stream.display_name,
             icon: stream.state === "failed" ? "failed" : "stream",
             tone: stream.state === "failed" ? "failed" : undefined,
+            isCurrent: stream.stream === openStream,
           },
           meaning: { kind: "stream", stream: stream.stream, display_name: stream.display_name, project_name: openProject.name, project_folder: openProject.folder },
           isOpenByDefault: stream.stream === openStream,
@@ -136,7 +137,7 @@ export function streamsTheOutlinerShows(project: OpenProject, listedStreams: Lis
   return listedStreams.kind === "listed" ? streamsOfTheOpenProject(project, listedStreams.streams).map((stream) => stream.stream) : [];
 }
 
-/** The outliner's rows that show for `project`, with what each stands for: a row shows when every row above it is open, and the stream of the active tab, `openStream`, opens by default. */
+/** The outliner's rows that show for `project`, with what each stands for: a row shows when every row above it is open, and the stream of the active tab, `openStream`, opens by default and reads as the current row. */
 export function outlinerTreeOfTheProject(
   project: OpenProject,
   listedStreams: ListedStreamsReading,

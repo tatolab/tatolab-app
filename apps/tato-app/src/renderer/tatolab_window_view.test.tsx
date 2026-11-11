@@ -199,17 +199,21 @@ describe("the studio", () => {
     expect(outlinerFrame.getAttribute("src")).toMatch(/\/core_views\/outliner\/index\.html$/);
   });
 
-  it("titles the window with the project's name once, centred in the toolbar on macOS, never on a stream tab", async () => {
+  it("names the project once on macOS, at the start of the title row before the stream tabs, never on a tab", async () => {
     await mountedWindowOverTheMock("state=running");
     await waitFor(() => expect(document.querySelector("[data-studio-window-title]")?.textContent).toBe("pattern"));
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
     await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main"]));
   });
 
-  it("leaves the project's name to the window's title bar on Linux", async () => {
+  it("on Linux, draws the menus in a row of their own with the stream tabs under them, and leaves the project's name to the window's title bar", async () => {
     await mountedWindowOverTheMock("platform=linux&state=running");
-    await screen.findByRole("tablist", { name: "Open streams" });
+    const streamTabs = await screen.findByRole("tablist", { name: "Open streams" });
     expect(document.querySelector("[data-studio-window-title]")).toBeNull();
+    const menuRow = document.querySelector("[data-studio-menu-row]") ?? expect.unreachable("no menu row");
+    expect(menuRow.querySelector("[data-studio-menu]")).not.toBeNull();
+    expect(menuRow.contains(streamTabs)).toBe(false);
+    expect(menuRow.compareDocumentPosition(streamTabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("closes the view-type menu on a choice, and lists in the Library each source's node types by category, its generators under Show, and says why a module does not parse", async () => {
@@ -497,6 +501,102 @@ describe("the studio", () => {
     expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true"]);
   });
 
+  it("on Linux, makes a stream from Stream › New stream… and opens its tab, renames it, and deletes it once the question naming it is answered", async () => {
+    await mountedWindowOverTheMock("state=running&platform=linux");
+    const streamTabNames = () => within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab").map((tab) => tab.textContent);
+    await waitFor(() => expect(streamTabNames()).toEqual(["main"]));
+
+    await chooseFromTheMenuBar("Stream", /^New stream…/);
+    const newStreamName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-name-form-dialog=\"new_stream\"] [data-naming-dialog-name]") ?? expect.unreachable("no New stream dialog"));
+    fireEvent.change(newStreamName, { target: { value: "  " } });
+    fireEvent.keyDown(newStreamName, { key: "Enter" });
+    expect(document.querySelector("[data-name-form-dialog]")).not.toBeNull();
+    fireEvent.change(newStreamName, { target: { value: "Lobby preview" } });
+    fireEvent.keyDown(newStreamName, { key: "Enter" });
+    await waitFor(() => expect(document.querySelector("[data-name-form-dialog]")).toBeNull());
+    await waitFor(() => expect(streamTabNames()).toEqual(["main", "Lobby preview"]));
+    await waitFor(() => expect(coreViewPage("outliner").querySelector("[data-tree-row-current]")?.textContent).toBe("Lobby preview"));
+
+    await chooseFromTheMenuBar("Stream", /^Rename stream…/);
+    const newName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-name-form-dialog=\"rename_stream\"] [data-naming-dialog-name]") ?? expect.unreachable("no Rename stream dialog"));
+    expect(newName.value).toBe("Lobby preview");
+    fireEvent.change(newName, { target: { value: "Lobby loop" } });
+    fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+    await waitFor(() => expect(streamTabNames()).toEqual(["main", "Lobby loop"]));
+
+    await chooseFromTheMenuBar("Stream", /^Delete stream…/);
+    await waitFor(() => expect(textOf("[data-delete-stream-dialog]")).toContain("Delete “Lobby loop”?"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(streamTabNames()).toEqual(["main"]));
+    expect(document.querySelector(`[data-outliner-row-name="Lobby loop"]`)).toBeNull();
+  });
+
+  it("says in the runtime's words why New stream made no stream, and keeps the dialog open", async () => {
+    await mountedWindowOverTheMock("state=running&platform=linux", {
+      createStreamInTheOpenProject: async () => {
+        throw "create_stream failed: streams/lobby_preview.json already holds a stream asset";
+      },
+    });
+    await chooseFromTheMenuBar("Stream", /^New stream…/);
+    const newStreamName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-naming-dialog-name]") ?? expect.unreachable("no New stream dialog"));
+    fireEvent.change(newStreamName, { target: { value: "Lobby preview" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(textOf("[data-naming-dialog-refusal]")).toContain("streams/lobby_preview.json already holds a stream asset"));
+    expect(document.querySelector("[data-name-form-dialog]")).not.toBeNull();
+  });
+
+  it("closes the shown tab with ⌘W, reopens it with ⇧⌘T, and moves between tabs with ⌃Tab and ⌃⇧Tab, none of them behind a dialog", async () => {
+    let askToShowAStream: (streamId: string) => void = () => expect.unreachable("the window did not listen for stream requests");
+    await mountedWindowOverTheMock("state=running", {
+      onStreamPageRequested: (listener) => {
+        askToShowAStream = listener;
+        return () => undefined;
+      },
+    });
+    const streamTabs = () => within(screen.getByRole("tablist", { name: "Open streams", hidden: true })).getAllByRole("tab", { hidden: true });
+    const shownTabName = () => streamTabs().find((tab) => tab.getAttribute("aria-selected") === "true")?.textContent;
+    await waitFor(() => expect(streamTabs().map((tab) => tab.textContent)).toEqual(["main"]));
+    act(() => askToShowAStream(mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_name: "main" })));
+    expect(shownTabName()).toBe("camera");
+
+    fireEvent.keyDown(document, { key: "Tab", ctrlKey: true });
+    expect(shownTabName()).toBe("main");
+    fireEvent.keyDown(document, { key: "Tab", ctrlKey: true, shiftKey: true });
+    expect(shownTabName()).toBe("camera");
+
+    fireEvent.keyDown(document, { key: "w", metaKey: true });
+    expect(streamTabs().map((tab) => tab.textContent)).toEqual(["main"]);
+    fireEvent.keyDown(document, { key: "T", metaKey: true, shiftKey: true });
+    expect(streamTabs().map((tab) => tab.textContent)).toEqual(["main", "camera"]);
+    expect(shownTabName()).toBe("camera");
+
+    fireEvent.keyDown(document, { key: ",", metaKey: true });
+    await waitFor(() => expect(document.querySelector("[role=dialog]")).not.toBeNull());
+    fireEvent.keyDown(document, { key: "w", metaKey: true });
+    fireEvent.keyDown(document, { key: "Tab", ctrlKey: true });
+    expect(streamTabs().map((tab) => tab.textContent)).toEqual(["main", "camera"]);
+    expect(shownTabName()).toBe("camera");
+  });
+
+  it("on macOS, offers the Stream menu in the system menu bar with ⌘W, ⇧⌘T, ⌃Tab and ⌃⇧Tab, its tab entries unavailable until there is a tab to act on", async () => {
+    const { backendChanges, menusShownLast, chooseFromTheSystemMenuBar } = systemMenuBarOverTheMock();
+    await mountedWindowOverTheMock("state=running", backendChanges);
+    await waitFor(() => expect(within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab")).toHaveLength(1));
+    const streamMenu = () => menusShownLast().find((menu) => menu.label === "Stream") ?? expect.unreachable("no Stream menu");
+    const streamEntry = (label: string) => streamMenu().entries.find((entry) => entry.kind === "command" && entry.label === label) ?? expect.unreachable(`no ${label}`);
+    await waitFor(() => expect(streamEntry("Close tab")).toMatchObject({ shortcut_hint: "⌘W", unavailable_because: null }));
+    expect(streamEntry("New stream…")).toMatchObject({ shortcut_hint: null, unavailable_because: null });
+    expect(streamEntry("Reopen closed tab")).toMatchObject({ shortcut_hint: "⇧⌘T", unavailable_because: "No tab has been closed" });
+    expect(streamEntry("Next tab")).toMatchObject({ shortcut_hint: "⌃Tab" });
+    expect(streamEntry("Previous tab")).toMatchObject({ shortcut_hint: "⌃⇧Tab" });
+
+    chooseFromTheSystemMenuBar("Stream › Close tab");
+    await waitFor(() => expect(streamEntry("Reopen closed tab")).toMatchObject({ unavailable_because: null }));
+    expect(streamEntry("Close tab")).toMatchObject({ unavailable_because: "Open a stream's tab first" });
+    chooseFromTheSystemMenuBar("Stream › New stream…");
+    await waitFor(() => expect(document.querySelector("[data-name-form-dialog=\"new_stream\"]")).not.toBeNull());
+  });
+
   it("switches layouts from Window › Layout and with ⌘1 to ⌘5, each keeping its own areas", async () => {
     await mountedWindowOverTheMock("state=running");
     expect(await shownLayout()).toBe("build");
@@ -588,7 +688,7 @@ describe("the studio", () => {
     await mountedWindowOverTheMock("state=running", backendChanges);
     expect(await shownLayout()).toBe("build");
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
-    expect(document.querySelector("[data-studio-play-or-stop]")).not.toBeNull();
+    expect(document.querySelector("[data-studio-title-row]")).not.toBeNull();
     expect(menusShownLast().map((menu) => [menu.label, menu.system_menu])).toEqual([
       ["Tato Studio", "app"],
       ["File", null],
@@ -799,20 +899,6 @@ describe("the studio", () => {
     expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
   });
 
-  it("draws the Stream graph's Add node, Frame, Note and Subgraph in the window's toolbar, says why one can't be pressed, and a press opens the node search in the graph", async () => {
-    await mountedWindowOverTheMock("state=running");
-    const toolInTheToolbar = (tool: string) => document.querySelector<HTMLElement>(`[data-studio-graph-tool="${tool}"]`) ?? expect.unreachable(`no ${tool} in the toolbar`);
-    await waitFor(() => expect(document.querySelector("[data-studio-graph-tools]")?.getAttribute("data-studio-graph-tools")).toBe("stream-graph"));
-    await waitFor(() => expect(toolInTheToolbar("add_node").getAttribute("aria-disabled")).toBeNull());
-    expect(toolInTheToolbar("frame_selection").getAttribute("aria-label")).toBe("Frame the selected nodes: Select the nodes to frame first");
-    expect(toolInTheToolbar("add_subgraph").getAttribute("aria-disabled")).toBe("true");
-    const streamGraph = coreViewPage("stream_graph", "stream-graph");
-    await waitFor(() => expect(streamGraph.querySelector('[data-node-graph-tool="add_node"]')).toBeNull());
-
-    fireEvent.click(toolInTheToolbar("add_node"));
-    await waitFor(() => expect(within(streamGraph.body).getByRole("dialog", { name: "Add a node" })).toBeTruthy());
-  });
-
   it("opens the Marketplace from Install modules… at the foot of the node search, closing the search", async () => {
     const modulesAndMarketplaceSectionsOpened: string[] = [];
     await mountedWindowOverTheMock("state=running", {
@@ -820,10 +906,9 @@ describe("the studio", () => {
         modulesAndMarketplaceSectionsOpened.push(shows);
       },
     });
-    const toolInTheToolbar = () => document.querySelector<HTMLElement>('[data-studio-graph-tool="add_node"]') ?? expect.unreachable("no Add node in the toolbar");
-    await waitFor(() => expect(toolInTheToolbar().getAttribute("aria-disabled")).toBeNull());
     const streamGraph = coreViewPage("stream_graph", "stream-graph");
-    fireEvent.click(toolInTheToolbar());
+    const addNodeInTheRibbon = await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-tool="add_node"]') ?? expect.unreachable("no Add node in the graph's ribbon"));
+    fireEvent.click(addNodeInTheRibbon);
     const nodeSearch = await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Add a node" }));
 
     fireEvent.click(within(nodeSearch).getByRole("button", { name: "Install modules…" }));
@@ -855,6 +940,18 @@ describe("the studio", () => {
 
     fireEvent.keyDown(outlinerPage, { key: "2", metaKey: true });
     expect(await shownLayout()).toBe("compose");
+  });
+
+  it("opens a stream's tab on a single click of its Outliner row, and the views follow the tab", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const recorderStream = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "recorder" });
+    const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main"]));
+
+    fireEvent.click(await waitFor(() => outlinerRow(`stream:${recorderStream}`)));
+
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => [tab.textContent, tab.getAttribute("aria-selected")])).toEqual([["main", "false"], ["recorder", "true"]]));
+    await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector("[data-stream-graph]")?.getAttribute("data-stream-graph")).toBe(recorderStream));
   });
 
   it("says in the Stream graph's frame that a stopped stream isn't running, and that no stream is open once its tab closes", async () => {
@@ -1028,7 +1125,7 @@ describe("the studio", () => {
 
     pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Rename…/ }));
-    const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-rename-project-name]") ?? expect.unreachable("no Rename dialog"));
+    const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-naming-dialog-name]") ?? expect.unreachable("no Rename dialog"));
     expect(nameField.value).toBe("pattern");
     fireEvent.change(nameField, { target: { value: "   " } });
     fireEvent.keyDown(nameField, { key: "Enter" });
@@ -1036,13 +1133,13 @@ describe("the studio", () => {
 
     fireEvent.change(nameField, { target: { value: "Refused" } });
     fireEvent.click(screen.getByRole("button", { name: "Rename" }));
-    await waitFor(() => expect(textOf("[data-rename-project-refusal]")).toContain("rename_project failed: the project file is read-only"));
-    expect(document.querySelector("[data-rename-project-dialog]")).not.toBeNull();
+    await waitFor(() => expect(textOf("[data-naming-dialog-refusal]")).toContain("rename_project failed: the project file is read-only"));
+    expect(document.querySelector("[data-name-form-dialog='rename_project']")).not.toBeNull();
 
     fireEvent.change(nameField, { target: { value: "Night Show" } });
     fireEvent.keyDown(nameField, { key: "Enter" });
 
-    await waitFor(() => expect(document.querySelector("[data-rename-project-dialog]")).toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-name-form-dialog='rename_project']")).toBeNull());
     expect(renameRecentProject).toHaveBeenLastCalledWith(PATTERN_PROJECT, "Night Show");
     await waitFor(() => expect(within(patternCard).getByRole("button", { name: /^Actions for Night Show,/ })).toBeTruthy());
   });

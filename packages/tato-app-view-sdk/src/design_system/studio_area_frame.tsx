@@ -24,7 +24,7 @@ export function StudioViewIconMark({ icon }: { icon: StudioAreaHeaderMenuIcon })
 /** One area of the studio: a rounded pane on the window's frame, its header over the view it shows. */
 export function StudioAreaFrame({ label, header, children, ...controlDataAttributes }: { label: string; header: ReactNode; children: ReactNode } & ControlDataAttributes) {
   return (
-    <section aria-label={label} className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg bg-studio-area" {...controlDataAttributes}>
+    <section aria-label={label} className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-studio-area-outline bg-studio-area" {...controlDataAttributes}>
       <div className="flex h-(--studio-area-header-height) shrink-0 items-center gap-1.5 border-b border-studio-area-header-line bg-studio-area-header px-1.5">
         {header}
       </div>
@@ -64,7 +64,7 @@ export function StudioAreaOverAViewsOwnFrame({
     return () => resizeObserver.disconnect();
   }, []);
   return (
-    <section aria-label={label} className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg bg-studio-area" {...controlDataAttributes}>
+    <section aria-label={label} className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-studio-area-outline bg-studio-area" {...controlDataAttributes}>
       <div ref={viewTypeMenuRowRef} className="absolute top-0 left-0 z-10 flex h-(--studio-area-header-height) items-center gap-2 px-1.5">
         {viewTypeMenu}
       </div>

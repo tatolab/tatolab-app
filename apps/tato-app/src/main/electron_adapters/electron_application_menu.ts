@@ -30,6 +30,8 @@ function electronMenuItemsOfTheSystemItems(systemItems: SystemMenuBarItems): Men
       ];
     case "close_window":
       return [{ role: "close" }];
+    case "close_window_beside_close_tab":
+      return [{ role: "close", accelerator: "Shift+Command+W" }];
     case "window_arrangement":
       return [{ role: "minimize" }, { role: "zoom" }];
     case "bring_all_to_front":

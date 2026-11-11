@@ -147,9 +147,14 @@ export function nodePlacedEdits(edited: EditedStreamGraph, nodeType: NodeCatalog
   return output === null ? [placed] : [placed, { operation: "connect", stream: edited.streamAsset, source: { node: NODE_PLACED_IN_THIS_TRANSACTION, port: output }, target: wiredEnd }];
 }
 
+/** The port of `nodeType` a loose wire of `family` from `side` links to when a node of it is placed, or `null` when it has none. */
+export function portALooseWireLinksTo(nodeType: NodeCatalogEntry, looseWire: Pick<LooseWire, "side" | "family">): string | null {
+  return firstPortOfTheFamily(looseWire.side === "output" ? nodeType.inputs : nodeType.outputs, looseWire.family);
+}
+
 /** Whether `nodeType` has a port a loose wire of `family` from `side` could link to. */
 export function canANodeTypeTakeTheLooseWire(nodeType: NodeCatalogEntry, looseWire: Pick<LooseWire, "side" | "family">): boolean {
-  return firstPortOfTheFamily(looseWire.side === "output" ? nodeType.inputs : nodeType.outputs, looseWire.family) !== null;
+  return portALooseWireLinksTo(nodeType, looseWire) !== null;
 }
 
 /** The selected links, nodes and notes taken out: a link of a removed node goes with it, so only the others are disconnected. */

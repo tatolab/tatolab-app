@@ -11,7 +11,7 @@ import {
   parseHttpResponse,
   runtimeDescriptionFromTheDescribeRuntimeToolResult,
   queuedStreamActionFromTheToolResult,
-  streamDisplayNameSetFromTheSetStreamDisplayNameToolResult,
+  streamAssetChangeFromTheToolResult,
 } from "./local_api_client.js";
 import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
 import { STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI, streamActionResourceUri } from "./project_venv_syncs_on_the_stream_actions_feed.js";
@@ -589,7 +589,9 @@ test("removing_a_project_queues_remove_project_with_its_folder_and_a_project_the
   ]);
 });
 
-test("setting_a_streams_display_name_calls_set_stream_display_name_with_its_project_and_stream_asset_and_a_refusal_is_the_runtimes_own_words", async () => {
+const SAM_EDITING = { kind: "person", name: "Sam" } as const;
+
+test("setting_a_streams_display_name_calls_set_stream_display_name_with_its_project_stream_asset_and_author_and_a_refusal_is_the_runtimes_own_words", async () => {
   const server = await fakeLocalApiServerAnswering([
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-set-stream-display-name-answer-for-the-main-stream-of-hallways-renamed-heat-map.json")),
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-set-stream-display-name-refusal-for-a-display-name-that-shows-nothing.json")),
@@ -597,23 +599,69 @@ test("setting_a_streams_display_name_calls_set_stream_display_name_with_its_proj
   const hallways = "/private/tmp/tatolab-proof-projects/hallways";
   const mainStreamAsset = "666895f1-e258-4587-8c62-ed07c0cc70db";
 
-  expect(answerOf(await server.client().setStreamDisplayName(hallways, mainStreamAsset, "Heat map"))).toEqual({
+  expect(answerOf(await server.client().setStreamDisplayName(hallways, mainStreamAsset, "Heat map", SAM_EDITING))).toEqual({
+    stream_asset: mainStreamAsset,
     transaction: "43d874c1-83a9-4506-90fc-e01bfc47b9ca",
     commit: "22857d5b7b2ac6dbd9e62ed1b64fd38dff47cb9f",
   });
-  expect(failureOf(await server.client().setStreamDisplayName(hallways, mainStreamAsset, "   "))).toEqual({
+  expect(failureOf(await server.client().setStreamDisplayName(hallways, mainStreamAsset, "   ", SAM_EDITING))).toEqual({
     failureDescription: `set_stream_display_name failed: "   " cannot be a stream's display name: it shows nothing`,
     isTheRuntimesRefusal: true,
   });
   expect(toolCallsReceivedBy(server)).toEqual([
-    ["set_stream_display_name", { project_directory: hallways, stream_asset: mainStreamAsset, display_name: "Heat map" }],
-    ["set_stream_display_name", { project_directory: hallways, stream_asset: mainStreamAsset, display_name: "   " }],
+    ["set_stream_display_name", { project_directory: hallways, stream_asset: mainStreamAsset, display_name: "Heat map", author: SAM_EDITING }],
+    ["set_stream_display_name", { project_directory: hallways, stream_asset: mainStreamAsset, display_name: "   ", author: SAM_EDITING }],
   ]);
 });
 
-test("a_set_stream_display_name_answer_missing_its_commit_is_refused_naming_it", () => {
-  expect(failureOf(streamDisplayNameSetFromTheSetStreamDisplayNameToolResult('{"transaction":"43d874c1-83a9-4506-90fc-e01bfc47b9ca"}'))).toBe(
+test("creating_a_stream_calls_create_stream_with_its_project_path_display_name_and_author_and_reads_the_stream_asset_it_made", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-stream-answer-for-preview-in-lobby-loading-it.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-stream-refusal-for-a-path-another-asset-holds.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-stream-refusal-for-a-display-name-that-shows-nothing.json")),
+  ]);
+  const lobby = "/root/streams/lobby";
+
+  expect(answerOf(await server.client().createStream(lobby, "streams/preview.graph.json", "Preview", SAM_EDITING))).toEqual({
+    stream_asset: "38766917-e6ed-443f-bad5-6d70eff6efac",
+    transaction: "9f884a11-5efd-4189-b119-6d6ea8212744",
+    commit: "7af0da3b8cb0bae77712253ab2df7108217fac22",
+  });
+  expect(failureOf(await server.client().createStream(lobby, "streams/preview.graph.json", "Preview", SAM_EDITING)).failureDescription).toBe(
+    "create_stream failed: `streams/preview.graph.json` is already the path of the asset 38766917-e6ed-443f-bad5-6d70eff6efac",
+  );
+  expect(failureOf(await server.client().createStream(lobby, "streams/blank.graph.json", "   ", SAM_EDITING)).failureDescription).toBe(
+    `create_stream failed: "   " cannot be a stream's display name: it shows nothing`,
+  );
+  expect(toolCallsReceivedBy(server)[0]).toEqual(["create_stream", { project_directory: lobby, path: "streams/preview.graph.json", display_name: "Preview", author: SAM_EDITING }]);
+});
+
+test("deleting_a_stream_calls_delete_stream_with_its_project_stream_asset_and_author_and_a_refusal_is_the_runtimes_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-stream-answer-for-preview-of-lobby.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-stream-refusal-for-a-stream-asset-the-project-no-longer-holds.json")),
+  ]);
+  const lobby = "/root/streams/lobby";
+  const previewStreamAsset = "38766917-e6ed-443f-bad5-6d70eff6efac";
+
+  expect(answerOf(await server.client().deleteStream(lobby, previewStreamAsset, SAM_EDITING))).toEqual({
+    stream_asset: previewStreamAsset,
+    transaction: "4a8fed8f-bf7c-4941-a1a5-31f5731718ca",
+    commit: "88bf532826018559d6105af6e9e7b8bc3e556155",
+  });
+  expect(failureOf(await server.client().deleteStream(lobby, previewStreamAsset, SAM_EDITING))).toEqual({
+    failureDescription: `delete_stream failed: the project holds no stream asset ${previewStreamAsset}`,
+    isTheRuntimesRefusal: true,
+  });
+  expect(toolCallsReceivedBy(server)[0]).toEqual(["delete_stream", { project_directory: lobby, stream_asset: previewStreamAsset, author: SAM_EDITING }]);
+});
+
+test("a_stream_asset_tool_answer_missing_its_commit_or_asset_is_refused_naming_it", () => {
+  expect(failureOf(streamAssetChangeFromTheToolResult("set_stream_display_name", '{"asset":{"asset":"666895f1-e258-4587-8c62-ed07c0cc70db"},"transaction":"43d874c1-83a9-4506-90fc-e01bfc47b9ca"}'))).toBe(
     "the runtime's set_stream_display_name result could not be read: missing field `commit`",
+  );
+  expect(failureOf(streamAssetChangeFromTheToolResult("delete_stream", '{"transaction":"43d874c1-83a9-4506-90fc-e01bfc47b9ca","commit":"22857d5b"}'))).toBe(
+    "the runtime's delete_stream result could not be read: missing field `asset`",
   );
 });
 

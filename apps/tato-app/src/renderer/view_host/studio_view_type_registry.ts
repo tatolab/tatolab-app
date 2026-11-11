@@ -3,19 +3,15 @@ import type { ReactNode } from "react";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
 import type { StudioAreaHeaderMenuIcon } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import type { JsonValue, StopWatching, StudioViewHostServices, StudioViewTypeSource, ViewHeaderRow } from "./studio_view_contract";
-import type { TatolabViewAreaServices } from "./tatolab_view_bridge";
 import { WatchedStudioValue } from "./watched_studio_value";
 
-/** What an area hands the view type it draws: the settings it saved, keeping the next ones, where a frame's own header row lies, and the window toolbar's graph tools. */
+/** What an area hands the view type it draws: the settings it saved, keeping the next ones, and where a frame's own header row lies. */
 export interface StudioAreaOfTheView {
   /** The area's id in the chosen layout; `null` where the view shows outside one, as a popped-out view does. */
   area_id: string | null;
   saved_settings: JsonValue | undefined;
   rememberSettings(nextSettings: JsonValue): void;
   header_row: WatchedStudioValue<ViewHeaderRow>;
-  offerGraphTools: TatolabViewAreaServices["offerGraphTools"];
-  /** Tells the window toolbar the person pressed or focused inside the view, so its graph tools follow this area; `null` where there is no toolbar. */
-  personWorksInTheArea: (() => void) | null;
 }
 
 /** A view type as the registry holds it, made from its manifest: what the view-type menu lists, and how an area draws its frame. */

@@ -66,7 +66,7 @@ export class SystemMenuBarOfTheFocusedWindow {
   }
 }
 
-const SYSTEM_MENU_BAR_ITEMS: readonly SystemMenuBarItems[] = ["app_services_hide_and_quit", "text_editing", "close_window", "window_arrangement", "bring_all_to_front", "full_screen"];
+const SYSTEM_MENU_BAR_ITEMS: readonly SystemMenuBarItems[] = ["app_services_hide_and_quit", "text_editing", "close_window", "close_window_beside_close_tab", "window_arrangement", "bring_all_to_front", "full_screen"];
 const SYSTEM_MENUS_OF_THE_DESKTOP: readonly SystemMenuOfTheDesktop[] = ["app", "window", "help"];
 
 function textOrNullFrom(onTheWire: unknown): Result<string | null, null> {
@@ -143,6 +143,10 @@ export function systemMenuBarMenusFrom(commandArguments: unknown): Result<System
 export function electronAcceleratorOfTheShortcutHint(shortcutHint: string): string | null {
   const keyWithCommand = /^⌘(.)$/u.exec(shortcutHint);
   if (keyWithCommand !== null) return `Command+${keyWithCommand[1]?.toUpperCase() ?? ""}`;
+  const keyWithShiftAndCommand = /^⇧⌘(.)$/u.exec(shortcutHint);
+  if (keyWithShiftAndCommand !== null) return `Shift+Command+${keyWithShiftAndCommand[1]?.toUpperCase() ?? ""}`;
+  const keyWithControl = /^⌃(⇧?)(\S+)$/u.exec(shortcutHint);
+  if (keyWithControl !== null) return `Control+${keyWithControl[1] === "⇧" ? "Shift+" : ""}${keyWithControl[2] ?? ""}`;
   const keyWithShift = /^Shift (\S+)$/u.exec(shortcutHint);
   if (keyWithShift !== null) return `Shift+${keyWithShift[1]?.toUpperCase() ?? ""}`;
   if (/^F\d{1,2}$/u.test(shortcutHint)) return shortcutHint;

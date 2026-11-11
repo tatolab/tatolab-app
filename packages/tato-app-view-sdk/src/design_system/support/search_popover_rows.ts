@@ -1,9 +1,13 @@
-/** One item a search popover offers: its id, its title, a quiet line beside it, and the category it is listed under. */
+/** One item a search popover offers: its id, its title, what it does, the category it is listed under, and what its details and its row add. */
 export interface SearchPopoverItem {
   item_id: string;
   title: string;
   summary: string;
   category: string;
+  /** A quiet line under the summary in the highlighted item's details, as "in: frames · out: image". */
+  details: string | null;
+  /** Quiet words at the end of its row, as "this project". */
+  tag: string | null;
 }
 
 /** A category of the items that match, in the order the items first name it. */
