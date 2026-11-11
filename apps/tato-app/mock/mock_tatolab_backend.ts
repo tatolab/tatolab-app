@@ -36,7 +36,7 @@ import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./m
 import { MockProjectFiles } from "./mock_project_files";
 import { MOCK_PERSON_EDITING_IN_STUDIO, MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
-import { mockDeleteTheAsset, mockImportTheFilesChosen, mockProjectAssetListing, mockProjectAssetsUnchanged, mockRelocateTheAsset, type MockAssetImportScenario } from "./mock_project_assets";
+import { mockDeleteTheAsset, mockImportTheFilesChosen, mockReadTheAssetPreview, mockProjectAssetListing, mockProjectAssetsUnchanged, mockRelocateTheAsset, type MockAssetImportScenario } from "./mock_project_assets";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { isModulesShown, type ModulesShown } from "../src/shared/tatolab_electron_bridge_contract";
@@ -1347,6 +1347,14 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
       const refusal = mockRelocateTheAsset(openProjectReading.open_project.project.folder, `${fixtures.machine.homeDirectory}/streams`, assetsChangedWhileTheMockRuns, asset, toPath);
       if (refusal !== null) throw refusal;
+    },
+    readAssetPreviewOfTheOpenProject: async (asset) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openProjectReading.kind !== "read") throw "No project is open in this window.";
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const picture = mockReadTheAssetPreview(openProjectReading.open_project.project.folder, `${fixtures.machine.homeDirectory}/streams`, assetsChangedWhileTheMockRuns, asset);
+      if (typeof picture === "string") throw picture;
+      return picture;
     },
     deleteAssetFromTheOpenProject: async (asset) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

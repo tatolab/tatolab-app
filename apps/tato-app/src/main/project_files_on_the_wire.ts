@@ -58,9 +58,14 @@ function bytesFromTheParsedToolResult(parsedToolResult: Result<unknown, string>)
   if (!parsedToolResult.ok) return parsedToolResult;
   const toolResult = jsonObject(parsedToolResult.value, "the file read");
   if (!toolResult.ok) return toolResult;
-  const contentBase64 = requiredText(toolResult.value, "content_base64");
+  return bytesOfTheBase64Content(toolResult.value);
+}
+
+/** The bytes a tool result carries as `content_base64`, standard base64 with padding, checked against its `byte_len`. */
+export function bytesOfTheBase64Content(toolResult: JsonObjectOnTheWire): Result<Buffer, string> {
+  const contentBase64 = requiredText(toolResult, "content_base64");
   if (!contentBase64.ok) return contentBase64;
-  const byteLen = requiredUnsignedInteger(toolResult.value, "byte_len");
+  const byteLen = requiredUnsignedInteger(toolResult, "byte_len");
   if (!byteLen.ok) return byteLen;
   if (!isStandardBase64WithPadding(contentBase64.value)) return failedWith("`content_base64` is not standard base64 with padding");
   const fileBytes = Buffer.from(contentBase64.value, "base64");

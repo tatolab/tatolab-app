@@ -205,6 +205,9 @@ function locationOf(projectDirectory: string, project = A_PROJECT, streamAsset =
 const BACK_DOOR_IMPORT_FAILURE =
   "cannot describe `nodes.back_door_lock:BackDoorLock`: the stream's interpreter `/home/jonathan-fontanez/scratch/app176/projects/doorways/.venv/bin/python` refused it: its module `nodes.back_door_lock` did not import:\nTraceback (most recent call last):\n  File \"/home/jonathan-fontanez/scratch/app176/tatolab-app/build/streamlib/target/tatolab-runtime/lib/tatolab/lend/tatolab/runtime/_processor_interpreter_bootstrap.py\", line 899, in describe_one_processor_class\n    importlib.import_module(module_name)\n  File \"/home/jonathan-fontanez/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/importlib/__init__.py\", line 90, in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<frozen importlib._bootstrap>\", line 1387, in _gcd_import\n  File \"<frozen importlib._bootstrap>\", line 1360, in _find_and_load\n  File \"<frozen importlib._bootstrap>\", line 1331, in _find_and_load_unlocked\n  File \"<frozen importlib._bootstrap>\", line 935, in _load_unlocked\n  File \"<frozen importlib._bootstrap_external>\", line 999, in exec_module\n  File \"<frozen importlib._bootstrap>\", line 488, in _call_with_frames_removed\n  File \"/home/jonathan-fontanez/scratch/app176/projects/doorways/nodes/back_door_lock.py\", line 11, in <module>\n    BACK_DOOR_KEY = BACK_DOOR_KEY_FILE.read_bytes()\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/jonathan-fontanez/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/pathlib.py\", line 1019, in read_bytes\n    with self.open(mode='rb') as f:\n         ^^^^^^^^^^^^^^^^^^^^\n  File \"/home/jonathan-fontanez/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/pathlib.py\", line 1013, in open\n    return io.open(self, mode, buffering, encoding, errors, newline)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nFileNotFoundError: [Errno 2] No such file or directory: '/home/jonathan-fontanez/scratch/app176/projects/doorways/keys/back_door.key'";
 
+const RECORDED_HARBOUR_LIGHTS = "/tmp/claude-0/live/home/Tato Studio/Harbour Lights";
+const RECORDED_HARBOUR_DUSK_PNG = "38ab4435-5f49-4cd1-b60e-f03acf54db34";
+const RECORDED_QUAY_WALK_MP4 = "23199eb3-ea3c-4d31-8f0f-2bf9395590d2";
 const RECORDED_DOORWAYS = "/home/jonathan-fontanez/scratch/app176/projects/doorways";
 const RECORDED_DOORWAYS_PROJECT = "4be1ae19-0c7f-4cff-a959-d596c611e05b";
 const RECORDED_BACK_DOOR = listedStream(
@@ -945,6 +948,10 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
     expect(nodeTypeListing.sources[0]?.origin).toEqual({ source: "project" });
     const assetListing = answerOf(await client.listProjectAssets(projectDirectory));
     expect(assetListing.assets.filter((asset) => asset.kind === "stream").length).toBeGreaterThanOrEqual(projectStreams.length);
+    for (const previewedAsset of assetListing.assets.filter((asset) => asset.preview !== null)) {
+      const picture = answerOf(await client.readAssetPreview(projectDirectory, previewedAsset.asset));
+      expect([picture.pixel_width, picture.pixel_height, picture.media_type]).toEqual([previewedAsset.preview?.pixel_width, previewedAsset.preview?.pixel_height, previewedAsset.preview?.media_type]);
+    }
     const wholeLog = answerOf(await client.readProjectLogRecords(projectDirectory, { stream: null, action: null }, null, 500));
     expect(wholeLog.project_directory).toBe(projectDirectory);
     expect(wholeLog.records.length).toBeGreaterThan(0);
@@ -1205,6 +1212,54 @@ test("a_real_asset_listing_names_the_project_and_a_folder_that_is_not_a_project_
   expect(toolCallsReceivedBy(server).map(([toolName]) => toolName)).toEqual(["list_assets", "list_assets", "list_assets"]);
 });
 
+test("a_real_asset_listing_sizes_an_images_preview_picture_and_a_video_whose_poster_frame_did_not_decode_has_none", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-assets-tool-result-of-harbour-lights-holding-a-previewed-image-and-a-video-with-no-poster.json")),
+  ]);
+  const listing = answerOf(await server.client().listProjectAssets(RECORDED_HARBOUR_LIGHTS));
+  expect(listing.assets.map((asset) => [asset.path, asset.preview])).toEqual([
+    ["media/harbour-dusk.png", { pixel_width: 512, pixel_height: 320, media_type: "image/png" }],
+    ["media/quay-walk.mp4", null],
+    ["streams/main.graph.json", null],
+  ]);
+});
+
+test("a_real_preview_picture_read_answers_the_png_and_a_video_with_no_poster_frame_is_refused_in_the_runtimes_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-read-asset-preview-tool-result-of-harbour-dusk-png.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-read-asset-preview-refusal-for-quay-walk-mp4-with-no-poster-frame.json")),
+  ]);
+  const picture = answerOf(await server.client().readAssetPreview(RECORDED_HARBOUR_LIGHTS, RECORDED_HARBOUR_DUSK_PNG));
+  expect([picture.pixel_width, picture.pixel_height, picture.media_type, picture.picture_bytes.length]).toEqual([512, 320, "image/png", 36974]);
+  expect(picture.picture_bytes.subarray(1, 4).toString("latin1")).toBe("PNG");
+  expect(failureOf(await server.client().readAssetPreview(RECORDED_HARBOUR_LIGHTS, RECORDED_QUAY_WALK_MP4)).failureDescription).toBe(
+    "read_asset_preview failed: asset 23199eb3-ea3c-4d31-8f0f-2bf9395590d2 has no preview picture; the runtime makes one for an image",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    [
+      "read_asset_preview",
+      {
+        project_directory: RECORDED_HARBOUR_LIGHTS,
+        asset: RECORDED_HARBOUR_DUSK_PNG,
+      },
+    ],
+    [
+      "read_asset_preview",
+      {
+        project_directory: RECORDED_HARBOUR_LIGHTS,
+        asset: RECORDED_QUAY_WALK_MP4,
+      },
+    ],
+  ]);
+});
+
+test("a_preview_picture_answered_for_another_asset_is_refused", async () => {
+  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-read-asset-preview-tool-result-of-harbour-dusk-png.json"))]);
+  expect(failureOf(await server.client().readAssetPreview(RECORDED_HARBOUR_LIGHTS, RECORDED_QUAY_WALK_MP4)).failureDescription).toBe(
+    `the runtime's read_asset_preview result could not be read: it answers the asset ${RECORDED_HARBOUR_DUSK_PNG}, not ${RECORDED_QUAY_WALK_MP4}`,
+  );
+});
+
 test("a_real_asset_listing_lists_each_imported_file_and_graph_document_and_a_folder_that_is_not_a_project_is_refused_in_the_runtimes_own_words", async () => {
   const server = await fakeLocalApiServerAnswering([
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-assets-tool-result-of-lobby-camera-holding-a-video-an-image-and-a-lut.json")),
@@ -1227,6 +1282,7 @@ test("a_real_asset_listing_lists_each_imported_file_and_graph_document_and_a_fol
     content_sha256: "16e89515f01295ded2534fd319db70fbd6bce1e95ed619b0127105489cc82700",
     content_byte_len: 48493,
     import_settings: {},
+    preview: null,
   });
   expect(failureOf(await server.client().listProjectAssets("/tmp/tatolab-proof-projects/not-a-project")).failureDescription).toBe(
     "list_assets failed: /tmp/tatolab-proof-projects/not-a-project holds no project: it has no tatolab-project.json",

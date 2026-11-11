@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { OpenProjectReading, ProjectAssetsImported } from "../../shared/tatolab_backend_contract";
-import { changeAnAssetOfTheOpenProjectForAView, importAssetsIntoTheOpenProjectForAView } from "./studio_view_host_services";
+import { changeAnAssetOfTheOpenProjectForAView, importAssetsIntoTheOpenProjectForAView, readAnAssetPreviewOfTheOpenProjectForAView } from "./studio_view_host_services";
 
 const GALLERY_WALL_OPEN: OpenProjectReading = {
   kind: "read",
@@ -70,4 +70,46 @@ test("a view's rename, move or delete of an asset changes the window's open proj
     because: "Tato Studio changes the assets of this window's project only, not /projects/elsewhere.",
   });
   expect(changesAsked).toBe(2);
+});
+
+test("a view reads an asset's preview picture of the window's open project, a rejection in its own words, and any other folder refused with nothing asked", async () => {
+  const picture = {
+    picture_url: "data:image/png;base64,iVBORw0KGgo=",
+    pixel_width: 512,
+    pixel_height: 320,
+  };
+  let readsAsked = 0;
+  const readAnswering = (answer: () => Promise<typeof picture>) => () => {
+    readsAsked += 1;
+    return answer();
+  };
+
+  expect(
+    await readAnAssetPreviewOfTheOpenProjectForAView(
+      "/projects/gallery-wall",
+      () => GALLERY_WALL_OPEN,
+      readAnswering(async () => picture),
+    ),
+  ).toEqual({ kind: "read", picture });
+  expect(
+    await readAnAssetPreviewOfTheOpenProjectForAView(
+      "/projects/gallery-wall",
+      () => GALLERY_WALL_OPEN,
+      readAnswering(() => Promise.reject("read_asset_preview failed: no file is at asset b-uuid's path")),
+    ),
+  ).toEqual({
+    kind: "not_read",
+    because: "read_asset_preview failed: no file is at asset b-uuid's path",
+  });
+  expect(
+    await readAnAssetPreviewOfTheOpenProjectForAView(
+      "/projects/elsewhere",
+      () => GALLERY_WALL_OPEN,
+      readAnswering(async () => picture),
+    ),
+  ).toEqual({
+    kind: "not_read",
+    because: "Tato Studio reads the assets of this window's project only, not /projects/elsewhere.",
+  });
+  expect(readsAsked).toBe(2);
 });

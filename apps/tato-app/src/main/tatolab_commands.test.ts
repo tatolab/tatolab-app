@@ -1279,6 +1279,44 @@ test("renaming, moving and deleting an asset of the open project reach the runti
   expect(await commandHandlers.delete_asset_from_the_open_project({ asset: poster }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 
+test("an asset's preview picture of the open project reaches the window as a data URL, or the runtime's refusal in its own words, and only a studio window may ask", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-read-asset-preview-tool-result-of-harbour-dusk-png.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-read-asset-preview-refusal-for-quay-walk-mp4-with-no-poster-frame.json")),
+    ],
+    "linux",
+  );
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "harbour-lights-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const fromTheStudioWindow = {
+    windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1,
+  };
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(await commandHandlers.read_asset_preview_of_the_open_project({ asset: "38ab4435-5f49-4cd1-b60e-f03acf54db34" }, fromTheStudioWindow)).toEqual({
+    ok: true,
+    value: {
+      picture_url: expect.stringMatching(/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]+=*$/),
+      pixel_width: 512,
+      pixel_height: 320,
+    },
+  });
+  expect(await commandHandlers.read_asset_preview_of_the_open_project({ asset: "23199eb3-ea3c-4d31-8f0f-2bf9395590d2" }, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: "read_asset_preview failed: asset 23199eb3-ea3c-4d31-8f0f-2bf9395590d2 has no preview picture; the runtime makes one for an image",
+  });
+  expect(await commandHandlers.read_asset_preview_of_the_open_project({}, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: "read_asset_preview_of_the_open_project needs `asset`, the UUID of an asset of the open project",
+  });
+  expect(await commandHandlers.read_asset_preview_of_the_open_project({ asset: "38ab4435-5f49-4cd1-b60e-f03acf54db34" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "No project is open in this window.",
+  });
+});
+
 /** The window's `ProjectGraphTransactionTheRuntimeAnswered` reads exactly this JSON. */
 test("a graph transaction in the open project reaches the runtime's transact held to its shape and to the project's streams, by the person editing, answering what it applied or the runtime's structured refusal", async () => {
   const sharedState = await sharedStateOverFakes(

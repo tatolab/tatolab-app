@@ -9,6 +9,7 @@ import type {
   ProjectNodeTypeListing,
   ProjectAssetListing,
   ProjectAssetsImported,
+  AssetPreviewPicture,
   JsonValue,
   DependencySourceKind,
   ProjectDependency,
@@ -70,6 +71,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "list_project_assets",
   "import_assets_into_the_open_project",
   "relocate_asset_in_the_open_project",
+  "read_asset_preview_of_the_open_project",
   "delete_asset_from_the_open_project",
   "check_for_tatolab_app_updates",
   "take_the_newer_tatolab_app_version",
@@ -391,6 +393,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   import_assets_into_the_open_project: { commandArguments: undefined; answer: ProjectAssetsImported | null };
   /** From a studio window only: the runtime's `relocate_asset` of `asset`, a UUID the window's project holds, to `to_path`, `/`-separated in the project, renaming it, moving it or both, by the person editing; refused in the runtime's own words. */
   relocate_asset_in_the_open_project: { commandArguments: { asset: string; to_path: string }; answer: null };
+  /** From a studio window only: the runtime's `read_asset_preview` of `asset`, a UUID the window's project holds, answered as a `data:` URL with its size; refused in the runtime's own words, as for an asset with no preview or one whose bytes it is still reading. */
+  read_asset_preview_of_the_open_project: { commandArguments: { asset: string }; answer: AssetPreviewPicture };
   /** From a studio window only: the runtime's `delete_asset` of `asset`, a UUID the window's project holds, its file and sidecar leaving the project, by the person editing; refused in the runtime's own words, as while a stream's graph document references it. */
   delete_asset_from_the_open_project: { commandArguments: { asset: string }; answer: null };
   /** The person editing in Studio, whose graph edits the runtime records under them. */

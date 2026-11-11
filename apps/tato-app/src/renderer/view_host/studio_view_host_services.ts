@@ -1,7 +1,7 @@
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import type { ProjectLogReadings } from "./project_log_readings";
 import type { ProjectListingReadingsPolledWhileWatched } from "./project_listing_readings_polled_while_watched";
-import type { ProjectAssetListing, ProjectNodeTypeListing } from "../../shared/tatolab_backend_contract";
+import type { AssetPreviewPicture, AssetPreviewReading, ProjectAssetListing, ProjectNodeTypeListing } from "../../shared/tatolab_backend_contract";
 import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
@@ -31,7 +31,7 @@ export interface StudioWindowValuesServedToViews {
 
 /** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types, assets and history, their language servers, and the port viewers of their running nodes. */
 export interface StudioViewHostProjectServices {
-  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "deleteAssetFromTheOpenProject" | "writeStudioViewOutput" | "openModuleManagerWindow">;
+  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "deleteAssetFromTheOpenProject" | "writeStudioViewOutput" | "openModuleManagerWindow">;
   projectLogReadings: ProjectLogReadings;
   projectNodeTypeReadings: ProjectListingReadingsPolledWhileWatched<ProjectNodeTypeListing>;
   projectAssetReadings: ProjectListingReadingsPolledWhileWatched<ProjectAssetListing>;
@@ -85,6 +85,18 @@ export function changeAnAssetOfTheOpenProjectForAView(projectFolder: string, ass
       return { kind: "changed" };
     },
     (rejection: unknown): ProjectAssetChanging => ({ kind: "not_changed", because: describeBackendRejection(rejection) }),
+  );
+}
+
+/** The preview picture of `asset` of the window's project for a view, when `projectFolder` names it, read with `readThePicture`; refused for any other folder, or in the runtime's own words. */
+export function readAnAssetPreviewOfTheOpenProjectForAView(projectFolder: string, readTheOpenProject: () => OpenProjectReading, readThePicture: () => Promise<AssetPreviewPicture>): Promise<AssetPreviewReading> {
+  const openProject = readTheOpenProject();
+  if (openProject.kind !== "read" || openProject.open_project.project.folder !== projectFolder) {
+    return Promise.resolve({ kind: "not_read", because: `Tato Studio reads the assets of this window's project only, not ${projectFolder}.` });
+  }
+  return readThePicture().then(
+    (picture): AssetPreviewReading => ({ kind: "read", picture }),
+    (rejection: unknown): AssetPreviewReading => ({ kind: "not_read", because: describeBackendRejection(rejection) }),
   );
 }
 
@@ -157,6 +169,7 @@ export function studioViewHostServicesOf(
     watchStudioViews: projectServices.watchStudioViews,
     relocateAssetInTheProject: (projectFolder, asset, toPath) =>
       changeAnAssetOfTheOpenProjectForAView(projectFolder, assetChangeSources, () => backend.relocateAssetInTheOpenProject(asset, toPath)),
+    readAssetPreviewInTheProject: (projectFolder, asset) => readAnAssetPreviewOfTheOpenProjectForAView(projectFolder, sources.openProject.readLatest, () => backend.readAssetPreviewOfTheOpenProject(asset)),
     deleteAssetFromTheProject: (projectFolder, asset) => changeAnAssetOfTheOpenProjectForAView(projectFolder, assetChangeSources, () => backend.deleteAssetFromTheOpenProject(asset)),
     openModulesAndMarketplace: (shows) =>
       backend.openModuleManagerWindow(shows).then(

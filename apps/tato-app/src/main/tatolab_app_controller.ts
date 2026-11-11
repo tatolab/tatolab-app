@@ -38,6 +38,7 @@ import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import type { ProjectAssetAtItsPath, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
+import type { AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
 import type { NodeFileCreationRecorded, ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
 import type { ProjectViewTheRuntimeListed, StudioViewOutputWritten } from "./project_views_on_the_wire.js";
 import { LocalApiClient, type LocalApiRequestFailure, type StreamAssetChange } from "./local_api_client.js";
@@ -400,6 +401,11 @@ export class TatolabAppController {
   /** Put the asset `asset` of the project in `projectDirectory` at `toPath` through the runtime's `relocate_asset`, by `author`. */
   relocateAsset(projectDirectory: string, asset: string, toPath: string, author: ProjectTransactionAuthor): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>> {
     return this.localApiClient.relocateAsset(projectDirectory, asset, toPath, author);
+  }
+
+  /** The preview picture of the asset `asset` of the project in `projectDirectory` through the runtime's `read_asset_preview`. */
+  readAssetPreview(projectDirectory: string, asset: string): Promise<Result<AssetPreviewPictureTheRuntimeRead, LocalApiRequestFailure>> {
+    return this.localApiClient.readAssetPreview(projectDirectory, asset);
   }
 
   /** Stop tracking the asset `asset` of the project in `projectDirectory` through the runtime's `delete_asset`, by `author`. */

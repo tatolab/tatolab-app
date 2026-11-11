@@ -62,6 +62,7 @@ import { describeCaughtFailure, failedWith, succeeded, type Result } from "./res
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
 import { projectAssetListingFromTheListAssetsToolResult } from "./project_asset_listing.js";
+import { assetPreviewPictureFromTheReadAssetPreviewToolResult, type AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
 import {
   duplicateFromTheDuplicateProjectToolResult,
   projectFromTheImportProjectToolResult,
@@ -549,6 +550,14 @@ export class LocalApiClient {
     if (!toolResultText.ok) return toolResultText;
     const listing = projectAssetListingFromTheListAssetsToolResult(toolResultText.value);
     return listing.ok ? listing : localApiRequestFailure(listing.failure);
+  }
+
+  /** The preview picture of the asset `asset` of the project in `projectDirectory`, an image's own or a video's poster frame, through `read_asset_preview`; refused in the runtime's own words, as for an asset with none or whose bytes it is still reading. */
+  async readAssetPreview(projectDirectory: string, asset: string): Promise<Result<AssetPreviewPictureTheRuntimeRead, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("read_asset_preview", { project_directory: projectDirectory, asset });
+    if (!toolResultText.ok) return toolResultText;
+    const picture = assetPreviewPictureFromTheReadAssetPreviewToolResult(asset, toolResultText.value);
+    return picture.ok ? picture : localApiRequestFailure(picture.failure);
   }
 
   /** The project in `projectDirectory` as the runtime's `list_assets` names it; refused in the runtime's own words, as for a folder holding no `tatolab-project.json`. */

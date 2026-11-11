@@ -11,6 +11,7 @@ import type {
   ProjectLogReading,
   ProjectNodeTypesReading,
   ProjectAssetsImporting,
+  AssetPreviewReading,
   ProjectAssetsReading,
   ProjectTransactionApplying,
   ProjectTransactionAuthor,
@@ -149,6 +150,8 @@ export interface StudioViewHostServices {
   importAssetsIntoTheProject(projectFolder: string): Promise<ProjectAssetsImporting>;
   /** Put the asset `asset` of the window's project, when `projectFolder` names it, at `toPath` by the person editing, the project's assets listed again at once; refused for any other folder, or in the runtime's own words. */
   relocateAssetInTheProject(projectFolder: string, asset: string, toPath: string): Promise<ProjectAssetChanging>;
+  /** The preview picture of the asset `asset` of the window's project, when `projectFolder` names it; refused for any other folder, or in the runtime's own words. */
+  readAssetPreviewInTheProject(projectFolder: string, asset: string): Promise<AssetPreviewReading>;
   /** Stop tracking the asset `asset` of the window's project, when `projectFolder` names it, by the person editing, the project's assets listed again at once; refused for any other folder, or in the runtime's own words. */
   deleteAssetFromTheProject(projectFolder: string, asset: string): Promise<ProjectAssetChanging>;
   /** The views an area can show, at once and again each time the open project's are listed. */

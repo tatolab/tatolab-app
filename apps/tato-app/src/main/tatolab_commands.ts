@@ -32,6 +32,7 @@ import type {
   ProjectNodeTypeListing,
   ProjectAssetListing,
   ProjectAssetsImported,
+  AssetPreviewPicture,
   StreamProjectFolderChosenFor,
   StudioWarningKind,
   TatolabAppUpdateAnnouncementAnswer,
@@ -827,6 +828,18 @@ export function relocateAssetInTheOpenProject(sharedState: TatolabAppSharedState
   });
 }
 
+/** `read_asset_preview_of_the_open_project`: the preview picture of `asset` of the asking window's project as a `data:` URL; refused in the Projects window, or in the runtime's own words, as for an asset with none. */
+export function readAssetPreviewOfTheOpenProject(sharedState: TatolabAppSharedState, asset: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<AssetPreviewPicture, string>> {
+  return answerTheWindow("read_asset_preview_of_the_open_project", async () => {
+    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!studioWindow.ok) return studioWindow;
+    const picture = await sharedState.controller.readAssetPreview(studioWindow.value.projectTransactionsFeed.projectFolder, asset);
+    if (!picture.ok) return failedWith(picture.failure.failureDescription);
+    const { media_type: mediaType, picture_bytes: pictureBytes, pixel_width: pixelWidth, pixel_height: pixelHeight } = picture.value;
+    return succeeded({ picture_url: `data:${mediaType};base64,${pictureBytes.toString("base64")}`, pixel_width: pixelWidth, pixel_height: pixelHeight });
+  });
+}
+
 /** `delete_asset_from_the_open_project`: `asset` of the asking window's project no longer tracked, by the person editing; refused in the Projects window, or in the runtime's own words. */
 export function deleteAssetFromTheOpenProject(sharedState: TatolabAppSharedState, asset: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
   return answerTheWindow("delete_asset_from_the_open_project", async () => {
@@ -1367,6 +1380,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const relocating = relocateAssetArgumentsFrom(commandArguments);
       if (!relocating.ok) return { ok: false, refusal: relocating.failure };
       return commandAnswerOfNothingFrom(await relocateAssetInTheOpenProject(sharedState, relocating.value.asset, relocating.value.to_path, commandFromWindow));
+    },
+    read_asset_preview_of_the_open_project: async (commandArguments, commandFromWindow) => {
+      const asset = oneTextArgumentFrom("read_asset_preview_of_the_open_project", commandArguments, "asset", AN_ASSET_OF_THE_OPEN_PROJECT_IN_WORDS);
+      if (!asset.ok) return { ok: false, refusal: asset.failure };
+      return commandAnswerFrom(await readAssetPreviewOfTheOpenProject(sharedState, asset.value, commandFromWindow));
     },
     delete_asset_from_the_open_project: async (commandArguments, commandFromWindow) => {
       const asset = oneTextArgumentFrom("delete_asset_from_the_open_project", commandArguments, "asset", AN_ASSET_OF_THE_OPEN_PROJECT_IN_WORDS);

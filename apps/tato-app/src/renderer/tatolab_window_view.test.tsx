@@ -322,6 +322,48 @@ describe("the studio", () => {
     expect(details.textContent).toContain("11 KB");
   });
 
+  it("shows each asset's preview picture on its card and in its details, an asset with none keeping its tinted card and showing no picture in its details", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await showTheLibraryInTheViewerArea();
+    await showInTheLibrary("assets");
+
+    const library = coreViewPage("library");
+    const cardPicture = (assetPath: string) =>
+      library.querySelector<HTMLElement>(`[data-library-asset="${assetPath}"] [data-project-asset-picture]`) ?? expect.unreachable(`no picture on ${assetPath}`);
+    await waitFor(() => expect(cardPicture("media/lobby-intro.mp4").dataset.projectAssetPicture).toBe("preview"));
+    await waitFor(() => expect(cardPicture("media/poster.png").dataset.projectAssetPicture).toBe("preview"));
+    expect(cardPicture("media/lobby-intro.mp4").querySelector("img")?.getAttribute("src")).toMatch(/^data:image\//);
+    expect(cardPicture("luts/warm.cube").dataset.projectAssetPicture).toBe("tinted");
+    expect(cardPicture("scenes/stage.usdz").dataset.projectAssetPicture).toBe("tinted");
+
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-asset="media/lobby-intro.mp4"]') ?? expect.unreachable("no video card"));
+    const details = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset-details="207ef246-3d00-4167-b394-bb591f7c4b8f"]') ?? expect.unreachable("no details"));
+    expect(details.querySelector<HTMLElement>("[data-project-asset-picture]")?.dataset.projectAssetPicture).toBe("preview");
+    expect(details.textContent).toContain("512 × 288");
+
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-asset="luts/warm.cube"]') ?? expect.unreachable("no LUT card"));
+    const lutDetails = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset-details="045c7554-dab9-483e-a8fc-064bf9ad3668"]') ?? expect.unreachable("no LUT details"));
+    expect(lutDetails.querySelector("[data-project-asset-picture]")).toBeNull();
+    expect(lutDetails.textContent).not.toContain("Preview");
+  });
+
+  it("shows in an asset's details the runtime's words when its preview picture is refused, over the tinted picture", async () => {
+    const refusal = "read_asset_preview failed: no file is at asset 207ef246-3d00-4167-b394-bb591f7c4b8f's path";
+    await mountedWindowOverTheMock("state=running", {
+      readAssetPreviewOfTheOpenProject: async () => {
+        throw refusal;
+      },
+    });
+    await showTheLibraryInTheViewerArea();
+    await showInTheLibrary("assets");
+    const library = coreViewPage("library");
+    fireEvent.click(await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset="media/lobby-intro.mp4"]') ?? expect.unreachable("no video card")));
+    const refusalWords = await waitFor(() => library.querySelector<HTMLElement>("[data-library-asset-preview-not-read-because]") ?? expect.unreachable("no refusal shown"));
+    expect(refusalWords.textContent).toBe(refusal);
+    expect(library.querySelector<HTMLElement>("[data-library-asset-details-picture] [data-project-asset-picture]")?.dataset.projectAssetPicture).toBe("tinted");
+    expect(library.querySelector<HTMLElement>('[data-library-asset="media/lobby-intro.mp4"] [data-project-asset-picture]')?.dataset.projectAssetPicture).toBe("tinted");
+  });
+
   it("lists in the Library the views the project and its imports bring by who brought them, Studio's own last, with the chosen view's ports or why it does not open", async () => {
     await mountedWindowOverTheMock("state=running&studio_views=fixture");
     await showTheLibraryInTheViewerArea();

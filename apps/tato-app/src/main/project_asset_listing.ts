@@ -1,9 +1,10 @@
 // A project's assets as the runtime's `list_assets` tool lists them: the project's folder, UUID
 // and name beside `assets`, one entry each with its UUID, kind, path, the SHA-256 and length of
-// its bytes and its import settings. Every other key is ignored.
+// its bytes, its import settings and the size of its preview picture. Every other key is ignored.
 
-import type { JsonValue, ProjectAsset, ProjectAssetListing } from "../shared/tatolab_backend_contract.js";
-import { everyOneRead, isAJsonValue, jsonObject, objectOrEmpty, requiredArray, requiredText, requiredUnsignedInteger, toolResultReadWith, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
+import type { JsonValue, ProjectAsset, ProjectAssetListing, ProjectAssetPreview } from "../shared/tatolab_backend_contract.js";
+import { everyOneRead, isAJsonValue, jsonObject, objectOrEmpty, optionalObject, requiredArray, requiredText, requiredUnsignedInteger, toolResultReadWith, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
+import { previewPictureSizeIn } from "./asset_preview_picture_on_the_wire.js";
 import { projectNamedIn } from "./project_the_runtime_names.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
@@ -37,7 +38,17 @@ function projectAssetOnTheWire(assetOnTheWire: unknown): Result<ProjectAsset, st
   if (!contentByteLen.ok) return contentByteLen;
   const importSettings = importSettingsOf(assetObject.value);
   if (!importSettings.ok) return importSettings;
-  return succeeded({ asset: asset.value, kind: kind.value, path: path.value, content_sha256: contentSha256.value, content_byte_len: contentByteLen.value, import_settings: importSettings.value });
+  const preview = previewOf(assetObject.value);
+  if (!preview.ok) return preview;
+  return succeeded({ asset: asset.value, kind: kind.value, path: path.value, content_sha256: contentSha256.value, content_byte_len: contentByteLen.value, import_settings: importSettings.value, preview: preview.value });
+}
+
+function previewOf(assetObject: JsonObjectOnTheWire): Result<ProjectAssetPreview | null, string> {
+  const previewObject = optionalObject(assetObject, "preview");
+  if (!previewObject.ok) return previewObject;
+  if (previewObject.value === null) return succeeded(null);
+  const pictureSize = previewPictureSizeIn(previewObject.value);
+  return pictureSize.ok ? pictureSize : failedWith(`\`preview\`: ${pictureSize.failure}`);
 }
 
 function importSettingsOf(assetObject: JsonObjectOnTheWire): Result<Record<string, JsonValue>, string> {

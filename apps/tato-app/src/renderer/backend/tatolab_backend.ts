@@ -15,6 +15,7 @@ import type {
   ProjectNodeTypeListing,
   ProjectAssetListing,
   ProjectAssetsImported,
+  AssetPreviewPicture,
   StreamAssetCreated,
   OpenProjectReading,
   ProjectTransaction,
@@ -76,6 +77,8 @@ export interface TatolabBackend {
   importAssetsIntoTheOpenProject(): Promise<ProjectAssetsImported | null>;
   /** Put the asset `asset` of the window's project at `toPath`, renaming it, moving it or both, by the person editing; rejects in Studio's or the runtime's words. */
   relocateAssetInTheOpenProject(asset: string, toPath: string): Promise<void>;
+  /** The preview picture of `asset` of this studio window's project, an image's own or a video's poster frame; rejected in the runtime's own words, as for an asset with none. */
+  readAssetPreviewOfTheOpenProject(asset: string): Promise<AssetPreviewPicture>;
   /** Stop tracking the asset `asset` of the window's project, its file leaving the project, by the person editing; rejects in Studio's or the runtime's words. */
   deleteAssetFromTheOpenProject(asset: string): Promise<void>;
   /** Check for a newer Tato Studio, downloading one that installs in place; how that goes arrives as the status's `app_update`. */

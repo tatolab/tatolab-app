@@ -335,6 +335,26 @@ export const projectNodeTypeListingSchema = z.object({
 /** What a project and its sources declare. */
 export type ProjectNodeTypeListing = z.infer<typeof projectNodeTypeListingSchema>;
 
+/** An asset's preview picture as `list_assets` sizes it: an image's own picture or a video's poster frame, which `read_asset_preview` answers. */
+export const projectAssetPreviewSchema = z.object({
+  pixel_width: z.number().int().positive(),
+  pixel_height: z.number().int().positive(),
+  /** `image/png`. */
+  media_type: z.string(),
+});
+/** An asset's preview picture as `list_assets` sizes it. */
+export type ProjectAssetPreview = z.infer<typeof projectAssetPreviewSchema>;
+
+/** An asset's preview picture as Studio hands it to a window or a view: a `data:` URL of the runtime's picture and its size. */
+export const assetPreviewPictureSchema = z.object({
+  /** `data:image/png;base64,…`. */
+  picture_url: z.string().startsWith("data:image/"),
+  pixel_width: z.number().int().positive(),
+  pixel_height: z.number().int().positive(),
+});
+/** An asset's preview picture as Studio hands it over. */
+export type AssetPreviewPicture = z.infer<typeof assetPreviewPictureSchema>;
+
 /** One asset of a project as the runtime's `list_assets` lists it. */
 export const projectAssetSchema = z.object({
   /** The asset's UUID, which a node's config names it by as `{"asset": <uuid>}`. */
@@ -347,6 +367,8 @@ export const projectAssetSchema = z.object({
   content_byte_len: z.number().int().nonnegative(),
   /** The settings its import took, kept in its sidecar. */
   import_settings: z.record(z.string(), jsonValueSchema),
+  /** Its preview picture; `null` for an asset with none, as a stream, audio or a LUT, and for one whose bytes the runtime is still reading. */
+  preview: projectAssetPreviewSchema.nullable(),
 });
 /** One asset of a project. */
 export type ProjectAsset = z.infer<typeof projectAssetSchema>;
@@ -370,6 +392,14 @@ export const projectAssetsImportedSchema = z.object({
 });
 /** What importing the chosen files answered. */
 export type ProjectAssetsImported = z.infer<typeof projectAssetsImportedSchema>;
+
+/** An asset's preview picture read, or why not, in Studio's or the runtime's words. */
+export const assetPreviewReadingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("read"), picture: assetPreviewPictureSchema }),
+  z.object({ kind: z.literal("not_read"), because: z.string() }),
+]);
+/** An asset's preview picture read, or why not. */
+export type AssetPreviewReading = z.infer<typeof assetPreviewReadingSchema>;
 
 /** Files the person chose imported into the project, nothing chosen, or why nothing was asked of the runtime. */
 export const projectAssetsImportingSchema = z.discriminatedUnion("kind", [
