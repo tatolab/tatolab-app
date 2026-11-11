@@ -483,7 +483,7 @@ function PropertiesOfTheSelectedNode({
         )}
         {node.state !== "Error" && node.process_raising_because !== null && (
           <div data-properties-node-process-raising={node.name}>
-            <FailureBanner place="panel">This node keeps running, but its process() raises on every call.</FailureBanner>
+            <FailureBanner place="panel">This node is running, but its process() keeps raising.</FailureBanner>
             <div className="border-b px-3 py-2.5">
               <RuntimeFailureWords words={node.process_raising_because} data-properties-process-raising-because={node.name} />
             </div>
