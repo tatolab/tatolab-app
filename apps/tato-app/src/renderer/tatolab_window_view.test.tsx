@@ -1550,7 +1550,7 @@ describe("Settings", () => {
     await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
     const sectionList = within(screen.getByRole("navigation", { name: "Settings" }));
     expect(sectionList.getByRole("button", { name: "General" }).getAttribute("aria-current")).toBe("page");
-    expect(sectionList.getAllByRole("button").map((sectionButton) => sectionButton.textContent)).toEqual(["General", "Developer", "Project", "Runtime", "Command line", "About"]);
+    expect(sectionList.getAllByRole("button").map((sectionButton) => sectionButton.textContent)).toEqual(["Project", "General", "Developer", "Runtime", "Command line", "About"]);
     expect(sectionList.getByText("This machine")).toBeTruthy();
     expect(sectionList.getByText("This project")).toBeTruthy();
   });
@@ -1579,13 +1579,14 @@ describe("Settings", () => {
     await waitFor(() => expect(setRecentProjectCover).toHaveBeenCalledWith(PATTERN_PROJECT, "/Users/jonathanf/Pictures/stage.png"));
   });
 
-  it("asks for an open project in Settings' Project section while none is open", async () => {
+  it("lists no Project section in Settings opened from the Projects window", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
     await waitFor(() => expect(document.querySelectorAll("[data-projects-project]").length).toBeGreaterThan(0));
     fireEvent.keyDown(document, { key: ",", metaKey: true });
     fireEvent.keyDown(document, { key: ",", ctrlKey: true });
-    fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-settings-section="project"]') ?? expect.unreachable("no Project section")));
-    await waitFor(() => expect(document.querySelector('[data-settings-page="project"]')?.textContent).toContain("Open a project to change its name, description and cover."));
+    await waitFor(() => expect(document.querySelector('[data-settings-page="general"]')).not.toBeNull());
+    expect(document.querySelector('[data-settings-section="project"]')).toBeNull();
+    expect(screen.queryByText("This project")).toBeNull();
   });
 
   it("names the running runtime's version and uptime and its local API socket, and restarts it through Starting", { timeout: 10_000 }, async () => {

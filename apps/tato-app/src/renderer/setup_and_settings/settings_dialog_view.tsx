@@ -411,7 +411,8 @@ interface OpenProjectInSettings {
 const SECTION_VIEWS: Record<SettingsSection, (openProjectInSettings: OpenProjectInSettings) => ReactNode> = {
   general: GeneralSection,
   developer: DeveloperSection,
-  project: ProjectSettingsSectionView,
+  project: ({ openProjectFolder, projectSettingsSources }) =>
+    openProjectFolder === null ? null : <ProjectSettingsSectionView openProjectFolder={openProjectFolder} projectSettingsSources={projectSettingsSources} />,
   runtime: RuntimeSection,
   "command-line": CommandLineSection,
   about: AboutSection,
@@ -421,7 +422,7 @@ function isASettingsSection(sectionId: string): sectionId is SettingsSection {
   return sectionId in SECTION_VIEWS;
 }
 
-/** Settings over the studio, open on `shownSection` while it is not `null`: General, Developer, Project, Runtime, Command line and About. */
+/** Settings over the studio, open on `shownSection` while it is not `null`: Project while a project is shown, General, Developer, Runtime, Command line and About. */
 export function SettingsDialogView({
   shownSection,
   onSectionChosen,
@@ -433,7 +434,9 @@ export function SettingsDialogView({
   onClosed: () => void;
   openProjectInSettings: OpenProjectInSettings;
 }) {
-  const ShownSectionView = SECTION_VIEWS[shownSection ?? "general"];
+  const isAProjectShown = openProjectInSettings.openProjectFolder !== null;
+  const sectionShown = shownSection === null || (shownSection === "project" && !isAProjectShown) ? "general" : shownSection;
+  const ShownSectionView = SECTION_VIEWS[sectionShown];
   return (
     <SectionedDialog
       isOpen={shownSection !== null}
@@ -441,15 +444,15 @@ export function SettingsDialogView({
         if (!isOpen) onClosed();
       }}
       title="Settings"
-      sectionGroups={SETTINGS_SECTION_GROUPS.map(({ groupLabel, sections }) => ({
-        groupLabel,
-        sections: sections.map(({ section, label }) => ({ section_id: section, label, icon: SECTION_ICONS[section] })),
-      }))}
-      shownSectionId={shownSection ?? "general"}
+      sectionGroups={SETTINGS_SECTION_GROUPS.flatMap(({ groupLabel, sections }) => {
+        const sectionsListed = sections.filter(({ section }) => section !== "project" || isAProjectShown);
+        return sectionsListed.length === 0 ? [] : [{ groupLabel, sections: sectionsListed.map(({ section, label }) => ({ section_id: section, label, icon: SECTION_ICONS[section] })) }];
+      })}
+      shownSectionId={sectionShown}
       onSectionChosen={(sectionId) => {
         if (isASettingsSection(sectionId)) onSectionChosen(sectionId);
       }}
-      data-settings-page={shownSection ?? "general"}
+      data-settings-page={sectionShown}
     >
       <div className="flex flex-col gap-6">
         <ShownSectionView {...openProjectInSettings} />

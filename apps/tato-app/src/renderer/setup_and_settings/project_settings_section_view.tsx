@@ -66,8 +66,7 @@ function OpenProjectSettings({ projectFolder, projectSettingsSources }: { projec
 }
 
 /** Settings' Project section: the open project's cover, name and description, as the Projects window's Project details changes them. */
-export function ProjectSettingsSectionView({ openProjectFolder, projectSettingsSources }: { openProjectFolder: string | null; projectSettingsSources: ProjectSettingsSources }) {
-  if (openProjectFolder === null) return <SettingsSectionExplanation>Open a project to change its name, description and cover.</SettingsSectionExplanation>;
+export function ProjectSettingsSectionView({ openProjectFolder, projectSettingsSources }: { openProjectFolder: string; projectSettingsSources: ProjectSettingsSources }) {
   return (
     <>
       <SettingsSectionExplanation>The name, description and cover the Projects window shows the open project by.</SettingsSectionExplanation>

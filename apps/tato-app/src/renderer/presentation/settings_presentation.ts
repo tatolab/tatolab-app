@@ -14,6 +14,7 @@ export type SettingsSection = "general" | "developer" | "project" | "runtime" | 
 
 /** Settings' sections in the order its list shows them, under the group each sits in. */
 export const SETTINGS_SECTION_GROUPS: readonly { groupLabel: string; sections: readonly { section: SettingsSection; label: string }[] }[] = [
+  { groupLabel: "This project", sections: [{ section: "project", label: "Project" }] },
   {
     groupLabel: "App",
     sections: [
@@ -21,7 +22,6 @@ export const SETTINGS_SECTION_GROUPS: readonly { groupLabel: string; sections: r
       { section: "developer", label: "Developer" },
     ],
   },
-  { groupLabel: "This project", sections: [{ section: "project", label: "Project" }] },
   {
     groupLabel: "This machine",
     sections: [
