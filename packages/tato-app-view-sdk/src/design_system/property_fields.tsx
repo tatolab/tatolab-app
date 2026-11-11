@@ -205,7 +205,7 @@ export function PropertyNumberField({
 
 /**
  * A number within a known range, dragged on a slider: each move is a live edit and the release commits it once, so
- * one drag is one undo. Its value shows beside it, typed into where the caller reads typed words, and LIVE while it is dragged.
+ * one drag is one undo. Its value shows beside it, where it can be typed, and LIVE while it is dragged.
  */
 export function PropertySliderField({
   fieldId,
@@ -217,7 +217,7 @@ export function PropertySliderField({
   onDragStarted,
   onLiveEdit,
   onCommitted,
-  typing,
+  valueTypedBesideTheSlider,
 }: {
   fieldId: string;
   value: number | null;
@@ -228,13 +228,13 @@ export function PropertySliderField({
   onDragStarted: () => void;
   onLiveEdit: (value: number) => void;
   onCommitted: (value: number) => void;
-  /** The value beside the slider typed into: its accessible name, and the words typed, which the caller reads as a number; absent, the value is only shown. */
-  typing?: { label: string; onWordsTyped: (words: string) => void };
+  /** The value beside the slider typed into: its accessible name, and the words typed, which the caller reads as a number. */
+  valueTypedBesideTheSlider: { label: string; onWordsTyped: (words: string) => void };
 }) {
   const [draggedValue, setDraggedValue] = useState<number | null>(null);
   const shownValue = draggedValue ?? value ?? minimum;
   const valueWords = isWholeNumber ? String(shownValue) : shownValue.toFixed(2);
-  const valueEditedInPlace = useWordsEditedInPlace(valueWords, typing?.onWordsTyped);
+  const valueEditedInPlace = useWordsEditedInPlace(valueWords, valueTypedBesideTheSlider.onWordsTyped);
   const step = isWholeNumber ? 1 : (maximum - minimum) / 100;
   const release = useCallback(() => {
     if (draggedValue !== null) onCommitted(draggedValue);
@@ -269,7 +269,7 @@ export function PropertySliderField({
         className="h-4 min-w-0 flex-1 accent-brand"
       />
       <input
-        aria-label={typing?.label ?? "Value"}
+        aria-label={valueTypedBesideTheSlider.label}
         inputMode="decimal"
         {...valueEditedInPlace}
         className={cn(PROPERTY_FIELD_CLASS_NAMES, "w-10 shrink-0 px-1 text-right font-mono tabular-nums", valueToneClassName(isTheTypesDefault && draggedValue === null))}

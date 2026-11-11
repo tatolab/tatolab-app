@@ -169,7 +169,7 @@ function holdTheSameJsonValues(left: JsonValue | undefined, right: JsonValue | u
   }
   if (typeof left === "object" && left !== null && typeof right === "object" && right !== null) {
     const leftKeys = Object.keys(left);
-    return leftKeys.length === Object.keys(right).length && leftKeys.every((key) => key in right && holdTheSameJsonValues(left[key], right[key]));
+    return leftKeys.length === Object.keys(right).length && leftKeys.every((key) => Object.hasOwn(right, key) && holdTheSameJsonValues(left[key], right[key]));
   }
   return left === right;
 }
@@ -177,7 +177,7 @@ function holdTheSameJsonValues(left: JsonValue | undefined, right: JsonValue | u
 /** `record` without the value at `key`, or the whole record when `key` is `null`. */
 function recordWithoutTheKey(record: JsonObject, key: string | null): JsonObject {
   if (key === null) return record;
-  const { [key]: _left, ...recordWithoutIt } = record;
+  const { [key]: _valueAtTheKey, ...recordWithoutIt } = record;
   return recordWithoutIt;
 }
 

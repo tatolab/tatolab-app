@@ -140,7 +140,7 @@ function ConfigFieldControl({
               const configEdit = configFieldSetTo(streamAsset, released);
               if (configEdit !== null) void graphEdits.commit(place, [configEdit], idempotencyKeyOfTheRelease);
             }}
-            typing={{ label: `Type ${nameInWords(field.key)}`, onWordsTyped: commitTheWords }}
+            valueTypedBesideTheSlider={{ label: `${nameInWords(field.key)} value`, onWordsTyped: commitTheWords }}
           />
         );
       }

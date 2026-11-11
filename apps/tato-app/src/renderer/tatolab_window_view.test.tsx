@@ -303,8 +303,15 @@ describe("the studio", () => {
     expect([...library.querySelectorAll<HTMLElement>("[data-library-asset-folder]")].map((folder) => folder.textContent)).toEqual(["All assets4", "luts1", "media2", "scenes1"]);
     expect(library.querySelector('[data-library-asset="media/lobby-intro.mp4"]')?.textContent).toBe("MP4lobby-intro.mp4media · 40 MB");
 
+    const folderMenu = library.querySelector<HTMLElement>("[data-library-asset-folder-menu]") ?? expect.unreachable("no Folder menu");
+    pressAsAPointerDoes(folderMenu);
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^scenes/ }));
+    await waitFor(() => expect(assetCardPaths()).toEqual(["scenes/stage.usdz"]));
+    expect(folderMenu.getAttribute("aria-label")).toBe("Folder: scenes");
+
     fireEvent.click(library.querySelector<HTMLElement>('[data-library-asset-folder="folder:media"]') ?? expect.unreachable("no media folder"));
     await waitFor(() => expect(assetCardPaths()).toEqual(["media/lobby-intro.mp4", "media/poster.png"]));
+    expect(folderMenu.getAttribute("aria-label")).toBe("Folder: media");
     fireEvent.change(library.querySelector<HTMLInputElement>("[data-library-asset-search]") ?? expect.unreachable("no search field"), { target: { value: "POSTER" } });
     await waitFor(() => expect(assetCardPaths()).toEqual(["media/poster.png"]));
 
