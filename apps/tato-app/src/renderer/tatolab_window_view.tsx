@@ -106,7 +106,10 @@ function TatolabWindowRoot({
   const poppedOutView = useWatchedStudioValue(studioWindowSources.model.poppedOutView);
   const projectOpeningRefusal = useWatchedStudioValue(studioWindowSources.model.projectOpeningRefusal);
   const moduleManagerWorkspace = useWatchedStudioValue(studioWindowSources.model.moduleManagerWorkspace);
-  if (moduleManagerWorkspace !== null) return <ModuleManagerWindowView workspace={moduleManagerWorkspace} sources={moduleManagerSources} platform={studioWindowSources.platform} />;
+  const moduleManagerSectionAsked = useWatchedStudioValue(studioWindowSources.model.moduleManagerSectionAsked);
+  if (moduleManagerWorkspace !== null) {
+    return <ModuleManagerWindowView workspace={moduleManagerWorkspace} sectionAsked={moduleManagerSectionAsked} sources={moduleManagerSources} platform={studioWindowSources.platform} />;
+  }
   if (poppedOutView !== null) {
     return (
       <PoppedOutViewWindowView
@@ -213,9 +216,9 @@ export function mountTatolabWindow(
     },
     undoYourLastEdit: () => undoOrRedoTheOpenProject("undo"),
     redoYourLastUndo: () => undoOrRedoTheOpenProject("redo"),
-    openModuleManager: () => {
+    openModuleManager: (shows) => {
       studioWindowModel.projectOpeningRefusal.publish(null);
-      backend.openModuleManagerWindow().catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
+      backend.openModuleManagerWindow(shows).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
     },
   };
   let onChosenByEntryIdOfTheMenusSent: ReadonlyMap<string, () => void> = new Map();
@@ -313,12 +316,19 @@ export function mountTatolabWindow(
         onceRead();
       },
     );
-  const whatTheWindowShowsIsRead = Promise.all([backend.readPoppedOutView().catch(() => null), backend.readModuleManagerWorkspace().catch(() => null)]).then(([poppedOutView, moduleManagerWorkspace]) => {
+  backend.onModuleManagerSectionAsked((shows) => studioWindowModel.askTheModuleManagerToShow(shows));
+  const whatTheWindowShowsIsRead = Promise.all([
+    backend.readPoppedOutView().catch(() => null),
+    backend.readModuleManagerWorkspace().catch(() => null),
+    backend.readModuleManagerSectionAsked().catch(() => null),
+  ]).then(([poppedOutView, moduleManagerWorkspace, moduleManagerSectionOpenedOn]) => {
     if (poppedOutView !== null) {
       studioWindowModel.showAsPoppedOutView(poppedOutView);
       readTheOpenProject(() => studioWindowModel.pinThePoppedOutView());
-    } else if (moduleManagerWorkspace !== null) studioWindowModel.moduleManagerWorkspace.publish(moduleManagerWorkspace);
-    else readTheOpenProject();
+    } else if (moduleManagerWorkspace !== null) {
+      if (moduleManagerSectionOpenedOn !== null) studioWindowModel.askTheModuleManagerToShow(moduleManagerSectionOpenedOn);
+      studioWindowModel.moduleManagerWorkspace.publish(moduleManagerWorkspace);
+    } else readTheOpenProject();
   });
   backend.onStreamPageRequested((streamId) => studioWindowModel.openStreamTabOfAListedStream(streamId));
 

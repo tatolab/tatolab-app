@@ -26,7 +26,9 @@ import { Toolbar, ToolbarGroup } from "@tatolab/tato-app-view-sdk/design_system/
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { coverInitialOfTheName, projectCoverNumberOfTheName } from "../presentation/projects_presentation";
-import { everyModuleCardRowOf, moduleCardCountsOf, moduleCardMarkOf, moduleCardRowPickedBy, moduleCardRowsShownOf, shortVersionOf, type ModuleCardRow, type ModulesShown } from "./module_manager_listing";
+import { everyModuleCardRowOf, moduleCardCountsOf, moduleCardMarkOf, moduleCardRowPickedBy, moduleCardRowsShownOf, shortVersionOf, type ModuleCardRow } from "./module_manager_listing";
+import { isModulesShown, type ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
+import type { ModuleManagerSectionAskNumbered } from "./studio_window_model";
 
 /** The streamlib issue that serves the catalog. */
 const THE_CATALOG_IS_SERVED_WITH = "tatolab/streamlib#3216";
@@ -182,13 +184,23 @@ const MODULES_SHOWN_SECTIONS: readonly { modulesShown: ModulesShown; label: stri
   { modulesShown: "sample_projects", label: "Sample projects", icon: Shapes },
 ];
 
-function isModulesShown(sectionId: string): sectionId is ModulesShown {
-  return MODULES_SHOWN_SECTIONS.some((section) => section.modulesShown === sectionId);
-}
 
 /** The Modules window: the catalog's packages and samples and the project's modules as cards, shown all, added or samples only and narrowed by a search, the picked one at length beside them; more added from a folder or `.zip`. */
-export function ModuleManagerWindowView({ workspace, sources, platform }: { workspace: OpenProjectReading; sources: ModuleManagerSources; platform: TatolabPlatform }) {
-  const [modulesShown, setModulesShown] = useState<ModulesShown>("everything");
+export function ModuleManagerWindowView({
+  workspace,
+  sectionAsked,
+  sources,
+  platform,
+}: {
+  workspace: OpenProjectReading;
+  sectionAsked: ModuleManagerSectionAskNumbered | null;
+  sources: ModuleManagerSources;
+  platform: TatolabPlatform;
+}) {
+  const [modulesShown, setModulesShown] = useState<ModulesShown>(sectionAsked?.shows ?? "everything");
+  useEffect(() => {
+    if (sectionAsked !== null) setModulesShown(sectionAsked.shows);
+  }, [sectionAsked]);
   const [catalog, setCatalog] = useState<PackageCatalogReading | null>(null);
   const [modulesOfTheProject, setModulesOfTheProject] = useState<ModulesOfTheProjectListing>({ kind: "listing" });
   const [searchText, setSearchText] = useState("");

@@ -2,6 +2,13 @@
 // serves its views, the selection, the open stream tabs, and the open project's layouts.
 
 import type { ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutView, ProjectArchiveChosenToImport, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
+
+/** A section the Module manager window is asked to show, and which ask of the window it is. */
+export interface ModuleManagerSectionAskNumbered {
+  shows: ModulesShown;
+  ask_number: number;
+}
 import type { RecentProjectChangeRefusal } from "../presentation/projects_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
@@ -89,6 +96,8 @@ export class StudioWindowModel {
   readonly openProjectStreamFailureRaised = new WatchedStudioValue<OpenProjectStreamFailure | null>(null);
   /** The workspace when the window is a studio window's Module manager window, as last read from disk; `null` in any other window. */
   readonly moduleManagerWorkspace = new WatchedStudioValue<OpenProjectReading | null>(null);
+  /** The section the Module manager window was last asked to show, numbered so the same section asked again is shown again; `null` in any other window. */
+  readonly moduleManagerSectionAsked = new WatchedStudioValue<ModuleManagerSectionAskNumbered | null>(null);
   /** The view the window shows when it is popped out of a studio window; `null` in the Projects and studio windows. */
   readonly poppedOutView = new WatchedStudioValue<PoppedOutView | null>(null);
 
@@ -113,6 +122,11 @@ export class StudioWindowModel {
       chosenLayout: () => this.studioLayouts.readLatest()?.chosen_layout ?? null,
       openView: (viewTypeId, on) => this.openView(viewTypeId, on),
     };
+  }
+
+  /** Have the Module manager window show `shows`, the window's next ask. */
+  askTheModuleManagerToShow(shows: ModulesShown): void {
+    this.moduleManagerSectionAsked.publish({ shows, ask_number: (this.moduleManagerSectionAsked.readLatest()?.ask_number ?? 0) + 1 });
   }
 
   /** Show the window as the view `target` names, alone. */

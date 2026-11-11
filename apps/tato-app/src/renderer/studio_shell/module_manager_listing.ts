@@ -1,10 +1,8 @@
 // What the Modules window lists: the catalog's packages and samples in its order, each saying
 // whether the project has added it, then the project's modules the catalog does not list.
 
+import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { PackageCatalogEntry, PackageCatalogMember, PackageCatalogReading, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
-
-/** Which of the Modules window's cards it shows: every one, the project's own, or the catalog's samples. */
-export type ModulesShown = "everything" | "added_to_this_project" | "sample_projects";
 
 /** One card of the Modules window: a catalog entry, the project's module of it, or both. */
 export interface ModuleCardRow {

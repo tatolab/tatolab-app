@@ -5,6 +5,7 @@ import type { OpenProjectReading, PoppedOutView, ProjectTransaction, RecentProje
 import { createMockTatolabBackend, readMockTatolabOptions } from "../../mock/mock_tatolab_backend";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
+import type { ModulesShown } from "../shared/tatolab_electron_bridge_contract";
 import { studioLayoutsStorageKey } from "./studio_shell/studio_layouts";
 import { mountTatolabWindow } from "./tatolab_window_view";
 import { drawTheCoreViewsInTheirFrames } from "./view_host/fake_core_view_frames";
@@ -1308,6 +1309,26 @@ describe("Module manager", () => {
     expect(textOf('[data-module-manager-detail="lobby-wall"]')).toContain("imports/lobby-wall");
     pressed('[data-module-manager-open-to-edit="lobby-wall"]');
     await waitFor(() => expect(foldersOpenedToEdit).toEqual(["lobby-wall"]));
+  });
+
+  it("opens on the section File › Modules… asked for, and shows each section asked of it once open", async () => {
+    let askTheOpenWindowToShow: ((shows: ModulesShown) => void) | null = null;
+    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project", {
+      onModuleManagerSectionAsked: (listener) => {
+        askTheOpenWindowToShow = listener;
+        return () => undefined;
+      },
+    });
+    const shownSection = () => document.querySelector('[data-module-manager-show][aria-current="page"]')?.getAttribute("data-module-manager-show");
+
+    await waitFor(() => expect(shownSection()).toBe("added_to_this_project"));
+    pressed('[data-module-manager-show="sample_projects"]');
+    expect(shownSection()).toBe("sample_projects");
+    act(() => askTheOpenWindowToShow?.("everything"));
+    expect(shownSection()).toBe("everything");
+    pressed('[data-module-manager-show="sample_projects"]');
+    act(() => askTheOpenWindowToShow?.("everything"));
+    expect(shownSection()).toBe("everything");
   });
 
   it("adds a project's folder chosen in the dialog, or one dropped on the window, and lists it", async () => {
