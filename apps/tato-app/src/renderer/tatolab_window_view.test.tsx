@@ -1331,6 +1331,27 @@ describe("Module manager", () => {
     expect(shownSection()).toBe("everything");
   });
 
+  it("keeps a section asked of it while it was still reading the one it opened on", async () => {
+    let askTheOpenWindowToShow: ((shows: ModulesShown) => void) | null = null;
+    let answerTheSectionLastAsked: ((shows: ModulesShown) => void) | null = null;
+    await mountedWindowOverTheMock("state=running&module_manager=open", {
+      onModuleManagerSectionAsked: (listener) => {
+        askTheOpenWindowToShow = listener;
+        return () => undefined;
+      },
+      readModuleManagerSectionLastAsked: () =>
+        new Promise((resolve) => {
+          answerTheSectionLastAsked = resolve;
+        }),
+    });
+    const shownSection = () => document.querySelector('[data-module-manager-show][aria-current="page"]')?.getAttribute("data-module-manager-show");
+
+    act(() => askTheOpenWindowToShow?.("sample_projects"));
+    await act(async () => answerTheSectionLastAsked?.("added_to_this_project"));
+
+    await waitFor(() => expect(shownSection()).toBe("sample_projects"));
+  });
+
   it("adds a project's folder chosen in the dialog, or one dropped on the window, and lists it", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open");
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());

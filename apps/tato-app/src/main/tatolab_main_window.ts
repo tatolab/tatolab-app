@@ -171,7 +171,7 @@ export class TatolabMainWindow implements WindowShowingPortViewers {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_OPEN_PROJECT_CHANGED_EVENT, reading);
   }
 
-  /** Ask the Module manager window to show `shows` as `tatolab-module-manager-section-asked`; nothing, before the window is first shown, which reads the section it opened on. */
+  /** Ask the Module manager window to show `shows` as `tatolab-module-manager-section-asked`; nothing, before the window is first shown, which reads the section last asked when it opens. */
   askTheWindowToShowTheModuleManagerSection(shows: ModulesShown): void {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT, { shows } satisfies ModuleManagerSectionAsked);
   }

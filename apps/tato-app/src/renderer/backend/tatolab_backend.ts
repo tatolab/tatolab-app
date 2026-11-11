@@ -137,8 +137,8 @@ export interface TatolabBackend {
   openModuleManagerWindow(shows: ModulesShown): Promise<void>;
   /** This window's workspace when it is a Module manager window, as last read from disk; `null` in any other window. Later readings arrive through `onOpenProjectChanged`. */
   readModuleManagerWorkspace(): Promise<OpenProjectReading | null>;
-  /** The section this window was opened on when it is a Module manager window; `null` in any other window. Later asks arrive through `onModuleManagerSectionAsked`. */
-  readModuleManagerSectionAsked(): Promise<ModulesShown | null>;
+  /** The section this window was last asked to show when it is a Module manager window; `null` in any other window. Later asks arrive through `onModuleManagerSectionAsked`. */
+  readModuleManagerSectionLastAsked(): Promise<ModulesShown | null>;
   /** Calls `listener` with each section this Module manager window is asked to show once open; the returned function stops it. */
   onModuleManagerSectionAsked(listener: (shows: ModulesShown) => void): () => void;
   /** The catalog get.tatolab.com serves, or why it was not read. */

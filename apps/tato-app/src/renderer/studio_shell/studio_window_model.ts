@@ -3,12 +3,6 @@
 
 import type { ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutView, ProjectArchiveChosenToImport, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
-
-/** A section the Module manager window is asked to show, and which ask of the window it is. */
-export interface ModuleManagerSectionAskNumbered {
-  shows: ModulesShown;
-  ask_number: number;
-}
 import type { RecentProjectChangeRefusal } from "../presentation/projects_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
@@ -19,6 +13,12 @@ import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, 
 import { STUDIO_LAYOUTS, type StudioLayoutName, type StudioLayoutsKeptInStorage, type StudioLayoutsOfAFolder } from "./studio_layouts";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
 import { WindowToolbarGraphToolOffers } from "./window_toolbar_graph_tool_offers";
+
+/** A section the Module manager window is asked to show, and which ask of the window it is. */
+export interface ModuleManagerSectionAskNumbered {
+  shows: ModulesShown;
+  ask_number: number;
+}
 
 /** The streams the runtime lists in `status`, or why it lists none now. */
 export function listedStreamsReadingOf(status: TatolabStatus): ListedStreamsReading {

@@ -184,7 +184,6 @@ const MODULES_SHOWN_SECTIONS: readonly { modulesShown: ModulesShown; label: stri
   { modulesShown: "sample_projects", label: "Sample projects", icon: Shapes },
 ];
 
-
 /** The Modules window: the catalog's packages and samples and the project's modules as cards, shown all, added or samples only and narrowed by a search, the picked one at length beside them; more added from a folder or `.zip`. */
 export function ModuleManagerWindowView({
   workspace,

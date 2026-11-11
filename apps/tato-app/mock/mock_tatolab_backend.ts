@@ -215,9 +215,9 @@ export interface MockTatolabOptions {
   assetImportScenario: MockAssetImportScenario;
   /** `?popped_out_view=<popped-out view as JSON>`: the page is a view popped out of the studio, as Pop out into a window opens it in a new tab; the studio by default. */
   poppedOutView: PoppedOutView | null;
-  /** `?module_manager=open|edited_files|newer`: the page is the open project's Module manager window, as File › Module manager… opens it in a new tab, its import as copied, edited since, or with a newer version on its source; `null` for any other page. */
+  /** `?module_manager=open|edited_files|newer`: the page is the open project's Module manager window, as File › Marketplace… or Modules… opens it in a new tab, its import as copied, edited since, or with a newer version on its source; `null` for any other page. */
   moduleManagerWorkspaceDependencies: MockWorkspaceDependenciesScenario | null;
-  /** The section a Module manager window's page opens on, Everything unless the page's query names another. */
+  /** `?module_manager_section=everything|added_to_this_project|sample_projects`: the section a Module manager window's page opens on, Everything when the query names none. */
   moduleManagerSectionOpenedOn: ModulesShown;
   /** `?catalog=unserved`: get.tatolab.com serves no catalog yet; the mock catalog by default. */
   isTheCatalogUnserved: boolean;
@@ -1368,7 +1368,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       window.open(mockPageUrlWith(mockPageUrlWith(window.location.href, MODULE_MANAGER_QUERY_PARAMETER, "open"), MODULE_MANAGER_SECTION_QUERY_PARAMETER, shows), "_blank");
     },
     readModuleManagerWorkspace: async () => (mockTatolabOptions.moduleManagerWorkspaceDependencies !== null ? structuredClone(openProjectReading) : null),
-    readModuleManagerSectionAsked: async () => (mockTatolabOptions.moduleManagerWorkspaceDependencies !== null ? mockTatolabOptions.moduleManagerSectionOpenedOn : null),
+    readModuleManagerSectionLastAsked: async () => (mockTatolabOptions.moduleManagerWorkspaceDependencies !== null ? mockTatolabOptions.moduleManagerSectionOpenedOn : null),
     onModuleManagerSectionAsked: () => () => undefined,
     readPackageCatalog: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

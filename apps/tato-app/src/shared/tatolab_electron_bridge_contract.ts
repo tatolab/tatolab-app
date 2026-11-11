@@ -108,7 +108,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "read_popped_out_view",
   "open_module_manager_window",
   "read_module_manager_workspace",
-  "read_module_manager_section_asked",
+  "read_module_manager_section_last_asked",
   "read_package_catalog",
   "list_workspace_dependencies",
   "choose_dependency_source",
@@ -223,12 +223,15 @@ export function isATatolabStreamPageRequest(eventPayload: unknown): eventPayload
   return typeof eventPayload === "object" && eventPayload !== null && "stream" in eventPayload && typeof eventPayload.stream === "string";
 }
 
-/** The sections of the Module manager window: the catalog with the project's modules, the modules added to this project, or the sample projects. */
-export type ModulesShown = "everything" | "added_to_this_project" | "sample_projects";
+/** The sections of the Module manager window: the catalog with the project's modules, the modules added to this project, and the sample projects. */
+export const MODULES_SHOWN = ["everything", "added_to_this_project", "sample_projects"] as const;
+
+/** One section of the Module manager window. */
+export type ModulesShown = (typeof MODULES_SHOWN)[number];
 
 /** Whether a value is a `ModulesShown`. */
 export function isModulesShown(value: unknown): value is ModulesShown {
-  return value === "everything" || value === "added_to_this_project" || value === "sample_projects";
+  return MODULES_SHOWN.some((modulesShown) => modulesShown === value);
 }
 
 /** What `open_module_manager_window` takes, and what `tatolab-module-manager-section-asked` carries: the section the Module manager window shows. */
@@ -335,8 +338,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   open_module_manager_window: { commandArguments: ModuleManagerSectionAsked; answer: null };
   /** The asking Module manager window's workspace project as last read from disk; `null` in any other window. Each later reading arrives on `tatolab-open-project-changed`. */
   read_module_manager_workspace: { commandArguments: undefined; answer: OpenProjectReading | null };
-  /** The section the asking Module manager window was opened on; `null` in any other window. Each later ask arrives on `tatolab-module-manager-section-asked`. */
-  read_module_manager_section_asked: { commandArguments: undefined; answer: ModulesShown | null };
+  /** The section the asking Module manager window was last asked to show; `null` in any other window. Each later ask arrives on `tatolab-module-manager-section-asked`. */
+  read_module_manager_section_last_asked: { commandArguments: undefined; answer: ModulesShown | null };
   /** The catalog get.tatolab.com serves, fetched afresh, or why it was not read; never refused. */
   read_package_catalog: { commandArguments: undefined; answer: PackageCatalogReading };
   /** From a Module manager window only: the workspace's imports from the runtime's `list_dependencies`, each source read for a newer version with `check_for_newer`; refused in the runtime's own words. */

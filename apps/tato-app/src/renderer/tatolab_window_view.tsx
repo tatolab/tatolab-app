@@ -320,13 +320,13 @@ export function mountTatolabWindow(
   const whatTheWindowShowsIsRead = Promise.all([
     backend.readPoppedOutView().catch(() => null),
     backend.readModuleManagerWorkspace().catch(() => null),
-    backend.readModuleManagerSectionAsked().catch(() => null),
-  ]).then(([poppedOutView, moduleManagerWorkspace, moduleManagerSectionOpenedOn]) => {
+    backend.readModuleManagerSectionLastAsked().catch(() => null),
+  ]).then(([poppedOutView, moduleManagerWorkspace, moduleManagerSectionLastAsked]) => {
     if (poppedOutView !== null) {
       studioWindowModel.showAsPoppedOutView(poppedOutView);
       readTheOpenProject(() => studioWindowModel.pinThePoppedOutView());
     } else if (moduleManagerWorkspace !== null) {
-      if (moduleManagerSectionOpenedOn !== null) studioWindowModel.askTheModuleManagerToShow(moduleManagerSectionOpenedOn);
+      if (moduleManagerSectionLastAsked !== null && studioWindowModel.moduleManagerSectionAsked.readLatest() === null) studioWindowModel.askTheModuleManagerToShow(moduleManagerSectionLastAsked);
       studioWindowModel.moduleManagerWorkspace.publish(moduleManagerWorkspace);
     } else readTheOpenProject();
   });
