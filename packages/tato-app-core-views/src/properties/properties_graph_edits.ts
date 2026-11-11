@@ -162,20 +162,43 @@ export function whyThePortTakesNoOtherTarget(direction: "input" | "output", link
   return null;
 }
 
-/** The list edited from's record at `index` when it is still `recordTheRowShows`; `null` when the list has moved on, so the edit would land on another entry. */
-function theRecordStillShown(listEditedFrom: JsonValue, index: number, recordTheRowShows: JsonObject): JsonObject[] | null {
-  const records = recordsOfAListField(listEditedFrom);
-  return JSON.stringify(records[index]) === JSON.stringify(recordTheRowShows) ? records : null;
+/** Whether two JSON values hold the same values, whatever order an object's keys come in. */
+function holdTheSameJsonValues(left: JsonValue | undefined, right: JsonValue | undefined): boolean {
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((item, itemIndex) => holdTheSameJsonValues(item, right[itemIndex]));
+  }
+  if (typeof left === "object" && left !== null && typeof right === "object" && right !== null) {
+    const leftKeys = Object.keys(left);
+    return leftKeys.length === Object.keys(right).length && leftKeys.every((key) => key in right && holdTheSameJsonValues(left[key], right[key]));
+  }
+  return left === right;
 }
 
-/** `listEditedFrom` with the record at `index` holding `value` at `key`, or without `key` when `value` is `undefined`; `null` when that record is no longer `recordTheRowShows`. */
+/** `record` without the value at `key`, or the whole record when `key` is `null`. */
+function recordWithoutTheKey(record: JsonObject, key: string | null): JsonObject {
+  if (key === null) return record;
+  const { [key]: _left, ...recordWithoutIt } = record;
+  return recordWithoutIt;
+}
+
+/**
+ * The list edited from's records when its record at `index` is still `recordTheRowShows`, apart from `keyBeingSet`, whose
+ * value a drag in progress changes; `null` when the list has moved on, so the edit would land on another entry.
+ */
+function theRecordStillShown(listEditedFrom: JsonValue, index: number, recordTheRowShows: JsonObject, keyBeingSet: string | null): JsonObject[] | null {
+  const records = recordsOfAListField(listEditedFrom);
+  const recordEditedFrom = records[index];
+  return recordEditedFrom !== undefined && holdTheSameJsonValues(recordWithoutTheKey(recordEditedFrom, keyBeingSet), recordWithoutTheKey(recordTheRowShows, keyBeingSet)) ? records : null;
+}
+
+/** `listEditedFrom` with the record at `index` holding `value` at `key`, or without `key` when `value` is `undefined`; `null` when that record, apart from `key`, is no longer `recordTheRowShows`. */
 export function listWithTheRecordFieldSet(listEditedFrom: JsonValue, index: number, recordTheRowShows: JsonObject, key: string, value: JsonValue | undefined): JsonObject[] | null {
-  const records = theRecordStillShown(listEditedFrom, index, recordTheRowShows);
+  const records = theRecordStillShown(listEditedFrom, index, recordTheRowShows, key);
   return (
     records?.map((record, recordIndex) => {
       if (recordIndex !== index) return record;
-      const { [key]: _replaced, ...recordWithoutTheKey } = record;
-      return value === undefined ? recordWithoutTheKey : { ...recordWithoutTheKey, [key]: value };
+      const recordWithoutTheValue = recordWithoutTheKey(record, key);
+      return value === undefined ? recordWithoutTheValue : { ...recordWithoutTheValue, [key]: value };
     }) ?? null
   );
 }
@@ -187,7 +210,7 @@ export function listWithARecordAdded(listEditedFrom: JsonValue, newItem: JsonObj
 
 /** `listEditedFrom` without the record at `index`, the records after it moving up one; `null` when that record is no longer `recordTheRowShows`. */
 export function listWithoutTheRecord(listEditedFrom: JsonValue, index: number, recordTheRowShows: JsonObject): JsonObject[] | null {
-  return theRecordStillShown(listEditedFrom, index, recordTheRowShows)?.filter((_record, recordIndex) => recordIndex !== index) ?? null;
+  return theRecordStillShown(listEditedFrom, index, recordTheRowShows, null)?.filter((_record, recordIndex) => recordIndex !== index) ?? null;
 }
 
 /** Why an edit of a list entry was not sent: the list changed under it. */

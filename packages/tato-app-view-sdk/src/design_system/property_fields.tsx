@@ -205,7 +205,7 @@ export function PropertyNumberField({
 
 /**
  * A number within a known range, dragged on a slider: each move is a live edit and the release commits it once, so
- * one drag is one undo. Its value shows beside it, and LIVE while it is dragged.
+ * one drag is one undo. Its value shows beside it, typed into where the caller reads typed words, and LIVE while it is dragged.
  */
 export function PropertySliderField({
   fieldId,
@@ -217,6 +217,7 @@ export function PropertySliderField({
   onDragStarted,
   onLiveEdit,
   onCommitted,
+  typing,
 }: {
   fieldId: string;
   value: number | null;
@@ -227,9 +228,13 @@ export function PropertySliderField({
   onDragStarted: () => void;
   onLiveEdit: (value: number) => void;
   onCommitted: (value: number) => void;
+  /** The value beside the slider typed into: its accessible name, and the words typed, which the caller reads as a number; absent, the value is only shown. */
+  typing?: { label: string; onWordsTyped: (words: string) => void };
 }) {
   const [draggedValue, setDraggedValue] = useState<number | null>(null);
   const shownValue = draggedValue ?? value ?? minimum;
+  const valueWords = isWholeNumber ? String(shownValue) : shownValue.toFixed(2);
+  const valueEditedInPlace = useWordsEditedInPlace(valueWords, typing?.onWordsTyped);
   const step = isWholeNumber ? 1 : (maximum - minimum) / 100;
   const release = useCallback(() => {
     if (draggedValue !== null) onCommitted(draggedValue);
@@ -263,9 +268,13 @@ export function PropertySliderField({
         onBlur={release}
         className="h-4 min-w-0 flex-1 accent-brand"
       />
-      <span className={cn("w-10 shrink-0 text-right font-mono text-[11.5px] tabular-nums", valueToneClassName(isTheTypesDefault && draggedValue === null))}>
-        {isWholeNumber ? String(shownValue) : shownValue.toFixed(2)}
-      </span>
+      <input
+        aria-label={typing?.label ?? "Value"}
+        inputMode="decimal"
+        {...valueEditedInPlace}
+        className={cn(PROPERTY_FIELD_CLASS_NAMES, "w-12 shrink-0 px-1 text-right font-mono tabular-nums", valueToneClassName(isTheTypesDefault && draggedValue === null))}
+        data-property-slider-value=""
+      />
       {draggedValue !== null && (
         <span className="shrink-0 rounded-[3px] bg-brand px-1 text-[10px] font-semibold text-primary-foreground" data-property-live-edit>
           LIVE

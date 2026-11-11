@@ -395,7 +395,8 @@ function AssetsOfTheProject({
   const folderShownLabel = folders.find((folder) => folder.folder_id === folderShown)?.label ?? "this folder";
   const noAssetShown = noAssetShownWords(assets.length, folderShownLabel, searchText);
   return (
-    <div className="flex min-h-0 flex-1" data-library-assets="">
+    <div className="@container flex min-h-0 flex-1" data-library-assets="">
+      <div className="hidden @2xl:flex">
       <SectionNavigationList
         label="Folders of the project's assets"
         width="wide"
@@ -409,6 +410,7 @@ function AssetsOfTheProject({
         onSectionChosen={(folderId) => onAssetsShownChanged({ shownFolderId: folderId, chosenAssetUuid })}
         dataAttributeOfEachSection="data-library-asset-folder"
       />
+      </div>
       <WorkAreaWithSidePanel
         sidePanel={
           chosenAsset === null ? null : (
@@ -417,6 +419,17 @@ function AssetsOfTheProject({
         }
       >
         <div className="scrollbar-thin min-w-0 flex-1 overflow-y-auto p-3">
+          <div className="pb-2 @2xl:hidden">
+            <StudioAreaHeaderChoiceMenu leadingWord="Folder" words={folderShownLabel} label={`Folder: ${folderShownLabel}`} data-library-asset-folder-menu="">
+              <MenuSingleChoiceGroup
+                choices={folders.map((folder) => ({ choice: folder.folder_id, label: `${folder.label} · ${folder.asset_count}` }))}
+                chosen={folderShown}
+                onChosen={(folderId) => onAssetsShownChanged({ shownFolderId: folderId, chosenAssetUuid })}
+                dataAttributeOfEachChoice="data-library-asset-folder-choice"
+                closesTheMenuOnChoice
+              />
+            </StudioAreaHeaderChoiceMenu>
+          </div>
           {assetsInTheFolder.length === 0 ? (
             <WaitingState title={noAssetShown.title} explanation={noAssetShown.explanation} data-library-state={assets.length === 0 ? "no_assets" : "no_asset_matches"} />
           ) : (
