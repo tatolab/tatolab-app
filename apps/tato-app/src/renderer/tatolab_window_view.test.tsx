@@ -1525,7 +1525,7 @@ describe("the window's first status", () => {
 });
 
 describe("Settings", () => {
-  it("opens on macOS from Tato Studio › Settings… in the system menu bar, after About and Check for Updates…, on General", async () => {
+  it("opens on macOS from Tato Studio › Settings… in the system menu bar, after About and Check for Updates…, on Project while a project is open", async () => {
     const { backendChanges, menusShownLast, chooseFromTheSystemMenuBar } = systemMenuBarOverTheMock();
     await mountedWindowOverTheMock("state=running", backendChanges);
     await waitFor(() =>
@@ -1540,16 +1540,16 @@ describe("Settings", () => {
     );
 
     await chooseFromTheSystemMenuBar("Tato Studio › Settings…");
-    await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
+    await waitFor(() => expect(document.querySelector(`[data-settings-page="project"]`)).not.toBeNull());
   });
 
-  it("opens on Linux from Edit › Settings… on General, listing every section under its group beside it", async () => {
+  it("opens on Linux from Edit › Settings… on Project while a project is open, listing every section under its group beside it", async () => {
     await mountedWindowOverTheMock("platform=linux&state=running");
     await chooseFromTheMenuBar("Edit", /^Settings…/);
 
-    await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
+    await waitFor(() => expect(document.querySelector(`[data-settings-page="project"]`)).not.toBeNull());
     const sectionList = within(screen.getByRole("navigation", { name: "Settings" }));
-    expect(sectionList.getByRole("button", { name: "General" }).getAttribute("aria-current")).toBe("page");
+    expect(sectionList.getByRole("button", { name: "Project" }).getAttribute("aria-current")).toBe("page");
     expect(sectionList.getAllByRole("button").map((sectionButton) => sectionButton.textContent)).toEqual(["Project", "General", "Developer", "Runtime", "Command line", "About"]);
     expect(sectionList.getByText("This machine")).toBeTruthy();
     expect(sectionList.getByText("This project")).toBeTruthy();

@@ -422,7 +422,7 @@ function isASettingsSection(sectionId: string): sectionId is SettingsSection {
   return sectionId in SECTION_VIEWS;
 }
 
-/** Settings over the studio, open on `shownSection` while it is not `null`: Project while a project is shown, General, Developer, Runtime, Command line and About. */
+/** Settings over the studio, open on `shownSection` while it is not `null`: Project while a project is shown, General, Developer, Runtime, Command line and About; `project` opens on General while none is. */
 export function SettingsDialogView({
   shownSection,
   onSectionChosen,

@@ -193,7 +193,7 @@ export function mountTatolabWindow(
         (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
       );
     },
-    openSettings: () => studioWindowModel.settingsSection.publish("general"),
+    openSettings: () => studioWindowModel.settingsSection.publish("project"),
     openAbout: () => studioWindowModel.settingsSection.publish("about"),
     checkForAppUpdates: () => {
       studioWindowModel.appUpdateChoiceRefusal.publish(null);
