@@ -30,6 +30,7 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     listProjectNodeTypes: (projectDirectory) => invokeTatolabCommand("list_project_node_types", { project_directory: projectDirectory }),
     listProjectAssets: (projectDirectory) => invokeTatolabCommand("list_project_assets", { project_directory: projectDirectory }),
     importAssetsIntoTheOpenProject: () => invokeTatolabCommand("import_assets_into_the_open_project", undefined),
+    readAssetPreviewOfTheOpenProject: (asset) => invokeTatolabCommand("read_asset_preview_of_the_open_project", { asset }),
     relocateAssetInTheOpenProject: async (asset, toPath) => {
       await invokeTatolabCommand("relocate_asset_in_the_open_project", { asset, to_path: toPath });
     },
@@ -66,7 +67,7 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     },
     chooseStreamProjectFolder: (chosenFor) => invokeTatolabCommand("choose_stream_project_folder", { chosen_for: chosenFor }),
     createStreamProject: (folder) => invokeTatolabCommand("create_stream_project", { folder }),
-    runStreamProject: (folder) => invokeTatolabCommand("run_stream_project", { folder }),
+    openStreamProject: (folder) => invokeTatolabCommand("open_stream_project", { folder }),
     reloadProject: (projectDirectory) => invokeTatolabCommand("reload_project", { project_directory: projectDirectory }),
     describeStreamAction: (action) => invokeTatolabCommand("describe_stream_action", { action }),
     cancelStreamAction: (action) => invokeTatolabCommand("cancel_stream_action", { action }),

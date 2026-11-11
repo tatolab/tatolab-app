@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 import { graphInputsOfTheStream, whyNoControlWritesTheInput } from "./graph_inputs_of_the_stream";
 
 function node(id: string, name: string, type: string, config: StreamGraphNode["config"], graphInterface: StreamGraphInterfacePort | null = null): StreamGraphNode {
-  return { id, name, type, state: "Running", failed_because: null, process_raising_because: null, config, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: graphInterface };
+  return { id, name, type, state: "Running", failed_because: null, process_raising_because: null, config, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: graphInterface };
 }
 
 function graphOf(nodes: StreamGraphNode[]): StreamGraphSummary {

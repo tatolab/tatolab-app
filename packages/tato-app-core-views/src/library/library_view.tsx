@@ -1,9 +1,9 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Boxes, FilePlus2, Folder, FolderInput, PencilLine, Trash2 } from "lucide-react";
 import { IconButton } from "@tatolab/tato-app-view-sdk/design_system/icon_button";
 import { MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
-import { ProjectAssetCard } from "@tatolab/tato-app-view-sdk/design_system/project_asset_card";
+import { ProjectAssetCard, ProjectAssetPicture } from "@tatolab/tato-app-view-sdk/design_system/project_asset_card";
 import { CardGrid } from "@tatolab/tato-app-view-sdk/design_system/card_grid";
 import { SidePanel, WorkAreaWithSidePanel } from "@tatolab/tato-app-view-sdk/design_system/side_panel";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
@@ -25,6 +25,7 @@ import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/re
 import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
 import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../shared/node_type_listing_tree";
 import { LibraryAssetChangeForm, type LibraryAssetChange } from "./library_asset_change_form";
+import { LibraryAssetPreviewPicturesReadOnce, previewPictureUrlOf, type LibraryAssetPreviewPicture } from "./library_asset_preview_pictures";
 import { libraryTreeOfTheListing, type LibraryDeclarationsShown, type LibraryRowMeaning } from "./library_tree_of_the_listing";
 import {
   assetFileName,
@@ -297,8 +298,8 @@ function DeclarationsOfTheProject({ connection, projectFolder, declarationsShown
   );
 }
 
-/** The chosen asset: its file's name and path, what it is, its UUID, its bytes' digest and size, and each setting its import took. */
-function DetailsOfTheAsset({ asset, projectFolder, connection, onHidden }: { asset: ProjectAsset; projectFolder: string; connection: TatoAppViewConnection; onHidden: () => void }) {
+/** The chosen asset: its preview picture when it has one, its file's name and path, what it is, its UUID, its bytes' digest and size, and each setting its import took. */
+function DetailsOfTheAsset({ asset, previewPicture, projectFolder, connection, onHidden }: { asset: ProjectAsset; previewPicture: LibraryAssetPreviewPicture | null; projectFolder: string; connection: TatoAppViewConnection; onHidden: () => void }) {
   const importSettings = Object.entries(asset.import_settings);
   const [changeAsked, setChangeAsked] = useState<LibraryAssetChange | null>(null);
   const changeButtons = useRef<HTMLSpanElement>(null);
@@ -325,9 +326,16 @@ function DetailsOfTheAsset({ asset, projectFolder, connection, onHidden }: { ass
         <LibraryAssetChangeForm key={`${asset.asset}/${changeAsked}`} change={changeAsked} asset={asset} projectFolder={projectFolder} connection={connection} onClosed={() => closeTheChangeForm(changeAsked)} />
       )}
       <div className="flex flex-col gap-3 px-4 py-3">
+        {asset.preview !== null && (
+          <div className="flex flex-col gap-2" data-library-asset-details-picture="">
+            <ProjectAssetPicture tone={assetPictureToneOf(asset)} words={assetFormatWords(asset)} previewPictureUrl={previewPictureUrlOf(previewPicture)} size="details" />
+            {previewPicture?.kind === "not_read" && <RuntimeFailureWords words={previewPicture.because} data-library-asset-preview-not-read-because="" />}
+          </div>
+        )}
         <KeyValueRows
           rows={[
             ["Kind", asset.kind],
+            ...(asset.preview === null ? [] : [["Preview", `${asset.preview.pixel_width} × ${asset.preview.pixel_height}`] satisfies KeyValueRow]),
             [
               "UUID",
               <span className="font-mono" title={asset.asset}>
@@ -387,7 +395,38 @@ function AssetsOfTheProject({
       </WaitingState>
     );
   }
-  const assets = assetsTheLibraryLists(assetsReading.listing);
+  return <AssetsOfTheListedProject connection={connection} projectFolder={projectFolder} assets={assetsTheLibraryLists(assetsReading.listing)} searchText={searchText} assetsShown={{ shownFolderId, chosenAssetUuid }} onAssetsShownChanged={onAssetsShownChanged} />;
+}
+
+/** The preview pictures of the assets of the project in `projectFolder`, read through `connection` while the Library shows them, drawn again as each lands. */
+function useAssetPreviewPicturesOfTheProject(connection: TatoAppViewConnection, projectFolder: string): LibraryAssetPreviewPicturesReadOnce | null {
+  const [, drawAgainForAPictureRead] = useReducer((picturesRead: number) => picturesRead + 1, 0);
+  const [previewPictures, setPreviewPictures] = useState<LibraryAssetPreviewPicturesReadOnce | null>(null);
+  useEffect(() => {
+    const previewPicturesOfThisProject = new LibraryAssetPreviewPicturesReadOnce((asset) => connection.readAssetPreviewInTheProject(projectFolder, asset), drawAgainForAPictureRead);
+    setPreviewPictures(previewPicturesOfThisProject);
+    return () => previewPicturesOfThisProject.stop();
+  }, [connection, projectFolder]);
+  return previewPictures;
+}
+
+/** The listed assets of the open project: its folders down the left, the chosen folder's assets as cards with their preview pictures, and the chosen asset's details. */
+function AssetsOfTheListedProject({
+  connection,
+  projectFolder,
+  assets,
+  searchText,
+  assetsShown: { shownFolderId, chosenAssetUuid },
+  onAssetsShownChanged,
+}: {
+  connection: TatoAppViewConnection;
+  projectFolder: string;
+  assets: ProjectAsset[];
+  searchText: string;
+  assetsShown: AssetsShownInTheLibrary;
+  onAssetsShownChanged: (assetsShown: AssetsShownInTheLibrary) => void;
+}) {
+  const previewPictures = useAssetPreviewPicturesOfTheProject(connection, projectFolder);
   const folders = libraryAssetFoldersOf(assets);
   const folderShown = assetFolderIdShownOf(folders, shownFolderId);
   const assetsInTheFolder = assetsShownInTheFolder(assets, folderShown, searchText);
@@ -395,28 +434,49 @@ function AssetsOfTheProject({
   const folderShownLabel = folders.find((folder) => folder.folder_id === folderShown)?.label ?? "this folder";
   const noAssetShown = noAssetShownWords(assets.length, folderShownLabel, searchText);
   return (
-    <div className="flex min-h-0 flex-1" data-library-assets="">
-      <SectionNavigationList
-        label="Folders of the project's assets"
-        width="wide"
-        sectionGroups={[
-          {
-            groupLabel: "Folders",
-            sections: folders.map((folder) => ({ section_id: folder.folder_id, label: folder.label, icon: folder.folder_id === EVERY_ASSET_FOLDER_ID ? Boxes : Folder, count: folder.asset_count })),
-          },
-        ]}
-        shownSectionId={folderShown}
-        onSectionChosen={(folderId) => onAssetsShownChanged({ shownFolderId: folderId, chosenAssetUuid })}
-        dataAttributeOfEachSection="data-library-asset-folder"
-      />
+    <div className="@container/library-assets flex min-h-0 flex-1" data-library-assets="">
+      <div className="hidden @2xl/library-assets:flex">
+        <SectionNavigationList
+          label="Folders of the project's assets"
+          width="wide"
+          sectionGroups={[
+            {
+              groupLabel: "Folders",
+              sections: folders.map((folder) => ({ section_id: folder.folder_id, label: folder.label, icon: folder.folder_id === EVERY_ASSET_FOLDER_ID ? Boxes : Folder, count: folder.asset_count })),
+            },
+          ]}
+          shownSectionId={folderShown}
+          onSectionChosen={(folderId) => onAssetsShownChanged({ shownFolderId: folderId, chosenAssetUuid })}
+          dataAttributeOfEachSection="data-library-asset-folder"
+        />
+      </div>
       <WorkAreaWithSidePanel
         sidePanel={
           chosenAsset === null ? null : (
-            <DetailsOfTheAsset key={chosenAsset.asset} asset={chosenAsset} projectFolder={projectFolder} connection={connection} onHidden={() => onAssetsShownChanged({ shownFolderId, chosenAssetUuid: null })} />
+            <DetailsOfTheAsset key={chosenAsset.asset} asset={chosenAsset} previewPicture={previewPictures?.pictureOf(chosenAsset) ?? null} projectFolder={projectFolder} connection={connection} onHidden={() => onAssetsShownChanged({ shownFolderId, chosenAssetUuid: null })} />
           )
         }
       >
         <div className="scrollbar-thin min-w-0 flex-1 overflow-y-auto p-3">
+          <div className="pb-2 @2xl/library-assets:hidden">
+            <StudioAreaHeaderChoiceMenu leadingWord="Folder" words={folderShownLabel} label={`Folder: ${folderShownLabel}`} data-library-asset-folder-menu="">
+              <MenuSingleChoiceGroup
+                choices={folders.map((folder) => ({
+                  choice: folder.folder_id,
+                  label: (
+                    <span className="flex min-w-0 flex-1 items-center gap-3">
+                      <span className="truncate">{folder.label}</span>
+                      <span className="ml-auto text-fg-3 tabular-nums">{folder.asset_count}</span>
+                    </span>
+                  ),
+                }))}
+                chosen={folderShown}
+                onChosen={(folderId) => onAssetsShownChanged({ shownFolderId: folderId, chosenAssetUuid })}
+                dataAttributeOfEachChoice="data-library-asset-folder-choice"
+                closesTheMenuOnChoice
+              />
+            </StudioAreaHeaderChoiceMenu>
+          </div>
           {assetsInTheFolder.length === 0 ? (
             <WaitingState title={noAssetShown.title} explanation={noAssetShown.explanation} data-library-state={assets.length === 0 ? "no_assets" : "no_asset_matches"} />
           ) : (
@@ -428,6 +488,7 @@ function AssetsOfTheProject({
                   kindAndSizeWords={assetKindAndSizeWords(asset)}
                   pictureTone={assetPictureToneOf(asset)}
                   pictureWords={assetFormatWords(asset)}
+                  previewPictureUrl={previewPictureUrlOf(previewPictures?.pictureOf(asset) ?? null)}
                   isSelected={asset.asset === chosenAsset?.asset}
                   onSelected={() => onAssetsShownChanged({ shownFolderId, chosenAssetUuid: asset.asset })}
                   data-library-asset={asset.path}

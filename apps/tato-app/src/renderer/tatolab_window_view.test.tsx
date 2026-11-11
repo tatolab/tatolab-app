@@ -216,6 +216,41 @@ describe("the studio", () => {
     expect(outlinerFrame.getAttribute("src")).toMatch(/\/core_views\/outliner\/index\.html$/);
   });
 
+  it("selects nodes together with ⌘ in the outliner, the graph and Properties showing the same nodes, and groups them from the + menu", { timeout: 20_000 }, async () => {
+    await mountedWindowOverTheMock("state=running");
+    const mainNodeRowId = (node: string) => `node:${PATTERN_MAIN_STREAM}/${node}`;
+    await waitFor(() => expect(outlinerRowIds()).toContain(mainNodeRowId("invertingeffect")));
+
+    fireEvent.click(outlinerRow(mainNodeRowId("invertingeffect")));
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("invertingeffect")).getAttribute("aria-selected")).toBe("true"));
+    fireEvent.click(outlinerRow(mainNodeRowId("displaywindow")), { metaKey: true });
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("displaywindow")).getAttribute("aria-selected")).toBe("true"));
+    expect(outlinerRow(mainNodeRowId("invertingeffect")).getAttribute("aria-selected")).toBe("true");
+    await waitFor(() => expect(coreViewPage("properties").body.textContent).toContain("Inverting Effect, Display Window. Select one node to edit its config."));
+    expect(coreViewPage("properties").body.textContent).toContain("2 nodes selected");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    await waitFor(() => expect([...streamGraph.querySelectorAll<HTMLElement>("[data-node-graph-card][data-selected]")].map((card) => card.dataset.nodeGraphCard).sort()).toEqual(["displaywindow", "invertingeffect"]));
+
+    pressAsAPointerDoes(coreViewPage("outliner").querySelector<HTMLElement>("[data-outliner-add-menu]") ?? expect.unreachable("no + menu"));
+    fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>("[data-outliner-group-selected-nodes]") ?? expect.unreachable("no Group selected nodes")));
+    await waitFor(() => expect(outlinerRowIds().some((rowId) => rowId.startsWith(`group:${PATTERN_MAIN_STREAM}/`))).toBe(true), { timeout: 5000 });
+  });
+
+  it("groups the nodes selected in the outliner on F, and leaves F alone while nothing can be grouped", { timeout: 20_000 }, async () => {
+    await mountedWindowOverTheMock("state=running");
+    const mainNodeRowId = (node: string) => `node:${PATTERN_MAIN_STREAM}/${node}`;
+    await waitFor(() => expect(outlinerRowIds()).toContain(mainNodeRowId("testpatternsource")));
+    expect(fireEvent.keyDown(outlinerRow(mainNodeRowId("testpatternsource")), { key: "f" })).toBe(true);
+
+    fireEvent.click(outlinerRow(mainNodeRowId("testpatternsource")));
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("testpatternsource")).getAttribute("aria-selected")).toBe("true"));
+    fireEvent.click(outlinerRow(mainNodeRowId("brightnessmeter")), { metaKey: true });
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("brightnessmeter")).getAttribute("aria-selected")).toBe("true"));
+    await waitFor(() => expect(coreViewPage("properties").body.textContent).toContain("2 nodes selected"));
+    expect(fireEvent.keyDown(outlinerRow(mainNodeRowId("brightnessmeter")), { key: "f" })).toBe(false);
+    await waitFor(() => expect(outlinerRowIds().some((rowId) => rowId.startsWith(`group:${PATTERN_MAIN_STREAM}/`))).toBe(true), { timeout: 5000 });
+  });
+
   it("names the project once on macOS, at the start of the title row before the stream tabs, never on a tab", async () => {
     await mountedWindowOverTheMock("state=running");
     await waitFor(() => expect(document.querySelector("[data-studio-window-title]")?.textContent).toBe("pattern"));
@@ -268,8 +303,15 @@ describe("the studio", () => {
     expect([...library.querySelectorAll<HTMLElement>("[data-library-asset-folder]")].map((folder) => folder.textContent)).toEqual(["All assets4", "luts1", "media2", "scenes1"]);
     expect(library.querySelector('[data-library-asset="media/lobby-intro.mp4"]')?.textContent).toBe("MP4lobby-intro.mp4media · 40 MB");
 
+    const folderMenu = library.querySelector<HTMLElement>("[data-library-asset-folder-menu]") ?? expect.unreachable("no Folder menu");
+    pressAsAPointerDoes(folderMenu);
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^scenes/ }));
+    await waitFor(() => expect(assetCardPaths()).toEqual(["scenes/stage.usdz"]));
+    expect(folderMenu.getAttribute("aria-label")).toBe("Folder: scenes");
+
     fireEvent.click(library.querySelector<HTMLElement>('[data-library-asset-folder="folder:media"]') ?? expect.unreachable("no media folder"));
     await waitFor(() => expect(assetCardPaths()).toEqual(["media/lobby-intro.mp4", "media/poster.png"]));
+    expect(folderMenu.getAttribute("aria-label")).toBe("Folder: media");
     fireEvent.change(library.querySelector<HTMLInputElement>("[data-library-asset-search]") ?? expect.unreachable("no search field"), { target: { value: "POSTER" } });
     await waitFor(() => expect(assetCardPaths()).toEqual(["media/poster.png"]));
 
@@ -278,6 +320,48 @@ describe("the studio", () => {
     expect(details.textContent).toContain("poster.png");
     expect(details.textContent).toContain("sha256 c59c…fa05");
     expect(details.textContent).toContain("11 KB");
+  });
+
+  it("shows each asset's preview picture on its card and in its details, an asset with none keeping its tinted card and showing no picture in its details", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await showTheLibraryInTheViewerArea();
+    await showInTheLibrary("assets");
+
+    const library = coreViewPage("library");
+    const cardPicture = (assetPath: string) =>
+      library.querySelector<HTMLElement>(`[data-library-asset="${assetPath}"] [data-project-asset-picture]`) ?? expect.unreachable(`no picture on ${assetPath}`);
+    await waitFor(() => expect(cardPicture("media/lobby-intro.mp4").dataset.projectAssetPicture).toBe("preview"));
+    await waitFor(() => expect(cardPicture("media/poster.png").dataset.projectAssetPicture).toBe("preview"));
+    expect(cardPicture("media/lobby-intro.mp4").querySelector("img")?.getAttribute("src")).toMatch(/^data:image\//);
+    expect(cardPicture("luts/warm.cube").dataset.projectAssetPicture).toBe("tinted");
+    expect(cardPicture("scenes/stage.usdz").dataset.projectAssetPicture).toBe("tinted");
+
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-asset="media/lobby-intro.mp4"]') ?? expect.unreachable("no video card"));
+    const details = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset-details="207ef246-3d00-4167-b394-bb591f7c4b8f"]') ?? expect.unreachable("no details"));
+    expect(details.querySelector<HTMLElement>("[data-project-asset-picture]")?.dataset.projectAssetPicture).toBe("preview");
+    expect(details.textContent).toContain("512 × 288");
+
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-asset="luts/warm.cube"]') ?? expect.unreachable("no LUT card"));
+    const lutDetails = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset-details="045c7554-dab9-483e-a8fc-064bf9ad3668"]') ?? expect.unreachable("no LUT details"));
+    expect(lutDetails.querySelector("[data-project-asset-picture]")).toBeNull();
+    expect(lutDetails.textContent).not.toContain("Preview");
+  });
+
+  it("shows in an asset's details the runtime's words when its preview picture is refused, over the tinted picture", async () => {
+    const refusal = "read_asset_preview failed: no file is at asset 207ef246-3d00-4167-b394-bb591f7c4b8f's path";
+    await mountedWindowOverTheMock("state=running", {
+      readAssetPreviewOfTheOpenProject: async () => {
+        throw refusal;
+      },
+    });
+    await showTheLibraryInTheViewerArea();
+    await showInTheLibrary("assets");
+    const library = coreViewPage("library");
+    fireEvent.click(await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset="media/lobby-intro.mp4"]') ?? expect.unreachable("no video card")));
+    const refusalWords = await waitFor(() => library.querySelector<HTMLElement>("[data-library-asset-preview-not-read-because]") ?? expect.unreachable("no refusal shown"));
+    expect(refusalWords.textContent).toBe(refusal);
+    expect(library.querySelector<HTMLElement>("[data-library-asset-details-picture] [data-project-asset-picture]")?.dataset.projectAssetPicture).toBe("tinted");
+    expect(library.querySelector<HTMLElement>('[data-library-asset="media/lobby-intro.mp4"] [data-project-asset-picture]')?.dataset.projectAssetPicture).toBe("tinted");
   });
 
   it("lists in the Library the views the project and its imports bring by who brought them, Studio's own last, with the chosen view's ports or why it does not open", async () => {
@@ -1058,6 +1142,21 @@ describe("the studio", () => {
     await waitFor(() => expect(entryLabels()).toEqual(["layers:0", "layers:1"]), { timeout: 5000 });
     expect(secondX().value).toBe("0");
     expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
+  });
+
+  it("exposes a number config field as a Graph Input from Properties, the node taking it as an input fed by the new Graph Input", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card")));
+    const properties = () => coreViewPage("properties");
+
+    pressAsAPointerDoes(await waitFor(() => properties().querySelector<HTMLElement>("[data-properties-expose-as-a-graph-input]") ?? expect.unreachable("no Expose as a Graph Input")));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Strength" }));
+
+    const strengthInput = await waitFor(() => properties().querySelector<HTMLElement>('[data-properties-section="inputs"] [data-properties-port="strength"]') ?? expect.unreachable("no strength input"), { timeout: 5000 });
+    await waitFor(() => expect([...strengthInput.querySelectorAll("[data-property-port-target]")].map((target) => target.getAttribute("data-property-port-target"))).toEqual(["invertingeffect_strength › value"]));
+    await waitFor(() => expect(streamGraph.querySelector('[data-node-graph-card="invertingeffect_strength"]')).not.toBeNull());
+    expect(properties().querySelector("[data-properties-expose-as-a-graph-input]")).toBeNull();
   });
 
   it("opens the Marketplace from Install modules… at the foot of the node search, closing the search", async () => {

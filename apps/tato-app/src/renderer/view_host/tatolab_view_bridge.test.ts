@@ -154,6 +154,12 @@ function recordingHostServices() {
       assetChangesAsked.push(["relocate", projectFolder, asset, toPath]);
       return toPath === "media/taken.png" ? { kind: "not_changed", because: "relocate_asset failed: `media/taken.png` is already the path of the asset b-uuid" } : { kind: "changed" };
     },
+    readAssetPreviewInTheProject: async (projectFolder, asset) => {
+      assetChangesAsked.push(["read_preview", projectFolder, asset]);
+      return asset === "a-uuid"
+        ? { kind: "read", picture: { picture_url: "data:image/png;base64,iVBORw0KGgo=", pixel_width: 512, pixel_height: 288 } }
+        : { kind: "not_read", because: "read_asset_preview failed: asset c-uuid has no preview picture; the runtime makes one for an image" };
+    },
     deleteAssetFromTheProject: async (projectFolder, asset) => {
       assetChangesAsked.push(["delete", projectFolder, asset]);
       return { kind: "changed" };
@@ -372,6 +378,26 @@ describe("a view's connection to Studio, through the one bridge every view is se
       ["relocate", "/set", "a-uuid", "media/archive/intro.mp4"],
       ["relocate", "/set", "a-uuid", "media/taken.png"],
       ["delete", "/set", "a-uuid"],
+    ]);
+  });
+
+  it("reads an asset's preview picture, a refusal in the runtime's words", async () => {
+    const { connection, assetChangesAsked } = await connectedView(DJ_DECK_MANIFEST, {});
+    expect(await connection.readAssetPreviewInTheProject("/set", "a-uuid")).toEqual({
+      kind: "read",
+      picture: {
+        picture_url: "data:image/png;base64,iVBORw0KGgo=",
+        pixel_width: 512,
+        pixel_height: 288,
+      },
+    });
+    expect(await connection.readAssetPreviewInTheProject("/set", "c-uuid")).toEqual({
+      kind: "not_read",
+      because: "read_asset_preview failed: asset c-uuid has no preview picture; the runtime makes one for an image",
+    });
+    expect(assetChangesAsked).toEqual([
+      ["read_preview", "/set", "a-uuid"],
+      ["read_preview", "/set", "c-uuid"],
     ]);
   });
 

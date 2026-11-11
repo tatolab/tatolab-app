@@ -100,6 +100,8 @@ export interface MockGraphNode {
   config: Record<string, JsonValue>;
   /** The value each unlinked input holds, by input name. */
   pins?: Record<string, JsonValue>;
+  /** The config fields it takes as inputs, each also one of `input_ports`. */
+  exposed_config_fields?: string[];
   input_ports: StreamGraphDeclaredPort[];
   output_ports: StreamGraphDeclaredPort[];
   /** Its studio fields; none set when absent. */

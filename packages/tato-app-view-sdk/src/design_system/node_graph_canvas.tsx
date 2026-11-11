@@ -987,8 +987,8 @@ function NodeGraphFlow({
   links,
   frames,
   notes,
-  selectedNodeId,
-  onNodeSelected,
+  selectedNodeIds,
+  onNodesSelected,
   editing,
   viewportWhereItWasLeft,
   onViewportLeft,
@@ -1001,8 +1001,10 @@ function NodeGraphFlow({
   links: readonly NodeGraphCanvasLink[];
   frames: readonly NodeGraphCanvasFrame[];
   notes: readonly NodeGraphCanvasNote[];
-  selectedNodeId: string | null;
-  onNodeSelected: (nodeId: string | null) => void;
+  /** The cards selected, the one picked last at the end. */
+  selectedNodeIds: readonly string[];
+  /** The cards selected after a click, a drag-box or a delete, the one picked last at the end; none when the selection was cleared. */
+  onNodesSelected: (nodeIds: readonly string[]) => void;
   editing: NodeGraphCanvasEditing | null;
   viewportWhereItWasLeft: NodeGraphCanvasViewport | null;
   onViewportLeft: ((viewport: NodeGraphCanvasViewport) => void) | null;
@@ -1066,15 +1068,12 @@ function NodeGraphFlow({
   const [heldCardFrames, setHeldCardFrames] = useState<ReadonlyMap<string, string | null>>(new Map());
   const [heldNotePositions, setHeldNotePositions] = useState<HeldPositionById>(new Map());
   const [heldNoteSizes, setHeldNoteSizes] = useState<ReadonlyMap<string, NodeGraphNoteSize>>(new Map());
-  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set(selectedNodeId === null ? [] : [selectedNodeId]));
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set(selectedNodeIds));
   const [selectedNoteIds, setSelectedNoteIds] = useState<ReadonlySet<string>>(new Set());
 
   useEffect(() => {
-    setSelectedIds((selectedBefore) => {
-      if (selectedNodeId === null) return selectedBefore.size === 0 ? selectedBefore : new Set();
-      return selectedBefore.has(selectedNodeId) ? selectedBefore : new Set([selectedNodeId]);
-    });
-  }, [selectedNodeId]);
+    setSelectedIds((selectedBefore) => (holdsTheSameNodes(selectedBefore, selectedNodeIds) ? selectedBefore : new Set(selectedNodeIds)));
+  }, [selectedNodeIds]);
 
   const savedPositionByNode = useMemo(() => new Map(nodes.map((node) => [node.node_id, node.saved_position])), [nodes]);
   useEffect(() => {
@@ -1289,12 +1288,13 @@ function NodeGraphFlow({
           if (change.selected) selectedAfter.add(change.id);
           else selectedAfter.delete(change.id);
         }
+        if (holdsTheSameNodes(selectedIds, [...selectedAfter])) return;
         setSelectedIds(selectedAfter);
-        const clickedLast = [...selectionChanges].reverse().find((change) => change.selected)?.id ?? [...selectedAfter][0] ?? null;
-        if (clickedLast !== null || selectedAfter.size === 0) onNodeSelected(clickedLast);
+        const clickedLast = [...selectionChanges].reverse().find((change) => change.selected)?.id ?? null;
+        onNodesSelected(clickedLast === null ? [...selectedAfter] : [...[...selectedAfter].filter((nodeId) => nodeId !== clickedLast), clickedLast]);
       }
     },
-    [onNodeSelected, nodeById, selectedIds, editing],
+    [onNodesSelected, nodeById, selectedIds, editing],
   );
 
   const followTheLinkChanges = useCallback((changes: EdgeChange<NodeGraphLinkFlowEdge>[]) => {
@@ -1531,9 +1531,9 @@ function NodeGraphFlow({
     setSelectedNoteIds(new Set());
     if (selectedIds.size > 0) {
       setSelectedIds(new Set());
-      onNodeSelected(null);
+      onNodesSelected([]);
     }
-  }, [editing, selectedIds, selectedLinkIds, selectedNoteIds, onNodeSelected]);
+  }, [editing, selectedIds, selectedLinkIds, selectedNoteIds, onNodesSelected]);
   const [nodeFind, setNodeFind] = useState<{ find_words: string; current_index: number } | null>(null);
   const nodeIdsFound = useMemo(() => (nodeFind === null ? [] : nodeGraphNodeIdsMatching(nodes, nodeFind.find_words)), [nodes, nodeFind]);
   const currentNodeIdFound = nodeFind === null ? null : (nodeIdsFound[Math.min(nodeFind.current_index, nodeIdsFound.length - 1)] ?? null);
@@ -1560,7 +1560,7 @@ function NodeGraphFlow({
           setSelectedIds(new Set([flowNodeId]));
           setSelectedLinkIds(new Set());
           setSelectedNoteIds(new Set());
-          onNodeSelected(flowNodeId);
+          onNodesSelected([flowNodeId]);
         }
         setRightClicked({ kind: "card", node_id: flowNodeId });
       } else if (flowNodeId?.startsWith("note:") === true && editing !== null) {
@@ -1570,7 +1570,7 @@ function NodeGraphFlow({
           setSelectedLinkIds(new Set());
           if (selectedIds.size > 0) {
             setSelectedIds(new Set());
-            onNodeSelected(null);
+            onNodesSelected([]);
           }
         }
         setRightClicked({ kind: "note", note_id: noteId });
@@ -1580,7 +1580,7 @@ function NodeGraphFlow({
           setSelectedNoteIds(new Set());
           if (selectedIds.size > 0) {
             setSelectedIds(new Set());
-            onNodeSelected(null);
+            onNodesSelected([]);
           }
         }
         setRightClicked({ kind: "link", link_id: linkId });
@@ -1588,7 +1588,7 @@ function NodeGraphFlow({
         setRightClicked({ kind: "canvas", at: canvasPointOf({ x: event.clientX, y: event.clientY }) });
       }
     },
-    [nodeById, selectedIds, selectedLinkIds, selectedNoteIds, editing, onNodeSelected, canvasPointOf],
+    [nodeById, selectedIds, selectedLinkIds, selectedNoteIds, editing, onNodesSelected, canvasPointOf],
   );
   const followTheKeys = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -1767,7 +1767,7 @@ function NodeGraphFlow({
                     setNodeAskingWhichPort(null);
                     return;
                   }
-                  onNodeSelected(null);
+                  onNodesSelected([]);
                   setSelectedLinkIds(new Set());
                   setSelectedNoteIds(new Set());
                   setSelectedIds(new Set());
@@ -1837,6 +1837,11 @@ function NodeGraphFlow({
   );
 }
 
+/** Whether `selectedIds` holds exactly the nodes of `nodeIds`, in any order. */
+function holdsTheSameNodes(selectedIds: ReadonlySet<string>, nodeIds: readonly string[]): boolean {
+  return selectedIds.size === nodeIds.length && nodeIds.every((nodeId) => selectedIds.has(nodeId));
+}
+
 /**
  * A graph of nodes and links drawn the Blueprint way: a card per node, its input pins down its left edge and its outputs
  * down its right, links as curves between them, labelled frames behind the cards they hold and notes beside them. Cards
@@ -1850,8 +1855,8 @@ export function NodeGraphCanvas({
   links,
   frames = [],
   notes = [],
-  selectedNodeId,
-  onNodeSelected,
+  selectedNodeIds,
+  onNodesSelected,
   editing = null,
   viewportWhereItWasLeft = null,
   onViewportLeft = null,
@@ -1865,8 +1870,10 @@ export function NodeGraphCanvas({
   links: readonly NodeGraphCanvasLink[];
   frames?: readonly NodeGraphCanvasFrame[];
   notes?: readonly NodeGraphCanvasNote[];
-  selectedNodeId: string | null;
-  onNodeSelected: (nodeId: string | null) => void;
+  /** The cards selected, the one picked last at the end. */
+  selectedNodeIds: readonly string[];
+  /** The cards selected after a click, a drag-box or a delete, the one picked last at the end; none when the selection was cleared. */
+  onNodesSelected: (nodeIds: readonly string[]) => void;
   /** What a person's edits ask for; `null` draws the graph read only. */
   editing?: NodeGraphCanvasEditing | null;
   /** Where the person left the canvas's pan and zoom, which it opens on; `null` frames the whole graph. */
@@ -1888,8 +1895,8 @@ export function NodeGraphCanvas({
           links={links}
           frames={frames}
           notes={notes}
-          selectedNodeId={selectedNodeId}
-          onNodeSelected={onNodeSelected}
+          selectedNodeIds={selectedNodeIds}
+          onNodesSelected={onNodesSelected}
           editing={editing}
           viewportWhereItWasLeft={viewportWhereItWasLeft}
           onViewportLeft={onViewportLeft}

@@ -165,6 +165,8 @@ export const streamGraphNodeSchema = z.object({
   config: z.record(z.string(), jsonValueSchema),
   /** The value set on each unlinked input, by input name, as the graph's `pins` renders it; an input left at its port's default is absent. */
   pins: z.record(z.string(), jsonValueSchema),
+  /** The number and bool config fields it takes as inputs, each an input port of the field's name, as the graph's `exposed_config_fields` renders them; `[]` when it takes none. */
+  exposed_config_fields: z.array(z.string()),
   input_ports: z.array(streamGraphDeclaredPortSchema),
   output_ports: z.array(streamGraphDeclaredPortSchema),
   /** Messages it dropped on each link into it, by the link's `id`. */
@@ -347,6 +349,26 @@ export const projectNodeTypeListingSchema = z.object({
 /** What a project and its sources declare. */
 export type ProjectNodeTypeListing = z.infer<typeof projectNodeTypeListingSchema>;
 
+/** An asset's preview picture as `list_assets` sizes it: an image's own picture or a video's poster frame, which `read_asset_preview` answers. */
+export const projectAssetPreviewSchema = z.object({
+  pixel_width: z.number().int().positive(),
+  pixel_height: z.number().int().positive(),
+  /** `image/png`. */
+  media_type: z.string(),
+});
+/** An asset's preview picture as `list_assets` sizes it. */
+export type ProjectAssetPreview = z.infer<typeof projectAssetPreviewSchema>;
+
+/** An asset's preview picture as Studio hands it to a window or a view: a `data:` URL of the runtime's picture and its size. */
+export const assetPreviewPictureSchema = z.object({
+  /** `data:image/png;base64,…`. */
+  picture_url: z.string().startsWith("data:image/"),
+  pixel_width: z.number().int().positive(),
+  pixel_height: z.number().int().positive(),
+});
+/** An asset's preview picture as Studio hands it over. */
+export type AssetPreviewPicture = z.infer<typeof assetPreviewPictureSchema>;
+
 /** One asset of a project as the runtime's `list_assets` lists it. */
 export const projectAssetSchema = z.object({
   /** The asset's UUID, which a node's config names it by as `{"asset": <uuid>}`. */
@@ -359,6 +381,8 @@ export const projectAssetSchema = z.object({
   content_byte_len: z.number().int().nonnegative(),
   /** The settings its import took, kept in its sidecar. */
   import_settings: z.record(z.string(), jsonValueSchema),
+  /** Its preview picture; `null` for an asset with none, as a stream, audio or a LUT, and for one whose bytes the runtime is still reading. */
+  preview: projectAssetPreviewSchema.nullable(),
 });
 /** One asset of a project. */
 export type ProjectAsset = z.infer<typeof projectAssetSchema>;
@@ -382,6 +406,14 @@ export const projectAssetsImportedSchema = z.object({
 });
 /** What importing the chosen files answered. */
 export type ProjectAssetsImported = z.infer<typeof projectAssetsImportedSchema>;
+
+/** An asset's preview picture read, or why not, in Studio's or the runtime's words. */
+export const assetPreviewReadingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("read"), picture: assetPreviewPictureSchema }),
+  z.object({ kind: z.literal("not_read"), because: z.string() }),
+]);
+/** An asset's preview picture read, or why not. */
+export type AssetPreviewReading = z.infer<typeof assetPreviewReadingSchema>;
 
 /** Files the person chose imported into the project, nothing chosen, or why nothing was asked of the runtime. */
 export const projectAssetsImportingSchema = z.discriminatedUnion("kind", [
@@ -538,6 +570,8 @@ export const studioSelectionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("project"), project_name: z.string(), project_folder: z.string().nullable() }),
   z.object({ kind: z.literal("stream"), stream: z.string(), project_folder: z.string() }),
   z.object({ kind: z.literal("node"), stream: z.string(), node: z.string() }),
+  /** Two or more nodes of one stream selected together, by name, the one picked last at the end. */
+  z.object({ kind: z.literal("nodes"), stream: z.string(), nodes: z.array(z.string()).min(2) }),
 ]);
 /** What Studio has selected. */
 export type StudioSelection = z.infer<typeof studioSelectionSchema>;

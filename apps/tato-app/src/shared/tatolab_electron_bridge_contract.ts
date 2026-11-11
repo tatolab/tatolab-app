@@ -9,6 +9,7 @@ import type {
   ProjectNodeTypeListing,
   ProjectAssetListing,
   ProjectAssetsImported,
+  AssetPreviewPicture,
   JsonValue,
   DependencySourceKind,
   ProjectDependency,
@@ -26,7 +27,7 @@ import type {
   PythonLanguageServerEvent,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
-  ProjectRunQueued,
+  ProjectStreamActionQueued,
   ProjectTransaction,
   GraphEditMode,
   ProjectGraphTransactionTheRuntimeAnswered,
@@ -70,6 +71,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "list_project_assets",
   "import_assets_into_the_open_project",
   "relocate_asset_in_the_open_project",
+  "read_asset_preview_of_the_open_project",
   "delete_asset_from_the_open_project",
   "check_for_tatolab_app_updates",
   "take_the_newer_tatolab_app_version",
@@ -86,7 +88,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "choose_new_project_location",
   "create_new_project",
   "create_stream_project",
-  "run_stream_project",
+  "open_stream_project",
   "reload_project",
   "describe_stream_action",
   "cancel_stream_action",
@@ -148,7 +150,7 @@ export const TATOLAB_COMMAND_NAMES = [
 /**
  * One command the window invokes. Arguments: `set_stream_failure_notifications`, `set_developer_mode` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
  * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`, `delete_stream` `{ stream }`, `create_stream_in_the_open_project` `{ display_name }`,
- * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
+ * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `open_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
  * `choose_project_folder` `{ chosen_for }`, `open_recent_project`, `duplicate_recent_project` and `delete_recent_project` `{ folder }`, `rename_recent_project` `{ folder, name }`, `read_recent_project_cover` `{ folder }`, `set_recent_project_description` `{ folder, description }`, `set_recent_project_cover` `{ folder, image }`, `import_project_archive` `{ archive, name, location }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_view` a `PoppedOutView`, `open_module_manager_window` `{ shows }`, `list_workspace_dependencies` `{ check_for_newer }`, `choose_dependency_source` `{ source_kind }`, `add_dependency_to_the_workspace` `{ source }`, `update_workspace_dependency` `{ project, overwrite_edited_files }`, `import_from_the_marketplace` `{ name }`, `open_import_to_edit` `{ folder }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` and the recent-project commands only on one of the recent projects, `import_project_archive` on any absolute `.zip`, which the runtime reads, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab
  * that installs in place, downloads it; `take_the_newer_tatolab_app_version` restarts into a downloaded one, downloads one a check found, or opens a `.deb`'s download, the person choosing it being the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
@@ -290,10 +292,10 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   choose_stream_project_folder: { commandArguments: { chosen_for: StreamProjectFolderChosenFor }; answer: string | null };
   /** `folder` `null` lets the runtime draw one under `~/streams`; answers once the runtime has queued the creation, which the window follows with `describe_stream_action`. */
   create_stream_project: { commandArguments: { folder: string | null }; answer: ProjectCreationQueued };
-  /** Answers once the runtime has queued the run of every stream asset in the folder, which the window follows with `describe_stream_action`. */
-  run_stream_project: { commandArguments: { folder: string }; answer: ProjectRunQueued };
-  /** Answers once the runtime has queued `reload_project` on a project it lists running, or `start_project` on one it lists stopped or failed, which the window follows with `describe_stream_action`. */
-  reload_project: { commandArguments: { project_directory: string }; answer: ProjectRunQueued };
+  /** Answers once the runtime has queued the open of the project in the folder, its playback stopped, which the window follows with `describe_stream_action`. */
+  open_stream_project: { commandArguments: { folder: string }; answer: ProjectStreamActionQueued };
+  /** Answers once the runtime has queued `reload_project` on a project it lists open, which keeps its playback, or `open_project` on one it lists closed, which the window follows with `describe_stream_action`. */
+  reload_project: { commandArguments: { project_directory: string }; answer: ProjectStreamActionQueued };
   /** The action's description, or the runtime's words that it no longer holds it; refused when the runtime could not be asked. */
   describe_stream_action: { commandArguments: { action: string }; answer: StreamActionFollowed };
   /** Answers once the runtime has dropped the action or begun stopping it, which the listing and `describe_stream_action` then show; refused in the runtime's own words, as for a stop past cancelling. */
@@ -382,8 +384,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   write_studio_view_output: { commandArguments: { stream: string; node: string; port: string; value: JsonValue }; answer: null };
   /** From a studio window or a popped-out view only: `value` handed to the Input `input` of the running stream `stream`, which its top-level `GraphInput` publishes: an Array Input a number or lists of numbers of one shape, a Channels Input a number, a bool or `{ samples, sample_rate }`, a Records Input a JSON object; live data, recorded nowhere, the last write winning; refused in the runtime's own words. */
   write_graph_input: { commandArguments: { stream: string; input: string; value: JsonValue }; answer: null };
-  /** The runtime's `start_project` queued on the open project's folder, which the window never names, or `reload_project` while it runs; refused in the runtime's own words, or while no project is open. */
-  run_open_project: { commandArguments: undefined; answer: ProjectRunQueued };
+  /** The runtime's `start_playback` queued on the open project's folder, which the window never names, after `open_project` while the runtime holds it closed and `reload_project` while a stream of it has failed; refused in the runtime's own words, or while no project is open. */
+  run_open_project: { commandArguments: undefined; answer: ProjectStreamActionQueued };
   /** The asking studio window's project's change feed as last read; refused in the Projects window. */
   read_open_project_transactions: { commandArguments: undefined; answer: ProjectTransactionsReading };
   /** The runtime's `undo` by `author` on the asking studio window's project, answering the undo it applied; refused in the runtime's own words. */
@@ -394,13 +396,15 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   import_assets_into_the_open_project: { commandArguments: undefined; answer: ProjectAssetsImported | null };
   /** From a studio window only: the runtime's `relocate_asset` of `asset`, a UUID the window's project holds, to `to_path`, `/`-separated in the project, renaming it, moving it or both, by the person editing; refused in the runtime's own words. */
   relocate_asset_in_the_open_project: { commandArguments: { asset: string; to_path: string }; answer: null };
+  /** From a studio window only: the runtime's `read_asset_preview` of `asset`, a UUID the window's project holds, answered as a `data:` URL with its size; refused in the runtime's own words, as for an asset with no preview or one whose bytes it is still reading. */
+  read_asset_preview_of_the_open_project: { commandArguments: { asset: string }; answer: AssetPreviewPicture };
   /** From a studio window only: the runtime's `delete_asset` of `asset`, a UUID the window's project holds, its file and sidecar leaving the project, by the person editing; refused in the runtime's own words, as while a stream's graph document references it. */
   delete_asset_from_the_open_project: { commandArguments: { asset: string }; answer: null };
   /** The person editing in Studio, whose graph edits the runtime records under them. */
   read_the_person_editing_in_studio: { commandArguments: undefined; answer: ProjectTransactionAuthor };
   /** The runtime's `redo` by `author` on the asking studio window's project, answering the redo it applied; refused in the runtime's own words. */
   redo_in_the_open_project: { commandArguments: { author: ProjectTransactionAuthor }; answer: ProjectTransaction };
-  /** The runtime's `stop_project` queued on the open project's folder, which the window never names; every stream of the project shows `stopping` until it has run. Refused in the runtime's own words, or while no project is open. */
+  /** The runtime's `stop_playback` queued on the open project's folder, which the window never names and whose graphs stay loaded; every stream of the project shows `stopping` until it has run. Refused in the runtime's own words, or while no project is open. */
   stop_open_project: { commandArguments: undefined; answer: null };
   /** Starts Pyright's language server in `project_folder`, the folder of the open project or of one of its imports; its messages arrive on `tatolab-python-language-server-event` under the session answered. */
   start_python_language_server: { commandArguments: { project_folder: string }; answer: { session: string } };

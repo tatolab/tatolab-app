@@ -60,6 +60,7 @@ export function GraphInputControl({ connection, stream, graphInput }: { connecti
             onDragStarted={() => setRefusal(null)}
             onLiveEdit={write}
             onCommitted={write}
+            valueTypedBesideTheSlider={{ label: `${portName} value`, onWordsTyped: (words) => writeTheWordsTyped(numberFromTheWordsTyped(words)) }}
           />
         );
       case "number":

@@ -47,9 +47,9 @@ import {
   removeProject,
   streamArgumentsFrom,
   linkCommandLineTool,
-  runTheSavedPythonFileOfAPlayingOrFailedProject,
+  reloadTheOpenProjectAfterASaveOfItsPythonFile,
   whatASavedNodeFileAsksOfTheRuntime,
-  startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded,
+  openTheProjectWhenTheRuntimeHoldsItClosed,
   tatolabWindowCommandHandlers,
 } from "./tatolab_commands.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
@@ -69,6 +69,11 @@ const quietTatolabAppLog = createTatolabAppLog("error", () => {});
 const NO_RUNTIME_READS_THE_PROJECTS: ProjectReadingsOfTheRuntime = {
   nameTheProject: async () => failedWith("no runtime answers"),
   listTheDependencies: async () => failedWith("no runtime answers"),
+};
+
+const THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS: ProjectReadingsOfTheRuntime = {
+  nameTheProject: async (folder) => succeeded({ folder, project: "6f1d0b7e-4c2a-4e8b-9a31-0d5e7c9b2f14", name: "hallways" }),
+  listTheDependencies: async () => succeeded([]),
 };
 
 const recordedResponseBody = (fixtureFileName: string) => readFile(new URL(`./test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
@@ -175,7 +180,7 @@ async function sharedStateOverFakes(
     mintAnIdempotencyKey: () => "a-save",
     openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
     runAfter: () => () => {},
-    stopTheProjectAsItsWindowCloses: async () => succeeded(undefined),
+    closeTheProjectAsItsWindowCloses: async () => succeeded(undefined),
     whenAWindowStartingLanguageServersClosed: () => {},
     whenAWindowShowingPortViewersClosed: () => {},
     tatolabAppLog: quietTatolabAppLog,
@@ -196,7 +201,7 @@ async function sharedStateOverFakes(
     readMonotonicClockMs: () => 0,
     openTheProjectInItsStudioWindow: (folder) => appWindows.openTheProjectInItsStudioWindow(folder),
     closeTheStudioWindowOf: (folder) => appWindows.studioWindowOfTheProjectIn(folder)?.tatolabMainWindow.close(),
-    startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded: async () => succeeded(undefined),
+    openTheProjectWhenTheRuntimeHoldsItClosed: async () => succeeded(undefined),
   });
   return {
     controller,
@@ -387,10 +392,10 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
   const graph = streamGraphSummaryFromTheGraphToolResult("main", graphToolResultText);
   expect(graph.ok && JSON.stringify(graph.value)).toBe(
     '{"stream":"main","stream_asset":null,"nodes":[' +
-      '{"id":"P1","name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running","failed_because":null,"process_raising_because":null,"config":{},"pins":{},' +
+      '{"id":"P1","name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running","failed_because":null,"process_raising_because":null,"config":{},"pins":{},"exposed_config_fields":[],' +
       '"input_ports":[],"output_ports":[{"name":"video","family":null,"stream_facts":null,"values_checked":null}],' +
       '"dropped_bags_by_link":{},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}},"fragment":null,"graph_interface":null},' +
-      '{"id":"","name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null,"failed_because":null,"process_raising_because":null,"config":{},"pins":{},' +
+      '{"id":"","name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null,"failed_because":null,"process_raising_because":null,"config":{},"pins":{},"exposed_config_fields":[],' +
       '"input_ports":[],"output_ports":[],' +
       '"dropped_bags_by_link":{"L1":12},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}},"fragment":null,"graph_interface":null}],' +
       '"links":[{"id":"L1","source_node":"testpatternsource","source_port":"video",' +
@@ -530,31 +535,77 @@ test("each queued action answers the window null, and a missing argument or a pr
   expect(await commandHandlers.list_project_node_types({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "list_project_node_types needs `project_directory`, a project's folder" });
 });
 
-test("reloading a project the runtime lists running queues reload_project, one it lists stopped start_project, each answering the action and observing again; one it does not list is refused", async () => {
+/** The projects and actions the recorded `list_streams`, `open_project` and `reload_project` answers name. */
+const RECORDED_PATTERN_PROJECT = "/tmp/tatolab-proof-projects/pattern";
+const RECORDED_PATTERN_RELOAD_ACTION = "Rhrb4oumhnnzujbb137ivd7ah-7";
+const RECORDED_LOBBY_PROJECT = "/tmp/tatolab-proof-projects/lobby";
+const RECORDED_LOBBY_OPEN_ACTION = "Rhrb4oumhnnzujbb137ivd7ah-8";
+const RECORDED_UNLISTED_PROJECT_THE_RUNTIME_HOLDS_OPEN = "/tmp/tatolab-proof-projects/doorways";
+
+/** A stream of the project in `projectDirectory` as `list_streams` lists it in `state`. */
+function listedStreamOfTheProject(projectDirectory: string, state: string, streamName = "main"): ListedStream {
+  return {
+    stream: `${path.basename(projectDirectory)}-${streamName}-${state}`,
+    display_name: streamName,
+    location: { project_directory: projectDirectory, project: "4be1ae19-0c7f-4cff-a959-d596c611e05b", stream_asset: `asset-${streamName}-${state}` },
+    state,
+    node_count: state === "failed" || state === "closed" ? null : 3,
+    failed_because: state === "failed" ? "process() raised SyntaxError" : null,
+    capture_devices_whose_access_was_never_asked_for: [],
+    action: null,
+    step: null,
+  };
+}
+
+/** Have the status publisher answer that it last listed `streams`. */
+function statusLastPublishedListing(sharedState: TatolabAppSharedState, streams: ListedStream[]): void {
+  const lastPublished = sharedState.statusPublisher.lastPublishedStatusNow();
+  if (lastPublished === null) throw new Error("the status publisher published no status yet");
+  vi.spyOn(sharedState.statusPublisher, "lastPublishedStatusNow").mockReturnValue({ ...lastPublished, streams });
+}
+
+/** The project actions each controller method queued, in order, each answering `queued`. */
+function projectActionsQueuedOn(sharedState: TatolabAppSharedState) {
+  const projectActionsQueued: [string, string][] = [];
+  const queued = (verb: string) => async (projectDirectory: string) => {
+    projectActionsQueued.push([verb, projectDirectory]);
+    return succeeded({ action: `${verb}-1`, project_directory: projectDirectory });
+  };
+  vi.spyOn(sharedState.controller, "openProject").mockImplementation(queued("open_project"));
+  vi.spyOn(sharedState.controller, "startPlayback").mockImplementation(queued("start_playback"));
+  vi.spyOn(sharedState.controller, "reloadProject").mockImplementation(queued("reload_project"));
+  vi.spyOn(sharedState.controller, "stopPlayback").mockImplementation(async (projectDirectory) => {
+    projectActionsQueued.push(["stop_playback", projectDirectory]);
+    return succeeded("stop_playback-1");
+  });
+  return projectActionsQueued;
+}
+
+test("reloading a project the runtime lists open queues reload_project, one it lists closed open_project, each answering the action and observing again; one it does not list is refused", async () => {
   const sharedState = await sharedStateOverFakes(
     [
       httpResponse("200 OK", "text/plain", "ok"),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-playing-a-stopped-and-a-closed-project.json")),
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-reload-project-answer-for-the-folder-hallways.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-project-answer-for-the-folder-hallways.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-reload-project-answer-for-the-stopped-project-pattern.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-open-project-answer-for-the-closed-project-lobby.json")),
     ],
     "linux"
   );
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
   const reloads = vi.spyOn(sharedState.controller, "reloadProject");
-  const starts = vi.spyOn(sharedState.controller, "startProject");
+  const opens = vi.spyOn(sharedState.controller, "openProject");
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
   await sharedState.statusPublisher.refreshAndPublish();
 
-  expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/doorways" }, FROM_THE_PROJECTS_WINDOW))).toBe(
-    '{"ok":true,"value":{"action":"Rgdbghpj6ai2ge3wgy64g42y7-5","project_directory":"/private/tmp/tatolab-proof-projects/hallways"}}',
+  expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: RECORDED_PATTERN_PROJECT }, FROM_THE_PROJECTS_WINDOW))).toBe(
+    `{"ok":true,"value":{"action":"${RECORDED_PATTERN_RELOAD_ACTION}","project_directory":"${RECORDED_PATTERN_PROJECT}"}}`,
   );
-  expect(reloads.mock.calls).toEqual([["/home/jonathan-fontanez/scratch/app176/projects/doorways"]]);
-  expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/pattern" }, FROM_THE_PROJECTS_WINDOW))).toBe(
-    '{"ok":true,"value":{"action":"Rgdbghpj6ai2ge3wgy64g42y7-4","project_directory":"/private/tmp/tatolab-proof-projects/hallways"}}',
+  expect(reloads.mock.calls).toEqual([[RECORDED_PATTERN_PROJECT]]);
+  expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: RECORDED_LOBBY_PROJECT }, FROM_THE_PROJECTS_WINDOW))).toBe(
+    `{"ok":true,"value":{"action":"${RECORDED_LOBBY_OPEN_ACTION}","project_directory":"${RECORDED_LOBBY_PROJECT}"}}`,
   );
-  expect(starts.mock.calls).toEqual([["/home/jonathan-fontanez/scratch/app176/projects/pattern"]]);
+  expect(opens.mock.calls).toEqual([[RECORDED_LOBBY_PROJECT]]);
   expect(refreshRequests).toHaveBeenCalledTimes(2);
   expect(await commandHandlers.reload_project({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
   expect(await commandHandlers.reload_project({ folder: "/tmp/tatolab-proof-projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
@@ -563,74 +614,118 @@ test("reloading a project the runtime lists running queues reload_project, one i
   });
 });
 
-test("a saved Python file of a project the runtime lists running queues reload_project, as tatolab dev does; another file, or a stopped project, is left as it is", async () => {
-  const sharedState = await sharedStateOverFakes(
-    [
-      httpResponse("200 OK", "text/plain", "ok"),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
-      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-reload-project-answer-for-the-folder-hallways.json")),
-    ],
-    "linux"
-  );
-  const reloads = vi.spyOn(sharedState.controller, "reloadProject");
-  const starts = vi.spyOn(sharedState.controller, "startProject");
-  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+test("a saved Python file of a project the runtime lists open queues reload_project, as tatolab dev does; another file, or a closed project, is left as it is", async () => {
+  const sharedState = await sharedStateOverFakes([httpResponse("200 OK", "text/plain", "ok")], "linux");
   await sharedState.statusPublisher.refreshAndPublish();
-  const doorways = "/home/jonathan-fontanez/scratch/app176/projects/doorways";
-  const pattern = "/home/jonathan-fontanez/scratch/app176/projects/pattern";
+  const projectActionsQueued = projectActionsQueuedOn(sharedState);
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const doorways = "/projects/doorways";
+  const pattern = "/projects/pattern";
+  const lobby = "/projects/lobby";
+  statusLastPublishedListing(sharedState, [listedStreamOfTheProject(doorways, "running"), listedStreamOfTheProject(pattern, "stopped"), listedStreamOfTheProject(lobby, "closed")]);
 
-  await runTheSavedPythonFileOfAPlayingOrFailedProject(sharedState, doorways, path.join(doorways, "tatolab_view.json"));
-  await runTheSavedPythonFileOfAPlayingOrFailedProject(sharedState, pattern, path.join(pattern, "nodes", "invert.py"));
-  expect(reloads).not.toHaveBeenCalled();
+  await reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState, doorways, path.join(doorways, "tatolab_view.json"));
+  await reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState, lobby, path.join(lobby, "nodes", "invert.py"));
+  expect(projectActionsQueued).toEqual([]);
 
-  await runTheSavedPythonFileOfAPlayingOrFailedProject(sharedState, doorways, path.join(doorways, "nodes", "invert.py"));
-  expect(reloads.mock.calls).toEqual([[doorways]]);
-  expect(starts).not.toHaveBeenCalled();
-  expect(refreshRequests).toHaveBeenCalledTimes(1);
+  await reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState, doorways, path.join(doorways, "nodes", "invert.py"));
+  await reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState, pattern, path.join(pattern, "nodes", "invert.py"));
+  expect(projectActionsQueued).toEqual([
+    ["reload_project", doorways],
+    ["reload_project", pattern],
+  ]);
+  expect(refreshRequests).toHaveBeenCalledTimes(2);
 });
 
-test("a saved node file reloads a project with a stream running, starts again one whose streams failed, and leaves a stopped one alone", () => {
+test("a saved node file reloads a project the runtime holds open, playing, stopped or failed, and leaves a closed or unlisted one alone", () => {
   const hallways = "/projects/hallways";
-  const listedStreamOfHallways = (state: string): ListedStream => ({
-    stream: `hallways-${state}`,
-    display_name: state,
-    location: { project_directory: hallways, project: "4be1ae19-0c7f-4cff-a959-d596c611e05b", stream_asset: `asset-${state}` },
-    state,
-    node_count: null,
-    failed_because: state === "failed" ? "process() raised SyntaxError" : null,
-    capture_devices_whose_access_was_never_asked_for: [],
-    action: null,
-    step: null,
-  });
 
-  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfHallways("running"), listedStreamOfHallways("failed")], hallways)).toBe("reload");
-  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfHallways("failed"), listedStreamOfHallways("stopped")], hallways)).toBe("start");
-  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfHallways("stopped")], hallways)).toBe("nothing");
-  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfHallways("failed")], "/projects/doorways")).toBe("nothing");
+  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfTheProject(hallways, "running"), listedStreamOfTheProject(hallways, "failed", "lobby")], hallways)).toBe("reload");
+  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfTheProject(hallways, "stopped")], hallways)).toBe("reload");
+  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfTheProject(hallways, "failed")], hallways)).toBe("reload");
+  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfTheProject(hallways, "closed")], hallways)).toBe("nothing");
+  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfTheProject(hallways, "failed")], "/projects/doorways")).toBe("nothing");
 });
 
-test("opening a project starts it only when the runtime, asked then, lists none of its streams or each stopped, observing again after; its refusal in its own words", async () => {
-  const listedStreams = await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json");
+test("opening a project opens it only when the runtime, asked then, lists none of its streams or each closed, observing again after; its refusal in its own words", async () => {
+  const listedStreams = await recordedResponseBody("local-api-list-streams-tool-result-of-a-playing-a-stopped-and-a-closed-project.json");
   const sharedState = await sharedStateOverFakes(
     [
       httpResponse("200 OK", "application/json", listedStreams),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-project-answer-for-the-folder-hallways.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-open-project-answer-for-the-closed-project-lobby.json")),
       httpResponse("200 OK", "application/json", listedStreams),
       httpResponse("200 OK", "application/json", listedStreams),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-project-refusal-for-a-project-already-running.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-open-project-refusal-for-the-open-project-pattern.json")),
     ],
     "linux"
   );
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
-  const starts = vi.spyOn(sharedState.controller, "startProject");
+  const opens = vi.spyOn(sharedState.controller, "openProject");
 
-  expect(await startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded(sharedState, "/home/jonathan-fontanez/scratch/app176/projects/pattern")).toEqual(succeeded(undefined));
-  expect(await startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded(sharedState, "/home/jonathan-fontanez/scratch/app176/projects/doorways")).toEqual(succeeded(undefined));
-  const refused = await startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded(sharedState, "/home/jonathan-fontanez/scratch/app176/projects/lobby");
-  expect(starts.mock.calls).toEqual([["/home/jonathan-fontanez/scratch/app176/projects/pattern"], ["/home/jonathan-fontanez/scratch/app176/projects/lobby"]]);
+  expect(await openTheProjectWhenTheRuntimeHoldsItClosed(sharedState, RECORDED_LOBBY_PROJECT)).toEqual(succeeded(undefined));
+  expect(await openTheProjectWhenTheRuntimeHoldsItClosed(sharedState, RECORDED_PATTERN_PROJECT)).toEqual(succeeded(undefined));
+  const refused = await openTheProjectWhenTheRuntimeHoldsItClosed(sharedState, RECORDED_UNLISTED_PROJECT_THE_RUNTIME_HOLDS_OPEN);
+  expect(opens.mock.calls).toEqual([[RECORDED_LOBBY_PROJECT], [RECORDED_UNLISTED_PROJECT_THE_RUNTIME_HOLDS_OPEN]]);
   expect(refreshRequests).toHaveBeenCalledTimes(2);
-  expect(refused).toEqual(failedWith(expect.stringContaining("already runs, so there is none to start")));
+  expect(refused).toEqual(failedWith(expect.stringContaining("is already open, so there is none to open; `reload_project` re-reads what changed on disk")));
+});
+
+test("Live opens then plays a closed project, reloads then plays a stopped one with a failed stream, only reloads a playing one with a failed stream, and plays any other open one", async () => {
+  const sharedState = await sharedStateOverFakes([httpResponse("200 OK", "text/plain", "ok")], "linux", [], null, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS);
+  await sharedState.statusPublisher.refreshAndPublish();
+  const projectFolder = await realpath(await mkdtemp(path.join(os.tmpdir(), "hallways-")));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const projectActionsQueued = projectActionsQueuedOn(sharedState);
+  const runTheProjectLiveListing = async (streams: ListedStream[]) => {
+    statusLastPublishedListing(sharedState, streams);
+    projectActionsQueued.splice(0);
+    const answer = await commandHandlers.run_open_project(undefined, fromTheStudioWindow);
+    return { answer, queued: [...projectActionsQueued] };
+  };
+
+  expect(await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, "closed")])).toEqual({
+    answer: { ok: true, value: { action: "start_playback-1", project_directory: projectFolder } },
+    queued: [
+      ["open_project", projectFolder],
+      ["start_playback", projectFolder],
+    ],
+  });
+  expect((await runTheProjectLiveListing([])).queued).toEqual([
+    ["open_project", projectFolder],
+    ["start_playback", projectFolder],
+  ]);
+  expect((await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, "stopped"), listedStreamOfTheProject(projectFolder, "failed", "lobby")])).queued).toEqual([
+    ["reload_project", projectFolder],
+    ["start_playback", projectFolder],
+  ]);
+  expect(await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, "running"), listedStreamOfTheProject(projectFolder, "failed", "lobby")])).toEqual({
+    answer: { ok: true, value: { action: "reload_project-1", project_directory: projectFolder } },
+    queued: [["reload_project", projectFolder]],
+  });
+  expect((await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, "stopped")])).queued).toEqual([["start_playback", projectFolder]]);
+
+  statusLastPublishedListing(sharedState, [listedStreamOfTheProject(projectFolder, "running")]);
+  projectActionsQueued.splice(0);
+  expect(await commandHandlers.stop_open_project(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  expect(projectActionsQueued).toEqual([["stop_playback", projectFolder]]);
+});
+
+test("Live answers the runtime's refusal of an open it would play after, in its own words, and queues no playback", async () => {
+  const sharedState = await sharedStateOverFakes([httpResponse("200 OK", "text/plain", "ok")], "linux", [], null, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS);
+  await sharedState.statusPublisher.refreshAndPublish();
+  const projectFolder = await realpath(await mkdtemp(path.join(os.tmpdir(), "hallways-")));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const refusal = `Runtime error: the project in ${projectFolder} is already open, so there is none to open; \`reload_project\` re-reads what changed on disk`;
+  vi.spyOn(sharedState.controller, "openProject").mockResolvedValue(failedWith({ failureDescription: refusal, isTheRuntimesRefusal: true }));
+  const playbackStarts = vi.spyOn(sharedState.controller, "startPlayback");
+  statusLastPublishedListing(sharedState, []);
+
+  expect(await tatolabWindowCommandHandlers(sharedState, () => {}).run_open_project(undefined, { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 })).toEqual({ ok: false, refusal });
+  expect(playbackStarts).not.toHaveBeenCalled();
 });
 
 test("renaming a stream sets the display name of the stream asset the runtime lists for it, then observes again whether it renamed or refused", async () => {
@@ -723,13 +818,13 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
   expect(sharedState.terminal.openedInFolders).toEqual(["/Users/jonathanf/streams/main"]);
 });
 
-/** The window's `ProjectCreationQueued`, `ProjectRunQueued` and `StreamActionFollowed` read exactly this JSON. */
+/** The window's `ProjectCreationQueued`, `ProjectStreamActionQueued` and `StreamActionFollowed` read exactly this JSON. */
 test("adding a project answers the window in the contract's shape, from the chosen folder to the action queued and followed", async () => {
   const projectFolder = await realpath(await mkdtemp(path.join(os.tmpdir(), "tl-app-project-")));
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-project-answer-for-the-folder-hallways.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-open-project-answer-for-the-closed-project-lobby.json")),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-project-answer-with-no-folder-drawn-kind-butte.json")),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-the-create-of-kind-butte-starting.json")),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json")),
@@ -742,9 +837,9 @@ test("adding a project answers the window in the contract's shape, from the chos
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
-  expect(JSON.stringify(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" }, FROM_THE_PROJECTS_WINDOW))).toBe(`{"ok":true,"value":${JSON.stringify(projectFolder)}}`);
-  expect(JSON.stringify(await commandHandlers.run_stream_project({ folder: projectFolder }, FROM_THE_PROJECTS_WINDOW))).toBe(
-    '{"ok":true,"value":{"action":"Rgdbghpj6ai2ge3wgy64g42y7-4","project_directory":"/private/tmp/tatolab-proof-projects/hallways"}}',
+  expect(JSON.stringify(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_open" }, FROM_THE_PROJECTS_WINDOW))).toBe(`{"ok":true,"value":${JSON.stringify(projectFolder)}}`);
+  expect(JSON.stringify(await commandHandlers.open_stream_project({ folder: projectFolder }, FROM_THE_PROJECTS_WINDOW))).toBe(
+    '{"ok":true,"value":{"action":"Rhrb4oumhnnzujbb137ivd7ah-8","project_directory":"/tmp/tatolab-proof-projects/lobby"}}',
   );
   expect(JSON.stringify(await commandHandlers.create_stream_project({ folder: null }, FROM_THE_PROJECTS_WINDOW))).toBe(
     '{"ok":true,"value":{"action":"Rj12j3eujz3zn0dposliv79k9-7","stream":"kind-butte-main-e51c2f","project_directory":"/tmp/tatolab-proof/streams/kind-butte"}}',
@@ -793,15 +888,15 @@ test("the commands that add a project read their arguments as the window sends t
   const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
   expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "anything" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: "choose_stream_project_folder needs `chosen_for`, project_to_run or new_project_directory",
+    refusal: "choose_stream_project_folder needs `chosen_for`, project_to_open or new_project_directory",
   });
-  expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_open" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(await commandHandlers.create_stream_project({ folder: 7 }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "create_stream_project needs `folder`, a folder chosen in the window, or null for one the runtime draws under ~/streams",
   });
   expect(await commandHandlers.create_stream_project({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "Tato Studio acts only on a folder chosen in its window. Choose /etc again." });
-  expect(await commandHandlers.run_stream_project({ folder: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "run_stream_project needs `folder`, a folder chosen in the window" });
+  expect(await commandHandlers.open_stream_project({ folder: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "open_stream_project needs `folder`, a folder chosen in the window" });
   expect(await commandHandlers.describe_stream_action({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "describe_stream_action needs `action`, a stream action's id" });
 });
 
@@ -1182,6 +1277,44 @@ test("renaming, moving and deleting an asset of the open project reach the runti
     refusal: "relocate_asset_in_the_open_project needs `to_path`, the asset's new path in the project",
   });
   expect(await commandHandlers.delete_asset_from_the_open_project({ asset: poster }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+});
+
+test("an asset's preview picture of the open project reaches the window as a data URL, or the runtime's refusal in its own words, and only a studio window may ask", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-read-asset-preview-tool-result-of-harbour-dusk-png.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-read-asset-preview-refusal-for-quay-walk-mp4-with-no-poster-frame.json")),
+    ],
+    "linux",
+  );
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "harbour-lights-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const fromTheStudioWindow = {
+    windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1,
+  };
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(await commandHandlers.read_asset_preview_of_the_open_project({ asset: "38ab4435-5f49-4cd1-b60e-f03acf54db34" }, fromTheStudioWindow)).toEqual({
+    ok: true,
+    value: {
+      picture_url: expect.stringMatching(/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]+=*$/),
+      pixel_width: 512,
+      pixel_height: 320,
+    },
+  });
+  expect(await commandHandlers.read_asset_preview_of_the_open_project({ asset: "23199eb3-ea3c-4d31-8f0f-2bf9395590d2" }, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: "read_asset_preview failed: asset 23199eb3-ea3c-4d31-8f0f-2bf9395590d2 has no preview picture; the runtime makes one for an image",
+  });
+  expect(await commandHandlers.read_asset_preview_of_the_open_project({}, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: "read_asset_preview_of_the_open_project needs `asset`, the UUID of an asset of the open project",
+  });
+  expect(await commandHandlers.read_asset_preview_of_the_open_project({ asset: "38ab4435-5f49-4cd1-b60e-f03acf54db34" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "No project is open in this window.",
+  });
 });
 
 /** The window's `ProjectGraphTransactionTheRuntimeAnswered` reads exactly this JSON. */

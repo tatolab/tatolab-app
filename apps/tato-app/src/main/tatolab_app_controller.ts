@@ -6,7 +6,7 @@ import type {
   ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
-  ProjectRunQueued,
+  ProjectStreamActionQueued,
   ProjectTransaction,
   ProjectTransactionAuthor,
   GraphEditMode,
@@ -38,6 +38,7 @@ import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import type { ProjectAssetAtItsPath, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
+import type { AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
 import type { NodeFileCreationRecorded, ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
 import type { ProjectViewTheRuntimeListed, StudioViewOutputWritten } from "./project_views_on_the_wire.js";
 import type { GraphInputWritten } from "./graph_input_written_on_the_wire.js";
@@ -253,9 +254,14 @@ export class TatolabAppController {
     return this.localApiClient.readProjectLogRecords(projectDirectory, narrowing, after, PROJECT_LOG_RECORDS_PER_PAGE);
   }
 
-  /** Queue the stop of every stream of the project in `projectDirectory` through the runtime's `stop_project`, answering the id of the action the runtime queued. */
-  stopProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
-    return this.localApiClient.stopProject(projectDirectory);
+  /** Queue the stop of the playback of the project in `projectDirectory` through the runtime's `stop_playback`, answering the id of the action the runtime queued. */
+  stopPlayback(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.localApiClient.stopPlayback(projectDirectory);
+  }
+
+  /** Queue the close of the open project in `projectDirectory` through the runtime's `close_project`, answering the id of the action the runtime queued. */
+  closeProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.localApiClient.closeProject(projectDirectory);
   }
 
   /** Queue the removal of every stream the runtime holds from the project in `projectDirectory`, answering the id of the action the runtime queued. */
@@ -278,18 +284,23 @@ export class TatolabAppController {
     return this.localApiClient.deleteStream(projectDirectory, streamAsset, author);
   }
 
-  /** Queue a new project's creation and run through the runtime's `create_project`, in `projectDirectory` or, with `null`, a folder the runtime draws. */
+  /** Queue a new project's creation and open through the runtime's `create_project`, in `projectDirectory` or, with `null`, a folder the runtime draws. */
   createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>> {
     return this.localApiClient.createProject(projectDirectory);
   }
 
-  /** Queue the start of the stopped project in `projectDirectory` through the runtime's `start_project`. */
-  startProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
-    return this.localApiClient.startProject(projectDirectory);
+  /** Queue the open of the closed project in `projectDirectory`, its playback stopped, through the runtime's `open_project`. */
+  openProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
+    return this.localApiClient.openProject(projectDirectory);
   }
 
-  /** Queue the reload from disk of the running or paused project in `projectDirectory` through the runtime's `reload_project`. */
-  reloadProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
+  /** Queue the start of the playback of the open project in `projectDirectory` through the runtime's `start_playback`. */
+  startPlayback(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
+    return this.localApiClient.startPlayback(projectDirectory);
+  }
+
+  /** Queue the reload from disk of the open project in `projectDirectory`, keeping its playback, through the runtime's `reload_project`. */
+  reloadProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
     return this.localApiClient.reloadProject(projectDirectory);
   }
 
@@ -391,6 +402,11 @@ export class TatolabAppController {
   /** Put the asset `asset` of the project in `projectDirectory` at `toPath` through the runtime's `relocate_asset`, by `author`. */
   relocateAsset(projectDirectory: string, asset: string, toPath: string, author: ProjectTransactionAuthor): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>> {
     return this.localApiClient.relocateAsset(projectDirectory, asset, toPath, author);
+  }
+
+  /** The preview picture of the asset `asset` of the project in `projectDirectory` through the runtime's `read_asset_preview`. */
+  readAssetPreview(projectDirectory: string, asset: string): Promise<Result<AssetPreviewPictureTheRuntimeRead, LocalApiRequestFailure>> {
+    return this.localApiClient.readAssetPreview(projectDirectory, asset);
   }
 
   /** Stop tracking the asset `asset` of the project in `projectDirectory` through the runtime's `delete_asset`, by `author`. */

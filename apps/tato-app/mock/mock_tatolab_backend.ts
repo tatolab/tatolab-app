@@ -36,7 +36,7 @@ import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./m
 import { MockProjectFiles } from "./mock_project_files";
 import { MOCK_PERSON_EDITING_IN_STUDIO, MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
-import { mockDeleteTheAsset, mockImportTheFilesChosen, mockProjectAssetListing, mockProjectAssetsUnchanged, mockRelocateTheAsset, type MockAssetImportScenario } from "./mock_project_assets";
+import { mockDeleteTheAsset, mockImportTheFilesChosen, mockReadTheAssetPreview, mockProjectAssetListing, mockProjectAssetsUnchanged, mockRelocateTheAsset, type MockAssetImportScenario } from "./mock_project_assets";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { isModulesShown, type ModulesShown } from "../src/shared/tatolab_electron_bridge_contract";
@@ -112,6 +112,12 @@ const MOCK_RECORDS_PAGE_SIZE = 500;
 const MOST_PROJECT_LOG_RECORDS_KEPT = 100_000;
 /** How long each step of a queued stream action takes in the mock. */
 const MOCK_STREAM_ACTION_STEP_MILLISECONDS = 700;
+
+/** The kinds of the mock's queued project loads, as `describe_stream_action` names them. */
+type MockProjectLoadKind = "open" | "start_playback" | "load";
+
+/** Whether a mock project load leaves its streams playing or held stopped with their graphs loaded. */
+type MockProjectPlaybackAfterItsLoad = "playing" | "held_stopped";
 
 /**
  * What a check for updates finds in the mock, picked with `?update=`: nothing newer (the default), a newer
@@ -782,8 +788,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     return `${newProjectsFolder}/${freeName ?? `project-${projectFolders.size}`}`;
   };
 
-  /** Each load `create_project`, `start_project` or `reload_project` queued, by action, as `describe_stream_action` reads it. */
+  /** Each load `create_project`, `open_project`, `start_playback` or `reload_project` queued, by action, as `describe_stream_action` reads it. */
   const projectLoadsQueued = new Map<string, StreamActionDescription>();
+  /** Whether each queued load leaves its streams playing or held stopped, by action. */
+  const playbackAfterEachProjectLoad = new Map<string, MockProjectPlaybackAfterItsLoad>();
   const notHeldWords = (action: string): string =>
     `the stream action \`${action}\` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log`;
 
@@ -835,22 +843,23 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   };
 
   /** Queues a load of `projectDirectory` that fails after a beat with `failedBecause`, as the runtime fails a load it cannot begin. */
-  const queueAMockProjectLoadThatFails = (projectDirectory: string, failedBecause: string): string => {
+  const queueAMockProjectLoadThatFails = (projectDirectory: string, kind: MockProjectLoadKind, failedBecause: string): string => {
     const action = nextStreamActionId();
-    const description: StreamActionDescription = { action, project_directory: projectDirectory, kind: "load", state: "queued", step: null, streams: [], failed_because: null, venv_sync: null };
+    const description: StreamActionDescription = { action, project_directory: projectDirectory, kind, state: "queued", step: null, streams: [], failed_because: null, venv_sync: null };
     projectLoadsQueued.set(action, description);
     window.setTimeout(() => Object.assign(description, { state: "failed", failed_because: failedBecause }), MOCK_STREAM_ACTION_STEP_MILLISECONDS);
     return action;
   };
 
   /**
-   * `create_project`'s, `start_project`'s and `reload_project`'s load as the runtime does it: queued, then every stream asset's graph document
+   * `create_project`'s, `open_project`'s, `start_playback`'s and `reload_project`'s load as the runtime does it: queued, then every stream asset's graph document
    * read, the `.venv` made where it has none, and every stream starting, each listed `preparing` under the action, then
-   * loaded, or failed for the doorways project's `back_door`.
+   * playing or held stopped as `playbackAfterTheLoad` says, or failed for the doorways project's `back_door`.
    */
-  const queueAMockProjectLoad = (projectDirectory: string): string => {
+  const queueAMockProjectLoad = (projectDirectory: string, kind: MockProjectLoadKind, playbackAfterTheLoad: MockProjectPlaybackAfterItsLoad): string => {
     const action = nextStreamActionId();
-    const description: StreamActionDescription = { action, project_directory: projectDirectory, kind: "load", state: "queued", step: null, streams: [], failed_because: null, venv_sync: null };
+    playbackAfterEachProjectLoad.set(action, playbackAfterTheLoad);
+    const description: StreamActionDescription = { action, project_directory: projectDirectory, kind, state: "queued", step: null, streams: [], failed_because: null, venv_sync: null };
     projectLoadsQueued.set(action, description);
     void workOnTheMockProjectLoad(description);
     return action;
@@ -957,6 +966,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         writeRuntimeRecord(listing, description.action, "error", fixtures.machine.cameraFailure);
         listedStreamsNotLoaded.set(listing.stream, { ...listing, state: "failed", node_count: null, failed_because: fixtures.machine.cameraFailure, action: null, step: null });
         return { stream: listing.stream, display_name: listing.display_name, state: "failed" };
+      }
+      if (playbackAfterEachProjectLoad.get(description.action) === "held_stopped") {
+        recordedFixturesNotLoaded.set(listing.stream, fixture);
+        listedStreamsNotLoaded.set(listing.stream, { ...listing, state: "stopped", failed_because: null, action: null, step: null });
+        return { stream: listing.stream, display_name: listing.display_name, state: "stopped" };
       }
       loadStream(fixture, now, description.action);
       return { stream: listing.stream, display_name: listing.display_name, state: "running" };
@@ -1141,17 +1155,21 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     }, steps.length * MOCK_STREAM_ACTION_STEP_MILLISECONDS);
   };
 
+  /** The playback a `reload_project` of `projectDirectory` keeps: playing while a stream of it plays, held stopped otherwise. */
+  const mockPlaybackAReloadOfTheProjectKeeps = (projectDirectory: string): MockProjectPlaybackAfterItsLoad =>
+    [...loadedStreams.values()].some((loadedStream) => loadedStream.fixture.listing.location?.project_directory === projectDirectory) ? "playing" : "held_stopped";
+
   /** Lists `listing` under `state` with `action` queued and no step yet, as the runtime lists an action waiting its turn. */
   const queueTheStreamAction = (listing: ListedStream, state: "preparing" | "stopping", action: string): void => {
     listedStreamsNotLoaded.set(listing.stream, { ...listing, state, node_count: null, failed_because: null, action, step: null });
     publishStatus({ streams: listStreams() });
   };
 
-  /** `stop_project` as the runtime does it: one action queued that stops every loaded stream of the project, each recorded stopped; refused when none of them runs. */
+  /** `stop_playback` as the runtime does it: one action queued that stops every playing stream of the project, each recorded stopped; refused when none of them plays. */
   const stopMockProject = (projectDirectory: string): void => {
     const loadedStreamsOfTheProject = [...loadedStreams.values()].filter((loadedStream) => loadedStream.fixture.listing.location?.project_directory === projectDirectory);
     if (loadedStreamsOfTheProject.length === 0) {
-      throw `Runtime error: no stream of the project in ${projectDirectory} runs, so there is none to stop; \`run\` runs it. Loaded: ${streamIdsListedForARefusal(loadedStreams.keys())}. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
+      throw `Runtime error: no stream of the project in ${projectDirectory} plays, so there is none to stop; \`start_playback\` plays it. Loaded: ${streamIdsListedForARefusal(loadedStreams.keys())}. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
     }
     const action = nextStreamActionId();
     unloadingStreamActions.set(action, "stop");
@@ -1162,7 +1180,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       queueTheStreamAction(listing, "stopping", action);
       workOnTheStreamAction(listing, "stopping", action, ["stopping"], () => {
         writeRuntimeRecord(listing, action, "info", `Stopped the stream \`${listing.stream}\``);
-        listedStreamsNotLoaded.set(listing.stream, { ...listing, state: "stopped", node_count: null, failed_because: null, action: null, step: null });
+        listedStreamsNotLoaded.set(listing.stream, { ...listing, state: "stopped", failed_because: null, action: null, step: null });
       });
     }
   };
@@ -1369,6 +1387,14 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       const refusal = mockRelocateTheAsset(openProjectReading.open_project.project.folder, `${fixtures.machine.homeDirectory}/streams`, assetsChangedWhileTheMockRuns, asset, toPath);
       if (refusal !== null) throw refusal;
     },
+    readAssetPreviewOfTheOpenProject: async (asset) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openProjectReading.kind !== "read") throw "No project is open in this window.";
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const picture = mockReadTheAssetPreview(openProjectReading.open_project.project.folder, `${fixtures.machine.homeDirectory}/streams`, assetsChangedWhileTheMockRuns, asset);
+      if (typeof picture === "string") throw picture;
+      return picture;
+    },
     deleteAssetFromTheOpenProject: async (asset) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (openProjectReading.kind !== "read") throw "No project is open in this window.";
@@ -1451,21 +1477,21 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       const stream = mockStreamIdOf({ project_directory: projectDirectory, stream_name: "main" });
       if (projectFolders.has(projectDirectory)) {
         const failedBecause = `Invalid configuration: \`${projectDirectory}\` already has pyproject.toml, and a new project's files would overwrite it; create the project in an empty directory`;
-        return { action: queueAMockProjectLoadThatFails(projectDirectory, failedBecause), stream, project_directory: projectDirectory };
+        return { action: queueAMockProjectLoadThatFails(projectDirectory, "open", failedBecause), stream, project_directory: projectDirectory };
       }
       projectFolders.set(projectDirectory, { streamNames: ["main"], hasAPythonEnvironment: false });
-      return { action: queueAMockProjectLoad(projectDirectory), stream, project_directory: projectDirectory };
+      return { action: queueAMockProjectLoad(projectDirectory, "open", "held_stopped"), stream, project_directory: projectDirectory };
     },
-    runStreamProject: async (folder) => {
+    openStreamProject: async (folder) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       refuseAFolderNotHandedToTheWindow(folder);
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
       const project = projectFolders.get(folder);
-      if (project === undefined) return { action: queueAMockProjectLoadThatFails(folder, `the project directory ${folder} does not exist`), project_directory: folder };
+      if (project === undefined) return { action: queueAMockProjectLoadThatFails(folder, "open", `the project directory ${folder} does not exist`), project_directory: folder };
       if (project.streamNames.length === 0) {
-        return { action: queueAMockProjectLoadThatFails(folder, `${folder} is not a project: it holds no tatolab-project.json`), project_directory: folder };
+        return { action: queueAMockProjectLoadThatFails(folder, "open", `${folder} is not a project: it holds no tatolab-project.json`), project_directory: folder };
       }
-      return { action: queueAMockProjectLoad(folder), project_directory: folder };
+      return { action: queueAMockProjectLoad(folder, "open", "held_stopped"), project_directory: folder };
     },
     stopOpenProject: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -1478,9 +1504,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
       if (!(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) throw `The runtime lists no stream from ${projectDirectory}.`;
       if (!projectFolders.has(projectDirectory)) {
-        return { action: queueAMockProjectLoadThatFails(projectDirectory, `the project directory ${projectDirectory} does not exist`), project_directory: projectDirectory };
+        return { action: queueAMockProjectLoadThatFails(projectDirectory, "load", `the project directory ${projectDirectory} does not exist`), project_directory: projectDirectory };
       }
-      return { action: queueAMockProjectLoad(projectDirectory), project_directory: projectDirectory };
+      return { action: queueAMockProjectLoad(projectDirectory, "load", mockPlaybackAReloadOfTheProjectKeeps(projectDirectory)), project_directory: projectDirectory };
     },
     describeStreamAction: async (action): Promise<StreamActionFollowed> => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -1574,7 +1600,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       const folder = `${location}/${name.trim()}`;
       if (mockFoldersOnDisk().includes(folder)) throw `${folder} already exists. Choose another name or location.`;
       projectFolders.set(folder, { streamNames: ["main"], hasAPythonEnvironment: false });
-      const action = queueAMockProjectLoad(folder);
+      const action = queueAMockProjectLoad(folder, "open", "held_stopped");
       const newReading = mockNewProjectReading(folder, name.trim());
       openTheProjectInTheMock(newReading, folder, newReading.kind === "read" ? newReading.open_project.project.name : null);
       return { folder, project_creation: { action, stream: mockStreamIdOf({ project_directory: folder, stream_name: "main" }), project_directory: folder } };
@@ -1774,7 +1800,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (openProjectReading.kind === "unreadable") throw openProjectReading.refusal;
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
       const folder = openProjectReading.open_project.project.folder;
-      return { action: queueAMockProjectLoad(folder), project_directory: folder };
+      if ([...loadedStreams.values()].some((loadedStream) => loadedStream.fixture.listing.location?.project_directory === folder)) {
+        throw `Runtime error: the project in ${folder} already plays, so there is none to play; \`stop_playback\` stops it`;
+      }
+      return { action: queueAMockProjectLoad(folder, "start_playback", "playing"), project_directory: folder };
     },
     startPythonLanguageServer: async (projectFolder) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

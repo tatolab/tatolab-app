@@ -339,6 +339,10 @@ export class TatolabViewBridge {
         const writing = await this.hostServices.writeGraphInput(ask.stream, ask.input, ask.value);
         return writing.kind === "written" ? { kind: "done" } : { kind: "refused", because: writing.because };
       }
+      case "read_asset_preview_in_the_project": {
+        const previewReading = await this.hostServices.readAssetPreviewInTheProject(ask.project_folder, ask.asset);
+        return previewReading.kind === "read" ? { kind: "asset_preview_read", picture: previewReading.picture } : { kind: "refused", because: previewReading.because };
+      }
       case "delete_asset_from_the_project": {
         const changing = await this.hostServices.deleteAssetFromTheProject(ask.project_folder, ask.asset);
         return changing.kind === "changed" ? { kind: "done" } : { kind: "refused", because: changing.because };

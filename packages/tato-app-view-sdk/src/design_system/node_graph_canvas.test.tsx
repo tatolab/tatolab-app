@@ -60,8 +60,8 @@ function drawnCanvas(editing: NodeGraphCanvasEditing | null, isCollapsed = false
       nodes={[card("pattern", isCollapsed)]}
       links={[]}
       frames={[{ frame_id: FRAME_ID, title: "Frame", description, colour: null }]}
-      selectedNodeId={null}
-      onNodeSelected={vi.fn()}
+      selectedNodeIds={[]}
+      onNodesSelected={vi.fn()}
       editing={editing}
     />,
   );
@@ -153,8 +153,8 @@ describe("the node graph canvas while it takes edits", () => {
         nodes={[{ ...card("pattern", false), frame_id: frames.length === 0 ? null : NEW_FRAME_ID }]}
         links={[]}
         frames={frames}
-        selectedNodeId="pattern"
-        onNodeSelected={vi.fn()}
+        selectedNodeIds={["pattern"]}
+        onNodesSelected={vi.fn()}
         editing={editingAFrame}
       />
     );
@@ -178,8 +178,8 @@ describe("the node graph canvas while it takes edits", () => {
         nodes={[{ ...card("pattern", false), frame_id: frameIds.at(-1) ?? null }]}
         links={[]}
         frames={frameIds.map((frame_id) => ({ frame_id, title: "Frame", description: null, colour: null }))}
-        selectedNodeId="pattern"
-        onNodeSelected={vi.fn()}
+        selectedNodeIds={["pattern"]}
+        onNodesSelected={vi.fn()}
         editing={editing}
       />
     );
@@ -246,13 +246,13 @@ describe("the node graph canvas while it takes edits", () => {
   it("selects a card right-clicked and offers to frame it, collapse it into a subgraph, hide its pins or delete it", async () => {
     const { editing, onCardCollapsed } = editingRecorded();
     const onDeleted = vi.fn();
-    const onNodeSelected = vi.fn();
+    const onNodesSelected = vi.fn();
     const { container } = render(
-      <NodeGraphCanvas label="Stream graph" nodes={[card("pattern", false)]} links={[]} frames={[]} selectedNodeId={null} onNodeSelected={onNodeSelected} editing={{ ...editing, onDeleted }} />,
+      <NodeGraphCanvas label="Stream graph" nodes={[card("pattern", false)]} links={[]} frames={[]} selectedNodeIds={[]} onNodesSelected={onNodesSelected} editing={{ ...editing, onDeleted }} />,
     );
     const rightClickTheCard = async () => fireEvent.contextMenu(await vi.waitFor(() => container.querySelector<HTMLElement>('[data-node-graph-card="pattern"]') ?? expect.unreachable("no card")));
     await rightClickTheCard();
-    expect(onNodeSelected).toHaveBeenCalledWith("pattern");
+    expect(onNodesSelected).toHaveBeenCalledWith(["pattern"]);
     const choiceWords = await vi.waitFor(() => {
       const choices = [...document.querySelectorAll<HTMLElement>("[data-node-graph-choice]")].map((choice) => choice.textContent);
       return choices.length > 0 ? choices : expect.unreachable("no card choices");
@@ -293,8 +293,8 @@ describe("the node graph canvas while it takes edits", () => {
         nodes={[card("pattern", true)]}
         links={[]}
         frames={[{ frame_id: FRAME_ID, title: "Frame", description: null, colour: null }]}
-        selectedNodeId={null}
-        onNodeSelected={vi.fn()}
+        selectedNodeIds={[]}
+        onNodesSelected={vi.fn()}
         editing={editing}
       />,
     );
@@ -306,22 +306,22 @@ describe("the node graph canvas while it takes edits", () => {
 describe("finding nodes in the graph", () => {
   const namedCard = (nodeId: string, title: string, typeName: string | null, x: number): NodeGraphCanvasNode => ({ ...card(nodeId, false), title, type_name: typeName, frame_id: null, saved_position: { x, y: 0 } });
 
-  function drawnGraphToFindIn(onNodeSelected = vi.fn()) {
+  function drawnGraphToFindIn(onNodesSelected = vi.fn()) {
     return render(
       <NodeGraphCanvas
         label="Stream graph"
         nodes={[namedCard("pattern", "Test Pattern Source", null, 0), namedCard("invert", "Inverting Effect", null, 300), namedCard("meter", "Brightness Meter", "Meter", 600), namedCard("display", "Display Window", null, 900)]}
         links={[]}
-        selectedNodeId={null}
-        onNodeSelected={onNodeSelected}
+        selectedNodeIds={[]}
+        onNodesSelected={onNodesSelected}
         editing={editingRecorded().editing}
       />,
     );
   }
 
   it("opens from the ribbon, highlights every match by name or type, the current one more strongly, and moves between them with ↵ and ⇧↵", async () => {
-    const onNodeSelected = vi.fn();
-    const { container } = drawnGraphToFindIn(onNodeSelected);
+    const onNodesSelected = vi.fn();
+    const { container } = drawnGraphToFindIn(onNodesSelected);
     const findLookOf = (nodeId: string) => container.querySelector(`[data-node-graph-card="${nodeId}"]`)?.getAttribute("data-found") ?? null;
     fireEvent.click(await vi.waitFor(() => container.querySelector<HTMLElement>('[data-node-graph-tool="find"]') ?? expect.unreachable("no Find in the ribbon")));
     const findWords = container.querySelector<HTMLInputElement>("[data-node-graph-find-words]") ?? expect.unreachable("no find bar");
@@ -346,7 +346,7 @@ describe("finding nodes in the graph", () => {
     expect(progress()).toBe("1 of 1");
     fireEvent.change(findWords, { target: { value: "zzz" } });
     expect(progress()).toBe("No results");
-    expect(onNodeSelected).not.toHaveBeenCalled();
+    expect(onNodesSelected).not.toHaveBeenCalled();
   });
 
   it("opens with ⌘F on the canvas, and Esc closes it and takes the highlights away", async () => {
@@ -371,8 +371,8 @@ describe("the node graph canvas while a port is picked", () => {
         nodes={[card("pattern", false), mixer, { ...card("meter", false), saved_position: { x: 0, y: 300 } }]}
         links={[]}
         frames={[]}
-        selectedNodeId={null}
-        onNodeSelected={vi.fn()}
+        selectedNodeIds={[]}
+        onNodesSelected={vi.fn()}
         editing={null}
         portPicking={{ words: "Pick the other end of pattern › video_out", portsThatCanJoinByNodeId: new Map([["mixer", ["video_in", "video_in_2"]], ["meter", ["video_in"]]]), onPicked, onEnded }}
       />,

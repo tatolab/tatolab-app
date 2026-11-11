@@ -26,7 +26,7 @@ function node(
   nodeId = "",
   config: StreamGraphNode["config"] = {},
 ): StreamGraphNode {
-  return { id: nodeId, name, type: nodeType, state, failed_because: null, process_raising_because: null, config, ...ports, ...counters, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
+  return { id: nodeId, name, type: nodeType, state, failed_because: null, process_raising_because: null, config, ...ports, ...counters, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
 }
 
 function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
@@ -500,4 +500,25 @@ test("a graph_interface with no direction, port or family to read is read as non
   expect(graphInterfaceOf({ direction: "sideways", port: "video", family: "image" })).toBeNull();
   expect(graphInterfaceOf({ direction: "input", family: "array" })).toBeNull();
   expect(graphInterfaceOf("input")).toBeNull();
+});
+
+test("a_recorded_graph_reads_the_config_fields_a_node_takes_as_inputs_and_the_graph_input_linked_into_one", async () => {
+  const recordedResponse: { result: { content: { text: string }[] } } = JSON.parse(
+    await readFile(new URL("./test-fixtures/local-api-graph-tool-result-of-a-stream-whose-glow-takes-strength-from-a-graph-input.json", import.meta.url), "utf8"),
+  );
+  const graphToolResultText = recordedResponse.result.content[0]?.text ?? expect.unreachable("the recorded graph holds no tool result text");
+
+  const summary = streamGraphSummaryFromTheGraphToolResult("hallways-main-3990b7", graphToolResultText);
+
+  if (!summary.ok) return expect.unreachable(summary.failure);
+  const glow = summary.value.nodes.find((graphNode) => graphNode.name === "glow") ?? expect.unreachable("no glow");
+  expect(glow.exposed_config_fields).toEqual(["strength"]);
+  expect(glow.input_ports.map((port) => [port.name, port.family])).toEqual([
+    ["video_in", "image"],
+    ["strength", "channels"],
+  ]);
+  expect(summary.value.nodes.find((graphNode) => graphNode.name === "constant")?.exposed_config_fields).toEqual([]);
+  const graphInput = summary.value.nodes.find((graphNode) => graphNode.name === "glow_strength") ?? expect.unreachable("no Graph Input");
+  expect([graphInput.type, graphInput.config]).toEqual(["tatolab.stream:GraphInput", { family: "channels", port: "glow_strength", range: [0, 1] }]);
+  expect(summary.value.links.find((link) => link.target_node === "glow")).toMatchObject({ source_node: "glow_strength", source_port: "value", target_port: "strength", state: "wired" });
 });

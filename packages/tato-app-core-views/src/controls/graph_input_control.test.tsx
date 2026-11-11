@@ -122,3 +122,25 @@ test("a graph read while the control's write is still going out never snaps it b
   await showTheGraphReading(0.6);
   expect(slider().value).toBe("0.6");
 });
+
+test("a number typed beside a ranged Input's slider is handed to the stream, and words that aren't a number are refused there, writing nothing", async () => {
+  const control = drawTheControl(BRIGHTNESS);
+  const typeBesideTheSlider = async (words: string) => {
+    const valueField = control.field("[data-property-slider-value]");
+    await act(async () => {
+      valueField.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(valueField, words);
+      valueField.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      valueField.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+  };
+
+  await typeBesideTheSlider("bright");
+  expect(control.refusalWords()).toContain("“bright” isn't a number.");
+  expect(control.writesAskedFor).toEqual([]);
+
+  await typeBesideTheSlider("0.25");
+  expect(control.writesAskedFor).toEqual([{ stream: STREAM, input: "brightness", value: 0.25 }]);
+});

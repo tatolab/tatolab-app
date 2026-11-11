@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ProjectAsset, ProjectAssetListing } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { assetFileName, assetFileNameRefusal, assetFolderOf, assetFolderRefusal, assetPathMoved, assetPathRenamed, assetFolderIdShownOf, importRefusalsOf, assetKindAndSizeWords, noAssetShownWords, assetFormatWords, assetPictureToneOf, assetsShownInTheFolder, assetsTheLibraryLists, byteLengthInWords, EVERY_ASSET_FOLDER_ID, libraryAssetFoldersOf, shortenedDigest } from "./library_assets_of_the_listing";
 
-const assetAt = (path: string, kind: string, contentByteLen = 1): ProjectAsset => ({ asset: `uuid-of-${path}`, kind, path, content_sha256: "0".repeat(64), content_byte_len: contentByteLen, import_settings: {} });
+const assetAt = (path: string, kind: string, contentByteLen = 1): ProjectAsset => ({ asset: `uuid-of-${path}`, kind, path, content_sha256: "0".repeat(64), content_byte_len: contentByteLen, import_settings: {}, preview: null });
 
 const LOBBY_CAMERA_LISTING: ProjectAssetListing = {
   project_directory: "/home/sam/Tato Studio/Lobby Camera",

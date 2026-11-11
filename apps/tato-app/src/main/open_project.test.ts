@@ -317,7 +317,7 @@ async function anOpenProject(options: {
       monotonicClockMs += delayMs;
     },
     readMonotonicClockMs: () => monotonicClockMs,
-    startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded: async (folder) => {
+    openTheProjectWhenTheRuntimeHoldsItClosed: async (folder) => {
       if (options.startRefusal !== undefined) return failedWith(options.startRefusal);
       projectsStarted.push(folder);
       return succeeded(undefined);
@@ -481,12 +481,12 @@ test("bringing a project's open window forward leaves the project as the person 
   expect(projectsStarted).toEqual([studioFolder]);
 });
 
-test("a project the runtime refuses to start still opens, and says so in the runtime's words", async () => {
+test("a project the runtime refuses to open still opens in its window, and says so in the runtime's words", async () => {
   const studioFolder = await aFolder();
   await writeAProject(studioFolder, "studio");
   const { openProject } = await anOpenProject({ dialogAnswers: null, recentFolders: [{ folder: studioFolder, opened_at_wall_clock_ms: 1 }], startRefusal: "no runtime answers" });
 
-  expect(await openProject.openRecentProject(studioFolder)).toEqual(failedWith(`${studioFolder} is open, but the runtime did not start it: no runtime answers`));
+  expect(await openProject.openRecentProject(studioFolder)).toEqual(failedWith(`${studioFolder} is open, but the runtime did not open it: no runtime answers`));
   expect(openProject.readOpenProject()).toMatchObject({ kind: "read", open_project: { project: { folder: studioFolder } } });
 });
 

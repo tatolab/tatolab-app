@@ -1,23 +1,31 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
+import { IconButtonMenu, MenuItem, MenuItemThatCannotBeChosen } from "@tatolab/tato-app-view-sdk/design_system/menus";
+import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
+import { Plus } from "lucide-react";
+import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
+import { useStreamGraphEditsSentToTheRuntime } from "../shared/stream_graph_edit_sending";
 import type { TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
 import {
-  outlinerRowIdOfTheSelection,
+  groupOfTheSelectedNodes,
+  outlinerRowIdsOfTheSelection,
   outlinerTreeOfTheProject,
+  selectionAfterTheOutlinerPick,
   streamsTheOutlinerShows,
   type OutlinerRowExpansionChoices,
   type OutlinerStreamGraphReadings,
 } from "./outliner_tree_of_the_project";
 
 const NO_STREAMS_LISTED: readonly string[] = [];
+const NO_ROWS_SELECTED = { picked_last: null, all: new Set<string>() };
 
 /** The latest graph of each stream of `streams`, by stream id, watched for as long as the stream is among them. */
 function useGraphsOfTheStreams(connection: TatoAppViewConnection, streams: readonly string[]): OutlinerStreamGraphReadings {
@@ -52,6 +60,19 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
   const settings = useViewReading(connection.watchSettings);
   const [expansionChoices, toggleTheRow]: [OutlinerRowExpansionChoices, (rowId: string, expand: boolean) => void] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
   const [askRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
+  const { sendTheGesture, refusalOfTheLatestEdit } = useStreamGraphEditsSentToTheRuntime(connection, openProject?.kind === "read" ? openProject.open_project.project.folder : null);
+  const groupOfTheSelection = useMemo(() => groupOfTheSelectedNodes(selection, streamGraphs), [selection, streamGraphs]);
+  const groupTheSelectedNodes = useCallback(() => {
+    if (groupOfTheSelection.kind === "groups") void sendTheGesture(groupOfTheSelection.actions);
+  }, [groupOfTheSelection, sendTheGesture]);
+  const groupTheSelectedNodesOnFOrCommandG = (keyboardEvent: KeyboardEvent<HTMLDivElement>) => {
+    if (groupOfTheSelection.kind !== "groups" || keyboardEvent.altKey) return;
+    const isF = (keyboardEvent.key === "f" || keyboardEvent.key === "F") && !keyboardEvent.metaKey && !keyboardEvent.ctrlKey;
+    const isCommandG = (keyboardEvent.key === "g" || keyboardEvent.key === "G") && (keyboardEvent.metaKey || keyboardEvent.ctrlKey) && !keyboardEvent.shiftKey;
+    if (!isF && !isCommandG) return;
+    keyboardEvent.preventDefault();
+    groupTheSelectedNodes();
+  };
   const [searchWords, setSearchWords] = useState("");
   const [expansionChoicesWhileSearching, setExpansionChoicesWhileSearching] = useState<OutlinerRowExpansionChoices>({});
   const isSearching = searchWords.trim() !== "";
@@ -72,6 +93,7 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
   if (openProject === null) return null;
   if (openProject.kind === "none_open") return <WaitingState title="No project is open" explanation="Open or create one from the File menu." />;
   if (openProject.kind === "unreadable") return <WaitingState isFailure title={`${openProject.folder} can't be read`} explanation={openProject.refusal} />;
+  const rowsOfTheSelection = selection === null ? NO_ROWS_SELECTED : outlinerRowIdsOfTheSelection(selection);
   const meaningOfRow = (rowId: string) => outlinerRows.find((outlinerRow) => outlinerRow.row.row_id === rowId)?.meaning ?? { kind: "nothing_to_select" as const };
   return (
     <>
@@ -87,20 +109,33 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
           width="fills_the_row"
           data-outliner-search=""
         />
+        <IconButtonMenu icon={Plus} label="Add to the outliner" data-outliner-add-menu="">
+          {groupOfTheSelection.kind === "groups" ? (
+            <MenuItem icon={studioIconNamed("graph_group")} shortcutHint="F" onChosen={groupTheSelectedNodes} data-outliner-group-selected-nodes="">
+              Group selected nodes
+            </MenuItem>
+          ) : (
+            <MenuItemThatCannotBeChosen whyItCannotBeChosen={groupOfTheSelection.because} data-outliner-group-selected-nodes="">
+              Group selected nodes
+            </MenuItemThatCannotBeChosen>
+          )}
+        </IconButtonMenu>
       </StudioViewToolbarTools>
       <RefusalOfTheLatestAskBar refusal={askRefusal} />
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-auto" data-outliner="">
+      {refusalOfTheLatestEdit !== null && <RefusalLine layout="bar" lead={refusalOfTheLatestEdit.lead} words={refusalOfTheLatestEdit.words} />}
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-auto" data-outliner="" onKeyDown={groupTheSelectedNodesOnFOrCommandG}>
         {isSearching && outlinerRows.length === 0 ? (
           <WaitingState title={`Nothing matches “${searchWords.trim()}”`} data-outliner-state="no_row_matches" />
         ) : (
           <TreeView
             label="Outliner"
             rows={outlinerRows.map((outlinerRow) => outlinerRow.row)}
-            selectedRowId={selection === null ? null : outlinerRowIdOfTheSelection(selection)}
-            onRowSelected={(rowId) => {
+            selectedRowId={rowsOfTheSelection.picked_last}
+            alsoSelectedRowIds={rowsOfTheSelection.all}
+            onRowSelected={(rowId, pick) => {
               const meaning = meaningOfRow(rowId);
               if (meaning.kind === "stream") showTheRefusalOf("Didn't select:", connection.select({ kind: "stream", stream: meaning.stream, project_folder: meaning.project_folder }));
-              if (meaning.kind === "node") showTheRefusalOf("Didn't select:", connection.select({ kind: "node", stream: meaning.stream, node: meaning.node }));
+              if (meaning.kind === "node") showTheRefusalOf("Didn't select:", connection.select(selectionAfterTheOutlinerPick(selection ?? { kind: "nothing" }, meaning, pick, outlinerRows)));
             }}
             onRowActivated={(rowId) => {
               const meaning = meaningOfRow(rowId);

@@ -6,7 +6,7 @@ import type { NodeGraphCanvasFrame, NodeGraphCanvasLink, NodeGraphCanvasNode, No
 import type { NodeCatalog, NodeCatalogPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { isANameTheCodeGave, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { portStreamFactsWords, streamFactsAnInputReceives } from "../shared/port_stream_facts_words";
-import { linkIdAsTheCanvasKeysIt } from "./stream_graph_edits";
+import { linkIdAsTheCanvasKeysIt } from "../shared/stream_graph_edits";
 
 /** What the canvas draws of one stream's graph. */
 export interface StreamGraphCanvasContents {

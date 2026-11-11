@@ -15,6 +15,7 @@ import {
   projectLogReadingSchema,
   projectNodeTypesReadingSchema,
   projectAssetsImportedSchema,
+  assetPreviewPictureSchema,
   projectAssetsReadingSchema,
   projectTransactionAuthorSchema,
   projectTransactionSchema,
@@ -177,6 +178,8 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("import_assets_into_the_project"), project_folder: z.string() }),
   /** Put the asset `asset` of the project at `to_path`, renaming it, moving it or both, through the runtime's `relocate_asset`, by the person editing. */
   z.object({ kind: z.literal("relocate_asset_in_the_project"), project_folder: z.string(), asset: z.string(), to_path: z.string() }),
+  /** The preview picture of the asset `asset` of the project, an image's own or a video's poster frame, through the runtime's `read_asset_preview`. */
+  z.object({ kind: z.literal("read_asset_preview_in_the_project"), project_folder: z.string(), asset: z.string() }),
   /** Stop tracking the asset `asset` of the project, its file leaving it, through the runtime's `delete_asset`, by the person editing. */
   z.object({ kind: z.literal("delete_asset_from_the_project"), project_folder: z.string(), asset: z.string() }),
   /** Show the view type `view_type_id` in area `area_id` of the layout, in place of what it shows. */
@@ -250,6 +253,7 @@ export const viewAskAnswerSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("project_action_refused"), refusal: projectActionRefusalSchema }),
   z.object({ kind: z.literal("the_person_editing"), author: projectTransactionAuthorSchema }),
   z.object({ kind: z.literal("project_assets_imported"), assets_imported: projectAssetsImportedSchema }),
+  z.object({ kind: z.literal("asset_preview_read"), picture: assetPreviewPictureSchema }),
   /** The person closed the open dialog choosing no file. */
   z.object({ kind: z.literal("nothing_chosen") }),
   /** The other end the person picked in the Stream graph: a node's id and its port. */
