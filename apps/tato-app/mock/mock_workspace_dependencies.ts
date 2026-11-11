@@ -1,9 +1,9 @@
 // The mock's workspace imports, as the runtime's dependency tools would answer them: one project
 // copied from a folder beside the workspace. `?module_manager=edited_files` has a file of its copy edited
 // since, so Update waits on the overwrite; `?module_manager=newer` has its source hold a newer version.
-// Its copy brings two views, one that opens and declares the camera, and one that does not open.
+// Each import's views are those the mock's own project-views listing lists under its folder.
 
-import type { DependencySourceKind, ProjectDependency, ViewsOfAWorkspaceDependency, WorkspaceDependency, WorkspaceDependencyUpdate } from "../src/shared/tatolab_backend_contract";
+import type { DependencySourceKind, ListedStudioView, ProjectDependency, ViewsOfAWorkspaceDependency, WorkspaceDependency, WorkspaceDependencyUpdate } from "../src/shared/tatolab_backend_contract";
 import { moduleFolderNameOf } from "../src/renderer/studio_shell/module_manager_listing";
 
 /** The state the mock workspace's imports start in. */
@@ -25,36 +25,6 @@ export function mockWorkspaceDependenciesScenarioNamed(moduleManagerQueryValue: 
 const MOCK_VERSION_COPIED = "9f2c4e1a7b3d5f60c8e2a4b6d8f0a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5";
 const MOCK_VERSION_ON_THE_SOURCE = "1b3d5f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d";
 
-const MOCK_VIEWS_LOBBY_WALL_BRINGS: ViewsOfAWorkspaceDependency = {
-  kind: "listed",
-  views: [
-    {
-      view_type_id: "lobby-wall:wall_camera",
-      manifest_json: {
-        contract: "1.0",
-        title: "Wall camera",
-        description: "Aims the lobby camera and shows what it sees.",
-        entry: "index.html",
-        placement: "node",
-        inputs: [{ name: "video", family: "image" }],
-        outputs: [
-          { name: "pan", family: "array", range: [-1, 1] },
-          { name: "tilt", family: "array", range: [-1, 1] },
-        ],
-        capabilities: ["camera", "read.selection"],
-      },
-      opens: true,
-      not_opened_because: null,
-    },
-    {
-      view_type_id: "lobby-wall:stage_rig",
-      manifest_json: { contract: "2.0", title: "Stage rig", placement: "area", entry: "index.html" },
-      opens: false,
-      not_opened_because: "`contract`: this runtime reads view contract 1.0.",
-    },
-  ],
-};
-
 /** Answers the mock window's dependency asks over the workspace in `workspaceFolder`, rejecting in the runtime's words. */
 export class MockWorkspaceDependencies {
   private readonly dependencies: WorkspaceDependency[];
@@ -62,6 +32,7 @@ export class MockWorkspaceDependencies {
   constructor(
     private readonly workspaceFolder: string,
     scenario: MockWorkspaceDependenciesScenario,
+    private readonly viewsListedInTheWorkspace: () => ListedStudioView[],
   ) {
     const sourceFolder = `${workspaceFolder.slice(0, workspaceFolder.lastIndexOf("/"))}/lobby-wall`;
     this.dependencies = [
@@ -75,14 +46,27 @@ export class MockWorkspaceDependencies {
         edited_files: scenario === "edited_files" ? ["nodes/wall_mapping.py"] : [],
         newer_version_exists: scenario === "newer" ? true : null,
         check_refused_because: null,
-        views: MOCK_VIEWS_LOBBY_WALL_BRINGS,
+        views: { kind: "listed", views: [] },
       },
     ];
   }
 
   /** Each import, its newer-version mark kept only when `checkForNewer`. */
   list(checkForNewer: boolean): WorkspaceDependency[] {
-    return structuredClone(this.dependencies).map((dependency) => ({ ...dependency, newer_version_exists: checkForNewer ? (dependency.newer_version_exists ?? false) : null }));
+    return structuredClone(this.dependencies).map((dependency) => ({
+      ...dependency,
+      newer_version_exists: checkForNewer ? (dependency.newer_version_exists ?? false) : null,
+      views: this.viewsTheImportBrings(dependency.folder),
+    }));
+  }
+
+  private viewsTheImportBrings(folder: string): ViewsOfAWorkspaceDependency {
+    return {
+      kind: "listed",
+      views: this.viewsListedInTheWorkspace()
+        .filter((listedView) => listedView.import_folder === folder)
+        .map(({ view_type_id, manifest_json, ...opening }) => ({ view_type_id, manifest_json, ...(opening.opens ? { opens: true, not_opened_because: null } : { opens: false, not_opened_because: opening.not_opened_because }) })),
+    };
   }
 
   /** What the dialog answers for `sourceKind`: a project beside the workspace. */

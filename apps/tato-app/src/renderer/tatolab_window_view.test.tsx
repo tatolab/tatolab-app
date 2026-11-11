@@ -1686,7 +1686,7 @@ describe("Module manager", () => {
 
   it("lists the project's modules as the runtime does, each saying where it was copied from and the views it adds, and opens one to edit by its folder", async () => {
     let foldersOpenedToEdit: string[] = [];
-    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project", {
+    await mountedWindowOverTheMock("state=running&studio_views=fixture&module_manager=open&module_manager_section=added_to_this_project", {
       openImportToEdit: async (folder) => {
         foldersOpenedToEdit = [...foldersOpenedToEdit, folder];
       },
@@ -1698,9 +1698,8 @@ describe("Module manager", () => {
     fireEvent.click(moduleManagerRow("lobby-wall"));
     expect(textOf('[data-module-manager-detail="lobby-wall"]')).toContain("/Users/jonathanf/streams/lobby-wall");
     expect(textOf('[data-module-manager-detail="lobby-wall"]')).toContain("imports/lobby-wall");
-    expect(textOf('[data-module-manager-view="lobby-wall:wall_camera"]')).toBe("Wall camera1 in · 2 out");
     expect(textOf('[data-module-manager-view="lobby-wall:stage_rig"]')).toBe("Stage rigDoesn't open: `contract`: this runtime reads view contract 1.0.");
-    expect(textOf("[data-module-manager-views-reach]")).toBe("Full access, like its nodes. They ask for the camera.");
+    expect(document.querySelector("[data-module-manager-views-reach]")).toBeNull();
     pressed('[data-module-manager-open-to-edit="lobby-wall"]');
     await waitFor(() => expect(foldersOpenedToEdit).toEqual(["lobby-wall"]));
   });

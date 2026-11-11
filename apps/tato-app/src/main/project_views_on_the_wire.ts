@@ -10,6 +10,11 @@ import { failedWith, succeeded, type Result } from "./result.js";
 /** One view `list_project_views` listed: `opens`, and `not_opened_because` in the runtime's own words when it does not. */
 export type ProjectViewTheRuntimeListed = ProjectViewFactsTheRuntimeListed & StudioViewOpening;
 
+/** Whether `listedView` opens, as the window's contract carries it. */
+export function studioViewOpeningOf(listedView: ProjectViewTheRuntimeListed): StudioViewOpening {
+  return listedView.opens ? { opens: true, not_opened_because: null } : { opens: false, not_opened_because: listedView.not_opened_because };
+}
+
 /** What `list_project_views` lists of one view, beside whether it opens. */
 export interface ProjectViewFactsTheRuntimeListed {
   /** `<project name>:<view folder>`, the node type a node of the view is. */

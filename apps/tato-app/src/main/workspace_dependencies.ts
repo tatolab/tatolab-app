@@ -5,7 +5,7 @@
 import path from "node:path";
 import type { DependencySourceKind, ProjectTheRuntimeNames, ViewsOfAWorkspaceDependency, WorkspaceDependency } from "../shared/tatolab_backend_contract.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
-import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
+import { studioViewOpeningOf, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import type { Result } from "./result.js";
 
 /** Asks the person in the desktop's open dialog, opened at `defaultFolder`, for a project's folder or a `.zip` of one; `null` when they cancel. */
@@ -56,10 +56,6 @@ function viewsTheImportBrings(workspaceViews: Result<readonly ProjectViewTheRunt
     kind: "listed",
     views: workspaceViews.value
       .filter((listedView) => listedView.import_folder === importFolder)
-      .map((listedView) =>
-        listedView.opens
-          ? { view_type_id: listedView.view_type, manifest_json: listedView.manifest, opens: true, not_opened_because: null }
-          : { view_type_id: listedView.view_type, manifest_json: listedView.manifest, opens: false, not_opened_because: listedView.not_opened_because },
-      ),
+      .map((listedView) => ({ view_type_id: listedView.view_type, manifest_json: listedView.manifest, ...studioViewOpeningOf(listedView) })),
   };
 }

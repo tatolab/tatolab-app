@@ -2,13 +2,13 @@ import { Box, Download, FileArchive, FolderOpen, FolderPlus, Package, RefreshCw,
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import type {
   DependencySourceKind,
-  ViewsOfAWorkspaceDependency,
   OpenProjectReading,
   PackageCatalogEntry,
   PackageCatalogMember,
   PackageCatalogReading,
   ProjectDependency,
   TatolabPlatform,
+  ViewsOfAWorkspaceDependency,
   WorkspaceDependency,
   WorkspaceDependencyUpdate,
 } from "../../shared/tatolab_backend_contract";
@@ -36,7 +36,6 @@ import {
   moduleViewsShownOf,
   shortVersionOf,
   type ModuleCardRow,
-  type ModuleViewDevice,
 } from "./module_manager_listing";
 import { isModulesShown, MODULES_SHOWN, type ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { ModuleManagerSectionAskNumbered } from "./studio_window_model";
@@ -95,16 +94,18 @@ function MembersSections({ nodes, streams }: { nodes: readonly PackageCatalogMem
   );
 }
 
-const DEVICE_WORDS: Record<ModuleViewDevice, string> = { camera: "the camera", microphone: "the microphone" };
-
 /** The views a module the project has added brings, each a row, and what they can reach; or why the runtime listed none. */
 function ViewsTheModuleAddsSection({ views }: { views: ViewsOfAWorkspaceDependency }) {
-  const shown = moduleViewsShownOf(views);
-  if (shown.kind === "not_listed") return <RefusalLine tone="warning" lead="Its views could not be listed:" words={shown.because} data-module-manager-views-not-listed="" />;
-  if (shown.rows.length === 0) return null;
+  const shown = useMemo(() => moduleViewsShownOf(views), [views]);
   const ViewIcon = studioIconNamed("project_view");
-  const NotOpenedIcon = studioIconNamed("unreadable");
-  const devicesWords = shown.devices_declared.map((device) => DEVICE_WORDS[device]).join(" and ");
+  if (shown.kind === "not_listed") {
+    return (
+      <PanelSection title="Adds these views">
+        <RefusalLine tone="warning" lead="Its views could not be listed:" words={shown.because} data-module-manager-views-not-listed="" />
+      </PanelSection>
+    );
+  }
+  if (shown.rows.length === 0) return null;
   return (
     <>
       <PanelSection title="Adds these views">
@@ -112,22 +113,23 @@ function ViewsTheModuleAddsSection({ views }: { views: ViewsOfAWorkspaceDependen
           {shown.rows.map((viewRow) => (
             <PanelListRow
               key={viewRow.view_type_id}
-              icon={
-                viewRow.not_opened_because === null ? <ViewIcon className="size-3.5 text-fg-3" strokeWidth={1.75} aria-hidden /> : <NotOpenedIcon className="size-3.5 text-warn" strokeWidth={1.75} aria-hidden />
-              }
+              icon={<ViewIcon className="size-3.5 text-fg-3" strokeWidth={1.75} aria-hidden />}
               name={viewRow.title}
-              trailing={viewRow.ports_words ?? undefined}
-              detail={viewRow.not_opened_because === null ? undefined : <span className="break-words whitespace-normal select-text"><span className="text-warn-text">Doesn't open:</span> {viewRow.not_opened_because}</span>}
+              trailing={viewRow.opens ? viewRow.ports_words : undefined}
+              detail={viewRow.opens ? undefined : <RefusalLine tone="warning" layout="under_field" lead="Doesn't open:" words={viewRow.not_opened_because} />}
+              detailWraps
               data-module-manager-view={viewRow.view_type_id}
             />
           ))}
         </ul>
       </PanelSection>
-      <PanelSection title="What its views can reach">
-        <p className="py-1.5 text-xs text-fg-2" data-module-manager-views-reach="">
-          Full access, like its nodes.{devicesWords === "" ? "" : ` They ask for ${devicesWords}.`}
-        </p>
-      </PanelSection>
+      {shown.reach_words !== null && (
+        <PanelSection title="What its views can reach">
+          <p className="py-1.5 text-xs text-fg-2" data-module-manager-views-reach="">
+            {shown.reach_words}
+          </p>
+        </PanelSection>
+      )}
     </>
   );
 }
