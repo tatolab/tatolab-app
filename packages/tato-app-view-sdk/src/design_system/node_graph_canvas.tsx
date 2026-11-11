@@ -25,7 +25,7 @@ import { cn } from "cn";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 import { ChevronDown, ChevronRight, Combine, Crosshair, Frame, Palette, Pencil, Pipette, Plus, Scan, SquareX, StickyNote, Text, Trash2, Ungroup, ZoomIn, ZoomOut } from "lucide-react";
 import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
-import { RightClickMenu, RightClickMenuItem, RightClickMenuSeparator, RightClickMenuSingleChoiceGroup, RightClickSubmenu } from "./menus";
+import { MenuItem, MenuOpenBesideItsParent, RightClickMenu, RightClickMenuItem, RightClickMenuSeparator, RightClickMenuSingleChoiceGroup, RightClickSubmenu } from "./menus";
 import {
   createContext,
   memo,
@@ -297,7 +297,7 @@ const frameFlowNodeId = (frameId: string) => `frame:${frameId}`;
 const NodeGraphSelectionContext = createContext<ReadonlySet<string>>(new Set());
 
 /** The pick a card is drawn for while the canvas picks a port: the ports of each node that can join, the node asking which of its ports, and what choosing one does; `null` while nothing is picked. */
-const NodeGraphPortPickingContext = createContext<{ portsThatCanJoinByNodeId: ReadonlyMap<string, readonly string[]>; nodeAskingWhichPort: string | null; onPortChosen: (nodeId: string, port: string) => void } | null>(null);
+const NodeGraphPortPickingContext = createContext<{ portsThatCanJoinByNodeId: ReadonlyMap<string, readonly string[]>; nodeAskingWhichPort: string | null; onPortChosen: (nodeId: string, port: string) => void; onAskWhichClosed: () => void } | null>(null);
 
 /** Whether the canvas takes edits, which lets its pins start wires and its notes be edited. */
 const NodeGraphEditableContext = createContext<boolean>(false);
@@ -508,23 +508,13 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
         </p>
       )}
       {portPicking !== null && portPicking.nodeAskingWhichPort === graphNode.node_id && portsThatCanJoin !== null && (
-        <div role="menu" aria-label={`Which port of ${graphNode.title}`} className="nodrag absolute top-full left-1/2 z-10 mt-1 flex min-w-32 flex-col rounded-md bg-popover p-1 text-xs shadow-(--shadow-pop)" data-node-graph-port-pick-which={graphNode.node_id}>
+        <MenuOpenBesideItsParent label={`Which port of ${graphNode.title}`} onClosed={portPicking.onAskWhichClosed} data-node-graph-port-pick-which={graphNode.node_id}>
           {portsThatCanJoin.map((port) => (
-            <button
-              key={port}
-              type="button"
-              role="menuitem"
-              className={cn("rounded-sm px-2 py-1 text-left text-fg hover:bg-selected", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
-              onClick={(event) => {
-                event.stopPropagation();
-                portPicking.onPortChosen(graphNode.node_id, port);
-              }}
-              data-node-graph-port-pick-choice={port}
-            >
+            <MenuItem key={port} onChosen={() => portPicking.onPortChosen(graphNode.node_id, port)} data-node-graph-port-pick-choice={port}>
               {port}
-            </button>
+            </MenuItem>
           ))}
-        </div>
+        </MenuOpenBesideItsParent>
       )}
     </div>
   );
@@ -1017,6 +1007,8 @@ function NodeGraphFlow({
 }) {
   const reactFlow = useReactFlow();
   const [nodeAskingWhichPort, setNodeAskingWhichPort] = useState<string | null>(null);
+  const isAskingWhichPort = useRef(false);
+  isAskingWhichPort.current = nodeAskingWhichPort !== null;
   const portPickingOfTheCards = useMemo(
     () =>
       portPicking === null
@@ -1028,6 +1020,7 @@ function NodeGraphFlow({
               setNodeAskingWhichPort(null);
               portPicking.onPicked(nodeId, port);
             },
+            onAskWhichClosed: () => setNodeAskingWhichPort(null),
           },
     [portPicking, nodeAskingWhichPort],
   );
@@ -1038,9 +1031,8 @@ function NodeGraphFlow({
     }
     const ownerDocument = canvasElement.current?.ownerDocument ?? document;
     const endThePickOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || isAskingWhichPort.current) return;
       event.preventDefault();
-      setNodeAskingWhichPort(null);
       portPicking.onEnded();
     };
     ownerDocument.addEventListener("keydown", endThePickOnEscape);

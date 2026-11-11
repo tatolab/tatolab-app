@@ -302,3 +302,53 @@ describe("the node graph canvas while it takes edits", () => {
     expect(container.querySelector('[data-node-graph-input-pin="video_in"]')).toBeNull();
   });
 });
+
+describe("the node graph canvas while a port is picked", () => {
+  function pickingCanvas(onPicked: (nodeId: string, port: string) => void, onEnded: () => void) {
+    const mixer = { ...card("mixer", false), input_pins: [...card("mixer", false).input_pins, { name: "video_in_2", family: "image" as const, description: null, stream_facts_words: [] }], saved_position: { x: 400, y: 0 } };
+    return render(
+      <NodeGraphCanvas
+        label="Stream graph"
+        nodes={[card("pattern", false), mixer, { ...card("meter", false), saved_position: { x: 0, y: 300 } }]}
+        links={[]}
+        frames={[]}
+        selectedNodeId={null}
+        onNodeSelected={vi.fn()}
+        editing={null}
+        portPicking={{ words: "Pick the other end of pattern › video_out", portsThatCanJoinByNodeId: new Map([["mixer", ["video_in", "video_in_2"]], ["meter", ["video_in"]]]), onPicked, onEnded }}
+      />,
+    );
+  }
+
+  it("lights the cards with a port that can join, answers with a card's only port, asks which of two, and Esc closes that question before it ends the pick", async () => {
+    const onPicked = vi.fn();
+    const onEnded = vi.fn();
+    const { container } = pickingCanvas(onPicked, onEnded);
+    const cardOf = (nodeId: string) => container.querySelector<HTMLElement>(`[data-node-graph-card="${nodeId}"]`) ?? expect.unreachable(`no ${nodeId} card`);
+    await vi.waitFor(() => cardOf("meter"));
+    expect(["pattern", "mixer", "meter"].map((nodeId) => cardOf(nodeId).getAttribute("data-port-pick"))).toEqual(["dim", "lit", "lit"]);
+    expect(container.querySelector("[data-node-graph-port-pick-banner]")?.textContent).toContain("Pick the other end of pattern › video_out");
+
+    act(() => fireEvent.click(cardOf("meter")));
+    expect(onPicked).toHaveBeenLastCalledWith("meter", "video_in");
+
+    act(() => fireEvent.click(cardOf("mixer")));
+    const choices = await vi.waitFor(() => {
+      const shown = [...document.querySelectorAll<HTMLElement>("[data-node-graph-port-pick-choice]")];
+      return shown.length === 2 ? shown : expect.unreachable("no question of which port");
+    });
+    expect(choices.map((choice) => choice.textContent)).toEqual(["video_in", "video_in_2"]);
+    act(() => fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" }));
+    await vi.waitFor(() => expect(document.querySelector("[data-node-graph-port-pick-which]")).toBeNull());
+    expect(onEnded).not.toHaveBeenCalled();
+
+    act(() => fireEvent.click(cardOf("mixer")));
+    const secondPort = await vi.waitFor(() => document.querySelector<HTMLElement>('[data-node-graph-port-pick-choice="video_in_2"]') ?? expect.unreachable("no video_in_2 choice"));
+    act(() => secondPort.click());
+    expect(onPicked).toHaveBeenLastCalledWith("mixer", "video_in_2");
+    expect(onPicked).toHaveBeenCalledTimes(2);
+
+    act(() => fireEvent.keyDown(document, { key: "Escape" }));
+    expect(onEnded).toHaveBeenCalledTimes(1);
+  });
+});

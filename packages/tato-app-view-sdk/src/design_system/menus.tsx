@@ -170,6 +170,23 @@ export function FieldMenu({
   );
 }
 
+/** A menu open over its positioned parent and drawn beside it where it fits, as one asking which of a card's ports; it closes on a choice, Esc or a click outside. */
+export function MenuOpenBesideItsParent({ label, onClosed, children, ...controlDataAttributes }: { label: string; onClosed: () => void; children: ReactNode } & ControlDataAttributes) {
+  return (
+    <DropdownMenu
+      open
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClosed();
+      }}
+    >
+      <DropdownMenuTrigger render={<span tabIndex={-1} aria-hidden className="pointer-events-none absolute inset-0" />} />
+      <DropdownMenuContent side="right" align="start" aria-label={label} className="nodrag w-auto min-w-32" onClick={(event) => event.stopPropagation()} {...controlDataAttributes}>
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /** What stands before a menu item's words: an icon, or something in its place such as a served logo; never both. */
 type MenuItemPicture = { icon?: LucideIcon; leading?: never } | { icon?: never; leading?: ReactNode };
 
