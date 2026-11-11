@@ -140,6 +140,7 @@ function ConfigFieldControl({
               const configEdit = configFieldSetTo(streamAsset, released);
               if (configEdit !== null) void graphEdits.commit(place, [configEdit], idempotencyKeyOfTheRelease);
             }}
+            valueTypedBesideTheSlider={{ label: `${nameInWords(field.key)} value`, onWordsTyped: commitTheWords }}
           />
         );
       }

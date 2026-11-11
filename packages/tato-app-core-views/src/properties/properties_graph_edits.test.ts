@@ -172,6 +172,17 @@ test("an entry of a list of records is edited, reset, added and removed with the
   expect(layers).toEqual([{}, { x: 640, y: 360, opacity: 0.5 }]);
 });
 
+test("an entry's field keeps being set while a drag changes that field live, and whatever order the runtime gives the entry's keys", () => {
+  const layersWhileOpacityIsDragged: JsonValue = [{ opacity: 0.4, y: 360, x: 640 }];
+  expect(listWithTheRecordFieldSet(layersWhileOpacityIsDragged, 0, { x: 640, y: 360, opacity: 0 }, "opacity", 0.5)).toEqual([{ y: 360, x: 640, opacity: 0.5 }]);
+  expect(listWithTheRecordFieldSet(layersWhileOpacityIsDragged, 0, { x: 0, y: 360, opacity: 0 }, "opacity", 0.5)).toBeNull();
+  expect(listWithoutTheRecord(layersWhileOpacityIsDragged, 0, { x: 640, y: 360, opacity: 0.4 })).toEqual([]);
+  expect(listWithoutTheRecord(layersWhileOpacityIsDragged, 0, { x: 640, y: 360, opacity: 0 })).toBeNull();
+  const layersHoldingACrop: JsonValue = [{ crop: { right: 10, left: 0 }, points: [1, 2] }];
+  expect(listWithTheRecordFieldSet(layersHoldingACrop, 0, { points: [1, 2], crop: { left: 0, right: 10 } }, "opacity", 1)).toEqual([{ crop: { right: 10, left: 0 }, points: [1, 2], opacity: 1 }]);
+  expect(listWithTheRecordFieldSet(layersHoldingACrop, 0, { points: [2, 1], crop: { left: 0, right: 10 } }, "opacity", 1)).toBeNull();
+});
+
 test("an edit of an entry the list has moved on from changes nothing", () => {
   const layersAfterTheFirstWasRemoved: JsonValue = [{ x: 640, y: 360, opacity: 0.5 }];
   expect(listWithoutTheRecord(layersAfterTheFirstWasRemoved, 0, {})).toBeNull();
