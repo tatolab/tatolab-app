@@ -11,7 +11,7 @@ export type IconButtonSize = "regular" | "compact";
 /** The look every icon-only control shares, the menu buttons that open from one included. */
 export const ICON_BUTTON_CLASS_NAMES = cn(
   "rounded-md text-fg-3 aria-expanded:bg-selected aria-expanded:text-fg data-popup-open:bg-selected data-popup-open:text-fg",
-  "hover:bg-brand-soft hover:text-brand-text hover:shadow-(--icon-button-hover-ring) dark:hover:bg-brand-soft hover:data-popup-open:bg-brand-soft hover:data-popup-open:text-brand-text",
+  "hover:bg-selected hover:text-brand-text hover:shadow-(--icon-button-hover-ring) dark:hover:bg-selected hover:data-popup-open:bg-selected hover:data-popup-open:text-brand-text",
   FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
 );
 
