@@ -177,11 +177,6 @@ function nonNegativeCountsUnderTheNodesMetricsKey(metrics: unknown, metricsKey: 
   );
 }
 
-/** The node's `exposed_config_fields` (a spec key the runtime renders only on a node that exposes one), each field it names; `[]` when it renders none. */
-function exposedConfigFieldsOnTheWire(exposedConfigFields: unknown): string[] {
-  return Array.isArray(exposedConfigFields) ? exposedConfigFields.filter((field): field is string => typeof field === "string") : [];
-}
-
 function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNode, string> {
   const node = jsonObject(nodeOnTheWire, "a node");
   if (!node.ok) return node;
@@ -218,7 +213,6 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
     process_raising_because: typeof processRaisingBecause === "string" ? processRaisingBecause : null,
     config: Object.fromEntries(Object.entries(config.value).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]))),
     pins: Object.fromEntries(Object.entries(pins.value).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]))),
-    exposed_config_fields: exposedConfigFieldsOnTheWire(node.value["exposed_config_fields"]),
     input_ports: inputPorts.value,
     output_ports: outputPorts.value,
     dropped_bags_by_link: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "dropped_bags_by_link"),

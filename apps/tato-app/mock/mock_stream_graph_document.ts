@@ -84,7 +84,6 @@ export function mockStreamGraphSummary(
       process_raising_because: moment.hasSettled ? (node.process_raising_because ?? null) : null,
       config: node.config,
       pins: node.pins ?? {},
-      exposed_config_fields: node.exposed_config_fields ?? [],
       input_ports: servedPorts(node.input_ports),
       output_ports: servedPorts(node.output_ports),
       dropped_bags_by_link: Object.fromEntries(
@@ -119,7 +118,6 @@ export function mockStreamGraphSummary(
       name: node.name,
       config: node.config,
       pins: node.pins ?? {},
-      ...(node.exposed_config_fields === undefined || node.exposed_config_fields.length === 0 ? {} : { exposed_config_fields: node.exposed_config_fields }),
       ...(node.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(node.studio) }),
       ports: {
         inputs: node.input_ports.map((port) => ({

@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 import { graphInputsOfTheStream } from "./graph_inputs_of_the_stream";
 
 function node(id: string, name: string, type: string, config: StreamGraphNode["config"]): StreamGraphNode {
-  return { id, name, type, state: null, failed_because: null, process_raising_because: null, config, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null };
+  return { id, name, type, state: null, failed_because: null, process_raising_because: null, config, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null };
 }
 
 test("each GraphInput the graph renders is a control, by the port and family its config declares, in the graph's order", () => {

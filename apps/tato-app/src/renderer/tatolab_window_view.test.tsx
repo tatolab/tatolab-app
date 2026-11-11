@@ -936,21 +936,6 @@ describe("the studio", () => {
     expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
   });
 
-  it("exposes a number config field as a Graph Input from Properties, the node taking it as an input fed by the new Graph Input", async () => {
-    await mountedWindowOverTheMock("state=running");
-    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
-    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card")));
-    const properties = () => coreViewPage("properties");
-
-    pressAsAPointerDoes(await waitFor(() => properties().querySelector<HTMLElement>("[data-properties-expose-as-a-graph-input]") ?? expect.unreachable("no Expose as a Graph Input")));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Strength" }));
-
-    const strengthInput = await waitFor(() => properties().querySelector<HTMLElement>('[data-properties-section="inputs"] [data-properties-port="strength"]') ?? expect.unreachable("no strength input"), { timeout: 5000 });
-    await waitFor(() => expect(strengthInput.querySelector("[data-properties-port-linked]")?.getAttribute("data-properties-port-linked")).toBe("invertingeffect_strength › value"));
-    await waitFor(() => expect(streamGraph.querySelector('[data-node-graph-card="invertingeffect_strength"]')).not.toBeNull());
-    expect(properties().querySelector("[data-properties-expose-as-a-graph-input]")).toBeNull();
-  });
-
   it("opens the Marketplace from Install modules… at the foot of the node search, closing the search", async () => {
     const modulesAndMarketplaceSectionsOpened: string[] = [];
     await mountedWindowOverTheMock("state=running", {

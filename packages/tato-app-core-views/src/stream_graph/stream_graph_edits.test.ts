@@ -39,7 +39,6 @@ function graphNode(name: string, id: string, ports: { inputs?: [string, "image" 
     process_raising_because: null,
     config: {},
     pins: {},
-    exposed_config_fields: [],
     input_ports: declared(ports.inputs),
     output_ports: declared(ports.outputs),
     dropped_bags_by_link: {},

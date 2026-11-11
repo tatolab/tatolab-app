@@ -153,8 +153,6 @@ export const streamGraphNodeSchema = z.object({
   config: z.record(z.string(), jsonValueSchema),
   /** The value set on each unlinked input, by input name, as the graph's `pins` renders it; an input left at its port's default is absent. */
   pins: z.record(z.string(), jsonValueSchema),
-  /** The number and bool config fields it takes as inputs, each an input port of the field's name, as the graph's `exposed_config_fields` renders them; `[]` when it takes none. */
-  exposed_config_fields: z.array(z.string()),
   input_ports: z.array(streamGraphDeclaredPortSchema),
   output_ports: z.array(streamGraphDeclaredPortSchema),
   /** Messages it dropped on each link into it, by the link's `id`. */
