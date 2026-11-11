@@ -23,7 +23,8 @@ import {
 } from "@xyflow/react";
 import { cn } from "cn";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
-import { ChevronDown, ChevronRight, Combine, Frame, Palette, Pencil, Plus, Scan, SquareX, StickyNote, Text, Ungroup } from "lucide-react";
+import { ChevronDown, ChevronRight, Combine, Frame, Palette, Pencil, Pipette, Plus, Scan, SquareX, StickyNote, Text, Ungroup } from "lucide-react";
+import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
 import { RightClickMenu, RightClickMenuItem, RightClickMenuSeparator, RightClickMenuSingleChoiceGroup, RightClickSubmenu } from "./menus";
 import {
   createContext,
@@ -131,15 +132,24 @@ export interface NodeGraphCanvasFrameChange {
   colour?: string;
 }
 
-/** The colours a frame can be given from its right-click menu, each a hex colour as the runtime stores a group's, none of them a pin family's. */
+/** The colours a frame's right-click menu offers before Custom color…, each a hex colour as the runtime stores a group's. */
 export const NODE_GRAPH_FRAME_COLOURS: readonly { name: string; colour: string }[] = [
-  { name: "Slate", colour: "#6f7d8c" },
-  { name: "Teal", colour: "#4aa8a8" },
-  { name: "Olive", colour: "#8f9a5b" },
-  { name: "Sand", colour: "#b8a07a" },
-  { name: "Rose", colour: "#c97b9a" },
-  { name: "Plum", colour: "#9a6fb0" },
+  { name: "Red", colour: "#c46a6a" },
+  { name: "Yellow", colour: "#c9b45a" },
+  { name: "Green", colour: "#6f9e6a" },
+  { name: "Blue", colour: "#5f86b8" },
+  { name: "Purple", colour: "#8f72b5" },
 ];
+
+/** How many colours other frames use beyond the presets a frame's menu offers again. */
+const FRAME_COLOURS_USED_ELSEWHERE_OFFERED = 3;
+
+/** The colours the canvas's frames use that no preset is, newest frame first, at most `FRAME_COLOURS_USED_ELSEWHERE_OFFERED`. */
+function frameColoursUsedBeyondThePresets(frames: readonly NodeGraphCanvasFrame[]): readonly string[] {
+  const presetColours = new Set(NODE_GRAPH_FRAME_COLOURS.map(({ colour }) => colour.toLowerCase()));
+  const usedColours = frames.flatMap((frame) => (frame.colour === null || presetColours.has(frame.colour.toLowerCase()) ? [] : [frame.colour.toLowerCase()]));
+  return [...new Set(usedColours.reverse())].slice(0, FRAME_COLOURS_USED_ELSEWHERE_OFFERED);
+}
 
 /** A note on the canvas beside the cards: its text, where its top-left corner sits and its size. */
 export interface NodeGraphCanvasNote {
@@ -293,6 +303,12 @@ const NodeGraphNoteResizingContext = createContext<((noteId: string, resized: No
 
 /** What a card's chevron and a frame's title ask for on an editable canvas; `null` on a read-only one. */
 const NodeGraphCardAndFrameEditingContext = createContext<Pick<NodeGraphCanvasEditing, "onFrameChanged" | "onFrameRemoved" | "onCardCollapsed"> | null>(null);
+
+/** The colours the canvas's frames use beyond the presets, which each frame's Color menu offers again. */
+const NodeGraphFrameColoursUsedContext = createContext<readonly string[]>([]);
+
+/** Opens the colour picker for the frame it names. */
+const NodeGraphFrameColourPickingContext = createContext<(frameId: string) => void>(() => undefined);
 
 /** Which of a frame's words is typed on its tab: its title or its description. */
 type NodeGraphFrameWordsField = "title" | "description";
@@ -576,12 +592,16 @@ function NodeGraphFrameRightClickChoices({
   graphFrame,
   frameEditing,
   editTheFrameWords,
+  openTheColourPicker,
 }: {
   graphFrame: NodeGraphCanvasFrame;
   frameEditing: Pick<NodeGraphCanvasEditing, "onFrameChanged" | "onFrameRemoved">;
   editTheFrameWords: (field: NodeGraphFrameWordsField) => void;
+  openTheColourPicker: () => void;
 }) {
   const hasADescription = graphFrame.description !== null && graphFrame.description !== "";
+  const coloursUsedElsewhere = useContext(NodeGraphFrameColoursUsedContext);
+  const colourChoices = [...NODE_GRAPH_FRAME_COLOURS, ...coloursUsedElsewhere.map((colour) => ({ name: colour.toUpperCase(), colour }))];
   return (
     <>
       <RightClickMenuItem icon={Pencil} onChosen={() => editTheFrameWords("title")} data-node-graph-frame-choice="rename">
@@ -592,7 +612,7 @@ function NodeGraphFrameRightClickChoices({
       </RightClickMenuItem>
       <RightClickSubmenu label="Color" icon={Palette} data-node-graph-frame-choice="colour">
         <RightClickMenuSingleChoiceGroup
-          choices={NODE_GRAPH_FRAME_COLOURS.map(({ name, colour }) => ({
+          choices={colourChoices.map(({ name, colour }) => ({
             choice: colour,
             label: (
               <span className="flex items-center gap-2">
@@ -601,10 +621,14 @@ function NodeGraphFrameRightClickChoices({
               </span>
             ),
           }))}
-          chosen={graphFrame.colour}
+          chosen={graphFrame.colour?.toLowerCase() ?? null}
           onChosen={(colour) => frameEditing.onFrameChanged(graphFrame.frame_id, { colour })}
           dataAttributeOfEachChoice="data-node-graph-frame-colour"
         />
+        <RightClickMenuSeparator />
+        <RightClickMenuItem icon={Pipette} onChosen={openTheColourPicker} data-node-graph-frame-choice="custom_colour">
+          Custom color…
+        </RightClickMenuItem>
       </RightClickSubmenu>
       <RightClickMenuSeparator />
       <RightClickMenuItem icon={Ungroup} isDestructive onChosen={() => frameEditing.onFrameRemoved(graphFrame.frame_id)} data-node-graph-frame-choice="remove">
@@ -633,6 +657,7 @@ function NodeGraphFrameView({ data }: NodeProps<NodeGraphFrameFlowNode>) {
   };
   const editTheWords = (field: NodeGraphFrameWordsField) => frameWordsEditing?.editTheFrameWords({ frame_id: graphFrame.frame_id, field });
   const editTheWordsOnADoubleClick = (field: NodeGraphFrameWordsField) => (cardAndFrameEditing === null ? undefined : () => editTheWords(field));
+  const pickTheFramesColour = useContext(NodeGraphFrameColourPickingContext);
   const titleTabStyle = graphFrame.colour === null ? undefined : { backgroundColor: `color-mix(in srgb, ${graphFrame.colour} 30%, var(--studio-area))` };
   const titleTab = (
     <span
@@ -664,7 +689,7 @@ function NodeGraphFrameView({ data }: NodeProps<NodeGraphFrameFlowNode>) {
       ) : (
         <RightClickMenu
           label={`Frame ${graphFrame.title}`}
-          choices={<NodeGraphFrameRightClickChoices graphFrame={graphFrame} frameEditing={cardAndFrameEditing} editTheFrameWords={editTheWords} />}
+          choices={<NodeGraphFrameRightClickChoices graphFrame={graphFrame} frameEditing={cardAndFrameEditing} editTheFrameWords={editTheWords} openTheColourPicker={() => pickTheFramesColour(graphFrame.frame_id)} />}
           returnsFocusToTheRowOnClosing={false}
         >
           {titleTab}
@@ -1270,6 +1295,9 @@ function NodeGraphFlow({
     setFrameWordsBeingEdited({ frame_id: newFrame.frame_id, field: "title" });
   }, [frames]);
   const frameWordsEditing = useMemo(() => ({ frameWordsBeingEdited, editTheFrameWords: setFrameWordsBeingEdited }), [frameWordsBeingEdited]);
+  const [frameIdWhoseColourIsPicked, setFrameIdWhoseColourIsPicked] = useState<string | null>(null);
+  const frameWhoseColourIsPicked = frames.find((frame) => frame.frame_id === frameIdWhoseColourIsPicked) ?? null;
+  const frameColoursUsed = useMemo(() => frameColoursUsedBeyondThePresets(frames), [frames]);
   const cardAndFrameEditing = useMemo(
     () => (editing === null ? null : { onFrameChanged: editing.onFrameChanged, onFrameRemoved: editing.onFrameRemoved, onCardCollapsed: editing.onCardCollapsed }),
     [editing],
@@ -1350,6 +1378,8 @@ function NodeGraphFlow({
         <NodeGraphNoteResizingContext value={editing === null ? null : keepTheResizedNote}>
           <NodeGraphCardAndFrameEditingContext value={cardAndFrameEditing}>
             <NodeGraphFrameWordsEditingContext value={frameWordsEditing}>
+            <NodeGraphFrameColoursUsedContext value={frameColoursUsed}>
+            <NodeGraphFrameColourPickingContext value={setFrameIdWhoseColourIsPicked}>
           <NodeGraphLinkedPinsContext value={linkedPins}>
             <div
               ref={canvasElement}
@@ -1453,6 +1483,23 @@ function NodeGraphFlow({
               </ReactFlow>
             </div>
           </NodeGraphLinkedPinsContext>
+            {cardAndFrameEditing !== null && (
+              <ColourPickerDialog
+                isOpen={frameWhoseColourIsPicked !== null}
+                onOpenChange={(isOpen) => {
+                  if (!isOpen) setFrameIdWhoseColourIsPicked(null);
+                }}
+                title={frameWhoseColourIsPicked === null ? "Frame color" : `Color of ${frameWhoseColourIsPicked.title}`}
+                startingColour={frameWhoseColourIsPicked?.colour !== null && frameWhoseColourIsPicked?.colour !== undefined && isAHexColour(frameWhoseColourIsPicked.colour) ? frameWhoseColourIsPicked.colour : (NODE_GRAPH_FRAME_COLOURS[0]?.colour ?? "#ffffff")}
+                recentColours={frameColoursUsed}
+                onColourPicked={(colour) => {
+                  if (frameWhoseColourIsPicked !== null) cardAndFrameEditing.onFrameChanged(frameWhoseColourIsPicked.frame_id, { colour });
+                }}
+                data-node-graph-frame-colour-picker=""
+              />
+            )}
+            </NodeGraphFrameColourPickingContext>
+            </NodeGraphFrameColoursUsedContext>
             </NodeGraphFrameWordsEditingContext>
           </NodeGraphCardAndFrameEditingContext>
         </NodeGraphNoteResizingContext>

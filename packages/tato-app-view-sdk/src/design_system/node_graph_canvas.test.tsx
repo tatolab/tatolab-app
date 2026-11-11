@@ -130,6 +130,18 @@ describe("the node graph canvas while it takes edits", () => {
     expect(onFrameRemoved).toHaveBeenCalledWith(FRAME_ID);
   });
 
+  it("gives a frame a colour of the person's own from Custom color…, picked over the window", async () => {
+    const { editing, onFrameChanged } = editingRecorded();
+    const { container } = drawnCanvas(editing);
+    fireEvent.contextMenu(await vi.waitFor(() => container.querySelector<HTMLElement>(`[data-node-graph-frame-title="${FRAME_ID}"]`) ?? expect.unreachable("no frame title")));
+    fireEvent.click(await vi.waitFor(() => document.querySelector<HTMLElement>('[data-node-graph-frame-choice="colour"]') ?? expect.unreachable("no Color")));
+    fireEvent.click(await vi.waitFor(() => document.querySelector<HTMLElement>('[data-node-graph-frame-choice="custom_colour"]') ?? expect.unreachable("no Custom color")));
+    const hexField = await vi.waitFor(() => document.querySelector<HTMLInputElement>("[data-node-graph-frame-colour-picker] [data-colour-picker-hex]") ?? expect.unreachable("no picker"));
+    fireEvent.change(hexField, { target: { value: "#4aa8a8" } });
+    fireEvent.click(document.querySelector('[data-colour-picker-action="use"]') ?? expect.unreachable("no Use color"));
+    expect(onFrameChanged).toHaveBeenCalledWith(FRAME_ID, { colour: "#4aa8a8" });
+  });
+
   it("offers no right-click menu on a read-only canvas's frame", async () => {
     const { container } = drawnCanvas(null);
     const titleTab = await vi.waitFor(() => container.querySelector<HTMLElement>(`[data-node-graph-frame-title="${FRAME_ID}"]`) ?? expect.unreachable("no frame title"));
