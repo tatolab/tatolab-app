@@ -705,6 +705,40 @@ test("describing_a_stream_action_reads_its_state_step_and_streams_from_queued_to
   expect(toolCallsReceivedBy(server)[0]).toEqual(["describe_stream_action", { action: "Rj12j3eujz3zn0dposliv79k9-9" }]);
 });
 
+test("describing_a_stream_action_reads_its_venv_sync_package_by_package_while_uv_downloads_and_once_it_installed", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-new-project-downloading-numpy-and-pillow.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-new-project-done-numpy-and-pillow-installed.json")),
+  ]);
+
+  expect(describedOf(answerOf(await server.client().describeStreamAction("Rvxjb0uiacgp6c3o13o9qvzj1-1"))).venv_sync).toEqual({
+    phase: "downloading",
+    packages_resolved: 9,
+    packages_prepared: null,
+    packages_installed: null,
+    downloads_started: 4,
+    downloads_done: 3,
+    packages: [
+      { name: "numpy", version: null, kind: "distribution", state: "downloaded", download_size_bytes: 5452595 },
+      { name: "pillow", version: null, kind: "distribution", state: "downloaded", download_size_bytes: 4823450 },
+      { name: "numba", version: null, kind: "distribution", state: "downloaded", download_size_bytes: 2726298 },
+      { name: "llvmlite", version: null, kind: "distribution", state: "downloading", download_size_bytes: 40579891 },
+    ],
+  });
+  const done = describedOf(answerOf(await server.client().describeStreamAction("Rvxjb0uiacgp6c3o13o9qvzj1-1")));
+  expect(done).toMatchObject({ state: "done", step: null, venv_sync: { phase: "installed", packages_prepared: 4, packages_installed: 8, downloads_done: 4 } });
+  expect(done.venv_sync?.packages.map((venvSyncPackage) => [venvSyncPackage.name, venvSyncPackage.version, venvSyncPackage.download_size_bytes])).toEqual([
+    ["numpy", "2.5.4", 5452595],
+    ["pillow", "13.0.0", 4823450],
+    ["numba", "0.68.1", 2726298],
+    ["llvmlite", "0.50.0", 40579891],
+    ["tatolab-compositor", "0.68.59", null],
+    ["tatolab-ops", "0.68.59", null],
+    ["tatolab-stream", "0.68.59", null],
+    ["tatolab-testpattern", "0.68.59", null],
+  ]);
+});
+
 test("a_failed_action_reads_its_reason_one_the_tool_no_longer_holds_answers_its_words_and_a_json_rpc_error_stays_a_refusal", async () => {
   const server = await fakeLocalApiServerAnswering([
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-create-into-pattern-failed-on-its-files.json")),

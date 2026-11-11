@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { afterEach, expect, test } from "vitest";
 import type { CarriedRuntime } from "./platform/carried_runtime.js";
 import { RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL, RUNTIME_STARTING_GRACE_PERIOD_MS } from "./carried_runtime_run_as_the_apps_child.js";
@@ -96,6 +97,44 @@ test("a healthy runtime's status names its streams and machine, read as the wind
       '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
   );
   expect(carriedRuntimeStarts.runtimesStarted).toHaveLength(0);
+});
+
+const recordedResponseBody = (fixtureFileName: string) => readFile(new URL(`./test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
+
+test("a project's stream on its making_the_venv step brings its action's venv sync into the status, described once per round", async () => {
+  const { controller, localApiServer } = await controllerOverFakes([
+    healthyAnswer(),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-new-project-preparing-on-its-making-the-venv-step.json")),
+    theMachine(),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-new-project-downloading-numpy-and-pillow.json")),
+  ]);
+
+  const status = await controller.composeStatus(0);
+
+  expect(status.project_venv_syncs_under_way).toEqual([
+    {
+      action: "Rvxjb0uiacgp6c3o13o9qvzj1-1",
+      project_directory: "/private/tmp/tatolab-proof-projects/numpy-pillow",
+      venv_sync: expect.objectContaining({ phase: "downloading", downloads_started: 4, downloads_done: 3 }),
+    },
+  ]);
+  const describeRequests = localApiServer.receivedRequests().filter((request) => request.includes("Mcp-Name: describe_stream_action"));
+  expect(describeRequests).toHaveLength(1);
+  expect(describeRequests[0]).toContain('"action":"Rvxjb0uiacgp6c3o13o9qvzj1-1"');
+});
+
+test("a project's sync whose action cannot be described is left out, its stream still listed on its step", async () => {
+  const { controller } = await controllerOverFakes([
+    healthyAnswer(),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-new-project-preparing-on-its-making-the-venv-step.json")),
+    theMachine(),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json")),
+  ]);
+
+  const status = await controller.composeStatus(0);
+
+  expect(status.project_venv_syncs_under_way).toEqual([]);
+  expect(status.streams?.[0]?.step).toBe("making_the_venv");
 });
 
 test("a healthy runtime whose streams cannot be read lists none, and says why in the failure's own words", async () => {
