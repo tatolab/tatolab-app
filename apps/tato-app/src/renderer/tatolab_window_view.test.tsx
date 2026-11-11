@@ -642,8 +642,11 @@ describe("the studio", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(viewerArea().hasAttribute("data-studio-area-expanded")).toBe(false));
 
+    await waitFor(() => expect(expand().getAttribute("aria-pressed")).toBe("false"));
     fireEvent.click(expand());
     await waitFor(() => expect(viewerArea().hasAttribute("data-studio-area-expanded")).toBe(true));
+    // The view toggles from the expansion it last heard, which crosses its port after the area expands.
+    await waitFor(() => expect(expand().getAttribute("aria-pressed")).toBe("true"));
     fireEvent.click(expand());
     await waitFor(() => expect(viewerArea().hasAttribute("data-studio-area-expanded")).toBe(false));
   });
