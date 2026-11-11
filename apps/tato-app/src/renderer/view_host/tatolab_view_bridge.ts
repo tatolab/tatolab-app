@@ -328,6 +328,10 @@ export class TatolabViewBridge {
         if (importing.kind === "imported") return { kind: "project_assets_imported", assets_imported: importing.assets_imported };
         return importing.kind === "nothing_chosen" ? { kind: "nothing_chosen" } : { kind: "refused", because: importing.because };
       }
+      case "open_modules_and_marketplace": {
+        const opening = await this.hostServices.openModulesAndMarketplace(ask.shows);
+        return opening.kind === "opened" ? { kind: "done" } : { kind: "refused", because: opening.because };
+      }
       case "undo_in_the_project":
       case "redo_in_the_project": {
         const applying =

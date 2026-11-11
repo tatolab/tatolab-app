@@ -70,6 +70,11 @@ export const windowToolbarGraphToolOfferedSchema = z.object({ tool: windowToolba
 /** One graph tool as the view offers it. */
 export type WindowToolbarGraphToolOffered = z.infer<typeof windowToolbarGraphToolOfferedSchema>;
 
+/** A section of the window that lists modules: the modules added to the open project, or the Marketplace's packages and samples. */
+export const modulesAndMarketplaceSectionSchema = z.enum(["added_to_this_project", "marketplace"]);
+/** A section of the Modules and Marketplace window. */
+export type ModulesAndMarketplaceSection = z.infer<typeof modulesAndMarketplaceSectionSchema>;
+
 /** What a view may watch. */
 export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("open_project") }),
@@ -140,6 +145,8 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("read_the_person_editing") }),
   /** Ask the person for files in the desktop's open dialog and import each into the project through the runtime's `import_asset`, which places it in its kind's folder. */
   z.object({ kind: z.literal("import_assets_into_the_project"), project_folder: z.string() }),
+  /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
+  z.object({ kind: z.literal("open_modules_and_marketplace"), shows: modulesAndMarketplaceSectionSchema }),
   /** The graph tools the view's watch `watch_id` of `graph_tool_presses` offers the window's toolbar, replacing any offer before; refused where the window draws no toolbar. */
   z.object({ kind: z.literal("offer_graph_tools"), watch_id: watchOrAskIdSchema, tools: z.array(windowToolbarGraphToolOfferedSchema) }),
 ]);

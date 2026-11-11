@@ -781,6 +781,24 @@ describe("the studio", () => {
     await waitFor(() => expect(within(streamGraph.body).getByRole("dialog", { name: "Add a node" })).toBeTruthy());
   });
 
+  it("opens the Marketplace from Install modules… at the foot of the node search, closing the search", async () => {
+    const modulesAndMarketplaceSectionsOpened: string[] = [];
+    await mountedWindowOverTheMock("state=running", {
+      openModuleManagerWindow: async (shows) => {
+        modulesAndMarketplaceSectionsOpened.push(shows);
+      },
+    });
+    const toolInTheToolbar = () => document.querySelector<HTMLElement>('[data-studio-graph-tool="add_node"]') ?? expect.unreachable("no Add node in the toolbar");
+    await waitFor(() => expect(toolInTheToolbar().getAttribute("aria-disabled")).toBeNull());
+    const streamGraph = coreViewPage("stream_graph", "stream-graph");
+    fireEvent.click(toolInTheToolbar());
+    const nodeSearch = await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Add a node" }));
+
+    fireEvent.click(within(nodeSearch).getByRole("button", { name: "Install modules…" }));
+    await waitFor(() => expect(modulesAndMarketplaceSectionsOpened).toEqual(["marketplace"]));
+    expect(within(streamGraph.body).queryByRole("dialog", { name: "Add a node" })).toBeNull();
+  });
+
   it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {
     await mountedWindowOverTheMock("state=running");
     expect(await shownLayout()).toBe("build");

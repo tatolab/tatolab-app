@@ -36,6 +36,7 @@ import {
   messageFromStudioSchema,
   type MessageFromStudio,
   type MessageFromTheView,
+  type ModulesAndMarketplaceSection,
   type PortViewerEvent,
   type ViewAsk,
   type ViewAskAnswer,
@@ -141,6 +142,8 @@ export interface TatoAppViewConnection {
   undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** Redo what `author`'s latest undo in the project reversed, answering the redo the runtime applied. */
   redoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
+  /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
+  openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewAskDone>;
   /** Ask the person for files in the desktop's open dialog and import each into the project, where the runtime places it in its kind's folder under its own name, numbered past a name already taken. */
   importAssetsIntoTheProject(projectFolder: string): Promise<ProjectAssetsImporting>;
   /** The person editing in Studio: the author their graph edits are recorded under, and so whose edits their own Undo reverts. */
@@ -309,6 +312,7 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
           if (answer.kind === "nothing_chosen") return { kind: "nothing_chosen" };
           return { kind: "not_imported", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
         }),
+      openModulesAndMarketplace: (shows) => ask({ kind: "open_modules_and_marketplace", shows }).then(doneOf),
       readThePersonEditing: () =>
         ask({ kind: "read_the_person_editing" }).then((answer): ThePersonEditingReading => {
           if (answer.kind === "the_person_editing") return { kind: "read", author: answer.author };

@@ -25,7 +25,7 @@ import type {
   StreamGraphAction,
   ThePersonEditingReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { PortViewerEvent, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
+import type { ModulesAndMarketplaceSection, PortViewerEvent, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
 
 export type {
   JsonValue,
@@ -129,6 +129,8 @@ export interface StudioViewHostServices {
   watchProjectNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesReading) => void): StopWatching;
   /** `projectFolder`'s assets, listed while any view watches it and the window is shown; the first reading arrives once listed. */
   watchProjectAssets(projectFolder: string, listener: (reading: ProjectAssetsReading) => void): StopWatching;
+  /** The open project's Modules and Marketplace window opened on `shows`, or brought forward on it. */
+  openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewOpening>;
   /** The files the person chooses imported into `projectFolder`, the open project only. */
   importAssetsIntoTheProject(projectFolder: string): Promise<ProjectAssetsImporting>;
   /** The open project's change feed, when `projectFolder` is its folder: read once, then again each time the runtime applies a transaction. */

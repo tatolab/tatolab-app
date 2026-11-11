@@ -94,6 +94,7 @@ function recordingHostServices() {
   const languageServerMessagesSent: JsonValue[] = [];
   const undosAsked: { projectFolder: string; author: ProjectTransactionAuthor }[] = [];
   const assetImportsAsked: string[] = [];
+  const modulesAndMarketplaceSectionsOpened: string[] = [];
   const graphTransactionsAsked: { projectFolder: string; operations: readonly unknown[]; mode: string; idempotencyKey: string | null }[] = [];
   const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
   const outputsWritten: { viewNode: StudioViewNodeAddress; port: string; value: JsonValue }[] = [];
@@ -139,6 +140,10 @@ function recordingHostServices() {
         assets_imported: { imported: [{ asset: "a-uuid", path: "media/intro.mp4" }], refused: [{ file_name: "main.graph.json", because: "import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write" }] },
       };
     },
+    openModulesAndMarketplace: async (shows) => {
+      modulesAndMarketplaceSectionsOpened.push(shows);
+      return modulesAndMarketplaceSectionsOpened.length === 1 ? { kind: "opened" } : { kind: "not_opened", because: "Only a project's studio window opens its Modules and Marketplace window." };
+    },
     watchProjectTransactions: (projectFolder, listener) => {
       listener({ kind: "not_read", because: `No runtime follows ${projectFolder}.` });
       return () => undefined;
@@ -179,7 +184,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, graphTransactionsAsked, outputsWritten };
+  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, modulesAndMarketplaceSectionsOpened, graphTransactionsAsked, outputsWritten };
 }
 
 /** An area that keeps the settings it is asked to remember and says where the view's header row lies. */
@@ -283,6 +288,13 @@ describe("a view's connection to Studio, through the one bridge every view is se
     });
     expect(await connection.importAssetsIntoTheProject("/cancelled")).toEqual({ kind: "nothing_chosen" });
     expect(assetImportsAsked).toEqual(["/set", "/cancelled"]);
+  });
+
+  it("opens the project's Modules and Marketplace window on the section asked, and says why when it can't", async () => {
+    const { connection, modulesAndMarketplaceSectionsOpened } = await connectedView(DJ_DECK_MANIFEST, {});
+    expect(await connection.openModulesAndMarketplace("marketplace")).toEqual({ kind: "done" });
+    expect(await connection.openModulesAndMarketplace("added_to_this_project")).toEqual({ kind: "refused", because: "Only a project's studio window opens its Modules and Marketplace window." });
+    expect(modulesAndMarketplaceSectionsOpened).toEqual(["marketplace", "added_to_this_project"]);
   });
 
   it("reads the project's history and undoes through it", async () => {
