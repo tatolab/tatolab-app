@@ -272,7 +272,7 @@ export function PropertySliderField({
         aria-label={typing?.label ?? "Value"}
         inputMode="decimal"
         {...valueEditedInPlace}
-        className={cn(PROPERTY_FIELD_CLASS_NAMES, "w-12 shrink-0 px-1 text-right font-mono tabular-nums", valueToneClassName(isTheTypesDefault && draggedValue === null))}
+        className={cn(PROPERTY_FIELD_CLASS_NAMES, "w-10 shrink-0 px-1 text-right font-mono tabular-nums", valueToneClassName(isTheTypesDefault && draggedValue === null))}
         data-property-slider-value=""
       />
       {draggedValue !== null && (
