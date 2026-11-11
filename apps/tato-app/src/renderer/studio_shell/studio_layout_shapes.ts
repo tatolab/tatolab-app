@@ -1,6 +1,7 @@
 // Layouts as shapes: how many areas there are and where, filled with the views a layout already shows, and the
 // left, bottom and right areas a layout can hide.
 
+import type { StudioMenuEntryPictureArea } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
 import { layoutWithSplitSizes, studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode, type StudioAreaSplit } from "./studio_area_layout";
 
 /** A plain shape of areas the layout menu offers. */
@@ -58,6 +59,25 @@ function areasWithTheirShares(layout: StudioAreaLayoutNode, shareOfTheWhole = 1)
   if (layout.kind === "area") return [{ area: layout, share: shareOfTheWhole }];
   const sizeOfTheParts = layout.parts.reduce((sum, { size_percent }) => sum + size_percent, 0);
   return layout.parts.flatMap(({ size_percent, part }) => areasWithTheirShares(part, (shareOfTheWhole * size_percent) / sizeOfTheParts));
+}
+
+/** `shape`'s picture for its menu entry: each slot as a rectangle of the whole, the main slot emphasised. */
+export function studioLayoutShapePicture(shape: StudioLayoutShape): StudioMenuEntryPictureArea[] {
+  const rectanglesOf = (outline: StudioLayoutShapeOutline, left: number, top: number, width: number, height: number): StudioMenuEntryPictureArea[] => {
+    if (outline.kind === "slot") return [{ left_percent: left, top_percent: top, width_percent: width, height_percent: height, is_emphasised: outline.is_main }];
+    const sizeOfTheParts = outline.parts.reduce((sum, [sizePercent]) => sum + sizePercent, 0);
+    let offset = 0;
+    return outline.parts.flatMap(([sizePercent, part]) => {
+      const share = sizePercent / sizeOfTheParts;
+      const partRectangles =
+        outline.direction === "row"
+          ? rectanglesOf(part, left + offset * width, top, share * width, height)
+          : rectanglesOf(part, left, top + offset * height, width, share * height);
+      offset += share;
+      return partRectangles;
+    });
+  };
+  return rectanglesOf(studioLayoutShapeOutline(shape), 0, 0, 100, 100);
 }
 
 /** How many slots `outline` holds. */

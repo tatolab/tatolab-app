@@ -8,7 +8,7 @@ import type { StudioMenu, StudioMenuEntry } from "@tatolab/tato-app-view-sdk/des
 import { presentTatolabAppUpdateMenuEntry } from "../presentation/app_update_presentation";
 import { controlShortcutHint, shiftedShortcutHint, shortcutHint } from "../presentation/platform_presentation";
 import { STUDIO_LAYOUT_PRESETS_ON_A_DIGIT } from "./studio_layout";
-import { STUDIO_LAYOUT_SHAPES, type StudioLayoutShape } from "./studio_layout_shapes";
+import { STUDIO_LAYOUT_SHAPES, studioLayoutShapePicture, type StudioLayoutShape } from "./studio_layout_shapes";
 
 /** Why an entry whose work a later issue builds cannot run. */
 export const NOT_IN_THIS_BUILD_REASON = "Not in this build yet";
@@ -127,7 +127,7 @@ export function studioLayoutMenuEntries(platform: TatolabPlatform, layout: Studi
     return presetIndex < STUDIO_LAYOUT_PRESETS_ON_A_DIGIT ? { kind: "command", label: title, shortcutHint: shortcutHint(platform, String(presetIndex + 1)), onChosen } : { kind: "command", label: title, onChosen };
   });
   return [
-    ...STUDIO_LAYOUT_SHAPES.map(({ shape, title }): StudioMenuEntry => ({ kind: "command", label: title, onChosen: () => commands.shapeTheLayout(shape) })),
+    ...STUDIO_LAYOUT_SHAPES.map(({ shape, title }): StudioMenuEntry => ({ kind: "command", label: title, picture: studioLayoutShapePicture(shape), onChosen: () => commands.shapeTheLayout(shape) })),
     { kind: "separator" },
     ...presetEntries,
     ...(presetEntries.length > 0 ? [{ kind: "separator" } as const] : []),
