@@ -425,7 +425,7 @@ function NodeAndPortWords({ linkedWith, portClassName }: { linkedWith: { nodeTit
       ) : (
         <>
           <b className="min-w-0 truncate font-semibold">{linkedWith.nodeTitle}</b>
-          <span className={cn("min-w-[3ch] shrink-[3] truncate @max-[220px]/port-target:hidden", portClassName)}>{linkedWith.port}</span>
+          <span className={cn("min-w-[3ch] shrink-[3] truncate", portClassName)}>{linkedWith.port}</span>
         </>
       )}
     </>
