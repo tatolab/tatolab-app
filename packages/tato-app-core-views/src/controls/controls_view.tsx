@@ -25,9 +25,6 @@ function GraphInputsOfTheTab({ connection, streamTab }: { connection: TatoAppVie
           <GraphInputControl key={`${graphInput.node_id}:${graphInput.port_name}`} connection={connection} stream={streamTab.stream} graphInput={graphInput} />
         ))}
       </ul>
-      <p className="mt-auto rounded-lg bg-well p-2.5 text-2xs text-fg-3">
-        Moving a control streams its value to the running stream, leaving History quiet. Each Input goes back to its default when the stream plays again from Stop.
-      </p>
     </div>
   );
 }

@@ -72,12 +72,16 @@ test("the runtime's refusal of a write shows under the control in its own words,
   expect(control.controlHolder.querySelector<HTMLInputElement>('input[type="range"]')?.value).toBe("0.5");
 });
 
-test("a record typed as JSON is handed to the stream on Enter, and words that are not JSON are refused there, writing nothing", async () => {
+test("a record typed as a JSON object is handed to the stream on Enter, and words that are not JSON or not an object are refused there, writing nothing", async () => {
   const control = drawTheControl(CUE);
 
   expect(control.controlHolder.querySelector("input")?.value).toBe('{"scene":"intro"}');
   await control.typeAndPressEnter("{scene: finale}");
   expect(control.refusalWords()).toContain("“{scene: finale}” isn't JSON.");
+  expect(control.writesAskedFor).toEqual([]);
+
+  await control.typeAndPressEnter('"finale"');
+  expect(control.refusalWords()).toContain("“\"finale\"” isn't a JSON object.");
   expect(control.writesAskedFor).toEqual([]);
 
   await control.typeAndPressEnter('{"scene": "finale"}');

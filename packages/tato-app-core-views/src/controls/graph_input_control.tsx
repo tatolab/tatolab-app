@@ -5,7 +5,7 @@ import type { TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { useEffect, useId, useState } from "react";
 import { GraphInputLatestValueWriter } from "./graph_input_value_writer";
-import { jsonFromTheWordsTyped, numberFromTheWordsTyped, type GraphInputWordsTyped } from "./graph_input_words_typed";
+import { jsonFromTheWordsTyped, jsonObjectFromTheWordsTyped, numberFromTheWordsTyped, type GraphInputWordsTyped } from "./graph_input_words_typed";
 import { whyNoControlWritesTheInput, type GraphInputOfTheStream } from "./graph_inputs_of_the_stream";
 
 /** The value a control last wrote, drawn in place of what the graph read until that write is taken and the graph reads again. */
@@ -79,7 +79,7 @@ export function GraphInputControl({ connection, stream, graphInput }: { connecti
           <PropertyTextField
             fieldId={fieldId}
             words={shownValue === null ? "" : JSON.stringify(shownValue)}
-            onCommitted={(words) => writeTheWordsTyped(jsonFromTheWordsTyped(words))}
+            onCommitted={(words) => writeTheWordsTyped(graphInput.family === "records" ? jsonObjectFromTheWordsTyped(words) : jsonFromTheWordsTyped(words))}
           />
         );
       case "not_written":

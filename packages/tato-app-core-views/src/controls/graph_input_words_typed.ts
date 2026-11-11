@@ -18,6 +18,15 @@ export function jsonFromTheWordsTyped(words: string): GraphInputWordsTyped {
   return parsed.success ? { kind: "value", value: parsed.data } : { kind: "not_a_value", because: `“${words}” isn't JSON.` };
 }
 
+/** `words` read as a JSON object, the one value a Records Input takes. */
+export function jsonObjectFromTheWordsTyped(words: string): GraphInputWordsTyped {
+  const typed = jsonFromTheWordsTyped(words);
+  if (typed.kind === "value" && (typed.value === null || typeof typed.value !== "object" || Array.isArray(typed.value))) {
+    return { kind: "not_a_value", because: `“${words}” isn't a JSON object.` };
+  }
+  return typed;
+}
+
 /** `words` parsed as JSON, `undefined` where they don't parse. */
 function textParsedAsJson(words: string): unknown {
   try {
