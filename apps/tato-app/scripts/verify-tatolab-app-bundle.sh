@@ -5,7 +5,8 @@
 # and the runtime helper's Contents/MacOS and Contents/Frameworks, every symlink resolving inside the
 # bundle, the runtime helper Contents/Helpers/Tatolab Runtime.app and its Info.plist, no install.sh,
 # the Info.plist usage strings, the helper's runtime version at or below the app's and the streamlib
-# commit it was built from, the lend's CPython 3.10-3.14 bytecode, the first-party module wheels beside it, the
+# commit it was built from, the lend's CPython 3.10-3.14 bytecode, the first-party module wheels beside it, every
+# Mach-O inside the carried wheels and Python signed like the bundle's own, the
 # runtime's uv beside the helper's tatolabd and no Python of the app's own, the entitlements of the
 # helper's tatolabd, uv and tatolab-cli, the app and Electron's helpers, Electron's
 # fuses, and the build features the app was built with and the tatolab-app commit they name.
@@ -83,6 +84,9 @@ required_device_entitlements=(com.apple.security.device.camera com.apple.securit
 allowed_app_entitlements="com.apple.security.cs.allow-jit com.apple.security.device.audio-input com.apple.security.device.camera"
 allowed_renderer_helper_entitlements="com.apple.security.cs.allow-jit"
 allowed_utility_helper_entitlements="com.apple.security.cs.allow-jit"
+# The carried Python loads extension modules a person installs from PyPI, which are not signed by
+# Tatolab's team, and llvmlite and numba compile code into memory and run it.
+allowed_carried_python_entitlements="com.apple.security.cs.allow-jit com.apple.security.cs.allow-unsigned-executable-memory com.apple.security.cs.disable-library-validation"
 allowed_tatolabd_entitlements="com.apple.application-identifier com.apple.developer.team-identifier com.apple.security.device.audio-input com.apple.security.device.camera keychain-access-groups"
 # A process could otherwise run the app as plain Node and inherit its camera and microphone grants.
 required_electron_fuse_states=(
@@ -99,6 +103,64 @@ entitlement_keys_of() {
   codesign -d --entitlements - --xml "$1" 2>/dev/null | grep -o '<key>[^<]*</key>' | sed 's/<[^>]*>//g' | sort | tr '\n' ' ' | sed 's/ $//' || true
 }
 required_lend_bytecode_cache_tags=(cpython-310 cpython-311 cpython-312 cpython-313 cpython-314)
+
+# The notary opens a .whl and a .tar.gz and refuses any Mach-O in them not signed by a Developer
+# ID with a secure timestamp, and an executable without the hardened runtime, so each carried
+# archive is unpacked and every Mach-O in it held to the bundle's own signature rules.
+verify_the_carried_archives() {
+  local helper_resources="$1" carried_archives_scratch carried_wheel carried_python_archive
+  local carried_wheel_count=0 carried_python_archive_count=0 carried_mach_o_count=0 failing_carried_mach_o_count=0
+  local carried_file carried_file_in_the_archive carried_signature_description carried_foreign_signature_reason
+  carried_archives_scratch="$(mktemp -d)"
+  for carried_wheel in "$helper_resources/carried-wheels"/*.whl; do
+    [ -f "$carried_wheel" ] || continue
+    carried_wheel_count=$((carried_wheel_count + 1))
+    mkdir -p "$carried_archives_scratch/$(basename "$carried_wheel")"
+    unzip -q "$carried_wheel" -d "$carried_archives_scratch/$(basename "$carried_wheel")" \
+      || fail "Resources/carried-wheels/$(basename "$carried_wheel") does not unzip"
+  done
+  for carried_python_archive in "$helper_resources/python-downloads"/*/*.tar.gz; do
+    [ -f "$carried_python_archive" ] || continue
+    carried_python_archive_count=$((carried_python_archive_count + 1))
+    mkdir -p "$carried_archives_scratch/$(basename "$carried_python_archive")"
+    tar -xzf "$carried_python_archive" -C "$carried_archives_scratch/$(basename "$carried_python_archive")" \
+      || fail "Resources/python-downloads/$(basename "$carried_python_archive") does not unpack"
+    grep -qF "\"sha256\": \"$(shasum -a 256 "$carried_python_archive" | cut -d' ' -f1)\"" \
+      "$helper_resources/python-downloads/uv-python-downloads.json" 2>/dev/null \
+      && pass "Resources/python-downloads/uv-python-downloads.json names the sha256 of $(basename "$carried_python_archive")" \
+      || fail "Resources/python-downloads/uv-python-downloads.json does not name the sha256 of $(basename "$carried_python_archive"): uv would refuse it and go online"
+  done
+  [ "$carried_wheel_count" -gt 0 ] && pass "the helper's Resources/carried-wheels carries $carried_wheel_count wheel(s)" \
+    || fail "the helper's Resources/carried-wheels carries no wheel: a new project cannot sync offline"
+  [ "$carried_python_archive_count" -eq 1 ] && pass "the helper's Resources/python-downloads carries one CPython archive" \
+    || fail "the helper's Resources/python-downloads carries $carried_python_archive_count CPython archives, not one"
+  while IFS= read -r -d '' carried_file; do
+    is_mach_o "$carried_file" || continue
+    carried_mach_o_count=$((carried_mach_o_count + 1))
+    carried_file_in_the_archive="${carried_file#"$carried_archives_scratch/"}"
+    carried_signature_description="$(codesign -dvv "$carried_file" 2>&1 || true)"
+    carried_foreign_signature_reason="$(not_signed_by_the_tatolab_developer_id "$carried_signature_description")"
+    if [ -n "$carried_foreign_signature_reason" ]; then
+      fail "$carried_file_in_the_archive, carried in the helper's Resources, is not signed by Tatolab's Developer ID: $carried_foreign_signature_reason"
+      failing_carried_mach_o_count=$((failing_carried_mach_o_count + 1))
+    elif ! grep -q '^Timestamp=' <<<"$carried_signature_description"; then
+      fail "$carried_file_in_the_archive, carried in the helper's Resources, has no secure timestamp"
+      failing_carried_mach_o_count=$((failing_carried_mach_o_count + 1))
+    elif ! grep -q 'flags=.*runtime' <<<"$carried_signature_description"; then
+      fail "no hardened runtime signature on $carried_file_in_the_archive, carried in the helper's Resources"
+      failing_carried_mach_o_count=$((failing_carried_mach_o_count + 1))
+    fi
+    case "$carried_file_in_the_archive" in
+      *.tar.gz/python/bin/*)
+        [ "$(entitlement_keys_of "$carried_file")" = "$allowed_carried_python_entitlements" ] \
+          && pass "$carried_file_in_the_archive carries exactly: $allowed_carried_python_entitlements" \
+          || fail "$carried_file_in_the_archive's entitlements are '$(entitlement_keys_of "$carried_file")', not '$allowed_carried_python_entitlements'" ;;
+    esac
+  done < <(find "$carried_archives_scratch" -type f -print0)
+  rm -rf "$carried_archives_scratch"
+  [ "$carried_mach_o_count" -gt 0 ] && [ "$failing_carried_mach_o_count" -eq 0 ] \
+    && pass "all $carried_mach_o_count Mach-O inside the carried wheels and Python are signed by Tatolab's Developer ID with a timestamp and the hardened runtime"
+}
 
 verify_app_bundle() {
   local app_bundle contents canonical_app_bundle
@@ -232,6 +294,7 @@ verify_app_bundle() {
   [ -z "$missing_core_first_party_modules" ] \
     && pass "the helper's Resources/imports carries a wheel of each core first-party module beside the lend" \
     || fail "the helper's Resources/imports has no wheel of:$missing_core_first_party_modules, so a project's .venv would lack them"
+  verify_the_carried_archives "$helper_contents/Resources"
   [ ! -e "$contents/Resources/python" ] && [ ! -e "$contents/Frameworks/tatolab-python" ] && [ ! -e "$contents/MacOS/uv" ] \
     && pass "the bundle carries no Python or uv of the app's own" || fail "the bundle carries a Python or uv of the app's own (Resources/python, Frameworks/tatolab-python or MacOS/uv)"
   [ "$lend_mach_o_links" -gt 0 ] && pass "the helper's Resources/lend links $lend_mach_o_links Mach-O into its Frameworks/tatolab-runtime" \

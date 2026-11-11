@@ -45,7 +45,7 @@ import type {
   NewProjectDefaults,
   SystemMenuBarMenu,
 } from "../../shared/tatolab_backend_contract";
-import { TATOLAB_WINDOW_PAGE_SCHEME, type TatolabElectronBridge } from "../../shared/tatolab_electron_bridge_contract";
+import { TATOLAB_WINDOW_PAGE_SCHEME, type ModulesShown, type TatolabElectronBridge } from "../../shared/tatolab_electron_bridge_contract";
 
 declare global {
   interface Window {
@@ -133,10 +133,14 @@ export interface TatolabBackend {
   popOutView(target: PoppedOutView): Promise<void>;
   /** The view this window shows when it is a popped-out view; `null` in the Projects and studio windows. */
   readPoppedOutView(): Promise<PoppedOutView | null>;
-  /** Open this studio window's Module manager window, or bring it forward; rejects in words from any other window. */
-  openModuleManagerWindow(): Promise<void>;
+  /** Open this studio window's Module manager window on the section `shows`, or bring it forward showing `shows`; rejects in words from any other window. */
+  openModuleManagerWindow(shows: ModulesShown): Promise<void>;
   /** This window's workspace when it is a Module manager window, as last read from disk; `null` in any other window. Later readings arrive through `onOpenProjectChanged`. */
   readModuleManagerWorkspace(): Promise<OpenProjectReading | null>;
+  /** The section this window was last asked to show when it is a Module manager window; `null` in any other window. Later asks arrive through `onModuleManagerSectionAsked`. */
+  readModuleManagerSectionLastAsked(): Promise<ModulesShown | null>;
+  /** Calls `listener` with each section this Module manager window is asked to show once open; the returned function stops it. */
+  onModuleManagerSectionAsked(listener: (shows: ModulesShown) => void): () => void;
   /** The catalog get.tatolab.com serves, or why it was not read. */
   readPackageCatalog(): Promise<PackageCatalogReading>;
   /** The workspace's imports as the runtime lists them, each source read for a newer version with `checkForNewer`; rejects in the runtime's own words. */

@@ -4,7 +4,8 @@
 // texture and is released once every window has let go of it; a frame a shared texture cannot
 // carry goes as its pixels, and every other family's message goes read by its family.
 
-import type { PortViewerEvent, PortViewerImageFrameFacts, PortViewerTarget } from "../shared/tatolab_backend_contract.js";
+import type { ListedStream } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { PortViewerEvent, PortViewerImageFrameFacts, PortViewerTarget, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
 import type { OpenedRuntimeViewer, RuntimeViewerTarget } from "./local_api_mcp_stdio_connection.js";
 import { portViewerMessageReadingOf } from "./port_viewer_message_reading.js";
@@ -82,6 +83,14 @@ interface RuntimeViewerOpenFailure {
 /** The listed states of a stream whose nodes run once its project is started, resumed or done stopping, so `open_viewer`'s refusal on it is waited out. */
 const STREAM_STATES_A_PORT_VIEWER_WAITS_OUT: ReadonlySet<string> = new Set(["stopped", "paused", "preparing", "stopping"]);
 
+/** The listed states of a stream a load or a stop is working on: its nodes, and the channels a runtime viewer held open on them, are being replaced. */
+const STREAM_STATES_WHILE_ITS_NODES_ARE_REPLACED: ReadonlySet<string> = new Set(["preparing", "stopping"]);
+
+/** Whether the runtime lists `listedStream` with a stream action working on it, which replaces its nodes. */
+function aStreamActionReplacesTheNodesOf(listedStream: ListedStream): boolean {
+  return listedStream.action !== null || STREAM_STATES_WHILE_ITS_NODES_ARE_REPLACED.has(listedStream.state);
+}
+
 function portViewerTargetKey(target: PortViewerTarget): string {
   return JSON.stringify([target.stream, target.node_id, target.port]);
 }
@@ -92,6 +101,7 @@ export class RuntimePortViewers {
   private readonly runtimeViewersByTargetKey = new Map<string, RuntimeViewerHeldOpen>();
   private readonly targetKeysBeingOpened = new Set<string>();
   private readonly targetKeysAwaitingAReopen = new Set<string>();
+  private readonly streamsSeenWhileTheirNodesWereReplaced = new Set<string>();
   private viewerConnection: RuntimeViewerConnection | null = null;
   private portViewersOpened = 0;
 
@@ -121,6 +131,32 @@ export class RuntimePortViewers {
     this.subscriptionsByPortViewer.delete(portViewer);
     const targetKey = portViewerTargetKey(subscription.target);
     if (this.subscriptionsOf(targetKey).length === 0) this.closeTheRuntimeViewer(targetKey);
+  }
+
+  /** Open again each runtime viewer of a stream the runtime listed with a stream action working on it and now lists without one, and not stopped between a reload's stop and its start: a reload replaced the node it read, whose new channel the viewer held open does not carry. */
+  noticeStatus(status: Pick<TatolabStatus, "streams">): void {
+    for (const listedStream of status.streams ?? []) {
+      if (aStreamActionReplacesTheNodesOf(listedStream)) {
+        this.streamsSeenWhileTheirNodesWereReplaced.add(listedStream.stream);
+      } else if (listedStream.state !== "stopped" && this.streamsSeenWhileTheirNodesWereReplaced.delete(listedStream.stream)) {
+        this.reopenEveryRuntimeViewerOfTheStream(listedStream.stream);
+      }
+    }
+  }
+
+  private reopenEveryRuntimeViewerOfTheStream(stream: string): void {
+    for (const [targetKey, heldOpen] of [...this.runtimeViewersByTargetKey]) {
+      if (heldOpen.openedViewer.stream !== stream) continue;
+      this.closeTheRuntimeViewer(targetKey);
+      for (const [portViewer, subscription] of this.subscriptionsOf(targetKey)) {
+        subscription.windowShowingPortViewers.sendTheWindowAPortViewerEvent({
+          port_viewer: portViewer,
+          kind: "reopening",
+          because: `${heldOpen.openedViewer.node_name} › ${heldOpen.openedViewer.port} was replaced as its project loaded again.`,
+        });
+      }
+      this.reopenAfterAWait(targetKey);
+    }
   }
 
   /** Close every port viewer `windowShowingPortViewers` opened, as it closes. */

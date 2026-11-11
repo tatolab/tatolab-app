@@ -1,5 +1,5 @@
 // scripts/verify-tatolab-app-bundle.sh fails a bundle carrying any Mach-O that is signed ad-hoc or
-// by anything but Tatolab's Developer ID team. The planted ad-hoc Mach-O is the one Apple's linker
+// by anything but Tatolab's Developer ID team, one inside a carried wheel included. The planted ad-hoc Mach-O is the one Apple's linker
 // signs on arm64; the planted foreign one is a copy of an Apple-signed system binary. Both need
 // macOS's codesign, plutil and a C compiler, so these run only where they are.
 
@@ -13,7 +13,9 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 
 const TATO_APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const VERIFY_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "verify-tatolab-app-bundle.sh");
-const MACOS_SIGNING_TOOLS_ARE_AVAILABLE = ["/usr/bin/codesign", "/usr/bin/plutil", "/usr/bin/cc", "/usr/bin/true"].every((tool) => existsSync(tool));
+const MACOS_SIGNING_TOOLS_ARE_AVAILABLE = ["/usr/bin/codesign", "/usr/bin/plutil", "/usr/bin/cc", "/usr/bin/true", "/usr/bin/zip"].every((tool) =>
+  existsSync(tool),
+);
 
 interface ProcessOutcome {
   exitCode: number;
@@ -71,4 +73,27 @@ test.runIf(MACOS_SIGNING_TOOLS_ARE_AVAILABLE)("a bundle carrying a Mach-O signed
     /FAIL {2}Contents\/MacOS\/planted-mach-o is not signed by Tatolab's Developer ID: it is signed by '[^']*Software Signing', not a Developer ID Application identity/,
   );
   expect(verifyOutcome.output).not.toContain("ok    every Mach-O is signed by Tatolab's Developer ID");
+});
+
+test.runIf(MACOS_SIGNING_TOOLS_ARE_AVAILABLE)("a bundle whose carried wheel holds an ad-hoc-signed Mach-O fails, naming the member", async () => {
+  const appBundle = await appBundleWithAPlantedMachOFrom((plantedMachOPath) => copyFile("/usr/bin/true", plantedMachOPath));
+  const unpackedWheel = path.join(scratchDirectory, "numpy-wheel");
+  await mkdir(path.join(unpackedWheel, "numpy"), { recursive: true });
+  const plantedSource = path.join(scratchDirectory, "planted_extension.c");
+  await writeFile(plantedSource, "int planted_extension(void) { return 0; }\n");
+  const compileOutcome = await runProcess("/usr/bin/cc", ["-shared", "-o", path.join(unpackedWheel, "numpy", "_planted.cpython-312-darwin.so"), plantedSource]);
+  expect(compileOutcome.exitCode).toBe(0);
+  const carriedWheelsDirectory = path.join(appBundle, "Contents", "Helpers", "Tatolab Runtime.app", "Contents", "Resources", "carried-wheels");
+  await mkdir(carriedWheelsDirectory, { recursive: true });
+  const zipOutcome = await runProcess("/bin/sh", [
+    "-c",
+    `cd "${unpackedWheel}" && /usr/bin/zip -qr "${path.join(carriedWheelsDirectory, "numpy-2.5.4-cp312-cp312-macosx_14_0_arm64.whl")}" numpy`,
+  ]);
+  expect(zipOutcome.exitCode).toBe(0);
+  const verifyOutcome = await runProcess("bash", [VERIFY_SCRIPT, appBundle]);
+  expect(verifyOutcome.exitCode).not.toBe(0);
+  expect(verifyOutcome.output).toContain(
+    "FAIL  numpy-2.5.4-cp312-cp312-macosx_14_0_arm64.whl/numpy/_planted.cpython-312-darwin.so, carried in the helper's Resources, is not signed by Tatolab's Developer ID: it is signed ad-hoc",
+  );
+  expect(verifyOutcome.output).not.toContain("Mach-O inside the carried wheels and Python are signed");
 });

@@ -2,6 +2,7 @@
 // succeeded from a clean checkout: a build that fails leaves no streamlib-commit vouching for a
 // unit it half rebuilt, nothing a previous build laid out outlives the next one, and a checkout with
 // uncommitted changes is refused before anything builds.
+// The Developer ID the build names reaches xtask, which signs the code inside the carried archives.
 // A stand-in `cargo` first on PATH plays streamlib's `cargo xtask build-runtime`.
 
 import { execFile } from "node:child_process";
@@ -24,12 +25,14 @@ const GIT_IDENTITY_ENVIRONMENT = {
 // Like xtask, it stages the browser host only when CEF_PATH names a CEF distribution.
 const STAND_IN_CARGO_SCRIPT = `#!/bin/sh
 touch "$STAND_IN_CARGO_RAN_SENTINEL"
+printf '%s\n' "$@" > "$STAND_IN_CARGO_RAN_SENTINEL"
 unit="$CARGO_TARGET_DIR/tatolab-runtime"
 mkdir -p "$unit/bin" "$unit/lib/tatolab/lend/tatolab/runtime"
 echo replaced > "$unit/lib/tatolab/lend/tatolab/runtime/__init__.py"
 [ "$STAND_IN_CARGO_FAILS" = 1 ] && exit 1
 for binary in tatolabd tatolab uv; do echo built > "$unit/bin/$binary"; done
-mkdir -p "$unit/lib/tatolab/imports"
+mkdir -p "$unit/lib/tatolab/imports" "$unit/lib/tatolab/carried-wheels" "$unit/lib/tatolab/python-downloads"
+echo '{}' > "$unit/lib/tatolab/python-downloads/uv-python-downloads.json"
 [ -n "$CEF_PATH" ] && mkdir -p "$unit/lib/tatolab/browser-host"
 exit 0
 `;
@@ -67,9 +70,11 @@ async function runGitInTheCheckout(gitArguments: string[]): Promise<string> {
   return gitOutcome.stdout.trim();
 }
 
-function buildTheRuntimeUnit(extraEnvironment: Record<string, string> = {}): Promise<ProgramOutcome> {
-  return runProgram("bash", [BUILD_RUNTIME_UNIT_SCRIPT, plantedStreamlibCheckout], TATO_APP_ROOT, extraEnvironment);
+function buildTheRuntimeUnit(extraEnvironment: Record<string, string> = {}, buildFlags: string[] = []): Promise<ProgramOutcome> {
+  return runProgram("bash", [BUILD_RUNTIME_UNIT_SCRIPT, plantedStreamlibCheckout, ...buildFlags], TATO_APP_ROOT, extraEnvironment);
 }
+
+const A_DEVELOPER_ID_APPLICATION_IDENTITY = "Developer ID Application: Tatolab stand-in (TEAMID1234)";
 
 function unitStreamlibCommitFile(): string {
   return path.join(plantedStreamlibCheckout, "target", "tatolab-runtime", "streamlib-commit");
@@ -139,4 +144,24 @@ test("the unit is built without the browser host even when CEF_PATH is set", asy
   expect(buildOutcome).toMatchObject({ exitCode: 0 });
   await expect(stat(path.join(plantedStreamlibCheckout, "target", "tatolab-runtime", "lib", "tatolab", "imports"))).resolves.toBeTruthy();
   await expect(stat(path.join(plantedStreamlibCheckout, "target", "tatolab-runtime", "lib", "tatolab", "browser-host"))).rejects.toThrow();
+});
+
+test("the Developer ID the build names reaches xtask, which signs the code inside the carried archives", async () => {
+  const buildOutcome = await buildTheRuntimeUnit({}, ["--developer-id-application-identity", A_DEVELOPER_ID_APPLICATION_IDENTITY]);
+  expect(buildOutcome.exitCode).toBe(0);
+  expect((await readFile(standInCargoRanSentinel, "utf8")).split("\n")).toEqual([
+    "xtask",
+    "build-runtime",
+    "--release",
+    "--macos-developer-id-application-identity",
+    A_DEVELOPER_ID_APPLICATION_IDENTITY,
+    "",
+  ]);
+});
+
+test("an identity that is not a Developer ID Application one is refused before anything builds", async () => {
+  const buildOutcome = await buildTheRuntimeUnit({}, ["--developer-id-application-identity", "Apple Development: someone (TEAMID1234)"]);
+  expect(buildOutcome.exitCode).toBe(1);
+  expect(buildOutcome.stderr).toContain("is not a 'Developer ID Application: …' identity");
+  expect(await standInCargoRan()).toBe(false);
 });

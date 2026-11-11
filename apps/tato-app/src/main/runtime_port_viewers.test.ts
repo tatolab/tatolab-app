@@ -1,3 +1,4 @@
+import type { ListedStream } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { expect, test } from "vitest";
 import type { PortViewerEvent, PortViewerImageFrameFacts } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
@@ -29,6 +30,20 @@ const DMA_BUF_FRAME: RuntimeViewerImageFrame = {
   cpuReadBytes: null,
   ioSurface: null,
 };
+
+function listedStudioStream(state: string, action: string | null): ListedStream {
+  return {
+    stream: CAMERA_VIDEO.stream,
+    display_name: "studio",
+    location: null,
+    state,
+    node_count: state === "running" ? 2 : null,
+    failed_because: null,
+    capture_devices_whose_access_was_never_asked_for: [],
+    action,
+    step: null,
+  };
+}
 
 const NO_FAMILY_READING = { startsGroup: true, channelsBlock: null, packetsCodec: null, arrayAttributes: null, recordsJson: null, unreadableBecause: null };
 
@@ -406,6 +421,55 @@ test("a_dropped_connection_tells_the_windows_and_reopens_their_port_on_a_new_one
   expect(connections).toHaveLength(2);
   expect(connections[1]?.openedTargets).toEqual([{ ...CAMERA_VIDEO, viewer_process_id: 4242 }]);
   expect(channelReaders).toHaveLength(2);
+});
+
+test("a_reload_of_the_stream_reopens_its_port_once_the_runtime_lists_it_without_the_stream_action", async () => {
+  const { runtimePortViewers, connections, channelReaders, waits } = harness();
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
+
+  runtimePortViewers.noticeStatus({ streams: [listedStudioStream("preparing", "action-reload")] });
+  expect(waits).toHaveLength(0);
+  runtimePortViewers.noticeStatus({ streams: [listedStudioStream("running", null)] });
+
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([
+    { port_viewer: "port-viewer-1", kind: "reopening", because: "camera › video was replaced as its project loaded again." },
+  ]);
+  expect(channelReaders[0]?.closed).toBe(true);
+  expect(connections[0]?.closedViewers).toEqual(["studio/camera-id/video"]);
+  waits[0]?.then();
+  await new Promise((settle) => setImmediate(settle));
+
+  expect(connections[0]?.openedTargets).toHaveLength(2);
+  expect(channelReaders).toHaveLength(2);
+});
+
+test("a_reload_listed_stopped_between_its_stop_and_its_start_reopens_the_port_once", async () => {
+  const { runtimePortViewers, waits } = harness();
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
+
+  runtimePortViewers.noticeStatus({ streams: [listedStudioStream("stopping", "action-reload")] });
+  runtimePortViewers.noticeStatus({ streams: [listedStudioStream("stopped", null)] });
+  runtimePortViewers.noticeStatus({ streams: [listedStudioStream("preparing", "action-reload")] });
+  runtimePortViewers.noticeStatus({ streams: [listedStudioStream("running", null)] });
+
+  expect(windowShowingPortViewers.portViewerEvents.map((event) => event.kind)).toEqual(["reopening"]);
+  expect(waits).toHaveLength(1);
+});
+
+test("a_stream_listed_running_throughout_keeps_its_runtime_viewer", async () => {
+  const { runtimePortViewers, channelReaders, waits } = harness();
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
+
+  runtimePortViewers.noticeStatus({ streams: [listedStudioStream("running", null)] });
+  runtimePortViewers.noticeStatus({ streams: null });
+  runtimePortViewers.noticeStatus({ streams: [listedStudioStream("running", null)] });
+
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([]);
+  expect(channelReaders[0]?.closed).toBe(false);
+  expect(waits).toHaveLength(0);
 });
 
 test("a_failed_read_ends_every_port_viewer_of_that_port", async () => {

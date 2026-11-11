@@ -38,6 +38,9 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
       openProjectListeners.add(listener);
       return () => openProjectListeners.delete(listener);
     },
+    onModuleManagerSectionAsked() {
+      return () => undefined;
+    },
     onProjectTransactionsChanged() {
       return () => undefined;
     },

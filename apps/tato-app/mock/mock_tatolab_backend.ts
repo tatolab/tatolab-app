@@ -39,6 +39,7 @@ import { mockProjectNodeTypeListing } from "./mock_project_node_types";
 import { mockImportTheFilesChosen, mockProjectAssetListing, type MockAssetImportScenario } from "./mock_project_assets";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
+import { isModulesShown, type ModulesShown } from "../src/shared/tatolab_electron_bridge_contract";
 import type { JsonValue, ProjectAsset, ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
 import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
@@ -214,8 +215,10 @@ export interface MockTatolabOptions {
   assetImportScenario: MockAssetImportScenario;
   /** `?popped_out_view=<popped-out view as JSON>`: the page is a view popped out of the studio, as Pop out into a window opens it in a new tab; the studio by default. */
   poppedOutView: PoppedOutView | null;
-  /** `?module_manager=open|edited_files|newer`: the page is the open project's Module manager window, as File › Module manager… opens it in a new tab, its import as copied, edited since, or with a newer version on its source; `null` for any other page. */
+  /** `?module_manager=open|edited_files|newer`: the page is the open project's Modules and Marketplace window, as File › Marketplace… or Modules… opens it in a new tab, its import as copied, edited since, or with a newer version on its source; `null` for any other page. */
   moduleManagerWorkspaceDependencies: MockWorkspaceDependenciesScenario | null;
+  /** `?module_manager_section=added_to_this_project|marketplace`: the section a Modules and Marketplace window's page opens on, Marketplace when the query names none. */
+  moduleManagerSectionOpenedOn: ModulesShown;
   /** `?catalog=unserved`: get.tatolab.com serves no catalog yet; the mock catalog by default. */
   isTheCatalogUnserved: boolean;
   /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node; its import brings one that does not open. */
@@ -230,6 +233,14 @@ export interface MockTatolabOptions {
 
 /** The query parameter a Module manager window's page is told by. */
 const MODULE_MANAGER_QUERY_PARAMETER = "module_manager";
+
+/** The query parameter naming the section a Module manager window's page opens on. */
+const MODULE_MANAGER_SECTION_QUERY_PARAMETER = "module_manager_section";
+
+/** The Modules and Marketplace section `sectionName` names; Marketplace for none or an unknown one. */
+function moduleManagerSectionNamed(sectionName: string | null): ModulesShown {
+  return isModulesShown(sectionName) ? sectionName : "marketplace";
+}
 
 /** The mock page's address with every query parameter kept and `parameterName` set to `parameterValue`, so a new tab opens on the same scenario. */
 function mockPageUrlWith(pageUrl: string, parameterName: string, parameterValue: string): string {
@@ -347,6 +358,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     assetImportScenario: pageQuery.get("asset_import") === "refuses_one" ? "refuses_one" : "imports_one",
     poppedOutView: mockPoppedOutViewFrom(pageQuery.get(POPPED_OUT_VIEW_QUERY_PARAMETER)),
     moduleManagerWorkspaceDependencies: mockWorkspaceDependenciesScenarioNamed(pageQuery.get(MODULE_MANAGER_QUERY_PARAMETER)),
+    moduleManagerSectionOpenedOn: moduleManagerSectionNamed(pageQuery.get(MODULE_MANAGER_SECTION_QUERY_PARAMETER)),
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
     isTheCompositorInMain: pageQuery.get("compositor") === "layered",
@@ -1357,10 +1369,12 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       window.open(mockPoppedOutViewPageUrl(window.location.href, target), "_blank");
     },
     readPoppedOutView: async () => structuredClone(mockTatolabOptions.poppedOutView),
-    openModuleManagerWindow: async () => {
-      window.open(mockPageUrlWith(window.location.href, MODULE_MANAGER_QUERY_PARAMETER, "open"), "_blank");
+    openModuleManagerWindow: async (shows) => {
+      window.open(mockPageUrlWith(mockPageUrlWith(window.location.href, MODULE_MANAGER_QUERY_PARAMETER, "open"), MODULE_MANAGER_SECTION_QUERY_PARAMETER, shows), "_blank");
     },
     readModuleManagerWorkspace: async () => (mockTatolabOptions.moduleManagerWorkspaceDependencies !== null ? structuredClone(openProjectReading) : null),
+    readModuleManagerSectionLastAsked: async () => (mockTatolabOptions.moduleManagerWorkspaceDependencies !== null ? mockTatolabOptions.moduleManagerSectionOpenedOn : null),
+    onModuleManagerSectionAsked: () => () => undefined,
     readPackageCatalog: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       return mockPackageCatalogReading(mockTatolabOptions.isTheCatalogUnserved);
@@ -1386,6 +1400,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (!workspaceDependencies.holdsTheFolder(folder)) throw `The project imports nothing in imports/${folder}.`;
       const studioPageUrl = new URL(window.location.href);
       studioPageUrl.searchParams.delete(MODULE_MANAGER_QUERY_PARAMETER);
+      studioPageUrl.searchParams.delete(MODULE_MANAGER_SECTION_QUERY_PARAMETER);
       window.open(studioPageUrl.toString(), "_blank");
     },
     pathOfADroppedFile: (droppedFile) => `${fixtures.machine.homeDirectory}/streams/${droppedFile.name}`,

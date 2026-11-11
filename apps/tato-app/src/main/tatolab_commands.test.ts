@@ -46,6 +46,8 @@ import {
   removeProject,
   streamArgumentsFrom,
   linkCommandLineTool,
+  runTheSavedPythonFileOfAPlayingOrFailedProject,
+  whatASavedNodeFileAsksOfTheRuntime,
   startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded,
   tatolabWindowCommandHandlers,
 } from "./tatolab_commands.js";
@@ -540,6 +542,53 @@ test("reloading a project the runtime lists running queues reload_project, one i
     ok: false,
     refusal: "reload_project needs `project_directory`, a project's folder as the runtime lists it",
   });
+});
+
+test("a saved Python file of a project the runtime lists running queues reload_project, as tatolab dev does; another file, or a stopped project, is left as it is", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "text/plain", "ok"),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
+      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-reload-project-answer-for-the-folder-hallways.json")),
+    ],
+    "linux"
+  );
+  const reloads = vi.spyOn(sharedState.controller, "reloadProject");
+  const starts = vi.spyOn(sharedState.controller, "startProject");
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  await sharedState.statusPublisher.refreshAndPublish();
+  const doorways = "/home/jonathan-fontanez/scratch/app176/projects/doorways";
+  const pattern = "/home/jonathan-fontanez/scratch/app176/projects/pattern";
+
+  await runTheSavedPythonFileOfAPlayingOrFailedProject(sharedState, doorways, path.join(doorways, "tatolab_view.json"));
+  await runTheSavedPythonFileOfAPlayingOrFailedProject(sharedState, pattern, path.join(pattern, "nodes", "invert.py"));
+  expect(reloads).not.toHaveBeenCalled();
+
+  await runTheSavedPythonFileOfAPlayingOrFailedProject(sharedState, doorways, path.join(doorways, "nodes", "invert.py"));
+  expect(reloads.mock.calls).toEqual([[doorways]]);
+  expect(starts).not.toHaveBeenCalled();
+  expect(refreshRequests).toHaveBeenCalledTimes(1);
+});
+
+test("a saved node file reloads a project with a stream running, starts again one whose streams failed, and leaves a stopped one alone", () => {
+  const hallways = "/projects/hallways";
+  const listedStreamOfHallways = (state: string): ListedStream => ({
+    stream: `hallways-${state}`,
+    display_name: state,
+    location: { project_directory: hallways, project: "4be1ae19-0c7f-4cff-a959-d596c611e05b", stream_asset: `asset-${state}` },
+    state,
+    node_count: null,
+    failed_because: state === "failed" ? "process() raised SyntaxError" : null,
+    capture_devices_whose_access_was_never_asked_for: [],
+    action: null,
+    step: null,
+  });
+
+  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfHallways("running"), listedStreamOfHallways("failed")], hallways)).toBe("reload");
+  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfHallways("failed"), listedStreamOfHallways("stopped")], hallways)).toBe("start");
+  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfHallways("stopped")], hallways)).toBe("nothing");
+  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfHallways("failed")], "/projects/doorways")).toBe("nothing");
 });
 
 test("opening a project starts it only when the runtime, asked then, lists none of its streams or each stopped, observing again after; its refusal in its own words", async () => {
