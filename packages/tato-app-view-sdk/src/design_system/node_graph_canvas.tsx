@@ -320,10 +320,17 @@ const NodeGraphFrameColourPickingContext = createContext<(frameId: string) => vo
 /** Which of a frame's words is typed on its tab: its title or its description. */
 type NodeGraphFrameWordsField = "title" | "description";
 
+/** A frame's title or description being edited, with what was typed for it before its field opened. */
+interface NodeGraphFrameWordsBeingEdited {
+  frame_id: string;
+  field: NodeGraphFrameWordsField;
+  typed_ahead?: string;
+}
+
 /** The frame whose title or description is being edited, and how a frame starts or stops having one edited; `null` outside a canvas. */
 const NodeGraphFrameWordsEditingContext = createContext<{
-  frameWordsBeingEdited: { frame_id: string; field: NodeGraphFrameWordsField } | null;
-  editTheFrameWords: (edited: { frame_id: string; field: NodeGraphFrameWordsField } | null) => void;
+  frameWordsBeingEdited: NodeGraphFrameWordsBeingEdited | null;
+  editTheFrameWords: (edited: NodeGraphFrameWordsBeingEdited | null) => void;
 } | null>(null);
 
 /** Every pin a link joins, by `linkedPinKey`, which a card draws filled. */
@@ -566,6 +573,7 @@ function NodeGraphFrameWordsField({
   className,
   style,
   words,
+  typedAhead = null,
   onKept,
   ...controlDataAttributes
 }: {
@@ -573,6 +581,8 @@ function NodeGraphFrameWordsField({
   className: string;
   style: CSSProperties | undefined;
   words: string;
+  /** What was typed before the field opened, which it opens holding with the caret after it. */
+  typedAhead?: string | null;
   onKept: (words: string) => void;
 } & ControlDataAttributes) {
   return (
@@ -581,8 +591,11 @@ function NodeGraphFrameWordsField({
       className={cn("nodrag outline-none", className)}
       style={style}
       autoFocus
-      defaultValue={words}
-      onFocus={(focusEvent) => focusEvent.target.select()}
+      defaultValue={typedAhead ?? words}
+      onFocus={(focusEvent) => {
+        if (typedAhead === null) focusEvent.target.select();
+        else focusEvent.target.setSelectionRange(typedAhead.length, typedAhead.length);
+      }}
       onBlur={(blurEvent) => onKept(blurEvent.target.value)}
       onKeyDown={(keyboardEvent) => {
         if (keyboardEvent.key === "Escape") keyboardEvent.currentTarget.value = words;
@@ -688,6 +701,7 @@ function NodeGraphFrameView({ data }: NodeProps<NodeGraphFrameFlowNode>) {
           className="node-graph-frame-title text-xs font-semibold text-fg"
           style={titleTabStyle}
           words={graphFrame.title}
+          typedAhead={frameWordsEditing?.frameWordsBeingEdited?.typed_ahead ?? null}
           onKept={keepTheTitle}
           data-node-graph-frame-title-field={graphFrame.frame_id}
         />
@@ -1304,12 +1318,14 @@ function NodeGraphFlow({
     [editing, pinFamilyOf, canvasPointOf],
   );
 
-  const [frameWordsBeingEdited, setFrameWordsBeingEdited] = useState<{ frame_id: string; field: NodeGraphFrameWordsField } | null>(null);
+  const [frameWordsBeingEdited, setFrameWordsBeingEdited] = useState<NodeGraphFrameWordsBeingEdited | null>(null);
   const frameIdsWhenAFrameWasAskedFor = useRef<ReadonlySet<string> | null>(null);
+  const titleTypedWhileTheFrameIsMade = useRef("");
   const frameTheSelection = useCallback(() => {
     if (editing === null) return;
     const frameIdsBefore = new Set(frames.map((frame) => frame.frame_id));
     frameIdsWhenAFrameWasAskedFor.current = frameIdsBefore;
+    titleTypedWhileTheFrameIsMade.current = "";
     void editing.onFrameAskedFor([...selectedIds]).then((answer) => {
       if (answer === "refused" && frameIdsWhenAFrameWasAskedFor.current === frameIdsBefore) frameIdsWhenAFrameWasAskedFor.current = null;
     });
@@ -1320,7 +1336,9 @@ function NodeGraphFlow({
     const newFrame = frames.find((frame) => !frameIdsBefore.has(frame.frame_id));
     if (newFrame === undefined) return;
     frameIdsWhenAFrameWasAskedFor.current = null;
-    setFrameWordsBeingEdited({ frame_id: newFrame.frame_id, field: "title" });
+    const typedAhead = titleTypedWhileTheFrameIsMade.current;
+    titleTypedWhileTheFrameIsMade.current = "";
+    setFrameWordsBeingEdited({ frame_id: newFrame.frame_id, field: "title", ...(typedAhead === "" ? {} : { typed_ahead: typedAhead }) });
   }, [frames]);
   const frameWordsEditing = useMemo(() => ({ frameWordsBeingEdited, editTheFrameWords: setFrameWordsBeingEdited }), [frameWordsBeingEdited]);
   const [frameIdWhoseColourIsPicked, setFrameIdWhoseColourIsPicked] = useState<string | null>(null);
@@ -1359,7 +1377,11 @@ function NodeGraphFlow({
       if (editing === null) return;
       if (tool === "add_node") editing.onNodeAskedFor(clearPlaceBroughtIntoView());
       else if (tool === "add_note") editing.onNoteAskedFor(clearPlaceBroughtIntoView());
-      else if (tool === "frame_selection" && selectedIds.size > 0) frameTheSelection();
+      else if (tool === "frame_selection" && selectedIds.size > 0) {
+        // The frame's title field opens only once the runtime answers; the canvas holds focus meanwhile so what is typed reaches it.
+        canvasElement.current?.focus({ preventScroll: true });
+        frameTheSelection();
+      }
       else if (tool === "add_subgraph") collapseTheSelectionIntoASubgraph();
     };
     return () => {
@@ -1370,6 +1392,11 @@ function NodeGraphFlow({
   const followTheKeys = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (editing === null || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) return;
+      if (frameIdsWhenAFrameWasAskedFor.current !== null && !event.metaKey && !event.ctrlKey && !event.altKey && (event.key.length === 1 || event.key === "Backspace")) {
+        event.preventDefault();
+        titleTypedWhileTheFrameIsMade.current = event.key === "Backspace" ? titleTypedWhileTheFrameIsMade.current.slice(0, -1) : titleTypedWhileTheFrameIsMade.current + event.key;
+        return;
+      }
       const isOnAControl = event.target instanceof Element && event.target.closest("button, a, select, [role=menuitem]") !== null;
       if (event.key === "Tab" && !isOnAControl && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault();

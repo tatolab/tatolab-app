@@ -142,6 +142,33 @@ describe("the node graph canvas while it takes edits", () => {
     expect(onFrameChanged).toHaveBeenCalledWith(FRAME_ID, { colour: "#4aa8a8" });
   });
 
+  it("keeps what is typed while a new frame is made and opens its title field holding it", async () => {
+    const { editing } = editingRecorded();
+    const onFrameAskedFor = vi.fn(async () => "applied" as const);
+    const editingAFrame: NodeGraphCanvasEditing = { ...editing, onFrameAskedFor };
+    const NEW_FRAME_ID = "5f0c2d9e-7b8a-4c61-9e3d-2a1b0c9d8e7f";
+    const canvasWith = (frames: { frame_id: string; title: string; description: null; colour: null }[]) => (
+      <NodeGraphCanvas
+        label="Stream graph"
+        nodes={[{ ...card("pattern", false), frame_id: frames.length === 0 ? null : NEW_FRAME_ID }]}
+        links={[]}
+        frames={frames}
+        selectedNodeId="pattern"
+        onNodeSelected={vi.fn()}
+        editing={editingAFrame}
+      />
+    );
+    const { container, rerender } = render(canvasWith([]));
+    const canvas = await vi.waitFor(() => container.querySelector<HTMLElement>("[data-node-graph-editable]") ?? expect.unreachable("no editable canvas"));
+    fireEvent.keyDown(canvas, { key: "f" });
+    expect(onFrameAskedFor).toHaveBeenCalledWith(["pattern"]);
+    for (const key of ["L", "o", "o", "x", "Backspace", "k"]) fireEvent.keyDown(canvas, { key });
+
+    rerender(canvasWith([{ frame_id: NEW_FRAME_ID, title: "Frame", description: null, colour: null }]));
+    const titleField = await vi.waitFor(() => container.querySelector<HTMLInputElement>(`[data-node-graph-frame-title-field="${NEW_FRAME_ID}"]`) ?? expect.unreachable("no title field"));
+    expect(titleField.value).toBe("Look");
+  });
+
   it("offers no right-click menu on a read-only canvas's frame", async () => {
     const { container } = drawnCanvas(null);
     const titleTab = await vi.waitFor(() => container.querySelector<HTMLElement>(`[data-node-graph-frame-title="${FRAME_ID}"]`) ?? expect.unreachable("no frame title"));
