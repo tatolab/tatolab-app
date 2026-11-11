@@ -50,7 +50,7 @@ export function ColourPickerDialog({
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       title={title}
-      description="Drag to pick a color, or type its hex value."
+      description="Type a hex value, or drag to pick a color."
       footer={
         <FormDialogFooter>
           <span className="flex-1" />
@@ -64,8 +64,7 @@ export function ColourPickerDialog({
       }
       {...controlDataAttributes}
     >
-      <div className="colour-picker flex flex-col gap-4">
-        <HexColorPicker color={pickedColour} onChange={pickTheColour} style={{ width: "100%", height: 160 }} />
+      <div className="colour-picker flex flex-col gap-3">
         <div className="flex items-center gap-3">
           <span className="colour-picker-picked-swatch" style={{ backgroundColor: pickedColour }} aria-hidden />
           <label htmlFor={hexFieldId} className="text-fg-2">
@@ -83,24 +82,25 @@ export function ColourPickerDialog({
             }}
             data-colour-picker-hex=""
           />
+          {recentColours.length > 0 && (
+            <span className="ml-auto flex shrink-0 items-center gap-1.5" aria-label="Recent colors" role="group">
+              <span className="text-xs text-fg-3">Recent</span>
+              {recentColours.map((colour) => (
+                <button
+                  key={colour}
+                  type="button"
+                  className="colour-picker-recent-swatch"
+                  style={{ backgroundColor: colour }}
+                  aria-label={colour.toUpperCase()}
+                  title={colour.toUpperCase()}
+                  onClick={() => pickTheColour(colour)}
+                  data-colour-picker-recent={colour}
+                />
+              ))}
+            </span>
+          )}
         </div>
-        {recentColours.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-fg-2">Recent</span>
-            {recentColours.map((colour) => (
-              <button
-                key={colour}
-                type="button"
-                className="colour-picker-recent-swatch"
-                style={{ backgroundColor: colour }}
-                aria-label={colour.toUpperCase()}
-                title={colour.toUpperCase()}
-                onClick={() => pickTheColour(colour)}
-                data-colour-picker-recent={colour}
-              />
-            ))}
-          </div>
-        )}
+        <HexColorPicker color={pickedColour} onChange={pickTheColour} style={{ width: "100%", height: "clamp(96px, calc(100vh - 17rem), 160px)" }} />
       </div>
     </FormDialog>
   );
