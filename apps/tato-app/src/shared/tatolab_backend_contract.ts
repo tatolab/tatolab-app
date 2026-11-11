@@ -168,7 +168,9 @@ export interface TatolabStatus {
   /** `null` when the streams were not listed: the runtime is down or listing them failed. */
   streams: ListedStream[] | null;
   /** Each project's `.venv` sync under way, for each action a listed stream names on its `making_the_venv` step whose sync uv has started; empty otherwise. */
-  project_venv_syncs_under_way: ProjectVenvSyncUnderWay[];
+  project_venv_syncs_under_way: ProjectVenvSyncOfAStreamAction[];
+  /** Each project's `.venv` sync that ended since the last status: its action's last sync, read once as its streams left the `making_the_venv` step; empty otherwise. */
+  project_venv_syncs_just_ended: ProjectVenvSyncOfAStreamAction[];
   /** Why listing the streams failed while the runtime answers, in the failure's own words; `null` when they were listed or the runtime is down. */
   streams_not_listed_because: string | null;
   command_line_tool_link: CommandLineToolLink;
@@ -285,8 +287,8 @@ export interface StreamActionVenvSync {
   packages: StreamActionVenvSyncPackage[];
 }
 
-/** A project's sync under way, read from the stream action making its `.venv`. */
-export interface ProjectVenvSyncUnderWay {
+/** A project's sync, read from the stream action making its `.venv`. */
+export interface ProjectVenvSyncOfAStreamAction {
   action: string;
   project_directory: string;
   venv_sync: StreamActionVenvSync;

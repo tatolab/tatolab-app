@@ -88,7 +88,7 @@ test("a healthy runtime's status names its streams and machine, read as the wind
   expect(JSON.stringify(await controller.composeStatus(0))).toBe(
     '{"app_version":"0.45.0","app_build":null,"platform":"macos","runtime_state":"running","runtime_not_running_because":null,' +
       '"machine_name":"jonathanf-macbook","streams":[{"stream":"p-main-0a1b2c","display_name":"main","location":{"project_directory":"/p","project":"0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55","stream_asset":"7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68"},' +
-      '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"project_venv_syncs_under_way":[],"streams_not_listed_because":null,' +
+      '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"project_venv_syncs_under_way":[],"project_venv_syncs_just_ended":[],"streams_not_listed_because":null,' +
       '"command_line_tool_link":{"kind":"not_linked","path":"/Users/someone/.local/bin/tatolab"},' +
       '"app_update":{"kind":"not_checked"},"app_update_announcement":null,' +
       `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
@@ -121,6 +121,38 @@ test("a project's stream on its making_the_venv step brings its action's venv sy
   const describeRequests = localApiServer.receivedRequests().filter((request) => request.includes("Mcp-Name: describe_stream_action"));
   expect(describeRequests).toHaveLength(1);
   expect(describeRequests[0]).toContain('"action":"Rvxjb0uiacgp6c3o13o9qvzj1-1"');
+});
+
+test("a sync whose streams left the making_the_venv step since the last round is described once more and brought into the status as just ended, then dropped", async () => {
+  const listedOnMakingTheVenv = async () =>
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-new-project-preparing-on-its-making-the-venv-step.json"));
+  const { controller, localApiServer } = await controllerOverFakes([
+    healthyAnswer(),
+    await listedOnMakingTheVenv(),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-new-project-downloading-numpy-and-pillow.json")),
+    theMachine(),
+    healthyAnswer(),
+    noStreams(),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-new-project-done-numpy-and-pillow-installed.json")),
+    healthyAnswer(),
+    noStreams(),
+  ]);
+
+  const syncing = await controller.composeStatus(0);
+  const ended = await controller.composeStatus(1);
+  const afterwards = await controller.composeStatus(2);
+
+  expect(syncing.project_venv_syncs_just_ended).toEqual([]);
+  expect(ended.project_venv_syncs_under_way).toEqual([]);
+  expect(ended.project_venv_syncs_just_ended).toEqual([
+    {
+      action: "Rvxjb0uiacgp6c3o13o9qvzj1-1",
+      project_directory: "/private/tmp/tatolab-proof-projects/numpy-pillow",
+      venv_sync: expect.objectContaining({ phase: "installed", packages_installed: 8 }),
+    },
+  ]);
+  expect(afterwards.project_venv_syncs_just_ended).toEqual([]);
+  expect(localApiServer.receivedRequests().filter((request) => request.includes("Mcp-Name: describe_stream_action"))).toHaveLength(2);
 });
 
 test("a project's sync whose action cannot be described is left out, its stream still listed on its step, and the runtime's words logged once", async () => {
