@@ -321,6 +321,14 @@ export class TatolabViewBridge {
         if (importing.kind === "imported") return { kind: "project_assets_imported", assets_imported: importing.assets_imported };
         return importing.kind === "nothing_chosen" ? { kind: "nothing_chosen" } : { kind: "refused", because: importing.because };
       }
+      case "relocate_asset_in_the_project": {
+        const changing = await this.hostServices.relocateAssetInTheProject(ask.project_folder, ask.asset, ask.to_path);
+        return changing.kind === "changed" ? { kind: "done" } : { kind: "refused", because: changing.because };
+      }
+      case "delete_asset_from_the_project": {
+        const changing = await this.hostServices.deleteAssetFromTheProject(ask.project_folder, ask.asset);
+        return changing.kind === "changed" ? { kind: "done" } : { kind: "refused", because: changing.because };
+      }
       case "show_view_type_in_area": {
         const showing = this.hostServices.showViewTypeInArea(ask.view_type_id, ask.area_id);
         return showing.kind === "opened" ? { kind: "done" } : { kind: "refused", because: showing.because };

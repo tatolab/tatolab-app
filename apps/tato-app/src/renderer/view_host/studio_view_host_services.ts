@@ -5,7 +5,7 @@ import type { ProjectAssetListing, ProjectNodeTypeListing } from "../../shared/t
 import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
-import type { AreasForAViewTypeInTheWindow, ListedStreamsReading, OpenProjectReading, StopWatching, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, StudioViewsReading, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
+import type { AreasForAViewTypeInTheWindow, ListedStreamsReading, OpenProjectReading, StopWatching, ProjectAssetChanging, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, StudioViewsReading, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { WatchedStudioValue } from "./watched_studio_value";
 
@@ -26,7 +26,7 @@ export interface StudioWindowValuesServedToViews {
 
 /** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types, assets and history, their language servers, and the port viewers of their running nodes. */
 export interface StudioViewHostProjectServices {
-  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "writeStudioViewOutput" | "openModuleManagerWindow">;
+  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "deleteAssetFromTheOpenProject" | "writeStudioViewOutput" | "openModuleManagerWindow">;
   projectLogReadings: ProjectLogReadings;
   projectNodeTypeReadings: ProjectListingReadingsPolledWhileWatched<ProjectNodeTypeListing>;
   projectAssetReadings: ProjectListingReadingsPolledWhileWatched<ProjectAssetListing>;
@@ -62,6 +62,27 @@ export async function importAssetsIntoTheOpenProjectForAView(projectFolder: stri
   );
 }
 
+/** What a view's Rename, Move or Delete of an asset reaches: the window's open project, and its asset listing to read again. */
+export interface AssetChangeForAViewSources {
+  readTheOpenProject: () => OpenProjectReading;
+  listTheProjectAgainNow: (projectFolder: string) => void;
+}
+
+/** `changeTheAsset`, a rename, move or delete through the backend, made when `projectFolder` is the window's open project, its asset listing read again at once; refused for any other folder. */
+export function changeAnAssetOfTheOpenProjectForAView(projectFolder: string, assetChangeSources: AssetChangeForAViewSources, changeTheAsset: () => Promise<void>): Promise<ProjectAssetChanging> {
+  const openProject = assetChangeSources.readTheOpenProject();
+  if (openProject.kind !== "read" || openProject.open_project.project.folder !== projectFolder) {
+    return Promise.resolve({ kind: "not_changed", because: `Tato Studio changes the assets of this window's project only, not ${projectFolder}.` });
+  }
+  return changeTheAsset().then(
+    (): ProjectAssetChanging => {
+      assetChangeSources.listTheProjectAgainNow(projectFolder);
+      return { kind: "changed" };
+    },
+    (rejection: unknown): ProjectAssetChanging => ({ kind: "not_changed", because: describeBackendRejection(rejection) }),
+  );
+}
+
 /** What every view's bridge answers its frame from, read from `sources`, for a stream's graph and catalog from `streamReadings`, and for the open project and its imports from `projectServices`. */
 export function studioViewHostServicesOf(
   sources: StudioWindowValuesServedToViews,
@@ -69,6 +90,10 @@ export function studioViewHostServicesOf(
   projectServices: StudioViewHostProjectServices,
 ): StudioViewHostServices {
   const { backend } = projectServices;
+  const assetChangeSources: AssetChangeForAViewSources = {
+    readTheOpenProject: sources.openProject.readLatest,
+    listTheProjectAgainNow: (folder) => projectServices.projectAssetReadings.listTheProjectAgainNow(folder),
+  };
   return {
     watchOpenProject: sources.openProject.watch,
     watchListedStreams: sources.listedStreams.watch,
@@ -122,6 +147,9 @@ export function studioViewHostServicesOf(
         listTheProjectAgainNow: (folder) => projectServices.projectAssetReadings.listTheProjectAgainNow(folder),
       }),
     watchStudioViews: projectServices.watchStudioViews,
+    relocateAssetInTheProject: (projectFolder, asset, toPath) =>
+      changeAnAssetOfTheOpenProjectForAView(projectFolder, assetChangeSources, () => backend.relocateAssetInTheOpenProject(asset, toPath)),
+    deleteAssetFromTheProject: (projectFolder, asset) => changeAnAssetOfTheOpenProjectForAView(projectFolder, assetChangeSources, () => backend.deleteAssetFromTheOpenProject(asset)),
     openModulesAndMarketplace: (shows) =>
       backend.openModuleManagerWindow(shows).then(
         (): ViewOpening => ({ kind: "opened" }),

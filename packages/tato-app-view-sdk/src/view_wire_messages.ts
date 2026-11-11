@@ -158,6 +158,10 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("read_the_person_editing") }),
   /** Ask the person for files in the desktop's open dialog and import each into the project through the runtime's `import_asset`, which places it in its kind's folder. */
   z.object({ kind: z.literal("import_assets_into_the_project"), project_folder: z.string() }),
+  /** Put the asset `asset` of the project at `to_path`, renaming it, moving it or both, through the runtime's `relocate_asset`, by the person editing. */
+  z.object({ kind: z.literal("relocate_asset_in_the_project"), project_folder: z.string(), asset: z.string(), to_path: z.string() }),
+  /** Stop tracking the asset `asset` of the project, its file leaving it, through the runtime's `delete_asset`, by the person editing. */
+  z.object({ kind: z.literal("delete_asset_from_the_project"), project_folder: z.string(), asset: z.string() }),
   /** Show the view type `view_type_id` in area `area_id` of the chosen layout, in place of what it shows. */
   z.object({ kind: z.literal("show_view_type_in_area"), view_type_id: z.string(), area_id: z.string() }),
   /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */

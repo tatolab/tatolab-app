@@ -112,3 +112,37 @@ export function noAssetShownWords(assetCount: number, folderLabel: string, searc
   const searchedFor = searchText.trim();
   return { title: "No asset matches", explanation: searchedFor === "" ? `${folderLabel} holds no asset.` : `Nothing in ${folderLabel} has “${searchedFor}” in its path.` };
 }
+
+/** The folder an asset at `path` sits in, `/`-separated in the project, empty for the project's top. */
+export function assetFolderOf(path: string): string {
+  const separatorAt = path.lastIndexOf("/");
+  return separatorAt === -1 ? "" : path.slice(0, separatorAt);
+}
+
+/** Where an asset at `path` lands renamed to `fileName`, in the folder it sits in. */
+export function assetPathRenamed(path: string, fileName: string): string {
+  const folder = assetFolderOf(path);
+  return folder === "" ? fileName.trim() : `${folder}/${fileName.trim()}`;
+}
+
+/** Where an asset at `path` lands moved into `folder`, under the name it has; an empty folder is the project's top. */
+export function assetPathMoved(path: string, folder: string): string {
+  const folderInTheProject = folder.trim().replace(/^\/+|\/+$/g, "");
+  return folderInTheProject === "" ? assetFileName(path) : `${folderInTheProject}/${assetFileName(path)}`;
+}
+
+/** Why `fileName` can't name an asset's file, or `null` when it can. */
+export function assetFileNameRefusal(fileName: string): string | null {
+  const name = fileName.trim();
+  if (name === "") return "Name the file.";
+  if (name.includes("/")) return "A file name holds no “/”. Move puts the asset in another folder.";
+  if (name === "." || name === "..") return "Name the file.";
+  return null;
+}
+
+/** Why `folder` can't hold an asset of the project, or `null` when it can. */
+export function assetFolderRefusal(folder: string): string | null {
+  const folderTyped = folder.trim();
+  if (folderTyped.startsWith("/") || folderTyped.split("/").some((segment) => segment === "..")) return "Name a folder inside the project, as media/archive.";
+  return null;
+}

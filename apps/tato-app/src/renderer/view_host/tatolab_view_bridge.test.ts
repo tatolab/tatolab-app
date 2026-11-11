@@ -95,6 +95,7 @@ function recordingHostServices() {
   const languageServerMessagesSent: JsonValue[] = [];
   const undosAsked: { projectFolder: string; author: ProjectTransactionAuthor }[] = [];
   const assetImportsAsked: string[] = [];
+  const assetChangesAsked: string[][] = [];
   const modulesAndMarketplaceSectionsOpened: string[] = [];
   const viewTypesShownInAreas: { viewTypeId: string; areaId: string }[] = [];
   const graphTransactionsAsked: { projectFolder: string; operations: readonly unknown[]; mode: string; idempotencyKey: string | null }[] = [];
@@ -145,6 +146,14 @@ function recordingHostServices() {
         kind: "imported",
         assets_imported: { imported: [{ asset: "a-uuid", path: "media/intro.mp4" }], refused: [{ file_name: "main.graph.json", because: "import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write" }] },
       };
+    },
+    relocateAssetInTheProject: async (projectFolder, asset, toPath) => {
+      assetChangesAsked.push(["relocate", projectFolder, asset, toPath]);
+      return toPath === "media/taken.png" ? { kind: "not_changed", because: "relocate_asset failed: `media/taken.png` is already the path of the asset b-uuid" } : { kind: "changed" };
+    },
+    deleteAssetFromTheProject: async (projectFolder, asset) => {
+      assetChangesAsked.push(["delete", projectFolder, asset]);
+      return { kind: "changed" };
     },
     watchAreasForTheViewType: (viewTypeId, listener) => {
       listener(
@@ -209,7 +218,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten };
+  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten };
 }
 
 /** An area that keeps the settings it is asked to remember and says where the view's header row lies. */
@@ -295,6 +304,18 @@ describe("a view's connection to Studio, through the one bridge every view is se
     });
     expect(await connection.importAssetsIntoTheProject("/cancelled")).toEqual({ kind: "nothing_chosen" });
     expect(assetImportsAsked).toEqual(["/set", "/cancelled"]);
+  });
+
+  it("renames, moves and deletes an asset of the project, a refusal in the runtime's words", async () => {
+    const { connection, assetChangesAsked } = await connectedView(DJ_DECK_MANIFEST, {});
+    expect(await connection.relocateAssetInTheProject("/set", "a-uuid", "media/archive/intro.mp4")).toEqual({ kind: "done" });
+    expect(await connection.relocateAssetInTheProject("/set", "a-uuid", "media/taken.png")).toEqual({ kind: "refused", because: "relocate_asset failed: `media/taken.png` is already the path of the asset b-uuid" });
+    expect(await connection.deleteAssetFromTheProject("/set", "a-uuid")).toEqual({ kind: "done" });
+    expect(assetChangesAsked).toEqual([
+      ["relocate", "/set", "a-uuid", "media/archive/intro.mp4"],
+      ["relocate", "/set", "a-uuid", "media/taken.png"],
+      ["delete", "/set", "a-uuid"],
+    ]);
   });
 
   it("lists the chosen layout's areas for a view type, marking the asking view's own, and shows the view type in one", async () => {
