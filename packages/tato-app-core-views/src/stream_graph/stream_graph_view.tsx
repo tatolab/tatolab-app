@@ -1,13 +1,13 @@
 import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
-import { NodeGraphCanvas, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint, type NodeGraphCanvasToolsInTheWindowToolbar, type NodeGraphCanvasViewport } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { NodeGraphCanvas, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { SearchPopover } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings, WindowToolbarGraphTool, WindowToolbarGraphToolOffered, WindowToolbarGraphToolsOffer } from "@tatolab/tato-app-view-sdk";
+import type { StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings } from "@tatolab/tato-app-view-sdk";
 import type {
   ListedStreamsReading,
   NodeCatalogReading,
@@ -75,32 +75,6 @@ function importedProjectNameOfTheStream(stream: string, openProject: OpenProject
 /** Stops nothing: a stream the runtime lists in no project has no project node types to watch. */
 const NO_PROJECT_FOLDER_TO_LIST: StopWatching = () => undefined;
 
-/** The canvas's tools offered to the window's toolbar for as long as the graph is drawn, each press reaching the canvas. */
-function useTheCanvasToolsInTheWindowToolbar(connection: TatoAppViewConnection): NodeGraphCanvasToolsInTheWindowToolbar {
-  const pressFromTheToolbar = useRef<((tool: WindowToolbarGraphTool) => void) | null>(null);
-  const offer = useRef<WindowToolbarGraphToolsOffer | null>(null);
-  const toolsLastReported = useRef<readonly WindowToolbarGraphToolOffered[] | null>(null);
-  useEffect(() => {
-    const offerMade = connection.offerGraphToolsToTheWindow(
-      (tool) => pressFromTheToolbar.current?.(tool),
-      () => {
-        if (offer.current === offerMade) offer.current = null;
-      },
-    );
-    offer.current = offerMade;
-    if (toolsLastReported.current !== null) void offerMade.show(toolsLastReported.current);
-    return () => {
-      offer.current = null;
-      offerMade.withdraw();
-    };
-  }, [connection]);
-  const onToolsChanged = useCallback((tools: readonly WindowToolbarGraphToolOffered[]) => {
-    toolsLastReported.current = tools;
-    if (offer.current !== null) void offer.current.show(tools);
-  }, []);
-  return useMemo(() => ({ onToolsChanged, pressFromTheToolbar }), [onToolsChanged]);
-}
-
 /** The graph of the stream tab shown, read while the view is drawn. */
 function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress; select: (selection: StudioSelection) => void }) {
   const watchTheTabsGraph = useCallback(
@@ -159,7 +133,6 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   }, [subgraphDepth, stepToTheLevel]);
   const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
   const importedProjectName = importedProjectNameOfTheStream(streamTab.stream, openProject, listedStreams);
-  const toolsInTheWindowToolbar = useTheCanvasToolsInTheWindowToolbar(connection);
   const areaSettings = useViewReadingSoFar(connection.watchSettings);
   const areaSettingsRead = areaSettings.kind === "read" ? areaSettings.reading : null;
   const viewportWhereTheStreamWasLeft = useMemo(() => whereTheStreamWasLeft(areaSettingsRead, streamTab.stream)?.viewport ?? null, [areaSettingsRead, streamTab.stream]);
@@ -376,7 +349,6 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
         selectedNodeId={innermostSubgraph !== null ? selectedNodeInsideTheSubgraph : selection?.kind === "node" && selection.stream === streamTab.stream ? selection.node : null}
         onNodeSelected={innermostSubgraph !== null ? setSelectedNodeInsideTheSubgraph : onNodeSelected}
         editing={editingOfTheLevelShown}
-        toolsInTheWindowToolbar={toolsInTheWindowToolbar}
         viewportWhereItWasLeft={innermostSubgraph === null ? viewportWhereTheStreamWasLeft : null}
         onViewportLeft={innermostSubgraph === null ? onViewportLeft : null}
         onSubgraphOpened={stepInsideTheSubgraph}

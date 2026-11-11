@@ -44,7 +44,6 @@ import {
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { IconButton } from "./icon_button";
 import { Toolbar, ToolbarDivider, ToolbarGroup } from "./toolbar";
-import type { WindowToolbarGraphTool, WindowToolbarGraphToolOffered } from "../view_wire_messages";
 import {
   layOutNodeGraph,
   NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT,
@@ -199,14 +198,6 @@ export interface NodeGraphCanvasPoint {
   in_the_element: { x: number; y: number };
 }
 
-/** The canvas's Add node, Frame, Note and Subgraph tools offered to the window's toolbar as well as drawn on the canvas. */
-export interface NodeGraphCanvasToolsInTheWindowToolbar {
-  /** The tools as they can be pressed now, at once and each time that changes. */
-  onToolsChanged(tools: readonly WindowToolbarGraphToolOffered[]): void;
-  /** Where the canvas puts how it carries out a toolbar press, while it is drawn. */
-  pressFromTheToolbar: { current: ((tool: WindowToolbarGraphTool) => void) | null };
-}
-
 /** The canvas's pan and zoom, as React Flow keeps its viewport. */
 export interface NodeGraphCanvasViewport {
   x: number;
@@ -258,10 +249,6 @@ export interface NodeGraphCanvasEditing {
 
 /** The narrowest a card is drawn; a card with longer names grows to fit them. */
 const NODE_GRAPH_CARD_SMALLEST_WIDTH = 180;
-const NODE_GRAPH_TOOLS_WHILE_NO_GRAPH_IS_SHOWN: readonly WindowToolbarGraphToolOffered[] = (["add_node", "frame_selection", "add_note", "add_subgraph"] as const).map((tool) => ({
-  tool,
-  disabled_reason: "Show the stream's graph to use its tools",
-}));
 const FIT_TO_VIEW_OPTIONS = { padding: 0.18, maxZoom: 1, duration: 0 };
 const NODE_GRAPH_NOTE_SMALLEST_SIZE = { width: 120, height: 60 };
 
@@ -972,7 +959,6 @@ function NodeGraphFlow({
   selectedNodeId,
   onNodeSelected,
   editing,
-  toolsInTheWindowToolbar,
   viewportWhereItWasLeft,
   onViewportLeft,
   onSubgraphOpened,
@@ -986,7 +972,6 @@ function NodeGraphFlow({
   selectedNodeId: string | null;
   onNodeSelected: (nodeId: string | null) => void;
   editing: NodeGraphCanvasEditing | null;
-  toolsInTheWindowToolbar: NodeGraphCanvasToolsInTheWindowToolbar | null;
   viewportWhereItWasLeft: NodeGraphCanvasViewport | null;
   onViewportLeft: ((viewport: NodeGraphCanvasViewport) => void) | null;
   onSubgraphOpened: ((nodeId: string) => void) | null;
@@ -1520,41 +1505,6 @@ function NodeGraphFlow({
     },
     [nodeById, selectedIds, selectedLinkIds, selectedNoteIds, editing, onNodeSelected, canvasPointOf],
   );
-  const onToolbarToolsChanged = toolsInTheWindowToolbar?.onToolsChanged;
-  const isEditable = editing !== null;
-  useEffect(() => {
-    if (onToolbarToolsChanged === undefined) return;
-    const disabledReasonWhileReadOnly = isEditable ? null : "This graph is read only";
-    onToolbarToolsChanged([
-      { tool: "add_node", disabled_reason: disabledReasonWhileReadOnly },
-      { tool: "frame_selection", disabled_reason: disabledReasonWhileReadOnly ?? frameSelectionDisabledReason },
-      { tool: "add_note", disabled_reason: disabledReasonWhileReadOnly },
-      { tool: "add_subgraph", disabled_reason: disabledReasonWhileReadOnly ?? subgraphDisabledReason },
-    ]);
-  }, [onToolbarToolsChanged, isEditable, frameSelectionDisabledReason, subgraphDisabledReason]);
-  useEffect(() => {
-    if (onToolbarToolsChanged === undefined) return;
-    return () => onToolbarToolsChanged(NODE_GRAPH_TOOLS_WHILE_NO_GRAPH_IS_SHOWN);
-  }, [onToolbarToolsChanged]);
-  const pressFromTheToolbar = toolsInTheWindowToolbar?.pressFromTheToolbar;
-  useEffect(() => {
-    if (pressFromTheToolbar === undefined) return;
-    pressFromTheToolbar.current = (tool) => {
-      if (editing === null) return;
-      if (tool === "add_node") editing.onNodeAskedFor(clearPlaceBroughtIntoView());
-      else if (tool === "add_note") editing.onNoteAskedFor(clearPlaceBroughtIntoView());
-      else if (tool === "frame_selection" && selectedIds.size > 0) {
-        // The frame's title field opens only once the runtime answers; the canvas holds focus meanwhile so what is typed reaches it.
-        canvasElement.current?.focus({ preventScroll: true });
-        frameTheSelection();
-      }
-      else if (tool === "add_subgraph") collapseTheSelectionIntoASubgraph();
-    };
-    return () => {
-      pressFromTheToolbar.current = null;
-    };
-  }, [pressFromTheToolbar, editing, clearPlaceBroughtIntoView, frameTheSelection, collapseTheSelectionIntoASubgraph, selectedIds]);
-
   const followTheKeys = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (editing === null || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) return;
@@ -1781,7 +1731,6 @@ export function NodeGraphCanvas({
   selectedNodeId,
   onNodeSelected,
   editing = null,
-  toolsInTheWindowToolbar = null,
   viewportWhereItWasLeft = null,
   onViewportLeft = null,
   onSubgraphOpened = null,
@@ -1797,8 +1746,6 @@ export function NodeGraphCanvas({
   onNodeSelected: (nodeId: string | null) => void;
   /** What a person's edits ask for; `null` draws the graph read only. */
   editing?: NodeGraphCanvasEditing | null;
-  /** How the window's toolbar shows the canvas's tools and reaches them; `null` where the window has no toolbar. The canvas draws its own either way. */
-  toolsInTheWindowToolbar?: NodeGraphCanvasToolsInTheWindowToolbar | null;
   /** Where the person left the canvas's pan and zoom, which it opens on; `null` frames the whole graph. */
   viewportWhereItWasLeft?: NodeGraphCanvasViewport | null;
   /** Told where the person leaves the pan and zoom after each pan or zoom of theirs. */
@@ -1819,7 +1766,6 @@ export function NodeGraphCanvas({
           selectedNodeId={selectedNodeId}
           onNodeSelected={onNodeSelected}
           editing={editing}
-          toolsInTheWindowToolbar={toolsInTheWindowToolbar}
           viewportWhereItWasLeft={viewportWhereItWasLeft}
           onViewportLeft={onViewportLeft}
           onSubgraphOpened={onSubgraphOpened}

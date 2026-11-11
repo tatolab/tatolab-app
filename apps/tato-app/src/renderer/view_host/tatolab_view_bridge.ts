@@ -12,8 +12,6 @@ import {
   type ViewAskAnswer,
   type ViewWatchedReading,
   type ViewWatchedSubject,
-  type WindowToolbarGraphTool,
-  type WindowToolbarGraphToolOffered,
 } from "@tatolab/tato-app-view-sdk";
 import type {
   JsonValue,
@@ -36,19 +34,12 @@ export interface TatolabViewMessagePort {
   close(): void;
 }
 
-/** A view's graph tools offered to the window's toolbar from its area, or why the window the area is in draws no toolbar. */
-export type GraphToolsOfferInTheWindowToolbar =
-  | { kind: "offered"; show(tools: readonly WindowToolbarGraphToolOffered[]): void; withdraw(): void }
-  | { kind: "no_toolbar"; because: string };
-
-/** What the area showing a view hands it: the settings it saved, a way to keep the next ones, where the view's own header row lies, and the window toolbar's graph tools. */
+/** What the area showing a view hands it: the settings it saved, a way to keep the next ones, and where the view's own header row lies. */
 export interface TatolabViewAreaServices {
   /** The settings the area holds, `undefined` for an area that saved none, at once and on each change. */
   watchSavedSettings(listener: (savedSettings: JsonValue | undefined) => void): StopWatching;
   rememberSettings(settings: JsonValue): void;
   watchHeaderRow(listener: (headerRow: ViewHeaderRow) => void): StopWatching;
-  /** Offer graph tools from this area to the window's toolbar, each press of one going to `onToolPressed` while the toolbar shows this area's offer. */
-  offerGraphTools(onToolPressed: (tool: WindowToolbarGraphTool) => void): GraphToolsOfferInTheWindowToolbar;
 }
 
 /** Whether `payload`, sent beside an output ask, is a picture Studio now holds and must close. */
@@ -67,8 +58,6 @@ export class TatolabViewBridge {
   private readonly stopWatchingByWatchId = new Map<number, StopWatching>();
   private readonly inputWatchesByWatchId = new Map<number, InputWatch>();
   private readonly pythonLanguageServersByWatchId = new Map<number, PythonLanguageServerConnection>();
-  private readonly graphToolOffersByWatchId = new Map<number, Extract<GraphToolsOfferInTheWindowToolbar, { kind: "offered" }>>();
-  private readonly whyGraphToolsHaveNoToolbarByWatchId = new Map<number, string>();
   private isClosed = false;
 
   private readonly onMessageFromTheView = (event: MessageEvent<unknown>): void => {
@@ -220,20 +209,6 @@ export class TatolabViewBridge {
       case "header_row":
         keep(this.areaServices.watchHeaderRow((reading) => sendReading({ subject: "header_row", reading })));
         return;
-      case "graph_tool_presses": {
-        const offer = this.areaServices.offerGraphTools((tool) => sendReading({ subject: "graph_tool_presses", reading: { tool } }));
-        if (offer.kind === "no_toolbar") {
-          this.whyGraphToolsHaveNoToolbarByWatchId.set(watchId, offer.because);
-          this.send({ kind: "watch_refused", watch_id: watchId, because: offer.because });
-          return;
-        }
-        this.graphToolOffersByWatchId.set(watchId, offer);
-        keep(() => {
-          offer.withdraw();
-          this.graphToolOffersByWatchId.delete(watchId);
-        });
-        return;
-      }
     }
   }
 
@@ -343,12 +318,6 @@ export class TatolabViewBridge {
       case "read_the_person_editing": {
         const reading = await this.hostServices.readThePersonEditing();
         return reading.kind === "read" ? { kind: "the_person_editing", author: reading.author } : { kind: "refused", because: reading.because };
-      }
-      case "offer_graph_tools": {
-        const offer = this.graphToolOffersByWatchId.get(ask.watch_id);
-        if (offer === undefined) return { kind: "refused", because: this.whyGraphToolsHaveNoToolbarByWatchId.get(ask.watch_id) ?? `The view watches no graph tool presses under ${ask.watch_id}.` };
-        offer.show(ask.tools);
-        return { kind: "done" };
       }
       case "send_output":
         if (!this.manifest.outputs.some((declaredOutput) => declaredOutput.name === ask.output)) {

@@ -132,16 +132,14 @@ function StudioActivityPanelButton({ status }: { status: TatolabStatus }) {
   );
 }
 
-/** The studio's foot: the runtime and where it runs, the open stream's state and size, what downloads or installs, the project's last edit and who made it, and the shortcuts this build answers. */
+/** The studio's foot: the runtime and where it runs, what downloads or installs, and the project's last edit and who made it. */
 export function StudioStatusBar({
   viewHostServices,
   projectFolder,
-  activeStream,
   platform,
 }: {
   viewHostServices: StudioViewHostServices;
   projectFolder: string | null;
-  activeStream: string | null;
   platform: TatolabPlatform;
 }) {
   const status = useTatolabStatus();
@@ -151,8 +149,6 @@ export function StudioStatusBar({
   const words = studioStatusBarWordsOf({
     runtimeState: status.runtime_state,
     runtimeDescription,
-    listedStreams: status.streams,
-    activeStream,
     projectTransactions,
     platform,
     wallClockNowMs,
@@ -162,11 +158,9 @@ export function StudioStatusBar({
       <span className={cn(words.runtime_tone === "not_running" && "text-danger-text")} data-studio-status-bar-runtime={words.runtime_tone}>
         {words.runtime}
       </span>
-      {words.open_stream !== null && <span data-studio-status-bar-open-stream="">{words.open_stream}</span>}
       <StudioActivityPanelButton status={status} />
       <span className="flex-1" />
       {words.last_edit !== null && <span data-studio-status-bar-last-edit="">{words.last_edit}</span>}
-      <span data-studio-status-bar-shortcuts="">{words.shortcuts}</span>
     </footer>
   );
 }

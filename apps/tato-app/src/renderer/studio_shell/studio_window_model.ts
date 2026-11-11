@@ -12,7 +12,6 @@ import type { JsonValue, ListedStreamsReading, StreamTabAddress, StudioSelection
 import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, type StudioAreaLayoutNode } from "./studio_area_layout";
 import { STUDIO_LAYOUTS, type StudioLayoutName, type StudioLayoutsKeptInStorage, type StudioLayoutsOfAFolder } from "./studio_layouts";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
-import { WindowToolbarGraphToolOffers } from "./window_toolbar_graph_tool_offers";
 
 /** A section the Module manager window is asked to show, and which ask of the window it is. */
 export interface ModuleManagerSectionAskNumbered {
@@ -86,8 +85,6 @@ export class StudioWindowModel {
   readonly viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
   /** Why the last run or stop of the open project was refused, until it is dismissed or another is asked for. */
   readonly projectRunRefusal = new WatchedStudioValue<{ asked_to: "run" | "stop"; because: string } | null>(null);
-  /** The graph tools the window's areas offer its toolbar, and the offer it shows. */
-  readonly windowToolbarGraphToolOffers = new WindowToolbarGraphToolOffers();
   /** Why the person's last undo or redo was refused, in the runtime's words, until it is dismissed or another is asked for. */
   readonly projectEditRefusal = new WatchedStudioValue<{ asked_to: "undo" | "redo"; because: string } | null>(null);
   /** Why the last update choice from the menus did not reach the app, until it is dismissed or another is made. */
@@ -116,6 +113,7 @@ export class StudioWindowModel {
       openProject: this.openProject,
       listedStreams: this.listedStreams,
       selection: this.selection,
+      select: (selection) => this.select(selection),
       activeStreamTab: this.activeStreamTab,
       openStreamTab: (streamTab) => this.openStreamTab(streamTab),
       viewsOpenedOn: this.viewsOpenedOn,
@@ -201,6 +199,13 @@ export class StudioWindowModel {
     const displayNameListedFor = (tab: StreamTabAddress) => listedStreams.streams.find((listing) => listing.stream === tab.stream)?.display_name ?? tab.display_name;
     if (tabs.every((tab) => tab.display_name !== tab.stream || displayNameListedFor(tab) === tab.display_name)) return;
     this.publishStreamTabs({ tabs: tabs.map((tab) => (tab.display_name === tab.stream ? { ...tab, display_name: displayNameListedFor(tab) } : tab)), active_stream });
+  }
+
+  /** Select `selection`; in a studio window, a stream or one of its nodes opens the stream's tab, or shows it where it is open. */
+  select(selection: StudioSelection): void {
+    this.selection.publish(selection);
+    if (this.poppedOutView.readLatest() !== null || (selection.kind !== "stream" && selection.kind !== "node")) return;
+    if (this.openStreamTabs.readLatest().active_stream !== selection.stream) this.openStreamTabOfAListedStream(selection.stream);
   }
 
   /** Open `streamTab`, or show it where it is already open. */

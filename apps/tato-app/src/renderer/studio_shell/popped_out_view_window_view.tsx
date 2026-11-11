@@ -7,13 +7,12 @@ import { StudioViewFailureBoundary } from "../view_host/studio_view_failure_boun
 import { useWatchedStudioValue, WatchedStudioValue } from "../view_host/watched_studio_value";
 import type { ViewHeaderRow } from "../view_host/studio_view_contract";
 import type { StudioViewHostServices } from "../view_host/studio_view_contract";
-import type { StudioAreaOfTheView, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
+import type { StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
 
 const HEADER_ROW_OF_THE_POPPED_OUT_AREA: ViewHeaderRow = { leading_inset_px: 0, height_px: 30 };
 
 /** A popped-out view's window draws no toolbar, so its graph tools stay on its canvas. */
-const GRAPH_TOOLS_STAY_IN_A_POPPED_OUT_VIEW: StudioAreaOfTheView["offerGraphTools"] = () => ({ kind: "no_toolbar", because: "A popped-out view's window draws no toolbar." });
 
 /** A view popped out of a studio window: that view alone, with the settings its area held, under a title strip where macOS draws the window buttons over the content, and why its project wasn't read. */
 export function PoppedOutViewWindowView({
@@ -53,7 +52,7 @@ export function PoppedOutViewWindowView({
           <WaitingState title={`This build has no ${target.view_type_id} view`} explanation="Close this window and open the view in the studio." />
         ) : (
           <StudioViewFailureBoundary viewTitle={viewType.title}>
-            {viewType.renderInAnArea({ saved_settings: settingsKept, rememberSettings: keepSettings, header_row: headerRow, offerGraphTools: GRAPH_TOOLS_STAY_IN_A_POPPED_OUT_VIEW, personWorksInTheArea: null }, viewHostServices)}
+            {viewType.renderInAnArea({ saved_settings: settingsKept, rememberSettings: keepSettings, header_row: headerRow }, viewHostServices)}
           </StudioViewFailureBoundary>
         )}
       </main>

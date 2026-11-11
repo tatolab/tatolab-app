@@ -80,6 +80,45 @@ describe("the stream tab a new project opens on", () => {
   });
 });
 
+describe("selecting a stream or one of its nodes", () => {
+  it("opens the stream's tab, or shows it where it is open, tells nothing anew for the stream already shown, and leaves the tabs alone for a project or nothing", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    studioWindowModel.showStatus(runningRuntimeListing([MAIN_RUNNING, PREVIEW_RUNNING]));
+    studioWindowModel.select({ kind: "stream", stream: "sheet-check-preview-0b19d2", project_folder: SHEET_CHECK_FOLDER });
+    expect(studioWindowModel.openStreamTabs.readLatest()).toEqual({
+      tabs: [
+        { stream: "sheet-check-main-14aec5", project_name: "sheet-check", display_name: "Sheet Check" },
+        { stream: "sheet-check-preview-0b19d2", project_name: "sheet-check", display_name: "preview" },
+      ],
+      active_stream: "sheet-check-preview-0b19d2",
+    });
+
+    studioWindowModel.select({ kind: "node", stream: "sheet-check-main-14aec5", node: "camera" });
+    expect(studioWindowModel.openStreamTabs.readLatest().active_stream).toBe("sheet-check-main-14aec5");
+    expect(studioWindowModel.openStreamTabs.readLatest().tabs).toHaveLength(2);
+    expect(studioWindowModel.selection.readLatest()).toEqual({ kind: "node", stream: "sheet-check-main-14aec5", node: "camera" });
+
+    const activeTabsTold: (string | undefined)[] = [];
+    studioWindowModel.activeStreamTab.watch((streamTab) => activeTabsTold.push(streamTab?.stream));
+    studioWindowModel.select({ kind: "node", stream: "sheet-check-main-14aec5", node: "preview_window" });
+    expect(activeTabsTold).toEqual(["sheet-check-main-14aec5"]);
+
+    studioWindowModel.select({ kind: "project", project_name: "sheet-check", project_folder: SHEET_CHECK_FOLDER });
+    studioWindowModel.select({ kind: "nothing" });
+    expect(studioWindowModel.openStreamTabs.readLatest().active_stream).toBe("sheet-check-main-14aec5");
+  });
+
+  it("moves no tab in a popped-out view's window, which stays on the stream it popped out with", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    studioWindowModel.showStatus(runningRuntimeListing([MAIN_RUNNING, PREVIEW_RUNNING]));
+    studioWindowModel.showAsPoppedOutView({ view_type_id: "viewer", window_title: "main · Viewer", pinned_to: { stream_tab: null, selection: { kind: "nothing" }, settings: null } });
+    const tabsBefore = studioWindowModel.openStreamTabs.readLatest();
+    studioWindowModel.select({ kind: "stream", stream: "sheet-check-preview-0b19d2", project_folder: SHEET_CHECK_FOLDER });
+    expect(studioWindowModel.openStreamTabs.readLatest()).toEqual(tabsBefore);
+    expect(studioWindowModel.selection.readLatest().kind).toBe("stream");
+  });
+});
+
 describe("a stream tab on a stream the runtime no longer lists", () => {
   it("stays open on its last address", () => {
     const studioWindowModel = studioWindowModelOpenOnSheetCheck();

@@ -1,20 +1,16 @@
-import { Combine, Frame, PictureInPicture2, Play, Plus, Redo2, Square, StickyNote, Undo2, type LucideIcon } from "lucide-react";
-import type { WindowToolbarGraphTool } from "@tatolab/tato-app-view-sdk";
-import { KeyboardKey } from "@tatolab/tato-app-view-sdk/design_system/keyboard_key";
+import { PictureInPicture2, Workflow } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { OpenProjectReading, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
 import { DocumentTabs } from "@tatolab/tato-app-view-sdk/design_system/document_tabs";
-import { IconButton } from "@tatolab/tato-app-view-sdk/design_system/icon_button";
 import { StudioMenuBar } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
 import { MenuGroup, MenuItem, MenuItemThatCannotBeChosen, MenuNote, MenuSeparator, MenuSingleChoiceGroup } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { StudioAreaFrame, StudioAreaHeaderMenu, StudioAreaOverAViewsOwnFrame, StudioViewIconMark, type StudioAreaHeaderMenuIcon } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { WindowNotice } from "@tatolab/tato-app-view-sdk/design_system/window_notice";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
-import { playOrStopOfferedForTheProject } from "../presentation/project_play_presentation";
-import { streamsOfTheProjectNoTabShows, streamTabsDrawnInTheStrip, type StreamsToOpenAsTabs } from "../presentation/stream_tabs_presentation";
+import { streamTabsDrawnInTheStrip } from "../presentation/stream_tabs_presentation";
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { presentRecentProjectChangeRefusalTitle } from "../presentation/projects_presentation";
 import { AppUpdateAnnouncementDialogView } from "./app_update_announcement_dialog_view";
@@ -26,18 +22,10 @@ import type { ViewHeaderRow } from "../view_host/studio_view_contract";
 import type { StudioViewHostServices, StudioViewTypeSource } from "../view_host/studio_view_contract";
 import type { RegisteredStudioViewType, StudioViewNotOpened, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
 import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet_view";
-import type { WindowToolbarGraphToolOffers } from "./window_toolbar_graph_tool_offers";
 import { StudioStatusBar } from "./studio_status_bar";
 import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
-import {
-  RUN_LIVE_KEY,
-  STOP_KEY_HINT,
-  studioMenuBarMenus,
-  studioMenusInTheSystemMenuBar,
-  type StudioMenuBarCommands,
-  type StudioMenuInTheSystemMenuBar,
-} from "./studio_menu_bar_model";
+import { studioMenuBarMenus, studioMenusInTheSystemMenuBar, type StudioMenuBarCommands, type StudioMenuInTheSystemMenuBar } from "./studio_menu_bar_model";
 import type { StudioWindowModel } from "./studio_window_model";
 
 /** Who the view-type menu says brings the views the app ships with itself. */
@@ -198,8 +186,6 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
             saved_settings: area.settings,
             rememberSettings: (nextSettings) => sources.model.keepAreaSettings(area.area_id, nextSettings),
             header_row: headerRowInTheFrame,
-            offerGraphTools: (onToolPressed) => sources.model.windowToolbarGraphToolOffers.offerFrom(area.area_id, onToolPressed),
-            personWorksInTheArea: () => sources.model.windowToolbarGraphToolOffers.personWorkedInTheArea(area.area_id),
           },
           sources.viewHostServices,
         )}
@@ -226,93 +212,16 @@ function StudioAreaLayoutNodeView({ node, layoutKey, sources }: { node: StudioAr
   );
 }
 
-/** The + menu's choices: each stream of the open project no tab shows, opened as a tab when chosen. */
-function StreamsOfTheProjectToOpenAsTabs({ model, offered }: { model: StudioWindowModel; offered: StreamsToOpenAsTabs }) {
-  if (offered.kind === "none_to_offer") return <MenuNote>{offered.because}</MenuNote>;
-  return (
-    <MenuGroup label="Open a stream">
-      {offered.streams.map((stream) => (
-        <MenuItem key={stream.stream} onChosen={() => model.openStreamTabOfAListedStream(stream.stream)} data-stream-tab-to-open={stream.stream}>
-          {stream.display_name}
-        </MenuItem>
-      ))}
-    </MenuGroup>
-  );
-}
-
-/** The open project's name as the toolbar titles the window, or its folder's when the project doesn't read. */
-function openProjectTitleInTheToolbar(openProject: OpenProjectReading): string {
+/** The open project's name as the title row shows it, or its folder's when the project doesn't read. */
+function openProjectTitleInTheTitleRow(openProject: OpenProjectReading): string {
   if (openProject.kind === "read") return openProject.open_project.project.name;
   if (openProject.kind === "unreadable") return openProject.folder.split("/").filter((part) => part !== "").at(-1) ?? openProject.folder;
   return "";
 }
 
-/** How the toolbar draws each graph tool: its icon, its words, and the key that does the same over the graph. */
-const WINDOW_TOOLBAR_GRAPH_TOOL_LOOKS: readonly { tool: WindowToolbarGraphTool; icon: LucideIcon; words: string; label: string; key: string | null }[] = [
-  { tool: "add_node", icon: Plus, words: "Add node", label: "Add a node to the graph", key: "Tab" },
-  { tool: "frame_selection", icon: Frame, words: "Frame", label: "Frame the selected nodes", key: "F" },
-  { tool: "add_note", icon: StickyNote, words: "Note", label: "Add a note to the graph", key: null },
-  { tool: "add_subgraph", icon: Combine, words: "Subgraph", label: "Collapse the selection into a subgraph", key: null },
-];
-
-/** Why the toolbar's graph tools cannot be pressed while no area offers them. */
-const NO_GRAPH_OFFERS_ITS_TOOLS = "Show a stream graph to use its tools";
-
-/** The graph tools of the stream graph the person last worked in, in the window's toolbar; disabled, saying why, while no area offers them. */
-function WindowToolbarGraphTools({ offers }: { offers: WindowToolbarGraphToolOffers }) {
-  const shown = useWatchedStudioValue(offers.shown);
-  return (
-    <div role="group" aria-label="Graph tools" className="flex items-center gap-0.5" data-studio-graph-tools={shown?.area_id ?? ""}>
-      {WINDOW_TOOLBAR_GRAPH_TOOL_LOOKS.map(({ tool, icon, words, label, key }) => {
-        const offered = shown?.tools.find((offeredTool) => offeredTool.tool === tool);
-        const disabledReason = shown === null ? NO_GRAPH_OFFERS_ITS_TOOLS : offered === undefined ? `This graph offers no ${words} tool` : offered.disabled_reason;
-        return (
-          <ActionButton
-            key={tool}
-            appearance="quiet"
-            size="small"
-            icon={icon}
-            label={label}
-            tooltip={key === null ? label : `${label} (${key})`}
-            disabledReason={disabledReason}
-            onPressed={() => shown?.press(tool)}
-            data-studio-graph-tool={tool}
-          >
-            {words}
-            {key === "Tab" && <KeyboardKey isAlreadyAnnounced>{key}</KeyboardKey>}
-          </ActionButton>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Tells `offers` which area the person works in: one they press in, or one whose view's frame takes the focus. */
-function useTheAreaThePersonWorksIn(offers: WindowToolbarGraphToolOffers) {
-  useEffect(() => {
-    const areaIdOf = (element: Element | null) => element?.closest<HTMLElement>("[data-studio-area]")?.dataset["studioArea"] ?? null;
-    const personWorkedAt = (element: Element | null) => {
-      const areaId = areaIdOf(element);
-      if (areaId !== null) offers.personWorkedInTheArea(areaId);
-    };
-    const onPointerDown = (event: PointerEvent) => personWorkedAt(event.target instanceof Element ? event.target : null);
-    const onFocusIn = (event: FocusEvent) => personWorkedAt(event.target instanceof Element ? event.target : null);
-    const onWindowBlur = () => personWorkedAt(document.activeElement);
-    document.addEventListener("pointerdown", onPointerDown, true);
-    document.addEventListener("focusin", onFocusIn);
-    window.addEventListener("blur", onWindowBlur);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown, true);
-      document.removeEventListener("focusin", onFocusIn);
-      window.removeEventListener("blur", onWindowBlur);
-    };
-  }, [offers]);
-}
-
-/** The studio: its menus along the top (in the system menu bar on macOS), the open streams' tabs, and the chosen layout's areas; or the Projects window, with no menus of its own on Linux, while no project is open or File › Projects shows it. */
+/** The studio: one title row of its menus (in the system menu bar on macOS, where the row names the project instead) and the open streams' tabs, then the chosen layout's areas; or the Projects window, with no menus of its own on Linux, while no project is open or File › Projects shows it. */
 export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const { model, platform, commands, systemMenuBar } = sources;
-  useTheAreaThePersonWorksIn(model.windowToolbarGraphToolOffers);
   const status = useTatolabStatus();
   const openProject = useWatchedStudioValue(model.openProject);
   const studioLayouts = useWatchedStudioValue(model.studioLayouts);
@@ -323,12 +232,10 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const recentProjectChangeRefusal = useWatchedStudioValue(model.recentProjectChangeRefusal);
   const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
   const projectEditRefusal = useWatchedStudioValue(model.projectEditRefusal);
-  const listedStreams = useWatchedStudioValue(model.listedStreams);
   const appUpdateChoiceRefusal = useWatchedStudioValue(model.appUpdateChoiceRefusal);
   const openProjectStreamFailureRaised = useWatchedStudioValue(model.openProjectStreamFailureRaised);
   const newProjectSheetOpenedWith = useWatchedStudioValue(model.newProjectSheetOpenedWith);
   const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null;
-  const openProjectFolder = openProject.kind === "read" ? openProject.open_project.project.folder : null;
   const menusLiveInTheSystemMenuBar = presentPlatform(platform).menusLiveInTheSystemMenuBar;
   const chosenLayoutShown = isAProjectShown ? studioLayouts.chosen_layout : null;
   useEffect(() => {
@@ -338,47 +245,30 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       {isAProjectShown ? (
         <header
-          className="flex h-(--studio-menu-bar-height) shrink-0 items-center gap-2.5 border-b border-studio-frame bg-studio-menu-bar pr-2.5 pl-(--studio-menu-bar-leading-inset)"
-          data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined}
+          className="flex h-(--studio-menu-bar-height) shrink-0 items-stretch bg-studio-menu-bar pr-2.5 pl-(--studio-menu-bar-leading-inset)"
+          data-window-drag-region={windowDragRegionAttribute(platform, "deep") ?? undefined}
+          data-studio-title-row=""
         >
-          {!menusLiveInTheSystemMenuBar && <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, status.app_update, commands)} />}
-          <div className="flex items-center gap-0.5">
-            <IconButton icon={Undo2} label="Undo your last edit" onPressed={commands.undoYourLastEdit} data-studio-undo="" />
-            <IconButton icon={Redo2} label="Redo what you undid" onPressed={commands.redoYourLastUndo} data-studio-redo="" />
-          </div>
-          <span aria-hidden className="h-4.5 w-px shrink-0 bg-line-strong" />
-          <WindowToolbarGraphTools offers={model.windowToolbarGraphToolOffers} />
-          {presentPlatform(platform).hasOverlayTitleBar && (
-            // macOS's overlay title bar draws no title of its own, so the project's name fills the toolbar's free middle; Linux's window title bar shows it.
-            <p className="pointer-events-none min-w-0 flex-1 truncate text-center text-xs text-fg-2" data-studio-window-title="">
-              {openProjectTitleInTheToolbar(openProject)}
+          {menusLiveInTheSystemMenuBar ? (
+            // macOS's overlay title bar draws no title of its own, so the row names the project; Linux's window title bar shows it.
+            <p className="flex max-w-[240px] shrink-0 items-center truncate pr-6 text-2xs text-fg-3" data-studio-window-title="">
+              {openProjectTitleInTheTitleRow(openProject)}
             </p>
-          )}
-          {playOrStopOfferedForTheProject(openProjectFolder, listedStreams) === "play" ? (
-            <ActionButton
-              appearance="positive"
-              size="small"
-              icon={Play}
-              tooltip={`Play the project's streams (${RUN_LIVE_KEY})`}
-              onPressed={commands.runTheProjectLive}
-              className="ml-auto px-4"
-              data-studio-play-or-stop="play"
-            >
-              Play
-            </ActionButton>
           ) : (
-            <ActionButton
-              appearance="destructive"
-              size="small"
-              icon={Square}
-              tooltip={`Stop the project's streams (${STOP_KEY_HINT})`}
-              onPressed={commands.stopTheProject}
-              className="ml-auto px-4 font-semibold"
-              data-studio-play-or-stop="stop"
-            >
-              Stop
-            </ActionButton>
+            <div className="flex shrink-0 items-center pr-3">
+              <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, status.app_update, commands)} />
+            </div>
           )}
+          <DocumentTabs
+            label="Open streams"
+            icon={Workflow}
+            tabs={streamTabsDrawnInTheStrip(openStreamTabs)}
+            activeTabId={openStreamTabs.active_stream}
+            onTabChosen={(stream) => model.chooseStreamTab(stream)}
+            onTabClosed={(stream) => model.closeStreamTab(stream)}
+            whenNoneIsOpen="Open a stream from the outliner to see it here."
+          />
+          <div className="min-w-6 flex-1" />
         </header>
       ) : (
         // macOS draws the window buttons over the content, so the Projects window keeps a bare strip for them to sit in and to drag the window by.
@@ -394,16 +284,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         <ProjectsView model={model} projectsSources={sources.projects} commands={commands} platform={platform} />
       ) : (
         <>
-          <DocumentTabs
-            label="Open streams"
-            tabs={streamTabsDrawnInTheStrip(openStreamTabs)}
-            activeTabId={openStreamTabs.active_stream}
-            onTabChosen={(stream) => model.chooseStreamTab(stream)}
-            onTabClosed={(stream) => model.closeStreamTab(stream)}
-            whenNoneIsOpen="Open a stream from the outliner to see it here."
-            tabsToOpen={{ label: "Open a stream of the project", choices: <StreamsOfTheProjectToOpenAsTabs model={model} offered={streamsOfTheProjectNoTabShows(openProjectFolder, listedStreams, openStreamTabs)} /> }}
-          />
-          <main className="flex min-h-0 flex-1 px-(--studio-area-gap) pb-(--studio-area-gap)" data-studio-layout={studioLayouts.chosen_layout}>
+          <main className="flex min-h-0 flex-1 p-(--studio-area-gap)" data-studio-layout={studioLayouts.chosen_layout}>
             <StudioAreaLayoutNodeView
               node={studioLayouts.layouts[studioLayouts.chosen_layout]}
               layoutKey={studioLayouts.chosen_layout}
@@ -413,7 +294,6 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
           <StudioStatusBar
             viewHostServices={sources.viewHostServices}
             projectFolder={openProject.kind === "read" ? openProject.open_project.project.folder : openProject.kind === "unreadable" ? openProject.folder : null}
-            activeStream={openStreamTabs.active_stream}
             platform={platform}
           />
         </>

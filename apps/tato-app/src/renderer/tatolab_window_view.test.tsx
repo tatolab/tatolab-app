@@ -199,7 +199,7 @@ describe("the studio", () => {
     expect(outlinerFrame.getAttribute("src")).toMatch(/\/core_views\/outliner\/index\.html$/);
   });
 
-  it("titles the window with the project's name once, centred in the toolbar on macOS, never on a stream tab", async () => {
+  it("names the project once on macOS, at the start of the title row before the stream tabs, never on a tab", async () => {
     await mountedWindowOverTheMock("state=running");
     await waitFor(() => expect(document.querySelector("[data-studio-window-title]")?.textContent).toBe("pattern"));
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
@@ -565,7 +565,7 @@ describe("the studio", () => {
     await mountedWindowOverTheMock("state=running", backendChanges);
     expect(await shownLayout()).toBe("build");
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
-    expect(document.querySelector("[data-studio-play-or-stop]")).not.toBeNull();
+    expect(document.querySelector("[data-studio-title-row]")).not.toBeNull();
     expect(menusShownLast().map((menu) => [menu.label, menu.system_menu])).toEqual([
       ["Tato Studio", "app"],
       ["File", null],
@@ -765,21 +765,6 @@ describe("the studio", () => {
     await waitFor(() => expect(entryLabels()).toEqual(["layers:0", "layers:1"]), { timeout: 5000 });
     expect(secondX().value).toBe("0");
     expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
-  });
-
-  it("draws the Stream graph's Add node, Frame, Note and Subgraph in the window's toolbar and in the graph's ribbon, says why one can't be pressed, and a press opens the node search in the graph", async () => {
-    await mountedWindowOverTheMock("state=running");
-    const toolInTheToolbar = (tool: string) => document.querySelector<HTMLElement>(`[data-studio-graph-tool="${tool}"]`) ?? expect.unreachable(`no ${tool} in the toolbar`);
-    await waitFor(() => expect(document.querySelector("[data-studio-graph-tools]")?.getAttribute("data-studio-graph-tools")).toBe("stream-graph"));
-    await waitFor(() => expect(toolInTheToolbar("add_node").getAttribute("aria-disabled")).toBeNull());
-    expect(toolInTheToolbar("frame_selection").getAttribute("aria-label")).toBe("Frame the selected nodes: Select the nodes to frame first");
-    expect(toolInTheToolbar("add_subgraph").getAttribute("aria-disabled")).toBe("true");
-    const streamGraph = coreViewPage("stream_graph", "stream-graph");
-    await waitFor(() => expect(streamGraph.querySelector('[data-node-graph-tool="add_node"]')).not.toBeNull());
-    expect(streamGraph.querySelector('[data-node-graph-tool="add_subgraph"]')?.getAttribute("aria-disabled")).toBe("true");
-
-    fireEvent.click(toolInTheToolbar("add_node"));
-    await waitFor(() => expect(within(streamGraph.body).getByRole("dialog", { name: "Add a node" })).toBeTruthy());
   });
 
   it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {
