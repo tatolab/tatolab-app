@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
-import type { ProjectCreationQueued, ProjectRunQueued, StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
+import type { ProjectCreationQueued, ProjectStreamActionQueued, StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { StreamProjectAdding, type ProjectLoadsOnTheRuntime } from "./stream_project_adding.js";
@@ -13,21 +13,21 @@ afterEach(async () => {
   await Promise.all(temporaryHomes.splice(0).map((home) => rm(home, { recursive: true, force: true })));
 });
 
-/** The runtime's `create_project` and `start_project`, answering as scripted and recording each folder asked of them. */
+/** The runtime's `create_project` and `open_project`, answering as scripted and recording each folder asked of them. */
 class FakeProjectLoadsOnTheRuntime implements ProjectLoadsOnTheRuntime {
   readonly creationsAsked: (string | null)[] = [];
-  readonly runsAsked: string[] = [];
+  readonly opensAsked: string[] = [];
   creationAnswer: Result<ProjectCreationQueued, LocalApiRequestFailure> = succeeded({ action: "R1-2", stream: "lobby-main-caa719", project_directory: "/tmp/lobby" });
-  runAnswer: Result<ProjectRunQueued, LocalApiRequestFailure> = succeeded({ action: "R1-3", project_directory: "/tmp/hallways" });
+  openAnswer: Result<ProjectStreamActionQueued, LocalApiRequestFailure> = succeeded({ action: "R1-3", project_directory: "/tmp/hallways" });
 
   async createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>> {
     this.creationsAsked.push(projectDirectory);
     return this.creationAnswer;
   }
 
-  async startProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
-    this.runsAsked.push(projectDirectory);
-    return this.runAnswer;
+  async openProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
+    this.opensAsked.push(projectDirectory);
+    return this.openAnswer;
   }
 }
 
@@ -50,13 +50,13 @@ async function streamProjectAddingOverFakes(dialogAnswer: Result<string | null, 
 test("the dialog opens at home for a project to import, and at ~/streams for a new one once that folder exists", async () => {
   const { streamProjectAdding, homeDirectory, dialogAsked } = await streamProjectAddingOverFakes();
 
-  await streamProjectAdding.chooseStreamProjectFolder("project_to_run");
+  await streamProjectAdding.chooseStreamProjectFolder("project_to_open");
   await streamProjectAdding.chooseStreamProjectFolder("new_project_directory");
   await mkdir(path.join(homeDirectory, "streams"));
   await streamProjectAdding.chooseStreamProjectFolder("new_project_directory");
 
   expect(dialogAsked).toEqual([
-    { chosenFor: "project_to_run", defaultFolder: homeDirectory },
+    { chosenFor: "project_to_open", defaultFolder: homeDirectory },
     { chosenFor: "new_project_directory", defaultFolder: homeDirectory },
     { chosenFor: "new_project_directory", defaultFolder: path.join(homeDirectory, "streams") },
   ]);
@@ -67,12 +67,12 @@ test("a chosen folder comes back with its links resolved, and only a folder hand
   const hallways = path.join(homeDirectory, "hallways");
   await mkdir(hallways);
   await symlink(hallways, path.join(homeDirectory, "hallways-link"));
-  const choosingThroughALink = await (await streamProjectAddingOverFakes(succeeded(path.join(homeDirectory, "hallways-link")))).streamProjectAdding.chooseStreamProjectFolder("project_to_run");
+  const choosingThroughALink = await (await streamProjectAddingOverFakes(succeeded(path.join(homeDirectory, "hallways-link")))).streamProjectAdding.chooseStreamProjectFolder("project_to_open");
   expect(choosingThroughALink).toEqual(succeeded(hallways));
 
-  expect(await streamProjectAdding.runStreamProject(hallways)).toEqual(failedWith(`Tato Studio acts only on a folder chosen in its window. Choose ${hallways} again.`));
+  expect(await streamProjectAdding.openStreamProject(hallways)).toEqual(failedWith(`Tato Studio acts only on a folder chosen in its window. Choose ${hallways} again.`));
   expect(await streamProjectAdding.createStreamProject("/etc")).toEqual(failedWith("Tato Studio acts only on a folder chosen in its window. Choose /etc again."));
-  expect(projectLoads.runsAsked).toEqual([]);
+  expect(projectLoads.opensAsked).toEqual([]);
   expect(projectLoads.creationsAsked).toEqual([]);
 });
 
@@ -84,15 +84,15 @@ test("a chosen folder is created or run through the runtime, and a new project w
   expect(await streamProjectAdding.chooseStreamProjectFolder("new_project_directory")).toEqual(succeeded(lobby));
   expect(await streamProjectAdding.createStreamProject(lobby)).toEqual(succeeded({ action: "R1-2", stream: "lobby-main-caa719", project_directory: "/tmp/lobby" }));
   expect(await streamProjectAdding.createStreamProject(null)).toEqual(succeeded({ action: "R1-2", stream: "lobby-main-caa719", project_directory: "/tmp/lobby" }));
-  expect(await streamProjectAdding.runStreamProject(lobby)).toEqual(succeeded({ action: "R1-3", project_directory: "/tmp/hallways" }));
+  expect(await streamProjectAdding.openStreamProject(lobby)).toEqual(succeeded({ action: "R1-3", project_directory: "/tmp/hallways" }));
   expect(projectLoads.creationsAsked).toEqual([lobby, null]);
-  expect(projectLoads.runsAsked).toEqual([lobby]);
+  expect(projectLoads.opensAsked).toEqual([lobby]);
 });
 
 test("a refusal of the runtime reaches the window in its own words, and a cancelled dialog answers null", async () => {
   const { streamProjectAdding, projectLoads } = await streamProjectAddingOverFakes();
   projectLoads.creationAnswer = failedWith({ failureDescription: "Invalid configuration: HOME is not set", isTheRuntimesRefusal: true });
 
-  expect(await streamProjectAdding.chooseStreamProjectFolder("project_to_run")).toEqual(succeeded(null));
+  expect(await streamProjectAdding.chooseStreamProjectFolder("project_to_open")).toEqual(succeeded(null));
   expect(await streamProjectAdding.createStreamProject(null)).toEqual(failedWith("Invalid configuration: HOME is not set"));
 });

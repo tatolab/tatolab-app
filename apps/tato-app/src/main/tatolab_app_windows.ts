@@ -67,8 +67,8 @@ export interface TatolabAppWindowsSources {
   openTheProjectTransactionsFeedConnection: ProjectTransactionsFeedOfAStudioWindowSources["openTheFeedConnection"];
   /** Runs `work` once after `delayMs`; the answer cancels it. */
   runAfter: (delayMs: number, work: () => void) => () => void;
-  /** Queue the stop of every stream of the project in `projectFolder`, as the person chose in closing its window; refused in the runtime's own words. */
-  stopTheProjectAsItsWindowCloses: (projectFolder: string) => Promise<Result<void, string>>;
+  /** Queue the close of the project in `projectFolder` on the runtime as its window closes, which ends its playback and unloads its streams; refused in the runtime's own words. */
+  closeTheProjectAsItsWindowCloses: (projectFolder: string) => Promise<Result<void, string>>;
   /** A studio window or a popped-out view closed: stop the language servers its page started. */
   whenAWindowStartingLanguageServersClosed: (languageServerOfTheWindow: LanguageServerOfAWindow) => void;
   /** A studio window or a popped-out view closed: close the port viewers its page opened. */
@@ -391,9 +391,13 @@ export class TatolabAppWindows {
     void projectTransactionsFeed.follow();
   }
 
-  /** Close a studio window whose project runs no stream; for one that runs any, keep it open and ask whether to stop the project and close it. */
+  /** Close a studio window whose project does not play, closing the project on the runtime while it holds it open; for one that plays, keep it open and ask whether to stop and close the project. */
   private answerTheCloseRequestOfTheStudioWindow(studioWindow: StudioWindowOfAProject): "let_it_close" | "keep_it_open" {
-    if (!isAnyStreamOfTheProjectRunningIn(this.lastStatusSent, studioWindow.openProject.projectFolder)) return "let_it_close";
+    const projectFolder = studioWindow.openProject.projectFolder;
+    if (!isAnyStreamOfTheProjectPlayingIn(this.lastStatusSent, projectFolder)) {
+      if (isTheProjectOpenIn(this.lastStatusSent, projectFolder)) void this.closeTheProjectOfTheClosedWindow(projectFolder);
+      return "let_it_close";
+    }
     if (!this.studioWindowsAskingToStopTheirProject.has(studioWindow)) {
       this.studioWindowsAskingToStopTheirProject.add(studioWindow);
       void this.askToStopTheProjectThenCloseItsWindow(studioWindow).finally(() => this.studioWindowsAskingToStopTheirProject.delete(studioWindow));
@@ -405,8 +409,8 @@ export class TatolabAppWindows {
     const projectFolder = studioWindow.openProject.projectFolder;
     const projectName = studioWindowTitleOf(studioWindow.openProject.readOpenProject(), projectFolder);
     const choice = await studioWindow.tatolabMainWindow.askAQuestionOverTheWindow({
-      message: `Closing this window stops ${projectName}.`,
-      detail: `Every stream of ${projectName} stops running. Open the project and run it again to start it.`,
+      message: `Closing this window stops and closes ${projectName}.`,
+      detail: `Every stream of ${projectName} stops playing and is unloaded. Open the project again to play it.`,
       buttonLabels: [STOP_AND_CLOSE_BUTTON_LABEL, "Cancel"],
       defaultButtonIndex: 0,
       cancelButtonIndex: 1,
@@ -416,7 +420,7 @@ export class TatolabAppWindows {
       return;
     }
     if (choice.value !== 0) return;
-    const stopped = await this.sources.stopTheProjectAsItsWindowCloses(projectFolder);
+    const stopped = await this.sources.closeTheProjectAsItsWindowCloses(projectFolder);
     if (stopped.ok) {
       studioWindow.tatolabMainWindow.close();
       return;
@@ -429,6 +433,11 @@ export class TatolabAppWindows {
       defaultButtonIndex: 0,
       cancelButtonIndex: 0,
     });
+  }
+
+  private async closeTheProjectOfTheClosedWindow(projectFolder: string): Promise<void> {
+    const closed = await this.sources.closeTheProjectAsItsWindowCloses(projectFolder);
+    if (!closed.ok) this.sources.tatolabAppLog.warn("a project did not close as its window closed", { project_folder: projectFolder, refusal: closed.failure });
   }
 
   private forgetTheClosedStudioWindow(studioWindow: StudioWindowOfAProject): void {
@@ -456,11 +465,19 @@ export class TatolabAppWindows {
 }
 
 /** A studio window's title: its project's name, or its folder's when the project doesn't read. */
-/** Whether `status` lists a stream of the project in `projectFolder` running or on its way to running. */
-export function isAnyStreamOfTheProjectRunningIn(status: TatolabStatus | null, projectFolder: string): boolean {
+/** The states `list_streams` gives a stream whose project plays, is paused, or is being loaded or played. */
+const STREAM_STATES_WHILE_THE_PROJECT_PLAYS_OR_IS_ON_ITS_WAY: ReadonlySet<string> = new Set(["running", "paused", "preparing"]);
+
+/** Whether `status` lists a stream of the project in `projectFolder` playing, paused or on its way to playing. */
+export function isAnyStreamOfTheProjectPlayingIn(status: TatolabStatus | null, projectFolder: string): boolean {
   return (status?.streams ?? []).some(
-    (listedStream) => listedStream.location?.project_directory === projectFolder && (listedStream.state === "running" || listedStream.state === "preparing"),
+    (listedStream) => listedStream.location?.project_directory === projectFolder && STREAM_STATES_WHILE_THE_PROJECT_PLAYS_OR_IS_ON_ITS_WAY.has(listedStream.state),
   );
+}
+
+/** Whether `status` lists the project in `projectFolder` open: a stream of it in any state but `closed`. */
+function isTheProjectOpenIn(status: TatolabStatus | null, projectFolder: string): boolean {
+  return (status?.streams ?? []).some((listedStream) => listedStream.location?.project_directory === projectFolder && listedStream.state !== "closed");
 }
 
 function studioWindowTitleOf(reading: OpenProjectReading, projectFolder: string): string {
