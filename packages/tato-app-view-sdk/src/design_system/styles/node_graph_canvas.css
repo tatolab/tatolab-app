@@ -108,7 +108,7 @@
 .node-graph-frame-colour-swatch {
   width: 10px;
   height: 10px;
-  border-radius: 9999px;
+  border-radius: 3px;
 }
 .node-graph-frame-description-editable {
   pointer-events: auto;
