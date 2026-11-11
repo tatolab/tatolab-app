@@ -590,7 +590,7 @@ function NodeGraphFrameRightClickChoices({
       <RightClickMenuItem icon={Text} onChosen={() => editTheFrameWords("description")} data-node-graph-frame-choice="describe">
         {hasADescription ? "Edit description" : "Add description"}
       </RightClickMenuItem>
-      <RightClickSubmenu label="Colour" icon={Palette} data-node-graph-frame-choice="colour">
+      <RightClickSubmenu label="Color" icon={Palette} data-node-graph-frame-choice="colour">
         <RightClickMenuSingleChoiceGroup
           choices={NODE_GRAPH_FRAME_COLOURS.map(({ name, colour }) => ({
             choice: colour,
