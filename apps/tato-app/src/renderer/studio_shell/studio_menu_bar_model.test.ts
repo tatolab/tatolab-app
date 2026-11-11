@@ -116,6 +116,12 @@ describe("the layout menu", () => {
     expect(labels.slice(-3)).toEqual(["Main + bottom", "—", "Save layout as preset…"]);
   });
 
+  it("draws each shape's picture, and no preset or Save layout as preset… with one", () => {
+    const entries = studioLayoutMenuEntries("macos", { preset_titles_saved: ["Show night"] }, commandsCounted());
+    const labelsWithAPicture = entries.flatMap((entry) => (entry.kind === "command" && entry.picture !== undefined ? [entry.label] : []));
+    expect(labelsWithAPicture).toEqual(["Single", "Two columns", "Two rows", "Three columns", "Grid 2×2", "Main + right", "Left + main + right", "Main + bottom"]);
+  });
+
   it("is the Window menu's Layout submenu", () => {
     const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, UP_TO_DATE, commandsCounted());
     const layoutEntry = entryOf(menus, "Window", "Layout");
