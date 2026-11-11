@@ -92,6 +92,12 @@ export interface StudioViewNodeAddress {
   node_id: string;
 }
 
+/** The chosen layout's areas for a view type as the window holds them: none when no view type has the id, or why the window has no areas. */
+export type AreasForAViewTypeInTheWindow =
+  | { kind: "not_a_view_type" }
+  | { kind: "areas_listed"; view_title: string; areas: { area_id: string; shows_view_title: string | null; shows_the_view_type: boolean }[] }
+  | { kind: "no_areas"; because: string };
+
 /** Whether the runtime published a value a view wrote on one of its node's outputs, or why not, in its own words. */
 export type StudioViewOutputWriting = { kind: "written" } | { kind: "not_written"; because: string };
 
@@ -129,6 +135,10 @@ export interface StudioViewHostServices {
   watchProjectNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesReading) => void): StopWatching;
   /** `projectFolder`'s assets, listed while any view watches it and the window is shown; the first reading arrives once listed. */
   watchProjectAssets(projectFolder: string, listener: (reading: ProjectAssetsReading) => void): StopWatching;
+  /** The chosen layout's areas for `viewTypeId`, at once and again as the layout or the view types change. */
+  watchAreasForTheViewType(viewTypeId: string, listener: (reading: AreasForAViewTypeInTheWindow) => void): StopWatching;
+  /** Area `areaId` of the chosen layout showing `viewTypeId` in place of what it shows. */
+  showViewTypeInArea(viewTypeId: string, areaId: string): ViewOpening;
   /** The open project's Modules and Marketplace window opened on `shows`, or brought forward on it. */
   openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewOpening>;
   /** The files the person chooses imported into `projectFolder`, the open project only. */

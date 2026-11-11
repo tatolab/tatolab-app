@@ -8,11 +8,18 @@ import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import type { StudioWindowValuesServedToViews } from "../view_host/studio_view_host_services";
 import { WatchedStudioValue } from "../view_host/watched_studio_value";
-import type { JsonValue, ListedStreamsReading, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
+import type { JsonValue, ListedStreamsReading, StopWatching, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
 import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, type StudioAreaLayoutNode } from "./studio_area_layout";
 import { STUDIO_LAYOUTS, type StudioLayoutName, type StudioLayoutsKeptInStorage, type StudioLayoutsOfAFolder } from "./studio_layouts";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
 import { WindowToolbarGraphToolOffers } from "./window_toolbar_graph_tool_offers";
+import { showViewTypeInAreaOf, watchAreasForTheViewType, type StudioViewTypeAreaSources } from "./studio_view_type_areas";
+
+/** What the window's view types are named by, and when the ones it holds change. */
+export interface StudioViewTypeTitles {
+  viewTitleOf(viewTypeId: string): string | null;
+  watchChanges(onChanged: () => void): StopWatching;
+}
 
 /** A section the Module manager window is asked to show, and which ask of the window it is. */
 export interface ModuleManagerSectionAskNumbered {
@@ -110,9 +117,12 @@ export class StudioWindowModel {
 
   constructor(private readonly layoutsKept: StudioLayoutsKeptInStorage) {}
 
-  /** What the views are served from this model. */
-  viewHostSources(): StudioWindowValuesServedToViews {
+  /** What the views are served from this model, each view type named through `viewTypeTitles`. */
+  viewHostSources(viewTypeTitles: StudioViewTypeTitles): StudioWindowValuesServedToViews {
+    const viewTypeAreaSources = this.viewTypeAreaSources(viewTypeTitles);
     return {
+      watchAreasForTheViewType: (viewTypeId, listener) => watchAreasForTheViewType(viewTypeId, viewTypeAreaSources, listener),
+      showViewTypeInArea: (viewTypeId, areaId) => showViewTypeInAreaOf(viewTypeId, areaId, viewTypeAreaSources),
       openProject: this.openProject,
       listedStreams: this.listedStreams,
       selection: this.selection,
@@ -121,6 +131,24 @@ export class StudioWindowModel {
       viewsOpenedOn: this.viewsOpenedOn,
       chosenLayout: () => this.studioLayouts.readLatest()?.chosen_layout ?? null,
       openView: (viewTypeId, on) => this.openView(viewTypeId, on),
+    };
+  }
+
+  private viewTypeAreaSources(viewTypeTitles: StudioViewTypeTitles): StudioViewTypeAreaSources {
+    return {
+      readChosenLayoutTree: () => {
+        const layouts = this.studioLayouts.readLatest();
+        return layouts === null ? null : layouts.layouts[layouts.chosen_layout];
+      },
+      isAPoppedOutViewsWindow: () => this.poppedOutView.readLatest() !== null,
+      viewTitleOf: (viewTypeId) => viewTypeTitles.viewTitleOf(viewTypeId),
+      watchChanges: (onChanged) => {
+        const stopWatchingEach = [this.studioLayouts.watch(onChanged), this.poppedOutView.watch(onChanged), viewTypeTitles.watchChanges(onChanged)];
+        return () => {
+          for (const stopWatching of stopWatchingEach) stopWatching();
+        };
+      },
+      showViewTypeInTheArea: (areaId, viewTypeId) => this.showViewTypeInArea(areaId, viewTypeId),
     };
   }
 

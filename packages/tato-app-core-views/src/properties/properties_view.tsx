@@ -20,7 +20,8 @@ import {
   PropertyTextField,
 } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import { newGestureIdempotencyKey, type StopWatching, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import { newGestureIdempotencyKey, type AreasForAViewTypeReading, type StopWatching, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import { FieldMenu, MenuItem, MenuNote } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import type {
   JsonValue,
   NodeCatalogEntry,
@@ -32,9 +33,11 @@ import type {
   StreamGraphSummary,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
+import { useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { portStreamFactsWords, streamFactsAnInputReceives, VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
 import { nameInWords, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, recordsOfAListField, type ConfigFormField } from "./config_form_fields";
+import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
 import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
 import {
   configValueFromTheWordsTyped,
@@ -390,6 +393,44 @@ function PortRowsOfOneDirection({
   });
 }
 
+/** A view node's row naming how many areas show its view, with Show in an area to show it in another; nothing for a node that is not a view's. */
+function ViewNodeShownInAreasRow({ connection, viewTypeId }: { connection: TatoAppViewConnection; viewTypeId: string }) {
+  const areasReading = useViewReading(useCallback((listener: (reading: AreasForAViewTypeReading) => void): StopWatching => connection.watchAreasForTheViewType(viewTypeId, listener), [connection, viewTypeId]));
+  const [showingRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
+  if (areasReading === null || areasReading.kind === "not_a_view_type") return null;
+  if (areasReading.kind === "no_areas") {
+    return (
+      <PropertyRow label="Shown in" data-properties-view-shown-in={viewTypeId}>
+        {() => <p className="text-xs text-fg-3">{areasReading.because}</p>}
+      </PropertyRow>
+    );
+  }
+  const areasOffered = areasToShowTheViewIn(areasReading.areas);
+  return (
+    <PropertyRow label="Shown in" refusal={showingRefusal === null ? null : `${showingRefusal.lead} ${showingRefusal.because}`} data-properties-view-shown-in={viewTypeId}>
+      {(fieldId) => (
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <span id={fieldId} className="truncate text-xs text-fg-2" data-properties-view-shown-in-words>
+            {viewShownInAreasWords(areasReading.areas)}
+          </span>
+          <FieldMenu label={`Show ${areasReading.view_title} in an area`} words="Show in an area" size="compact" menuWidth="wide" menuAlignment="end" data-properties-show-in-an-area={viewTypeId}>
+            <MenuNote>Areas of the layout shown</MenuNote>
+            {areasOffered.length === 0 ? (
+              <MenuNote>Every other area shows {areasReading.view_title}.</MenuNote>
+            ) : (
+              areasOffered.map((area) => (
+                <MenuItem key={area.area_id} onChosen={() => showTheRefusalOf(`${areasReading.view_title} wasn't shown:`, connection.showViewTypeInArea(viewTypeId, area.area_id))} data-properties-show-in-area={area.area_id}>
+                  {area.words}
+                </MenuItem>
+              ))
+            )}
+          </FieldMenu>
+        </div>
+      )}
+    </PropertyRow>
+  );
+}
+
 /** The selected node's name, its config as controls that edit it, and its inputs and outputs with what each joins. */
 function PropertiesOfTheSelectedNode({
   connection,
@@ -483,6 +524,7 @@ function PropertiesOfTheSelectedNode({
         )}
         {streamAsset === null && <p className="border-b px-3 py-1.5 text-xs text-fg-3">This runtime names no stream asset for {streamName}, so its nodes can't be edited from here.</p>}
         <PropertySection title="Config">
+          <ViewNodeShownInAreasRow connection={connection} viewTypeId={node.type} />
           {configForm.kind === "takes_no_config" ? (
             <p className="px-1 text-xs text-fg-3">{nameInWords(typeClassName)} takes no config.</p>
           ) : configForm.fields.length === 0 ? (

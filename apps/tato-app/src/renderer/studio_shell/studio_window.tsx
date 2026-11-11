@@ -195,6 +195,7 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
       <StudioViewFailureBoundary key={viewType.view_type_id} viewTitle={viewType.title}>
         {viewType.renderInAnArea(
           {
+            area_id: area.area_id,
             saved_settings: area.settings,
             rememberSettings: (nextSettings) => sources.model.keepAreaSettings(area.area_id, nextSettings),
             header_row: headerRowInTheFrame,

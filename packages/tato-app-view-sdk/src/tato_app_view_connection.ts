@@ -35,6 +35,7 @@ import {
   VIEW_PORT_HANDOVER,
   messageFromStudioSchema,
   type MessageFromStudio,
+  type AreasForAViewTypeReading,
   type MessageFromTheView,
   type ModulesAndMarketplaceSection,
   type PortViewerEvent,
@@ -142,6 +143,10 @@ export interface TatoAppViewConnection {
   undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** Redo what `author`'s latest undo in the project reversed, answering the redo the runtime applied. */
   redoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
+  /** The chosen layout's areas for the view type `viewTypeId`, at once and again as the layout or the view types change. */
+  watchAreasForTheViewType(viewTypeId: string, listener: (reading: AreasForAViewTypeReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
+  /** Show the view type `viewTypeId` in area `areaId` of the chosen layout, in place of what it shows. */
+  showViewTypeInArea(viewTypeId: string, areaId: string): Promise<ViewAskDone>;
   /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
   openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewAskDone>;
   /** Ask the person for files in the desktop's open dialog and import each into the project, where the runtime places it in its kind's folder under its own name, numbered past a name already taken. */
@@ -312,6 +317,9 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
           if (answer.kind === "nothing_chosen") return { kind: "nothing_chosen" };
           return { kind: "not_imported", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
         }),
+      watchAreasForTheViewType: (viewTypeId, listener, whenRefused = IGNORE_THE_REFUSAL) =>
+        watchFor({ kind: "areas_for_the_view_type", view_type_id: viewTypeId }, (watched) => watched.subject === "areas_for_the_view_type" && listener(watched.reading), whenRefused),
+      showViewTypeInArea: (viewTypeId, areaId) => ask({ kind: "show_view_type_in_area", view_type_id: viewTypeId, area_id: areaId }).then(doneOf),
       openModulesAndMarketplace: (shows) => ask({ kind: "open_modules_and_marketplace", shows }).then(doneOf),
       readThePersonEditing: () =>
         ask({ kind: "read_the_person_editing" }).then((answer): ThePersonEditingReading => {

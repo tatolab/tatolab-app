@@ -95,6 +95,7 @@ function recordingHostServices() {
   const undosAsked: { projectFolder: string; author: ProjectTransactionAuthor }[] = [];
   const assetImportsAsked: string[] = [];
   const modulesAndMarketplaceSectionsOpened: string[] = [];
+  const viewTypesShownInAreas: { viewTypeId: string; areaId: string }[] = [];
   const graphTransactionsAsked: { projectFolder: string; operations: readonly unknown[]; mode: string; idempotencyKey: string | null }[] = [];
   const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
   const outputsWritten: { viewNode: StudioViewNodeAddress; port: string; value: JsonValue }[] = [];
@@ -140,6 +141,25 @@ function recordingHostServices() {
         assets_imported: { imported: [{ asset: "a-uuid", path: "media/intro.mp4" }], refused: [{ file_name: "main.graph.json", because: "import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write" }] },
       };
     },
+    watchAreasForTheViewType: (viewTypeId, listener) => {
+      listener(
+        viewTypeId === "acme-dj:deck"
+          ? {
+              kind: "areas_listed",
+              view_title: "DJ Deck",
+              areas: [
+                { area_id: "viewer", shows_view_title: "Viewer", shows_the_view_type: false },
+                { area_id: "properties", shows_view_title: "Properties", shows_the_view_type: false },
+              ],
+            }
+          : { kind: "not_a_view_type" },
+      );
+      return () => undefined;
+    },
+    showViewTypeInArea: (viewTypeId, areaId) => {
+      viewTypesShownInAreas.push({ viewTypeId, areaId });
+      return areaId === "viewer" ? { kind: "opened" } : { kind: "not_opened", because: `The layout shown has no area ${areaId}.` };
+    },
     openModulesAndMarketplace: async (shows) => {
       modulesAndMarketplaceSectionsOpened.push(shows);
       return modulesAndMarketplaceSectionsOpened.length === 1 ? { kind: "opened" } : { kind: "not_opened", because: "Only a project's studio window opens its Modules and Marketplace window." };
@@ -184,7 +204,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, modulesAndMarketplaceSectionsOpened, graphTransactionsAsked, outputsWritten };
+  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten };
 }
 
 /** An area that keeps the settings it is asked to remember and says where the view's header row lies. */
@@ -193,6 +213,7 @@ function recordingAreaServices(savedSettings: JsonValue | undefined) {
   const headerRow = new WatchedStudioValue<ViewHeaderRow>({ leading_inset_px: 120, height_px: 30 });
   const toolbarGraphToolOffers = new WindowToolbarGraphToolOffers();
   const areaServices: TatolabViewAreaServices = {
+    areaId: "properties",
     watchSavedSettings: (listener) => saved.watch((latest) => listener(latest.saved)),
     rememberSettings: (settings) => saved.publish({ saved: settings }),
     watchHeaderRow: headerRow.watch,
@@ -288,6 +309,31 @@ describe("a view's connection to Studio, through the one bridge every view is se
     });
     expect(await connection.importAssetsIntoTheProject("/cancelled")).toEqual({ kind: "nothing_chosen" });
     expect(assetImportsAsked).toEqual(["/set", "/cancelled"]);
+  });
+
+  it("lists the chosen layout's areas for a view type, marking the asking view's own, and shows the view type in one", async () => {
+    const { connection, viewTypesShownInAreas } = await connectedView(DJ_DECK_MANIFEST, {});
+    const readings: unknown[] = [];
+    connection.watchAreasForTheViewType("acme-dj:deck", (reading) => readings.push(reading));
+    connection.watchAreasForTheViewType("acme-dj:nowhere", (reading) => readings.push(reading));
+    await messagesDelivered();
+    expect(readings).toEqual([
+      {
+        kind: "areas_listed",
+        view_title: "DJ Deck",
+        areas: [
+          { area_id: "viewer", shows_view_title: "Viewer", shows_the_view_type: false, is_the_asking_views_area: false },
+          { area_id: "properties", shows_view_title: "Properties", shows_the_view_type: false, is_the_asking_views_area: true },
+        ],
+      },
+      { kind: "not_a_view_type" },
+    ]);
+    expect(await connection.showViewTypeInArea("acme-dj:deck", "viewer")).toEqual({ kind: "done" });
+    expect(await connection.showViewTypeInArea("acme-dj:deck", "gone")).toEqual({ kind: "refused", because: "The layout shown has no area gone." });
+    expect(viewTypesShownInAreas).toEqual([
+      { viewTypeId: "acme-dj:deck", areaId: "viewer" },
+      { viewTypeId: "acme-dj:deck", areaId: "gone" },
+    ]);
   });
 
   it("opens the project's Modules and Marketplace window on the section asked, and says why when it can't", async () => {

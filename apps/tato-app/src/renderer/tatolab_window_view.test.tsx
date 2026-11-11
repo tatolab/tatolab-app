@@ -799,6 +799,23 @@ describe("the studio", () => {
     expect(within(streamGraph.body).queryByRole("dialog", { name: "Add a node" })).toBeNull();
   });
 
+  it("shows a view node's view in an area from Properties' Show in an area, in place of what that area showed", async () => {
+    await mountedWindowOverTheMock("state=running&studio_views=fixture");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="pictureandfader"]') ?? expect.unreachable("no view node card")));
+    const properties = () => coreViewPage("properties");
+    const shownInWords = () => properties().querySelector("[data-properties-view-shown-in-words]")?.textContent;
+    await waitFor(() => expect(shownInWords()).toBe("Not shown"));
+
+    pressAsAPointerDoes(properties().querySelector<HTMLElement>("[data-properties-show-in-an-area]") ?? expect.unreachable("no Show in an area"));
+    const viewerChoice = await screen.findByRole("menuitem", { name: "In place of Viewer" });
+    expect(screen.queryByRole("menuitem", { name: "In place of Properties" })).toBeNull();
+    fireEvent.click(viewerChoice);
+
+    await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] iframe[data-tatolab-view]')?.getAttribute("data-tatolab-view")).toBe("pattern:picture_and_fader"));
+    await waitFor(() => expect(shownInWords()).toBe("1 area"));
+  });
+
   it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {
     await mountedWindowOverTheMock("state=running");
     expect(await shownLayout()).toBe("build");
