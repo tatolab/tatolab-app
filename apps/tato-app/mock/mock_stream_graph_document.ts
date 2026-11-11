@@ -62,15 +62,22 @@ export function studioAsTheRuntimeRendersIt(studio: StreamGraphNodeStudioFields)
   };
 }
 
-/** The families a client writes a stream's top-level `GraphInput` of, which run and so carry a current value. */
-const GRAPH_INPUT_FAMILIES_A_CLIENT_WRITES: readonly string[] = ["array", "channels", "records"];
+/** Whether a client writes `node`, a top-level `GraphInput` of a family that runs: Array, Channels or Records. */
+export function isAGraphInputAClientWrites(node: MockGraphNode): boolean {
+  return node.type === "tatolab.stream:GraphInput" && typeof node.config["port"] === "string" && ["array", "channels", "records"].includes(String(node.config["family"]));
+}
 
-/** The port `node` declares as the runtime renders its `graph_interface`: a top-level running Input carrying the value last written to it by name, else its `default`; `null` for a node that is no interface node. */
-function graphInterfacePortAsTheRuntimeRendersIt(node: MockGraphNode, isTopLevel: boolean, valueWrittenToEachGraphInput: ReadonlyMap<string, JsonValue>): StreamGraphInterfacePort | null {
+/** The port `node` declares as the runtime renders its `graph_interface`: a top-level Input a client writes, while it reads `nodeState` `Running`, carrying the value last written to it by name, else its `default`; `null` for a node that is no interface node. */
+function graphInterfacePortAsTheRuntimeRendersIt(
+  node: MockGraphNode,
+  nodeState: string | null,
+  isTopLevel: boolean,
+  valueWrittenToEachGraphInput: ReadonlyMap<string, JsonValue>,
+): StreamGraphInterfacePort | null {
   const direction = node.type === "tatolab.stream:GraphInput" ? "input" : node.type === "tatolab.stream:GraphOutput" ? "output" : null;
   const { port, family } = node.config;
   if (direction === null || typeof port !== "string" || typeof family !== "string") return null;
-  const carriesAValue = direction === "input" && isTopLevel && GRAPH_INPUT_FAMILIES_A_CLIENT_WRITES.includes(family);
+  const carriesAValue = isTopLevel && nodeState === "Running" && isAGraphInputAClientWrites(node);
   return { direction, port, family, current_value: carriesAValue ? (valueWrittenToEachGraphInput.get(port) ?? node.config["default"] ?? null) : null };
 }
 
@@ -136,7 +143,7 @@ export function mockStreamGraphSummary(
               links: node.fragment.links.map((link) => ({ ...link, state: linkState(link.state) })),
               groups: node.fragment.groups,
             },
-      graph_interface: graphInterfacePortAsTheRuntimeRendersIt(node, isTopLevel, valueWrittenToEachGraphInput),
+      graph_interface: graphInterfacePortAsTheRuntimeRendersIt(node, nodeState(node.state), isTopLevel, valueWrittenToEachGraphInput),
     }));
   const nodes = nodesOfTheLevel(graph.nodes, graph.links, true);
   const groups = graph.groups ?? [];
@@ -170,17 +177,19 @@ export function mockStreamGraphSummary(
           ...familyAsTheRuntimeRendersIt(port),
         })),
       },
-      components: node.state === null ? graphInterfaceComponentOf(nodes[nodeIndex]) : {
+      components: {
         ...graphInterfaceComponentOf(nodes[nodeIndex]),
-        state: nodes[nodeIndex]?.state ?? null,
-        failed_because: nodes[nodeIndex]?.failed_because ?? null,
-        process_raising_because: nodes[nodeIndex]?.process_raising_because ?? null,
-        paused: false,
-        metrics: {
-          frames_dropped: 0,
-          dropped_bags_by_link: nodes[nodeIndex]?.dropped_bags_by_link ?? {},
-          refused_bags_by_output_port: nodes[nodeIndex]?.refused_bags_by_output_port ?? {},
-        },
+        ...(node.state === null ? {} : {
+          state: nodes[nodeIndex]?.state ?? null,
+          failed_because: nodes[nodeIndex]?.failed_because ?? null,
+          process_raising_because: nodes[nodeIndex]?.process_raising_because ?? null,
+          paused: false,
+          metrics: {
+            frames_dropped: 0,
+            dropped_bags_by_link: nodes[nodeIndex]?.dropped_bags_by_link ?? {},
+            refused_bags_by_output_port: nodes[nodeIndex]?.refused_bags_by_output_port ?? {},
+          },
+        }),
       },
     })),
     links: graph.links.map((link) => ({

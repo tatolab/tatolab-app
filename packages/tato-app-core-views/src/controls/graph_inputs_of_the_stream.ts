@@ -26,7 +26,7 @@ export interface GraphInputOfTheStream {
   readonly port_name: string;
   /** As the runtime spells it; `null` while the node states none. */
   readonly family: string | null;
-  /** What it carries now, the last value written, else its `default`; `null` where the graph renders none. */
+  /** What it carries now, the last value written, else its `default`; `null` where the graph renders none and its config declares no `default`. */
   readonly current_value: JsonValue | null;
   readonly range: GraphInputRange | null;
   readonly control: GraphInputControlKind;
@@ -38,9 +38,10 @@ export function graphInputsOfTheStream(graph: StreamGraphSummary): GraphInputOfT
     .filter((node) => node.type === GRAPH_INPUT_NODE_TYPE)
     .map((node) => {
       const { port, family, range } = node.config;
+      const declaredDefault = node.config["default"] ?? null;
       const declared = node.graph_interface;
       const familyDeclared = declared?.family ?? (typeof family === "string" ? family : null);
-      const currentValue = declared?.current_value ?? node.config["default"] ?? null;
+      const currentValue = declared?.current_value ?? declaredDefault;
       const rangeDeclared = graphInputRangeFrom(range);
       return {
         node_id: node.id,
@@ -48,7 +49,7 @@ export function graphInputsOfTheStream(graph: StreamGraphSummary): GraphInputOfT
         family: familyDeclared,
         current_value: currentValue,
         range: rangeDeclared,
-        control: controlForTheInput(familyDeclared, currentValue, rangeDeclared),
+        control: controlForTheInput(familyDeclared, declaredDefault, rangeDeclared),
       };
     });
 }
@@ -61,11 +62,16 @@ function graphInputRangeFrom(range: JsonValue | undefined): GraphInputRange | nu
   return { lowest, highest };
 }
 
-/** The control that writes an Input of `family` carrying `currentValue`, within `range` when it states one. */
-function controlForTheInput(family: string | null, currentValue: JsonValue | null, range: GraphInputRange | null): GraphInputControlKind {
+/** The control that writes an Input of `family` as its config declares it, by its `default` and its `range`, whatever value was written to it since. */
+function controlForTheInput(family: string | null, declaredDefault: JsonValue | null, range: GraphInputRange | null): GraphInputControlKind {
   if (family === null || !FAMILIES_A_CLIENT_WRITES.includes(family)) return "not_written";
   if (family === "records") return "json";
-  if (family === "channels" && typeof currentValue === "boolean") return "toggle";
-  if (currentValue === null || typeof currentValue === "number") return range === null ? "number" : "slider";
-  return "json";
+  if (family === "channels" && typeof declaredDefault === "boolean") return "toggle";
+  if (declaredDefault !== null && typeof declaredDefault !== "number") return "json";
+  return range === null ? "number" : "slider";
+}
+
+/** Why no control writes an Input of `family`, which carries only what its graph wires into it. */
+export function whyNoControlWritesTheInput(family: string | null): string {
+  return `This ${family === null ? "Input of no family" : `${family} Input`} carries only what the graph wires into it, so no control writes it.`;
 }

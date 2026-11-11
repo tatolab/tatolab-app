@@ -61,13 +61,15 @@ test("moving a ranged Input's slider hands each value to the running stream by t
   expect(control.refusalWords()).toBeNull();
 });
 
-test("the runtime's refusal of a write shows under the control in its own words", async () => {
+test("the runtime's refusal of a write shows under the control in its own words, and the control goes back to the value the stream still carries", async () => {
   const because = "write_graph_input failed: Runtime error: the project of the stream `s06-perform-main-0df4a7` in /tmp/tatolab-proof-projects/s06-perform is stopped, so no node of it runs to publish on `value`; `start_playback` plays it";
   const control = drawTheControl(BRIGHTNESS, () => ({ kind: "refused", because }));
 
   await control.moveTheSliderTo(0.3);
+  await act(async () => window.dispatchEvent(new Event("pointerup")));
 
   expect(control.refusalWords()).toContain(because);
+  expect(control.controlHolder.querySelector<HTMLInputElement>('input[type="range"]')?.value).toBe("0.5");
 });
 
 test("a record typed as JSON is handed to the stream on Enter, and words that are not JSON are refused there, writing nothing", async () => {
@@ -89,4 +91,30 @@ test("a Channels bool is a switch, and switching it hands the stream the other b
   await act(async () => control.field("[data-graph-input-toggle]").click());
 
   expect(control.writesAskedFor).toEqual([{ stream: STREAM, input: "strobe", value: true }]);
+});
+
+test("a graph read while the control's write is still going out never snaps it back, and once the write is taken the next reading shows", async () => {
+  const answers: ((answer: ViewAskDone) => void)[] = [];
+  const connection: Pick<TatoAppViewConnection, "writeGraphInput"> = {
+    writeGraphInput: () => new Promise((resolve) => answers.push(resolve)),
+  };
+  const controlHolder = document.createElement("ul");
+  document.body.append(controlHolder);
+  const root = createRoot(controlHolder);
+  const showTheGraphReading = (currentValue: number) => act(async () => root.render(<GraphInputControl connection={connection} stream={STREAM} graphInput={{ ...BRIGHTNESS, current_value: currentValue }} />));
+  const slider = () => controlHolder.querySelector<HTMLInputElement>('input[type="range"]') ?? expect.unreachable("no slider");
+  await showTheGraphReading(0.5);
+
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(slider(), "0.9");
+    slider().dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () => window.dispatchEvent(new Event("pointerup")));
+  await showTheGraphReading(0.7);
+  expect(slider().value).toBe("0.9");
+
+  await act(async () => (answers[0] ?? expect.unreachable("nothing was written"))({ kind: "done" }));
+  await showTheGraphReading(0.9);
+  await showTheGraphReading(0.6);
+  expect(slider().value).toBe("0.6");
 });

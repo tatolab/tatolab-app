@@ -102,11 +102,8 @@ export type AreasForAViewTypeInTheWindow =
   | { kind: "areas_listed"; view_title: string; areas: Omit<AreaForAViewType, "is_the_asking_views_area">[] }
   | { kind: "no_areas"; because: string };
 
-/** Whether the runtime published a value a view wrote on one of its node's outputs, or why not, in its own words. */
-export type StudioViewOutputWriting = { kind: "written" } | { kind: "not_written"; because: string };
-
-/** Whether the runtime took a value written to a stream's Input, or why not, in its own words. */
-export type GraphInputWriting = { kind: "written" } | { kind: "not_written"; because: string };
+/** Whether the runtime took a live value written to a view node's output or a stream's Input, or why not, in its own words. */
+export type LiveValueWriting = { kind: "written" } | { kind: "not_written"; because: string };
 
 /** One port viewer, reading a running node's output port until closed. */
 export interface PortViewerConnection {
@@ -169,9 +166,9 @@ export interface StudioViewHostServices {
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
   /** Publish `value` on the output `port` of the view node `viewNode`, answering once the runtime took it or why it did not. */
-  writeStudioViewOutput(viewNode: StudioViewNodeAddress, port: string, value: JsonValue): Promise<StudioViewOutputWriting>;
+  writeStudioViewOutput(viewNode: StudioViewNodeAddress, port: string, value: JsonValue): Promise<LiveValueWriting>;
   /** Hand `value` to the Input `input` of the running stream `stream`, answering once the runtime took it or why it did not. */
-  writeGraphInput(stream: string, input: string, value: JsonValue): Promise<GraphInputWriting>;
+  writeGraphInput(stream: string, input: string, value: JsonValue): Promise<LiveValueWriting>;
   /** The port whose other end the person is picking in the Stream graph, at once and on each change; `null` while none is. */
   watchPortPick(listener: (pick: PortPickInTheStreamGraph | null) => void): StopWatching;
   /** Hold `pick` in the window, ending any pick held, until the person picks the other end or the pick ends; ended at once when no area of the window shows its stream's graph. */

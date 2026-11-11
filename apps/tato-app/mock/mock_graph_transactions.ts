@@ -56,7 +56,8 @@ let mockLinksMade = 0;
 /** How many groups and notes the mock has made, so each one's UUID is new, as the runtime's always is. */
 let mockGroupsAndNotesMade = 0;
 
-const isAJsonObject = (value: JsonValue | undefined): value is { [key: string]: JsonValue } => typeof value === "object" && value !== null && !Array.isArray(value);
+/** Whether `value` is a JSON object, not a list or `null`. */
+export const isAJsonObject = (value: JsonValue | undefined): value is { [key: string]: JsonValue } => typeof value === "object" && value !== null && !Array.isArray(value);
 const isACanvasPair = (value: JsonValue | undefined): value is [number, number] => Array.isArray(value) && value.length === 2 && value.every((part) => typeof part === "number");
 
 /** The graph action that applies `historyOperation`, an operation as history records it, to the mock graphs; `null` for one that names no graph. */

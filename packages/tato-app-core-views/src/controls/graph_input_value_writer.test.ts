@@ -23,7 +23,7 @@ function writerOverAStudioThatAnswersLater() {
   return { writer, valuesWritten, outcomes, answerTheWrite };
 }
 
-test("a value moved while a write is in flight waits, only the latest waiting value is written next, and only the last write's outcome is reported", async () => {
+test("a value moved while a write is in flight waits, only the latest waiting value is written next, only the last write's outcome is reported, and the value last handed is not written again", async () => {
   const { writer, valuesWritten, outcomes, answerTheWrite } = writerOverAStudioThatAnswersLater();
 
   writer.write(0.1);
@@ -34,18 +34,22 @@ test("a value moved while a write is in flight waits, only the latest waiting va
   expect(valuesWritten).toEqual([0.1, 0.3]);
   expect(outcomes).toEqual([]);
   await answerTheWrite(1, { kind: "done" });
-  expect(outcomes).toEqual([{ kind: "written", value: 0.3 }]);
+  expect(outcomes).toEqual([{ kind: "written" }]);
 
+  writer.write(0.3);
+  expect(valuesWritten).toEqual([0.1, 0.3]);
   writer.write(0.4);
   expect(valuesWritten).toEqual([0.1, 0.3, 0.4]);
 });
 
-test("the runtime's refusal of the last write is reported in its own words with the value it refused", async () => {
-  const { writer, outcomes, answerTheWrite } = writerOverAStudioThatAnswersLater();
+test("the runtime's refusal of the last write is reported in its own words, and the refused value can be written again", async () => {
+  const { writer, valuesWritten, outcomes, answerTheWrite } = writerOverAStudioThatAnswersLater();
   const because = 'write_graph_input failed: Port error: output `value` of node `graphinput` carries Channels, and a Channels value is a number, a bool or `{"samples": [[...], ...], "sample_rate"}`';
 
   writer.write("bright");
   await answerTheWrite(0, { kind: "refused", because });
+  writer.write("bright");
 
-  expect(outcomes).toEqual([{ kind: "refused", value: "bright", because }]);
+  expect(outcomes).toEqual([{ kind: "refused", because }]);
+  expect(valuesWritten).toEqual(["bright", "bright"]);
 });

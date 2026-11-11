@@ -488,7 +488,7 @@ test("a recorded graph reads a GraphInput the runtime renders with no graph_inte
   expect(tint.config).toEqual({ port: "tint", family: "array", default: [1, 0.5, 0.25], range: [0, 1] });
 });
 
-test("a graph_interface with no direction, port or family to read is read as none, and an output's carries no current value", () => {
+test("a graph_interface with no direction, port or family to read is read as none, and one rendering no current_value reads it as null", () => {
   const graphInterfaceOf = (graphInterface: unknown) => {
     const summary = streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify({ nodes: [{ name: "edge", type: "tatolab.stream:GraphOutput", components: { graph_interface: graphInterface } }] }));
     if (!summary.ok) return expect.unreachable(summary.failure);

@@ -1,6 +1,6 @@
 import { NODE_STUDIO_FIELDS_NONE_SET, type StreamGraphInterfacePort, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { expect, test } from "vitest";
-import { graphInputsOfTheStream } from "./graph_inputs_of_the_stream";
+import { graphInputsOfTheStream, whyNoControlWritesTheInput } from "./graph_inputs_of_the_stream";
 
 function node(id: string, name: string, type: string, config: StreamGraphNode["config"], graphInterface: StreamGraphInterfacePort | null = null): StreamGraphNode {
   return { id, name, type, state: "Running", failed_because: null, process_raising_because: null, config, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: graphInterface };
@@ -36,7 +36,7 @@ test("a GraphInput the graph renders no graph_interface for is read from its con
   ]);
 });
 
-test("each Input's control follows its family and value: a ranged number a slider, an unranged one a typed number, a Channels bool a switch, an Image or Packets Input or one of no family none", () => {
+test("each Input's control follows what its config declares: a ranged number a slider, an unranged one a typed number, a Channels bool a switch, a list or a record JSON, an Image or Packets Input or one of no family none", () => {
   const controlsOf = (configs: StreamGraphNode["config"][]) => graphInputsOfTheStream(graphOf(configs.map((config, index) => node(`n${index}`, `graphinput-${index}`, "tatolab.stream:GraphInput", config)))).map((graphInput) => graphInput.control);
 
   expect(
@@ -50,6 +50,21 @@ test("each Input's control follows its family and value: a ranged number a slide
       { port: "video", family: "image" },
       { port: "packets", family: "packets" },
       { port: "loose" },
+      { port: "tint", family: "array", default: [1, 0.5, 0.25], range: [0, 1] },
     ]),
-  ).toEqual(["slider", "number", "slider", "toggle", "json", "number", "not_written", "not_written", "not_written"]);
+  ).toEqual(["slider", "number", "slider", "toggle", "json", "number", "not_written", "not_written", "not_written", "json"]);
+});
+
+test("a value written since never changes an Input's control: a ranged Channels Input written a bool stays a slider", () => {
+  const graph = graphOf([
+    node("a1", "graphinput", "tatolab.stream:GraphInput", { port: "brightness", family: "channels", default: 0.5, range: [0, 1] }, { direction: "input", port: "brightness", family: "channels", current_value: true }),
+  ]);
+
+  expect(graphInputsOfTheStream(graph).map((graphInput) => [graphInput.current_value, graphInput.control])).toEqual([[true, "slider"]]);
+});
+
+test("an Input no control writes says why, by its family", () => {
+  expect(whyNoControlWritesTheInput("packets")).toBe("This packets Input carries only what the graph wires into it, so no control writes it.");
+  expect(whyNoControlWritesTheInput("image")).toBe("This image Input carries only what the graph wires into it, so no control writes it.");
+  expect(whyNoControlWritesTheInput(null)).toBe("This Input of no family carries only what the graph wires into it, so no control writes it.");
 });

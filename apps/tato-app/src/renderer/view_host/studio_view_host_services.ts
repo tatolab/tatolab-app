@@ -5,7 +5,7 @@ import type { ProjectAssetListing, ProjectNodeTypeListing } from "../../shared/t
 import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
-import type { AreasForAViewTypeInTheWindow, ListedStreamsReading, OpenProjectReading, StopWatching, ProjectAssetChanging, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, StudioViewsReading, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
+import type { AreasForAViewTypeInTheWindow, ListedStreamsReading, LiveValueWriting, OpenProjectReading, StopWatching, ProjectAssetChanging, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, StudioViewsReading, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { WatchedStudioValue } from "./watched_studio_value";
 import type { PortPickEnding, PortPickInTheStreamGraph } from "@tatolab/tato-app-view-sdk";
@@ -85,6 +85,14 @@ export function changeAnAssetOfTheOpenProjectForAView(projectFolder: string, ass
       return { kind: "changed" };
     },
     (rejection: unknown): ProjectAssetChanging => ({ kind: "not_changed", because: describeBackendRejection(rejection) }),
+  );
+}
+
+/** Whether the backend took a live value `writing` hands it, or why not, in the runtime's words. */
+function liveValueWritingOf(writing: Promise<void>): Promise<LiveValueWriting> {
+  return writing.then(
+    (): LiveValueWriting => ({ kind: "written" }),
+    (rejection: unknown): LiveValueWriting => ({ kind: "not_written", because: describeBackendRejection(rejection) }),
   );
 }
 
@@ -169,16 +177,8 @@ export function studioViewHostServicesOf(
     transactInTheProject: projectServices.projectTransactionsReadings.transactInTheProject,
     readThePersonEditing: projectServices.projectTransactionsReadings.readThePersonEditing,
     connectToPythonLanguageServer: projectServices.pythonLanguageServerConnections.connectToPythonLanguageServer,
-    writeStudioViewOutput: (viewNode, port, value) =>
-      backend.writeStudioViewOutput(viewNode.stream, viewNode.node_id, port, value).then(
-        () => ({ kind: "written" }),
-        (rejection: unknown) => ({ kind: "not_written", because: describeBackendRejection(rejection) }),
-      ),
-    writeGraphInput: (stream, input, value) =>
-      backend.writeGraphInput(stream, input, value).then(
-        () => ({ kind: "written" }),
-        (rejection: unknown) => ({ kind: "not_written", because: describeBackendRejection(rejection) }),
-      ),
+    writeStudioViewOutput: (viewNode, port, value) => liveValueWritingOf(backend.writeStudioViewOutput(viewNode.stream, viewNode.node_id, port, value)),
+    writeGraphInput: (stream, input, value) => liveValueWritingOf(backend.writeGraphInput(stream, input, value)),
     watchPortViewer: projectServices.portViewerConnections.watchPortViewer,
   };
 }

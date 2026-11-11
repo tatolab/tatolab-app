@@ -2,52 +2,49 @@ import { PropertyNumberField, PropertySliderField, PropertyTextField } from "@ta
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { ToggleSwitch } from "@tatolab/tato-app-view-sdk/design_system/toggle_switch";
 import type { TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import { jsonValueSchema, type JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { useEffect, useId, useMemo, useState } from "react";
+import type { JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { useEffect, useId, useState } from "react";
 import { GraphInputLatestValueWriter } from "./graph_input_value_writer";
-import type { GraphInputOfTheStream } from "./graph_inputs_of_the_stream";
+import { jsonFromTheWordsTyped, numberFromTheWordsTyped, type GraphInputWordsTyped } from "./graph_input_words_typed";
+import { whyNoControlWritesTheInput, type GraphInputOfTheStream } from "./graph_inputs_of_the_stream";
 
-/** A number, or the words typed refused, as `write_graph_input` would never take them. */
-function numberFromTheWordsTyped(words: string): { kind: "number"; value: number } | { kind: "not_a_value"; because: string } {
-  const typed = Number(words.trim());
-  return words.trim() !== "" && Number.isFinite(typed) ? { kind: "number", value: typed } : { kind: "not_a_value", because: `“${words}” isn't a number.` };
-}
-
-/** JSON, or the words typed refused with why they don't parse. */
-function jsonFromTheWordsTyped(words: string): { kind: "json"; value: JsonValue } | { kind: "not_a_value"; because: string } {
-  const parsed = jsonValueSchema.safeParse(textParsedAsJson(words));
-  return parsed.success ? { kind: "json", value: parsed.data } : { kind: "not_a_value", because: `“${words}” isn't JSON.` };
-}
-
-/** `words` parsed as JSON, `undefined` where they don't parse. */
-function textParsedAsJson(words: string): unknown {
-  try {
-    return JSON.parse(words);
-  } catch {
-    return undefined;
-  }
+/** The value a control last wrote, drawn in place of what the graph read until that write is taken and the graph reads again. */
+interface ValueThisControlWrote {
+  readonly value: JsonValue;
+  readonly isTaken: boolean;
 }
 
 /** The control that writes `graphInput` of `stream`: each value it moves to is handed to the running stream, and the runtime's refusal shows under it. */
 export function GraphInputControl({ connection, stream, graphInput }: { connection: Pick<TatoAppViewConnection, "writeGraphInput">; stream: string; graphInput: GraphInputOfTheStream }) {
   const fieldId = useId();
   const labelId = useId();
-  const [valueThisControlWrote, setValueThisControlWrote] = useState<{ value: JsonValue } | null>(null);
+  const [valueThisControlWrote, setValueThisControlWrote] = useState<ValueThisControlWrote | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
   const portName = graphInput.port_name;
-  const writer = useMemo(
+  const [writer] = useState(
     () =>
       new GraphInputLatestValueWriter(
         (value) => connection.writeGraphInput(stream, portName, value),
-        (outcome) => setRefusal(outcome.kind === "refused" ? outcome.because : null),
+        (outcome) => {
+          if (outcome.kind === "refused") {
+            setRefusal(outcome.because);
+            setValueThisControlWrote(null);
+          } else {
+            setRefusal(null);
+            setValueThisControlWrote((written) => (written === null ? null : { ...written, isTaken: true }));
+          }
+        },
       ),
-    [connection, stream, portName],
   );
   const currentValueWords = JSON.stringify(graphInput.current_value);
-  useEffect(() => setValueThisControlWrote(null), [currentValueWords]);
+  useEffect(() => setValueThisControlWrote((written) => (written?.isTaken === true ? null : written)), [currentValueWords]);
   const write = (value: JsonValue) => {
-    setValueThisControlWrote({ value });
+    setValueThisControlWrote({ value, isTaken: false });
     writer.write(value);
+  };
+  const writeTheWordsTyped = (typed: GraphInputWordsTyped) => {
+    if (typed.kind === "value") write(typed.value);
+    else setRefusal(typed.because);
   };
   const shownValue = valueThisControlWrote === null ? graphInput.current_value : valueThisControlWrote.value;
   const control = (() => {
@@ -72,11 +69,7 @@ export function GraphInputControl({ connection, stream, graphInput }: { connecti
             value={typeof shownValue === "number" ? shownValue : null}
             minimum={null}
             maximum={null}
-            onCommitted={(words) => {
-              const typed = numberFromTheWordsTyped(words);
-              if (typed.kind === "number") write(typed.value);
-              else setRefusal(typed.because);
-            }}
+            onCommitted={(words) => writeTheWordsTyped(numberFromTheWordsTyped(words))}
           />
         );
       case "toggle":
@@ -86,23 +79,25 @@ export function GraphInputControl({ connection, stream, graphInput }: { connecti
           <PropertyTextField
             fieldId={fieldId}
             words={shownValue === null ? "" : JSON.stringify(shownValue)}
-            onCommitted={(words) => {
-              const typed = jsonFromTheWordsTyped(words);
-              if (typed.kind === "json") write(typed.value);
-              else setRefusal(typed.because);
-            }}
+            onCommitted={(words) => writeTheWordsTyped(jsonFromTheWordsTyped(words))}
           />
         );
       case "not_written":
-        return <p className="text-2xs text-fg-3">{`${graphInput.family === null ? "An Input of no family" : `An ${graphInput.family} Input`} carries only what the graph wires into it, so no control writes it.`}</p>;
+        return <p className="text-2xs text-fg-3">{whyNoControlWritesTheInput(graphInput.family)}</p>;
     }
   })();
   return (
     <li className="flex flex-col gap-2 rounded-lg border border-line px-3.5 py-3" data-graph-input={portName}>
       <div className="flex items-center gap-2 text-xs">
-        <label id={labelId} htmlFor={fieldId} className="min-w-0 truncate text-fg">
-          {portName}
-        </label>
+        {graphInput.control === "toggle" || graphInput.control === "not_written" ? (
+          <span id={labelId} className="min-w-0 truncate text-fg">
+            {portName}
+          </span>
+        ) : (
+          <label id={labelId} htmlFor={fieldId} className="min-w-0 truncate text-fg">
+            {portName}
+          </label>
+        )}
         <span className="ml-auto shrink-0 font-mono text-2xs text-fg-3">{graphInput.family ?? "no family"}</span>
       </div>
       {control}

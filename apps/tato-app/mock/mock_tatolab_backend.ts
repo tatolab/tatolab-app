@@ -15,7 +15,7 @@ import {
   type MockStreamFixture,
   stampMockLogRecord,
 } from "./mock_stream_fixtures";
-import { mockStreamGraphSummary } from "./mock_stream_graph_document";
+import { isAGraphInputAClientWrites, mockStreamGraphSummary } from "./mock_stream_graph_document";
 import {
   mockFoldersInDocumentsTatoStudio,
   mockNewProjectDefaults,
@@ -42,7 +42,7 @@ import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { isModulesShown, type ModulesShown } from "../src/shared/tatolab_electron_bridge_contract";
 import type { JsonValue, ProjectGraphTransaction, ProjectTransaction, StreamAssetCreated, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
 import { streamDocumentNameNumberedPast, streamDocumentNameOfTheDisplayName } from "../src/shared/stream_document_name";
-import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
+import { applyMockGraphTransaction, isAJsonObject, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
@@ -445,28 +445,22 @@ function refusalOfAGraphInputWrite(loadedStream: MockLoadedStream, streamState: 
   if (streamState !== "running") {
     return `Runtime error: the project of the stream \`${listing.stream}\` in ${listing.location?.project_directory ?? "its folder"} is stopped, so no node of it runs to publish on \`value\`; \`start_playback\` plays it`;
   }
-  const writableInputs = graph.nodes.filter(
-    (node) => node.type === "tatolab.stream:GraphInput" && typeof node.config["port"] === "string" && ["array", "channels", "records"].includes(String(node.config["family"])),
-  );
+  const writableInputs = graph.nodes.filter((node) => isAGraphInputAClientWrites(node) && node.state === "Running");
   const graphInput = writableInputs.find((node) => node.config["port"] === input);
   if (graphInput === undefined) {
     const declared = writableInputs.map((node) => `\`${String(node.config["port"])}\``).join(", ");
     return `Processor not found: no \`GraphInput\` on the top level of the stream \`${listing.stream}\` declares the Input \`${input}\` and runs; a client writes the Inputs of family array, channels or records, and the stream's are: ${declared}`;
   }
   const family = String(graphInput.config["family"]);
-  if (family === "channels" && typeof value !== "number" && typeof value !== "boolean" && !(isAMockJsonObject(value) && "samples" in value && "sample_rate" in value)) {
+  if (family === "channels" && typeof value !== "number" && typeof value !== "boolean" && !(isAJsonObject(value) && "samples" in value && "sample_rate" in value)) {
     return `Port error: output \`value\` of node \`${graphInput.name}\` carries Channels, and a Channels value is a number, a bool or \`{"samples": [[...], ...], "sample_rate"}\``;
   }
   const arrayValueRefusal = family === "array" ? whyAnArrayValueIsNotANumberOrAListOfOneShape(value) : null;
   if (arrayValueRefusal !== null) {
     return `Port error: output \`value\` of node \`${graphInput.name}\` carries Array, and attribute \`values\` is a number or a list of numbers of one shape: ${arrayValueRefusal}`;
   }
-  if (family === "records" && !isAMockJsonObject(value)) return `Port error: output \`value\` of node \`${graphInput.name}\` carries Records, and a Records value is a JSON object`;
+  if (family === "records" && !isAJsonObject(value)) return `Port error: output \`value\` of node \`${graphInput.name}\` carries Records, and a Records value is a JSON object`;
   return null;
-}
-
-function isAMockJsonObject(value: JsonValue): value is { [key: string]: JsonValue } {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** Why `value` is not a number or a list of numbers of one shape, in the runtime's words; `null` where it is. */

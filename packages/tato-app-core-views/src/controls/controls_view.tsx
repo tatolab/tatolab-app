@@ -22,7 +22,7 @@ function GraphInputsOfTheTab({ connection, streamTab }: { connection: TatoAppVie
     <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-2.5">
       <ul className="flex flex-col gap-2" aria-label={`${streamTab.display_name}'s Graph Inputs`}>
         {graphInputs.map((graphInput) => (
-          <GraphInputControl key={graphInput.node_id} connection={connection} stream={streamTab.stream} graphInput={graphInput} />
+          <GraphInputControl key={`${graphInput.node_id}:${graphInput.port_name}`} connection={connection} stream={streamTab.stream} graphInput={graphInput} />
         ))}
       </ul>
       <p className="mt-auto rounded-lg bg-well p-2.5 text-2xs text-fg-3">
