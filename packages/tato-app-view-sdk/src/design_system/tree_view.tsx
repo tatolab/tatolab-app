@@ -23,7 +23,7 @@ export interface TreeViewRow {
   tone?: "plain" | "imports" | "unreadable" | "failed" | "waiting";
   /** Quiet words at the row's end that say what kind of thing it is, as a node's type or `group`. */
   aside?: string;
-  /** The row the window works in now, as the stream of the shown tab: a brand-coloured mark at its start, its icon in the brand colour and its name stronger. */
+  /** The row the window works in now, as the stream of the shown tab: a grey fill, its icon in the brand colour and its name stronger; a selected row keeps the selection's fill. */
   isCurrent?: boolean;
   expansion: TreeRowExpansion;
 }
@@ -149,11 +149,11 @@ export function TreeView({
             }}
             onDoubleClick={() => onRowActivated(row.row_id)}
             className={cn(
-              "relative flex h-(--studio-tree-row-height) shrink-0 cursor-default items-center rounded-sm outline-none select-none hover:bg-hover focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset",
+              "group/tree-row relative flex h-(--studio-tree-row-height) shrink-0 cursor-default items-center rounded-sm outline-none select-none hover:bg-studio-tree-hover focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset",
+              isCurrent && "bg-studio-tree-current hover:bg-studio-tree-current",
               isSelected && "bg-studio-tree-selected hover:bg-studio-tree-selected",
             )}
           >
-            {isCurrent && <span aria-hidden className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-brand-text" />}
             {Array.from({ length: row.depth }, (_, guideIndex) => (
               <span key={guideIndex} aria-hidden className="absolute inset-y-0 w-px bg-studio-tree-guide" style={{ left: guideLineOffset(guideIndex + 1) }} />
             ))}
@@ -170,7 +170,7 @@ export function TreeView({
             >
               {row.expansion !== "leaf" && <ChevronRight className={cn("size-3 transition-transform", row.expansion === "expanded" && "rotate-90")} strokeWidth={2} />}
             </span>
-            <span className={cn("flex min-w-0 flex-1 items-center gap-1.5 px-1", TREE_ROW_TONE_CLASS_NAMES[row.tone ?? "plain"], (row.isHeading || isCurrent) && "text-fg")}>
+            <span className={cn("flex min-w-0 flex-1 items-center gap-1.5 px-1", TREE_ROW_TONE_CLASS_NAMES[row.tone ?? "plain"], (row.tone ?? "plain") === "plain" && "group-hover/tree-row:text-fg", (row.isHeading || isCurrent || isSelected) && "text-fg")}>
               <RowIcon className={cn("size-3.5 shrink-0", isCurrent ? "text-brand-text" : "text-fg-3")} strokeWidth={isCurrent ? 2 : 1.5} aria-hidden />
               <span className={cn("min-w-0 flex-1 truncate", row.isMachineWords && "font-mono text-2xs", row.isHeading && "font-semibold", isCurrent && "font-medium", row.tone === "imports" && "text-studio-imports")}>
                 {row.label}

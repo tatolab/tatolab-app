@@ -29,6 +29,8 @@
   --color-studio-control: var(--studio-control);
   --color-studio-control-open: var(--studio-control-open);
   --color-studio-tree-guide: var(--studio-tree-guide);
+  --color-studio-tree-hover: var(--studio-tree-hover);
+  --color-studio-tree-current: var(--studio-tree-current);
   --color-studio-tree-selected: var(--studio-tree-selected);
   --color-studio-read-only: var(--studio-read-only);
   --color-studio-imports: var(--studio-imports);
@@ -153,6 +155,8 @@
   --studio-control: #2b2b2f;
   --studio-control-open: #34343a;
   --studio-tree-guide: #34343a;
+  --studio-tree-hover: #2a2a2f;
+  --studio-tree-current: #37373d;
   --studio-tree-selected: #2a3a6a;
   --studio-read-only: #b8963a;
   --studio-imports: #f5d98a;
