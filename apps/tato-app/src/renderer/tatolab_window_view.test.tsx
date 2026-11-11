@@ -206,10 +206,14 @@ describe("the studio", () => {
     await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main"]));
   });
 
-  it("leaves the project's name to the window's title bar on Linux", async () => {
+  it("on Linux, draws the menus in a row of their own with the stream tabs under them, and leaves the project's name to the window's title bar", async () => {
     await mountedWindowOverTheMock("platform=linux&state=running");
-    await screen.findByRole("tablist", { name: "Open streams" });
+    const streamTabs = await screen.findByRole("tablist", { name: "Open streams" });
     expect(document.querySelector("[data-studio-window-title]")).toBeNull();
+    const menuRow = document.querySelector("[data-studio-menu-row]") ?? expect.unreachable("no menu row");
+    expect(menuRow.querySelector("[data-studio-menu]")).not.toBeNull();
+    expect(menuRow.contains(streamTabs)).toBe(false);
+    expect(menuRow.compareDocumentPosition(streamTabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("closes the view-type menu on a choice, and lists in the Library each source's node types by category, its generators under Show, and says why a module does not parse", async () => {

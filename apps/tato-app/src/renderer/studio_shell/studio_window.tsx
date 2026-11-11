@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { PictureInPicture2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { OpenProjectReading, TatolabPlatform } from "../../shared/tatolab_backend_contract";
@@ -219,7 +220,7 @@ function openProjectTitleInTheTitleRow(openProject: OpenProjectReading): string 
   return "";
 }
 
-/** The studio: one title row of its menus (in the system menu bar on macOS, where the row names the project instead) and the open streams' tabs, then the chosen layout's areas; or the Projects window, with no menus of its own on Linux, while no project is open or File › Projects shows it. */
+/** The studio: its menus in a row of their own on Linux (in the system menu bar on macOS), the open streams' tabs in the title row under them, which names the project on macOS, then the chosen layout's areas; or the Projects window, with no menus of its own on Linux, while no project is open or File › Projects shows it. */
 export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const { model, platform, commands, systemMenuBar } = sources;
   const status = useTatolabStatus();
@@ -244,32 +245,34 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       {isAProjectShown ? (
-        <header
-          className="flex h-(--studio-menu-bar-height) shrink-0 items-stretch bg-studio-menu-bar pr-2.5 pl-(--studio-menu-bar-leading-inset)"
-          data-window-drag-region={windowDragRegionAttribute(platform, "deep") ?? undefined}
-          data-studio-title-row=""
-        >
+        <header className="flex shrink-0 flex-col bg-studio-menu-bar">
           {!menusLiveInTheSystemMenuBar && (
-            <div className="flex shrink-0 items-center pr-3">
+            <div className="flex h-8 items-center pr-2.5 pl-(--studio-menu-bar-leading-inset)" data-studio-menu-row="">
               <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, status.app_update, commands)} />
             </div>
           )}
-          {presentPlatform(platform).hasOverlayTitleBar && (
-            // macOS's overlay title bar draws no title of its own, so the row names the project; Linux's window title bar shows it.
-            <p className="flex max-w-60 shrink-0 items-center pr-6 text-2xs text-fg-3" data-studio-window-title="">
-              <span className="truncate">{openProjectTitleInTheTitleRow(openProject)}</span>
-            </p>
-          )}
-          <DocumentTabs
-            label="Open streams"
-            icon="stream"
-            tabs={streamTabsDrawnInTheTitleRow(openStreamTabs)}
-            activeTabId={openStreamTabs.active_stream}
-            onTabChosen={(stream) => model.chooseStreamTab(stream)}
-            onTabClosed={(stream) => model.closeStreamTab(stream)}
-            whenNoneIsOpen="Open a stream from the outliner to see it here."
-          />
-          <div className="min-w-6 flex-1" />
+          <div
+            className={cn("flex items-stretch pr-2.5 pl-(--studio-menu-bar-leading-inset)", menusLiveInTheSystemMenuBar ? "h-(--studio-menu-bar-height)" : "h-9")}
+            data-window-drag-region={windowDragRegionAttribute(platform, "deep") ?? undefined}
+            data-studio-title-row=""
+          >
+            {presentPlatform(platform).hasOverlayTitleBar && (
+              // macOS's overlay title bar draws no title of its own, so the row names the project; Linux's window title bar shows it.
+              <p className="flex max-w-60 shrink-0 items-center pr-6 text-2xs text-fg-3" data-studio-window-title="">
+                <span className="truncate">{openProjectTitleInTheTitleRow(openProject)}</span>
+              </p>
+            )}
+            <DocumentTabs
+              label="Open streams"
+              icon="stream"
+              tabs={streamTabsDrawnInTheTitleRow(openStreamTabs)}
+              activeTabId={openStreamTabs.active_stream}
+              onTabChosen={(stream) => model.chooseStreamTab(stream)}
+              onTabClosed={(stream) => model.closeStreamTab(stream)}
+              whenNoneIsOpen="Open a stream from the outliner to see it here."
+            />
+            <div className="min-w-6 flex-1" />
+          </div>
         </header>
       ) : (
         // macOS draws the window buttons over the content, so the Projects window keeps a bare strip for them to sit in and to drag the window by.
