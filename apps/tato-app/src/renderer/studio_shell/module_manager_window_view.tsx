@@ -2,6 +2,7 @@ import { Box, Download, FileArchive, FolderOpen, FolderPlus, Package, RefreshCw,
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import type {
   DependencySourceKind,
+  ViewsOfAWorkspaceDependency,
   OpenProjectReading,
   PackageCatalogEntry,
   PackageCatalogMember,
@@ -23,9 +24,20 @@ import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_li
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { SectionNavigationList } from "@tatolab/tato-app-view-sdk/design_system/section_navigation_list";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
+import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { coverInitialOfTheName, projectCoverNumberOfTheName } from "../presentation/projects_presentation";
-import { everyModuleCardRowOf, moduleCardCountsOf, moduleCardMarkOf, moduleCardRowPickedBy, moduleCardRowsShownOf, shortVersionOf, type ModuleCardRow } from "./module_manager_listing";
+import {
+  everyModuleCardRowOf,
+  moduleCardCountsOf,
+  moduleCardMarkOf,
+  moduleCardRowPickedBy,
+  moduleCardRowsShownOf,
+  moduleViewsShownOf,
+  shortVersionOf,
+  type ModuleCardRow,
+  type ModuleViewDevice,
+} from "./module_manager_listing";
 import { isModulesShown, MODULES_SHOWN, type ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { ModuleManagerSectionAskNumbered } from "./studio_window_model";
 
@@ -83,6 +95,43 @@ function MembersSections({ nodes, streams }: { nodes: readonly PackageCatalogMem
   );
 }
 
+const DEVICE_WORDS: Record<ModuleViewDevice, string> = { camera: "the camera", microphone: "the microphone" };
+
+/** The views a module the project has added brings, each a row, and what they can reach; or why the runtime listed none. */
+function ViewsTheModuleAddsSection({ views }: { views: ViewsOfAWorkspaceDependency }) {
+  const shown = moduleViewsShownOf(views);
+  if (shown.kind === "not_listed") return <RefusalLine tone="warning" lead="Its views could not be listed:" words={shown.because} data-module-manager-views-not-listed="" />;
+  if (shown.rows.length === 0) return null;
+  const ViewIcon = studioIconNamed("project_view");
+  const NotOpenedIcon = studioIconNamed("unreadable");
+  const devicesWords = shown.devices_declared.map((device) => DEVICE_WORDS[device]).join(" and ");
+  return (
+    <>
+      <PanelSection title="Adds these views">
+        <ul>
+          {shown.rows.map((viewRow) => (
+            <PanelListRow
+              key={viewRow.view_type_id}
+              icon={
+                viewRow.not_opened_because === null ? <ViewIcon className="size-3.5 text-fg-3" strokeWidth={1.75} aria-hidden /> : <NotOpenedIcon className="size-3.5 text-warn" strokeWidth={1.75} aria-hidden />
+              }
+              name={viewRow.title}
+              trailing={viewRow.ports_words ?? undefined}
+              detail={viewRow.not_opened_because === null ? undefined : <span className="break-words whitespace-normal select-text"><span className="text-warn-text">Doesn't open:</span> {viewRow.not_opened_because}</span>}
+              data-module-manager-view={viewRow.view_type_id}
+            />
+          ))}
+        </ul>
+      </PanelSection>
+      <PanelSection title="What its views can reach">
+        <p className="py-1.5 text-xs text-fg-2" data-module-manager-views-reach="">
+          Full access, like its nodes.{devicesWords === "" ? "" : ` They ask for ${devicesWords}.`}
+        </p>
+      </PanelSection>
+    </>
+  );
+}
+
 /** The picked card at length: what it brings and where it came from, Add for one the project has not added, and Update and Open to edit for one it has. */
 function ModuleCardDetails({
   row,
@@ -123,6 +172,7 @@ function ModuleCardDetails({
         )}
         {dependency !== null && dependency.check_refused_because !== null && <RefusalLine tone="warning" lead="Where it was copied from could not be checked:" words={dependency.check_refused_because} />}
         {entry !== null && <MembersSections nodes={entry.nodes} streams={entry.streams} />}
+        {dependency !== null && <ViewsTheModuleAddsSection views={dependency.views} />}
         {dependency !== null && (
           <PanelSection title={`Edited since its copy (${dependency.edited_files.length})`}>
             {dependency.edited_files.length === 0 ? (

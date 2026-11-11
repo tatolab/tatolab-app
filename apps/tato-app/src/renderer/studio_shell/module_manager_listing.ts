@@ -2,7 +2,9 @@
 // whether the project has added it, then the project's modules the catalog does not list.
 
 import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
-import type { PackageCatalogEntry, PackageCatalogMember, PackageCatalogReading, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
+import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk";
+import type { PackageCatalogEntry, PackageCatalogMember, PackageCatalogReading, ViewsOfAWorkspaceDependency, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
+import { titleTheManifestNames } from "../view_host/studio_view_type_registry";
 
 /** One card of the Modules window: a catalog entry, the project's module of it, or both. */
 export interface ModuleCardRow {
@@ -103,4 +105,37 @@ export function moduleCardMarkOf(row: ModuleCardRow): { words: string; isNews: b
 /** The first 12 characters of a version's SHA-256, as a card's details show it. */
 export function shortVersionOf(version: string): string {
   return version.slice(0, 12);
+}
+
+/** One row of a module's "Adds these views": its title, its declared ports in words, and why it does not open in the runtime's or the schema's words. */
+export interface ModuleViewRow {
+  view_type_id: string;
+  title: string;
+  /** `null` for a view that does not open. */
+  ports_words: string | null;
+  not_opened_because: string | null;
+}
+
+/** A system device a view can declare, which macOS asks the person for. */
+export type ModuleViewDevice = "camera" | "microphone";
+
+/** What a module's details say of its views: each one a row and the devices any of them declares, or why the runtime listed none. */
+export type ModuleViewsShown = { kind: "listed"; rows: ModuleViewRow[]; devices_declared: ModuleViewDevice[] } | { kind: "not_listed"; because: string };
+
+/** The views of `views` as a module's details show them, each manifest read with the view SDK's schema. */
+export function moduleViewsShownOf(views: ViewsOfAWorkspaceDependency): ModuleViewsShown {
+  if (views.kind === "not_listed") return views;
+  const devicesDeclared = new Set<ModuleViewDevice>();
+  const rows = views.views.map((listedView): ModuleViewRow => {
+    const fallbackTitle = listedView.view_type_id.slice(listedView.view_type_id.indexOf(":") + 1);
+    const title = titleTheManifestNames(listedView.manifest_json, fallbackTitle);
+    if (!listedView.opens) return { view_type_id: listedView.view_type_id, title, ports_words: null, not_opened_because: listedView.not_opened_because };
+    const manifestReading = readTatolabViewManifest(listedView.manifest_json);
+    if (manifestReading.kind === "not_read") return { view_type_id: listedView.view_type_id, title, ports_words: null, not_opened_because: manifestReading.because };
+    const { manifest } = manifestReading;
+    for (const capability of manifest.capabilities) if (capability === "camera" || capability === "microphone") devicesDeclared.add(capability);
+    const portsWords = manifest.placement === "area" ? "Opens in any area" : `${manifest.inputs.length} in · ${manifest.outputs.length} out`;
+    return { view_type_id: listedView.view_type_id, title, ports_words: portsWords, not_opened_because: null };
+  });
+  return { kind: "listed", rows, devices_declared: (["camera", "microphone"] as const).filter((device) => devicesDeclared.has(device)) };
 }

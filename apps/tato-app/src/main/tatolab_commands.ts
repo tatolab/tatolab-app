@@ -858,7 +858,15 @@ export function listWorkspaceDependencies(sharedState: TatolabAppSharedState, ch
     if (!workspaceFolder.ok) return workspaceFolder;
     const listed = await sharedState.controller.listDependencies(workspaceFolder.value, checkForNewer);
     if (!listed.ok) return failedWith(listed.failure.failureDescription);
-    return succeeded(await workspaceDependenciesOf(workspaceFolder.value, listed.value, (projectFolder) => sharedState.controller.nameTheProject(projectFolder)));
+    const workspaceViews = await sharedState.controller.listProjectViews(workspaceFolder.value);
+    return succeeded(
+      await workspaceDependenciesOf(
+        workspaceFolder.value,
+        listed.value,
+        workspaceViews.ok ? workspaceViews : failedWith(workspaceViews.failure.failureDescription),
+        (projectFolder) => sharedState.controller.nameTheProject(projectFolder),
+      ),
+    );
   });
 }
 
