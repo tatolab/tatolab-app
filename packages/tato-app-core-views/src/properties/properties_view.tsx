@@ -199,7 +199,7 @@ function ConfigFieldRows({ field, node, streamAsset, graphEdits }: { field: Conf
     graphEdits.rememberTheConfigSent(node.config, configAction.config);
     void graphEdits.commit(place, [configAction]);
   };
-  const fieldPlace: PlaceOfAnEdit = `config:${field.key}`;
+  const fieldPlace = placeOfTheConfigField(field.key);
   const listControl = field.control.kind === "list_of_records" ? field.control : null;
   const listEditedFrom = () => configEditedFrom()[field.key] ?? field.value;
   const configWithTheList = (stream: string, list: JsonValue[] | null) => (list === null ? null : setTheConfigField(stream, node.id, configEditedFrom(), field.key, list));
@@ -395,8 +395,8 @@ function PortRowsOfOneDirection({
   });
 }
 
-/** The place a refusal of exposing a config field as a Graph Input shows under: the config field it names. */
-function placeOfExposingTheField(fieldKey: string): PlaceOfAnEdit {
+/** The place an edit of a config field, or exposing it as a Graph Input, shows its refusal under. */
+function placeOfTheConfigField(fieldKey: string): PlaceOfAnEdit {
   return `config:${fieldKey}`;
 }
 
@@ -411,7 +411,7 @@ function ExposeAConfigFieldAsAGraphInputMenu({ node, fields, streamAsset, graphE
         {fieldsToExpose.map((field) => (
           <MenuItem
             key={field.key}
-            onChosen={() => void graphEdits.commit(placeOfExposingTheField(field.key), exposeTheConfigFieldAsAGraphInput(streamAsset, node, field))}
+            onChosen={() => void graphEdits.commit(placeOfTheConfigField(field.key), exposeTheConfigFieldAsAGraphInput(streamAsset, node, field))}
             data-properties-expose-config-field={field.key}
           >
             {nameInWords(field.key)}
