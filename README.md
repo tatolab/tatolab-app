@@ -150,6 +150,10 @@ Tato Studio.app/Contents/
     Resources/lend/                           streamlib's lib/tatolab/lend; each Mach-O is a relative
                                               symlink into Frameworks/tatolab-runtime; precompiled
                                               (unchecked-hash .pyc) for CPython 3.10-3.14
+    Resources/imports/                        the core first-party module wheels, pure Python
+    Resources/carried-wheels/                 the third-party wheels a new project syncs offline
+    Resources/python-downloads/               the CPython archive tatolabd installs from as a uv
+                                              mirror, and uv-python-downloads.json naming its sha256
     Resources/streamlib-commit                the streamlib commit the runtime was built from
 ```
 
@@ -163,6 +167,15 @@ file called `tatolab` would overwrite `Tatolab`. Code signing only accepts code 
 `../Resources/lend` relative to its own directory. Processor interpreters (the user's venv Python)
 import `tatolab.runtime` from that lend with every `PYTHON*` variable stripped. Without the shipped
 bytecode they would write `__pycache__` into the signed bundle, which breaks its seal.
+
+The carried wheels and the CPython archive sit in `Resources/` as archives, which the bundle seals
+as data. Apple's notary still opens them and refuses any Mach-O inside that isn't signed with a
+Developer ID and a secure timestamp. So `build-tatolab-app.sh` passes the Developer ID to
+streamlib's unit build, which signs each Mach-O inside them and names the re-signed archive's
+sha256 to uv. The Python's executables carry `allow-jit`, `allow-unsigned-executable-memory` and
+`disable-library-validation`, so they load the extension modules a person installs from PyPI and
+run numba's compiled code. `verify-tatolab-app-bundle.sh` unpacks each archive and holds every
+Mach-O inside to those rules.
 
 Entitlements: `apps/tato-app/packaging/entitlements/tatolab-app.entitlements` (the app) and
 `apps/tato-app/packaging/entitlements/tatolabd.entitlements` (the runtime) carry `device.camera` and
@@ -252,7 +265,7 @@ The individual steps are separate scripts in `apps/tato-app/scripts/`:
 | Script | |
 |---|---|
 | `fetch-streamlib-for-the-app-build.sh <dir> [--streamlib-ref REF] [--resolve-only] [--expect-commit SHA]` | resolves streamlib's `main` (or REF) to a commit and fetches exactly that commit into `<dir>`; `--expect-commit` fails when REF has moved off SHA |
-| `build-tatolab-runtime-unit.sh <streamlib> [--local-proof-test-root]` | builds the runtime unit in a clean streamlib checkout and records its commit in the unit's `streamlib-commit` |
+| `build-tatolab-runtime-unit.sh <streamlib> [--developer-id-application-identity ID] [--local-proof-test-root]` | builds the runtime unit in a clean streamlib checkout and records its commit in the unit's `streamlib-commit`; on macOS, `build-tatolab-app.sh` passes the Developer ID, which signs every Mach-O inside the unit's carried wheels and Python archive |
 | `tatolab_app_build_features.mjs write <features.json> [--release] [--local-proof-test-root] [--app-update-feed-url URL]` | writes the build features and the build id (the commit this checkout is at, dev or release, and whether it has uncommitted changes); `npm run build -- <flags>` runs it last, and refuses outside a git checkout |
 | `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features and the build id a packaged app carries, and refuses one with no build id; `--shipping` refuses the test root or any feed but get.tatolab.com's |
 | `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out>` | packs the built app, with the build features it was built with, and its production `node_modules` with `@electron/packager`, and flips its fuses |
@@ -260,7 +273,7 @@ The individual steps are separate scripts in `apps/tato-app/scripts/`:
 | `sign-tatolab-app-bundle.sh <Tato Studio.app> <identity> <runtime-provisioning-profile>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, the app) with the hardened runtime, embedding the `com.tatolab.runtime` provisioning profile in the runtime's helper; refuses any identity but a `Developer ID Application` and a profile for any other App ID |
 | `make-tatolab-dmg.sh <Tato Studio.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless), signed with the app's own Developer ID; refuses an app signed any other way |
 | `notarize-and-staple.sh <Tato Studio.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
-| `verify-tatolab-app-bundle.sh <Tato Studio.app\|.dmg> [--shipping]` | checks the signature (every Mach-O and the image signed by Tatolab's Developer ID team with the hardened runtime, never ad-hoc), layout, plists, that the bundled `tatolabd` is no newer than the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |
+| `verify-tatolab-app-bundle.sh <Tato Studio.app\|.dmg> [--shipping]` | checks the signature (every Mach-O, those inside the carried wheels and Python included, and the image signed by Tatolab's Developer ID team with the hardened runtime, never ad-hoc), layout, plists, that the bundled `tatolabd` is no newer than the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |
 | `write_tatolab_app_update_manifest.mjs <manifest.yml> <version> <file>...` | writes the update feed's manifest for those files: sizes, SHA-512s, and URLs under `releases/<version>/`, beside it in `app/` |
 | `bump-homebrew-cask.sh <version> <dmg> <tap>` | writes `Casks/tato-studio.rb` from `apps/tato-app/packaging/homebrew/tato-studio.rb.template`, and the tap's `cask_renames.json` entry `tatolab` → `tato-studio` |
 
