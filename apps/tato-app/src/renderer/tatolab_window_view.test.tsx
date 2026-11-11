@@ -492,6 +492,7 @@ describe("the studio", () => {
     fireEvent.keyDown(newStreamName, { key: "Enter" });
     await waitFor(() => expect(document.querySelector("[data-name-form-dialog]")).toBeNull());
     await waitFor(() => expect(streamTabNames()).toEqual(["main", "Lobby preview"]));
+    await waitFor(() => expect(coreViewPage("outliner").querySelector("[data-tree-row-current]")?.textContent).toBe("Lobby preview"));
 
     await chooseFromTheMenuBar("Stream", /^Rename stream…/);
     const newName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-name-form-dialog=\"rename_stream\"] [data-naming-dialog-name]") ?? expect.unreachable("no Rename stream dialog"));

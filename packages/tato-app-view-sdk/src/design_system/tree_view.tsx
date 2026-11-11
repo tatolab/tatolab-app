@@ -23,6 +23,8 @@ export interface TreeViewRow {
   tone?: "plain" | "imports" | "unreadable" | "failed" | "waiting";
   /** Quiet words at the row's end that say what kind of thing it is, as a node's type or `group`. */
   aside?: string;
+  /** The row the window works in now, as the stream of the shown tab: a brand-coloured mark at its start, its icon in the brand colour and its name stronger. */
+  isCurrent?: boolean;
   expansion: TreeRowExpansion;
 }
 
@@ -129,6 +131,7 @@ export function TreeView({
       {rows.map((row) => {
         const RowIcon = studioIconNamed(row.icon);
         const isSelected = row.row_id === selectedRowId;
+        const isCurrent = row.isCurrent === true;
         return (
           <div
             key={row.row_id}
@@ -138,6 +141,7 @@ export function TreeView({
             aria-selected={isSelected}
             tabIndex={row.row_id === focusableRowId ? 0 : -1}
             data-tree-row-id={row.row_id}
+            data-tree-row-current={isCurrent ? "" : undefined}
             onFocus={() => setFocusedRowId(row.row_id)}
             onClick={() => {
               focusRow(row.row_id);
@@ -149,6 +153,7 @@ export function TreeView({
               isSelected && "bg-studio-tree-selected hover:bg-studio-tree-selected",
             )}
           >
+            {isCurrent && <span aria-hidden className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-brand-text" />}
             {Array.from({ length: row.depth }, (_, guideIndex) => (
               <span key={guideIndex} aria-hidden className="absolute inset-y-0 w-px bg-studio-tree-guide" style={{ left: guideLineOffset(guideIndex + 1) }} />
             ))}
@@ -165,9 +170,9 @@ export function TreeView({
             >
               {row.expansion !== "leaf" && <ChevronRight className={cn("size-3 transition-transform", row.expansion === "expanded" && "rotate-90")} strokeWidth={2} />}
             </span>
-            <span className={cn("flex min-w-0 flex-1 items-center gap-1.5 px-1", TREE_ROW_TONE_CLASS_NAMES[row.tone ?? "plain"], row.isHeading && "text-fg")}>
-              <RowIcon className="size-3.5 shrink-0 text-fg-3" strokeWidth={1.5} aria-hidden />
-              <span className={cn("min-w-0 flex-1 truncate", row.isMachineWords && "font-mono text-2xs", row.isHeading && "font-semibold", row.tone === "imports" && "text-studio-imports")}>
+            <span className={cn("flex min-w-0 flex-1 items-center gap-1.5 px-1", TREE_ROW_TONE_CLASS_NAMES[row.tone ?? "plain"], (row.isHeading || isCurrent) && "text-fg")}>
+              <RowIcon className={cn("size-3.5 shrink-0", isCurrent ? "text-brand-text" : "text-fg-3")} strokeWidth={isCurrent ? 2 : 1.5} aria-hidden />
+              <span className={cn("min-w-0 flex-1 truncate", row.isMachineWords && "font-mono text-2xs", row.isHeading && "font-semibold", isCurrent && "font-medium", row.tone === "imports" && "text-studio-imports")}>
                 {row.label}
               </span>
               {row.aside !== undefined && <span className={cn("hidden max-w-[40%] shrink-0 truncate text-2xs @3xs:block", isSelected ? "text-fg-2" : "text-fg-3")}>{row.aside}</span>}
