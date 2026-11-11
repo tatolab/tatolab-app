@@ -1,6 +1,7 @@
 // What the tray, the window's commands and the app's events reach once the app is set up: the
 // controller, the status publisher, the updater, and the requests the tray and the window both make.
 
+import type { StudioWarningsOfThisRun } from "./studio_warnings.js";
 import type { ProjectViewsListedToTheWindows } from "./project_view_files.js";
 import { describeCaughtFailure, type Result } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
@@ -37,6 +38,8 @@ export interface TatolabAppSharedState {
   streamFailureNotifications: StreamFailureNotifications;
   /** Whether Developer mode is on, which the status carries. */
   developerModeSwitch: HeldRememberedSwitch;
+  /** The warnings the status carries, and whether each one's dialog was shown. */
+  studioWarnings: StudioWarningsOfThisRun;
   /** Opening a project in its own studio window, from any window. */
   projectOpening: ProjectOpening;
   /** The Projects window and each project's studio window, each with its project and that project's files. */

@@ -40,6 +40,7 @@ function runningRuntimeListing(streams: ListedStream[]): TatolabStatus {
     developer_mode: false,
     open_at_login: { kind: "not_offered", reason: "a test" },
     command_line_tool_version: { kind: "not_offered", reason: "a test" },
+    studio_warnings: [],
   };
 }
 

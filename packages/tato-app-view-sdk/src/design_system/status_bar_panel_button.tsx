@@ -7,11 +7,13 @@ import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_fo
 
 /**
  * A phrase of a window's status bar that opens a panel above it when pressed: with a spinner while `isBusy`, in the danger
- * colour while `isFailing`, and the panel titled `panelTitle` with `panelActions` beside the title. `isOpen` and `onOpenChange` let the
- * screen open it too; opened that way, with `takesFocusOnOpen` false, it leaves the keyboard focus where the person had it.
+ * colour while `isFailing`, and the panel titled `panelTitle` with `panelActions` beside the title. With `icon`, the button shows
+ * only the icon and its `words` are read to a screen reader. `isOpen` and `onOpenChange` let the screen open it too; opened that way,
+ * with `takesFocusOnOpen` false, it leaves the keyboard focus where the person had it.
  */
 export function StatusBarPanelButton({
   words,
+  icon,
   isBusy,
   isFailing,
   panelTitle,
@@ -23,6 +25,7 @@ export function StatusBarPanelButton({
   ...controlDataAttributes
 }: {
   words: string;
+  icon?: ReactNode;
   isBusy: boolean;
   isFailing: boolean;
   panelTitle: string;
@@ -43,7 +46,10 @@ export function StatusBarPanelButton({
         {...controlDataAttributes}
       >
         {isBusy && <LoaderCircle className="size-3 animate-spin" strokeWidth={1.75} aria-hidden />}
-        <span role="status">{words}</span>
+        {icon}
+        <span role="status" className={cn(icon !== undefined && "sr-only")}>
+          {words}
+        </span>
       </PopoverTrigger>
       <PopoverContent
         side="top"

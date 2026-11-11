@@ -7,6 +7,7 @@ import type { TerminalOpenedInAFolder } from "./terminal_opened_in_a_folder.js";
 import type { AppLoginItemSettings } from "./macos/login_item_of_the_app_bundle.js";
 import type { AppMediaAccessSettings } from "./macos/media_access_of_the_app_bundle.js";
 import type { SystemMediaAccess } from "./system_media_access.js";
+import type { ViewerImageFrameReading } from "./viewer_image_frame_reading.js";
 
 /** What this build's platform hands the app's controller. */
 export interface TatolabPlatformForThisBuild {
@@ -24,6 +25,8 @@ export interface TatolabPlatformForThisBuild {
   tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin;
   /** The camera and the microphone as the system grants them to the app: TCC on macOS, asked by no system on Linux. */
   systemMediaAccess: SystemMediaAccess;
+  /** How a viewer reads the runtime's frames: an IOSurface the display imports on macOS; on Linux, imported under Wayland and copied through the CPU in any other session. */
+  viewerImageFrameReading: ViewerImageFrameReading;
 }
 
 /** What a platform takes from the app around it to build its items. */

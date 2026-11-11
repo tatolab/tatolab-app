@@ -66,6 +66,7 @@ import {
   type TatolabAppUpdateState,
   type TatolabPlatform,
   type TatolabStatus,
+  type StudioWarning,
   type PythonLanguageServerEvent,
   type SystemMenuBarEntry,
   type SystemMenuBarMenu,
@@ -235,6 +236,8 @@ export interface MockTatolabOptions {
   doesTheDesktopShowNoNotifications: boolean;
   /** `?developer_mode=on`: Developer mode is on, so every area's view menu offers Transactions; off by default. */
   isDeveloperModeOn: boolean;
+  /** `?x11_warning=due|shown`: the session is X11, so viewers copy their frames, with the warning's dialog still to be shown or shown already; Wayland by default. */
+  studioWarnings: StudioWarning[];
   /** `?cli_version=reading|unreadable`: the CLI's version still being read, or unreadable; read by default. */
   commandLineToolVersion: TatolabCommandLineToolVersion;
   /** `?stream_page_requested=<stream id>`: a click on that stream's failure notification, a moment after the window listens. */
@@ -405,6 +408,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     openAtLogin: mockOpenAtLogin(pageQuery.get("open_at_login")),
     doesTheDesktopShowNoNotifications: pageQuery.get("notifications") === "unsupported",
     isDeveloperModeOn: pageQuery.get("developer_mode") === "on",
+    studioWarnings: mockStudioWarnings(pageQuery.get("x11_warning")),
     commandLineToolVersion: mockCommandLineToolVersion(pageQuery.get("cli_version")),
     streamPageRequestedByANotification: pageQuery.get("stream_page_requested"),
     systemMenuBarEntryChosenByThePerson: pageQuery.get("system_menu_entry"),
@@ -467,6 +471,12 @@ function initialMockAppUpdateState(appUpdateScenario: MockTatolabAppUpdateScenar
 }
 
 /** The update dialog the mock shows as the page opens: the staged version's in `ready`, and the version the app is now in `landed`. */
+function mockStudioWarnings(x11WarningScenario: string | null): StudioWarning[] {
+  if (x11WarningScenario === "due") return [{ kind: "viewer_frames_copied_on_x11", first_open_dialog_due: true }];
+  if (x11WarningScenario === "shown") return [{ kind: "viewer_frames_copied_on_x11", first_open_dialog_due: false }];
+  return [];
+}
+
 function initialMockAppUpdateAnnouncement(appUpdateScenario: MockTatolabAppUpdateScenario, appVersion: string): TatolabAppUpdateAnnouncement | null {
   if (appUpdateScenario === "ready") return { kind: "update_ready", version: MOCK_NEWER_TATOLAB_VERSION };
   if (appUpdateScenario === "landed") return { kind: "update_landed", version: appVersion, release_notes_url: `https://github.com/tatolab/tatolab-app/releases/tag/v${appVersion}` };
@@ -482,6 +492,7 @@ function initialMockStatus(
     openAtLogin,
     doesTheDesktopShowNoNotifications,
     isDeveloperModeOn,
+    studioWarnings,
     commandLineToolVersion,
     commandLineToolLinkScenario,
     appBuild,
@@ -511,6 +522,7 @@ function initialMockStatus(
     developer_mode: isDeveloperModeOn,
     open_at_login: openAtLogin,
     command_line_tool_version: commandLineToolVersion,
+    studio_warnings: studioWarnings,
   };
   switch (scenario) {
     case "running":
@@ -1469,6 +1481,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     setDeveloperMode: async (enabled) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       publishStatus({ developer_mode: enabled });
+    },
+    dismissTheStudioWarningDialog: async (kind) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      publishStatus({ studio_warnings: mockStatus.studio_warnings.map((studioWarning) => (studioWarning.kind === kind ? { ...studioWarning, first_open_dialog_due: false } : studioWarning)) });
     },
     setOpenTatolabAtLogin: async (enabled) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

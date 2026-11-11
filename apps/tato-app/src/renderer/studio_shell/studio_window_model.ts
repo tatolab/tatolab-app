@@ -105,6 +105,8 @@ export class StudioWindowModel {
   readonly projectEditRefusal = new WatchedStudioValue<{ asked_to: "undo" | "redo"; because: string } | null>(null);
   /** Why the last update choice from the menus did not reach the app, until it is dismissed or another is made. */
   readonly appUpdateChoiceRefusal = new WatchedStudioValue<string | null>(null);
+  /** Why acknowledging a warning's dialog could not be remembered, until it is dismissed. */
+  readonly studioWarningDismissRefusal = new WatchedStudioValue<string | null>(null);
   /** The open project's stream whose failure the window raises over the studio, until it is dismissed, the stream leaves `failed`, or another project opens. */
   readonly openProjectStreamFailureRaised = new WatchedStudioValue<OpenProjectStreamFailure | null>(null);
   /** The workspace when the window is a studio window's Module manager window, as last read from disk; `null` in any other window. */
