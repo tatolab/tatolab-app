@@ -23,7 +23,7 @@ import {
 } from "@xyflow/react";
 import { cn } from "cn";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
-import { ChevronDown, ChevronRight, Combine, Frame, Palette, Pencil, Pipette, Plus, Scan, SquareX, StickyNote, Text, Ungroup } from "lucide-react";
+import { ChevronDown, ChevronRight, Combine, Frame, Palette, Pencil, Pipette, Plus, Scan, SquareX, StickyNote, Text, Trash2, Ungroup } from "lucide-react";
 import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
 import { RightClickMenu, RightClickMenuItem, RightClickMenuSeparator, RightClickMenuSingleChoiceGroup, RightClickSubmenu } from "./menus";
 import {
@@ -37,6 +37,7 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
@@ -197,14 +198,12 @@ export interface NodeGraphCanvasPoint {
   in_the_element: { x: number; y: number };
 }
 
-/** The canvas's Add node, Frame, Note and Subgraph tools drawn in the window's toolbar instead of on the canvas. */
+/** The canvas's Add node, Frame, Note and Subgraph tools offered to the window's toolbar as well as drawn on the canvas. */
 export interface NodeGraphCanvasToolsInTheWindowToolbar {
   /** The tools as they can be pressed now, at once and each time that changes. */
   onToolsChanged(tools: readonly WindowToolbarGraphToolOffered[]): void;
   /** Where the canvas puts how it carries out a toolbar press, while it is drawn. */
   pressFromTheToolbar: { current: ((tool: WindowToolbarGraphTool) => void) | null };
-  /** Whether the window took the offer, so the canvas draws no tools of its own; until then, and where it never does, they stay on the canvas. */
-  isTakenByTheToolbar: boolean;
 }
 
 /** The canvas's pan and zoom, as React Flow keeps its viewport. */
@@ -319,6 +318,13 @@ const NodeGraphFrameColourPickingContext = createContext<(frameId: string) => vo
 
 /** Which of a frame's words is typed on its tab: its title or its description. */
 type NodeGraphFrameWordsField = "title" | "description";
+
+/** What a right-click on the canvas landed on: the canvas itself at a point, a card, a link or a note. */
+type NodeGraphRightClicked =
+  | { kind: "canvas"; at: NodeGraphCanvasPoint }
+  | { kind: "card"; node_id: string }
+  | { kind: "link"; link_id: string }
+  | { kind: "note"; note_id: string };
 
 /** A frame's title or description being edited, with what was typed for it before its field opened. */
 interface NodeGraphFrameWordsBeingEdited {
@@ -654,6 +660,102 @@ function NodeGraphFrameRightClickChoices({
       <RightClickMenuItem icon={Ungroup} isDestructive onChosen={() => frameEditing.onFrameRemoved(graphFrame.frame_id)} data-node-graph-frame-choice="remove">
         Remove frame
       </RightClickMenuItem>
+    </>
+  );
+}
+
+/** What a right-click on the canvas offers: on the canvas, a node or a note placed there; on a card, what F, ⇧⌘G and Delete do to the selection it joins; on a link or a note, removing it. */
+function NodeGraphRightClickChoices({
+  rightClicked,
+  graphNode,
+  editing,
+  selectedCardCount,
+  onFrameTheSelection,
+  onCollapseTheSelection,
+  onDeleteTheSelection,
+  onFrameTheWholeGraph,
+  onSubgraphOpened,
+}: {
+  rightClicked: NodeGraphRightClicked;
+  /** The card right-clicked, when it was one. */
+  graphNode: NodeGraphCanvasNode | null;
+  editing: NodeGraphCanvasEditing | null;
+  selectedCardCount: number;
+  onFrameTheSelection: () => void;
+  onCollapseTheSelection: () => void;
+  onDeleteTheSelection: () => void;
+  onFrameTheWholeGraph: () => void;
+  onSubgraphOpened: ((nodeId: string) => void) | null;
+}) {
+  const frameTheWholeGraphChoice = (
+    <RightClickMenuItem icon={Scan} onChosen={onFrameTheWholeGraph} data-node-graph-choice="frame_all">
+      Frame the whole graph
+    </RightClickMenuItem>
+  );
+  if (rightClicked.kind === "link") {
+    return (
+      <RightClickMenuItem icon={Trash2} isDestructive shortcutHint="⌫" onChosen={onDeleteTheSelection} data-node-graph-choice="delete">
+        Delete link
+      </RightClickMenuItem>
+    );
+  }
+  if (rightClicked.kind === "note") {
+    return (
+      <RightClickMenuItem icon={Trash2} isDestructive shortcutHint="⌫" onChosen={onDeleteTheSelection} data-node-graph-choice="delete">
+        Delete note
+      </RightClickMenuItem>
+    );
+  }
+  if (rightClicked.kind === "canvas") {
+    return (
+      <>
+        {editing !== null && (
+          <>
+            <RightClickMenuItem icon={Plus} shortcutHint="Tab" onChosen={() => editing.onNodeAskedFor(rightClicked.at)} data-node-graph-choice="add_node">
+              Add node…
+            </RightClickMenuItem>
+            <RightClickMenuItem icon={StickyNote} onChosen={() => editing.onNoteAskedFor(rightClicked.at)} data-node-graph-choice="add_note">
+              Add note
+            </RightClickMenuItem>
+            <RightClickMenuSeparator />
+          </>
+        )}
+        {frameTheWholeGraphChoice}
+      </>
+    );
+  }
+  const isASubgraph = graphNode !== null && graphNode.subgraph !== null && onSubgraphOpened !== null;
+  const selectionWords = selectedCardCount > 1 ? `the ${selectedCardCount} selected nodes` : "the node";
+  return (
+    <>
+      {isASubgraph && (
+        <RightClickMenuItem icon={ChevronRight} onChosen={() => onSubgraphOpened(rightClicked.node_id)} data-node-graph-choice="open_subgraph">
+          Step inside
+        </RightClickMenuItem>
+      )}
+      {editing !== null && graphNode !== null && (
+        <>
+          {isASubgraph && <RightClickMenuSeparator />}
+          <RightClickMenuItem icon={Frame} shortcutHint="F" onChosen={onFrameTheSelection} data-node-graph-choice="frame_selection">
+            Frame {selectionWords}
+          </RightClickMenuItem>
+          <RightClickMenuItem icon={Combine} shortcutHint="⇧⌘G" onChosen={onCollapseTheSelection} data-node-graph-choice="add_subgraph">
+            Collapse into a subgraph
+          </RightClickMenuItem>
+          <RightClickMenuItem
+            icon={graphNode.is_collapsed ? ChevronDown : ChevronRight}
+            onChosen={() => editing.onCardCollapsed(graphNode.node_id, !graphNode.is_collapsed)}
+            data-node-graph-choice={graphNode.is_collapsed ? "expand_card" : "collapse_card"}
+          >
+            {graphNode.is_collapsed ? "Show its pins" : "Hide its pins"}
+          </RightClickMenuItem>
+          <RightClickMenuSeparator />
+          <RightClickMenuItem icon={Trash2} isDestructive shortcutHint="⌫" onChosen={onDeleteTheSelection} data-node-graph-choice="delete">
+            Delete {selectionWords}
+          </RightClickMenuItem>
+        </>
+      )}
+      {editing === null && !isASubgraph && frameTheWholeGraphChoice}
     </>
   );
 }
@@ -1360,6 +1462,63 @@ function NodeGraphFlow({
   const collapseTheSelectionIntoASubgraph = useCallback(() => {
     if (editing !== null && selectedIds.size > 0) editing.onSubgraphAskedFor([...selectedIds]);
   }, [editing, selectedIds]);
+  const frameTheWholeGraph = useCallback(() => {
+    void reactFlow.fitView({ ...FIT_TO_VIEW_OPTIONS, duration: 200 }).then(() => {
+      const { x, y, zoom } = reactFlow.getViewport();
+      onViewportLeft?.({ x, y, zoom });
+    });
+  }, [reactFlow, onViewportLeft]);
+  const deleteTheSelection = useCallback(() => {
+    if (editing === null || (selectedIds.size === 0 && selectedLinkIds.size === 0 && selectedNoteIds.size === 0)) return;
+    editing.onDeleted({ node_ids: [...selectedIds], link_ids: [...selectedLinkIds], note_ids: [...selectedNoteIds] });
+    setSelectedLinkIds(new Set());
+    setSelectedNoteIds(new Set());
+    if (selectedIds.size > 0) {
+      setSelectedIds(new Set());
+      onNodeSelected(null);
+    }
+  }, [editing, selectedIds, selectedLinkIds, selectedNoteIds, onNodeSelected]);
+  const [rightClicked, setRightClicked] = useState<NodeGraphRightClicked | null>(null);
+  const followTheRightClick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const flowNodeId = target?.closest<HTMLElement>(".react-flow__node")?.dataset["id"];
+      const linkId = target?.closest<SVGGElement>("[data-node-graph-link]")?.dataset["nodeGraphLink"];
+      if (flowNodeId !== undefined && nodeById.has(flowNodeId)) {
+        if (!selectedIds.has(flowNodeId)) {
+          setSelectedIds(new Set([flowNodeId]));
+          setSelectedLinkIds(new Set());
+          setSelectedNoteIds(new Set());
+          onNodeSelected(flowNodeId);
+        }
+        setRightClicked({ kind: "card", node_id: flowNodeId });
+      } else if (flowNodeId?.startsWith("note:") === true && editing !== null) {
+        const noteId = flowNodeId.slice("note:".length);
+        if (!selectedNoteIds.has(noteId)) {
+          setSelectedNoteIds(new Set([noteId]));
+          setSelectedLinkIds(new Set());
+          if (selectedIds.size > 0) {
+            setSelectedIds(new Set());
+            onNodeSelected(null);
+          }
+        }
+        setRightClicked({ kind: "note", note_id: noteId });
+      } else if (linkId !== undefined && editing !== null) {
+        if (!selectedLinkIds.has(linkId)) {
+          setSelectedLinkIds(new Set([linkId]));
+          setSelectedNoteIds(new Set());
+          if (selectedIds.size > 0) {
+            setSelectedIds(new Set());
+            onNodeSelected(null);
+          }
+        }
+        setRightClicked({ kind: "link", link_id: linkId });
+      } else {
+        setRightClicked({ kind: "canvas", at: canvasPointOf({ x: event.clientX, y: event.clientY }) });
+      }
+    },
+    [nodeById, selectedIds, selectedLinkIds, selectedNoteIds, editing, onNodeSelected, canvasPointOf],
+  );
   const onToolbarToolsChanged = toolsInTheWindowToolbar?.onToolsChanged;
   const isEditable = editing !== null;
   useEffect(() => {
@@ -1426,16 +1585,10 @@ function NodeGraphFlow({
       } else if (event.key === "Backspace" || event.key === "Delete") {
         if (selectedIds.size === 0 && selectedLinkIds.size === 0 && selectedNoteIds.size === 0) return;
         event.preventDefault();
-        editing.onDeleted({ node_ids: [...selectedIds], link_ids: [...selectedLinkIds], note_ids: [...selectedNoteIds] });
-        setSelectedLinkIds(new Set());
-        setSelectedNoteIds(new Set());
-        if (selectedIds.size > 0) {
-          setSelectedIds(new Set());
-          onNodeSelected(null);
-        }
+        deleteTheSelection();
       }
     },
-    [editing, middleOfTheView, selectedIds, selectedLinkIds, selectedNoteIds, frameTheSelection, collapseTheSelectionIntoASubgraph, onNodeSelected],
+    [editing, middleOfTheView, selectedIds, selectedLinkIds, selectedNoteIds, frameTheSelection, collapseTheSelectionIntoASubgraph, deleteTheSelection],
   );
 
   return (
@@ -1448,11 +1601,34 @@ function NodeGraphFlow({
             <NodeGraphFrameColoursUsedContext value={frameColoursUsed}>
             <NodeGraphFrameColourPickingContext value={setFrameIdWhoseColourIsPicked}>
           <NodeGraphLinkedPinsContext value={linkedPins}>
+            <RightClickMenu
+              label={`${label}: what to do`}
+              returnsFocusToTheRowOnClosing={false}
+              choices={
+                rightClicked === null ? null : (
+                  <NodeGraphRightClickChoices
+                    rightClicked={rightClicked}
+                    graphNode={rightClicked.kind === "card" ? (nodeById.get(rightClicked.node_id) ?? null) : null}
+                    editing={editing}
+                    selectedCardCount={selectedIds.size}
+                    onFrameTheSelection={() => {
+                      canvasElement.current?.focus({ preventScroll: true });
+                      frameTheSelection();
+                    }}
+                    onCollapseTheSelection={collapseTheSelectionIntoASubgraph}
+                    onDeleteTheSelection={deleteTheSelection}
+                    onFrameTheWholeGraph={frameTheWholeGraph}
+                    onSubgraphOpened={onSubgraphOpened}
+                  />
+                )
+              }
+            >
             <div
               ref={canvasElement}
               className="relative size-full"
               tabIndex={editing === null ? undefined : 0}
               onKeyDown={followTheKeys}
+              onContextMenuCapture={followTheRightClick}
               onPointerMove={(event: ReactPointerEvent<HTMLDivElement>) => {
                 pointerRestsAt.current = canvasPointOf({ x: event.clientX, y: event.clientY });
               }}
@@ -1512,16 +1688,12 @@ function NodeGraphFlow({
                     icon={Scan}
                     label="Frame the whole graph"
                     size="compact"
-                    onPressed={() =>
-                      void reactFlow.fitView({ ...FIT_TO_VIEW_OPTIONS, duration: 200 }).then(() => {
-                        const { x, y, zoom } = reactFlow.getViewport();
-                        onViewportLeft?.({ x, y, zoom });
-                      })
-                    }
+                    onPressed={frameTheWholeGraph}
                     data-node-graph-tool="frame_all"
                   />
-                  {editing !== null && toolsInTheWindowToolbar?.isTakenByTheToolbar !== true && (
+                  {editing !== null && (
                     <>
+                      <span aria-hidden className="mx-1 my-0.5 h-px bg-line-strong" />
                       <IconButton icon={Plus} label="Add node" tooltip="Add node (Tab)" size="compact" onPressed={() => editing.onNodeAskedFor(clearPlaceBroughtIntoView())} data-node-graph-tool="add_node" />
                       <IconButton
                         icon={Frame}
@@ -1533,6 +1705,15 @@ function NodeGraphFlow({
                         data-node-graph-tool="frame_selection"
                       />
                       <IconButton icon={StickyNote} label="Add a note" size="compact" onPressed={() => editing.onNoteAskedFor(clearPlaceBroughtIntoView())} data-node-graph-tool="add_note" />
+                      <IconButton
+                        icon={Combine}
+                        label="Collapse the selection into a subgraph"
+                        tooltip="Collapse the selection into a subgraph (⇧⌘G)"
+                        disabledReason={subgraphDisabledReason}
+                        size="compact"
+                        onPressed={collapseTheSelectionIntoASubgraph}
+                        data-node-graph-tool="add_subgraph"
+                      />
                     </>
                   )}
                 </div>
@@ -1552,6 +1733,7 @@ function NodeGraphFlow({
                 {overlay}
               </ReactFlow>
             </div>
+            </RightClickMenu>
           </NodeGraphLinkedPinsContext>
             {cardAndFrameEditing !== null && (
               <ColourPickerDialog
@@ -1611,7 +1793,7 @@ export function NodeGraphCanvas({
   onNodeSelected: (nodeId: string | null) => void;
   /** What a person's edits ask for; `null` draws the graph read only. */
   editing?: NodeGraphCanvasEditing | null;
-  /** Where the canvas's tools are drawn when the window's toolbar draws them; `null` draws them on the canvas. */
+  /** How the window's toolbar shows the canvas's tools and reaches them; `null` where the window has no toolbar. The canvas draws its own either way. */
   toolsInTheWindowToolbar?: NodeGraphCanvasToolsInTheWindowToolbar | null;
   /** Where the person left the canvas's pan and zoom, which it opens on; `null` frames the whole graph. */
   viewportWhereItWasLeft?: NodeGraphCanvasViewport | null;

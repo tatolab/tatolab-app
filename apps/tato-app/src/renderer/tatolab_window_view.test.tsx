@@ -767,7 +767,7 @@ describe("the studio", () => {
     expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
   });
 
-  it("draws the Stream graph's Add node, Frame, Note and Subgraph in the window's toolbar, says why one can't be pressed, and a press opens the node search in the graph", async () => {
+  it("draws the Stream graph's Add node, Frame, Note and Subgraph in the window's toolbar and down the graph's left edge, says why one can't be pressed, and a press opens the node search in the graph", async () => {
     await mountedWindowOverTheMock("state=running");
     const toolInTheToolbar = (tool: string) => document.querySelector<HTMLElement>(`[data-studio-graph-tool="${tool}"]`) ?? expect.unreachable(`no ${tool} in the toolbar`);
     await waitFor(() => expect(document.querySelector("[data-studio-graph-tools]")?.getAttribute("data-studio-graph-tools")).toBe("stream-graph"));
@@ -775,7 +775,8 @@ describe("the studio", () => {
     expect(toolInTheToolbar("frame_selection").getAttribute("aria-label")).toBe("Frame the selected nodes: Select the nodes to frame first");
     expect(toolInTheToolbar("add_subgraph").getAttribute("aria-disabled")).toBe("true");
     const streamGraph = coreViewPage("stream_graph", "stream-graph");
-    await waitFor(() => expect(streamGraph.querySelector('[data-node-graph-tool="add_node"]')).toBeNull());
+    await waitFor(() => expect(streamGraph.querySelector('[data-node-graph-tool="add_node"]')).not.toBeNull());
+    expect(streamGraph.querySelector('[data-node-graph-tool="add_subgraph"]')?.getAttribute("aria-disabled")).toBe("true");
 
     fireEvent.click(toolInTheToolbar("add_node"));
     await waitFor(() => expect(within(streamGraph.body).getByRole("dialog", { name: "Add a node" })).toBeTruthy());

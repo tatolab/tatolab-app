@@ -13,8 +13,6 @@ import type {
   NodeCatalogReading,
   ProjectNodeTypesReading,
   OpenProjectReading,
-  ProjectTransactionAuthor,
-  ProjectTransactionsReading,
   StreamGraphAction,
   StreamGraphNodeStudioFields,
   StreamGraphReading,
@@ -49,9 +47,8 @@ import {
   type LooseWire,
 } from "./stream_graph_edits";
 import { streamGraphLevelReached } from "./stream_graph_levels";
-import { graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeSearchItems, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
+import { graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeSearchItems, nodeTypeSearchNarrowing, nodeTypesTheProjectDeclares, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
 import { StreamGraphSubgraphReadOnlyBanner, StreamGraphSubgraphTrail } from "./stream_graph_subgraph_strip";
-import { streamGraphSavedWords } from "./stream_graph_saved_words";
 import { isTheSamePlaceLeft, settingsWithTheStreamLeft, whereTheStreamWasLeft, type WhereAStreamWasLeft } from "./stream_graph_where_left";
 
 /** How far each node placed with ⇧↵ lands from the one before, so a run of them can be told apart. */
@@ -83,34 +80,25 @@ function useTheCanvasToolsInTheWindowToolbar(connection: TatoAppViewConnection):
   const pressFromTheToolbar = useRef<((tool: WindowToolbarGraphTool) => void) | null>(null);
   const offer = useRef<WindowToolbarGraphToolsOffer | null>(null);
   const toolsLastReported = useRef<readonly WindowToolbarGraphToolOffered[] | null>(null);
-  const [isTakenByTheToolbar, setIsTakenByTheToolbar] = useState(false);
-  const showTheTools = useCallback((offerShowing: WindowToolbarGraphToolsOffer, tools: readonly WindowToolbarGraphToolOffered[]) => {
-    void offerShowing.show(tools).then((answer) => offer.current === offerShowing && setIsTakenByTheToolbar(answer.kind === "done"));
-  }, []);
   useEffect(() => {
     const offerMade = connection.offerGraphToolsToTheWindow(
       (tool) => pressFromTheToolbar.current?.(tool),
       () => {
         if (offer.current === offerMade) offer.current = null;
-        setIsTakenByTheToolbar(false);
       },
     );
     offer.current = offerMade;
-    if (toolsLastReported.current !== null) showTheTools(offerMade, toolsLastReported.current);
+    if (toolsLastReported.current !== null) void offerMade.show(toolsLastReported.current);
     return () => {
       offer.current = null;
       offerMade.withdraw();
-      setIsTakenByTheToolbar(false);
     };
-  }, [connection, showTheTools]);
-  const onToolsChanged = useCallback(
-    (tools: readonly WindowToolbarGraphToolOffered[]) => {
-      toolsLastReported.current = tools;
-      if (offer.current !== null) showTheTools(offer.current, tools);
-    },
-    [showTheTools],
-  );
-  return useMemo(() => ({ onToolsChanged, pressFromTheToolbar, isTakenByTheToolbar }), [onToolsChanged, isTakenByTheToolbar]);
+  }, [connection]);
+  const onToolsChanged = useCallback((tools: readonly WindowToolbarGraphToolOffered[]) => {
+    toolsLastReported.current = tools;
+    if (offer.current !== null) void offer.current.show(tools);
+  }, []);
+  return useMemo(() => ({ onToolsChanged, pressFromTheToolbar }), [onToolsChanged]);
 }
 
 /** The graph of the stream tab shown, read while the view is drawn. */
@@ -285,7 +273,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   );
   const looseWireOfTheSearch = nodeTypeSearchAsked?.looseWire ?? null;
   const nodeTypeSearchItemsOffered = useMemo(
-    () => [...nodeTypeSearchItems(catalog, looseWireOfTheSearch), ...graphGeneratorSearchItems(projectNodeTypeListing, looseWireOfTheSearch)],
+    () => [...nodeTypeSearchItems(catalog, looseWireOfTheSearch, nodeTypesTheProjectDeclares(projectNodeTypeListing)), ...graphGeneratorSearchItems(projectNodeTypeListing, looseWireOfTheSearch)],
     [catalog, projectNodeTypeListing, looseWireOfTheSearch],
   );
   const placeTheChosenNodeType = useCallback(
@@ -402,12 +390,12 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
             {nodeTypeSearchAsked !== null && (
               <SearchPopover
                 label="Add a node"
-                heading={nodeTypeSearchAsked.looseWire === null ? "Add node" : `Add node wired to ${nodeTypeSearchAsked.looseWire.node_id}.${nodeTypeSearchAsked.looseWire.pin}`}
-                placeholder="Search node types"
+                placeholder={nodeTypeSearchAsked.looseWire === null ? "Search node types and generators" : "Search node types"}
                 items={nodeTypeSearchItemsOffered}
+                narrowedTo={nodeTypeSearchAsked.looseWire === null ? null : nodeTypeSearchNarrowing(nodeTypeSearchAsked.looseWire)}
                 emptyWords={catalogReading?.kind === "not_listed" ? catalogReading.because : "No node type matches."}
-                chooseWords="place"
-                chooseAndStayWords="place another"
+                chooseWords="place at cursor"
+                chooseAndStayWords="place and keep open"
                 at={nodeTypeSearchAsked.at.in_the_element}
                 onItemChosen={placeTheChosenNodeType}
                 onClosed={closeTheNodeTypeSearch}
@@ -470,44 +458,10 @@ function StreamGraphBody({ connection }: { connection: TatoAppViewConnection }) 
   );
 }
 
-/** The header's words on the open project's history, as "Saved · last edit by you", while its change feed reads. */
-function StreamGraphSavedWordsOfTheProject({ connection, projectFolder }: { connection: TatoAppViewConnection; projectFolder: string }) {
-  const transactionsReading = useViewReading(
-    useCallback((listener: (reading: ProjectTransactionsReading) => void): StopWatching => connection.watchProjectTransactions(projectFolder, listener), [connection, projectFolder]),
-  );
-  const [thePersonEditing, setThePersonEditing] = useState<ProjectTransactionAuthor | null>(null);
-  useEffect(() => {
-    let isStillShown = true;
-    void connection.readThePersonEditing().then((reading) => isStillShown && setThePersonEditing(reading.kind === "read" ? reading.author : null));
-    return () => {
-      isStillShown = false;
-    };
-  }, [connection]);
-  const savedWords = transactionsReading?.kind === "read" ? streamGraphSavedWords(transactionsReading.project_transactions.transactions, thePersonEditing) : null;
-  return savedWords === null ? null : (
-    <span className="truncate text-2xs text-fg-3" data-stream-graph-saved>
-      {savedWords}
-    </span>
-  );
-}
-
-/** The Stream graph view's header tools: the active tab's stream, and who made the open project's latest edit. */
-function StreamGraphHeaderTools({ connection }: { connection: TatoAppViewConnection }) {
-  const activeStreamTab = useViewReadingSoFar(connection.watchActiveStreamTab);
-  const openProject = useViewReading(connection.watchOpenProject);
-  const streamTab = activeStreamTab.kind === "read" ? activeStreamTab.reading : null;
-  return (
-    <span className="flex min-w-0 items-baseline gap-2">
-      {streamTab !== null && <span className="truncate text-xs font-medium text-fg">{streamTab.display_name}</span>}
-      {openProject?.kind === "read" && <StreamGraphSavedWordsOfTheProject key={openProject.open_project.project.folder} connection={connection} projectFolder={openProject.open_project.project.folder} />}
-    </span>
-  );
-}
-
 /** The Stream graph view's whole frame: the active stream tab's nodes and links, drawn the Blueprint way, under its header row. */
 export function StreamGraphView({ connection }: { connection: TatoAppViewConnection }) {
   return (
-    <CoreViewFrame connection={connection} headerTools={<StreamGraphHeaderTools connection={connection} />}>
+    <CoreViewFrame connection={connection}>
       <StreamGraphBody connection={connection} />
     </CoreViewFrame>
   );

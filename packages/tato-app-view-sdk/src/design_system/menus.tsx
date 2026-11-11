@@ -9,6 +9,7 @@ import {
   ContextMenuRadioGroup,
   ContextMenuRadioItem,
   ContextMenuSeparator,
+  ContextMenuShortcut,
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
@@ -244,19 +245,31 @@ export function RightClickMenu({
 export function RightClickMenuItem({
   icon: ItemIcon,
   isDestructive = false,
+  isDisabled = false,
+  shortcutHint,
   onChosen,
   children,
   ...controlDataAttributes
-}: { icon?: LucideIcon; isDestructive?: boolean; onChosen: () => void; children: ReactNode } & ControlDataAttributes) {
+}: {
+  icon?: LucideIcon;
+  isDestructive?: boolean;
+  isDisabled?: boolean;
+  /** The key cap of the shortcut that does the same, shown at the item's end, as Tab. */
+  shortcutHint?: string;
+  onChosen: () => void;
+  children: ReactNode;
+} & ControlDataAttributes) {
   return (
     <ContextMenuItem
       variant={isDestructive ? "destructive" : "default"}
+      disabled={isDisabled}
       onClick={onChosen}
       className={cn(MENU_ITEM_CLASS_NAMES, "data-[variant=destructive]:text-danger-text data-[variant=destructive]:focus:text-danger-text")}
       {...controlDataAttributes}
     >
       {ItemIcon !== undefined && <ItemIcon className={cn(MENU_ITEM_ICON_CLASS_NAMES, isDestructive && "text-danger")} strokeWidth={1.75} aria-hidden />}
       {children}
+      {shortcutHint !== undefined && <ContextMenuShortcut>{shortcutHint}</ContextMenuShortcut>}
     </ContextMenuItem>
   );
 }

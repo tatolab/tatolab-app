@@ -2,9 +2,9 @@ import { expect, test } from "vitest";
 import { searchPopoverCategoriesMatching, searchPopoverItemAfterAnArrow, type SearchPopoverItem } from "./search_popover_rows";
 
 const ITEMS: SearchPopoverItem[] = [
-  { item_id: "nodes.blur:GaussianBlur", title: "Gaussian Blur", summary: "Softens an image", category: "nodes.blur" },
-  { item_id: "nodes.colour:Halftone", title: "Halftone", summary: "Dots of an image", category: "nodes.colour" },
-  { item_id: "nodes.blur:BoxBlur", title: "Box Blur", summary: "A cheaper blur", category: "nodes.blur" },
+  { item_id: "nodes.blur:GaussianBlur", title: "Gaussian Blur", summary: "Softens an image", category: "nodes.blur", details: null, tag: null },
+  { item_id: "nodes.colour:Halftone", title: "Halftone", summary: "Dots of an image", category: "nodes.colour", details: null, tag: null },
+  { item_id: "nodes.blur:BoxBlur", title: "Box Blur", summary: "A cheaper blur", category: "nodes.blur", details: null, tag: null },
 ];
 
 test("every_word_searched_must_match_somewhere_ignoring_case_and_matches_keep_their_category_in_first_named_order", () => {
