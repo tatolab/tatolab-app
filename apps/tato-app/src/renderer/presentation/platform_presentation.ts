@@ -58,6 +58,12 @@ export function shortcutHint(platform: TatolabPlatform, key: string): string {
   return presentPlatform(platform).windowShortcutModifier === "meta" ? `⌘${key}` : `Ctrl ${key}`;
 }
 
+/** The key cap of a key held with Control on both platforms, and Shift too when `withShift`: ⌃Tab and ⌃⇧Tab on macOS, Ctrl Tab and Ctrl Shift Tab on Linux. */
+export function controlShortcutHint(platform: TatolabPlatform, key: string, withShift: boolean): string {
+  if (presentPlatform(platform).windowShortcutModifier === "meta") return withShift ? `⌃⇧${key}` : `⌃${key}`;
+  return withShift ? `Ctrl Shift ${key}` : `Ctrl ${key}`;
+}
+
 /** The key cap of a window shortcut held with Shift too: ⇧⌘Z on macOS, Ctrl Shift Z on Linux. */
 export function shiftedShortcutHint(platform: TatolabPlatform, key: string): string {
   return presentPlatform(platform).windowShortcutModifier === "meta" ? `⇧⌘${key}` : `Ctrl Shift ${key}`;

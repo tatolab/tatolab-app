@@ -102,7 +102,7 @@ export function StudioMenuBar({ label, menus }: { label: string; menus: readonly
             >
               {menu.label}
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[230px]">
+            <DropdownMenuContent align="start" className="w-max min-w-[230px]">
               <StudioMenuEntries entries={menu.entries} />
             </DropdownMenuContent>
         </DropdownMenu>

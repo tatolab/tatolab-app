@@ -6,7 +6,7 @@ import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract
 import type { SystemMenuBarEntry, SystemMenuBarItems, SystemMenuBarMenu, SystemMenuOfTheDesktop, TatolabAppUpdateState, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import type { StudioMenu, StudioMenuEntry } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
 import { presentTatolabAppUpdateMenuEntry } from "../presentation/app_update_presentation";
-import { shiftedShortcutHint, shortcutHint } from "../presentation/platform_presentation";
+import { controlShortcutHint, shiftedShortcutHint, shortcutHint } from "../presentation/platform_presentation";
 import { STUDIO_LAYOUTS, type StudioLayoutName } from "./studio_layouts";
 
 /** Why an entry whose work a later issue builds cannot run. */
@@ -37,7 +37,35 @@ export interface StudioMenuBarCommands {
   redoYourLastUndo(): void;
   /** File › Marketplace… and Modules…: open the project's Module manager window on the section `shows`. */
   openModuleManager(shows: ModulesShown): void;
+  /** Stream › New stream…: ask for a name, then make the stream in the open project. */
+  createAStream(): void;
+  /** Stream › Rename stream…: ask for the shown tab's stream's new name. */
+  renameTheShownStream(): void;
+  /** Stream › Delete stream…: ask, naming the shown tab's stream, before deleting it. */
+  deleteTheShownStream(): void;
+  /** Stream › Close tab. */
+  closeTheShownStreamTab(): void;
+  /** Stream › Reopen closed tab: open again the tab closed last. */
+  reopenTheLastClosedStreamTab(): void;
+  /** Stream › Next tab and Previous tab. */
+  showTheStreamTabBeside(direction: "next" | "previous"): void;
 }
+
+/** The stream tabs the Stream menu acts on: the shown one, how many are open, and whether a closed one is left to reopen. */
+export interface StreamTabsInTheMenus {
+  shown_stream_display_name: string | null;
+  open_tab_count: number;
+  has_a_closed_tab_to_reopen: boolean;
+}
+
+/** Why an entry that acts on the shown tab's stream cannot run while no tab is shown. */
+export const NO_STREAM_TAB_SHOWN_REASON = "Open a stream's tab first";
+
+/** Why Next tab and Previous tab cannot run with fewer than two tabs open. */
+export const ONE_STREAM_TAB_AT_MOST_REASON = "Open another stream's tab first";
+
+/** Why Reopen closed tab cannot run while no tab has been closed. */
+export const NO_CLOSED_STREAM_TAB_REASON = "No tab has been closed";
 
 /** Why an entry that acts on the open project cannot run while none is open. */
 export const NO_PROJECT_OPEN_REASON = "Open a project first";
@@ -84,6 +112,7 @@ interface StudioMenuParts {
 function studioMenuParts(
   platform: TatolabPlatform,
   chosenLayout: StudioLayoutName | null,
+  streamTabs: StreamTabsInTheMenus,
   appUpdate: TatolabAppUpdateState,
   commands: StudioMenuBarCommands,
   preferencesLabel: string,
@@ -91,6 +120,10 @@ function studioMenuParts(
   const projectCommand = (label: string, onChosen: () => void, shortcut?: string): StudioMenuEntry => {
     if (chosenLayout === null) return shortcut === undefined ? { kind: "unavailable_command", label, unavailableBecause: NO_PROJECT_OPEN_REASON } : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause: NO_PROJECT_OPEN_REASON };
     return shortcut === undefined ? { kind: "command", label, onChosen } : { kind: "command", label, shortcutHint: shortcut, onChosen };
+  };
+  const streamTabCommand = (label: string, onChosen: () => void, unavailableBecause: string | null, shortcut?: string): StudioMenuEntry => {
+    if (chosenLayout === null || unavailableBecause === null) return projectCommand(label, onChosen, shortcut);
+    return shortcut === undefined ? { kind: "unavailable_command", label, unavailableBecause } : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause };
   };
   const studioLayoutEntry: StudioMenuEntry =
     chosenLayout === null
@@ -114,7 +147,6 @@ function studioMenuParts(
       { kind: "command", label: "New project…", shortcutHint: shortcutHint(platform, "N"), onChosen: commands.createAProject },
       { kind: "separator" },
       { kind: "command", label: "Import project .zip…", onChosen: commands.importAProjectArchive },
-      laterCommand("New stream"),
       laterCommand("Save version…"),
       projectCommand("Marketplace…", () => commands.openModuleManager("marketplace")),
       projectCommand("Modules…", () => commands.openModuleManager("added_to_this_project")),
@@ -123,7 +155,19 @@ function studioMenuParts(
     undoAndRedoBesideTextEditing: [projectCommand("Undo Your Last Edit", commands.undoYourLastEdit), projectCommand("Redo Your Last Undo", commands.redoYourLastUndo)],
     preferencesEntry: { kind: "command", label: preferencesLabel, shortcutHint: shortcutHint(platform, ","), onChosen: commands.openPreferences },
     addMenu: { label: "Add", entries: [laterCommand("Node…", "Shift A"), laterCommand("Connection…"), laterCommand("Variable…"), laterCommand("Frame")] },
-    streamMenu: { label: "Stream", entries: [laterCommand("Run on…"), laterCommand("Stream clock")] },
+    streamMenu: {
+      label: "Stream",
+      entries: [
+        projectCommand("New stream…", commands.createAStream),
+        streamTabCommand("Rename stream…", commands.renameTheShownStream, streamTabs.shown_stream_display_name === null ? NO_STREAM_TAB_SHOWN_REASON : null),
+        streamTabCommand("Delete stream…", commands.deleteTheShownStream, streamTabs.shown_stream_display_name === null ? NO_STREAM_TAB_SHOWN_REASON : null),
+        { kind: "separator" },
+        streamTabCommand("Close tab", commands.closeTheShownStreamTab, streamTabs.shown_stream_display_name === null ? NO_STREAM_TAB_SHOWN_REASON : null, shortcutHint(platform, "W")),
+        streamTabCommand("Reopen closed tab", commands.reopenTheLastClosedStreamTab, streamTabs.has_a_closed_tab_to_reopen ? null : NO_CLOSED_STREAM_TAB_REASON, shiftedShortcutHint(platform, "T")),
+        streamTabCommand("Next tab", () => commands.showTheStreamTabBeside("next"), streamTabs.open_tab_count < 2 ? ONE_STREAM_TAB_AT_MOST_REASON : null, controlShortcutHint(platform, "Tab", false)),
+        streamTabCommand("Previous tab", () => commands.showTheStreamTabBeside("previous"), streamTabs.open_tab_count < 2 ? ONE_STREAM_TAB_AT_MOST_REASON : null, controlShortcutHint(platform, "Tab", true)),
+      ],
+    },
     runMenu: {
       label: "Run",
       entries: [projectCommand("Live", commands.runTheProjectLive, RUN_LIVE_KEY), projectCommand("Stop", commands.stopTheProject, STOP_KEY_HINT), laterCommand("Render to file…")],
@@ -136,8 +180,8 @@ function studioMenuParts(
 }
 
 /** The studio's menus along the top of its window, as Linux shows them, Window › Layout ticking `chosenLayout`, or naming why it waits while no project is open, and Help's updates entry following `appUpdate`. */
-export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: StudioLayoutName | null, appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenu[] {
-  const parts = studioMenuParts(platform, chosenLayout, appUpdate, commands, "Preferences…");
+export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: StudioLayoutName | null, streamTabs: StreamTabsInTheMenus, appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenu[] {
+  const parts = studioMenuParts(platform, chosenLayout, streamTabs, appUpdate, commands, "Preferences…");
   return [
     { label: "File", entries: parts.fileEntries },
     { label: "Edit", entries: [...parts.undoAndRedoEntries, { kind: "separator" }, parts.preferencesEntry] },
@@ -160,8 +204,8 @@ export interface StudioMenuInTheSystemMenuBar {
 }
 
 /** The studio's menus as macOS's one menu bar shows them, in the places a Mac app keeps them: About, the updates entry following `appUpdate`, and Settings in the app menu, the desktop's text editing in Edit, its window controls in Window. */
-export function studioMenusInTheSystemMenuBar(chosenLayout: StudioLayoutName | null, appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenuInTheSystemMenuBar[] {
-  const parts = studioMenuParts("macos", chosenLayout, appUpdate, commands, "Settings…");
+export function studioMenusInTheSystemMenuBar(chosenLayout: StudioLayoutName | null, streamTabs: StreamTabsInTheMenus, appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenuInTheSystemMenuBar[] {
+  const parts = studioMenuParts("macos", chosenLayout, streamTabs, appUpdate, commands, "Settings…");
   return [
     {
       label: "Tato Studio",

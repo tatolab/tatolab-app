@@ -39,7 +39,7 @@ import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names
 import type { AssetImportedByTheRuntime, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
 import type { NodeFileCreationRecorded, ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
 import type { ProjectViewTheRuntimeListed, StudioViewOutputWritten } from "./project_views_on_the_wire.js";
-import { LocalApiClient, type LocalApiRequestFailure, type StreamDisplayNameSet } from "./local_api_client.js";
+import { LocalApiClient, type LocalApiRequestFailure, type StreamAssetChange } from "./local_api_client.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import type { TatolabCommandLineToolLink } from "./platform/command_line_tool_link_in_the_home_folder.js";
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
@@ -256,9 +256,19 @@ export class TatolabAppController {
     return this.localApiClient.removeProject(projectDirectory);
   }
 
-  /** Show the stream asset `streamAsset` of the project in `projectDirectory` under `displayName`, through the runtime's `set_stream_display_name`. */
-  setStreamDisplayName(projectDirectory: string, streamAsset: string, displayName: string): Promise<Result<StreamDisplayNameSet, LocalApiRequestFailure>> {
-    return this.localApiClient.setStreamDisplayName(projectDirectory, streamAsset, displayName);
+  /** Make a stream in the project in `projectDirectory` at `streamDocumentPath`, shown under `displayName`, through the runtime's `create_stream`, by `author`. */
+  createStream(projectDirectory: string, streamDocumentPath: string, displayName: string, author: ProjectTransactionAuthor): Promise<Result<StreamAssetChange, LocalApiRequestFailure>> {
+    return this.localApiClient.createStream(projectDirectory, streamDocumentPath, displayName, author);
+  }
+
+  /** Show the stream asset `streamAsset` of the project in `projectDirectory` under `displayName`, through the runtime's `set_stream_display_name`, by `author`. */
+  setStreamDisplayName(projectDirectory: string, streamAsset: string, displayName: string, author: ProjectTransactionAuthor): Promise<Result<StreamAssetChange, LocalApiRequestFailure>> {
+    return this.localApiClient.setStreamDisplayName(projectDirectory, streamAsset, displayName, author);
+  }
+
+  /** Delete the stream asset `streamAsset` from the project in `projectDirectory` through the runtime's `delete_stream`, by `author`. */
+  deleteStream(projectDirectory: string, streamAsset: string, author: ProjectTransactionAuthor): Promise<Result<StreamAssetChange, LocalApiRequestFailure>> {
+    return this.localApiClient.deleteStream(projectDirectory, streamAsset, author);
   }
 
   /** Queue a new project's creation and run through the runtime's `create_project`, in `projectDirectory` or, with `null`, a folder the runtime draws. */

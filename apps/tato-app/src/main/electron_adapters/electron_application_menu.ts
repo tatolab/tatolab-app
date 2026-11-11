@@ -29,7 +29,8 @@ function electronMenuItemsOfTheSystemItems(systemItems: SystemMenuBarItems): Men
         { role: "selectAll" },
       ];
     case "close_window":
-      return [{ role: "close" }];
+      // Stream › Close tab takes ⌘W, so closing the window moves to ⇧⌘W.
+      return [{ role: "close", accelerator: "Shift+Command+W" }];
     case "window_arrangement":
       return [{ role: "minimize" }, { role: "zoom" }];
     case "bring_all_to_front":

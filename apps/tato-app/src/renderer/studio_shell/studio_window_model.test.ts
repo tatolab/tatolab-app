@@ -119,6 +119,70 @@ describe("selecting a stream or one of its nodes", () => {
   });
 });
 
+describe("the Stream menu's tab commands", () => {
+  const PREVIEW_TAB = { stream: "sheet-check-preview-0b19d2", project_name: "sheet-check", display_name: "preview" };
+  const MAIN_TAB = { stream: "sheet-check-main-14aec5", project_name: "sheet-check", display_name: "Sheet Check" };
+
+  it("move to the next and the previous tab, round from the last to the first", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    studioWindowModel.showStatus(runningRuntimeListing([MAIN_RUNNING, PREVIEW_RUNNING]));
+    studioWindowModel.openStreamTab(PREVIEW_TAB);
+
+    studioWindowModel.showTheStreamTabBeside("next");
+    expect(studioWindowModel.openStreamTabs.readLatest().active_stream).toBe(MAIN_TAB.stream);
+    studioWindowModel.showTheStreamTabBeside("previous");
+    expect(studioWindowModel.openStreamTabs.readLatest().active_stream).toBe(PREVIEW_TAB.stream);
+    studioWindowModel.showTheStreamTabBeside("previous");
+    expect(studioWindowModel.openStreamTabs.readLatest().active_stream).toBe(MAIN_TAB.stream);
+  });
+
+  it("reopen the tabs closed, the last closed first, where they were", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    studioWindowModel.showStatus(runningRuntimeListing([MAIN_RUNNING, PREVIEW_RUNNING]));
+    studioWindowModel.openStreamTab(PREVIEW_TAB);
+    studioWindowModel.closeStreamTab(MAIN_TAB.stream);
+    studioWindowModel.closeStreamTab(PREVIEW_TAB.stream);
+    expect(studioWindowModel.openStreamTabs.readLatest()).toEqual({ tabs: [], active_stream: null });
+
+    studioWindowModel.reopenTheLastClosedStreamTab();
+    expect(studioWindowModel.openStreamTabs.readLatest()).toEqual({ tabs: [PREVIEW_TAB], active_stream: PREVIEW_TAB.stream });
+    studioWindowModel.reopenTheLastClosedStreamTab();
+    expect(studioWindowModel.openStreamTabs.readLatest()).toEqual({ tabs: [PREVIEW_TAB, MAIN_TAB], active_stream: MAIN_TAB.stream });
+    expect(studioWindowModel.closedStreamTabs.readLatest()).toEqual([]);
+  });
+
+  it("never reopen the tab of a deleted stream", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    studioWindowModel.showStatus(runningRuntimeListing([MAIN_RUNNING, PREVIEW_RUNNING]));
+    studioWindowModel.openStreamTab(PREVIEW_TAB);
+    studioWindowModel.closeStreamTab(PREVIEW_TAB.stream);
+    studioWindowModel.openStreamTab(PREVIEW_TAB);
+
+    studioWindowModel.forgetTheTabsOfADeletedStream(PREVIEW_TAB.stream);
+
+    expect(studioWindowModel.openStreamTabs.readLatest()).toEqual({ tabs: [MAIN_TAB], active_stream: MAIN_TAB.stream });
+    expect(studioWindowModel.closedStreamTabs.readLatest()).toEqual([]);
+  });
+});
+
+describe("a new stream's tab", () => {
+  it("opens once the runtime lists a stream of its stream asset", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    studioWindowModel.showStatus(runningRuntimeListing([MAIN_RUNNING]));
+    studioWindowModel.openTheTabOfTheNewStreamAsset(PREVIEW_RUNNING.location?.stream_asset ?? "");
+    expect(studioWindowModel.openStreamTabs.readLatest().tabs.map((tab) => tab.stream)).toEqual(["sheet-check-main-14aec5"]);
+
+    studioWindowModel.showStatus(runningRuntimeListing([MAIN_RUNNING, PREVIEW_RUNNING]));
+    expect(studioWindowModel.openStreamTabs.readLatest()).toEqual({
+      tabs: [
+        { stream: "sheet-check-main-14aec5", project_name: "sheet-check", display_name: "Sheet Check" },
+        { stream: "sheet-check-preview-0b19d2", project_name: "sheet-check", display_name: "preview" },
+      ],
+      active_stream: "sheet-check-preview-0b19d2",
+    });
+  });
+});
+
 describe("a stream tab on a stream the runtime no longer lists", () => {
   it("stays open on its last address", () => {
     const studioWindowModel = studioWindowModelOpenOnSheetCheck();

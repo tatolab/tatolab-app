@@ -226,6 +226,11 @@ export interface ProjectCreationQueued {
   project_directory: string;
 }
 
+/** What a new stream's creation answers: the UUID of the stream asset the runtime made, which the stream it lists carries in its `location`. */
+export interface StreamAssetCreated {
+  stream_asset: string;
+}
+
 /** What `start_project` and `reload_project` answer at once: the action each queued, and the project's folder. */
 export interface ProjectRunQueued {
   action: string;

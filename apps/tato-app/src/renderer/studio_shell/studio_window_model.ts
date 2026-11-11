@@ -62,6 +62,9 @@ function openProjectFolderOf(reading: OpenProjectReading): string | null {
 /** What the New project sheet opens with: a new project's suggested name and location, or a project `.zip` to import with the name and location it suggests. */
 export type NewProjectSheetOpening = { kind: "new_project"; defaults: NewProjectDefaults } | { kind: "project_archive"; chosen: ProjectArchiveChosenToImport };
 
+/** What the Stream menu asks the person while its dialog shows: a new stream's name, the shown stream's new name, or whether to delete it. */
+export type StreamMenuQuestion = { kind: "name_a_new_stream" } | { kind: "rename_stream"; stream: string; display_name: string } | { kind: "delete_stream"; stream: string; display_name: string };
+
 /** The studio window's state, each part watched by the shell and served to the views through their bridges. */
 export class StudioWindowModel {
   readonly openProject = new WatchedStudioValue<OpenProjectReading>({ kind: "none_open" });
@@ -69,6 +72,12 @@ export class StudioWindowModel {
   readonly selection = new WatchedStudioValue<StudioSelection>({ kind: "nothing" });
   readonly openStreamTabs = new WatchedStudioValue<OpenStreamTabs>({ tabs: [], active_stream: null });
   readonly activeStreamTab = new WatchedStudioValue<StreamTabAddress | null>(null);
+  /** What the Stream menu's dialog asks while it shows; `null` while none does. */
+  readonly streamMenuQuestion = new WatchedStudioValue<StreamMenuQuestion | null>(null);
+  /** Why the last stream the person asked to delete was not, in the runtime's words, until it is dismissed or another is asked for. */
+  readonly streamDeletionRefusal = new WatchedStudioValue<string | null>(null);
+  /** The tabs closed in this window, the last closed last, which Reopen closed tab opens again. */
+  readonly closedStreamTabs = new WatchedStudioValue<readonly StreamTabAddress[]>([]);
   /** The section Preferences shows while it is open; `null` while it is closed. */
   readonly preferencesSection = new WatchedStudioValue<SettingsSection | null>(null);
   /** What the New project sheet opened with while it shows, a new project's name and location or a `.zip` to import; `null` while it is closed. */
@@ -100,6 +109,10 @@ export class StudioWindowModel {
 
   /** The tab a project opens on once it is open and the runtime lists the stream: the stream New project just made, or with `stream` `null` the first the runtime lists from the folder; cleared when any tab is opened. */
   private streamTabAwaitedByTheOpeningProject: { project_folder: string; stream: string | null } | null = null;
+
+
+  /** The stream asset of a stream New stream just made, whose tab opens once the runtime lists a stream of it; `null` while none is awaited. */
+  private streamAssetAwaitedAsATab: string | null = null;
 
   /** Each failure of the open project's streams already raised, as its stream id and its words, so the window raises a failure once until the stream leaves `failed`. */
   private readonly openProjectStreamFailuresRaised = new Set<string>();
@@ -170,6 +183,7 @@ export class StudioWindowModel {
     }
     this.selection.publish({ kind: "nothing" });
     this.publishStreamTabs({ tabs: [], active_stream: null });
+    this.closedStreamTabs.publish([]);
     this.studioLayouts.publish(folderNow === null ? null : this.layoutsKept.readLayoutsOf(folderNow));
     if (folderNow !== null && this.streamTabAwaitedByTheOpeningProject?.project_folder !== folderNow) {
       this.streamTabAwaitedByTheOpeningProject = { project_folder: folderNow, stream: null };
@@ -185,20 +199,18 @@ export class StudioWindowModel {
     this.openTheStreamTabTheOpeningProjectAwaits();
   }
 
-  /**
-   * Show the streams `status` lists. A tab whose stream the runtime no longer lists stays open on its last address, and a tab
-   * named by its stream's id until the runtime listed it takes the name the runtime lists it under.
-   */
+  /** Show the streams `status` lists. A tab takes the name the runtime lists its stream under, and one whose stream the runtime no longer lists stays open on its last address. */
   showStatus(status: TatolabStatus): void {
     const listedStreams = listedStreamsReadingOf(status);
     this.listedStreams.publish(listedStreams);
     if (listedStreams.kind !== "listed") return;
     this.openTheStreamTabTheOpeningProjectAwaits();
+    this.openTheTabOfTheAwaitedStreamAssetOnceListed(listedStreams.streams);
     this.raiseEachNewFailureOfTheOpenProjectsStreams(listedStreams.streams);
     const { tabs, active_stream } = this.openStreamTabs.readLatest();
     const displayNameListedFor = (tab: StreamTabAddress) => listedStreams.streams.find((listing) => listing.stream === tab.stream)?.display_name ?? tab.display_name;
-    if (tabs.every((tab) => tab.display_name !== tab.stream || displayNameListedFor(tab) === tab.display_name)) return;
-    this.publishStreamTabs({ tabs: tabs.map((tab) => (tab.display_name === tab.stream ? { ...tab, display_name: displayNameListedFor(tab) } : tab)), active_stream });
+    if (tabs.every((tab) => displayNameListedFor(tab) === tab.display_name)) return;
+    this.publishStreamTabs({ tabs: tabs.map((tab) => ({ ...tab, display_name: displayNameListedFor(tab) })), active_stream });
   }
 
   /** Select `selection`; in a studio window, a stream or one of its nodes opens the stream's tab, or shows it where it is open. */
@@ -233,8 +245,61 @@ export class StudioWindowModel {
     this.publishStreamTabs({ ...this.openStreamTabs.readLatest(), active_stream: stream });
   }
 
-  /** Close the tab open on `stream`; closing the shown one shows the tab after it, or before it when it was last. */
+  /** Close the tab open on `stream`, which Reopen closed tab can open again; closing the shown one shows the tab after it, or before it when it was last. */
   closeStreamTab(stream: string): void {
+    const closedTab = this.openStreamTabs.readLatest().tabs.find((tab) => tab.stream === stream);
+    if (closedTab === undefined) return;
+    this.closedStreamTabs.publish([...this.closedStreamTabs.readLatest(), closedTab]);
+    this.takeTheStreamTabAway(stream);
+  }
+
+  /** Ask, in the Stream menu's dialog, about the shown tab's stream: its new name, or whether to delete it. */
+  askAboutTheShownStream(asked: "rename_stream" | "delete_stream"): void {
+    const shownStreamTab = this.activeStreamTab.readLatest();
+    if (shownStreamTab === null) return;
+    this.streamDeletionRefusal.publish(null);
+    this.streamMenuQuestion.publish({ kind: asked, stream: shownStreamTab.stream, display_name: shownStreamTab.display_name });
+  }
+
+  /** Open again the tab closed last, which Reopen closed tab does. */
+  reopenTheLastClosedStreamTab(): void {
+    const closedStreamTabs = this.closedStreamTabs.readLatest();
+    const lastClosedTab = closedStreamTabs.at(-1);
+    if (lastClosedTab === undefined) return;
+    this.closedStreamTabs.publish(closedStreamTabs.slice(0, -1));
+    this.openStreamTab(lastClosedTab);
+  }
+
+  /** Show the tab after the shown one, or before it, round from the last to the first. */
+  showTheStreamTabBeside(direction: "next" | "previous"): void {
+    const { tabs, active_stream } = this.openStreamTabs.readLatest();
+    const shownIndex = tabs.findIndex((tab) => tab.stream === active_stream);
+    const besideTab = tabs[(shownIndex + (direction === "next" ? 1 : -1) + tabs.length) % tabs.length];
+    if (besideTab !== undefined && besideTab.stream !== active_stream) this.chooseStreamTab(besideTab.stream);
+  }
+
+  /** Take away every tab of `stream`, which was deleted, open or left to reopen. */
+  forgetTheTabsOfADeletedStream(stream: string): void {
+    this.closedStreamTabs.publish(this.closedStreamTabs.readLatest().filter((tab) => tab.stream !== stream));
+    this.takeTheStreamTabAway(stream);
+  }
+
+  /** Open the tab of the stream the runtime lists of `streamAsset`, which New stream just made, now or once it lists one. */
+  openTheTabOfTheNewStreamAsset(streamAsset: string): void {
+    this.streamAssetAwaitedAsATab = streamAsset;
+    const listedStreams = this.listedStreams.readLatest();
+    if (listedStreams.kind === "listed") this.openTheTabOfTheAwaitedStreamAssetOnceListed(listedStreams.streams);
+  }
+
+  private openTheTabOfTheAwaitedStreamAssetOnceListed(listedStreams: readonly ListedStream[]): void {
+    if (this.streamAssetAwaitedAsATab === null) return;
+    const newStream = listedStreams.find((listing) => listing.location?.stream_asset === this.streamAssetAwaitedAsATab);
+    if (newStream === undefined) return;
+    this.streamAssetAwaitedAsATab = null;
+    this.openStreamTabOfAListedStream(newStream.stream);
+  }
+
+  private takeTheStreamTabAway(stream: string): void {
     const { tabs, active_stream } = this.openStreamTabs.readLatest();
     const closedIndex = tabs.findIndex((tab) => tab.stream === stream);
     if (closedIndex === -1) return;

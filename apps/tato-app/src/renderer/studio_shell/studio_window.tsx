@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { PictureInPicture2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { OpenProjectReading, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
@@ -26,7 +26,8 @@ import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet
 import { StudioStatusBar } from "./studio_status_bar";
 import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
-import { studioMenuBarMenus, studioMenusInTheSystemMenuBar, type StudioMenuBarCommands, type StudioMenuInTheSystemMenuBar } from "./studio_menu_bar_model";
+import { studioMenuBarMenus, studioMenusInTheSystemMenuBar, type StreamTabsInTheMenus, type StudioMenuBarCommands, type StudioMenuInTheSystemMenuBar } from "./studio_menu_bar_model";
+import { StreamMenuDialogsView, type StreamEditsOfTheStreamMenu } from "./stream_menu_dialogs_view";
 import type { StudioWindowModel } from "./studio_window_model";
 
 /** Who the view-type menu says brings the views the app ships with itself. */
@@ -43,6 +44,8 @@ export interface StudioWindowSources {
   viewTypeRegistry: StudioViewTypeRegistry;
   viewHostServices: StudioViewHostServices;
   commands: StudioMenuBarCommands;
+  /** What the Stream menu's dialogs make, rename and delete streams through. */
+  streamEdits: StreamEditsOfTheStreamMenu;
   /** Pop the view `area` shows out into a window of its own, pinned to the stream tab shown and the selection, with the area's settings. */
   popOutTheViewOfTheArea(area: StudioArea): void;
   systemMenuBar: StudioWindowSystemMenuBar;
@@ -227,6 +230,10 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const openProject = useWatchedStudioValue(model.openProject);
   const studioLayouts = useWatchedStudioValue(model.studioLayouts);
   const openStreamTabs = useWatchedStudioValue(model.openStreamTabs);
+  const activeStreamTab = useWatchedStudioValue(model.activeStreamTab);
+  const closedStreamTabs = useWatchedStudioValue(model.closedStreamTabs);
+  const streamMenuQuestion = useWatchedStudioValue(model.streamMenuQuestion);
+  const streamDeletionRefusal = useWatchedStudioValue(model.streamDeletionRefusal);
   const preferencesSection = useWatchedStudioValue(model.preferencesSection);
   const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
   const viewPopOutRefusal = useWatchedStudioValue(model.viewPopOutRefusal);
@@ -239,16 +246,23 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null;
   const menusLiveInTheSystemMenuBar = presentPlatform(platform).menusLiveInTheSystemMenuBar;
   const chosenLayoutShown = isAProjectShown ? studioLayouts.chosen_layout : null;
+  const shownStreamDisplayName = isAProjectShown ? (activeStreamTab?.display_name ?? null) : null;
+  const openStreamTabCount = isAProjectShown ? openStreamTabs.tabs.length : 0;
+  const hasAClosedStreamTabToReopen = isAProjectShown && closedStreamTabs.length > 0;
+  const streamTabsInTheMenus = useMemo<StreamTabsInTheMenus>(
+    () => ({ shown_stream_display_name: shownStreamDisplayName, open_tab_count: openStreamTabCount, has_a_closed_tab_to_reopen: hasAClosedStreamTabToReopen }),
+    [shownStreamDisplayName, openStreamTabCount, hasAClosedStreamTabToReopen],
+  );
   useEffect(() => {
-    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(chosenLayoutShown, status.app_update, commands));
-  }, [menusLiveInTheSystemMenuBar, systemMenuBar, chosenLayoutShown, status.app_update, commands]);
+    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(chosenLayoutShown, streamTabsInTheMenus, status.app_update, commands));
+  }, [menusLiveInTheSystemMenuBar, systemMenuBar, chosenLayoutShown, streamTabsInTheMenus, status.app_update, commands]);
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       {isAProjectShown ? (
         <header className="flex shrink-0 flex-col bg-studio-menu-bar">
           {!menusLiveInTheSystemMenuBar && (
             <div className="flex h-8 items-center pr-2.5 pl-(--studio-menu-bar-leading-inset)" data-studio-menu-row="">
-              <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, status.app_update, commands)} />
+              <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, streamTabsInTheMenus, status.app_update, commands)} />
             </div>
           )}
           <div
@@ -302,6 +316,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
           />
         </>
       )}
+      {isAProjectShown && <StreamMenuDialogsView question={streamMenuQuestion} streamEdits={sources.streamEdits} onClosed={() => model.streamMenuQuestion.publish(null)} />}
       <NewProjectSheetView openedWith={newProjectSheetOpenedWith} sources={sources.newProject} onClosed={() => model.newProjectSheetOpenedWith.publish(null)} />
       <PreferencesDialogView
         shownSection={preferencesSection}
@@ -360,6 +375,15 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               detail={projectEditRefusal.because}
               onDismissed={() => model.projectEditRefusal.publish(null)}
               data-project-edit-refusal=""
+            />
+          )}
+          {streamDeletionRefusal !== null && (
+            <WindowNotice
+              tone="failure"
+              title="The stream wasn't deleted"
+              detail={streamDeletionRefusal}
+              onDismissed={() => model.streamDeletionRefusal.publish(null)}
+              data-stream-deletion-refusal=""
             />
           )}
           {appUpdateChoiceRefusal !== null && (
