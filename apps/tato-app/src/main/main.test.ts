@@ -768,7 +768,7 @@ describe("one window per project", () => {
   });
 
   describe("a view popped out of a studio window", () => {
-    const VIEWER_PINNED_TO_THE_DISPLAY = { view_type_id: "viewer", window_title: "main › display · Viewer", pinned_to: { stream_tab: { stream: "night-show-1a2b" }, node: "display" } };
+    const VIEWER_PINNED_TO_THE_DISPLAY = { view_type_id: "viewer", window_title: "main › display · Node visualizer", pinned_to: { stream_tab: { stream: "night-show-1a2b" }, node: "display" } };
 
     async function aStudioWindowOfNightShow(): Promise<FakeTatolabElectronAppShell> {
       const fakeShell = await fakeShellOverARuntimeReadingEachProjectsFile();
@@ -785,7 +785,7 @@ describe("one window per project", () => {
       expect(await fakeShell.invokeTheCommand("pop_out_view", VIEWER_PINNED_TO_THE_DISPLAY, 2)).toEqual({ ok: true, value: null });
       expect(fakeShell.studioWindowsOpen()).toEqual([
         { title: "night-show", windowContentsId: 2, showing: true },
-        { title: "main › display · Viewer", windowContentsId: 3, showing: true },
+        { title: "main › display · Node visualizer", windowContentsId: 3, showing: true },
       ]);
       expect(fakeShell.records).toContainEqual({
         asked: "create_main_window",
@@ -820,9 +820,9 @@ describe("one window per project", () => {
 
       await fakeShell.invokeTheCommand("pop_out_view", { ...VIEWER_PINNED_TO_THE_DISPLAY, pinned_to: { stream_tab: { stream: "night-show-1a2b" }, node: "display", settings: { chosen_port: null } } }, 2);
       expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "create_main_window")).toEqual([]);
-      await fakeShell.invokeTheCommand("pop_out_view", { ...VIEWER_PINNED_TO_THE_DISPLAY, window_title: "main · Viewer", pinned_to: { stream_tab: { stream: "night-show-1a2b" }, node: null } }, 2);
+      await fakeShell.invokeTheCommand("pop_out_view", { ...VIEWER_PINNED_TO_THE_DISPLAY, window_title: "main · Node visualizer", pinned_to: { stream_tab: { stream: "night-show-1a2b" }, node: null } }, 2);
       await fakeShell.invokeTheCommand("pop_out_view", { view_type_id: "outliner", window_title: "night-show · Outliner", pinned_to: null }, 2);
-      expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "main › display · Viewer", "main · Viewer", "night-show · Outliner"]);
+      expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "main › display · Node visualizer", "main · Node visualizer", "night-show · Outliner"]);
     });
 
     test("closing it closes it alone; closing its studio window closes it too", async () => {

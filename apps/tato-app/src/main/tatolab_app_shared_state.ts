@@ -43,7 +43,7 @@ export interface TatolabAppSharedState {
   appWindows: TatolabAppWindows;
   /** The code pane's Pyright language servers. */
   pythonLanguageServers: PythonLanguageServers;
-  /** The Viewer's reads of running nodes' output ports, for the studio windows and the Viewers popped out of them. */
+  /** The Node visualizer's reads of running nodes' output ports, for the studio windows and the Node visualizers popped out of them. */
   runtimePortViewers: RuntimePortViewers;
   /** macOS's one menu bar, which shows the focused window's menus. */
   systemMenuBar: SystemMenuBarOfTheFocusedWindow;

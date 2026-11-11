@@ -1,0 +1,96 @@
+/* What a port's preview shows while it has nothing live to show: an emblem drawn in its family's colour and shape over a
+   field of faint points, the way TouchDesigner shows a grid where a viewer has no picture. */
+.port-family-placeholder {
+  --port-family-colour: var(--fg-3);
+  position: relative;
+  display: flex;
+  flex: 1 1 0%;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  gap: 14px;
+  overflow: hidden;
+  padding: 24px;
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 45%, color-mix(in oklab, var(--port-family-colour) 14%, transparent), transparent 70%),
+    var(--port-preview-surface-background);
+}
+
+/* What a port's preview draws behind its picture or placeholder: the area's colour under a field of faint points. */
+.port-family-placeholder, .port-preview-surface {
+  --port-preview-surface-background:
+    radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--fg-3) 22%, transparent) 1px, transparent 1.5px) 0 0 / 20px 20px,
+    var(--studio-area);
+}
+.port-preview-surface { background: var(--port-preview-surface-background); }
+.port-family-placeholder[data-family="image"] { --port-family-colour: var(--studio-family-image); }
+.port-family-placeholder[data-family="array"] { --port-family-colour: var(--studio-family-array); }
+.port-family-placeholder[data-family="channels"] { --port-family-colour: var(--studio-family-channels); }
+.port-family-placeholder[data-family="packets"] { --port-family-colour: var(--studio-family-packets); }
+.port-family-placeholder[data-family="records"] { --port-family-colour: var(--studio-family-records); }
+
+.port-family-placeholder-emblem {
+  width: min(100%, 320px);
+  flex: none;
+  aspect-ratio: 16 / 9;
+  color: var(--port-family-colour);
+  overflow: visible;
+}
+.port-family-placeholder-emblem * {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Image: a frame with corner marks, a soft field of colour drifting inside it. */
+.port-family-placeholder-glow { animation: port-family-placeholder-drift 14s ease-in-out infinite alternate; }
+.port-family-placeholder-glow:nth-of-type(2) { animation-duration: 18s; animation-delay: -6s; }
+.port-family-placeholder-glow:nth-of-type(3) { animation-duration: 22s; animation-delay: -11s; }
+@keyframes port-family-placeholder-drift {
+  0% { transform: translate(-18%, -10%) scale(1); }
+  50% { transform: translate(16%, 12%) scale(1.25); }
+  100% { transform: translate(-8%, 14%) scale(0.9); }
+}
+
+/* Channels: waves sliding along under one another. */
+.port-family-placeholder-wave { animation: port-family-placeholder-slide 6s linear infinite; }
+.port-family-placeholder-wave:nth-of-type(2) { animation-duration: 9s; }
+.port-family-placeholder-wave:nth-of-type(3) { animation-duration: 13s; }
+@keyframes port-family-placeholder-slide {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* Array: a grid of values, brightening outward from its centre. */
+.port-family-placeholder-value { animation: port-family-placeholder-swell 3.2s ease-in-out infinite; }
+@keyframes port-family-placeholder-swell {
+  0%, 100% { opacity: 0.12; transform: scale(0.8); }
+  50% { opacity: 0.85; transform: scale(1); }
+}
+
+/* Packets: units rising and settling one after another. */
+.port-family-placeholder-unit { transform-origin: bottom; animation: port-family-placeholder-rise 2.4s ease-in-out infinite; }
+@keyframes port-family-placeholder-rise {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+
+/* Records: rows with a sheen passing down them. */
+.port-family-placeholder-row { animation: port-family-placeholder-sheen 3s ease-in-out infinite; }
+@keyframes port-family-placeholder-sheen {
+  0%, 100% { opacity: 0.3; }
+  40% { opacity: 0.85; }
+}
+
+/* A port of no family Studio knows: frames spreading from the centre. */
+.port-family-placeholder-frame { animation: port-family-placeholder-spread 4.5s ease-out infinite; }
+.port-family-placeholder-frame:nth-of-type(2) { animation-delay: -1.5s; }
+.port-family-placeholder-frame:nth-of-type(3) { animation-delay: -3s; }
+@keyframes port-family-placeholder-spread {
+  from { opacity: 0.8; transform: scale(0.2); }
+  to { opacity: 0; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .port-family-placeholder-emblem * { animation: none; }
+}

@@ -10,7 +10,7 @@ import type { RuntimeViewerArrayAttribute, RuntimeViewerChannelsBlock, RuntimeVi
 /** The most columns a channel's waveform is drawn in; a block of fewer samples gets one column a sample. */
 export const PORT_VIEWER_WAVEFORM_COLUMNS = 512;
 
-/** How a typed array of each Array dtype the Viewer reads statistics of is made over payload bytes, and its element size. */
+/** How a typed array of each Array dtype the Node visualizer reads statistics of is made over payload bytes, and its element size. */
 const ARRAY_DTYPE_READERS: Record<string, { elementByteLength: number; elementsOver: (bytes: ArrayBuffer, byteOffset: number, length: number) => ArrayLike<number> }> = {
   float32: { elementByteLength: 4, elementsOver: (bytes, byteOffset, length) => new Float32Array(bytes, byteOffset, length) },
   float64: { elementByteLength: 8, elementsOver: (bytes, byteOffset, length) => new Float64Array(bytes, byteOffset, length) },
@@ -56,7 +56,7 @@ function waveformOfOneChannel(samples: ArrayLike<number>, firstSample: number, s
 function channelsReadingOf(block: RuntimeViewerChannelsBlock, payload: Uint8Array): PortViewerMessageReading {
   const sampleType = block.sampleType;
   if (sampleType !== "f32" && sampleType !== "f64") {
-    return { family: "unreadable", port_family: "channels", because: "the block's sample type is not one the Viewer knows" };
+    return { family: "unreadable", port_family: "channels", because: "the block's sample type is not one the Node visualizer knows" };
   }
   const sampleCount = block.channelCount * block.samplesPerChannel;
   const alignedPayload = alignedCopyOf(payload);
