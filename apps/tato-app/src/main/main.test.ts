@@ -106,9 +106,11 @@ async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
             manifest: FAKE_METER_VIEW_MANIFEST,
           })),
         });
-      case "start_project":
+      case "open_project":
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
         return toolResultResponse({ action: "5d0c9a51-6a8b-4f3e-9d7e-2b1c0f4e8a77", project_directory: projectDirectory });
+      case "close_project":
+        return toolResultResponse({ action: "8b1e6f0a-3c2d-4e5f-9a7b-1c0d2e3f4a5b", project_directory: projectDirectory });
       default:
         return null;
     }

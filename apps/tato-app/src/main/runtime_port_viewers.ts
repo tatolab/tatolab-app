@@ -80,10 +80,10 @@ interface RuntimeViewerOpenFailure {
   theRuntimeRefusedToOpenIt: boolean;
 }
 
-/** The listed states of a stream whose nodes run once its project is started, resumed or done stopping, so `open_viewer`'s refusal on it is waited out. */
-const STREAM_STATES_A_PORT_VIEWER_WAITS_OUT: ReadonlySet<string> = new Set(["stopped", "paused", "preparing", "stopping"]);
+/** The listed states of a stream whose nodes run once its project is opened, played, resumed or done stopping, so `open_viewer`'s refusal on it is waited out. */
+const STREAM_STATES_A_PORT_VIEWER_WAITS_OUT: ReadonlySet<string> = new Set(["stopped", "closed", "paused", "preparing", "stopping"]);
 
-/** The listed states of a stream a load or a stop is working on: its nodes, and the channels a runtime viewer held open on them, are being replaced. */
+/** The listed states of a stream a load, a playback's start or stop, or a close is working on: its nodes, and the channels a runtime viewer held open on them, are being replaced. */
 const STREAM_STATES_WHILE_ITS_NODES_ARE_REPLACED: ReadonlySet<string> = new Set(["preparing", "stopping"]);
 
 /** Whether the runtime lists `listedStream` with a stream action working on it, which replaces its nodes. */

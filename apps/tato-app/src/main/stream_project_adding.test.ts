@@ -13,7 +13,7 @@ afterEach(async () => {
   await Promise.all(temporaryHomes.splice(0).map((home) => rm(home, { recursive: true, force: true })));
 });
 
-/** The runtime's `create_project` and `start_project`, answering as scripted and recording each folder asked of them. */
+/** The runtime's `create_project` and `open_project`, answering as scripted and recording each folder asked of them. */
 class FakeProjectLoadsOnTheRuntime implements ProjectLoadsOnTheRuntime {
   readonly creationsAsked: (string | null)[] = [];
   readonly runsAsked: string[] = [];
@@ -25,7 +25,7 @@ class FakeProjectLoadsOnTheRuntime implements ProjectLoadsOnTheRuntime {
     return this.creationAnswer;
   }
 
-  async startProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
+  async openProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
     this.runsAsked.push(projectDirectory);
     return this.runAnswer;
   }

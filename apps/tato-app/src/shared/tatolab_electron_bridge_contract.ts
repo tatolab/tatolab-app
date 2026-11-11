@@ -291,7 +291,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   create_stream_project: { commandArguments: { folder: string | null }; answer: ProjectCreationQueued };
   /** Answers once the runtime has queued the run of every stream asset in the folder, which the window follows with `describe_stream_action`. */
   run_stream_project: { commandArguments: { folder: string }; answer: ProjectRunQueued };
-  /** Answers once the runtime has queued `reload_project` on a project it lists running, or `start_project` on one it lists stopped or failed, which the window follows with `describe_stream_action`. */
+  /** Answers once the runtime has queued `reload_project` on a project it lists open, or `open_project` on one it lists closed or failed, which the window follows with `describe_stream_action`. */
   reload_project: { commandArguments: { project_directory: string }; answer: ProjectRunQueued };
   /** The action's description, or the runtime's words that it no longer holds it; refused when the runtime could not be asked. */
   describe_stream_action: { commandArguments: { action: string }; answer: StreamActionFollowed };
@@ -379,7 +379,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   list_studio_views_of_the_open_project: { commandArguments: undefined; answer: ListedStudioView[] };
   /** From a studio window or a popped-out view only: `value` published on the output `port` of the view node `node` (its UUID) in `stream`, as the port's family takes it: a Records port a JSON object, an Array port a number, nested lists of numbers or an object of such attributes by name, a Channels port a number or `{ samples, sample_rate }`, an Image or Packets port refused; live data, recorded nowhere; refused in the runtime's own words. */
   write_studio_view_output: { commandArguments: { stream: string; node: string; port: string; value: JsonValue }; answer: null };
-  /** The runtime's `start_project` queued on the open project's folder, which the window never names, or `reload_project` while it runs; refused in the runtime's own words, or while no project is open. */
+  /** The runtime's `start_playback` queued on the open project's folder, which the window never names, or `reload_project` while it plays or is paused; refused in the runtime's own words, or while no project is open. */
   run_open_project: { commandArguments: undefined; answer: ProjectRunQueued };
   /** The asking studio window's project's change feed as last read; refused in the Projects window. */
   read_open_project_transactions: { commandArguments: undefined; answer: ProjectTransactionsReading };
@@ -397,7 +397,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   read_the_person_editing_in_studio: { commandArguments: undefined; answer: ProjectTransactionAuthor };
   /** The runtime's `redo` by `author` on the asking studio window's project, answering the redo it applied; refused in the runtime's own words. */
   redo_in_the_open_project: { commandArguments: { author: ProjectTransactionAuthor }; answer: ProjectTransaction };
-  /** The runtime's `stop_project` queued on the open project's folder, which the window never names; every stream of the project shows `stopping` until it has run. Refused in the runtime's own words, or while no project is open. */
+  /** The runtime's `stop_playback` queued on the open project's folder, which the window never names; every stream of the project shows `stopping` until it has run, then `stopped`, its graph still read and edited. Refused in the runtime's own words, or while no project is open. */
   stop_open_project: { commandArguments: undefined; answer: null };
   /** Starts Pyright's language server in `project_folder`, the folder of the open project or of one of its imports; its messages arrive on `tatolab-python-language-server-event` under the session answered. */
   start_python_language_server: { commandArguments: { project_folder: string }; answer: { session: string } };

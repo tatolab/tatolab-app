@@ -61,7 +61,7 @@ describe("the mock backend's stream actions", () => {
     ]);
   });
 
-  it("queues one stop of the open project, listing each of its running streams stopping, then stopped, and no stream of another project", async () => {
+  it("queues one stop of the open project's playback, listing each of its running streams stopping, then stopped and still loaded, and no stream of another project", async () => {
     const { backend, streamsAfterEachChange } = await runningMockBackend();
 
     const stopping = await streamsAfterEachChange(() => backend.stopOpenProject());
@@ -72,7 +72,7 @@ describe("the mock backend's stream actions", () => {
     expect(listingWithTheId(stopping.streams, RECORDER)).toMatchObject({ state: "stopping", action: stopAction });
     expect(listingWithTheId(stopping.streams, CAMERA)).toMatchObject({ state: "running" });
     const stopped = await streamsAfterEachChange(() => Promise.resolve(), 1000);
-    expect(listingWithTheId(stopped.streams, MAIN)).toMatchObject({ state: "stopped", node_count: null, action: null, step: null });
+    expect(listingWithTheId(stopped.streams, MAIN)).toMatchObject({ state: "stopped", node_count: expect.any(Number), action: null, step: null });
     expect(listingWithTheId(stopped.streams, RECORDER)).toMatchObject({ state: "stopped" });
     expect(listingWithTheId(stopped.streams, CAMERA)).toMatchObject({ state: "running" });
   });
@@ -84,7 +84,7 @@ describe("the mock backend's stream actions", () => {
     await streamsAfterEachChange(() => Promise.resolve(), 1000);
     const stoppedTwice = await streamsAfterEachChange(() => backend.stopOpenProject());
     expect(stoppedTwice.answer).toEqual({
-      refusal: expect.stringMatching(/^Runtime error: no stream of the project in \/Users\/jonathanf\/streams\/pattern runs, so there is none to stop; `run` runs it\. Loaded: /),
+      refusal: expect.stringMatching(/^Runtime error: no stream of the project in \/Users\/jonathanf\/streams\/pattern plays, so there is none to stop; `start_playback` plays it\. Loaded: /),
     });
     const removedAFolderOfNoStream = await streamsAfterEachChange(() => backend.removeProject("/Users/jonathanf/streams/nothing-here"));
     expect(removedAFolderOfNoStream.answer).toEqual({

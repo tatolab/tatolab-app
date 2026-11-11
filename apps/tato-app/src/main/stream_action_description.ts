@@ -1,4 +1,4 @@
-// The runtime's answers about a queued stream action: `create_project`, `start_project` and `reload_project`, which answer
+// The runtime's answers about a queued stream action: `create_project`, `open_project`, `start_playback` and `reload_project`, which answer
 // at once with the action they queued, `describe_stream_action`, which follows it to its end, and
 // `cancel_stream_action`, which ends it early.
 
@@ -47,9 +47,12 @@ export function projectCreationQueuedFromTheCreateProjectToolResult(toolResultTe
   return succeeded({ action: action.value, stream: stream.value, project_directory: projectDirectory.value });
 }
 
-/** A `start_project` or `reload_project` tool result, named by `toolName`, read field for field; unknown fields are ignored. */
-export function projectRunQueuedFromTheStartOrReloadProjectToolResult(
-  toolName: "start_project" | "reload_project",
+/** The runtime's tools that queue a project's open, playback or reload, each answering `{ action, project_directory }`. */
+export type ProjectRunToolName = "open_project" | "start_playback" | "reload_project";
+
+/** An `open_project`, `start_playback` or `reload_project` tool result, named by `toolName`, read field for field; unknown fields are ignored. */
+export function projectRunQueuedFromTheProjectActionToolResult(
+  toolName: ProjectRunToolName,
   toolResultText: string,
 ): Result<ProjectRunQueued, string> {
   const toolResult = jsonObjectOfTheRuntimesAnswer(toolName, toolResultText);

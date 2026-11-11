@@ -127,7 +127,7 @@ describe("createElectronTatolabBackend", () => {
 
   it("sends each queued action under its command, rejecting a refusal in the main process's words", async () => {
     const fakeBridge = fakeTatolabElectronBridge({
-      stop_open_project: { ok: false, refusal: "Runtime error: no stream of the project in /p runs, so there is none to stop; `run` runs it. Loaded: none. Recorded: none" },
+      stop_open_project: { ok: false, refusal: "Runtime error: no stream of the project in /p plays, so there is none to stop; `start_playback` plays it. Loaded: none. Recorded: none" },
       remove_project: { ok: true, value: null },
     });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);

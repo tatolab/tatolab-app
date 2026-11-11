@@ -1,6 +1,6 @@
 // Adding a project from the window: choosing its folder in the app's own dialog, then queuing the
-// runtime's creation or start of it. A command naming a folder acts only on one this module handed
-// the window from that dialog, so a page can never have the runtime create or start a path of its
+// runtime's creation or open of it. A command naming a folder acts only on one this module handed
+// the window from that dialog, so a page can never have the runtime create or open a path of its
 // choosing.
 
 import path from "node:path";
@@ -15,10 +15,10 @@ const NEW_STREAM_PROJECTS_FOLDER_IN_HOME = "streams";
 /** Asks the person for a folder in the desktop's dialog, opened at `defaultFolder`: an existing project to import, or a new project's folder, which may not exist yet. `null` when they cancel. */
 export type StreamProjectFolderDialog = (chosenFor: StreamProjectFolderChosenFor, defaultFolder: string) => Promise<Result<string | null, string>>;
 
-/** The runtime's tools a project is added with: `create_project` and `start_project`, each answering at once with the action it queued. */
+/** The runtime's tools a project is added with: `create_project` and `open_project`, each answering at once with the action it queued. */
 export interface ProjectLoadsOnTheRuntime {
   createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>>;
-  startProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>>;
+  openProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>>;
 }
 
 /** What adding a project reaches: the person's home, the dialog, and the runtime. */
@@ -54,11 +54,11 @@ export class StreamProjectAdding {
     return queued.ok ? queued : failedWith(queued.failure.failureDescription);
   }
 
-  /** Queue `start_project` in `folder`, which loads every stream asset in it; refused in the runtime's own words, or for a folder the app never handed the window. */
+  /** Queue `open_project` in `folder`, which loads every stream asset in it held stopped; refused in the runtime's own words, or for a folder the app never handed the window. */
   async runStreamProject(folder: string): Promise<Result<ProjectRunQueued, string>> {
     const projectFolder = this.folderHandedToTheWindow(folder);
     if (!projectFolder.ok) return projectFolder;
-    const queued = await this.sources.projectLoadsOnTheRuntime.startProject(projectFolder.value);
+    const queued = await this.sources.projectLoadsOnTheRuntime.openProject(projectFolder.value);
     return queued.ok ? queued : failedWith(queued.failure.failureDescription);
   }
 

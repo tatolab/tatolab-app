@@ -635,6 +635,8 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     if (openProjectReading.kind !== "read") throw "No project is open, so its files cannot be read.";
   };
   const loadedStreams = new Map<string, MockLoadedStream>();
+  /** Each loaded stream whose playback is stopping or stopped, listed so while it stays loaded to read and edit, as the runtime holds a stopped project open. */
+  const playbackListingOfEachLoadedStream = new Map<string, Pick<ListedStream, "state" | "action" | "step">>();
   /** The graph of each loaded stream of the open project, by its stream asset, which a graph action names it by. */
   const graphTargetsOfTheOpenProject = (): Map<string, MockStreamGraphTarget> => {
     const openProjectFolder = openProjectReading.kind === "read" ? openProjectReading.open_project.project.folder : null;
@@ -703,7 +705,12 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     if (scenario === "not-listed") return null;
     const listingOrder = [...(scenario === "empty" ? [] : fixtures.listingOrder), ...(doesTheRuntimeListAnEarlierRuntimesRecord ? [fixtures.earlierRuntimesRecord.stream] : [])];
     return [...listingOrder, ...streamIdsRunFromTheWindow]
-      .map((streamId) => loadedStreams.get(streamId)?.fixture.listing ?? listedStreamsNotLoaded.get(streamId) ?? null)
+      .map((streamId) => {
+        const loadedListing = loadedStreams.get(streamId)?.fixture.listing;
+        if (loadedListing === undefined) return listedStreamsNotLoaded.get(streamId) ?? null;
+        const playbackListing = playbackListingOfEachLoadedStream.get(streamId);
+        return playbackListing === undefined ? loadedListing : { ...loadedListing, ...playbackListing };
+      })
       .filter((listing): listing is ListedStream => listing !== null)
       .map((listing) => {
         const renamedTo = displayNamesRenamedTo.get(listing.stream);
@@ -744,15 +751,15 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     return `${newProjectsFolder}/${freeName ?? `project-${projectFolders.size}`}`;
   };
 
-  /** Each load `create_project`, `start_project` or `reload_project` queued, by action, as `describe_stream_action` reads it. */
+  /** Each load `create_project`, `open_project` or `reload_project` queued, by action, as `describe_stream_action` reads it. */
   const projectLoadsQueued = new Map<string, StreamActionDescription>();
   const notHeldWords = (action: string): string =>
     `the stream action \`${action}\` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log`;
 
   /** Each running action `cancel_stream_action` asked to stop, which the work on it ends at its next step. */
   const streamActionsAskedToCancel = new Set<string>();
-  /** Each stop and removal under way, which is past cancelling once it runs. */
-  const unloadingStreamActions = new Map<string, "stop" | "remove">();
+  /** Each removal under way, which is past cancelling once it runs. */
+  const unloadingStreamActions = new Map<string, "remove">();
   /** How each stop, start and removal ended, which a cancel of it is refused with. */
   const endedStreamActions = new Map<string, "done" | "cancelled">();
   const streamNotLoadedForTheCancelWords = (streamId: string): string => `Runtime error: the stream \`${streamId}\` was not loaded: its stream action was cancelled`;
@@ -806,7 +813,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   };
 
   /**
-   * `create_project`'s, `start_project`'s and `reload_project`'s load as the runtime does it: queued, then every stream asset's graph document
+   * `create_project`'s, `open_project`'s and `reload_project`'s load as the runtime does it: queued, then every stream asset's graph document
    * read, the `.venv` made where it has none, and every stream starting, each listed `preparing` under the action, then
    * loaded, or failed for the doorways project's `back_door`.
    */
@@ -986,6 +993,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       writeLiveLog: fixture.createLiveLogWriter(),
     };
     loadedStreams.set(fixture.listing.stream, loadedStream);
+    playbackListingOfEachLoadedStream.delete(fixture.listing.stream);
     listedStreamsNotLoaded.delete(fixture.listing.stream);
     const alreadyRunningMilliseconds = Date.now() - loadedAtMilliseconds;
     for (let replayedMilliseconds = 0; replayedMilliseconds <= alreadyRunningMilliseconds; replayedMilliseconds += MOCK_LIVE_TICK_MILLISECONDS) {
@@ -1108,24 +1116,48 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     publishStatus({ streams: listStreams() });
   };
 
-  /** `stop_project` as the runtime does it: one action queued that stops every loaded stream of the project, each recorded stopped; refused when none of them runs. */
-  const stopMockProject = (projectDirectory: string): void => {
-    const loadedStreamsOfTheProject = [...loadedStreams.values()].filter((loadedStream) => loadedStream.fixture.listing.location?.project_directory === projectDirectory);
-    if (loadedStreamsOfTheProject.length === 0) {
-      throw `Runtime error: no stream of the project in ${projectDirectory} runs, so there is none to stop; \`run\` runs it. Loaded: ${streamIdsListedForARefusal(loadedStreams.keys())}. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
+  /** The loaded streams of the project in `projectDirectory` whose playback has not stopped. */
+  const playingStreamsOfTheMockProject = (projectDirectory: string): MockLoadedStream[] =>
+    [...loadedStreams.values()].filter(
+      (loadedStream) => loadedStream.fixture.listing.location?.project_directory === projectDirectory && !playbackListingOfEachLoadedStream.has(loadedStream.fixture.listing.stream),
+    );
+
+  /** `stop_playback` as the runtime does it: one action queued that ends the playback of every loaded stream of the project, each kept loaded and listed stopped; refused when none of them plays. */
+  const stopTheMockProjectsPlayback = (projectDirectory: string): void => {
+    const playingStreams = playingStreamsOfTheMockProject(projectDirectory);
+    if (playingStreams.length === 0) {
+      throw `Runtime error: no stream of the project in ${projectDirectory} plays, so there is none to stop; \`start_playback\` plays it. Loaded: ${streamIdsListedForARefusal(loadedStreams.keys())}. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
     }
     const action = nextStreamActionId();
-    unloadingStreamActions.set(action, "stop");
-    for (const loadedStream of loadedStreamsOfTheProject) {
-      const listing = loadedStream.fixture.listing;
-      loadedStreams.delete(listing.stream);
-      recordedFixturesNotLoaded.set(listing.stream, loadedStream.fixture);
-      queueTheStreamAction(listing, "stopping", action);
-      workOnTheStreamAction(listing, "stopping", action, ["stopping"], () => {
-        writeRuntimeRecord(listing, action, "info", `Stopped the stream \`${listing.stream}\``);
-        listedStreamsNotLoaded.set(listing.stream, { ...listing, state: "stopped", node_count: null, failed_because: null, action: null, step: null });
-      });
+    for (const playingStream of playingStreams) playbackListingOfEachLoadedStream.set(playingStream.fixture.listing.stream, { state: "stopping", action, step: "stopping" });
+    publishStatus({ streams: listStreams() });
+    window.setTimeout(() => {
+      for (const playingStream of playingStreams) {
+        const listing = playingStream.fixture.listing;
+        if (playbackListingOfEachLoadedStream.get(listing.stream)?.action !== action) continue;
+        writeRuntimeRecord(listing, action, "info", `Stopped the playback of the stream \`${listing.stream}\``);
+        playbackListingOfEachLoadedStream.set(listing.stream, { state: "stopped", action: null, step: null });
+      }
+      endedStreamActions.set(action, "done");
+      publishStatus({ streams: listStreams() });
+    }, MOCK_STREAM_ACTION_STEP_MILLISECONDS);
+  };
+
+  /** `start_playback` as the runtime does it: every loaded stream of the project held stopped plays again from the graph it holds; `null` when none is held stopped. */
+  const startTheMockProjectsPlayback = (projectDirectory: string): string | null => {
+    const streamsHeldStopped = [...loadedStreams.values()].filter(
+      (loadedStream) =>
+        loadedStream.fixture.listing.location?.project_directory === projectDirectory && playbackListingOfEachLoadedStream.get(loadedStream.fixture.listing.stream)?.state === "stopped",
+    );
+    if (streamsHeldStopped.length === 0) return null;
+    const action = nextStreamActionId();
+    for (const loadedStream of streamsHeldStopped) {
+      playbackListingOfEachLoadedStream.delete(loadedStream.fixture.listing.stream);
+      writeRuntimeRecord(loadedStream.fixture.listing, action, "info", `Started the playback of the stream \`${loadedStream.fixture.listing.stream}\``);
     }
+    endedStreamActions.set(action, "done");
+    publishStatus({ streams: listStreams() });
+    return action;
   };
 
   /** `remove_project` as the runtime does it: every stream of the project stops if loaded and is forgotten; refused for a folder the runtime holds no stream of. */
@@ -1432,7 +1464,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (openProjectReading.kind === "none_open") throw "No project is open to stop.";
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      stopMockProject(openProjectReading.kind === "read" ? openProjectReading.open_project.project.folder : openProjectReading.folder);
+      stopTheMockProjectsPlayback(openProjectReading.kind === "read" ? openProjectReading.open_project.project.folder : openProjectReading.folder);
     },
     reloadProject: async (projectDirectory) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -1735,7 +1767,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (openProjectReading.kind === "unreadable") throw openProjectReading.refusal;
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
       const folder = openProjectReading.open_project.project.folder;
-      return { action: queueAMockProjectLoad(folder), project_directory: folder };
+      return { action: startTheMockProjectsPlayback(folder) ?? queueAMockProjectLoad(folder), project_directory: folder };
     },
     startPythonLanguageServer: async (projectFolder) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

@@ -19,7 +19,7 @@ import type { Result } from "./result.js";
 import { streamActionDescriptionFromTheStreamActionResourceText, streamActionsUnderWayFromTheStreamActionsResourceText } from "./stream_action_description.js";
 import {
   projectCreationQueuedFromTheCreateProjectToolResult,
-  projectRunQueuedFromTheStartOrReloadProjectToolResult,
+  projectRunQueuedFromTheProjectActionToolResult,
   streamActionCancelAnswerFromTheCancelStreamActionToolResult,
   streamActionDescriptionFromTheDescribeStreamActionToolResult,
 } from "./stream_action_description.js";
@@ -463,6 +463,16 @@ test("describing_a_stream_graph_calls_the_graph_tool_and_keeps_its_text_as_the_r
   expect(JSON.parse(body).params.arguments).toEqual({ stream: "main" });
 });
 
+test("a_stream_whose_playback_is_stopped_still_answers_its_graph_with_its_nodes_not_running", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-graph-tool-result-of-the-stopped-stream-pattern-main.json")),
+  ]);
+
+  const summary = answerOf(await server.client().describeStreamGraph("pattern-main-14e236"));
+
+  expect(summary.nodes.map((node) => [node.name, node.type, node.state])).toEqual([["testpatternsource", "tatolab.testpattern:TestPatternSource", "Pending"]]);
+});
+
 test("a_real_graph_tool_result_reads_with_its_counters_and_verbatim_text", async () => {
   const server = await fakeLocalApiServerAnswering([
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-graph-tool-result-of-the-stream-front-door.json")),
@@ -536,40 +546,47 @@ test("a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words", 
   );
 });
 
-test("stopping_a_project_queues_stop_project_with_its_folder_and_answers_the_action_it_queued", async () => {
-  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-project-answer-for-the-project-pattern.json"))]);
+test("stopping_a_projects_playback_queues_stop_playback_with_its_folder_and_answers_the_action_it_queued", async () => {
+  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-playback-answer-for-the-project-pattern.json"))]);
 
-  expect(answerOf(await server.client().stopProject("/tmp/tatolab-proof-projects/pattern"))).toBe("Rwvfg6azxy43ggj3zi6l7z4gy-5");
-  expect(toolCallsReceivedBy(server)).toEqual([["stop_project", { project_directory: "/tmp/tatolab-proof-projects/pattern" }]]);
+  expect(answerOf(await server.client().stopPlayback("/tmp/tatolab-proof-projects/pattern"))).toBe("Rirs4vq7pp5340dwvsk86ebm3-7");
+  expect(toolCallsReceivedBy(server)).toEqual([["stop_playback", { project_directory: "/tmp/tatolab-proof-projects/pattern" }]]);
 });
 
-test("a_stop_of_a_project_none_of_whose_streams_runs_is_refused_in_the_runtimes_own_words", async () => {
-  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-project-refusal-for-the-stopped-project-pattern.json"))]);
+test("a_stop_of_the_playback_of_a_project_none_of_whose_streams_plays_is_refused_in_the_runtimes_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-playback-refusal-for-the-stopped-project-pattern.json"))]);
 
-  expect(failureOf(await server.client().stopProject("/tmp/tatolab-proof-projects/pattern"))).toEqual({
+  expect(failureOf(await server.client().stopPlayback("/tmp/tatolab-proof-projects/pattern"))).toEqual({
     failureDescription:
-      "Runtime error: no stream of the project in /tmp/tatolab-proof-projects/pattern runs, so there is none to stop; `run` runs it. Loaded: none. Recorded: pattern-main-1bd25a (stopped)",
+      "Runtime error: no stream of the project in /tmp/tatolab-proof-projects/pattern plays, so there is none to stop; `start_playback` plays it. Loaded: doorways-main-55b356, hallways-main-6e15ec, lobby-main-f3e414, pattern-main-14e236. Recorded: doorways-main-55b356 (stopped), hallways-main-6e15ec, lobby-main-f3e414 (stopped), pattern-main-14e236 (stopped)",
     isTheRuntimesRefusal: true,
   });
 });
 
+test("closing_a_project_queues_close_project_with_its_folder_and_answers_the_action_it_queued", async () => {
+  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-close-project-answer-for-the-project-doorways.json"))]);
+
+  expect(answerOf(await server.client().closeProject("/tmp/tatolab-proof-projects/doorways"))).toBe("Rirs4vq7pp5340dwvsk86ebm3-9");
+  expect(toolCallsReceivedBy(server)).toEqual([["close_project", { project_directory: "/tmp/tatolab-proof-projects/doorways" }]]);
+});
+
 test("a_stream_action_answers_within_the_ordinary_request_timeout_or_reads_as_not_answering", async () => {
   const server = await FakeLocalApiServer.answering(
-    [httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-project-answer-for-the-project-pattern.json"))],
+    [httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-playback-answer-for-the-project-pattern.json"))],
     300,
   );
   cleanUps.push(() => server.close());
   const clientWithAShortRequestTimeout = new LocalApiClient(server.localApiSocketPath, 100, "0.45.0");
 
-  expect(failureOf(await clientWithAShortRequestTimeout.stopProject("/tmp/tatolab-proof-projects/pattern"))).toEqual({
+  expect(failureOf(await clientWithAShortRequestTimeout.stopPlayback("/tmp/tatolab-proof-projects/pattern"))).toEqual({
     failureDescription: `POST /mcp to ${server.localApiSocketPath} did not answer within 100ms`,
     isTheRuntimesRefusal: false,
   });
 });
 
 test("a_stream_action_answer_naming_no_action_is_refused_naming_it", () => {
-  expect(failureOf(queuedStreamActionFromTheToolResult("stop_project", '{"project_directory":"/tmp/tatolab-proof-projects/pattern"}'))).toBe(
-    "the runtime's stop_project result could not be read: missing field `action`",
+  expect(failureOf(queuedStreamActionFromTheToolResult("stop_playback", '{"project_directory":"/tmp/tatolab-proof-projects/pattern"}'))).toBe(
+    "the runtime's stop_playback result could not be read: missing field `action`",
   );
 });
 
@@ -687,23 +704,43 @@ test("creating_a_project_calls_create_project_with_its_folder_or_none_and_reads_
   ]);
 });
 
-test("starting_a_project_calls_start_project_with_its_folder_and_reads_the_action_it_queued_and_a_running_one_is_refused_naming_reload_project", async () => {
+test("opening_a_project_calls_open_project_with_its_folder_and_reads_the_action_it_queued_and_an_open_one_is_refused_naming_reload_project", async () => {
   const server = await fakeLocalApiServerAnswering([
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-project-answer-for-the-folder-hallways.json")),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-project-refusal-for-a-project-already-running.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-open-project-answer-for-the-closed-project-doorways.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-open-project-refusal-for-the-open-project-hallways.json")),
   ]);
 
-  expect(answerOf(await server.client().startProject("/tmp/tatolab-proof-projects/hallways"))).toEqual({
-    action: "Rgdbghpj6ai2ge3wgy64g42y7-4",
-    project_directory: "/private/tmp/tatolab-proof-projects/hallways",
+  expect(answerOf(await server.client().openProject("/tmp/tatolab-proof-projects/doorways"))).toEqual({
+    action: "Rirs4vq7pp5340dwvsk86ebm3-11",
+    project_directory: "/tmp/tatolab-proof-projects/doorways",
   });
-  expect(failureOf(await server.client().startProject("/tmp/tatolab-proof-projects/hallways"))).toEqual({
-    failureDescription: "Runtime error: the project in /private/tmp/tatolab-proof-projects/hallways already runs, so there is none to start; `reload_project` re-reads it from disk",
+  expect(failureOf(await server.client().openProject("/tmp/tatolab-proof-projects/hallways"))).toEqual({
+    failureDescription: "Runtime error: the project in /tmp/tatolab-proof-projects/hallways is already open, so there is none to open; `reload_project` re-reads what changed on disk",
     isTheRuntimesRefusal: true,
   });
   expect(toolCallsReceivedBy(server)).toEqual([
-    ["start_project", { project_directory: "/tmp/tatolab-proof-projects/hallways" }],
-    ["start_project", { project_directory: "/tmp/tatolab-proof-projects/hallways" }],
+    ["open_project", { project_directory: "/tmp/tatolab-proof-projects/doorways" }],
+    ["open_project", { project_directory: "/tmp/tatolab-proof-projects/hallways" }],
+  ]);
+});
+
+test("playing_a_project_calls_start_playback_with_its_folder_and_reads_the_action_it_queued_and_a_playing_one_is_refused_naming_stop_playback", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-playback-answer-for-the-project-hallways.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-playback-refusal-for-the-playing-project-hallways.json")),
+  ]);
+
+  expect(answerOf(await server.client().startPlayback("/tmp/tatolab-proof-projects/hallways"))).toEqual({
+    action: "Rirs4vq7pp5340dwvsk86ebm3-5",
+    project_directory: "/tmp/tatolab-proof-projects/hallways",
+  });
+  expect(failureOf(await server.client().startPlayback("/tmp/tatolab-proof-projects/hallways"))).toEqual({
+    failureDescription: "Runtime error: the project in /tmp/tatolab-proof-projects/hallways already plays, so there is none to play; `stop_playback` stops it",
+    isTheRuntimesRefusal: true,
+  });
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["start_playback", { project_directory: "/tmp/tatolab-proof-projects/hallways" }],
+    ["start_playback", { project_directory: "/tmp/tatolab-proof-projects/hallways" }],
   ]);
 });
 
@@ -720,7 +757,7 @@ test("reloading_a_project_calls_reload_project_with_its_folder_and_reads_the_act
 });
 
 test("a_start_or_reload_project_answer_missing_its_action_is_refused_naming_the_tool", () => {
-  expect(failureOf(projectRunQueuedFromTheStartOrReloadProjectToolResult("reload_project", '{"project_directory":"/tmp/hallways"}'))).toContain("reload_project");
+  expect(failureOf(projectRunQueuedFromTheProjectActionToolResult("reload_project", '{"project_directory":"/tmp/hallways"}'))).toContain("reload_project");
 });
 
 /** The description `describe_stream_action` answered, failing the test when it answered anything else. */
