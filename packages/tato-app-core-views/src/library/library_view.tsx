@@ -496,7 +496,8 @@ export function LibraryView({ connection }: { connection: TatoAppViewConnection 
   return (
     <CoreViewFrame
       connection={connection}
-      headerTools={
+      toolbarLabel="Library tools"
+      toolbarTools={
         <>
           <StudioAreaHeaderChoiceMenu leadingWord="Show" words={LIBRARY_SHOWN_WORDS[shown]} label={`Show: ${LIBRARY_SHOWN_WORDS[shown]}`} data-library-shown={shown}>
             <MenuSingleChoiceGroup

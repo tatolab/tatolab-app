@@ -240,11 +240,11 @@ function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConn
   const graphReading = useTheGraphOfTheTab(connection, streamTab.stream);
   const listedStreams = useViewReading(connection.watchListedStreams);
   const selection = useViewReading(connection.watchSelection);
-  if (graphReading === null) return <CoreViewFrame connection={connection}>{null}</CoreViewFrame>;
+  if (graphReading === null) return <CoreViewFrame connection={connection} toolbarLabel="Node visualizer tools">{null}</CoreViewFrame>;
   if (graphReading.kind === "not_read") {
     const preparingWords = streamPreparingWords(listedStreams?.kind === "listed" ? listedStreams.streams.find((listed) => listed.stream === streamTab.stream) : undefined, streamTab.display_name);
     return (
-      <CoreViewFrame connection={connection}>
+      <CoreViewFrame connection={connection} toolbarLabel="Node visualizer tools">
         {preparingWords !== null ? (
           <PortFamilyPlaceholder family={null} title={preparingWords.title} explanation={preparingWords.explanation} data-viewer-state="preparing" />
         ) : (
@@ -260,7 +260,7 @@ function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConn
     );
   }
   return (
-    <CoreViewFrame connection={connection}>
+    <CoreViewFrame connection={connection} toolbarLabel="Node visualizer tools">
       <ViewerOfTheGraph connection={connection} streamTab={streamTab} graph={graphReading.graph} subject={nodeVisualizerSubjectOf(graphReading.graph, selection)} />
     </CoreViewFrame>
   );
@@ -269,10 +269,10 @@ function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConn
 /** The Node visualizer view's whole frame: the live picture of the selected node's output, and a placeholder while nothing is selected or nothing live reaches it. */
 export function ViewerView({ connection }: { connection: TatoAppViewConnection }) {
   const activeStreamTab = useViewReadingSoFar(connection.watchActiveStreamTab);
-  if (activeStreamTab.kind === "not_read_yet") return <CoreViewFrame connection={connection}>{null}</CoreViewFrame>;
+  if (activeStreamTab.kind === "not_read_yet") return <CoreViewFrame connection={connection} toolbarLabel="Node visualizer tools">{null}</CoreViewFrame>;
   if (activeStreamTab.reading === null) {
     return (
-      <CoreViewFrame connection={connection}>
+      <CoreViewFrame connection={connection} toolbarLabel="Node visualizer tools">
         <PortFamilyPlaceholder family={null} title="No stream is open" explanation="Double-click a stream in the outliner to visualize its nodes here." data-viewer-state="no_tab" />
       </CoreViewFrame>
     );

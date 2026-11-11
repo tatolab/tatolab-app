@@ -58,9 +58,8 @@ function ControlsBody({ connection, activeStreamTab }: { connection: TatoAppView
 /** Controls: the active stream's Graph Inputs as a control surface, beside Perform's viewers. */
 export function ControlsView({ connection }: { connection: TatoAppViewConnection }) {
   const activeStreamTab = useViewReadingSoFar(connection.watchActiveStreamTab);
-  const headerWords = activeStreamTab.kind === "read" && activeStreamTab.reading !== null ? `${activeStreamTab.reading.display_name}'s Graph Inputs` : null;
   return (
-    <CoreViewFrame connection={connection} headerCaption={headerWords}>
+    <CoreViewFrame connection={connection} toolbarLabel="Controls tools">
       <ControlsBody connection={connection} activeStreamTab={activeStreamTab} />
     </CoreViewFrame>
   );

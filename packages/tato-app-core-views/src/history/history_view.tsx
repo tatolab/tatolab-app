@@ -125,13 +125,11 @@ function HistoryBody({ connection, projectFolder }: { connection: TatoAppViewCon
   );
 }
 
-/** The History view's whole frame: the open project's edits, newest first, under its header row naming the project. */
+/** The History view's whole frame: the open project's edits, newest first, under its header and toolbar rows. */
 export function HistoryView({ connection }: { connection: TatoAppViewConnection }) {
   const openProject = useViewReading(connection.watchOpenProject);
-  const activeStreamTab = useViewReading(connection.watchActiveStreamTab);
-  const headerWords = openProject?.kind === "read" ? [openProject.open_project.project.name, activeStreamTab?.display_name].filter((words) => words !== undefined).join(" · ") : null;
   return (
-    <CoreViewFrame connection={connection} headerCaption={headerWords}>
+    <CoreViewFrame connection={connection} toolbarLabel="History tools">
       {openProject === null ? null : openProject.kind === "none_open" ? (
         <WaitingState title="No project is open" explanation="Open or create one from the File menu." />
       ) : openProject.kind === "unreadable" ? (

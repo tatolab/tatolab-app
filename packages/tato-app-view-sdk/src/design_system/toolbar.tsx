@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { Separator } from "./ui/separator";
 
 /** How a toolbar sits: a page's, roomy under a tab's header; or a view's ribbon, a slim strip of icon tools under a studio area's header. */
@@ -11,9 +11,9 @@ const TOOLBAR_LOOK_CLASS_NAMES: Record<ToolbarLook, string> = {
 };
 
 /** A toolbar under its header: its controls in groups on one line, wrapping onto a second in a narrow window rather than cutting a control short. */
-export function Toolbar({ label, look = "page", children }: { label: string; look?: ToolbarLook; children: ReactNode }) {
+export function Toolbar({ label, look = "page", ref, children }: { label: string; look?: ToolbarLook; ref?: Ref<HTMLDivElement>; children?: ReactNode }) {
   return (
-    <div role="toolbar" aria-label={label} className={cn("@container relative flex shrink-0 flex-wrap items-center", TOOLBAR_LOOK_CLASS_NAMES[look])} data-toolbar-look={look}>
+    <div ref={ref} role="toolbar" aria-label={label} className={cn("@container relative flex shrink-0 flex-wrap items-center", TOOLBAR_LOOK_CLASS_NAMES[look])} data-toolbar-look={look}>
       {children}
     </div>
   );

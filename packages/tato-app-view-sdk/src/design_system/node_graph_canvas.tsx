@@ -43,7 +43,8 @@ import {
 } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { IconButton } from "./icon_button";
-import { Toolbar, ToolbarDivider, ToolbarGroup } from "./toolbar";
+import { ToolbarDivider, ToolbarGroup } from "./toolbar";
+import { StudioViewToolbarTools } from "./studio_area_frame";
 import {
   layOutNodeGraph,
   NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT,
@@ -1553,7 +1554,7 @@ function NodeGraphFlow({
             <NodeGraphFrameColourPickingContext value={setFrameIdWhoseColourIsPicked}>
           <NodeGraphLinkedPinsContext value={linkedPins}>
             <div className="flex size-full flex-col">
-            <Toolbar label={`${label} tools`} look="view_ribbon">
+            <StudioViewToolbarTools label={`${label} tools`}>
               {editing !== null && (
                 <>
                   <ToolbarGroup>
@@ -1587,7 +1588,7 @@ function NodeGraphFlow({
                 <IconButton icon={ZoomIn} label="Zoom in" onPressed={() => void reactFlow.zoomIn({ duration: 150 })} data-node-graph-tool="zoom_in" />
                 <IconButton icon={ZoomOut} label="Zoom out" onPressed={() => void reactFlow.zoomOut({ duration: 150 })} data-node-graph-tool="zoom_out" />
               </ToolbarGroup>
-            </Toolbar>
+            </StudioViewToolbarTools>
             <RightClickMenu
               label={`${label}: what to do`}
               returnsFocusToTheRowOnClosing={false}

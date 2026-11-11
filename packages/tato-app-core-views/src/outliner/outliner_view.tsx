@@ -90,7 +90,7 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
 /** The Outliner view's whole frame: the open project's streams as a tree, under its header row. */
 export function OutlinerView({ connection }: { connection: TatoAppViewConnection }) {
   return (
-    <CoreViewFrame connection={connection}>
+    <CoreViewFrame connection={connection} toolbarLabel="Outliner tools">
       <OutlinerBody connection={connection} />
     </CoreViewFrame>
   );

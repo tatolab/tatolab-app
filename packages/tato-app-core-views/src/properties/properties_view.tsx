@@ -583,7 +583,7 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
 /** The Properties view's whole frame: the selection's properties, under its header row. */
 export function PropertiesView({ connection }: { connection: TatoAppViewConnection }) {
   return (
-    <CoreViewFrame connection={connection}>
+    <CoreViewFrame connection={connection} toolbarLabel="Properties tools">
       <PropertiesBody connection={connection} />
     </CoreViewFrame>
   );
