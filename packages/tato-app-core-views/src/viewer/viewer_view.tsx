@@ -1,6 +1,6 @@
 import { streamPreparingWords } from "../shared/stream_preparing_words";
 import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { PortFamilyPlaceholder } from "@tatolab/tato-app-view-sdk/design_system/port_family_placeholder";
 import type { PortViewerEvent, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
@@ -13,6 +13,9 @@ import type {
   StreamTabAddress,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
+import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
+import { ToggleIconButton } from "@tatolab/tato-app-view-sdk/design_system/toggle_icon_button";
+import { Maximize2, Minimize2 } from "lucide-react";
 import { nodeTitle } from "../shared/node_words";
 import { portStreamFactsWords } from "../shared/port_stream_facts_words";
 import { PortViewerMessageReadingShown, packetsUnitsSeenWith, type PacketsUnitSeen } from "./port_viewer_message_readings";
@@ -235,16 +238,43 @@ function ViewerOfTheGraph({ connection, streamTab, graph, subject }: { connectio
   );
 }
 
+/** The Node visualizer's frame: its toolbar row holding Expand, which grows its area to fill the window and, pressed again or with Esc, puts the layout back. */
+function NodeVisualizerFrame({ connection, children }: { connection: TatoAppViewConnection; children: ReactNode }) {
+  const isExpanded = useViewReading(connection.watchAreaExpansion) ?? false;
+  const [expansionRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
+  return (
+    <CoreViewFrame
+      connection={connection}
+      toolbarLabel="Node visualizer tools"
+      toolbarTools={
+        <ToggleIconButton
+          icon={Maximize2}
+          iconWhileOn={Minimize2}
+          label="Expand"
+          tooltipWhileOff="Expand to fill the window"
+          tooltipWhileOn="Put the layout back (Esc)"
+          isOn={isExpanded}
+          onToggled={(isOn) => showTheRefusalOf(isOn ? "Didn't expand:" : "Didn't put the layout back:", connection.expandTheArea(isOn))}
+          data-viewer-expand=""
+        />
+      }
+    >
+      <RefusalOfTheLatestAskBar refusal={expansionRefusal} />
+      {children}
+    </CoreViewFrame>
+  );
+}
+
 /** The Node visualizer's frame for the open stream tab, following the selection once the tab's graph and the selection are read. */
 function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress }) {
   const graphReading = useTheGraphOfTheTab(connection, streamTab.stream);
   const listedStreams = useViewReading(connection.watchListedStreams);
   const selection = useViewReading(connection.watchSelection);
-  if (graphReading === null) return <CoreViewFrame connection={connection}>{null}</CoreViewFrame>;
+  if (graphReading === null) return <NodeVisualizerFrame connection={connection}>{null}</NodeVisualizerFrame>;
   if (graphReading.kind === "not_read") {
     const preparingWords = streamPreparingWords(listedStreams?.kind === "listed" ? listedStreams.streams.find((listed) => listed.stream === streamTab.stream) : undefined, streamTab.display_name);
     return (
-      <CoreViewFrame connection={connection}>
+      <NodeVisualizerFrame connection={connection}>
         {preparingWords !== null ? (
           <PortFamilyPlaceholder family={null} title={preparingWords.title} explanation={preparingWords.explanation} data-viewer-state="preparing" />
         ) : (
@@ -256,25 +286,25 @@ function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConn
             data-viewer-state="not_read"
           />
         )}
-      </CoreViewFrame>
+      </NodeVisualizerFrame>
     );
   }
   return (
-    <CoreViewFrame connection={connection}>
+    <NodeVisualizerFrame connection={connection}>
       <ViewerOfTheGraph connection={connection} streamTab={streamTab} graph={graphReading.graph} subject={nodeVisualizerSubjectOf(graphReading.graph, selection)} />
-    </CoreViewFrame>
+    </NodeVisualizerFrame>
   );
 }
 
 /** The Node visualizer view's whole frame: the live picture of the selected node's output, and a placeholder while nothing is selected or nothing live reaches it. */
 export function ViewerView({ connection }: { connection: TatoAppViewConnection }) {
   const activeStreamTab = useViewReadingSoFar(connection.watchActiveStreamTab);
-  if (activeStreamTab.kind === "not_read_yet") return <CoreViewFrame connection={connection}>{null}</CoreViewFrame>;
+  if (activeStreamTab.kind === "not_read_yet") return <NodeVisualizerFrame connection={connection}>{null}</NodeVisualizerFrame>;
   if (activeStreamTab.reading === null) {
     return (
-      <CoreViewFrame connection={connection}>
+      <NodeVisualizerFrame connection={connection}>
         <PortFamilyPlaceholder family={null} title="No stream is open" explanation="Double-click a stream in the outliner to visualize its nodes here." data-viewer-state="no_tab" />
-      </CoreViewFrame>
+      </NodeVisualizerFrame>
     );
   }
   return <ViewerOfTheTab key={activeStreamTab.reading.stream} connection={connection} streamTab={activeStreamTab.reading} />;

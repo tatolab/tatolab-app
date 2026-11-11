@@ -18,7 +18,6 @@ export interface StudioWindowValuesServedToViews {
   activeStreamTab: WatchedStudioValue<StreamTabAddress | null>;
   openStreamTab(streamTab: StreamTabAddress): void;
   viewsOpenedOn: WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>;
-  chosenLayout(): string | null;
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening;
   watchAreasForTheViewType(viewTypeId: string, listener: (reading: AreasForAViewTypeInTheWindow) => void): StopWatching;
   showViewTypeInArea(viewTypeId: string, areaId: string): ViewOpening;
@@ -110,11 +109,10 @@ export function studioViewHostServicesOf(
       let openingLastTold: string | null | undefined = undefined;
       return sources.viewsOpenedOn.watch((viewsOpenedOn) => {
         const openedOnAsked = viewsOpenedOn[viewTypeId];
-        const openingForThisLayout = openedOnAsked !== undefined && openedOnAsked.layout === sources.chosenLayout() ? openedOnAsked : null;
-        const openingId = openingForThisLayout?.opening_id ?? null;
+        const openingId = openedOnAsked?.opening_id ?? null;
         if (openingId === openingLastTold) return;
         openingLastTold = openingId;
-        listener(openingForThisLayout === null ? null : { ...openingForThisLayout.on, opening_id: openingForThisLayout.opening_id });
+        listener(openedOnAsked === undefined ? null : { ...openedOnAsked.on, opening_id: openedOnAsked.opening_id });
       });
     },
     readProjectFile: (file) =>

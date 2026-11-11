@@ -1,5 +1,5 @@
 // What the studio window holds between renders: the open project and the runtime's streams it
-// serves its views, the selection, the open stream tabs, and the open project's layouts.
+// serves its views, the selection, the open stream tabs, and the open project's layout.
 
 import type { ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutView, ProjectArchiveChosenToImport, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
@@ -9,9 +9,10 @@ import type { SettingsSection } from "../presentation/settings_presentation";
 import type { StudioWindowValuesServedToViews } from "../view_host/studio_view_host_services";
 import { WatchedStudioValue } from "../view_host/watched_studio_value";
 import type { JsonValue, ListedStreamsReading, StopWatching, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
-import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, type StudioAreaLayoutNode } from "./studio_area_layout";
-import { STUDIO_LAYOUTS, type StudioLayoutName, type StudioLayoutsKeptInStorage, type StudioLayoutsOfAFolder } from "./studio_layouts";
+import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, type StudioAreaLayoutNode } from "./studio_area_layout";
+import type { StudioLayoutKeptInStorage, StudioLayoutOfAFolder } from "./studio_layout";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
+import { NO_STUDIO_LAYOUT_EDGE_HIDDEN, studioLayoutShapedAs, studioLayoutWithEdgesHidden, studioLayoutWithShownSplitSizes, type StudioLayoutEdge, type StudioLayoutShape } from "./studio_layout_shapes";
 import { showViewTypeInAreaOf, watchAreasForTheViewType, type StudioViewTypeAreaSources } from "./studio_view_type_areas";
 
 /** What the window's view types are named by, and when the ones it holds change. */
@@ -95,8 +96,12 @@ export class StudioWindowModel {
   readonly projectOpeningRefusal = new WatchedStudioValue<string | null>(null);
   /** Why the last view popped out of an area did not, until it is dismissed or another pops out. */
   readonly viewPopOutRefusal = new WatchedStudioValue<string | null>(null);
-  /** The open project's layouts; `null` while none is open. */
-  readonly studioLayouts = new WatchedStudioValue<StudioLayoutsOfAFolder | null>(null);
+  /** The open project's layout; `null` while none is open. */
+  readonly studioLayout = new WatchedStudioValue<StudioLayoutOfAFolder | null>(null);
+  /** The area of the layout that fills the window in place of the layout; `null` while the layout shows. */
+  readonly expandedAreaId = new WatchedStudioValue<string | null>(null);
+  /** Whether the dialog that names the layout to save as a preset shows. */
+  readonly layoutPresetNameAsked = new WatchedStudioValue(false);
   /** What views of each type were last opened on, by view type id. */
   readonly viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
   /** Why the last run or stop of the open project was refused, until it is dismissed or another is asked for. */
@@ -124,7 +129,7 @@ export class StudioWindowModel {
   private readonly openProjectStreamFailuresRaised = new Set<string>();
 
 
-  constructor(private readonly layoutsKept: StudioLayoutsKeptInStorage) {}
+  constructor(private readonly layoutKept: StudioLayoutKeptInStorage) {}
 
   /** What the views are served from this model, each view type named through `viewTypeTitles`. */
   viewHostSources(viewTypeTitles: StudioViewTypeTitles): StudioWindowValuesServedToViews {
@@ -139,7 +144,6 @@ export class StudioWindowModel {
       activeStreamTab: this.activeStreamTab,
       openStreamTab: (streamTab) => this.openStreamTab(streamTab),
       viewsOpenedOn: this.viewsOpenedOn,
-      chosenLayout: () => this.studioLayouts.readLatest()?.chosen_layout ?? null,
       openView: (viewTypeId, on) => this.openView(viewTypeId, on),
     };
   }
@@ -147,13 +151,12 @@ export class StudioWindowModel {
   private viewTypeAreaSources(viewTypeTitles: StudioViewTypeTitles): StudioViewTypeAreaSources {
     return {
       readChosenLayoutTree: () => {
-        const layouts = this.studioLayouts.readLatest();
-        return layouts === null ? null : layouts.layouts[layouts.chosen_layout];
+        return this.studioLayout.readLatest()?.layout ?? null;
       },
       isAPoppedOutViewsWindow: () => this.poppedOutView.readLatest() !== null,
       viewTitleOf: (viewTypeId) => viewTypeTitles.viewTitleOf(viewTypeId),
       watchChanges: (onChanged) => {
-        const stopWatchingEach = [this.studioLayouts.watch(onChanged), this.poppedOutView.watch(onChanged), viewTypeTitles.watchChanges(onChanged)];
+        const stopWatchingEach = [this.studioLayout.watch(onChanged), this.poppedOutView.watch(onChanged), viewTypeTitles.watchChanges(onChanged)];
         return () => {
           for (const stopWatching of stopWatchingEach) stopWatching();
         };
@@ -182,18 +185,14 @@ export class StudioWindowModel {
     this.selection.publish(pin.selection);
   }
 
-  /** Open views of `viewTypeId` on `on`: in the chosen layout when an area of it shows that type, or else in the first layout with one, which is chosen. */
+  /** Open views of `viewTypeId` on `on`, in each area of the layout that shows that type. */
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening {
     if (this.poppedOutView.readLatest() !== null) return { kind: "not_opened", because: "A popped-out view's window shows that view alone. Open it from the project's studio window." };
-    const layouts = this.studioLayouts.readLatest();
-    if (layouts !== null && !layoutShowsTheViewType(layouts.layouts[layouts.chosen_layout], viewTypeId)) {
-      const layoutShowingTheViewType = STUDIO_LAYOUTS.find((layout) => layoutShowsTheViewType(layouts.layouts[layout.name], viewTypeId));
-      if (layoutShowingTheViewType === undefined) {
-        return { kind: "not_opened", because: `No layout has an area showing ${viewTypeId}. Choose it in an area's view menu, then open it again.` };
-      }
-      this.chooseLayout(layoutShowingTheViewType.name);
+    const studioLayout = this.studioLayout.readLatest();
+    if (studioLayout !== null && !layoutShowsTheViewType(studioLayoutWithEdgesHidden(studioLayout.layout, studioLayout.edges_hidden), viewTypeId)) {
+      return { kind: "not_opened", because: `No area shows ${viewTypeId}. Choose it in an area's view menu, then open it again.` };
     }
-    const opening: ViewOpenedOnAsked = { on, opening_id: crypto.randomUUID(), layout: this.studioLayouts.readLatest()?.chosen_layout ?? null };
+    const opening: ViewOpenedOnAsked = { on, opening_id: crypto.randomUUID() };
     this.viewsOpenedOn.publish({ ...this.viewsOpenedOn.readLatest(), [viewTypeId]: opening });
     return { kind: "opened" };
   }
@@ -203,7 +202,7 @@ export class StudioWindowModel {
     const folderBefore = openProjectFolderOf(this.openProject.readLatest());
     const folderNow = openProjectFolderOf(reading);
     this.openProject.publish(reading);
-    if (folderNow === folderBefore && this.studioLayouts.readLatest() !== null) return;
+    if (folderNow === folderBefore && this.studioLayout.readLatest() !== null) return;
     if (folderNow !== folderBefore) {
       this.openProjectStreamFailuresRaised.clear();
       this.openProjectStreamFailureRaised.publish(null);
@@ -211,7 +210,8 @@ export class StudioWindowModel {
     this.selection.publish({ kind: "nothing" });
     this.publishStreamTabs({ tabs: [], active_stream: null });
     this.closedStreamTabs.publish([]);
-    this.studioLayouts.publish(folderNow === null ? null : this.layoutsKept.readLayoutsOf(folderNow));
+    this.studioLayout.publish(folderNow === null ? null : this.layoutKept.readLayoutOf(folderNow));
+    this.expandedAreaId.publish(null);
     if (folderNow !== null && this.streamTabAwaitedByTheOpeningProject?.project_folder !== folderNow) {
       this.streamTabAwaitedByTheOpeningProject = { project_folder: folderNow, stream: null };
     }
@@ -288,9 +288,14 @@ export class StudioWindowModel {
     this.streamMenuQuestion.publish({ kind: "name_a_new_stream" });
   }
 
-  /** Whether the studio window shows a dialog of its own over its stream tabs: the Stream menu's, Preferences, or the New project sheet. */
+  /** Whether the studio window shows a dialog of its own over its stream tabs: the Stream menu's, Save layout as preset's, Settings, or the New project sheet. */
   isADialogShownOverTheStreamTabs(): boolean {
-    return this.streamMenuQuestion.readLatest() !== null || this.settingsSection.readLatest() !== null || this.newProjectSheetOpenedWith.readLatest() !== null;
+    return (
+      this.streamMenuQuestion.readLatest() !== null ||
+      this.layoutPresetNameAsked.readLatest() ||
+      this.settingsSection.readLatest() !== null ||
+      this.newProjectSheetOpenedWith.readLatest() !== null
+    );
   }
 
   /** Ask, in the Stream menu's dialog, about the shown tab's stream: its new name, or whether to delete it. */
@@ -348,24 +353,54 @@ export class StudioWindowModel {
     this.publishStreamTabs({ tabs: tabsLeft, active_stream: nextActive });
   }
 
-  /** Show `layoutName`, as it was last left in this project. */
-  chooseLayout(layoutName: StudioLayoutName): void {
-    this.changeLayouts((layouts) => ({ ...layouts, chosen_layout: layoutName }));
+  /** Reshape the layout as `shape`, keeping the views it shows where they fit, every edge shown. */
+  shapeTheLayout(shape: StudioLayoutShape): void {
+    this.expandedAreaId.publish(null);
+    this.changeTheLayout((studioLayout) => ({ ...studioLayout, layout: studioLayoutShapedAs(studioLayout.layout, shape), edges_hidden: NO_STUDIO_LAYOUT_EDGE_HIDDEN }));
   }
 
-  /** Show `viewTypeId` in area `areaId` of the chosen layout. */
+  /** Hide the layout's area at `edge`, or show it again. */
+  toggleTheLayoutsEdge(edge: StudioLayoutEdge): void {
+    this.expandedAreaId.publish(null);
+    this.changeTheLayout((studioLayout) => ({ ...studioLayout, edges_hidden: { ...studioLayout.edges_hidden, [edge]: !studioLayout.edges_hidden[edge] } }));
+  }
+
+  /** Lay the window out as the preset the person saved at `presetIndex`, every edge shown; false when there is none there. */
+  applyTheSavedLayoutPreset(presetIndex: number): boolean {
+    const preset = this.studioLayout.readLatest()?.presets_saved[presetIndex];
+    if (preset === undefined) return false;
+    this.expandedAreaId.publish(null);
+    this.changeTheLayout((studioLayout) => ({ ...studioLayout, layout: preset.layout, edges_hidden: NO_STUDIO_LAYOUT_EDGE_HIDDEN }));
+    return true;
+  }
+
+  /** Save the layout, as it shows, as a preset named `title`, after the ones saved before. */
+  saveTheLayoutAsAPreset(title: string): void {
+    this.changeTheLayout((studioLayout) => ({
+      ...studioLayout,
+      presets_saved: [...studioLayout.presets_saved, { title, layout: studioLayoutWithEdgesHidden(studioLayout.layout, studioLayout.edges_hidden) }],
+    }));
+  }
+
+  /** Grow area `areaId` of the layout to fill the window, or put the layout back. */
+  expandArea(areaId: string, isExpanded: boolean): void {
+    if (isExpanded) this.expandedAreaId.publish(areaId);
+    else if (this.expandedAreaId.readLatest() === areaId) this.expandedAreaId.publish(null);
+  }
+
+  /** Show `viewTypeId` in area `areaId` of the layout. */
   showViewTypeInArea(areaId: string, viewTypeId: string): void {
-    this.changeChosenLayoutTree((tree) => layoutWithAreaShowing(tree, areaId, viewTypeId));
+    this.changeTheLayoutTree((tree) => layoutWithAreaShowing(tree, areaId, viewTypeId));
   }
 
-  /** Keep `settings` with area `areaId` of the chosen layout. */
+  /** Keep `settings` with area `areaId` of the layout. */
   keepAreaSettings(areaId: string, settings: JsonValue): void {
-    this.changeChosenLayoutTree((tree) => layoutWithAreaSettings(tree, areaId, settings));
+    this.changeTheLayoutTree((tree) => layoutWithAreaSettings(tree, areaId, settings));
   }
 
-  /** Keep the sizes a drag left split `splitId` of the chosen layout at. */
+  /** Keep the sizes a drag left split `splitId` of the layout at. */
   keepSplitSizes(splitId: string, sizePercentByPartId: Readonly<Record<string, number>>): void {
-    this.changeChosenLayoutTree((tree) => layoutWithSplitSizes(tree, splitId, sizePercentByPartId));
+    this.changeTheLayoutTree((tree) => studioLayoutWithShownSplitSizes(tree, splitId, sizePercentByPartId));
   }
 
   private raiseEachNewFailureOfTheOpenProjectsStreams(listedStreams: readonly ListedStream[]): void {
@@ -410,16 +445,16 @@ export class StudioWindowModel {
     this.activeStreamTab.publish(openStreamTabs.tabs.find((tab) => tab.stream === openStreamTabs.active_stream) ?? null);
   }
 
-  private changeChosenLayoutTree(change: (tree: StudioAreaLayoutNode) => StudioAreaLayoutNode): void {
-    this.changeLayouts((layouts) => ({ ...layouts, layouts: { ...layouts.layouts, [layouts.chosen_layout]: change(layouts.layouts[layouts.chosen_layout]) } }));
+  private changeTheLayoutTree(change: (tree: StudioAreaLayoutNode) => StudioAreaLayoutNode): void {
+    this.changeTheLayout((studioLayout) => ({ ...studioLayout, layout: change(studioLayout.layout) }));
   }
 
-  private changeLayouts(change: (layouts: StudioLayoutsOfAFolder) => StudioLayoutsOfAFolder): void {
-    const layouts = this.studioLayouts.readLatest();
+  private changeTheLayout(change: (studioLayout: StudioLayoutOfAFolder) => StudioLayoutOfAFolder): void {
+    const studioLayout = this.studioLayout.readLatest();
     const folder = openProjectFolderOf(this.openProject.readLatest());
-    if (layouts === null || folder === null) return;
-    const changedLayouts = change(layouts);
-    this.studioLayouts.publish(changedLayouts);
-    this.layoutsKept.keepLayoutsOf(folder, changedLayouts);
+    if (studioLayout === null || folder === null) return;
+    const changedLayout = change(studioLayout);
+    this.studioLayout.publish(changedLayout);
+    this.layoutKept.keepLayoutOf(folder, changedLayout);
   }
 }

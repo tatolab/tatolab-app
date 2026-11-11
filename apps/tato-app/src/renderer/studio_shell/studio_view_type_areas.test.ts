@@ -49,7 +49,7 @@ function areaSources(layoutTree: StudioAreaLayoutNode | null, isPoppedOut = fals
   return { sources, shown, changeTheLayout };
 }
 
-describe("a view type's areas in the chosen layout", () => {
+describe("a view type's areas in the layout", () => {
   it("lists every area by the title of what it shows, and again only when that changes", () => {
     const { sources, changeTheLayout } = areaSources(BUILD_LAYOUT);
     const readings: unknown[] = [];

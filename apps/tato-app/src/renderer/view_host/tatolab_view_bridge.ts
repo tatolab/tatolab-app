@@ -19,6 +19,7 @@ import type {
   PortViewerTarget,
   PythonLanguageServerConnection,
   StopWatching,
+  StudioAreaExpansion,
   StudioViewHostServices,
   StudioViewNodeAddress,
   ViewHeaderRow,
@@ -36,12 +37,13 @@ export interface TatolabViewMessagePort {
 
 /** What the area showing a view hands it: the settings it saved, a way to keep the next ones, and where the view's own header row lies. */
 export interface TatolabViewAreaServices {
-  /** The id of the area in the chosen layout showing the view; `null` where the view shows outside one, as a popped-out view does. */
+  /** The id of the area in the layout showing the view; `null` where the view shows outside one, as a popped-out view does. */
   areaId: string | null;
   /** The settings the area holds, `undefined` for an area that saved none, at once and on each change. */
   watchSavedSettings(listener: (savedSettings: JsonValue | undefined) => void): StopWatching;
   rememberSettings(settings: JsonValue): void;
   watchHeaderRow(listener: (headerRow: ViewHeaderRow) => void): StopWatching;
+  expansion: StudioAreaExpansion;
 }
 
 /** Whether `payload`, sent beside an output ask, is a picture Studio now holds and must close. */
@@ -214,6 +216,9 @@ export class TatolabViewBridge {
       case "header_row":
         keep(this.areaServices.watchHeaderRow((reading) => sendReading({ subject: "header_row", reading })));
         return;
+      case "area_expansion":
+        keep(this.areaServices.expansion.watchIsExpanded((isExpanded) => sendReading({ subject: "area_expansion", reading: { is_expanded: isExpanded } })));
+        return;
       case "areas_for_the_view_type":
         keep(
           this.hostServices.watchAreasForTheViewType(subject.view_type_id, (areasInTheWindow) =>
@@ -332,6 +337,10 @@ export class TatolabViewBridge {
       case "show_view_type_in_area": {
         const showing = this.hostServices.showViewTypeInArea(ask.view_type_id, ask.area_id);
         return showing.kind === "opened" ? { kind: "done" } : { kind: "refused", because: showing.because };
+      }
+      case "expand_the_area": {
+        const expanding = this.areaServices.expansion.expand(ask.is_expanded);
+        return expanding.kind === "done" ? { kind: "done" } : { kind: "refused", because: expanding.because };
       }
       case "open_modules_and_marketplace": {
         const opening = await this.hostServices.openModulesAndMarketplace(ask.shows);

@@ -273,7 +273,7 @@ export interface MockTatolabOptions {
   isTheFixtureViewListed: boolean;
   /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the effect's output. */
   isTheCompositorInMain: boolean;
-  /** Whether the open project's main stream declares Graph Inputs, which Perform's Controls show. */
+  /** Whether the open project's main stream declares Graph Inputs, which the Controls view shows. */
   doesTheMainStreamDeclareGraphInputs: boolean;
   /** `?subgraphs=generated`: `main` holds a graph generator's frozen output. */
   doesTheMainStreamHoldAGeneratedSubgraph: boolean;

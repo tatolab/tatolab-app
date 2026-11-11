@@ -115,8 +115,8 @@ function recordingHostServices() {
     watchNodeCatalog: () => () => undefined,
     openView: (viewTypeId, on) => {
       viewsOpened.push({ viewTypeId, on });
-      if (viewTypeId === "acme-dj:nowhere") return { kind: "not_opened", because: "No layout has an area showing acme-dj:nowhere." };
-      viewsOpenedOn.publish({ ...viewsOpenedOn.readLatest(), [viewTypeId]: { on, opening_id: `opening-${viewsOpened.length}`, layout: "build" } });
+      if (viewTypeId === "acme-dj:nowhere") return { kind: "not_opened", because: "No area shows acme-dj:nowhere." };
+      viewsOpenedOn.publish({ ...viewsOpenedOn.readLatest(), [viewTypeId]: { on, opening_id: `opening-${viewsOpened.length}` } });
       return { kind: "opened" };
     },
     watchViewOpenedOn: (viewTypeId, listener) =>
@@ -221,17 +221,25 @@ function recordingHostServices() {
   return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten };
 }
 
-/** An area that keeps the settings it is asked to remember and says where the view's header row lies. */
+/** An area that keeps the settings it is asked to remember, says where the view's header row lies, and expands while a layout holds it. */
 function recordingAreaServices(savedSettings: JsonValue | undefined) {
   const saved = new WatchedStudioValue<{ saved: JsonValue | undefined }>({ saved: savedSettings });
   const headerRow = new WatchedStudioValue<ViewHeaderRow>({ leading_inset_px: 120, height_px: 30 });
+  const isExpanded = new WatchedStudioValue(false);
   const areaServices: TatolabViewAreaServices = {
     areaId: "properties",
     watchSavedSettings: (listener) => saved.watch((latest) => listener(latest.saved)),
     rememberSettings: (settings) => saved.publish({ saved: settings }),
     watchHeaderRow: headerRow.watch,
+    expansion: {
+      watchIsExpanded: isExpanded.watch,
+      expand: (isExpandedNext) => {
+        isExpanded.publish(isExpandedNext);
+        return { kind: "done" };
+      },
+    },
   };
-  return { areaServices, saved, headerRow };
+  return { areaServices, saved, headerRow, isExpanded };
 }
 
 const bridgesOpen: TatolabViewBridge[] = [];
@@ -318,7 +326,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
     ]);
   });
 
-  it("lists the chosen layout's areas for a view type, marking the asking view's own, and shows the view type in one", async () => {
+  it("lists the layout's areas for a view type, marking the asking view's own, and shows the view type in one", async () => {
     const { connection, viewTypesShownInAreas } = await connectedView(DJ_DECK_MANIFEST, {});
     const readings: unknown[] = [];
     connection.watchAreasForTheViewType("acme-dj:deck", (reading) => readings.push(reading));
@@ -539,7 +547,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
     await messagesDelivered();
 
     expect(openedAnswer).toEqual({ kind: "done" });
-    expect(notOpenedAnswer).toEqual({ kind: "refused", because: "No layout has an area showing acme-dj:nowhere." });
+    expect(notOpenedAnswer).toEqual({ kind: "refused", because: "No area shows acme-dj:nowhere." });
     expect(viewsOpened.map((opened) => opened.viewTypeId)).toEqual(["acme-dj:deck", "acme-dj:nowhere"]);
     expect(openedOnSeen).toEqual([null, { kind: "file", file: "/set/crate.m3u", opening_id: "opening-1" }]);
   });
@@ -556,6 +564,19 @@ describe("a view's connection to Studio, through the one bridge every view is se
       { leading_inset_px: 120, height_px: 30 },
       { leading_inset_px: 96, height_px: 30 },
     ]);
+  });
+
+  it("expands the view's area and puts the layout back when the view asks, telling it each time", async () => {
+    const { connection, isExpanded } = await connectedView(DJ_DECK_MANIFEST, {});
+    const expansionsSeen: boolean[] = [];
+    connection.watchAreaExpansion((seen) => expansionsSeen.push(seen));
+    await messagesDelivered();
+
+    expect(await connection.expandTheArea(true)).toEqual({ kind: "done" });
+    expect(isExpanded.readLatest()).toBe(true);
+    isExpanded.publish(false);
+    await messagesDelivered();
+    expect(expansionsSeen).toEqual([false, true, false]);
   });
 
   it("reads a project file, saying why in the reader's words when it was not read", async () => {

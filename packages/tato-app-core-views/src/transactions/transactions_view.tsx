@@ -258,8 +258,9 @@ function TransactionsOfTheProject({ connection, projectFolder }: { connection: T
   return (
     <CoreViewFrame
       connection={connection}
-      headerTools={
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 pr-1">
+      toolbarLabel="Transactions tools"
+      toolbarTools={
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <StatusChip tone="caution" data-transactions-developer-chip="">
             Developer
           </StatusChip>
@@ -296,7 +297,7 @@ export function TransactionsView({ connection }: { connection: TatoAppViewConnec
   const openProject = useViewReading(useCallback((listener: (reading: OpenProjectReading) => void) => connection.watchOpenProject(listener), [connection]));
   if (openProject?.kind === "read") return <TransactionsOfTheProject key={openProject.open_project.project.folder} connection={connection} projectFolder={openProject.open_project.project.folder} />;
   return (
-    <CoreViewFrame connection={connection}>
+    <CoreViewFrame connection={connection} toolbarLabel="Transactions tools">
       {openProject === null ? null : openProject.kind === "none_open" ? (
         <WaitingState title="No project is open" explanation="Open or create one from the File menu." data-transactions-state="no_project" />
       ) : (
