@@ -287,7 +287,7 @@ export function RightClickMenuSingleChoiceGroup<Choice extends string>({
   /** `null` while none of them is chosen. */
   chosen: Choice | null;
   onChosen: (choice: Choice) => void;
-  /** Set on each choice to its value, as `data-node-graph-frame-colour="#6f9bff"`. */
+  /** Set on each choice to its value, as `data-node-graph-frame-colour="#4aa8a8"`. */
   dataAttributeOfEachChoice?: ControlDataAttributeName;
 }) {
   return (

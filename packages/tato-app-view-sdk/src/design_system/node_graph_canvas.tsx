@@ -131,14 +131,14 @@ export interface NodeGraphCanvasFrameChange {
   colour?: string;
 }
 
-/** The colours a frame can be given from its right-click menu, each a hex colour as the runtime stores a group's. */
+/** The colours a frame can be given from its right-click menu, each a hex colour as the runtime stores a group's, none of them a pin family's. */
 export const NODE_GRAPH_FRAME_COLOURS: readonly { name: string; colour: string }[] = [
-  { name: "Blue", colour: "#6f9bff" },
-  { name: "Green", colour: "#3fcf8e" },
-  { name: "Amber", colour: "#f0a845" },
-  { name: "Coral", colour: "#e07a5f" },
-  { name: "Violet", colour: "#b79cff" },
-  { name: "Grey", colour: "#9a9aa3" },
+  { name: "Slate", colour: "#6f7d8c" },
+  { name: "Teal", colour: "#4aa8a8" },
+  { name: "Olive", colour: "#8f9a5b" },
+  { name: "Sand", colour: "#b8a07a" },
+  { name: "Rose", colour: "#c97b9a" },
+  { name: "Plum", colour: "#9a6fb0" },
 ];
 
 /** A note on the canvas beside the cards: its text, where its top-left corner sits and its size. */
