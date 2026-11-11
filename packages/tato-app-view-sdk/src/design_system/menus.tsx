@@ -40,6 +40,9 @@ const MENU_WIDTH_CLASS_NAMES: Record<MenuWidth, string> = { fit: "w-auto min-w-5
 /** How big a field that opens a menu is: regular in bars and forms, compact inside a property panel's row. */
 export type FieldMenuSize = "regular" | "compact";
 
+/** How a field that opens a menu looks: an outlined field, or the inset well a port's link target sits in, filling its row. */
+export type FieldMenuAppearance = "field" | "port_target";
+
 /** A menu choice's padding and its icon's look, the same in a dropdown menu and a right-click menu. */
 const MENU_ITEM_CLASS_NAMES = "px-2";
 const MENU_ITEM_ICON_CLASS_NAMES = "size-4 text-fg-3";
@@ -109,6 +112,8 @@ export function FieldMenu({
   menuWidth = "fit",
   size = "regular",
   menuAlignment = "start",
+  appearance = "field",
+  isOpenAtFirst = false,
   children,
   ...controlDataAttributes
 }: {
@@ -123,10 +128,13 @@ export function FieldMenu({
   size?: FieldMenuSize;
   /** Which edge of the field the open menu lines up with. */
   menuAlignment?: "start" | "end";
+  appearance?: FieldMenuAppearance;
+  /** Opens its menu as it first appears, for a field added to be chosen at once. */
+  isOpenAtFirst?: boolean;
   children: ReactNode;
 } & ControlDataAttributes) {
   return (
-    <DropdownMenu>
+    <DropdownMenu defaultOpen={isOpenAtFirst}>
       <DropdownMenuTrigger
         render={
           <Button
@@ -137,6 +145,8 @@ export function FieldMenu({
               size === "compact" && "h-6 gap-1 rounded-[4px] bg-transparent text-[11.5px] dark:bg-transparent",
               isNarrowing && "border-line-strong text-fg dark:border-line-strong",
               fillsItsPlace ? "w-full" : "max-w-96",
+              appearance === "port_target" &&
+                "h-[26px] min-w-0 flex-1 shrink gap-1.5 rounded-[4px] border-studio-port-target-picker-line bg-studio-port-target-picker pr-1.5 pl-[7px] text-xs text-fg hover:border-line-strong hover:bg-studio-port-target-picker aria-expanded:border-brand aria-expanded:bg-studio-port-target-picker aria-expanded:shadow-[0_0_0_1px_var(--brand)] dark:border-studio-port-target-picker-line dark:bg-studio-port-target-picker dark:hover:bg-studio-port-target-picker",
               FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
             )}
           />

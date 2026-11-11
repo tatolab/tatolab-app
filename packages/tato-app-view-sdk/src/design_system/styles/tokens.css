@@ -37,7 +37,12 @@
   --color-studio-graph-tools: var(--studio-graph-tools);
   --color-studio-read-only-banner: var(--studio-read-only-banner);
   --color-studio-property-fill: var(--studio-property-fill);
-  --color-studio-port-row: var(--studio-port-row);
+  --color-studio-port-band-first: var(--studio-port-band-first);
+  --color-studio-port-band-first-line: var(--studio-port-band-first-line);
+  --color-studio-port-band-second: var(--studio-port-band-second);
+  --color-studio-port-band-second-line: var(--studio-port-band-second-line);
+  --color-studio-port-target-picker: var(--studio-port-target-picker);
+  --color-studio-port-target-picker-line: var(--studio-port-target-picker-line);
   --color-studio-asset-card: var(--studio-asset-card);
   --color-studio-asset-media: var(--studio-asset-media);
   --color-studio-asset-scene: var(--studio-asset-scene);
@@ -184,7 +189,12 @@
   --studio-family-packets: #e07a5f;
   --studio-family-records: #a0a4ad;
   --studio-property-fill: #3d4f86;
-  --studio-port-row: #232327;
+  --studio-port-band-first: #27272b;
+  --studio-port-band-first-line: #2e2e33;
+  --studio-port-band-second: #1a1a1d;
+  --studio-port-band-second-line: #26262a;
+  --studio-port-target-picker: #111113;
+  --studio-port-target-picker-line: #38383e;
   --studio-asset-card: #232327;
   --studio-asset-media: #1d2440;
   --studio-asset-scene: #251f3a;

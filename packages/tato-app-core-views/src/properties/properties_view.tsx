@@ -1,5 +1,5 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_banner";
@@ -12,8 +12,8 @@ import {
   PropertyListEntry,
   PropertyListEntryCount,
   PropertyNumberField,
-  PropertyPortConnectMenu,
   PropertyPortRow,
+  type PropertyPortTarget,
   PropertyRow,
   PropertySection,
   PropertySliderField,
@@ -50,6 +50,8 @@ import {
   nodeIdInShort,
   pinValueFromTheWordsTyped,
   portsToConnect,
+  whyThePortTakesNoOtherTarget,
+  type LinkedEndOfAPort,
   portsToConnectNote,
   resetTheConfigField,
   setTheConfigField,
@@ -309,31 +311,78 @@ function meaningOfAPort(port: StreamGraphDeclaredPort, catalogPorts: NodeCatalog
   return meaning === "" ? undefined : meaning;
 }
 
+/** The blank target pickers + added, which exist only in the window until a port is chosen in one: their keys, by the node's id and the port's name. */
+type BlankTargetPickersOfThePorts = ReadonlyMap<string, readonly string[]>;
+
+function blankTargetPickersKey(nodeId: string, portName: string): string {
+  return `${nodeId}\u0000${portName}`;
+}
+
 function PortRowsOfOneDirection({
   direction,
+  firstBandIndex,
   graph,
   node,
   streamName,
   streamAsset,
   catalogPorts,
   graphEdits,
+  blankTargetPickers,
+  onBlankTargetPickersChanged,
 }: {
   direction: "input" | "output";
+  /** Where this direction's bands fall in the panel's alternation, so Outputs carries on from Inputs. */
+  firstBandIndex: number;
   graph: StreamGraphSummary;
   node: StreamGraphNode;
   streamName: string;
   streamAsset: string | null;
   catalogPorts: NodeCatalogPort[];
   graphEdits: GraphEditsOfTheNode;
+  blankTargetPickers: BlankTargetPickersOfThePorts;
+  onBlankTargetPickersChanged: (changeTheBlankTargetPickers: (blankTargetPickers: BlankTargetPickersOfThePorts) => BlankTargetPickersOfThePorts) => void;
 }) {
   const ports = direction === "input" ? node.input_ports : node.output_ports;
   if (ports.length === 0) return <p className="px-1 text-xs text-fg-3">None</p>;
-  return ports.map((port) => {
+  return ports.map((port, portIndex) => {
     const place: PlaceOfAnEdit = `${direction}:${port.name}`;
     const linkedEnds = linkedEndsOfThePort(graph, node, direction, port.name);
     const facts = direction === "input" ? streamFactsAnInputReceives(graph, node.name, port) : port;
     const familyWords = port.family === null ? "Unknown" : nodeGraphPinFamilyWords(port.family);
     const pinValue = node.pins[port.name];
+    const blankPickersKey = blankTargetPickersKey(node.id, port.name);
+    const blankPickerKeys = blankTargetPickers.get(blankPickersKey) ?? [];
+    const changeTheBlankPickersOfThePort = (changeTheKeys: (keys: readonly string[]) => readonly string[]) =>
+      onBlankTargetPickersChanged((pickers) => new Map(pickers).set(blankPickersKey, changeTheKeys(pickers.get(blankPickersKey) ?? [])));
+    const note = portsToConnectNote(direction, streamName, familyWords);
+    const choicesOfAPicker = (stream: string, replacing: LinkedEndOfAPort | null, whenConnected: () => void) => () =>
+      portsToConnect(stream, graph, node, direction, port, replacing).map((portToConnect) => ({
+        nodeTitle: portToConnect.nodeTitle,
+        port: portToConnect.port,
+        cannotBecause: portToConnect.cannotBecause,
+        choiceKey: portToConnect.choiceKey,
+        onChosen: () =>
+          void graphEdits.commit(place, portToConnect.connecting).then((isApplied) => {
+            if (isApplied) whenConnected();
+          }),
+      }));
+    const linkedTargets: PropertyPortTarget[] =
+      streamAsset === null
+        ? []
+        : linkedEnds.map((linkedEnd) => ({
+            linkedWith: { nodeTitle: nodeTitle(linkedEnd.node.name, linkedEnd.node.type), port: linkedEnd.port },
+            targetKey: `${linkedEnd.node.id}:${linkedEnd.port}`,
+            note,
+            choicesWhenOpened: choicesOfAPicker(streamAsset, linkedEnd, () => undefined),
+            onRemoved: () => void graphEdits.commit(place, [disconnectTheLink(streamAsset, node, direction, port.name, linkedEnd)]),
+          }));
+    const blankTargets: PropertyPortTarget[] =
+      streamAsset === null
+        ? []
+        : blankPickerKeys.map((blankPickerKey) => {
+            const removeThisBlankPicker = () => changeTheBlankPickersOfThePort((keys) => keys.filter((key) => key !== blankPickerKey));
+            return { linkedWith: null, targetKey: blankPickerKey, note, isOpenAtFirst: true, choicesWhenOpened: choicesOfAPicker(streamAsset, null, removeThisBlankPicker), onRemoved: removeThisBlankPicker };
+          });
     return (
       <PropertyPortRow
         key={place}
@@ -342,15 +391,17 @@ function PortRowsOfOneDirection({
         familyWords={familyWords}
         pinMark={<NodeGraphPinMark family={port.family} />}
         meaning={meaningOfAPort(port, catalogPorts, facts)}
+        bandShade={(firstBandIndex + portIndex) % 2 === 0 ? "first" : "second"}
         refusal={graphEdits.refusalsByPlace.get(place) ?? null}
-        linkedEnds={linkedEnds.map((linkedEnd) => ({
-          nodeTitle: nodeTitle(linkedEnd.node.name, linkedEnd.node.type),
-          port: linkedEnd.port,
-          linkKey: `${linkedEnd.node.id}:${linkedEnd.port}`,
-          onDisconnect: () => {
-            if (streamAsset !== null) void graphEdits.commit(place, [disconnectTheLink(streamAsset, node, direction, port.name, linkedEnd)]);
-          },
-        }))}
+        targets={[...linkedTargets, ...blankTargets]}
+        addition={
+          streamAsset === null
+            ? undefined
+            : {
+                disabledReason: whyThePortTakesNoOtherTarget(direction, linkedEnds.length, blankPickerKeys.length),
+                onAdded: () => changeTheBlankPickersOfThePort((keys) => [...keys, crypto.randomUUID()]),
+              }
+        }
         unlinkedValue={
           direction === "input" && streamAsset !== null ? (
             <PropertyTextField
@@ -371,22 +422,6 @@ function PortRowsOfOneDirection({
               }
             />
           ) : undefined
-        }
-        connectMenu={
-          streamAsset === null ? undefined : (
-            <PropertyPortConnectMenu
-              portName={port.name}
-              note={portsToConnectNote(direction, streamName, familyWords)}
-              choicesWhenOpened={() =>
-                portsToConnect(streamAsset, graph, node, direction, port).map((portToConnect) => ({
-                  words: portToConnect.words,
-                  cannotBecause: portToConnect.cannotBecause,
-                  choiceKey: portToConnect.choiceKey,
-                  onChosen: () => void graphEdits.commit(place, [portToConnect.connecting]),
-                }))
-              }
-            />
-          )
         }
       />
     );
@@ -449,6 +484,7 @@ function PropertiesOfTheSelectedNode({
   const catalogReading = useViewReading(watchTheStreamsCatalog);
   const listedStreams = useViewReading(connection.watchListedStreams);
   const nodeShownWhileItWasSelectedByName = useRef<{ nodeName: string; nodeId: string } | null>(null);
+  const [blankTargetPickers, setBlankTargetPickers] = useState<BlankTargetPickersOfThePorts>(new Map());
   const graph = graphReading?.kind === "read" ? graphReading.graph : null;
   const nodeSelectedByName = graph?.nodes.find((graphNode) => graphNode.name === nodeName);
   const nodeRenamedSinceItWasSelected =
@@ -542,10 +578,32 @@ function PropertiesOfTheSelectedNode({
           )}
         </PropertySection>
         <PropertySection title="Inputs" data-properties-section="inputs">
-          <PortRowsOfOneDirection direction="input" graph={graph} node={node} streamName={streamName} streamAsset={streamAsset} catalogPorts={catalogEntry?.inputs ?? []} graphEdits={graphEdits} />
+          <PortRowsOfOneDirection
+            direction="input"
+            firstBandIndex={0}
+            graph={graph}
+            node={node}
+            streamName={streamName}
+            streamAsset={streamAsset}
+            catalogPorts={catalogEntry?.inputs ?? []}
+            graphEdits={graphEdits}
+            blankTargetPickers={blankTargetPickers}
+            onBlankTargetPickersChanged={setBlankTargetPickers}
+          />
         </PropertySection>
         <PropertySection title="Outputs" data-properties-section="outputs">
-          <PortRowsOfOneDirection direction="output" graph={graph} node={node} streamName={streamName} streamAsset={streamAsset} catalogPorts={catalogEntry?.outputs ?? []} graphEdits={graphEdits} />
+          <PortRowsOfOneDirection
+            direction="output"
+            firstBandIndex={node.input_ports.length}
+            graph={graph}
+            node={node}
+            streamName={streamName}
+            streamAsset={streamAsset}
+            catalogPorts={catalogEntry?.outputs ?? []}
+            graphEdits={graphEdits}
+            blankTargetPickers={blankTargetPickers}
+            onBlankTargetPickersChanged={setBlankTargetPickers}
+          />
           {imageOutputs.map((port) => (
             <div key={port.name} className="flex justify-end">
               <ActionButton

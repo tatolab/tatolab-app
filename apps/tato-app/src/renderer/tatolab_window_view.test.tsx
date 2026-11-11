@@ -970,6 +970,28 @@ describe("the studio", () => {
     await waitFor(() => expect(shownInWords()).toBe("1 area"));
   });
 
+  it("moves an input's link to another output from its target picker, and adds and removes a blank picker on an output", { timeout: 20_000 }, async () => {
+    await mountedWindowOverTheMock("state=running");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="brightnessmeter"]') ?? expect.unreachable("no Brightness Meter card")));
+    const properties = () => coreViewPage("properties");
+    const targetsOf = (port: string) => [...properties().querySelectorAll(`[data-properties-port="${port}"] [data-property-port-target]`)].map((target) => target.getAttribute("data-property-port-target"));
+    await waitFor(() => expect(targetsOf("video_from_upstream")).toEqual(["Inverting Effect › video_to_downstream"]));
+
+    pressAsAPointerDoes(properties().querySelector<HTMLElement>('[data-properties-port="video_from_upstream"] [data-property-port-target-picker]') ?? expect.unreachable("no target picker"));
+    expect(screen.queryByRole("menuitem", { name: /^Inverting Effect/ })).toBeNull();
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Test Pattern Source/ }));
+    await waitFor(() => expect(targetsOf("video_from_upstream")).toEqual(["Test Pattern Source › video"]), { timeout: 5000 });
+    expect(properties().querySelector('[data-properties-port="video_from_upstream"] [data-property-port-add-target]')?.getAttribute("aria-disabled")).toBe("true");
+
+    fireEvent.click(properties().querySelector<HTMLElement>('[data-properties-port="brightness"] [data-property-port-add-target]') ?? expect.unreachable("no + on brightness"));
+    await waitFor(() => expect(targetsOf("brightness")).toEqual([""]));
+    expect(await screen.findByText("Inputs in main that take Records")).toBeTruthy();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    fireEvent.click(properties().querySelector<HTMLElement>('[data-properties-port="brightness"] [data-property-port-target-remove]') ?? expect.unreachable("no ✕ on the blank picker"));
+    await waitFor(() => expect(targetsOf("brightness")).toEqual([]));
+  });
+
   it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {
     await mountedWindowOverTheMock("state=running");
     expect(await shownLayout()).toBe("build");

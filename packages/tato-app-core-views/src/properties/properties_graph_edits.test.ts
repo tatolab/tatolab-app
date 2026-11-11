@@ -10,6 +10,7 @@ import {
   nodeIdInShort,
   pinValueFromTheWordsTyped,
   portsToConnect,
+  whyThePortTakesNoOtherTarget,
   portsToConnectNote,
   resetTheConfigField,
   setTheConfigField,
@@ -99,22 +100,40 @@ test("a port's linked ends name the node and port on the other side, and disconn
   });
 });
 
-test("an output's Connect menu lists the other nodes' inputs not linked yet, its family's first, others saying why they can't join", () => {
-  const choices = portsToConnect("stream-asset", graph, camera, "output", aPort("level", "channels"));
-  expect(choices.map(({ words, cannotBecause, choiceKey }) => ({ words, cannotBecause, choiceKey }))).toEqual([
-    { words: "Meter › gain", cannotBecause: null, choiceKey: "id-meter:gain" },
+test("an output's target picker lists the other nodes' inputs not linked yet, its family's first, others saying why they can't join", () => {
+  const choices = portsToConnect("stream-asset", graph, camera, "output", aPort("level", "channels"), null);
+  expect(choices.map(({ nodeTitle, port, cannotBecause, choiceKey }) => ({ nodeTitle, port, cannotBecause, choiceKey }))).toEqual([
+    { nodeTitle: "Meter", port: "gain", cannotBecause: null, choiceKey: "id-meter:gain" },
   ]);
-  expect(choices[0]?.connecting).toEqual({ operation: "connect", stream: "stream-asset", source: { node: "id-camera", port: "level" }, target: { node: "id-meter", port: "gain" } });
+  expect(choices[0]?.connecting).toEqual([{ operation: "connect", stream: "stream-asset", source: { node: "id-camera", port: "level" }, target: { node: "id-meter", port: "gain" } }]);
 });
 
-test("an input's Connect menu lists every other node's outputs, never its own, a linked one included", () => {
-  const choices = portsToConnect("stream-asset", graph, meter, "input", aPort("frames", "image"));
-  expect(choices.map(({ words, cannotBecause }) => [words, cannotBecause])).toEqual([
+test("an input's target picker lists every other node's outputs, never its own, a linked one included", () => {
+  const choices = portsToConnect("stream-asset", graph, meter, "input", aPort("frames", "image"), null);
+  expect(choices.map(({ nodeTitle, port, cannotBecause }) => [`${nodeTitle} › ${port}`, cannotBecause])).toEqual([
     ["Camera › video", null],
     ["Invert › video_out", null],
     ["Camera › level", "Channels, can't connect"],
   ]);
-  expect(choices[0]?.connecting).toEqual({ operation: "connect", stream: "stream-asset", source: { node: "id-camera", port: "video" }, target: { node: "id-meter", port: "frames" } });
+  expect(choices[0]?.connecting).toEqual([{ operation: "connect", stream: "stream-asset", source: { node: "id-camera", port: "video" }, target: { node: "id-meter", port: "frames" } }]);
+});
+
+test("choosing another port in a linked picker moves the link as one transaction, the port it is linked with left out", () => {
+  const [linkedEnd] = linkedEndsOfThePort(graph, meter, "input", "frames");
+  expect(linkedEnd?.node.id).toBe("id-invert");
+  const choices = portsToConnect("stream-asset", graph, meter, "input", aPort("frames", "image"), linkedEnd ?? null);
+  expect(choices.map(({ nodeTitle, port }) => `${nodeTitle} › ${port}`)).toEqual(["Camera › video", "Camera › level"]);
+  expect(choices[0]?.connecting).toEqual([
+    { operation: "disconnect", stream: "stream-asset", source: { node: "id-invert", port: "video_out" }, target: { node: "id-meter", port: "frames" } },
+    { operation: "connect", stream: "stream-asset", source: { node: "id-camera", port: "video" }, target: { node: "id-meter", port: "frames" } },
+  ]);
+});
+
+test("an input takes one target picker, an output any number", () => {
+  expect(whyThePortTakesNoOtherTarget("input", 0, 0)).toBeNull();
+  expect(whyThePortTakesNoOtherTarget("input", 1, 0)).toBe("An input takes one link. Choose another output in its picker.");
+  expect(whyThePortTakesNoOtherTarget("input", 0, 1)).not.toBeNull();
+  expect(whyThePortTakesNoOtherTarget("output", 2, 1)).toBeNull();
 });
 
 test("the Connect menu's note and the heading's short node id read as the panel shows them", () => {
