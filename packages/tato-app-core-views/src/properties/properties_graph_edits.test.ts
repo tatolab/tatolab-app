@@ -1,9 +1,12 @@
 import { NODE_STUDIO_FIELDS_NONE_SET, type JsonValue, type StreamGraphDeclaredPort, type StreamGraphLink, type StreamGraphNode } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { expect, test } from "vitest";
 import { portsThatCanJoinByNodeId } from "../shared/ports_that_can_join";
+import type { ConfigFormField } from "./config_form_fields";
 import {
+  configFieldsToExposeAsGraphInputs,
   configValueFromTheWordsTyped,
   disconnectTheLink,
+  exposeTheConfigFieldAsAGraphInput,
   linkedEndsOfThePort,
   listWithARecordAdded,
   listWithoutTheRecord,
@@ -36,6 +39,7 @@ function aNode(name: string, inputs: StreamGraphDeclaredPort[], outputs: StreamG
     dropped_bags_by_link: {},
     refused_bags_by_output_port: {},
     pins: {},
+    exposed_config_fields: [],
     studio: NODE_STUDIO_FIELDS_NONE_SET,
     fragment: null,
   };
@@ -187,4 +191,28 @@ test("an edit of an entry the list has moved on from changes nothing", () => {
   const layersAfterTheFirstWasRemoved: JsonValue = [{ x: 640, y: 360, opacity: 0.5 }];
   expect(listWithoutTheRecord(layersAfterTheFirstWasRemoved, 0, {})).toBeNull();
   expect(listWithTheRecordFieldSet(layersAfterTheFirstWasRemoved, 1, { x: 640, y: 360, opacity: 0.5 }, "x", 0)).toBeNull();
+});
+
+function aConfigFormField(key: string, control: ConfigFormField["control"]): ConfigFormField {
+  return { key, description: null, control, value: null, value_source: "default", is_required: false, is_nullable: false };
+}
+
+test("a node offers each number and on-off config field it does not yet take as an input to expose as a Graph Input", () => {
+  const strength = aConfigFormField("strength", { kind: "number", is_whole_number: false, minimum: 0, maximum: 1 });
+  const enabled = aConfigFormField("enabled", { kind: "toggle" });
+  const label = aConfigFormField("label", { kind: "text" });
+  const blend = aConfigFormField("blend", { kind: "choice", choices: ["over", "add"] });
+  expect(configFieldsToExposeAsGraphInputs({ exposed_config_fields: [] }, [strength, enabled, label, blend]).map((field) => field.key)).toEqual(["strength", "enabled"]);
+  expect(configFieldsToExposeAsGraphInputs({ exposed_config_fields: ["strength"] }, [strength, enabled, label]).map((field) => field.key)).toEqual(["enabled"]);
+});
+
+test("exposing a config field is one transaction: the node takes it as an input, fed by a new Channels Graph Input moving in the field's range", () => {
+  const glow = { id: "id-glow", name: "glow", exposed_config_fields: ["enabled"] };
+  expect(exposeTheConfigFieldAsAGraphInput("asset", glow, aConfigFormField("strength", { kind: "number", is_whole_number: false, minimum: 0, maximum: 1 }))).toEqual([
+    { operation: "set_exposed_config_fields", stream: "asset", node: "id-glow", exposed_config_fields: ["enabled", "strength"] },
+    { operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: "glow_strength", config: { port: "glow_strength", family: "channels", range: [0, 1] }, as: "graph_input" },
+    { operation: "connect", stream: "asset", source: { node: "graph_input", port: "value" }, target: { node: "id-glow", port: "strength" } },
+  ]);
+  expect(exposeTheConfigFieldAsAGraphInput("asset", glow, aConfigFormField("gain", { kind: "number", is_whole_number: false, minimum: null, maximum: 4 }))[1]).toMatchObject({ config: { port: "glow_gain", family: "channels" } });
+  expect(exposeTheConfigFieldAsAGraphInput("asset", glow, aConfigFormField("gain", { kind: "number", is_whole_number: false, minimum: null, maximum: 4 }))[1]).not.toHaveProperty("config.range");
 });

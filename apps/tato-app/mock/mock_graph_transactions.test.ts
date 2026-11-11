@@ -167,3 +167,26 @@ test("a collapsed node becomes a subgraph wired through its Graph Input and Outp
   expect(graph.nodes.map((node) => node.name)).toEqual(["testpatternsource", "displaywindow"]);
   expect(graph.links).toMatchObject([{ source_node: "testpatternsource", source_port: "video", target_node: "displaywindow", target_port: "video" }]);
 });
+
+test("a Python node takes a number config field as a Channels input fed by a Graph Input, its undo puts it back, and a native node is refused", () => {
+  const graph = aTestPatternAlone();
+  graph.nodes.push({ name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {}, input_ports: [{ name: "video_from_upstream", family: "image", stream_facts: null, values_checked: null }], output_ports: [] });
+  const inverter = mockNodeIdOf(STREAM_ID, "invertingeffect");
+  const exposed = applyMockGraphTransaction(targetsOf(graph), [
+    { operation: "set_exposed_config_fields", stream: STREAM_ASSET, node: inverter, exposed_config_fields: ["strength"] },
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", name: "invertingeffect_strength", config: { port: "invertingeffect_strength", family: "channels", range: [0, 1] }, as: "graph_input" },
+    { operation: "connect", stream: STREAM_ASSET, source: { node: "graph_input", port: "value" }, target: { node: inverter, port: "strength" } },
+  ]);
+  if (exposed.kind !== "applied") return expect.unreachable(exposed.refusal.runtime_words);
+  const inverterNode = graph.nodes.find((node) => node.name === "invertingeffect") ?? expect.unreachable("no inverter");
+  expect(inverterNode.exposed_config_fields).toEqual(["strength"]);
+  expect(inverterNode.input_ports.map((port) => [port.name, port.family])).toEqual([["video_from_upstream", "image"], ["strength", "channels"]]);
+  expect(graph.nodes.find((node) => node.name === "invertingeffect_strength")).toMatchObject({ state: null, output_ports: [{ name: "value", family: "channels" }] });
+  expect(graph.links).toMatchObject([{ source_node: "invertingeffect_strength", target_node: "invertingeffect", target_port: "strength", state: "wired" }]);
+  expect(exposed.inverse_operations.map((operation) => graphActionApplyingTheHistoryOperation(operation)?.operation)).toEqual(["disconnect", "remove_node", "set_exposed_config_fields"]);
+
+  const refusedOnANativeNode = applyMockGraphTransaction(targetsOf(graph), [{ operation: "set_exposed_config_fields", stream: STREAM_ASSET, node: TEST_PATTERN, exposed_config_fields: ["fps"] }]);
+  expect(refusedOnANativeNode.kind === "refused" && refusedOnANativeNode.refusal.runtime_words).toContain("Only a Python node exposes a config field");
+  const refusedFamily = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", name: "level", config: { port: "level", family: "Channels" } }]);
+  expect(refusedFamily.kind === "refused" && refusedFamily.refusal.runtime_words).toContain('names family "Channels", and a family is one of image, array, channels, packets, records');
+});

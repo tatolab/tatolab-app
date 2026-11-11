@@ -44,8 +44,10 @@ import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
 import { blankTargetPickerKeysOfThePort, NO_BLANK_TARGET_PICKERS, withABlankTargetPickerAdded, withoutTheBlankTargetPicker, type BlankTargetPickersOfTheNode } from "./blank_target_pickers";
 import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
 import {
+  configFieldsToExposeAsGraphInputs,
   configValueFromTheWordsTyped,
   disconnectTheLink,
+  exposeTheConfigFieldAsAGraphInput,
   LIST_ENTRY_MOVED_ON_REFUSAL,
   linkedEndsOfThePort,
   listWithARecordAdded,
@@ -217,7 +219,7 @@ function ConfigFieldRows({
     graphEdits.rememberTheConfigSent(node.config, configAction.config);
     void graphEdits.commit(place, [configAction]);
   };
-  const fieldPlace: PlaceOfAnEdit = `config:${field.key}`;
+  const fieldPlace = placeOfTheConfigField(field.key);
   const listControl = field.control.kind === "list_of_records" ? field.control : null;
   const listEditedFrom = () => configEditedFrom()[field.key] ?? field.value;
   const configWithTheList = (stream: string, list: JsonValue[] | null) => (list === null ? null : setTheConfigField(stream, node.id, configEditedFrom(), field.key, list));
@@ -492,6 +494,33 @@ type PickInTheStreamGraphForATarget = (
   whenPicked: (picked: { node: string; port: string }, graphWhenPicked: StreamGraphSummary) => void,
 ) => void;
 
+/** The place an edit of a config field, or exposing it as a Graph Input, shows its refusal under. */
+function placeOfTheConfigField(fieldKey: string): PlaceOfAnEdit {
+  return `config:${fieldKey}`;
+}
+
+/** Expose as a Graph Input ▾: each number or on-off config field the node does not yet take as an input, chosen to drive it from a new Graph Input of the stream; nothing when every one already is. */
+function ExposeAConfigFieldAsAGraphInputMenu({ node, fields, streamAsset, graphEdits }: { node: StreamGraphNode; fields: ConfigFormField[]; streamAsset: string; graphEdits: GraphEditsOfTheNode }) {
+  const fieldsToExpose = configFieldsToExposeAsGraphInputs(node, fields);
+  if (fieldsToExpose.length === 0) return null;
+  return (
+    <div className="flex justify-end">
+      <FieldMenu label="Expose a config field as a Graph Input" words="Expose as a Graph Input" size="compact" menuWidth="wide" menuAlignment="end" data-properties-expose-as-a-graph-input={node.id}>
+        <MenuNote>Each becomes an input of the node, fed by a new Graph Input that Perform's Controls list.</MenuNote>
+        {fieldsToExpose.map((field) => (
+          <MenuItem
+            key={field.key}
+            onChosen={() => void graphEdits.commit(placeOfTheConfigField(field.key), exposeTheConfigFieldAsAGraphInput(streamAsset, node, field))}
+            data-properties-expose-config-field={field.key}
+          >
+            {nameInWords(field.key)}
+          </MenuItem>
+        ))}
+      </FieldMenu>
+    </div>
+  );
+}
+
 /** A view node's row naming how many areas show its view, with Show in an area to show it in another; nothing for a node that is not a view's. */
 function ViewNodeShownInAreasRow({ connection, viewTypeId }: { connection: TatoAppViewConnection; viewTypeId: string }) {
   const areasReading = useViewReading(useCallback((listener: (reading: AreasForAViewTypeReading) => void): StopWatching => connection.watchAreasForTheViewType(viewTypeId, listener), [connection, viewTypeId]));
@@ -695,6 +724,7 @@ function PropertiesOfTheSelectedNode({
                 ) : (
                   configForm.fields.map((field) => <ConfigFieldRows key={field.key} field={field} node={node} streamAsset={streamAsset} graphEdits={graphEdits} searchWords="" />)
                 )}
+                {streamAsset !== null && configForm.kind === "fields" && <ExposeAConfigFieldAsAGraphInputMenu node={node} fields={configForm.fields} streamAsset={streamAsset} graphEdits={graphEdits} />}
               </>
             )}
           </PropertySection>

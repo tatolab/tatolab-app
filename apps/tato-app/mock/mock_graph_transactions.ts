@@ -44,6 +44,22 @@ function studioFieldsOfTheAction(studio: Record<string, JsonValue>, refusedNode:
   };
 }
 
+const GRAPH_INPUT_NODE_TYPE = "tatolab.stream:GraphInput";
+
+const PORT_FAMILIES_AS_THE_RUNTIME_SPELLS_THEM: readonly PortFamily[] = ["image", "array", "channels", "packets", "records"];
+
+function isAPortFamilyAsTheRuntimeSpellsIt(family: JsonValue | undefined): family is PortFamily {
+  return PORT_FAMILIES_AS_THE_RUNTIME_SPELLS_THEM.some((portFamily) => portFamily === family);
+}
+
+/** The config fields of `nodeType` its catalog schema types as a number, an integer or a bool, which the runtime lets a Python node take as inputs. */
+function numberAndBoolConfigFieldsOf(nodeType: string): string[] {
+  const configSchema = MOCK_NODE_CATALOG_ENTRIES.find((entry) => entry.type === nodeType)?.config_schema;
+  const properties = configSchema !== undefined && isAJsonObject(configSchema) ? configSchema["properties"] : undefined;
+  if (!isAJsonObject(properties)) return [];
+  return Object.entries(properties).flatMap(([field, fieldSchema]) => (isAJsonObject(fieldSchema) && ["number", "integer", "boolean"].includes(String(fieldSchema["type"])) ? [field] : []));
+}
+
 function shortNameOfTheType(nodeType: string): string {
   return (nodeType.split(":").at(-1) ?? nodeType).toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
@@ -85,6 +101,8 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
     }
     case "set_studio_fields":
       return typeof node === "string" && isAJsonObject(to) ? { operation, stream, node, studio: to } : null;
+    case "set_exposed_config_fields":
+      return typeof node === "string" && Array.isArray(to) ? { operation, stream, node, exposed_config_fields: to.flatMap((field) => (typeof field === "string" ? [field] : [])) } : null;
     case "set_group_fields": {
       const group = historyOperation["group"];
       if (typeof group !== "string" || !isAJsonObject(to)) return null;
@@ -231,7 +249,18 @@ export function applyMockGraphTransaction(
           const portsOf = (ports: typeof catalogEntry.inputs) => ports.map((port) => ({ name: port.name, family: port.family, stream_facts: null, values_checked: port.family === "records" ? false : null }));
           const config = structuredClone(operation.config ?? {});
           const pins = structuredClone(operation.pins ?? {});
-          const addedNode: MockGraphNode = { name, type: operation.type, state: "Running", config, pins, input_ports: portsOf(catalogEntry.inputs), output_ports: portsOf(catalogEntry.outputs) };
+          const isAGraphInput = operation.type === GRAPH_INPUT_NODE_TYPE;
+          const familyTheGraphInputDeclares = isAGraphInput ? config["family"] : undefined;
+          if (isAGraphInput && !isAPortFamilyAsTheRuntimeSpellsIt(familyTheGraphInputDeclares)) {
+            throw refusedNaming(
+              `Invalid configuration: \`GraphInput\` node \`${name}\`: config key "family" names family ${JSON.stringify(familyTheGraphInputDeclares ?? null)}, and a family is one of image, array, channels, packets, records`,
+              { refused_node: operation.as ?? name },
+            );
+          }
+          const outputPorts = isAPortFamilyAsTheRuntimeSpellsIt(familyTheGraphInputDeclares)
+            ? [{ name: "value", family: familyTheGraphInputDeclares, stream_facts: null, values_checked: null }]
+            : portsOf(catalogEntry.outputs);
+          const addedNode: MockGraphNode = { name, type: operation.type, state: isAGraphInput ? null : "Running", config, pins, input_ports: portsOf(catalogEntry.inputs), output_ports: outputPorts };
           if (operation.studio !== undefined) addedNode.studio = studioFieldsOfTheAction(operation.studio, operation.as ?? name);
           if (applying === "undo_or_redo" && operation.as !== undefined) addedNode.id_kept_through_renames = operation.as;
           graph.nodes.push(addedNode);
@@ -240,6 +269,36 @@ export function applyMockGraphTransaction(
           applied.added_nodes.push({ stream: target.stream_id, node: nodeId, name, as: operation.as ?? null });
           const studio: { studio?: JsonValue } = addedNode.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(addedNode.studio) };
           recordInHistory({ operation: "add_node", node: { id: nodeId, name, type: operation.type, config, pins, ...studio } }, { operation: "remove_node", node: nodeId });
+          break;
+        }
+        case "set_exposed_config_fields": {
+          const node = nodeNamed(operation.node);
+          if (!node.type.startsWith("nodes.")) {
+            throw refusedNaming(
+              `node \`${node.name}\` exposes ${operation.exposed_config_fields.join(", ")} as inputs, and its type \`${node.type}\` is natively compiled, so nothing reads a config field it takes as an input. Only a Python node exposes a config field`,
+              { refused_node: operation.node },
+            );
+          }
+          const fieldsItCanExpose = numberAndBoolConfigFieldsOf(node.type);
+          const fieldItCannotExpose = operation.exposed_config_fields.find((field) => !fieldsItCanExpose.includes(field));
+          if (fieldItCannotExpose !== undefined) {
+            throw refusedNaming(
+              `node \`${node.name}\` cannot expose \`${fieldItCannotExpose}\` as an input: its type \`${node.type}\` declares no number or bool config field of that name. It can expose: ${fieldsItCanExpose.length === 0 ? "none" : fieldsItCanExpose.map((field) => `\`${field}\``).join(", ")}`,
+              { refused_node: operation.node, refused_field: fieldItCannotExpose },
+            );
+          }
+          const from = node.exposed_config_fields ?? [];
+          const fieldStillLinked = from.find((field) => !operation.exposed_config_fields.includes(field) && graph.links.some((link) => link.target_node === node.name && link.target_port === field));
+          if (fieldStillLinked !== undefined) throw refusedNaming(`node \`${node.name}\` cannot stop taking \`${fieldStillLinked}\` as an input while a link feeds it`, { refused_node: operation.node, refused_field: fieldStillLinked });
+          node.input_ports = [
+            ...node.input_ports.filter((port) => !from.includes(port.name)),
+            ...operation.exposed_config_fields.map((field) => ({ name: field, family: "channels" as const, stream_facts: null, values_checked: null })),
+          ];
+          node.exposed_config_fields = [...operation.exposed_config_fields];
+          recordInHistory(
+            { operation: "set_exposed_config_fields", node: nodeIdOf(node), from, to: operation.exposed_config_fields },
+            { operation: "set_exposed_config_fields", node: nodeIdOf(node), from: operation.exposed_config_fields, to: from },
+          );
           break;
         }
         case "remove_node": {
