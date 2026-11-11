@@ -72,15 +72,10 @@ export function newGestureIdempotencyKey(): string {
 }
 
 /** How a pick in the Stream graph ended: the other end the person picked, by its node's id and port, nothing picked and why, or why it never started. */
-export type PortPickEnding =
-  | { kind: "picked"; node: string; port: string }
-  | { kind: "ended"; because: string }
-  | { kind: "not_started"; because: string };
+export type PortPickEnding = { kind: "picked"; node: string; port: string } | { kind: "ended"; because: string } | { kind: "not_started"; because: string };
 
 /** Studio done, or refused in its own words. */
-export type ViewAskDone =
-  | { kind: "done" }
-  | { kind: "refused"; because: string };
+export type ViewAskDone = { kind: "done" } | { kind: "refused"; because: string };
 
 /** One Python language server started for the view, its JSON-RPC messages carried both ways. */
 export interface PythonLanguageServerConnection {
@@ -93,76 +88,29 @@ export interface PythonLanguageServerConnection {
 /** A view's connection to Studio: what it was granted, and each part of the contract it may read or ask for. */
 export interface TatoAppViewConnection {
   readonly grant: ViewGrant;
-  watchOpenProject(
-    listener: (reading: OpenProjectReading) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
-  watchListedStreams(
-    listener: (reading: ListedStreamsReading) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
-  watchActiveStreamTab(
-    listener: (activeStreamTab: StreamTabAddress | null) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
+  watchOpenProject(listener: (reading: OpenProjectReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
+  watchListedStreams(listener: (reading: ListedStreamsReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
+  watchActiveStreamTab(listener: (activeStreamTab: StreamTabAddress | null) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** What is selected in Studio, at once and on each change. */
-  watchSelection(
-    listener: (selection: StudioSelection) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
+  watchSelection(listener: (selection: StudioSelection) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** `stream`'s graph; the first reading arrives once read. */
-  watchStreamGraph(
-    stream: string,
-    listener: (reading: StreamGraphReading) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
+  watchStreamGraph(stream: string, listener: (reading: StreamGraphReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The node types `stream` can add. */
-  watchNodeCatalog(
-    stream: string,
-    listener: (reading: NodeCatalogReading) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
+  watchNodeCatalog(stream: string, listener: (reading: NodeCatalogReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The log of the project in `projectFolder`; the first reading arrives once read. */
-  watchProjectLog(
-    projectFolder: string,
-    listener: (reading: ProjectLogReading) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
+  watchProjectLog(projectFolder: string, listener: (reading: ProjectLogReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The node types the project in `projectFolder` offers; the first reading arrives once listed. */
-  watchProjectNodeTypes(
-    projectFolder: string,
-    listener: (reading: ProjectNodeTypesReading) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
+  watchProjectNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The assets of the project in `projectFolder`; the first reading arrives once listed, and another whenever the listing changes. */
-  watchProjectAssets(
-    projectFolder: string,
-    listener: (reading: ProjectAssetsReading) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
+  watchProjectAssets(projectFolder: string, listener: (reading: ProjectAssetsReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The views Studio ships with and those the open project and its imports bring; another reading each time the project's are listed again. */
-  watchStudioViews(
-    listener: (reading: StudioViewsReading) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
+  watchStudioViews(listener: (reading: StudioViewsReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The history of the project in `projectFolder`; the first reading arrives once read, and another each time the runtime applies a transaction to the project. */
-  watchProjectTransactions(
-    projectFolder: string,
-    listener: (reading: ProjectTransactionsReading) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
+  watchProjectTransactions(projectFolder: string, listener: (reading: ProjectTransactionsReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** Each frame or message of `target`'s output port; an Image frame arrives as a `VideoFrame` the view closes once drawn. */
-  watchPortViewer(
-    target: PortViewerTarget,
-    onEvent: (event: PortViewerEvent) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
+  watchPortViewer(target: PortViewerTarget, onEvent: (event: PortViewerEvent) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** What the output wired into the `node` view's input `input` carries; an Image frame arrives as a `VideoFrame` the view closes once drawn. */
-  watchInput(
-    input: string,
-    onEvent: (inputEvent: ViewInputEvent) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
+  watchInput(input: string, onEvent: (inputEvent: ViewInputEvent) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The settings the view's area holds, checked against the view's declared settings: at once, then after each `rememberSettings`. */
   watchSettings(listener: (settings: ViewSettings) => void): StopWatching;
   /** The file or port the view's area was opened on, at once and again whenever the area is opened on another. */
@@ -184,79 +132,39 @@ export interface TatoAppViewConnection {
   /** `file`'s text and the version it is at, or why it was not read. */
   readProjectFile(file: string): Promise<ProjectFileReading>;
   /** Write `text` to `file` whole when it is still at `basedOnVersion` on disk (`null` for a new file). */
-  saveProjectFile(
-    file: string,
-    text: string,
-    basedOnVersion: string | null,
-  ): Promise<ProjectFileSaving>;
+  saveProjectFile(file: string, text: string, basedOnVersion: string | null): Promise<ProjectFileSaving>;
   /** A new Python node file at `file` in the open project's own folder, from the runtime's node template, with the node type it declares, or why the runtime did not create it. */
   createNodeFile(file: string): Promise<NodeFileCreating>;
   /** The files of the project in `projectFolder`, or why they were not listed. */
   listProjectFiles(projectFolder: string): Promise<ProjectFilesListing>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
-  connectToPythonLanguageServer(
-    projectFolder: string,
-    onEvent: (event: PythonLanguageServerConnectionEvent) => void,
-  ): PythonLanguageServerConnection;
+  connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
   /** Undo `author`'s latest transaction in the project not undone yet, answering the undo the runtime applied. */
-  undoInTheProject(
-    projectFolder: string,
-    author: ProjectTransactionAuthor,
-  ): Promise<ProjectTransactionApplying>;
+  undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** Redo what `author`'s latest undo in the project reversed, answering the redo the runtime applied. */
-  redoInTheProject(
-    projectFolder: string,
-    author: ProjectTransactionAuthor,
-  ): Promise<ProjectTransactionApplying>;
+  redoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** The layout's areas for the view type `viewTypeId`, at once and again as the layout or the view types change. */
-  watchAreasForTheViewType(
-    viewTypeId: string,
-    listener: (reading: AreasForAViewTypeReading) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
+  watchAreasForTheViewType(viewTypeId: string, listener: (reading: AreasForAViewTypeReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** Show the view type `viewTypeId` in area `areaId` of the layout, in place of what it shows. */
   showViewTypeInArea(viewTypeId: string, areaId: string): Promise<ViewAskDone>;
   /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
-  openModulesAndMarketplace(
-    shows: ModulesAndMarketplaceSection,
-  ): Promise<ViewAskDone>;
+  openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewAskDone>;
   /** Ask the person for files in the desktop's open dialog and import each into the project, where the runtime places it in its kind's folder under its own name, numbered past a name already taken. */
-  importAssetsIntoTheProject(
-    projectFolder: string,
-  ): Promise<ProjectAssetsImporting>;
+  importAssetsIntoTheProject(projectFolder: string): Promise<ProjectAssetsImporting>;
   /** Put the asset `asset` of the project at `toPath`, `/`-separated in the project, renaming it, moving it or both, by the person editing; refused in the runtime's own words, as for a path another asset takes. */
-  relocateAssetInTheProject(
-    projectFolder: string,
-    asset: string,
-    toPath: string,
-  ): Promise<ViewAskDone>;
+  relocateAssetInTheProject(projectFolder: string, asset: string, toPath: string): Promise<ViewAskDone>;
   /** The preview picture of the asset `asset` of the project, an image's own or a video's poster frame, as a `data:` URL with its size; refused in the runtime's own words, as for an asset whose `preview` is `null`. */
-  readAssetPreviewInTheProject(
-    projectFolder: string,
-    asset: string,
-  ): Promise<AssetPreviewReading>;
+  readAssetPreviewInTheProject(projectFolder: string, asset: string): Promise<AssetPreviewReading>;
   /** Stop tracking the asset `asset` of the project, its file leaving it, by the person editing; refused in the runtime's own words, as while a stream's graph document references it. */
-  deleteAssetFromTheProject(
-    projectFolder: string,
-    asset: string,
-  ): Promise<ViewAskDone>;
+  deleteAssetFromTheProject(projectFolder: string, asset: string): Promise<ViewAskDone>;
   /** The person editing in Studio: the author their graph edits are recorded under, and so whose edits their own Undo reverts. */
   readThePersonEditing(): Promise<ThePersonEditingReading>;
   /** Apply `operations` on the graphs of the project's streams as one transaction, whole or not at all, answering what it applied or the runtime's structured refusal. */
-  transactInTheProject(
-    projectFolder: string,
-    operations: readonly StreamGraphAction[],
-    sending: GraphTransactionSending,
-  ): Promise<ProjectGraphTransactionApplying>;
+  transactInTheProject(projectFolder: string, operations: readonly StreamGraphAction[], sending: GraphTransactionSending): Promise<ProjectGraphTransactionApplying>;
   /** Have the person pick the other end of `pick`'s port in the Stream graph, ending any pick held; answered once the pick ends, or at once when no Stream graph shows its stream. */
-  pickAPortInTheStreamGraph(
-    pick: PortPickInTheStreamGraph,
-  ): Promise<PortPickEnding>;
+  pickAPortInTheStreamGraph(pick: PortPickInTheStreamGraph): Promise<PortPickEnding>;
   /** The port whose other end the person is picking in the Stream graph, at once and on each change; `null` while none is. */
-  watchPortPick(
-    listener: (pick: PortPickInTheStreamGraph | null) => void,
-    whenRefused?: WhenStudioRefuses,
-  ): StopWatching;
+  watchPortPick(listener: (pick: PortPickInTheStreamGraph | null) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** End the pick held with the other end the person picked: `node`'s id and its `port`. */
   answerThePortPick(node: string, port: string): Promise<ViewAskDone>;
   /** End the pick held with nothing picked. */
@@ -284,75 +192,38 @@ function picturesToTransferOf(payload: ViewOutputPayload): Transferable[] {
 }
 
 function settingsOf(reading: JsonValue): ViewSettings {
-  return typeof reading === "object" &&
-    reading !== null &&
-    !Array.isArray(reading)
-    ? reading
-    : null;
+  return typeof reading === "object" && reading !== null && !Array.isArray(reading) ? reading : null;
 }
 
 function doneOf(answer: ViewAskAnswer): ViewAskDone {
   if (answer.kind === "done") return { kind: "done" };
   if (answer.kind === "refused") return answer;
-  return {
-    kind: "refused",
-    because: `Tato Studio answered with ${answer.kind}, which this ask does not take.`,
-  };
+  return { kind: "refused", because: `Tato Studio answered with ${answer.kind}, which this ask does not take.` };
 }
 
-function transactionApplyingOf(
-  answer: ViewAskAnswer,
-): ProjectTransactionApplying {
-  if (answer.kind === "project_transaction_applied")
-    return { kind: "applied", transaction: answer.transaction };
-  return {
-    kind: "not_applied",
-    because:
-      answer.kind === "refused"
-        ? answer.because
-        : `Tato Studio answered with ${answer.kind}.`,
-  };
+function transactionApplyingOf(answer: ViewAskAnswer): ProjectTransactionApplying {
+  if (answer.kind === "project_transaction_applied") return { kind: "applied", transaction: answer.transaction };
+  return { kind: "not_applied", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
 }
 
-function graphTransactionApplyingOf(
-  answer: ViewAskAnswer,
-): ProjectGraphTransactionApplying {
-  if (answer.kind === "project_graph_transaction_applied")
-    return { kind: "applied", transaction: answer.transaction };
-  if (answer.kind === "project_action_refused")
-    return { kind: "refused", refusal: answer.refusal };
-  return {
-    kind: "not_sent",
-    because:
-      answer.kind === "refused"
-        ? answer.because
-        : `Tato Studio answered with ${answer.kind}.`,
-  };
+function graphTransactionApplyingOf(answer: ViewAskAnswer): ProjectGraphTransactionApplying {
+  if (answer.kind === "project_graph_transaction_applied") return { kind: "applied", transaction: answer.transaction };
+  if (answer.kind === "project_action_refused") return { kind: "refused", refusal: answer.refusal };
+  return { kind: "not_sent", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
 }
 
 /** The view's connection over `port`, once Studio has said what it granted. */
-export function connectToTatoAppOverPort(
-  port: MessagePort,
-): Promise<TatoAppViewConnection> {
+export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppViewConnection> {
   return new Promise((resolveConnection) => {
     const watchesHeldById = new Map<number, WatchHeld>();
-    const answerWaitersByAskId = new Map<
-      number,
-      (answer: ViewAskAnswer) => void
-    >();
+    const answerWaitersByAskId = new Map<number, (answer: ViewAskAnswer) => void>();
     let nextId = 1;
     let isClosed = false;
 
-    const send = (
-      message: MessageFromTheView,
-      transfer: Transferable[] = [],
-    ) => {
+    const send = (message: MessageFromTheView, transfer: Transferable[] = []) => {
       if (!isClosed) port.postMessage(message, transfer);
     };
-    const watch = (
-      subject: ViewWatchedSubject,
-      watchHeld: WatchHeld,
-    ): { watchId: number; stopWatching: StopWatching } => {
+    const watch = (subject: ViewWatchedSubject, watchHeld: WatchHeld): { watchId: number; stopWatching: StopWatching } => {
       const watchId = nextId++;
       watchesHeldById.set(watchId, watchHeld);
       send({ kind: "watch", watch_id: watchId, subject });
@@ -364,27 +235,15 @@ export function connectToTatoAppOverPort(
         },
       };
     };
-    const watchFor = (
-      subject: ViewWatchedSubject,
-      onWatched: (watched: ViewWatchedReading) => void,
-      whenRefused: WhenStudioRefuses,
-    ): StopWatching => watch(subject, { onWatched, whenRefused }).stopWatching;
-    const ask = (
-      askedFor: ViewAsk,
-      payload?: ViewOutputPayload,
-    ): Promise<ViewAskAnswer> => {
-      if (isClosed)
-        return Promise.resolve({ kind: "refused", because: CLOSED_BECAUSE });
+    const watchFor = (subject: ViewWatchedSubject, onWatched: (watched: ViewWatchedReading) => void, whenRefused: WhenStudioRefuses): StopWatching =>
+      watch(subject, { onWatched, whenRefused }).stopWatching;
+    const ask = (askedFor: ViewAsk, payload?: ViewOutputPayload): Promise<ViewAskAnswer> => {
+      if (isClosed) return Promise.resolve({ kind: "refused", because: CLOSED_BECAUSE });
       const askId = nextId++;
       return new Promise((resolveAnswer) => {
         answerWaitersByAskId.set(askId, resolveAnswer);
-        if (payload === undefined)
-          send({ kind: "ask", ask_id: askId, ask: askedFor });
-        else
-          send(
-            { kind: "ask", ask_id: askId, ask: askedFor, payload },
-            picturesToTransferOf(payload),
-          );
+        if (payload === undefined) send({ kind: "ask", ask_id: askId, ask: askedFor });
+        else send({ kind: "ask", ask_id: askId, ask: askedFor, payload }, picturesToTransferOf(payload));
       });
     };
 
@@ -417,375 +276,110 @@ export function connectToTatoAppOverPort(
 
     const connectionGranted = (grant: ViewGrant): TatoAppViewConnection => ({
       grant,
-      watchOpenProject: (listener, whenRefused = IGNORE_THE_REFUSAL) =>
-        watchFor(
-          { kind: "open_project" },
-          (watched) =>
-            watched.subject === "open_project" && listener(watched.reading),
-          whenRefused,
-        ),
-      watchListedStreams: (listener, whenRefused = IGNORE_THE_REFUSAL) =>
-        watchFor(
-          { kind: "listed_streams" },
-          (watched) =>
-            watched.subject === "listed_streams" && listener(watched.reading),
-          whenRefused,
-        ),
-      watchActiveStreamTab: (listener, whenRefused = IGNORE_THE_REFUSAL) =>
-        watchFor(
-          { kind: "active_stream_tab" },
-          (watched) =>
-            watched.subject === "active_stream_tab" &&
-            listener(watched.reading),
-          whenRefused,
-        ),
-      watchSelection: (listener, whenRefused = IGNORE_THE_REFUSAL) =>
-        watchFor(
-          { kind: "selection" },
-          (watched) =>
-            watched.subject === "selection" && listener(watched.reading),
-          whenRefused,
-        ),
-      watchStreamGraph: (stream, listener, whenRefused = IGNORE_THE_REFUSAL) =>
-        watchFor(
-          { kind: "stream_graph", stream },
-          (watched) =>
-            watched.subject === "stream_graph" && listener(watched.reading),
-          whenRefused,
-        ),
-      watchNodeCatalog: (stream, listener, whenRefused = IGNORE_THE_REFUSAL) =>
-        watchFor(
-          { kind: "node_catalog", stream },
-          (watched) =>
-            watched.subject === "node_catalog" && listener(watched.reading),
-          whenRefused,
-        ),
-      watchProjectLog: (
-        projectFolder,
-        listener,
-        whenRefused = IGNORE_THE_REFUSAL,
-      ) =>
-        watchFor(
-          { kind: "project_log", project_folder: projectFolder },
-          (watched) =>
-            watched.subject === "project_log" && listener(watched.reading),
-          whenRefused,
-        ),
-      watchProjectNodeTypes: (
-        projectFolder,
-        listener,
-        whenRefused = IGNORE_THE_REFUSAL,
-      ) =>
-        watchFor(
-          { kind: "project_node_types", project_folder: projectFolder },
-          (watched) =>
-            watched.subject === "project_node_types" &&
-            listener(watched.reading),
-          whenRefused,
-        ),
-      watchProjectAssets: (
-        projectFolder,
-        listener,
-        whenRefused = IGNORE_THE_REFUSAL,
-      ) =>
-        watchFor(
-          { kind: "project_assets", project_folder: projectFolder },
-          (watched) =>
-            watched.subject === "project_assets" && listener(watched.reading),
-          whenRefused,
-        ),
-      watchStudioViews: (listener, whenRefused = IGNORE_THE_REFUSAL) =>
-        watchFor(
-          { kind: "studio_views" },
-          (watched) =>
-            watched.subject === "studio_views" && listener(watched.reading),
-          whenRefused,
-        ),
-      watchProjectTransactions: (
-        projectFolder,
-        listener,
-        whenRefused = IGNORE_THE_REFUSAL,
-      ) =>
-        watchFor(
-          { kind: "project_transactions", project_folder: projectFolder },
-          (watched) =>
-            watched.subject === "project_transactions" &&
-            listener(watched.reading),
-          whenRefused,
-        ),
+      watchOpenProject: (listener, whenRefused = IGNORE_THE_REFUSAL) => watchFor({ kind: "open_project" }, (watched) => watched.subject === "open_project" && listener(watched.reading), whenRefused),
+      watchListedStreams: (listener, whenRefused = IGNORE_THE_REFUSAL) => watchFor({ kind: "listed_streams" }, (watched) => watched.subject === "listed_streams" && listener(watched.reading), whenRefused),
+      watchActiveStreamTab: (listener, whenRefused = IGNORE_THE_REFUSAL) => watchFor({ kind: "active_stream_tab" }, (watched) => watched.subject === "active_stream_tab" && listener(watched.reading), whenRefused),
+      watchSelection: (listener, whenRefused = IGNORE_THE_REFUSAL) => watchFor({ kind: "selection" }, (watched) => watched.subject === "selection" && listener(watched.reading), whenRefused),
+      watchStreamGraph: (stream, listener, whenRefused = IGNORE_THE_REFUSAL) => watchFor({ kind: "stream_graph", stream }, (watched) => watched.subject === "stream_graph" && listener(watched.reading), whenRefused),
+      watchNodeCatalog: (stream, listener, whenRefused = IGNORE_THE_REFUSAL) => watchFor({ kind: "node_catalog", stream }, (watched) => watched.subject === "node_catalog" && listener(watched.reading), whenRefused),
+      watchProjectLog: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>
+        watchFor({ kind: "project_log", project_folder: projectFolder }, (watched) => watched.subject === "project_log" && listener(watched.reading), whenRefused),
+      watchProjectNodeTypes: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>
+        watchFor({ kind: "project_node_types", project_folder: projectFolder }, (watched) => watched.subject === "project_node_types" && listener(watched.reading), whenRefused),
+      watchProjectAssets: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>
+        watchFor({ kind: "project_assets", project_folder: projectFolder }, (watched) => watched.subject === "project_assets" && listener(watched.reading), whenRefused),
+      watchStudioViews: (listener, whenRefused = IGNORE_THE_REFUSAL) => watchFor({ kind: "studio_views" }, (watched) => watched.subject === "studio_views" && listener(watched.reading), whenRefused),
+      watchProjectTransactions: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>
+        watchFor({ kind: "project_transactions", project_folder: projectFolder }, (watched) => watched.subject === "project_transactions" && listener(watched.reading), whenRefused),
       watchPortViewer: (target, onEvent, whenRefused = IGNORE_THE_REFUSAL) =>
-        watchFor(
-          { kind: "port_viewer", target },
-          (watched) =>
-            watched.subject === "port_viewer" && onEvent(watched.reading),
-          whenRefused,
-        ),
+        watchFor({ kind: "port_viewer", target }, (watched) => watched.subject === "port_viewer" && onEvent(watched.reading), whenRefused),
       watchInput: (input, onEvent, whenRefused = IGNORE_THE_REFUSAL) =>
-        watchFor(
-          { kind: "input", input },
-          (watched) => watched.subject === "input" && onEvent(watched.reading),
-          whenRefused,
-        ),
-      watchSettings: (listener) =>
-        watchFor(
-          { kind: "settings" },
-          (watched) =>
-            watched.subject === "settings" &&
-            listener(settingsOf(watched.reading)),
-          IGNORE_THE_REFUSAL,
-        ),
-      watchOpenedOn: (listener) =>
-        watchFor(
-          { kind: "opened_on" },
-          (watched) =>
-            watched.subject === "opened_on" && listener(watched.reading),
-          IGNORE_THE_REFUSAL,
-        ),
-      watchHeaderRow: (listener) =>
-        watchFor(
-          { kind: "header_row" },
-          (watched) =>
-            watched.subject === "header_row" && listener(watched.reading),
-          IGNORE_THE_REFUSAL,
-        ),
-      watchAreaExpansion: (listener) =>
-        watchFor(
-          { kind: "area_expansion" },
-          (watched) =>
-            watched.subject === "area_expansion" &&
-            listener(watched.reading.is_expanded),
-          IGNORE_THE_REFUSAL,
-        ),
-      expandTheArea: (isExpanded) =>
-        ask({ kind: "expand_the_area", is_expanded: isExpanded }).then(doneOf),
+        watchFor({ kind: "input", input }, (watched) => watched.subject === "input" && onEvent(watched.reading), whenRefused),
+      watchSettings: (listener) => watchFor({ kind: "settings" }, (watched) => watched.subject === "settings" && listener(settingsOf(watched.reading)), IGNORE_THE_REFUSAL),
+      watchOpenedOn: (listener) => watchFor({ kind: "opened_on" }, (watched) => watched.subject === "opened_on" && listener(watched.reading), IGNORE_THE_REFUSAL),
+      watchHeaderRow: (listener) => watchFor({ kind: "header_row" }, (watched) => watched.subject === "header_row" && listener(watched.reading), IGNORE_THE_REFUSAL),
+      watchAreaExpansion: (listener) => watchFor({ kind: "area_expansion" }, (watched) => watched.subject === "area_expansion" && listener(watched.reading.is_expanded), IGNORE_THE_REFUSAL),
+      expandTheArea: (isExpanded) => ask({ kind: "expand_the_area", is_expanded: isExpanded }).then(doneOf),
       select: (selection) => ask({ kind: "select", selection }).then(doneOf),
-      openStreamTab: (streamTab) =>
-        ask({ kind: "open_stream_tab", stream_tab: streamTab }).then(doneOf),
-      openView: (viewTypeId, on) =>
-        ask({ kind: "open_view", view_type_id: viewTypeId, on }).then(doneOf),
-      rememberSettings: (settings) =>
-        ask({ kind: "remember_settings", settings }).then(doneOf),
+      openStreamTab: (streamTab) => ask({ kind: "open_stream_tab", stream_tab: streamTab }).then(doneOf),
+      openView: (viewTypeId, on) => ask({ kind: "open_view", view_type_id: viewTypeId, on }).then(doneOf),
+      rememberSettings: (settings) => ask({ kind: "remember_settings", settings }).then(doneOf),
       readProjectFile: (file) =>
-        ask({ kind: "read_project_file", file }).then(
-          (answer): ProjectFileReading => {
-            if (answer.kind === "project_file_read")
-              return { kind: "read", file_read: answer.file_read };
-            return {
-              kind: "not_read",
-              because:
-                answer.kind === "refused"
-                  ? answer.because
-                  : `Tato Studio answered with ${answer.kind}.`,
-            };
-          },
-        ),
+        ask({ kind: "read_project_file", file }).then((answer): ProjectFileReading => {
+          if (answer.kind === "project_file_read") return { kind: "read", file_read: answer.file_read };
+          return { kind: "not_read", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
       saveProjectFile: (file, text, basedOnVersion) =>
-        ask({
-          kind: "save_project_file",
-          file,
-          text,
-          based_on_version: basedOnVersion,
-        }).then((answer): ProjectFileSaving => {
-          if (answer.kind === "project_file_saved")
-            return { kind: "saved", version: answer.version };
-          return {
-            kind: "not_saved",
-            because:
-              answer.kind === "refused"
-                ? answer.because
-                : `Tato Studio answered with ${answer.kind}.`,
-          };
+        ask({ kind: "save_project_file", file, text, based_on_version: basedOnVersion }).then((answer): ProjectFileSaving => {
+          if (answer.kind === "project_file_saved") return { kind: "saved", version: answer.version };
+          return { kind: "not_saved", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
         }),
       createNodeFile: (file) =>
-        ask({ kind: "create_node_file", file }).then(
-          (answer): NodeFileCreating => {
-            if (answer.kind === "node_file_created")
-              return {
-                kind: "created",
-                file: answer.file,
-                node_type: answer.node_type,
-              };
-            return {
-              kind: "not_created",
-              because:
-                answer.kind === "refused"
-                  ? answer.because
-                  : `Tato Studio answered with ${answer.kind}.`,
-            };
-          },
-        ),
+        ask({ kind: "create_node_file", file }).then((answer): NodeFileCreating => {
+          if (answer.kind === "node_file_created") return { kind: "created", file: answer.file, node_type: answer.node_type };
+          return { kind: "not_created", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
       listProjectFiles: (projectFolder) =>
-        ask({ kind: "list_project_files", project_folder: projectFolder }).then(
-          (answer): ProjectFilesListing => {
-            if (answer.kind === "project_files_listed")
-              return { kind: "listed", project_files: answer.project_files };
-            return {
-              kind: "not_listed",
-              because:
-                answer.kind === "refused"
-                  ? answer.because
-                  : `Tato Studio answered with ${answer.kind}.`,
-            };
-          },
-        ),
-      undoInTheProject: (projectFolder, author) =>
-        ask({
-          kind: "undo_in_the_project",
-          project_folder: projectFolder,
-          author,
-        }).then(transactionApplyingOf),
-      redoInTheProject: (projectFolder, author) =>
-        ask({
-          kind: "redo_in_the_project",
-          project_folder: projectFolder,
-          author,
-        }).then(transactionApplyingOf),
+        ask({ kind: "list_project_files", project_folder: projectFolder }).then((answer): ProjectFilesListing => {
+          if (answer.kind === "project_files_listed") return { kind: "listed", project_files: answer.project_files };
+          return { kind: "not_listed", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
+      undoInTheProject: (projectFolder, author) => ask({ kind: "undo_in_the_project", project_folder: projectFolder, author }).then(transactionApplyingOf),
+      redoInTheProject: (projectFolder, author) => ask({ kind: "redo_in_the_project", project_folder: projectFolder, author }).then(transactionApplyingOf),
       transactInTheProject: (projectFolder, operations, sending) =>
-        ask({
-          kind: "transact_in_the_project",
-          project_folder: projectFolder,
-          operations: [...operations],
-          mode: sending.mode,
-          idempotency_key: sending.idempotencyKey,
-        }).then(graphTransactionApplyingOf),
+        ask({ kind: "transact_in_the_project", project_folder: projectFolder, operations: [...operations], mode: sending.mode, idempotency_key: sending.idempotencyKey }).then(graphTransactionApplyingOf),
       importAssetsIntoTheProject: (projectFolder) =>
-        ask({
-          kind: "import_assets_into_the_project",
-          project_folder: projectFolder,
-        }).then((answer): ProjectAssetsImporting => {
-          if (answer.kind === "project_assets_imported")
-            return {
-              kind: "imported",
-              assets_imported: answer.assets_imported,
-            };
-          if (answer.kind === "nothing_chosen")
-            return { kind: "nothing_chosen" };
-          return {
-            kind: "not_imported",
-            because:
-              answer.kind === "refused"
-                ? answer.because
-                : `Tato Studio answered with ${answer.kind}.`,
-          };
+        ask({ kind: "import_assets_into_the_project", project_folder: projectFolder }).then((answer): ProjectAssetsImporting => {
+          if (answer.kind === "project_assets_imported") return { kind: "imported", assets_imported: answer.assets_imported };
+          if (answer.kind === "nothing_chosen") return { kind: "nothing_chosen" };
+          return { kind: "not_imported", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
         }),
-      watchAreasForTheViewType: (
-        viewTypeId,
-        listener,
-        whenRefused = IGNORE_THE_REFUSAL,
-      ) =>
-        watchFor(
-          { kind: "areas_for_the_view_type", view_type_id: viewTypeId },
-          (watched) =>
-            watched.subject === "areas_for_the_view_type" &&
-            listener(watched.reading),
-          whenRefused,
-        ),
-      relocateAssetInTheProject: (projectFolder, asset, toPath) =>
-        ask({
-          kind: "relocate_asset_in_the_project",
-          project_folder: projectFolder,
-          asset,
-          to_path: toPath,
-        }).then(doneOf),
+      watchAreasForTheViewType: (viewTypeId, listener, whenRefused = IGNORE_THE_REFUSAL) =>
+        watchFor({ kind: "areas_for_the_view_type", view_type_id: viewTypeId }, (watched) => watched.subject === "areas_for_the_view_type" && listener(watched.reading), whenRefused),
+      relocateAssetInTheProject: (projectFolder, asset, toPath) => ask({ kind: "relocate_asset_in_the_project", project_folder: projectFolder, asset, to_path: toPath }).then(doneOf),
       readAssetPreviewInTheProject: (projectFolder, asset) =>
-        ask({
-          kind: "read_asset_preview_in_the_project",
-          project_folder: projectFolder,
-          asset,
-        }).then((answer): AssetPreviewReading => {
-          if (answer.kind === "asset_preview_read")
-            return { kind: "read", picture: answer.picture };
-          return {
-            kind: "not_read",
-            because:
-              answer.kind === "refused"
-                ? answer.because
-                : `Tato Studio answered with ${answer.kind}.`,
-          };
+        ask({ kind: "read_asset_preview_in_the_project", project_folder: projectFolder, asset }).then((answer): AssetPreviewReading => {
+          if (answer.kind === "asset_preview_read") return { kind: "read", picture: answer.picture };
+          return { kind: "not_read", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
         }),
-      deleteAssetFromTheProject: (projectFolder, asset) =>
-        ask({
-          kind: "delete_asset_from_the_project",
-          project_folder: projectFolder,
-          asset,
-        }).then(doneOf),
-      showViewTypeInArea: (viewTypeId, areaId) =>
-        ask({
-          kind: "show_view_type_in_area",
-          view_type_id: viewTypeId,
-          area_id: areaId,
-        }).then(doneOf),
-      openModulesAndMarketplace: (shows) =>
-        ask({ kind: "open_modules_and_marketplace", shows }).then(doneOf),
+      deleteAssetFromTheProject: (projectFolder, asset) => ask({ kind: "delete_asset_from_the_project", project_folder: projectFolder, asset }).then(doneOf),
+      showViewTypeInArea: (viewTypeId, areaId) => ask({ kind: "show_view_type_in_area", view_type_id: viewTypeId, area_id: areaId }).then(doneOf),
+      openModulesAndMarketplace: (shows) => ask({ kind: "open_modules_and_marketplace", shows }).then(doneOf),
       pickAPortInTheStreamGraph: (pick) =>
-        ask({ kind: "pick_a_port_in_the_stream_graph", pick }).then(
-          (answer): PortPickEnding => {
-            if (answer.kind === "port_picked")
-              return { kind: "picked", node: answer.node, port: answer.port };
-            if (answer.kind === "port_pick_ended")
-              return { kind: "ended", because: answer.because };
-            return {
-              kind: "not_started",
-              because:
-                answer.kind === "refused"
-                  ? answer.because
-                  : `Tato Studio answered with ${answer.kind}.`,
-            };
-          },
-        ),
-      watchPortPick: (listener, whenRefused = IGNORE_THE_REFUSAL) =>
-        watchFor(
-          { kind: "port_pick" },
-          (watched) =>
-            watched.subject === "port_pick" && listener(watched.reading),
-          whenRefused,
-        ),
-      answerThePortPick: (node, port) =>
-        ask({ kind: "answer_the_port_pick", node, port }).then(doneOf),
+        ask({ kind: "pick_a_port_in_the_stream_graph", pick }).then((answer): PortPickEnding => {
+          if (answer.kind === "port_picked") return { kind: "picked", node: answer.node, port: answer.port };
+          if (answer.kind === "port_pick_ended") return { kind: "ended", because: answer.because };
+          return { kind: "not_started", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
+      watchPortPick: (listener, whenRefused = IGNORE_THE_REFUSAL) => watchFor({ kind: "port_pick" }, (watched) => watched.subject === "port_pick" && listener(watched.reading), whenRefused),
+      answerThePortPick: (node, port) => ask({ kind: "answer_the_port_pick", node, port }).then(doneOf),
       endThePortPick: () => ask({ kind: "end_the_port_pick" }).then(doneOf),
       readThePersonEditing: () =>
-        ask({ kind: "read_the_person_editing" }).then(
-          (answer): ThePersonEditingReading => {
-            if (answer.kind === "the_person_editing")
-              return { kind: "read", author: answer.author };
-            return {
-              kind: "not_read",
-              because:
-                answer.kind === "refused"
-                  ? answer.because
-                  : `Tato Studio answered with ${answer.kind}.`,
-            };
-          },
-        ),
+        ask({ kind: "read_the_person_editing" }).then((answer): ThePersonEditingReading => {
+          if (answer.kind === "the_person_editing") return { kind: "read", author: answer.author };
+          return { kind: "not_read", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
       connectToPythonLanguageServer: (projectFolder, onEvent) => {
         const { watchId, stopWatching } = watch(
           { kind: "python_language_server", project_folder: projectFolder },
           {
             onWatched: (watched) => {
-              if (watched.subject === "python_language_server")
-                onEvent(watched.reading);
+              if (watched.subject === "python_language_server") onEvent(watched.reading);
             },
             whenRefused: (because) => onEvent({ kind: "ended", because }),
           },
         );
         return {
-          send: (message) =>
-            void ask({
-              kind: "send_to_python_language_server",
-              watch_id: watchId,
-              message,
-            }),
+          send: (message) => void ask({ kind: "send_to_python_language_server", watch_id: watchId, message }),
           close: stopWatching,
         };
       },
-      sendOutput: async (output, payload) =>
-        doneOf(await ask({ kind: "send_output", output }, payload)),
+      sendOutput: async (output, payload) => doneOf(await ask({ kind: "send_output", output }, payload)),
       close: () => {
         if (isClosed) return;
         isClosed = true;
         watchesHeldById.clear();
-        for (const answerWaiter of answerWaitersByAskId.values())
-          answerWaiter({ kind: "refused", because: CLOSED_BECAUSE });
+        for (const answerWaiter of answerWaitersByAskId.values()) answerWaiter({ kind: "refused", because: CLOSED_BECAUSE });
         answerWaitersByAskId.clear();
         port.removeEventListener("message", onPortMessage);
         port.close();
@@ -795,23 +389,12 @@ export function connectToTatoAppOverPort(
 }
 
 /** The view's connection, once Studio hands `viewWindow`'s frame its port and says what it granted. */
-export function connectToTatoApp(
-  viewWindow: Window = window,
-): Promise<TatoAppViewConnection> {
+export function connectToTatoApp(viewWindow: Window = window): Promise<TatoAppViewConnection> {
   return new Promise((resolveConnection) => {
     const onHandover = (event: MessageEvent<unknown>) => {
       const port = event.ports[0];
-      const isTheHandover =
-        typeof event.data === "object" &&
-        event.data !== null &&
-        "kind" in event.data &&
-        event.data.kind === VIEW_PORT_HANDOVER;
-      if (
-        event.source !== viewWindow.parent ||
-        !isTheHandover ||
-        port === undefined
-      )
-        return;
+      const isTheHandover = typeof event.data === "object" && event.data !== null && "kind" in event.data && event.data.kind === VIEW_PORT_HANDOVER;
+      if (event.source !== viewWindow.parent || !isTheHandover || port === undefined) return;
       viewWindow.removeEventListener("message", onHandover);
       resolveConnection(connectToTatoAppOverPort(port));
     };

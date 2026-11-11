@@ -2,23 +2,21 @@
 // content digest through the view's connection, a few at a time, so a rename or move keeps the
 // picture and a replace reads it again.
 
-import type {
-  AssetPreviewReading,
-  ProjectAsset,
-} from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { AssetPreviewReading, ProjectAsset } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** How many preview pictures are read from Studio at once. */
 const PREVIEW_PICTURE_READS_AT_ONCE = 4;
 
 /** An asset's preview picture as the Library holds it: being read, read, or why not. */
-export type LibraryAssetPreviewPicture =
-  | { kind: "reading" }
-  | AssetPreviewReading;
+export type LibraryAssetPreviewPicture = { kind: "reading" } | AssetPreviewReading;
 
 /** Reads `asset`'s preview picture from Studio. */
-export type ReadAnAssetPreviewPicture = (
-  asset: string,
-) => Promise<AssetPreviewReading>;
+export type ReadAnAssetPreviewPicture = (asset: string) => Promise<AssetPreviewReading>;
+
+/** The `data:` URL to draw for a held picture, `null` while it is being read, was refused, or the asset has none. */
+export function previewPictureUrlOf(previewPicture: LibraryAssetPreviewPicture | null): string | null {
+  return previewPicture?.kind === "read" ? previewPicture.picture.picture_url : null;
+}
 
 /** The key a picture is kept under: its asset and the digest of the bytes it was made from. */
 function previewPictureKeyOf(asset: ProjectAsset): string {
@@ -27,10 +25,7 @@ function previewPictureKeyOf(asset: ProjectAsset): string {
 
 /** The preview pictures read for one project's assets, each read once per content digest, at most a few at a time, calling `onPictureRead` as each one lands. */
 export class LibraryAssetPreviewPicturesReadOnce {
-  private readonly picturesByKey = new Map<
-    string,
-    LibraryAssetPreviewPicture
-  >();
+  private readonly picturesByKey = new Map<string, LibraryAssetPreviewPicture>();
   private readonly assetsWaitingToBeRead: ProjectAsset[] = [];
   private readsUnderWay = 0;
   private isStopped = false;
@@ -59,10 +54,7 @@ export class LibraryAssetPreviewPicturesReadOnce {
   }
 
   private readTheNextPictures(): void {
-    while (
-      !this.isStopped &&
-      this.readsUnderWay < PREVIEW_PICTURE_READS_AT_ONCE
-    ) {
+    while (!this.isStopped && this.readsUnderWay < PREVIEW_PICTURE_READS_AT_ONCE) {
       const asset = this.assetsWaitingToBeRead.shift();
       if (asset === undefined) return;
       this.readsUnderWay += 1;
@@ -73,14 +65,7 @@ export class LibraryAssetPreviewPicturesReadOnce {
         this.onPictureRead();
         this.readTheNextPictures();
       };
-      void this.readThePicture(asset.asset).then(
-        keepTheReading,
-        (rejection: unknown) =>
-          keepTheReading({
-            kind: "not_read",
-            because: `Tato Studio did not answer: ${String(rejection)}`,
-          }),
-      );
+      void this.readThePicture(asset.asset).then(keepTheReading, (rejection: unknown) => keepTheReading({ kind: "not_read", because: `Tato Studio did not answer: ${String(rejection)}` }));
     }
   }
 }

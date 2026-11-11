@@ -63,21 +63,9 @@ export type {
   PortViewerArrayAttributeReading,
   PortViewerMessageReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
-export {
-  PORT_FAMILIES,
-  type PortFamily,
-} from "@tatolab/tato-app-view-sdk/port_families";
-export {
-  TATO_STUDIO_MCP_CLIENT_NAME,
-  graphEditModeSchema,
-  streamGraphActionSchema,
-} from "@tatolab/tato-app-view-sdk/studio_readings";
-import type {
-  JsonValue,
-  ListedStream,
-  PortViewerMessageReading,
-  ProjectLogRecord,
-} from "@tatolab/tato-app-view-sdk/studio_readings";
+export { PORT_FAMILIES, type PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
+export { TATO_STUDIO_MCP_CLIENT_NAME, graphEditModeSchema, streamGraphActionSchema } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { JsonValue, ListedStream, PortViewerMessageReading, ProjectLogRecord } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The platform the app runs on, which decides the window's chrome. */
 export type TatolabPlatform = "macos" | "linux";
@@ -90,9 +78,7 @@ export type TatolabPlatform = "macos" | "linux";
 export type RuntimeState = "running" | "starting" | "not_running";
 
 /** How a newer Tatolab found by a check reaches the person: downloaded in the background and installed in place as the app restarts; or its download opened, for a `.deb`, which only apt replaces. */
-export type TatolabAppUpdateDelivery =
-  | "install_and_relaunch"
-  | "open_the_download";
+export type TatolabAppUpdateDelivery = "install_and_relaunch" | "open_the_download";
 
 /**
  * Where checking for a newer Tatolab stands. `not_offered` is an app that cannot update itself (an
@@ -117,13 +103,10 @@ export type TatolabAppUpdateState =
  * install, offered once per version each time the app runs; `update_landed` is the version the app opened as for the first
  * time since an update, with its release notes.
  */
-export type TatolabAppUpdateAnnouncement =
-  | { kind: "update_ready"; version: string }
-  | { kind: "update_landed"; version: string; release_notes_url: string };
+export type TatolabAppUpdateAnnouncement = { kind: "update_ready"; version: string } | { kind: "update_landed"; version: string; release_notes_url: string };
 
 /** Which update dialog an announcement is. */
-export type TatolabAppUpdateAnnouncementKind =
-  TatolabAppUpdateAnnouncement["kind"];
+export type TatolabAppUpdateAnnouncementKind = TatolabAppUpdateAnnouncement["kind"];
 
 /** How the person answered the update dialog: its action (Install Update, or Release Notes), or closing it. */
 export type TatolabAppUpdateAnnouncementAnswer = "take_its_action" | "dismiss";
@@ -248,9 +231,7 @@ export interface ProjectLogRecordsPage {
 }
 
 /** What a project folder is chosen for in the app's folder dialog: a project to import, or the folder a new project is created in, which may not exist yet. */
-export type StreamProjectFolderChosenFor =
-  | "project_to_run"
-  | "new_project_directory";
+export type StreamProjectFolderChosenFor = "project_to_run" | "new_project_directory";
 
 /** What `create_project` answers at once: the action it queued, the stream id the new project's `main` runs under, and the project's folder resolved. */
 export interface ProjectCreationQueued {
@@ -339,9 +320,7 @@ export interface StreamActionCancelAnswer {
 }
 
 /** What following a stream action read: its description, or the runtime's words that it no longer holds the action. */
-export type StreamActionFollowed =
-  | { kind: "described"; description: StreamActionDescription }
-  | { kind: "not_held"; words: string };
+export type StreamActionFollowed = { kind: "described"; description: StreamActionDescription } | { kind: "not_held"; words: string };
 
 /** A view popped out of a studio window into a window of its own: its view type, the words that window is titled with, and what it is pinned to. */
 export interface PoppedOutView {
@@ -381,11 +360,7 @@ export interface PackageCatalogEntry {
 
 /** What `read_package_catalog` answers: the catalog's entries and how many it served that the app could not read, or why it was not read, in the words of what refused. */
 export type PackageCatalogReading =
-  | {
-      kind: "read";
-      entries: PackageCatalogEntry[];
-      unreadable_entry_count: number;
-    }
+  | { kind: "read"; entries: PackageCatalogEntry[]; unreadable_entry_count: number }
   | { kind: "not_read"; because: string };
 
 /** A project the workspace imports, as the runtime's dependency tools answer it: a copy of `source` in `imports/<folder>/`. */
@@ -416,20 +391,13 @@ export interface WorkspaceDependency extends ProjectDependency {
 }
 
 /** The views one import brings, or why the runtime listed none. */
-export type ViewsOfAWorkspaceDependency =
-  | { kind: "listed"; views: ViewOfAWorkspaceDependency[] }
-  | { kind: "not_listed"; because: string };
+export type ViewsOfAWorkspaceDependency = { kind: "listed"; views: ViewOfAWorkspaceDependency[] } | { kind: "not_listed"; because: string };
 
 /** One view an import brings: its node type, its `tatolab_view.json` as written (`null` when it is not JSON), and whether it opens. */
-export type ViewOfAWorkspaceDependency = {
-  view_type_id: string;
-  manifest_json: JsonValue | null;
-} & StudioViewOpening;
+export type ViewOfAWorkspaceDependency = { view_type_id: string; manifest_json: JsonValue | null } & StudioViewOpening;
 
 /** What `update_workspace_dependency` answers: the copy updated, or, with the overwrite not confirmed, each file edited since its copy and nothing changed. */
-export type WorkspaceDependencyUpdate =
-  | { kind: "updated"; dependency: ProjectDependency }
-  | { kind: "edited_since_its_copy"; edited_files: string[] };
+export type WorkspaceDependencyUpdate = { kind: "updated"; dependency: ProjectDependency } | { kind: "edited_since_its_copy"; edited_files: string[] };
 
 /** What a dependency source is chosen as in the dialog: a project's folder, or a `.zip` of one. */
 export type DependencySourceKind = "folder" | "zip";
@@ -495,9 +463,7 @@ export type PythonLanguageServerEvent =
 export type ListedStudioView = ListedStudioViewFacts & StudioViewOpening;
 
 /** Whether the runtime opens a listed view, and when it does not, why in its own words. */
-export type StudioViewOpening =
-  | { opens: true; not_opened_because: null }
-  | { opens: false; not_opened_because: string };
+export type StudioViewOpening = { opens: true; not_opened_because: null } | { opens: false; not_opened_because: string };
 
 /** What the window draws a listed view from, beside whether it opens. */
 export interface ListedStudioViewFacts {
@@ -538,44 +504,20 @@ export type PortViewerEvent =
       pixels: Uint8Array;
       skipped_since_last_read: number;
     }
-  | {
-      port_viewer: string;
-      kind: "message";
-      reading: PortViewerMessageReading;
-      skipped_since_last_read: number;
-    }
+  | { port_viewer: string; kind: "message"; reading: PortViewerMessageReading; skipped_since_last_read: number }
   | { port_viewer: string; kind: "reopening"; because: string }
   | { port_viewer: string; kind: "ended"; because: string };
 
 /** The items of the system menu bar only the desktop draws, which a studio menu places among its own entries: macOS's Services, Hide and Quit; Undo through Select All; Close Window, on ⇧⌘W beside a Close tab that holds ⌘W; Minimize and Zoom; Bring All to Front; and Enter Full Screen. */
-export type SystemMenuBarItems =
-  | "app_services_hide_and_quit"
-  | "text_editing"
-  | "close_window"
-  | "close_window_beside_close_tab"
-  | "window_arrangement"
-  | "bring_all_to_front"
-  | "full_screen";
+export type SystemMenuBarItems = "app_services_hide_and_quit" | "text_editing" | "close_window" | "close_window_beside_close_tab" | "window_arrangement" | "bring_all_to_front" | "full_screen";
 
 /** The menus macOS treats as its own: the app menu, named for the app whatever its label; the Window menu, which lists the open windows; and the Help menu, which holds the menu search. */
 export type SystemMenuOfTheDesktop = "app" | "window" | "help";
 
 /** One entry of a studio menu as the window sends it to the system menu bar: a command (dim, saying why, while `unavailable_because` is set), one of a set of choices, a submenu, a hairline, or items the desktop draws. `entry_id` is what `tatolab-system-menu-bar-entry-chosen` names when the person chooses it; `shortcut_hint` is the key cap the window shows, as `⌘O`, `F5` or `Shift F5`. */
 export type SystemMenuBarEntry =
-  | {
-      kind: "command";
-      entry_id: string;
-      label: string;
-      shortcut_hint: string | null;
-      unavailable_because: string | null;
-    }
-  | {
-      kind: "choice";
-      entry_id: string;
-      label: string;
-      shortcut_hint: string | null;
-      is_chosen: boolean;
-    }
+  | { kind: "command"; entry_id: string; label: string; shortcut_hint: string | null; unavailable_because: string | null }
+  | { kind: "choice"; entry_id: string; label: string; shortcut_hint: string | null; is_chosen: boolean }
   | { kind: "submenu"; label: string; entries: SystemMenuBarEntry[] }
   | { kind: "separator" }
   | { kind: "system_items"; system_items: SystemMenuBarItems };

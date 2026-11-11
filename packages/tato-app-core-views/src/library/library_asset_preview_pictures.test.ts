@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type {
-  AssetPreviewReading,
-  ProjectAsset,
-} from "@tatolab/tato-app-view-sdk/studio_readings";
-import { LibraryAssetPreviewPicturesReadOnce } from "./library_asset_preview_pictures";
+import type { AssetPreviewReading, ProjectAsset } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { LibraryAssetPreviewPicturesReadOnce, previewPictureUrlOf } from "./library_asset_preview_pictures";
 
 const POSTER_FRAME = {
   pixel_width: 512,
@@ -11,10 +8,7 @@ const POSTER_FRAME = {
   media_type: "image/png",
 };
 
-const assetWithAPreview = (
-  asset: string,
-  contentSha256 = "a".repeat(64),
-): ProjectAsset => ({
+const assetWithAPreview = (asset: string, contentSha256 = "a".repeat(64)): ProjectAsset => ({
   asset,
   kind: "media",
   path: `media/${asset}.mp4`,
@@ -88,9 +82,7 @@ describe("the Library's asset preview pictures", () => {
         path: "media/renamed.mp4",
       }),
     ).toEqual(pictureOf("clip"));
-    expect(
-      previewPictures.pictureOf(assetWithAPreview("clip", "b".repeat(64))),
-    ).toEqual({ kind: "reading" });
+    expect(previewPictures.pictureOf(assetWithAPreview("clip", "b".repeat(64)))).toEqual({ kind: "reading" });
     await settled();
     expect(readsAsked.map((read) => read.asset)).toEqual(["clip", "clip"]);
   });
@@ -113,19 +105,12 @@ describe("the Library's asset preview pictures", () => {
 
   it("reads at most four pictures at once, the next starting as one lands", async () => {
     const { previewPictures, readsAsked } = heldPreviewReads();
-    for (const asset of ["a", "b", "c", "d", "e", "f"])
-      previewPictures.pictureOf(assetWithAPreview(asset));
+    for (const asset of ["a", "b", "c", "d", "e", "f"]) previewPictures.pictureOf(assetWithAPreview(asset));
     await settled();
     expect(readsAsked.map((read) => read.asset)).toEqual(["a", "b", "c", "d"]);
     readsAsked[0]?.answer(pictureOf("a"));
     await settled();
-    expect(readsAsked.map((read) => read.asset)).toEqual([
-      "a",
-      "b",
-      "c",
-      "d",
-      "e",
-    ]);
+    expect(readsAsked.map((read) => read.asset)).toEqual(["a", "b", "c", "d", "e"]);
   });
 
   it("reads nothing more and draws nothing once stopped", async () => {
@@ -136,5 +121,21 @@ describe("the Library's asset preview pictures", () => {
     readsAsked[0]?.answer(pictureOf("clip"));
     await settled();
     expect(picturesLanded()).toBe(0);
+  });
+  it("reads a video's poster once a later listing gives it a preview, having asked nothing before", async () => {
+    const { previewPictures, readsAsked } = heldPreviewReads();
+    expect(previewPictures.pictureOf({ ...assetWithAPreview("quay-walk"), preview: null })).toBeNull();
+    await settled();
+    expect(readsAsked).toEqual([]);
+    expect(previewPictures.pictureOf(assetWithAPreview("quay-walk"))).toEqual({ kind: "reading" });
+    await settled();
+    expect(readsAsked.map((read) => read.asset)).toEqual(["quay-walk"]);
+  });
+
+  it("draws a picture's URL only once it is read", () => {
+    expect(previewPictureUrlOf(pictureOf("poster"))).toBe("data:image/png;base64,poster");
+    expect(previewPictureUrlOf({ kind: "reading" })).toBeNull();
+    expect(previewPictureUrlOf({ kind: "not_read", because: "read_asset_preview failed" })).toBeNull();
+    expect(previewPictureUrlOf(null)).toBeNull();
   });
 });
