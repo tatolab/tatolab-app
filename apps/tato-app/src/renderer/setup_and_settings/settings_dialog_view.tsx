@@ -411,8 +411,8 @@ function isASettingsSection(sectionId: string): sectionId is SettingsSection {
   return sectionId in SECTION_VIEWS;
 }
 
-/** Preferences over the studio, open on `shownSection` while it is not `null`: General, Developer, Runtime, Command line and About. */
-export function PreferencesDialogView({
+/** Settings over the studio, open on `shownSection` while it is not `null`: General, Developer, Runtime, Command line and About. */
+export function SettingsDialogView({
   shownSection,
   onSectionChosen,
   onClosed,
@@ -428,7 +428,7 @@ export function PreferencesDialogView({
       onOpenChange={(isOpen) => {
         if (!isOpen) onClosed();
       }}
-      title="Preferences"
+      title="Settings"
       sectionGroups={SETTINGS_SECTION_GROUPS.map(({ groupLabel, sections }) => ({
         groupLabel,
         sections: sections.map(({ section, label }) => ({ section_id: section, label, icon: SECTION_ICONS[section] })),

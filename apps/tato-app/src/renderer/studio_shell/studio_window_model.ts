@@ -77,8 +77,8 @@ export class StudioWindowModel {
   readonly selection = new WatchedStudioValue<StudioSelection>({ kind: "nothing" });
   readonly openStreamTabs = new WatchedStudioValue<OpenStreamTabs>({ tabs: [], active_stream: null });
   readonly activeStreamTab = new WatchedStudioValue<StreamTabAddress | null>(null);
-  /** The section Preferences shows while it is open; `null` while it is closed. */
-  readonly preferencesSection = new WatchedStudioValue<SettingsSection | null>(null);
+  /** The section Settings shows while it is open; `null` while it is closed. */
+  readonly settingsSection = new WatchedStudioValue<SettingsSection | null>(null);
   /** What the New project sheet opened with while it shows, a new project's name and location or a `.zip` to import; `null` while it is closed. */
   readonly newProjectSheetOpenedWith = new WatchedStudioValue<NewProjectSheetOpening | null>(null);
   /** Why the last rename, duplicate or delete the Projects window asked of a project did not happen, until it is dismissed or another is asked for. */

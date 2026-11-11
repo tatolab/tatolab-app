@@ -50,7 +50,7 @@ function describedAs(runtimeDescriptionChanges: Partial<RuntimeDescription>) {
   };
 }
 
-describe("Preferences' sections", () => {
+describe("Settings' sections", () => {
   it("lists General, Developer, Runtime, Command line and About, in that order", () => {
     expect(SETTINGS_SECTION_GROUPS.flatMap((group) => group.sections.map(({ section }) => section))).toEqual(["general", "developer", "runtime", "command-line", "about"]);
   });

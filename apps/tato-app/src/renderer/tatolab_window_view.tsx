@@ -10,7 +10,7 @@ import {
   TatolabWindowEnvironmentContext,
   TatolabWindowStatusStore,
   type TatolabWindowEnvironment,
-} from "./setup_and_preferences/tatolab_window_context";
+} from "./setup_and_settings/tatolab_window_context";
 import { RUN_LIVE_KEY, studioMenusSentToTheSystemMenuBar, type StudioMenuBarCommands } from "./studio_shell/studio_menu_bar_model";
 import { ModuleManagerWindowView, type ModuleManagerSources } from "./studio_shell/module_manager_window_view";
 import { PoppedOutViewWindowView } from "./studio_shell/popped_out_view_window_view";
@@ -193,16 +193,16 @@ export function mountTatolabWindow(
         (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
       );
     },
-    openPreferences: () => studioWindowModel.preferencesSection.publish("general"),
-    openAbout: () => studioWindowModel.preferencesSection.publish("about"),
+    openSettings: () => studioWindowModel.settingsSection.publish("general"),
+    openAbout: () => studioWindowModel.settingsSection.publish("about"),
     checkForAppUpdates: () => {
       studioWindowModel.appUpdateChoiceRefusal.publish(null);
-      studioWindowModel.preferencesSection.publish("about");
+      studioWindowModel.settingsSection.publish("about");
       backend.checkForTatolabAppUpdates().catch((rejection: unknown) => studioWindowModel.appUpdateChoiceRefusal.publish(describeBackendRejection(rejection)));
     },
     takeTheNewerAppVersion: () => {
       studioWindowModel.appUpdateChoiceRefusal.publish(null);
-      studioWindowModel.preferencesSection.publish("about");
+      studioWindowModel.settingsSection.publish("about");
       backend.takeTheNewerTatolabAppVersion().catch((rejection: unknown) => studioWindowModel.appUpdateChoiceRefusal.publish(describeBackendRejection(rejection)));
     },
     chooseLayout: (layoutName) => studioWindowModel.chooseLayout(layoutName),
@@ -351,7 +351,7 @@ export function mountTatolabWindow(
         studioMenuBarCommands.createAProject();
         return true;
       case ",":
-        studioMenuBarCommands.openPreferences();
+        studioMenuBarCommands.openSettings();
         return true;
       default:
         return false;

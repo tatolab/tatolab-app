@@ -9,10 +9,10 @@ import type {
 } from "../../shared/tatolab_backend_contract";
 import { presentRuntimeStatus, type StatusTone } from "./runtime_presentation";
 
-/** A section of Preferences. */
+/** A section of Settings. */
 export type SettingsSection = "general" | "developer" | "runtime" | "command-line" | "about";
 
-/** Preferences' sections in the order its list shows them, under the group each sits in. */
+/** Settings' sections in the order its list shows them, under the group each sits in. */
 export const SETTINGS_SECTION_GROUPS: readonly { groupLabel: string; sections: readonly { section: SettingsSection; label: string }[] }[] = [
   {
     groupLabel: "App",
@@ -31,10 +31,10 @@ export const SETTINGS_SECTION_GROUPS: readonly { groupLabel: string; sections: r
   { groupLabel: "Tato Studio", sections: [{ section: "about", label: "About" }] },
 ];
 
-/** The words Preferences' list names `section` by. */
+/** The words Settings' list names `section` by. */
 export function settingsSectionLabel(section: SettingsSection): string {
   const named = SETTINGS_SECTION_GROUPS.flatMap((sectionGroup) => sectionGroup.sections).find((listedSection) => listedSection.section === section);
-  return named?.label ?? "Preferences";
+  return named?.label ?? "Settings";
 }
 
 /** What the Developer mode switch adds, as its row describes it. */

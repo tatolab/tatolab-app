@@ -890,13 +890,13 @@ describe("the studio", () => {
     await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).not.toBeNull());
   });
 
-  it("shows the Projects window with no menu bar, a bare strip for the window buttons on macOS only, and a gear that opens Preferences", async () => {
+  it("shows the Projects window with no menu bar, a bare strip for the window buttons on macOS only, and a gear that opens Settings", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
     await waitFor(() => expect(document.querySelector("[data-projects]")).not.toBeNull());
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
     expect(document.querySelector("[data-projects-title-bar]")).not.toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Preferences" }));
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
 
     await waitFor(() => expect(document.querySelector('[data-settings-page="general"]')).not.toBeNull());
   });
@@ -1524,7 +1524,7 @@ describe("the window's first status", () => {
   });
 });
 
-describe("Preferences", () => {
+describe("Settings", () => {
   it("opens on macOS from Tato Studio › Settings… in the system menu bar, after About and Check for Updates…, on General", async () => {
     const { backendChanges, menusShownLast, chooseFromTheSystemMenuBar } = systemMenuBarOverTheMock();
     await mountedWindowOverTheMock("state=running", backendChanges);
@@ -1543,12 +1543,12 @@ describe("Preferences", () => {
     await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
   });
 
-  it("opens on Linux from Edit › Preferences… on General, listing every section under its group beside it", async () => {
+  it("opens on Linux from Edit › Settings… on General, listing every section under its group beside it", async () => {
     await mountedWindowOverTheMock("platform=linux&state=running");
-    await chooseFromTheMenuBar("Edit", /^Preferences…/);
+    await chooseFromTheMenuBar("Edit", /^Settings…/);
 
     await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
-    const sectionList = within(screen.getByRole("navigation", { name: "Preferences" }));
+    const sectionList = within(screen.getByRole("navigation", { name: "Settings" }));
     expect(sectionList.getByRole("button", { name: "General" }).getAttribute("aria-current")).toBe("page");
     expect(sectionList.getAllByRole("button").map((sectionButton) => sectionButton.textContent)).toEqual(["General", "Developer", "Runtime", "Command line", "About"]);
     expect(sectionList.getByText("This machine")).toBeTruthy();
@@ -1772,7 +1772,7 @@ describe("the update dialog", () => {
   });
 });
 
-describe("Preferences › Command line › tatolab", () => {
+describe("Settings › Command line › tatolab", () => {
   it("links ~/.local/bin/tatolab with no password, then shows the link and the PATH line", async () => {
     await mountedWindowOverTheMock("state=running&cli_link=not_linked");
     await openSettingsOn("command-line");

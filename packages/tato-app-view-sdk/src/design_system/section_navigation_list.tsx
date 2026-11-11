@@ -46,7 +46,7 @@ export function SectionNavigationList({
   onSectionChosen: (sectionId: string) => void;
   /** Set on each section's button to its id, as `data-settings-section="runtime"`. */
   dataAttributeOfEachSection: ControlDataAttributeName;
-  /** What sits at the list's foot, as the app's name and its Preferences. */
+  /** What sits at the list's foot, as the app's name and its Settings. */
   footer?: ReactNode;
   placement?: SectionNavigationListPlacement;
   width?: SectionNavigationListWidth;
