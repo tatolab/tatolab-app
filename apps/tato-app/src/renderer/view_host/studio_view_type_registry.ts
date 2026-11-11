@@ -24,6 +24,8 @@ export interface RegisteredStudioViewType {
   title: string;
   icon: StudioAreaHeaderMenuIcon;
   brought_by: StudioViewTypeSource;
+  /** The manifest the view type was made from. */
+  manifest: TatolabViewManifest;
   /** The view's frame across `area`, on the settings the area saved. */
   renderInAnArea(area: StudioAreaOfTheView, hostServices: StudioViewHostServices): ReactNode;
   /** Words Studio draws after the area's view-type menu, such as which node a node view shows; absent when the view draws its whole header row. */

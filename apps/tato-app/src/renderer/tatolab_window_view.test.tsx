@@ -259,6 +259,29 @@ describe("the studio", () => {
     expect(details.textContent).toContain("11 KB");
   });
 
+  it("lists in the Library the views the project and its imports bring by who brought them, Studio's own last, with the chosen view's ports or why it does not open", async () => {
+    await mountedWindowOverTheMock("state=running&studio_views=fixture");
+    await showTheLibraryInTheViewerArea();
+    await showInTheLibrary("views");
+
+    const library = coreViewPage("library");
+    const viewRowIds = () => [...library.querySelectorAll<HTMLElement>("[data-library-view]")].map((row) => row.dataset.libraryView);
+    await waitFor(() => expect(viewRowIds().slice(0, 2)).toEqual(["pattern/pattern:picture_and_fader", "lobby-wall/lobby-wall:stage_rig"]));
+    expect(viewRowIds()).toContain("Tato Studio/outliner");
+    expect(viewRowIds()).not.toContain("Tato Studio/transactions");
+    expect(library.querySelector('[data-library-view="pattern/pattern:picture_and_fader"]')?.textContent).toContain("Picture and fader · 1 in · 1 out");
+    const details = () => library.querySelector<HTMLElement>("[data-library-view-details]") ?? expect.unreachable("no view details");
+    expect(details().dataset.libraryViewDetails).toBe("pattern/pattern:picture_and_fader");
+    expect([...details().querySelectorAll<HTMLElement>("[data-library-view-port]")].map((port) => port.dataset.libraryViewPort)).toEqual(["picture", "fader"]);
+
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-view="lobby-wall/lobby-wall:stage_rig"]') ?? expect.unreachable("no Stage rig row"));
+    await waitFor(() => expect(details().dataset.libraryViewDetails).toBe("lobby-wall/lobby-wall:stage_rig"));
+    expect(details().textContent).toContain("`contract`: this runtime reads view contract 1.0.");
+
+    fireEvent.change(library.querySelector<HTMLInputElement>("[data-library-view-search]") ?? expect.unreachable("no search field"), { target: { value: "fader" } });
+    await waitFor(() => expect(viewRowIds()).toEqual(["pattern/pattern:picture_and_fader"]));
+  });
+
   it("imports the file the person chooses, which the runtime places in its kind's folder, shows it at once and opens its details", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
