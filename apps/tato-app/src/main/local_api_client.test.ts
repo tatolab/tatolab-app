@@ -1773,6 +1773,36 @@ test("a value a view writes is handed to its node's output with the stream, the 
   ]);
 });
 
+/** `write_graph_input` hands a stream's top-level Input a value, recorded nowhere, and each refusal reaches the caller in the runtime's own words. */
+test("writing a Graph Input calls write_graph_input with the stream, the Input and the value, reads the family it carries, and is refused in the runtime's own words for an undeclared Input, a value of another family and a stopped project", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-graph-input-tool-result-of-s06-perform-brightness.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-graph-input-tool-result-of-s06-perform-cue.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-graph-input-refusal-for-an-input-s06-perform-does-not-declare.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-graph-input-refusal-for-words-to-the-channels-input-brightness.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-graph-input-refusal-for-the-stopped-project-s06-perform.json")),
+  ]);
+  const stream = "s06-perform-main-0df4a7";
+
+  expect(answerOf(await server.client().writeGraphInput(stream, "brightness", 0.8))).toEqual({ stream, input: "brightness", family: "channels" });
+  expect(answerOf(await server.client().writeGraphInput(stream, "cue", { scene: "finale" }))).toEqual({ stream, input: "cue", family: "records" });
+  expect(failureOf(await server.client().writeGraphInput(stream, "contrast", 0.3)).failureDescription).toBe(
+    "write_graph_input failed: Processor not found: no `GraphInput` on the top level of the stream `s06-perform-main-0df4a7` declares the Input `contrast` and runs; a client writes the Inputs of family array, channels or records, and the stream's are: `brightness`, `cue`",
+  );
+  expect(failureOf(await server.client().writeGraphInput(stream, "brightness", "bright")).failureDescription).toBe(
+    'write_graph_input failed: Port error: output `value` of node `graphinput` carries Channels, and a Channels value is a number, a bool or `{"samples": [[...], ...], "sample_rate"}`',
+  );
+  expect(failureOf(await server.client().writeGraphInput(stream, "brightness", 0.4)).failureDescription).toBe(
+    "write_graph_input failed: Runtime error: the project of the stream `s06-perform-main-0df4a7` in /tmp/tatolab-proof-projects/s06-perform is stopped, so no node of it runs to publish on `value`; `start_playback` plays it",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["write_graph_input", { stream, input: "brightness", value: 0.8 }],
+    ["write_graph_input", { stream, input: "cue", value: { scene: "finale" } }],
+    ["write_graph_input", { stream, input: "contrast", value: 0.3 }],
+    ["write_graph_input", { stream, input: "brightness", value: "bright" }],
+    ["write_graph_input", { stream, input: "brightness", value: 0.4 }],
+  ]);
+});
 test("the_listing_reads_a_closed_projects_streams_closed_and_unloaded_beside_a_playing_and_a_stopped_one", async () => {
   const server = await fakeLocalApiServerAnswering([
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-playing-a-stopped-and-a-closed-project.json")),

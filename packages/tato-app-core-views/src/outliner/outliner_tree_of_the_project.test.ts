@@ -53,7 +53,7 @@ function graphNode(name: string, type: string, group: string | null, failedBecau
     dropped_bags_by_link: {},
     refused_bags_by_output_port: {},
     studio: { ...NODE_STUDIO_FIELDS_NONE_SET, group },
-    fragment: null,
+    fragment: null, graph_interface: null,
   };
 }
 

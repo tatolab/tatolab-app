@@ -131,6 +131,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "list_project_files",
   "list_studio_views_of_the_open_project",
   "write_studio_view_output",
+  "write_graph_input",
   "run_open_project",
   "read_open_project_transactions",
   "undo_in_the_open_project",
@@ -381,6 +382,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   list_studio_views_of_the_open_project: { commandArguments: undefined; answer: ListedStudioView[] };
   /** From a studio window or a popped-out view only: `value` published on the output `port` of the view node `node` (its UUID) in `stream`, as the port's family takes it: a Records port a JSON object, an Array port a number, nested lists of numbers or an object of such attributes by name, a Channels port a number or `{ samples, sample_rate }`, an Image or Packets port refused; live data, recorded nowhere; refused in the runtime's own words. */
   write_studio_view_output: { commandArguments: { stream: string; node: string; port: string; value: JsonValue }; answer: null };
+  /** From a studio window or a popped-out view only: `value` handed to the Input `input` of the running stream `stream`, which its top-level `GraphInput` publishes: an Array Input a number or lists of numbers of one shape, a Channels Input a number, a bool or `{ samples, sample_rate }`, a Records Input a JSON object; live data, recorded nowhere, the last write winning; refused in the runtime's own words. */
+  write_graph_input: { commandArguments: { stream: string; input: string; value: JsonValue }; answer: null };
   /** The runtime's `start_playback` queued on the open project's folder, which the window never names, after `open_project` while the runtime holds it closed and `reload_project` while a stream of it has failed; refused in the runtime's own words, or while no project is open. */
   run_open_project: { commandArguments: undefined; answer: ProjectStreamActionQueued };
   /** The asking studio window's project's change feed as last read; refused in the Projects window. */

@@ -292,8 +292,10 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
 
 /** The pattern's main stream declares two input ports, as the runtime renders a `GraphInput` back: no state, its `port` and `family` config, one `value` output. */
 const TEST_PATTERN_GRAPH_INPUTS: MockGraphNode[] = [
-  { name: "intensity", type: "tatolab.stream:GraphInput", state: null, config: { port: "intensity", family: "array" }, input_ports: [], output_ports: portsStatingNoStreamFacts("array", "value") },
-  { name: "overlay_text", type: "tatolab.stream:GraphInput", state: null, config: { port: "overlay_text", family: "records" }, input_ports: [], output_ports: portsStatingNoStreamFacts("records", "value") },
+  { name: "graphinput", type: "tatolab.stream:GraphInput", state: "Running", config: { port: "brightness", family: "channels", default: 0.5, range: [0, 1] }, input_ports: [], output_ports: portsStatingNoStreamFacts("channels", "value") },
+  { name: "graphinput-2", type: "tatolab.stream:GraphInput", state: "Running", config: { port: "strobe", family: "channels", default: false }, input_ports: [], output_ports: portsStatingNoStreamFacts("channels", "value") },
+  { name: "graphinput-3", type: "tatolab.stream:GraphInput", state: "Running", config: { port: "tint", family: "array", default: [1, 0.5, 0.25], range: [0, 1] }, input_ports: [], output_ports: portsStatingNoStreamFacts("array", "value") },
+  { name: "graphinput-4", type: "tatolab.stream:GraphInput", state: "Running", config: { port: "cue", family: "records", default: { scene: "intro" } }, input_ports: [], output_ports: portsStatingNoStreamFacts("records", "value") },
 ];
 
 /** A graph generator's frozen output beside the pattern: a halftone look, its dot size promoted to the subgraph's config, read only until unlocked. */

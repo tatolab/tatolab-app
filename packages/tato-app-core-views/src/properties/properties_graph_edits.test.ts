@@ -41,7 +41,7 @@ function aNode(name: string, inputs: StreamGraphDeclaredPort[], outputs: StreamG
     pins: {},
     exposed_config_fields: [],
     studio: NODE_STUDIO_FIELDS_NONE_SET,
-    fragment: null,
+    fragment: null, graph_interface: null,
   };
 }
 

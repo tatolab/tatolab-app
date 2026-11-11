@@ -394,10 +394,10 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
     '{"stream":"main","stream_asset":null,"nodes":[' +
       '{"id":"P1","name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running","failed_because":null,"process_raising_because":null,"config":{},"pins":{},"exposed_config_fields":[],' +
       '"input_ports":[],"output_ports":[{"name":"video","family":null,"stream_facts":null,"values_checked":null}],' +
-      '"dropped_bags_by_link":{},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}},"fragment":null},' +
+      '"dropped_bags_by_link":{},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}},"fragment":null,"graph_interface":null},' +
       '{"id":"","name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null,"failed_because":null,"process_raising_because":null,"config":{},"pins":{},"exposed_config_fields":[],' +
       '"input_ports":[],"output_ports":[],' +
-      '"dropped_bags_by_link":{"L1":12},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}},"fragment":null}],' +
+      '"dropped_bags_by_link":{"L1":12},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}},"fragment":null,"graph_interface":null}],' +
       '"links":[{"id":"L1","source_node":"testpatternsource","source_port":"video",' +
       '"target_node":"invertingeffect","target_port":"video_from_upstream","state":"wired"}],"groups":[],"notes":[],' +
       `"graph_document_text":${JSON.stringify(graphToolResultText)}}`,
@@ -1488,6 +1488,34 @@ test("the open project's views are the runtime's list_project_views of its folde
   expect(sharedState.projectViewsListed.isListedAsOpening(recordedNightShowFolder, "views/deck")).toBe(true);
   expect(sharedState.projectViewsListed.isListedAsOpening(recordedNightShowFolder, "views/broken")).toBe(false);
   expect(await commandHandlers.list_studio_views_of_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+});
+
+/** The window's `write_graph_input` answers `null` once the runtime took the value, and its refusal word for word. */
+test("a Graph Input's value reaches the runtime's write_graph_input from a studio window, answered null once taken, refused in the runtime's own words, and from the Projects window or with arguments that are not text and JSON refused before it is asked", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-graph-input-tool-result-of-s06-perform-brightness.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-graph-input-refusal-for-the-stopped-project-s06-perform.json")),
+    ],
+    "macos",
+  );
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "s06-perform-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+  const brightness = { stream: "s06-perform-main-0df4a7", input: "brightness", value: 0.8 };
+
+  expect(await commandHandlers.write_graph_input(brightness, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "Only a studio window or a popped-out view writes a Graph Input." });
+  expect(await commandHandlers.write_graph_input(brightness, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.write_graph_input(brightness, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal:
+      "write_graph_input failed: Runtime error: the project of the stream `s06-perform-main-0df4a7` in /tmp/tatolab-proof-projects/s06-perform is stopped, so no node of it runs to publish on `value`; `start_playback` plays it",
+  });
+  expect(await commandHandlers.write_graph_input({ ...brightness, input: 7 }, fromTheStudioWindow)).toEqual({ ok: false, refusal: "write_graph_input needs `stream` and `input` as text" });
+  expect(await commandHandlers.write_graph_input({ stream: brightness.stream, input: brightness.input }, fromTheStudioWindow)).toEqual({ ok: false, refusal: "write_graph_input needs `value` as JSON" });
+  expect(await commandHandlers.write_graph_input("brightness", fromTheStudioWindow)).toEqual({ ok: false, refusal: "write_graph_input needs `stream`, `input` and `value`" });
 });
 
 /** The window's `write_studio_view_output` answers `null` once the runtime took the value, and its refusal word for word. */

@@ -41,6 +41,7 @@ import type { ProjectAssetAtItsPath, ProjectSettingsAfterTheTransaction } from "
 import type { AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
 import type { NodeFileCreationRecorded, ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
 import type { ProjectViewTheRuntimeListed, StudioViewOutputWritten } from "./project_views_on_the_wire.js";
+import type { GraphInputWritten } from "./graph_input_written_on_the_wire.js";
 import { LocalApiClient, type LocalApiRequestFailure, type StreamAssetChange } from "./local_api_client.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import type { TatolabCommandLineToolLink } from "./platform/command_line_tool_link_in_the_home_folder.js";
@@ -456,6 +457,11 @@ export class TatolabAppController {
   /** Publish `value` on the output `port` of the view node `node` in `stream`. */
   writeStudioViewOutput(stream: string, node: string, port: string, value: JsonValue): Promise<Result<StudioViewOutputWritten, LocalApiRequestFailure>> {
     return this.localApiClient.writeStudioViewOutput(stream, node, port, value);
+  }
+
+  /** Hand `value` to the Input `input` of the running stream `stream`, through the runtime's `write_graph_input`. */
+  writeGraphInput(stream: string, input: string, value: JsonValue): Promise<Result<GraphInputWritten, LocalApiRequestFailure>> {
+    return this.localApiClient.writeGraphInput(stream, input, value);
   }
 
   /** Each view the project in `projectDirectory` and its imports bring. */

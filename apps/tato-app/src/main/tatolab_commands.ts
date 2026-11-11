@@ -772,6 +772,15 @@ export function studioViewOutputArgumentsFrom(commandArguments: unknown): Result
   return succeeded({ stream, node, port, value });
 }
 
+/** `write_graph_input`'s `{ stream, input, value }` as the window sends it, or why it is not. */
+function graphInputArgumentsFrom(commandArguments: unknown): Result<{ stream: string; input: string; value: JsonValue }, string> {
+  if (!isAJsonObject(commandArguments)) return failedWith("write_graph_input needs `stream`, `input` and `value`");
+  const { stream, input, value } = commandArguments;
+  if (typeof stream !== "string" || typeof input !== "string") return failedWith("write_graph_input needs `stream` and `input` as text");
+  if (!isAJsonValue(value)) return failedWith("write_graph_input needs `value` as JSON");
+  return succeeded({ stream, input, value });
+}
+
 /** `undo_in_the_open_project`'s and `redo_in_the_open_project`'s `{ author }` as the window sends it, or why it is not. */
 export function undoOrRedoArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<ProjectTransactionAuthor, string> {
   const author = isAJsonObject(commandArguments) ? commandArguments["author"] : undefined;
@@ -1011,6 +1020,23 @@ export function openPortViewerArgumentsFrom(commandArguments: unknown): Result<P
     return failedWith("open_port_viewer needs `stream`, a stream's id, `node_id`, a node's id as the graph lists it, and `port`, one of its output ports");
   }
   return succeeded({ stream: commandArguments["stream"], node_id: commandArguments["node_id"], port: commandArguments["port"] });
+}
+
+/** Run `write`, a live value handed to the runtime, for `commandName` sent from `commandFromWindow`, answering `null` once taken; refused with `refusalFromAnyOtherWindow` unless a studio window or a popped-out view sent it, and in the runtime's own words. */
+async function answerALiveWriteFromAStudioWindowOrAPoppedOutView(
+  sharedState: TatolabAppSharedState,
+  commandName: TatolabCommandName,
+  commandFromWindow: { windowContentsId: number },
+  refusalFromAnyOtherWindow: string,
+  write: () => Promise<Result<unknown, LocalApiRequestFailure>>,
+): Promise<{ ok: true; value: null } | { ok: false; refusal: string }> {
+  if (sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId) === null) return { ok: false, refusal: refusalFromAnyOtherWindow };
+  return commandAnswerOfNothingFrom(
+    await answerTheWindow(commandName, async () => {
+      const written = await write();
+      return written.ok ? succeeded(undefined) : failedWith(written.failure.failureDescription);
+    }),
+  );
 }
 
 /** Each command's handler, taking the arguments as the window sent them and the window that sent them, and answering in the contract's shape. */
@@ -1334,15 +1360,17 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     write_studio_view_output: async (commandArguments, commandFromWindow) => {
       const outputArguments = studioViewOutputArgumentsFrom(commandArguments);
       if (!outputArguments.ok) return { ok: false, refusal: outputArguments.failure };
-      if (sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId) === null) {
-        return { ok: false, refusal: "Only a studio window or a popped-out view writes a view's output." };
-      }
       const { stream, node, port, value } = outputArguments.value;
-      return commandAnswerOfNothingFrom(
-        await answerTheWindow("write_studio_view_output", async () => {
-          const written = await sharedState.controller.writeStudioViewOutput(stream, node, port, value);
-          return written.ok ? written : failedWith(written.failure.failureDescription);
-        }),
+      return answerALiveWriteFromAStudioWindowOrAPoppedOutView(sharedState, "write_studio_view_output", commandFromWindow, "Only a studio window or a popped-out view writes a view's output.", () =>
+        sharedState.controller.writeStudioViewOutput(stream, node, port, value),
+      );
+    },
+    write_graph_input: async (commandArguments, commandFromWindow) => {
+      const graphInputArguments = graphInputArgumentsFrom(commandArguments);
+      if (!graphInputArguments.ok) return { ok: false, refusal: graphInputArguments.failure };
+      const { stream, input, value } = graphInputArguments.value;
+      return answerALiveWriteFromAStudioWindowOrAPoppedOutView(sharedState, "write_graph_input", commandFromWindow, "Only a studio window or a popped-out view writes a Graph Input.", () =>
+        sharedState.controller.writeGraphInput(stream, input, value),
       );
     },
     list_studio_views_of_the_open_project: async (_commandArguments, commandFromWindow) => {

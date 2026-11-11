@@ -1,7 +1,8 @@
 // A stream's graph as the window draws it, read from the runtime's `graph {stream}` tool: its stream
-// asset, its nodes by name with their type, state, config, declared ports, drop counters and studio
-// fields, its links by id, node and port, its labelled groups and canvas notes, and the tool's text
-// itself. Every other key the runtime renders stays only in that text.
+// asset, its nodes by name with their type, state, config, declared ports, drop counters, studio
+// fields and the port a GraphInput or GraphOutput declares, its links by id, node and port, its
+// labelled groups and canvas notes, and the tool's text itself. Every other key the runtime renders
+// stays only in that text.
 
 import type {
   JsonValue,
@@ -9,6 +10,7 @@ import type {
   StreamGraphFragment,
   StreamGraphFragmentKind,
   StreamGraphGroup,
+  StreamGraphInterfacePort,
   StreamGraphNodeStudioFields,
   StreamGraphNote,
   StudioCanvasPair,
@@ -225,7 +227,17 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
     refused_bags_by_output_port: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "refused_bags_by_output_port"),
     studio: nodeStudioFieldsOnTheWire(node.value["studio"]),
     fragment: fragment.value,
+    graph_interface: graphInterfacePortOnTheWire(components.value["graph_interface"]),
   });
+}
+
+/** The port a node's `components.graph_interface` declares; `null` where the runtime renders none, or one with no direction, port or family to read. */
+function graphInterfacePortOnTheWire(graphInterfaceOnTheWire: unknown): StreamGraphInterfacePort | null {
+  if (!isAJsonObject(graphInterfaceOnTheWire)) return null;
+  const { direction, port, family } = graphInterfaceOnTheWire;
+  const currentValue = graphInterfaceOnTheWire["current_value"];
+  if ((direction !== "input" && direction !== "output") || typeof port !== "string" || typeof family !== "string") return null;
+  return { direction, port, family, current_value: isAJsonValue(currentValue) ? currentValue : null };
 }
 
 /** How the subgraph a node of type `nodeType` holds came to be. */

@@ -137,6 +137,18 @@ export const streamGraphNoteSchema = z.object({
 /** A canvas note of a stream's graph. */
 export type StreamGraphNote = z.infer<typeof streamGraphNoteSchema>;
 
+/** The port a `GraphInput` or `GraphOutput` node declares for its stream, from the node's `components.graph_interface`. */
+export const streamGraphInterfacePortSchema = z.object({
+  direction: z.enum(["input", "output"]),
+  port: z.string(),
+  /** As the runtime spells it: `image`, `array`, `channels`, `packets` or `records`. */
+  family: z.string(),
+  /** What a running top-level Input carries now, the last value a client wrote, else its config's `default`; `null` where the runtime renders none. */
+  current_value: jsonValueSchema.nullable(),
+});
+/** The port a `GraphInput` or `GraphOutput` node declares for its stream. */
+export type StreamGraphInterfacePort = z.infer<typeof streamGraphInterfacePortSchema>;
+
 /** One node of a stream's graph, by the name a link end and a port address name it by. */
 export const streamGraphNodeSchema = z.object({
   /** The node's UUID, which a log record's `processor_id` and every graph edit name it by. */
@@ -167,6 +179,8 @@ export const streamGraphNodeSchema = z.object({
   get fragment() {
     return streamGraphFragmentSchema.nullable();
   },
+  /** The port it declares for its stream when it is a `GraphInput` or `GraphOutput` the runtime renders as one; `null` on every other node. */
+  graph_interface: streamGraphInterfacePortSchema.nullable(),
 });
 /** One node of a stream's graph. */
 export type StreamGraphNode = z.infer<typeof streamGraphNodeSchema>;

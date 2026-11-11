@@ -18,7 +18,7 @@ function graphNode(name: string, inputs: string[], outputs: string[]): StreamGra
     pins: {},
     exposed_config_fields: [],
     studio: NODE_STUDIO_FIELDS_NONE_SET,
-    fragment: null,
+    fragment: null, graph_interface: null,
   };
 }
 
