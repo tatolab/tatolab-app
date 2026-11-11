@@ -14,6 +14,7 @@ import type {
   ProjectNodeTypeListing,
   ProjectAssetListing,
   ProjectAssetsImported,
+  StreamAssetCreated,
   OpenProjectReading,
   ProjectTransaction,
   ProjectTransactionAuthor,
@@ -86,6 +87,10 @@ export interface TatolabBackend {
   removeProject(projectDirectory: string): Promise<void>;
   /** Show the stream `streamId` under `displayName`, resolving once the runtime has recorded it and rejecting with its refusal; the new name arrives as the next status. */
   renameStream(streamId: string, displayName: string): Promise<void>;
+  /** Make a new, empty stream in the window's project shown under `displayName`, by the person editing, resolving with its stream asset's UUID, which the stream the runtime lists carries; rejects in Studio's or the runtime's words. */
+  createStreamInTheOpenProject(displayName: string): Promise<StreamAssetCreated>;
+  /** Delete the stream `streamId` from its project, by the person editing, resolving once the runtime has deleted it and rejecting with its refusal; the stream's leaving arrives as the next status. */
+  deleteStream(streamId: string): Promise<void>;
   /** Show the project folder the runtime lists for `streamId` in the file manager, rejecting with why it could not. */
   openStreamProjectFolder(streamId: string): Promise<void>;
   /** Open a terminal in the project folder the runtime lists for `streamId`, rejecting with why it could not. */

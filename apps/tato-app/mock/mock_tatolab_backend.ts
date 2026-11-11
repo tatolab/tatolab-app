@@ -40,7 +40,8 @@ import { mockDeleteTheAsset, mockImportTheFilesChosen, mockProjectAssetListing, 
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { isModulesShown, type ModulesShown } from "../src/shared/tatolab_electron_bridge_contract";
-import type { JsonValue, ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, ProjectGraphTransaction, ProjectTransaction, StreamAssetCreated, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
+import { streamDocumentNameNumberedPast, streamDocumentNameOfTheDisplayName } from "../src/shared/stream_document_name";
 import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
@@ -66,6 +67,7 @@ import {
   type TatolabPlatform,
   type TatolabStatus,
   type PythonLanguageServerEvent,
+  type SystemMenuBarEntry,
   type SystemMenuBarMenu,
 } from "../src/shared/tatolab_backend_contract";
 
@@ -237,6 +239,8 @@ export interface MockTatolabOptions {
   commandLineToolVersion: TatolabCommandLineToolVersion;
   /** `?stream_page_requested=<stream id>`: a click on that stream's failure notification, a moment after the window listens. */
   streamPageRequestedByANotification: string | null;
+  /** `?system_menu_entry=<entry id>`: the person choosing that entry of the system menu bar, as `Stream › New stream…`, once the window offers it. */
+  systemMenuBarEntryChosenByThePerson: string | null;
   /** `?cli_link=not_linked|taken`: `~/.local/bin/tatolab` not linked yet, or held by a file that is not Tatolab's; linked by default. */
   commandLineToolLinkScenario: "linked" | "not_linked" | "taken";
   /** `?app_build=release|modified|none`: a release build, a dev build with uncommitted changes, or one that recorded none; a dev build by default. */
@@ -273,6 +277,8 @@ export interface MockTatolabOptions {
   doesTheMainStreamDeclareGraphInputs: boolean;
   /** `?subgraphs=generated`: `main` holds a graph generator's frozen output. */
   doesTheMainStreamHoldAGeneratedSubgraph: boolean;
+  /** `?node_states=stopped`: every node of `main` that has a state reads `Stopped` once the stream settles, so none of its ports writes. */
+  areTheMainStreamsNodesStopped: boolean;
 }
 
 /** The query parameter a Module manager window's page is told by. */
@@ -351,6 +357,17 @@ function mockAppBuild(appBuildInTheQuery: string | null): TatolabAppBuild | null
   }
 }
 
+/** Whether `menus` hold `entryId` as a command or a choice the person can choose. */
+function isAnAvailableSystemMenuBarCommand(menus: readonly SystemMenuBarMenu[], entryId: string): boolean {
+  const isAvailableAmong = (entries: readonly SystemMenuBarEntry[]): boolean =>
+    entries.some((entry) => {
+      if (entry.kind === "submenu") return isAvailableAmong(entry.entries);
+      if (entry.kind === "command") return entry.entry_id === entryId && entry.unavailable_because === null;
+      return entry.kind === "choice" && entry.entry_id === entryId;
+    });
+  return menus.some((menu) => isAvailableAmong(menu.entries));
+}
+
 /** What `?cli_version=` names. */
 function mockCommandLineToolVersion(commandLineToolVersionInTheQuery: string | null): TatolabCommandLineToolVersion {
   switch (commandLineToolVersionInTheQuery) {
@@ -390,6 +407,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isDeveloperModeOn: pageQuery.get("developer_mode") === "on",
     commandLineToolVersion: mockCommandLineToolVersion(pageQuery.get("cli_version")),
     streamPageRequestedByANotification: pageQuery.get("stream_page_requested"),
+    systemMenuBarEntryChosenByThePerson: pageQuery.get("system_menu_entry"),
     commandLineToolLinkScenario: pageQuery.get("cli_link") === "not_linked" ? "not_linked" : pageQuery.get("cli_link") === "taken" ? "taken" : "linked",
     appBuild: mockAppBuild(pageQuery.get("app_build")),
     isMakingThePythonEnvironmentRefused: pageQuery.get("add_venv") === "refused",
@@ -408,6 +426,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isTheCompositorInMain: pageQuery.get("compositor") === "layered",
     doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",
     doesTheMainStreamHoldAGeneratedSubgraph: pageQuery.get("subgraphs") === "generated",
+    areTheMainStreamsNodesStopped: pageQuery.get("node_states") === "stopped",
   };
 }
 
@@ -536,7 +555,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const assetsChangedWhileTheMockRuns = mockProjectAssetsUnchanged();
-  const mainStream =
+  const mainStreamAsChosen =
     scenario === "node-error"
       ? fixtures.mainStreamWithDisplayWindowInError
       : scenario === "dropping"
@@ -550,9 +569,21 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
               : mockTatolabOptions.doesTheMainStreamHoldAGeneratedSubgraph
                 ? fixtures.mainStreamHoldingAGeneratedSubgraph
                 : fixtures.mainStream;
+  const mainStream: MockStreamFixture = mockTatolabOptions.areTheMainStreamsNodesStopped
+    ? { ...mainStreamAsChosen, graph: { ...mainStreamAsChosen.graph, nodes: mainStreamAsChosen.graph.nodes.map((node) => (node.state === null ? node : { ...node, state: "Stopped" })) } }
+    : mainStreamAsChosen;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
   const menusKeptForTheSystemMenuBar: SystemMenuBarMenu[] = [];
+  let systemMenuBarEntryStillToChoose = mockTatolabOptions.systemMenuBarEntryChosenByThePerson;
+  let systemMenuBarEntryChosenListener: ((entryId: string) => void) | null = null;
+  const chooseTheSystemMenuBarEntryOnceOffered = () => {
+    const entryToChoose = systemMenuBarEntryStillToChoose;
+    if (entryToChoose === null || systemMenuBarEntryChosenListener === null || !isAnAvailableSystemMenuBarCommand(menusKeptForTheSystemMenuBar, entryToChoose)) return;
+    systemMenuBarEntryStillToChoose = null;
+    const chooseTheEntry = systemMenuBarEntryChosenListener;
+    window.setTimeout(() => chooseTheEntry(entryToChoose), 0);
+  };
   let openProjectReading = mockOpenProjectReading(openProjectScenario, fixtures.machine.homeDirectory);
   const workspaceDependencies = new MockWorkspaceDependencies(
     openProjectReading.kind === "read" ? openProjectReading.open_project.project.folder : `${fixtures.machine.homeDirectory}/streams/pattern`,
@@ -1137,6 +1168,39 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     publishStatus({ streams: listStreams() });
   };
 
+  /** `create_stream` as the runtime does it in the open project: refused for a name that shows nothing, else a new stream asset loaded as a stream of the project, answered by its UUID. */
+  const createMockStreamInTheOpenProject = (displayName: string): StreamAssetCreated => {
+    if (openProjectReading.kind !== "read") throw "No project is open in this window.";
+    if (displayName.trim() === "") throw `create_stream failed: ${JSON.stringify(displayName)} cannot be a stream's display name: it shows nothing`;
+    const projectDirectory = openProjectReading.open_project.project.folder;
+    const streamNamesHeld = projectFolders.get(projectDirectory)?.streamNames ?? [];
+    const streamName = streamDocumentNameNumberedPast(streamDocumentNameOfTheDisplayName(displayName), (candidateName) => streamNamesHeld.includes(candidateName));
+    const fixture = createMockStreamRunFromAProjectFolder(fixtures.machine, projectDirectory, streamName, displayName);
+    projectFolders.set(projectDirectory, { ...(projectFolders.get(projectDirectory) ?? { hasAPythonEnvironment: true }), streamNames: [...(projectFolders.get(projectDirectory)?.streamNames ?? []), streamName] });
+    streamIdsRunFromTheWindow.push(fixture.listing.stream);
+    forgottenStreamIds.delete(fixture.listing.stream);
+    loadStream(fixture, Date.now());
+    publishStatus({ streams: listStreams() });
+    if (fixture.listing.location === null) throw `create_stream failed: the mock lists ${displayName} under no project`;
+    return { stream_asset: fixture.listing.location.stream_asset };
+  };
+
+  /** `delete_stream` as the runtime does it: refused for a stream it does not hold, else the stream unloaded and forgotten. */
+  const deleteMockStream = (streamId: string): void => {
+    const listing = (listStreams() ?? []).find((candidate) => candidate.stream === streamId);
+    if (listing === undefined) throw aStreamThisRuntimeDoesNotHoldRefusal(streamId);
+    const projectDirectory = listing.location?.project_directory;
+    const project = projectDirectory === undefined ? undefined : projectFolders.get(projectDirectory);
+    if (projectDirectory !== undefined && project !== undefined) {
+      projectFolders.set(projectDirectory, { ...project, streamNames: project.streamNames.filter((streamName) => mockStreamIdOf({ project_directory: projectDirectory, stream_name: streamName }) !== streamId) });
+    }
+    loadedStreams.delete(streamId);
+    listedStreamsNotLoaded.delete(streamId);
+    recordedFixturesNotLoaded.delete(streamId);
+    forgottenStreamIds.add(streamId);
+    publishStatus({ streams: listStreams() });
+  };
+
   const graphOfLoadedStream = (loadedStream: MockLoadedStream): StreamGraphSummary => {
     const millisecondsSinceSettled = Date.now() - loadedStream.loadedAtMilliseconds - MOCK_STREAM_SETTLE_MILLISECONDS;
     return mockStreamGraphSummary(loadedStream.fixture.listing, fixtures.machine.name, loadedStream.fixture.graph, {
@@ -1293,6 +1357,16 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer set_stream_display_name`;
       renameMockStream(streamId, displayName);
     },
+    createStreamInTheOpenProject: async (displayName) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer create_stream`;
+      return createMockStreamInTheOpenProject(displayName);
+    },
+    deleteStream: async (streamId) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer delete_stream`;
+      deleteMockStream(streamId);
+    },
     openStreamProjectFolder: async (streamId) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       listedProjectFolderOf(streamId);
@@ -1409,11 +1483,18 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       openProjectReading = { kind: "none_open" };
       for (const openProjectListener of openProjectListeners) openProjectListener(structuredClone(openProjectReading));
     },
-    // A page in a browser has no system menu bar: the mock keeps the menus as the app would, and no person can choose from them.
+    // A page in a browser has no system menu bar: the mock keeps the menus as the app would, and only `?system_menu_entry=` chooses from them.
     showTheMenusInTheSystemMenuBar: async (menus) => {
       menusKeptForTheSystemMenuBar.splice(0, menusKeptForTheSystemMenuBar.length, ...structuredClone(menus));
+      chooseTheSystemMenuBarEntryOnceOffered();
     },
-    onSystemMenuBarEntryChosen: () => () => {},
+    onSystemMenuBarEntryChosen: (entryChosenListener) => {
+      systemMenuBarEntryChosenListener = entryChosenListener;
+      chooseTheSystemMenuBarEntryOnceOffered();
+      return () => {
+        systemMenuBarEntryChosenListener = null;
+      };
+    },
     chooseProjectFolder: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       const chosenReading = mockOpenProjectReading("read", fixtures.machine.homeDirectory);

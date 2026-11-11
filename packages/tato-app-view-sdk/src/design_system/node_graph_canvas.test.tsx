@@ -211,6 +211,67 @@ describe("the node graph canvas while it takes edits", () => {
     expect(onNodeAskedFor).toHaveBeenCalledWith(expect.objectContaining({ in_the_element: { x: 120, y: 480 } }));
   });
 
+  it("draws Add node, Frame, Note and Subgraph, then Frame the whole graph and the zooms, in the graph's ribbon, Frame and Subgraph saying why they wait for a selection", async () => {
+    const { editing } = editingRecorded();
+    const onNodeAskedFor = vi.fn();
+    const { container } = drawnCanvas({ ...editing, onNodeAskedFor });
+    const tool = (name: string) => container.querySelector<HTMLElement>(`[data-node-graph-tool="${name}"]`) ?? expect.unreachable(`no ${name}`);
+    await vi.waitFor(() => tool("add_node"));
+    expect(tool("add_note").closest('[role="toolbar"]')?.getAttribute("aria-label")).toBe("Stream graph tools");
+    expect([...container.querySelectorAll("[data-node-graph-tool]")].map((button) => button.getAttribute("data-node-graph-tool"))).toEqual(["add_node", "frame_selection", "add_note", "add_subgraph", "frame_all", "zoom_in", "zoom_out"]);
+    expect(tool("frame_selection").getAttribute("aria-disabled")).toBe("true");
+    expect(tool("add_subgraph").getAttribute("aria-label")).toBe("Collapse the selection into a subgraph: Select the nodes to collapse into a subgraph first");
+    fireEvent.click(tool("add_node"));
+    expect(onNodeAskedFor).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers Add node and Add note where the canvas is right-clicked, and Frame the whole graph", async () => {
+    const { editing } = editingRecorded();
+    const onNodeAskedFor = vi.fn();
+    const onNoteAskedFor = vi.fn();
+    const { container } = drawnCanvas({ ...editing, onNodeAskedFor, onNoteAskedFor });
+    const pane = await vi.waitFor(() => container.querySelector<HTMLElement>(".react-flow__pane") ?? expect.unreachable("no pane"));
+    fireEvent.contextMenu(pane, { clientX: 140, clientY: 90 });
+    const addNode = await vi.waitFor(() => document.querySelector<HTMLElement>('[data-node-graph-choice="add_node"]') ?? expect.unreachable("no Add node"));
+    expect(document.querySelector('[data-node-graph-choice="frame_all"]')).toBeTruthy();
+    expect(addNode.textContent).toBe("Add node…Tab");
+    fireEvent.click(addNode);
+    expect(onNodeAskedFor).toHaveBeenCalledWith(expect.objectContaining({ in_the_element: { x: 140, y: 90 } }));
+
+    fireEvent.contextMenu(pane, { clientX: 60, clientY: 40 });
+    fireEvent.click(await vi.waitFor(() => document.querySelector<HTMLElement>('[data-node-graph-choice="add_note"]') ?? expect.unreachable("no Add note")));
+    expect(onNoteAskedFor).toHaveBeenCalledWith(expect.objectContaining({ in_the_element: { x: 60, y: 40 } }));
+  });
+
+  it("selects a card right-clicked and offers to frame it, collapse it into a subgraph, hide its pins or delete it", async () => {
+    const { editing, onCardCollapsed } = editingRecorded();
+    const onDeleted = vi.fn();
+    const onNodeSelected = vi.fn();
+    const { container } = render(
+      <NodeGraphCanvas label="Stream graph" nodes={[card("pattern", false)]} links={[]} frames={[]} selectedNodeId={null} onNodeSelected={onNodeSelected} editing={{ ...editing, onDeleted }} />,
+    );
+    const rightClickTheCard = async () => fireEvent.contextMenu(await vi.waitFor(() => container.querySelector<HTMLElement>('[data-node-graph-card="pattern"]') ?? expect.unreachable("no card")));
+    await rightClickTheCard();
+    expect(onNodeSelected).toHaveBeenCalledWith("pattern");
+    const choiceWords = await vi.waitFor(() => {
+      const choices = [...document.querySelectorAll<HTMLElement>("[data-node-graph-choice]")].map((choice) => choice.textContent);
+      return choices.length > 0 ? choices : expect.unreachable("no card choices");
+    });
+    expect(choiceWords).toEqual(["Frame the nodeF", "Collapse into a subgraph⇧⌘G", "Hide its pins", "Delete the node⌫"]);
+    fireEvent.click(document.querySelector<HTMLElement>('[data-node-graph-choice="collapse_card"]') ?? expect.unreachable("no Hide its pins"));
+    expect(onCardCollapsed).toHaveBeenCalledWith("pattern", true);
+
+    await rightClickTheCard();
+    fireEvent.click(await vi.waitFor(() => document.querySelector<HTMLElement>('[data-node-graph-choice="delete"]') ?? expect.unreachable("no Delete")));
+    expect(onDeleted).toHaveBeenCalledWith({ node_ids: ["pattern"], link_ids: [], note_ids: [] });
+  });
+
+  it("leaves only Frame the whole graph and the zooms in a read-only graph's ribbon", async () => {
+    const { container } = drawnCanvas(null);
+    await vi.waitFor(() => container.querySelector('[data-node-graph-tool="frame_all"]') ?? expect.unreachable("no ribbon"));
+    expect([...container.querySelectorAll("[data-node-graph-tool]")].map((button) => button.getAttribute("data-node-graph-tool"))).toEqual(["frame_all", "zoom_in", "zoom_out"]);
+  });
+
   it("offers no right-click menu on a read-only canvas's frame", async () => {
     const { container } = drawnCanvas(null);
     const titleTab = await vi.waitFor(() => container.querySelector<HTMLElement>(`[data-node-graph-frame-title="${FRAME_ID}"]`) ?? expect.unreachable("no frame title"));

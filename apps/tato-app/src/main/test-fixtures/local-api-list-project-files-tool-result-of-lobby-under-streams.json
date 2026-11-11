@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"files\": [\n    {\n      \"path\": \"streams/main.graph.json\",\n      \"byte_len\": 287\n    }\n  ]\n}"}],"isError":false}}

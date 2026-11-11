@@ -45,10 +45,6 @@ function TatolabViewFrame({
   const inputWiringAsJson = JSON.stringify(inputWiring);
   const rememberSettingsRef = useRef(area.rememberSettings);
   rememberSettingsRef.current = area.rememberSettings;
-  const offerGraphToolsRef = useRef(area.offerGraphTools);
-  offerGraphToolsRef.current = area.offerGraphTools;
-  const personWorksInTheAreaRef = useRef(area.personWorksInTheArea);
-  personWorksInTheAreaRef.current = area.personWorksInTheArea;
   const [savedSettings] = useState(() => new WatchedStudioValue<{ saved: JsonValue | undefined }>({ saved: area.saved_settings }));
   const savedSettingsAsJson = JSON.stringify(area.saved_settings) ?? "";
   const savedSettingsRef = useRef(area.saved_settings);
@@ -72,16 +68,11 @@ function TatolabViewFrame({
       watchSavedSettings: (listener) => savedSettings.watch(({ saved }) => listener(saved)),
       rememberSettings: (settings) => rememberSettingsRef.current(settings),
       watchHeaderRow: area.header_row.watch,
-      offerGraphTools: (onToolPressed) => offerGraphToolsRef.current(onToolPressed),
     };
     const channel = new MessageChannel();
     const bridge = new TatolabViewBridge(channel.port1, listed.view_type_id, manifest, hostServices, areaServices, inputWiringRef.current, viewNode);
     bridge.start();
     bridgeRef.current = bridge;
-    // The window's own pointer and focus listeners never see events inside a frame, so the frame's document reports them; every view is on the window's origin.
-    const personWorkedInTheFrame = () => personWorksInTheAreaRef.current?.();
-    frameWindow.addEventListener("pointerdown", personWorkedInTheFrame, true);
-    frameWindow.addEventListener("focusin", personWorkedInTheFrame);
     frameWindow.postMessage({ kind: VIEW_PORT_HANDOVER }, entryUrl.origin, [channel.port2]);
   };
 

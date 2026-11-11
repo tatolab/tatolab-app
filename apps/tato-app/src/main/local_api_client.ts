@@ -6,8 +6,8 @@
 // `describe_stream_action` follows, `stop_project` queues the stop of every stream of a project,
 // `remove_project` queues the removal of a project's streams, `delete_project` its removal and its
 // folder's move to the Trash, `rename_project` and `duplicate_project` rename and copy a project,
-// `import_project` makes one from a `.zip`, `set_stream_display_name` shows a stream under another
-// name, `transact` applies graph actions as one transaction and answers its structured refusal,
+// `import_project` makes one from a `.zip`, `create_stream`, `set_stream_display_name` and
+// `delete_stream` make, rename and delete a stream asset, `transact` applies graph actions as one transaction and answers its structured refusal,
 // `add_dependency`, `update_dependency` and `list_dependencies` copy, copy again and
 // list the projects a project imports, `GET /api/graph` names the machine, and `GET /api/registry` lists the node types a
 // stream can add.
@@ -54,6 +54,7 @@ import {
   optionalText,
   optionalUnsignedInteger,
   parseJsonOnTheWire,
+  requiredObject,
   requiredText,
   requiredUnsignedInteger,
 } from "./json_on_the_wire.js";
@@ -149,26 +150,34 @@ function streamLocationOnTheWire(location: JsonObjectOnTheWire): Result<StreamLo
   return succeeded({ project_directory: projectDirectory.value, project: project.value, stream_asset: streamAsset.value });
 }
 
-/** What `set_stream_display_name` answers: the one transaction that renamed the stream asset, and its commit on the project's history. */
-export interface StreamDisplayNameSet {
+/** The stream-asset tools that change one stream asset as one transaction on the project's history. */
+export type StreamAssetChangeToolName = "create_stream" | "set_stream_display_name" | "delete_stream";
+
+/** What `create_stream`, `set_stream_display_name` and `delete_stream` answer: the stream asset's UUID as `asset.asset`, the one transaction that changed it, and its commit on the project's history. */
+export interface StreamAssetChange {
+  stream_asset: string;
   transaction: string;
   commit: string;
 }
 
-/** A `set_stream_display_name` tool result read field for field; unknown fields, the stream asset as it now is among them, are ignored. */
-export function streamDisplayNameSetFromTheSetStreamDisplayNameToolResult(toolResultText: string): Result<StreamDisplayNameSet, string> {
+/** A stream-asset tool's result read field for field; unknown fields, the rest of the asset and a `create_stream`'s load `action` among them, are ignored. */
+export function streamAssetChangeFromTheToolResult(toolName: StreamAssetChangeToolName, toolResultText: string): Result<StreamAssetChange, string> {
   const parsedToolResult = parseJsonOnTheWire(toolResultText);
-  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the set_stream_display_name result") : parsedToolResult;
-  const displayNameSet = toolResult.ok ? streamDisplayNameSetOnTheWire(toolResult.value) : toolResult;
-  return displayNameSet.ok ? displayNameSet : failedWith(`the runtime's set_stream_display_name result could not be read: ${displayNameSet.failure}`);
+  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, `the ${toolName} result`) : parsedToolResult;
+  const streamAssetChange = toolResult.ok ? streamAssetChangeOnTheWire(toolResult.value) : toolResult;
+  return streamAssetChange.ok ? streamAssetChange : failedWith(`the runtime's ${toolName} result could not be read: ${streamAssetChange.failure}`);
 }
 
-function streamDisplayNameSetOnTheWire(toolResult: JsonObjectOnTheWire): Result<StreamDisplayNameSet, string> {
+function streamAssetChangeOnTheWire(toolResult: JsonObjectOnTheWire): Result<StreamAssetChange, string> {
+  const assetOnTheWire = requiredObject(toolResult, "asset");
+  if (!assetOnTheWire.ok) return assetOnTheWire;
+  const streamAsset = requiredText(assetOnTheWire.value, "asset");
+  if (!streamAsset.ok) return streamAsset;
   const transaction = requiredText(toolResult, "transaction");
   if (!transaction.ok) return transaction;
   const commit = requiredText(toolResult, "commit");
   if (!commit.ok) return commit;
-  return succeeded({ transaction: transaction.value, commit: commit.value });
+  return succeeded({ stream_asset: streamAsset.value, transaction: transaction.value, commit: commit.value });
 }
 
 /** A `describe_runtime` tool result read field for field; unknown fields are ignored. */
@@ -432,16 +441,26 @@ export class LocalApiClient {
     return action.ok ? action : localApiRequestFailure(action.failure);
   }
 
-  /** Show the stream asset `streamAsset` of the project in `projectDirectory` under `displayName` through the runtime's `set_stream_display_name`, one transaction on its history; refused in the runtime's own words. */
-  async setStreamDisplayName(projectDirectory: string, streamAsset: string, displayName: string): Promise<Result<StreamDisplayNameSet, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("set_stream_display_name", {
-      project_directory: projectDirectory,
-      stream_asset: streamAsset,
-      display_name: displayName,
-    });
+  /** Make a stream in the project in `projectDirectory`, its empty graph document at `streamDocumentPath`, shown under `displayName`, through the runtime's `create_stream`, one transaction by `author`; refused in the runtime's own words. */
+  createStream(projectDirectory: string, streamDocumentPath: string, displayName: string, author: ProjectTransactionAuthor): Promise<Result<StreamAssetChange, LocalApiRequestFailure>> {
+    return this.changeOneStreamAsset("create_stream", { project_directory: projectDirectory, path: streamDocumentPath, display_name: displayName, author: authorOnTheWire(author) });
+  }
+
+  /** Show the stream asset `streamAsset` of the project in `projectDirectory` under `displayName` through the runtime's `set_stream_display_name`, one transaction by `author`; refused in the runtime's own words. */
+  setStreamDisplayName(projectDirectory: string, streamAsset: string, displayName: string, author: ProjectTransactionAuthor): Promise<Result<StreamAssetChange, LocalApiRequestFailure>> {
+    return this.changeOneStreamAsset("set_stream_display_name", { project_directory: projectDirectory, stream_asset: streamAsset, display_name: displayName, author: authorOnTheWire(author) });
+  }
+
+  /** Delete the stream asset `streamAsset` from the project in `projectDirectory`, its stream unloaded and forgotten, through the runtime's `delete_stream`, one transaction by `author`; refused in the runtime's own words. */
+  deleteStream(projectDirectory: string, streamAsset: string, author: ProjectTransactionAuthor): Promise<Result<StreamAssetChange, LocalApiRequestFailure>> {
+    return this.changeOneStreamAsset("delete_stream", { project_directory: projectDirectory, stream_asset: streamAsset, author: authorOnTheWire(author) });
+  }
+
+  private async changeOneStreamAsset(toolName: StreamAssetChangeToolName, toolArguments: Readonly<Record<string, unknown>>): Promise<Result<StreamAssetChange, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool(toolName, toolArguments);
     if (!toolResultText.ok) return toolResultText;
-    const displayNameSet = streamDisplayNameSetFromTheSetStreamDisplayNameToolResult(toolResultText.value);
-    return displayNameSet.ok ? displayNameSet : localApiRequestFailure(displayNameSet.failure);
+    const streamAssetChange = streamAssetChangeFromTheToolResult(toolName, toolResultText.value);
+    return streamAssetChange.ok ? streamAssetChange : localApiRequestFailure(streamAssetChange.failure);
   }
 
   /** Queue the creation of a new project in `projectDirectory`, or with `null` in a folder the runtime draws under `~/streams`, and its run; answered at once, refused in the runtime's own words. */

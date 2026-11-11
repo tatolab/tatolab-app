@@ -22,6 +22,7 @@ import type {
   PortViewerTarget,
   RecentProject,
   ProjectCreationQueued,
+  StreamAssetCreated,
   PythonLanguageServerEvent,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -74,6 +75,8 @@ export const TATOLAB_COMMAND_NAMES = [
   "answer_the_app_update_announcement",
   "remove_project",
   "rename_stream",
+  "create_stream_in_the_open_project",
+  "delete_stream",
   "open_stream_project_folder",
   "open_terminal_at_stream_project",
   "open_stream_log_folder",
@@ -141,7 +144,7 @@ export const TATOLAB_COMMAND_NAMES = [
 
 /**
  * One command the window invokes. Arguments: `set_stream_failure_notifications`, `set_developer_mode` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
- * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
+ * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`, `delete_stream` `{ stream }`, `create_stream_in_the_open_project` `{ display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
  * `choose_project_folder` `{ chosen_for }`, `open_recent_project`, `duplicate_recent_project` and `delete_recent_project` `{ folder }`, `rename_recent_project` `{ folder, name }`, `read_recent_project_cover` `{ folder }`, `set_recent_project_description` `{ folder, description }`, `set_recent_project_cover` `{ folder, image }`, `import_project_archive` `{ archive, name, location }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_view` a `PoppedOutView`, `open_module_manager_window` `{ shows }`, `list_workspace_dependencies` `{ check_for_newer }`, `choose_dependency_source` `{ source_kind }`, `add_dependency_to_the_workspace` `{ source }`, `update_workspace_dependency` `{ project, overwrite_edited_files }`, `import_from_the_marketplace` `{ name }`, `open_import_to_edit` `{ folder }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` and the recent-project commands only on one of the recent projects, `import_project_archive` on any absolute `.zip`, which the runtime reads, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab
@@ -271,8 +274,12 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   answer_the_app_update_announcement: { commandArguments: { kind: TatolabAppUpdateAnnouncementKind; version: string; answer: TatolabAppUpdateAnnouncementAnswer }; answer: null };
   /** Answers once the runtime has queued the removal of every stream it holds from the project; deletes no file. */
   remove_project: { commandArguments: { project_directory: string }; answer: null };
-  /** `stream` a stream's id; answers once the runtime has recorded `display_name`, refused in its own words. */
+  /** `stream` a stream's id; answers once the runtime has recorded `display_name` as one transaction by the person editing, refused in its own words. */
   rename_stream: { commandArguments: { stream: string; display_name: string }; answer: null };
+  /** From a studio window only: a new, empty stream in the window's project shown under `display_name`, its graph document placed in `streams/` under a name no file holds, as one transaction by the person editing; answers its stream asset's UUID, refused in the runtime's own words. */
+  create_stream_in_the_open_project: { commandArguments: { display_name: string }; answer: StreamAssetCreated };
+  /** `stream` a stream's id; answers once the runtime has deleted its stream asset as one transaction by the person editing, which an undo writes back, refused in its own words. */
+  delete_stream: { commandArguments: { stream: string }; answer: null };
   open_stream_project_folder: { commandArguments: { stream: string }; answer: null };
   open_terminal_at_stream_project: { commandArguments: { stream: string }; answer: null };
   open_stream_log_folder: { commandArguments: { stream: string }; answer: null };

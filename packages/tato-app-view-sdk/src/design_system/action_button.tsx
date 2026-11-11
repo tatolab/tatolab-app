@@ -16,7 +16,7 @@ const APPEARANCE_CLASS_NAMES: Record<ActionButtonAppearance, string> = {
   secondary: "border-line-strong bg-raised text-fg hover:bg-hover dark:border-line-strong dark:bg-raised dark:hover:bg-hover",
   quiet: "text-fg-2 hover:bg-hover hover:text-fg dark:hover:bg-hover",
   destructive:
-    "bg-danger text-primary-foreground hover:bg-danger-text focus-visible:border-transparent dark:bg-danger-soft dark:text-danger-text dark:hover:bg-danger/20",
+    "bg-danger-solid text-primary-foreground hover:bg-danger-solid-hover focus-visible:border-transparent dark:bg-danger-solid dark:text-primary-foreground dark:hover:bg-danger-solid-hover",
   positive: "bg-status-positive-ground font-semibold text-status-positive-text hover:bg-status-positive-text/20 hover:text-status-positive-text dark:bg-status-positive-ground dark:hover:bg-status-positive-text/20",
 };
 

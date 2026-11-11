@@ -217,6 +217,15 @@ export function mountTatolabWindow(
     },
     undoYourLastEdit: () => undoOrRedoTheOpenProject("undo"),
     redoYourLastUndo: () => undoOrRedoTheOpenProject("redo"),
+    createAStream: () => studioWindowModel.askForANewStreamName(),
+    renameTheShownStream: () => studioWindowModel.askAboutTheShownStream("rename_stream"),
+    deleteTheShownStream: () => studioWindowModel.askAboutTheShownStream("delete_stream"),
+    closeTheShownStreamTab: () => {
+      const shownStreamTab = studioWindowModel.activeStreamTab.readLatest();
+      if (shownStreamTab !== null) studioWindowModel.closeStreamTab(shownStreamTab.stream);
+    },
+    reopenTheLastClosedStreamTab: () => studioWindowModel.reopenTheLastClosedStreamTab(),
+    showTheStreamTabBeside: (direction) => studioWindowModel.showTheStreamTabBeside(direction),
     openModuleManager: (shows) => {
       studioWindowModel.projectOpeningRefusal.publish(null);
       backend.openModuleManagerWindow(shows).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
@@ -240,6 +249,20 @@ export function mountTatolabWindow(
       watchStudioViews: (listener) => watchTheStudioViewsOfTheRegistry(viewTypeRegistry, listener),
     }),
     commands: studioMenuBarCommands,
+    streamEdits: {
+      createStream: async (displayName) => {
+        const created = await backend.createStreamInTheOpenProject(displayName);
+        studioWindowModel.openTheTabOfTheNewStreamAsset(created.stream_asset);
+      },
+      renameStream: (stream, displayName) => backend.renameStream(stream, displayName),
+      deleteStream: (stream) => {
+        studioWindowModel.streamDeletionRefusal.publish(null);
+        backend.deleteStream(stream).then(
+          () => studioWindowModel.forgetTheTabsOfADeletedStream(stream),
+          (rejection: unknown) => studioWindowModel.streamDeletionRefusal.publish(describeBackendRejection(rejection)),
+        );
+      },
+    },
     popOutTheViewOfTheArea: (area) => {
       const viewType = area.view_type_id === null ? null : viewTypeRegistry.viewTypeWithId(area.view_type_id);
       if (viewType === null) return;
@@ -369,8 +392,21 @@ export function mountTatolabWindow(
       else studioMenuBarCommands.runTheProjectLive();
       return;
     }
+    if (keyboardEvent.key === "Tab" && keyboardEvent.ctrlKey && !keyboardEvent.metaKey && !keyboardEvent.altKey) {
+      if (studioWindowModel.studioLayouts.readLatest() === null || studioWindowModel.isADialogShownOverTheStreamTabs()) return;
+      keyboardEvent.preventDefault();
+      studioMenuBarCommands.showTheStreamTabBeside(keyboardEvent.shiftKey ? "previous" : "next");
+      return;
+    }
     if (!holdsWindowShortcutModifier(platform, keyboardEvent)) return;
     const key = keyboardEvent.key.length === 1 ? keyboardEvent.key.toLowerCase() : keyboardEvent.key;
+    if ((key === "w" || key === "t") && !keyboardEvent.altKey && keyboardEvent.shiftKey === (key === "t")) {
+      if (studioWindowModel.studioLayouts.readLatest() === null || studioWindowModel.isADialogShownOverTheStreamTabs()) return;
+      keyboardEvent.preventDefault();
+      if (key === "w") studioMenuBarCommands.closeTheShownStreamTab();
+      else studioMenuBarCommands.reopenTheLastClosedStreamTab();
+      return;
+    }
     if (key === "z" && !keyboardEvent.altKey && !isTextBeingEditedIn(keyboardEvent.target)) {
       if (studioWindowModel.studioLayouts.readLatest() === null) return;
       keyboardEvent.preventDefault();

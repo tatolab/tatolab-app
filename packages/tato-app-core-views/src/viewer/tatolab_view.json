@@ -1,23 +1,7 @@
 {
   "contract": "1.0",
-  "title": "Viewer",
+  "title": "Node visualizer",
   "icon": "icon.svg",
   "entry": "index.html",
-  "placement": "area",
-  "settings": {
-    "type": "object",
-    "properties": {
-      "chosen_port": {
-        "anyOf": [
-          { "type": "null" },
-          {
-            "type": "object",
-            "properties": { "stream": { "type": "string" }, "node_id": { "type": "string" }, "port": { "type": "string" } },
-            "required": ["stream", "node_id", "port"]
-          }
-        ],
-        "default": null
-      }
-    }
-  }
+  "placement": "area"
 }

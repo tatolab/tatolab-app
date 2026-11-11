@@ -72,6 +72,14 @@ const NO_RUNTIME_READS_THE_PROJECTS: ProjectReadingsOfTheRuntime = {
 
 const recordedResponseBody = (fixtureFileName: string) => readFile(new URL(`./test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
 
+/** The MCP tool a request to the fake local API called and its arguments, or none for a request that calls no tool. */
+function mcpToolCallOfTheRequest(request: string): [string, unknown][] {
+  const toolName = /Mcp-Name: (\S+)/.exec(request)?.[1];
+  if (toolName === undefined) return [];
+  const requestBody: { params: { arguments: unknown } } = JSON.parse(request.slice(request.indexOf("\r\n\r\n") + 4));
+  return [[toolName, requestBody.params.arguments]];
+}
+
 async function sharedStateOverFakes(
   scriptedLocalApiResponses: readonly Buffer[],
   platform: TatolabPlatform,
@@ -91,6 +99,7 @@ async function sharedStateOverFakes(
     tatolabAppOpenedAtLogin: FakeTatolabAppOpenedAtLogin;
     menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[];
     assetFilesTheDialogAnswers: { files: readonly string[] | null };
+    localApiToolCallsReceived: () => [string, unknown][];
   }
 > {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
@@ -249,6 +258,7 @@ async function sharedStateOverFakes(
     foldersShownInTheFileManager,
     webPagesOpenedInTheBrowser,
     localApiSocketPath: localApiServer.localApiSocketPath,
+    localApiToolCallsReceived: () => localApiServer.receivedRequests().flatMap(mcpToolCallOfTheRequest),
     streamFailureNotifications,
     systemNotifications,
     tatolabAppOpenedAtLogin,
@@ -636,6 +646,10 @@ test("renaming a stream sets the display name of the stream asset the runtime li
     refusal: `set_stream_display_name failed: "   " cannot be a stream's display name: it shows nothing`,
   });
   expect(refreshRequests).toHaveBeenCalledTimes(2);
+  expect(sharedState.localApiToolCallsReceived().filter(([toolName]) => toolName === "set_stream_display_name")).toEqual([
+    ["set_stream_display_name", { project_directory: "/private/tmp/tatolab-proof-projects/hallways", stream_asset: "666895f1-e258-4587-8c62-ed07c0cc70db", display_name: "Heat map", author: { kind: "person", name: "sam" } }],
+    ["set_stream_display_name", { project_directory: "/private/tmp/tatolab-proof-projects/hallways", stream_asset: "666895f1-e258-4587-8c62-ed07c0cc70db", display_name: "   ", author: { kind: "person", name: "sam" } }],
+  ]);
   expect(await commandHandlers.rename_stream({ stream: "doorways-main-0b1c2d", display_name: "Heat map" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "The runtime does not list doorways-main-0b1c2d, so Tato Studio has no stream to rename.",
@@ -1019,6 +1033,71 @@ test("undo and redo in the open project ask the runtime by the window's author a
     refusal: "undo_in_the_open_project needs `author`, a person or an agent by the name history shows",
   });
   expect(await commandHandlers.undo_in_the_open_project({ author: sam }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+});
+
+test("deleting_a_stream_deletes_the_stream_asset_the_runtime_last_listed_for_it_by_the_person_editing_and_a_refusal_is_the_runtimes_own_words", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "text/plain", "ok"),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-lobby-with-its-new-stream-preview.json")),
+      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "sams-laptop", streams: [] })),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-stream-answer-for-preview-of-lobby.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-stream-refusal-for-a-stream-asset-the-project-no-longer-holds.json")),
+    ],
+    "linux",
+  );
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  await sharedState.statusPublisher.refreshAndPublish();
+
+  expect(await commandHandlers.delete_stream({ stream: "lobby-preview-0758ea" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.delete_stream({ stream: "lobby-preview-0758ea" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "delete_stream failed: the project holds no stream asset 38766917-e6ed-443f-bad5-6d70eff6efac",
+  });
+  expect(sharedState.localApiToolCallsReceived().filter(([toolName]) => toolName === "delete_stream")[0]).toEqual([
+    "delete_stream",
+    { project_directory: "/root/streams/lobby", stream_asset: "38766917-e6ed-443f-bad5-6d70eff6efac", author: { kind: "person", name: "sam" } },
+  ]);
+  expect(await commandHandlers.delete_stream({ stream: "doorways-main-0b1c2d" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "The runtime does not list doorways-main-0b1c2d, so Tato Studio has no stream to delete.",
+  });
+  expect(await commandHandlers.delete_stream({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "delete_stream needs `stream`, a stream's id" });
+});
+
+/** The window's `StreamAssetCreated` reads exactly this JSON. */
+test("creating_a_stream_in_the_open_project_places_its_graph_document_in_streams_under_a_name_no_file_holds_by_the_person_editing_and_answers_its_stream_asset", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-project-files-tool-result-of-lobby-under-streams.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-stream-answer-for-preview-in-lobby-loading-it.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-project-files-tool-result-of-lobby-under-streams.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-stream-refusal-for-a-display-name-that-shows-nothing.json")),
+    ],
+    "linux",
+  );
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "lobby-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(JSON.stringify(await commandHandlers.create_stream_in_the_open_project({ display_name: "Preview" }, fromTheStudioWindow))).toBe(
+    '{"ok":true,"value":{"stream_asset":"38766917-e6ed-443f-bad5-6d70eff6efac"}}',
+  );
+  expect(await commandHandlers.create_stream_in_the_open_project({ display_name: "   " }, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: `create_stream failed: "   " cannot be a stream's display name: it shows nothing`,
+  });
+  expect(sharedState.localApiToolCallsReceived().slice(0, 2)).toEqual([
+    ["list_project_files", { project_directory: projectFolder, under: "streams" }],
+    ["create_stream", { project_directory: projectFolder, path: "streams/preview.graph.json", display_name: "Preview", author: { kind: "person", name: "sam" } }],
+  ]);
+  expect(await commandHandlers.create_stream_in_the_open_project({ display_name: "Preview" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+  expect(await commandHandlers.create_stream_in_the_open_project({}, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: "create_stream_in_the_open_project needs `display_name`, the display name to show the new stream under",
+  });
 });
 
 /** The window's `ProjectAssetsImported` reads exactly this JSON. */

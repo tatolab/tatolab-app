@@ -101,6 +101,16 @@ describe("the outliner's tree", () => {
     ]);
   });
 
+  it("marks the active tab's stream as the current row, and only it", () => {
+    const streams = [listedStream("/w/studio", "lobby_wall"), listedStream("/w/studio", "door")];
+    const currentRows = (openStream: string | null) =>
+      outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams }, {}, openStream, {})
+        .filter(({ row }) => row.isCurrent === true)
+        .map(({ row }) => row.label);
+    expect(currentRows("door-id")).toEqual(["door"]);
+    expect(currentRows(null)).toEqual([]);
+  });
+
   it("marks a running node whose process() keeps raising as failed", () => {
     const raising = { ...graphNode("Halftone", "tatolab.stream:HalftoneLensEffect", null), process_raising_because: "process() raised ValueError: no lens (nodes/halftone.py, line 12)" };
     if (LOBBY_WALL_GRAPH.kind !== "read") throw new Error("LOBBY_WALL_GRAPH is a read graph");

@@ -14,6 +14,7 @@ export interface StudioWindowValuesServedToViews {
   openProject: WatchedStudioValue<OpenProjectReading>;
   listedStreams: WatchedStudioValue<ListedStreamsReading>;
   selection: WatchedStudioValue<StudioSelection>;
+  select(selection: StudioSelection): void;
   activeStreamTab: WatchedStudioValue<StreamTabAddress | null>;
   openStreamTab(streamTab: StreamTabAddress): void;
   viewsOpenedOn: WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>;
@@ -97,7 +98,7 @@ export function studioViewHostServicesOf(
     watchOpenProject: sources.openProject.watch,
     watchListedStreams: sources.listedStreams.watch,
     watchSelection: sources.selection.watch,
-    select: (selection) => sources.selection.publish(selection),
+    select: (selection) => sources.select(selection),
     watchActiveStreamTab: sources.activeStreamTab.watch,
     openStreamTab: (streamTab) => sources.openStreamTab(streamTab),
     watchStreamGraph: streamReadings.watchStreamGraph,
