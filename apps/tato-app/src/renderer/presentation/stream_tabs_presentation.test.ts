@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { streamTabsDrawnInTheStrip } from "./stream_tabs_presentation";
+import { streamTabsDrawnInTheTitleRow } from "./stream_tabs_presentation";
 
 const OPEN_TABS = {
   tabs: [
@@ -10,7 +10,7 @@ const OPEN_TABS = {
 };
 
 test("a tab shows its stream's name alone, whatever the runtime lists it doing", () => {
-  expect(streamTabsDrawnInTheStrip(OPEN_TABS)).toEqual([
+  expect(streamTabsDrawnInTheTitleRow(OPEN_TABS)).toEqual([
     { tab_id: "main", name: "Main" },
     { tab_id: "recorder", name: "Recorder" },
   ]);

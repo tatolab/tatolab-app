@@ -1,7 +1,8 @@
 import { cn } from "cn";
-import { X, type LucideIcon } from "lucide-react";
+import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
+import { studioIconNamed, type StudioIconName } from "./support/studio_icons";
 
 /** One open document's tab: its id and its name. */
 export interface DocumentTab {
@@ -12,7 +13,7 @@ export interface DocumentTab {
 /** The open documents' tabs along the bottom of the window's title row, each led by `icon`; the active one is the colour of the work under it, so the two read as one, and only it, or a tab under the pointer, shows the × that closes it. */
 export function DocumentTabs({
   label,
-  icon: Icon,
+  icon,
   tabs,
   activeTabId,
   onTabChosen,
@@ -20,7 +21,7 @@ export function DocumentTabs({
   whenNoneIsOpen,
 }: {
   label: string;
-  icon: LucideIcon;
+  icon: StudioIconName;
   tabs: readonly DocumentTab[];
   activeTabId: string | null;
   onTabChosen: (tabId: string) => void;
@@ -28,7 +29,8 @@ export function DocumentTabs({
   /** What the row says while no tab is open. */
   whenNoneIsOpen: ReactNode;
 }) {
-  if (tabs.length === 0) return <p className="flex h-full min-w-0 items-center truncate px-2 text-2xs text-fg-3">{whenNoneIsOpen}</p>;
+  const Icon = studioIconNamed(icon);
+  if (tabs.length === 0) return <p className="flex h-full min-w-0 items-center px-2 text-2xs text-fg-3"><span className="truncate">{whenNoneIsOpen}</span></p>;
   return (
     <div role="tablist" aria-label={label} className="flex h-full min-w-0 items-end gap-0.5 overflow-x-auto [scrollbar-width:none]">
       {tabs.map((tab) => {
@@ -37,8 +39,8 @@ export function DocumentTabs({
           <div
             key={tab.tab_id}
             className={cn(
-              "group flex h-[30px] max-w-[200px] shrink-0 items-center rounded-t-lg pr-1.5 text-xs",
-              isActive ? "bg-studio-frame text-fg" : "text-fg-3 hover:bg-hover hover:text-fg-2",
+              "group flex h-7.5 max-w-50 shrink-0 items-center rounded-t-lg pr-1.5 text-xs",
+              isActive ? "bg-studio-frame text-fg" : "text-fg-3 hover:bg-studio-frame/50 hover:text-fg-2",
             )}
           >
             <button
@@ -59,7 +61,7 @@ export function DocumentTabs({
               data-document-tab-close={tab.tab_id}
               className={cn(
                 "ml-1.5 flex size-4 shrink-0 items-center justify-center rounded-sm text-fg-3 outline-none hover:bg-hover hover:text-fg",
-                isActive ? "visible" : "invisible group-hover:visible focus-visible:visible",
+                !isActive && "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
                 FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
               )}
             >

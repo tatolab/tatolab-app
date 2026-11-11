@@ -776,6 +776,18 @@ describe("the studio", () => {
     expect(await shownLayout()).toBe("compose");
   });
 
+  it("opens a stream's tab on a single click of its Outliner row, and the views follow the tab", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const recorderStream = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "recorder" });
+    const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main"]));
+
+    fireEvent.click(await waitFor(() => outlinerRow(`stream:${recorderStream}`)));
+
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => [tab.textContent, tab.getAttribute("aria-selected")])).toEqual([["main", "false"], ["recorder", "true"]]));
+    await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector("[data-stream-graph]")?.getAttribute("data-stream-graph")).toBe(recorderStream));
+  });
+
   it("says in the Stream graph's frame that a stopped stream isn't running, and that no stream is open once its tab closes", async () => {
     await mountedWindowOverTheMock("state=running");
     const patternTwoStream = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" });

@@ -1,4 +1,4 @@
-import { PictureInPicture2, Workflow } from "lucide-react";
+import { PictureInPicture2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { OpenProjectReading, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
@@ -10,7 +10,7 @@ import { StudioAreaFrame, StudioAreaHeaderMenu, StudioAreaOverAViewsOwnFrame, St
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { WindowNotice } from "@tatolab/tato-app-view-sdk/design_system/window_notice";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
-import { streamTabsDrawnInTheStrip } from "../presentation/stream_tabs_presentation";
+import { streamTabsDrawnInTheTitleRow } from "../presentation/stream_tabs_presentation";
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { presentRecentProjectChangeRefusalTitle } from "../presentation/projects_presentation";
 import { AppUpdateAnnouncementDialogView } from "./app_update_announcement_dialog_view";
@@ -249,20 +249,21 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
           data-window-drag-region={windowDragRegionAttribute(platform, "deep") ?? undefined}
           data-studio-title-row=""
         >
-          {menusLiveInTheSystemMenuBar ? (
-            // macOS's overlay title bar draws no title of its own, so the row names the project; Linux's window title bar shows it.
-            <p className="flex max-w-[240px] shrink-0 items-center truncate pr-6 text-2xs text-fg-3" data-studio-window-title="">
-              {openProjectTitleInTheTitleRow(openProject)}
-            </p>
-          ) : (
+          {!menusLiveInTheSystemMenuBar && (
             <div className="flex shrink-0 items-center pr-3">
               <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, status.app_update, commands)} />
             </div>
           )}
+          {presentPlatform(platform).hasOverlayTitleBar && (
+            // macOS's overlay title bar draws no title of its own, so the row names the project; Linux's window title bar shows it.
+            <p className="flex max-w-60 shrink-0 items-center pr-6 text-2xs text-fg-3" data-studio-window-title="">
+              <span className="truncate">{openProjectTitleInTheTitleRow(openProject)}</span>
+            </p>
+          )}
           <DocumentTabs
             label="Open streams"
-            icon={Workflow}
-            tabs={streamTabsDrawnInTheStrip(openStreamTabs)}
+            icon="stream"
+            tabs={streamTabsDrawnInTheTitleRow(openStreamTabs)}
             activeTabId={openStreamTabs.active_stream}
             onTabChosen={(stream) => model.chooseStreamTab(stream)}
             onTabClosed={(stream) => model.closeStreamTab(stream)}

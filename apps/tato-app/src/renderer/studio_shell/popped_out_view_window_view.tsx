@@ -12,8 +12,6 @@ import { poppedOutViewPinOf } from "./popped_out_view_pin";
 
 const HEADER_ROW_OF_THE_POPPED_OUT_AREA: ViewHeaderRow = { leading_inset_px: 0, height_px: 30 };
 
-/** A popped-out view's window draws no toolbar, so its graph tools stay on its canvas. */
-
 /** A view popped out of a studio window: that view alone, with the settings its area held, under a title strip where macOS draws the window buttons over the content, and why its project wasn't read. */
 export function PoppedOutViewWindowView({
   target,
