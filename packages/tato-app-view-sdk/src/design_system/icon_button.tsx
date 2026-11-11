@@ -10,7 +10,8 @@ export type IconButtonSize = "regular" | "compact";
 
 /** The look every icon-only control shares, the menu buttons that open from one included. */
 export const ICON_BUTTON_CLASS_NAMES = cn(
-  "rounded-md text-fg-3 hover:bg-hover hover:text-fg dark:hover:bg-hover aria-expanded:bg-selected aria-expanded:text-fg data-popup-open:bg-selected data-popup-open:text-fg",
+  "rounded-md text-fg-3 aria-expanded:bg-selected aria-expanded:text-fg data-popup-open:bg-selected data-popup-open:text-fg",
+  "hover:bg-brand-soft hover:text-brand-text hover:shadow-(--icon-button-hover-ring) dark:hover:bg-brand-soft hover:data-popup-open:bg-brand-soft hover:data-popup-open:text-brand-text",
   FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
 );
 
@@ -54,7 +55,7 @@ export function IconButton({
           onClick={() => {
             if (!isDisabled) onPressed();
           }}
-          className={cn(ICON_BUTTON_CLASS_NAMES, isDisabled && "text-fg-4 hover:bg-transparent hover:text-fg-4 dark:hover:bg-transparent")}
+          className={cn(ICON_BUTTON_CLASS_NAMES, isDisabled && "text-fg-4 hover:bg-transparent hover:text-fg-4 hover:shadow-none dark:hover:bg-transparent hover:data-popup-open:bg-transparent hover:data-popup-open:text-fg-4")}
           {...controlDataAttributes}
         >
           <ButtonIcon className={isIconFilled ? "size-3 fill-current" : size === "compact" ? "size-3.5" : "size-4"} strokeWidth={1.75} aria-hidden />

@@ -209,6 +209,7 @@
   --brand-text: #7c9bff;
   --brand-soft: rgba(42, 91, 255, 0.16);
   --on-brand: #ffffff;
+  --icon-button-hover-ring: inset 0 0 0 1px rgba(124, 155, 255, 0.35);
   --warn: #f0a63a;
   --danger: #f2554d;
   --warn-text: #f0a63a;

@@ -23,7 +23,7 @@ import {
 } from "@xyflow/react";
 import { cn } from "cn";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
-import { ChevronDown, ChevronRight, Combine, Frame, Palette, Pencil, Pipette, Plus, Scan, SquareX, StickyNote, Text, Trash2, Ungroup } from "lucide-react";
+import { ChevronDown, ChevronRight, Combine, Frame, Palette, Pencil, Pipette, Plus, Scan, SquareX, StickyNote, Text, Trash2, Ungroup, ZoomIn, ZoomOut } from "lucide-react";
 import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
 import { RightClickMenu, RightClickMenuItem, RightClickMenuSeparator, RightClickMenuSingleChoiceGroup, RightClickSubmenu } from "./menus";
 import {
@@ -43,6 +43,7 @@ import {
 } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { IconButton } from "./icon_button";
+import { Toolbar, ToolbarDivider, ToolbarGroup } from "./toolbar";
 import type { WindowToolbarGraphTool, WindowToolbarGraphToolOffered } from "../view_wire_messages";
 import {
   layOutNodeGraph,
@@ -1601,6 +1602,42 @@ function NodeGraphFlow({
             <NodeGraphFrameColoursUsedContext value={frameColoursUsed}>
             <NodeGraphFrameColourPickingContext value={setFrameIdWhoseColourIsPicked}>
           <NodeGraphLinkedPinsContext value={linkedPins}>
+            <div className="flex size-full flex-col">
+            <Toolbar label={`${label} tools`} look="view_ribbon">
+              {editing !== null && (
+                <>
+                  <ToolbarGroup>
+                    <IconButton icon={Plus} label="Add node" tooltip="Add node (Tab)" onPressed={() => editing.onNodeAskedFor(clearPlaceBroughtIntoView())} data-node-graph-tool="add_node" />
+                    <IconButton
+                      icon={Frame}
+                      label="Frame the selected nodes"
+                      tooltip="Frame the selected nodes (F)"
+                      disabledReason={frameSelectionDisabledReason}
+                      onPressed={() => {
+                        canvasElement.current?.focus({ preventScroll: true });
+                        frameTheSelection();
+                      }}
+                      data-node-graph-tool="frame_selection"
+                    />
+                    <IconButton icon={StickyNote} label="Add a note" onPressed={() => editing.onNoteAskedFor(clearPlaceBroughtIntoView())} data-node-graph-tool="add_note" />
+                    <IconButton
+                      icon={Combine}
+                      label="Collapse the selection into a subgraph"
+                      tooltip="Collapse the selection into a subgraph (⇧⌘G)"
+                      disabledReason={subgraphDisabledReason}
+                      onPressed={collapseTheSelectionIntoASubgraph}
+                      data-node-graph-tool="add_subgraph"
+                    />
+                  </ToolbarGroup>
+                  <ToolbarDivider />
+                </>
+              )}
+              <ToolbarGroup>
+                <IconButton icon={Scan} label="Frame the whole graph" onPressed={frameTheWholeGraph} data-node-graph-tool="frame_all" />
+                <IconButton icon={ZoomIn} label="Zoom in" onPressed={() => void reactFlow.zoomIn({ duration: 150 })} data-node-graph-tool="zoom_in" />
+                <IconButton icon={ZoomOut} label="Zoom out" onPressed={() => void reactFlow.zoomOut({ duration: 150 })} data-node-graph-tool="zoom_out" />
+              </ToolbarGroup>
+            </Toolbar>
             <RightClickMenu
               label={`${label}: what to do`}
               returnsFocusToTheRowOnClosing={false}
@@ -1625,7 +1662,7 @@ function NodeGraphFlow({
             >
             <div
               ref={canvasElement}
-              className="relative size-full"
+              className="relative min-h-0 w-full flex-1"
               tabIndex={editing === null ? undefined : 0}
               onKeyDown={followTheKeys}
               onContextMenuCapture={followTheRightClick}
@@ -1683,40 +1720,6 @@ function NodeGraphFlow({
                   lineWidth={1}
                   color="var(--studio-graph-grid)"
                 />
-                <div className="absolute top-2 left-2 z-10 flex flex-col gap-0.5 rounded-md bg-studio-graph-tools p-0.5">
-                  <IconButton
-                    icon={Scan}
-                    label="Frame the whole graph"
-                    size="compact"
-                    onPressed={frameTheWholeGraph}
-                    data-node-graph-tool="frame_all"
-                  />
-                  {editing !== null && (
-                    <>
-                      <span aria-hidden className="mx-1 my-0.5 h-px bg-line-strong" />
-                      <IconButton icon={Plus} label="Add node" tooltip="Add node (Tab)" size="compact" onPressed={() => editing.onNodeAskedFor(clearPlaceBroughtIntoView())} data-node-graph-tool="add_node" />
-                      <IconButton
-                        icon={Frame}
-                        label="Frame the selected nodes"
-                        tooltip="Frame the selected nodes (F)"
-                        disabledReason={frameSelectionDisabledReason}
-                        size="compact"
-                        onPressed={frameTheSelection}
-                        data-node-graph-tool="frame_selection"
-                      />
-                      <IconButton icon={StickyNote} label="Add a note" size="compact" onPressed={() => editing.onNoteAskedFor(clearPlaceBroughtIntoView())} data-node-graph-tool="add_note" />
-                      <IconButton
-                        icon={Combine}
-                        label="Collapse the selection into a subgraph"
-                        tooltip="Collapse the selection into a subgraph (⇧⌘G)"
-                        disabledReason={subgraphDisabledReason}
-                        size="compact"
-                        onPressed={collapseTheSelectionIntoASubgraph}
-                        data-node-graph-tool="add_subgraph"
-                      />
-                    </>
-                  )}
-                </div>
                 {isTheMapShown && (
                   <MiniMap
                     className="node-graph-minimap"
@@ -1734,6 +1737,7 @@ function NodeGraphFlow({
               </ReactFlow>
             </div>
             </RightClickMenu>
+            </div>
           </NodeGraphLinkedPinsContext>
             {cardAndFrameEditing !== null && (
               <ColourPickerDialog

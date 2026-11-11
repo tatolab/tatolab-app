@@ -767,7 +767,7 @@ describe("the studio", () => {
     expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
   });
 
-  it("draws the Stream graph's Add node, Frame, Note and Subgraph in the window's toolbar and down the graph's left edge, says why one can't be pressed, and a press opens the node search in the graph", async () => {
+  it("draws the Stream graph's Add node, Frame, Note and Subgraph in the window's toolbar and in the graph's ribbon, says why one can't be pressed, and a press opens the node search in the graph", async () => {
     await mountedWindowOverTheMock("state=running");
     const toolInTheToolbar = (tool: string) => document.querySelector<HTMLElement>(`[data-studio-graph-tool="${tool}"]`) ?? expect.unreachable(`no ${tool} in the toolbar`);
     await waitFor(() => expect(document.querySelector("[data-studio-graph-tools]")?.getAttribute("data-studio-graph-tools")).toBe("stream-graph"));

@@ -211,13 +211,14 @@ describe("the node graph canvas while it takes edits", () => {
     expect(onNodeAskedFor).toHaveBeenCalledWith(expect.objectContaining({ in_the_element: { x: 120, y: 480 } }));
   });
 
-  it("draws Add node, Frame, Note and Subgraph down the canvas's left edge, Frame and Subgraph saying why they wait for a selection", async () => {
+  it("draws Add node, Frame, Note and Subgraph, then Frame the whole graph and the zooms, in the graph's ribbon, Frame and Subgraph saying why they wait for a selection", async () => {
     const { editing } = editingRecorded();
     const onNodeAskedFor = vi.fn();
     const { container } = drawnCanvas({ ...editing, onNodeAskedFor });
     const tool = (name: string) => container.querySelector<HTMLElement>(`[data-node-graph-tool="${name}"]`) ?? expect.unreachable(`no ${name}`);
     await vi.waitFor(() => tool("add_node"));
-    expect(tool("add_note")).toBeTruthy();
+    expect(tool("add_note").closest('[role="toolbar"]')?.getAttribute("aria-label")).toBe("Stream graph tools");
+    expect([...container.querySelectorAll("[data-node-graph-tool]")].map((button) => button.getAttribute("data-node-graph-tool"))).toEqual(["add_node", "frame_selection", "add_note", "add_subgraph", "frame_all", "zoom_in", "zoom_out"]);
     expect(tool("frame_selection").getAttribute("aria-disabled")).toBe("true");
     expect(tool("add_subgraph").getAttribute("aria-label")).toBe("Collapse the selection into a subgraph: Select the nodes to collapse into a subgraph first");
     fireEvent.click(tool("add_node"));
@@ -263,6 +264,12 @@ describe("the node graph canvas while it takes edits", () => {
     await rightClickTheCard();
     fireEvent.click(await vi.waitFor(() => document.querySelector<HTMLElement>('[data-node-graph-choice="delete"]') ?? expect.unreachable("no Delete")));
     expect(onDeleted).toHaveBeenCalledWith({ node_ids: ["pattern"], link_ids: [], note_ids: [] });
+  });
+
+  it("leaves only Frame the whole graph and the zooms in a read-only graph's ribbon", async () => {
+    const { container } = drawnCanvas(null);
+    await vi.waitFor(() => container.querySelector('[data-node-graph-tool="frame_all"]') ?? expect.unreachable("no ribbon"));
+    expect([...container.querySelectorAll("[data-node-graph-tool]")].map((button) => button.getAttribute("data-node-graph-tool"))).toEqual(["frame_all", "zoom_in", "zoom_out"]);
   });
 
   it("offers no right-click menu on a read-only canvas's frame", async () => {
