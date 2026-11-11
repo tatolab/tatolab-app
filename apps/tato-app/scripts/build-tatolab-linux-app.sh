@@ -252,7 +252,7 @@ grep -qE '[[:space:]]\./usr/bin/Tatolab -> \.\./lib/tatolab/Tatolab$' <<<"$deb_c
   || { echo "the .deb does not link usr/bin/Tatolab to the app" >&2; exit 1; }
 ! grep -qE '[[:space:]]\./usr/lib/tatolab/resources/(uv|python)(/|$)' <<<"$deb_contents" \
   || { echo "the .deb carries a uv or Python of the app's own under usr/lib/tatolab/resources" >&2; exit 1; }
-for carried_runtime_member in bin/tatolabd bin/tatolab bin/uv; do
+for carried_runtime_member in bin/tatolabd bin/tatolab bin/uv bin/tatolab-video-poster-frame; do
   grep -qE "^-rwxr-xr-x .*[[:space:]]\./usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member\$" <<<"$deb_contents" \
     || { echo "the .deb carries no runnable usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member" >&2; exit 1; }
 done

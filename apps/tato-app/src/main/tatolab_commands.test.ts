@@ -1127,6 +1127,40 @@ test("importing assets into the open project copies each file the person chooses
   expect(await commandHandlers.import_assets_into_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 
+test("renaming, moving and deleting an asset of the open project reach the runtime by the person editing, answering nothing, or the runtime's refusal in its own words", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-relocate-asset-answer-for-poster-png-renamed-to-harbour-poster-png-by-a-person.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-relocate-asset-refusal-for-a-path-another-asset-of-harbour-lights-takes.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-asset-answer-for-opening-png-deleted-by-a-person.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-asset-refusal-for-an-asset-harbour-lights-does-not-hold.json")),
+    ],
+    "linux",
+  );
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "harbour-lights-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const poster = "7fc01c14-399c-4749-a45b-2c99a77ce0a6";
+
+  expect(await commandHandlers.relocate_asset_in_the_open_project({ asset: poster, to_path: "media/harbour-poster.png" }, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.relocate_asset_in_the_open_project({ asset: poster, to_path: "media/opening.png" }, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: "relocate_asset failed: `media/opening.png` is already the path of the asset 4ce7c229-734b-4210-9bb5-e321bf4183de",
+  });
+  expect(await commandHandlers.delete_asset_from_the_open_project({ asset: "4ce7c229-734b-4210-9bb5-e321bf4183de" }, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.delete_asset_from_the_open_project({ asset: "00000000-0000-4000-8000-000000000000" }, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: "delete_asset failed: the project holds no asset 00000000-0000-4000-8000-000000000000",
+  });
+  expect(await commandHandlers.relocate_asset_in_the_open_project({ asset: poster }, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: "relocate_asset_in_the_open_project needs `to_path`, the asset's new path in the project",
+  });
+  expect(await commandHandlers.delete_asset_from_the_open_project({ asset: poster }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+});
+
 /** The window's `ProjectGraphTransactionTheRuntimeAnswered` reads exactly this JSON. */
 test("a graph transaction in the open project reaches the runtime's transact held to its shape and to the project's streams, by the person editing, answering what it applied or the runtime's structured refusal", async () => {
   const sharedState = await sharedStateOverFakes(

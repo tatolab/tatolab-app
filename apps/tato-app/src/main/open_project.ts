@@ -24,7 +24,7 @@ import { realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_
 import type { LocalApiRequestFailure } from "./local_api_client.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
-import type { AssetImportedByTheRuntime, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
+import type { ProjectAssetAtItsPath, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
 import { importFolderInsideTheWorkspace, PROJECT_IMPORTS_FOLDER } from "./workspace_dependencies.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 
@@ -97,7 +97,7 @@ export interface ProjectChangesThroughTheRuntime {
   /** `set_project_cover` with the media asset `cover`, a UUID the project holds; `null` clears it. */
   setProjectCover(projectDirectory: string, cover: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>>;
   /** `import_asset` of the file at `source` to `assetPath` in the project, or for `null` into its kind's folder, by `author` or, for `null`, the runtime's own. */
-  importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>>;
+  importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>>;
   /** `read_project_file`: the bytes of `filePath` in the project. */
   readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, LocalApiRequestFailure>>;
 }

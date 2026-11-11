@@ -73,6 +73,10 @@ export interface TatolabBackend {
   listProjectAssets(projectDirectory: string): Promise<ProjectAssetListing>;
   /** Ask the person for files and import each into the window's project, where the runtime places it in its kind's folder, by the person editing; `null` when they choose nothing, rejecting in Studio's or the runtime's words. */
   importAssetsIntoTheOpenProject(): Promise<ProjectAssetsImported | null>;
+  /** Put the asset `asset` of the window's project at `toPath`, renaming it, moving it or both, by the person editing; rejects in Studio's or the runtime's words. */
+  relocateAssetInTheOpenProject(asset: string, toPath: string): Promise<void>;
+  /** Stop tracking the asset `asset` of the window's project, its file leaving the project, by the person editing; rejects in Studio's or the runtime's words. */
+  deleteAssetFromTheOpenProject(asset: string): Promise<void>;
   /** Check for a newer Tato Studio, downloading one that installs in place; how that goes arrives as the status's `app_update`. */
   checkForTatolabAppUpdates(): Promise<void>;
   /** Restart into a downloaded Tato Studio, download one a check found, or open a `.deb`'s download; how that goes arrives as the status's `app_update`. */

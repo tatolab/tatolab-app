@@ -316,6 +316,43 @@ describe("the studio", () => {
     expect(library.querySelector("[data-library-import-refused]")).toBeNull();
   });
 
+  it("renames, moves and deletes the chosen asset through the runtime, a path another asset takes refused in its words", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await showTheLibraryInTheViewerArea();
+    await showInTheLibrary("assets");
+
+    const library = coreViewPage("library");
+    fireEvent.click(await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset="media/poster.png"]') ?? expect.unreachable("no poster card")));
+    const details = () => library.querySelector<HTMLElement>("[data-library-asset-details]") ?? expect.unreachable("no details");
+    const formField = () => library.querySelector<HTMLInputElement>("[data-library-asset-change-field]") ?? expect.unreachable("no form field");
+    const pressTheForms = (action: string) => fireEvent.click(library.querySelector<HTMLElement>(`[data-library-asset-change-action="${action}"]`) ?? expect.unreachable(`no ${action} button`));
+
+    fireEvent.click(await waitFor(() => details().querySelector<HTMLElement>('[data-library-asset-change="rename"]') ?? expect.unreachable("no Rename")));
+    await waitFor(() => expect(formField().value).toBe("poster.png"));
+    fireEvent.change(formField(), { target: { value: "lobby-intro.mp4" } });
+    pressTheForms("rename");
+    const refusal = await waitFor(() => library.querySelector<HTMLElement>("[data-library-asset-change-refusal]") ?? expect.unreachable("no refusal"));
+    expect(refusal.textContent).toContain("relocate_asset failed: `media/lobby-intro.mp4` is already the path of the asset 207ef246-3d00-4167-b394-bb591f7c4b8f");
+    fireEvent.change(formField(), { target: { value: "harbour-poster.png" } });
+    pressTheForms("rename");
+    await waitFor(() => expect(library.querySelector('[data-library-asset="media/harbour-poster.png"]')).not.toBeNull());
+    await waitFor(() => expect(library.querySelector("[data-library-asset-change-form]")).toBeNull());
+
+    fireEvent.click(details().querySelector<HTMLElement>('[data-library-asset-change="move"]') ?? expect.unreachable("no Move"));
+    await waitFor(() => expect(formField().value).toBe("media"));
+    fireEvent.change(formField(), { target: { value: "media/posters" } });
+    expect(library.querySelector("[data-library-asset-change-lands-at]")?.textContent).toBe("media/posters/harbour-poster.png");
+    pressTheForms("move");
+    await waitFor(() => expect(library.querySelector('[data-library-asset="media/posters/harbour-poster.png"]')).not.toBeNull());
+    await waitFor(() => expect(library.querySelector("[data-library-asset-change-form]")).toBeNull());
+
+    fireEvent.click(details().querySelector<HTMLElement>('[data-library-asset-change="delete"]') ?? expect.unreachable("no Delete"));
+    await waitFor(() => library.querySelector('[data-library-asset-change-action="delete"]') ?? expect.unreachable("no Delete button"));
+    pressTheForms("delete");
+    await waitFor(() => expect(library.querySelector('[data-library-asset="media/posters/harbour-poster.png"]')).toBeNull());
+    expect(library.querySelector("[data-library-asset-details]")).toBeNull();
+  });
+
   it("shows each file the runtime refused to import in its words, beside the file it imported, the search cleared so the import shows", async () => {
     await mountedWindowOverTheMock("state=running&asset_import=refuses_one");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));

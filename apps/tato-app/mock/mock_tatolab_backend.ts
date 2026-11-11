@@ -36,11 +36,11 @@ import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./m
 import { MockProjectFiles } from "./mock_project_files";
 import { MOCK_PERSON_EDITING_IN_STUDIO, MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
-import { mockImportTheFilesChosen, mockProjectAssetListing, type MockAssetImportScenario } from "./mock_project_assets";
+import { mockDeleteTheAsset, mockImportTheFilesChosen, mockProjectAssetListing, mockProjectAssetsUnchanged, mockRelocateTheAsset, type MockAssetImportScenario } from "./mock_project_assets";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { isModulesShown, type ModulesShown } from "../src/shared/tatolab_electron_bridge_contract";
-import type { JsonValue, ProjectAsset, ProjectGraphTransaction, ProjectTransaction, StreamAssetCreated, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, ProjectGraphTransaction, ProjectTransaction, StreamAssetCreated, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
 import { streamDocumentNameNumberedPast, streamDocumentNameOfTheDisplayName } from "../src/shared/stream_document_name";
 import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
@@ -273,7 +273,7 @@ export interface MockTatolabOptions {
   isTheFixtureViewListed: boolean;
   /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the effect's output. */
   isTheCompositorInMain: boolean;
-  /** Whether the open project's main stream declares Graph Inputs, which Perform's Controls show. */
+  /** Whether the open project's main stream declares Graph Inputs, which the Controls view shows. */
   doesTheMainStreamDeclareGraphInputs: boolean;
   /** `?subgraphs=generated`: `main` holds a graph generator's frozen output. */
   doesTheMainStreamHoldAGeneratedSubgraph: boolean;
@@ -554,7 +554,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     recentProjectsInTheQuery,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
-  const assetsImportedWhileTheMockRuns: ProjectAsset[] = [];
+  const assetsChangedWhileTheMockRuns = mockProjectAssetsUnchanged();
   const mainStreamAsChosen =
     scenario === "node-error"
       ? fixtures.mainStreamWithDisplayWindowInError
@@ -1292,7 +1292,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     listProjectAssets: async (projectDirectory) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      const listing = mockProjectAssetListing(projectDirectory, `${fixtures.machine.homeDirectory}/streams`, assetsImportedWhileTheMockRuns);
+      const listing = mockProjectAssetListing(projectDirectory, `${fixtures.machine.homeDirectory}/streams`, assetsChangedWhileTheMockRuns);
       if (listing === null) throw `list_assets failed: ${projectDirectory} holds no project: it has no tatolab-project.json`;
       return listing;
     },
@@ -1303,11 +1303,25 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       const assetsImported = mockImportTheFilesChosen(
         openProjectReading.open_project.project.folder,
         `${fixtures.machine.homeDirectory}/streams`,
-        assetsImportedWhileTheMockRuns,
+        assetsChangedWhileTheMockRuns,
         mockTatolabOptions.assetImportScenario,
       );
       if (typeof assetsImported === "string") throw assetsImported;
       return assetsImported;
+    },
+    relocateAssetInTheOpenProject: async (asset, toPath) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openProjectReading.kind !== "read") throw "No project is open in this window.";
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const refusal = mockRelocateTheAsset(openProjectReading.open_project.project.folder, `${fixtures.machine.homeDirectory}/streams`, assetsChangedWhileTheMockRuns, asset, toPath);
+      if (refusal !== null) throw refusal;
+    },
+    deleteAssetFromTheOpenProject: async (asset) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openProjectReading.kind !== "read") throw "No project is open in this window.";
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const refusal = mockDeleteTheAsset(openProjectReading.open_project.project.folder, `${fixtures.machine.homeDirectory}/streams`, assetsChangedWhileTheMockRuns, asset);
+      if (refusal !== null) throw refusal;
     },
     checkForTatolabAppUpdates: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

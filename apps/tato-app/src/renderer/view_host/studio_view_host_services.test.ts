@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { OpenProjectReading, ProjectAssetsImported } from "../../shared/tatolab_backend_contract";
-import { importAssetsIntoTheOpenProjectForAView } from "./studio_view_host_services";
+import { changeAnAssetOfTheOpenProjectForAView, importAssetsIntoTheOpenProjectForAView } from "./studio_view_host_services";
 
 const GALLERY_WALL_OPEN: OpenProjectReading = {
   kind: "read",
@@ -48,4 +48,26 @@ test("a folder that is not the window's open project is refused in Studio's word
     because: "Tato Studio imports assets into this window's project only, not /projects/elsewhere.",
   });
   expect(importsAskedSoFar()).toBe(0);
+});
+
+test("a view's rename, move or delete of an asset changes the window's open project, listed again at once, a rejection in its own words, and any other folder refused with nothing asked", async () => {
+  const projectsListedAgain: string[] = [];
+  let changesAsked = 0;
+  const assetChangeSources = { readTheOpenProject: () => GALLERY_WALL_OPEN, listTheProjectAgainNow: (projectFolder: string) => projectsListedAgain.push(projectFolder) };
+  const changeAnswering = (answer: () => Promise<void>) => () => {
+    changesAsked += 1;
+    return answer();
+  };
+
+  expect(await changeAnAssetOfTheOpenProjectForAView("/projects/gallery-wall", assetChangeSources, changeAnswering(async () => undefined))).toEqual({ kind: "changed" });
+  expect(projectsListedAgain).toEqual(["/projects/gallery-wall"]);
+  expect(await changeAnAssetOfTheOpenProjectForAView("/projects/gallery-wall", assetChangeSources, changeAnswering(() => Promise.reject("delete_asset failed: the project holds no asset b-uuid")))).toEqual({
+    kind: "not_changed",
+    because: "delete_asset failed: the project holds no asset b-uuid",
+  });
+  expect(await changeAnAssetOfTheOpenProjectForAView("/projects/elsewhere", assetChangeSources, changeAnswering(async () => undefined))).toEqual({
+    kind: "not_changed",
+    because: "Tato Studio changes the assets of this window's project only, not /projects/elsewhere.",
+  });
+  expect(changesAsked).toBe(2);
 });
