@@ -156,6 +156,11 @@ async function showTheLibraryInTheViewerArea(): Promise<void> {
     await waitFor(() => expect(screen.queryByRole("menuitemradio", { name: /^Library/ })).toBeNull());
 }
 
+/** The Projects window's New project button, beside its view and sort menus; the grid's last card is another. */
+async function projectsWindowNewProjectButton(): Promise<HTMLElement> {
+  return waitFor(() => document.querySelector<HTMLElement>('[data-projects-action="new"]') ?? expect.unreachable("no New project button"));
+}
+
 function outlinerRow(rowId: string): HTMLElement {
   return coreViewPage("outliner").querySelector<HTMLElement>(`[data-outliner] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no outliner row ${rowId}`);
 }
@@ -1549,7 +1554,7 @@ describe("the studio", () => {
 
   it("opens New project on a sheet with an untitled name in Documents/Tato Studio, its full path following the name and Browse…, and Create opens the project made", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
-    fireEvent.click(await screen.findByRole("button", { name: "New project" }));
+    fireEvent.click(await projectsWindowNewProjectButton());
     const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-new-project-name]") ?? expect.unreachable("no New project sheet"));
     expect(nameField.value).toBe("Untitled project 2");
     expect(textOf("[data-new-project-location]")).toBe("~/Documents/Tato Studio");
@@ -1573,7 +1578,7 @@ describe("the studio", () => {
 
   it("opens the Activity panel as a new project's packages sync, naming each package uv downloads, and keeps how many it installed and each package once it ends", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
-    fireEvent.click(await screen.findByRole("button", { name: "New project" }));
+    fireEvent.click(await projectsWindowNewProjectButton());
     await waitFor(() => document.querySelector<HTMLInputElement>("[data-new-project-name]") ?? expect.unreachable("no New project sheet"));
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
@@ -1587,7 +1592,7 @@ describe("the studio", () => {
 
   it("refuses a name that is no folder name before Create, and a folder already there in the sheet, which stays open", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
-    fireEvent.click(await screen.findByRole("button", { name: "New project" }));
+    fireEvent.click(await projectsWindowNewProjectButton());
     const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-new-project-name]") ?? expect.unreachable("no New project sheet"));
 
     fireEvent.change(nameField, { target: { value: "lights/left" } });
@@ -1606,7 +1611,7 @@ describe("the studio", () => {
 
   it("shows the runtime's refusal to create a project in the sheet, in its own words, and Cancel closes it with nothing opened", async () => {
     await mountedWindowOverTheMock("state=running&project=none", { createNewProject: () => Promise.reject("the folder already holds a project") });
-    fireEvent.click(await screen.findByRole("button", { name: "New project" }));
+    fireEvent.click(await projectsWindowNewProjectButton());
     fireEvent.click(await screen.findByRole("button", { name: "Create" }));
 
     await waitFor(() => expect(textOf("[data-new-project-refusal]")).toBe("The project wasn't created: the folder already holds a project"));
