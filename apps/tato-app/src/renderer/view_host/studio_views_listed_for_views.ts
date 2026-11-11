@@ -53,7 +53,11 @@ export function studioViewsReadingOf(viewTypeRegistry: StudioViewTypeRegistry): 
 export function watchTheStudioViewsOfTheRegistry(viewTypeRegistry: StudioViewTypeRegistry, listener: (reading: StudioViewsReading) => void): StopWatching {
   const tellTheListener = () => listener(studioViewsReadingOf(viewTypeRegistry));
   const stopWatchingTheProjectsViews = viewTypeRegistry.projectStudioViews.watch(tellTheListener);
-  const stopWatchingDeveloperMode = viewTypeRegistry.developerMode.watch(tellTheListener);
+  let developerModeToldOnce = false;
+  const stopWatchingDeveloperMode = viewTypeRegistry.developerMode.watch(() => {
+    if (developerModeToldOnce) tellTheListener();
+    developerModeToldOnce = true;
+  });
   return () => {
     stopWatchingTheProjectsViews();
     stopWatchingDeveloperMode();

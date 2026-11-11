@@ -69,6 +69,7 @@ describe("the views a view reads", () => {
     const registry = registryAsTheWindowBuildsIt();
     const readingsTold: string[][] = [];
     const stopWatching = watchTheStudioViewsOfTheRegistry(registry, (reading) => readingsTold.push(viewTypeIdsListed(reading)));
+    expect(readingsTold).toEqual([["outliner", "broken"]]);
     registry.developerMode.publish(true);
     expect(readingsTold.at(-1)).toEqual(["outliner", "transactions", "broken"]);
     registry.developerMode.publish(false);

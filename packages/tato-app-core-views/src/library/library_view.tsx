@@ -181,7 +181,7 @@ function DetailsOfTheView({ studioView }: { studioView: StudioViewListed }) {
     ["Shows", studioViewShownWhereWords(studioView)],
   ];
   return (
-    <div className="scrollbar-thin flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4" data-library-view-details={studioView.view_type_id}>
+    <div className="scrollbar-thin flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4" data-library-view-details={libraryViewRowIdOf(studioView)}>
       <h2 className="text-base font-semibold text-fg">{studioView.title}</h2>
       {studioView.description !== "" && <p className="text-xs text-fg-2">{studioView.description}</p>}
       {studioView.not_opened_because !== null && <RuntimeFailureWords words={studioView.not_opened_because} data-library-view-not-opened-because="" />}
