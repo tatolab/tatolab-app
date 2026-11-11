@@ -369,10 +369,10 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
   const graph = streamGraphSummaryFromTheGraphToolResult("main", graphToolResultText);
   expect(graph.ok && JSON.stringify(graph.value)).toBe(
     '{"stream":"main","stream_asset":null,"nodes":[' +
-      '{"id":"P1","name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running","failed_because":null,"config":{},"pins":{},' +
+      '{"id":"P1","name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running","failed_because":null,"process_raising_because":null,"config":{},"pins":{},' +
       '"input_ports":[],"output_ports":[{"name":"video","family":null,"stream_facts":null,"values_checked":null}],' +
       '"dropped_bags_by_link":{},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}},"fragment":null},' +
-      '{"id":"","name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null,"failed_because":null,"config":{},"pins":{},' +
+      '{"id":"","name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null,"failed_because":null,"process_raising_because":null,"config":{},"pins":{},' +
       '"input_ports":[],"output_ports":[],' +
       '"dropped_bags_by_link":{"L1":12},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}},"fragment":null}],' +
       '"links":[{"id":"L1","source_node":"testpatternsource","source_port":"video",' +
