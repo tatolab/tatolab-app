@@ -97,6 +97,11 @@ export interface TatolabAppControllerSources {
   tatolabAppLog: TatolabAppLog;
 }
 
+interface ProjectVenvSyncsUnderWayAndJustEnded {
+  readonly underWay: ProjectVenvSyncOfAStreamAction[];
+  readonly justEnded: ProjectVenvSyncOfAStreamAction[];
+}
+
 /** The app's runtime, the command's link, and what the controller remembers between status rounds. */
 export class TatolabAppController {
   private readonly runtimeNotRunningOnset = new ConditionOnsetLatch();
@@ -187,10 +192,10 @@ export class TatolabAppController {
   }
 
   /** Each action a listed stream named on its `making_the_venv` step at the last round that listed the streams, so its sync is read once more as it leaves. */
-  private actionsMakingTheVenvAtTheLastRound = new Set<string>();
+  private actionsMakingTheVenvAtTheLastRound: ReadonlySet<string> = new Set();
 
   /** Each round's syncs: under way, for each action a listed stream names on its `making_the_venv` step, and just ended, for each action named there last round and no longer; an action not described is left out. */
-  private async projectVenvSyncsOf(streams: readonly ListedStream[]): Promise<{ underWay: ProjectVenvSyncOfAStreamAction[]; justEnded: ProjectVenvSyncOfAStreamAction[] }> {
+  private async projectVenvSyncsOf(streams: readonly ListedStream[]): Promise<ProjectVenvSyncsUnderWayAndJustEnded> {
     const actionsMakingTheVenv = new Set(streams.flatMap((listedStream) => (listedStream.step === STREAM_ACTION_STEP_MAKING_THE_VENV && listedStream.action !== null ? [listedStream.action] : [])));
     const actionsThatLeftTheVenvStep = [...this.actionsMakingTheVenvAtTheLastRound].filter((action) => !actionsMakingTheVenv.has(action));
     this.actionsMakingTheVenvAtTheLastRound = actionsMakingTheVenv;
@@ -230,7 +235,7 @@ export class TatolabAppController {
     let streams: ListedStream[] | null = null;
     let streamsNotListedBecause: string | null = null;
     let machineName: string | null = null;
-    let projectVenvSyncs: Promise<{ underWay: ProjectVenvSyncOfAStreamAction[]; justEnded: ProjectVenvSyncOfAStreamAction[] }> = Promise.resolve({ underWay: [], justEnded: [] });
+    let projectVenvSyncs: Promise<ProjectVenvSyncsUnderWayAndJustEnded> = Promise.resolve({ underWay: [], justEnded: [] });
     if (healthCheck.ok) {
       const listing = await this.listedStreams();
       streams = listing.ok ? listing.value : null;
@@ -239,6 +244,7 @@ export class TatolabAppController {
       machineName = await this.machineNameOfTheRunningRuntime.machineName(() => this.askTheRuntimeItsMachineName());
     } else {
       this.machineNameOfTheRunningRuntime.runtimeIsDown();
+      this.actionsMakingTheVenvAtTheLastRound = new Set();
     }
     this.carriedRuntimeRunAsTheAppsChild.keepTheRuntimeRunning(healthCheck.ok, nowMs);
     const { runtimeState, runtimeNotRunningBecause } = this.carriedRuntimeRunAsTheAppsChild.runtimeStateNow(healthCheck.ok, nowMs);
@@ -249,6 +255,7 @@ export class TatolabAppController {
       });
     }
 
+    const { underWay, justEnded } = await projectVenvSyncs;
     return {
       app_version: this.appVersion,
       app_build: this.appBuild,
@@ -257,8 +264,8 @@ export class TatolabAppController {
       runtime_not_running_because: runtimeNotRunningBecause,
       machine_name: machineName,
       streams,
-      project_venv_syncs_under_way: (await projectVenvSyncs).underWay,
-      project_venv_syncs_just_ended: (await projectVenvSyncs).justEnded,
+      project_venv_syncs_under_way: underWay,
+      project_venv_syncs_just_ended: justEnded,
       streams_not_listed_because: streamsNotListedBecause,
       command_line_tool_link: await this.commandLineToolLink.observeTheLink(),
       app_update: this.readTheAppUpdateState(),

@@ -1262,9 +1262,9 @@ describe("the studio", () => {
     const packageList = await screen.findByRole("list", { name: "Untitled project 2's Python packages, each part" }, { timeout: 4000 });
     await waitFor(() => expect(within(packageList).getByText("pillow")).toBeTruthy(), { timeout: 4000 });
     expect(document.querySelector("[data-studio-activity-panel]")?.textContent).toMatch(/Downloading|Installing|Installed/);
-    const endedRow = await waitFor(() => document.querySelector('[data-studio-activity-panel] [data-progress-meter-outcome="done"]') ?? expect.unreachable("the sync has not ended"), { timeout: 8000 });
+    const endedRow = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-activity-panel] [data-progress-meter-outcome="done"]') ?? expect.unreachable("the sync has not ended"), { timeout: 8000 });
     expect(endedRow.textContent).toContain("Installed 8 packages");
-    expect(within(within(endedRow as HTMLElement).getByRole("list")).getByText("pillow")).toBeTruthy();
+    expect(within(within(endedRow).getByRole("list")).getByText("pillow")).toBeTruthy();
   }, 15_000);
 
   it("refuses a name that is no folder name before Create, and a folder already there in the sheet, which stays open", async () => {

@@ -15,8 +15,8 @@ export type StudioActivityProgress = { kind: "share_known"; percent: number } | 
 
 /** One download or install in the Activity panel, under way or ended. */
 export type StudioActivity =
-  | { activity_id: string; title: string; kind: "in_progress"; detail: string; progress: StudioActivityProgress; package_lines: ProgressMeterPart[] }
-  | { activity_id: string; title: string; kind: "done"; detail: string; package_lines: ProgressMeterPart[] }
+  | { activity_id: string; title: string; kind: "in_progress"; detail: string; progress: StudioActivityProgress; package_lines: readonly ProgressMeterPart[] }
+  | { activity_id: string; title: string; kind: "done"; detail: string; package_lines: readonly ProgressMeterPart[] }
   | { activity_id: string; title: string; kind: "failed"; refusal: string };
 
 /** What the Activity panel holds: the activities under way, then the ended ones, newest first. */
