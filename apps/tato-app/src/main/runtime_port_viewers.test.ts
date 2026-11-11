@@ -444,6 +444,20 @@ test("a_reload_of_the_stream_reopens_its_port_once_the_runtime_lists_it_without_
   expect(channelReaders).toHaveLength(2);
 });
 
+test("a_reload_listed_stopped_between_its_stop_and_its_start_reopens_the_port_once", async () => {
+  const { runtimePortViewers, waits } = harness();
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
+
+  runtimePortViewers.noticeStatus({ streams: [listedStudioStream("stopping", "action-reload")] });
+  runtimePortViewers.noticeStatus({ streams: [listedStudioStream("stopped", null)] });
+  runtimePortViewers.noticeStatus({ streams: [listedStudioStream("preparing", "action-reload")] });
+  runtimePortViewers.noticeStatus({ streams: [listedStudioStream("running", null)] });
+
+  expect(windowShowingPortViewers.portViewerEvents.map((event) => event.kind)).toEqual(["reopening"]);
+  expect(waits).toHaveLength(1);
+});
+
 test("a_stream_listed_running_throughout_keeps_its_runtime_viewer", async () => {
   const { runtimePortViewers, channelReaders, waits } = harness();
   const windowShowingPortViewers = new FakeWindowShowingPortViewers();

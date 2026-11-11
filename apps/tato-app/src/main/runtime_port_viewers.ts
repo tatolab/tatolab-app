@@ -133,12 +133,12 @@ export class RuntimePortViewers {
     if (this.subscriptionsOf(targetKey).length === 0) this.closeTheRuntimeViewer(targetKey);
   }
 
-  /** Open again each runtime viewer of a stream the runtime listed with a stream action working on it and now lists without one: a reload replaced the node it read, whose new channel the viewer held open does not carry. */
+  /** Open again each runtime viewer of a stream the runtime listed with a stream action working on it and now lists without one, and not stopped between a reload's stop and its start: a reload replaced the node it read, whose new channel the viewer held open does not carry. */
   noticeStatus(status: Pick<TatolabStatus, "streams">): void {
     for (const listedStream of status.streams ?? []) {
       if (aStreamActionReplacesTheNodesOf(listedStream)) {
         this.streamsSeenWhileTheirNodesWereReplaced.add(listedStream.stream);
-      } else if (this.streamsSeenWhileTheirNodesWereReplaced.delete(listedStream.stream)) {
+      } else if (listedStream.state !== "stopped" && this.streamsSeenWhileTheirNodesWereReplaced.delete(listedStream.stream)) {
         this.reopenEveryRuntimeViewerOfTheStream(listedStream.stream);
       }
     }

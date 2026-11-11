@@ -313,13 +313,22 @@ function startOrReloadTheProject(sharedState: TatolabAppSharedState, projectDire
   return theRuntimeRunsTheProject(sharedState, projectDirectory) ? sharedState.controller.reloadProject(projectDirectory) : sharedState.controller.startProject(projectDirectory);
 }
 
-/** After a save of `savedFile`, a `.py` file of `projectDirectory`, the runtime's `reload_project` queued while it runs or is paused, as `tatolab dev` reloads on a save, so the saved node code runs; a stopped project is left stopped, and a refusal is logged in the runtime's own words. */
-export async function reloadTheRunningProjectAfterASavedPythonFile(sharedState: TatolabAppSharedState, projectDirectory: string, savedFile: string): Promise<void> {
-  if (path.extname(savedFile) !== ".py" || !theRuntimeRunsTheProject(sharedState, projectDirectory)) return;
-  const queued = await sharedState.controller.reloadProject(projectDirectory);
+/** What a save of a project's node file asks of the runtime: `reload` while it runs a stream of `projectDirectory` or is starting one, `start` while none runs and one has failed, so saved code can fix it, and `nothing` while every stream is stopped. */
+export function whatASavedNodeFileAsksOfTheRuntime(listedStreams: readonly ListedStream[], projectDirectory: string): "reload" | "start" | "nothing" {
+  const streamsOfTheProject = listedStreams.filter((listedStream) => listedStream.location?.project_directory === projectDirectory);
+  if (streamsOfTheProject.some((listedStream) => STREAM_STATES_OF_A_PROJECT_THE_RUNTIME_RUNS.has(listedStream.state))) return "reload";
+  return streamsOfTheProject.some((listedStream) => listedStream.state === "failed") ? "start" : "nothing";
+}
+
+/** After a save of `savedFile`, a `.py` file of `projectDirectory`, the project read again as `tatolab dev` does on a save: reloaded while it plays, started again while it has failed, left alone while stopped; a refusal is logged in the runtime's own words. */
+export async function runTheSavedPythonFileOfAPlayingOrFailedProject(sharedState: TatolabAppSharedState, projectDirectory: string, savedFile: string): Promise<void> {
+  if (path.extname(savedFile) !== ".py") return;
+  const asked = whatASavedNodeFileAsksOfTheRuntime(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectDirectory);
+  if (asked === "nothing") return;
+  const queued = asked === "reload" ? await sharedState.controller.reloadProject(projectDirectory) : await sharedState.controller.startProject(projectDirectory);
   sharedState.statusPublisher.requestRefresh();
-  if (queued.ok) sharedState.tatolabAppLog.info("reloaded the project after a save of its Python file", { project_folder: projectDirectory, file: savedFile, action: queued.value.action });
-  else sharedState.tatolabAppLog.warn("the runtime refused the reload after a save of the project's Python file", { project_folder: projectDirectory, file: savedFile, refusal: queued.failure.failureDescription });
+  if (queued.ok) sharedState.tatolabAppLog.info("ran the project again after a save of its Python file", { project_folder: projectDirectory, file: savedFile, asked, action: queued.value.action });
+  else sharedState.tatolabAppLog.warn("the runtime refused to run the project again after a save of its Python file", { project_folder: projectDirectory, file: savedFile, asked, refusal: queued.failure.failureDescription });
 }
 
 /** `reload_project { project_directory }`: a project the runtime lists read again from disk with `reload_project` while it runs, or started with `start_project` while it is stopped or failed, then a status round; refused in the runtime's own words. */
@@ -1138,7 +1147,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
       const { file, text, based_on_version } = saveArguments.value;
       const saved = await answerTheWindow("save_project_file", () => studioWindow.value.openProjectFiles.saveProjectFile(file, text, based_on_version));
-      if (saved.ok) await reloadTheRunningProjectAfterASavedPythonFile(sharedState, studioWindow.value.openProject.projectFolder, file);
+      if (saved.ok) await runTheSavedPythonFileOfAPlayingOrFailedProject(sharedState, studioWindow.value.openProject.projectFolder, file);
       return commandAnswerFrom(saved);
     },
     create_node_file: async (commandArguments, commandFromWindow) => {
