@@ -43,6 +43,13 @@ export type FieldMenuSize = "regular" | "compact";
 /** How a field that opens a menu looks: an outlined field, or the inset well a port's link target sits in, filling its row. */
 export type FieldMenuAppearance = "field" | "port_target";
 
+const FIELD_MENU_APPEARANCE_CLASS_NAMES: Record<FieldMenuAppearance, string> = {
+  field:
+    "min-w-0 shrink-0 gap-1.5 rounded-md border-line bg-window pr-1.5 pl-2 text-sm font-normal text-fg-2 hover:border-line-strong hover:bg-hover hover:text-fg aria-expanded:bg-hover dark:border-line dark:bg-window dark:hover:bg-hover",
+  port_target:
+    "h-[26px] min-w-0 flex-1 gap-1.5 rounded-[4px] border-studio-port-target-picker-line bg-studio-port-target-picker pr-1.5 pl-[7px] text-xs font-normal text-fg hover:bg-studio-port-target-picker aria-expanded:border-brand aria-expanded:shadow-[0_0_0_1px_var(--brand)] dark:border-studio-port-target-picker-line dark:bg-studio-port-target-picker dark:hover:border-fg-4 dark:hover:bg-studio-port-target-picker dark:aria-expanded:border-brand",
+};
+
 /** A menu choice's padding and its icon's look, the same in a dropdown menu and a right-click menu. */
 const MENU_ITEM_CLASS_NAMES = "px-2";
 const MENU_ITEM_ICON_CLASS_NAMES = "size-4 text-fg-3";
@@ -141,12 +148,10 @@ export function FieldMenu({
             variant="outline"
             size={size === "compact" ? "xs" : "sm"}
             className={cn(
-              "min-w-0 shrink-0 gap-1.5 rounded-md border-line bg-window pr-1.5 pl-2 text-sm font-normal text-fg-2 hover:border-line-strong hover:bg-hover hover:text-fg aria-expanded:bg-hover dark:border-line dark:bg-window dark:hover:bg-hover",
-              size === "compact" && "h-6 gap-1 rounded-[4px] bg-transparent text-[11.5px] dark:bg-transparent",
-              isNarrowing && "border-line-strong text-fg dark:border-line-strong",
-              fillsItsPlace ? "w-full" : "max-w-96",
-              appearance === "port_target" &&
-                "h-[26px] min-w-0 flex-1 shrink gap-1.5 rounded-[4px] border-studio-port-target-picker-line bg-studio-port-target-picker pr-1.5 pl-[7px] text-xs text-fg hover:border-line-strong hover:bg-studio-port-target-picker aria-expanded:border-brand aria-expanded:bg-studio-port-target-picker aria-expanded:shadow-[0_0_0_1px_var(--brand)] dark:border-studio-port-target-picker-line dark:bg-studio-port-target-picker dark:hover:bg-studio-port-target-picker",
+              FIELD_MENU_APPEARANCE_CLASS_NAMES[appearance],
+              appearance === "field" && size === "compact" && "h-6 gap-1 rounded-[4px] bg-transparent text-[11.5px] dark:bg-transparent",
+              appearance === "field" && isNarrowing && "border-line-strong text-fg dark:border-line-strong",
+              fillsItsPlace ? "w-full" : appearance === "field" && "max-w-96",
               FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
             )}
           />

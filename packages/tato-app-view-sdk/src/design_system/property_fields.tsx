@@ -412,13 +412,19 @@ export interface PropertyPortTarget {
   onRemoved: () => void;
 }
 
-/** A node's title in bold and, quieter, its port, as a target picker and its choices name a port. */
-function NodeAndPortWords({ nodeTitle, port, portClassName }: { nodeTitle: string; port: string; portClassName: string }) {
+/** A node's title in bold and, quieter, its port, as a target picker and its choices name a port; None for a blank picker. */
+function NodeAndPortWords({ linkedWith, portClassName }: { linkedWith: { nodeTitle: string; port: string } | null; portClassName: string }) {
   return (
     <>
       <Box className="size-[13px] shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
-      <b className="min-w-0 truncate font-semibold">{nodeTitle}</b>
-      <span className={cn("min-w-0 shrink-[3] truncate", portClassName)}>{port}</span>
+      {linkedWith === null ? (
+        <span className="text-fg-3">None</span>
+      ) : (
+        <>
+          <b className="min-w-0 truncate font-semibold">{linkedWith.nodeTitle}</b>
+          <span className={cn("min-w-[3ch] shrink-[3] truncate", portClassName)}>{linkedWith.port}</span>
+        </>
+      )}
     </>
   );
 }
@@ -434,16 +440,7 @@ export function PropertyPortTargetPicker({ portName, target }: { portName: strin
         fillsItsPlace
         menuWidth="wide"
         isOpenAtFirst={target.isOpenAtFirst ?? false}
-        words={
-          linkedWith === null ? (
-            <>
-              <Box className="size-[13px] shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
-              <span className="text-fg-3">None</span>
-            </>
-          ) : (
-            <NodeAndPortWords nodeTitle={linkedWith.nodeTitle} port={linkedWith.port} portClassName="text-fg-3" />
-          )
-        }
+        words={<NodeAndPortWords linkedWith={linkedWith} portClassName="text-fg-3" />}
         data-property-port-target-picker={portName}
       >
         <MenuNote>{target.note}</MenuNote>
@@ -465,7 +462,7 @@ function PropertyPortTargetChoices({ choices }: { choices: PropertyPortTargetCho
   if (choices.length === 0) return <MenuNote>None in this stream.</MenuNote>;
   return choices.map((choice) => (
     <MenuItem key={choice.choiceKey} isDisabled={choice.cannotBecause !== null} onChosen={choice.onChosen} data-property-port-target-choice={`${choice.nodeTitle} › ${choice.port}`}>
-      <NodeAndPortWords nodeTitle={choice.nodeTitle} port={choice.port} portClassName="text-fg-2" />
+      <NodeAndPortWords linkedWith={choice} portClassName={choice.cannotBecause === null ? "text-fg-2" : "text-fg"} />
       {choice.cannotBecause !== null && <span className="ml-auto shrink-0 pl-2 text-2xs text-fg">{choice.cannotBecause}</span>}
     </MenuItem>
   ));

@@ -38,6 +38,7 @@ import { portStreamFactsWords, streamFactsAnInputReceives, VALUES_UNCHECKED_MEAN
 import { nameInWords, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, recordsOfAListField, type ConfigFormField } from "./config_form_fields";
 import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
+import { blankTargetPickerKeysOfThePort, NO_BLANK_TARGET_PICKERS, withABlankTargetPickerAdded, withoutTheBlankTargetPicker, type BlankTargetPickersOfTheNode } from "./blank_target_pickers";
 import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
 import {
   configValueFromTheWordsTyped,
@@ -311,13 +312,6 @@ function meaningOfAPort(port: StreamGraphDeclaredPort, catalogPorts: NodeCatalog
   return meaning === "" ? undefined : meaning;
 }
 
-/** The blank target pickers + added, which exist only in the window until a port is chosen in one: their keys, by the node's id and the port's name. */
-type BlankTargetPickersOfThePorts = ReadonlyMap<string, readonly string[]>;
-
-function blankTargetPickersKey(nodeId: string, portName: string): string {
-  return `${nodeId}\u0000${portName}`;
-}
-
 function PortRowsOfOneDirection({
   direction,
   firstBandIndex,
@@ -339,8 +333,8 @@ function PortRowsOfOneDirection({
   streamAsset: string | null;
   catalogPorts: NodeCatalogPort[];
   graphEdits: GraphEditsOfTheNode;
-  blankTargetPickers: BlankTargetPickersOfThePorts;
-  onBlankTargetPickersChanged: (changeTheBlankTargetPickers: (blankTargetPickers: BlankTargetPickersOfThePorts) => BlankTargetPickersOfThePorts) => void;
+  blankTargetPickers: BlankTargetPickersOfTheNode;
+  onBlankTargetPickersChanged: (changeTheBlankTargetPickers: (blankTargetPickers: BlankTargetPickersOfTheNode) => BlankTargetPickersOfTheNode) => void;
 }) {
   const ports = direction === "input" ? node.input_ports : node.output_ports;
   if (ports.length === 0) return <p className="px-1 text-xs text-fg-3">None</p>;
@@ -350,10 +344,7 @@ function PortRowsOfOneDirection({
     const facts = direction === "input" ? streamFactsAnInputReceives(graph, node.name, port) : port;
     const familyWords = port.family === null ? "Unknown" : nodeGraphPinFamilyWords(port.family);
     const pinValue = node.pins[port.name];
-    const blankPickersKey = blankTargetPickersKey(node.id, port.name);
-    const blankPickerKeys = blankTargetPickers.get(blankPickersKey) ?? [];
-    const changeTheBlankPickersOfThePort = (changeTheKeys: (keys: readonly string[]) => readonly string[]) =>
-      onBlankTargetPickersChanged((pickers) => new Map(pickers).set(blankPickersKey, changeTheKeys(pickers.get(blankPickersKey) ?? [])));
+    const blankPickerKeys = blankTargetPickerKeysOfThePort(blankTargetPickers, node.id, port.name);
     const note = portsToConnectNote(direction, streamName, familyWords);
     const choicesOfAPicker = (stream: string, replacing: LinkedEndOfAPort | null, whenConnected: () => void) => () =>
       portsToConnect(stream, graph, node, direction, port, replacing).map((portToConnect) => ({
@@ -380,8 +371,15 @@ function PortRowsOfOneDirection({
       streamAsset === null
         ? []
         : blankPickerKeys.map((blankPickerKey) => {
-            const removeThisBlankPicker = () => changeTheBlankPickersOfThePort((keys) => keys.filter((key) => key !== blankPickerKey));
-            return { linkedWith: null, targetKey: blankPickerKey, note, isOpenAtFirst: true, choicesWhenOpened: choicesOfAPicker(streamAsset, null, removeThisBlankPicker), onRemoved: removeThisBlankPicker };
+            const removeThisBlankPicker = () => onBlankTargetPickersChanged((pickers) => withoutTheBlankTargetPicker(pickers, node.id, port.name, blankPickerKey));
+            return {
+              linkedWith: null,
+              targetKey: blankPickerKey,
+              note,
+              isOpenAtFirst: blankTargetPickers.justAddedKey === blankPickerKey,
+              choicesWhenOpened: choicesOfAPicker(streamAsset, null, removeThisBlankPicker),
+              onRemoved: removeThisBlankPicker,
+            };
           });
     return (
       <PropertyPortRow
@@ -399,7 +397,7 @@ function PortRowsOfOneDirection({
             ? undefined
             : {
                 disabledReason: whyThePortTakesNoOtherTarget(direction, linkedEnds.length, blankPickerKeys.length),
-                onAdded: () => changeTheBlankPickersOfThePort((keys) => [...keys, crypto.randomUUID()]),
+                onAdded: () => onBlankTargetPickersChanged((pickers) => withABlankTargetPickerAdded(pickers, node.id, port.name, crypto.randomUUID())),
               }
         }
         unlinkedValue={
@@ -484,7 +482,7 @@ function PropertiesOfTheSelectedNode({
   const catalogReading = useViewReading(watchTheStreamsCatalog);
   const listedStreams = useViewReading(connection.watchListedStreams);
   const nodeShownWhileItWasSelectedByName = useRef<{ nodeName: string; nodeId: string } | null>(null);
-  const [blankTargetPickers, setBlankTargetPickers] = useState<BlankTargetPickersOfThePorts>(new Map());
+  const [blankTargetPickers, setBlankTargetPickers] = useState<BlankTargetPickersOfTheNode>(NO_BLANK_TARGET_PICKERS);
   const graph = graphReading?.kind === "read" ? graphReading.graph : null;
   const nodeSelectedByName = graph?.nodes.find((graphNode) => graphNode.name === nodeName);
   const nodeRenamedSinceItWasSelected =
