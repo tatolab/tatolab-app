@@ -215,9 +215,9 @@ export interface MockTatolabOptions {
   assetImportScenario: MockAssetImportScenario;
   /** `?popped_out_view=<popped-out view as JSON>`: the page is a view popped out of the studio, as Pop out into a window opens it in a new tab; the studio by default. */
   poppedOutView: PoppedOutView | null;
-  /** `?module_manager=open|edited_files|newer`: the page is the open project's Module manager window, as File › Marketplace… or Modules… opens it in a new tab, its import as copied, edited since, or with a newer version on its source; `null` for any other page. */
+  /** `?module_manager=open|edited_files|newer`: the page is the open project's Modules and Marketplace window, as File › Marketplace… or Modules… opens it in a new tab, its import as copied, edited since, or with a newer version on its source; `null` for any other page. */
   moduleManagerWorkspaceDependencies: MockWorkspaceDependenciesScenario | null;
-  /** `?module_manager_section=everything|added_to_this_project|sample_projects`: the section a Module manager window's page opens on, Everything when the query names none. */
+  /** `?module_manager_section=added_to_this_project|marketplace`: the section a Modules and Marketplace window's page opens on, Marketplace when the query names none. */
   moduleManagerSectionOpenedOn: ModulesShown;
   /** `?catalog=unserved`: get.tatolab.com serves no catalog yet; the mock catalog by default. */
   isTheCatalogUnserved: boolean;
@@ -235,9 +235,9 @@ const MODULE_MANAGER_QUERY_PARAMETER = "module_manager";
 /** The query parameter naming the section a Module manager window's page opens on. */
 const MODULE_MANAGER_SECTION_QUERY_PARAMETER = "module_manager_section";
 
-/** The Module manager section `sectionName` names; Everything for none or an unknown one. */
+/** The Modules and Marketplace section `sectionName` names; Marketplace for none or an unknown one. */
 function moduleManagerSectionNamed(sectionName: string | null): ModulesShown {
-  return isModulesShown(sectionName) ? sectionName : "everything";
+  return isModulesShown(sectionName) ? sectionName : "marketplace";
 }
 
 /** The mock page's address with every query parameter kept and `parameterName` set to `parameterValue`, so a new tab opens on the same scenario. */

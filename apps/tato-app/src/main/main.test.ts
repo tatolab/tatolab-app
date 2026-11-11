@@ -643,7 +643,7 @@ describe("one window per project", () => {
         } satisfies FakeProjectFile),
       );
       await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
-      await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "everything" }, 2);
+      await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "marketplace" }, 2);
       return { fakeShell, nightShowFolder, lobbyWallFolder };
     }
 
@@ -652,21 +652,21 @@ describe("one window per project", () => {
 
       expect(fakeShell.studioWindowsOpen().map(({ title, windowContentsId }) => [title, windowContentsId])).toEqual([
         ["night-show", 2],
-        ["Module manager · night-show", 3],
+        ["Modules and Marketplace · night-show", 3],
       ]);
       expect(fakeShell.records).toContainEqual(
         expect.objectContaining({ asked: "create_main_window", windowContentsId: 3, mainWindowSpecification: expect.objectContaining({ width: 960, height: 660 }) }),
       );
       expect(await fakeShell.invokeTheCommand("read_module_manager_workspace", undefined, 3)).toMatchObject({ ok: true, value: { kind: "read", open_project: { project: { name: "night-show" } } } });
       expect(await fakeShell.invokeTheCommand("read_module_manager_workspace", undefined, 2)).toEqual({ ok: true, value: null });
-      expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "everything" })).toEqual({ ok: false, refusal: "Only a project's studio window opens Module manager." });
+      expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "marketplace" })).toEqual({ ok: false, refusal: "Only a project's studio window opens Module manager." });
       expect(await fakeShell.invokeTheCommand("open_module_manager_window", undefined, 2)).toEqual({
         ok: false,
-        refusal: "open_module_manager_window needs `shows`, one of everything, added_to_this_project, sample_projects.",
+        refusal: "open_module_manager_window needs `shows`, one of added_to_this_project, marketplace.",
       });
 
       fakeShell.forgetTheRecords();
-      await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "everything" }, 2);
+      await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "marketplace" }, 2);
       expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "create_main_window")).toEqual([]);
 
       expect(fakeShell.requestTheCloseOfTheWindow(2)).toBe("let_it_close");
@@ -676,7 +676,7 @@ describe("one window per project", () => {
     test("answers the section it opened on, and asked again from the studio window comes forward and is told the section asked", async () => {
       const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
 
-      expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 3)).toEqual({ ok: true, value: "everything" });
+      expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 3)).toEqual({ ok: true, value: "marketplace" });
       expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 2)).toEqual({ ok: true, value: null });
 
       fakeShell.forgetTheRecords();
@@ -692,10 +692,10 @@ describe("one window per project", () => {
       const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
 
       expect(fakeShell.requestTheCloseOfTheWindow(3)).toBe("let_it_close");
-      expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "sample_projects" }, 2)).toEqual({ ok: true, value: null });
-      const reopenedWindow = fakeShell.studioWindowsOpen().find(({ title }) => title === "Module manager · night-show") ?? expect.unreachable("no Module manager window");
+      expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "added_to_this_project" }, 2)).toEqual({ ok: true, value: null });
+      const reopenedWindow = fakeShell.studioWindowsOpen().find(({ title }) => title === "Modules and Marketplace · night-show") ?? expect.unreachable("no Modules and Marketplace window");
 
-      expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, reopenedWindow.windowContentsId)).toEqual({ ok: true, value: "sample_projects" });
+      expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, reopenedWindow.windowContentsId)).toEqual({ ok: true, value: "added_to_this_project" });
       expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 3)).toEqual({ ok: true, value: null });
     });
 
@@ -762,7 +762,7 @@ describe("one window per project", () => {
       const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
 
       expect(await fakeShell.invokeTheCommand("open_import_to_edit", { folder: "lobby-wall" }, 3)).toEqual({ ok: true, value: null });
-      expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "Module manager · night-show", "lobby-wall"]);
+      expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "Modules and Marketplace · night-show", "lobby-wall"]);
       expect(await fakeShell.invokeTheCommand("open_import_to_edit", { folder: "nothing-here" }, 3)).toEqual({ ok: false, refusal: "The project imports nothing in imports/nothing-here." });
     });
   });

@@ -55,7 +55,7 @@ describe("the studio's File menu", () => {
     if (marketplace?.kind !== "command" || modules?.kind !== "command") throw new Error("File › Marketplace… or Modules… is not a command");
     marketplace.onChosen();
     modules.onChosen();
-    expect(commands.openModuleManager).toHaveBeenNthCalledWith(1, "everything");
+    expect(commands.openModuleManager).toHaveBeenNthCalledWith(1, "marketplace");
     expect(commands.openModuleManager).toHaveBeenNthCalledWith(2, "added_to_this_project");
     expect(entryOf(menus, "File", "Module manager…")).toBeUndefined();
     for (const label of ["Marketplace…", "Modules…"]) {

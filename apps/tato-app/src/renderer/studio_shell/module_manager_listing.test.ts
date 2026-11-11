@@ -35,27 +35,27 @@ function aModule(folder: string, name: string | null): WorkspaceDependency {
 
 const MODULES = [aModule("tatolab-camera", "Tatolab_Camera"), aModule("lobby-wall", null)];
 
-describe("what the Modules window lists", () => {
+describe("what the Modules and Marketplace window lists", () => {
   it("lists the catalog's entries in its order, each saying whether the project has added it, then the project's modules the catalog does not list", () => {
-    expect(moduleCardRowsOf(CATALOG, MODULES, "everything", "").map((row) => [row.row_id, row.title, row.module_of_the_project?.folder ?? null])).toEqual([
+    expect(everyModuleCardRowOf(CATALOG, MODULES).map((row) => [row.row_id, row.title, row.module_of_the_project?.folder ?? null])).toEqual([
       ["camera-halftone", "Camera halftone", null],
       ["tatolab-camera", "Camera", "tatolab-camera"],
       ["tatolab-opus", "Opus", null],
       ["lobby-wall", "lobby-wall", "lobby-wall"],
     ]);
-    expect(moduleCardRowsOf(CATALOG, MODULES, "everything", "").at(-1)?.summary).toBe("Copied from /shows/lobby-wall");
+    expect(everyModuleCardRowOf(CATALOG, MODULES).at(-1)?.summary).toBe("Copied from /shows/lobby-wall");
   });
 
-  it("shows only the project's modules, or only the catalog's samples, and counts each choice", () => {
+  it("shows the project's modules in Modules, the catalog's packages and samples in the Marketplace, and counts each", () => {
     expect(moduleCardRowsOf(CATALOG, MODULES, "added_to_this_project", "").map((row) => row.row_id)).toEqual(["tatolab-camera", "lobby-wall"]);
-    expect(moduleCardRowsOf(CATALOG, MODULES, "sample_projects", "").map((row) => row.row_id)).toEqual(["camera-halftone"]);
-    expect(moduleCardCountsOf(everyModuleCardRowOf(CATALOG, MODULES))).toEqual({ everything: 4, added_to_this_project: 2, sample_projects: 1 });
+    expect(moduleCardRowsOf(CATALOG, MODULES, "marketplace", "").map((row) => row.row_id)).toEqual(["camera-halftone", "tatolab-camera", "tatolab-opus"]);
+    expect(moduleCardCountsOf(everyModuleCardRowOf(CATALOG, MODULES))).toEqual({ added_to_this_project: 2, marketplace: 3 });
   });
 
   it("narrows to a search by a node's or stream's name, or a module's folder or source", () => {
-    expect(moduleCardRowsOf(CATALOG, [], "everything", "opusencoder").map((row) => row.row_id)).toEqual(["tatolab-opus"]);
-    expect(moduleCardRowsOf(CATALOG, [], "everything", "main").map((row) => row.row_id)).toEqual(["camera-halftone"]);
-    expect(moduleCardRowsOf(CATALOG, MODULES, "everything", "LOBBY").map((row) => row.row_id)).toEqual(["lobby-wall"]);
+    expect(moduleCardRowsOf(CATALOG, [], "marketplace", "opusencoder").map((row) => row.row_id)).toEqual(["tatolab-opus"]);
+    expect(moduleCardRowsOf(CATALOG, [], "marketplace", "main").map((row) => row.row_id)).toEqual(["camera-halftone"]);
+    expect(moduleCardRowsOf(CATALOG, MODULES, "added_to_this_project", "LOBBY").map((row) => row.row_id)).toEqual(["lobby-wall"]);
   });
 
   it("gives each of the project's modules to one catalog entry only, the first that names its folder", () => {
@@ -65,15 +65,15 @@ describe("what the Modules window lists", () => {
   });
 
   it("does not match a module the catalog does not list by the words of its summary", () => {
-    expect(moduleCardRowsOf(CATALOG, MODULES, "everything", "copied")).toEqual([]);
+    expect(moduleCardRowsOf(CATALOG, MODULES, "added_to_this_project", "copied")).toEqual([]);
   });
 
   it("lists the project's modules alone from a catalog not read", () => {
-    expect(moduleCardRowsOf({ kind: "not_read", because: "HTTP 404" }, MODULES, "everything", "").map((row) => [row.row_id, row.title])).toEqual([
+    expect(moduleCardRowsOf({ kind: "not_read", because: "HTTP 404" }, MODULES, "added_to_this_project", "").map((row) => [row.row_id, row.title])).toEqual([
       ["tatolab-camera", "Tatolab_Camera"],
       ["lobby-wall", "lobby-wall"],
     ]);
-    expect(moduleCardRowsOf(null, [], "everything", "")).toEqual([]);
+    expect(moduleCardRowsOf(null, [], "marketplace", "")).toEqual([]);
   });
 
   it("picks a card by its own id before another card's module folder of the same name", () => {
@@ -86,7 +86,7 @@ describe("what the Modules window lists", () => {
   it("marks a card with a newer version as news, one with edited files as edited, and any other added one as added", () => {
     const rowOf = (dependency: WorkspaceDependency) => everyModuleCardRowOf(null, [dependency])[0];
     const camera = aModule("tatolab-camera", null);
-    expect(moduleCardMarkOf(rowOf({ ...camera, newer_version_exists: true }))).toEqual({ words: "Newer version", isNews: true });
+    expect(moduleCardMarkOf(rowOf({ ...camera, newer_version_exists: true }))).toEqual({ words: "Update available", isNews: true });
     expect(moduleCardMarkOf(rowOf({ ...camera, edited_files: ["nodes/x.py"] }))).toEqual({ words: "Added · edited", isNews: false });
     expect(moduleCardMarkOf(rowOf(camera))).toEqual({ words: "Added", isNews: false });
     expect(moduleCardMarkOf(everyModuleCardRowOf(CATALOG, [])[0])).toBeNull();
