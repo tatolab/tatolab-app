@@ -2,6 +2,7 @@
 // is listed dim, with why, so the menus keep their shape as each one lands. Linux draws them along
 // the top of the window; macOS shows them in its one system menu bar, laid out as a Mac app's are.
 
+import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { SystemMenuBarEntry, SystemMenuBarItems, SystemMenuBarMenu, SystemMenuOfTheDesktop, TatolabAppUpdateState, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import type { StudioMenu, StudioMenuEntry } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
 import { presentTatolabAppUpdateMenuEntry } from "../presentation/app_update_presentation";
@@ -34,8 +35,8 @@ export interface StudioMenuBarCommands {
   undoYourLastEdit(): void;
   /** Edit › Redo: redo what the person's last undo in the open project reversed. */
   redoYourLastUndo(): void;
-  /** File › Module manager…: open the project's Module manager window. */
-  openModuleManager(): void;
+  /** File › Marketplace… and Modules…: open the project's Module manager window on the section `shows`. */
+  openModuleManager(shows: ModulesShown): void;
 }
 
 /** Why an entry that acts on the open project cannot run while none is open. */
@@ -115,7 +116,8 @@ function studioMenuParts(
       { kind: "command", label: "Import project .zip…", onChosen: commands.importAProjectArchive },
       laterCommand("New stream"),
       laterCommand("Save version…"),
-      projectCommand("Module manager…", commands.openModuleManager),
+      projectCommand("Marketplace…", () => commands.openModuleManager("everything")),
+      projectCommand("Modules…", () => commands.openModuleManager("added_to_this_project")),
     ],
     undoAndRedoEntries: [projectCommand("Undo", commands.undoYourLastEdit, shortcutHint(platform, "Z")), projectCommand("Redo", commands.redoYourLastUndo, shiftedShortcutHint(platform, "Z"))],
     undoAndRedoBesideTextEditing: [projectCommand("Undo Your Last Edit", commands.undoYourLastEdit), projectCommand("Redo Your Last Undo", commands.redoYourLastUndo)],

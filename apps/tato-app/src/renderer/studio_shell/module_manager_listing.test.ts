@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PackageCatalogReading, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
-import { everyModuleCardRowOf, moduleCardCountsOf, moduleCardMarkOf, moduleCardRowPickedBy, moduleCardRowsShownOf, moduleFolderNameOf, shortVersionOf, type ModulesShown } from "./module_manager_listing";
+import { everyModuleCardRowOf, moduleCardCountsOf, moduleCardMarkOf, moduleCardRowPickedBy, moduleCardRowsShownOf, moduleFolderNameOf, shortVersionOf } from "./module_manager_listing";
+import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 
 function moduleCardRowsOf(catalog: PackageCatalogReading | null, dependencies: readonly WorkspaceDependency[], modulesShown: ModulesShown, searchText: string) {
   return moduleCardRowsShownOf(everyModuleCardRowOf(catalog, dependencies), modulesShown, searchText);

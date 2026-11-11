@@ -93,10 +93,12 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("pop_out_view", { ...target });
     },
     readPoppedOutView: () => invokeTatolabCommand("read_popped_out_view", undefined),
-    openModuleManagerWindow: async () => {
-      await invokeTatolabCommand("open_module_manager_window", undefined);
+    openModuleManagerWindow: async (shows) => {
+      await invokeTatolabCommand("open_module_manager_window", { shows });
     },
     readModuleManagerWorkspace: () => invokeTatolabCommand("read_module_manager_workspace", undefined),
+    readModuleManagerSectionLastAsked: () => invokeTatolabCommand("read_module_manager_section_last_asked", undefined),
+    onModuleManagerSectionAsked: (listener) => tatolabElectronBridge.onModuleManagerSectionAsked(listener),
     readPackageCatalog: () => invokeTatolabCommand("read_package_catalog", undefined),
     listWorkspaceDependencies: (checkForNewer) => invokeTatolabCommand("list_workspace_dependencies", { check_for_newer: checkForNewer }),
     chooseDependencySource: (sourceKind) => invokeTatolabCommand("choose_dependency_source", { source_kind: sourceKind }),

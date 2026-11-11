@@ -643,7 +643,7 @@ describe("one window per project", () => {
         } satisfies FakeProjectFile),
       );
       await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
-      await fakeShell.invokeTheCommand("open_module_manager_window", undefined, 2);
+      await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "everything" }, 2);
       return { fakeShell, nightShowFolder, lobbyWallFolder };
     }
 
@@ -659,14 +659,44 @@ describe("one window per project", () => {
       );
       expect(await fakeShell.invokeTheCommand("read_module_manager_workspace", undefined, 3)).toMatchObject({ ok: true, value: { kind: "read", open_project: { project: { name: "night-show" } } } });
       expect(await fakeShell.invokeTheCommand("read_module_manager_workspace", undefined, 2)).toEqual({ ok: true, value: null });
-      expect(await fakeShell.invokeTheCommand("open_module_manager_window")).toEqual({ ok: false, refusal: "Only a project's studio window opens Module manager." });
+      expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "everything" })).toEqual({ ok: false, refusal: "Only a project's studio window opens Module manager." });
+      expect(await fakeShell.invokeTheCommand("open_module_manager_window", undefined, 2)).toEqual({
+        ok: false,
+        refusal: "open_module_manager_window needs `shows`, one of everything, added_to_this_project, sample_projects.",
+      });
 
       fakeShell.forgetTheRecords();
-      await fakeShell.invokeTheCommand("open_module_manager_window", undefined, 2);
+      await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "everything" }, 2);
       expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "create_main_window")).toEqual([]);
 
       expect(fakeShell.requestTheCloseOfTheWindow(2)).toBe("let_it_close");
       expect(fakeShell.studioWindowsOpen()).toEqual([]);
+    });
+
+    test("answers the section it opened on, and asked again from the studio window comes forward and is told the section asked", async () => {
+      const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+
+      expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 3)).toEqual({ ok: true, value: "everything" });
+      expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 2)).toEqual({ ok: true, value: null });
+
+      fakeShell.forgetTheRecords();
+      expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "added_to_this_project" }, 2)).toEqual({ ok: true, value: null });
+      expect(fakeShell.records).toContainEqual(
+        expect.objectContaining({ asked: "send_window_event", eventChannel: "tatolab-module-manager-section-asked", eventPayload: { shows: "added_to_this_project" }, windowContentsId: 3 }),
+      );
+      expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "create_main_window")).toEqual([]);
+      expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 3)).toEqual({ ok: true, value: "added_to_this_project" });
+    });
+
+    test("closed and opened again on another section, answers that section", async () => {
+      const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+
+      expect(fakeShell.requestTheCloseOfTheWindow(3)).toBe("let_it_close");
+      expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "sample_projects" }, 2)).toEqual({ ok: true, value: null });
+      const reopenedWindow = fakeShell.studioWindowsOpen().find(({ title }) => title === "Module manager · night-show") ?? expect.unreachable("no Module manager window");
+
+      expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, reopenedWindow.windowContentsId)).toEqual({ ok: true, value: "sample_projects" });
+      expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 3)).toEqual({ ok: true, value: null });
     });
 
     test("reads the catalog from get.tatolab.com, and says why where it is not served", async () => {

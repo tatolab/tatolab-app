@@ -37,7 +37,7 @@ import type {
   ProjectFolderChosenFor,
 } from "../shared/tatolab_backend_contract.js";
 import { graphEditModeSchema, streamGraphActionSchema } from "../shared/tatolab_backend_contract.js";
-import type { ProjectGraphTransactionSentByTheWindow, TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
+import { isAModuleManagerSectionAsked, MODULES_SHOWN, type ProjectGraphTransactionSentByTheWindow, type TatolabCommandAnswerTo, type TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
 import { readThePackageCatalog } from "./package_catalog.js";
 import { importFolderInsideTheWorkspace, workspaceDependenciesOf } from "./workspace_dependencies.js";
@@ -1070,15 +1070,20 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       ok: true,
       value: sharedState.appWindows.poppedOutViewOfTheWindowWithContents(commandFromWindow.windowContentsId),
     }),
-    open_module_manager_window: async (_commandArguments, commandFromWindow) => {
+    open_module_manager_window: async (commandArguments, commandFromWindow) => {
+      if (!isAModuleManagerSectionAsked(commandArguments)) return { ok: false, refusal: `open_module_manager_window needs \`shows\`, one of ${MODULES_SHOWN.join(", ")}.` };
       const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
       if (studioWindow === null) return { ok: false, refusal: "Only a project's studio window opens Module manager." };
-      sharedState.appWindows.openTheModuleManagerWindowOf(studioWindow);
+      sharedState.appWindows.openTheModuleManagerWindowOf(studioWindow, commandArguments.shows);
       return { ok: true, value: null };
     },
     read_module_manager_workspace: async (_commandArguments, commandFromWindow) => ({
       ok: true,
       value: sharedState.appWindows.studioWindowOfTheModuleManagerWindowWithContents(commandFromWindow.windowContentsId)?.openProject.readOpenProject() ?? null,
+    }),
+    read_module_manager_section_last_asked: async (_commandArguments, commandFromWindow) => ({
+      ok: true,
+      value: sharedState.appWindows.moduleManagerSectionLastAskedOfTheWindowWithContents(commandFromWindow.windowContentsId),
     }),
     read_package_catalog: async () => ({ ok: true, value: await readThePackageCatalog(sharedState.fetchTextOverHttps) }),
     list_workspace_dependencies: async (commandArguments, commandFromWindow) => {

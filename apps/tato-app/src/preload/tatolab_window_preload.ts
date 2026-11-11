@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, sharedTexture, webUtils, type IpcRendererEv
 import type { OpenProjectReading, ProjectTransactionsReading, PortViewerEvent, PortViewerImageFrameFacts, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
   TATOLAB_COMMAND_NAMES,
+  TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT,
   TATOLAB_OPEN_PROJECT_CHANGED_EVENT,
   TATOLAB_PROJECT_TRANSACTIONS_CHANGED_EVENT,
   TATOLAB_PORT_VIEWER_EVENT,
@@ -10,6 +11,7 @@ import {
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
   TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT,
   TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE,
+  isAModuleManagerSectionAsked,
   isASystemMenuBarEntryChosen,
   isATatolabStreamPageRequest,
   isPortViewerImageFrameFacts,
@@ -72,6 +74,15 @@ const tatolabElectronBridge: TatolabElectronBridge = {
     ipcRenderer.on(TATOLAB_OPEN_PROJECT_CHANGED_EVENT, openProjectChangedListener);
     return () => {
       ipcRenderer.removeListener(TATOLAB_OPEN_PROJECT_CHANGED_EVENT, openProjectChangedListener);
+    };
+  },
+  onModuleManagerSectionAsked: (listener) => {
+    const moduleManagerSectionAskedListener = (_moduleManagerSectionAskedEvent: IpcRendererEvent, sectionAsked: unknown) => {
+      if (isAModuleManagerSectionAsked(sectionAsked)) listener(sectionAsked.shows);
+    };
+    ipcRenderer.on(TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT, moduleManagerSectionAskedListener);
+    return () => {
+      ipcRenderer.removeListener(TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT, moduleManagerSectionAskedListener);
     };
   },
   onProjectTransactionsChanged: (listener) => {
