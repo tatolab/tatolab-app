@@ -26,6 +26,7 @@ import { StudioViewTypeRegistry, studioViewTypeTitlesOf } from "./view_host/stud
 import { tatolabFrameViewType } from "./view_host/tatolab_frame_view_type";
 import { coreViewTypesOf, servedCoreViewFolderUrl } from "./view_host/core_view_types";
 import { CORE_VIEWS } from "@tatolab/tato-app-core-views";
+import { watchTheStudioViewsOfTheRegistry } from "./view_host/studio_views_listed_for_views";
 import { ProjectLogReadings } from "./view_host/project_log_readings";
 import { ProjectTransactionsReadings } from "./view_host/project_transactions_readings";
 import { ProjectListingReadingsPolledWhileWatched } from "./view_host/project_listing_readings_polled_while_watched";
@@ -236,6 +237,7 @@ export function mountTatolabWindow(
       projectTransactionsReadings,
       pythonLanguageServerConnections,
       portViewerConnections,
+      watchStudioViews: (listener) => watchTheStudioViewsOfTheRegistry(viewTypeRegistry, listener),
     }),
     commands: studioMenuBarCommands,
     popOutTheViewOfTheArea: (area) => {

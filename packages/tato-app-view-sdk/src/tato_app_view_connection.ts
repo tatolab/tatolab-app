@@ -21,6 +21,7 @@ import type {
   ProjectTransactionApplying,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
+  StudioViewsReading,
   PythonLanguageServerConnectionEvent,
   StreamGraphAction,
   StreamGraphReading,
@@ -107,6 +108,8 @@ export interface TatoAppViewConnection {
   watchProjectNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The assets of the project in `projectFolder`; the first reading arrives once listed, and another whenever the listing changes. */
   watchProjectAssets(projectFolder: string, listener: (reading: ProjectAssetsReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
+  /** The views Studio ships with and those the open project and its imports bring; another reading each time the project's are listed again. */
+  watchStudioViews(listener: (reading: StudioViewsReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The history of the project in `projectFolder`; the first reading arrives once read, and another each time the runtime applies a transaction to the project. */
   watchProjectTransactions(projectFolder: string, listener: (reading: ProjectTransactionsReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** Each frame or message of `target`'s output port; an Image frame arrives as a `VideoFrame` the view closes once drawn. */
@@ -274,6 +277,7 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
         watchFor({ kind: "project_node_types", project_folder: projectFolder }, (watched) => watched.subject === "project_node_types" && listener(watched.reading), whenRefused),
       watchProjectAssets: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>
         watchFor({ kind: "project_assets", project_folder: projectFolder }, (watched) => watched.subject === "project_assets" && listener(watched.reading), whenRefused),
+      watchStudioViews: (listener, whenRefused = IGNORE_THE_REFUSAL) => watchFor({ kind: "studio_views" }, (watched) => watched.subject === "studio_views" && listener(watched.reading), whenRefused),
       watchProjectTransactions: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>
         watchFor({ kind: "project_transactions", project_folder: projectFolder }, (watched) => watched.subject === "project_transactions" && listener(watched.reading), whenRefused),
       watchPortViewer: (target, onEvent, whenRefused = IGNORE_THE_REFUSAL) =>

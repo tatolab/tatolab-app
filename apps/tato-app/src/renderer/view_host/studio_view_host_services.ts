@@ -5,7 +5,7 @@ import type { ProjectAssetListing, ProjectNodeTypeListing } from "../../shared/t
 import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
-import type { AreasForAViewTypeInTheWindow, ListedStreamsReading, OpenProjectReading, StopWatching, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
+import type { AreasForAViewTypeInTheWindow, ListedStreamsReading, OpenProjectReading, StopWatching, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, StudioViewsReading, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { WatchedStudioValue } from "./watched_studio_value";
 
@@ -32,6 +32,8 @@ export interface StudioViewHostProjectServices {
   projectTransactionsReadings: ProjectTransactionsReadings;
   pythonLanguageServerConnections: PythonLanguageServerConnections;
   portViewerConnections: PortViewerConnections;
+  /** The views an area can show, at once and again each time the open project's are listed. */
+  watchStudioViews(listener: (reading: StudioViewsReading) => void): StopWatching;
 }
 
 /** Why a view naming a folder other than the window's open project imports nothing into it. */
@@ -118,6 +120,7 @@ export function studioViewHostServicesOf(
         backend,
         listTheProjectAgainNow: (folder) => projectServices.projectAssetReadings.listTheProjectAgainNow(folder),
       }),
+    watchStudioViews: projectServices.watchStudioViews,
     openModulesAndMarketplace: (shows) =>
       backend.openModuleManagerWindow(shows).then(
         (): ViewOpening => ({ kind: "opened" }),
