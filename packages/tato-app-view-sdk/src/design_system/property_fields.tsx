@@ -1,10 +1,11 @@
 import { cn } from "cn";
-import { Check, ChevronDown, ChevronRight, Minus, Plus, RotateCcw, X } from "lucide-react";
+import { Box, Check, ChevronDown, ChevronRight, Crosshair, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { WithControlTooltip } from "./control_tooltip";
 import { RefusalLine } from "./refusal_line";
 import { IconButton } from "./icon_button";
+import { ToggleIconButton } from "./toggle_icon_button";
 import { FieldMenu, MenuItem, MenuNote } from "./menus";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { MatchedWords } from "./matched_words";
@@ -388,10 +389,11 @@ export function PropertyCheckbox({ fieldId, isOn, isTheTypesDefault = false, onT
   );
 }
 
-/** A port another one can join from the Connect menu, or one shown greyed with why it cannot. */
-export interface PropertyPortConnectChoice {
-  /** The port in words, as "Mic Levels › level". */
-  words: string;
+/** A port the node's port can join from a target picker, or one shown greyed with why it cannot. */
+export interface PropertyPortTargetChoice {
+  /** The node the port is on, by its title. */
+  nodeTitle: string;
+  port: string;
   /** Why it cannot join, as "Image, can't connect"; `null` for one that can. */
   cannotBecause: string | null;
   /** Names the port apart from every other choice, where two nodes' titles read the same. */
@@ -399,60 +401,112 @@ export interface PropertyPortConnectChoice {
   onChosen: () => void;
 }
 
-/** The Connect ▾ menu of a port: the ports of this stream it can join, under a note saying which they are. */
-export function PropertyPortConnectMenu({
-  portName,
-  note,
-  choicesWhenOpened,
-}: {
-  portName: string;
-  /** What the menu lists, as "Outputs in Main that carry Channels". */
+/** One target picker of a port: the node and port it is linked with, or a blank one the window added that reads None, and what it lists when opened. */
+export interface PropertyPortTarget {
+  /** The other end of the link; `null` for a blank picker, which the runtime knows nothing of until a port is chosen. */
+  linkedWith: { nodeTitle: string; port: string } | null;
+  /** Names the picker apart from the port's others. */
+  targetKey: string;
+  /** What the picker lists, as "Outputs in Main that carry Channels". */
   note: string;
-  /** Read only while the menu is open. */
-  choicesWhenOpened: () => PropertyPortConnectChoice[];
-}) {
+  /** Read only while the picker is open. */
+  choicesWhenOpened: () => PropertyPortTargetChoice[];
+  /** Opens its list as it first appears, as a blank picker just added does. */
+  isOpenAtFirst?: boolean;
+  /** Disconnects the link, or takes a blank picker away. */
+  onRemoved: () => void;
+  /** Puts the Stream graph into picking this picker's port, or ends that pick; absent where nothing can be picked. */
+  pickInTheStreamGraph?: { isPicking: boolean; onToggled: (isPicking: boolean) => void };
+}
+
+/** A node's title in bold and, quieter, its port, as a target picker and its choices name a port; None for a blank picker. */
+function NodeAndPortWords({ linkedWith, portClassName }: { linkedWith: { nodeTitle: string; port: string } | null; portClassName: string }) {
   return (
-    <FieldMenu label={`Connect ${portName}`} words="Connect" size="compact" menuWidth="wide" menuAlignment="end" data-property-port-connect={portName}>
-      <MenuNote>{note}</MenuNote>
-      <PropertyPortConnectChoices choices={choicesWhenOpened()} />
-    </FieldMenu>
+    <>
+      <Box className="size-[13px] shrink-0 text-fg-3 @max-[220px]/port-target:hidden" strokeWidth={1.75} aria-hidden />
+      {linkedWith === null ? (
+        <span className="text-fg-3">None</span>
+      ) : (
+        <>
+          <b className="min-w-0 truncate font-semibold">{linkedWith.nodeTitle}</b>
+          <span className={cn("min-w-[3ch] shrink-[3] truncate", portClassName)}>{linkedWith.port}</span>
+        </>
+      )}
+    </>
   );
 }
 
-/** The Connect menu's choices, drawn only while it is open. */
-function PropertyPortConnectChoices({ choices }: { choices: PropertyPortConnectChoice[] }) {
+/** One target picker of the port `portName`, with ✕ beside it. */
+export function PropertyPortTargetPicker({ portName, target }: { portName: string; target: PropertyPortTarget }) {
+  const linkedWith = target.linkedWith;
+  return (
+    <div className="@container/port-target flex min-w-0 items-center gap-1 pl-[17px]" data-property-port-target={linkedWith === null ? "" : `${linkedWith.nodeTitle} › ${linkedWith.port}`}>
+      <FieldMenu
+        label={linkedWith === null ? `Target of ${portName}: none` : `Target of ${portName}: ${linkedWith.nodeTitle} ${linkedWith.port}`}
+        appearance="port_target"
+        fillsItsPlace
+        menuWidth="wide"
+        isOpenAtFirst={target.isOpenAtFirst ?? false}
+        tooltip={linkedWith === null ? undefined : `${linkedWith.nodeTitle} › ${linkedWith.port}`}
+        words={<NodeAndPortWords linkedWith={linkedWith} portClassName="text-fg-3" />}
+        data-property-port-target-picker={portName}
+      >
+        <MenuNote>{target.note}</MenuNote>
+        <PropertyPortTargetChoices choices={target.choicesWhenOpened()} />
+      </FieldMenu>
+      {target.pickInTheStreamGraph !== undefined && (
+        <ToggleIconButton
+          icon={Crosshair}
+          label={`Pick the target of ${portName} in the Stream graph`}
+          tooltipWhileOff="Pick in the Stream graph"
+          tooltipWhileOn="Picking in the Stream graph. Press again or Esc there to stop."
+          isOn={target.pickInTheStreamGraph.isPicking}
+          onToggled={target.pickInTheStreamGraph.onToggled}
+          size="compact"
+          data-property-port-target-pick={portName}
+        />
+      )}
+      <IconButton
+        icon={X}
+        label={linkedWith === null ? `Remove the blank target of ${portName}` : `Remove the link of ${portName} with ${linkedWith.nodeTitle} ${linkedWith.port}`}
+        size="compact"
+        onPressed={target.onRemoved}
+        data-property-port-target-remove={portName}
+      />
+    </div>
+  );
+}
+
+/** A target picker's choices, drawn only while it is open. */
+function PropertyPortTargetChoices({ choices }: { choices: PropertyPortTargetChoice[] }) {
   if (choices.length === 0) return <MenuNote>None in this stream.</MenuNote>;
   return choices.map((choice) => (
-    <MenuItem key={choice.choiceKey} isDisabled={choice.cannotBecause !== null} onChosen={choice.onChosen} data-property-port-connect-choice={choice.words}>
-      <span className="min-w-0 flex-1 truncate">{choice.words}</span>
-      {choice.cannotBecause !== null && <span className="shrink-0 text-2xs text-fg">{choice.cannotBecause}</span>}
+    <MenuItem key={choice.choiceKey} isDisabled={choice.cannotBecause !== null} onChosen={choice.onChosen} data-property-port-target-choice={`${choice.nodeTitle} › ${choice.port}`}>
+      <NodeAndPortWords linkedWith={choice} portClassName={choice.cannotBecause === null ? "text-fg-2" : "text-fg"} />
+      {choice.cannotBecause !== null && <span className="ml-auto shrink-0 pl-2 text-2xs text-fg">{choice.cannotBecause}</span>}
     </MenuItem>
   ));
 }
 
-/** One linked end of a port, in words, with what disconnects it. */
-export interface PropertyPortLinkedEnd {
-  /** The node at the other end, by its title. */
-  nodeTitle: string;
-  port: string;
-  /** Names the link apart from the port's other links, where two nodes' titles read the same. */
-  linkKey: string;
-  onDisconnect: () => void;
-}
+/** Which shade a port's band takes, alternating down the panel so each port reads apart from the next. */
+export type PropertyPortBandShade = "first" | "second";
 
-/**
- * A port of the node: its name, its family in words, its Connect menu, and each link it has with a ✕ that disconnects
- * it, or the value an unjoined input holds.
- */
+const PORT_BAND_SHADE_CLASS_NAMES: Record<PropertyPortBandShade, string> = {
+  first: "border-studio-port-band-first-line bg-studio-port-band-first",
+  second: "border-studio-port-band-second-line bg-studio-port-band-second",
+};
+
+/** A port of the node in a band of its own: its pin, name and family, + to add a target picker, then a picker for each link, or the value an unjoined input holds. */
 export function PropertyPortRow({
   direction,
   portName,
   familyWords,
   pinMark,
   meaning,
-  linkedEnds,
+  bandShade,
+  targets,
+  addition,
   unlinkedValue,
-  connectMenu,
   refusal = null,
   searchWords = "",
 }: {
@@ -463,16 +517,17 @@ export function PropertyPortRow({
   familyWords: string;
   pinMark: ReactNode;
   meaning?: string;
-  linkedEnds: PropertyPortLinkedEnd[];
+  bandShade: PropertyPortBandShade;
+  targets: PropertyPortTarget[];
+  /** Adds a blank target picker; absent where the port cannot be edited, and dim with why where it cannot take another link. */
+  addition?: { disabledReason: string | null; onAdded: () => void };
   /** The field of the value an unjoined input holds; absent where it takes none. */
   unlinkedValue?: ReactNode;
-  connectMenu?: ReactNode;
   refusal?: string | null;
 }) {
-  const linkWords = direction === "input" ? "from" : "to";
   return (
     <div className="flex min-w-0 flex-col" data-properties-port={portName} data-properties-port-direction={direction}>
-      <div className="flex min-w-0 flex-col gap-0.5 rounded-[5px] bg-studio-port-row py-1 pr-1 pl-2 text-xs">
+      <div className={cn("flex min-w-0 flex-col gap-1 rounded-[5px] border pt-[3px] pr-1 pb-[5px] pl-2 text-xs", PORT_BAND_SHADE_CLASS_NAMES[bandShade])}>
         <div className="flex min-h-6 min-w-0 items-center gap-2">
           <WithControlTooltip
             tooltip={meaning}
@@ -487,27 +542,14 @@ export function PropertyPortRow({
             }
           />
           <span className="shrink-0 text-2xs text-fg-3">{familyWords}</span>
-          {connectMenu !== undefined && <span className="flex shrink-0 items-center">{connectMenu}</span>}
+          {addition !== undefined && (
+            <IconButton icon={Plus} label={`Add a target for ${portName}`} disabledReason={addition.disabledReason} size="compact" onPressed={addition.onAdded} data-property-port-add-target={portName} />
+          )}
         </div>
-        {linkedEnds.length > 0 ? (
-          <ul className="flex min-w-0 flex-col" data-properties-port-linked={linkedEnds.map((end) => `${end.nodeTitle} › ${end.port}`).join(", ")}>
-            {linkedEnds.map((end) => (
-              <li key={end.linkKey} className="flex min-h-6 min-w-0 items-center gap-1 pl-4 text-fg-2">
-                <span className="min-w-0 flex-1 truncate">
-                  {linkWords} <b className="font-semibold text-fg">{end.nodeTitle}</b> › {end.port}
-                </span>
-                <IconButton
-                  icon={X}
-                  label={`Disconnect ${portName} ${linkWords} ${end.nodeTitle} › ${end.port}`}
-                  size="compact"
-                  onPressed={end.onDisconnect}
-                  data-property-port-disconnect={`${portName}:${end.nodeTitle} › ${end.port}`}
-                />
-              </li>
-            ))}
-          </ul>
+        {targets.length > 0 ? (
+          targets.map((target) => <PropertyPortTargetPicker key={target.targetKey} portName={portName} target={target} />)
         ) : (
-          <div className="min-w-0 truncate pr-1 pl-4 text-fg-2">{unlinkedValue ?? <span className="text-fg-3">Not connected</span>}</div>
+          <div className="flex min-h-6 min-w-0 items-center truncate pr-1 pl-[17px] text-fg-2">{unlinkedValue ?? <span className="text-fg-3">Not connected</span>}</div>
         )}
       </div>
       {refusal !== null && (

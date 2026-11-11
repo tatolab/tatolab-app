@@ -26,7 +26,8 @@ import type {
   StreamGraphAction,
   ThePersonEditingReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { AreaForAViewType, ModulesAndMarketplaceSection, PortViewerEvent, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
+import type { AreaForAViewType, ModulesAndMarketplaceSection, PortPickEnding, PortPickInTheStreamGraph, PortViewerEvent, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
+import type { PortPickAnswering } from "./port_pick_held_in_the_window";
 
 export type {
   JsonValue,
@@ -166,6 +167,14 @@ export interface StudioViewHostServices {
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
   /** Publish `value` on the output `port` of the view node `viewNode`, answering once the runtime took it or why it did not. */
   writeStudioViewOutput(viewNode: StudioViewNodeAddress, port: string, value: JsonValue): Promise<StudioViewOutputWriting>;
+  /** The port whose other end the person is picking in the Stream graph, at once and on each change; `null` while none is. */
+  watchPortPick(listener: (pick: PortPickInTheStreamGraph | null) => void): StopWatching;
+  /** Hold `pick` in the window, ending any pick held, until the person picks the other end or the pick ends; ended at once when no area of the window shows its stream's graph. */
+  pickAPortInTheStreamGraph(pick: PortPickInTheStreamGraph): Promise<PortPickEnding>;
+  /** End the pick held with `node`'s `port` picked. */
+  answerThePortPick(node: string, port: string): PortPickAnswering;
+  /** End the pick held, if any, with nothing picked. */
+  endThePortPick(because: string): void;
   /** Read `target`'s output port, each frame or message and the viewer's end arriving on `onEvent`. */
   watchPortViewer(target: PortViewerTarget, onEvent: (event: PortViewerEvent) => void): PortViewerConnection;
 }

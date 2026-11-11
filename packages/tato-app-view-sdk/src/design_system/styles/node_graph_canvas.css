@@ -30,6 +30,17 @@
 .node-graph-card[data-found="found"] { border-color: var(--brand-text); box-shadow: 0 0 0 3px var(--brand-soft), var(--studio-graph-card-shadow); }
 .node-graph-card[data-found="current"] { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand), 0 0 0 6px var(--brand-soft), var(--studio-graph-card-shadow); }
 
+/* While a port is picked, the cards with a port that can join light up and the rest dim. */
+.node-graph-card-pickable {
+  cursor: crosshair;
+  border-color: var(--studio-port-pick-line);
+  box-shadow: 0 0 0 2px var(--studio-port-pick-glow);
+}
+
+.node-graph-card-not-pickable {
+  opacity: 0.35;
+}
+
 /* A pin is a round socket on the card's edge, as Blender and Unreal draw one: its family's colour, filled while a link
    joins it and hollow while none does; grey while the runtime says no family. */
 [data-family="image"] { --node-graph-family: var(--studio-family-image); }

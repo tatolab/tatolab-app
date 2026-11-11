@@ -63,6 +63,7 @@ export class TatolabViewBridge {
   private readonly inputWatchesByWatchId = new Map<number, InputWatch>();
   private readonly pythonLanguageServersByWatchId = new Map<number, PythonLanguageServerConnection>();
   private isClosed = false;
+  private isAPickOfTheViewHeld = false;
 
   private readonly onMessageFromTheView = (event: MessageEvent<unknown>): void => {
     const sentPayload: unknown = typeof event.data === "object" && event.data !== null && "payload" in event.data ? event.data.payload : null;
@@ -117,6 +118,7 @@ export class TatolabViewBridge {
   close(): void {
     if (this.isClosed) return;
     this.isClosed = true;
+    if (this.isAPickOfTheViewHeld) this.hostServices.endThePortPick(`${this.manifest.title} closed.`);
     for (const stopWatching of this.stopWatchingByWatchId.values()) stopWatching();
     this.stopWatchingByWatchId.clear();
     for (const inputWatch of this.inputWatchesByWatchId.values()) inputWatch.portViewerConnection?.close();
@@ -215,6 +217,9 @@ export class TatolabViewBridge {
         return;
       case "header_row":
         keep(this.areaServices.watchHeaderRow((reading) => sendReading({ subject: "header_row", reading })));
+        return;
+      case "port_pick":
+        keep(this.hostServices.watchPortPick((reading) => sendReading({ subject: "port_pick", reading })));
         return;
       case "area_expansion":
         keep(this.areaServices.expansion.watchIsExpanded((isExpanded) => sendReading({ subject: "area_expansion", reading: { is_expanded: isExpanded } })));
@@ -338,6 +343,20 @@ export class TatolabViewBridge {
         const showing = this.hostServices.showViewTypeInArea(ask.view_type_id, ask.area_id);
         return showing.kind === "opened" ? { kind: "done" } : { kind: "refused", because: showing.because };
       }
+      case "pick_a_port_in_the_stream_graph": {
+        this.isAPickOfTheViewHeld = true;
+        const ending = await this.hostServices.pickAPortInTheStreamGraph(ask.pick);
+        this.isAPickOfTheViewHeld = false;
+        if (ending.kind === "picked") return { kind: "port_picked", node: ending.node, port: ending.port };
+        return ending.kind === "ended" ? { kind: "port_pick_ended", because: ending.because } : { kind: "refused", because: ending.because };
+      }
+      case "answer_the_port_pick": {
+        const answering = this.hostServices.answerThePortPick(ask.node, ask.port);
+        return answering.kind === "answered" ? { kind: "done" } : { kind: "refused", because: answering.because };
+      }
+      case "end_the_port_pick":
+        this.hostServices.endThePortPick(`${this.manifest.title} ended the pick.`);
+        return { kind: "done" };
       case "expand_the_area": {
         const expanding = this.areaServices.expansion.expand(ask.is_expanded);
         return expanding.kind === "done" ? { kind: "done" } : { kind: "refused", because: expanding.because };
