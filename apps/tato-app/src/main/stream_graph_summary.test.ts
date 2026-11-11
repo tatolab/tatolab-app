@@ -22,7 +22,7 @@ function node(
   nodeId = "",
   config: StreamGraphNode["config"] = {},
 ): StreamGraphNode {
-  return { id: nodeId, name, type: nodeType, state, failed_because: null, config, ...ports, ...counters, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET };
+  return { id: nodeId, name, type: nodeType, state, failed_because: null, config, ...ports, ...counters, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null };
 }
 
 function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
@@ -355,4 +355,38 @@ test("a_group_in_any_uuid_form_the_runtime_parses_reads_and_a_studio_under_a_con
     { ...NODE_STUDIO_FIELDS_NONE_SET, group: "{21D9C0EE-A01D-40A0-AD61-BD05476819E7}" },
     { ...NODE_STUDIO_FIELDS_NONE_SET, comment: "c", metadata: { contract: 2, anchor: [1, 2] } },
   ]);
+});
+
+test("a_subgraph_node_holds_its_fragments_nodes_links_and_groups_read_as_the_streams_are_and_its_kind_from_its_type", () => {
+  const fragment = {
+    nodes: [
+      { id: "in-id", name: "in", type: "tatolab.stream:GraphInput", ports: { inputs: [], outputs: [{ name: "value" }] }, components: {} },
+      { id: "blur-id", name: "blur", type: "nodes.blur:Blur", components: { state: "Running" } },
+    ],
+    links: [{ id: "L1", source: { node: "in", port: "value" }, target: { node: "blur", port: "video_in" }, state: "wired" }],
+    groups: [{ id: "g", title: "Inside" }],
+  };
+  const graph = {
+    nodes: [
+      { id: "look-id", name: "look", type: "tatolab.project:AuthoredFragment", kind: "fragment", fragment },
+      { id: "levels-id", name: "levels", type: "generators.mics:mic_levels", kind: "fragment", fragment: { nodes: [], links: [] } },
+      { id: "lobby-id", name: "lobby", type: "tatolab.project:StreamFragment", kind: "fragment" },
+      { id: "cam-id", name: "camera", type: "nodes.camera:Camera", kind: "process" },
+    ],
+  };
+
+  const summary = streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify(graph));
+
+  expect(summary.ok && summary.value.nodes.map((graphNode) => graphNode.fragment)).toEqual([
+    {
+      kind: "authored",
+      nodes: [node("in", "tatolab.stream:GraphInput", null, undefined, { input_ports: [], output_ports: portsStatingNoStreamFacts("value") }, "in-id"), node("blur", "nodes.blur:Blur", "Running", undefined, undefined, "blur-id")],
+      links: [link("L1", ["in", "value"], ["blur", "video_in"], "wired")],
+      groups: [{ id: "g", title: "Inside", description: null, colour: null }],
+    },
+    { kind: "generated", nodes: [], links: [], groups: [] },
+    { kind: "placed_stream", nodes: [], links: [], groups: [] },
+    null,
+  ]);
+  expect(streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify({ nodes: [{ name: "bad", fragment: "nodes" }] })).ok).toBe(false);
 });

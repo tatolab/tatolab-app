@@ -15,6 +15,8 @@ export type {
   StreamGraphGroup,
   StreamGraphNote,
   StreamGraphNode,
+  StreamGraphFragment,
+  StreamGraphFragmentKind,
   StreamGraphLink,
   StreamGraphSummary,
   NodeCatalogPort,

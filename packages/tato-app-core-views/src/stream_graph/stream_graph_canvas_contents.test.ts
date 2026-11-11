@@ -16,6 +16,7 @@ function graphNode(name: string, inputs: string[], outputs: string[]): StreamGra
     refused_bags_by_output_port: {},
     pins: {},
     studio: NODE_STUDIO_FIELDS_NONE_SET,
+    fragment: null,
   };
 }
 
@@ -48,7 +49,7 @@ const GRAPH: StreamGraphSummary = {
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_and_an_input_shows_the_facts_its_one_link_carries", () => {
   expect(streamGraphCanvasContents(GRAPH, null).nodes).toEqual([
-    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, input_pins: [], output_pins: [{ name: "video", family: "image", description: null, stream_facts_words: ["29.97 fps"] }], saved_position: null, frame_id: null, is_collapsed: false },
+    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, input_pins: [], output_pins: [{ name: "video", family: "image", description: null, stream_facts_words: ["29.97 fps"] }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null },
     {
       node_id: "invert",
       title: "invert",
@@ -60,6 +61,7 @@ test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_and_an_input_
       saved_position: null,
       frame_id: null,
       is_collapsed: false,
+      subgraph: null,
     },
   ]);
 });
@@ -133,4 +135,17 @@ test("a card and its pins carry their node type's descriptions from the stream's
   expect(invert?.input_pins.map((pin) => pin.description)).toEqual(["The frames to invert."]);
   expect(invert?.output_pins.map((pin) => pin.description)).toEqual([null]);
   expect(streamGraphCanvasContents(GRAPH, catalog).nodes.find((node) => node.node_id === "camera")?.description).toBeNull();
+});
+
+test("a_subgraph_card_carries_its_kind_and_names_it_beside_its_title", () => {
+  const holding = (type: string, kind: "generated" | "authored" | "placed_stream"): StreamGraphNode => ({ ...graphNode("look", [], []), type, fragment: { kind, nodes: [], links: [], groups: [] } });
+  const cards = streamGraphCanvasContents(
+    { ...GRAPH, links: [], nodes: [holding("tatolab.project:AuthoredFragment", "authored"), { ...holding("generators.looks:mic_levels", "generated"), name: "levels" }, { ...holding("tatolab.project:StreamFragment", "placed_stream"), name: "lobby" }] },
+    null,
+  ).nodes;
+  expect(cards.map((card) => [card.node_id, card.subgraph, card.type_name])).toEqual([
+    ["look", "authored", "Subgraph"],
+    ["levels", "generated", "mic_levels"],
+    ["lobby", "placed_stream", "Stream"],
+  ]);
 });

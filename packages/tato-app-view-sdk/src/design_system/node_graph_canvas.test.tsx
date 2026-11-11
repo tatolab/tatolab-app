@@ -27,6 +27,7 @@ function card(nodeId: string, isCollapsed: boolean): NodeGraphCanvasNode {
     saved_position: { x: 0, y: 0 },
     frame_id: FRAME_ID,
     is_collapsed: isCollapsed,
+    subgraph: null,
   };
 }
 
@@ -42,6 +43,7 @@ function editingRecorded() {
     onNoteAskedFor: vi.fn(),
     onDeleted: vi.fn(),
     onFrameAskedFor: applied,
+    onSubgraphAskedFor: vi.fn(),
     onNoteChanged: applied,
     onFrameRenamed,
     onCardCollapsed,

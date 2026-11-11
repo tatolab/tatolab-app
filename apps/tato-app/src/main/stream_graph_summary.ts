@@ -6,6 +6,8 @@
 import type {
   JsonValue,
   StreamGraphDeclaredPort,
+  StreamGraphFragment,
+  StreamGraphFragmentKind,
   StreamGraphGroup,
   StreamGraphNodeStudioFields,
   StreamGraphNote,
@@ -30,6 +32,11 @@ import {
 import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
 import { portStreamFactsOnTheWire, portValuesCheckedOnTheWire } from "./port_stream_facts_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
+
+/** The node type of a collapsed selection's subgraph (`AUTHORED_FRAGMENT_NODE_TYPE` in streamlib). */
+const AUTHORED_FRAGMENT_NODE_TYPE = "tatolab.project:AuthoredFragment";
+/** The node type of another stream placed by reference (`STREAM_FRAGMENT_NODE_TYPE` in streamlib). */
+const STREAM_FRAGMENT_NODE_TYPE = "tatolab.project:StreamFragment";
 
 /** The runtime's own reading of a link rendered without a state. */
 const A_LINK_RENDERED_WITHOUT_A_STATE_IS_PENDING = "pending";
@@ -194,6 +201,8 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
   if (!inputPorts.ok) return inputPorts;
   const outputPorts = declaredPortsUnder(ports.value, "outputs");
   if (!outputPorts.ok) return outputPorts;
+  const fragment = streamGraphFragmentOnTheWire(node.value, nodeType.value);
+  if (!fragment.ok) return fragment;
   return succeeded({
     id: nodeId.value,
     name: name.value,
@@ -207,7 +216,38 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
     dropped_bags_by_link: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "dropped_bags_by_link"),
     refused_bags_by_output_port: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "refused_bags_by_output_port"),
     studio: nodeStudioFieldsOnTheWire(node.value["studio"]),
+    fragment: fragment.value,
   });
+}
+
+/** How the subgraph a node of type `nodeType` holds came to be. */
+function streamGraphFragmentKindOfTheNodeType(nodeType: string): StreamGraphFragmentKind {
+  if (nodeType === AUTHORED_FRAGMENT_NODE_TYPE) return "authored";
+  if (nodeType === STREAM_FRAGMENT_NODE_TYPE) return "placed_stream";
+  return "generated";
+}
+
+/** The graph a node holds under `fragment` (a spec key the runtime renders on a subgraph alone, each node rendered as a stream's node is); a node of `kind` `fragment` that renders none holds an empty graph; `null` on every other node. */
+function streamGraphFragmentOnTheWire(node: JsonObjectOnTheWire, nodeType: string): Result<StreamGraphFragment | null, string> {
+  const fragmentOnTheWire = node["fragment"];
+  if (fragmentOnTheWire === undefined || fragmentOnTheWire === null) {
+    return succeeded(node["kind"] === "fragment" ? { kind: streamGraphFragmentKindOfTheNodeType(nodeType), nodes: [], links: [], groups: [] } : null);
+  }
+  const fragment = jsonObject(fragmentOnTheWire, "a fragment");
+  if (!fragment.ok) return fragment;
+  const nodesOnTheWire = arrayOrEmpty(fragment.value, "nodes");
+  if (!nodesOnTheWire.ok) return nodesOnTheWire;
+  const nodes = everyOneRead(nodesOnTheWire.value, streamGraphNodeOnTheWire);
+  if (!nodes.ok) return nodes;
+  const linksOnTheWire = arrayOrEmpty(fragment.value, "links");
+  if (!linksOnTheWire.ok) return linksOnTheWire;
+  const links = everyOneRead(linksOnTheWire.value, streamGraphLinkOnTheWire);
+  if (!links.ok) return links;
+  const groupsOnTheWire = arrayOrEmpty(fragment.value, "groups");
+  if (!groupsOnTheWire.ok) return groupsOnTheWire;
+  const groups = everyOneRead(groupsOnTheWire.value, streamGraphGroupOnTheWire);
+  if (!groups.ok) return groups;
+  return succeeded({ kind: streamGraphFragmentKindOfTheNodeType(nodeType), nodes: nodes.value, links: links.value, groups: groups.value });
 }
 
 /** The ports a node's `ports.<direction>` lists, each by name with its family, its stream facts and its `values_checked` mark when it carries them. */
