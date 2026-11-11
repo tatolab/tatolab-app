@@ -6,7 +6,7 @@ import type { SearchPopoverNarrowing } from "@tatolab/tato-app-view-sdk/design_s
 import type { SearchPopoverItem } from "@tatolab/tato-app-view-sdk/design_system/support/search_popover_rows";
 import type { NodeCatalogEntry, ProjectNodeType, ProjectNodeTypeListing } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nameInWords, nodeTypeClassName } from "../shared/node_words";
-import { portALooseWireLinksTo, type LooseWire } from "./stream_graph_edits";
+import { portALooseWireLinksTo, type LooseWire } from "../shared/stream_graph_edits";
 
 /** The module a node type is declared in, the part before its class: `nodes.blur` of `nodes.blur:GaussianBlur`. */
 function moduleOfTheNodeType(nodeType: string): string {

@@ -524,6 +524,8 @@ export const studioSelectionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("project"), project_name: z.string(), project_folder: z.string().nullable() }),
   z.object({ kind: z.literal("stream"), stream: z.string(), project_folder: z.string() }),
   z.object({ kind: z.literal("node"), stream: z.string(), node: z.string() }),
+  /** Two or more nodes of one stream selected together, by name, the one picked last at the end. */
+  z.object({ kind: z.literal("nodes"), stream: z.string(), nodes: z.array(z.string()).min(2) }),
 ]);
 /** What Studio has selected. */
 export type StudioSelection = z.infer<typeof studioSelectionSchema>;

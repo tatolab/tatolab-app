@@ -265,10 +265,10 @@ export class StudioWindowModel {
     this.publishStreamTabs({ tabs: tabs.map((tab) => ({ ...tab, display_name: displayNameListedFor(tab) })), active_stream });
   }
 
-  /** Select `selection`; in a studio window, a stream or one of its nodes opens the stream's tab, or shows it where it is open. */
+  /** Select `selection`; in a studio window, a stream or nodes of it open the stream's tab, or show it where it is open. */
   select(selection: StudioSelection): void {
     this.selection.publish(selection);
-    if (this.poppedOutView.readLatest() !== null || (selection.kind !== "stream" && selection.kind !== "node")) return;
+    if (this.poppedOutView.readLatest() !== null || (selection.kind !== "stream" && selection.kind !== "node" && selection.kind !== "nodes")) return;
     if (this.openStreamTabs.readLatest().active_stream !== selection.stream) this.openStreamTabOfAListedStream(selection.stream);
   }
 

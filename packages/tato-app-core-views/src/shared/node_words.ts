@@ -53,3 +53,12 @@ export function nodeTitle(nodeName: string, nodeType: string): string {
   const typeInWords = nameInWords(nodeTypeClassName(nodeType));
   return ordinal === 1 ? typeInWords : `${typeInWords} ${ordinal}`;
 }
+
+/** What Properties says for several nodes selected together: how many, and each one's title where `graphNodes` holds it, else its name. */
+export function wordsForTheSeveralSelectedNodes(nodeNames: readonly string[], graphNodes: readonly { name: string; type: string }[]): { title: string; explanation: string } {
+  const nodeTitles = nodeNames.map((nodeName) => {
+    const graphNode = graphNodes.find((candidate) => candidate.name === nodeName);
+    return graphNode === undefined ? nodeName : nodeTitle(graphNode.name, graphNode.type);
+  });
+  return { title: `${nodeNames.length} nodes selected`, explanation: `${nodeTitles.join(", ")}. Select one node to edit its config.` };
+}

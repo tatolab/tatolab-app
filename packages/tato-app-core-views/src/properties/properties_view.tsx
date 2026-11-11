@@ -37,7 +37,7 @@ import type {
 import { CoreViewFrame } from "../shared/core_view_page";
 import { useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { portStreamFactsWords, streamFactsAnInputReceives, VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
-import { nameInWords, nodeTitle, nodeTypeClassName } from "../shared/node_words";
+import { nameInWords, nodeTitle, nodeTypeClassName, wordsForTheSeveralSelectedNodes } from "../shared/node_words";
 import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, recordsOfAListField, type ConfigFormField } from "./config_form_fields";
 import { propertiesListedWords, propertiesMatchingTheSearch } from "./properties_matching_the_search";
 import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
@@ -761,6 +761,14 @@ function PropertiesOfTheSelectedNode({
   );
 }
 
+/** How many nodes are selected together and their titles, in place of fields that would belong to no one node. */
+function SummaryOfTheSeveralSelectedNodes({ connection, stream, nodeNames }: { connection: TatoAppViewConnection; stream: string; nodeNames: readonly string[] }) {
+  const watchTheStreamsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(stream, listener), [connection, stream]);
+  const graphReading = useViewReading(watchTheStreamsGraph);
+  const { title, explanation } = wordsForTheSeveralSelectedNodes(nodeNames, graphReading?.kind === "read" ? graphReading.graph.nodes : []);
+  return <WaitingState title={title} explanation={explanation} data-properties-state="several_nodes" />;
+}
+
 function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
   const selection = useViewReading(connection.watchSelection);
   const activeStreamTab = useViewReading(connection.watchActiveStreamTab);
@@ -768,6 +776,9 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
   const projectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
   const graphEditsInTheProject = useGraphEditsInTheOpenProject(connection, projectFolder);
   const [searchWords, setSearchWords] = useState("");
+  if (selection?.kind === "nodes" && activeStreamTab?.stream === selection.stream) {
+    return <SummaryOfTheSeveralSelectedNodes connection={connection} stream={selection.stream} nodeNames={selection.nodes} />;
+  }
   if (selection?.kind !== "node" || activeStreamTab?.stream !== selection.stream) {
     return <WaitingState title="Nothing to show" explanation="Select a node in the stream graph to edit its config and see what it's connected to." data-properties-state="no_node" />;
   }

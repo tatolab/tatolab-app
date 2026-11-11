@@ -216,6 +216,41 @@ describe("the studio", () => {
     expect(outlinerFrame.getAttribute("src")).toMatch(/\/core_views\/outliner\/index\.html$/);
   });
 
+  it("selects nodes together with ⌘ in the outliner, the graph and Properties showing the same nodes, and groups them from the + menu", { timeout: 20_000 }, async () => {
+    await mountedWindowOverTheMock("state=running");
+    const mainNodeRowId = (node: string) => `node:${PATTERN_MAIN_STREAM}/${node}`;
+    await waitFor(() => expect(outlinerRowIds()).toContain(mainNodeRowId("invertingeffect")));
+
+    fireEvent.click(outlinerRow(mainNodeRowId("invertingeffect")));
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("invertingeffect")).getAttribute("aria-selected")).toBe("true"));
+    fireEvent.click(outlinerRow(mainNodeRowId("displaywindow")), { metaKey: true });
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("displaywindow")).getAttribute("aria-selected")).toBe("true"));
+    expect(outlinerRow(mainNodeRowId("invertingeffect")).getAttribute("aria-selected")).toBe("true");
+    await waitFor(() => expect(coreViewPage("properties").body.textContent).toContain("Inverting Effect, Display Window. Select one node to edit its config."));
+    expect(coreViewPage("properties").body.textContent).toContain("2 nodes selected");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    await waitFor(() => expect([...streamGraph.querySelectorAll<HTMLElement>("[data-node-graph-card][data-selected]")].map((card) => card.dataset.nodeGraphCard).sort()).toEqual(["displaywindow", "invertingeffect"]));
+
+    pressAsAPointerDoes(coreViewPage("outliner").querySelector<HTMLElement>("[data-outliner-add-menu]") ?? expect.unreachable("no + menu"));
+    fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>("[data-outliner-group-selected-nodes]") ?? expect.unreachable("no Group selected nodes")));
+    await waitFor(() => expect(outlinerRowIds().some((rowId) => rowId.startsWith(`group:${PATTERN_MAIN_STREAM}/`))).toBe(true), { timeout: 5000 });
+  });
+
+  it("groups the nodes selected in the outliner on F, and leaves F alone while nothing can be grouped", { timeout: 20_000 }, async () => {
+    await mountedWindowOverTheMock("state=running");
+    const mainNodeRowId = (node: string) => `node:${PATTERN_MAIN_STREAM}/${node}`;
+    await waitFor(() => expect(outlinerRowIds()).toContain(mainNodeRowId("testpatternsource")));
+    expect(fireEvent.keyDown(outlinerRow(mainNodeRowId("testpatternsource")), { key: "f" })).toBe(true);
+
+    fireEvent.click(outlinerRow(mainNodeRowId("testpatternsource")));
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("testpatternsource")).getAttribute("aria-selected")).toBe("true"));
+    fireEvent.click(outlinerRow(mainNodeRowId("brightnessmeter")), { metaKey: true });
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("brightnessmeter")).getAttribute("aria-selected")).toBe("true"));
+    await waitFor(() => expect(coreViewPage("properties").body.textContent).toContain("2 nodes selected"));
+    expect(fireEvent.keyDown(outlinerRow(mainNodeRowId("brightnessmeter")), { key: "f" })).toBe(false);
+    await waitFor(() => expect(outlinerRowIds().some((rowId) => rowId.startsWith(`group:${PATTERN_MAIN_STREAM}/`))).toBe(true), { timeout: 5000 });
+  });
+
   it("names the project once on macOS, at the start of the title row before the stream tabs, never on a tab", async () => {
     await mountedWindowOverTheMock("state=running");
     await waitFor(() => expect(document.querySelector("[data-studio-window-title]")?.textContent).toBe("pattern"));
