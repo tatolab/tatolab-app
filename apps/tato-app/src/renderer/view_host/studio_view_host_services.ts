@@ -8,6 +8,7 @@ import type { PortViewerConnections } from "./port_viewer_connections";
 import type { ListedStreamsReading, OpenProjectReading, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { WatchedStudioValue } from "./watched_studio_value";
+import type { StopWatching, StudioViewsReading } from "./studio_view_contract";
 
 /** What the studio publishes to its views, and what it does when a view opens a stream's tab. */
 export interface StudioWindowValuesServedToViews {
@@ -30,6 +31,8 @@ export interface StudioViewHostProjectServices {
   projectTransactionsReadings: ProjectTransactionsReadings;
   pythonLanguageServerConnections: PythonLanguageServerConnections;
   portViewerConnections: PortViewerConnections;
+  /** The views an area can show, at once and again each time the open project's are listed. */
+  watchStudioViews(listener: (reading: StudioViewsReading) => void): StopWatching;
 }
 
 /** Why a view naming a folder other than the window's open project imports nothing into it. */
@@ -114,6 +117,7 @@ export function studioViewHostServicesOf(
         backend,
         listTheProjectAgainNow: (folder) => projectServices.projectAssetReadings.listTheProjectAgainNow(folder),
       }),
+    watchStudioViews: projectServices.watchStudioViews,
     watchProjectTransactions: projectServices.projectTransactionsReadings.watchProjectTransactions,
     undoInTheProject: projectServices.projectTransactionsReadings.undoInTheProject,
     redoInTheProject: projectServices.projectTransactionsReadings.redoInTheProject,

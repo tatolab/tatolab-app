@@ -19,6 +19,7 @@ import {
   projectTransactionAuthorSchema,
   projectTransactionSchema,
   projectTransactionsReadingSchema,
+  studioViewsReadingSchema,
   pythonLanguageServerConnectionEventSchema,
   graphEditModeSchema,
   projectActionRefusalSchema,
@@ -84,6 +85,8 @@ export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("project_assets"), project_folder: z.string() }),
   /** The project's change feed, read again each time the runtime applies a transaction to it. */
   z.object({ kind: z.literal("project_transactions"), project_folder: z.string() }),
+  /** The views Studio ships with and those the open project and its imports bring, listed again with the project's. */
+  z.object({ kind: z.literal("studio_views") }),
   /** A running node's output port, read until the watch stops. */
   z.object({ kind: z.literal("port_viewer"), target: portViewerTargetSchema }),
   /** What is wired into one of a `node` view's own inputs. */
@@ -173,6 +176,7 @@ export const viewWatchedReadingSchema = z.discriminatedUnion("subject", [
   z.object({ subject: z.literal("project_node_types"), reading: projectNodeTypesReadingSchema }),
   z.object({ subject: z.literal("project_assets"), reading: projectAssetsReadingSchema }),
   z.object({ subject: z.literal("project_transactions"), reading: projectTransactionsReadingSchema }),
+  z.object({ subject: z.literal("studio_views"), reading: studioViewsReadingSchema }),
   z.object({ subject: z.literal("port_viewer"), reading: portViewerEventSchema }),
   z.object({ subject: z.literal("input"), reading: viewInputEventSchema }),
   z.object({ subject: z.literal("python_language_server"), reading: pythonLanguageServerConnectionEventSchema }),

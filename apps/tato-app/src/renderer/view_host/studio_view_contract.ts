@@ -15,6 +15,7 @@ import type {
   ProjectTransactionApplying,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
+  StudioViewsReading,
   PythonLanguageServerConnectionEvent,
   StreamGraphReading,
   StreamTabAddress,
@@ -46,6 +47,7 @@ export type {
   ProjectTransaction,
   ProjectTransactionApplying,
   ProjectTransactionAuthor,
+  StudioViewsReading,
   ProjectTransactionsReading,
   PythonLanguageServerConnectionEvent,
   StreamGraphReading,
@@ -131,6 +133,8 @@ export interface StudioViewHostServices {
   watchProjectAssets(projectFolder: string, listener: (reading: ProjectAssetsReading) => void): StopWatching;
   /** The files the person chooses imported into `projectFolder`, the open project only. */
   importAssetsIntoTheProject(projectFolder: string): Promise<ProjectAssetsImporting>;
+  /** The views an area can show, at once and again each time the open project's are listed. */
+  watchStudioViews(listener: (reading: StudioViewsReading) => void): StopWatching;
   /** The open project's change feed, when `projectFolder` is its folder: read once, then again each time the runtime applies a transaction. */
   watchProjectTransactions(projectFolder: string, listener: (reading: ProjectTransactionsReading) => void): StopWatching;
   /** The runtime's `undo` by `author` on the open project, answering the undo it applied or its refusal. */

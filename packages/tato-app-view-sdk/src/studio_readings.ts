@@ -541,6 +541,34 @@ export const projectNodeTypesReadingSchema = z.discriminatedUnion("kind", [
 /** What a project's sources declare, or why none. */
 export type ProjectNodeTypesReading = z.infer<typeof projectNodeTypesReadingSchema>;
 
+/** One input or output a `node` view declares: its name and family. */
+export const studioViewDeclaredPortSchema = z.object({ name: z.string(), family: portFamilySchema, description: z.string() });
+
+/** A view an area can show: its view type id, what its manifest says of it, who brought it, and why it does not open (`null` when it does). */
+export const studioViewListedSchema = z.object({
+  view_type_id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  /** `Tato Studio` for a view Studio ships with, else the name of the project or import bringing it. */
+  brought_by: z.string(),
+  is_built_in: z.boolean(),
+  /** `area` or `node`, as its manifest places it; `null` for one that does not open. */
+  placement: z.enum(["area", "node"]).nullable(),
+  inputs: z.array(studioViewDeclaredPortSchema),
+  outputs: z.array(studioViewDeclaredPortSchema),
+  not_opened_because: z.string().nullable(),
+});
+/** A view an area can show. */
+export type StudioViewListed = z.infer<typeof studioViewListedSchema>;
+
+/** The views Studio ships with and those the open project and its imports bring, or why the project's are not listed, in the runtime's words. */
+export const studioViewsReadingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("listed"), studio_views: z.array(studioViewListedSchema) }),
+  z.object({ kind: z.literal("not_listed"), built_in_views: z.array(studioViewListedSchema), because: z.string() }),
+]);
+/** The views an area can show, or why the project's are not listed. */
+export type StudioViewsReading = z.infer<typeof studioViewsReadingSchema>;
+
 /** A project's assets, or why the runtime lists none, in its own words. */
 export const projectAssetsReadingSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("listed"), listing: projectAssetListingSchema }),

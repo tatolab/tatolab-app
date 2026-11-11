@@ -1,3 +1,4 @@
+import type { StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
 import {
   connectToTatoAppOverPort,
   readTatolabViewManifest,
@@ -18,6 +19,7 @@ import type {
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
   ProjectAssetsReading,
+  StudioViewsReading,
   PythonLanguageServerConnectionEvent,
   StudioSelection,
   StudioViewHostServices,
@@ -131,6 +133,10 @@ function recordingHostServices() {
       listener({ kind: "not_listed", because: `list_assets failed: ${projectFolder} holds no project: it has no tatolab-project.json` });
       return () => undefined;
     },
+    watchStudioViews: (listener) => {
+      listener({ kind: "listed", studio_views: [STUDIO_VIEW_LISTED_DJ_DECK] });
+      return () => undefined;
+    },
     importAssetsIntoTheProject: async (projectFolder) => {
       assetImportsAsked.push(projectFolder);
       if (projectFolder === "/cancelled") return { kind: "nothing_chosen" };
@@ -221,6 +227,9 @@ function messagesDelivered(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 20));
 }
 
+
+const STUDIO_VIEW_LISTED_DJ_DECK: StudioViewListed = { view_type_id: "acme-dj:deck", title: "DJ Deck", description: "Two decks and a crossfader.", brought_by: "Acme DJ", is_built_in: false, placement: "node", inputs: [], outputs: [{ name: "crossfader", family: "array", description: "" }], not_opened_because: null };
+
 describe("a view's connection to Studio, through the one bridge every view is served by", () => {
   it("edits the project's graphs through it, the runtime's structured refusal reaching the view whole", async () => {
     const { connection, graphTransactionsAsked } = await connectedView(DJ_DECK_MANIFEST, {});
@@ -273,6 +282,14 @@ describe("a view's connection to Studio, through the one bridge every view is se
     connection.watchProjectAssets("/set", (reading) => readings.push(reading));
     await messagesDelivered();
     expect(readings).toEqual([{ kind: "not_listed", because: "list_assets failed: /set holds no project: it has no tatolab-project.json" }]);
+  });
+
+  it("lists the views an area can show", async () => {
+    const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
+    const readings: StudioViewsReading[] = [];
+    connection.watchStudioViews((reading) => readings.push(reading));
+    await messagesDelivered();
+    expect(readings).toEqual([{ kind: "listed", studio_views: [STUDIO_VIEW_LISTED_DJ_DECK] }]);
   });
 
   it("imports the files the person chooses, each refusal in the runtime's words", async () => {
