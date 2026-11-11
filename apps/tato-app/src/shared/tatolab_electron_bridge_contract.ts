@@ -223,10 +223,10 @@ export function isATatolabStreamPageRequest(eventPayload: unknown): eventPayload
   return typeof eventPayload === "object" && eventPayload !== null && "stream" in eventPayload && typeof eventPayload.stream === "string";
 }
 
-/** The sections of the Module manager window: the catalog with the project's modules, the modules added to this project, and the sample projects. */
-export const MODULES_SHOWN = ["everything", "added_to_this_project", "sample_projects"] as const;
+/** The sections of the Modules and Marketplace window: the modules added to this project, and the catalog's packages and samples. */
+export const MODULES_SHOWN = ["added_to_this_project", "marketplace"] as const;
 
-/** One section of the Module manager window. */
+/** One section of the Modules and Marketplace window. */
 export type ModulesShown = (typeof MODULES_SHOWN)[number];
 
 /** Whether a value is a `ModulesShown`. */

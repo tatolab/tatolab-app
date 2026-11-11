@@ -234,7 +234,7 @@ export class TatolabAppWindows {
       this.sources.mainWindowHostFactory,
       this.sources.platformItems.mainWindowChrome,
       "module_manager",
-      `Module manager · ${studioWindowTitleOf(studioWindow.openProject.readOpenProject(), studioWindow.openProject.projectFolder)}`,
+      `Modules and Marketplace · ${studioWindowTitleOf(studioWindow.openProject.readOpenProject(), studioWindow.openProject.projectFolder)}`,
       {
         whenItCameOnScreenOrWentOff: () => this.showTheDockIconWhileAWindowIsShown(),
         answerItsCloseRequest: () => "let_it_close",

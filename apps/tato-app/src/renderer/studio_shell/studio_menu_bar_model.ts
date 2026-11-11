@@ -116,7 +116,7 @@ function studioMenuParts(
       { kind: "command", label: "Import project .zip…", onChosen: commands.importAProjectArchive },
       laterCommand("New stream"),
       laterCommand("Save version…"),
-      projectCommand("Marketplace…", () => commands.openModuleManager("everything")),
+      projectCommand("Marketplace…", () => commands.openModuleManager("marketplace")),
       projectCommand("Modules…", () => commands.openModuleManager("added_to_this_project")),
     ],
     undoAndRedoEntries: [projectCommand("Undo", commands.undoYourLastEdit, shortcutHint(platform, "Z")), projectCommand("Redo", commands.redoYourLastUndo, shiftedShortcutHint(platform, "Z"))],
