@@ -14,9 +14,16 @@
   padding: 24px;
   background:
     radial-gradient(ellipse 60% 55% at 50% 45%, color-mix(in oklab, var(--port-family-colour) 14%, transparent), transparent 70%),
+    var(--port-preview-surface-background);
+}
+
+/* What a port's preview draws behind its picture or placeholder: the area's colour under a field of faint points. */
+.port-family-placeholder, .port-preview-surface {
+  --port-preview-surface-background:
     radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--fg-3) 22%, transparent) 1px, transparent 1.5px) 0 0 / 20px 20px,
     var(--studio-area);
 }
+.port-preview-surface { background: var(--port-preview-surface-background); }
 .port-family-placeholder[data-family="image"] { --port-family-colour: var(--studio-family-image); }
 .port-family-placeholder[data-family="array"] { --port-family-colour: var(--studio-family-array); }
 .port-family-placeholder[data-family="channels"] { --port-family-colour: var(--studio-family-channels); }

@@ -125,7 +125,7 @@ function PortViewerPicture({
   const streamFactsWords = portStreamFactsWords(streamFactsOfThePort).join(" · ");
   return (
     <div
-      className={isAPicture ? "relative flex min-h-0 flex-1 flex-col bg-black" : "relative flex min-h-0 flex-1 flex-col"}
+      className={isAPicture ? "port-preview-surface relative flex min-h-0 flex-1 flex-col" : "relative flex min-h-0 flex-1 flex-col"}
       data-viewer-playing={`${nodeName}/${port}`}
       data-viewer-port-state={shown.kind}
     >
