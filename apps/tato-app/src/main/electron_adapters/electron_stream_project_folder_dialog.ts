@@ -11,7 +11,7 @@ export async function askThePersonForAStreamProjectFolderThroughElectron(
   chosenFor: StreamProjectFolderChosenFor,
   defaultFolder: string,
 ): Promise<Result<string | null, string>> {
-  if (chosenFor === "project_to_run") {
+  if (chosenFor === "project_to_open") {
     return askThePersonThroughAnOpenDialogOverTheFocusedWindow(
       { title: "Choose a project folder", buttonLabel: "Choose", defaultPath: defaultFolder, properties: ["openDirectory", "createDirectory"] },
       "The folder dialog",

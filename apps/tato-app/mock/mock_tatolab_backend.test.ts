@@ -72,7 +72,7 @@ describe("the mock backend's stream actions", () => {
     expect(listingWithTheId(stopping.streams, RECORDER)).toMatchObject({ state: "stopping", action: stopAction });
     expect(listingWithTheId(stopping.streams, CAMERA)).toMatchObject({ state: "running" });
     const stopped = await streamsAfterEachChange(() => Promise.resolve(), 1000);
-    expect(listingWithTheId(stopped.streams, MAIN)).toMatchObject({ state: "stopped", node_count: null, action: null, step: null });
+    expect(listingWithTheId(stopped.streams, MAIN)).toMatchObject({ state: "stopped", action: null, step: null });
     expect(listingWithTheId(stopped.streams, RECORDER)).toMatchObject({ state: "stopped" });
     expect(listingWithTheId(stopped.streams, CAMERA)).toMatchObject({ state: "running" });
   });
@@ -84,7 +84,7 @@ describe("the mock backend's stream actions", () => {
     await streamsAfterEachChange(() => Promise.resolve(), 1000);
     const stoppedTwice = await streamsAfterEachChange(() => backend.stopOpenProject());
     expect(stoppedTwice.answer).toEqual({
-      refusal: expect.stringMatching(/^Runtime error: no stream of the project in \/Users\/jonathanf\/streams\/pattern runs, so there is none to stop; `run` runs it\. Loaded: /),
+      refusal: expect.stringMatching(/^Runtime error: no stream of the project in \/Users\/jonathanf\/streams\/pattern plays, so there is none to stop; `start_playback` plays it\. Loaded: /),
     });
     const removedAFolderOfNoStream = await streamsAfterEachChange(() => backend.removeProject("/Users/jonathanf/streams/nothing-here"));
     expect(removedAFolderOfNoStream.answer).toEqual({
@@ -245,46 +245,46 @@ describe("the mock backend's New project and Import project", () => {
     return [...new Set(followed.map((answer) => (answer.kind === "described" ? `${answer.description.state}:${answer.description.step ?? ""}` : answer.kind)))];
   }
 
-  it("imports the chosen folder as a queued load, lists its stream preparing then running, and refuses a folder it never handed the window", async () => {
+  it("imports the chosen folder as a queued open, lists its stream preparing then stopped, and refuses a folder it never handed the window", async () => {
     vi.useFakeTimers();
     const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
     await settled(() => backend.getTatolabStatus());
-    const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_run"));
+    const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_open"));
     expect(chosen).toEqual({ answer: "/Users/jonathanf/code/heat-map" });
 
-    const queued = await settled(() => backend.runStreamProject("/Users/jonathanf/code/heat-map"), 50);
-    if (!("answer" in queued)) throw new Error("the run was refused");
+    const queued = await settled(() => backend.openStreamProject("/Users/jonathanf/code/heat-map"), 50);
+    if (!("answer" in queued)) throw new Error("the open was refused");
     expect(queued.answer.project_directory).toBe("/Users/jonathanf/code/heat-map");
     const followed = await followedToItsEnd(backend, queued.answer.action);
     expect(statesOf(followed)).toEqual(["queued:", "in_progress:reading_the_graph_documents", "in_progress:starting", "done:"]);
     expect(followed.at(-1)).toEqual({
       kind: "described",
-      description: expect.objectContaining({ state: "done", streams: [{ stream: HEAT_MAP, display_name: "heat_map", state: "running" }] }),
+      description: expect.objectContaining({ kind: "open", state: "done", streams: [{ stream: HEAT_MAP, display_name: "heat_map", state: "stopped" }] }),
     });
     const status = await settled(() => backend.getTatolabStatus());
-    expect("answer" in status && listingWithTheId(status.answer.streams, HEAT_MAP)).toMatchObject({ state: "running" });
+    expect("answer" in status && listingWithTheId(status.answer.streams, HEAT_MAP)).toMatchObject({ state: "stopped" });
 
-    expect(await settled(() => backend.runStreamProject("/etc"))).toEqual({ refusal: "Tato Studio acts only on a folder chosen in its window. Choose /etc again." });
+    expect(await settled(() => backend.openStreamProject("/etc"))).toEqual({ refusal: "Tato Studio acts only on a folder chosen in its window. Choose /etc again." });
   });
 
   it("imports a folder with two streams, one failing, and makes a .venv first for a folder with none", async () => {
     vi.useFakeTimers();
     const doorways = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_folder=several")));
     await settled(() => doorways.getTatolabStatus());
-    await settled(() => doorways.chooseStreamProjectFolder("project_to_run"));
-    const queued = await settled(() => doorways.runStreamProject("/Users/jonathanf/code/doorways"), 50);
-    if (!("answer" in queued)) throw new Error("the run was refused");
+    await settled(() => doorways.chooseStreamProjectFolder("project_to_open"));
+    const queued = await settled(() => doorways.openStreamProject("/Users/jonathanf/code/doorways"), 50);
+    if (!("answer" in queued)) throw new Error("the open was refused");
     const ending = (await followedToItsEnd(doorways, queued.answer.action)).at(-1);
     expect(ending?.kind === "described" && ending.description.streams.map((stream) => [stream.display_name, stream.state])).toEqual([
-      ["front_door", "running"],
+      ["front_door", "stopped"],
       ["back_door", "failed"],
     ]);
 
     const noVenv = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_folder=no-venv")));
     await settled(() => noVenv.getTatolabStatus());
-    await settled(() => noVenv.chooseStreamProjectFolder("project_to_run"));
-    const queuedWithNoVenv = await settled(() => noVenv.runStreamProject("/Users/jonathanf/code/heat-map"), 50);
-    if (!("answer" in queuedWithNoVenv)) throw new Error("the run was refused");
+    await settled(() => noVenv.chooseStreamProjectFolder("project_to_open"));
+    const queuedWithNoVenv = await settled(() => noVenv.openStreamProject("/Users/jonathanf/code/heat-map"), 50);
+    if (!("answer" in queuedWithNoVenv)) throw new Error("the open was refused");
     expect(statesOf(await followedToItsEnd(noVenv, queuedWithNoVenv.answer.action))).toContain("in_progress:making_the_venv");
   });
 
@@ -313,9 +313,9 @@ describe("the mock backend's New project and Import project", () => {
     vi.useFakeTimers();
     const refused = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_venv=refused&add_folder=no-venv")));
     await settled(() => refused.getTatolabStatus());
-    await settled(() => refused.chooseStreamProjectFolder("project_to_run"));
-    const queued = await settled(() => refused.runStreamProject("/Users/jonathanf/code/heat-map"), 50);
-    if (!("answer" in queued)) throw new Error("the run was refused");
+    await settled(() => refused.chooseStreamProjectFolder("project_to_open"));
+    const queued = await settled(() => refused.openStreamProject("/Users/jonathanf/code/heat-map"), 50);
+    if (!("answer" in queued)) throw new Error("the open was refused");
     expect((await followedToItsEnd(refused, queued.answer.action)).at(-1)).toEqual({
       kind: "described",
       description: expect.objectContaining({ state: "failed", failed_because: expect.stringMatching(/^error: Failed to fetch: `https:\/\/pypi.org\/simple\/tatolab-stream\/`/) }),
@@ -324,7 +324,7 @@ describe("the mock backend's New project and Import project", () => {
     const notHeld = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_action=not_held&add_folder=cancel")));
     await settled(() => notHeld.getTatolabStatus());
     expect(await settled(() => notHeld.describeStreamAction("R-1"))).toEqual({ answer: { kind: "not_held", words: expect.stringMatching(/^Invalid configuration: the stream action `R-1` is not held/) } });
-    expect(await settled(() => notHeld.chooseStreamProjectFolder("project_to_run"))).toEqual({ answer: null });
+    expect(await settled(() => notHeld.chooseStreamProjectFolder("project_to_open"))).toEqual({ answer: null });
   });
 
   it("suggests an untitled project in Documents/Tato Studio past the one there, makes and opens a new one, and refuses a taken folder or a name that is no folder name", async () => {

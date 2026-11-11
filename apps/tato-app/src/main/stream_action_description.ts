@@ -1,10 +1,10 @@
-// The runtime's answers about a queued stream action: `create_project`, `start_project` and `reload_project`, which answer
+// The runtime's answers about a queued stream action: `create_project`, `open_project`, `start_playback` and `reload_project`, which answer
 // at once with the action they queued, `describe_stream_action`, which follows it to its end, and
 // `cancel_stream_action`, which ends it early.
 
 import type {
   ProjectCreationQueued,
-  ProjectRunQueued,
+  ProjectStreamActionQueued,
   StreamActionCancelAnswer,
   StreamActionDescription,
   StreamActionVenvSync,
@@ -47,11 +47,14 @@ export function projectCreationQueuedFromTheCreateProjectToolResult(toolResultTe
   return succeeded({ action: action.value, stream: stream.value, project_directory: projectDirectory.value });
 }
 
-/** A `start_project` or `reload_project` tool result, named by `toolName`, read field for field; unknown fields are ignored. */
-export function projectRunQueuedFromTheStartOrReloadProjectToolResult(
-  toolName: "start_project" | "reload_project",
+/** A runtime tool that queues an action on an open or closed project and answers the action beside the project's folder. */
+export type ProjectStreamActionToolName = "open_project" | "start_playback" | "reload_project";
+
+/** An `open_project`, `start_playback` or `reload_project` tool result, named by `toolName`, read field for field; unknown fields are ignored. */
+export function projectStreamActionQueuedFromTheToolResult(
+  toolName: ProjectStreamActionToolName,
   toolResultText: string,
-): Result<ProjectRunQueued, string> {
+): Result<ProjectStreamActionQueued, string> {
   const toolResult = jsonObjectOfTheRuntimesAnswer(toolName, toolResultText);
   if (!toolResult.ok) return readOrSayWhy(toolName, toolResult);
   const action = requiredText(toolResult.value, "action");

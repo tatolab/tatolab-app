@@ -35,7 +35,7 @@ import type {
   RuntimeDescription,
   StreamGraphSummary,
   ProjectCreationQueued,
-  ProjectRunQueued,
+  ProjectStreamActionQueued,
   StreamActionCancelAnswer,
   StreamActionFollowed,
   StreamProjectFolderChosenFor,
@@ -104,10 +104,10 @@ export interface TatolabBackend {
   chooseStreamProjectFolder(chosenFor: StreamProjectFolderChosenFor): Promise<string | null>;
   /** Queue `create_project` in `folder`, or with `null` in a folder the runtime draws under `~/streams`, resolving with the action queued and rejecting in the runtime's own words. */
   createStreamProject(folder: string | null): Promise<ProjectCreationQueued>;
-  /** Queue `start_project` in `folder`, which loads every stream asset in it, resolving with the action queued and rejecting in the runtime's own words. */
-  runStreamProject(folder: string): Promise<ProjectRunQueued>;
-  /** Queue `reload_project` on `projectDirectory`, a running or paused project the runtime lists, which reads every stream asset in it again from disk, resolving with the action queued and rejecting in the runtime's own words. */
-  reloadProject(projectDirectory: string): Promise<ProjectRunQueued>;
+  /** Queue `open_project` in `folder`, which loads every stream asset in it with its playback stopped, resolving with the action queued and rejecting in the runtime's own words. */
+  openStreamProject(folder: string): Promise<ProjectStreamActionQueued>;
+  /** Queue `reload_project` on `projectDirectory`, an open project the runtime lists, which reads every stream asset in it again from disk keeping its playback, or `open_project` on a closed one, resolving with the action queued and rejecting in the runtime's own words. */
+  reloadProject(projectDirectory: string): Promise<ProjectStreamActionQueued>;
   /** Where the stream action `action` has got to, or the runtime's words that it no longer holds it; rejects when the runtime does not answer. */
   describeStreamAction(action: string): Promise<StreamActionFollowed>;
   /** End the stream action `action` early, resolving once the runtime has dropped it or begun stopping it and rejecting in its own words, as for a stop past cancelling; the streams it leaves arrive as the next statuses. */
@@ -215,9 +215,9 @@ export interface TatolabBackend {
   createNodeFile(file: string): Promise<NodeFileCreated>;
   /** Every file of `projectFolder`, the folder of the open project or of one of its imports. */
   listProjectFiles(projectFolder: string): Promise<ProjectFiles>;
-  /** Queue `start_project` on the open project's folder, resolving with the action queued and rejecting in the runtime's own words. */
-  runOpenProject(): Promise<ProjectRunQueued>;
-  /** Queue `stop_project` on the open project's folder, resolving once it is queued and rejecting in the runtime's own words; its streams' `stopping`, then `stopped`, arrive as the next statuses. */
+  /** Queue `start_playback` on the open project's folder, opening it first while the runtime holds it closed and reloading it first while a stream of it has failed, resolving with the action queued and rejecting in the runtime's own words. */
+  runOpenProject(): Promise<ProjectStreamActionQueued>;
+  /** Queue `stop_playback` on the open project's folder, which keeps its graphs loaded, resolving once it is queued and rejecting in the runtime's own words; its streams' `stopping`, then `stopped`, arrive as the next statuses. */
   stopOpenProject(): Promise<void>;
   /** Start Pyright's language server in `projectFolder`, resolving with the session its messages arrive under. */
   startPythonLanguageServer(projectFolder: string): Promise<string>;
