@@ -228,6 +228,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
     [sendTheGesture],
   );
   const [nodeTypeSearchAsked, setNodeTypeSearchAsked] = useState<NodeTypeSearchAsked | null>(null);
+  const [modulesAndMarketplaceRefusal, showTheRefusalOfOpeningTheMarketplace] = useRefusalOfTheLatestAsk();
   const closeTheNodeTypeSearch = useCallback(() => setNodeTypeSearchAsked(null), []);
   useEffect(() => setNodeTypeSearchAsked(null), [subgraphNamesReached]);
   const editing = useMemo((): NodeGraphCanvasEditing | null => {
@@ -377,6 +378,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
         <RefusalLine layout="bar" tone="warning" lead="Read only:" words={editedGraph.because} />
       )}
       {refusalOfTheLatestEdit !== null && <RefusalLine layout="bar" lead={refusalOfTheLatestEdit.lead} words={refusalOfTheLatestEdit.words} />}
+      <RefusalOfTheLatestAskBar refusal={modulesAndMarketplaceRefusal} />
       {innermostSubgraph !== null && <StreamGraphSubgraphTrail streamDisplayName={streamTab.display_name} subgraphsSteppedThrough={subgraphsSteppedThrough} onLevelChosen={stepToTheLevel} />}
       <NodeGraphCanvas
         key={subgraphsSteppedThrough.map((subgraph) => subgraph.name).join("/")}
@@ -411,6 +413,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
                 at={nodeTypeSearchAsked.at.in_the_element}
                 onItemChosen={placeTheChosenNodeType}
                 onClosed={closeTheNodeTypeSearch}
+                footLink={{ words: "Install modules…", onPressed: () => showTheRefusalOfOpeningTheMarketplace("Didn't open the Marketplace:", connection.openModulesAndMarketplace("marketplace")) }}
                 data-stream-graph-node-type-search={streamTab.stream}
               />
             )}

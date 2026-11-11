@@ -29,7 +29,7 @@ export interface TatolabWindowEnvironment {
   backend: TatolabBackend;
   platform: TatolabPlatform;
   statusStore: TatolabWindowStatusStore;
-  /** The runtime's version, uptime and log folder, read while Preferences shows them. */
+  /** The runtime's version, uptime and log folder, read while Settings shows them. */
   runtimeDescriptionReadings: RuntimeDescriptionReadings;
 }
 

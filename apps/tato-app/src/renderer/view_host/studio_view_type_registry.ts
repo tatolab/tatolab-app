@@ -2,12 +2,14 @@ import { readTatolabViewManifest, type TatolabViewManifest } from "@tatolab/tato
 import type { ReactNode } from "react";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
 import type { StudioAreaHeaderMenuIcon } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
-import type { JsonValue, StudioViewHostServices, StudioViewTypeSource, ViewHeaderRow } from "./studio_view_contract";
+import type { JsonValue, StopWatching, StudioViewHostServices, StudioViewTypeSource, ViewHeaderRow } from "./studio_view_contract";
 import type { TatolabViewAreaServices } from "./tatolab_view_bridge";
 import { WatchedStudioValue } from "./watched_studio_value";
 
 /** What an area hands the view type it draws: the settings it saved, keeping the next ones, where a frame's own header row lies, and the window toolbar's graph tools. */
 export interface StudioAreaOfTheView {
+  /** The area's id in the chosen layout; `null` where the view shows outside one, as a popped-out view does. */
+  area_id: string | null;
   saved_settings: JsonValue | undefined;
   rememberSettings(nextSettings: JsonValue): void;
   header_row: WatchedStudioValue<ViewHeaderRow>;
@@ -141,4 +143,17 @@ export class StudioViewTypeRegistry {
     this.projectStudioViewTypesRead = { readFrom: reading, viewTypes, notOpened };
     return this.projectStudioViewTypesRead;
   }
+}
+
+/** The titles `registry`'s view types go by, which change as the open project's views are listed again or Developer mode turns on or off. */
+export function studioViewTypeTitlesOf(registry: StudioViewTypeRegistry): { viewTitleOf(viewTypeId: string): string | null; watchChanges(onChanged: () => void): StopWatching } {
+  return {
+    viewTitleOf: (viewTypeId) => registry.viewTypeWithId(viewTypeId)?.title ?? null,
+    watchChanges: (onChanged) => {
+      const stopWatchingEach = [registry.projectStudioViews.watch(onChanged), registry.developerMode.watch(onChanged)];
+      return () => {
+        for (const stopWatching of stopWatchingEach) stopWatching();
+      };
+    },
+  };
 }

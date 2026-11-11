@@ -3,7 +3,7 @@ import { ConfirmationDialog } from "@tatolab/tato-app-view-sdk/design_system/con
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import type { TatolabAppUpdateAnnouncement, TatolabAppUpdateAnnouncementAnswer } from "../../shared/tatolab_backend_contract";
 import { presentTatolabAppUpdateAnnouncement } from "../presentation/app_update_presentation";
-import { useTatolabStatus, useTatolabWindowEnvironment } from "../setup_and_preferences/tatolab_window_context";
+import { useTatolabStatus, useTatolabWindowEnvironment } from "../setup_and_settings/tatolab_window_context";
 
 /** Which announcement this is, the same across the statuses that carry it. */
 function announcementKey(announcement: TatolabAppUpdateAnnouncement): string {

@@ -68,6 +68,7 @@ function TatolabViewFrame({
     if (frameWindow === null || frameWindow === undefined) return;
     bridgeRef.current?.close();
     const areaServices: TatolabViewAreaServices = {
+      areaId: area.area_id,
       watchSavedSettings: (listener) => savedSettings.watch(({ saved }) => listener(saved)),
       rememberSettings: (settings) => rememberSettingsRef.current(settings),
       watchHeaderRow: area.header_row.watch,

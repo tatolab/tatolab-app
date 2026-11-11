@@ -27,7 +27,7 @@ import {
   type ProjectsOrder,
 } from "../presentation/projects_presentation";
 import { describeBackendRejection } from "../backend/tatolab_backend";
-import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
+import { useTatolabStatus } from "../setup_and_settings/tatolab_window_context";
 import { useWatchedStudioValue } from "../view_host/watched_studio_value";
 import { ProjectDetailsPanelView, type ProjectDetailsSources } from "./project_details_panel_view";
 import type { ProjectsHomeChoicesKeptInStorage } from "./projects_home_choices_kept_in_storage";
@@ -154,7 +154,7 @@ function useProjectsHomeChoices(projectsSources: ProjectsSources): [ProjectsHome
 }
 
 /**
- * The Projects window, the app's project manager: a sidebar with the app's name and Preferences; All projects as cards or rows, narrowed by a search,
+ * The Projects window, the app's project manager: a sidebar with the app's name and Settings; All projects as cards or rows, narrowed by a search,
  * ordered by a sort, with New project and its imports; and the Project details panel for one of them.
  */
 export function ProjectsView({
@@ -258,7 +258,7 @@ export function ProjectsView({
             <span className="min-w-0 flex-1 truncate text-xs text-fg-3">
               Tato Studio <span>{`v${status.app_version}`}</span>
             </span>
-            <IconButton icon={Settings} label="Preferences" tooltip={`Preferences (${shortcutHint(platform, ",")})`} onPressed={commands.openPreferences} data-projects-action="preferences" />
+            <IconButton icon={Settings} label="Settings" tooltip={`Settings (${shortcutHint(platform, ",")})`} onPressed={commands.openSettings} data-projects-action="preferences" />
           </div>
         }
       />

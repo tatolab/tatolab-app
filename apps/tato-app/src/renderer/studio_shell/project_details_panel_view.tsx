@@ -33,25 +33,20 @@ function useFieldTextFollowingTheProject(textTheProjectHas: string): [string, (t
 }
 
 /**
- * The Project details panel beside the Projects window's projects, for the project `card` shows: its cover with Choose image… and Remove, its name
- * and its description, each saved through the runtime as its field loses the keyboard's focus, or on Enter in the name.
+ * The project `card` shows, to change: its cover with Choose image… and Remove, its name and its description, each saved through the runtime as
+ * its field loses the keyboard's focus, or on Enter in the name.
  */
-export function ProjectDetailsPanelView({
+export function ProjectDetailsFieldsView({
   card,
   coverImageUrl,
   projectDetailsSources,
   onTheProjectChanged,
-  onHidden,
-  isShownOnlyInAWideWindow,
 }: {
   card: RecentProjectCardPresentation;
   coverImageUrl: string | null;
   projectDetailsSources: ProjectDetailsSources;
-  /** Called once a change the panel asked for has been made, so the projects are read again. */
+  /** Called once a change the fields asked for has been made, so the project is read again. */
   onTheProjectChanged: () => void;
-  onHidden: () => void;
-  /** Whether the panel stays out of a window too narrow to show it beside the projects, as it does until the person asks for it. */
-  isShownOnlyInAWideWindow: boolean;
 }) {
   const nameFieldId = useId();
   const descriptionFieldId = useId();
@@ -108,16 +103,7 @@ export function ProjectDetailsPanelView({
     void coverChanged.finally(() => setCoverChangeRunning(null));
   };
   return (
-    <SidePanel
-      label="Project details"
-      title="Project details"
-      subtitle={card.name}
-      hiding={{ hideLabel: "Hide project details", onHidden }}
-      placement="floating"
-      className={isShownOnlyInAWideWindow ? "hidden min-[1360px]:flex" : undefined}
-      data-project-details={card.folder}
-    >
-      <div className="flex flex-col gap-3.5 p-5">
+    <div className="flex flex-col gap-3.5">
         <ProjectDetailsCover
           coverNumber={card.coverNumber}
           coverInitial={card.coverInitial}
@@ -177,6 +163,40 @@ export function ProjectDetailsPanelView({
           </div>
         )}
         <p className="text-xs text-fg-3">With no image, the card shows a plain cover in a colour picked from the name.</p>
+    </div>
+  );
+}
+
+/** The Project details panel beside the Projects window's projects, for the project `card` shows. */
+export function ProjectDetailsPanelView({
+  card,
+  coverImageUrl,
+  projectDetailsSources,
+  onTheProjectChanged,
+  onHidden,
+  isShownOnlyInAWideWindow,
+}: {
+  card: RecentProjectCardPresentation;
+  coverImageUrl: string | null;
+  projectDetailsSources: ProjectDetailsSources;
+  /** Called once a change the panel asked for has been made, so the projects are read again. */
+  onTheProjectChanged: () => void;
+  onHidden: () => void;
+  /** Whether the panel stays out of a window too narrow to show it beside the projects, as it does until the person asks for it. */
+  isShownOnlyInAWideWindow: boolean;
+}) {
+  return (
+    <SidePanel
+      label="Project details"
+      title="Project details"
+      subtitle={card.name}
+      hiding={{ hideLabel: "Hide project details", onHidden }}
+      placement="floating"
+      className={isShownOnlyInAWideWindow ? "hidden min-[1360px]:flex" : undefined}
+      data-project-details={card.folder}
+    >
+      <div className="p-5">
+        <ProjectDetailsFieldsView card={card} coverImageUrl={coverImageUrl} projectDetailsSources={projectDetailsSources} onTheProjectChanged={onTheProjectChanged} />
       </div>
     </SidePanel>
   );

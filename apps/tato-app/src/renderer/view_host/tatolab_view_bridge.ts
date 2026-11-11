@@ -43,6 +43,8 @@ export type GraphToolsOfferInTheWindowToolbar =
 
 /** What the area showing a view hands it: the settings it saved, a way to keep the next ones, where the view's own header row lies, and the window toolbar's graph tools. */
 export interface TatolabViewAreaServices {
+  /** The id of the area in the chosen layout showing the view; `null` where the view shows outside one, as a popped-out view does. */
+  areaId: string | null;
   /** The settings the area holds, `undefined` for an area that saved none, at once and on each change. */
   watchSavedSettings(listener: (savedSettings: JsonValue | undefined) => void): StopWatching;
   rememberSettings(settings: JsonValue): void;
@@ -223,6 +225,19 @@ export class TatolabViewBridge {
       case "header_row":
         keep(this.areaServices.watchHeaderRow((reading) => sendReading({ subject: "header_row", reading })));
         return;
+      case "areas_for_the_view_type":
+        keep(
+          this.hostServices.watchAreasForTheViewType(subject.view_type_id, (areasInTheWindow) =>
+            sendReading({
+              subject: "areas_for_the_view_type",
+              reading:
+                areasInTheWindow.kind === "areas_listed"
+                  ? { ...areasInTheWindow, areas: areasInTheWindow.areas.map((area) => ({ ...area, is_the_asking_views_area: area.area_id === this.areaServices.areaId })) }
+                  : areasInTheWindow,
+            }),
+          ),
+        );
+        return;
       case "graph_tool_presses": {
         const offer = this.areaServices.offerGraphTools((tool) => sendReading({ subject: "graph_tool_presses", reading: { tool } }));
         if (offer.kind === "no_toolbar") {
@@ -330,6 +345,14 @@ export class TatolabViewBridge {
         const importing = await this.hostServices.importAssetsIntoTheProject(ask.project_folder);
         if (importing.kind === "imported") return { kind: "project_assets_imported", assets_imported: importing.assets_imported };
         return importing.kind === "nothing_chosen" ? { kind: "nothing_chosen" } : { kind: "refused", because: importing.because };
+      }
+      case "show_view_type_in_area": {
+        const showing = this.hostServices.showViewTypeInArea(ask.view_type_id, ask.area_id);
+        return showing.kind === "opened" ? { kind: "done" } : { kind: "refused", because: showing.because };
+      }
+      case "open_modules_and_marketplace": {
+        const opening = await this.hostServices.openModulesAndMarketplace(ask.shows);
+        return opening.kind === "opened" ? { kind: "done" } : { kind: "refused", because: opening.because };
       }
       case "undo_in_the_project":
       case "redo_in_the_project": {

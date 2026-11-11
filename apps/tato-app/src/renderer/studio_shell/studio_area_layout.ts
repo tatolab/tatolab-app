@@ -101,3 +101,9 @@ export function layoutShowsTheViewType(layout: StudioAreaLayoutNode, viewTypeId:
   if (layout.kind === "area") return layout.view_type_id === viewTypeId;
   return layout.parts.some((part) => layoutShowsTheViewType(part.part, viewTypeId));
 }
+
+/** Every area of `layout`, in the order its splits hold them. */
+export function areasOfTheLayout(layout: StudioAreaLayoutNode): StudioArea[] {
+  if (layout.kind === "area") return [layout];
+  return layout.parts.flatMap((part) => areasOfTheLayout(part.part));
+}
