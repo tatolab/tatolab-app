@@ -4,6 +4,7 @@
 import type { JsonValue, StreamGraphAction, StreamGraphDeclaredPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import { nodeTitle } from "../shared/node_words";
+import { GRAPH_INPUT_NODE_TYPE } from "../controls/graph_inputs_of_the_stream";
 import { recordsOfAListField, type ConfigFormField, type JsonObject } from "./config_form_fields";
 
 /** A value read from what the person typed into a field, or why it is not one the field takes. */
@@ -159,3 +160,24 @@ export function listWithoutTheRecord(listEditedFrom: JsonValue, index: number, r
 
 /** Why an edit of a list entry was not sent: the list changed under it. */
 export const LIST_ENTRY_MOVED_ON_REFUSAL = "This entry changed before the edit was sent, so nothing was changed. Try again on the entry as it shows now.";
+
+/** The config fields of `node` it can take as inputs and does not yet: each number or on-off field of its form. */
+export function configFieldsToExposeAsGraphInputs(node: Pick<StreamGraphNode, "exposed_config_fields">, fields: readonly ConfigFormField[]): ConfigFormField[] {
+  return fields.filter((field) => (field.control.kind === "number" || field.control.kind === "toggle") && !node.exposed_config_fields.includes(field.key));
+}
+
+/**
+ * One transaction that has `node` take `field` as an input and feeds it from a new Graph Input of the stream, named
+ * `<node>_<field>`, which Perform's Controls then list: a Channels input, as the runtime types every exposed config
+ * field, moving within the field's minimum and maximum where its schema states both.
+ */
+export function exposeTheConfigFieldAsAGraphInput(stream: string, node: Pick<StreamGraphNode, "id" | "name" | "exposed_config_fields">, field: Pick<ConfigFormField, "key" | "control">): StreamGraphAction[] {
+  const graphInputName = `${node.name}_${field.key}`;
+  const graphInputConfig: JsonObject = { port: graphInputName, family: "channels" };
+  if (field.control.kind === "number" && field.control.minimum !== null && field.control.maximum !== null) graphInputConfig["range"] = [field.control.minimum, field.control.maximum];
+  return [
+    { operation: "set_exposed_config_fields", stream, node: node.id, exposed_config_fields: [...node.exposed_config_fields, field.key] },
+    { operation: "add_node", stream, type: GRAPH_INPUT_NODE_TYPE, name: graphInputName, config: graphInputConfig, as: "graph_input" },
+    { operation: "connect", stream, source: { node: "graph_input", port: "value" }, target: { node: node.id, port: field.key } },
+  ];
+}

@@ -47,6 +47,7 @@ function graphNode(name: string, type: string, group: string | null, failedBecau
     process_raising_because: null,
     config: {},
     pins: {},
+    exposed_config_fields: [],
     input_ports: [],
     output_ports: [],
     dropped_bags_by_link: {},

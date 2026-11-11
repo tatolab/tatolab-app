@@ -40,8 +40,10 @@ import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, record
 import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
 import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
 import {
+  configFieldsToExposeAsGraphInputs,
   configValueFromTheWordsTyped,
   disconnectTheLink,
+  exposeTheConfigFieldAsAGraphInput,
   LIST_ENTRY_MOVED_ON_REFUSAL,
   linkedEndsOfThePort,
   listWithARecordAdded,
@@ -393,6 +395,33 @@ function PortRowsOfOneDirection({
   });
 }
 
+/** The place a refusal of exposing a config field as a Graph Input shows under: the config field it names. */
+function placeOfExposingTheField(fieldKey: string): PlaceOfAnEdit {
+  return `config:${fieldKey}`;
+}
+
+/** Expose as a Graph Input ▾: each number or on-off config field the node does not yet take as an input, chosen to drive it from a new Graph Input of the stream; nothing when every one already is. */
+function ExposeAConfigFieldAsAGraphInputMenu({ node, fields, streamAsset, graphEdits }: { node: StreamGraphNode; fields: ConfigFormField[]; streamAsset: string; graphEdits: GraphEditsOfTheNode }) {
+  const fieldsToExpose = configFieldsToExposeAsGraphInputs(node, fields);
+  if (fieldsToExpose.length === 0) return null;
+  return (
+    <div className="flex justify-end">
+      <FieldMenu label="Expose a config field as a Graph Input" words="Expose as a Graph Input" size="compact" menuWidth="wide" menuAlignment="end" data-properties-expose-as-a-graph-input={node.id}>
+        <MenuNote>Each becomes an input of the node, fed by a new Graph Input that Perform's Controls list.</MenuNote>
+        {fieldsToExpose.map((field) => (
+          <MenuItem
+            key={field.key}
+            onChosen={() => void graphEdits.commit(placeOfExposingTheField(field.key), exposeTheConfigFieldAsAGraphInput(streamAsset, node, field))}
+            data-properties-expose-config-field={field.key}
+          >
+            {nameInWords(field.key)}
+          </MenuItem>
+        ))}
+      </FieldMenu>
+    </div>
+  );
+}
+
 /** A view node's row naming how many areas show its view, with Show in an area to show it in another; nothing for a node that is not a view's. */
 function ViewNodeShownInAreasRow({ connection, viewTypeId }: { connection: TatoAppViewConnection; viewTypeId: string }) {
   const areasReading = useViewReading(useCallback((listener: (reading: AreasForAViewTypeReading) => void): StopWatching => connection.watchAreasForTheViewType(viewTypeId, listener), [connection, viewTypeId]));
@@ -540,6 +569,7 @@ function PropertiesOfTheSelectedNode({
           ) : (
             configForm.fields.map((field) => <ConfigFieldRows key={field.key} field={field} node={node} streamAsset={streamAsset} graphEdits={graphEdits} />)
           )}
+          {streamAsset !== null && configForm.kind === "fields" && <ExposeAConfigFieldAsAGraphInputMenu node={node} fields={configForm.fields} streamAsset={streamAsset} graphEdits={graphEdits} />}
         </PropertySection>
         <PropertySection title="Inputs" data-properties-section="inputs">
           <PortRowsOfOneDirection direction="input" graph={graph} node={node} streamName={streamName} streamAsset={streamAsset} catalogPorts={catalogEntry?.inputs ?? []} graphEdits={graphEdits} />

@@ -95,9 +95,24 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "nodes.inverting_effect:InvertingEffect",
     description: "Inverts each frame's colours",
-    config_schema: THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG,
+    config_schema: {
+      type: "object",
+      properties: { strength: { type: "number", description: "How far each colour is inverted.", default: 1, minimum: 0, maximum: 1 } },
+    },
     inputs: [port("video_from_upstream", "", "image")],
     outputs: [port("video_to_downstream", "", "image")],
+  },
+  {
+    type: "tatolab.stream:GraphInput",
+    description: "Declares one Input of the graph: every port `value` is linked to reads what enters it.",
+    config_schema: {
+      title: "GraphInputConfig",
+      type: "object",
+      properties: { port: { type: "string" }, family: { type: "string" } },
+      required: ["port", "family"],
+    },
+    inputs: [],
+    outputs: [port("value", "What a client writes to the Input, of the declared family.", "records")],
   },
   {
     type: "nodes.brightness_meter:BrightnessMeter",
