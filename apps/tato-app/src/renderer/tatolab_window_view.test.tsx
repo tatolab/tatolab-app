@@ -992,6 +992,33 @@ describe("the studio", () => {
     await waitFor(() => expect(targetsOf("brightness")).toEqual([]));
   });
 
+  it("picks an input's other end in the Stream graph from Properties' crosshair, the fitting nodes lit, and Esc ends a pick", { timeout: 20_000 }, async () => {
+    await mountedWindowOverTheMock("state=running");
+    const streamGraphPage = () => coreViewPage("stream_graph", "stream-graph");
+    const card = (name: string) => streamGraphPage().querySelector<HTMLElement>(`[data-node-graph-card="${name}"]`) ?? expect.unreachable(`no ${name} card`);
+    fireEvent.click(await waitFor(() => card("brightnessmeter")));
+    const properties = () => coreViewPage("properties");
+    const targetsOf = (port: string) => [...properties().querySelectorAll(`[data-properties-port="${port}"] [data-property-port-target]`)].map((target) => target.getAttribute("data-property-port-target"));
+    await waitFor(() => expect(targetsOf("video_from_upstream")).toEqual(["Inverting Effect › video_to_downstream"]));
+    const crosshair = () => properties().querySelector<HTMLElement>('[data-properties-port="video_from_upstream"] [data-property-port-target-pick]') ?? expect.unreachable("no crosshair");
+
+    fireEvent.click(crosshair());
+    await waitFor(() => expect(streamGraphPage().querySelector("[data-node-graph-port-pick-banner]")?.textContent).toContain("Pick the other end of brightnessmeter › video_from_upstream"));
+    expect(card("testpatternsource").getAttribute("data-port-pick")).toBe("lit");
+    expect(card("displaywindow").getAttribute("data-port-pick")).toBe("dim");
+    expect(crosshair().getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(card("testpatternsource"));
+    await waitFor(() => expect(targetsOf("video_from_upstream")).toEqual(["Test Pattern Source › video"]), { timeout: 5000 });
+    expect(streamGraphPage().querySelector("[data-node-graph-port-pick-banner]")).toBeNull();
+
+    fireEvent.click(crosshair());
+    await waitFor(() => expect(streamGraphPage().querySelector("[data-node-graph-port-pick-banner]")).not.toBeNull());
+    fireEvent.keyDown(streamGraphPage(), { key: "Escape" });
+    await waitFor(() => expect(streamGraphPage().querySelector("[data-node-graph-port-pick-banner]")).toBeNull());
+    await waitFor(() => expect(crosshair().getAttribute("aria-pressed")).toBe("false"));
+    expect(card("displaywindow").getAttribute("data-port-pick")).toBeNull();
+  });
+
   it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {
     await mountedWindowOverTheMock("state=running");
     expect(await shownLayout()).toBe("build");

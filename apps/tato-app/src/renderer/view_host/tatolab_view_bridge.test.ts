@@ -8,6 +8,7 @@ import {
   type ViewSettings,
 } from "@tatolab/tato-app-view-sdk";
 import { afterEach, describe, expect, it } from "vitest";
+import { PortPickHeldInTheWindow } from "./port_pick_held_in_the_window";
 import { WatchedStudioValue } from "./watched_studio_value";
 import type {
   JsonValue,
@@ -101,6 +102,7 @@ function recordingHostServices() {
   const graphTransactionsAsked: { projectFolder: string; operations: readonly unknown[]; mode: string; idempotencyKey: string | null }[] = [];
   const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
   const outputsWritten: { viewNode: StudioViewNodeAddress; port: string; value: JsonValue }[] = [];
+  const portPickHeld = new PortPickHeldInTheWindow();
   const hostServices: StudioViewHostServices = {
     watchOpenProject: (listener) => {
       listener({ kind: "none_open" });
@@ -208,6 +210,10 @@ function recordingHostServices() {
       outputsWritten.push({ viewNode, port, value });
       return port === "play_a" ? { kind: "not_written", because: "write_studio_view_output failed: `play_a` takes a number or a list of numbers" } : { kind: "written" };
     },
+    watchPortPick: portPickHeld.portPick.watch,
+    pickAPortInTheStreamGraph: (pick) => portPickHeld.start(pick, null),
+    answerThePortPick: (node, port) => portPickHeld.answer(node, port),
+    endThePortPick: (because) => portPickHeld.end(because),
     watchPortViewer: (target, onEvent) => {
       const opened = { target, onEvent, closed: false };
       portViewersOpened.push(opened);
@@ -218,7 +224,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten };
+  return { hostServices, portPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten };
 }
 
 /** An area that keeps the settings it is asked to remember and says where the view's header row lies. */
@@ -272,6 +278,25 @@ describe("a view's connection to Studio, through the one bridge every view is se
     });
     expect(await connection.transactInTheProject("/set", [{ operation: "remove_node", stream: "s-uuid", node: "n-uuid" }], { mode: "live", idempotencyKey: null })).toEqual({ kind: "not_sent", because: "No runtime answers." });
     expect(graphTransactionsAsked[0]).toEqual({ projectFolder: "/set", operations: [addHoldFrame], mode: "commit", idempotencyKey: "gesture-1" });
+  });
+
+  it("carries a pick in the Stream graph from the view asking to the view answering, and its end in words", async () => {
+    const { connection, portPickHeld } = await connectedView(DJ_DECK_MANIFEST, {});
+    const picksShown: unknown[] = [];
+    connection.watchPortPick((pick) => picksShown.push(pick));
+    const pick = { stream: "set", node: "id-deck-a", port: "audio", direction: "output" } as const;
+    const picking = connection.pickAPortInTheStreamGraph(pick);
+    await messagesDelivered();
+    expect(picksShown).toEqual([null, pick]);
+    expect(await connection.answerThePortPick("id-mixer", "channel_1")).toEqual({ kind: "done" });
+    expect(await picking).toEqual({ kind: "picked", node: "id-mixer", port: "channel_1" });
+    expect(await connection.answerThePortPick("id-mixer", "channel_1")).toEqual({ kind: "refused", because: "No port is being picked in the Stream graph." });
+
+    const pickingAgain = connection.pickAPortInTheStreamGraph(pick);
+    await messagesDelivered();
+    expect(await connection.endThePortPick()).toEqual({ kind: "done" });
+    expect(await pickingAgain).toEqual({ kind: "ended", because: "DJ Deck ended the pick." });
+    expect(portPickHeld.portPick.readLatest()).toBeNull();
   });
 
   it("names the person editing, whose own edits Undo reverts", async () => {

@@ -1,10 +1,11 @@
 import { cn } from "cn";
-import { Box, Check, ChevronDown, ChevronRight, Minus, Plus, RotateCcw, X } from "lucide-react";
+import { Box, Check, ChevronDown, ChevronRight, Crosshair, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { WithControlTooltip } from "./control_tooltip";
 import { RefusalLine } from "./refusal_line";
 import { IconButton } from "./icon_button";
+import { ToggleIconButton } from "./toggle_icon_button";
 import { FieldMenu, MenuItem, MenuNote } from "./menus";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
@@ -410,6 +411,8 @@ export interface PropertyPortTarget {
   isOpenAtFirst?: boolean;
   /** Disconnects the link, or takes a blank picker away. */
   onRemoved: () => void;
+  /** Puts the Stream graph into picking this picker's port, or ends that pick; absent where nothing can be picked. */
+  pickInTheStreamGraph?: { isPicking: boolean; onToggled: (isPicking: boolean) => void };
 }
 
 /** A node's title in bold and, quieter, its port, as a target picker and its choices name a port; None for a blank picker. */
@@ -446,6 +449,18 @@ export function PropertyPortTargetPicker({ portName, target }: { portName: strin
         <MenuNote>{target.note}</MenuNote>
         <PropertyPortTargetChoices choices={target.choicesWhenOpened()} />
       </FieldMenu>
+      {target.pickInTheStreamGraph !== undefined && (
+        <ToggleIconButton
+          icon={Crosshair}
+          label={`Pick the target of ${portName} in the Stream graph`}
+          tooltipWhileOff="Pick in the Stream graph"
+          tooltipWhileOn="Picking in the Stream graph. Press again or Esc there to stop."
+          isOn={target.pickInTheStreamGraph.isPicking}
+          onToggled={target.pickInTheStreamGraph.onToggled}
+          size="compact"
+          data-property-port-target-pick={portName}
+        />
+      )}
       <IconButton
         icon={X}
         label={linkedWith === null ? `Remove the blank target of ${portName}` : `Remove the link of ${portName} with ${linkedWith.nodeTitle} ${linkedWith.port}`}

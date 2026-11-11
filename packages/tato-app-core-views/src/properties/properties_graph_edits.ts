@@ -4,6 +4,7 @@
 import type { JsonValue, StreamGraphAction, StreamGraphDeclaredPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import { nodeTitle } from "../shared/node_words";
+import { portsThatCouldJoin } from "../shared/ports_that_can_join";
 import { recordsOfAListField, type ConfigFormField, type JsonObject } from "./config_form_fields";
 
 /** A value read from what the person typed into a field, or why it is not one the field takes. */
@@ -121,28 +122,39 @@ export function portsToConnect(
   replacing: LinkedEndOfAPort | null,
 ): PortToConnect[] {
   const disconnecting = replacing === null ? [] : [disconnectTheLink(stream, node, direction, port.name, replacing)];
-  const candidates = graph.nodes.flatMap((otherNode) => {
-    if (otherNode.id === node.id) return [];
-    const otherPorts = direction === "input" ? otherNode.output_ports : otherNode.input_ports.filter((input) => !graph.links.some((link) => link.target_node === otherNode.name && link.target_port === input.name));
-    return otherPorts.flatMap((otherPort): (PortToConnect & { isOfTheFamily: boolean })[] => {
-      if (replacing !== null && replacing.node.id === otherNode.id && replacing.port === otherPort.name) return [];
-      const isOfTheFamily = port.family !== null && otherPort.family === port.family;
-      const thisEnd = { node: node.id, port: port.name };
-      const otherEnd = { node: otherNode.id, port: otherPort.name };
-      const connecting: StreamGraphAction = direction === "input" ? { operation: "connect", stream, source: otherEnd, target: thisEnd } : { operation: "connect", stream, source: thisEnd, target: otherEnd };
-      return [
-        {
-          nodeTitle: nodeTitle(otherNode.name, otherNode.type),
-          port: otherPort.name,
-          cannotBecause: isOfTheFamily ? null : `${otherPort.family === null ? "Unknown" : nodeGraphPinFamilyWords(otherPort.family)}, can't connect`,
-          choiceKey: `${otherNode.id}:${otherPort.name}`,
-          connecting: [...disconnecting, connecting],
-          isOfTheFamily,
-        },
-      ];
-    });
+  const candidates = portsThatCouldJoin(graph, node, direction, port).flatMap(({ node: otherNode, port: otherPort, isOfTheFamily }): (PortToConnect & { isOfTheFamily: boolean })[] => {
+    if (replacing !== null && replacing.node.id === otherNode.id && replacing.port === otherPort.name) return [];
+    const thisEnd = { node: node.id, port: port.name };
+    const otherEnd = { node: otherNode.id, port: otherPort.name };
+    const connecting: StreamGraphAction = direction === "input" ? { operation: "connect", stream, source: otherEnd, target: thisEnd } : { operation: "connect", stream, source: thisEnd, target: otherEnd };
+    return [
+      {
+        nodeTitle: nodeTitle(otherNode.name, otherNode.type),
+        port: otherPort.name,
+        cannotBecause: isOfTheFamily ? null : `${otherPort.family === null ? "Unknown" : nodeGraphPinFamilyWords(otherPort.family)}, can't connect`,
+        choiceKey: `${otherNode.id}:${otherPort.name}`,
+        connecting: [...disconnecting, connecting],
+        isOfTheFamily,
+      },
+    ];
   });
   return [...candidates.filter((candidate) => candidate.isOfTheFamily), ...candidates.filter((candidate) => !candidate.isOfTheFamily)].map(({ isOfTheFamily: _isOfTheFamily, ...portToConnect }) => portToConnect);
+}
+
+/** The transaction that joins the node's `port` to the port the person picked in the Stream graph, replacing the picker's link where it had one, or why it cannot join. */
+export function connectingThePortPicked(
+  stream: string,
+  graph: Pick<StreamGraphSummary, "nodes" | "links">,
+  node: StreamGraphNode,
+  direction: "input" | "output",
+  port: StreamGraphDeclaredPort,
+  replacing: LinkedEndOfAPort | null,
+  picked: { node: string; port: string },
+): { kind: "connecting"; connecting: StreamGraphAction[] } | { kind: "cannot_join"; because: string } {
+  const choice = portsToConnect(stream, graph, node, direction, port, replacing).find((portToConnect) => portToConnect.choiceKey === `${picked.node}:${picked.port}`);
+  if (choice === undefined) return { kind: "cannot_join", because: `The port picked can't join ${port.name}: it is this link's own end, already linked, or no longer in the stream.` };
+  if (choice.cannotBecause !== null) return { kind: "cannot_join", because: `${choice.nodeTitle} › ${choice.port} can't join ${port.name}: ${choice.cannotBecause}.` };
+  return { kind: "connecting", connecting: choice.connecting };
 }
 
 /** Why the port cannot take another target picker: an input takes one link, so a linked one moves its link in its picker instead; `null` where it can. */

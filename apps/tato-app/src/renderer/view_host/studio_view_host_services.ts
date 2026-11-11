@@ -8,6 +8,8 @@ import type { PortViewerConnections } from "./port_viewer_connections";
 import type { AreasForAViewTypeInTheWindow, ListedStreamsReading, OpenProjectReading, StopWatching, ProjectAssetChanging, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, StudioViewsReading, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { WatchedStudioValue } from "./watched_studio_value";
+import type { PortPickEnding, PortPickInTheStreamGraph } from "@tatolab/tato-app-view-sdk";
+import type { PortPickAnswering } from "./port_pick_held_in_the_window";
 
 /** What the studio publishes to its views, and what it does when a view opens a stream's tab. */
 export interface StudioWindowValuesServedToViews {
@@ -22,6 +24,10 @@ export interface StudioWindowValuesServedToViews {
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening;
   watchAreasForTheViewType(viewTypeId: string, listener: (reading: AreasForAViewTypeInTheWindow) => void): StopWatching;
   showViewTypeInArea(viewTypeId: string, areaId: string): ViewOpening;
+  portPick: WatchedStudioValue<PortPickInTheStreamGraph | null>;
+  pickAPortInTheStreamGraph(pick: PortPickInTheStreamGraph): Promise<PortPickEnding>;
+  answerThePortPick(node: string, port: string): PortPickAnswering;
+  endThePortPick(because: string): void;
 }
 
 /** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types, assets and history, their language servers, and the port viewers of their running nodes. */
@@ -99,6 +105,10 @@ export function studioViewHostServicesOf(
     watchListedStreams: sources.listedStreams.watch,
     watchSelection: sources.selection.watch,
     select: (selection) => sources.select(selection),
+    watchPortPick: sources.portPick.watch,
+    pickAPortInTheStreamGraph: (pick) => sources.pickAPortInTheStreamGraph(pick),
+    answerThePortPick: (node, port) => sources.answerThePortPick(node, port),
+    endThePortPick: (because) => sources.endThePortPick(because),
     watchActiveStreamTab: sources.activeStreamTab.watch,
     openStreamTab: (streamTab) => sources.openStreamTab(streamTab),
     watchStreamGraph: streamReadings.watchStreamGraph,

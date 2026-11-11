@@ -1,7 +1,7 @@
 import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
-import { NodeGraphCanvas, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { NodeGraphCanvas, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphPortPicking } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { SearchPopover } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
@@ -21,6 +21,7 @@ import type {
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { streamPreparingWords } from "../shared/stream_preparing_words";
+import { portsThatCanJoinByNodeId } from "../shared/ports_that_can_join";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 import { useStreamGraphEditsSentToTheRuntime } from "./stream_graph_edit_sending";
 import {
@@ -83,6 +84,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   );
   const graphReading = useViewReading(watchTheTabsGraph);
   const selection = useViewReading(connection.watchSelection);
+  const portPick = useViewReading(connection.watchPortPick);
   const openProject = useViewReading(connection.watchOpenProject);
   const listedStreams = useViewReading(connection.watchListedStreams);
   const watchTheTabsCatalog = useCallback(
@@ -91,6 +93,27 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   );
   const catalogReading = useViewReading(watchTheTabsCatalog);
   const [subgraphNamesSteppedThrough, setSubgraphNamesSteppedThrough] = useState<readonly string[]>([]);
+  const portPickingOfTheStream = useMemo((): NodeGraphPortPicking | null => {
+    if (portPick === undefined || portPick === null || portPick.stream !== streamTab.stream || graphReading?.kind !== "read") return null;
+    const { graph } = graphReading;
+    const pickingNode = graph.nodes.find((graphNode) => graphNode.id === portPick.node);
+    const pickingPort = (portPick.direction === "input" ? pickingNode?.input_ports : pickingNode?.output_ports)?.find((declaredPort) => declaredPort.name === portPick.port);
+    if (pickingNode === undefined || pickingPort === undefined) return null;
+    const portsByNodeName = new Map<string, readonly string[]>();
+    for (const [nodeId, ports] of portsThatCanJoinByNodeId(graph, pickingNode, portPick.direction, pickingPort)) {
+      const nodeName = graph.nodes.find((graphNode) => graphNode.id === nodeId)?.name;
+      if (nodeName !== undefined) portsByNodeName.set(nodeName, ports);
+    }
+    return {
+      words: `Pick the other end of ${pickingNode.name} › ${pickingPort.name}`,
+      portsThatCanJoinByNodeId: portsByNodeName,
+      onPicked: (nodeName, port) => {
+        const pickedNode = graph.nodes.find((graphNode) => graphNode.name === nodeName);
+        if (pickedNode !== undefined) void connection.answerThePortPick(pickedNode.id, port);
+      },
+      onEnded: () => void connection.endThePortPick(),
+    };
+  }, [portPick, streamTab.stream, graphReading, connection]);
   const levelShown = useMemo(() => (graphReading?.kind === "read" ? streamGraphLevelReached(graphReading.graph, subgraphNamesSteppedThrough) : null), [graphReading, subgraphNamesSteppedThrough]);
   const subgraphsSteppedThrough = levelShown?.subgraphs_stepped_through ?? [];
   const innermostSubgraph = subgraphsSteppedThrough.at(-1) ?? null;
@@ -354,6 +377,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
         viewportWhereItWasLeft={innermostSubgraph === null ? viewportWhereTheStreamWasLeft : null}
         onViewportLeft={innermostSubgraph === null ? onViewportLeft : null}
         onSubgraphOpened={stepInsideTheSubgraph}
+        portPicking={innermostSubgraph === null ? portPickingOfTheStream : null}
         overlay={
           <>
             {canvasContents.nodes.length === 0 && nodeTypeSearchAsked === null && innermostSubgraph === null && (

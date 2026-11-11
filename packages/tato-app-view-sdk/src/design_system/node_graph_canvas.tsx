@@ -23,7 +23,7 @@ import {
 } from "@xyflow/react";
 import { cn } from "cn";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
-import { ChevronDown, ChevronRight, Combine, Frame, Palette, Pencil, Pipette, Plus, Scan, SquareX, StickyNote, Text, Trash2, Ungroup, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronDown, ChevronRight, Combine, Crosshair, Frame, Palette, Pencil, Pipette, Plus, Scan, SquareX, StickyNote, Text, Trash2, Ungroup, ZoomIn, ZoomOut } from "lucide-react";
 import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
 import { RightClickMenu, RightClickMenuItem, RightClickMenuSeparator, RightClickMenuSingleChoiceGroup, RightClickSubmenu } from "./menus";
 import {
@@ -116,6 +116,16 @@ export interface NodeGraphCanvasNode {
 
 /** How a subgraph came to be: a graph generator's read-only output, a collapsed selection, or another stream placed by reference. */
 export type NodeGraphSubgraphKind = "generated" | "authored" | "placed_stream";
+
+/** A pick of a port the canvas shows: what its banner says, which ports of which nodes can join, and what picking one or ending the pick does. */
+export interface NodeGraphPortPicking {
+  /** The banner's words, as "Pick the other end of image". */
+  words: string;
+  /** The ports of each node that can join, by node id; a node not listed reads dim. */
+  portsThatCanJoinByNodeId: ReadonlyMap<string, readonly string[]>;
+  onPicked: (nodeId: string, port: string) => void;
+  onEnded: () => void;
+}
 
 /** A labelled frame drawn around the cards that name it, with its title on a tab, its description under it, and a tint of its colour. */
 export interface NodeGraphCanvasFrame {
@@ -286,6 +296,9 @@ const frameFlowNodeId = (frameId: string) => `frame:${frameId}`;
 /** The cards drawn selected, which every card reads so a selection redraws cards without rebuilding the graph. */
 const NodeGraphSelectionContext = createContext<ReadonlySet<string>>(new Set());
 
+/** The pick a card is drawn for while the canvas picks a port: the ports of each node that can join, the node asking which of its ports, and what choosing one does; `null` while nothing is picked. */
+const NodeGraphPortPickingContext = createContext<{ portsThatCanJoinByNodeId: ReadonlyMap<string, readonly string[]>; nodeAskingWhichPort: string | null; onPortChosen: (nodeId: string, port: string) => void } | null>(null);
+
 /** Whether the canvas takes edits, which lets its pins start wires and its notes be edited. */
 const NodeGraphEditableContext = createContext<boolean>(false);
 
@@ -377,7 +390,9 @@ function NodeGraphPinHandle({
 function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
   const selectedNodeIds = useContext(NodeGraphSelectionContext);
   const cardAndFrameEditing = useContext(NodeGraphCardAndFrameEditingContext);
+  const portPicking = useContext(NodeGraphPortPickingContext);
   const { graphNode } = data;
+  const portsThatCanJoin = portPicking?.portsThatCanJoinByNodeId.get(graphNode.node_id) ?? null;
   const isSelected = selectedNodeIds.has(graphNode.node_id);
   const failureWords = failureWordsTheCardShows(graphNode);
   const pinRowCount = Math.max(
@@ -387,10 +402,12 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
   return (
     <div
       className={cn(
-        "node-graph-card min-w-[180px] max-w-[360px]",
+        "node-graph-card relative min-w-[180px] max-w-[360px]",
         isSelected && "node-graph-card-selected",
+        portPicking !== null && (portsThatCanJoin === null ? "node-graph-card-not-pickable" : "node-graph-card-pickable"),
       )}
       data-node-graph-card={graphNode.node_id}
+      data-port-pick={portPicking === null ? undefined : portsThatCanJoin === null ? "dim" : "lit"}
       data-selected={isSelected || undefined}
       data-condition={graphNode.condition.look}
       data-collapsed={graphNode.is_collapsed || undefined}
@@ -489,6 +506,25 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
         >
           <span className="line-clamp-2 break-words">{failureWords}</span>
         </p>
+      )}
+      {portPicking !== null && portPicking.nodeAskingWhichPort === graphNode.node_id && portsThatCanJoin !== null && (
+        <div role="menu" aria-label={`Which port of ${graphNode.title}`} className="nodrag absolute top-full left-1/2 z-10 mt-1 flex min-w-32 flex-col rounded-md bg-popover p-1 text-xs shadow-(--shadow-pop)" data-node-graph-port-pick-which={graphNode.node_id}>
+          {portsThatCanJoin.map((port) => (
+            <button
+              key={port}
+              type="button"
+              role="menuitem"
+              className={cn("rounded-sm px-2 py-1 text-left text-fg hover:bg-selected", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
+              onClick={(event) => {
+                event.stopPropagation();
+                portPicking.onPortChosen(graphNode.node_id, port);
+              }}
+              data-node-graph-port-pick-choice={port}
+            >
+              {port}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -962,6 +998,7 @@ function NodeGraphFlow({
   viewportWhereItWasLeft,
   onViewportLeft,
   onSubgraphOpened,
+  portPicking,
   overlay,
 }: {
   label: string;
@@ -975,9 +1012,47 @@ function NodeGraphFlow({
   viewportWhereItWasLeft: NodeGraphCanvasViewport | null;
   onViewportLeft: ((viewport: NodeGraphCanvasViewport) => void) | null;
   onSubgraphOpened: ((nodeId: string) => void) | null;
+  portPicking: NodeGraphPortPicking | null;
   overlay?: ReactNode;
 }) {
   const reactFlow = useReactFlow();
+  const [nodeAskingWhichPort, setNodeAskingWhichPort] = useState<string | null>(null);
+  const portPickingOfTheCards = useMemo(
+    () =>
+      portPicking === null
+        ? null
+        : {
+            portsThatCanJoinByNodeId: portPicking.portsThatCanJoinByNodeId,
+            nodeAskingWhichPort,
+            onPortChosen: (nodeId: string, port: string) => {
+              setNodeAskingWhichPort(null);
+              portPicking.onPicked(nodeId, port);
+            },
+          },
+    [portPicking, nodeAskingWhichPort],
+  );
+  useEffect(() => {
+    if (portPicking === null) {
+      setNodeAskingWhichPort(null);
+      return;
+    }
+    const ownerDocument = canvasElement.current?.ownerDocument ?? document;
+    const endThePickOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setNodeAskingWhichPort(null);
+      portPicking.onEnded();
+    };
+    ownerDocument.addEventListener("keydown", endThePickOnEscape);
+    return () => ownerDocument.removeEventListener("keydown", endThePickOnEscape);
+  }, [portPicking]);
+  const pickTheCard = (nodeId: string) => {
+    const portsThatCanJoin = portPicking?.portsThatCanJoinByNodeId.get(nodeId);
+    if (portPicking === null || portsThatCanJoin === undefined) return;
+    const [onlyPort] = portsThatCanJoin;
+    if (portsThatCanJoin.length === 1 && onlyPort !== undefined) portPicking.onPicked(nodeId, onlyPort);
+    else setNodeAskingWhichPort(nodeId);
+  };
   const isTheMapShown = useStore(isPartOfTheGraphOutsideTheView);
   const canvasElement = useRef<HTMLDivElement>(null);
   const pointerRestsAt = useRef<NodeGraphCanvasPoint | null>(null);
@@ -1544,6 +1619,7 @@ function NodeGraphFlow({
 
   return (
     <NodeGraphSelectionContext value={selectedIds}>
+    <NodeGraphPortPickingContext value={portPickingOfTheCards}>
       <NodeGraphEditableContext value={editing !== null}>
         <NodeGraphNoteEditingContext value={editing?.onNoteChanged ?? null}>
         <NodeGraphNoteResizingContext value={editing === null ? null : keepTheResizedNote}>
@@ -1624,6 +1700,12 @@ function NodeGraphFlow({
               }}
               data-node-graph-editable={editing !== null || undefined}
             >
+              {portPicking !== null && (
+                <div className="pointer-events-none absolute top-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-brand px-2.5 py-0.5 text-2xs whitespace-nowrap text-on-brand" role="status" data-node-graph-port-pick-banner="">
+                  <Crosshair className="size-3" strokeWidth={1.75} aria-hidden />
+                  {portPicking.words} · Esc ends the pick
+                </div>
+              )}
               <ReactFlow<NodeGraphFlowNode, NodeGraphLinkFlowEdge>
                 aria-label={label}
                 className={cn(
@@ -1640,6 +1722,9 @@ function NodeGraphFlow({
                 onMoveEnd={(event, viewport) => {
                   if (event !== null && hasBeenFramed) onViewportLeft?.({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
                 }}
+                onNodeClick={(_event, flowNode) => {
+                  if (portPicking !== null && flowNode.type === "node_graph_card") pickTheCard(flowNode.id);
+                }}
                 onNodeDoubleClick={(_event, flowNode) => {
                   if (flowNode.type === "node_graph_card" && (nodeById.get(flowNode.id)?.subgraph ?? null) !== null) onSubgraphOpened?.(flowNode.id);
                 }}
@@ -1647,6 +1732,10 @@ function NodeGraphFlow({
                 onConnectEnd={followTheWireLetGo}
                 isValidConnection={canTheConnectionBeWired}
                 onPaneClick={() => {
+                  if (portPicking !== null) {
+                    setNodeAskingWhichPort(null);
+                    return;
+                  }
                   onNodeSelected(null);
                   setSelectedLinkIds(new Set());
                   setSelectedNoteIds(new Set());
@@ -1655,7 +1744,7 @@ function NodeGraphFlow({
                 nodesDraggable={editing !== null}
                 nodesConnectable={editing !== null}
                 edgesFocusable={editing !== null}
-                elementsSelectable
+                elementsSelectable={portPicking === null}
                 deleteKeyCode={null}
                 selectionKeyCode={editing === null ? null : "Shift"}
                 multiSelectionKeyCode={editing === null ? null : ["Meta", "Control"]}
@@ -1711,6 +1800,7 @@ function NodeGraphFlow({
         </NodeGraphNoteResizingContext>
         </NodeGraphNoteEditingContext>
       </NodeGraphEditableContext>
+    </NodeGraphPortPickingContext>
     </NodeGraphSelectionContext>
   );
 }
@@ -1734,6 +1824,7 @@ export function NodeGraphCanvas({
   viewportWhereItWasLeft = null,
   onViewportLeft = null,
   onSubgraphOpened = null,
+  portPicking = null,
   overlay,
   ...controlDataAttributes
 }: {
@@ -1752,6 +1843,8 @@ export function NodeGraphCanvas({
   onViewportLeft?: ((viewport: NodeGraphCanvasViewport) => void) | null;
   /** Told when a person double-clicks a card that holds a subgraph, to step inside it; `null` steps nowhere. */
   onSubgraphOpened?: ((nodeId: string) => void) | null;
+  /** The port being picked, which lights the nodes that can join and dims the rest; `null` while none is. */
+  portPicking?: NodeGraphPortPicking | null;
   overlay?: ReactNode;
 } & ControlDataAttributes) {
   return (
@@ -1769,6 +1862,7 @@ export function NodeGraphCanvas({
           viewportWhereItWasLeft={viewportWhereItWasLeft}
           onViewportLeft={onViewportLeft}
           onSubgraphOpened={onSubgraphOpened}
+          portPicking={portPicking}
           overlay={overlay}
         />
       </ReactFlowProvider>

@@ -214,6 +214,9 @@ export class TatolabViewBridge {
       case "header_row":
         keep(this.areaServices.watchHeaderRow((reading) => sendReading({ subject: "header_row", reading })));
         return;
+      case "port_pick":
+        keep(this.hostServices.watchPortPick((reading) => sendReading({ subject: "port_pick", reading })));
+        return;
       case "areas_for_the_view_type":
         keep(
           this.hostServices.watchAreasForTheViewType(subject.view_type_id, (areasInTheWindow) =>
@@ -333,6 +336,18 @@ export class TatolabViewBridge {
         const showing = this.hostServices.showViewTypeInArea(ask.view_type_id, ask.area_id);
         return showing.kind === "opened" ? { kind: "done" } : { kind: "refused", because: showing.because };
       }
+      case "pick_a_port_in_the_stream_graph": {
+        const ending = await this.hostServices.pickAPortInTheStreamGraph(ask.pick);
+        if (ending.kind === "picked") return { kind: "port_picked", node: ending.node, port: ending.port };
+        return ending.kind === "ended" ? { kind: "port_pick_ended", because: ending.because } : { kind: "refused", because: ending.because };
+      }
+      case "answer_the_port_pick": {
+        const answering = this.hostServices.answerThePortPick(ask.node, ask.port);
+        return answering.kind === "answered" ? { kind: "done" } : { kind: "refused", because: answering.because };
+      }
+      case "end_the_port_pick":
+        this.hostServices.endThePortPick(`${this.manifest.title} ended the pick.`);
+        return { kind: "done" };
       case "open_modules_and_marketplace": {
         const opening = await this.hostServices.openModulesAndMarketplace(ask.shows);
         return opening.kind === "opened" ? { kind: "done" } : { kind: "refused", because: opening.because };
