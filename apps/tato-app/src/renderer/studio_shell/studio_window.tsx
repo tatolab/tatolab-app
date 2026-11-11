@@ -212,7 +212,7 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
   );
 }
 
-/** A node of the chosen layout: a split of its parts, or an area. */
+/** A node of the layout: a split of its parts, or an area. */
 function StudioAreaLayoutNodeView({ node, sources }: { node: StudioAreaLayoutNode; sources: StudioWindowSources }) {
   if (node.kind === "area") return <StudioAreaView area={node} sources={sources} />;
   return (
@@ -237,7 +237,7 @@ function openProjectTitleInTheTitleRow(openProject: OpenProjectReading): string 
   return "";
 }
 
-/** The studio: its menus in a row of their own on Linux (in the system menu bar on macOS), the open streams' tabs in the title row under them, which names the project on macOS, then the chosen layout's areas; or the Projects window, with no menus of its own on Linux, while no project is open or File › Projects shows it. */
+/** The studio: its menus in a row of their own on Linux (in the system menu bar on macOS), the open streams' tabs in the title row under them, which names the project on macOS, then the layout's areas; or the Projects window, with no menus of its own on Linux, while no project is open or File › Projects shows it. */
 export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const { model, platform, commands, systemMenuBar } = sources;
   const status = useTatolabStatus();

@@ -37,7 +37,7 @@ export interface TatolabViewMessagePort {
 
 /** What the area showing a view hands it: the settings it saved, a way to keep the next ones, and where the view's own header row lies. */
 export interface TatolabViewAreaServices {
-  /** The id of the area in the chosen layout showing the view; `null` where the view shows outside one, as a popped-out view does. */
+  /** The id of the area in the layout showing the view; `null` where the view shows outside one, as a popped-out view does. */
   areaId: string | null;
   /** The settings the area holds, `undefined` for an area that saved none, at once and on each change. */
   watchSavedSettings(listener: (savedSettings: JsonValue | undefined) => void): StopWatching;

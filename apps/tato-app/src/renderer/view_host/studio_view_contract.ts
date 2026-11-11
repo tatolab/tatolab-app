@@ -75,7 +75,7 @@ export interface ViewOpenedOnAsked {
   opening_id: string;
 }
 
-/** A view opened on a file or port in an area of the chosen layout, or why no area could show it. */
+/** A view opened on a file or port in an area of the layout, or why no area could show it. */
 export type ViewOpening = { kind: "opened" } | { kind: "not_opened"; because: string };
 
 /** One Python language server, started for a project folder, its JSON-RPC messages carried both ways. */
@@ -92,7 +92,7 @@ export interface StudioViewNodeAddress {
   node_id: string;
 }
 
-/** The chosen layout's areas for a view type as the window holds them: none when no view type has the id, or why the window has no areas. */
+/** The layout's areas for a view type as the window holds them: none when no view type has the id, or why the window has no areas. */
 export type AreasForAViewTypeInTheWindow =
   | { kind: "not_a_view_type" }
   | { kind: "areas_listed"; view_title: string; areas: Omit<AreaForAViewType, "is_the_asking_views_area">[] }
@@ -119,9 +119,9 @@ export interface StudioViewHostServices {
   watchStreamGraph(stream: string, listener: (reading: StreamGraphReading) => void): StopWatching;
   /** The node types `stream` can add, read when first watched and again once its graph names a type the catalog lacks. */
   watchNodeCatalog(stream: string, listener: (reading: NodeCatalogReading) => void): StopWatching;
-  /** Open a view of `viewTypeId` on `on`, in an area of the chosen layout showing that type, or of the first layout with one. */
+  /** Open a view of `viewTypeId` on `on`, in the area of the layout showing that type; refused while no area shows it. */
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening;
-  /** What views of `viewTypeId` in the chosen layout were last opened on, at once and again on each `openView` of that type; `null` until one is, or when it was opened in another layout. */
+  /** What views of `viewTypeId` were last opened on, at once and again on each `openView` of that type; `null` until one is. */
   watchViewOpenedOn(viewTypeId: string, listener: (openedOn: ViewOpenedOn) => void): StopWatching;
   readProjectFile(file: string): Promise<ProjectFileReading>;
   /** Write `text` to `file` whole when it is still at `basedOnVersion` on disk (`null` for a new file); never over a file changed since, or an import's. */
@@ -135,9 +135,9 @@ export interface StudioViewHostServices {
   watchProjectNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesReading) => void): StopWatching;
   /** `projectFolder`'s assets, listed while any view watches it and the window is shown; the first reading arrives once listed. */
   watchProjectAssets(projectFolder: string, listener: (reading: ProjectAssetsReading) => void): StopWatching;
-  /** The chosen layout's areas for `viewTypeId`, at once and again as the layout or the view types change. */
+  /** The layout's areas for `viewTypeId`, at once and again as the layout or the view types change. */
   watchAreasForTheViewType(viewTypeId: string, listener: (reading: AreasForAViewTypeInTheWindow) => void): StopWatching;
-  /** Area `areaId` of the chosen layout showing `viewTypeId` in place of what it shows. */
+  /** Area `areaId` of the layout showing `viewTypeId` in place of what it shows. */
   showViewTypeInArea(viewTypeId: string, areaId: string): ViewOpening;
   /** The open project's Modules and Marketplace window opened on `shows`, or brought forward on it. */
   openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewOpening>;

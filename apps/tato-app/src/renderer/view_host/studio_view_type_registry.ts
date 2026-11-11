@@ -7,7 +7,7 @@ import { WatchedStudioValue } from "./watched_studio_value";
 
 /** What an area hands the view type it draws: the settings it saved, keeping the next ones, and where a frame's own header row lies. */
 export interface StudioAreaOfTheView {
-  /** The area's id in the chosen layout; `null` where the view shows outside one, as a popped-out view does. */
+  /** The area's id in the layout; `null` where the view shows outside one, as a popped-out view does. */
   area_id: string | null;
   saved_settings: JsonValue | undefined;
   rememberSettings(nextSettings: JsonValue): void;

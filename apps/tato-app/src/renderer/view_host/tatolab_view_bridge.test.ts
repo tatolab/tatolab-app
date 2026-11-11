@@ -305,7 +305,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(assetImportsAsked).toEqual(["/set", "/cancelled"]);
   });
 
-  it("lists the chosen layout's areas for a view type, marking the asking view's own, and shows the view type in one", async () => {
+  it("lists the layout's areas for a view type, marking the asking view's own, and shows the view type in one", async () => {
     const { connection, viewTypesShownInAreas } = await connectedView(DJ_DECK_MANIFEST, {});
     const readings: unknown[] = [];
     connection.watchAreasForTheViewType("acme-dj:deck", (reading) => readings.push(reading));

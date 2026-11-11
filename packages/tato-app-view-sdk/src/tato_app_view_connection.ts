@@ -138,9 +138,9 @@ export interface TatoAppViewConnection {
   undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** Redo what `author`'s latest undo in the project reversed, answering the redo the runtime applied. */
   redoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
-  /** The chosen layout's areas for the view type `viewTypeId`, at once and again as the layout or the view types change. */
+  /** The layout's areas for the view type `viewTypeId`, at once and again as the layout or the view types change. */
   watchAreasForTheViewType(viewTypeId: string, listener: (reading: AreasForAViewTypeReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
-  /** Show the view type `viewTypeId` in area `areaId` of the chosen layout, in place of what it shows. */
+  /** Show the view type `viewTypeId` in area `areaId` of the layout, in place of what it shows. */
   showViewTypeInArea(viewTypeId: string, areaId: string): Promise<ViewAskDone>;
   /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
   openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewAskDone>;
