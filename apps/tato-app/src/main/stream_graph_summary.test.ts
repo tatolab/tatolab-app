@@ -11,6 +11,10 @@ const aRealGraphOfOneStream = () => readFile(new URL("./test-fixtures/local-api-
 const aRealGraphOfAStreamWithANodeWhoseStartRaised = () =>
   readFile(new URL("./test-fixtures/local-api-graph-of-a-stream-with-a-node-whose-start-raised.json", import.meta.url), "utf8");
 
+/** What a real v0.68.61 runtime's `graph {stream: "s08-raising-main-cfc4fd"}` tool answered for a test pattern feeding a Python node whose `process()` raised on every call. */
+const aRecordedGraphOfAStreamWithANodeWhoseProcessKeepsRaising = () =>
+  recordedGraphToolResultText("local-api-graph-tool-result-of-a-stream-with-a-node-whose-process-keeps-raising.json");
+
 const portsStatingNoStreamFacts = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, family: null, stream_facts: null, values_checked: null }));
 
 function node(
@@ -447,5 +451,14 @@ test("a_running_node_reads_what_its_process_keeps_raising_word_for_word_and_null
   expect(summary.ok && summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.state, graphNode.process_raising_because])).toEqual([
     ["invert", "Running", raisedBecause],
     ["display", "Running", null],
+  ]);
+});
+
+test("a_recorded_graph_reads_what_a_running_nodes_process_keeps_raising_word_for_word_and_null_for_every_other_node", async () => {
+  const summary = streamGraphSummaryFromTheGraphToolResult("s08-raising-main-cfc4fd", await aRecordedGraphOfAStreamWithANodeWhoseProcessKeepsRaising());
+
+  expect(summary.ok && summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.state, graphNode.process_raising_because])).toEqual([
+    ["testpatternsource", "Running", null],
+    ["breaker", "Running", "process() raised RuntimeError: broke on purpose (nodes/breaker.py, line 10)"],
   ]);
 });
