@@ -398,6 +398,11 @@ export function mountTatolabWindow(
       studioMenuBarCommands.showTheStreamTabBeside(keyboardEvent.shiftKey ? "previous" : "next");
       return;
     }
+    if (keyboardEvent.key === "Escape" && !keyboardEvent.defaultPrevented && studioWindowModel.expandedAreaId.readLatest() !== null && !studioWindowModel.isADialogShownOverTheStreamTabs()) {
+      keyboardEvent.preventDefault();
+      studioWindowModel.expandedAreaId.publish(null);
+      return;
+    }
     if (!holdsWindowShortcutModifier(platform, keyboardEvent)) return;
     const key = keyboardEvent.key.length === 1 ? keyboardEvent.key.toLowerCase() : keyboardEvent.key;
     if ((key === "w" || key === "t") && !keyboardEvent.altKey && keyboardEvent.shiftKey === (key === "t")) {

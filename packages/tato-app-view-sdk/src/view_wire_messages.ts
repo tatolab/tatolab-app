@@ -111,6 +111,8 @@ export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("settings") }),
   z.object({ kind: z.literal("opened_on") }),
   z.object({ kind: z.literal("header_row") }),
+  /** Whether the view's area fills the window now, at once and on each change. */
+  z.object({ kind: z.literal("area_expansion") }),
   /** The chosen layout's areas for the view type `view_type_id`, read again as the layout or the view types change. */
   z.object({ kind: z.literal("areas_for_the_view_type"), view_type_id: z.string() }),
 ]);
@@ -162,6 +164,8 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("show_view_type_in_area"), view_type_id: z.string(), area_id: z.string() }),
   /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
   z.object({ kind: z.literal("open_modules_and_marketplace"), shows: modulesAndMarketplaceSectionSchema }),
+  /** Grow the view's area to fill the window, or put the layout back; refused where the view shows outside a layout. */
+  z.object({ kind: z.literal("expand_the_area"), is_expanded: z.boolean() }),
 ]);
 /** What a view may ask Studio to do. */
 export type ViewAsk = z.infer<typeof viewAskSchema>;
@@ -200,6 +204,7 @@ export const viewWatchedReadingSchema = z.discriminatedUnion("subject", [
   z.object({ subject: z.literal("settings"), reading: jsonValueSchema }),
   z.object({ subject: z.literal("opened_on"), reading: viewOpenedOnSchema }),
   z.object({ subject: z.literal("header_row"), reading: viewHeaderRowSchema }),
+  z.object({ subject: z.literal("area_expansion"), reading: z.object({ is_expanded: z.boolean() }) }),
   z.object({ subject: z.literal("areas_for_the_view_type"), reading: areasForAViewTypeReadingSchema }),
 ]);
 /** One reading of a watched subject. */

@@ -138,6 +138,7 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
   const projectStudioViews = useWatchedStudioValue(sources.viewTypeRegistry.projectStudioViews);
   useWatchedStudioValue(sources.viewTypeRegistry.developerMode);
   const [headerRowInTheFrame] = useState(() => new WatchedStudioValue<ViewHeaderRow>(HEADER_ROW_BEFORE_IT_IS_MEASURED));
+  const isExpanded = useWatchedStudioValue(sources.model.expandedAreaId) === area.area_id;
   if (area.view_type_id === null) {
     return (
       <StudioAreaFrame label="Project view" header={<AreaViewTypeMenu area={area} sources={sources} words="Project view" />} data-studio-area={area.area_id}>
@@ -182,7 +183,9 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
         </>
       }
       onHeaderRowMeasured={(headerRow) => headerRowInTheFrame.publish(headerRow)}
+      isExpanded={isExpanded}
       data-studio-area={area.area_id}
+      data-studio-area-expanded={isExpanded ? "" : undefined}
     >
       <StudioViewFailureBoundary key={viewType.view_type_id} viewTitle={viewType.title}>
         {viewType.renderInAnArea(
@@ -191,6 +194,13 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
             saved_settings: area.settings,
             rememberSettings: (nextSettings) => sources.model.keepAreaSettings(area.area_id, nextSettings),
             header_row: headerRowInTheFrame,
+            expansion: {
+              watchIsExpanded: (listener) => sources.model.expandedAreaId.watch((expandedAreaId) => listener(expandedAreaId === area.area_id)),
+              expand: (isExpandedNext) => {
+                sources.model.expandArea(area.area_id, isExpandedNext);
+                return { kind: "done" };
+              },
+            },
           },
           sources.viewHostServices,
         )}
@@ -303,7 +313,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         <ProjectsView model={model} projectsSources={sources.projects} commands={commands} platform={platform} />
       ) : (
         <>
-          <main className="flex min-h-0 flex-1 p-(--studio-area-gap)" data-studio-layout={studioLayouts.chosen_layout}>
+          <main className="relative flex min-h-0 flex-1 p-(--studio-area-gap)" data-studio-layout={studioLayouts.chosen_layout}>
             <StudioAreaLayoutNodeView
               node={studioLayouts.layouts[studioLayouts.chosen_layout]}
               layoutKey={studioLayouts.chosen_layout}

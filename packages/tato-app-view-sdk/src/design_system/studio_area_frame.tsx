@@ -36,17 +36,19 @@ export function StudioAreaFrame({ label, header, children, ...controlDataAttribu
 }
 
 
-/** An area whose view draws its own header row in its frame: the view across the whole area, the view-type menu laid over the row's start, its width told to `onHeaderRowMeasured`. */
+/** An area whose view draws its own header row in its frame: the view across the whole area, the view-type menu laid over the row's start, its width told to `onHeaderRowMeasured`; expanded, it covers the layout it sits in, staying in place in the tree so its view keeps running. */
 export function StudioAreaOverAViewsOwnFrame({
   label,
   viewTypeMenu,
   onHeaderRowMeasured,
+  isExpanded = false,
   children,
   ...controlDataAttributes
 }: {
   label: string;
   viewTypeMenu: ReactNode;
   onHeaderRowMeasured: (headerRow: ViewHeaderRow) => void;
+  isExpanded?: boolean;
   children: ReactNode;
 } & ControlDataAttributes) {
   const viewTypeMenuRowRef = useRef<HTMLDivElement>(null);
@@ -66,7 +68,14 @@ export function StudioAreaOverAViewsOwnFrame({
     return () => resizeObserver.disconnect();
   }, []);
   return (
-    <section aria-label={label} className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-studio-area-outline bg-studio-area" {...controlDataAttributes}>
+    <section
+      aria-label={label}
+      className={cn(
+        "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-studio-area-outline bg-studio-area",
+        isExpanded ? "absolute inset-(--studio-area-gap) z-20" : "relative h-full",
+      )}
+      {...controlDataAttributes}
+    >
       <div ref={viewTypeMenuRowRef} className="absolute top-0 left-0 z-10 flex h-(--studio-area-header-height) items-center gap-2 px-1.5">
         {viewTypeMenu}
       </div>

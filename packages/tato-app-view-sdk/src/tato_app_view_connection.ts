@@ -112,6 +112,10 @@ export interface TatoAppViewConnection {
   watchOpenedOn(listener: (openedOn: ViewOpenedOn) => void): StopWatching;
   /** Where the view's own header row lies in its frame, after Studio's view-type menu, at once and on each change. */
   watchHeaderRow(listener: (headerRow: ViewHeaderRow) => void): StopWatching;
+  /** Whether the view's area fills the window now, at once and on each change; never `true` outside a layout. */
+  watchAreaExpansion(listener: (isExpanded: boolean) => void): StopWatching;
+  /** Grow the view's area to fill the window, or put the layout back; refused where the view shows outside a layout, as in a popped-out window. */
+  expandTheArea(isExpanded: boolean): Promise<ViewAskDone>;
   /** Select `selection` in Studio. */
   select(selection: StudioSelection): Promise<ViewAskDone>;
   /** Open `streamTab` in Studio. */
@@ -275,6 +279,8 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       watchSettings: (listener) => watchFor({ kind: "settings" }, (watched) => watched.subject === "settings" && listener(settingsOf(watched.reading)), IGNORE_THE_REFUSAL),
       watchOpenedOn: (listener) => watchFor({ kind: "opened_on" }, (watched) => watched.subject === "opened_on" && listener(watched.reading), IGNORE_THE_REFUSAL),
       watchHeaderRow: (listener) => watchFor({ kind: "header_row" }, (watched) => watched.subject === "header_row" && listener(watched.reading), IGNORE_THE_REFUSAL),
+      watchAreaExpansion: (listener) => watchFor({ kind: "area_expansion" }, (watched) => watched.subject === "area_expansion" && listener(watched.reading.is_expanded), IGNORE_THE_REFUSAL),
+      expandTheArea: (isExpanded) => ask({ kind: "expand_the_area", is_expanded: isExpanded }).then(doneOf),
       select: (selection) => ask({ kind: "select", selection }).then(doneOf),
       openStreamTab: (streamTab) => ask({ kind: "open_stream_tab", stream_tab: streamTab }).then(doneOf),
       openView: (viewTypeId, on) => ask({ kind: "open_view", view_type_id: viewTypeId, on }).then(doneOf),

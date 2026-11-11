@@ -212,17 +212,25 @@ function recordingHostServices() {
   return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten };
 }
 
-/** An area that keeps the settings it is asked to remember and says where the view's header row lies. */
+/** An area that keeps the settings it is asked to remember, says where the view's header row lies, and expands while a layout holds it. */
 function recordingAreaServices(savedSettings: JsonValue | undefined) {
   const saved = new WatchedStudioValue<{ saved: JsonValue | undefined }>({ saved: savedSettings });
   const headerRow = new WatchedStudioValue<ViewHeaderRow>({ leading_inset_px: 120, height_px: 30 });
+  const isExpanded = new WatchedStudioValue(false);
   const areaServices: TatolabViewAreaServices = {
     areaId: "properties",
     watchSavedSettings: (listener) => saved.watch((latest) => listener(latest.saved)),
     rememberSettings: (settings) => saved.publish({ saved: settings }),
     watchHeaderRow: headerRow.watch,
+    expansion: {
+      watchIsExpanded: isExpanded.watch,
+      expand: (isExpandedNext) => {
+        isExpanded.publish(isExpandedNext);
+        return { kind: "done" };
+      },
+    },
   };
-  return { areaServices, saved, headerRow };
+  return { areaServices, saved, headerRow, isExpanded };
 }
 
 const bridgesOpen: TatolabViewBridge[] = [];
@@ -535,6 +543,19 @@ describe("a view's connection to Studio, through the one bridge every view is se
       { leading_inset_px: 120, height_px: 30 },
       { leading_inset_px: 96, height_px: 30 },
     ]);
+  });
+
+  it("expands the view's area and puts the layout back when the view asks, telling it each time", async () => {
+    const { connection, isExpanded } = await connectedView(DJ_DECK_MANIFEST, {});
+    const expansionsSeen: boolean[] = [];
+    connection.watchAreaExpansion((seen) => expansionsSeen.push(seen));
+    await messagesDelivered();
+
+    expect(await connection.expandTheArea(true)).toEqual({ kind: "done" });
+    expect(isExpanded.readLatest()).toBe(true);
+    isExpanded.publish(false);
+    await messagesDelivered();
+    expect(expansionsSeen).toEqual([false, true, false]);
   });
 
   it("reads a project file, saying why in the reader's words when it was not read", async () => {

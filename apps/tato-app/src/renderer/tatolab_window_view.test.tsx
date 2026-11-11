@@ -611,6 +611,26 @@ describe("the studio", () => {
 
   });
 
+  it("expands the Node visualizer to fill the window from its toolbar, and puts the layout back with Esc or Expand again", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const viewerArea = () => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area");
+    const expand = () => coreViewPage("viewer", "viewer").querySelector<HTMLElement>("[data-viewer-expand]") ?? expect.unreachable("no Expand in the visualizer's toolbar");
+    await waitFor(() => expect(expand().closest('[role="toolbar"]')?.getAttribute("aria-label")).toBe("Node visualizer tools"));
+    expect(viewerArea().hasAttribute("data-studio-area-expanded")).toBe(false);
+
+    fireEvent.click(expand());
+    await waitFor(() => expect(viewerArea().hasAttribute("data-studio-area-expanded")).toBe(true));
+    await waitFor(() => expect(expand().getAttribute("aria-pressed")).toBe("true"));
+    expect(document.querySelectorAll("[data-studio-area-expanded]")).toHaveLength(1);
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(viewerArea().hasAttribute("data-studio-area-expanded")).toBe(false));
+
+    fireEvent.click(expand());
+    await waitFor(() => expect(viewerArea().hasAttribute("data-studio-area-expanded")).toBe(true));
+    fireEvent.click(expand());
+    await waitFor(() => expect(viewerArea().hasAttribute("data-studio-area-expanded")).toBe(false));
+  });
+
   it("undoes and redoes the person's last edit with ⌘Z and ⇧⌘Z, and leaves ⌘Z to a text field holding the focus", async () => {
     const asked: string[] = [];
     const transactionAnswered = (undoOrRedo: string): ProjectTransaction => ({

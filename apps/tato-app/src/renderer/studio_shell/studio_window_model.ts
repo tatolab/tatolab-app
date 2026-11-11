@@ -97,6 +97,8 @@ export class StudioWindowModel {
   readonly viewPopOutRefusal = new WatchedStudioValue<string | null>(null);
   /** The open project's layouts; `null` while none is open. */
   readonly studioLayouts = new WatchedStudioValue<StudioLayoutsOfAFolder | null>(null);
+  /** The area of the chosen layout that fills the window in place of the layout; `null` while the layout shows. */
+  readonly expandedAreaId = new WatchedStudioValue<string | null>(null);
   /** What views of each type were last opened on, by view type id. */
   readonly viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
   /** Why the last run or stop of the open project was refused, until it is dismissed or another is asked for. */
@@ -212,6 +214,7 @@ export class StudioWindowModel {
     this.publishStreamTabs({ tabs: [], active_stream: null });
     this.closedStreamTabs.publish([]);
     this.studioLayouts.publish(folderNow === null ? null : this.layoutsKept.readLayoutsOf(folderNow));
+    this.expandedAreaId.publish(null);
     if (folderNow !== null && this.streamTabAwaitedByTheOpeningProject?.project_folder !== folderNow) {
       this.streamTabAwaitedByTheOpeningProject = { project_folder: folderNow, stream: null };
     }
@@ -350,7 +353,14 @@ export class StudioWindowModel {
 
   /** Show `layoutName`, as it was last left in this project. */
   chooseLayout(layoutName: StudioLayoutName): void {
+    this.expandedAreaId.publish(null);
     this.changeLayouts((layouts) => ({ ...layouts, chosen_layout: layoutName }));
+  }
+
+  /** Grow area `areaId` of the chosen layout to fill the window, or put the layout back. */
+  expandArea(areaId: string, isExpanded: boolean): void {
+    if (isExpanded) this.expandedAreaId.publish(areaId);
+    else if (this.expandedAreaId.readLatest() === areaId) this.expandedAreaId.publish(null);
   }
 
   /** Show `viewTypeId` in area `areaId` of the chosen layout. */

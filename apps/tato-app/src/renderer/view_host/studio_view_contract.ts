@@ -167,3 +167,10 @@ export interface StudioViewHostServices {
 
 /** Who brought a view type: the studio itself, or the open project or one of its imports. */
 export type StudioViewTypeSource = { kind: "tato_studio" } | { kind: "project"; project_name: string };
+
+/** Whether an area fills the window in place of the layout, and growing it to or putting the layout back. */
+export interface StudioAreaExpansion {
+  watchIsExpanded(listener: (isExpanded: boolean) => void): StopWatching;
+  /** Refused, in words for the person, where the area is in no layout. */
+  expand(isExpanded: boolean): { kind: "done" } | { kind: "refused"; because: string };
+}
