@@ -1,6 +1,6 @@
 // A stand-in for tatolabd's local API, for proof in a Linux container where no runtime runs: it
 // answers on `<socket>` what the app reads — `GET /health`, the MCP tools `list_streams`, `logs`
-// and `graph`, and `GET /api/graph`'s machine name — and the queued project actions `stop_project`
+// and `graph`, and `GET /api/graph`'s machine name — and the queued project actions `stop_playback`
 // and `remove_project`, changing its listing as the runtime does once an action
 // finishes, from the responses recorded from a real runtime under src/main/test-fixtures/.
 // Usage: node tatolabd-local-api-stand-in.mjs <socket>
@@ -61,8 +61,8 @@ function projectActionToolResult(requestId, toolName, toolArguments) {
   }
   const runningStreamsOfTheProject = streamsOfTheProject.filter((listedStream) => listedStream.state === "running");
   if (runningStreamsOfTheProject.length === 0) {
-    const recordedRefusal = recordedToolText("local-api-stop-project-refusal-for-the-stopped-project-pattern.json");
-    return toolResult(requestId, recordedRefusal.replaceAll("/tmp/tatolab-proof-projects/pattern", toolArguments.project_directory), true);
+    const recordedRefusal = recordedToolText("local-api-stop-playback-refusal-for-the-stopped-project-pattern.json");
+    return toolResult(requestId, recordedRefusal.replaceAll(`${STAND_IN_PROJECTS_FOLDER}/pattern`, toolArguments.project_directory), true);
   }
   let action = "";
   for (const listing of runningStreamsOfTheProject) action = workOnTheStreamAction(listing, "stopping", "stopping", () => ({ state: "stopped" }));
@@ -107,7 +107,7 @@ function answer(method, requestTarget, requestBody) {
     const toolCall = JSON.parse(requestBody);
     const { name, arguments: toolArguments } = toolCall.params;
     if (name === "list_streams") return toolResult(toolCall.id, JSON.stringify(listedStreams));
-    if (name === "stop_project" || name === "remove_project") return projectActionToolResult(toolCall.id, name, toolArguments);
+    if (name === "stop_playback" || name === "remove_project") return projectActionToolResult(toolCall.id, name, toolArguments);
     if (name === "graph") {
       const isTheStreamLoaded = listingOf(toolArguments.stream)?.node_count != null;
       if (isTheStreamLoaded) return toolResult(toolCall.id, recordedGraphTextOfMain);

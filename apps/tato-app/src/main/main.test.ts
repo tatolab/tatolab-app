@@ -106,7 +106,7 @@ async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
             manifest: FAKE_METER_VIEW_MANIFEST,
           })),
         });
-      case "start_project":
+      case "open_project":
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
         return toolResultResponse({ action: "5d0c9a51-6a8b-4f3e-9d7e-2b1c0f4e8a77", project_directory: projectDirectory });
       default:

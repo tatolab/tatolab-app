@@ -17,7 +17,7 @@ import type {
   ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
-  ProjectRunQueued,
+  ProjectStreamActionQueued,
   ProjectTransaction,
   ProjectTransactionAuthor,
   ProjectGraphTransactionTheRuntimeAnswered,
@@ -314,71 +314,92 @@ export function createStreamProject(sharedState: TatolabAppSharedState, folder: 
   });
 }
 
-/** `run_stream_project { folder }`: the runtime's `start_project` queued on `folder`, then a status round; refused in the runtime's own words. */
-export function runStreamProject(sharedState: TatolabAppSharedState, folder: string): Promise<Result<ProjectRunQueued, string>> {
-  return answerTheWindow("run_stream_project", async () => {
-    const queued = await sharedState.streamProjectAdding.runStreamProject(folder);
+/** `open_stream_project { folder }`: the runtime's `open_project` queued on `folder`, which opens it with its playback stopped, then a status round; refused in the runtime's own words. */
+export function openStreamProject(sharedState: TatolabAppSharedState, folder: string): Promise<Result<ProjectStreamActionQueued, string>> {
+  return answerTheWindow("open_stream_project", async () => {
+    const queued = await sharedState.streamProjectAdding.openStreamProject(folder);
     sharedState.statusPublisher.requestRefresh();
     return queued;
   });
 }
 
-/** The states the runtime lists a stream of a project in while that project runs, is paused or is being started, which `reload_project` re-reads; `start_project` refuses each. */
-const STREAM_STATES_OF_A_PROJECT_THE_RUNTIME_RUNS: ReadonlySet<string> = new Set(["running", "paused", "preparing"]);
+/** The state the runtime lists each stream of a closed project in: unloaded until `open_project`. */
+const STREAM_STATE_OF_A_CLOSED_PROJECT = "closed";
+
+/** The states the runtime lists a stream in while its project's playback plays or is paused. */
+const STREAM_STATES_WHILE_THE_PROJECT_PLAYS: ReadonlySet<string> = new Set(["running", "paused"]);
+
+function streamsOfTheProjectIn(listedStreams: readonly ListedStream[], projectDirectory: string): ListedStream[] {
+  return listedStreams.filter((listedStream) => listedStream.location?.project_directory === projectDirectory);
+}
+
+/** Whether `streamsOfTheProject` list the project open, as the runtime holds it: a stream of it in any state but `closed`, a failed one included. */
+function theStreamsListTheProjectOpen(streamsOfTheProject: readonly ListedStream[]): boolean {
+  return streamsOfTheProject.some((listedStream) => listedStream.state !== STREAM_STATE_OF_A_CLOSED_PROJECT);
+}
+
+/** Whether the runtime last listed the project in `projectDirectory` open. */
+function theRuntimeLastListedTheProjectOpen(sharedState: Pick<TatolabAppSharedState, "statusPublisher">, projectDirectory: string): boolean {
+  return theStreamsListTheProjectOpen(streamsOfTheProjectIn(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectDirectory));
+}
 
 /**
- * `start_project` queued on the project in `projectDirectory` when the runtime, asked now, lists none of its streams or each of them stopped, since it draws and
- * edits only a loaded stream's graph, then a status round; nothing when it lists one running, failed or on its way. Refused in the runtime's own words.
+ * `open_project` queued on the project in `projectDirectory` when the runtime, asked now, lists no stream of it or each of them `closed`, since it draws and
+ * edits only a loaded stream's graph, then a status round; nothing when it holds the project open. Refused in the runtime's own words.
  */
-export async function startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded(
+export async function openTheProjectWhenTheRuntimeHoldsItClosed(
   sharedState: Pick<TatolabAppSharedState, "controller" | "statusPublisher">,
   projectDirectory: string,
 ): Promise<Result<void, string>> {
   const listedStreams = await sharedState.controller.listStreams();
   if (!listedStreams.ok) return failedWith(listedStreams.failure.failureDescription);
-  if (!theRuntimeListsEveryStreamOfTheProjectStopped(listedStreams.value, projectDirectory)) return succeeded(undefined);
-  const queued = await sharedState.controller.startProject(projectDirectory);
+  if (theStreamsListTheProjectOpen(streamsOfTheProjectIn(listedStreams.value, projectDirectory))) return succeeded(undefined);
+  const queued = await sharedState.controller.openProject(projectDirectory);
   sharedState.statusPublisher.requestRefresh();
   return queued.ok ? succeeded(undefined) : failedWith(queued.failure.failureDescription);
 }
 
-function theRuntimeListsEveryStreamOfTheProjectStopped(listedStreams: readonly ListedStream[], projectDirectory: string): boolean {
-  return listedStreams.every((listedStream) => listedStream.location?.project_directory !== projectDirectory || listedStream.state === "stopped");
+/**
+ * The playback of the project in `projectDirectory` started as the runtime last listed it: a closed project opened, then played; an open one with a failed stream
+ * reloaded, which retries it, then played unless it plays already; any other open one played with `start_playback`, which refuses a project that plays.
+ */
+async function startThePlaybackOfTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
+  const streamsOfTheProject = streamsOfTheProjectIn(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectDirectory);
+  if (!theStreamsListTheProjectOpen(streamsOfTheProject)) {
+    const opened = await sharedState.controller.openProject(projectDirectory);
+    return opened.ok ? sharedState.controller.startPlayback(projectDirectory) : opened;
+  }
+  if (streamsOfTheProject.some((listedStream) => listedStream.state === "failed")) {
+    const reloaded = await sharedState.controller.reloadProject(projectDirectory);
+    if (!reloaded.ok || streamsOfTheProject.some((listedStream) => STREAM_STATES_WHILE_THE_PROJECT_PLAYS.has(listedStream.state))) return reloaded;
+  }
+  return sharedState.controller.startPlayback(projectDirectory);
 }
 
-/** Whether the runtime last listed a stream of `projectDirectory` running, paused or being started. */
-function theRuntimeRunsTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): boolean {
-  const listedStreams = sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [];
-  return listedStreams.some((listedStream) => listedStream.location?.project_directory === projectDirectory && STREAM_STATES_OF_A_PROJECT_THE_RUNTIME_RUNS.has(listedStream.state));
+/** The runtime's `reload_project` queued on `projectDirectory` when it last listed the project open, which keeps its playback, else its `open_project`. */
+function reloadOrOpenTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
+  return theRuntimeLastListedTheProjectOpen(sharedState, projectDirectory) ? sharedState.controller.reloadProject(projectDirectory) : sharedState.controller.openProject(projectDirectory);
 }
 
-/** The runtime's `reload_project` queued on `projectDirectory` when it last listed a stream of it running, paused or being started, else its `start_project`. */
-function startOrReloadTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
-  return theRuntimeRunsTheProject(sharedState, projectDirectory) ? sharedState.controller.reloadProject(projectDirectory) : sharedState.controller.startProject(projectDirectory);
+/** What a save of a project's node file asks of the runtime: `reload` while it holds the project in `projectDirectory` open, which keeps its playback, and `nothing` while it is closed. */
+export function whatASavedNodeFileAsksOfTheRuntime(listedStreams: readonly ListedStream[], projectDirectory: string): "reload" | "nothing" {
+  return theStreamsListTheProjectOpen(streamsOfTheProjectIn(listedStreams, projectDirectory)) ? "reload" : "nothing";
 }
 
-/** What a save of a project's node file asks of the runtime: `reload` while it runs a stream of `projectDirectory` or is starting one, `start` while none runs and one has failed, so saved code can fix it, and `nothing` while every stream is stopped. */
-export function whatASavedNodeFileAsksOfTheRuntime(listedStreams: readonly ListedStream[], projectDirectory: string): "reload" | "start" | "nothing" {
-  const streamsOfTheProject = listedStreams.filter((listedStream) => listedStream.location?.project_directory === projectDirectory);
-  if (streamsOfTheProject.some((listedStream) => STREAM_STATES_OF_A_PROJECT_THE_RUNTIME_RUNS.has(listedStream.state))) return "reload";
-  return streamsOfTheProject.some((listedStream) => listedStream.state === "failed") ? "start" : "nothing";
-}
-
-/** After a save of `savedFile`, a `.py` file of `projectDirectory`, the project read again as `tatolab dev` does on a save: reloaded while it plays, started again while it has failed, left alone while stopped; a refusal is logged in the runtime's own words. */
-export async function runTheSavedPythonFileOfAPlayingOrFailedProject(sharedState: TatolabAppSharedState, projectDirectory: string, savedFile: string): Promise<void> {
+/** After a save of `savedFile`, a `.py` file of `projectDirectory`, the open project read again as `tatolab dev` does on a save, keeping its playback; a closed one is left alone, and a refusal is logged in the runtime's own words. */
+export async function reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState: TatolabAppSharedState, projectDirectory: string, savedFile: string): Promise<void> {
   if (path.extname(savedFile) !== ".py") return;
-  const asked = whatASavedNodeFileAsksOfTheRuntime(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectDirectory);
-  if (asked === "nothing") return;
-  const queued = asked === "reload" ? await sharedState.controller.reloadProject(projectDirectory) : await sharedState.controller.startProject(projectDirectory);
+  if (whatASavedNodeFileAsksOfTheRuntime(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectDirectory) === "nothing") return;
+  const queued = await sharedState.controller.reloadProject(projectDirectory);
   sharedState.statusPublisher.requestRefresh();
-  if (queued.ok) sharedState.tatolabAppLog.info("ran the project again after a save of its Python file", { project_folder: projectDirectory, file: savedFile, asked, action: queued.value.action });
-  else sharedState.tatolabAppLog.warn("the runtime refused to run the project again after a save of its Python file", { project_folder: projectDirectory, file: savedFile, asked, refusal: queued.failure.failureDescription });
+  if (queued.ok) sharedState.tatolabAppLog.info("reloaded the project after a save of its Python file", { project_folder: projectDirectory, file: savedFile, action: queued.value.action });
+  else sharedState.tatolabAppLog.warn("the runtime refused to reload the project after a save of its Python file", { project_folder: projectDirectory, file: savedFile, refusal: queued.failure.failureDescription });
 }
 
-/** `reload_project { project_directory }`: a project the runtime lists read again from disk with `reload_project` while it runs, or started with `start_project` while it is stopped or failed, then a status round; refused in the runtime's own words. */
-export function reloadProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectRunQueued, string>> {
+/** `reload_project { project_directory }`: a project the runtime lists read again from disk with `reload_project` while it is open, keeping its playback, or opened with `open_project` while it is closed, then a status round; refused in the runtime's own words. */
+export function reloadProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectStreamActionQueued, string>> {
   return answerTheWindow("reload_project", async () => {
-    const queued = await startOrReloadTheProject(sharedState, projectDirectory);
+    const queued = await reloadOrOpenTheProject(sharedState, projectDirectory);
     sharedState.statusPublisher.requestRefresh();
     return queued.ok ? queued : failedWith(queued.failure.failureDescription);
   });
@@ -559,8 +580,8 @@ export function folderArgumentsFrom(commandName: TatolabCommandName, commandArgu
 /** `choose_stream_project_folder`'s arguments as the window sends them, or why they are not. */
 export function chooseStreamProjectFolderArgumentsFrom(commandArguments: unknown): Result<{ chosen_for: StreamProjectFolderChosenFor }, string> {
   const chosenFor = isAJsonObject(commandArguments) ? commandArguments["chosen_for"] : undefined;
-  if (chosenFor !== "project_to_run" && chosenFor !== "new_project_directory") {
-    return failedWith("choose_stream_project_folder needs `chosen_for`, project_to_run or new_project_directory");
+  if (chosenFor !== "project_to_open" && chosenFor !== "new_project_directory") {
+    return failedWith("choose_stream_project_folder needs `chosen_for`, project_to_open or new_project_directory");
   }
   return succeeded({ chosen_for: chosenFor });
 }
@@ -676,24 +697,24 @@ export function createNewProjectArgumentsFrom(commandArguments: unknown): Result
   return location.ok ? succeeded({ name: name.value, location: location.value }) : location;
 }
 
-/** `run_open_project`: the asking window's project started with `start_project`, or read again from disk with `reload_project` while it runs, then a status round; refused in the Projects window, or in the runtime's own words. */
-export function runOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectRunQueued, string>> {
+/** `run_open_project`: the playback of the asking window's project started, opening it first while it is closed and reloading it first while a stream of it has failed, then a status round; refused in the Projects window, or in the runtime's own words. */
+export function runOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectStreamActionQueued, string>> {
   return answerTheWindow("run_open_project", async () => {
     const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!studioWindow.ok) return studioWindow;
     const reading = studioWindow.value.openProject.readOpenProject();
     if (reading.kind !== "read") return failedWith(reading.kind === "none_open" ? "No project is open to run." : `The project in ${reading.folder} could not be read: ${reading.refusal}`);
-    const queued = await startOrReloadTheProject(sharedState, reading.open_project.project.folder);
+    const queued = await startThePlaybackOfTheProject(sharedState, reading.open_project.project.folder);
     sharedState.statusPublisher.requestRefresh();
     return queued.ok ? queued : failedWith(queued.failure.failureDescription);
   });
 }
 
-/** `stop_open_project`: the runtime's `stop_project` queued on the asking window's project's folder, so the listing shows its streams `stopping`; refused in the Projects window, or in the runtime's own words. */
+/** `stop_open_project`: the runtime's `stop_playback` queued on the asking window's project's folder, which keeps its graphs loaded, so the listing shows its streams `stopping`; refused in the Projects window, or in the runtime's own words. */
 export async function stopOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
   const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
   if (!studioWindow.ok) return studioWindow;
-  return answerTheWindowOnceQueued(sharedState, "stop_open_project", () => sharedState.controller.stopProject(studioWindow.value.openProject.projectFolder));
+  return answerTheWindowOnceQueued(sharedState, "stop_open_project", () => sharedState.controller.stopPlayback(studioWindow.value.openProject.projectFolder));
 }
 
 /** `transact_in_the_open_project`'s arguments as the window sends them, each operation held to the runtime's own shape, or why they are not. */
@@ -1088,10 +1109,10 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!folderArguments.ok) return { ok: false, refusal: folderArguments.failure };
       return commandAnswerFrom(await createStreamProject(sharedState, folderArguments.value.folder));
     },
-    run_stream_project: async (commandArguments) => {
-      const folderArguments = folderArgumentsFrom("run_stream_project", commandArguments);
+    open_stream_project: async (commandArguments) => {
+      const folderArguments = folderArgumentsFrom("open_stream_project", commandArguments);
       if (!folderArguments.ok) return { ok: false, refusal: folderArguments.failure };
-      return commandAnswerFrom(await runStreamProject(sharedState, folderArguments.value.folder));
+      return commandAnswerFrom(await openStreamProject(sharedState, folderArguments.value.folder));
     },
     reload_project: async (commandArguments) => {
       const projectDirectory = oneTextArgumentFrom("reload_project", commandArguments, "project_directory", "a project's folder as the runtime lists it");
@@ -1280,7 +1301,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
       const { file, text, based_on_version } = saveArguments.value;
       const saved = await answerTheWindow("save_project_file", () => studioWindow.value.openProjectFiles.saveProjectFile(file, text, based_on_version));
-      if (saved.ok) await runTheSavedPythonFileOfAPlayingOrFailedProject(sharedState, studioWindow.value.openProject.projectFolder, file);
+      if (saved.ok) await reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState, studioWindow.value.openProject.projectFolder, file);
       return commandAnswerFrom(saved);
     },
     create_node_file: async (commandArguments, commandFromWindow) => {

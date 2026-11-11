@@ -27,7 +27,7 @@ import {
   runInTheBackgroundWithTheController,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
-import { startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded, tatolabWindowCommandHandlers, type TatolabWindowCommandHandlers } from "./tatolab_commands.js";
+import { openTheProjectWhenTheRuntimeHoldsItClosed, tatolabWindowCommandHandlers, type TatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
@@ -241,11 +241,11 @@ export async function startTatolabApp(
       const timer = setTimeout(work, delayMs);
       return () => clearTimeout(timer);
     },
-    stopTheProjectAsItsWindowCloses: async (projectFolder) => {
+    closeTheProjectAsItsWindowCloses: async (projectFolder) => {
       if (sharedStateOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
-      const stopQueued = await sharedStateOnceBuilt.controller.stopProject(projectFolder);
+      const closeQueued = await sharedStateOnceBuilt.controller.closeProject(projectFolder);
       sharedStateOnceBuilt.statusPublisher.requestRefresh();
-      return stopQueued.ok ? succeeded(undefined) : failedWith(stopQueued.failure.failureDescription);
+      return closeQueued.ok ? succeeded(undefined) : failedWith(closeQueued.failure.failureDescription);
     },
     whenAWindowStartingLanguageServersClosed: (languageServerOfTheWindow) => pythonLanguageServersOnceBuilt?.stopTheLanguageServersOf(languageServerOfTheWindow),
     whenAWindowShowingPortViewersClosed: (tatolabMainWindow) => runtimePortViewersOnceBuilt?.closeThePortViewersOf(tatolabMainWindow),
@@ -389,7 +389,7 @@ export async function startTatolabApp(
     readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     openTheProjectInItsStudioWindow: (folder) => tatolabAppWindows.openTheProjectInItsStudioWindow(folder),
     closeTheStudioWindowOf: (folder) => tatolabAppWindows.studioWindowOfTheProjectIn(folder)?.tatolabMainWindow.close(),
-    startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded: (folder) => startTheProjectWhenTheRuntimeHoldsNoStreamOfItLoaded({ controller, statusPublisher }, folder),
+    openTheProjectWhenTheRuntimeHoldsItClosed: (folder) => openTheProjectWhenTheRuntimeHoldsItClosed({ controller, statusPublisher }, folder),
   });
   const pythonLanguageServers = new PythonLanguageServers({
     startANodeLanguageServer: tatolabElectronAppShell.startANodeLanguageServer,

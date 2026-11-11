@@ -56,13 +56,13 @@ function aStreamOf(projectFolder: string, state: string): ListedStream {
   };
 }
 
-/** The windows over a fake shell with the project `night-show` open in its studio window, stopping a project as `stopTheProject` answers. */
-async function windowsWithNightShowOpen(stopTheProject: (projectFolder: string) => Promise<Result<void, string>>, whenAWindowStartingLanguageServersClosed: (languageServerOfTheWindow: LanguageServerOfAWindow) => void = () => {}) {
+/** The windows over a fake shell with the project `night-show` open in its studio window, closing a project as `closeTheProject` answers. */
+async function windowsWithNightShowOpen(closeTheProject: (projectFolder: string) => Promise<Result<void, string>>, whenAWindowStartingLanguageServersClosed: (languageServerOfTheWindow: LanguageServerOfAWindow) => void = () => {}) {
   const projectFolder = await mkdtemp(path.join(os.tmpdir(), "night-show-"));
   foldersToRemove.push(projectFolder);
   await writeFile(path.join(projectFolder, "pyproject.toml"), '[project]\nname = "night-show"\n');
   const fakeShell = new FakeTatolabElectronAppShell();
-  const projectsStopped: string[] = [];
+  const projectsClosed: string[] = [];
   const appWindows = new TatolabAppWindows({
     mainWindowHostFactory: fakeShell.tatolabElectronAppShell.mainWindowHostFactory,
     platformItems: { mainWindowChrome: { titleBarStyle: "default" }, setDockIconVisible: () => {} },
@@ -79,9 +79,9 @@ async function windowsWithNightShowOpen(stopTheProject: (projectFolder: string) 
     mintAnIdempotencyKey: () => "a-save",
     openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
     runAfter: () => () => {},
-    stopTheProjectAsItsWindowCloses: (folder) => {
-      projectsStopped.push(folder);
-      return stopTheProject(folder);
+    closeTheProjectAsItsWindowCloses: (folder) => {
+      projectsClosed.push(folder);
+      return closeTheProject(folder);
     },
     whenAWindowStartingLanguageServersClosed,
     whenAWindowShowingPortViewersClosed: () => {},
@@ -90,7 +90,7 @@ async function windowsWithNightShowOpen(stopTheProject: (projectFolder: string) 
   appWindows.showTheProjectsWindow();
   await appWindows.openTheProjectInItsStudioWindow(projectFolder);
   const projectName = path.basename(projectFolder);
-  return { fakeShell, appWindows, projectFolder, projectName, projectsStopped };
+  return { fakeShell, appWindows, projectFolder, projectName, projectsClosed };
 }
 
 /** Let the question asked over the window, and what follows the person's answer, run. */
@@ -102,18 +102,39 @@ function questionsAskedOverTheWindow(fakeShell: FakeTatolabElectronAppShell) {
   return fakeShell.records.flatMap((fakeShellRecord) => (fakeShellRecord.asked === "ask_a_question_over_the_window" ? [fakeShellRecord.question] : []));
 }
 
-test("a studio window whose project runs no stream closes at once, asking nothing", async () => {
-  const { fakeShell, appWindows, projectFolder, projectsStopped } = await windowsWithNightShowOpen(async () => succeeded(undefined));
-  appWindows.sendEveryWindowTheStatus(aStatusListing([aStreamOf(projectFolder, "stopped")]));
+test("a studio window whose open project does not play closes at once, asking nothing, and closes its project", async () => {
+  const { fakeShell, appWindows, projectFolder, projectsClosed } = await windowsWithNightShowOpen(async () => succeeded(undefined));
+  appWindows.sendEveryWindowTheStatus(aStatusListing([aStreamOf(projectFolder, "stopped"), aStreamOf(projectFolder, "failed")]));
 
   expect(fakeShell.requestTheCloseOfTheWindow(STUDIO_WINDOW_CONTENTS_ID)).toBe("let_it_close");
+  await letTheQuestionRun();
   expect(questionsAskedOverTheWindow(fakeShell)).toEqual([]);
-  expect(projectsStopped).toEqual([]);
+  expect(projectsClosed).toEqual([projectFolder]);
   expect(fakeShell.studioWindowsOpen()).toEqual([]);
 });
 
-test("closing a running project's window asks first, and Stop and Close stops the project, then closes the window", async () => {
-  const { fakeShell, appWindows, projectFolder, projectName, projectsStopped } = await windowsWithNightShowOpen(async () => succeeded(undefined));
+test("a studio window whose project the runtime holds closed closes at once and closes nothing", async () => {
+  const { fakeShell, appWindows, projectFolder, projectsClosed } = await windowsWithNightShowOpen(async () => succeeded(undefined));
+  appWindows.sendEveryWindowTheStatus(aStatusListing([aStreamOf(projectFolder, "closed")]));
+
+  expect(fakeShell.requestTheCloseOfTheWindow(STUDIO_WINDOW_CONTENTS_ID)).toBe("let_it_close");
+  await letTheQuestionRun();
+  expect(questionsAskedOverTheWindow(fakeShell)).toEqual([]);
+  expect(projectsClosed).toEqual([]);
+});
+
+test("a close of a stopped project's window the runtime refuses still closes the window", async () => {
+  const { fakeShell, appWindows, projectFolder, projectsClosed } = await windowsWithNightShowOpen(async () => failedWith("Runtime error: the project's removal is queued"));
+  appWindows.sendEveryWindowTheStatus(aStatusListing([aStreamOf(projectFolder, "stopped")]));
+
+  expect(fakeShell.requestTheCloseOfTheWindow(STUDIO_WINDOW_CONTENTS_ID)).toBe("let_it_close");
+  await letTheQuestionRun();
+  expect(projectsClosed).toEqual([projectFolder]);
+  expect(fakeShell.studioWindowsOpen()).toEqual([]);
+});
+
+test("closing a playing project's window asks first, and Stop and Close closes the project, then closes the window", async () => {
+  const { fakeShell, appWindows, projectFolder, projectName, projectsClosed } = await windowsWithNightShowOpen(async () => succeeded(undefined));
   appWindows.sendEveryWindowTheStatus(aStatusListing([aStreamOf(projectFolder, "running")]));
   fakeShell.buttonsChosenInTheNextQuestionsOverAWindow.push(STOP_AND_CLOSE_BUTTON_INDEX);
 
@@ -122,38 +143,38 @@ test("closing a running project's window asks first, and Stop and Close stops th
 
   expect(questionsAskedOverTheWindow(fakeShell)).toEqual([
     {
-      message: `Closing this window stops ${projectName}.`,
-      detail: `Every stream of ${projectName} stops running. Open the project and run it again to start it.`,
+      message: `Closing this window stops and closes ${projectName}.`,
+      detail: `Every stream of ${projectName} stops playing and is unloaded. Open the project again to play it.`,
       buttonLabels: [STOP_AND_CLOSE_BUTTON_LABEL, "Cancel"],
       defaultButtonIndex: 0,
       cancelButtonIndex: 1,
     },
   ]);
-  expect(projectsStopped).toEqual([projectFolder]);
+  expect(projectsClosed).toEqual([projectFolder]);
   expect(fakeShell.studioWindowsOpen()).toEqual([]);
 });
 
 test("the window of a project the runtime deleted closes as main closes it, asking nothing, though the last status still lists its streams running", async () => {
-  const { fakeShell, appWindows, projectFolder, projectsStopped } = await windowsWithNightShowOpen(async () => succeeded(undefined));
+  const { fakeShell, appWindows, projectFolder, projectsClosed } = await windowsWithNightShowOpen(async () => succeeded(undefined));
   appWindows.sendEveryWindowTheStatus(aStatusListing([aStreamOf(projectFolder, "running")]));
 
   appWindows.studioWindowOfTheProjectIn(projectFolder)?.tatolabMainWindow.close();
   await letTheQuestionRun();
 
   expect(questionsAskedOverTheWindow(fakeShell)).toEqual([]);
-  expect(projectsStopped).toEqual([]);
+  expect(projectsClosed).toEqual([]);
   expect(fakeShell.studioWindowsOpen()).toEqual([]);
 });
 
 test("Cancel keeps a running project's window open and its project running", async () => {
-  const { fakeShell, appWindows, projectFolder, projectsStopped } = await windowsWithNightShowOpen(async () => succeeded(undefined));
+  const { fakeShell, appWindows, projectFolder, projectsClosed } = await windowsWithNightShowOpen(async () => succeeded(undefined));
   appWindows.sendEveryWindowTheStatus(aStatusListing([aStreamOf(projectFolder, "preparing")]));
 
   expect(fakeShell.requestTheCloseOfTheWindow(STUDIO_WINDOW_CONTENTS_ID)).toBe("keep_it_open");
   await letTheQuestionRun();
 
   expect(questionsAskedOverTheWindow(fakeShell)).toHaveLength(1);
-  expect(projectsStopped).toEqual([]);
+  expect(projectsClosed).toEqual([]);
   expect(fakeShell.studioWindowsOpen()).toHaveLength(1);
 });
 
@@ -204,13 +225,13 @@ test("closing the last project's window brings back the Projects window, and clo
 });
 
 test("a window closing as the app quits asks nothing", async () => {
-  const { fakeShell, appWindows, projectFolder, projectsStopped } = await windowsWithNightShowOpen(async () => succeeded(undefined));
+  const { fakeShell, appWindows, projectFolder, projectsClosed } = await windowsWithNightShowOpen(async () => succeeded(undefined));
   appWindows.sendEveryWindowTheStatus(aStatusListing([aStreamOf(projectFolder, "running")]));
   appWindows.letEveryWindowCloseAsTheAppQuits();
 
   expect(fakeShell.requestTheCloseOfTheWindow(STUDIO_WINDOW_CONTENTS_ID)).toBe("let_it_close");
   expect(questionsAskedOverTheWindow(fakeShell)).toEqual([]);
-  expect(projectsStopped).toEqual([]);
+  expect(projectsClosed).toEqual([]);
 });
 
 test("a popped-out view's language servers send it their events, and stop as it closes", async () => {
