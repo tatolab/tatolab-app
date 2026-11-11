@@ -3,7 +3,7 @@
 
 import type { ProgressMeterPart } from "@tatolab/tato-app-view-sdk/design_system/progress_meter";
 import type { ListedStream } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { STREAM_ACTION_STEP_MAKING_THE_VENV, type ProjectVenvSyncUnderWay, type StreamActionVenvSync, type StreamActionVenvSyncPackage, type TatolabAppUpdateState } from "../../shared/tatolab_backend_contract";
+import { STREAM_ACTION_STEP_MAKING_THE_VENV, type ProjectVenvSyncOfAStreamAction, type StreamActionVenvSync, type StreamActionVenvSyncPackage, type TatolabAppUpdateState } from "../../shared/tatolab_backend_contract";
 
 
 /** How many ended activities the panel keeps, newest first. */
@@ -16,7 +16,7 @@ export type StudioActivityProgress = { kind: "share_known"; percent: number } | 
 /** One download or install in the Activity panel, under way or ended. */
 export type StudioActivity =
   | { activity_id: string; title: string; kind: "in_progress"; detail: string; progress: StudioActivityProgress; package_lines: ProgressMeterPart[] }
-  | { activity_id: string; title: string; kind: "done"; detail: string }
+  | { activity_id: string; title: string; kind: "done"; detail: string; package_lines: ProgressMeterPart[] }
   | { activity_id: string; title: string; kind: "failed"; refusal: string };
 
 /** What the Activity panel holds: the activities under way, then the ended ones, newest first. */
@@ -28,10 +28,11 @@ export interface StudioActivityLog {
 /** The log of a window that has seen no activity yet. */
 export const EMPTY_STUDIO_ACTIVITY_LOG: StudioActivityLog = { in_progress: [], ended: [] };
 
-/** What the Activity panel reads on each status: the runtime's listed streams, each project's sync under way, and the app's update. */
+/** What the Activity panel reads on each status: the runtime's listed streams, each project's sync under way and just ended, and the app's update. */
 export interface StudioActivitySources {
   listedStreams: readonly ListedStream[] | null;
-  projectVenvSyncsUnderWay: readonly ProjectVenvSyncUnderWay[];
+  projectVenvSyncsUnderWay: readonly ProjectVenvSyncOfAStreamAction[];
+  projectVenvSyncsJustEnded: readonly ProjectVenvSyncOfAStreamAction[];
   appUpdate: TatolabAppUpdateState;
 }
 
@@ -106,7 +107,7 @@ function detailAndProgressOfTheSync(venvSync: StreamActionVenvSync): { detail: s
   }
 }
 
-function pythonPackagesActivitiesOf(listedStreams: readonly ListedStream[] | null, projectVenvSyncsUnderWay: readonly ProjectVenvSyncUnderWay[]): StudioActivity[] {
+function pythonPackagesActivitiesOf(listedStreams: readonly ListedStream[] | null, projectVenvSyncsUnderWay: readonly ProjectVenvSyncOfAStreamAction[]): StudioActivity[] {
   const projectFoldersInstalling = new Set(
     (listedStreams ?? []).flatMap((listedStream) =>
       listedStream.step === STREAM_ACTION_STEP_MAKING_THE_VENV && listedStream.location !== null ? [listedStream.location.project_directory] : [],
@@ -145,21 +146,26 @@ export function studioActivitiesInProgressOf(sources: StudioActivitySources): St
   return [...pythonPackagesActivitiesOf(sources.listedStreams, sources.projectVenvSyncsUnderWay), ...appUpdateActivitiesOf(sources.appUpdate)];
 }
 
-function endOfThePythonPackagesActivity(activity: StudioActivity, projectFolder: string, listedStreams: readonly ListedStream[] | null): StudioActivity {
-  const failedStream = (listedStreams ?? []).find((listedStream) => listedStream.location?.project_directory === projectFolder && listedStream.state === "failed");
-  return failedStream === undefined
-    ? { activity_id: activity.activity_id, title: activity.title, kind: "done", detail: "Installed" }
-    : { activity_id: activity.activity_id, title: activity.title, kind: "failed", refusal: failedStream.failed_because ?? `${failedStream.display_name} failed.` };
+function endOfThePythonPackagesActivity(activity: StudioActivity, projectFolder: string, sources: StudioActivitySources): StudioActivity {
+  const failedStream = (sources.listedStreams ?? []).find((listedStream) => listedStream.location?.project_directory === projectFolder && listedStream.state === "failed");
+  if (failedStream !== undefined) {
+    return { activity_id: activity.activity_id, title: activity.title, kind: "failed", refusal: failedStream.failed_because ?? `${failedStream.display_name} failed.` };
+  }
+  const endedSync = sources.projectVenvSyncsJustEnded.find((syncJustEnded) => syncJustEnded.project_directory === projectFolder)?.venv_sync ?? null;
+  if (endedSync === null || endedSync.phase !== "installed") {
+    return { activity_id: activity.activity_id, title: activity.title, kind: "done", detail: "Installed", package_lines: [] };
+  }
+  return { activity_id: activity.activity_id, title: activity.title, kind: "done", detail: detailAndProgressOfTheSync(endedSync).detail, package_lines: endedSync.packages.map(packageLineOf) };
 }
 
 function endOfTheAppUpdateActivity(activity: StudioActivity, appUpdate: TatolabAppUpdateState): StudioActivity {
   if (appUpdate.kind === "failed") return { activity_id: activity.activity_id, title: activity.title, kind: "failed", refusal: appUpdate.refusal };
-  return { activity_id: activity.activity_id, title: activity.title, kind: "done", detail: appUpdate.kind === "ready_to_restart" ? "Downloaded · ready to restart" : "Downloaded" };
+  return { activity_id: activity.activity_id, title: activity.title, kind: "done", detail: appUpdate.kind === "ready_to_restart" ? "Downloaded · ready to restart" : "Downloaded", package_lines: [] };
 }
 
 function endOfTheActivity(activity: StudioActivity, sources: StudioActivitySources): StudioActivity {
   if (activity.activity_id.startsWith(PYTHON_PACKAGES_ACTIVITY_PREFIX)) {
-    return endOfThePythonPackagesActivity(activity, activity.activity_id.slice(PYTHON_PACKAGES_ACTIVITY_PREFIX.length), sources.listedStreams);
+    return endOfThePythonPackagesActivity(activity, activity.activity_id.slice(PYTHON_PACKAGES_ACTIVITY_PREFIX.length), sources);
   }
   return endOfTheAppUpdateActivity(activity, sources.appUpdate);
 }

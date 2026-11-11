@@ -54,7 +54,7 @@ import {
   type TatolabAppOpenAtLogin,
   type TatolabCommandLineToolVersion,
   type StreamGraphSummary,
-  type ProjectVenvSyncUnderWay,
+  type ProjectVenvSyncOfAStreamAction,
   type StreamActionDescription,
   type StreamActionVenvSync,
   STREAM_ACTION_STEP_MAKING_THE_VENV,
@@ -477,6 +477,7 @@ function initialMockStatus(
     machine_name: machine.name,
     streams: [],
     project_venv_syncs_under_way: [],
+    project_venv_syncs_just_ended: [],
     streams_not_listed_because: scenario === "not-listed" ? MOCK_STREAMS_NOT_LISTED_BECAUSE : null,
     command_line_tool_link:
       commandLineToolLinkScenario === "linked"
@@ -647,7 +648,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   let liveTickTimer: number | undefined;
 
   const publishStatus = (statusChanges: Partial<TatolabStatus>): void => {
-    mockStatus = { ...mockStatus, ...statusChanges };
+    mockStatus = { ...mockStatus, project_venv_syncs_just_ended: [], ...statusChanges };
     for (const statusListener of statusListeners) statusListener(structuredClone(mockStatus));
   };
 
@@ -794,7 +795,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   };
 
   /** Each load's sync under way, as the main process reads it from the actions its listed streams name on `making_the_venv`. */
-  const projectVenvSyncsUnderWay = (): ProjectVenvSyncUnderWay[] =>
+  const projectVenvSyncsUnderWay = (): ProjectVenvSyncOfAStreamAction[] =>
     [...projectLoadsQueued.values()].flatMap((description) =>
       description.state === "in_progress" && description.step === STREAM_ACTION_STEP_MAKING_THE_VENV && description.venv_sync !== null
         ? [{ action: description.action, project_directory: description.project_directory, venv_sync: structuredClone(description.venv_sync) }]
@@ -807,7 +808,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     if (project === undefined) return;
     const isTheRuntimeStillUp = (): boolean => runtimeUpSinceMilliseconds !== null;
     const streamFixtures = project.streamNames.map((streamName) => createMockStreamRunFromAProjectFolder(fixtures.machine, projectDirectory, streamName, streamName));
-    const listEveryStreamPreparingAt = (step: string): void => {
+    const listEveryStreamPreparingAt = (step: string, projectVenvSyncsJustEnded: ProjectVenvSyncOfAStreamAction[] = []): void => {
       for (const fixture of streamFixtures) {
         const streamId = fixture.listing.stream;
         if (!(listStreams() ?? []).some((listing) => listing.stream === streamId)) streamIdsRunFromTheWindow.push(streamId);
@@ -816,7 +817,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         streamActionOfEachStream.set(streamId, description.action);
         listedStreamsNotLoaded.set(streamId, { ...fixture.listing, display_name: displayNamesRenamedTo.get(streamId) ?? fixture.listing.display_name, state: "preparing", node_count: null, action: description.action, step });
       }
-      publishStatus({ streams: listStreams(), project_venv_syncs_under_way: projectVenvSyncsUnderWay() });
+      publishStatus({ streams: listStreams(), project_venv_syncs_under_way: projectVenvSyncsUnderWay(), project_venv_syncs_just_ended: projectVenvSyncsJustEnded });
     };
     await sleep(MOCK_STREAM_ACTION_STEP_MILLISECONDS);
     if (description.state === "cancelled") return;
@@ -845,6 +846,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       writeProjectRecord(projectDirectory, description.action, "info", `\`uv sync\` made ${projectDirectory}/.venv`);
       project.hasAPythonEnvironment = true;
     }
+    const venvSyncJustEnded = description.venv_sync;
     for (const step of ["starting"]) {
       if (!isTheRuntimeStillUp()) {
         streamActionsAskedToCancel.delete(description.action);
@@ -853,7 +855,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       }
       if (endTheLoadAtItsCancel(description)) return;
       Object.assign(description, { state: "in_progress", step });
-      listEveryStreamPreparingAt(step);
+      listEveryStreamPreparingAt(
+        step,
+        venvSyncJustEnded === null ? [] : [{ action: description.action, project_directory: projectDirectory, venv_sync: structuredClone(venvSyncJustEnded) }],
+      );
       if (step === "starting") {
         description.streams = streamFixtures.map((fixture) => ({ stream: fixture.listing.stream, display_name: fixture.listing.display_name, state: null }));
       }

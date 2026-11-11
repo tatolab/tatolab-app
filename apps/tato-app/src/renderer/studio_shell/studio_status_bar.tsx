@@ -46,9 +46,14 @@ function useStudioActivityLog(status: TatolabStatus): [StudioActivityLog, () => 
   const [activityLog, setActivityLog] = useState<StudioActivityLog>(EMPTY_STUDIO_ACTIVITY_LOG);
   useEffect(() => {
     setActivityLog((previousLog) =>
-      nextStudioActivityLog(previousLog, { listedStreams: status.streams, projectVenvSyncsUnderWay: status.project_venv_syncs_under_way, appUpdate: status.app_update }),
+      nextStudioActivityLog(previousLog, {
+        listedStreams: status.streams,
+        projectVenvSyncsUnderWay: status.project_venv_syncs_under_way,
+        projectVenvSyncsJustEnded: status.project_venv_syncs_just_ended,
+        appUpdate: status.app_update,
+      }),
     );
-  }, [status.streams, status.project_venv_syncs_under_way, status.app_update]);
+  }, [status.streams, status.project_venv_syncs_under_way, status.project_venv_syncs_just_ended, status.app_update]);
   return [activityLog, () => setActivityLog(studioActivityLogWithTheEndedCleared)];
 }
 
@@ -71,6 +76,7 @@ function StudioActivityProgressMeter({ activity }: { activity: StudioActivity })
       detail={activity.kind === "failed" ? activity.refusal : activity.detail}
       percent={null}
       outcome={activity.kind}
+      parts={activity.kind === "done" ? activity.package_lines : []}
       data-studio-activity={activity.activity_id}
     />
   );
