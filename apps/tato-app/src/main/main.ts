@@ -396,6 +396,7 @@ export async function startTatolabApp(
     tatolabAppLog,
   });
   runtimePortViewersOnceBuilt = runtimePortViewers;
+  statusPublisher.attachRuntimePortViewers(runtimePortViewers);
   const sharedState: TatolabAppSharedState = {
     controller,
     statusPublisher,
