@@ -15,6 +15,7 @@ import type {
   ProjectNodeTypeListing,
   ProjectAssetListing,
   ProjectAssetsImported,
+  AssetPreviewPicture,
   StreamAssetCreated,
   OpenProjectReading,
   ProjectTransaction,
@@ -47,7 +48,11 @@ import type {
   NewProjectDefaults,
   SystemMenuBarMenu,
 } from "../../shared/tatolab_backend_contract";
-import { TATOLAB_WINDOW_PAGE_SCHEME, type ModulesShown, type TatolabElectronBridge } from "../../shared/tatolab_electron_bridge_contract";
+import {
+  TATOLAB_WINDOW_PAGE_SCHEME,
+  type ModulesShown,
+  type TatolabElectronBridge,
+} from "../../shared/tatolab_electron_bridge_contract";
 
 declare global {
   interface Window {
@@ -64,18 +69,26 @@ export interface TatolabBackend {
   /** Quit the app, stopping its runtime with it. */
   quitTatolabApp(): Promise<void>;
   /** The page of `projectDirectory`'s log after the cursor `after`, from its first record when `null`, narrowed as `narrowing` asks; rejects in the runtime's own words. */
-  readProjectLogRecords(projectDirectory: string, narrowing: ProjectLogNarrowing, after: string | null): Promise<ProjectLogRecordsPage>;
+  readProjectLogRecords(
+    projectDirectory: string,
+    narrowing: ProjectLogNarrowing,
+    after: string | null,
+  ): Promise<ProjectLogRecordsPage>;
   describeStreamGraph(streamId: string): Promise<StreamGraphSummary>;
   /** Every node type the loaded stream `streamId` can add, rejecting in the runtime's own words. */
   describeNodeCatalog(streamId: string): Promise<NodeCatalog>;
   /** What the project in `projectDirectory` and each source it draws node code from declares, read from source without running it; rejects in the runtime's own words. */
-  listProjectNodeTypes(projectDirectory: string): Promise<ProjectNodeTypeListing>;
+  listProjectNodeTypes(
+    projectDirectory: string,
+  ): Promise<ProjectNodeTypeListing>;
   /** Every asset of the project in `projectDirectory`, its graph documents among them; rejects in the runtime's own words. */
   listProjectAssets(projectDirectory: string): Promise<ProjectAssetListing>;
   /** Ask the person for files and import each into the window's project, where the runtime places it in its kind's folder, by the person editing; `null` when they choose nothing, rejecting in Studio's or the runtime's words. */
   importAssetsIntoTheOpenProject(): Promise<ProjectAssetsImported | null>;
   /** Put the asset `asset` of the window's project at `toPath`, renaming it, moving it or both, by the person editing; rejects in Studio's or the runtime's words. */
   relocateAssetInTheOpenProject(asset: string, toPath: string): Promise<void>;
+  /** The preview picture of `asset` of this studio window's project, an image's own or a video's poster frame; rejected in the runtime's own words, as for an asset with none. */
+  readAssetPreviewOfTheOpenProject(asset: string): Promise<AssetPreviewPicture>;
   /** Stop tracking the asset `asset` of the window's project, its file leaving the project, by the person editing; rejects in Studio's or the runtime's words. */
   deleteAssetFromTheOpenProject(asset: string): Promise<void>;
   /** Check for a newer Tato Studio, downloading one that installs in place; how that goes arrives as the status's `app_update`. */
@@ -83,7 +96,11 @@ export interface TatolabBackend {
   /** Restart into a downloaded Tato Studio, download one a check found, or open a `.deb`'s download; how that goes arrives as the status's `app_update`. */
   takeTheNewerTatolabAppVersion(): Promise<void>;
   /** Answer the update dialog for the announcement of `kind` for `version`: Install Update or Release Notes for `take_its_action`, or closing it; the status's `app_update_announcement` moves on. */
-  answerTheAppUpdateAnnouncement(kind: TatolabAppUpdateAnnouncementKind, version: string, answer: TatolabAppUpdateAnnouncementAnswer): Promise<void>;
+  answerTheAppUpdateAnnouncement(
+    kind: TatolabAppUpdateAnnouncementKind,
+    version: string,
+    answer: TatolabAppUpdateAnnouncementAnswer,
+  ): Promise<void>;
   /** Remember that the dialog of the warning `kind` was shown, so no window shows it again; the status's `studio_warnings` moves on. */
   dismissTheStudioWarningDialog(kind: StudioWarningKind): Promise<void>;
   /** Queue the removal of every stream the runtime holds from `projectDirectory`, resolving once it is queued and rejecting with its refusal; the streams stopping, then gone, arrive as the next statuses. */
@@ -91,7 +108,9 @@ export interface TatolabBackend {
   /** Show the stream `streamId` under `displayName`, resolving once the runtime has recorded it and rejecting with its refusal; the new name arrives as the next status. */
   renameStream(streamId: string, displayName: string): Promise<void>;
   /** Make a new, empty stream in the window's project shown under `displayName`, by the person editing, resolving with its stream asset's UUID, which the stream the runtime lists carries; rejects in Studio's or the runtime's words. */
-  createStreamInTheOpenProject(displayName: string): Promise<StreamAssetCreated>;
+  createStreamInTheOpenProject(
+    displayName: string,
+  ): Promise<StreamAssetCreated>;
   /** Delete the stream `streamId` from its project, by the person editing, resolving once the runtime has deleted it and rejecting with its refusal; the stream's leaving arrives as the next status. */
   deleteStream(streamId: string): Promise<void>;
   /** Show the project folder the runtime lists for `streamId` in the file manager, rejecting with why it could not. */
@@ -101,7 +120,9 @@ export interface TatolabBackend {
   /** Show the log folder under the project folder the runtime lists for `streamId` in the file manager, rejecting with why it could not. */
   openStreamLogFolder(streamId: string): Promise<void>;
   /** Ask the person for a folder in the app's dialog and resolve with it, its links resolved, or `null` when they cancel. A folder it answers is one the window may name. */
-  chooseStreamProjectFolder(chosenFor: StreamProjectFolderChosenFor): Promise<string | null>;
+  chooseStreamProjectFolder(
+    chosenFor: StreamProjectFolderChosenFor,
+  ): Promise<string | null>;
   /** Queue `create_project` in `folder`, or with `null` in a folder the runtime draws under `~/streams`, resolving with the action queued and rejecting in the runtime's own words. */
   createStreamProject(folder: string | null): Promise<ProjectCreationQueued>;
   /** Queue `start_project` in `folder`, which loads every stream asset in it, resolving with the action queued and rejecting in the runtime's own words. */
@@ -124,7 +145,9 @@ export interface TatolabBackend {
   setDeveloperMode(enabled: boolean): Promise<void>;
   /** Have the desktop open Tatolab at login, or stop, resolving once it has and rejecting in its words; what it reports arrives as the next status. */
   setOpenTatolabAtLogin(enabled: boolean): Promise<void>;
-  onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
+  onTatolabStatusChanged(
+    listener: (status: TatolabStatus) => void,
+  ): Promise<() => void>;
   /** Calls `listener` with the stream each request from the app to show a stream's page names; the returned function stops it. */
   onStreamPageRequested(listener: (streamId: string) => void): () => void;
   /** Show the Projects window and bring it forward. */
@@ -134,13 +157,18 @@ export interface TatolabBackend {
   /** Calls `listener` with the `entry_id` of each entry the person chooses in the system menu bar from this window's menus; the returned function stops it. */
   onSystemMenuBarEntryChosen(listener: (entryId: string) => void): () => void;
   /** Ask the person for a project folder in the app's dialog and open it in its own window, or bring forward the window it has; `null` when they cancel, rejecting in the dialog's own words. */
-  chooseProjectFolder(chosenFor: ProjectFolderChosenFor): Promise<ChosenProjectFolder | null>;
+  chooseProjectFolder(
+    chosenFor: ProjectFolderChosenFor,
+  ): Promise<ChosenProjectFolder | null>;
   /** The location and name the New project sheet opens with: `<Documents>/Tato Studio` and the first untitled name free there. */
   readNewProjectDefaults(): Promise<NewProjectDefaults>;
   /** Ask the person for the folder a new project goes in, in the app's dialog opened at `startingAt`; `null` when they cancel. */
   chooseNewProjectLocation(startingAt: string): Promise<string | null>;
   /** Create the project `name` in `location` with the runtime and open it, rejecting with nothing made in the app's or the runtime's own words. The project read arrives as the next open-project change. */
-  createNewProject(name: string, location: string): Promise<ChosenProjectFolder>;
+  createNewProject(
+    name: string,
+    location: string,
+  ): Promise<ChosenProjectFolder>;
   /** Pop the view `target` names out of this studio window into a window of its own, or bring forward the one already popped out the same way; rejects in words from any other window. */
   popOutView(target: PoppedOutView): Promise<void>;
   /** The view this window shows when it is a popped-out view; `null` in the Projects and studio windows. */
@@ -152,17 +180,26 @@ export interface TatolabBackend {
   /** The section this window was last asked to show when it is a Module manager window; `null` in any other window. Later asks arrive through `onModuleManagerSectionAsked`. */
   readModuleManagerSectionLastAsked(): Promise<ModulesShown | null>;
   /** Calls `listener` with each section this Module manager window is asked to show once open; the returned function stops it. */
-  onModuleManagerSectionAsked(listener: (shows: ModulesShown) => void): () => void;
+  onModuleManagerSectionAsked(
+    listener: (shows: ModulesShown) => void,
+  ): () => void;
   /** The catalog get.tatolab.com serves, or why it was not read. */
   readPackageCatalog(): Promise<PackageCatalogReading>;
   /** The workspace's imports as the runtime lists them, each source read for a newer version with `checkForNewer`; rejects in the runtime's own words. */
-  listWorkspaceDependencies(checkForNewer: boolean): Promise<WorkspaceDependency[]>;
+  listWorkspaceDependencies(
+    checkForNewer: boolean,
+  ): Promise<WorkspaceDependency[]>;
   /** A project's folder or `.zip`, as `sourceKind` says, chosen in the desktop's dialog; `null` when the person cancels. */
-  chooseDependencySource(sourceKind: DependencySourceKind): Promise<string | null>;
+  chooseDependencySource(
+    sourceKind: DependencySourceKind,
+  ): Promise<string | null>;
   /** Copy the project in `source`, an absolute folder or `.zip`, into the workspace's `imports/`; rejects in the runtime's own words. */
   addDependencyToTheWorkspace(source: string): Promise<ProjectDependency>;
   /** Copy the import `project` again from its source, overwriting files edited since its copy only with `overwriteEditedFiles`; rejects in the runtime's own words. */
-  updateWorkspaceDependency(project: string, overwriteEditedFiles: boolean): Promise<WorkspaceDependencyUpdate>;
+  updateWorkspaceDependency(
+    project: string,
+    overwriteEditedFiles: boolean,
+  ): Promise<WorkspaceDependencyUpdate>;
   /** Download the catalog entry `name`'s `.zip`, check it, and import it into the workspace; rejects in words. */
   importFromTheMarketplace(name: string): Promise<ProjectDependency>;
   /** Open the workspace's `imports/<folder>/` in its own studio window; rejects in words for a folder it does not import. */
@@ -184,7 +221,10 @@ export interface TatolabBackend {
   /** The image `folder`, one of the recent projects, is shown by, as a `data:` URL; `null` for its plain cover. Rejects in the runtime's own words. */
   readRecentProjectCover(folder: string): Promise<string | null>;
   /** Describe `folder`, one of the recent projects, as `description` through the runtime; a blank one clears it. Rejects in the runtime's own words. */
-  setRecentProjectDescription(folder: string, description: string): Promise<void>;
+  setRecentProjectDescription(
+    folder: string,
+    description: string,
+  ): Promise<void>;
   /** An image chosen in the desktop's dialog to show a project by; `null` when the person cancels. */
   chooseProjectCoverImage(): Promise<string | null>;
   /** Show `folder`, one of the recent projects, by the image file `image`, which the runtime imports into the project; `null` shows its plain cover. Rejects in the app's or the runtime's own words. */
@@ -192,25 +232,45 @@ export interface TatolabBackend {
   /** A project `.zip` chosen in the desktop's dialog, with where the Import project sheet starts for it; `null` when the person cancels. */
   chooseProjectArchiveToImport(): Promise<ProjectArchiveChosenToImport | null>;
   /** Make the project `name` in `location` from the `.zip` `archive` with the runtime and open it, rejecting with nothing made in the app's or the runtime's own words. */
-  importProjectArchive(archive: string, name: string, location: string): Promise<ChosenProjectFolder>;
+  importProjectArchive(
+    archive: string,
+    name: string,
+    location: string,
+  ): Promise<ChosenProjectFolder>;
   /** Calls `listener` with each reading of the open project: another folder opened, a change in one of its folders, or the runtime starting to answer; the returned function stops it. */
-  onOpenProjectChanged(listener: (reading: OpenProjectReading) => void): () => void;
+  onOpenProjectChanged(
+    listener: (reading: OpenProjectReading) => void,
+  ): () => void;
   /** This window's project's change feed as the app last read it from the runtime; refused in the Projects window. Later readings arrive through `onProjectTransactionsChanged`. */
   readOpenProjectTransactions(): Promise<ProjectTransactionsReading>;
   /** Calls `listener` with each reading of the open project's change feed: a transaction the runtime applied, or the feed lost or followed again; the returned function stops it. */
-  onProjectTransactionsChanged(listener: (reading: ProjectTransactionsReading) => void): () => void;
+  onProjectTransactionsChanged(
+    listener: (reading: ProjectTransactionsReading) => void,
+  ): () => void;
   /** The runtime's `undo` by `author` on the open project, resolving with the undo it applied and rejecting in the runtime's own words. */
-  undoInTheOpenProject(author: ProjectTransactionAuthor): Promise<ProjectTransaction>;
+  undoInTheOpenProject(
+    author: ProjectTransactionAuthor,
+  ): Promise<ProjectTransaction>;
   /** The runtime's `transact` of `operations` on the graphs of the open project's streams as one transaction recorded as Studio's own, resolving with what it applied or the runtime's structured refusal, and rejecting in words for any other refusal. */
-  transactInTheOpenProject(operations: readonly StreamGraphAction[], mode: GraphEditMode, idempotencyKey: string | null): Promise<ProjectGraphTransactionTheRuntimeAnswered>;
+  transactInTheOpenProject(
+    operations: readonly StreamGraphAction[],
+    mode: GraphEditMode,
+    idempotencyKey: string | null,
+  ): Promise<ProjectGraphTransactionTheRuntimeAnswered>;
   /** The person editing in Studio, whose graph edits the runtime records under them. */
   readThePersonEditingInStudio(): Promise<ProjectTransactionAuthor>;
   /** The runtime's `redo` by `author` on the open project, resolving with the redo it applied and rejecting in the runtime's own words. */
-  redoInTheOpenProject(author: ProjectTransactionAuthor): Promise<ProjectTransaction>;
+  redoInTheOpenProject(
+    author: ProjectTransactionAuthor,
+  ): Promise<ProjectTransaction>;
   /** `file` of the open project and its imports, as read from disk, rejecting for a file outside them or in the filesystem's words. */
   readProjectFile(file: string): Promise<ProjectFileRead>;
   /** Write `text` to `file` whole when the file on disk is still at `basedOnVersion` (`null` for a new file), rejecting with nothing written when it changed, belongs to an import, or the filesystem refuses. */
-  saveProjectFile(file: string, text: string, basedOnVersion: string | null): Promise<ProjectFileSaved>;
+  saveProjectFile(
+    file: string,
+    text: string,
+    basedOnVersion: string | null,
+  ): Promise<ProjectFileSaved>;
   /** A new Python node file at `file` in the open project's own folder, from the runtime's node template, resolving with the node type it declares and rejecting in the runtime's own words. */
   createNodeFile(file: string): Promise<NodeFileCreated>;
   /** Every file of `projectFolder`, the folder of the open project or of one of its imports. */
@@ -222,21 +282,36 @@ export interface TatolabBackend {
   /** Start Pyright's language server in `projectFolder`, resolving with the session its messages arrive under. */
   startPythonLanguageServer(projectFolder: string): Promise<string>;
   /** Send one JSON-RPC `message` to the language server of `session`, rejecting once it has ended. */
-  sendToPythonLanguageServer(session: string, message: JsonValue): Promise<void>;
+  sendToPythonLanguageServer(
+    session: string,
+    message: JsonValue,
+  ): Promise<void>;
   stopPythonLanguageServer(session: string): Promise<void>;
   /** Calls `listener` with each message a language server sends and each server's end; the returned function stops it. */
-  onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
+  onPythonLanguageServerEvent(
+    listener: (event: PythonLanguageServerEvent) => void,
+  ): () => void;
   /** The views the open project and its imports bring, as the runtime's `list_project_views` lists them, rejecting in words where none can be listed. */
   listStudioViewsOfTheOpenProject(): Promise<ListedStudioView[]>;
   /** Publish `value` on the output `port` of the view node `node` (its UUID) in `stream`, as the port's family takes it; recorded nowhere; rejecting in the runtime's own words. */
-  writeStudioViewOutput(stream: string, node: string, port: string, value: JsonValue): Promise<void>;
+  writeStudioViewOutput(
+    stream: string,
+    node: string,
+    port: string,
+    value: JsonValue,
+  ): Promise<void>;
   /** Read `target`'s output port while the port viewer is open, resolving with the id its events arrive under and rejecting in the runtime's own words. */
   openPortViewer(target: PortViewerTarget): Promise<string>;
   closePortViewer(portViewer: string): Promise<void>;
   /** Calls `listener` with each event of every port viewer the window opened; the returned function stops it. */
   onPortViewerEvent(listener: (event: PortViewerEvent) => void): () => void;
   /** Calls `listener` with each Image frame a port viewer hands over as a `VideoFrame`, which the listener closes once drawn; the returned function stops it. */
-  onPortViewerImageFrame(listener: (videoFrame: VideoFrame, frameFacts: PortViewerImageFrameFacts) => void): () => void;
+  onPortViewerImageFrame(
+    listener: (
+      videoFrame: VideoFrame,
+      frameFacts: PortViewerImageFrameFacts,
+    ) => void,
+  ): () => void;
 }
 
 /** Where the page runs: the packaged app's window with the preload's bridge, the app's own page without it, or a browser showing the mock. */
@@ -247,8 +322,13 @@ export type TatolabWindowHost =
 
 /** The host this page runs in, told by what each one puts on `window` and the scheme it is served under. */
 export function tatolabWindowHost(): TatolabWindowHost {
-  if (window.tatolabElectronBridge !== undefined) return { kind: "electron", tatolabElectronBridge: window.tatolabElectronBridge };
-  if (window.location.protocol === `${TATOLAB_WINDOW_PAGE_SCHEME}:`) return { kind: "electron_without_its_bridge" };
+  if (window.tatolabElectronBridge !== undefined)
+    return {
+      kind: "electron",
+      tatolabElectronBridge: window.tatolabElectronBridge,
+    };
+  if (window.location.protocol === `${TATOLAB_WINDOW_PAGE_SCHEME}:`)
+    return { kind: "electron_without_its_bridge" };
   return { kind: "browser" };
 }
 
