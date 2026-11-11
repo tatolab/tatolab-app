@@ -1,15 +1,13 @@
 import { streamPreparingWords } from "../shared/stream_preparing_words";
 import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FieldMenu, MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { PortFamilyPlaceholder } from "@tatolab/tato-app-view-sdk/design_system/port_family_placeholder";
-import type { PortViewerEvent, StopWatching, TatoAppViewConnection, ViewAskDone } from "@tatolab/tato-app-view-sdk";
+import type { PortViewerEvent, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type {
   PortViewerMessageReading,
   PortViewerTarget,
   StreamGraphDeclaredPort,
-  StreamGraphNode,
   StreamGraphReading,
   StreamGraphSummary,
   StreamTabAddress,
@@ -17,22 +15,15 @@ import type {
 import { CoreViewFrame } from "../shared/core_view_page";
 import { nodeTitle } from "../shared/node_words";
 import { portStreamFactsWords } from "../shared/port_stream_facts_words";
-import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { PortViewerMessageReadingShown, packetsUnitsSeenWith, type PacketsUnitSeen } from "./port_viewer_message_readings";
 import {
-  chosenPortStillInTheGraph,
-  everyOutputPortOf,
-  portTheViewerPlays,
+  nodeVisualizerPortKey,
+  nodeVisualizerSubjectOf,
   portWordsOf,
-  selectedNodeWithNothingToVisualize,
   stateKeepingThePlayedNodeFromWriting,
-  viewerChosenPortOf,
-  viewerPortChoiceKey,
-  type ViewerChosenPort,
-  type ViewerPortAddress,
-} from "./viewer_port_choice";
-
-const FOLLOW_THE_SELECTION_CHOICE = "follow_the_selection";
+  type NodeVisualizerPortAddress,
+  type NodeVisualizerSubject,
+} from "./node_visualizer_subject";
 
 const BGRA_BYTE_ORDER_FORMAT_WIRE_NAMES = new Set(["bgra32", "bgra8_unorm", "bgra8_unorm_srgb"]);
 const RGBA_BYTE_ORDER_FORMAT_WIRE_NAMES = new Set(["rgba32", "rgba8_unorm", "rgba8_unorm_srgb"]);
@@ -185,7 +176,7 @@ function PortViewerPicture({
 }
 
 /** The output port `address` names as `graph` declares it; `undefined` once the graph no longer has it. */
-function declaredOutputPortOf(graph: StreamGraphSummary, address: ViewerPortAddress): StreamGraphDeclaredPort | undefined {
+function declaredOutputPortOf(graph: StreamGraphSummary, address: NodeVisualizerPortAddress): StreamGraphDeclaredPort | undefined {
   return graph.nodes.find((node) => node.id === address.node_id)?.output_ports.find((outputPort) => outputPort.name === address.port);
 }
 
@@ -201,40 +192,22 @@ function nodeNotRunningWords(state: string): string {
   return "Not running. It shows here live once the stream plays.";
 }
 
-/** The Node visualizer of a graph it has read: the live picture of the port it plays while that port's node runs, or else the port family's placeholder. */
-function ViewerOfTheGraph({
-  connection,
-  streamTab,
-  graph,
-  playedPort,
-  selectedNodeWithNothingToPlay,
-}: {
-  connection: TatoAppViewConnection;
-  streamTab: StreamTabAddress;
-  graph: StreamGraphSummary;
-  playedPort: ViewerPortAddress | null;
-  selectedNodeWithNothingToPlay: StreamGraphNode | null;
-}) {
-  if (selectedNodeWithNothingToPlay !== null) {
+/** The Node visualizer of a graph it has read: the live picture of the selected node's port while that node runs, or else a placeholder saying what to do. */
+function ViewerOfTheGraph({ connection, streamTab, graph, subject }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress; graph: StreamGraphSummary; subject: NodeVisualizerSubject }) {
+  if (subject.kind === "nothing_selected") {
+    return <PortFamilyPlaceholder family={null} title="Select a node to visualize it" explanation="Click a node in the stream graph and what it outputs shows here." data-viewer-state="nothing_selected" />;
+  }
+  if (subject.kind === "node_without_output") {
     return (
       <PortFamilyPlaceholder
         family={null}
-        title={nodeTitle(selectedNodeWithNothingToPlay.name, selectedNodeWithNothingToPlay.type)}
-        explanation="This node has no output, and nothing is linked into it yet. Link a node into it to see what reaches it here."
-        data-viewer-state="node_with_nothing_to_play"
+        title={nodeTitle(subject.node.name, subject.node.type)}
+        explanation="This node has no output to visualize."
+        data-viewer-state="node_without_output"
       />
     );
   }
-  if (playedPort === null) {
-    return (
-      <PortFamilyPlaceholder
-        family={null}
-        title={`${streamTab.display_name} has no output to visualize`}
-        explanation="Add a node with an output and it shows here."
-        data-viewer-state="no_output_port"
-      />
-    );
-  }
+  const playedPort = subject.port;
   const portWords = portWordsOf(graph, playedPort);
   const declaredPort = declaredOutputPortOf(graph, playedPort) ?? { family: null, stream_facts: null, values_checked: null };
   const playedNodeState = stateKeepingThePlayedNodeFromWriting(graph, playedPort);
@@ -252,7 +225,7 @@ function ViewerOfTheGraph({
   }
   return (
     <PortViewerPicture
-      key={viewerPortChoiceKey(playedPort)}
+      key={nodeVisualizerPortKey(playedPort)}
       connection={connection}
       target={{ stream: streamTab.stream, node_id: playedPort.node_id, port: playedPort.port }}
       nodeName={playedPort.node_name}
@@ -262,54 +235,12 @@ function ViewerOfTheGraph({
   );
 }
 
-/** The port the Node visualizer plays, chosen from every output of the tab's graph, or following the selection; the choice is kept in the area's settings. */
-function ViewerPortChooser({
-  connection,
-  graph,
-  playedPort,
-  chosenPortSetting,
-  showTheRefusalOf,
-}: {
-  connection: TatoAppViewConnection;
-  graph: StreamGraphSummary;
-  playedPort: ViewerPortAddress;
-  chosenPortSetting: ViewerChosenPort;
-  showTheRefusalOf: (lead: string, asked: Promise<ViewAskDone>) => void;
-}) {
-  const chosenPort = chosenPortStillInTheGraph(graph, chosenPortSetting);
-  const portChoices: MenuSingleChoice<string>[] = [
-    { choice: FOLLOW_THE_SELECTION_CHOICE, label: "Follow the selection" },
-    ...everyOutputPortOf(graph).map((outputPort) => ({ choice: viewerPortChoiceKey(outputPort), label: portWordsOf(graph, outputPort) })),
-  ];
-  const playedPortWords = portWordsOf(graph, playedPort);
-  return (
-    <div className="ml-auto flex min-w-0 items-center gap-1.5">
-      <FieldMenu label={`Port: ${playedPortWords}`} words={playedPortWords} menuWidth="fit" data-viewer-port-chooser="">
-        <MenuSingleChoiceGroup closesTheMenuOnChoice
-          choices={portChoices}
-          chosen={chosenPort === null ? FOLLOW_THE_SELECTION_CHOICE : viewerPortChoiceKey(chosenPort)}
-          dataAttributeOfEachChoice="data-viewer-port-choice"
-          onChosen={(choice) => {
-            const portChosenNow = everyOutputPortOf(graph).find((outputPort) => viewerPortChoiceKey(outputPort) === choice);
-            showTheRefusalOf(
-              "Didn't keep the port:",
-              connection.rememberSettings({ chosen_port: portChosenNow === undefined ? null : { stream: graph.stream, node_id: portChosenNow.node_id, port: portChosenNow.port } }),
-            );
-          }}
-        />
-      </FieldMenu>
-    </div>
-  );
-}
-
-/** The Node visualizer's frame for the open stream tab: its port chooser in the header row, and its picture under why the last port choice was refused, once the tab's graph, the selection and the area's settings are read. */
+/** The Node visualizer's frame for the open stream tab, following the selection once the tab's graph and the selection are read. */
 function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress }) {
   const graphReading = useTheGraphOfTheTab(connection, streamTab.stream);
   const listedStreams = useViewReading(connection.watchListedStreams);
   const selection = useViewReading(connection.watchSelection);
-  const settings = useViewReadingSoFar(connection.watchSettings);
-  const [portChoiceRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
-  if (graphReading === null || settings.kind === "not_read_yet") return <CoreViewFrame connection={connection}>{null}</CoreViewFrame>;
+  if (graphReading === null) return <CoreViewFrame connection={connection}>{null}</CoreViewFrame>;
   if (graphReading.kind === "not_read") {
     const preparingWords = streamPreparingWords(listedStreams?.kind === "listed" ? listedStreams.streams.find((listed) => listed.stream === streamTab.stream) : undefined, streamTab.display_name);
     return (
@@ -328,24 +259,14 @@ function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConn
       </CoreViewFrame>
     );
   }
-  const { graph } = graphReading;
-  const chosenPortSetting = viewerChosenPortOf(settings.reading);
-  const playedPort = portTheViewerPlays(graph, selection, chosenPortSetting);
-  const selectedNodeWithNothingToPlay = selectedNodeWithNothingToVisualize(graph, selection, chosenPortSetting);
   return (
-    <CoreViewFrame
-      connection={connection}
-      headerTools={
-        playedPort !== null && <ViewerPortChooser connection={connection} graph={graph} playedPort={playedPort} chosenPortSetting={chosenPortSetting} showTheRefusalOf={showTheRefusalOf} />
-      }
-    >
-      <RefusalOfTheLatestAskBar refusal={portChoiceRefusal} />
-      <ViewerOfTheGraph connection={connection} streamTab={streamTab} graph={graph} playedPort={playedPort} selectedNodeWithNothingToPlay={selectedNodeWithNothingToPlay} />
+    <CoreViewFrame connection={connection}>
+      <ViewerOfTheGraph connection={connection} streamTab={streamTab} graph={graphReading.graph} subject={nodeVisualizerSubjectOf(graphReading.graph, selection)} />
     </CoreViewFrame>
   );
 }
 
-/** The Node visualizer view's whole frame: the live picture of any output port of the active stream's nodes, the selected node's unless a port is chosen in its header row, and its family's placeholder while nothing live reaches it. */
+/** The Node visualizer view's whole frame: the live picture of the selected node's output, and a placeholder while nothing is selected or nothing live reaches it. */
 export function ViewerView({ connection }: { connection: TatoAppViewConnection }) {
   const activeStreamTab = useViewReadingSoFar(connection.watchActiveStreamTab);
   if (activeStreamTab.kind === "not_read_yet") return <CoreViewFrame connection={connection}>{null}</CoreViewFrame>;

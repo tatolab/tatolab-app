@@ -516,7 +516,7 @@ function PropertiesOfTheSelectedNode({
                   })
                 }
               >
-                Show {port.name} in Node visualizer
+                Visualize {port.name}
               </ActionButton>
             </div>
           ))}
