@@ -10,7 +10,7 @@ import {
   TatolabWindowEnvironmentContext,
   TatolabWindowStatusStore,
   type TatolabWindowEnvironment,
-} from "./setup_and_preferences/tatolab_window_context";
+} from "./setup_and_settings/tatolab_window_context";
 import { RUN_LIVE_KEY, studioMenusSentToTheSystemMenuBar, type StudioMenuBarCommands } from "./studio_shell/studio_menu_bar_model";
 import { ModuleManagerWindowView, type ModuleManagerSources } from "./studio_shell/module_manager_window_view";
 import { PoppedOutViewWindowView } from "./studio_shell/popped_out_view_window_view";
@@ -22,7 +22,7 @@ import { STUDIO_LAYOUTS, StudioLayoutsKeptInStorage } from "./studio_shell/studi
 import { studioViewHostServicesOf } from "./view_host/studio_view_host_services";
 import { useWatchedStudioValue } from "./view_host/watched_studio_value";
 import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_catalog_readings";
-import { StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
+import { StudioViewTypeRegistry, studioViewTypeTitlesOf } from "./view_host/studio_view_type_registry";
 import { tatolabFrameViewType } from "./view_host/tatolab_frame_view_type";
 import { coreViewTypesOf, servedCoreViewFolderUrl } from "./view_host/core_view_types";
 import { CORE_VIEWS } from "@tatolab/tato-app-core-views";
@@ -193,16 +193,16 @@ export function mountTatolabWindow(
         (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
       );
     },
-    openPreferences: () => studioWindowModel.preferencesSection.publish("general"),
-    openAbout: () => studioWindowModel.preferencesSection.publish("about"),
+    openSettings: () => studioWindowModel.settingsSection.publish("project"),
+    openAbout: () => studioWindowModel.settingsSection.publish("about"),
     checkForAppUpdates: () => {
       studioWindowModel.appUpdateChoiceRefusal.publish(null);
-      studioWindowModel.preferencesSection.publish("about");
+      studioWindowModel.settingsSection.publish("about");
       backend.checkForTatolabAppUpdates().catch((rejection: unknown) => studioWindowModel.appUpdateChoiceRefusal.publish(describeBackendRejection(rejection)));
     },
     takeTheNewerAppVersion: () => {
       studioWindowModel.appUpdateChoiceRefusal.publish(null);
-      studioWindowModel.preferencesSection.publish("about");
+      studioWindowModel.settingsSection.publish("about");
       backend.takeTheNewerTatolabAppVersion().catch((rejection: unknown) => studioWindowModel.appUpdateChoiceRefusal.publish(describeBackendRejection(rejection)));
     },
     chooseLayout: (layoutName) => studioWindowModel.chooseLayout(layoutName),
@@ -228,7 +228,7 @@ export function mountTatolabWindow(
   const studioWindowSources: StudioWindowSources = {
     model: studioWindowModel,
     viewTypeRegistry,
-    viewHostServices: studioViewHostServicesOf(studioWindowModel.viewHostSources(), streamGraphAndCatalogReadings, {
+    viewHostServices: studioViewHostServicesOf(studioWindowModel.viewHostSources(studioViewTypeTitlesOf(viewTypeRegistry)), streamGraphAndCatalogReadings, {
       backend,
       projectLogReadings,
       projectNodeTypeReadings,
@@ -351,7 +351,7 @@ export function mountTatolabWindow(
         studioMenuBarCommands.createAProject();
         return true;
       case ",":
-        studioMenuBarCommands.openPreferences();
+        studioMenuBarCommands.openSettings();
         return true;
       default:
         return false;

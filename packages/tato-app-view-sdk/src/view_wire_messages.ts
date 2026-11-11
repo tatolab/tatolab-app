@@ -70,6 +70,31 @@ export const windowToolbarGraphToolOfferedSchema = z.object({ tool: windowToolba
 /** One graph tool as the view offers it. */
 export type WindowToolbarGraphToolOffered = z.infer<typeof windowToolbarGraphToolOfferedSchema>;
 
+/** A section of the window that lists modules: the modules added to the open project, or the Marketplace's packages and samples. */
+export const modulesAndMarketplaceSectionSchema = z.enum(["added_to_this_project", "marketplace"]);
+/** A section of the Modules and Marketplace window. */
+export type ModulesAndMarketplaceSection = z.infer<typeof modulesAndMarketplaceSectionSchema>;
+
+/** One area of the studio window's chosen layout, as a view of some type could be shown in it: what it shows now, by its view's title, and whether that is the view type itself or the area of the view asking. */
+export const areaForAViewTypeSchema = z.object({
+  area_id: z.string(),
+  /** The title of the view the area shows, `null` while it shows none. */
+  shows_view_title: z.string().nullable(),
+  shows_the_view_type: z.boolean(),
+  is_the_asking_views_area: z.boolean(),
+});
+/** One area a view of some type could be shown in. */
+export type AreaForAViewType = z.infer<typeof areaForAViewTypeSchema>;
+
+/** The areas of the chosen layout for a view type, as its node's Show in an area lists them: none when no view type has that id, or why the window has no areas. */
+export const areasForAViewTypeReadingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("not_a_view_type") }),
+  z.object({ kind: z.literal("areas_listed"), view_title: z.string(), areas: z.array(areaForAViewTypeSchema) }),
+  z.object({ kind: z.literal("no_areas"), because: z.string() }),
+]);
+/** The areas of the chosen layout for a view type. */
+export type AreasForAViewTypeReading = z.infer<typeof areasForAViewTypeReadingSchema>;
+
 /** What a view may watch. */
 export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("open_project") }),
@@ -93,6 +118,8 @@ export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("settings") }),
   z.object({ kind: z.literal("opened_on") }),
   z.object({ kind: z.literal("header_row") }),
+  /** The chosen layout's areas for the view type `view_type_id`, read again as the layout or the view types change. */
+  z.object({ kind: z.literal("areas_for_the_view_type"), view_type_id: z.string() }),
   /** Each press of a graph tool in the window's toolbar while the view's offer, made with `offer_graph_tools`, is the one it shows; stopping the watch withdraws the offer. */
   z.object({ kind: z.literal("graph_tool_presses") }),
 ]);
@@ -140,6 +167,10 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("read_the_person_editing") }),
   /** Ask the person for files in the desktop's open dialog and import each into the project through the runtime's `import_asset`, which places it in its kind's folder. */
   z.object({ kind: z.literal("import_assets_into_the_project"), project_folder: z.string() }),
+  /** Show the view type `view_type_id` in area `area_id` of the chosen layout, in place of what it shows. */
+  z.object({ kind: z.literal("show_view_type_in_area"), view_type_id: z.string(), area_id: z.string() }),
+  /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
+  z.object({ kind: z.literal("open_modules_and_marketplace"), shows: modulesAndMarketplaceSectionSchema }),
   /** The graph tools the view's watch `watch_id` of `graph_tool_presses` offers the window's toolbar, replacing any offer before; refused where the window draws no toolbar. */
   z.object({ kind: z.literal("offer_graph_tools"), watch_id: watchOrAskIdSchema, tools: z.array(windowToolbarGraphToolOfferedSchema) }),
 ]);
@@ -180,6 +211,7 @@ export const viewWatchedReadingSchema = z.discriminatedUnion("subject", [
   z.object({ subject: z.literal("opened_on"), reading: viewOpenedOnSchema }),
   z.object({ subject: z.literal("header_row"), reading: viewHeaderRowSchema }),
   z.object({ subject: z.literal("graph_tool_presses"), reading: z.object({ tool: windowToolbarGraphToolSchema }) }),
+  z.object({ subject: z.literal("areas_for_the_view_type"), reading: areasForAViewTypeReadingSchema }),
 ]);
 /** One reading of a watched subject. */
 export type ViewWatchedReading = z.infer<typeof viewWatchedReadingSchema>;

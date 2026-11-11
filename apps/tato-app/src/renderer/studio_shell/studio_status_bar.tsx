@@ -14,7 +14,7 @@ import {
   type StudioActivityLog,
 } from "../presentation/studio_activity_presentation";
 import { studioStatusBarWordsOf } from "../presentation/studio_status_bar_presentation";
-import { useRuntimeDescriptionReading, useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
+import { useRuntimeDescriptionReading, useTatolabStatus } from "../setup_and_settings/tatolab_window_context";
 import type { StudioViewHostServices } from "../view_host/studio_view_contract";
 
 /** How often the last edit's "2 minutes ago" is said again. */

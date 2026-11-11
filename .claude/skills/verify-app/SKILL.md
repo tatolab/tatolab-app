@@ -43,7 +43,7 @@ Evidence counts only when it was shot on what would ship now:
    `?restart=refused`, and the screen keys
    `?layout=build|compose|spatial|code|perform`, `?outliner=open`, `?select=<row id>`,
    `?open_stream=<stream id>`, `?menu=<menu>` with `?submenu=<entry>`, `?area_menu=<area id>`,
-   `?page=preferences` with `?section=`, `?restart=pressed`, `?link=pressed`,
+   `?page=settings` with `?section=`, `?restart=pressed`, `?link=pressed`,
    `?sheet=new_project` with `?new_project_name=<name>` and `?new_project=browse|create`; the
    doc comment of `driveMockWindowToPreset` is the full list. A key it does not name is
    ignored without a word, so check each frame shows the state its URL asks for. The window is dark-only. Label every image **Mock**. A screen the
