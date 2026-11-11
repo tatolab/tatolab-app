@@ -7,7 +7,7 @@
 
 import { STREAM_ACTION_STEP_MAKING_THE_VENV, type ProjectVenvSyncOfAStreamAction, type StreamActionDescription } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
-import type { McpStdioResourceListen } from "./local_api_mcp_stdio_connection.js";
+import { LocalApiResourceFollowedOverOneConnection, type LocalApiResourceFollowingConnection } from "./local_api_resource_followed_over_one_connection.js";
 import type { Result } from "./result.js";
 import { streamActionDescriptionFromTheStreamActionResourceText, streamActionsUnderWayFromTheStreamActionsResourceText } from "./stream_action_description.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
@@ -20,16 +20,9 @@ export function streamActionResourceUri(action: string): string {
   return `streamlib://stream-action/${action}`;
 }
 
-/** The parts of a `LocalApiMcpStdioConnection` the feed uses, so a test can stand in for one. */
-export interface StreamActionsFeedConnection {
-  readResourceText(uri: string): Promise<Result<string, LocalApiRequestFailure>>;
-  listenForUpdatesOfTheResource(uri: string, whenUpdated: () => void, whenEnded: (whyItEnded: string) => void): McpStdioResourceListen;
-  close(): void;
-}
-
 /** What following the stream actions reaches: a connection to the runtime, the status to refresh as a sync changes, and the app's log. */
 export interface ProjectVenvSyncsOnTheStreamActionsFeedSources {
-  openTheFeedConnection: () => Promise<Result<StreamActionsFeedConnection, LocalApiRequestFailure>>;
+  openTheFeedConnection: () => Promise<Result<LocalApiResourceFollowingConnection, LocalApiRequestFailure>>;
   whenTheSyncsChange: () => void;
   tatolabAppLog: TatolabAppLog;
 }
@@ -50,13 +43,10 @@ function isMakingTheVenv(description: StreamActionDescription): boolean {
 
 /** The runtime's stream actions, followed while it answers, read for each project's `.venv` sync. */
 export class ProjectVenvSyncsOnTheStreamActionsFeed {
-  private feedConnection: StreamActionsFeedConnection | null = null;
-  private resourceListen: McpStdioResourceListen | null = null;
+  private followedStreamActions: LocalApiResourceFollowedOverOneConnection | null = null;
   private isFollowing = false;
   private followsStarted = 0;
   private hasStopped = false;
-  private readInFlight: Promise<void> | null = null;
-  private isAnotherReadWanted = false;
   private actionsMakingTheVenvAtTheLastRead = new Map<string, StreamActionDescription>();
   private actionsListedAtTheLastRead: ReadonlySet<string> = new Set();
   private syncsJustEnded: ProjectVenvSyncOfAStreamAction[] = [];
@@ -67,9 +57,7 @@ export class ProjectVenvSyncsOnTheStreamActionsFeed {
   /** Follow the feed while the runtime answers its health check, and stop following it while it does not. */
   keepFollowing(isTheRuntimeAnswering: boolean): void {
     if (!isTheRuntimeAnswering) {
-      this.closeTheConnection();
-      this.isFollowing = false;
-      this.followsStarted += 1;
+      this.forgetTheFollowedConnection();
       this.actionsMakingTheVenvAtTheLastRead = new Map();
       this.actionsListedAtTheLastRead = new Set();
       return;
@@ -88,7 +76,7 @@ export class ProjectVenvSyncsOnTheStreamActionsFeed {
   /** Stop following, as the app quits. */
   stopFollowing(): void {
     this.hasStopped = true;
-    this.closeTheConnection();
+    this.forgetTheFollowedConnection();
   }
 
   private async follow(): Promise<void> {
@@ -105,49 +93,23 @@ export class ProjectVenvSyncsOnTheStreamActionsFeed {
       this.endBecause(opened.failure.failureDescription);
       return;
     }
-    const feedConnection = opened.value;
-    this.feedConnection = feedConnection;
-    const resourceListen = feedConnection.listenForUpdatesOfTheResource(
-      STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI,
-      () => void this.readTheFeed(feedConnection),
-      (whyItEnded) => {
-        if (this.feedConnection === feedConnection) this.endBecause(whyItEnded);
-      },
-    );
-    if (this.feedConnection !== feedConnection) {
-      resourceListen.stop();
-      return;
-    }
-    this.resourceListen = resourceListen;
-    await this.readTheFeed(feedConnection);
-  }
-
-  private readTheFeed(feedConnection: StreamActionsFeedConnection): Promise<void> {
-    if (this.readInFlight !== null) {
-      this.isAnotherReadWanted = true;
-      return this.readInFlight;
-    }
-    const read = (async () => {
-      do {
-        this.isAnotherReadWanted = false;
-        const resourceRead = await feedConnection.readResourceText(STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI);
-        if (this.feedConnection !== feedConnection) return;
-        const actionsUnderWay = resourceRead.ok ? streamActionsUnderWayFromTheStreamActionsResourceText(resourceRead.value) : { ok: false as const, failure: resourceRead.failure.failureDescription };
+    const followedStreamActions: LocalApiResourceFollowedOverOneConnection = new LocalApiResourceFollowedOverOneConnection(opened.value, STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI, {
+      whenRead: async (reading) => {
+        const actionsUnderWay = reading.ok ? streamActionsUnderWayFromTheStreamActionsResourceText(reading.value) : reading;
         if (!actionsUnderWay.ok) {
           this.endBecause(actionsUnderWay.failure);
           return;
         }
         this.hasSaidWhyTheFeedEnded = false;
-        await this.noticeTheActionsUnderWay(feedConnection, actionsUnderWay.value);
-      } while (this.isAnotherReadWanted && this.feedConnection === feedConnection);
-    })().finally(() => {
-      if (this.readInFlight === read) this.readInFlight = null;
+        await this.noticeTheActionsUnderWay(followedStreamActions, actionsUnderWay.value);
+      },
+      whenTheListenEnded: (whyItEnded) => this.endBecause(whyItEnded),
     });
-    this.readInFlight = read;
-    return read;
+    this.followedStreamActions = followedStreamActions;
+    await followedStreamActions.start();
   }
 
-  private async noticeTheActionsUnderWay(feedConnection: StreamActionsFeedConnection, actionsUnderWay: readonly StreamActionDescription[]): Promise<void> {
+  private async noticeTheActionsUnderWay(followedStreamActions: LocalApiResourceFollowedOverOneConnection, actionsUnderWay: readonly StreamActionDescription[]): Promise<void> {
     const listedActions = new Map(actionsUnderWay.map((description) => [description.action, description]));
     const actionsMakingTheVenv = new Map(actionsUnderWay.filter(isMakingTheVenv).map((description) => [description.action, description]));
     const actionsThatLeftTheList = [...this.actionsListedAtTheLastRead].filter((action) => !listedActions.has(action));
@@ -158,14 +120,16 @@ export class ProjectVenvSyncsOnTheStreamActionsFeed {
     const hadAnySyncUnderWay = this.actionsMakingTheVenvAtTheLastRead.size > 0;
     this.actionsListedAtTheLastRead = new Set(listedActions.keys());
     this.actionsMakingTheVenvAtTheLastRead = actionsMakingTheVenv;
-    const endedSyncsReadAgain = await Promise.all(actionsThatLeftTheList.map((action) => this.lastSyncOfTheEndedAction(feedConnection, action)));
+    const endedSyncsReadAgain = await Promise.all(actionsThatLeftTheList.map((action) => this.lastSyncOfTheEndedAction(followedStreamActions, action)));
+    if (followedStreamActions.isStopped()) return;
     const syncsJustEnded = [...syncsThatLeftTheVenvStepStillListed, ...endedSyncsReadAgain.flatMap((endedSync) => endedSync ?? [])];
     this.syncsJustEnded.push(...syncsJustEnded);
     if (syncsJustEnded.length > 0 || actionsMakingTheVenv.size > 0 || hadAnySyncUnderWay) this.sources.whenTheSyncsChange();
   }
 
-  private async lastSyncOfTheEndedAction(feedConnection: StreamActionsFeedConnection, action: string): Promise<ProjectVenvSyncOfAStreamAction | null> {
-    const resourceRead = await feedConnection.readResourceText(streamActionResourceUri(action));
+  private async lastSyncOfTheEndedAction(followedStreamActions: LocalApiResourceFollowedOverOneConnection, action: string): Promise<ProjectVenvSyncOfAStreamAction | null> {
+    const resourceRead = await followedStreamActions.connection.readResourceText(streamActionResourceUri(action));
+    if (followedStreamActions.isStopped()) return null;
     const description = resourceRead.ok ? streamActionDescriptionFromTheStreamActionResourceText(resourceRead.value) : { ok: false as const, failure: resourceRead.failure.failureDescription };
     if (!description.ok) {
       this.sources.tatolabAppLog.warn("an ended stream action could not be read, so the Activity panel shows no sync for it", { action, because: description.failure });
@@ -175,17 +139,17 @@ export class ProjectVenvSyncsOnTheStreamActionsFeed {
   }
 
   private endBecause(why: string): void {
-    this.closeTheConnection();
-    this.isFollowing = false;
+    this.forgetTheFollowedConnection();
     if (this.hasStopped || this.hasSaidWhyTheFeedEnded) return;
     this.hasSaidWhyTheFeedEnded = true;
     this.sources.tatolabAppLog.warn("the runtime's stream actions are not followed until the next status round", { because: why });
   }
 
-  private closeTheConnection(): void {
-    this.resourceListen?.stop();
-    this.resourceListen = null;
-    this.feedConnection?.close();
-    this.feedConnection = null;
+  /** Stop the followed connection, and any follow still opening one, so the next round opens a new one. */
+  private forgetTheFollowedConnection(): void {
+    this.followedStreamActions?.stop();
+    this.followedStreamActions = null;
+    this.isFollowing = false;
+    this.followsStarted += 1;
   }
 }

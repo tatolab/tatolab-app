@@ -63,6 +63,7 @@ const PORT_VIEWER_REQUEST_TIMEOUT_MS = 5_000;
 
 /** How long a read of a project's change feed waits on the runtime. */
 const PROJECT_TRANSACTIONS_FEED_REQUEST_TIMEOUT_MS = 10_000;
+/** How long a read of the runtime's stream actions waits for its answer. */
 const STREAM_ACTIONS_FEED_REQUEST_TIMEOUT_MS = 10_000;
 
 const TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET = "Tato Studio has not reached the runtime yet.";

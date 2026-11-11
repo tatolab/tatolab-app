@@ -5,8 +5,8 @@ import {
   ProjectVenvSyncsOnTheStreamActionsFeed,
   STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI,
   streamActionResourceUri,
-  type StreamActionsFeedConnection,
 } from "./project_venv_syncs_on_the_stream_actions_feed.js";
+import type { LocalApiResourceFollowingConnection } from "./local_api_resource_followed_over_one_connection.js";
 import { succeeded } from "./result.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 
@@ -28,7 +28,7 @@ function fakeStreamActionsConnection() {
   const recorded = { resourceReads: [] as string[], closed: false, listenStopped: false };
   let sendAnUpdate: () => void = () => undefined;
   let endTheListen: (why: string) => void = () => undefined;
-  const connection: StreamActionsFeedConnection = {
+  const connection: LocalApiResourceFollowingConnection = {
     readResourceText: async (uri) => {
       recorded.resourceReads.push(uri);
       if (uri === STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI) return succeeded(JSON.stringify({ actions: served.actionsUnderWay }));
@@ -195,4 +195,42 @@ test("a feed that cannot be opened says why once and opens again at the next rou
 
   expect(attempts).toBe(2);
   expect(logLines.filter((logLine) => logLine.includes("connect ENOENT"))).toHaveLength(1);
+});
+
+test("a connection closed while its read is still out is never read from again, and the next connection is read at once", async () => {
+  const hungConnection = fakeStreamActionsConnection();
+  let releaseTheHungRead: () => void = () => undefined;
+  const hungRead = new Promise<void>((resolve) => {
+    releaseTheHungRead = resolve;
+  });
+  const readOfTheHungConnection = hungConnection.connection.readResourceText;
+  hungConnection.connection.readResourceText = async (uri) => {
+    await hungRead;
+    return readOfTheHungConnection(uri);
+  };
+  hungConnection.served.actionsUnderWay = [{ ...(await downloading()), action: "Rstale-1" }];
+  const nextConnection = fakeStreamActionsConnection();
+  nextConnection.served.actionsUnderWay = [await downloading()];
+  const connections = [hungConnection.connection, nextConnection.connection];
+  let syncChanges = 0;
+  const feed = new ProjectVenvSyncsOnTheStreamActionsFeed({
+    openTheFeedConnection: async () => succeeded(connections.shift() ?? nextConnection.connection),
+    whenTheSyncsChange: () => {
+      syncChanges += 1;
+    },
+    tatolabAppLog: createTatolabAppLog("warn", () => undefined),
+  });
+
+  feed.keepFollowing(true);
+  await settle();
+  feed.keepFollowing(false);
+  feed.keepFollowing(true);
+  await settle();
+  releaseTheHungRead();
+  await settle();
+
+  expect(hungConnection.recorded.closed).toBe(true);
+  expect(nextConnection.recorded.resourceReads).toEqual([STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI]);
+  expect(feed.takeTheProjectVenvSyncs().underWay.map((syncUnderWay) => syncUnderWay.action)).toEqual([ACTION]);
+  expect(syncChanges).toBe(1);
 });
