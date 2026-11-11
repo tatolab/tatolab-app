@@ -8,10 +8,17 @@ import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import type { StudioWindowValuesServedToViews } from "../view_host/studio_view_host_services";
 import { WatchedStudioValue } from "../view_host/watched_studio_value";
-import type { JsonValue, ListedStreamsReading, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
+import type { JsonValue, ListedStreamsReading, StopWatching, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
 import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, type StudioAreaLayoutNode } from "./studio_area_layout";
 import { STUDIO_LAYOUTS, type StudioLayoutName, type StudioLayoutsKeptInStorage, type StudioLayoutsOfAFolder } from "./studio_layouts";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
+import { showViewTypeInAreaOf, watchAreasForTheViewType, type StudioViewTypeAreaSources } from "./studio_view_type_areas";
+
+/** What the window's view types are named by, and when the ones it holds change. */
+export interface StudioViewTypeTitles {
+  viewTitleOf(viewTypeId: string): string | null;
+  watchChanges(onChanged: () => void): StopWatching;
+}
 
 /** A section the Module manager window is asked to show, and which ask of the window it is. */
 export interface ModuleManagerSectionAskNumbered {
@@ -78,8 +85,8 @@ export class StudioWindowModel {
   readonly streamDeletionRefusal = new WatchedStudioValue<string | null>(null);
   /** The tabs closed in this window, the last closed last, which Reopen closed tab opens again. */
   readonly closedStreamTabs = new WatchedStudioValue<readonly StreamTabAddress[]>([]);
-  /** The section Preferences shows while it is open; `null` while it is closed. */
-  readonly preferencesSection = new WatchedStudioValue<SettingsSection | null>(null);
+  /** The section Settings shows while it is open; `null` while it is closed. */
+  readonly settingsSection = new WatchedStudioValue<SettingsSection | null>(null);
   /** What the New project sheet opened with while it shows, a new project's name and location or a `.zip` to import; `null` while it is closed. */
   readonly newProjectSheetOpenedWith = new WatchedStudioValue<NewProjectSheetOpening | null>(null);
   /** Why the last rename, duplicate or delete the Projects window asked of a project did not happen, until it is dismissed or another is asked for. */
@@ -119,9 +126,12 @@ export class StudioWindowModel {
 
   constructor(private readonly layoutsKept: StudioLayoutsKeptInStorage) {}
 
-  /** What the views are served from this model. */
-  viewHostSources(): StudioWindowValuesServedToViews {
+  /** What the views are served from this model, each view type named through `viewTypeTitles`. */
+  viewHostSources(viewTypeTitles: StudioViewTypeTitles): StudioWindowValuesServedToViews {
+    const viewTypeAreaSources = this.viewTypeAreaSources(viewTypeTitles);
     return {
+      watchAreasForTheViewType: (viewTypeId, listener) => watchAreasForTheViewType(viewTypeId, viewTypeAreaSources, listener),
+      showViewTypeInArea: (viewTypeId, areaId) => showViewTypeInAreaOf(viewTypeId, areaId, viewTypeAreaSources),
       openProject: this.openProject,
       listedStreams: this.listedStreams,
       selection: this.selection,
@@ -131,6 +141,24 @@ export class StudioWindowModel {
       viewsOpenedOn: this.viewsOpenedOn,
       chosenLayout: () => this.studioLayouts.readLatest()?.chosen_layout ?? null,
       openView: (viewTypeId, on) => this.openView(viewTypeId, on),
+    };
+  }
+
+  private viewTypeAreaSources(viewTypeTitles: StudioViewTypeTitles): StudioViewTypeAreaSources {
+    return {
+      readChosenLayoutTree: () => {
+        const layouts = this.studioLayouts.readLatest();
+        return layouts === null ? null : layouts.layouts[layouts.chosen_layout];
+      },
+      isAPoppedOutViewsWindow: () => this.poppedOutView.readLatest() !== null,
+      viewTitleOf: (viewTypeId) => viewTypeTitles.viewTitleOf(viewTypeId),
+      watchChanges: (onChanged) => {
+        const stopWatchingEach = [this.studioLayouts.watch(onChanged), this.poppedOutView.watch(onChanged), viewTypeTitles.watchChanges(onChanged)];
+        return () => {
+          for (const stopWatching of stopWatchingEach) stopWatching();
+        };
+      },
+      showViewTypeInTheArea: (showing) => this.showViewTypeInArea(showing.area_id, showing.view_type_id),
     };
   }
 
@@ -262,7 +290,7 @@ export class StudioWindowModel {
 
   /** Whether the studio window shows a dialog of its own over its stream tabs: the Stream menu's, Preferences, or the New project sheet. */
   isADialogShownOverTheStreamTabs(): boolean {
-    return this.streamMenuQuestion.readLatest() !== null || this.preferencesSection.readLatest() !== null || this.newProjectSheetOpenedWith.readLatest() !== null;
+    return this.streamMenuQuestion.readLatest() !== null || this.settingsSection.readLatest() !== null || this.newProjectSheetOpenedWith.readLatest() !== null;
   }
 
   /** Ask, in the Stream menu's dialog, about the shown tab's stream: its new name, or whether to delete it. */

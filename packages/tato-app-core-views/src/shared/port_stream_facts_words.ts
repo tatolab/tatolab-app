@@ -1,4 +1,4 @@
-// What a port states about its stream, as the studio writes it on a pin, in Properties and over the Viewer: an
+// What a port states about its stream, as the studio writes it on a pin, in Properties and over the Node visualizer: an
 // Image output's frame rate and HDR light levels, a Packets output's codec, picture size, sample rate, channels and
 // configuration record, and a Records port's unchecked values.
 

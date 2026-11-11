@@ -15,8 +15,8 @@ import { streamTabsDrawnInTheTitleRow } from "../presentation/stream_tabs_presen
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { presentRecentProjectChangeRefusalTitle } from "../presentation/projects_presentation";
 import { AppUpdateAnnouncementDialogView } from "./app_update_announcement_dialog_view";
-import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
-import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
+import { SettingsDialogView } from "../setup_and_settings/settings_dialog_view";
+import { useTatolabStatus } from "../setup_and_settings/tatolab_window_context";
 import { StudioViewFailureBoundary } from "../view_host/studio_view_failure_boundary";
 import { useWatchedStudioValue, WatchedStudioValue } from "../view_host/watched_studio_value";
 import type { ViewHeaderRow } from "../view_host/studio_view_contract";
@@ -159,7 +159,7 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
       <StudioAreaFrame label={viewTypeHeldForDeveloperMode.title} header={<AreaViewTypeMenu area={area} sources={sources} words={viewTypeHeldForDeveloperMode.title} />} data-studio-area={area.area_id}>
         <WaitingState
           title={`${viewTypeHeldForDeveloperMode.title} shows only in Developer mode`}
-          explanation="Turn on Developer mode in Preferences › Developer, or choose another view from the menu above."
+          explanation="Turn on Developer mode in Settings › Developer, or choose another view from the menu above."
           data-studio-area-held-for-developer-mode=""
         />
       </StudioAreaFrame>
@@ -187,6 +187,7 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
       <StudioViewFailureBoundary key={viewType.view_type_id} viewTitle={viewType.title}>
         {viewType.renderInAnArea(
           {
+            area_id: area.area_id,
             saved_settings: area.settings,
             rememberSettings: (nextSettings) => sources.model.keepAreaSettings(area.area_id, nextSettings),
             header_row: headerRowInTheFrame,
@@ -234,7 +235,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const closedStreamTabs = useWatchedStudioValue(model.closedStreamTabs);
   const streamMenuQuestion = useWatchedStudioValue(model.streamMenuQuestion);
   const streamDeletionRefusal = useWatchedStudioValue(model.streamDeletionRefusal);
-  const preferencesSection = useWatchedStudioValue(model.preferencesSection);
+  const settingsSection = useWatchedStudioValue(model.settingsSection);
   const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
   const viewPopOutRefusal = useWatchedStudioValue(model.viewPopOutRefusal);
   const recentProjectChangeRefusal = useWatchedStudioValue(model.recentProjectChangeRefusal);
@@ -318,15 +319,19 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
       )}
       {isAProjectShown && <StreamMenuDialogsView question={streamMenuQuestion} streamEdits={sources.streamEdits} onClosed={() => model.streamMenuQuestion.publish(null)} />}
       <NewProjectSheetView openedWith={newProjectSheetOpenedWith} sources={sources.newProject} onClosed={() => model.newProjectSheetOpenedWith.publish(null)} />
-      <PreferencesDialogView
-        shownSection={preferencesSection}
-        onSectionChosen={(section) => model.preferencesSection.publish(section)}
-        onClosed={() => model.preferencesSection.publish(null)}
+      <SettingsDialogView
+        shownSection={settingsSection}
+        onSectionChosen={(section) => model.settingsSection.publish(section)}
+        onClosed={() => model.settingsSection.publish(null)}
+        openProjectInSettings={{
+          openProjectFolder: isAProjectShown && openProject.kind === "read" ? openProject.open_project.project.folder : null,
+          projectSettingsSources: sources.projects,
+        }}
       />
       <AppUpdateAnnouncementDialogView
         onUpdateInstallChosen={() => {
           model.appUpdateChoiceRefusal.publish(null);
-          model.preferencesSection.publish("about");
+          model.settingsSection.publish("about");
         }}
         onAnswerRefused={(because) => model.appUpdateChoiceRefusal.publish(because)}
       />

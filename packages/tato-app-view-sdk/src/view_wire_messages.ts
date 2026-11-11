@@ -19,6 +19,7 @@ import {
   projectTransactionAuthorSchema,
   projectTransactionSchema,
   projectTransactionsReadingSchema,
+  studioViewsReadingSchema,
   pythonLanguageServerConnectionEventSchema,
   graphEditModeSchema,
   projectActionRefusalSchema,
@@ -60,6 +61,31 @@ export const VIEW_PORT_HANDOVER = "tatolab_view_port";
 
 const watchOrAskIdSchema = z.number().int().nonnegative();
 
+/** A section of the window that lists modules: the modules added to the open project, or the Marketplace's packages and samples. */
+export const modulesAndMarketplaceSectionSchema = z.enum(["added_to_this_project", "marketplace"]);
+/** A section of the Modules and Marketplace window. */
+export type ModulesAndMarketplaceSection = z.infer<typeof modulesAndMarketplaceSectionSchema>;
+
+/** One area of the studio window's chosen layout, as a view of some type could be shown in it: what it shows now, by its view's title, and whether that is the view type itself or the area of the view asking. */
+export const areaForAViewTypeSchema = z.object({
+  area_id: z.string(),
+  /** The title of the view the area shows, `null` while it shows none. */
+  shows_view_title: z.string().nullable(),
+  shows_the_view_type: z.boolean(),
+  is_the_asking_views_area: z.boolean(),
+});
+/** One area a view of some type could be shown in. */
+export type AreaForAViewType = z.infer<typeof areaForAViewTypeSchema>;
+
+/** The areas of the chosen layout for a view type, as its node's Show in an area lists them: none when no view type has that id, or why the window has no areas. */
+export const areasForAViewTypeReadingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("not_a_view_type") }),
+  z.object({ kind: z.literal("areas_listed"), view_title: z.string(), areas: z.array(areaForAViewTypeSchema) }),
+  z.object({ kind: z.literal("no_areas"), because: z.string() }),
+]);
+/** The areas of the chosen layout for a view type. */
+export type AreasForAViewTypeReading = z.infer<typeof areasForAViewTypeReadingSchema>;
+
 /** What a view may watch. */
 export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("open_project") }),
@@ -74,6 +100,8 @@ export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("project_assets"), project_folder: z.string() }),
   /** The project's change feed, read again each time the runtime applies a transaction to it. */
   z.object({ kind: z.literal("project_transactions"), project_folder: z.string() }),
+  /** The views Studio ships with and those the open project and its imports bring, listed again with the project's. */
+  z.object({ kind: z.literal("studio_views") }),
   /** A running node's output port, read until the watch stops. */
   z.object({ kind: z.literal("port_viewer"), target: portViewerTargetSchema }),
   /** What is wired into one of a `node` view's own inputs. */
@@ -83,6 +111,8 @@ export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("settings") }),
   z.object({ kind: z.literal("opened_on") }),
   z.object({ kind: z.literal("header_row") }),
+  /** The chosen layout's areas for the view type `view_type_id`, read again as the layout or the view types change. */
+  z.object({ kind: z.literal("areas_for_the_view_type"), view_type_id: z.string() }),
 ]);
 /** What a view may watch. */
 export type ViewWatchedSubject = z.infer<typeof viewWatchedSubjectSchema>;
@@ -128,6 +158,10 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("read_the_person_editing") }),
   /** Ask the person for files in the desktop's open dialog and import each into the project through the runtime's `import_asset`, which places it in its kind's folder. */
   z.object({ kind: z.literal("import_assets_into_the_project"), project_folder: z.string() }),
+  /** Show the view type `view_type_id` in area `area_id` of the chosen layout, in place of what it shows. */
+  z.object({ kind: z.literal("show_view_type_in_area"), view_type_id: z.string(), area_id: z.string() }),
+  /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
+  z.object({ kind: z.literal("open_modules_and_marketplace"), shows: modulesAndMarketplaceSectionSchema }),
 ]);
 /** What a view may ask Studio to do. */
 export type ViewAsk = z.infer<typeof viewAskSchema>;
@@ -159,12 +193,14 @@ export const viewWatchedReadingSchema = z.discriminatedUnion("subject", [
   z.object({ subject: z.literal("project_node_types"), reading: projectNodeTypesReadingSchema }),
   z.object({ subject: z.literal("project_assets"), reading: projectAssetsReadingSchema }),
   z.object({ subject: z.literal("project_transactions"), reading: projectTransactionsReadingSchema }),
+  z.object({ subject: z.literal("studio_views"), reading: studioViewsReadingSchema }),
   z.object({ subject: z.literal("port_viewer"), reading: portViewerEventSchema }),
   z.object({ subject: z.literal("input"), reading: viewInputEventSchema }),
   z.object({ subject: z.literal("python_language_server"), reading: pythonLanguageServerConnectionEventSchema }),
   z.object({ subject: z.literal("settings"), reading: jsonValueSchema }),
   z.object({ subject: z.literal("opened_on"), reading: viewOpenedOnSchema }),
   z.object({ subject: z.literal("header_row"), reading: viewHeaderRowSchema }),
+  z.object({ subject: z.literal("areas_for_the_view_type"), reading: areasForAViewTypeReadingSchema }),
 ]);
 /** One reading of a watched subject. */
 export type ViewWatchedReading = z.infer<typeof viewWatchedReadingSchema>;

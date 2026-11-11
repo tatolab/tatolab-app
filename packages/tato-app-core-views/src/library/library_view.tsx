@@ -17,7 +17,8 @@ import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/ru
 import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import type { OpenProjectReading, ProjectAsset, ProjectAssetsReading, ProjectNodeTypePort, ProjectNodeTypesReading } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { OpenProjectReading, ProjectAsset, ProjectAssetsReading, ProjectNodeTypePort, ProjectNodeTypesReading, StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
@@ -39,21 +40,32 @@ import {
   noAssetShownWords,
   shortenedDigest,
 } from "./library_assets_of_the_listing";
+import { libraryViewGroupsOf, libraryViewRowIdOf, studioViewPortsWords, studioViewShownWhereWords } from "./library_views_of_the_listing";
+
+/** One declared port's row: which way it faces, its family's pin, its name, and its family in words. */
+function LibraryPortRow({ direction, portName, family, familyWords, portTitle, dataAttribute }: { direction: "In" | "Out"; portName: string; family: ProjectNodeTypePort["family"]; familyWords: string; portTitle: string | undefined; dataAttribute: "data-library-port" | "data-library-view-port" }) {
+  return (
+    <div className="flex h-6 min-w-0 items-center gap-2 text-xs" title={portTitle} {...{ [dataAttribute]: portName }}>
+      <span className="w-6 shrink-0 text-right text-2xs text-fg-3">{direction}</span>
+      <NodeGraphPinMark family={family} />
+      <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-fg">{portName}</span>
+      <span className="shrink-0 text-fg-3">{familyWords}</span>
+    </div>
+  );
+}
 
 function PortsOfTheDeclaration({ direction, ports }: { direction: "In" | "Out"; ports: ProjectNodeTypePort[] | null }) {
   if (ports === null) return <p className="px-1 text-xs text-fg-3">{direction === "In" ? "Inputs" : "Outputs"} stated only by its native half</p>;
   return ports.map((port) => (
-    <div
+    <LibraryPortRow
       key={`${direction}:${port.name}`}
-      className="flex h-6 min-w-0 items-center gap-2 text-xs"
-      title={port.description === "" ? (port.annotation ?? undefined) : port.description}
-      data-library-port={port.name}
-    >
-      <span className="w-6 shrink-0 text-right text-2xs text-fg-3">{direction}</span>
-      <NodeGraphPinMark family={port.family} />
-      <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-fg">{port.name}</span>
-      <span className="shrink-0 text-fg-3">{port.family === null ? (port.annotation ?? "Family not stated") : nodeGraphPinFamilyWords(port.family)}</span>
-    </div>
+      direction={direction}
+      portName={port.name}
+      family={port.family}
+      familyWords={port.family === null ? (port.annotation ?? "Family not stated") : nodeGraphPinFamilyWords(port.family)}
+      portTitle={port.description === "" ? (port.annotation ?? undefined) : port.description}
+      dataAttribute="data-library-port"
+    />
   ));
 }
 
@@ -135,16 +147,101 @@ function DetailsOfTheDeclaration({ declaration }: { declaration: DeclarationRowM
   }
 }
 
-/** What the Library shows: the node types the project can place, its graph generators, or its assets. */
-type LibraryShown = LibraryDeclarationsShown | "assets";
+/** What the Library shows: the node types the project can place, the views it can show, its graph generators, or its assets. */
+type LibraryShown = LibraryDeclarationsShown | "views" | "assets";
 
 const LIBRARY_SHOWN_CHOICES: readonly MenuSingleChoice<LibraryShown>[] = [
   { choice: "node_types", label: "Node types" },
+  { choice: "views", label: "Views" },
   { choice: "graph_generators", label: "Generators" },
   { choice: "assets", label: "Assets" },
 ];
 
-const LIBRARY_SHOWN_WORDS: Record<LibraryShown, string> = { node_types: "Node types", graph_generators: "Generators", assets: "Assets" };
+const LIBRARY_SHOWN_WORDS: Record<LibraryShown, string> = { node_types: "Node types", views: "Views", graph_generators: "Generators", assets: "Assets" };
+
+function PortsOfTheView({ direction, ports }: { direction: "In" | "Out"; ports: StudioViewListed["inputs"] }) {
+  return ports.map((port) => (
+    <LibraryPortRow
+      key={`${direction}:${port.name}`}
+      direction={direction}
+      portName={port.name}
+      family={port.family}
+      familyWords={nodeGraphPinFamilyWords(port.family)}
+      portTitle={port.description === "" ? undefined : port.description}
+      dataAttribute="data-library-view-port"
+    />
+  ));
+}
+
+/** The chosen view at length: what its manifest says of it, who brought it, and its ports, or why it does not open. */
+function DetailsOfTheView({ studioView }: { studioView: StudioViewListed }) {
+  const facts: KeyValueRow[] = [
+    ["Brought by", studioView.brought_by],
+    ["View type", <span className="font-mono">{studioView.view_type_id}</span>],
+    ["Shows", studioViewShownWhereWords(studioView)],
+  ];
+  return (
+    <div className="scrollbar-thin flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4" data-library-view-details={libraryViewRowIdOf(studioView)}>
+      <h2 className="text-base font-semibold text-fg">{studioView.title}</h2>
+      {studioView.description !== "" && <p className="text-xs text-fg-2">{studioView.description}</p>}
+      {studioView.not_opened_because !== null && <RuntimeFailureWords words={studioView.not_opened_because} data-library-view-not-opened-because="" />}
+      <KeyValueRows rows={facts} />
+      {studioView.placement === "node" && (
+        <PropertySection title="Ports">
+          {studioView.inputs.length === 0 && studioView.outputs.length === 0 ? (
+            <p className="px-1 text-xs text-fg-3">None</p>
+          ) : (
+            <>
+              <PortsOfTheView direction="In" ports={studioView.inputs} />
+              <PortsOfTheView direction="Out" ports={studioView.outputs} />
+            </>
+          )}
+        </PropertySection>
+      )}
+    </div>
+  );
+}
+
+/** The views an area can show, by who brought them, narrowed by the Library's search, the chosen one at length beside them. */
+function ViewsOfTheProject({ connection, searchText }: { connection: TatoAppViewConnection; searchText: string }) {
+  const studioViewsReading = useViewReading(connection.watchStudioViews);
+  const [chosenViewRowId, setChosenViewRowId] = useState<string | null>(null);
+  if (studioViewsReading === null) return <WaitingState title="Reading the views" data-library-state="waiting" />;
+  const viewGroups = libraryViewGroupsOf(studioViewsReading, searchText);
+  const viewsListed = viewGroups.flatMap((viewGroup) => viewGroup.studio_views);
+  const chosenView = viewsListed.find((studioView) => libraryViewRowIdOf(studioView) === chosenViewRowId) ?? viewsListed[0] ?? null;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col" data-library-views="">
+      {studioViewsReading.kind === "not_listed" && <RefusalLine layout="bar" lead="The project's views could not be listed:" words={studioViewsReading.because} data-library-views-not-listed="" />}
+      {viewsListed.length === 0 || chosenView === null ? (
+        searchText.trim() === "" ? (
+          <WaitingState title="No views" data-library-state="no_views" />
+        ) : (
+          <WaitingState title={`No view matches “${searchText.trim()}”`} data-library-state="no_view_matches" />
+        )
+      ) : (
+        <div className="flex min-h-0 flex-1">
+          <SectionNavigationList
+            label="Views"
+            width="wide"
+            sectionGroups={viewGroups.map((viewGroup) => ({
+              groupLabel: viewGroup.brought_by,
+              sections: viewGroup.studio_views.map((studioView) => ({
+                section_id: libraryViewRowIdOf(studioView),
+                label: `${studioView.title} · ${studioViewPortsWords(studioView)}`,
+                icon: studioIconNamed(studioView.placement === null ? "unreadable" : "project_view"),
+              })),
+            }))}
+            shownSectionId={libraryViewRowIdOf(chosenView)}
+            onSectionChosen={setChosenViewRowId}
+            dataAttributeOfEachSection="data-library-view"
+          />
+          <DetailsOfTheView studioView={chosenView} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** The open project's node types or graph generators, by source, as the runtime reads them from source. */
 function DeclarationsOfTheProject({ connection, projectFolder, declarationsShown }: { connection: TatoAppViewConnection; projectFolder: string; declarationsShown: LibraryDeclarationsShown }) {
@@ -350,6 +447,7 @@ function LibraryBody({
   onAssetsShownChanged: (assetsShown: AssetsShownInTheLibrary) => void;
 }) {
   if (openProject === null) return null;
+  if (shown === "views") return <ViewsOfTheProject connection={connection} searchText={choices.searchText} />;
   if (openProject.kind === "none_open") return <WaitingState title="No project is open" explanation="Open or create one from the File menu." />;
   if (openProject.kind === "unreadable") return <WaitingState isFailure title={`${openProject.folder} can't be read`} explanation={openProject.refusal} />;
   const projectFolder = openProject.open_project.project.folder;
@@ -401,8 +499,22 @@ export function LibraryView({ connection }: { connection: TatoAppViewConnection 
       headerTools={
         <>
           <StudioAreaHeaderChoiceMenu leadingWord="Show" words={LIBRARY_SHOWN_WORDS[shown]} label={`Show: ${LIBRARY_SHOWN_WORDS[shown]}`} data-library-shown={shown}>
-            <MenuSingleChoiceGroup choices={LIBRARY_SHOWN_CHOICES} chosen={shown} onChosen={setShown} dataAttributeOfEachChoice="data-library-shown-choice" closesTheMenuOnChoice />
+            <MenuSingleChoiceGroup
+              choices={LIBRARY_SHOWN_CHOICES}
+              chosen={shown}
+              onChosen={(shownNext) => {
+                setShown(shownNext);
+                changeTheChoices({ searchText: "" });
+              }}
+              dataAttributeOfEachChoice="data-library-shown-choice"
+              closesTheMenuOnChoice
+            />
           </StudioAreaHeaderChoiceMenu>
+          {shown === "views" && (
+            <span className="ml-auto flex min-w-0 items-center justify-end gap-1.5">
+              <SearchField label="Search views" placeholder="Search views" text={choices.searchText} onTextChanged={(searchText) => changeTheChoices({ searchText })} data-library-view-search="" />
+            </span>
+          )}
           {shown === "assets" && projectFolder !== null && (
             <span className="ml-auto flex min-w-0 items-center justify-end gap-1.5">
               <SearchField label="Search assets" placeholder="Search assets" text={choices.searchText} onTextChanged={(searchText) => changeTheChoices({ searchText })} data-library-asset-search="" />

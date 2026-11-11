@@ -263,6 +263,29 @@ describe("the studio", () => {
     expect(details.textContent).toContain("11 KB");
   });
 
+  it("lists in the Library the views the project and its imports bring by who brought them, Studio's own last, with the chosen view's ports or why it does not open", async () => {
+    await mountedWindowOverTheMock("state=running&studio_views=fixture");
+    await showTheLibraryInTheViewerArea();
+    await showInTheLibrary("views");
+
+    const library = coreViewPage("library");
+    const viewRowIds = () => [...library.querySelectorAll<HTMLElement>("[data-library-view]")].map((row) => row.dataset.libraryView);
+    await waitFor(() => expect(viewRowIds().slice(0, 2)).toEqual(["pattern/pattern:picture_and_fader", "lobby-wall/lobby-wall:stage_rig"]));
+    expect(viewRowIds()).toContain("Tato Studio/outliner");
+    expect(viewRowIds()).not.toContain("Tato Studio/transactions");
+    expect(library.querySelector('[data-library-view="pattern/pattern:picture_and_fader"]')?.textContent).toContain("Picture and fader · 1 in · 1 out");
+    const details = () => library.querySelector<HTMLElement>("[data-library-view-details]") ?? expect.unreachable("no view details");
+    expect(details().dataset.libraryViewDetails).toBe("pattern/pattern:picture_and_fader");
+    expect([...details().querySelectorAll<HTMLElement>("[data-library-view-port]")].map((port) => port.dataset.libraryViewPort)).toEqual(["picture", "fader"]);
+
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-view="lobby-wall/lobby-wall:stage_rig"]') ?? expect.unreachable("no Stage rig row"));
+    await waitFor(() => expect(details().dataset.libraryViewDetails).toBe("lobby-wall/lobby-wall:stage_rig"));
+    expect(details().textContent).toContain("`contract`: this runtime reads view contract 1.0.");
+
+    fireEvent.change(library.querySelector<HTMLInputElement>("[data-library-view-search]") ?? expect.unreachable("no search field"), { target: { value: "fader" } });
+    await waitFor(() => expect(viewRowIds()).toEqual(["pattern/pattern:picture_and_fader"]));
+  });
+
   it("imports the file the person chooses, which the runtime places in its kind's folder, shows it at once and opens its details", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
@@ -691,30 +714,39 @@ describe("the studio", () => {
     expect(await shownLayout()).toBe("code");
   });
 
-  it("plays the open stream's last picture in the Viewer's own frame, reading the port as a port viewer", async () => {
-    await mountedWindowOverTheMock("state=running");
+  it("asks for a node while nothing is selected, then plays the node clicked, reading its port as a port viewer", async () => {
+    await mountedWindowOverTheMock("state=running&outliner=open");
     await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
     fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
 
-    const playing = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>("[data-viewer-playing]") ?? expect.unreachable("the Viewer plays nothing"));
+    const askingForANode = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-state="nothing_selected"]') ?? expect.unreachable("no placeholder asking for a node"));
+    expect(askingForANode.textContent).toContain("Select a node to visualize it");
+    expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-port-chooser]")).toBeNull();
+
+    fireEvent.click(await waitFor(() => outlinerRow(`node:${PATTERN_MAIN_STREAM}/invertingeffect`)));
+    const playing = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>("[data-viewer-playing]") ?? expect.unreachable("the Node visualizer plays nothing"));
     expect(playing.getAttribute("data-viewer-playing")).toBe("invertingeffect/video_to_downstream");
     expect(playing.querySelector("canvas")?.getAttribute("aria-label")).toBe("Live picture of Inverting Effect › video_to_downstream");
     await waitFor(() => expect(playing.getAttribute("data-viewer-port-state")).toBe("ended"));
     expect(playing.textContent).toContain("This page has no WebCodecs VideoFrame to play the mock's frames.");
+
+    fireEvent.click(outlinerRow(`node:${PATTERN_MAIN_STREAM}/displaywindow`));
+    const withoutOutput = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-state="node_without_output"]') ?? expect.unreachable("no placeholder for a node with no output"));
+    expect(withoutOutput.textContent).toContain("Display Window");
   });
 
-  it("chooses the Viewer's port from its own header row, and keeps the choice in the area's settings", async () => {
-    await mountedWindowOverTheMock("state=running");
-    const viewerPage = await waitFor(() => (coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]") === null ? expect.unreachable("the Viewer plays nothing") : coreViewPage("viewer", "viewer")));
-    pressAsAPointerDoes(viewerPage.querySelector<HTMLElement>("[data-viewer-port-chooser]") ?? expect.unreachable("no port chooser"));
-    // The view's component draws in the test's own module graph, so its menu's popup goes to the window's document, not the frame's.
-    const sourceChoice = await waitFor(
-      () => [...document.querySelectorAll<HTMLElement>("[data-viewer-port-choice]")].find((choice) => choice.textContent === "Test Pattern Source › video") ?? expect.unreachable("no source port to choose"),
-    );
-    fireEvent.click(sourceChoice);
+  it("shows a stopped node's port as its family's placeholder in the Node visualizer, opening no read of it", async () => {
+    await mountedWindowOverTheMock("state=running&node_states=stopped&outliner=open");
+    await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
+    fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
+    fireEvent.click(await waitFor(() => outlinerRow(`node:${PATTERN_MAIN_STREAM}/invertingeffect`)));
 
-    await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")?.getAttribute("data-viewer-playing")).toMatch(/\/video$/));
-    expect(localStorage.getItem(studioLayoutsStorageKey(PATTERN_PROJECT))).toMatch(/"area_id":"viewer","view_type_id":"viewer","settings":\{"chosen_port":\{"stream":"[^"]+","node_id":"[^"]+","port":"[^"]+"\}\}/);
+    const placeholder = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-state="node_not_running"]') ?? expect.unreachable("no placeholder for the stopped node"));
+    expect(placeholder.getAttribute("data-viewer-node-state")).toBe("Stopped");
+    expect(placeholder.getAttribute("data-family")).toBe("image");
+    expect(placeholder.textContent).toContain("Inverting Effect › video_to_downstream");
+    expect(placeholder.textContent).toContain("Not running. It shows here live once the stream plays.");
+    expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).toBeNull();
   });
 
   it("opens a node type's file in Code's own frame from the Library, in the first layout with a Code area, its tab and the log's toggle in Code's header row, a closed tab staying closed as the frame loads again until the file is opened again, and the Code layout's own area left as it was", async () => {
@@ -772,11 +804,11 @@ describe("the studio", () => {
       pressAsAPointerDoes(area.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
       fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>(`[data-area-pop-out="${areaId}"]`) ?? expect.unreachable("no Pop out into a window")));
     };
-    await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).not.toBeNull());
+    await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector('[data-viewer-state="nothing_selected"]')).not.toBeNull());
 
     await popOutTheViewOf("viewer");
     const mainStreamTab = { stream: PATTERN_MAIN_STREAM, project_name: "pattern", display_name: "main" };
-    await waitFor(() => expect(popOutsAsked).toEqual([{ view_type_id: "viewer", window_title: "main · Viewer", pinned_to: { stream_tab: mainStreamTab, selection: { kind: "nothing" }, settings: null } }]));
+    await waitFor(() => expect(popOutsAsked).toEqual([{ view_type_id: "viewer", window_title: "main · Node visualizer", pinned_to: { stream_tab: mainStreamTab, selection: { kind: "nothing" }, settings: null } }]));
     await popOutTheViewOf("outliner");
     await waitFor(() => expect(popOutsAsked[1]).toMatchObject({ view_type_id: "outliner", window_title: "main · Outliner" }));
     expect(document.querySelector("[data-view-pop-out-refusal]")).toBeNull();
@@ -790,15 +822,15 @@ describe("the studio", () => {
     const mainStreamTab = { stream: PATTERN_MAIN_STREAM, project_name: "pattern", display_name: "main" };
     const poppedOutViewer: PoppedOutView = {
       view_type_id: "viewer",
-      window_title: "main › invertingeffect · Viewer",
+      window_title: "main › invertingeffect · Node visualizer",
       pinned_to: { stream_tab: mainStreamTab, selection: { kind: "node", stream: PATTERN_MAIN_STREAM, node: "invertingeffect" }, settings: null },
     };
     await mountedWindowOverTheMock(`state=running&popped_out_view=${encodeURIComponent(JSON.stringify(poppedOutViewer))}`);
 
-    const playing = await waitFor(() => coreViewPage("viewer").querySelector<HTMLElement>("[data-viewer-playing]") ?? expect.unreachable("the popped-out Viewer plays nothing"));
+    const playing = await waitFor(() => coreViewPage("viewer").querySelector<HTMLElement>("[data-viewer-playing]") ?? expect.unreachable("the popped-out Node visualizer plays nothing"));
     expect(playing.getAttribute("data-viewer-playing")).toBe("invertingeffect/video_to_downstream");
     expect(document.querySelector('[data-popped-out-view="viewer"] iframe[data-tatolab-view="viewer"]')).not.toBeNull();
-    expect(textOf("[data-popped-out-view-title]")).toBe("main › invertingeffect · Viewer");
+    expect(textOf("[data-popped-out-view-title]")).toBe("main › invertingeffect · Node visualizer");
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
     expect(document.querySelector("[data-studio-area]")).toBeNull();
     expect(document.querySelector("[data-projects]")).toBeNull();
@@ -815,7 +847,7 @@ describe("the studio", () => {
   it("shows the view an area's view-type menu chooses, each of the app's own views saying it comes with Tato Studio, and the project reopens with it", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
-    await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).not.toBeNull());
+    await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector('[data-viewer-state="nothing_selected"]')).not.toBeNull());
 
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
     expect(await screen.findByText("This project and its imports bring no views.")).toBeTruthy();
@@ -867,6 +899,40 @@ describe("the studio", () => {
     expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
   });
 
+  it("opens the Marketplace from Install modules… at the foot of the node search, closing the search", async () => {
+    const modulesAndMarketplaceSectionsOpened: string[] = [];
+    await mountedWindowOverTheMock("state=running", {
+      openModuleManagerWindow: async (shows) => {
+        modulesAndMarketplaceSectionsOpened.push(shows);
+      },
+    });
+    const streamGraph = coreViewPage("stream_graph", "stream-graph");
+    const addNodeInTheRibbon = await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-tool="add_node"]') ?? expect.unreachable("no Add node in the graph's ribbon"));
+    fireEvent.click(addNodeInTheRibbon);
+    const nodeSearch = await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Add a node" }));
+
+    fireEvent.click(within(nodeSearch).getByRole("button", { name: "Install modules…" }));
+    await waitFor(() => expect(modulesAndMarketplaceSectionsOpened).toEqual(["marketplace"]));
+    expect(within(streamGraph.body).queryByRole("dialog", { name: "Add a node" })).toBeNull();
+  });
+
+  it("shows a view node's view in an area from Properties' Show in an area, in place of what that area showed", async () => {
+    await mountedWindowOverTheMock("state=running&studio_views=fixture");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="pictureandfader"]') ?? expect.unreachable("no view node card")));
+    const properties = () => coreViewPage("properties");
+    const shownInWords = () => properties().querySelector("[data-properties-view-shown-in-words]")?.textContent;
+    await waitFor(() => expect(shownInWords()).toBe("Not shown"));
+
+    pressAsAPointerDoes(properties().querySelector<HTMLElement>("[data-properties-show-in-an-area]") ?? expect.unreachable("no Show in an area"));
+    const viewerChoice = await screen.findByRole("menuitem", { name: "In place of Node visualizer" });
+    expect(screen.queryByRole("menuitem", { name: "In place of Properties" })).toBeNull();
+    fireEvent.click(viewerChoice);
+
+    await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] iframe[data-tatolab-view]')?.getAttribute("data-tatolab-view")).toBe("pattern:picture_and_fader"));
+    await waitFor(() => expect(shownInWords()).toBe("1 area"));
+  });
+
   it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {
     await mountedWindowOverTheMock("state=running");
     expect(await shownLayout()).toBe("build");
@@ -902,7 +968,7 @@ describe("the studio", () => {
   it("lists a view the project brings, and draws it with full access in a frame of its own on the stream's node of its type", async () => {
     await mountedWindowOverTheMock("state=running&studio_views=fixture");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
-    await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).not.toBeNull());
+    await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector('[data-viewer-state="nothing_selected"]')).not.toBeNull());
 
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Picture and fader/ }));
@@ -950,16 +1016,16 @@ describe("the studio", () => {
     expect(document.querySelector("[data-projects]")).toBeNull();
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
     await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => `${tab.textContent} ${tab.getAttribute("aria-selected")}`)).toEqual(["main true"]));
-    await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).not.toBeNull());
+    await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector('[data-viewer-state="nothing_selected"]')).not.toBeNull());
   });
 
-  it("shows the Projects window with no menu bar, a bare strip for the window buttons on macOS only, and a gear that opens Preferences", async () => {
+  it("shows the Projects window with no menu bar, a bare strip for the window buttons on macOS only, and a gear that opens Settings", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
     await waitFor(() => expect(document.querySelector("[data-projects]")).not.toBeNull());
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
     expect(document.querySelector("[data-projects-title-bar]")).not.toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Preferences" }));
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
 
     await waitFor(() => expect(document.querySelector('[data-settings-page="general"]')).not.toBeNull());
   });
@@ -1601,8 +1667,8 @@ describe("the window's first status", () => {
   });
 });
 
-describe("Preferences", () => {
-  it("opens on macOS from Tato Studio › Settings… in the system menu bar, after About and Check for Updates…, on General", async () => {
+describe("Settings", () => {
+  it("opens on macOS from Tato Studio › Settings… in the system menu bar, after About and Check for Updates…, on Project while a project is open", async () => {
     const { backendChanges, menusShownLast, chooseFromTheSystemMenuBar } = systemMenuBarOverTheMock();
     await mountedWindowOverTheMock("state=running", backendChanges);
     await waitFor(() =>
@@ -1617,18 +1683,53 @@ describe("Preferences", () => {
     );
 
     await chooseFromTheSystemMenuBar("Tato Studio › Settings…");
-    await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
+    await waitFor(() => expect(document.querySelector(`[data-settings-page="project"]`)).not.toBeNull());
   });
 
-  it("opens on Linux from Edit › Preferences… on General, listing every section under its group beside it", async () => {
+  it("opens on Linux from Edit › Settings… on Project while a project is open, listing every section under its group beside it", async () => {
     await mountedWindowOverTheMock("platform=linux&state=running");
-    await chooseFromTheMenuBar("Edit", /^Preferences…/);
+    await chooseFromTheMenuBar("Edit", /^Settings…/);
 
-    await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
-    const sectionList = within(screen.getByRole("navigation", { name: "Preferences" }));
-    expect(sectionList.getByRole("button", { name: "General" }).getAttribute("aria-current")).toBe("page");
-    expect(sectionList.getAllByRole("button").map((sectionButton) => sectionButton.textContent)).toEqual(["General", "Developer", "Runtime", "Command line", "About"]);
+    await waitFor(() => expect(document.querySelector(`[data-settings-page="project"]`)).not.toBeNull());
+    const sectionList = within(screen.getByRole("navigation", { name: "Settings" }));
+    expect(sectionList.getByRole("button", { name: "Project" }).getAttribute("aria-current")).toBe("page");
+    expect(sectionList.getAllByRole("button").map((sectionButton) => sectionButton.textContent)).toEqual(["Project", "General", "Developer", "Runtime", "Command line", "About"]);
     expect(sectionList.getByText("This machine")).toBeTruthy();
+    expect(sectionList.getByText("This project")).toBeTruthy();
+  });
+
+  it("changes the open project's name, description and cover in Settings' Project section", async () => {
+    const setRecentProjectDescription = vi.fn<(folder: string, description: string) => Promise<void>>(async () => undefined);
+    const renameRecentProject = vi.fn<(folder: string, name: string) => Promise<void>>(async () => undefined);
+    const setRecentProjectCover = vi.fn<(folder: string, image: string | null) => Promise<void>>(async () => undefined);
+    const chooseProjectCoverImage = vi.fn<() => Promise<string | null>>(async () => "/Users/jonathanf/Pictures/stage.png");
+    await mountedWindowOverTheMock("state=running", { setRecentProjectDescription, renameRecentProject, setRecentProjectCover, chooseProjectCoverImage });
+    await openSettingsOn("project");
+    const projectSettings = await waitFor(() => document.querySelector<HTMLElement>(`[data-project-settings="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no Project section"));
+    const nameField = await waitFor(() => projectSettings.querySelector<HTMLInputElement>("[data-project-details-name]") ?? expect.unreachable("no name field"));
+    expect(nameField.value).toBe("pattern");
+
+    fireEvent.change(nameField, { target: { value: "Lobby pattern" } });
+    fireEvent.keyDown(nameField, { key: "Enter" });
+    await waitFor(() => expect(renameRecentProject).toHaveBeenCalledWith(PATTERN_PROJECT, "Lobby pattern"));
+
+    const descriptionField = projectSettings.querySelector<HTMLTextAreaElement>("[data-project-details-description]") ?? expect.unreachable("no description field");
+    fireEvent.change(descriptionField, { target: { value: "The lobby's test pattern." } });
+    fireEvent.blur(descriptionField);
+    await waitFor(() => expect(setRecentProjectDescription).toHaveBeenCalledWith(PATTERN_PROJECT, "The lobby's test pattern."));
+
+    fireEvent.click(within(projectSettings).getByRole("button", { name: "Choose image…" }));
+    await waitFor(() => expect(setRecentProjectCover).toHaveBeenCalledWith(PATTERN_PROJECT, "/Users/jonathanf/Pictures/stage.png"));
+  });
+
+  it("lists no Project section in Settings opened from the Projects window", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
+    await waitFor(() => expect(document.querySelectorAll("[data-projects-project]").length).toBeGreaterThan(0));
+    fireEvent.keyDown(document, { key: ",", metaKey: true });
+    fireEvent.keyDown(document, { key: ",", ctrlKey: true });
+    await waitFor(() => expect(document.querySelector('[data-settings-page="general"]')).not.toBeNull());
+    expect(document.querySelector('[data-settings-section="project"]')).toBeNull();
+    expect(screen.queryByText("This project")).toBeNull();
   });
 
   it("names the running runtime's version and uptime and its local API socket, and restarts it through Starting", { timeout: 10_000 }, async () => {
@@ -1849,7 +1950,7 @@ describe("the update dialog", () => {
   });
 });
 
-describe("Preferences › Command line › tatolab", () => {
+describe("Settings › Command line › tatolab", () => {
   it("links ~/.local/bin/tatolab with no password, then shows the link and the PATH line", async () => {
     await mountedWindowOverTheMock("state=running&cli_link=not_linked");
     await openSettingsOn("command-line");

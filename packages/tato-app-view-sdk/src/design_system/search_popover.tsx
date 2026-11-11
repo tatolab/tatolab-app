@@ -2,6 +2,7 @@ import { cn } from "cn";
 import { Search } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
+import { InlineLink } from "./inline_link";
 import { KeyboardKey } from "./keyboard_key";
 import { searchPopoverCategoriesMatching, searchPopoverItemAfterAnArrow, type SearchPopoverCategory, type SearchPopoverItem } from "./support/search_popover_rows";
 
@@ -37,6 +38,7 @@ export function SearchPopover({
   chooseAndStayWords,
   onItemChosen,
   onClosed,
+  footLink,
   ...controlDataAttributes
 }: {
   /** The search's accessible name, as "Add a node". */
@@ -56,6 +58,8 @@ export function SearchPopover({
   /** `staysOpen` is set when ⇧↵ chose it. */
   onItemChosen: (itemId: string, staysOpen: boolean) => void;
   onClosed: () => void;
+  /** A way on from the search at its foot, as "Install modules…", pressed after the popover asks to close. */
+  footLink?: { words: string; onPressed: () => void };
 } & ControlDataAttributes) {
   const [searchText, setSearchText] = useState("");
   const [chosenCategory, setChosenCategory] = useState<string | null>(null);
@@ -203,6 +207,21 @@ export function SearchPopover({
         </div>
       </div>
       {narrowedTo !== null && <p className="border-t px-3 py-2 text-2xs text-fg-3">{narrowedTo.footnote}</p>}
+      {footLink !== undefined && (
+        <div className="border-t px-3 py-1.5 text-xs">
+          <InlineLink
+            destination={{
+              onPressed: () => {
+                onClosed();
+                footLink.onPressed();
+              },
+            }}
+            data-search-popover-foot-link=""
+          >
+            {footLink.words}
+          </InlineLink>
+        </div>
+      )}
       <div className="flex items-center gap-3 border-t px-3 py-1.5 text-2xs whitespace-nowrap text-fg-3" aria-hidden>
         <span>
           <KeyboardKey>↑↓</KeyboardKey> choose

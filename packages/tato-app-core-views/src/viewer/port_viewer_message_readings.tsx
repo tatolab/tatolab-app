@@ -2,10 +2,10 @@ import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/desig
 import type { JsonValue, PortViewerArrayAttributeReading, PortViewerChannelWaveform, PortViewerMessageReading } from "@tatolab/tato-app-view-sdk";
 import { VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
 
-/** One Packets unit the Viewer has read: when it was stamped, how many bytes it carried, and whether it was a keyframe. */
+/** One Packets unit the Node visualizer has read: when it was stamped, how many bytes it carried, and whether it was a keyframe. */
 export type PacketsUnitSeen = { timestamp_ns: number; byte_length: number; starts_group: boolean };
 
-/** How long a span of Packets units the Viewer keeps to draw and to measure the bitrate over. */
+/** How long a span of Packets units the Node visualizer keeps to draw and to measure the bitrate over. */
 export const PACKETS_UNITS_KEPT_FOR_NS = 5_000_000_000;
 
 const NANOSECONDS_PER_SECOND = 1_000_000_000;
@@ -139,7 +139,7 @@ function PacketsReading({ reading, unitsSeen }: { reading: Extract<PortViewerMes
   );
 }
 
-/** What the Viewer shows of a port of a family other than Image: the latest message, read by its family. */
+/** What the Node visualizer shows of a port of a family other than Image: the latest message, read by its family. */
 export function PortViewerMessageReadingShown({
   reading,
   unitsSeen,

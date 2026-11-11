@@ -6,7 +6,7 @@ import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { ICON_BUTTON_CLASS_NAMES } from "./icon_button";
 import { SectionNavigationList, type NavigationSection } from "./section_navigation_list";
 
-/** A dialog of several sections over the window, as Preferences: its title and a close button, its sections' list down the left, the shown section scrolling beside it. */
+/** A dialog of several sections over the window, as Settings: its title and a close button, its sections' list down the left, the shown section scrolling beside it. */
 export function SectionedDialog({
   isOpen,
   onOpenChange,

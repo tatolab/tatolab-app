@@ -64,6 +64,7 @@ function TatolabViewFrame({
     if (frameWindow === null || frameWindow === undefined) return;
     bridgeRef.current?.close();
     const areaServices: TatolabViewAreaServices = {
+      areaId: area.area_id,
       watchSavedSettings: (listener) => savedSettings.watch(({ saved }) => listener(saved)),
       rememberSettings: (settings) => rememberSettingsRef.current(settings),
       watchHeaderRow: area.header_row.watch,
@@ -180,6 +181,7 @@ export function tatolabFrameViewType(listed: ListedStudioView, manifest: Tatolab
     title: manifest.title,
     icon: manifest.icon === undefined ? "project_view" : { image_url: new URL(manifest.icon, listed.folder_url).href },
     brought_by: broughtBy,
+    manifest,
     renderInAnArea: (area, hostServices) =>
       manifest.placement === "area" ? (
         <TatolabViewFrame listed={listed} manifest={manifest} area={area} hostServices={hostServices} inputWiring={{}} viewNode={null} />
