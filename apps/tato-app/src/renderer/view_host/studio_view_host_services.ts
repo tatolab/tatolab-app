@@ -5,10 +5,9 @@ import type { ProjectAssetListing, ProjectNodeTypeListing } from "../../shared/t
 import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
-import type { ListedStreamsReading, OpenProjectReading, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
+import type { ListedStreamsReading, OpenProjectReading, ProjectAssetsImporting, StopWatching, StreamTabAddress, StudioSelection, StudioViewHostServices, StudioViewsReading, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { WatchedStudioValue } from "./watched_studio_value";
-import type { StopWatching, StudioViewsReading } from "./studio_view_contract";
 
 /** What the studio publishes to its views, and what it does when a view opens a stream's tab. */
 export interface StudioWindowValuesServedToViews {

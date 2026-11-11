@@ -266,19 +266,20 @@ describe("the studio", () => {
 
     const library = coreViewPage("library");
     const viewRowIds = () => [...library.querySelectorAll<HTMLElement>("[data-library-view]")].map((row) => row.dataset.libraryView);
-    await waitFor(() => expect(viewRowIds().slice(0, 2)).toEqual(["pattern:picture_and_fader", "lobby-wall:stage_rig"]));
-    expect(viewRowIds()).toContain("outliner");
-    expect(library.querySelector('[data-library-view="pattern:picture_and_fader"]')?.textContent).toContain("Picture and fader · 1 in · 1 out");
+    await waitFor(() => expect(viewRowIds().slice(0, 2)).toEqual(["pattern/pattern:picture_and_fader", "lobby-wall/lobby-wall:stage_rig"]));
+    expect(viewRowIds()).toContain("Tato Studio/outliner");
+    expect(viewRowIds()).not.toContain("Tato Studio/transactions");
+    expect(library.querySelector('[data-library-view="pattern/pattern:picture_and_fader"]')?.textContent).toContain("Picture and fader · 1 in · 1 out");
     const details = () => library.querySelector<HTMLElement>("[data-library-view-details]") ?? expect.unreachable("no view details");
     expect(details().dataset.libraryViewDetails).toBe("pattern:picture_and_fader");
     expect([...details().querySelectorAll<HTMLElement>("[data-library-view-port]")].map((port) => port.dataset.libraryViewPort)).toEqual(["picture", "fader"]);
 
-    fireEvent.click(library.querySelector<HTMLElement>('[data-library-view="lobby-wall:stage_rig"]') ?? expect.unreachable("no Stage rig row"));
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-view="lobby-wall/lobby-wall:stage_rig"]') ?? expect.unreachable("no Stage rig row"));
     await waitFor(() => expect(details().dataset.libraryViewDetails).toBe("lobby-wall:stage_rig"));
     expect(details().textContent).toContain("`contract`: this runtime reads view contract 1.0.");
 
     fireEvent.change(library.querySelector<HTMLInputElement>("[data-library-view-search]") ?? expect.unreachable("no search field"), { target: { value: "fader" } });
-    await waitFor(() => expect(viewRowIds()).toEqual(["pattern:picture_and_fader"]));
+    await waitFor(() => expect(viewRowIds()).toEqual(["pattern/pattern:picture_and_fader"]));
   });
 
   it("imports the file the person chooses, which the runtime places in its kind's folder, shows it at once and opens its details", async () => {

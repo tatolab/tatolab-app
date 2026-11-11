@@ -36,3 +36,14 @@ export function studioViewPortsWords(studioView: StudioViewListed): string {
   if (studioView.placement === "area") return "Panel";
   return `${studioView.inputs.length} in · ${studioView.outputs.length} out`;
 }
+
+/** Where the Library's details say a view shows: on a node of its type, in any area, or nowhere since it does not open. */
+export function studioViewShownWhereWords(studioView: StudioViewListed): string {
+  if (studioView.placement === null) return "Doesn't open";
+  return studioView.placement === "node" ? "On a node of its type" : "In any area";
+}
+
+/** The Library's id for a view's row, unique even when a project view is named like one of Studio's. */
+export function libraryViewRowIdOf(studioView: StudioViewListed): string {
+  return `${studioView.brought_by}/${studioView.view_type_id}`;
+}

@@ -227,7 +227,6 @@ function messagesDelivered(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 20));
 }
 
-
 const STUDIO_VIEW_LISTED_DJ_DECK: StudioViewListed = { view_type_id: "acme-dj:deck", title: "DJ Deck", description: "Two decks and a crossfader.", brought_by: "Acme DJ", is_built_in: false, placement: "node", inputs: [], outputs: [{ name: "crossfader", family: "array", description: "" }], not_opened_because: null };
 
 describe("a view's connection to Studio, through the one bridge every view is served by", () => {

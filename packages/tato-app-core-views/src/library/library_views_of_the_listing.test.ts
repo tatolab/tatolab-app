@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { libraryViewGroupsOf, studioViewPortsWords } from "./library_views_of_the_listing";
+import { libraryViewGroupsOf, studioViewPortsWords, studioViewShownWhereWords, libraryViewRowIdOf } from "./library_views_of_the_listing";
 
 function aView(viewTypeId: string, title: string, broughtBy: string, change: Partial<StudioViewListed> = {}): StudioViewListed {
   return { view_type_id: viewTypeId, title, description: "", brought_by: broughtBy, is_built_in: broughtBy === "Tato Studio", placement: "area", inputs: [], outputs: [], not_opened_because: null, ...change };
@@ -34,5 +34,12 @@ describe("the views the Library lists", () => {
     expect(studioViewPortsWords(SET_LIST)).toBe("1 in · 1 out");
     expect(studioViewPortsWords(DECK)).toBe("Panel");
     expect(studioViewPortsWords(BROKEN)).toBe("Doesn't open");
+  });
+
+  it("says where a view shows, and gives a project view named like one of Studio's a row of its own", () => {
+    expect(studioViewShownWhereWords(SET_LIST)).toBe("On a node of its type");
+    expect(studioViewShownWhereWords(DECK)).toBe("In any area");
+    expect(studioViewShownWhereWords(BROKEN)).toBe("Doesn't open");
+    expect(libraryViewRowIdOf(OUTLINER)).not.toBe(libraryViewRowIdOf({ ...OUTLINER, brought_by: "Acme DJ", is_built_in: false }));
   });
 });
