@@ -2,8 +2,8 @@
 // unit without uv or the video poster frame helper, which tatolabd runs from beside itself, a unit
 // without the carried wheels and the uv metadata naming its carried Python, a unit whose bin/ or
 // lib/tatolab/ holds something it does not place, a unit whose lib/tatolab/imports/ holds anything
-// but pure-Python wheels, and a unit built from any streamlib commit but the one the build
-// resolved. Every refusal comes before it touches the bundle.
+// but pure-Python wheels, a unit whose lib/tatolab/samples/ holds no sample project, and a unit
+// built from any streamlib commit but the one the build resolved. Every refusal comes before it touches the bundle.
 
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
@@ -16,7 +16,7 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 const TATO_APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const ASSEMBLE_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "assemble-tatolab-app-bundle.sh");
 const PLACED_RUNTIME_UNIT_BINARIES = ["tatolab", "tatolabd", "uv", "tatolab-video-poster-frame"];
-const PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES = ["lend", "imports", "carried-wheels", "python-downloads"];
+const PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES = ["lend", "imports", "samples", "carried-wheels", "python-downloads"];
 const PURE_PYTHON_TESTPATTERN_WHEEL = "tatolab_testpattern-0.68.54-py3-none-any.whl";
 const RESOLVED_STREAMLIB_COMMIT = "ef5c8b22995a90b1f7ae671e214c96480615c911";
 const AN_OLDER_STREAMLIB_COMMIT = "f2ec4338a0d1c2b3e4f5a6b7c8d9e0f1a2b3c4d5";
@@ -69,6 +69,10 @@ async function runtimeUnitPlantedWith(
   }
   if (libraryDirectoryNames.includes("python-downloads")) {
     await writeFile(path.join(runtimeUnitDirectory, "lib", "tatolab", "python-downloads", "uv-python-downloads.json"), "{}");
+  }
+  if (libraryDirectoryNames.includes("samples")) {
+    await mkdir(path.join(runtimeUnitDirectory, "lib", "tatolab", "samples", "camera-display"), { recursive: true });
+    await writeFile(path.join(runtimeUnitDirectory, "lib", "tatolab", "samples", "camera-display", "tatolab-project.json"), "{}");
   }
   if (libraryDirectoryNames.includes("imports")) {
     await plantAWheelInTheUnitsImports(runtimeUnitDirectory, PURE_PYTHON_TESTPATTERN_WHEEL, [PURE_PYTHON_WHEEL_MEMBER]);
@@ -200,8 +204,9 @@ test("a unit built from the resolved commit passes the commit check", async () =
 
 test("a unit with no carried wheels, or no uv metadata naming its carried Python, is refused and the bundle is untouched", async () => {
   for (const [presentLibraryDirectories, missingEntry] of [
-    [["lend", "imports", "python-downloads"], "lib/tatolab/carried-wheels"],
-    [["lend", "imports", "carried-wheels"], "lib/tatolab/python-downloads/uv-python-downloads.json"],
+    [["lend", "imports", "samples", "python-downloads"], "lib/tatolab/carried-wheels"],
+    [["lend", "imports", "samples", "carried-wheels"], "lib/tatolab/python-downloads/uv-python-downloads.json"],
+    [["lend", "imports", "carried-wheels", "python-downloads"], "lib/tatolab/samples"],
   ] as const) {
     await rm(path.join(scratchDirectory, "tatolab-runtime"), { recursive: true, force: true });
     const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, [...presentLibraryDirectories]);
@@ -213,7 +218,7 @@ test("a unit with no carried wheels, or no uv metadata naming its carried Python
 });
 
 test("a unit with no lib/tatolab/imports is refused and the bundle is untouched", async () => {
-  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, ["lend", "carried-wheels", "python-downloads"]);
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, ["lend", "samples", "carried-wheels", "python-downloads"]);
   const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
   expect(assembleOutcome.exitCode).toBe(1);
   expect(assembleOutcome.stderr).toContain("is missing lib/tatolab/imports");
@@ -221,11 +226,20 @@ test("a unit with no lib/tatolab/imports is refused and the bundle is untouched"
 });
 
 test("a unit whose lib/tatolab/imports holds no wheel is refused and the bundle is untouched", async () => {
-  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, ["lend", "carried-wheels", "python-downloads"]);
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, ["lend", "samples", "carried-wheels", "python-downloads"]);
   await mkdir(path.join(runtimeUnitDirectory, "lib", "tatolab", "imports"));
   const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
   expect(assembleOutcome.exitCode).toBe(1);
   expect(assembleOutcome.stderr).toContain("carries no first-party module wheel");
+  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+});
+
+test("a unit whose lib/tatolab/samples holds no sample project is refused and the bundle is untouched", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, ["lend", "imports", "carried-wheels", "python-downloads"]);
+  await mkdir(path.join(runtimeUnitDirectory, "lib", "tatolab", "samples"));
+  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+  expect(assembleOutcome.exitCode).toBe(1);
+  expect(assembleOutcome.stderr).toContain("carries no sample project in lib/tatolab/samples");
   expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
 });
 

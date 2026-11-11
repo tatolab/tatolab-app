@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds streamlib's runtime unit (bin/tatolabd, bin/tatolab, bin/uv, bin/tatolab-video-poster-frame,
-# lib/tatolab/lend, its imports, carried wheels and carried Python) in a streamlib checkout, writes
+# lib/tatolab/lend, its imports, sample projects, carried wheels and carried Python) in a streamlib checkout, writes
 # the checkout's commit into the unit's streamlib-commit, and prints the unit's directory. The checkout's own target directory is used.
 #
 # Usage: build-tatolab-runtime-unit.sh <streamlib checkout> [--developer-id-application-identity IDENTITY]
@@ -48,7 +48,7 @@ rm -rf "$runtime_unit_directory"
 (cd "$streamlib_checkout" && env -u CEF_PATH cargo xtask "${xtask_arguments[@]}") >&2
 
 for required in bin/tatolabd bin/tatolab bin/uv bin/tatolab-video-poster-frame lib/tatolab/lend/tatolab/runtime lib/tatolab/imports \
-  lib/tatolab/carried-wheels lib/tatolab/python-downloads/uv-python-downloads.json; do
+  lib/tatolab/samples lib/tatolab/carried-wheels lib/tatolab/python-downloads/uv-python-downloads.json; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit is missing $required" >&2; exit 1; }
 done
 echo "$streamlib_commit" >"$runtime_unit_directory/streamlib-commit"
