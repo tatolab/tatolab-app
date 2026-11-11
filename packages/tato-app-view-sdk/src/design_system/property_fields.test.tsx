@@ -60,6 +60,7 @@ function aSliderRecordingEachEdit() {
         onDragStarted={() => edits.push("drag started")}
         onLiveEdit={(moved) => edits.push(`live ${moved}`)}
         onCommitted={(released) => edits.push(`commit ${released}`)}
+        valueTypedBesideTheSlider={{ label: "FPS value", onWordsTyped: (words) => edits.push(`typed ${words}`) }}
       />
     </label>,
   );
@@ -67,6 +68,23 @@ function aSliderRecordingEachEdit() {
 }
 
 describe("a property slider", () => {
+  it("takes a value typed beside it, committed on Enter or on leaving it, and puts it back on Escape", () => {
+    const { edits } = aSliderRecordingEachEdit();
+    const typedValue = screen.getByRole("textbox", { name: "FPS value" });
+    expect(typedValue.getAttribute("value") ?? "").toBe("30");
+    typedValue.focus();
+    fireEvent.change(typedValue, { target: { value: "24" } });
+    fireEvent.keyDown(typedValue, { key: "Enter" });
+    typedValue.focus();
+    fireEvent.change(typedValue, { target: { value: "12" } });
+    fireEvent.keyDown(typedValue, { key: "Escape" });
+    expect(screen.getByRole<HTMLInputElement>("textbox", { name: "FPS value" }).value).toBe("30");
+    typedValue.focus();
+    fireEvent.change(typedValue, { target: { value: "15" } });
+    fireEvent.blur(typedValue);
+    expect(edits).toEqual(["typed 24", "typed 15"]);
+  });
+
   it("sends each move live and commits once on release, showing LIVE while dragged", () => {
     const { edits, slider } = aSliderRecordingEachEdit();
     fireEvent.pointerDown(slider);

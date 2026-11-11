@@ -114,7 +114,7 @@ function whatOneOperationChanged(operation: OperationFields, nodeNames: NodeName
     case "set_studio_fields":
       return { sentence: { lead: "Arranged", subject: nodeName(), rest: "" }, line: `set_studio_fields ${nodeName()}` };
     case "set_exposed_config_fields":
-      return { sentence: { lead: "Changed the fields", subject: nodeName(), rest: "shows" }, line: `set_exposed_config_fields ${nodeName()}` };
+      return { sentence: { lead: "Changed the config fields", subject: nodeName(), rest: "takes as inputs" }, line: `set_exposed_config_fields ${nodeName()}` };
     case "refresh_fragment": {
       const fragmentType = textOf(fieldsOf(operation["to"])?.["type"]);
       const fragmentName = nodeNames.get(textOf(operation["node"]) ?? "") ?? (fragmentType === null ? "a fragment" : nodeTypeNameOf(fragmentType));

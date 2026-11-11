@@ -67,7 +67,7 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     },
     chooseStreamProjectFolder: (chosenFor) => invokeTatolabCommand("choose_stream_project_folder", { chosen_for: chosenFor }),
     createStreamProject: (folder) => invokeTatolabCommand("create_stream_project", { folder }),
-    runStreamProject: (folder) => invokeTatolabCommand("run_stream_project", { folder }),
+    openStreamProject: (folder) => invokeTatolabCommand("open_stream_project", { folder }),
     reloadProject: (projectDirectory) => invokeTatolabCommand("reload_project", { project_directory: projectDirectory }),
     describeStreamAction: (action) => invokeTatolabCommand("describe_stream_action", { action }),
     cancelStreamAction: (action) => invokeTatolabCommand("cancel_stream_action", { action }),

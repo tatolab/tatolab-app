@@ -6,7 +6,7 @@ import type {
   ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
-  ProjectRunQueued,
+  ProjectStreamActionQueued,
   ProjectTransaction,
   ProjectTransactionAuthor,
   GraphEditMode,
@@ -253,9 +253,14 @@ export class TatolabAppController {
     return this.localApiClient.readProjectLogRecords(projectDirectory, narrowing, after, PROJECT_LOG_RECORDS_PER_PAGE);
   }
 
-  /** Queue the stop of every stream of the project in `projectDirectory` through the runtime's `stop_project`, answering the id of the action the runtime queued. */
-  stopProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
-    return this.localApiClient.stopProject(projectDirectory);
+  /** Queue the stop of the playback of the project in `projectDirectory` through the runtime's `stop_playback`, answering the id of the action the runtime queued. */
+  stopPlayback(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.localApiClient.stopPlayback(projectDirectory);
+  }
+
+  /** Queue the close of the open project in `projectDirectory` through the runtime's `close_project`, answering the id of the action the runtime queued. */
+  closeProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.localApiClient.closeProject(projectDirectory);
   }
 
   /** Queue the removal of every stream the runtime holds from the project in `projectDirectory`, answering the id of the action the runtime queued. */
@@ -278,18 +283,23 @@ export class TatolabAppController {
     return this.localApiClient.deleteStream(projectDirectory, streamAsset, author);
   }
 
-  /** Queue a new project's creation and run through the runtime's `create_project`, in `projectDirectory` or, with `null`, a folder the runtime draws. */
+  /** Queue a new project's creation and open through the runtime's `create_project`, in `projectDirectory` or, with `null`, a folder the runtime draws. */
   createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>> {
     return this.localApiClient.createProject(projectDirectory);
   }
 
-  /** Queue the start of the stopped project in `projectDirectory` through the runtime's `start_project`. */
-  startProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
-    return this.localApiClient.startProject(projectDirectory);
+  /** Queue the open of the closed project in `projectDirectory`, its playback stopped, through the runtime's `open_project`. */
+  openProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
+    return this.localApiClient.openProject(projectDirectory);
   }
 
-  /** Queue the reload from disk of the running or paused project in `projectDirectory` through the runtime's `reload_project`. */
-  reloadProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
+  /** Queue the start of the playback of the open project in `projectDirectory` through the runtime's `start_playback`. */
+  startPlayback(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
+    return this.localApiClient.startPlayback(projectDirectory);
+  }
+
+  /** Queue the reload from disk of the open project in `projectDirectory`, keeping its playback, through the runtime's `reload_project`. */
+  reloadProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
     return this.localApiClient.reloadProject(projectDirectory);
   }
 

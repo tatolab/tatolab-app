@@ -147,20 +147,20 @@ describe("createElectronTatolabBackend", () => {
     const fakeBridge = fakeTatolabElectronBridge({
       choose_stream_project_folder: { ok: true, value: "/Users/someone/code/hallways" },
       create_stream_project: { ok: true, value: creationQueued },
-      run_stream_project: { ok: true, value: runQueued },
+      open_stream_project: { ok: true, value: runQueued },
       describe_stream_action: { ok: true, value: notHeld },
     });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
 
-    expect(await backend.chooseStreamProjectFolder("project_to_run")).toBe("/Users/someone/code/hallways");
+    expect(await backend.chooseStreamProjectFolder("project_to_open")).toBe("/Users/someone/code/hallways");
     expect(await backend.createStreamProject(null)).toEqual(creationQueued);
-    expect(await backend.runStreamProject("/Users/someone/code/hallways")).toEqual(runQueued);
+    expect(await backend.openStreamProject("/Users/someone/code/hallways")).toEqual(runQueued);
     expect(await backend.describeStreamAction("R1-999")).toEqual(notHeld);
 
     expect(fakeBridge.invokedCommands).toEqual([
-      ["choose_stream_project_folder", { chosen_for: "project_to_run" }],
+      ["choose_stream_project_folder", { chosen_for: "project_to_open" }],
       ["create_stream_project", { folder: null }],
-      ["run_stream_project", { folder: "/Users/someone/code/hallways" }],
+      ["open_stream_project", { folder: "/Users/someone/code/hallways" }],
       ["describe_stream_action", { action: "R1-999" }],
     ]);
   });

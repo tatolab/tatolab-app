@@ -37,15 +37,17 @@ import type {
 import { CoreViewFrame } from "../shared/core_view_page";
 import { useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { portStreamFactsWords, streamFactsAnInputReceives, VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
-import { nameInWords, nodeTitle, nodeTypeClassName } from "../shared/node_words";
+import { nameInWords, nodeTitle, nodeTypeClassName, wordsForTheSeveralSelectedNodes } from "../shared/node_words";
 import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, recordsOfAListField, type ConfigFormField } from "./config_form_fields";
 import { propertiesListedWords, propertiesMatchingTheSearch } from "./properties_matching_the_search";
 import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
 import { blankTargetPickerKeysOfThePort, NO_BLANK_TARGET_PICKERS, withABlankTargetPickerAdded, withoutTheBlankTargetPicker, type BlankTargetPickersOfTheNode } from "./blank_target_pickers";
 import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
 import {
+  configFieldsToExposeAsGraphInputs,
   configValueFromTheWordsTyped,
   disconnectTheLink,
+  exposeTheConfigFieldAsAGraphInput,
   LIST_ENTRY_MOVED_ON_REFUSAL,
   linkedEndsOfThePort,
   listWithARecordAdded,
@@ -140,6 +142,7 @@ function ConfigFieldControl({
               const configEdit = configFieldSetTo(streamAsset, released);
               if (configEdit !== null) void graphEdits.commit(place, [configEdit], idempotencyKeyOfTheRelease);
             }}
+            valueTypedBesideTheSlider={{ label: `${nameInWords(field.key)} value`, onWordsTyped: commitTheWords }}
           />
         );
       }
@@ -216,7 +219,7 @@ function ConfigFieldRows({
     graphEdits.rememberTheConfigSent(node.config, configAction.config);
     void graphEdits.commit(place, [configAction]);
   };
-  const fieldPlace: PlaceOfAnEdit = `config:${field.key}`;
+  const fieldPlace = placeOfTheConfigField(field.key);
   const listControl = field.control.kind === "list_of_records" ? field.control : null;
   const listEditedFrom = () => configEditedFrom()[field.key] ?? field.value;
   const configWithTheList = (stream: string, list: JsonValue[] | null) => (list === null ? null : setTheConfigField(stream, node.id, configEditedFrom(), field.key, list));
@@ -491,6 +494,33 @@ type PickInTheStreamGraphForATarget = (
   whenPicked: (picked: { node: string; port: string }, graphWhenPicked: StreamGraphSummary) => void,
 ) => void;
 
+/** The place an edit of a config field, or exposing it as a Graph Input, shows its refusal under. */
+function placeOfTheConfigField(fieldKey: string): PlaceOfAnEdit {
+  return `config:${fieldKey}`;
+}
+
+/** Expose as a Graph Input ▾: each number or on-off config field the node does not yet take as an input, chosen to drive it from a new Graph Input of the stream; nothing when every one already is. */
+function ExposeAConfigFieldAsAGraphInputMenu({ node, fields, streamAsset, graphEdits }: { node: StreamGraphNode; fields: ConfigFormField[]; streamAsset: string; graphEdits: GraphEditsOfTheNode }) {
+  const fieldsToExpose = configFieldsToExposeAsGraphInputs(node, fields);
+  if (fieldsToExpose.length === 0) return null;
+  return (
+    <div className="flex justify-end">
+      <FieldMenu label="Expose a config field as a Graph Input" words="Expose as a Graph Input" size="compact" menuWidth="wide" menuAlignment="end" data-properties-expose-as-a-graph-input={node.id}>
+        <MenuNote>Each becomes an input of the node, fed by a new Graph Input that Perform's Controls list.</MenuNote>
+        {fieldsToExpose.map((field) => (
+          <MenuItem
+            key={field.key}
+            onChosen={() => void graphEdits.commit(placeOfTheConfigField(field.key), exposeTheConfigFieldAsAGraphInput(streamAsset, node, field))}
+            data-properties-expose-config-field={field.key}
+          >
+            {nameInWords(field.key)}
+          </MenuItem>
+        ))}
+      </FieldMenu>
+    </div>
+  );
+}
+
 /** A view node's row naming how many areas show its view, with Show in an area to show it in another; nothing for a node that is not a view's. */
 function ViewNodeShownInAreasRow({ connection, viewTypeId }: { connection: TatoAppViewConnection; viewTypeId: string }) {
   const areasReading = useViewReading(useCallback((listener: (reading: AreasForAViewTypeReading) => void): StopWatching => connection.watchAreasForTheViewType(viewTypeId, listener), [connection, viewTypeId]));
@@ -694,6 +724,7 @@ function PropertiesOfTheSelectedNode({
                 ) : (
                   configForm.fields.map((field) => <ConfigFieldRows key={field.key} field={field} node={node} streamAsset={streamAsset} graphEdits={graphEdits} searchWords="" />)
                 )}
+                {streamAsset !== null && configForm.kind === "fields" && <ExposeAConfigFieldAsAGraphInputMenu node={node} fields={configForm.fields} streamAsset={streamAsset} graphEdits={graphEdits} />}
               </>
             )}
           </PropertySection>
@@ -761,6 +792,14 @@ function PropertiesOfTheSelectedNode({
   );
 }
 
+/** How many nodes are selected together and their titles, in place of fields that would belong to no one node. */
+function SummaryOfTheSeveralSelectedNodes({ connection, stream, nodeNames }: { connection: TatoAppViewConnection; stream: string; nodeNames: readonly string[] }) {
+  const watchTheStreamsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(stream, listener), [connection, stream]);
+  const graphReading = useViewReading(watchTheStreamsGraph);
+  const { title, explanation } = wordsForTheSeveralSelectedNodes(nodeNames, graphReading?.kind === "read" ? graphReading.graph.nodes : []);
+  return <WaitingState title={title} explanation={explanation} data-properties-state="several_nodes" />;
+}
+
 function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
   const selection = useViewReading(connection.watchSelection);
   const activeStreamTab = useViewReading(connection.watchActiveStreamTab);
@@ -768,6 +807,9 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
   const projectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
   const graphEditsInTheProject = useGraphEditsInTheOpenProject(connection, projectFolder);
   const [searchWords, setSearchWords] = useState("");
+  if (selection?.kind === "nodes" && activeStreamTab?.stream === selection.stream) {
+    return <SummaryOfTheSeveralSelectedNodes connection={connection} stream={selection.stream} nodeNames={selection.nodes} />;
+  }
   if (selection?.kind !== "node" || activeStreamTab?.stream !== selection.stream) {
     return <WaitingState title="Nothing to show" explanation="Select a node in the stream graph to edit its config and see what it's connected to." data-properties-state="no_node" />;
   }

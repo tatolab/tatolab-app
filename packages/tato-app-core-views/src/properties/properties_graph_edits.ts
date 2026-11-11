@@ -5,6 +5,7 @@ import type { JsonValue, StreamGraphAction, StreamGraphDeclaredPort, StreamGraph
 import { nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import { nodeTitle } from "../shared/node_words";
 import { portsThatCouldJoin } from "../shared/ports_that_can_join";
+import { GRAPH_INPUT_NODE_TYPE } from "../controls/graph_inputs_of_the_stream";
 import { recordsOfAListField, type ConfigFormField, type JsonObject } from "./config_form_fields";
 
 /** A value read from what the person typed into a field, or why it is not one the field takes. */
@@ -162,20 +163,43 @@ export function whyThePortTakesNoOtherTarget(direction: "input" | "output", link
   return null;
 }
 
-/** The list edited from's record at `index` when it is still `recordTheRowShows`; `null` when the list has moved on, so the edit would land on another entry. */
-function theRecordStillShown(listEditedFrom: JsonValue, index: number, recordTheRowShows: JsonObject): JsonObject[] | null {
-  const records = recordsOfAListField(listEditedFrom);
-  return JSON.stringify(records[index]) === JSON.stringify(recordTheRowShows) ? records : null;
+/** Whether two JSON values hold the same values, whatever order an object's keys come in. */
+function holdTheSameJsonValues(left: JsonValue | undefined, right: JsonValue | undefined): boolean {
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((item, itemIndex) => holdTheSameJsonValues(item, right[itemIndex]));
+  }
+  if (typeof left === "object" && left !== null && typeof right === "object" && right !== null) {
+    const leftKeys = Object.keys(left);
+    return leftKeys.length === Object.keys(right).length && leftKeys.every((key) => Object.hasOwn(right, key) && holdTheSameJsonValues(left[key], right[key]));
+  }
+  return left === right;
 }
 
-/** `listEditedFrom` with the record at `index` holding `value` at `key`, or without `key` when `value` is `undefined`; `null` when that record is no longer `recordTheRowShows`. */
+/** `record` without the value at `key`, or the whole record when `key` is `null`. */
+function recordWithoutTheKey(record: JsonObject, key: string | null): JsonObject {
+  if (key === null) return record;
+  const { [key]: _valueAtTheKey, ...recordWithoutIt } = record;
+  return recordWithoutIt;
+}
+
+/**
+ * The list edited from's records when its record at `index` is still `recordTheRowShows`, apart from `keyBeingSet`, whose
+ * value a drag in progress changes; `null` when the list has moved on, so the edit would land on another entry.
+ */
+function theRecordStillShown(listEditedFrom: JsonValue, index: number, recordTheRowShows: JsonObject, keyBeingSet: string | null): JsonObject[] | null {
+  const records = recordsOfAListField(listEditedFrom);
+  const recordEditedFrom = records[index];
+  return recordEditedFrom !== undefined && holdTheSameJsonValues(recordWithoutTheKey(recordEditedFrom, keyBeingSet), recordWithoutTheKey(recordTheRowShows, keyBeingSet)) ? records : null;
+}
+
+/** `listEditedFrom` with the record at `index` holding `value` at `key`, or without `key` when `value` is `undefined`; `null` when that record, apart from `key`, is no longer `recordTheRowShows`. */
 export function listWithTheRecordFieldSet(listEditedFrom: JsonValue, index: number, recordTheRowShows: JsonObject, key: string, value: JsonValue | undefined): JsonObject[] | null {
-  const records = theRecordStillShown(listEditedFrom, index, recordTheRowShows);
+  const records = theRecordStillShown(listEditedFrom, index, recordTheRowShows, key);
   return (
     records?.map((record, recordIndex) => {
       if (recordIndex !== index) return record;
-      const { [key]: _replaced, ...recordWithoutTheKey } = record;
-      return value === undefined ? recordWithoutTheKey : { ...recordWithoutTheKey, [key]: value };
+      const recordWithoutTheValue = recordWithoutTheKey(record, key);
+      return value === undefined ? recordWithoutTheValue : { ...recordWithoutTheValue, [key]: value };
     }) ?? null
   );
 }
@@ -187,8 +211,29 @@ export function listWithARecordAdded(listEditedFrom: JsonValue, newItem: JsonObj
 
 /** `listEditedFrom` without the record at `index`, the records after it moving up one; `null` when that record is no longer `recordTheRowShows`. */
 export function listWithoutTheRecord(listEditedFrom: JsonValue, index: number, recordTheRowShows: JsonObject): JsonObject[] | null {
-  return theRecordStillShown(listEditedFrom, index, recordTheRowShows)?.filter((_record, recordIndex) => recordIndex !== index) ?? null;
+  return theRecordStillShown(listEditedFrom, index, recordTheRowShows, null)?.filter((_record, recordIndex) => recordIndex !== index) ?? null;
 }
 
 /** Why an edit of a list entry was not sent: the list changed under it. */
 export const LIST_ENTRY_MOVED_ON_REFUSAL = "This entry changed before the edit was sent, so nothing was changed. Try again on the entry as it shows now.";
+
+/** The config fields of `node` it can take as inputs and does not yet: each number or on-off field of its form. */
+export function configFieldsToExposeAsGraphInputs(node: Pick<StreamGraphNode, "exposed_config_fields">, fields: readonly ConfigFormField[]): ConfigFormField[] {
+  return fields.filter((field) => (field.control.kind === "number" || field.control.kind === "toggle") && !node.exposed_config_fields.includes(field.key));
+}
+
+/**
+ * One transaction that has `node` take `field` as an input and feeds it from a new Graph Input of the stream, named
+ * `<node>_<field>`, which Perform's Controls then list: a Channels input, as the runtime types every exposed config
+ * field, moving within the field's minimum and maximum where its schema states both.
+ */
+export function exposeTheConfigFieldAsAGraphInput(stream: string, node: Pick<StreamGraphNode, "id" | "name" | "exposed_config_fields">, field: Pick<ConfigFormField, "key" | "control">): StreamGraphAction[] {
+  const graphInputName = `${node.name}_${field.key}`;
+  const graphInputConfig: JsonObject = { port: graphInputName, family: "channels" };
+  if (field.control.kind === "number" && field.control.minimum !== null && field.control.maximum !== null) graphInputConfig["range"] = [field.control.minimum, field.control.maximum];
+  return [
+    { operation: "set_exposed_config_fields", stream, node: node.id, exposed_config_fields: [...node.exposed_config_fields, field.key] },
+    { operation: "add_node", stream, type: GRAPH_INPUT_NODE_TYPE, name: graphInputName, config: graphInputConfig, as: "graph_input" },
+    { operation: "connect", stream, source: { node: "graph_input", port: "value" }, target: { node: node.id, port: field.key } },
+  ];
+}

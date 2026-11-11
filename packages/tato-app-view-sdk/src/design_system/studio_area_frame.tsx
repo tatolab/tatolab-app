@@ -184,7 +184,7 @@ export function StudioAreaHeaderMenu({
   );
 }
 
-/** A choice in a view's own header row, as "Show [Assets ▾]": a quiet word naming what it chooses, then a header menu of the choices. */
+/** A choice in a view's own header row, or atop its body where the row has no room, as "Show [Assets ▾]": a quiet word naming what it chooses, then a header menu of the choices. */
 export function StudioAreaHeaderChoiceMenu({
   leadingWord,
   words,

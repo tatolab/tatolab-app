@@ -24,7 +24,7 @@ import { streamPreparingWords } from "../shared/stream_preparing_words";
 import { nodeTitle } from "../shared/node_words";
 import { portsThatCanJoinByNodeId } from "../shared/ports_that_can_join";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
-import { useStreamGraphEditsSentToTheRuntime } from "./stream_graph_edit_sending";
+import { useStreamGraphEditsSentToTheRuntime } from "../shared/stream_graph_edit_sending";
 import {
   cardCollapsedEdits,
   cardLetGoOverALinkEdits,
@@ -47,7 +47,8 @@ import {
   nameOfTheNewSubgraph,
   type EditedStreamGraph,
   type LooseWire,
-} from "./stream_graph_edits";
+} from "../shared/stream_graph_edits";
+import { nodesTheSelectionHoldsInTheStream, selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 import { streamGraphLevelReached } from "./stream_graph_levels";
 import { graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeSearchItems, nodeTypeSearchNarrowing, nodeTypesTheProjectDeclares, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
 import { StreamGraphSubgraphReadOnlyBanner, StreamGraphSubgraphTrail } from "./stream_graph_subgraph_strip";
@@ -85,6 +86,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   );
   const graphReading = useViewReading(watchTheTabsGraph);
   const selection = useViewReading(connection.watchSelection);
+  const nodesSelectedInTheStream = useMemo(() => nodesTheSelectionHoldsInTheStream(selection, streamTab.stream), [selection, streamTab.stream]);
   const portPick = useViewReading(connection.watchPortPick);
   const openProject = useViewReading(connection.watchOpenProject);
   const listedStreams = useViewReading(connection.watchListedStreams);
@@ -124,7 +126,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
     () => (levelShown === null ? null : streamGraphCanvasContents(levelShown.graph, catalogReading?.kind === "listed" ? catalogReading.catalog : null)),
     [levelShown, catalogReading],
   );
-  const [selectedNodeInsideTheSubgraph, setSelectedNodeInsideTheSubgraph] = useState<string | null>(null);
+  const [selectedNodesInsideTheSubgraph, setSelectedNodesInsideTheSubgraph] = useState<readonly string[]>([]);
   const subgraphNamesReached = subgraphsSteppedThrough.map((subgraph) => subgraph.name).join("/");
   useEffect(() => {
     if (levelShown !== null && levelShown.subgraphs_stepped_through.length < subgraphNamesSteppedThrough.length) {
@@ -134,14 +136,14 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   const stepToTheLevel = useCallback(
     (depth: number) => {
       setSubgraphNamesSteppedThrough((namesBefore) => namesBefore.slice(0, Math.max(depth, 0)));
-      setSelectedNodeInsideTheSubgraph(null);
+      setSelectedNodesInsideTheSubgraph([]);
     },
     [],
   );
   const stepInsideTheSubgraph = useCallback(
     (subgraphName: string) => {
       setSubgraphNamesSteppedThrough(subgraphNamesReached === "" ? [subgraphName] : [...subgraphNamesReached.split("/"), subgraphName]);
-      setSelectedNodeInsideTheSubgraph(null);
+      setSelectedNodesInsideTheSubgraph([]);
     },
     [subgraphNamesReached],
   );
@@ -308,11 +310,12 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
     },
     [catalog, nodeTypeSearchAsked, editedGraph, sendTheGesture],
   );
-  const onNodeSelected = useCallback(
-    (nodeName: string | null) => {
+  const onNodesSelected = useCallback(
+    (nodeNames: readonly string[]) => {
       const projectFolder = listedStreams?.kind === "listed" ? listedStreams.streams.find((listedStream) => listedStream.stream === streamTab.stream)?.location?.project_directory : undefined;
-      keepWhereTheStreamWasLeft({ selected_node: nodeName });
-      if (nodeName !== null) select({ kind: "node", stream: streamTab.stream, node: nodeName });
+      keepWhereTheStreamWasLeft({ selected_node: nodeNames.at(-1) ?? null });
+      const selectionOfTheNodesPicked = selectionOfTheNodes(streamTab.stream, nodeNames);
+      if (selectionOfTheNodesPicked !== null) select(selectionOfTheNodesPicked);
       else if (projectFolder !== undefined)
         select({
           kind: "stream",
@@ -374,8 +377,8 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
         links={canvasContents.links}
         frames={canvasContents.frames}
         notes={canvasContents.notes}
-        selectedNodeId={innermostSubgraph !== null ? selectedNodeInsideTheSubgraph : selection?.kind === "node" && selection.stream === streamTab.stream ? selection.node : null}
-        onNodeSelected={innermostSubgraph !== null ? setSelectedNodeInsideTheSubgraph : onNodeSelected}
+        selectedNodeIds={innermostSubgraph !== null ? selectedNodesInsideTheSubgraph : nodesSelectedInTheStream}
+        onNodesSelected={innermostSubgraph !== null ? setSelectedNodesInsideTheSubgraph : onNodesSelected}
         editing={editingOfTheLevelShown}
         viewportWhereItWasLeft={innermostSubgraph === null ? viewportWhereTheStreamWasLeft : null}
         onViewportLeft={innermostSubgraph === null ? onViewportLeft : null}

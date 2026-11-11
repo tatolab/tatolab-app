@@ -26,12 +26,17 @@ asking before it overwrites a file edited since the copy, and opens an import to
 Marketplace lists the projects in the catalog at `get.tatolab.com/catalog/v1.json`; Import downloads an
 entry's `.zip`, checks its SHA-256, and adds it as any other. Every window shares the one runtime. It reads
 everything from the runtime's local API: each project's name from `list_assets`, `list_streams`, `logs` and `graph` over MCP, and
-`GET /api/graph` for the machine's name. A project runs and stops as a whole: Run › Stop queues
-the stop of every stream of the open project with the MCP tool `stop_project`, and the removal of a
-whole project queues `remove_project`, then the window shows each stream `stopping` at each step
-the runtime lists until it settles. Closing the window of a project with a stream running asks
-first: Stop and Close stops the project, then closes its window, and Cancel keeps both. New project and Import project queue `create_project` and `run_project`, and a
-project's Reload queues `run_project` again; the window follows each load with
+`GET /api/graph` for the machine's name. A project is open or closed, and an open one plays or
+stops as a whole. Opening a project's window opens it with `open_project` when the runtime holds it
+closed, its playback stopped. Run › Live queues `start_playback` (after `open_project` on a closed
+project, and after `reload_project` while a stream of it has failed), Run › Stop queues
+`stop_playback`, which keeps every graph loaded, and the removal of a whole project queues
+`remove_project`, then the window shows each stream `stopping` at each step the runtime lists until
+it settles. Closing a project's window closes the project with `close_project`; while it plays, the
+window asks first: Stop and Close closes the project, then its window, and Cancel keeps both. New
+project and Import project queue `create_project` and `open_project`, a project's Reload queues
+`reload_project`, which keeps its playback (`open_project` on a closed one), and saving a node's
+Python file reloads an open project the same way; the window follows each load with
 `describe_stream_action` until it ends. Cancel ends an action early with `cancel_stream_action`,
 on a stream the listing shows `preparing` or `stopping`, on a Reload, and on a New project or
 Import project, and shows the runtime's refusal in its own words. A stream's Logs tab reads its project's log with `logs`,

@@ -231,7 +231,7 @@ export interface ProjectLogRecordsPage {
 }
 
 /** What a project folder is chosen for in the app's folder dialog: a project to import, or the folder a new project is created in, which may not exist yet. */
-export type StreamProjectFolderChosenFor = "project_to_run" | "new_project_directory";
+export type StreamProjectFolderChosenFor = "project_to_open" | "new_project_directory";
 
 /** What `create_project` answers at once: the action it queued, the stream id the new project's `main` runs under, and the project's folder resolved. */
 export interface ProjectCreationQueued {
@@ -245,8 +245,8 @@ export interface StreamAssetCreated {
   stream_asset: string;
 }
 
-/** What `start_project` and `reload_project` answer at once: the action each queued, and the project's folder. */
-export interface ProjectRunQueued {
+/** What `open_project`, `start_playback` and `reload_project` answer at once: the action each queued, and the project's folder. */
+export interface ProjectStreamActionQueued {
   action: string;
   project_directory: string;
 }

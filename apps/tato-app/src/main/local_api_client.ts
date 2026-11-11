@@ -2,9 +2,9 @@
 // local API's Unix socket. `GET /health` says the runtime is up, `describe_runtime` names its
 // version, uptime and log folder, the MCP tools `list_streams`, `logs` and `graph` over
 // `POST /mcp` list its streams, read a project's log records and draw one stream's graph,
-// `create_project`, `start_project` and `reload_project` queue a project's load, which
-// `describe_stream_action` follows, `stop_project` queues the stop of every stream of a project,
-// `remove_project` queues the removal of a project's streams, `delete_project` its removal and its
+// `create_project`, `open_project` and `reload_project` queue a project's load, which
+// `describe_stream_action` follows, `start_playback` and `stop_playback` queue the start and the stop
+// of its playback, `close_project` its unloading, `remove_project` queues the removal of a project's streams, `delete_project` its removal and its
 // folder's move to the Trash, `rename_project` and `duplicate_project` rename and copy a project,
 // `import_project` makes one from a `.zip`, `create_stream`, `set_stream_display_name` and
 // `delete_stream` make, rename and delete a stream asset, `transact` applies graph actions as one transaction and answers its structured refusal,
@@ -31,7 +31,7 @@ import type {
   ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
-  ProjectRunQueued,
+  ProjectStreamActionQueued,
   ProjectTheRuntimeNames,
   ProjectTransaction,
   ProjectTransactionAuthor,
@@ -100,7 +100,8 @@ import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import {
   projectCreationQueuedFromTheCreateProjectToolResult,
-  projectRunQueuedFromTheStartOrReloadProjectToolResult,
+  projectStreamActionQueuedFromTheToolResult,
+  type ProjectStreamActionToolName,
   streamActionCancelAnswerFromTheCancelStreamActionToolResult,
   streamActionDescriptionFromTheDescribeStreamActionToolResult,
 } from "./stream_action_description.js";
@@ -279,7 +280,7 @@ export function queuedStreamActionFromTheToolResult(toolName: ProjectActionToolN
 }
 
 /** A runtime tool that queues an action on a whole project. */
-type ProjectActionToolName = "stop_project" | "remove_project" | "delete_project";
+type ProjectActionToolName = "stop_playback" | "close_project" | "remove_project" | "delete_project";
 
 /** `durationMs` as a timeout refusal spells it: whole seconds as `3s`, anything else as `200ms`. */
 function durationAsTheTimeoutRefusalSpellsIt(durationMs: number): string {
@@ -348,9 +349,14 @@ export class LocalApiClient {
     return page.ok ? page : localApiRequestFailure(page.failure);
   }
 
-  /** Queue the stop of every stream of the project in `projectDirectory`, answering the id of the action it queued; refused in the runtime's own words, as when none of them runs. */
-  stopProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
-    return this.queueRuntimeAction("stop_project", { project_directory: projectDirectory });
+  /** Queue the stop of the playback of the project in `projectDirectory`, which keeps each stream's graph loaded, answering the id of the action it queued; refused in the runtime's own words, as when none of them plays. */
+  stopPlayback(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.queueRuntimeAction("stop_playback", { project_directory: projectDirectory });
+  }
+
+  /** Queue the close of the open project in `projectDirectory`, which ends its playback and unloads every stream of it, answering the id of the action it queued; refused in the runtime's own words, as for a project that is not open. */
+  closeProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.queueRuntimeAction("close_project", { project_directory: projectDirectory });
   }
 
   /** Queue the removal of every stream the runtime holds from the project in `projectDirectory`, answering the id of the action it queued; refused in the runtime's own words. */
@@ -472,20 +478,28 @@ export class LocalApiClient {
     return queued.ok ? queued : localApiRequestFailure(queued.failure);
   }
 
-  /** Queue the start of the stopped or never-started project in `projectDirectory`, which loads every stream asset in it; answered at once, refused in the runtime's own words, as for a running project, which `reloadProject` re-reads. */
-  startProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
-    return this.queueAProjectLoad("start_project", projectDirectory);
+  /** Queue the open of the closed or never-opened project in `projectDirectory`, which loads every stream asset in it with its playback stopped; answered at once, refused in the runtime's own words, as for an open project, which `reloadProject` re-reads. */
+  openProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
+    return this.queueAProjectStreamAction("open_project", projectDirectory);
   }
 
-  /** Queue the reload from disk of the running or paused project in `projectDirectory`; answered at once, refused in the runtime's own words, as for a stopped project, which `startProject` starts. */
-  reloadProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
-    return this.queueAProjectLoad("reload_project", projectDirectory);
+  /** Queue the start of the playback of the open project in `projectDirectory` from the graphs it holds; answered at once, refused in the runtime's own words, as for a project that is not open or already plays. */
+  startPlayback(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
+    return this.queueAProjectStreamAction("start_playback", projectDirectory);
   }
 
-  private async queueAProjectLoad(toolName: "start_project" | "reload_project", projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
+  /** Queue the reload from disk of the open project in `projectDirectory`, which keeps its playback and retries its failed streams; answered at once, refused in the runtime's own words, as for a project that is not open, which `openProject` opens. */
+  reloadProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
+    return this.queueAProjectStreamAction("reload_project", projectDirectory);
+  }
+
+  private async queueAProjectStreamAction(
+    toolName: ProjectStreamActionToolName,
+    projectDirectory: string,
+  ): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
     const toolResultText = await this.callMcpTool(toolName, { project_directory: projectDirectory });
     if (!toolResultText.ok) return toolResultText;
-    const queued = projectRunQueuedFromTheStartOrReloadProjectToolResult(toolName, toolResultText.value);
+    const queued = projectStreamActionQueuedFromTheToolResult(toolName, toolResultText.value);
     return queued.ok ? queued : localApiRequestFailure(queued.failure);
   }
 

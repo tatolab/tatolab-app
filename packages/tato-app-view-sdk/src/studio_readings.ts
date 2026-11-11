@@ -153,6 +153,8 @@ export const streamGraphNodeSchema = z.object({
   config: z.record(z.string(), jsonValueSchema),
   /** The value set on each unlinked input, by input name, as the graph's `pins` renders it; an input left at its port's default is absent. */
   pins: z.record(z.string(), jsonValueSchema),
+  /** The number and bool config fields it takes as inputs, each an input port of the field's name, as the graph's `exposed_config_fields` renders them; `[]` when it takes none. */
+  exposed_config_fields: z.array(z.string()),
   input_ports: z.array(streamGraphDeclaredPortSchema),
   output_ports: z.array(streamGraphDeclaredPortSchema),
   /** Messages it dropped on each link into it, by the link's `id`. */
@@ -554,6 +556,8 @@ export const studioSelectionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("project"), project_name: z.string(), project_folder: z.string().nullable() }),
   z.object({ kind: z.literal("stream"), stream: z.string(), project_folder: z.string() }),
   z.object({ kind: z.literal("node"), stream: z.string(), node: z.string() }),
+  /** Two or more nodes of one stream selected together, by name, the one picked last at the end. */
+  z.object({ kind: z.literal("nodes"), stream: z.string(), nodes: z.array(z.string()).min(2) }),
 ]);
 /** What Studio has selected. */
 export type StudioSelection = z.infer<typeof studioSelectionSchema>;

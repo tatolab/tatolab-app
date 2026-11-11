@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NODE_STUDIO_FIELDS_NONE_SET, type ListedStream, type OpenProject, type StreamGraphNode, type StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { outlinerRowIdOfTheSelection, outlinerTreeOfTheProject, streamsTheOutlinerShows } from "./outliner_tree_of_the_project";
+import { groupOfTheSelectedNodes, outlinerRowIdsOfTheSelection, outlinerTreeOfTheProject, selectionAfterTheOutlinerPick, streamsTheOutlinerShows } from "./outliner_tree_of_the_project";
 
 const HALL_OF_LIGHT_PROJECT = "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11";
 
@@ -47,6 +47,7 @@ function graphNode(name: string, type: string, group: string | null, failedBecau
     process_raising_because: null,
     config: {},
     pins: {},
+    exposed_config_fields: [],
     input_ports: [],
     output_ports: [],
     dropped_bags_by_link: {},
@@ -147,10 +148,14 @@ describe("the outliner's tree", () => {
     expect(halftone?.row.row_id).toBe("node:lobby_wall-id/Halftone");
     expect(halftone?.meaning).toEqual({ kind: "node", stream: "lobby_wall-id", node: "Halftone", display_name: "lobby_wall", project_name: "studio" });
     expect(rows[0]?.meaning).toEqual({ kind: "stream", stream: "lobby_wall-id", display_name: "lobby_wall", project_name: "studio", project_folder: "/w/studio" });
-    expect(outlinerRowIdOfTheSelection({ kind: "node", stream: "lobby_wall-id", node: "Halftone" })).toBe("node:lobby_wall-id/Halftone");
-    expect(outlinerRowIdOfTheSelection({ kind: "stream", stream: "s", project_folder: "/w" })).toBe("stream:s");
-    expect(outlinerRowIdOfTheSelection({ kind: "project", project_name: "studio", project_folder: "/w/studio" })).toBeNull();
-    expect(outlinerRowIdOfTheSelection({ kind: "nothing" })).toBeNull();
+    expect(outlinerRowIdsOfTheSelection({ kind: "node", stream: "lobby_wall-id", node: "Halftone" })).toEqual({ picked_last: "node:lobby_wall-id/Halftone", all: new Set(["node:lobby_wall-id/Halftone"]) });
+    expect(outlinerRowIdsOfTheSelection({ kind: "nodes", stream: "lobby_wall-id", nodes: ["display", "Halftone"] })).toEqual({
+      picked_last: "node:lobby_wall-id/Halftone",
+      all: new Set(["node:lobby_wall-id/display", "node:lobby_wall-id/Halftone"]),
+    });
+    expect(outlinerRowIdsOfTheSelection({ kind: "stream", stream: "s", project_folder: "/w" }).picked_last).toBe("stream:s");
+    expect(outlinerRowIdsOfTheSelection({ kind: "project", project_name: "studio", project_folder: "/w/studio" })).toEqual({ picked_last: null, all: new Set() });
+    expect(outlinerRowIdsOfTheSelection({ kind: "nothing" })).toEqual({ picked_last: null, all: new Set() });
   });
 
   it("keeps the rows the person opened or closed over the active tab's default", () => {
@@ -203,5 +208,52 @@ describe("the outliner's tree", () => {
     const streams = [listedStream("/w/studio", "lobby_wall"), listedStream("/elsewhere", "other")];
     expect(streamsTheOutlinerShows(PROJECT, { kind: "listed", streams })).toEqual(["lobby_wall-id"]);
     expect(streamsTheOutlinerShows(PROJECT, { kind: "not_listed", because: "Stopped" })).toEqual([]);
+  });
+});
+
+describe("selecting nodes together in the outliner", () => {
+  const streams = [listedStream("/w/studio", "lobby_wall")];
+  const rowsShown = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams }, { "lobby_wall-id": LOBBY_WALL_GRAPH }, "lobby_wall-id", {});
+  const lobbyWall = (node: string) => ({ stream: "lobby_wall-id", node });
+
+  it("selects a node on its own, and toggles a node in or out of the nodes of its stream selected with ⌘", () => {
+    expect(selectionAfterTheOutlinerPick({ kind: "nodes", stream: "lobby_wall-id", nodes: ["display", "stray"] }, lobbyWall("Halftone"), "alone", rowsShown)).toEqual({ kind: "node", stream: "lobby_wall-id", node: "Halftone" });
+    expect(selectionAfterTheOutlinerPick({ kind: "node", stream: "lobby_wall-id", node: "display" }, lobbyWall("Halftone"), "toggled", rowsShown)).toEqual({ kind: "nodes", stream: "lobby_wall-id", nodes: ["display", "Halftone"] });
+    expect(selectionAfterTheOutlinerPick({ kind: "nodes", stream: "lobby_wall-id", nodes: ["display", "Halftone"] }, lobbyWall("display"), "toggled", rowsShown)).toEqual({ kind: "node", stream: "lobby_wall-id", node: "Halftone" });
+    expect(selectionAfterTheOutlinerPick({ kind: "node", stream: "lobby_wall-id", node: "display" }, lobbyWall("display"), "toggled", rowsShown)).toEqual({ kind: "nothing" });
+    expect(selectionAfterTheOutlinerPick({ kind: "node", stream: "door-id", node: "display" }, lobbyWall("Halftone"), "toggled", rowsShown)).toEqual({ kind: "node", stream: "lobby_wall-id", node: "Halftone" });
+  });
+
+  it("extends with ⇧ from the node picked last to the one picked, across groups in the order the rows show", () => {
+    expect(selectionAfterTheOutlinerPick({ kind: "node", stream: "lobby_wall-id", node: "camerasource" }, lobbyWall("display"), "extended", rowsShown)).toEqual({
+      kind: "nodes",
+      stream: "lobby_wall-id",
+      nodes: ["camerasource", "Halftone", "display"],
+    });
+    expect(selectionAfterTheOutlinerPick({ kind: "node", stream: "lobby_wall-id", node: "display" }, lobbyWall("camerasource"), "extended", rowsShown)).toEqual({
+      kind: "nodes",
+      stream: "lobby_wall-id",
+      nodes: ["display", "Halftone", "camerasource"],
+    });
+    expect(selectionAfterTheOutlinerPick({ kind: "nothing" }, lobbyWall("display"), "extended", rowsShown)).toEqual({ kind: "node", stream: "lobby_wall-id", node: "display" });
+  });
+
+  it("keeps the nodes already selected when ⇧ extends again from the one picked last", () => {
+    expect(selectionAfterTheOutlinerPick({ kind: "nodes", stream: "lobby_wall-id", nodes: ["camerasource", "Halftone"] }, lobbyWall("display"), "extended", rowsShown)).toEqual({
+      kind: "nodes",
+      stream: "lobby_wall-id",
+      nodes: ["camerasource", "Halftone", "display"],
+    });
+  });
+
+  it("groups the selected nodes with the edit the Stream graph's F sends, and says why it can't", () => {
+    expect(groupOfTheSelectedNodes({ kind: "nodes", stream: "lobby_wall-id", nodes: ["display", "stray"] }, { "lobby_wall-id": LOBBY_WALL_GRAPH })).toEqual({
+      kind: "groups",
+      actions: [{ operation: "add_group", stream: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68", title: expect.any(String), nodes: ["display-uuid", "stray-uuid"] }],
+    });
+    expect(groupOfTheSelectedNodes({ kind: "stream", stream: "lobby_wall-id", project_folder: "/w/studio" }, { "lobby_wall-id": LOBBY_WALL_GRAPH })).toEqual({ kind: "cannot_group", because: "Select the nodes to group first." });
+    expect(groupOfTheSelectedNodes(null, { "lobby_wall-id": LOBBY_WALL_GRAPH })).toEqual({ kind: "cannot_group", because: "Select the nodes to group first." });
+    expect(groupOfTheSelectedNodes({ kind: "node", stream: "lobby_wall-id", node: "display" }, {})).toEqual({ kind: "cannot_group", because: "The stream's graph isn't read yet." });
+    expect(groupOfTheSelectedNodes({ kind: "node", stream: "lobby_wall-id", node: "display" }, { "lobby_wall-id": { kind: "not_read", because: "graph failed: no stream" } })).toEqual({ kind: "cannot_group", because: "graph failed: no stream" });
   });
 });
