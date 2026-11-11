@@ -26,7 +26,7 @@ import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet
 import { StudioStatusBar } from "./studio_status_bar";
 import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
-import { studioMenuBarMenus, studioMenusInTheSystemMenuBar, type StreamTabsInTheMenus, type StudioLayoutsInTheMenus, type StudioMenuBarCommands, type StudioMenuInTheSystemMenuBar } from "./studio_menu_bar_model";
+import { studioMenuBarMenus, studioMenusInTheSystemMenuBar, type StreamTabsInTheMenus, type StudioLayoutInTheMenus, type StudioMenuBarCommands, type StudioMenuInTheSystemMenuBar } from "./studio_menu_bar_model";
 import { NameFormDialog } from "./name_form_dialog_view";
 import { studioLayoutWithEdgesHidden } from "./studio_layout_shapes";
 import { StudioTitleRowLayoutButtons } from "./studio_title_row_layout_buttons";
@@ -213,17 +213,17 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
 }
 
 /** A node of the chosen layout: a split of its parts, or an area. */
-function StudioAreaLayoutNodeView({ node, layoutKey, sources }: { node: StudioAreaLayoutNode; layoutKey: string; sources: StudioWindowSources }) {
+function StudioAreaLayoutNodeView({ node, sources }: { node: StudioAreaLayoutNode; sources: StudioWindowSources }) {
   if (node.kind === "area") return <StudioAreaView area={node} sources={sources} />;
   return (
     <AreaSplit
-      key={`${layoutKey}:${node.split_id}`}
+      key={node.split_id}
       label={node.direction === "row" ? "Areas side by side" : "Areas one above another"}
       direction={node.direction}
       parts={node.parts.map(({ size_percent, part }) => ({
         part_id: studioAreaLayoutNodeId(part),
         size_percent,
-        content: <StudioAreaLayoutNodeView node={part} layoutKey={layoutKey} sources={sources} />,
+        content: <StudioAreaLayoutNodeView node={part} sources={sources} />,
       }))}
       onSizesChanged={(sizePercentByPartId) => sources.model.keepSplitSizes(node.split_id, sizePercentByPartId)}
     />
@@ -242,7 +242,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const { model, platform, commands, systemMenuBar } = sources;
   const status = useTatolabStatus();
   const openProject = useWatchedStudioValue(model.openProject);
-  const studioLayouts = useWatchedStudioValue(model.studioLayouts);
+  const studioLayout = useWatchedStudioValue(model.studioLayout);
   const openStreamTabs = useWatchedStudioValue(model.openStreamTabs);
   const activeStreamTab = useWatchedStudioValue(model.activeStreamTab);
   const closedStreamTabs = useWatchedStudioValue(model.closedStreamTabs);
@@ -258,13 +258,12 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const appUpdateChoiceRefusal = useWatchedStudioValue(model.appUpdateChoiceRefusal);
   const openProjectStreamFailureRaised = useWatchedStudioValue(model.openProjectStreamFailureRaised);
   const newProjectSheetOpenedWith = useWatchedStudioValue(model.newProjectSheetOpenedWith);
-  const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null;
+  const isAProjectShown = openProject.kind !== "none_open" && studioLayout !== null;
   const menusLiveInTheSystemMenuBar = presentPlatform(platform).menusLiveInTheSystemMenuBar;
-  const chosenLayoutShown = isAProjectShown ? studioLayouts.chosen_layout : null;
-  const presetTitlesSavedJoined = isAProjectShown ? studioLayouts.presets_saved.map(({ title }) => title).join("\n") : "";
-  const layoutsInTheMenus = useMemo<StudioLayoutsInTheMenus | null>(
-    () => (chosenLayoutShown === null ? null : { chosen_layout: chosenLayoutShown, preset_titles_saved: presetTitlesSavedJoined === "" ? [] : presetTitlesSavedJoined.split("\n") }),
-    [chosenLayoutShown, presetTitlesSavedJoined],
+  const presetTitlesSavedJoined = isAProjectShown ? studioLayout.presets_saved.map(({ title }) => title).join("\n") : null;
+  const layoutInTheMenus = useMemo<StudioLayoutInTheMenus | null>(
+    () => (presetTitlesSavedJoined === null ? null : { preset_titles_saved: presetTitlesSavedJoined === "" ? [] : presetTitlesSavedJoined.split("\n") }),
+    [presetTitlesSavedJoined],
   );
   const shownStreamDisplayName = isAProjectShown ? (activeStreamTab?.display_name ?? null) : null;
   const openStreamTabCount = isAProjectShown ? openStreamTabs.tabs.length : 0;
@@ -274,15 +273,15 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
     [shownStreamDisplayName, openStreamTabCount, hasAClosedStreamTabToReopen],
   );
   useEffect(() => {
-    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(layoutsInTheMenus, streamTabsInTheMenus, status.app_update, commands));
-  }, [menusLiveInTheSystemMenuBar, systemMenuBar, layoutsInTheMenus, streamTabsInTheMenus, status.app_update, commands]);
+    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(layoutInTheMenus, streamTabsInTheMenus, status.app_update, commands));
+  }, [menusLiveInTheSystemMenuBar, systemMenuBar, layoutInTheMenus, streamTabsInTheMenus, status.app_update, commands]);
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       {isAProjectShown ? (
         <header className="flex shrink-0 flex-col bg-studio-menu-bar">
           {!menusLiveInTheSystemMenuBar && (
             <div className="flex h-8 items-center pr-2.5 pl-(--studio-menu-bar-leading-inset)" data-studio-menu-row="">
-              <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, layoutsInTheMenus, streamTabsInTheMenus, status.app_update, commands)} />
+              <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, layoutInTheMenus, streamTabsInTheMenus, status.app_update, commands)} />
             </div>
           )}
           <div
@@ -306,7 +305,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               whenNoneIsOpen="Open a stream from the outliner to see it here."
             />
             <div className="min-w-6 flex-1" />
-            <StudioTitleRowLayoutButtons model={model} studioLayouts={studioLayouts} commands={commands} platform={platform} />
+            <StudioTitleRowLayoutButtons model={model} studioLayout={studioLayout} commands={commands} platform={platform} />
           </div>
         </header>
       ) : (
@@ -323,12 +322,8 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         <ProjectsView model={model} projectsSources={sources.projects} commands={commands} platform={platform} />
       ) : (
         <>
-          <main className="relative flex min-h-0 flex-1 p-(--studio-area-gap)" data-studio-layout={studioLayouts.chosen_layout}>
-            <StudioAreaLayoutNodeView
-              node={studioLayoutWithEdgesHidden(studioLayouts.layouts[studioLayouts.chosen_layout], studioLayouts.edges_hidden[studioLayouts.chosen_layout])}
-              layoutKey={studioLayouts.chosen_layout}
-              sources={sources}
-            />
+          <main className="relative grid min-h-0 flex-1 p-(--studio-area-gap)" data-studio-layout="">
+            <StudioAreaLayoutNodeView node={studioLayoutWithEdgesHidden(studioLayout.layout, studioLayout.edges_hidden)} sources={sources} />
           </main>
           <StudioStatusBar
             viewHostServices={sources.viewHostServices}
@@ -350,7 +345,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
           startingName=""
           nameRefusal={(typedName) => (typedName.trim() === "" ? "Name the preset" : null)}
           nameTheThing={(title) => {
-            model.saveTheChosenLayoutAsAPreset(title);
+            model.saveTheLayoutAsAPreset(title);
             return Promise.resolve();
           }}
           onClosed={() => model.layoutPresetNameAsked.publish(false)}

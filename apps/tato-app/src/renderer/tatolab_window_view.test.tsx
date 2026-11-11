@@ -6,7 +6,7 @@ import { createMockTatolabBackend, readMockTatolabOptions } from "../../mock/moc
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
 import type { ModulesShown } from "../shared/tatolab_electron_bridge_contract";
-import { studioLayoutsStorageKey } from "./studio_shell/studio_layouts";
+import { studioLayoutStorageKey } from "./studio_shell/studio_layout";
 import { mountTatolabWindow } from "./tatolab_window_view";
 import { drawTheCoreViewsInTheirFrames } from "./view_host/fake_core_view_frames";
 
@@ -148,7 +148,7 @@ function libraryRow(rowId: string): HTMLElement {
   return coreViewPage("library").querySelector<HTMLElement>(`[data-library-declarations] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no Library row ${rowId}`);
 }
 
-/** Chooses the Library in the Build layout's viewer area's view-type menu, and waits for the menu to close. */
+/** Chooses the Library in the default layout's viewer area's view-type menu, and waits for the menu to close. */
 async function showTheLibraryInTheViewerArea(): Promise<void> {
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
@@ -164,15 +164,27 @@ function outlinerRowIds(): string[] {
   return [...coreViewPage("outliner").querySelectorAll<HTMLElement>("[data-outliner] [data-tree-row-id]")].map((row) => row.dataset.treeRowId ?? "");
 }
 
-async function shownLayout(): Promise<string> {
-  return waitFor(() => document.querySelector<HTMLElement>("[data-studio-layout]")?.dataset.studioLayout ?? expect.unreachable("no layout shown"));
+const AREAS_OF_THE_DEFAULT_LAYOUT = ["outliner", "stream-graph", "viewer", "properties"];
+
+function areaIdsShown(): (string | null)[] {
+  return [...document.querySelectorAll<HTMLElement>("[data-studio-layout] [data-studio-area]")].map((area) => area.getAttribute("data-studio-area"));
+}
+
+/** Waits for the studio to show the areas `areaIds` names, in their order. */
+async function theAreasShownAre(areaIds: readonly string[]): Promise<void> {
+  await waitFor(() => expect(areaIdsShown()).toEqual(areaIds));
+}
+
+/** Keeps `saved` as the pattern project's layout, for the studio to open on. */
+function keepThePatternProjectsLayout(saved: unknown): void {
+  localStorage.setItem(studioLayoutStorageKey(PATTERN_PROJECT), JSON.stringify(saved));
 }
 
 describe("the studio", () => {
-  it("opens the project in Build, the outliner showing the project's streams, the open tab's stream open on its nodes, each with its type", async () => {
+  it("opens the project on its default layout, the outliner showing the project's streams, the open tab's stream open on its nodes, each with its type", async () => {
     await mountedWindowOverTheMock("state=running");
 
-    expect(await shownLayout()).toBe("build");
+    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
     const mainNodeRowId = (node: string) => `node:${PATTERN_MAIN_STREAM}/${node}`;
     await waitFor(() => expect(outlinerRowIds()).toContain(mainNodeRowId("testpatternsource")));
     expect(outlinerRowIds()).toEqual([
@@ -597,18 +609,23 @@ describe("the studio", () => {
     await waitFor(() => expect(document.querySelector("[data-name-form-dialog=\"new_stream\"]")).not.toBeNull());
   });
 
-  it("switches layouts from Window › Layout and with ⌘1 to ⌘5, each keeping its own areas", async () => {
+  it("applies the saved presets with ⌘1 to ⌘9 in their order, and leaves the layout as it is on a digit with no preset", async () => {
+    keepThePatternProjectsLayout({
+      presets_saved: [
+        { title: "Graph alone", layout: { kind: "area", area_id: "stream-graph", view_type_id: "stream_graph" } },
+        { title: "Viewer alone", layout: { kind: "area", area_id: "viewer", view_type_id: "viewer" } },
+      ],
+    });
     await mountedWindowOverTheMock("state=running");
-    expect(await shownLayout()).toBe("build");
-    expect([...document.querySelectorAll("[data-studio-area]")].map((area) => area.getAttribute("data-studio-area"))).toEqual(["outliner", "stream-graph", "viewer", "properties"]);
+    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
 
     fireEvent.keyDown(document, { key: "2", metaKey: true });
-    expect(await shownLayout()).toBe("compose");
-    expect(document.querySelector('[data-studio-area="controls"]')).toBeNull();
-    fireEvent.keyDown(document, { key: "5", metaKey: true });
-    expect(await shownLayout()).toBe("perform");
-    expect(document.querySelector('[data-studio-area="controls"]')).not.toBeNull();
-
+    await theAreasShownAre(["viewer"]);
+    fireEvent.keyDown(document, { key: "1", metaKey: true });
+    await theAreasShownAre(["stream-graph"]);
+    fireEvent.keyDown(document, { key: "3", metaKey: true });
+    await act(() => new Promise<void>((settled) => setTimeout(settled, 50)));
+    expect(areaIdsShown()).toEqual(["stream-graph"]);
   });
 
   it("expands the Node visualizer to fill the window from its toolbar, and puts the layout back with Esc or Expand again", async () => {
@@ -659,7 +676,7 @@ describe("the studio", () => {
         return transactionAnswered("redo");
       },
     });
-    expect(await shownLayout()).toBe("build");
+    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
 
     fireEvent.keyDown(document, { key: "z", metaKey: true });
     await waitFor(() => expect(asked).toEqual(["undo by sam"]));
@@ -683,7 +700,7 @@ describe("the studio", () => {
       readThePersonEditingInStudio: async () => ({ kind: "person", name: "Sam" }),
       undoInTheOpenProject: () => Promise.reject(new Error("undo failed: Sam has no transaction left to undo")),
     });
-    expect(await shownLayout()).toBe("build");
+    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
 
     fireEvent.keyDown(document, { key: "z", metaKey: true });
     const notice = await waitFor(() => document.querySelector<HTMLElement>("[data-project-edit-refusal]") ?? expect.unreachable("no notice"));
@@ -691,21 +708,18 @@ describe("the studio", () => {
     expect(notice.textContent).toContain("Sam has no transaction left to undo");
   });
 
-  it("on Linux, switches layouts from the window's own Window › Layout, ticking the one shown", async () => {
+  it("on Linux, reshapes the layout from the window's own Window › Layout", async () => {
     await mountedWindowOverTheMock("platform=linux&state=running");
-    fireEvent.keyDown(document, { key: "5", ctrlKey: true });
-    expect(await shownLayout()).toBe("perform");
+    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
 
     pressAsAPointerDoes(await waitFor(() => document.querySelector<HTMLElement>('[data-studio-menu="Window"]') ?? expect.unreachable("no Window menu")));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Layout" }));
-    expect((await screen.findByRole("menuitemcheckbox", { name: "Perform Ctrl 5" })).getAttribute("aria-checked")).toBe("true");
-    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Code Ctrl 4" }));
-    expect(await shownLayout()).toBe("code");
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Single" }));
+    await theAreasShownAre(["stream-graph"]);
   });
 
   it("hides the layout's left and right areas from the title row's buttons, reshapes it from the layout menu, and saves it as a preset", async () => {
     await mountedWindowOverTheMock("state=running");
-    const areaIdsShown = () => [...document.querySelectorAll<HTMLElement>("[data-studio-area]")].map((area) => area.getAttribute("data-studio-area"));
     const edgeButton = (edge: string) => document.querySelector<HTMLElement>(`[data-studio-layout-edge="${edge}"]`) ?? expect.unreachable(`no ${edge} edge button`);
     await waitFor(() => expect(areaIdsShown()).toEqual(["outliner", "stream-graph", "viewer", "properties"]));
     expect(document.querySelector("[data-studio-layout-edge=bottom]")).toBeNull();
@@ -731,17 +745,21 @@ describe("the studio", () => {
     fireEvent.click(within(presetDialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(document.querySelector('[data-name-form-dialog="save_layout_preset"]')).toBeNull());
 
-    fireEvent.keyDown(document, { key: "4", metaKey: true });
-    expect(await shownLayout()).toBe("code");
     pressAsAPointerDoes(document.querySelector<HTMLElement>("[data-studio-layout-menu]") ?? expect.unreachable("no layout menu button"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Show night" }));
-    await waitFor(() => expect(areaIdsShown()).toEqual(["stream-graph", "outliner"]));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Single" }));
+    await theAreasShownAre(["stream-graph"]);
+    pressAsAPointerDoes(document.querySelector<HTMLElement>("[data-studio-layout-menu]") ?? expect.unreachable("no layout menu button"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Show night ⌘1" }));
+    await theAreasShownAre(["stream-graph", "outliner"]);
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.keyDown(document, { key: "1", metaKey: true });
+    await theAreasShownAre(["stream-graph", "outliner"]);
   });
 
-  it("on macOS, draws no menus of its own and shows them in the system menu bar, where Window › Layout ticks the layout shown and switches it", async () => {
+  it("on macOS, draws no menus of its own and shows them in the system menu bar, where Window › Layout reshapes the layout", async () => {
     const { backendChanges, menusShownLast, chooseFromTheSystemMenuBar } = systemMenuBarOverTheMock();
     await mountedWindowOverTheMock("state=running", backendChanges);
-    expect(await shownLayout()).toBe("build");
+    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
     expect(document.querySelector("[data-studio-title-row]")).not.toBeNull();
     expect(menusShownLast().map((menu) => [menu.label, menu.system_menu])).toEqual([
@@ -756,17 +774,13 @@ describe("the studio", () => {
       ["Help", "help"],
     ]);
 
-    fireEvent.keyDown(document, { key: "5", metaKey: true });
-    expect(await shownLayout()).toBe("perform");
-    await waitFor(() =>
-      expect(menusShownLast().find((menu) => menu.label === "Window")?.entries[2]).toMatchObject({
-        kind: "submenu",
-        label: "Layout",
-        entries: expect.arrayContaining([{ kind: "choice", entry_id: "Window › Layout › Perform", label: "Perform", shortcut_hint: "⌘5", is_chosen: true }]),
-      }),
-    );
-    await chooseFromTheSystemMenuBar("Window › Layout › Code");
-    expect(await shownLayout()).toBe("code");
+    expect(menusShownLast().find((menu) => menu.label === "Window")?.entries[2]).toMatchObject({
+      kind: "submenu",
+      label: "Layout",
+      entries: expect.arrayContaining([{ kind: "command", entry_id: "Window › Layout › Single", label: "Single", shortcut_hint: null, unavailable_because: null }]),
+    });
+    await chooseFromTheSystemMenuBar("Window › Layout › Single");
+    await theAreasShownAre(["stream-graph"]);
   });
 
   it("asks for a node while nothing is selected, then plays the node clicked, reading its port as a port viewer", async () => {
@@ -804,13 +818,23 @@ describe("the studio", () => {
     expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).toBeNull();
   });
 
-  it("opens a node type's file in Code's own frame from the Library, in the first layout with a Code area, its tab and the log's toggle in Code's header row, a closed tab staying closed as the frame loads again until the file is opened again, and the Code layout's own area left as it was", async () => {
+  it("opens a node type's file in Code's own frame from the Library, its tab and the log's toggle in Code's header row, a closed tab staying closed as the frame loads again until the file is opened again", async () => {
+    keepThePatternProjectsLayout({
+      layout: {
+        kind: "split",
+        split_id: "library-and-code",
+        direction: "row",
+        parts: [
+          { size_percent: 40, part: { kind: "area", area_id: "library-area", view_type_id: "library" } },
+          { size_percent: 60, part: { kind: "area", area_id: "code-area", view_type_id: "code" } },
+        ],
+      },
+    });
     await mountedWindowOverTheMock("state=running");
-    await showTheLibraryInTheViewerArea();
+    await theAreasShownAre(["library-area", "code-area"]);
     const invertingEffectRowId = "source:project/category:Effects/node_type:nodes.inverting_effect:InvertingEffect";
     fireEvent.doubleClick(await waitFor(() => libraryRow(invertingEffectRowId)));
 
-    await waitFor(async () => expect(await shownLayout()).toBe("compose"));
     const invertingEffectFile = `${PATTERN_PROJECT}/nodes/inverting_effect.py`;
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("read"));
     expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(invertingEffectFile);
@@ -822,27 +846,27 @@ describe("the studio", () => {
     fireEvent.click(coreViewPage("code").querySelector<HTMLElement>(`[data-code-file-tab-close="${CSS.escape(invertingEffectFile)}"]`) ?? expect.unreachable("no close on the tab"));
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("none_open"));
 
-    fireEvent.keyDown(document, { key: "1", metaKey: true });
-    expect(await shownLayout()).toBe("build");
-    fireEvent.keyDown(document, { key: "2", metaKey: true });
-    expect(await shownLayout()).toBe("compose");
+    const rightEdgeButton = () => document.querySelector<HTMLElement>('[data-studio-layout-edge="right"]') ?? expect.unreachable("no right edge button");
+    fireEvent.click(rightEdgeButton());
+    await theAreasShownAre(["library-area"]);
+    fireEvent.click(rightEdgeButton());
+    await theAreasShownAre(["library-area", "code-area"]);
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-logs-toggle]")).not.toBeNull());
     // The opening the frame hears as it loads again crosses its port after its settings do.
     await act(() => new Promise<void>((settled) => setTimeout(settled, 100)));
     expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("none_open");
     expect(coreViewPage("code").querySelector("[data-code-file-tab]")).toBeNull();
 
-    fireEvent.keyDown(document, { key: "1", metaKey: true });
-    expect(await shownLayout()).toBe("build");
     fireEvent.doubleClick(await waitFor(() => libraryRow(invertingEffectRowId)));
-    await waitFor(async () => expect(await shownLayout()).toBe("compose"));
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(invertingEffectFile));
+  });
 
-    fireEvent.keyDown(document, { key: "4", metaKey: true });
-    expect(await shownLayout()).toBe("code");
-    await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-logs-toggle]")).not.toBeNull());
-    await act(() => new Promise<void>((settled) => setTimeout(settled, 100)));
-    expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("none_open");
+  it("says why a node type's file isn't opened from the Library while no area shows Code", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await showTheLibraryInTheViewerArea();
+    fireEvent.doubleClick(await waitFor(() => libraryRow("source:project/category:Effects/node_type:nodes.inverting_effect:InvertingEffect")));
+
+    expect(await inTheCoreView("library").findByText(/No area shows code\. Choose it in an area's view menu, then open it again\./)).toBeTruthy();
   });
 
   it("pops any area's view out into a window from its view-type menu, pinned to the stream shown and the selection, and says why where it is refused", async () => {
@@ -910,7 +934,7 @@ describe("the studio", () => {
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Outliner/ }));
 
     await waitFor(() => expect(coreViewPage("outliner", "viewer").querySelector("[data-outliner]")).not.toBeNull());
-    expect(localStorage.getItem(studioLayoutsStorageKey(PATTERN_PROJECT))).toContain('"area_id":"viewer","view_type_id":"outliner"');
+    expect(localStorage.getItem(studioLayoutStorageKey(PATTERN_PROJECT))).toContain('"area_id":"viewer","view_type_id":"outliner"');
     document.body.replaceChildren();
 
     await mountedWindowOverTheMock("state=running");
@@ -1026,12 +1050,12 @@ describe("the studio", () => {
   });
 
   it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {
+    keepThePatternProjectsLayout({ presets_saved: [{ title: "Graph alone", layout: { kind: "area", area_id: "stream-graph", view_type_id: "stream_graph" } }] });
     await mountedWindowOverTheMock("state=running");
-    expect(await shownLayout()).toBe("build");
     const outlinerPage = await waitFor(() => (coreViewPage("outliner").querySelector("[data-outliner]") === null ? expect.unreachable("no outliner drawn") : coreViewPage("outliner")));
 
-    fireEvent.keyDown(outlinerPage, { key: "2", metaKey: true });
-    expect(await shownLayout()).toBe("compose");
+    fireEvent.keyDown(outlinerPage, { key: "1", metaKey: true });
+    await theAreasShownAre(["stream-graph"]);
   });
 
   it("opens a stream's tab on a single click of its Outliner row, and the views follow the tab", async () => {
@@ -1084,17 +1108,15 @@ describe("the studio", () => {
   });
 
   it("opens a saved layout that does not parse on its default, and says when an area names a view this build lacks", async () => {
-    localStorage.setItem(
-      studioLayoutsStorageKey(PATTERN_PROJECT),
-      JSON.stringify({ chosen_layout: "code", layouts: { code: { kind: "area", area_id: "venue", view_type_id: "venue-3d" }, build: { kind: "split", parts: [] } }, default_revisions: { code: 2 } }),
-    );
+    keepThePatternProjectsLayout({ layout: { kind: "area", area_id: "venue", view_type_id: "venue-3d" } });
     await mountedWindowOverTheMock("state=running");
-
-    expect(await shownLayout()).toBe("code");
+    await theAreasShownAre(["venue"]);
     expect(screen.getByText("This area's view, venue-3d, isn't in this build")).toBeTruthy();
-    fireEvent.keyDown(document, { key: "1", metaKey: true });
-    expect(await shownLayout()).toBe("build");
-    expect(document.querySelector('[data-studio-area="viewer"]')).not.toBeNull();
+    document.body.replaceChildren();
+
+    keepThePatternProjectsLayout({ layout: { kind: "split", parts: [] } });
+    await mountedWindowOverTheMock("state=running");
+    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
   });
 
   it("shows the Projects window with no project open, its recent projects as cards, and opens the one chosen on its stream", async () => {
@@ -1104,7 +1126,7 @@ describe("the studio", () => {
 
     fireEvent.click(patternCard.querySelector<HTMLElement>("[data-project-open]") ?? expect.unreachable("no open button"));
 
-    expect(await shownLayout()).toBe("build");
+    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
     expect(document.querySelector("[data-projects]")).toBeNull();
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
     await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => `${tab.textContent} ${tab.getAttribute("aria-selected")}`)).toEqual(["main true"]));
@@ -1175,7 +1197,7 @@ describe("the studio", () => {
 
     fireEvent.click(document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"] [data-project-open]`) ?? expect.unreachable("no pattern row"));
 
-    expect(await shownLayout()).toBe("build");
+    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
     expect(document.querySelector("[data-projects]")).toBeNull();
   });
 
@@ -1396,7 +1418,7 @@ describe("the studio", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Import" }));
 
-    expect(await shownLayout()).toBe("build");
+    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
     expect(document.querySelector("[data-new-project-sheet]")).toBeNull();
     expect(document.querySelector("[data-projects]")).toBeNull();
   });
@@ -1462,7 +1484,7 @@ describe("the studio", () => {
     pressAsAPointerDoes(screen.getByRole("button", { name: "More ways to start a project" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Import project folder…/ }));
 
-    expect(await shownLayout()).toBe("build");
+    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
     expect(document.querySelector("[data-projects]")).toBeNull();
   });
 
@@ -1501,7 +1523,7 @@ describe("the studio", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
-    expect(await shownLayout()).toBe("build");
+    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
     expect(document.querySelector("[data-new-project-sheet]")).toBeNull();
     expect(document.querySelector("[data-projects]")).toBeNull();
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));

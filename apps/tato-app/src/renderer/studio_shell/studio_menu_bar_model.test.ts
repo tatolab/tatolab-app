@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { TatolabAppUpdateState } from "../../shared/tatolab_backend_contract";
 import type { StudioMenuEntry } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
-import type { StudioLayoutName } from "./studio_layouts";
 import {
   APP_UPDATE_UNDER_WAY_REASON,
   NO_PROJECT_OPEN_REASON,
@@ -11,7 +10,7 @@ import {
   studioMenusSentToTheSystemMenuBar,
   NO_STREAM_TAB_SHOWN_REASON,
   type StreamTabsInTheMenus,
-  type StudioLayoutsInTheMenus,
+  type StudioLayoutInTheMenus,
   type StudioMenuBarCommands,
 } from "./studio_menu_bar_model";
 
@@ -25,7 +24,6 @@ function commandsCounted(): StudioMenuBarCommands {
     openAbout: vi.fn(),
     checkForAppUpdates: vi.fn(),
     takeTheNewerAppVersion: vi.fn(),
-    chooseLayout: vi.fn(),
     runTheProjectLive: vi.fn(),
     stopTheProject: vi.fn(),
     undoYourLastEdit: vi.fn(),
@@ -43,9 +41,7 @@ function commandsCounted(): StudioMenuBarCommands {
   };
 }
 
-function layoutsInTheMenus(chosenLayout: StudioLayoutName): StudioLayoutsInTheMenus {
-  return { chosen_layout: chosenLayout, preset_titles_saved: [] };
-}
+const LAYOUT_WITH_NO_PRESET: StudioLayoutInTheMenus = { preset_titles_saved: [] };
 
 const NO_STREAM_TABS: StreamTabsInTheMenus = { shown_stream_display_name: null, open_tab_count: 0, has_a_closed_tab_to_reopen: false };
 
@@ -57,9 +53,9 @@ function entryOf(menus: ReturnType<typeof studioMenuBarMenus>, menuLabel: string
 
 describe("the studio's File menu", () => {
   it("leads with Projects, which shows the Projects window with or without a project open", () => {
-    for (const chosenLayout of [null, "code" as const]) {
+    for (const layoutInTheMenus of [null, LAYOUT_WITH_NO_PRESET]) {
       const commands = commandsCounted();
-      const fileMenu = studioMenuBarMenus("macos", chosenLayout === null ? null : layoutsInTheMenus(chosenLayout), NO_STREAM_TABS, UP_TO_DATE, commands).find((menu) => menu.label === "File");
+      const fileMenu = studioMenuBarMenus("macos", layoutInTheMenus, NO_STREAM_TABS, UP_TO_DATE, commands).find((menu) => menu.label === "File");
       const projects = fileMenu?.entries[0];
       expect(projects).toMatchObject({ kind: "command", label: "Projects" });
       if (projects?.kind === "command") projects.onChosen();
@@ -69,7 +65,7 @@ describe("the studio's File menu", () => {
 
   it("opens the Module manager window on the marketplace or on the project's modules while a project is open, and says why each waits while none is", () => {
     const commands = commandsCounted();
-    const menus = studioMenuBarMenus("macos", layoutsInTheMenus("build"), NO_STREAM_TABS, UP_TO_DATE, commands);
+    const menus = studioMenuBarMenus("macos", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, UP_TO_DATE, commands);
     const marketplace = entryOf(menus, "File", "Marketplace…");
     const modules = entryOf(menus, "File", "Modules…");
     if (marketplace?.kind !== "command" || modules?.kind !== "command") throw new Error("File › Marketplace… or Modules… is not a command");
@@ -87,7 +83,7 @@ describe("the studio's File menu", () => {
 describe("the studio's Edit menu", () => {
   it("undoes and redoes the person's edits while a project is open, and says why they wait while none is", () => {
     const commands = commandsCounted();
-    const menus = studioMenuBarMenus("linux", layoutsInTheMenus("build"), NO_STREAM_TABS, UP_TO_DATE, commands);
+    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, UP_TO_DATE, commands);
     for (const entryLabel of ["Undo", "Redo"]) {
       const entry = entryOf(menus, "Edit", entryLabel);
       if (entry?.kind !== "command") throw new Error(`Edit › ${entryLabel} is not a command`);
@@ -100,48 +96,37 @@ describe("the studio's Edit menu", () => {
 });
 
 describe("the layout menu", () => {
-  it("lists the shapes, then the presets with the chosen one ticked and the presets saved, then Save layout as preset…", () => {
+  it("lists the shapes, then the presets saved, the first nine on the digits, then Save layout as preset…", () => {
     const commands = commandsCounted();
-    const entries = studioLayoutMenuEntries("macos", { chosen_layout: "compose", preset_titles_saved: ["Show night"] }, commands);
+    const presetTitles = ["Show night", "Rehearsal", "3", "4", "5", "6", "7", "8", "9", "Tenth"];
+    const entries = studioLayoutMenuEntries("macos", { preset_titles_saved: presetTitles }, commands);
     const labels = entries.map((entry) => (entry.kind === "separator" ? "—" : entry.label));
-    expect(labels).toEqual([
-      "Single",
-      "Two columns",
-      "Two rows",
-      "Three columns",
-      "Grid 2×2",
-      "Main + right",
-      "Left + main + right",
-      "Main + bottom",
-      "—",
-      "Build",
-      "Compose",
-      "Spatial",
-      "Code",
-      "Perform",
-      "Show night",
-      "—",
-      "Save layout as preset…",
-    ]);
-    expect(entries.filter((entry) => entry.kind === "choice" && entry.isChosen).map((entry) => entry.kind !== "separator" && entry.label)).toEqual(["Compose"]);
-    expect(entries.find((entry) => entry.kind === "choice" && entry.label === "Code")).toMatchObject({ shortcutHint: "⌘4" });
+    expect(labels).toEqual(["Single", "Two columns", "Two rows", "Three columns", "Grid 2×2", "Main + right", "Left + main + right", "Main + bottom", "—", ...presetTitles, "—", "Save layout as preset…"]);
+    expect(entries.find((entry) => entry.kind === "command" && entry.label === "Rehearsal")).toMatchObject({ shortcutHint: "⌘2" });
+    expect(entries.find((entry) => entry.kind === "command" && entry.label === "Tenth")).not.toHaveProperty("shortcutHint");
     for (const entry of entries) if (entry.kind === "command") entry.onChosen();
     expect(commands.shapeTheLayout).toHaveBeenCalledWith("grid");
     expect(commands.applyTheSavedLayoutPreset).toHaveBeenCalledWith(0);
+    expect(commands.applyTheSavedLayoutPreset).toHaveBeenCalledWith(9);
     expect(commands.askToSaveTheLayoutAsAPreset).toHaveBeenCalledOnce();
   });
 
+  it("goes from the shapes straight to Save layout as preset… while no preset is saved", () => {
+    const labels = studioLayoutMenuEntries("linux", LAYOUT_WITH_NO_PRESET, commandsCounted()).map((entry) => (entry.kind === "separator" ? "—" : entry.label));
+    expect(labels.slice(-3)).toEqual(["Main + bottom", "—", "Save layout as preset…"]);
+  });
+
   it("is the Window menu's Layout submenu", () => {
-    const menus = studioMenuBarMenus("linux", layoutsInTheMenus("build"), NO_STREAM_TABS, UP_TO_DATE, commandsCounted());
+    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, UP_TO_DATE, commandsCounted());
     const layoutEntry = entryOf(menus, "Window", "Layout");
-    expect(layoutEntry?.kind === "submenu" ? layoutEntry.entries.length : 0).toBe(studioLayoutMenuEntries("linux", layoutsInTheMenus("build"), commandsCounted()).length);
+    expect(layoutEntry?.kind === "submenu" ? layoutEntry.entries.length : 0).toBe(studioLayoutMenuEntries("linux", LAYOUT_WITH_NO_PRESET, commandsCounted()).length);
   });
 });
 
 describe("the studio's Run and Stream menus", () => {
   it("runs and stops while a project is open", () => {
     const commands = commandsCounted();
-    const menus = studioMenuBarMenus("linux", layoutsInTheMenus("code"), NO_STREAM_TABS, UP_TO_DATE, commands);
+    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, UP_TO_DATE, commands);
     for (const [menuLabel, entryLabel] of [
       ["Run", "Live"],
       ["Run", "Stop"],
@@ -197,19 +182,19 @@ describe("Help's updates entry", () => {
 
 describe("the studio's menus in macOS's system menu bar", () => {
   it("leave ⌘W to Close Window while no project is open, and give it to Close tab while one is", () => {
-    const menusWith = (chosenLayout: "build" | null) => studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(chosenLayout === null ? null : layoutsInTheMenus(chosenLayout), NO_STREAM_TABS, UP_TO_DATE, commandsCounted())).menus;
-    const closeEntriesOf = (chosenLayout: "build" | null) => {
-      const menus = menusWith(chosenLayout);
+    const menusWith = (layoutInTheMenus: StudioLayoutInTheMenus | null) => studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(layoutInTheMenus, NO_STREAM_TABS, UP_TO_DATE, commandsCounted())).menus;
+    const closeEntriesOf = (layoutInTheMenus: StudioLayoutInTheMenus | null) => {
+      const menus = menusWith(layoutInTheMenus);
       const closeWindow = menus.find((menu) => menu.label === "File")?.entries.at(-1);
       const closeTab = menus.find((menu) => menu.label === "Stream")?.entries.find((entry) => entry.kind === "command" && entry.label === "Close tab");
       return { closeWindow, closeTabShortcut: closeTab?.kind === "command" ? closeTab.shortcut_hint : undefined };
     };
     expect(closeEntriesOf(null)).toEqual({ closeWindow: { kind: "system_items", system_items: "close_window" }, closeTabShortcut: null });
-    expect(closeEntriesOf("build")).toEqual({ closeWindow: { kind: "system_items", system_items: "close_window_beside_close_tab" }, closeTabShortcut: "⌘W" });
+    expect(closeEntriesOf(LAYOUT_WITH_NO_PRESET)).toEqual({ closeWindow: { kind: "system_items", system_items: "close_window_beside_close_tab" }, closeTabShortcut: "⌘W" });
   });
 
   it("keep About and Settings… in the app menu, and the desktop's own items where a Mac app keeps them", () => {
-    const { menus } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(layoutsInTheMenus("build"), NO_STREAM_TABS, UP_TO_DATE, commandsCounted()));
+    const { menus } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, UP_TO_DATE, commandsCounted()));
     const labelsOf = (menuLabel: string) =>
       menus.find((menu) => menu.label === menuLabel)?.entries.map((entry) => (entry.kind === "system_items" ? `[${entry.system_items}]` : entry.kind === "separator" ? "—" : entry.label));
     expect(labelsOf("Tato Studio")).toEqual(["About Tato Studio", "Check for Updates…", "—", "Settings…", "—", "[app_services_hide_and_quit]"]);
@@ -243,7 +228,7 @@ describe("the studio's menus in macOS's system menu bar", () => {
 describe("the studio's Stream menu", () => {
   it("makes a stream with no shortcut, acts on the shown tab's stream, and moves between, closes and reopens tabs", () => {
     const commands = commandsCounted();
-    const menus = studioMenuBarMenus("macos", layoutsInTheMenus("build"), { shown_stream_display_name: "main", open_tab_count: 2, has_a_closed_tab_to_reopen: true }, UP_TO_DATE, commands);
+    const menus = studioMenuBarMenus("macos", LAYOUT_WITH_NO_PRESET, { shown_stream_display_name: "main", open_tab_count: 2, has_a_closed_tab_to_reopen: true }, UP_TO_DATE, commands);
     const streamMenu = menus.find((menu) => menu.label === "Stream")?.entries ?? [];
     expect(streamMenu.map((entry) => (entry.kind === "separator" ? "—" : [entry.label, entry.kind, "shortcutHint" in entry ? entry.shortcutHint : null]))).toEqual([
       ["New stream…", "command", null],
@@ -268,7 +253,7 @@ describe("the studio's Stream menu", () => {
   it("says why each entry waits while no project is open or no tab is shown, and File no longer lists New stream", () => {
     const commands = commandsCounted();
     expect(entryOf(studioMenuBarMenus("linux", null, NO_STREAM_TABS, UP_TO_DATE, commands), "Stream", "New stream…")).toEqual({ kind: "unavailable_command", label: "New stream…", unavailableBecause: NO_PROJECT_OPEN_REASON });
-    const menus = studioMenuBarMenus("linux", layoutsInTheMenus("build"), NO_STREAM_TABS, UP_TO_DATE, commands);
+    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, UP_TO_DATE, commands);
     expect(entryOf(menus, "Stream", "Delete stream…")).toEqual({ kind: "unavailable_command", label: "Delete stream…", unavailableBecause: NO_STREAM_TAB_SHOWN_REASON });
     expect(entryOf(menus, "Stream", "Close tab")).toEqual({ kind: "unavailable_command", label: "Close tab", shortcutHint: "Ctrl W", unavailableBecause: NO_STREAM_TAB_SHOWN_REASON });
     expect(entryOf(menus, "Stream", "Previous tab")).toMatchObject({ kind: "unavailable_command", shortcutHint: "Ctrl Shift Tab" });

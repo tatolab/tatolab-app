@@ -114,8 +114,8 @@ function recordingHostServices() {
     watchNodeCatalog: () => () => undefined,
     openView: (viewTypeId, on) => {
       viewsOpened.push({ viewTypeId, on });
-      if (viewTypeId === "acme-dj:nowhere") return { kind: "not_opened", because: "No layout has an area showing acme-dj:nowhere." };
-      viewsOpenedOn.publish({ ...viewsOpenedOn.readLatest(), [viewTypeId]: { on, opening_id: `opening-${viewsOpened.length}`, layout: "build" } });
+      if (viewTypeId === "acme-dj:nowhere") return { kind: "not_opened", because: "No area shows acme-dj:nowhere." };
+      viewsOpenedOn.publish({ ...viewsOpenedOn.readLatest(), [viewTypeId]: { on, opening_id: `opening-${viewsOpened.length}` } });
       return { kind: "opened" };
     },
     watchViewOpenedOn: (viewTypeId, listener) =>
@@ -526,7 +526,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
     await messagesDelivered();
 
     expect(openedAnswer).toEqual({ kind: "done" });
-    expect(notOpenedAnswer).toEqual({ kind: "refused", because: "No layout has an area showing acme-dj:nowhere." });
+    expect(notOpenedAnswer).toEqual({ kind: "refused", because: "No area shows acme-dj:nowhere." });
     expect(viewsOpened.map((opened) => opened.viewTypeId)).toEqual(["acme-dj:deck", "acme-dj:nowhere"]);
     expect(openedOnSeen).toEqual([null, { kind: "file", file: "/set/crate.m3u", opening_id: "opening-1" }]);
   });

@@ -69,12 +69,10 @@ export type {
 export type StopWatching = () => void;
 
 
-/** What views of one type were last opened on, in which layout; each opening has an id of its own, so opening on the same file or port again is a new opening. */
+/** What views of one type were last opened on; each opening has an id of its own, so opening on the same file or port again is a new opening. */
 export interface ViewOpenedOnAsked {
   on: ViewOpeningTarget;
   opening_id: string;
-  /** The layout chosen as the opening was asked for, whose areas alone are opened on it. */
-  layout: string | null;
 }
 
 /** A view opened on a file or port in an area of the chosen layout, or why no area could show it. */

@@ -17,7 +17,7 @@ import { PoppedOutViewWindowView } from "./studio_shell/popped_out_view_window_v
 import { poppedOutViewOfTheArea } from "./studio_shell/popped_out_view_pin";
 import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_window";
 import { StudioWindowModel } from "./studio_shell/studio_window_model";
-import { STUDIO_LAYOUTS, StudioLayoutsKeptInStorage } from "./studio_shell/studio_layouts";
+import { STUDIO_LAYOUT_PRESETS_ON_A_DIGIT, StudioLayoutKeptInStorage } from "./studio_shell/studio_layout";
 
 import { studioViewHostServicesOf } from "./view_host/studio_view_host_services";
 import { useWatchedStudioValue } from "./view_host/watched_studio_value";
@@ -154,7 +154,7 @@ export function mountTatolabWindow(
   onTatolabWindowVisibilityChanged((isVisible) => projectAssetReadings.setPollingAllowed(isVisible));
   const pythonLanguageServerConnections = new PythonLanguageServerConnections(backend);
   const portViewerConnections = new PortViewerConnections(backend);
-  const studioWindowModel = new StudioWindowModel(new StudioLayoutsKeptInStorage(tatolabWindowLocalStorage()));
+  const studioWindowModel = new StudioWindowModel(new StudioLayoutKeptInStorage(tatolabWindowLocalStorage()));
   const projectTransactionsReadings = new ProjectTransactionsReadings(backend, () => {
     const openProject = studioWindowModel.openProject.readLatest();
     return openProject.kind === "read" ? openProject.open_project.project.folder : null;
@@ -194,7 +194,7 @@ export function mountTatolabWindow(
         (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
       );
     },
-    shapeTheLayout: (shape) => studioWindowModel.shapeTheChosenLayout(shape),
+    shapeTheLayout: (shape) => studioWindowModel.shapeTheLayout(shape),
     applyTheSavedLayoutPreset: (presetIndex) => studioWindowModel.applyTheSavedLayoutPreset(presetIndex),
     askToSaveTheLayoutAsAPreset: () => studioWindowModel.layoutPresetNameAsked.publish(true),
     openSettings: () => studioWindowModel.settingsSection.publish("project"),
@@ -209,7 +209,6 @@ export function mountTatolabWindow(
       studioWindowModel.settingsSection.publish("about");
       backend.takeTheNewerTatolabAppVersion().catch((rejection: unknown) => studioWindowModel.appUpdateChoiceRefusal.publish(describeBackendRejection(rejection)));
     },
-    chooseLayout: (layoutName) => studioWindowModel.chooseLayout(layoutName),
     runTheProjectLive: () => {
       studioWindowModel.projectRunRefusal.publish(null);
       backend.runOpenProject().catch((rejection: unknown) => studioWindowModel.projectRunRefusal.publish({ asked_to: "run", because: describeBackendRejection(rejection) }));
@@ -364,12 +363,8 @@ export function mountTatolabWindow(
 
   /** Runs the studio's shortcut for `key`, held with ⌘ on macOS and Ctrl on Linux; false when `key` has none. */
   function runStudioShortcut(key: string): boolean {
-    const layoutOfTheDigit = STUDIO_LAYOUTS.find((layout) => layout.shortcut_digit === key);
-    if (layoutOfTheDigit !== undefined) {
-      if (studioWindowModel.studioLayouts.readLatest() === null) return false;
-      studioWindowModel.chooseLayout(layoutOfTheDigit.name);
-      return true;
-    }
+    const presetDigit = Number(key);
+    if (/^[1-9]$/.test(key) && presetDigit <= STUDIO_LAYOUT_PRESETS_ON_A_DIGIT) return studioWindowModel.applyTheSavedLayoutPreset(presetDigit - 1);
     switch (key) {
       case "o":
         studioMenuBarCommands.openAProject();
@@ -389,14 +384,14 @@ export function mountTatolabWindow(
   const runTheStudioShortcutOfTheKey = (keyboardEvent: KeyboardEvent) => {
     if (statusStore === null || studioWindowModel.poppedOutView.readLatest() !== null || studioWindowModel.moduleManagerWorkspace.readLatest() !== null) return;
     if (keyboardEvent.key === RUN_LIVE_KEY && !keyboardEvent.metaKey && !keyboardEvent.ctrlKey && !keyboardEvent.altKey) {
-      if (studioWindowModel.studioLayouts.readLatest() === null) return;
+      if (studioWindowModel.studioLayout.readLatest() === null) return;
       keyboardEvent.preventDefault();
       if (keyboardEvent.shiftKey) studioMenuBarCommands.stopTheProject();
       else studioMenuBarCommands.runTheProjectLive();
       return;
     }
     if (keyboardEvent.key === "Tab" && keyboardEvent.ctrlKey && !keyboardEvent.metaKey && !keyboardEvent.altKey) {
-      if (studioWindowModel.studioLayouts.readLatest() === null || studioWindowModel.isADialogShownOverTheStreamTabs()) return;
+      if (studioWindowModel.studioLayout.readLatest() === null || studioWindowModel.isADialogShownOverTheStreamTabs()) return;
       keyboardEvent.preventDefault();
       studioMenuBarCommands.showTheStreamTabBeside(keyboardEvent.shiftKey ? "previous" : "next");
       return;
@@ -409,14 +404,14 @@ export function mountTatolabWindow(
     if (!holdsWindowShortcutModifier(platform, keyboardEvent)) return;
     const key = keyboardEvent.key.length === 1 ? keyboardEvent.key.toLowerCase() : keyboardEvent.key;
     if ((key === "w" || key === "t") && !keyboardEvent.altKey && keyboardEvent.shiftKey === (key === "t")) {
-      if (studioWindowModel.studioLayouts.readLatest() === null || studioWindowModel.isADialogShownOverTheStreamTabs()) return;
+      if (studioWindowModel.studioLayout.readLatest() === null || studioWindowModel.isADialogShownOverTheStreamTabs()) return;
       keyboardEvent.preventDefault();
       if (key === "w") studioMenuBarCommands.closeTheShownStreamTab();
       else studioMenuBarCommands.reopenTheLastClosedStreamTab();
       return;
     }
     if (key === "z" && !keyboardEvent.altKey && !isTextBeingEditedIn(keyboardEvent.target)) {
-      if (studioWindowModel.studioLayouts.readLatest() === null) return;
+      if (studioWindowModel.studioLayout.readLatest() === null) return;
       keyboardEvent.preventDefault();
       if (keyboardEvent.shiftKey) studioMenuBarCommands.redoYourLastUndo();
       else studioMenuBarCommands.undoYourLastEdit();
