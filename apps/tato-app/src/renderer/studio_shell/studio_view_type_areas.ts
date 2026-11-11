@@ -1,4 +1,4 @@
-// The chosen layout's areas as a view node's Show in an area lists them, and the showing of a view
+// The layout's areas as a view node's Show in an area lists them, and the showing of a view
 // type in one of them.
 
 import type { AreasForAViewTypeInTheWindow, StopWatching, ViewOpening } from "../view_host/studio_view_contract";
@@ -10,9 +10,9 @@ export const A_POPPED_OUT_WINDOW_HAS_NO_AREAS = "A popped-out view's window show
 /** Why no area is listed while no project is open. */
 export const NO_LAYOUT_WHILE_NO_PROJECT_IS_OPEN = "No project is open, so the window has no layout to show it in.";
 
-/** What the areas of a view type are read from: the chosen layout's areas, whether the window is a popped-out view's, and each view type's title. */
+/** What the areas of a view type are read from: the layout's areas, whether the window is a popped-out view's, and each view type's title. */
 export interface StudioViewTypeAreaSources {
-  /** The chosen layout's tree; `null` while no project is open. */
+  /** The layout's tree; `null` while no project is open. */
   readChosenLayoutTree(): StudioAreaLayoutNode | null;
   isAPoppedOutViewsWindow(): boolean;
   /** The title of the view type `viewTypeId` names; `null` when no view type has that id. */
@@ -22,7 +22,7 @@ export interface StudioViewTypeAreaSources {
   showViewTypeInTheArea(showing: { view_type_id: string; area_id: string }): void;
 }
 
-/** The chosen layout's areas for `viewTypeId`, each by the title of the view it shows. */
+/** The layout's areas for `viewTypeId`, each by the title of the view it shows. */
 export function areasForTheViewTypeOf(viewTypeId: string, sources: Omit<StudioViewTypeAreaSources, "watchChanges" | "showViewTypeInTheArea">): AreasForAViewTypeInTheWindow {
   const viewTitle = sources.viewTitleOf(viewTypeId);
   if (viewTitle === null) return { kind: "not_a_view_type" };
@@ -55,7 +55,7 @@ export function watchAreasForTheViewType(viewTypeId: string, sources: StudioView
   return stopWatching;
 }
 
-/** Area `areaId` of the chosen layout showing `viewTypeId`, or why it can't. */
+/** Area `areaId` of the layout showing `viewTypeId`, or why it can't. */
 export function showViewTypeInAreaOf(viewTypeId: string, areaId: string, sources: StudioViewTypeAreaSources): ViewOpening {
   const areas = areasForTheViewTypeOf(viewTypeId, sources);
   if (areas.kind === "not_a_view_type") return { kind: "not_opened", because: `Tato Studio has no view named ${viewTypeId}.` };

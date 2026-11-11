@@ -8,7 +8,7 @@
 # commit it was built from, the lend's CPython 3.10-3.14 bytecode, the first-party module wheels beside it, every
 # Mach-O inside the carried wheels and Python signed like the bundle's own, the
 # runtime's uv beside the helper's tatolabd and no Python of the app's own, the entitlements of the
-# helper's tatolabd, uv and tatolab-cli, the app and Electron's helpers, Electron's
+# helper's tatolabd, uv, tatolab-cli and tatolab-video-poster-frame, the app and Electron's helpers, Electron's
 # fuses, and the build features the app was built with and the tatolab-app commit they name.
 # Reading the fuses and the build features needs this checkout's node_modules (npm ci).
 # A stapled target must also pass Gatekeeper.
@@ -194,7 +194,7 @@ verify_app_bundle() {
   [ "$(plutil -extract CFBundleExecutable raw -o - "$helper_info_plist" 2>/dev/null)" = tatolabd ] \
     && pass "Tatolab Runtime.app's executable is tatolabd" || fail "Tatolab Runtime.app's CFBundleExecutable is not tatolabd"
   local bundled_executable
-  for bundled_executable in tatolabd tatolab-cli uv; do
+  for bundled_executable in tatolabd tatolab-cli uv tatolab-video-poster-frame; do
     [ -x "$helper_contents/MacOS/$bundled_executable" ] && pass "Tatolab Runtime.app's Contents/MacOS/$bundled_executable is present" \
       || fail "Tatolab Runtime.app's Contents/MacOS/$bundled_executable is missing"
   done
@@ -369,7 +369,8 @@ verify_app_bundle() {
     && pass "Tatolab Runtime.app embeds the provisioning profile for $runtime_keychain_access_group" \
     || fail "Tatolab Runtime.app embeds no provisioning profile for $runtime_keychain_access_group (found '${embedded_runtime_profile_application_identifier:-none}')"
   local unentitled_executable
-  for unentitled_executable in "$helper_contents/MacOS/uv" "$helper_contents/MacOS/tatolab-cli"; do
+  for unentitled_executable in "$helper_contents/MacOS/uv" "$helper_contents/MacOS/tatolab-cli" \
+    "$helper_contents/MacOS/tatolab-video-poster-frame"; do
     signed_code_entitlement_keys="$(entitlement_keys_of "$unentitled_executable")"
     [ -z "$signed_code_entitlement_keys" ] && pass "${unentitled_executable#"$contents/"} carries no entitlements" \
       || fail "${unentitled_executable#"$contents/"}'s entitlements are '$signed_code_entitlement_keys', not none"

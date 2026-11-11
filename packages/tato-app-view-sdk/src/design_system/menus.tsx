@@ -2,6 +2,7 @@ import { cn } from "cn";
 import { ChevronDown, Ellipsis, type LucideIcon } from "lucide-react";
 import { useId, type ReactElement, type ReactNode } from "react";
 import { Button } from "./ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -39,6 +40,16 @@ const MENU_WIDTH_CLASS_NAMES: Record<MenuWidth, string> = { fit: "w-auto min-w-5
 
 /** How big a field that opens a menu is: regular in bars and forms, compact inside a property panel's row. */
 export type FieldMenuSize = "regular" | "compact";
+
+/** How a field that opens a menu looks: an outlined field, or the inset well a port's link target sits in, filling its row. */
+export type FieldMenuAppearance = "field" | "port_target";
+
+const FIELD_MENU_APPEARANCE_CLASS_NAMES: Record<FieldMenuAppearance, string> = {
+  field:
+    "min-w-0 shrink-0 gap-1.5 rounded-md border-line bg-window pr-1.5 pl-2 text-sm font-normal text-fg-2 hover:border-line-strong hover:bg-hover hover:text-fg aria-expanded:bg-hover dark:border-line dark:bg-window dark:hover:bg-hover",
+  port_target:
+    "h-[26px] min-w-0 flex-1 gap-1.5 rounded-[4px] border-studio-port-target-picker-line bg-studio-port-target-picker pr-1.5 pl-[7px] text-xs font-normal text-fg hover:bg-studio-port-target-picker aria-expanded:border-brand aria-expanded:shadow-[0_0_0_1px_var(--brand)] dark:border-studio-port-target-picker-line dark:bg-studio-port-target-picker dark:hover:border-fg-4 dark:hover:bg-studio-port-target-picker dark:aria-expanded:border-brand",
+};
 
 /** A menu choice's padding and its icon's look, the same in a dropdown menu and a right-click menu. */
 const MENU_ITEM_CLASS_NAMES = "px-2";
@@ -109,6 +120,9 @@ export function FieldMenu({
   menuWidth = "fit",
   size = "regular",
   menuAlignment = "start",
+  appearance = "field",
+  isOpenAtFirst = false,
+  tooltip,
   children,
   ...controlDataAttributes
 }: {
@@ -123,24 +137,30 @@ export function FieldMenu({
   size?: FieldMenuSize;
   /** Which edge of the field the open menu lines up with. */
   menuAlignment?: "start" | "end";
+  appearance?: FieldMenuAppearance;
+  /** Opens its menu as it first appears, for a field added to be chosen at once. */
+  isOpenAtFirst?: boolean;
+  /** Shown on hover, as the whole of words a narrow field cuts short. */
+  tooltip?: string;
   children: ReactNode;
 } & ControlDataAttributes) {
-  return (
-    <DropdownMenu>
+  const fieldButton = (
+    <Button
+      variant="outline"
+      size={size === "compact" ? "xs" : "sm"}
+      className={cn(
+        FIELD_MENU_APPEARANCE_CLASS_NAMES[appearance],
+        appearance === "field" && size === "compact" && "h-6 gap-1 rounded-[4px] bg-transparent text-[11.5px] dark:bg-transparent",
+        appearance === "field" && isNarrowing && "border-line-strong text-fg dark:border-line-strong",
+        fillsItsPlace ? "w-full" : appearance === "field" && "max-w-96",
+        FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
+      )}
+    />
+  );
+  const fieldMenu = (
+    <DropdownMenu defaultOpen={isOpenAtFirst}>
       <DropdownMenuTrigger
-        render={
-          <Button
-            variant="outline"
-            size={size === "compact" ? "xs" : "sm"}
-            className={cn(
-              "min-w-0 shrink-0 gap-1.5 rounded-md border-line bg-window pr-1.5 pl-2 text-sm font-normal text-fg-2 hover:border-line-strong hover:bg-hover hover:text-fg aria-expanded:bg-hover dark:border-line dark:bg-window dark:hover:bg-hover",
-              size === "compact" && "h-6 gap-1 rounded-[4px] bg-transparent text-[11.5px] dark:bg-transparent",
-              isNarrowing && "border-line-strong text-fg dark:border-line-strong",
-              fillsItsPlace ? "w-full" : "max-w-96",
-              FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
-            )}
-          />
-        }
+        render={tooltip === undefined ? fieldButton : <TooltipTrigger render={fieldButton} />}
         aria-label={label}
         {...controlDataAttributes}
       >
@@ -149,6 +169,30 @@ export function FieldMenu({
         <ChevronDown className="ml-auto size-3.5 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align={menuAlignment} className={MENU_WIDTH_CLASS_NAMES[menuWidth]}>
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+  if (tooltip === undefined) return fieldMenu;
+  return (
+    <Tooltip>
+      {fieldMenu}
+      <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** A menu open over its positioned parent and drawn beside it where it fits, as one asking which of a card's ports; it closes on a choice, Esc or a click outside. */
+export function MenuOpenBesideItsParent({ label, onClosed, children, ...controlDataAttributes }: { label: string; onClosed: () => void; children: ReactNode } & ControlDataAttributes) {
+  return (
+    <DropdownMenu
+      open
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClosed();
+      }}
+    >
+      <DropdownMenuTrigger render={<span tabIndex={-1} aria-hidden className="pointer-events-none absolute inset-0" />} />
+      <DropdownMenuContent side="right" align="start" aria-label={label} className="nodrag w-auto min-w-32" onClick={(event) => event.stopPropagation()} {...controlDataAttributes}>
         {children}
       </DropdownMenuContent>
     </DropdownMenu>

@@ -59,6 +59,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bumpalo"
+version = "3.20.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
+
+[[package]]
 name = "cc"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -620,6 +626,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
+name = "js-sys"
+version = "0.3.107"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8dc09d2154098bbf4ef54eab6b117a3c24cbbffe94046b16ee6d6d4510584d3a"
+dependencies = [
+ "cfg-if",
+ "futures-util",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1142,14 +1159,15 @@ checksum = "149309498a5f7334b12ddae0cad8aba81ce785fe91755068867e017cf98fee46"
 
 [[package]]
 name = "streamlib-consumer-rhi"
-version = "0.68.34"
-source = "git+https://github.com/tatolab/streamlib?rev=1df75af9eec72e348aad2c82c3aeba23ad026ef0#1df75af9eec72e348aad2c82c3aeba23ad026ef0"
+version = "0.68.62"
+source = "git+https://github.com/tatolab/streamlib?rev=51644810763f97675280866efd4b199291ff02ca#51644810763f97675280866efd4b199291ff02ca"
 dependencies = [
  "libc",
  "objc2",
  "objc2-core-foundation",
  "objc2-io-surface",
  "objc2-metal",
+ "streamlib-slang-shader-compiler",
  "streamlib-surface-client",
  "tatolab-vulkanalia",
  "tatolab-vulkanalia-vma",
@@ -1159,8 +1177,8 @@ dependencies = [
 
 [[package]]
 name = "streamlib-gpu-frame-import-client"
-version = "0.68.34"
-source = "git+https://github.com/tatolab/streamlib?rev=1df75af9eec72e348aad2c82c3aeba23ad026ef0#1df75af9eec72e348aad2c82c3aeba23ad026ef0"
+version = "0.68.62"
+source = "git+https://github.com/tatolab/streamlib?rev=51644810763f97675280866efd4b199291ff02ca#51644810763f97675280866efd4b199291ff02ca"
 dependencies = [
  "objc2-core-foundation",
  "objc2-io-surface",
@@ -1174,8 +1192,8 @@ dependencies = [
 
 [[package]]
 name = "streamlib-ipc-types"
-version = "0.68.34"
-source = "git+https://github.com/tatolab/streamlib?rev=1df75af9eec72e348aad2c82c3aeba23ad026ef0#1df75af9eec72e348aad2c82c3aeba23ad026ef0"
+version = "0.68.62"
+source = "git+https://github.com/tatolab/streamlib?rev=51644810763f97675280866efd4b199291ff02ca#51644810763f97675280866efd4b199291ff02ca"
 dependencies = [
  "iceoryx2",
  "libc",
@@ -1188,20 +1206,30 @@ dependencies = [
 
 [[package]]
 name = "streamlib-runtime-client-contract"
-version = "0.68.34"
-source = "git+https://github.com/tatolab/streamlib?rev=1df75af9eec72e348aad2c82c3aeba23ad026ef0#1df75af9eec72e348aad2c82c3aeba23ad026ef0"
+version = "0.68.62"
+source = "git+https://github.com/tatolab/streamlib?rev=51644810763f97675280866efd4b199291ff02ca#51644810763f97675280866efd4b199291ff02ca"
 dependencies = [
  "libc",
  "serde",
  "serde_json",
  "thiserror",
  "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "streamlib-slang-shader-compiler"
+version = "0.68.62"
+source = "git+https://github.com/tatolab/streamlib?rev=51644810763f97675280866efd4b199291ff02ca#51644810763f97675280866efd4b199291ff02ca"
+dependencies = [
+ "libloading 0.8.9",
+ "tracing",
 ]
 
 [[package]]
 name = "streamlib-surface-client"
-version = "0.68.34"
-source = "git+https://github.com/tatolab/streamlib?rev=1df75af9eec72e348aad2c82c3aeba23ad026ef0#1df75af9eec72e348aad2c82c3aeba23ad026ef0"
+version = "0.68.62"
+source = "git+https://github.com/tatolab/streamlib?rev=51644810763f97675280866efd4b199291ff02ca#51644810763f97675280866efd4b199291ff02ca"
 dependencies = [
  "libc",
  "mach2",
@@ -1247,12 +1275,13 @@ dependencies = [
  "streamlib-consumer-rhi",
  "streamlib-gpu-frame-import-client",
  "streamlib-ipc-types",
+ "streamlib-surface-client",
 ]
 
 [[package]]
 name = "tatolab-vulkanalia"
 version = "0.35.0"
-source = "git+https://github.com/tatolab/streamlib?rev=1df75af9eec72e348aad2c82c3aeba23ad026ef0#1df75af9eec72e348aad2c82c3aeba23ad026ef0"
+source = "git+https://github.com/tatolab/streamlib?rev=51644810763f97675280866efd4b199291ff02ca#51644810763f97675280866efd4b199291ff02ca"
 dependencies = [
  "libloading 0.8.9",
  "tatolab-vulkanalia-sys",
@@ -1261,7 +1290,7 @@ dependencies = [
 [[package]]
 name = "tatolab-vulkanalia-sys"
 version = "0.35.0"
-source = "git+https://github.com/tatolab/streamlib?rev=1df75af9eec72e348aad2c82c3aeba23ad026ef0#1df75af9eec72e348aad2c82c3aeba23ad026ef0"
+source = "git+https://github.com/tatolab/streamlib?rev=51644810763f97675280866efd4b199291ff02ca#51644810763f97675280866efd4b199291ff02ca"
 dependencies = [
  "bitflags 1.3.2",
 ]
@@ -1269,7 +1298,7 @@ dependencies = [
 [[package]]
 name = "tatolab-vulkanalia-vma"
 version = "0.9.0"
-source = "git+https://github.com/tatolab/streamlib?rev=1df75af9eec72e348aad2c82c3aeba23ad026ef0#1df75af9eec72e348aad2c82c3aeba23ad026ef0"
+source = "git+https://github.com/tatolab/streamlib?rev=51644810763f97675280866efd4b199291ff02ca#51644810763f97675280866efd4b199291ff02ca"
 dependencies = [
  "bitflags 2.13.2",
  "cc",
@@ -1423,10 +1452,65 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8"
 
 [[package]]
+name = "uuid"
+version = "1.29.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bed99139f7dac9b5cfe5f17be4d66dc7079a34dee1d74bcc77217119240e267c"
+dependencies = [
+ "js-sys",
+ "serde_core",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "valuable"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
+
+[[package]]
+name = "wasm-bindgen"
+version = "0.2.130"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0181c14ddd6c7b8b0b0132a5f1ea2f32be0d893cd3ea97b6e3b28886b8a3d1c"
+dependencies = [
+ "cfg-if",
+ "rustversion",
+ "wasm-bindgen-macro",
+ "wasm-bindgen-shared",
+]
+
+[[package]]
+name = "wasm-bindgen-macro"
+version = "0.2.130"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e931a02a39abdbf66966fc35902b5ed58344750a70885bed4ebb3d8eaf28ed9"
+dependencies = [
+ "quote",
+ "wasm-bindgen-macro-support",
+]
+
+[[package]]
+name = "wasm-bindgen-macro-support"
+version = "0.2.130"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ca4b54280e455bd831e33a6b8e734baf432fe63fbc35c42ac14ce67a043a53a"
+dependencies = [
+ "bumpalo",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+ "wasm-bindgen-shared",
+]
+
+[[package]]
+name = "wasm-bindgen-shared"
+version = "0.2.130"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b1f9c3798725016c6ee5f2f57869ec0831e8bbc0ab0310a86e787e97f41389e"
+dependencies = [
+ "unicode-ident",
+]
 
 [[package]]
 name = "windows-core"

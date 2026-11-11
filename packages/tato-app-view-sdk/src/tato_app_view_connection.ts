@@ -39,6 +39,7 @@ import {
   type AreasForAViewTypeReading,
   type MessageFromTheView,
   type ModulesAndMarketplaceSection,
+  type PortPickInTheStreamGraph,
   type PortViewerEvent,
   type ViewAsk,
   type ViewAskAnswer,
@@ -68,6 +69,9 @@ export interface GraphTransactionSending {
 export function newGestureIdempotencyKey(): string {
   return crypto.randomUUID();
 }
+
+/** How a pick in the Stream graph ended: the other end the person picked, by its node's id and port, nothing picked and why, or why it never started. */
+export type PortPickEnding = { kind: "picked"; node: string; port: string } | { kind: "ended"; because: string } | { kind: "not_started"; because: string };
 
 /** Studio done, or refused in its own words. */
 export type ViewAskDone = { kind: "done" } | { kind: "refused"; because: string };
@@ -112,6 +116,10 @@ export interface TatoAppViewConnection {
   watchOpenedOn(listener: (openedOn: ViewOpenedOn) => void): StopWatching;
   /** Where the view's own header row lies in its frame, after Studio's view-type menu, at once and on each change. */
   watchHeaderRow(listener: (headerRow: ViewHeaderRow) => void): StopWatching;
+  /** Whether the view's area fills the window now, at once and on each change; never `true` outside a layout. */
+  watchAreaExpansion(listener: (isExpanded: boolean) => void): StopWatching;
+  /** Grow the view's area to fill the window, or put the layout back; refused where the view shows outside a layout, as in a popped-out window. */
+  expandTheArea(isExpanded: boolean): Promise<ViewAskDone>;
   /** Select `selection` in Studio. */
   select(selection: StudioSelection): Promise<ViewAskDone>;
   /** Open `streamTab` in Studio. */
@@ -134,9 +142,9 @@ export interface TatoAppViewConnection {
   undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** Redo what `author`'s latest undo in the project reversed, answering the redo the runtime applied. */
   redoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
-  /** The chosen layout's areas for the view type `viewTypeId`, at once and again as the layout or the view types change. */
+  /** The layout's areas for the view type `viewTypeId`, at once and again as the layout or the view types change. */
   watchAreasForTheViewType(viewTypeId: string, listener: (reading: AreasForAViewTypeReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
-  /** Show the view type `viewTypeId` in area `areaId` of the chosen layout, in place of what it shows. */
+  /** Show the view type `viewTypeId` in area `areaId` of the layout, in place of what it shows. */
   showViewTypeInArea(viewTypeId: string, areaId: string): Promise<ViewAskDone>;
   /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
   openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewAskDone>;
@@ -150,6 +158,14 @@ export interface TatoAppViewConnection {
   readThePersonEditing(): Promise<ThePersonEditingReading>;
   /** Apply `operations` on the graphs of the project's streams as one transaction, whole or not at all, answering what it applied or the runtime's structured refusal. */
   transactInTheProject(projectFolder: string, operations: readonly StreamGraphAction[], sending: GraphTransactionSending): Promise<ProjectGraphTransactionApplying>;
+  /** Have the person pick the other end of `pick`'s port in the Stream graph, ending any pick held; answered once the pick ends, or at once when no Stream graph shows its stream. */
+  pickAPortInTheStreamGraph(pick: PortPickInTheStreamGraph): Promise<PortPickEnding>;
+  /** The port whose other end the person is picking in the Stream graph, at once and on each change; `null` while none is. */
+  watchPortPick(listener: (pick: PortPickInTheStreamGraph | null) => void, whenRefused?: WhenStudioRefuses): StopWatching;
+  /** End the pick held with the other end the person picked: `node`'s id and its `port`. */
+  answerThePortPick(node: string, port: string): Promise<ViewAskDone>;
+  /** End the pick held with nothing picked. */
+  endThePortPick(): Promise<ViewAskDone>;
   /** Send `payload` on the `node` view's output `output`. */
   sendOutput(output: string, payload: ViewOutputPayload): Promise<ViewAskDone>;
   /** Stop every watch and close the port. */
@@ -279,6 +295,8 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       watchSettings: (listener) => watchFor({ kind: "settings" }, (watched) => watched.subject === "settings" && listener(settingsOf(watched.reading)), IGNORE_THE_REFUSAL),
       watchOpenedOn: (listener) => watchFor({ kind: "opened_on" }, (watched) => watched.subject === "opened_on" && listener(watched.reading), IGNORE_THE_REFUSAL),
       watchHeaderRow: (listener) => watchFor({ kind: "header_row" }, (watched) => watched.subject === "header_row" && listener(watched.reading), IGNORE_THE_REFUSAL),
+      watchAreaExpansion: (listener) => watchFor({ kind: "area_expansion" }, (watched) => watched.subject === "area_expansion" && listener(watched.reading.is_expanded), IGNORE_THE_REFUSAL),
+      expandTheArea: (isExpanded) => ask({ kind: "expand_the_area", is_expanded: isExpanded }).then(doneOf),
       select: (selection) => ask({ kind: "select", selection }).then(doneOf),
       openStreamTab: (streamTab) => ask({ kind: "open_stream_tab", stream_tab: streamTab }).then(doneOf),
       openView: (viewTypeId, on) => ask({ kind: "open_view", view_type_id: viewTypeId, on }).then(doneOf),
@@ -319,6 +337,15 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       deleteAssetFromTheProject: (projectFolder, asset) => ask({ kind: "delete_asset_from_the_project", project_folder: projectFolder, asset }).then(doneOf),
       showViewTypeInArea: (viewTypeId, areaId) => ask({ kind: "show_view_type_in_area", view_type_id: viewTypeId, area_id: areaId }).then(doneOf),
       openModulesAndMarketplace: (shows) => ask({ kind: "open_modules_and_marketplace", shows }).then(doneOf),
+      pickAPortInTheStreamGraph: (pick) =>
+        ask({ kind: "pick_a_port_in_the_stream_graph", pick }).then((answer): PortPickEnding => {
+          if (answer.kind === "port_picked") return { kind: "picked", node: answer.node, port: answer.port };
+          if (answer.kind === "port_pick_ended") return { kind: "ended", because: answer.because };
+          return { kind: "not_started", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
+      watchPortPick: (listener, whenRefused = IGNORE_THE_REFUSAL) => watchFor({ kind: "port_pick" }, (watched) => watched.subject === "port_pick" && listener(watched.reading), whenRefused),
+      answerThePortPick: (node, port) => ask({ kind: "answer_the_port_pick", node, port }).then(doneOf),
+      endThePortPick: () => ask({ kind: "end_the_port_pick" }).then(doneOf),
       readThePersonEditing: () =>
         ask({ kind: "read_the_person_editing" }).then((answer): ThePersonEditingReading => {
           if (answer.kind === "the_person_editing") return { kind: "read", author: answer.author };

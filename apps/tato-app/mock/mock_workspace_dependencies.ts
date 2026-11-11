@@ -1,8 +1,9 @@
 // The mock's workspace imports, as the runtime's dependency tools would answer them: one project
 // copied from a folder beside the workspace. `?module_manager=edited_files` has a file of its copy edited
 // since, so Update waits on the overwrite; `?module_manager=newer` has its source hold a newer version.
+// Each import's views are those the mock's own project-views listing lists under its folder.
 
-import type { DependencySourceKind, ProjectDependency, WorkspaceDependency, WorkspaceDependencyUpdate } from "../src/shared/tatolab_backend_contract";
+import type { DependencySourceKind, ListedStudioView, ProjectDependency, ViewsOfAWorkspaceDependency, WorkspaceDependency, WorkspaceDependencyUpdate } from "../src/shared/tatolab_backend_contract";
 import { moduleFolderNameOf } from "../src/renderer/studio_shell/module_manager_listing";
 
 /** The state the mock workspace's imports start in. */
@@ -31,6 +32,7 @@ export class MockWorkspaceDependencies {
   constructor(
     private readonly workspaceFolder: string,
     scenario: MockWorkspaceDependenciesScenario,
+    private readonly viewsListedInTheWorkspace: () => ListedStudioView[],
   ) {
     const sourceFolder = `${workspaceFolder.slice(0, workspaceFolder.lastIndexOf("/"))}/lobby-wall`;
     this.dependencies = [
@@ -44,13 +46,27 @@ export class MockWorkspaceDependencies {
         edited_files: scenario === "edited_files" ? ["nodes/wall_mapping.py"] : [],
         newer_version_exists: scenario === "newer" ? true : null,
         check_refused_because: null,
+        views: { kind: "listed", views: [] },
       },
     ];
   }
 
   /** Each import, its newer-version mark kept only when `checkForNewer`. */
   list(checkForNewer: boolean): WorkspaceDependency[] {
-    return structuredClone(this.dependencies).map((dependency) => ({ ...dependency, newer_version_exists: checkForNewer ? (dependency.newer_version_exists ?? false) : null }));
+    return structuredClone(this.dependencies).map((dependency) => ({
+      ...dependency,
+      newer_version_exists: checkForNewer ? (dependency.newer_version_exists ?? false) : null,
+      views: this.viewsTheImportBrings(dependency.folder),
+    }));
+  }
+
+  private viewsTheImportBrings(folder: string): ViewsOfAWorkspaceDependency {
+    return {
+      kind: "listed",
+      views: this.viewsListedInTheWorkspace()
+        .filter((listedView) => listedView.import_folder === folder)
+        .map(({ view_type_id, manifest_json, ...opening }) => ({ view_type_id, manifest_json, ...(opening.opens ? { opens: true, not_opened_because: null } : { opens: false, not_opened_because: opening.not_opened_because }) })),
+    };
   }
 
   /** What the dialog answers for `sourceKind`: a project beside the workspace. */
@@ -73,6 +89,7 @@ export class MockWorkspaceDependencies {
       edited_files: [],
       newer_version_exists: null,
       check_refused_because: null,
+      views: { kind: "listed", views: [] },
     };
     this.dependencies.push(dependency);
     return { project: dependency.project, folder: dependency.folder, source: dependency.source, version: dependency.version };

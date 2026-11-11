@@ -92,7 +92,7 @@ function useOpenableFileGroups(connection: TatoAppViewConnection): OpenableCodeF
   return groups;
 }
 
-function CodeAreaHeaderTools({
+function CodeAreaToolbarTools({
   connection,
   documents,
   settings,
@@ -304,7 +304,7 @@ function CodeOfTheArea({ connection, settings }: { connection: TatoAppViewConnec
   );
   useTheFileTheAreaIsOpenedOn(connection, rememberTheSettings);
   return (
-    <CoreViewFrame connection={connection} headerTools={<CodeAreaHeaderTools connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} />}>
+    <CoreViewFrame connection={connection} toolbarLabel="Code tools" toolbarTools={<CodeAreaToolbarTools connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} />}>
       <RefusalOfTheLatestAskBar refusal={settingsRefusal} />
       <CodeAreaBody connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} />
     </CoreViewFrame>
@@ -314,6 +314,6 @@ function CodeOfTheArea({ connection, settings }: { connection: TatoAppViewConnec
 /** Code: the project's files in Monaco with Pyright's diagnostics and completion, saved straight to disk, the project's log under them; opened on a file, it shows that file. */
 export function CodeView({ connection }: { connection: TatoAppViewConnection }) {
   const settings = useViewReadingSoFar(connection.watchSettings);
-  if (settings.kind === "not_read_yet") return <CoreViewFrame connection={connection}>{null}</CoreViewFrame>;
+  if (settings.kind === "not_read_yet") return <CoreViewFrame connection={connection} toolbarLabel="Code tools">{null}</CoreViewFrame>;
   return <CodeOfTheArea connection={connection} settings={codeViewSettingsOf(settings.reading)} />;
 }

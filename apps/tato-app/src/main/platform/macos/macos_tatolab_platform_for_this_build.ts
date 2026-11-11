@@ -57,5 +57,6 @@ export async function macosTatolabPlatformForThisBuild(
       ? new LoginItemOfTheAppBundle(appLoginItemSettings)
       : tatolabAppNotOpenedAtLogin(UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL),
     systemMediaAccess: new MediaAccessOfTheAppBundle(appMediaAccessSettings, tatolabAppLog),
+    viewerImageFrameReading: "display_import",
   };
 }

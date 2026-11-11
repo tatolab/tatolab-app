@@ -2,10 +2,12 @@
 // project's folder, and each one's graph as the runtime renders it, its groups holding the nodes that name
 // them as their `studio.group`.
 
-import type { TreeViewRow } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
-import type { ListedStream, ListedStreamsReading, OpenProject, StreamGraphNode, StreamGraphReading, StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { shownStudioTreeRows, type StudioTreeNode } from "../shared/node_type_listing_tree";
+import type { TreeRowPick, TreeViewRow } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
+import type { ListedStream, ListedStreamsReading, OpenProject, StreamGraphAction, StreamGraphNode, StreamGraphReading, StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { shownStudioTreeRows, studioTreeNodesMatching, type StudioTreeNode } from "../shared/node_type_listing_tree";
 import { nodeTitle, nodeTypeClassName } from "../shared/node_words";
+import { editedStreamGraphOf, selectionFramedEdits } from "../shared/stream_graph_edits";
+import { nodesTheSelectionHolds, nodesTheSelectionHoldsInTheStream, selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 
 /** What a row stands for, so choosing it selects or opens the right thing. */
 export type OutlinerRowMeaning =
@@ -37,17 +39,63 @@ function nodeRowId(stream: string, node: string): string {
   return `node:${stream}/${node}`;
 }
 
-/** The id of the row that stands for `selection`, or `null` when no row does. */
-export function outlinerRowIdOfTheSelection(selection: StudioSelection): string | null {
+/** The rows that stand for `selection`: the one picked last, and every one selected with it. */
+export function outlinerRowIdsOfTheSelection(selection: StudioSelection): { picked_last: string | null; all: ReadonlySet<string> } {
   switch (selection.kind) {
     case "nothing":
     case "project":
-      return null;
+      return { picked_last: null, all: new Set() };
     case "stream":
-      return streamRowId(selection.stream);
+      return { picked_last: streamRowId(selection.stream), all: new Set([streamRowId(selection.stream)]) };
     case "node":
-      return nodeRowId(selection.stream, selection.node);
+      return { picked_last: nodeRowId(selection.stream, selection.node), all: new Set([nodeRowId(selection.stream, selection.node)]) };
+    case "nodes": {
+      const pickedLastNode = selection.nodes.at(-1);
+      return { picked_last: pickedLastNode === undefined ? null : nodeRowId(selection.stream, pickedLastNode), all: new Set(selection.nodes.map((node) => nodeRowId(selection.stream, node))) };
+    }
   }
+}
+
+/** The selection of `nodes` of `stream`, or nothing when there are none. */
+function selectionOfTheNodesOrNothing(stream: string, nodes: readonly string[]): StudioSelection {
+  return selectionOfTheNodes(stream, nodes) ?? { kind: "nothing" };
+}
+
+/**
+ * What the window selects after the node row of `picked` is picked `pick` while `selection` is selected: on its own, the
+ * node alone; toggled, the nodes of its stream selected with it, or without it if it was among them; extended, those nodes and
+ * every node row of its stream in `rowsShown` from the one picked last to it.
+ */
+export function selectionAfterTheOutlinerPick(selection: StudioSelection, picked: { stream: string; node: string }, pick: TreeRowPick, rowsShown: readonly OutlinerRow[]): StudioSelection {
+  const selectedBefore = nodesTheSelectionHoldsInTheStream(selection, picked.stream);
+  if (pick === "toggled") {
+    return selectedBefore.includes(picked.node) ? selectionOfTheNodesOrNothing(picked.stream, selectedBefore.filter((node) => node !== picked.node)) : selectionOfTheNodesOrNothing(picked.stream, [...selectedBefore, picked.node]);
+  }
+  const pickedBefore = selectedBefore.at(-1);
+  if (pick === "extended" && pickedBefore !== undefined) {
+    const nodeRowsOfTheStream = rowsShown.flatMap(({ meaning }) => (meaning.kind === "node" && meaning.stream === picked.stream ? [meaning.node] : []));
+    const fromIndex = nodeRowsOfTheStream.indexOf(pickedBefore);
+    const toIndex = nodeRowsOfTheStream.indexOf(picked.node);
+    if (fromIndex !== -1 && toIndex !== -1) {
+      const rowsBetween = nodeRowsOfTheStream.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
+      const rowsBetweenEndingAtThePick = toIndex >= fromIndex ? rowsBetween : rowsBetween.reverse();
+      return selectionOfTheNodesOrNothing(picked.stream, [...selectedBefore.filter((node) => !rowsBetweenEndingAtThePick.includes(node)), ...rowsBetweenEndingAtThePick]);
+    }
+  }
+  return { kind: "node", stream: picked.stream, node: picked.node };
+}
+
+/** The edit Group selected nodes sends for `selection`: a labelled group of its nodes, as the Stream graph's F frames them; or why there is none to send. */
+export function groupOfTheSelectedNodes(selection: StudioSelection | null, streamGraphs: OutlinerStreamGraphReadings): { kind: "groups"; actions: StreamGraphAction[] } | { kind: "cannot_group"; because: string } {
+  const selectedNodes = nodesTheSelectionHolds(selection);
+  if (selectedNodes === null) return { kind: "cannot_group", because: "Select the nodes to group first." };
+  const graphReading = streamGraphs[selectedNodes.stream];
+  if (graphReading === undefined) return { kind: "cannot_group", because: "The stream's graph isn't read yet." };
+  if (graphReading.kind === "not_read") return { kind: "cannot_group", because: graphReading.because };
+  const editedGraph = editedStreamGraphOf(graphReading.graph);
+  if ("because" in editedGraph) return { kind: "cannot_group", because: editedGraph.because };
+  const actions = selectionFramedEdits(editedGraph, selectedNodes.nodes);
+  return actions.length === 0 ? { kind: "cannot_group", because: "The selected nodes aren't in the stream's graph." } : { kind: "groups", actions };
 }
 
 function leafNode(row: OutlinerTreeNode["row"]): OutlinerTreeNode {
@@ -137,13 +185,18 @@ export function streamsTheOutlinerShows(project: OpenProject, listedStreams: Lis
   return listedStreams.kind === "listed" ? streamsOfTheOpenProject(project, listedStreams.streams).map((stream) => stream.stream) : [];
 }
 
-/** The outliner's rows that show for `project`, with what each stands for: a row shows when every row above it is open, and the stream of the active tab, `openStream`, opens by default and reads as the current row. */
+/**
+ * The outliner's rows that show for `project`, with what each stands for: a row shows when every row above it is open, and
+ * the stream of the active tab, `openStream`, opens by default and reads as the current row. A search for `searchWords`
+ * keeps only the rows whose name or type matches, with the rows above them, all open.
+ */
 export function outlinerTreeOfTheProject(
   project: OpenProject,
   listedStreams: ListedStreamsReading,
   streamGraphs: OutlinerStreamGraphReadings,
   openStream: string | null,
   expansionChoices: OutlinerRowExpansionChoices,
+  searchWords = "",
 ): OutlinerRow[] {
-  return shownStudioTreeRows(projectStreamNodes(project, listedStreams, streamGraphs, openStream), expansionChoices);
+  return shownStudioTreeRows(studioTreeNodesMatching(projectStreamNodes(project, listedStreams, streamGraphs, openStream), searchWords), expansionChoices);
 }

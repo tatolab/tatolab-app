@@ -12,7 +12,7 @@ import {
   type StreamGraphNodeStudioFields,
   type StreamGraphSummary,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { castAsTheRuntimeNamesAnUnnamedNode, nodeTypeClassName } from "../shared/node_words";
+import { castAsTheRuntimeNamesAnUnnamedNode, nodeTypeClassName } from "./node_words";
 
 /** A point on the canvas. */
 export interface StreamGraphCanvasPosition {

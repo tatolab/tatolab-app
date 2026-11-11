@@ -8,6 +8,7 @@ import {
   type ViewSettings,
 } from "@tatolab/tato-app-view-sdk";
 import { afterEach, describe, expect, it } from "vitest";
+import { PortPickHeldInTheWindow } from "./port_pick_held_in_the_window";
 import { WatchedStudioValue } from "./watched_studio_value";
 import type {
   JsonValue,
@@ -101,6 +102,7 @@ function recordingHostServices() {
   const graphTransactionsAsked: { projectFolder: string; operations: readonly unknown[]; mode: string; idempotencyKey: string | null }[] = [];
   const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
   const outputsWritten: { viewNode: StudioViewNodeAddress; port: string; value: JsonValue }[] = [];
+  const portPickHeld = new PortPickHeldInTheWindow();
   const hostServices: StudioViewHostServices = {
     watchOpenProject: (listener) => {
       listener({ kind: "none_open" });
@@ -115,8 +117,8 @@ function recordingHostServices() {
     watchNodeCatalog: () => () => undefined,
     openView: (viewTypeId, on) => {
       viewsOpened.push({ viewTypeId, on });
-      if (viewTypeId === "acme-dj:nowhere") return { kind: "not_opened", because: "No layout has an area showing acme-dj:nowhere." };
-      viewsOpenedOn.publish({ ...viewsOpenedOn.readLatest(), [viewTypeId]: { on, opening_id: `opening-${viewsOpened.length}`, layout: "build" } });
+      if (viewTypeId === "acme-dj:nowhere") return { kind: "not_opened", because: "No area shows acme-dj:nowhere." };
+      viewsOpenedOn.publish({ ...viewsOpenedOn.readLatest(), [viewTypeId]: { on, opening_id: `opening-${viewsOpened.length}` } });
       return { kind: "opened" };
     },
     watchViewOpenedOn: (viewTypeId, listener) =>
@@ -208,6 +210,10 @@ function recordingHostServices() {
       outputsWritten.push({ viewNode, port, value });
       return port === "play_a" ? { kind: "not_written", because: "write_studio_view_output failed: `play_a` takes a number or a list of numbers" } : { kind: "written" };
     },
+    watchPortPick: portPickHeld.portPick.watch,
+    pickAPortInTheStreamGraph: (pick) => portPickHeld.start(pick, null),
+    answerThePortPick: (node, port) => portPickHeld.answer(node, port),
+    endThePortPick: (because) => portPickHeld.end(because),
     watchPortViewer: (target, onEvent) => {
       const opened = { target, onEvent, closed: false };
       portViewersOpened.push(opened);
@@ -218,20 +224,28 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten };
+  return { hostServices, portPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten };
 }
 
-/** An area that keeps the settings it is asked to remember and says where the view's header row lies. */
+/** An area that keeps the settings it is asked to remember, says where the view's header row lies, and expands while a layout holds it. */
 function recordingAreaServices(savedSettings: JsonValue | undefined) {
   const saved = new WatchedStudioValue<{ saved: JsonValue | undefined }>({ saved: savedSettings });
   const headerRow = new WatchedStudioValue<ViewHeaderRow>({ leading_inset_px: 120, height_px: 30 });
+  const isExpanded = new WatchedStudioValue(false);
   const areaServices: TatolabViewAreaServices = {
     areaId: "properties",
     watchSavedSettings: (listener) => saved.watch((latest) => listener(latest.saved)),
     rememberSettings: (settings) => saved.publish({ saved: settings }),
     watchHeaderRow: headerRow.watch,
+    expansion: {
+      watchIsExpanded: isExpanded.watch,
+      expand: (isExpandedNext) => {
+        isExpanded.publish(isExpandedNext);
+        return { kind: "done" };
+      },
+    },
   };
-  return { areaServices, saved, headerRow };
+  return { areaServices, saved, headerRow, isExpanded };
 }
 
 const bridgesOpen: TatolabViewBridge[] = [];
@@ -272,6 +286,42 @@ describe("a view's connection to Studio, through the one bridge every view is se
     });
     expect(await connection.transactInTheProject("/set", [{ operation: "remove_node", stream: "s-uuid", node: "n-uuid" }], { mode: "live", idempotencyKey: null })).toEqual({ kind: "not_sent", because: "No runtime answers." });
     expect(graphTransactionsAsked[0]).toEqual({ projectFolder: "/set", operations: [addHoldFrame], mode: "commit", idempotencyKey: "gesture-1" });
+  });
+
+  it("carries a pick in the Stream graph from the view asking to the view answering, and its end in words", async () => {
+    const { connection, portPickHeld } = await connectedView(DJ_DECK_MANIFEST, {});
+    const picksShown: unknown[] = [];
+    connection.watchPortPick((pick) => picksShown.push(pick));
+    const pick = { stream: "set", node: "id-deck-a", port: "audio", direction: "output" } as const;
+    const picking = connection.pickAPortInTheStreamGraph(pick);
+    await messagesDelivered();
+    expect(picksShown).toEqual([null, pick]);
+    expect(await connection.answerThePortPick("id-mixer", "channel_1")).toEqual({ kind: "done" });
+    expect(await picking).toEqual({ kind: "picked", node: "id-mixer", port: "channel_1" });
+    expect(await connection.answerThePortPick("id-mixer", "channel_1")).toEqual({ kind: "refused", because: "No port is being picked in the Stream graph." });
+
+    const pickingAgain = connection.pickAPortInTheStreamGraph(pick);
+    await messagesDelivered();
+    expect(await connection.endThePortPick()).toEqual({ kind: "done" });
+    expect(await pickingAgain).toEqual({ kind: "ended", because: "DJ Deck ended the pick." });
+    expect(portPickHeld.portPick.readLatest()).toBeNull();
+  });
+
+  it("ends the pick a view still holds when the view closes, and leaves another view's pick alone", async () => {
+    const { connection, portPickHeld, bridge } = await connectedView(DJ_DECK_MANIFEST, {});
+    const pick = { stream: "set", node: "id-deck-a", port: "audio", direction: "output" } as const;
+    void connection.pickAPortInTheStreamGraph(pick);
+    await messagesDelivered();
+    expect(portPickHeld.portPick.readLatest()).toEqual(pick);
+    bridge.close();
+    expect(portPickHeld.portPick.readLatest()).toBeNull();
+
+    const another = await connectedView(DJ_DECK_MANIFEST, {});
+    const othersPick = another.portPickHeld.start({ ...pick, port: "cue" }, null);
+    another.bridge.close();
+    expect(another.portPickHeld.portPick.readLatest()).toEqual({ ...pick, port: "cue" });
+    another.portPickHeld.end("done");
+    expect(await othersPick).toEqual({ kind: "ended", because: "done" });
   });
 
   it("names the person editing, whose own edits Undo reverts", async () => {
@@ -318,7 +368,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
     ]);
   });
 
-  it("lists the chosen layout's areas for a view type, marking the asking view's own, and shows the view type in one", async () => {
+  it("lists the layout's areas for a view type, marking the asking view's own, and shows the view type in one", async () => {
     const { connection, viewTypesShownInAreas } = await connectedView(DJ_DECK_MANIFEST, {});
     const readings: unknown[] = [];
     connection.watchAreasForTheViewType("acme-dj:deck", (reading) => readings.push(reading));
@@ -539,7 +589,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
     await messagesDelivered();
 
     expect(openedAnswer).toEqual({ kind: "done" });
-    expect(notOpenedAnswer).toEqual({ kind: "refused", because: "No layout has an area showing acme-dj:nowhere." });
+    expect(notOpenedAnswer).toEqual({ kind: "refused", because: "No area shows acme-dj:nowhere." });
     expect(viewsOpened.map((opened) => opened.viewTypeId)).toEqual(["acme-dj:deck", "acme-dj:nowhere"]);
     expect(openedOnSeen).toEqual([null, { kind: "file", file: "/set/crate.m3u", opening_id: "opening-1" }]);
   });
@@ -556,6 +606,19 @@ describe("a view's connection to Studio, through the one bridge every view is se
       { leading_inset_px: 120, height_px: 30 },
       { leading_inset_px: 96, height_px: 30 },
     ]);
+  });
+
+  it("expands the view's area and puts the layout back when the view asks, telling it each time", async () => {
+    const { connection, isExpanded } = await connectedView(DJ_DECK_MANIFEST, {});
+    const expansionsSeen: boolean[] = [];
+    connection.watchAreaExpansion((seen) => expansionsSeen.push(seen));
+    await messagesDelivered();
+
+    expect(await connection.expandTheArea(true)).toEqual({ kind: "done" });
+    expect(isExpanded.readLatest()).toBe(true);
+    isExpanded.publish(false);
+    await messagesDelivered();
+    expect(expansionsSeen).toEqual([false, true, false]);
   });
 
   it("reads a project file, saying why in the reader's words when it was not read", async () => {

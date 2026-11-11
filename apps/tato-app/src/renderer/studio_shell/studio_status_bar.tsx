@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { ProgressMeter } from "@tatolab/tato-app-view-sdk/design_system/progress_meter";
 import { StatusBarPanelButton } from "@tatolab/tato-app-view-sdk/design_system/status_bar_panel_button";
+import { TriangleAlert } from "lucide-react";
 import type { ProjectTransactionsReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { TatolabPlatform, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import {
@@ -14,6 +15,7 @@ import {
   type StudioActivityLog,
 } from "../presentation/studio_activity_presentation";
 import { studioStatusBarWordsOf } from "../presentation/studio_status_bar_presentation";
+import { presentStudioWarning, studioWarningsButtonWordsOf } from "../presentation/studio_warnings_presentation";
 import { useRuntimeDescriptionReading, useTatolabStatus } from "../setup_and_settings/tatolab_window_context";
 import type { StudioViewHostServices } from "../view_host/studio_view_contract";
 
@@ -132,7 +134,38 @@ function StudioActivityPanelButton({ status }: { status: TatolabStatus }) {
   );
 }
 
-/** The studio's foot: the runtime and where it runs, what downloads or installs, and the project's last edit and who made it. */
+/** The studio's warnings: an amber triangle at the foot's left while any holds, opening a panel that says each one. */
+function StudioWarningsPanelButton({ status }: { status: TatolabStatus }) {
+  const [isOpen, setIsOpen] = useState(false);
+  if (status.studio_warnings.length === 0) return null;
+  return (
+    <StatusBarPanelButton
+      words={studioWarningsButtonWordsOf(status.studio_warnings)}
+      icon={<TriangleAlert className="size-3.5 text-warn-text" strokeWidth={1.75} aria-hidden />}
+      isBusy={false}
+      isFailing={false}
+      panelTitle="Warnings"
+      isOpen={isOpen}
+      onOpenChange={setIsOpen}
+      takesFocusOnOpen
+      data-studio-status-bar-warnings=""
+    >
+      <ul className="flex flex-col divide-y divide-line" data-studio-warnings-panel="">
+        {status.studio_warnings.map((studioWarning) => {
+          const words = presentStudioWarning(studioWarning.kind);
+          return (
+            <li key={studioWarning.kind} className="flex flex-col gap-1 py-2 first:pt-0 last:pb-0" data-studio-warning={studioWarning.kind}>
+              <span className="text-xs font-medium text-fg">{words.title}</span>
+              <span className="text-xs text-fg-2">{words.explanation}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </StatusBarPanelButton>
+  );
+}
+
+/** The studio's foot: the warnings that hold, the runtime and where it runs, what downloads or installs, and the project's last edit and who made it. */
 export function StudioStatusBar({
   viewHostServices,
   projectFolder,
@@ -155,6 +188,7 @@ export function StudioStatusBar({
   });
   return (
     <footer className="flex h-6 shrink-0 items-center gap-4 bg-studio-menu-bar px-3 text-2xs text-fg-3" aria-label="Status" data-studio-status-bar="">
+      <StudioWarningsPanelButton status={status} />
       <span className={cn(words.runtime_tone === "not_running" && "text-danger-text")} data-studio-status-bar-runtime={words.runtime_tone}>
         {words.runtime}
       </span>

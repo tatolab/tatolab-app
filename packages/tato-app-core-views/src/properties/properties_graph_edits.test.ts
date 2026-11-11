@@ -1,5 +1,6 @@
 import { NODE_STUDIO_FIELDS_NONE_SET, type JsonValue, type StreamGraphDeclaredPort, type StreamGraphLink, type StreamGraphNode } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { expect, test } from "vitest";
+import { portsThatCanJoinByNodeId } from "../shared/ports_that_can_join";
 import type { ConfigFormField } from "./config_form_fields";
 import {
   configFieldsToExposeAsGraphInputs,
@@ -13,6 +14,8 @@ import {
   nodeIdInShort,
   pinValueFromTheWordsTyped,
   portsToConnect,
+  connectingThePortPicked,
+  whyThePortTakesNoOtherTarget,
   portsToConnectNote,
   resetTheConfigField,
   setTheConfigField,
@@ -103,22 +106,55 @@ test("a port's linked ends name the node and port on the other side, and disconn
   });
 });
 
-test("an output's Connect menu lists the other nodes' inputs not linked yet, its family's first, others saying why they can't join", () => {
-  const choices = portsToConnect("stream-asset", graph, camera, "output", aPort("level", "channels"));
-  expect(choices.map(({ words, cannotBecause, choiceKey }) => ({ words, cannotBecause, choiceKey }))).toEqual([
-    { words: "Meter › gain", cannotBecause: null, choiceKey: "id-meter:gain" },
+test("an output's target picker lists the other nodes' inputs not linked yet, its family's first, others saying why they can't join", () => {
+  const choices = portsToConnect("stream-asset", graph, camera, "output", aPort("level", "channels"), null);
+  expect(choices.map(({ nodeTitle, port, cannotBecause, choiceKey }) => ({ nodeTitle, port, cannotBecause, choiceKey }))).toEqual([
+    { nodeTitle: "Meter", port: "gain", cannotBecause: null, choiceKey: "id-meter:gain" },
   ]);
-  expect(choices[0]?.connecting).toEqual({ operation: "connect", stream: "stream-asset", source: { node: "id-camera", port: "level" }, target: { node: "id-meter", port: "gain" } });
+  expect(choices[0]?.connecting).toEqual([{ operation: "connect", stream: "stream-asset", source: { node: "id-camera", port: "level" }, target: { node: "id-meter", port: "gain" } }]);
 });
 
-test("an input's Connect menu lists every other node's outputs, never its own, a linked one included", () => {
-  const choices = portsToConnect("stream-asset", graph, meter, "input", aPort("frames", "image"));
-  expect(choices.map(({ words, cannotBecause }) => [words, cannotBecause])).toEqual([
+test("an input's target picker lists every other node's outputs but the one it is linked with, never its own", () => {
+  const choices = portsToConnect("stream-asset", graph, meter, "input", aPort("frames", "image"), null);
+  expect(choices.map(({ nodeTitle, port, cannotBecause }) => [`${nodeTitle} › ${port}`, cannotBecause])).toEqual([
     ["Camera › video", null],
-    ["Invert › video_out", null],
     ["Camera › level", "Channels, can't connect"],
   ]);
-  expect(choices[0]?.connecting).toEqual({ operation: "connect", stream: "stream-asset", source: { node: "id-camera", port: "video" }, target: { node: "id-meter", port: "frames" } });
+  expect(choices[0]?.connecting).toEqual([{ operation: "connect", stream: "stream-asset", source: { node: "id-camera", port: "video" }, target: { node: "id-meter", port: "frames" } }]);
+});
+
+test("choosing another port in a linked picker moves the link as one transaction, the port it is linked with left out", () => {
+  const [linkedEnd] = linkedEndsOfThePort(graph, meter, "input", "frames");
+  expect(linkedEnd?.node.id).toBe("id-invert");
+  const choices = portsToConnect("stream-asset", graph, meter, "input", aPort("frames", "image"), linkedEnd ?? null);
+  expect(choices.map(({ nodeTitle, port }) => `${nodeTitle} › ${port}`)).toEqual(["Camera › video", "Camera › level"]);
+  expect(choices[0]?.connecting).toEqual([
+    { operation: "disconnect", stream: "stream-asset", source: { node: "id-invert", port: "video_out" }, target: { node: "id-meter", port: "frames" } },
+    { operation: "connect", stream: "stream-asset", source: { node: "id-camera", port: "video" }, target: { node: "id-meter", port: "frames" } },
+  ]);
+});
+
+test("a port picked in the Stream graph joins as its picker's choice would, or says why it can't", () => {
+  const [linkedEnd] = linkedEndsOfThePort(graph, meter, "input", "frames");
+  expect(connectingThePortPicked("stream-asset", graph, meter, "input", aPort("frames", "image"), linkedEnd ?? null, { node: "id-camera", port: "video" })).toEqual({
+    kind: "connecting",
+    connecting: portsToConnect("stream-asset", graph, meter, "input", aPort("frames", "image"), linkedEnd ?? null)[0]?.connecting,
+  });
+  expect(connectingThePortPicked("stream-asset", graph, meter, "input", aPort("frames", "image"), null, { node: "id-camera", port: "level" })).toEqual({ kind: "cannot_join", because: "Camera › level can't join frames: Channels, can't connect." });
+  expect(connectingThePortPicked("stream-asset", graph, meter, "input", aPort("frames", "image"), linkedEnd ?? null, { node: "id-invert", port: "video_out" }).kind).toBe("cannot_join");
+});
+
+test("the Stream graph lights each node with a port of the family that can join, an input's not by the output it is linked with, an output's only by inputs not linked yet", () => {
+  expect([...portsThatCanJoinByNodeId(graph, meter, "input", aPort("frames", "image"))]).toEqual([["id-camera", ["video"]]]);
+  expect([...portsThatCanJoinByNodeId(graph, camera, "output", aPort("video", "image"))]).toEqual([]);
+  expect([...portsThatCanJoinByNodeId(graph, camera, "output", aPort("level", "channels"))]).toEqual([["id-meter", ["gain"]]]);
+});
+
+test("an input takes one target picker, an output any number", () => {
+  expect(whyThePortTakesNoOtherTarget("input", 0, 0)).toBeNull();
+  expect(whyThePortTakesNoOtherTarget("input", 1, 0)).toBe("An input takes one link. Choose another output in its picker.");
+  expect(whyThePortTakesNoOtherTarget("input", 0, 1)).not.toBeNull();
+  expect(whyThePortTakesNoOtherTarget("output", 2, 1)).toBeNull();
 });
 
 test("the Connect menu's note and the heading's short node id read as the panel shows them", () => {

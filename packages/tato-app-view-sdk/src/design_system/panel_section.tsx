@@ -56,6 +56,7 @@ export function PanelListRow({
   name,
   trailing,
   detail,
+  detailWraps = false,
   ...controlDataAttributes
 }: {
   /** An icon element, so a row can draw it in its own tone. */
@@ -63,6 +64,8 @@ export function PanelListRow({
   name: ReactNode;
   trailing?: ReactNode;
   detail?: ReactNode;
+  /** Wraps the detail line instead of cutting it short, for words that must be read whole, such as a refusal. */
+  detailWraps?: boolean;
 } & ControlDataAttributes) {
   return (
     <li className="flex min-w-0 gap-2.5 py-1.5" {...controlDataAttributes}>
@@ -72,7 +75,7 @@ export function PanelListRow({
           <span className="min-w-0 truncate text-[13px] text-fg">{name}</span>
           {trailing !== undefined && <span className="ml-auto shrink-0 text-xs text-fg-3">{trailing}</span>}
         </div>
-        {detail !== undefined && <div className="mt-0.5 min-w-0 truncate text-xs text-fg-3">{detail}</div>}
+        {detail !== undefined && <div className={cn("mt-0.5 min-w-0 text-xs text-fg-3", detailWraps ? "break-words" : "truncate")}>{detail}</div>}
       </div>
     </li>
   );

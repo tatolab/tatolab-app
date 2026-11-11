@@ -12,11 +12,24 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import type { LucideIcon } from "lucide-react";
+import { Button } from "./ui/button";
+import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
+import { ICON_BUTTON_CLASS_NAMES, STOCK_ICON_BUTTON_SIZE } from "./icon_button";
 
-/** One entry of a menu bar's menu: a command, one that cannot run now, one of a set of choices (ticked when chosen), a submenu, or a hairline. */
+/** One rectangle of a menu entry's picture, in percent of the picture's width and height; the emphasised one is drawn in the brand colour. */
+export interface StudioMenuEntryPictureArea {
+  left_percent: number;
+  top_percent: number;
+  width_percent: number;
+  height_percent: number;
+  is_emphasised: boolean;
+}
+
+/** One entry of a menu bar's menu: a command (with a small picture of rectangles before its label, where it has one), one that cannot run now, one of a set of choices (ticked when chosen), a submenu, or a hairline. */
 export type StudioMenuEntry =
-  | { kind: "command"; label: string; shortcutHint?: string; onChosen: () => void }
+  | { kind: "command"; label: string; shortcutHint?: string; picture?: readonly StudioMenuEntryPictureArea[]; onChosen: () => void }
   | {
       kind: "unavailable_command";
       label: string;
@@ -35,6 +48,26 @@ export interface StudioMenu {
 }
 
 const MENU_ENTRY_CLASS_NAMES = "h-[26px] gap-2 rounded-sm px-2 text-xs";
+
+/** A choice's tick sits in the entries' leading gutter, clear of its shortcut at the end. */
+const MENU_CHOICE_TICK_IN_THE_GUTTER_CLASS_NAMES = "[&>[data-slot=dropdown-menu-checkbox-item-indicator]]:right-auto [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:left-2";
+
+/** A command's picture: its rectangles drawn small, filling the gutter the other entries leave before their labels. */
+function StudioMenuEntryPicture({ areas }: { areas: readonly StudioMenuEntryPictureArea[] }) {
+  return (
+    <span aria-hidden="true" className="relative h-3 w-4 shrink-0" data-menu-entry-picture="">
+      {areas.map((area, areaIndex) => (
+        <span
+          key={areaIndex}
+          className="absolute p-px"
+          style={{ left: `${area.left_percent}%`, top: `${area.top_percent}%`, width: `${area.width_percent}%`, height: `${area.height_percent}%` }}
+        >
+          <span className={cn("block size-full rounded-[2px] border", area.is_emphasised ? "border-brand-text bg-brand-soft" : "border-fg-3")} />
+        </span>
+      ))}
+    </span>
+  );
+}
 
 function StudioMenuEntries({ entries }: { entries: readonly StudioMenuEntry[] }) {
   return entries.map((entry, entryIndex) => {
@@ -57,7 +90,7 @@ function StudioMenuEntries({ entries }: { entries: readonly StudioMenuEntry[] })
             checked={entry.isChosen}
             onCheckedChange={entry.onChosen}
             closeOnClick
-            className={cn(MENU_ENTRY_CLASS_NAMES, "pl-7")}
+            className={cn(MENU_ENTRY_CLASS_NAMES, "pl-7", MENU_CHOICE_TICK_IN_THE_GUTTER_CLASS_NAMES)}
           >
             {entry.label}
             {entry.shortcutHint !== undefined && <DropdownMenuShortcut>{entry.shortcutHint}</DropdownMenuShortcut>}
@@ -65,7 +98,8 @@ function StudioMenuEntries({ entries }: { entries: readonly StudioMenuEntry[] })
         );
       case "command":
         return (
-          <DropdownMenuItem key={entry.label} onClick={entry.onChosen} className={cn(MENU_ENTRY_CLASS_NAMES, "pl-7")}>
+          <DropdownMenuItem key={entry.label} onClick={entry.onChosen} className={cn(MENU_ENTRY_CLASS_NAMES, entry.picture === undefined ? "pl-7" : "pl-1")}>
+            {entry.picture !== undefined && <StudioMenuEntryPicture areas={entry.picture} />}
             {entry.label}
             {entry.shortcutHint !== undefined && <DropdownMenuShortcut>{entry.shortcutHint}</DropdownMenuShortcut>}
           </DropdownMenuItem>
@@ -108,5 +142,24 @@ export function StudioMenuBar({ label, menus }: { label: string; menus: readonly
         </DropdownMenu>
       ))}
     </Menubar>
+  );
+}
+
+/** An icon button that opens the entries of one of the menu bar's menus, as the title row's layout button opens Window › Layout. */
+export function StudioMenuButton({
+  icon: TriggerIcon,
+  label,
+  entries,
+  ...controlDataAttributes
+}: { icon: LucideIcon; label: string; entries: readonly StudioMenuEntry[] } & ControlDataAttributes) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="ghost" size={STOCK_ICON_BUTTON_SIZE.regular} className={ICON_BUTTON_CLASS_NAMES} />} aria-label={label} title={label} {...controlDataAttributes}>
+        <TriggerIcon className="size-4" strokeWidth={1.75} aria-hidden />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-max min-w-[230px]">
+        <StudioMenuEntries entries={entries} />
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

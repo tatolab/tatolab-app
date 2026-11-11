@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { isANameTheCodeGave, nameInWords, nodeTitle, nodeTypeClassName } from "./node_words";
+import { isANameTheCodeGave, nameInWords, nodeTitle, nodeTypeClassName, wordsForTheSeveralSelectedNodes } from "./node_words";
 
 test("a_node_type_names_its_class_after_its_module", () => {
   expect(nodeTypeClassName("tatolab.stream:TestPatternSource")).toBe("TestPatternSource");
@@ -19,4 +19,15 @@ test("an_unnamed_node_is_titled_by_its_type_and_a_named_one_by_its_own_name", ()
   expect(nodeTitle("entrance_cam", "tatolab.stream:CameraSource")).toBe("entrance_cam");
   expect(isANameTheCodeGave("testpatternsource", "tatolab.stream:TestPatternSource")).toBe(false);
   expect(isANameTheCodeGave("entrance_cam", "tatolab.stream:CameraSource")).toBe(true);
+});
+
+test("several_selected_nodes_are_counted_and_titled_as_their_cards_are_and_a_node_not_in_the_graph_by_its_name", () => {
+  const graphNodes = [
+    { name: "testpatternsource", type: "tatolab.stream:TestPatternSource" },
+    { name: "lobby_screen", type: "tatolab.stream:DisplayWindow" },
+  ];
+  expect(wordsForTheSeveralSelectedNodes(["testpatternsource", "lobby_screen", "gone"], graphNodes)).toEqual({
+    title: "3 nodes selected",
+    explanation: "Test Pattern Source, lobby_screen, gone. Select one node to edit its config.",
+  });
 });

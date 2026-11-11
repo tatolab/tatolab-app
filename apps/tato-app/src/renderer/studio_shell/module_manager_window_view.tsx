@@ -8,6 +8,7 @@ import type {
   PackageCatalogReading,
   ProjectDependency,
   TatolabPlatform,
+  ViewsOfAWorkspaceDependency,
   WorkspaceDependency,
   WorkspaceDependencyUpdate,
 } from "../../shared/tatolab_backend_contract";
@@ -23,9 +24,19 @@ import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_li
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { SectionNavigationList } from "@tatolab/tato-app-view-sdk/design_system/section_navigation_list";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
+import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { coverInitialOfTheName, projectCoverNumberOfTheName } from "../presentation/projects_presentation";
-import { everyModuleCardRowOf, moduleCardCountsOf, moduleCardMarkOf, moduleCardRowPickedBy, moduleCardRowsShownOf, shortVersionOf, type ModuleCardRow } from "./module_manager_listing";
+import {
+  everyModuleCardRowOf,
+  moduleCardCountsOf,
+  moduleCardMarkOf,
+  moduleCardRowPickedBy,
+  moduleCardRowsShownOf,
+  moduleViewsShownOf,
+  shortVersionOf,
+  type ModuleCardRow,
+} from "./module_manager_listing";
 import { isModulesShown, MODULES_SHOWN, type ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { ModuleManagerSectionAskNumbered } from "./studio_window_model";
 
@@ -83,6 +94,46 @@ function MembersSections({ nodes, streams }: { nodes: readonly PackageCatalogMem
   );
 }
 
+/** The views a module the project has added brings, each a row, and what they can reach; or why the runtime listed none. */
+function ViewsTheModuleAddsSection({ views }: { views: ViewsOfAWorkspaceDependency }) {
+  const shown = useMemo(() => moduleViewsShownOf(views), [views]);
+  const ViewIcon = studioIconNamed("project_view");
+  if (shown.kind === "not_listed") {
+    return (
+      <PanelSection title="Adds these views">
+        <RefusalLine tone="warning" lead="Its views could not be listed:" words={shown.because} data-module-manager-views-not-listed="" />
+      </PanelSection>
+    );
+  }
+  if (shown.rows.length === 0) return null;
+  return (
+    <>
+      <PanelSection title="Adds these views">
+        <ul>
+          {shown.rows.map((viewRow) => (
+            <PanelListRow
+              key={viewRow.view_type_id}
+              icon={<ViewIcon className="size-3.5 text-fg-3" strokeWidth={1.75} aria-hidden />}
+              name={viewRow.title}
+              trailing={viewRow.opens ? viewRow.ports_words : undefined}
+              detail={viewRow.opens ? undefined : <RefusalLine tone="warning" layout="under_field" lead="Doesn't open:" words={viewRow.not_opened_because} />}
+              detailWraps
+              data-module-manager-view={viewRow.view_type_id}
+            />
+          ))}
+        </ul>
+      </PanelSection>
+      {shown.reach_words !== null && (
+        <PanelSection title="What its views can reach">
+          <p className="py-1.5 text-xs text-fg-2" data-module-manager-views-reach="">
+            {shown.reach_words}
+          </p>
+        </PanelSection>
+      )}
+    </>
+  );
+}
+
 /** The picked card at length: what it brings and where it came from, Add for one the project has not added, and Update and Open to edit for one it has. */
 function ModuleCardDetails({
   row,
@@ -123,6 +174,7 @@ function ModuleCardDetails({
         )}
         {dependency !== null && dependency.check_refused_because !== null && <RefusalLine tone="warning" lead="Where it was copied from could not be checked:" words={dependency.check_refused_because} />}
         {entry !== null && <MembersSections nodes={entry.nodes} streams={entry.streams} />}
+        {dependency !== null && <ViewsTheModuleAddsSection views={dependency.views} />}
         {dependency !== null && (
           <PanelSection title={`Edited since its copy (${dependency.edited_files.length})`}>
             {dependency.edited_files.length === 0 ? (

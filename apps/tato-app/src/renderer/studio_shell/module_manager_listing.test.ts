@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { PackageCatalogReading, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
-import { everyModuleCardRowOf, moduleCardCountsOf, moduleCardMarkOf, moduleCardRowPickedBy, moduleCardRowsShownOf, moduleFolderNameOf, shortVersionOf } from "./module_manager_listing";
+import type { PackageCatalogReading, ViewOfAWorkspaceDependency, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
+import {
+  everyModuleCardRowOf,
+  moduleCardCountsOf,
+  moduleCardMarkOf,
+  moduleCardRowPickedBy,
+  moduleCardRowsShownOf,
+  moduleFolderNameOf,
+  moduleViewsShownOf,
+  shortVersionOf,
+} from "./module_manager_listing";
 import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 
 function moduleCardRowsOf(catalog: PackageCatalogReading | null, dependencies: readonly WorkspaceDependency[], modulesShown: ModulesShown, searchText: string) {
@@ -30,6 +39,7 @@ function aModule(folder: string, name: string | null): WorkspaceDependency {
     edited_files: [],
     newer_version_exists: null,
     check_refused_because: null,
+    views: { kind: "listed", views: [] },
   };
 }
 
@@ -98,5 +108,39 @@ describe("what the Modules and Marketplace window lists", () => {
 
   it("shows a version by its first 12 characters", () => {
     expect(shortVersionOf("9f2c4e1a7b3d5f60c8e2a4b6")).toBe("9f2c4e1a7b3d");
+  });
+});
+
+describe("what a module's details say of the views it adds", () => {
+  const wallCamera: ViewOfAWorkspaceDependency = {
+    view_type_id: "lobby-wall:wall_camera",
+    manifest_json: { contract: "1.0", title: "Wall camera", entry: "index.html", placement: "node", inputs: [{ name: "video", family: "image" }], outputs: [{ name: "pan", family: "array" }, { name: "tilt", family: "array" }], capabilities: ["camera"] },
+    opens: true,
+    not_opened_because: null,
+  };
+  const cueList: ViewOfAWorkspaceDependency = { view_type_id: "lobby-wall:cue_list", manifest_json: { contract: "1.0", title: "Cue list", entry: "index.html", placement: "area", capabilities: ["microphone", "read.selection"] }, opens: true, not_opened_because: null };
+  const stageRig: ViewOfAWorkspaceDependency = { view_type_id: "lobby-wall:stage_rig", manifest_json: { contract: "2.0", title: "Stage rig", entry: "index.html", placement: "area" }, opens: false, not_opened_because: "`contract`: this runtime reads view contract 1.0." };
+
+  it("names each view by its manifest's title with its ports, says why one doesn't open, and names the devices those that open declare", () => {
+    expect(moduleViewsShownOf({ kind: "listed", views: [wallCamera, cueList, stageRig, { view_type_id: "lobby-wall:half_built", manifest_json: null, opens: true, not_opened_because: null }] })).toEqual({
+      kind: "listed",
+      rows: [
+        { view_type_id: "lobby-wall:wall_camera", title: "Wall camera", opens: true, ports_words: "1 in · 2 out" },
+        { view_type_id: "lobby-wall:cue_list", title: "Cue list", opens: true, ports_words: "Opens in any area" },
+        { view_type_id: "lobby-wall:stage_rig", title: "Stage rig", opens: false, not_opened_because: "`contract`: this runtime reads view contract 1.0." },
+        { view_type_id: "lobby-wall:half_built", title: "lobby-wall:half_built", opens: false, not_opened_because: expect.any(String) },
+      ],
+      reach_words: "Full access, like its nodes. They ask for the camera and the microphone.",
+    });
+  });
+
+  it("says what its views reach only when one opens, naming no device none of them declares", () => {
+    expect(moduleViewsShownOf({ kind: "listed", views: [wallCamera] })).toMatchObject({ reach_words: "Full access, like its nodes. They ask for the camera." });
+    expect(moduleViewsShownOf({ kind: "listed", views: [{ ...cueList, manifest_json: { contract: "1.0", title: "Cue list", entry: "index.html", placement: "area" } }] })).toMatchObject({ reach_words: "Full access, like its nodes." });
+    expect(moduleViewsShownOf({ kind: "listed", views: [stageRig] })).toMatchObject({ reach_words: null });
+  });
+
+  it("passes on the runtime's refusal to list them in its words", () => {
+    expect(moduleViewsShownOf({ kind: "not_listed", because: "list_project_views failed: the runtime is stopping" })).toEqual({ kind: "not_listed", because: "list_project_views failed: the runtime is stopping" });
   });
 });

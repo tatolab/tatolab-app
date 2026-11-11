@@ -4,7 +4,7 @@
 
 import type { ListedStudioView, OpenProjectReading } from "../shared/tatolab_backend_contract.js";
 import { projectViewFolderUrl, type ProjectViewsListedToTheWindows } from "./project_view_files.js";
-import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
+import { studioViewOpeningOf, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** The runtime's `list_project_views`, refused in its own words. */
@@ -30,7 +30,7 @@ export async function studioViewsOfTheOpenProject(
       import_folder: listedView.import_folder,
       manifest_json: listedView.manifest,
       folder_url: projectViewFolderUrl(openProjectFolder, listedView.view_folder_in_the_project),
-      ...(listedView.opens ? { opens: true, not_opened_because: null } : { opens: false, not_opened_because: listedView.not_opened_because }),
+      ...studioViewOpeningOf(listedView),
     })),
   );
 }

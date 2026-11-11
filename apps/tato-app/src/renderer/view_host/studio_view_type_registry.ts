@@ -1,17 +1,18 @@
 import { readTatolabViewManifest, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
 import type { ReactNode } from "react";
-import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
+import type { ListedStudioView, StudioViewOpening } from "../../shared/tatolab_backend_contract";
 import type { StudioAreaHeaderMenuIcon } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
-import type { JsonValue, StopWatching, StudioViewHostServices, StudioViewTypeSource, ViewHeaderRow } from "./studio_view_contract";
+import type { JsonValue, StopWatching, StudioAreaExpansion, StudioViewHostServices, StudioViewTypeSource, ViewHeaderRow } from "./studio_view_contract";
 import { WatchedStudioValue } from "./watched_studio_value";
 
 /** What an area hands the view type it draws: the settings it saved, keeping the next ones, and where a frame's own header row lies. */
 export interface StudioAreaOfTheView {
-  /** The area's id in the chosen layout; `null` where the view shows outside one, as a popped-out view does. */
+  /** The area's id in the layout; `null` where the view shows outside one, as a popped-out view does. */
   area_id: string | null;
   saved_settings: JsonValue | undefined;
   rememberSettings(nextSettings: JsonValue): void;
   header_row: WatchedStudioValue<ViewHeaderRow>;
+  expansion: StudioAreaExpansion;
 }
 
 /** A view type as the registry holds it, made from its manifest: what the view-type menu lists, and how an area draws its frame. */
@@ -48,6 +49,13 @@ export function titleTheManifestNames(manifestJson: JsonValue | null, fallbackTi
   if (typeof manifestJson !== "object" || manifestJson === null || Array.isArray(manifestJson)) return fallbackTitle;
   const title = manifestJson["title"];
   return typeof title === "string" && title !== "" ? title : fallbackTitle;
+}
+
+/** A listed view's manifest read through the view SDK's schema, or why the view does not open, in the runtime's words or the schema's. */
+export function manifestOfAListedView(listed: Pick<ListedStudioView, "manifest_json"> & StudioViewOpening): { kind: "opens"; manifest: TatolabViewManifest } | { kind: "not_opened"; because: string } {
+  if (!listed.opens) return { kind: "not_opened", because: listed.not_opened_because };
+  const manifestReading = readTatolabViewManifest(listed.manifest_json);
+  return manifestReading.kind === "read" ? { kind: "opens", manifest: manifestReading.manifest } : { kind: "not_opened", because: manifestReading.because };
 }
 
 /** Makes the view type a listed view's manifest declares, brought by the project its `project_name` names: the open project or the import whose `views/` holds it. */
@@ -126,12 +134,8 @@ export class StudioViewTypeRegistry {
           brought_by: { kind: "project", project_name: listed.project_name },
           because,
         });
-        if (!listed.opens) {
-          notOpened.push(notOpenedBecause(listed.not_opened_because));
-          continue;
-        }
-        const manifestReading = readTatolabViewManifest(listed.manifest_json);
-        if (manifestReading.kind === "not_read") notOpened.push(notOpenedBecause(manifestReading.because));
+        const manifestReading = manifestOfAListedView(listed);
+        if (manifestReading.kind === "not_opened") notOpened.push(notOpenedBecause(manifestReading.because));
         else if (this.viewTypesById.has(listed.view_type_id) || this.viewTypesOfferedInDeveloperModeById.has(listed.view_type_id)) notOpened.push(notOpenedBecause(`The studio already has a view named ${listed.view_type_id}.`));
         else viewTypes.push(this.projectStudioViewTypeOf(listed, manifestReading.manifest));
       }

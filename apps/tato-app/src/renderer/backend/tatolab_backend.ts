@@ -1,5 +1,6 @@
 import type {
   ChosenProjectFolder,
+  StudioWarningKind,
   JsonValue,
   ListedStudioView,
   PythonLanguageServerEvent,
@@ -83,6 +84,8 @@ export interface TatolabBackend {
   takeTheNewerTatolabAppVersion(): Promise<void>;
   /** Answer the update dialog for the announcement of `kind` for `version`: Install Update or Release Notes for `take_its_action`, or closing it; the status's `app_update_announcement` moves on. */
   answerTheAppUpdateAnnouncement(kind: TatolabAppUpdateAnnouncementKind, version: string, answer: TatolabAppUpdateAnnouncementAnswer): Promise<void>;
+  /** Remember that the dialog of the warning `kind` was shown, so no window shows it again; the status's `studio_warnings` moves on. */
+  dismissTheStudioWarningDialog(kind: StudioWarningKind): Promise<void>;
   /** Queue the removal of every stream the runtime holds from `projectDirectory`, resolving once it is queued and rejecting with its refusal; the streams stopping, then gone, arrive as the next statuses. */
   removeProject(projectDirectory: string): Promise<void>;
   /** Show the stream `streamId` under `displayName`, resolving once the runtime has recorded it and rejecting with its refusal; the new name arrives as the next status. */

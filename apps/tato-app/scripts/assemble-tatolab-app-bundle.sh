@@ -7,6 +7,8 @@
 #                                                         filesystem is case-insensitive, so "tatolab"
 #                                                         would fold onto the app's own "Tatolab")
 #   <helper>/Contents/MacOS/uv                            the uv tatolabd runs from beside itself
+#   <helper>/Contents/MacOS/tatolab-video-poster-frame    the poster frame helper tatolabd runs from
+#                                                         beside itself
 #   <helper>/Contents/Frameworks/tatolab-runtime/<path>   every Mach-O of lend/tatolab/runtime
 #   <helper>/Contents/Resources/lend/                     the lend, each Mach-O a relative symlink
 #                                                         into Frameworks/tatolab-runtime, precompiled
@@ -63,14 +65,14 @@ processor_interpreter_python_versions=(3.10 3.11 3.12 3.13 3.14)
 
 contents="$app_bundle/Contents"
 [ -x "$contents/MacOS/Tato Studio" ] || { echo "$app_bundle has no Contents/MacOS/Tato Studio: not a packaged Tato Studio.app" >&2; exit 1; }
-for required in bin/tatolabd bin/tatolab bin/uv "lib/tatolab/lend/$lent_runtime_package_relative_to_the_lend" lib/tatolab/imports \
+for required in bin/tatolabd bin/tatolab bin/uv bin/tatolab-video-poster-frame "lib/tatolab/lend/$lent_runtime_package_relative_to_the_lend" lib/tatolab/imports \
   lib/tatolab/carried-wheels lib/tatolab/python-downloads/uv-python-downloads.json; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit $runtime_unit_directory is missing $required" >&2; exit 1; }
 done
 # Anything streamlib adds to the unit would otherwise be left out of the bundle without a word.
 for runtime_unit_entry in "$runtime_unit_directory"/bin/* "$runtime_unit_directory"/lib/tatolab/*; do
   case "${runtime_unit_entry#"$runtime_unit_directory/"}" in
-    bin/tatolabd|bin/tatolab|bin/uv|lib/tatolab/lend|lib/tatolab/imports|lib/tatolab/carried-wheels|lib/tatolab/python-downloads) ;;
+    bin/tatolabd|bin/tatolab|bin/uv|bin/tatolab-video-poster-frame|lib/tatolab/lend|lib/tatolab/imports|lib/tatolab/carried-wheels|lib/tatolab/python-downloads) ;;
     # The browser host is a CEF app bundle: code, which signing takes only under MacOS/ or Frameworks/.
     lib/tatolab/browser-host) echo "runtime unit $runtime_unit_directory ships lib/tatolab/browser-host, which this script does not place in the bundle: build the unit without CEF_PATH" >&2; exit 1 ;;
     *) echo "runtime unit $runtime_unit_directory ships ${runtime_unit_entry#"$runtime_unit_directory/"}, which this script does not place in the bundle" >&2; exit 1 ;;
@@ -155,6 +157,7 @@ plutil -lint -s "$helper_contents/Info.plist"
 install -m 0755 "$runtime_unit_directory/bin/tatolabd" "$helper_contents/MacOS/tatolabd"
 install -m 0755 "$runtime_unit_directory/bin/tatolab" "$helper_contents/MacOS/tatolab-cli"
 install -m 0755 "$runtime_unit_directory/bin/uv" "$helper_contents/MacOS/uv"
+install -m 0755 "$runtime_unit_directory/bin/tatolab-video-poster-frame" "$helper_contents/MacOS/tatolab-video-poster-frame"
 
 ditto "$lend_source" "$helper_contents/Resources/lend"
 ditto "$first_party_modules_source" "$helper_contents/Resources/imports"
@@ -195,4 +198,4 @@ if $local_proof_test_root; then
   cp "$runtime_unit_directory/$marker_file_name" "$helper_contents/Resources/$marker_file_name"
 fi
 
-echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: $runtime_helper_bundle_name with tatolabd, tatolab-cli, uv, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, the lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}) $first_party_module_wheel_count first-party module wheel(s) in Resources/imports, and $carried_wheel_count carried wheel(s) and the carried Python in Resources/carried-wheels and Resources/python-downloads$($local_proof_test_root && echo ' (local proof)')"
+echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: $runtime_helper_bundle_name with tatolabd, tatolab-cli, uv, tatolab-video-poster-frame, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, the lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}) $first_party_module_wheel_count first-party module wheel(s) in Resources/imports, and $carried_wheel_count carried wheel(s) and the carried Python in Resources/carried-wheels and Resources/python-downloads$($local_proof_test_root && echo ' (local proof)')"

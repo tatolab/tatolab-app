@@ -18,6 +18,7 @@ import {
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 import { HeldRememberedSwitch, RememberedSwitchFile } from "./remembered_switch_file.js";
+import { StudioWarningsOfThisRun } from "./studio_warnings.js";
 import { ProjectOpening, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import { PythonLanguageServers } from "./python_language_servers.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
@@ -115,6 +116,10 @@ async function sharedStateOverFakes(
     terminalOpenedInAFolder: terminal,
     tatolabAppOpenedAtLogin,
   });
+  const studioWarnings = new StudioWarningsOfThisRun(
+    platform === "linux" ? "cpu_read" : "display_import",
+    await HeldRememberedSwitch.load(RememberedSwitchFile.x11WarningDialogShownInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog)),
+  );
   const controller = TatolabAppController.create({
     platform,
     platformForThisBuild,
@@ -127,6 +132,7 @@ async function sharedStateOverFakes(
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readDeveloperMode: () => false,
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
+    readTheStudioWarnings: () => studioWarnings.warningsNow(),
     whenTheRuntimeExits: () => {},
     projectVenvSyncsOnTheStreamActionsFeed: { keepFollowing: () => {}, takeTheProjectVenvSyncs: () => ({ underWay: [], justEnded: [] }) },
     tatolabAppLog: quietTatolabAppLog,
@@ -215,6 +221,7 @@ async function sharedStateOverFakes(
       projectLoadsOnTheRuntime: controller,
     }),
     developerModeSwitch,
+    studioWarnings,
     projectOpening,
     appWindows,
     pythonLanguageServers: new PythonLanguageServers({
@@ -307,7 +314,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       `"local_api_socket":${JSON.stringify(runningRuntime.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
       '"developer_mode":false,' +
-      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
+      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"},"studio_warnings":[]}',
   );
   const runtimeThatIsDown = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "linux");
   runtimeThatIsDown.commandLineToolLink.commandLineToolLink = { kind: "not_linked", path: "/home/someone/.local/bin/tatolab" };
@@ -320,7 +327,8 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       `"local_api_socket":${JSON.stringify(runtimeThatIsDown.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
       '"developer_mode":false,' +
-      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
+      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"},' +
+      '"studio_warnings":[{"kind":"viewer_frames_copied_on_x11","first_open_dialog_due":true}]}',
   );
 
   const page = projectLogRecordsPageFromTheLogsToolResult(
@@ -957,6 +965,21 @@ test("answering_the_update_dialog_refuses_a_kind_or_an_answer_it_does_not_know",
   });
 });
 
+test("dismissing_the_x11_warning_dialog_is_remembered_shown_in_the_next_status_and_refuses_a_kind_it_does_not_know", async () => {
+  const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "linux");
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  expect(sharedState.studioWarnings.warningsNow()).toEqual([{ kind: "viewer_frames_copied_on_x11", first_open_dialog_due: true }]);
+
+  expect(await commandHandlers.dismiss_the_studio_warning_dialog({ kind: "viewer_frames_copied_on_x11" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(refreshRequests).toHaveBeenCalledTimes(1);
+  expect(sharedState.studioWarnings.warningsNow()).toEqual([{ kind: "viewer_frames_copied_on_x11", first_open_dialog_due: false }]);
+  expect(await commandHandlers.dismiss_the_studio_warning_dialog({ kind: "slow_disk" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "dismiss_the_studio_warning_dialog takes `kind` viewer_frames_copied_on_x11, not slow_disk",
+  });
+});
+
 test("turning_developer_mode_on_is_remembered_shown_in_the_next_status_and_refuses_anything_but_true_or_false", async () => {
   const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "macos");
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
@@ -1208,6 +1231,7 @@ test("a graph transaction in the open project reaches the runtime's transact hel
     developer_mode: false,
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "reading" },
+    studio_warnings: [],
   });
 
   expect(await commandHandlers.read_the_person_editing_in_studio(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: { kind: "person", name: "sam" } });
