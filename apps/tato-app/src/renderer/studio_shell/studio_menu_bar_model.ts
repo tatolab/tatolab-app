@@ -7,7 +7,8 @@ import type { SystemMenuBarEntry, SystemMenuBarItems, SystemMenuBarMenu, SystemM
 import type { StudioMenu, StudioMenuEntry } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
 import { presentTatolabAppUpdateMenuEntry } from "../presentation/app_update_presentation";
 import { controlShortcutHint, shiftedShortcutHint, shortcutHint } from "../presentation/platform_presentation";
-import { STUDIO_LAYOUTS, type StudioLayoutName } from "./studio_layouts";
+import { STUDIO_LAYOUT_PRESETS_ON_A_DIGIT } from "./studio_layout";
+import { STUDIO_LAYOUT_SHAPES, type StudioLayoutShape } from "./studio_layout_shapes";
 
 /** Why an entry whose work a later issue builds cannot run. */
 export const NOT_IN_THIS_BUILD_REASON = "Not in this build yet";
@@ -26,7 +27,12 @@ export interface StudioMenuBarCommands {
   checkForAppUpdates(): void;
   /** Restart to Update, or a newer version's download: take the version a check found. */
   takeTheNewerAppVersion(): void;
-  chooseLayout(layoutName: StudioLayoutName): void;
+  /** Window › Layout's shapes: reshape the layout, keeping its views where they fit. */
+  shapeTheLayout(shape: StudioLayoutShape): void;
+  /** Window › Layout's saved presets: lay the window out as the one saved at `presetIndex`. */
+  applyTheSavedLayoutPreset(presetIndex: number): void;
+  /** Window › Layout › Save layout as preset…: ask for the preset's name. */
+  askToSaveTheLayoutAsAPreset(): void;
   /** Run › Live: run the open project, which loads every stream asset in it again. */
   runTheProjectLive(): void;
   /** Run › Stop: stop the open project's running streams. */
@@ -49,6 +55,11 @@ export interface StudioMenuBarCommands {
   reopenTheLastClosedStreamTab(): void;
   /** Stream › Next tab and Previous tab. */
   showTheStreamTabBeside(direction: "next" | "previous"): void;
+}
+
+/** What Window › Layout lists of the open project's layout: the titles of the presets the person saved. */
+export interface StudioLayoutInTheMenus {
+  preset_titles_saved: readonly string[];
 }
 
 /** The stream tabs the Stream menu acts on: the shown one, how many are open, and whether a closed one is left to reopen. */
@@ -109,36 +120,41 @@ interface StudioMenuParts {
   documentationEntry: StudioMenuEntry;
 }
 
+/** The layout menu's entries, the same under Window › Layout and behind the title row's layout button: the shapes, the presets saved, the first ones on the digits, and Save layout as preset…. */
+export function studioLayoutMenuEntries(platform: TatolabPlatform, layout: StudioLayoutInTheMenus, commands: StudioMenuBarCommands): StudioMenuEntry[] {
+  const presetEntries = layout.preset_titles_saved.map((title, presetIndex): StudioMenuEntry => {
+    const onChosen = () => commands.applyTheSavedLayoutPreset(presetIndex);
+    return presetIndex < STUDIO_LAYOUT_PRESETS_ON_A_DIGIT ? { kind: "command", label: title, shortcutHint: shortcutHint(platform, String(presetIndex + 1)), onChosen } : { kind: "command", label: title, onChosen };
+  });
+  return [
+    ...STUDIO_LAYOUT_SHAPES.map(({ shape, title }): StudioMenuEntry => ({ kind: "command", label: title, onChosen: () => commands.shapeTheLayout(shape) })),
+    { kind: "separator" },
+    ...presetEntries,
+    ...(presetEntries.length > 0 ? [{ kind: "separator" } as const] : []),
+    { kind: "command", label: "Save layout as preset…", onChosen: commands.askToSaveTheLayoutAsAPreset },
+  ];
+}
+
 function studioMenuParts(
   platform: TatolabPlatform,
-  chosenLayout: StudioLayoutName | null,
+  layout: StudioLayoutInTheMenus | null,
   streamTabs: StreamTabsInTheMenus,
   appUpdate: TatolabAppUpdateState,
   commands: StudioMenuBarCommands,
   settingsLabel: string,
 ): StudioMenuParts {
   const projectCommand = (label: string, onChosen: () => void, shortcut?: string): StudioMenuEntry => {
-    if (chosenLayout === null) return shortcut === undefined ? { kind: "unavailable_command", label, unavailableBecause: NO_PROJECT_OPEN_REASON } : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause: NO_PROJECT_OPEN_REASON };
+    if (layout === null) return shortcut === undefined ? { kind: "unavailable_command", label, unavailableBecause: NO_PROJECT_OPEN_REASON } : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause: NO_PROJECT_OPEN_REASON };
     return shortcut === undefined ? { kind: "command", label, onChosen } : { kind: "command", label, shortcutHint: shortcut, onChosen };
   };
   const streamTabCommand = (label: string, onChosen: () => void, unavailableBecause: string | null, shortcut?: string): StudioMenuEntry => {
-    if (chosenLayout === null || unavailableBecause === null) return projectCommand(label, onChosen, shortcut);
+    if (layout === null || unavailableBecause === null) return projectCommand(label, onChosen, shortcut);
     return shortcut === undefined ? { kind: "unavailable_command", label, unavailableBecause } : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause };
   };
   const studioLayoutEntry: StudioMenuEntry =
-    chosenLayout === null
+    layout === null
       ? { kind: "unavailable_command", label: "Layout", unavailableBecause: "Open a project to lay out its areas" }
-      : {
-          kind: "submenu",
-          label: "Layout",
-          entries: STUDIO_LAYOUTS.map(({ name, title, shortcut_digit }) => ({
-            kind: "choice",
-            label: title,
-            shortcutHint: shortcutHint(platform, shortcut_digit),
-            isChosen: name === chosenLayout,
-            onChosen: () => commands.chooseLayout(name),
-          })),
-        };
+      : { kind: "submenu", label: "Layout", entries: studioLayoutMenuEntries(platform, layout, commands) };
   return {
     fileEntries: [
       { kind: "command", label: "Projects", onChosen: commands.showProjects },
@@ -162,7 +178,7 @@ function studioMenuParts(
         streamTabCommand("Rename stream…", commands.renameTheShownStream, streamTabs.shown_stream_display_name === null ? NO_STREAM_TAB_SHOWN_REASON : null),
         streamTabCommand("Delete stream…", commands.deleteTheShownStream, streamTabs.shown_stream_display_name === null ? NO_STREAM_TAB_SHOWN_REASON : null),
         { kind: "separator" },
-        streamTabCommand("Close tab", commands.closeTheShownStreamTab, streamTabs.shown_stream_display_name === null ? NO_STREAM_TAB_SHOWN_REASON : null, chosenLayout === null ? undefined : shortcutHint(platform, "W")),
+        streamTabCommand("Close tab", commands.closeTheShownStreamTab, streamTabs.shown_stream_display_name === null ? NO_STREAM_TAB_SHOWN_REASON : null, layout === null ? undefined : shortcutHint(platform, "W")),
         streamTabCommand("Reopen closed tab", commands.reopenTheLastClosedStreamTab, streamTabs.has_a_closed_tab_to_reopen ? null : NO_CLOSED_STREAM_TAB_REASON, shiftedShortcutHint(platform, "T")),
         streamTabCommand("Next tab", () => commands.showTheStreamTabBeside("next"), streamTabs.open_tab_count < 2 ? ONE_STREAM_TAB_AT_MOST_REASON : null, controlShortcutHint(platform, "Tab", false)),
         streamTabCommand("Previous tab", () => commands.showTheStreamTabBeside("previous"), streamTabs.open_tab_count < 2 ? ONE_STREAM_TAB_AT_MOST_REASON : null, controlShortcutHint(platform, "Tab", true)),
@@ -172,16 +188,16 @@ function studioMenuParts(
       label: "Run",
       entries: [projectCommand("Live", commands.runTheProjectLive, RUN_LIVE_KEY), projectCommand("Stop", commands.stopTheProject, STOP_KEY_HINT), laterCommand("Render to file…")],
     },
-    windowEntries: [studioLayoutEntry, laterCommand("Save layout as…"), laterCommand("Maximise area"), laterCommand("New window")],
+    windowEntries: [studioLayoutEntry, laterCommand("Maximise area"), laterCommand("New window")],
     aboutEntry: { kind: "command", label: "About Tato Studio", onChosen: commands.openAbout },
     appUpdateEntry: appUpdateMenuEntry(appUpdate, commands),
     documentationEntry: laterCommand("Documentation"),
   };
 }
 
-/** The studio's menus along the top of its window, as Linux shows them, Window › Layout ticking `chosenLayout`, or naming why it waits while no project is open, and Help's updates entry following `appUpdate`. */
-export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: StudioLayoutName | null, streamTabs: StreamTabsInTheMenus, appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenu[] {
-  const parts = studioMenuParts(platform, chosenLayout, streamTabs, appUpdate, commands, "Settings…");
+/** The studio's menus along the top of its window, as Linux shows them, Window › Layout offering the shapes and the presets `layout` saved, or naming why it waits while no project is open, and Help's updates entry following `appUpdate`. */
+export function studioMenuBarMenus(platform: TatolabPlatform, layout: StudioLayoutInTheMenus | null, streamTabs: StreamTabsInTheMenus, appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenu[] {
+  const parts = studioMenuParts(platform, layout, streamTabs, appUpdate, commands, "Settings…");
   return [
     { label: "File", entries: parts.fileEntries },
     { label: "Edit", entries: [...parts.undoAndRedoEntries, { kind: "separator" }, parts.settingsEntry] },
@@ -204,15 +220,15 @@ export interface StudioMenuInTheSystemMenuBar {
 }
 
 /** The studio's menus as macOS's one menu bar shows them, in the places a Mac app keeps them: About, the updates entry following `appUpdate`, and Settings in the app menu, the desktop's text editing in Edit, its window controls in Window. */
-export function studioMenusInTheSystemMenuBar(chosenLayout: StudioLayoutName | null, streamTabs: StreamTabsInTheMenus, appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenuInTheSystemMenuBar[] {
-  const parts = studioMenuParts("macos", chosenLayout, streamTabs, appUpdate, commands, "Settings…");
+export function studioMenusInTheSystemMenuBar(layout: StudioLayoutInTheMenus | null, streamTabs: StreamTabsInTheMenus, appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenuInTheSystemMenuBar[] {
+  const parts = studioMenuParts("macos", layout, streamTabs, appUpdate, commands, "Settings…");
   return [
     {
       label: "Tato Studio",
       systemMenu: "app",
       entries: [parts.aboutEntry, parts.appUpdateEntry, { kind: "separator" }, parts.settingsEntry, { kind: "separator" }, { kind: "system_items", systemItems: "app_services_hide_and_quit" }],
     },
-    { label: "File", systemMenu: null, entries: [...parts.fileEntries, { kind: "separator" }, { kind: "system_items", systemItems: chosenLayout === null ? "close_window" : "close_window_beside_close_tab" }] },
+    { label: "File", systemMenu: null, entries: [...parts.fileEntries, { kind: "separator" }, { kind: "system_items", systemItems: layout === null ? "close_window" : "close_window_beside_close_tab" }] },
     { label: "Edit", systemMenu: null, entries: [{ kind: "system_items", systemItems: "text_editing" }, { kind: "separator" }, ...parts.undoAndRedoBesideTextEditing] },
     { ...parts.addMenu, systemMenu: null },
     { ...parts.streamMenu, systemMenu: null },

@@ -3,6 +3,7 @@
 // each module of it that does not parse, with why in the parser's own words.
 
 import type { TreeViewRow } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
+import { whereTheSearchMatches } from "@tatolab/tato-app-view-sdk/design_system/matched_words";
 import type { ProjectGraphGenerator, ProjectNodeModuleNotReadable, ProjectNodeType, ProjectNodeTypeSource, ProjectNodeTypeSourceOrigin } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** What a node type, graph generator or unreadable module row stands for, with its file as an absolute path when it is the project's own source. */
@@ -41,6 +42,21 @@ export function shownStudioTreeRows<RowMeaning>(
   };
   for (const root of roots) walk(root, 0);
   return shownRows;
+}
+
+/**
+ * The nodes of `roots` a search for `searchWords` keeps: each whose label or aside matches, ignoring case, with the rows
+ * above it so it stays in its place, each kept row open and marked with the search; every node for a blank search.
+ */
+export function studioTreeNodesMatching<RowMeaning>(roots: readonly StudioTreeNode<RowMeaning>[], searchWords: string): StudioTreeNode<RowMeaning>[] {
+  if (searchWords.trim() === "") return [...roots];
+  const rowMatches = (row: StudioTreeNode<RowMeaning>["row"]) => whereTheSearchMatches(row.label, searchWords) !== null || (row.aside !== undefined && whereTheSearchMatches(row.aside, searchWords) !== null);
+  const kept = (node: StudioTreeNode<RowMeaning>): StudioTreeNode<RowMeaning>[] => {
+    const childrenKept = node.children.flatMap(kept);
+    if (childrenKept.length === 0 && !rowMatches(node.row)) return [];
+    return [{ ...node, row: { ...node.row, searchWords }, isOpenByDefault: true, children: childrenKept }];
+  };
+  return roots.flatMap(kept);
 }
 
 /** The words a source is titled with: "This project" for its own code, an import's folder, or a distribution's name and version. */

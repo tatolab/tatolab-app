@@ -15,6 +15,7 @@ import { streamTabsDrawnInTheTitleRow } from "../presentation/stream_tabs_presen
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { presentRecentProjectChangeRefusalTitle } from "../presentation/projects_presentation";
 import { AppUpdateAnnouncementDialogView } from "./app_update_announcement_dialog_view";
+import { StudioWarningDialogView } from "./studio_warning_dialog_view";
 import { SettingsDialogView } from "../setup_and_settings/settings_dialog_view";
 import { useTatolabStatus } from "../setup_and_settings/tatolab_window_context";
 import { StudioViewFailureBoundary } from "../view_host/studio_view_failure_boundary";
@@ -26,7 +27,10 @@ import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet
 import { StudioStatusBar } from "./studio_status_bar";
 import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
-import { studioMenuBarMenus, studioMenusInTheSystemMenuBar, type StreamTabsInTheMenus, type StudioMenuBarCommands, type StudioMenuInTheSystemMenuBar } from "./studio_menu_bar_model";
+import { studioMenuBarMenus, studioMenusInTheSystemMenuBar, type StreamTabsInTheMenus, type StudioLayoutInTheMenus, type StudioMenuBarCommands, type StudioMenuInTheSystemMenuBar } from "./studio_menu_bar_model";
+import { NameFormDialog } from "./name_form_dialog_view";
+import { studioLayoutWithEdgesHidden } from "./studio_layout_shapes";
+import { StudioTitleRowLayoutButtons } from "./studio_title_row_layout_buttons";
 import { StreamMenuDialogsView, type StreamEditsOfTheStreamMenu } from "./stream_menu_dialogs_view";
 import type { StudioWindowModel } from "./studio_window_model";
 
@@ -138,6 +142,7 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
   const projectStudioViews = useWatchedStudioValue(sources.viewTypeRegistry.projectStudioViews);
   useWatchedStudioValue(sources.viewTypeRegistry.developerMode);
   const [headerRowInTheFrame] = useState(() => new WatchedStudioValue<ViewHeaderRow>(HEADER_ROW_BEFORE_IT_IS_MEASURED));
+  const isExpanded = useWatchedStudioValue(sources.model.expandedAreaId) === area.area_id;
   if (area.view_type_id === null) {
     return (
       <StudioAreaFrame label="Project view" header={<AreaViewTypeMenu area={area} sources={sources} words="Project view" />} data-studio-area={area.area_id}>
@@ -182,7 +187,9 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
         </>
       }
       onHeaderRowMeasured={(headerRow) => headerRowInTheFrame.publish(headerRow)}
+      isExpanded={isExpanded}
       data-studio-area={area.area_id}
+      data-studio-area-expanded={isExpanded ? "" : undefined}
     >
       <StudioViewFailureBoundary key={viewType.view_type_id} viewTitle={viewType.title}>
         {viewType.renderInAnArea(
@@ -191,6 +198,13 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
             saved_settings: area.settings,
             rememberSettings: (nextSettings) => sources.model.keepAreaSettings(area.area_id, nextSettings),
             header_row: headerRowInTheFrame,
+            expansion: {
+              watchIsExpanded: (listener) => sources.model.expandedAreaId.watch((expandedAreaId) => listener(expandedAreaId === area.area_id)),
+              expand: (isExpandedNext) => {
+                sources.model.expandArea(area.area_id, isExpandedNext);
+                return { kind: "done" };
+              },
+            },
           },
           sources.viewHostServices,
         )}
@@ -199,18 +213,18 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
   );
 }
 
-/** A node of the chosen layout: a split of its parts, or an area. */
-function StudioAreaLayoutNodeView({ node, layoutKey, sources }: { node: StudioAreaLayoutNode; layoutKey: string; sources: StudioWindowSources }) {
+/** A node of the layout: a split of its parts, or an area. */
+function StudioAreaLayoutNodeView({ node, sources }: { node: StudioAreaLayoutNode; sources: StudioWindowSources }) {
   if (node.kind === "area") return <StudioAreaView area={node} sources={sources} />;
   return (
     <AreaSplit
-      key={`${layoutKey}:${node.split_id}`}
+      key={node.split_id}
       label={node.direction === "row" ? "Areas side by side" : "Areas one above another"}
       direction={node.direction}
       parts={node.parts.map(({ size_percent, part }) => ({
         part_id: studioAreaLayoutNodeId(part),
         size_percent,
-        content: <StudioAreaLayoutNodeView node={part} layoutKey={layoutKey} sources={sources} />,
+        content: <StudioAreaLayoutNodeView node={part} sources={sources} />,
       }))}
       onSizesChanged={(sizePercentByPartId) => sources.model.keepSplitSizes(node.split_id, sizePercentByPartId)}
     />
@@ -224,16 +238,17 @@ function openProjectTitleInTheTitleRow(openProject: OpenProjectReading): string 
   return "";
 }
 
-/** The studio: its menus in a row of their own on Linux (in the system menu bar on macOS), the open streams' tabs in the title row under them, which names the project on macOS, then the chosen layout's areas; or the Projects window, with no menus of its own on Linux, while no project is open or File › Projects shows it. */
+/** The studio: its menus in a row of their own on Linux (in the system menu bar on macOS), the open streams' tabs in the title row under them, which names the project on macOS, then the layout's areas; or the Projects window, with no menus of its own on Linux, while no project is open or File › Projects shows it. */
 export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const { model, platform, commands, systemMenuBar } = sources;
   const status = useTatolabStatus();
   const openProject = useWatchedStudioValue(model.openProject);
-  const studioLayouts = useWatchedStudioValue(model.studioLayouts);
+  const studioLayout = useWatchedStudioValue(model.studioLayout);
   const openStreamTabs = useWatchedStudioValue(model.openStreamTabs);
   const activeStreamTab = useWatchedStudioValue(model.activeStreamTab);
   const closedStreamTabs = useWatchedStudioValue(model.closedStreamTabs);
   const streamMenuQuestion = useWatchedStudioValue(model.streamMenuQuestion);
+  const layoutPresetNameAsked = useWatchedStudioValue(model.layoutPresetNameAsked);
   const streamDeletionRefusal = useWatchedStudioValue(model.streamDeletionRefusal);
   const settingsSection = useWatchedStudioValue(model.settingsSection);
   const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
@@ -242,11 +257,16 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
   const projectEditRefusal = useWatchedStudioValue(model.projectEditRefusal);
   const appUpdateChoiceRefusal = useWatchedStudioValue(model.appUpdateChoiceRefusal);
+  const studioWarningDismissRefusal = useWatchedStudioValue(model.studioWarningDismissRefusal);
   const openProjectStreamFailureRaised = useWatchedStudioValue(model.openProjectStreamFailureRaised);
   const newProjectSheetOpenedWith = useWatchedStudioValue(model.newProjectSheetOpenedWith);
-  const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null;
+  const isAProjectShown = openProject.kind !== "none_open" && studioLayout !== null;
   const menusLiveInTheSystemMenuBar = presentPlatform(platform).menusLiveInTheSystemMenuBar;
-  const chosenLayoutShown = isAProjectShown ? studioLayouts.chosen_layout : null;
+  const presetTitlesSavedJoined = isAProjectShown ? studioLayout.presets_saved.map(({ title }) => title).join("\n") : null;
+  const layoutInTheMenus = useMemo<StudioLayoutInTheMenus | null>(
+    () => (presetTitlesSavedJoined === null ? null : { preset_titles_saved: presetTitlesSavedJoined === "" ? [] : presetTitlesSavedJoined.split("\n") }),
+    [presetTitlesSavedJoined],
+  );
   const shownStreamDisplayName = isAProjectShown ? (activeStreamTab?.display_name ?? null) : null;
   const openStreamTabCount = isAProjectShown ? openStreamTabs.tabs.length : 0;
   const hasAClosedStreamTabToReopen = isAProjectShown && closedStreamTabs.length > 0;
@@ -255,15 +275,15 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
     [shownStreamDisplayName, openStreamTabCount, hasAClosedStreamTabToReopen],
   );
   useEffect(() => {
-    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(chosenLayoutShown, streamTabsInTheMenus, status.app_update, commands));
-  }, [menusLiveInTheSystemMenuBar, systemMenuBar, chosenLayoutShown, streamTabsInTheMenus, status.app_update, commands]);
+    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(layoutInTheMenus, streamTabsInTheMenus, status.app_update, commands));
+  }, [menusLiveInTheSystemMenuBar, systemMenuBar, layoutInTheMenus, streamTabsInTheMenus, status.app_update, commands]);
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       {isAProjectShown ? (
         <header className="flex shrink-0 flex-col bg-studio-menu-bar">
           {!menusLiveInTheSystemMenuBar && (
             <div className="flex h-8 items-center pr-2.5 pl-(--studio-menu-bar-leading-inset)" data-studio-menu-row="">
-              <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, streamTabsInTheMenus, status.app_update, commands)} />
+              <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, layoutInTheMenus, streamTabsInTheMenus, status.app_update, commands)} />
             </div>
           )}
           <div
@@ -287,6 +307,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               whenNoneIsOpen="Open a stream from the outliner to see it here."
             />
             <div className="min-w-6 flex-1" />
+            <StudioTitleRowLayoutButtons model={model} studioLayout={studioLayout} commands={commands} platform={platform} />
           </div>
         </header>
       ) : (
@@ -303,12 +324,8 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         <ProjectsView model={model} projectsSources={sources.projects} commands={commands} platform={platform} />
       ) : (
         <>
-          <main className="flex min-h-0 flex-1 p-(--studio-area-gap)" data-studio-layout={studioLayouts.chosen_layout}>
-            <StudioAreaLayoutNodeView
-              node={studioLayouts.layouts[studioLayouts.chosen_layout]}
-              layoutKey={studioLayouts.chosen_layout}
-              sources={sources}
-            />
+          <main className="relative grid min-h-0 flex-1 p-(--studio-area-gap)" data-studio-layout="">
+            <StudioAreaLayoutNodeView node={studioLayoutWithEdgesHidden(studioLayout.layout, studioLayout.edges_hidden)} sources={sources} />
           </main>
           <StudioStatusBar
             viewHostServices={sources.viewHostServices}
@@ -316,6 +333,25 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
             platform={platform}
           />
         </>
+      )}
+      {isAProjectShown && layoutPresetNameAsked && (
+        <NameFormDialog
+          dialogKind="save_layout_preset"
+          words={{
+            title: "Save layout as preset",
+            description: "The areas shown now are saved under this name, in this project's layout menu.",
+            actionWords: "Save",
+            pendingWords: "Saving…",
+            refusalLead: "The preset wasn't saved:",
+          }}
+          startingName=""
+          nameRefusal={(typedName) => (typedName.trim() === "" ? "Name the preset" : null)}
+          nameTheThing={(title) => {
+            model.saveTheLayoutAsAPreset(title);
+            return Promise.resolve();
+          }}
+          onClosed={() => model.layoutPresetNameAsked.publish(false)}
+        />
       )}
       {isAProjectShown && <StreamMenuDialogsView question={streamMenuQuestion} streamEdits={sources.streamEdits} onClosed={() => model.streamMenuQuestion.publish(null)} />}
       <NewProjectSheetView openedWith={newProjectSheetOpenedWith} sources={sources.newProject} onClosed={() => model.newProjectSheetOpenedWith.publish(null)} />
@@ -335,6 +371,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         }}
         onAnswerRefused={(because) => model.appUpdateChoiceRefusal.publish(because)}
       />
+      <StudioWarningDialogView onDismissRefused={(because) => model.studioWarningDismissRefusal.publish(because)} />
       <div className="pointer-events-none absolute right-4 bottom-4 z-40 flex flex-col-reverse gap-2">
         <div aria-live="assertive" aria-atomic="true">
           {projectOpeningRefusal !== null && (
@@ -398,6 +435,15 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               detail={appUpdateChoiceRefusal}
               onDismissed={() => model.appUpdateChoiceRefusal.publish(null)}
               data-app-update-choice-refusal=""
+            />
+          )}
+          {studioWarningDismissRefusal !== null && (
+            <WindowNotice
+              tone="failure"
+              title="Tato Studio couldn't remember the warning was read"
+              detail={studioWarningDismissRefusal}
+              onDismissed={() => model.studioWarningDismissRefusal.publish(null)}
+              data-studio-warning-dismiss-refusal=""
             />
           )}
           {openProjectStreamFailureRaised !== null && isAProjectShown && (

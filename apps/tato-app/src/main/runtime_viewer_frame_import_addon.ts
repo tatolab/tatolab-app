@@ -3,6 +3,7 @@
 
 import { createRequire } from "node:module";
 import type { OpenedRuntimeViewer } from "./local_api_mcp_stdio_connection.js";
+import type { ViewerImageFrameReading } from "./platform/viewer_image_frame_reading.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import type { RuntimeViewerChannelReaderOfTheAddon } from "./runtime_viewer_image_frame_import.js";
 
@@ -16,6 +17,7 @@ interface RuntimeViewerFrameImportAddon {
     channel: string,
     surfaceShareAddress: string | null,
     viewerNodeName: string,
+    viewedFrameReadBy: ViewerImageFrameReading,
   ) => RuntimeViewerChannelReaderOfTheAddon;
 }
 
@@ -33,9 +35,10 @@ function loadTheRuntimeViewerFrameImportAddon(addonPath: string): Result<Runtime
   }
 }
 
-/** What opens a channel reader on the addon at `addonPath`, loading it on the first open; a refusal, or an addon that did not load, is answered in words. */
+/** What opens a channel reader on the addon at `addonPath` that reads each Image frame by `viewerImageFrameReading`, loading the addon on the first open; a refusal, or an addon that did not load, is answered in words. */
 export function runtimeViewerChannelReaderOpenerOver(
   addonPath: string,
+  viewerImageFrameReading: ViewerImageFrameReading,
 ): (openedViewer: OpenedRuntimeViewer, viewerNodeName: string) => Result<RuntimeViewerChannelReaderOfTheAddon, string> {
   let loadedAddon: Result<RuntimeViewerFrameImportAddon, string> | null = null;
   return (openedViewer, viewerNodeName) => {
@@ -43,7 +46,7 @@ export function runtimeViewerChannelReaderOpenerOver(
     if (!loadedAddon.ok) return loadedAddon;
     try {
       return succeeded(
-        new loadedAddon.value.RuntimeViewerChannelReader(openedViewer.iceoryx2_domain_root, openedViewer.channel, openedViewer.surface_share_address, viewerNodeName),
+        new loadedAddon.value.RuntimeViewerChannelReader(openedViewer.iceoryx2_domain_root, openedViewer.channel, openedViewer.surface_share_address, viewerNodeName, viewerImageFrameReading),
       );
     } catch (openFailure) {
       return failedWith(describeCaughtFailure(openFailure));

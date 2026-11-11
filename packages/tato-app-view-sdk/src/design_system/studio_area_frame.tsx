@@ -1,10 +1,12 @@
 import { cn } from "cn";
 import { ChevronDown } from "lucide-react";
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { createContext, useContext, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { ViewHeaderRow } from "../studio_readings";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
+import { Toolbar } from "./toolbar";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 import { studioIconNamed, type StudioIconName } from "./support/studio_icons";
 
@@ -34,17 +36,19 @@ export function StudioAreaFrame({ label, header, children, ...controlDataAttribu
 }
 
 
-/** An area whose view draws its own header row in its frame: the view across the whole area, the view-type menu laid over the row's start, its width told to `onHeaderRowMeasured`. */
+/** An area whose view draws its own header row in its frame: the view across the whole area, the view-type menu laid over the row's start, its width told to `onHeaderRowMeasured`; expanded, it covers the layout it sits in, staying in place in the tree so its view keeps running. */
 export function StudioAreaOverAViewsOwnFrame({
   label,
   viewTypeMenu,
   onHeaderRowMeasured,
+  isExpanded = false,
   children,
   ...controlDataAttributes
 }: {
   label: string;
   viewTypeMenu: ReactNode;
   onHeaderRowMeasured: (headerRow: ViewHeaderRow) => void;
+  isExpanded?: boolean;
   children: ReactNode;
 } & ControlDataAttributes) {
   const viewTypeMenuRowRef = useRef<HTMLDivElement>(null);
@@ -64,7 +68,14 @@ export function StudioAreaOverAViewsOwnFrame({
     return () => resizeObserver.disconnect();
   }, []);
   return (
-    <section aria-label={label} className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-studio-area-outline bg-studio-area" {...controlDataAttributes}>
+    <section
+      aria-label={label}
+      className={cn(
+        "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-studio-area-outline bg-studio-area",
+        isExpanded ? "absolute inset-(--studio-area-gap) z-20" : "relative h-full",
+      )}
+      {...controlDataAttributes}
+    >
       <div ref={viewTypeMenuRowRef} className="absolute top-0 left-0 z-10 flex h-(--studio-area-header-height) items-center gap-2 px-1.5">
         {viewTypeMenu}
       </div>
@@ -83,6 +94,38 @@ export function StudioAreaHeaderRowInAFrame({ headerRow, children }: { headerRow
       {children}
     </div>
   );
+}
+
+/** The toolbar row of the view frame a component is drawn in, `null` until it is drawn; the context itself is `null` outside a view frame. */
+const StudioViewToolbarRowContext = createContext<{ toolbarRowElement: HTMLElement | null } | null>(null);
+
+/** A view's whole frame: its header row, holding only Studio's view-type menu, then its toolbar row named `toolbarLabel`, holding `toolbarTools` and whatever the view puts there through `StudioViewToolbarTools`, then the view. */
+export function StudioViewFrame({ headerRow, toolbarLabel, toolbarTools, children }: { headerRow: ViewHeaderRow | null; toolbarLabel: string; toolbarTools?: ReactNode; children: ReactNode }) {
+  const [toolbarRowElement, setToolbarRowElement] = useState<HTMLDivElement | null>(null);
+  return (
+    <div className="flex h-screen min-h-0 flex-col bg-studio-area text-fg">
+      <StudioAreaHeaderRowInAFrame headerRow={headerRow} />
+      <Toolbar label={toolbarLabel} look="view_ribbon" ref={setToolbarRowElement}>
+        {toolbarTools}
+      </Toolbar>
+      <StudioViewToolbarRowContext value={{ toolbarRowElement }}>
+        <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
+      </StudioViewToolbarRowContext>
+    </div>
+  );
+}
+
+/** `children` placed in the toolbar row of the view frame around them, from however deep in the view; outside a view frame, a toolbar row of their own named `label`. */
+export function StudioViewToolbarTools({ label, children }: { label: string; children: ReactNode }) {
+  const viewFrame = useContext(StudioViewToolbarRowContext);
+  if (viewFrame === null) {
+    return (
+      <Toolbar label={label} look="view_ribbon">
+        {children}
+      </Toolbar>
+    );
+  }
+  return viewFrame.toolbarRowElement === null ? null : createPortal(children, viewFrame.toolbarRowElement);
 }
 
 /** Quiet words in an area header, such as where the view's node is or the stream a view reads. */

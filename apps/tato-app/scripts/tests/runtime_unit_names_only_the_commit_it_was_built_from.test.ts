@@ -30,7 +30,7 @@ unit="$CARGO_TARGET_DIR/tatolab-runtime"
 mkdir -p "$unit/bin" "$unit/lib/tatolab/lend/tatolab/runtime"
 echo replaced > "$unit/lib/tatolab/lend/tatolab/runtime/__init__.py"
 [ "$STAND_IN_CARGO_FAILS" = 1 ] && exit 1
-for binary in tatolabd tatolab uv; do echo built > "$unit/bin/$binary"; done
+for binary in tatolabd tatolab uv tatolab-video-poster-frame; do echo built > "$unit/bin/$binary"; done
 mkdir -p "$unit/lib/tatolab/imports" "$unit/lib/tatolab/carried-wheels" "$unit/lib/tatolab/python-downloads"
 echo '{}' > "$unit/lib/tatolab/python-downloads/uv-python-downloads.json"
 [ -n "$CEF_PATH" ] && mkdir -p "$unit/lib/tatolab/browser-host"

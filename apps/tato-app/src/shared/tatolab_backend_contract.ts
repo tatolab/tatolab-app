@@ -155,6 +155,15 @@ export interface TatolabAppBuild {
   built_with_uncommitted_changes: boolean;
 }
 
+/** A warning Studio shows while it holds: `viewer_frames_copied_on_x11` while the desktop session is not Wayland, so each viewer's frames are copied through the CPU. */
+export type StudioWarningKind = "viewer_frames_copied_on_x11";
+
+/** A warning that holds now, and whether its dialog is still to be shown: once per machine, the first time the app opens while it holds. */
+export interface StudioWarning {
+  kind: StudioWarningKind;
+  first_open_dialog_due: boolean;
+}
+
 /** What `get_tatolab_status` answers and `tatolab-status-changed` carries. */
 export interface TatolabStatus {
   app_version: string;
@@ -184,6 +193,8 @@ export interface TatolabStatus {
   developer_mode: boolean;
   open_at_login: TatolabAppOpenAtLogin;
   command_line_tool_version: TatolabCommandLineToolVersion;
+  /** Each warning that holds now; empty when none does. */
+  studio_warnings: StudioWarning[];
 }
 
 /** What `describe_runtime` answers: the running runtime's version and build, how long it has been up, and the folder of its own log. */

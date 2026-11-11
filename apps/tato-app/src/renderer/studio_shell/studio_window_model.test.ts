@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ListedStream, TatolabStatus } from "../../shared/tatolab_backend_contract";
-import { StudioLayoutsKeptInStorage } from "./studio_layouts";
+import { StudioLayoutKeptInStorage } from "./studio_layout";
 import { StudioWindowModel } from "./studio_window_model";
 
 const SHEET_CHECK_FOLDER = "/Users/someone/Documents/Tato Studio/Sheet Check";
@@ -40,11 +40,12 @@ function runningRuntimeListing(streams: ListedStream[]): TatolabStatus {
     developer_mode: false,
     open_at_login: { kind: "not_offered", reason: "a test" },
     command_line_tool_version: { kind: "not_offered", reason: "a test" },
+    studio_warnings: [],
   };
 }
 
 function studioWindowModelOpenOnSheetCheck(): StudioWindowModel {
-  const studioWindowModel = new StudioWindowModel(new StudioLayoutsKeptInStorage(null));
+  const studioWindowModel = new StudioWindowModel(new StudioLayoutKeptInStorage(null));
   studioWindowModel.showOpenProject({
     kind: "read",
     open_project: { project: { name: "sheet-check", folder: SHEET_CHECK_FOLDER, project: "5b2e8f14-7c3a-4d90-a6e1-0f9c3b7d2e58" }, imports: [], imports_not_listed_because: null },
@@ -223,7 +224,7 @@ describe("a failure of the open project's streams", () => {
     studioWindowModel.showStatus(runningRuntimeListing([PREVIEW_FAILED, MAIN_RUNNING]));
     expect(studioWindowModel.openProjectStreamFailureRaised.readLatest()).toBeNull();
 
-    const reopened = new StudioWindowModel(new StudioLayoutsKeptInStorage(null));
+    const reopened = new StudioWindowModel(new StudioLayoutKeptInStorage(null));
     reopened.showStatus(runningRuntimeListing([PREVIEW_FAILED]));
     reopened.showOpenProject({ kind: "read", open_project: { project: { name: "sheet-check", folder: SHEET_CHECK_FOLDER, project: "5b2e8f14-7c3a-4d90-a6e1-0f9c3b7d2e58" }, imports: [], imports_not_listed_because: null } });
     expect(reopened.openProjectStreamFailureRaised.readLatest()?.stream).toBe("sheet-check-preview-0b19d2");

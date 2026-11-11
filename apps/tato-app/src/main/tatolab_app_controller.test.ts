@@ -68,6 +68,7 @@ async function controllerOverFakes(scriptedLocalApiResponses: readonly Buffer[],
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readDeveloperMode: () => false,
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
+    readTheStudioWarnings: () => [],
     whenTheRuntimeExits: () => runtimeExits.push("exited"),
     projectVenvSyncsOnTheStreamActionsFeed: options.projectVenvSyncsOnTheStreamActionsFeed ?? { keepFollowing: () => {}, takeTheProjectVenvSyncs: () => ({ underWay: [], justEnded: [] }) },
     tatolabAppLog: options.tatolabAppLog ?? createTatolabAppLog("error", () => {}),
@@ -95,7 +96,7 @@ test("a healthy runtime's status names its streams and machine, read as the wind
       `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
       '"developer_mode":false,' +
-      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
+      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"},"studio_warnings":[]}',
   );
   expect(carriedRuntimeStarts.runtimesStarted).toHaveLength(0);
 });

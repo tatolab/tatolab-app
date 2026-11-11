@@ -6,6 +6,14 @@ import { WithControlTooltip } from "./control_tooltip";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 import type { IconButtonSize } from "./icon_button";
 
+/** How a toggle reads while on: on the brand's ground, or by its icon alone, as the title row's layout buttons whose icons show what is on. */
+export type ToggleIconButtonPressedLook = "brand_ground" | "icon_alone";
+
+const TOGGLE_PRESSED_LOOK_CLASS_NAMES: Record<ToggleIconButtonPressedLook, string> = {
+  brand_ground: "aria-pressed:bg-brand aria-pressed:text-primary-foreground aria-pressed:hover:bg-brand aria-pressed:hover:text-primary-foreground",
+  icon_alone: "aria-pressed:bg-transparent aria-pressed:text-fg-2 aria-pressed:hover:bg-selected aria-pressed:hover:text-brand-text",
+};
+
 const TOGGLE_SIZE_CLASS_NAMES: Record<IconButtonSize, string> = { regular: "size-7 min-w-7", compact: "size-6 min-w-6" };
 
 /** An icon button that is on or off, pressed while on; its tooltip says what pressing it does now. */
@@ -18,6 +26,7 @@ export function ToggleIconButton({
   isOn,
   onToggled,
   size = "regular",
+  pressedLook = "brand_ground",
   isOutOfTheTabOrder = false,
   ...controlDataAttributes
 }: {
@@ -30,6 +39,7 @@ export function ToggleIconButton({
   isOn: boolean;
   onToggled: (isOn: boolean) => void;
   size?: IconButtonSize;
+  pressedLook?: ToggleIconButtonPressedLook;
   /** For a button that repeats a way the keyboard already has. */
   isOutOfTheTabOrder?: boolean;
 } & ControlDataAttributes) {
@@ -44,7 +54,8 @@ export function ToggleIconButton({
           onPressedChange={onToggled}
           tabIndex={isOutOfTheTabOrder ? -1 : undefined}
           className={cn(
-            "rounded-md px-0 text-fg-3 hover:bg-selected hover:text-brand-text hover:shadow-(--icon-button-hover-ring) aria-pressed:bg-brand aria-pressed:text-primary-foreground aria-pressed:hover:bg-brand aria-pressed:hover:text-primary-foreground",
+            "rounded-md px-0 text-fg-3 hover:bg-selected hover:text-brand-text hover:shadow-(--icon-button-hover-ring)",
+            TOGGLE_PRESSED_LOOK_CLASS_NAMES[pressedLook],
             TOGGLE_SIZE_CLASS_NAMES[size],
             FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
           )}

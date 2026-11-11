@@ -28,7 +28,7 @@ addon_crate="$app_root/native/tatolab-runtime-viewer-frame-import"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$addon_crate/target}"
 
 patch_from_the_checkout=()
-for streamlib_crate in streamlib-gpu-frame-import-client streamlib-ipc-types streamlib-consumer-rhi; do
+for streamlib_crate in streamlib-gpu-frame-import-client streamlib-ipc-types streamlib-consumer-rhi streamlib-surface-client; do
   patch_from_the_checkout+=(--config "patch.\"https://github.com/tatolab/streamlib\".$streamlib_crate.path=\"$streamlib_checkout/runtime/$streamlib_crate\"")
 done
 # A patched build rewrites the crate's lockfile to the checkout's paths; the committed one, which
@@ -38,7 +38,7 @@ cp "$addon_crate/Cargo.lock" "$addon_crate/Cargo.lock.pinned-to-git"
 # patch "was not used", so the checkout's crates are moved into the lockfile first and an unused
 # patch fails the build: an addon built from the pinned crates misreads a newer runtime's frames.
 patched_crate_arguments=()
-for streamlib_crate in streamlib-gpu-frame-import-client streamlib-ipc-types streamlib-consumer-rhi; do
+for streamlib_crate in streamlib-gpu-frame-import-client streamlib-ipc-types streamlib-consumer-rhi streamlib-surface-client; do
   patched_crate_arguments+=(-p "$streamlib_crate")
 done
 cargo_output="$(mktemp)"

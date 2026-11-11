@@ -41,7 +41,7 @@ Evidence counts only when it was shot on what would ship now:
    `?platform=linux`, `?state=` (running, empty, loading, node-error, camera-access, dropping,
    not-listed, starting, not-running), `?project=none|unreadable`, `?cli_link=not_linked|taken`,
    `?restart=refused`, and the screen keys
-   `?layout=build|compose|spatial|code|perform`, `?outliner=open`, `?select=<row id>`,
+   `?layout_shape=<shape>`, `?outliner=open`, `?select=<row id>`,
    `?open_stream=<stream id>`, `?menu=<menu>` with `?submenu=<entry>`, `?area_menu=<area id>`,
    `?page=settings` with `?section=`, `?restart=pressed`, `?link=pressed`,
    `?sheet=new_project` with `?new_project_name=<name>` and `?new_project=browse|create`; the

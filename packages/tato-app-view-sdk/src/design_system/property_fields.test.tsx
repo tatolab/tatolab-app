@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { PropertyPortRow, PropertySliderField, PropertyTextField } from "./property_fields";
+import { PropertyPortRow, PropertySliderField, PropertyTextField, type PropertyPortTarget } from "./property_fields";
 
 afterEach(cleanup);
 
@@ -105,23 +105,53 @@ describe("a property slider", () => {
 });
 
 describe("a property port row", () => {
-  it("offers a disconnect for each link an output has", () => {
-    const disconnected: string[] = [];
+  const aTarget = (key: string, linkedWith: PropertyPortTarget["linkedWith"], onRemoved: () => void): PropertyPortTarget => ({
+    linkedWith,
+    targetKey: key,
+    note: "Inputs in Main that take Image",
+    choicesWhenOpened: () => [],
+    onRemoved,
+  });
+
+  it("draws a target picker for each link an output has, each with its own remove", () => {
+    const removed: string[] = [];
     render(
       <PropertyPortRow
         direction="output"
         portName="video"
         familyWords="Image"
         pinMark={null}
-        linkedEnds={[
-          { nodeTitle: "Camera", port: "frames", linkKey: "id-1:frames", onDisconnect: () => disconnected.push("id-1") },
-          { nodeTitle: "Camera", port: "frames", linkKey: "id-2:frames", onDisconnect: () => disconnected.push("id-2") },
-        ]}
+        bandShade="first"
+        targets={[aTarget("id-1:frames", { nodeTitle: "Camera", port: "frames" }, () => removed.push("id-1")), aTarget("id-2:frames", { nodeTitle: "Camera", port: "frames" }, () => removed.push("id-2"))]}
       />,
     );
-    const disconnectButtons = screen.getAllByRole("button", { name: "Disconnect video to Camera › frames" });
-    expect(disconnectButtons).toHaveLength(2);
-    fireEvent.click(disconnectButtons[1] ?? document.body);
-    expect(disconnected).toEqual(["id-2"]);
+    expect(screen.getAllByRole("button", { name: "Target of video: Camera frames" })).toHaveLength(2);
+    const removeButtons = screen.getAllByRole("button", { name: "Remove the link of video with Camera frames" });
+    fireEvent.click(removeButtons[1] ?? document.body);
+    expect(removed).toEqual(["id-2"]);
+  });
+
+  it("reads None on a blank picker and says why + cannot add another where the port takes no more", () => {
+    const added: string[] = [];
+    render(
+      <PropertyPortRow
+        direction="input"
+        portName="level"
+        familyWords="Channels"
+        pinMark={null}
+        bandShade="second"
+        targets={[aTarget("blank-1", null, () => undefined)]}
+        addition={{ disabledReason: "An input takes one link. Choose another output in its picker.", onAdded: () => added.push("added") }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Target of level: none" }).textContent).toContain("None");
+    fireEvent.click(screen.getByRole("button", { name: "Add a target for level: An input takes one link. Choose another output in its picker." }));
+    expect(added).toEqual([]);
+  });
+
+  it("shows an unjoined input's value where it has no target picker", () => {
+    render(<PropertyPortRow direction="input" portName="tint" familyWords="Array" pinMark={null} bandShade="first" targets={[]} unlinkedValue={<span>0.5, 0.7</span>} addition={{ disabledReason: null, onAdded: () => undefined }} />);
+    expect(screen.getByText("0.5, 0.7")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Add a target for tint" })).toBeDefined();
   });
 });

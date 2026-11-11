@@ -146,6 +146,7 @@ Tato Studio.app/Contents/
     MacOS/tatolabd                            the runtime (streamlib bin/tatolabd)
     MacOS/tatolab-cli                         the CLI (streamlib bin/tatolab)
     MacOS/uv                                  the uv tatolabd runs from beside itself
+    MacOS/tatolab-video-poster-frame          the poster frame helper tatolabd runs from beside itself
     Frameworks/tatolab-runtime/               every Mach-O of the lend's tatolab/runtime/, same paths
     Resources/lend/                           streamlib's lib/tatolab/lend; each Mach-O is a relative
                                               symlink into Frameworks/tatolab-runtime; precompiled
@@ -269,7 +270,7 @@ The individual steps are separate scripts in `apps/tato-app/scripts/`:
 | `tatolab_app_build_features.mjs write <features.json> [--release] [--local-proof-test-root] [--app-update-feed-url URL]` | writes the build features and the build id (the commit this checkout is at, dev or release, and whether it has uncommitted changes); `npm run build -- <flags>` runs it last, and refuses outside a git checkout |
 | `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features and the build id a packaged app carries, and refuses one with no build id; `--shipping` refuses the test root or any feed but get.tatolab.com's |
 | `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out>` | packs the built app, with the build features it was built with, and its production `node_modules` with `@electron/packager`, and flips its fuses |
-| `assemble-tatolab-app-bundle.sh <Tato Studio.app> <unit> --streamlib-commit SHA [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit built from any other commit, and a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/uv` or `lib/tatolab/lend`, or ships anything else in `bin/` or `lib/tatolab/` |
+| `assemble-tatolab-app-bundle.sh <Tato Studio.app> <unit> --streamlib-commit SHA [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit built from any other commit, and a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/uv`, `bin/tatolab-video-poster-frame` or `lib/tatolab/lend`, or ships anything else in `bin/` or `lib/tatolab/` |
 | `sign-tatolab-app-bundle.sh <Tato Studio.app> <identity> <runtime-provisioning-profile>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, the app) with the hardened runtime, embedding the `com.tatolab.runtime` provisioning profile in the runtime's helper; refuses any identity but a `Developer ID Application` and a profile for any other App ID |
 | `make-tatolab-dmg.sh <Tato Studio.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless), signed with the app's own Developer ID; refuses an app signed any other way |
 | `notarize-and-staple.sh <Tato Studio.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |

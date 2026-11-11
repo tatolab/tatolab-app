@@ -1,6 +1,6 @@
 // A switch the app remembers between launches: one JSON file in the app's config directory with
 // one key, read as the switch's default when the file is absent or unreadable. The stream-failure
-// notifications and Developer mode are two.
+// notifications, Developer mode and the X11 warning's dialog having been shown are three.
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -15,6 +15,9 @@ export const STREAM_FAILURE_NOTIFICATIONS_PREFERENCE_FILE_NAME = "stream-failure
 
 /** The file Developer mode is remembered in, inside the app's config directory. */
 export const DEVELOPER_MODE_PREFERENCE_FILE_NAME = "developer-mode.json";
+
+/** The file that remembers the X11 warning's dialog was shown, inside the app's config directory. */
+export const X11_WARNING_DIALOG_SHOWN_FILE_NAME = "x11-warning-dialog-shown.json";
 
 /** One remembered switch: its file, its key, what it reads when nothing was remembered, and its name in the app's log. */
 interface RememberedSwitchSpecification {
@@ -38,6 +41,13 @@ const DEVELOPER_MODE_SWITCH: RememberedSwitchSpecification = {
   switchNameInTheLog: "the Developer mode preference",
 };
 
+const X11_WARNING_DIALOG_SHOWN_SWITCH: RememberedSwitchSpecification = {
+  fileName: X11_WARNING_DIALOG_SHOWN_FILE_NAME,
+  key: "x11_warning_dialog_shown",
+  valueWhenNotRemembered: false,
+  switchNameInTheLog: "whether the X11 warning's dialog was shown",
+};
+
 /** Reads and writes one remembered switch at one path. */
 export class RememberedSwitchFile {
   private constructor(
@@ -54,6 +64,11 @@ export class RememberedSwitchFile {
   /** Whether Developer mode is on, remembered inside `appConfigDirectory`; off when nothing was remembered. */
   static developerModeInAppConfigDirectory(appConfigDirectory: string, tatolabAppLog: TatolabAppLog): RememberedSwitchFile {
     return RememberedSwitchFile.inAppConfigDirectory(DEVELOPER_MODE_SWITCH, appConfigDirectory, tatolabAppLog);
+  }
+
+  /** Whether the X11 warning's dialog was shown on this machine, remembered inside `appConfigDirectory`; not shown when nothing was remembered. */
+  static x11WarningDialogShownInAppConfigDirectory(appConfigDirectory: string, tatolabAppLog: TatolabAppLog): RememberedSwitchFile {
+    return RememberedSwitchFile.inAppConfigDirectory(X11_WARNING_DIALOG_SHOWN_SWITCH, appConfigDirectory, tatolabAppLog);
   }
 
   private static inAppConfigDirectory(rememberedSwitch: RememberedSwitchSpecification, appConfigDirectory: string, tatolabAppLog: TatolabAppLog): RememberedSwitchFile {

@@ -2,6 +2,7 @@ import { cn } from "cn";
 import { ChevronRight, Lock } from "lucide-react";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { studioIconNamed, type StudioIconName } from "./support/studio_icons";
+import { MatchedWords } from "./matched_words";
 
 /** Whether a row holds others, and whether they show under it. */
 export type TreeRowExpansion = "leaf" | "expanded" | "collapsed";
@@ -26,6 +27,8 @@ export interface TreeViewRow {
   /** The row the window works in now, as the stream of the shown tab: a grey fill, its icon in the brand colour and its name stronger; a selected row keeps the selection's fill. */
   isCurrent?: boolean;
   expansion: TreeRowExpansion;
+  /** What a search field over the tree holds: the part of the label or aside it matches is marked. */
+  searchWords?: string;
 }
 
 const TREE_ROW_TONE_CLASS_NAMES: Record<NonNullable<TreeViewRow["tone"]>, string> = {
@@ -173,9 +176,13 @@ export function TreeView({
             <span className={cn("flex min-w-0 flex-1 items-center gap-1.5 px-1", TREE_ROW_TONE_CLASS_NAMES[row.tone ?? "plain"], (row.tone ?? "plain") === "plain" && "group-hover/tree-row:text-fg", (row.isHeading || isCurrent || isSelected) && "text-fg")}>
               <RowIcon className={cn("size-3.5 shrink-0", isCurrent ? "text-brand-text" : "text-fg-3")} strokeWidth={isCurrent ? 2 : 1.5} aria-hidden />
               <span className={cn("min-w-0 flex-1 truncate", row.isMachineWords && "font-mono text-2xs", row.isHeading && "font-semibold", isCurrent && "font-medium", row.tone === "imports" && "text-studio-imports")}>
-                {row.label}
+                <MatchedWords words={row.label} searchWords={row.searchWords ?? ""} />
               </span>
-              {row.aside !== undefined && <span className={cn("hidden max-w-[40%] shrink-0 truncate text-2xs @3xs:block", isSelected ? "text-fg-2" : "text-fg-3")}>{row.aside}</span>}
+              {row.aside !== undefined && (
+                <span className={cn("hidden max-w-[40%] shrink-0 truncate text-2xs @3xs:block", isSelected ? "text-fg-2" : "text-fg-3")}>
+                  <MatchedWords words={row.aside} searchWords={row.searchWords ?? ""} />
+                </span>
+              )}
             </span>
             <span className="flex w-5 shrink-0 justify-center text-studio-read-only">
               {row.isReadOnly === true && <Lock className="size-[11px]" strokeWidth={1.75} role="img" aria-label="Read only" />}
