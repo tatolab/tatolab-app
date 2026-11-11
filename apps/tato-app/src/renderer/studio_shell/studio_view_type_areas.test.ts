@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { modulesAndMarketplaceSectionSchema } from "@tatolab/tato-app-view-sdk";
+import { MODULES_SHOWN } from "../../shared/tatolab_electron_bridge_contract";
 import type { StudioAreaLayoutNode } from "./studio_area_layout";
 import { A_POPPED_OUT_WINDOW_HAS_NO_AREAS, NO_LAYOUT_WHILE_NO_PROJECT_IS_OPEN, showViewTypeInAreaOf, watchAreasForTheViewType, type StudioViewTypeAreaSources } from "./studio_view_type_areas";
 
@@ -29,7 +31,7 @@ const VIEW_TITLES: Readonly<Record<string, string>> = { stream_graph: "Stream gr
 function areaSources(layoutTree: StudioAreaLayoutNode | null, isPoppedOut = false) {
   let tree = layoutTree;
   const watchers = new Set<() => void>();
-  const shown: { areaId: string; viewTypeId: string }[] = [];
+  const shown: { view_type_id: string; area_id: string }[] = [];
   const sources: StudioViewTypeAreaSources = {
     readChosenLayoutTree: () => tree,
     isAPoppedOutViewsWindow: () => isPoppedOut,
@@ -38,7 +40,7 @@ function areaSources(layoutTree: StudioAreaLayoutNode | null, isPoppedOut = fals
       watchers.add(onChanged);
       return () => watchers.delete(onChanged);
     },
-    showViewTypeInTheArea: (areaId, viewTypeId) => shown.push({ areaId, viewTypeId }),
+    showViewTypeInTheArea: (showing) => shown.push(showing),
   };
   const changeTheLayout = (nextTree: StudioAreaLayoutNode | null) => {
     tree = nextTree;
@@ -88,6 +90,12 @@ describe("a view type's areas in the chosen layout", () => {
     expect(showViewTypeInAreaOf("acme-dj:deck", "viewer", sources)).toEqual({ kind: "opened" });
     expect(showViewTypeInAreaOf("acme-dj:deck", "timeline", sources)).toEqual({ kind: "not_opened", because: "The layout shown has no area timeline." });
     expect(showViewTypeInAreaOf("acme-lens:bokeh", "viewer", sources)).toEqual({ kind: "not_opened", because: "Tato Studio has no view named acme-lens:bokeh." });
-    expect(shown).toEqual([{ areaId: "viewer", viewTypeId: "acme-dj:deck" }]);
+    expect(shown).toEqual([{ view_type_id: "acme-dj:deck", area_id: "viewer" }]);
+  });
+});
+
+describe("the sections a view may open the Modules and Marketplace window on", () => {
+  it("are the window's own sections, so neither list drifts from the other", () => {
+    expect([...modulesAndMarketplaceSectionSchema.options]).toEqual([...MODULES_SHOWN]);
   });
 });

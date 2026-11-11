@@ -408,9 +408,9 @@ function ViewNodeShownInAreasRow({ connection, viewTypeId }: { connection: TatoA
   const areasOffered = areasToShowTheViewIn(areasReading.areas);
   return (
     <PropertyRow label="Shown in" refusal={showingRefusal === null ? null : `${showingRefusal.lead} ${showingRefusal.because}`} data-properties-view-shown-in={viewTypeId}>
-      {(fieldId) => (
+      {() => (
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span id={fieldId} className="text-xs whitespace-nowrap text-fg-2" data-properties-view-shown-in-words>
+          <span role="status" aria-label={`Shown in: ${viewShownInAreasWords(areasReading.areas)}`} className="text-xs whitespace-nowrap text-fg-2" data-properties-view-shown-in-words>
             {viewShownInAreasWords(areasReading.areas)}
           </span>
           <FieldMenu label={`Show ${areasReading.view_title} in an area`} words="Show in an area" size="compact" menuWidth="wide" menuAlignment="end" data-properties-show-in-an-area={viewTypeId}>

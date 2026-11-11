@@ -148,7 +148,7 @@ export class StudioWindowModel {
           for (const stopWatching of stopWatchingEach) stopWatching();
         };
       },
-      showViewTypeInTheArea: (areaId, viewTypeId) => this.showViewTypeInArea(areaId, viewTypeId),
+      showViewTypeInTheArea: (showing) => this.showViewTypeInArea(showing.area_id, showing.view_type_id),
     };
   }
 

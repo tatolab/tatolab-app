@@ -25,7 +25,7 @@ import type {
   StreamGraphAction,
   ThePersonEditingReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { ModulesAndMarketplaceSection, PortViewerEvent, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
+import type { AreaForAViewType, ModulesAndMarketplaceSection, PortViewerEvent, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
 
 export type {
   JsonValue,
@@ -95,7 +95,7 @@ export interface StudioViewNodeAddress {
 /** The chosen layout's areas for a view type as the window holds them: none when no view type has the id, or why the window has no areas. */
 export type AreasForAViewTypeInTheWindow =
   | { kind: "not_a_view_type" }
-  | { kind: "areas_listed"; view_title: string; areas: { area_id: string; shows_view_title: string | null; shows_the_view_type: boolean }[] }
+  | { kind: "areas_listed"; view_title: string; areas: Omit<AreaForAViewType, "is_the_asking_views_area">[] }
   | { kind: "no_areas"; because: string };
 
 /** Whether the runtime published a value a view wrote on one of its node's outputs, or why not, in its own words. */

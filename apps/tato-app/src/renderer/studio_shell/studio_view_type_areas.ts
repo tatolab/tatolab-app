@@ -19,7 +19,7 @@ export interface StudioViewTypeAreaSources {
   viewTitleOf(viewTypeId: string): string | null;
   /** Each change to what the areas are read from. */
   watchChanges(onChanged: () => void): StopWatching;
-  showViewTypeInTheArea(areaId: string, viewTypeId: string): void;
+  showViewTypeInTheArea(showing: { view_type_id: string; area_id: string }): void;
 }
 
 /** The chosen layout's areas for `viewTypeId`, each by the title of the view it shows. */
@@ -61,6 +61,6 @@ export function showViewTypeInAreaOf(viewTypeId: string, areaId: string, sources
   if (areas.kind === "not_a_view_type") return { kind: "not_opened", because: `Tato Studio has no view named ${viewTypeId}.` };
   if (areas.kind === "no_areas") return { kind: "not_opened", because: areas.because };
   if (!areas.areas.some((area) => area.area_id === areaId)) return { kind: "not_opened", because: `The layout shown has no area ${areaId}.` };
-  sources.showViewTypeInTheArea(areaId, viewTypeId);
+  sources.showViewTypeInTheArea({ view_type_id: viewTypeId, area_id: areaId });
   return { kind: "opened" };
 }
