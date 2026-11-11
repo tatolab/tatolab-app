@@ -1,26 +1,11 @@
 import { useViewReading, useViewReadingSoFar, type ViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import { WaitsOnNote } from "@tatolab/tato-app-view-sdk/design_system/waits_on_note";
 import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { StreamGraphReading, StreamTabAddress } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { useCallback, useMemo } from "react";
 import { CoreViewFrame } from "../shared/core_view_page";
-import { graphInputsOfTheStream, type GraphInputOfTheStream } from "./graph_inputs_of_the_stream";
-
-/** The runtime work a control's live value waits on before moving it can change the stream. */
-const LIVE_GRAPH_INPUT_VALUES_WAIT_ON = "tatolab/streamlib#3485";
-
-function GraphInputControl({ graphInput }: { graphInput: GraphInputOfTheStream }) {
-  return (
-    <li className="flex flex-col gap-2 rounded-lg bg-studio-control px-3.5 py-3" data-graph-input={graphInput.port_name}>
-      <div className="flex items-center gap-2 text-xs">
-        <span className="min-w-0 truncate text-fg">{graphInput.port_name}</span>
-        <span className="ml-auto shrink-0 font-mono text-2xs text-fg-3">{graphInput.family ?? "no family"}</span>
-      </div>
-      <div className="h-1.5 rounded-full bg-line-strong" aria-hidden />
-    </li>
-  );
-}
+import { GraphInputControl } from "./graph_input_control";
+import { graphInputsOfTheStream } from "./graph_inputs_of_the_stream";
 
 /** The Graph Inputs of the stream `streamTab` is open on, each a control. */
 function GraphInputsOfTheTab({ connection, streamTab }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress }) {
@@ -35,15 +20,13 @@ function GraphInputsOfTheTab({ connection, streamTab }: { connection: TatoAppVie
   }
   return (
     <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-2.5">
-      <ul className="flex flex-col gap-2 rounded-lg outline-1 outline-offset-2 outline-warn outline-dashed" aria-label={`${streamTab.display_name}'s Graph Inputs`}>
+      <ul className="flex flex-col gap-2" aria-label={`${streamTab.display_name}'s Graph Inputs`}>
         {graphInputs.map((graphInput) => (
-          <GraphInputControl key={graphInput.node_id} graphInput={graphInput} />
+          <GraphInputControl key={graphInput.node_id} connection={connection} stream={streamTab.stream} graphInput={graphInput} />
         ))}
       </ul>
       <p className="mt-auto rounded-lg bg-well p-2.5 text-2xs text-fg-3">
-        Moving a control streams its value to the running stream, leaving History quiet. Until the runtime takes a live value for a Graph Input, each control shows the input and
-        sets nothing.
-        <WaitsOnNote waitsOn={LIVE_GRAPH_INPUT_VALUES_WAIT_ON} />
+        Moving a control streams its value to the running stream, leaving History quiet. Each Input goes back to its default when the stream plays again from Stop.
       </p>
     </div>
   );

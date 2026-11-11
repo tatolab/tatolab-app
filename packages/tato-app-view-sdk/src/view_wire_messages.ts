@@ -157,6 +157,8 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   /** One JSON-RPC message for the language server the view's watch `watch_id` started. */
   z.object({ kind: z.literal("send_to_python_language_server"), watch_id: watchOrAskIdSchema, message: jsonValueSchema }),
   z.object({ kind: z.literal("send_output"), output: z.string() }),
+  /** Hand `value` to the Input `input` of the running stream `stream` through the runtime's `write_graph_input`: live data, recorded nowhere, the last write winning. */
+  z.object({ kind: z.literal("write_graph_input"), stream: z.string(), input: z.string(), value: jsonValueSchema }),
   /** Undo `author`'s latest transaction in the project not undone yet, through the runtime's `undo`. */
   z.object({ kind: z.literal("undo_in_the_project"), project_folder: z.string(), author: projectTransactionAuthorSchema }),
   /** Redo what `author`'s latest undo in the project reversed, through the runtime's `redo`. */

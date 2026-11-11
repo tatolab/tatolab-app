@@ -439,6 +439,48 @@ function positiveWholeNumberOrNull(text: string | null): number | null {
   return text !== null && Number.isInteger(number) && number > 0 ? number : null;
 }
 
+/** Why the runtime's `write_graph_input` refuses `value` for the Input `input` of `loadedStream`, listed as `streamState`, in its words; `null` where it takes it. */
+function refusalOfAGraphInputWrite(loadedStream: MockLoadedStream, streamState: string | null, input: string, value: JsonValue): string | null {
+  const { listing, graph } = loadedStream.fixture;
+  if (streamState !== "running") {
+    return `Runtime error: the project of the stream \`${listing.stream}\` in ${listing.location?.project_directory ?? "its folder"} is stopped, so no node of it runs to publish on \`value\`; \`start_playback\` plays it`;
+  }
+  const writableInputs = graph.nodes.filter(
+    (node) => node.type === "tatolab.stream:GraphInput" && typeof node.config["port"] === "string" && ["array", "channels", "records"].includes(String(node.config["family"])),
+  );
+  const graphInput = writableInputs.find((node) => node.config["port"] === input);
+  if (graphInput === undefined) {
+    const declared = writableInputs.map((node) => `\`${String(node.config["port"])}\``).join(", ");
+    return `Processor not found: no \`GraphInput\` on the top level of the stream \`${listing.stream}\` declares the Input \`${input}\` and runs; a client writes the Inputs of family array, channels or records, and the stream's are: ${declared}`;
+  }
+  const family = String(graphInput.config["family"]);
+  if (family === "channels" && typeof value !== "number" && typeof value !== "boolean" && !(isAMockJsonObject(value) && "samples" in value && "sample_rate" in value)) {
+    return `Port error: output \`value\` of node \`${graphInput.name}\` carries Channels, and a Channels value is a number, a bool or \`{"samples": [[...], ...], "sample_rate"}\``;
+  }
+  const arrayValueRefusal = family === "array" ? whyAnArrayValueIsNotANumberOrAListOfOneShape(value) : null;
+  if (arrayValueRefusal !== null) {
+    return `Port error: output \`value\` of node \`${graphInput.name}\` carries Array, and attribute \`values\` is a number or a list of numbers of one shape: ${arrayValueRefusal}`;
+  }
+  if (family === "records" && !isAMockJsonObject(value)) return `Port error: output \`value\` of node \`${graphInput.name}\` carries Records, and a Records value is a JSON object`;
+  return null;
+}
+
+function isAMockJsonObject(value: JsonValue): value is { [key: string]: JsonValue } {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Why `value` is not a number or a list of numbers of one shape, in the runtime's words; `null` where it is. */
+function whyAnArrayValueIsNotANumberOrAListOfOneShape(value: JsonValue): string | null {
+  if (typeof value === "number") return null;
+  if (!Array.isArray(value)) return `\`${JSON.stringify(value)}\` is not a number at that depth`;
+  for (const element of value) {
+    const elementRefusal = whyAnArrayValueIsNotANumberOrAListOfOneShape(element);
+    if (elementRefusal !== null) return elementRefusal;
+  }
+  const shapes = new Set(value.map((element) => (Array.isArray(element) ? element.length : -1)));
+  return shapes.size > 1 ? "its lists differ in length" : null;
+}
+
 interface MockLoadedStream {
   fixture: MockStreamFixture;
   /** The stream action that loaded it, which every record its load writes carries. */
@@ -446,6 +488,8 @@ interface MockLoadedStream {
   loadedAtMilliseconds: number;
   unreleasedStartupDrafts: MockLogRecordDraft[];
   writeLiveLog: MockLiveLogWriter;
+  /** The value a client last wrote to each of its top-level Inputs, by name; gone on the next load, as the runtime keeps none. */
+  valueWrittenToEachGraphInput: Map<string, JsonValue>;
 }
 
 /** A project's log as the mock keeps it: its records oldest first, after the ones its retention deleted. */
@@ -984,6 +1028,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       loadedAtMilliseconds,
       unreleasedStartupDrafts: [...fixture.startupLog],
       writeLiveLog: fixture.createLiveLogWriter(),
+      valueWrittenToEachGraphInput: new Map(),
     };
     loadedStreams.set(fixture.listing.stream, loadedStream);
     listedStreamsNotLoaded.delete(fixture.listing.stream);
@@ -1220,7 +1265,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     return mockStreamGraphSummary(loadedStream.fixture.listing, fixtures.machine.name, loadedStream.fixture.graph, {
       hasSettled: millisecondsSinceSettled >= 0,
       secondsSinceSettled: Math.max(0, millisecondsSinceSettled) / 1000,
-    }, mockTatolabOptions.arePortFamiliesServed);
+    }, mockTatolabOptions.arePortFamiliesServed, loadedStream.valueWrittenToEachGraphInput);
   };
 
   /** The project folder the mock runtime lists for the stream `streamId`, as the main process looks it up before opening it. */
@@ -1776,6 +1821,13 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       const viewNode = loadedStreamOfTheId(stream).fixture.graph.nodes.find((graphNode) => mockGraphNodeIdOf(stream, graphNode) === node);
       if (viewNode === undefined) throw `write_studio_view_output failed: no node with the id \`${node}\` in stream \`${stream}\``;
       if (!viewNode.output_ports.some((outputPort) => outputPort.name === port)) throw `write_studio_view_output failed: \`${viewNode.name}\` has no output port named \`${port}\``;
+    },
+    writeGraphInput: async (stream, input, value) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const loadedStream = loadedStreamOfTheId(stream);
+      const refusal = refusalOfAGraphInputWrite(loadedStream, listStreams()?.find((listing) => listing.stream === stream)?.state ?? null, input, value);
+      if (refusal !== null) throw `write_graph_input failed: ${refusal}`;
+      loadedStream.valueWrittenToEachGraphInput.set(input, value);
     },
     openPortViewer: async (target) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

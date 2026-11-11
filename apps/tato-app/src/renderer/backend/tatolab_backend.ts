@@ -230,6 +230,8 @@ export interface TatolabBackend {
   listStudioViewsOfTheOpenProject(): Promise<ListedStudioView[]>;
   /** Publish `value` on the output `port` of the view node `node` (its UUID) in `stream`, as the port's family takes it; recorded nowhere; rejecting in the runtime's own words. */
   writeStudioViewOutput(stream: string, node: string, port: string, value: JsonValue): Promise<void>;
+  /** Hand `value` to the Input `input` of the running stream `stream`, as its family takes it; recorded nowhere; rejecting in the runtime's own words. */
+  writeGraphInput(stream: string, input: string, value: JsonValue): Promise<void>;
   /** Read `target`'s output port while the port viewer is open, resolving with the id its events arrive under and rejecting in the runtime's own words. */
   openPortViewer(target: PortViewerTarget): Promise<string>;
   closePortViewer(portViewer: string): Promise<void>;

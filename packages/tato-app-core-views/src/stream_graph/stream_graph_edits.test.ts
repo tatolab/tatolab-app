@@ -44,7 +44,7 @@ function graphNode(name: string, id: string, ports: { inputs?: [string, "image" 
     dropped_bags_by_link: {},
     refused_bags_by_output_port: {},
     studio,
-    fragment: null,
+    fragment: null, graph_interface: null,
   };
 }
 

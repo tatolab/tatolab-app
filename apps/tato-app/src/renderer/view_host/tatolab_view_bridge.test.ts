@@ -102,6 +102,7 @@ function recordingHostServices() {
   const graphTransactionsAsked: { projectFolder: string; operations: readonly unknown[]; mode: string; idempotencyKey: string | null }[] = [];
   const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
   const outputsWritten: { viewNode: StudioViewNodeAddress; port: string; value: JsonValue }[] = [];
+  const graphInputsWritten: { stream: string; input: string; value: JsonValue }[] = [];
   const portPickHeld = new PortPickHeldInTheWindow();
   const hostServices: StudioViewHostServices = {
     watchOpenProject: (listener) => {
@@ -210,6 +211,12 @@ function recordingHostServices() {
       outputsWritten.push({ viewNode, port, value });
       return port === "play_a" ? { kind: "not_written", because: "write_studio_view_output failed: `play_a` takes a number or a list of numbers" } : { kind: "written" };
     },
+    writeGraphInput: async (stream, input, value) => {
+      graphInputsWritten.push({ stream, input, value });
+      return input === "contrast"
+        ? { kind: "not_written", because: "write_graph_input failed: Processor not found: no `GraphInput` on the top level of the stream `s06-perform-main-0df4a7` declares the Input `contrast` and runs" }
+        : { kind: "written" };
+    },
     watchPortPick: portPickHeld.portPick.watch,
     pickAPortInTheStreamGraph: (pick) => portPickHeld.start(pick, null),
     answerThePortPick: (node, port) => portPickHeld.answer(node, port),
@@ -224,7 +231,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, portPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten };
+  return { hostServices, portPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten, graphInputsWritten };
 }
 
 /** An area that keeps the settings it is asked to remember, says where the view's header row lies, and expands while a layout holds it. */
@@ -498,6 +505,20 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(outputsWritten).toEqual([
       { viewNode: deckNode, port: "crossfader", value: 0.42 },
       { viewNode: deckNode, port: "play_a", value: { playing: true } },
+    ]);
+  });
+
+  it("hands a value to a stream's Input through the runtime, whatever area it shows in, and the runtime's refusal reaches it in its own words", async () => {
+    const { connection, graphInputsWritten } = await connectedView(DJ_DECK_MANIFEST, {});
+
+    expect(await connection.writeGraphInput("s06-perform-main-0df4a7", "brightness", 0.8)).toEqual({ kind: "done" });
+    expect(await connection.writeGraphInput("s06-perform-main-0df4a7", "contrast", 0.3)).toEqual({
+      kind: "refused",
+      because: "write_graph_input failed: Processor not found: no `GraphInput` on the top level of the stream `s06-perform-main-0df4a7` declares the Input `contrast` and runs",
+    });
+    expect(graphInputsWritten).toEqual([
+      { stream: "s06-perform-main-0df4a7", input: "brightness", value: 0.8 },
+      { stream: "s06-perform-main-0df4a7", input: "contrast", value: 0.3 },
     ]);
   });
 

@@ -17,7 +17,7 @@ function graphNode(name: string, inputs: string[], outputs: string[]): StreamGra
     refused_bags_by_output_port: {},
     pins: {},
     studio: NODE_STUDIO_FIELDS_NONE_SET,
-    fragment: null,
+    fragment: null, graph_interface: null,
   };
 }
 

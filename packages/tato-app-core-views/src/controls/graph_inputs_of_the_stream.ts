@@ -1,26 +1,71 @@
-// A stream's Graph Inputs as Controls lists them: each `GraphInput` node the runtime's `graph` renders
-// back, by the port it declares and the family it carries, in the graph's order.
+// A stream's Graph Inputs as Controls lists them: each top-level `GraphInput` node the runtime's
+// `graph` renders back, by the port it declares, the family it carries and the value it carries now,
+// with the control that writes that value through `write_graph_input`.
 
-import type { StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { JsonValue, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The node type a stream declares one of its input ports with. */
 export const GRAPH_INPUT_NODE_TYPE = "tatolab.stream:GraphInput";
 
-/** One input port a stream declares with a `GraphInput` node. */
-export interface GraphInputOfTheStream {
-  readonly node_id: string;
-  /** The port's name from the node's `port` config, or the node's name while it states none. */
-  readonly port_name: string;
-  /** The family from the node's `family` config, as the runtime spells it; `null` while it states none. */
-  readonly family: string | null;
+/** The families of the Inputs a client writes; an Image or Packets Input carries only what the graph wires into it. */
+const FAMILIES_A_CLIENT_WRITES: readonly string[] = ["array", "channels", "records"];
+
+/** `[lowest, highest]` from a `GraphInput`'s `range` config: the span a control moves its number in. */
+export interface GraphInputRange {
+  readonly lowest: number;
+  readonly highest: number;
 }
 
-/** Each Graph Input `graph` declares, in the order the graph lists its nodes. */
+/** How Controls writes an Input: a number on a slider within its range, a number typed, a bool switched, JSON typed, or not at all. */
+export type GraphInputControlKind = "slider" | "number" | "toggle" | "json" | "not_written";
+
+/** One input port a stream declares with a top-level `GraphInput` node. */
+export interface GraphInputOfTheStream {
+  readonly node_id: string;
+  /** The Input's name, which `write_graph_input` takes. */
+  readonly port_name: string;
+  /** As the runtime spells it; `null` while the node states none. */
+  readonly family: string | null;
+  /** What it carries now, the last value written, else its `default`; `null` where the graph renders none. */
+  readonly current_value: JsonValue | null;
+  readonly range: GraphInputRange | null;
+  readonly control: GraphInputControlKind;
+}
+
+/** Each top-level Graph Input `graph` declares, in the order the graph lists its nodes. */
 export function graphInputsOfTheStream(graph: StreamGraphSummary): GraphInputOfTheStream[] {
   return graph.nodes
     .filter((node) => node.type === GRAPH_INPUT_NODE_TYPE)
     .map((node) => {
-      const { port, family } = node.config;
-      return { node_id: node.id, port_name: typeof port === "string" && port !== "" ? port : node.name, family: typeof family === "string" ? family : null };
+      const { port, family, range } = node.config;
+      const declared = node.graph_interface;
+      const familyDeclared = declared?.family ?? (typeof family === "string" ? family : null);
+      const currentValue = declared?.current_value ?? node.config["default"] ?? null;
+      const rangeDeclared = graphInputRangeFrom(range);
+      return {
+        node_id: node.id,
+        port_name: declared?.port ?? (typeof port === "string" && port !== "" ? port : node.name),
+        family: familyDeclared,
+        current_value: currentValue,
+        range: rangeDeclared,
+        control: controlForTheInput(familyDeclared, currentValue, rangeDeclared),
+      };
     });
+}
+
+/** The span a `range` config states, `null` unless it is two finite numbers, the lowest first. */
+function graphInputRangeFrom(range: JsonValue | undefined): GraphInputRange | null {
+  if (!Array.isArray(range) || range.length !== 2) return null;
+  const [lowest, highest] = range;
+  if (typeof lowest !== "number" || typeof highest !== "number" || !Number.isFinite(lowest) || !Number.isFinite(highest) || highest <= lowest) return null;
+  return { lowest, highest };
+}
+
+/** The control that writes an Input of `family` carrying `currentValue`, within `range` when it states one. */
+function controlForTheInput(family: string | null, currentValue: JsonValue | null, range: GraphInputRange | null): GraphInputControlKind {
+  if (family === null || !FAMILIES_A_CLIENT_WRITES.includes(family)) return "not_written";
+  if (family === "records") return "json";
+  if (family === "channels" && typeof currentValue === "boolean") return "toggle";
+  if (currentValue === null || typeof currentValue === "number") return range === null ? "number" : "slider";
+  return "json";
 }

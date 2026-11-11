@@ -26,7 +26,7 @@ function node(
   nodeId = "",
   config: StreamGraphNode["config"] = {},
 ): StreamGraphNode {
-  return { id: nodeId, name, type: nodeType, state, failed_because: null, process_raising_because: null, config, ...ports, ...counters, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null };
+  return { id: nodeId, name, type: nodeType, state, failed_because: null, process_raising_because: null, config, ...ports, ...counters, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
 }
 
 function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
@@ -461,4 +461,43 @@ test("a_recorded_graph_reads_what_a_running_nodes_process_keeps_raising_word_for
     ["testpatternsource", "Running", null],
     ["breaker", "Running", "process() raised RuntimeError: broke on purpose (nodes/breaker.py, line 10)"],
   ]);
+});
+
+test("a recorded graph reads each top-level GraphInput's declared port, its family and the value it carries now, and every other node declares none", async () => {
+  const summary = streamGraphSummaryFromTheGraphToolResult("s06-perform-main-0df4a7", await recordedGraphToolResultText("local-api-graph-tool-result-of-s06-perform-declaring-graph-inputs.json"));
+
+  if (!summary.ok) return expect.unreachable(summary.failure);
+  expect(summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.graph_interface])).toEqual([
+    ["testpatternsource", null],
+    ["graphinput", { direction: "input", port: "brightness", family: "channels", current_value: 0.8 }],
+    ["multiply", null],
+    ["graphinput-2", { direction: "input", port: "cue", family: "records", current_value: { scene: "finale" } }],
+  ]);
+  expect(summary.value.nodes.find((graphNode) => graphNode.name === "graphinput")?.config).toEqual({ port: "brightness", family: "channels", default: 0.5, range: [0, 1] });
+});
+
+test("a recorded graph reads a GraphInput the runtime renders with no graph_interface, as it renders one added while the stream plays, as declaring none", async () => {
+  const summary = streamGraphSummaryFromTheGraphToolResult(
+    "s06-perform-main-0df4a7",
+    await recordedGraphToolResultText("local-api-graph-tool-result-of-s06-perform-with-a-graph-input-added-while-playing.json"),
+  );
+
+  if (!summary.ok) return expect.unreachable(summary.failure);
+  const tint = summary.value.nodes.find((graphNode) => graphNode.name === "graphinput-3") ?? expect.unreachable("no tint Input");
+  expect(tint.graph_interface).toBeNull();
+  expect(tint.config).toEqual({ port: "tint", family: "array", default: [1, 0.5, 0.25], range: [0, 1] });
+});
+
+test("a graph_interface with no direction, port or family to read is read as none, and an output's carries no current value", () => {
+  const graphInterfaceOf = (graphInterface: unknown) => {
+    const summary = streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify({ nodes: [{ name: "edge", type: "tatolab.stream:GraphOutput", components: { graph_interface: graphInterface } }] }));
+    if (!summary.ok) return expect.unreachable(summary.failure);
+    const [onlyNode] = summary.value.nodes;
+    return onlyNode === undefined ? expect.unreachable("no node") : onlyNode.graph_interface;
+  };
+
+  expect(graphInterfaceOf({ direction: "output", port: "video", family: "image" })).toEqual({ direction: "output", port: "video", family: "image", current_value: null });
+  expect(graphInterfaceOf({ direction: "sideways", port: "video", family: "image" })).toBeNull();
+  expect(graphInterfaceOf({ direction: "input", family: "array" })).toBeNull();
+  expect(graphInterfaceOf("input")).toBeNull();
 });

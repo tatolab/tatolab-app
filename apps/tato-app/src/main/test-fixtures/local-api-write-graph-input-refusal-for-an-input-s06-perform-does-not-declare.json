@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"write_graph_input failed: Processor not found: no `GraphInput` on the top level of the stream `s06-perform-main-0df4a7` declares the Input `contrast` and runs; a client writes the Inputs of family array, channels or records, and the stream's are: `brightness`, `cue`"}],"isError":true}}

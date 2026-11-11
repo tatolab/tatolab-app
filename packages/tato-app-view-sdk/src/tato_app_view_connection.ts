@@ -152,6 +152,8 @@ export interface TatoAppViewConnection {
   importAssetsIntoTheProject(projectFolder: string): Promise<ProjectAssetsImporting>;
   /** Put the asset `asset` of the project at `toPath`, `/`-separated in the project, renaming it, moving it or both, by the person editing; refused in the runtime's own words, as for a path another asset takes. */
   relocateAssetInTheProject(projectFolder: string, asset: string, toPath: string): Promise<ViewAskDone>;
+  /** Hand `value` to the Input `input` of the running stream `stream`, as its family takes it: live, recorded nowhere, the last write winning; refused in the runtime's own words. */
+  writeGraphInput(stream: string, input: string, value: JsonValue): Promise<ViewAskDone>;
   /** Stop tracking the asset `asset` of the project, its file leaving it, by the person editing; refused in the runtime's own words, as while a stream's graph document references it. */
   deleteAssetFromTheProject(projectFolder: string, asset: string): Promise<ViewAskDone>;
   /** The person editing in Studio: the author their graph edits are recorded under, and so whose edits their own Undo reverts. */
@@ -334,6 +336,7 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       watchAreasForTheViewType: (viewTypeId, listener, whenRefused = IGNORE_THE_REFUSAL) =>
         watchFor({ kind: "areas_for_the_view_type", view_type_id: viewTypeId }, (watched) => watched.subject === "areas_for_the_view_type" && listener(watched.reading), whenRefused),
       relocateAssetInTheProject: (projectFolder, asset, toPath) => ask({ kind: "relocate_asset_in_the_project", project_folder: projectFolder, asset, to_path: toPath }).then(doneOf),
+      writeGraphInput: (stream, input, value) => ask({ kind: "write_graph_input", stream, input, value }).then(doneOf),
       deleteAssetFromTheProject: (projectFolder, asset) => ask({ kind: "delete_asset_from_the_project", project_folder: projectFolder, asset }).then(doneOf),
       showViewTypeInArea: (viewTypeId, areaId) => ask({ kind: "show_view_type_in_area", view_type_id: viewTypeId, area_id: areaId }).then(doneOf),
       openModulesAndMarketplace: (shows) => ask({ kind: "open_modules_and_marketplace", shows }).then(doneOf),

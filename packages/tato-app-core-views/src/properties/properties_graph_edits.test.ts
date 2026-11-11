@@ -37,7 +37,7 @@ function aNode(name: string, inputs: StreamGraphDeclaredPort[], outputs: StreamG
     refused_bags_by_output_port: {},
     pins: {},
     studio: NODE_STUDIO_FIELDS_NONE_SET,
-    fragment: null,
+    fragment: null, graph_interface: null,
   };
 }
 

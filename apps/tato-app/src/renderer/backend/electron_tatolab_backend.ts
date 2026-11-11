@@ -171,6 +171,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     writeStudioViewOutput: async (stream, node, port, value) => {
       await invokeTatolabCommand("write_studio_view_output", { stream, node, port, value });
     },
+    writeGraphInput: async (stream, input, value) => {
+      await invokeTatolabCommand("write_graph_input", { stream, input, value });
+    },
     openPortViewer: async (target) => (await invokeTatolabCommand("open_port_viewer", target)).port_viewer,
     closePortViewer: async (portViewer) => {
       await invokeTatolabCommand("close_port_viewer", { port_viewer: portViewer });

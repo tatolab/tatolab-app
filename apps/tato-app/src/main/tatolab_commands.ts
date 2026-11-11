@@ -750,6 +750,15 @@ export function studioViewOutputArgumentsFrom(commandArguments: unknown): Result
   return succeeded({ stream, node, port, value });
 }
 
+/** `write_graph_input`'s `{ stream, input, value }` as the window sends it, or why it is not. */
+export function graphInputArgumentsFrom(commandArguments: unknown): Result<{ stream: string; input: string; value: JsonValue }, string> {
+  if (!isAJsonObject(commandArguments)) return failedWith("write_graph_input needs `stream`, `input` and `value`");
+  const { stream, input, value } = commandArguments;
+  if (typeof stream !== "string" || typeof input !== "string") return failedWith("write_graph_input needs `stream` and `input` as text");
+  if (!isAJsonValue(value)) return failedWith("write_graph_input needs `value` as JSON");
+  return succeeded({ stream, input, value });
+}
+
 /** `undo_in_the_open_project`'s and `redo_in_the_open_project`'s `{ author }` as the window sends it, or why it is not. */
 export function undoOrRedoArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<ProjectTransactionAuthor, string> {
   const author = isAJsonObject(commandArguments) ? commandArguments["author"] : undefined;
@@ -1307,6 +1316,20 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       return commandAnswerOfNothingFrom(
         await answerTheWindow("write_studio_view_output", async () => {
           const written = await sharedState.controller.writeStudioViewOutput(stream, node, port, value);
+          return written.ok ? written : failedWith(written.failure.failureDescription);
+        }),
+      );
+    },
+    write_graph_input: async (commandArguments, commandFromWindow) => {
+      const graphInputArguments = graphInputArgumentsFrom(commandArguments);
+      if (!graphInputArguments.ok) return { ok: false, refusal: graphInputArguments.failure };
+      if (sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId) === null) {
+        return { ok: false, refusal: "Only a studio window or a popped-out view writes a Graph Input." };
+      }
+      const { stream, input, value } = graphInputArguments.value;
+      return commandAnswerOfNothingFrom(
+        await answerTheWindow("write_graph_input", async () => {
+          const written = await sharedState.controller.writeGraphInput(stream, input, value);
           return written.ok ? written : failedWith(written.failure.failureDescription);
         }),
       );
