@@ -4,6 +4,7 @@
 import type {
   ListedStream,
   ProjectCreationQueued,
+  ProjectVenvSyncUnderWay,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   ProjectRunQueued,
@@ -31,6 +32,7 @@ import type {
   TatolabStatus,
   JsonValue,
 } from "../shared/tatolab_backend_contract.js";
+import { STREAM_ACTION_STEP_MAKING_THE_VENV } from "../shared/tatolab_backend_contract.js";
 import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_apps_child.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
@@ -184,15 +186,45 @@ export class TatolabAppController {
     return set;
   }
 
+  /** The sync uv runs for each action a listed stream names on its `making_the_venv` step; an action not described this round is left out, its stream still listed on its step. */
+  private async projectVenvSyncsUnderWayOf(streams: readonly ListedStream[] | null): Promise<ProjectVenvSyncUnderWay[]> {
+    const actionsMakingTheVenv = new Set((streams ?? []).flatMap((listedStream) => (listedStream.step === STREAM_ACTION_STEP_MAKING_THE_VENV && listedStream.action !== null ? [listedStream.action] : [])));
+    const followedActions = await Promise.all([...actionsMakingTheVenv].map((action) => this.localApiClient.describeStreamAction(action)));
+    return [...actionsMakingTheVenv].flatMap((action, actionIndex) => {
+      const followed = followedActions[actionIndex];
+      if (followed === undefined) return [];
+      if (!followed.ok) {
+        this.warnOnceThatTheSyncWasNotDescribed(action, followed.failure.failureDescription);
+        return [];
+      }
+      if (followed.value.kind === "not_held") {
+        this.warnOnceThatTheSyncWasNotDescribed(action, followed.value.words);
+        return [];
+      }
+      const { project_directory, venv_sync } = followed.value.description;
+      return venv_sync === null ? [] : [{ action, project_directory, venv_sync }];
+    });
+  }
+
+  private readonly actionsWhoseSyncWasNotDescribed = new Set<string>();
+
+  private warnOnceThatTheSyncWasNotDescribed(action: string, because: string): void {
+    if (this.actionsWhoseSyncWasNotDescribed.has(action)) return;
+    this.actionsWhoseSyncWasNotDescribed.add(action);
+    this.tatolabAppLog.warn("a project's sync could not be described, so the Activity panel shows its step alone", { action, because });
+  }
+
   /** Observe everything once at `nowMs`, start the app's runtime when none answers, and compose the status. */
   async composeStatus(nowMs: number): Promise<TatolabStatus> {
     const healthCheck = await this.localApiClient.checkHealth();
     let streams: ListedStream[] | null = null;
     let streamsNotListedBecause: string | null = null;
     let machineName: string | null = null;
+    let projectVenvSyncsUnderWay: Promise<ProjectVenvSyncUnderWay[]> = Promise.resolve([]);
     if (healthCheck.ok) {
       const listing = await this.listedStreams();
       streams = listing.ok ? listing.value : null;
+      projectVenvSyncsUnderWay = this.projectVenvSyncsUnderWayOf(streams);
       streamsNotListedBecause = listing.ok ? null : listing.failure;
       machineName = await this.machineNameOfTheRunningRuntime.machineName(() => this.askTheRuntimeItsMachineName());
     } else {
@@ -215,6 +247,7 @@ export class TatolabAppController {
       runtime_not_running_because: runtimeNotRunningBecause,
       machine_name: machineName,
       streams,
+      project_venv_syncs_under_way: await projectVenvSyncsUnderWay,
       streams_not_listed_because: streamsNotListedBecause,
       command_line_tool_link: await this.commandLineToolLink.observeTheLink(),
       app_update: this.readTheAppUpdateState(),

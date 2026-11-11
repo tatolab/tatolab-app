@@ -2,8 +2,27 @@
 // at once with the action they queued, `describe_stream_action`, which follows it to its end, and
 // `cancel_stream_action`, which ends it early.
 
-import type { ProjectCreationQueued, ProjectRunQueued, StreamActionCancelAnswer, StreamActionDescription, StreamTakenInByAnAction } from "../shared/tatolab_backend_contract.js";
-import { arrayOrEmpty, everyOneRead, jsonObject, type JsonObjectOnTheWire, optionalText, parseJsonOnTheWire, requiredText } from "./json_on_the_wire.js";
+import type {
+  ProjectCreationQueued,
+  ProjectRunQueued,
+  StreamActionCancelAnswer,
+  StreamActionDescription,
+  StreamActionVenvSync,
+  StreamActionVenvSyncPackage,
+  StreamTakenInByAnAction,
+} from "../shared/tatolab_backend_contract.js";
+import {
+  arrayOrEmpty,
+  everyOneRead,
+  jsonObject,
+  type JsonObjectOnTheWire,
+  optionalObject,
+  optionalText,
+  optionalUnsignedInteger,
+  parseJsonOnTheWire,
+  requiredText,
+  requiredUnsignedInteger,
+} from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 function toolResultObject(toolName: string, toolResultText: string): Result<JsonObjectOnTheWire, string> {
@@ -74,6 +93,10 @@ export function streamActionDescriptionFromTheDescribeStreamActionToolResult(too
   if (!streams.ok) return readOrSayWhy("describe_stream_action", streams);
   const failedBecause = optionalText(toolResult.value, "failed_because");
   if (!failedBecause.ok) return readOrSayWhy("describe_stream_action", failedBecause);
+  const venvSyncOnTheWire = optionalObject(toolResult.value, "venv_sync");
+  if (!venvSyncOnTheWire.ok) return readOrSayWhy("describe_stream_action", venvSyncOnTheWire);
+  const venvSync = venvSyncOnTheWire.value === null ? succeeded(null) : venvSyncOnTheWireRead(venvSyncOnTheWire.value);
+  if (!venvSync.ok) return readOrSayWhy("describe_stream_action", venvSync);
   return succeeded({
     action: action.value,
     project_directory: projectDirectory.value,
@@ -82,6 +105,51 @@ export function streamActionDescriptionFromTheDescribeStreamActionToolResult(too
     step: step.value,
     streams: streams.value,
     failed_because: failedBecause.value,
+    venv_sync: venvSync.value,
+  });
+}
+
+function venvSyncPackageOnTheWireRead(packageOnTheWire: unknown): Result<StreamActionVenvSyncPackage, string> {
+  const venvSyncPackage = jsonObject(packageOnTheWire, "a package of the venv sync");
+  if (!venvSyncPackage.ok) return venvSyncPackage;
+  const name = requiredText(venvSyncPackage.value, "name");
+  if (!name.ok) return name;
+  const version = optionalText(venvSyncPackage.value, "version");
+  if (!version.ok) return version;
+  const kind = requiredText(venvSyncPackage.value, "kind");
+  if (!kind.ok) return kind;
+  const state = requiredText(venvSyncPackage.value, "state");
+  if (!state.ok) return state;
+  const downloadSizeBytes = optionalUnsignedInteger(venvSyncPackage.value, "download_size_bytes");
+  if (!downloadSizeBytes.ok) return downloadSizeBytes;
+  return succeeded({ name: name.value, version: version.value, kind: kind.value, state: state.value, download_size_bytes: downloadSizeBytes.value });
+}
+
+function venvSyncOnTheWireRead(venvSyncOnTheWire: JsonObjectOnTheWire): Result<StreamActionVenvSync, string> {
+  const phase = requiredText(venvSyncOnTheWire, "phase");
+  if (!phase.ok) return phase;
+  const packagesResolved = optionalUnsignedInteger(venvSyncOnTheWire, "packages_resolved");
+  if (!packagesResolved.ok) return packagesResolved;
+  const packagesPrepared = optionalUnsignedInteger(venvSyncOnTheWire, "packages_prepared");
+  if (!packagesPrepared.ok) return packagesPrepared;
+  const packagesInstalled = optionalUnsignedInteger(venvSyncOnTheWire, "packages_installed");
+  if (!packagesInstalled.ok) return packagesInstalled;
+  const downloadsStarted = requiredUnsignedInteger(venvSyncOnTheWire, "downloads_started");
+  if (!downloadsStarted.ok) return downloadsStarted;
+  const downloadsDone = requiredUnsignedInteger(venvSyncOnTheWire, "downloads_done");
+  if (!downloadsDone.ok) return downloadsDone;
+  const packagesOnTheWire = arrayOrEmpty(venvSyncOnTheWire, "packages");
+  if (!packagesOnTheWire.ok) return packagesOnTheWire;
+  const packages = everyOneRead(packagesOnTheWire.value, venvSyncPackageOnTheWireRead);
+  if (!packages.ok) return packages;
+  return succeeded({
+    phase: phase.value,
+    packages_resolved: packagesResolved.value,
+    packages_prepared: packagesPrepared.value,
+    packages_installed: packagesInstalled.value,
+    downloads_started: downloadsStarted.value,
+    downloads_done: downloadsDone.value,
+    packages: packages.value,
   });
 }
 

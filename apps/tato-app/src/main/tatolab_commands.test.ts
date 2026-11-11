@@ -290,7 +290,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '"platform":"macos","runtime_state":"running","runtime_not_running_because":null,' +
       '"machine_name":"jonathanf-macbook","streams":[' +
       '{"stream":"pattern-main-41d0c2","display_name":"main","location":{"project_directory":"/private/tmp/x/pattern","project":"0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55","stream_asset":"7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68"},' +
-      '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"streams_not_listed_because":null,' +
+      '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"project_venv_syncs_under_way":[],"streams_not_listed_because":null,' +
       '"command_line_tool_link":{"kind":"linked","path":"/Users/someone/.local/bin/tatolab"},' +
       '"app_update":{"kind":"not_checked"},"app_update_announcement":null,' +
       `"local_api_socket":${JSON.stringify(runningRuntime.localApiSocketPath)},` +
@@ -304,7 +304,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
     '{"app_version":"0.45.0",' +
       '"app_build":{"tatolab_app_commit":"22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1","build_kind":"dev","built_with_uncommitted_changes":true},' +
       '"platform":"linux","runtime_state":"starting","runtime_not_running_because":null,"machine_name":null,' +
-      '"streams":null,"streams_not_listed_because":null,"command_line_tool_link":{"kind":"not_linked","path":"/home/someone/.local/bin/tatolab"},' +
+      '"streams":null,"project_venv_syncs_under_way":[],"streams_not_listed_because":null,"command_line_tool_link":{"kind":"not_linked","path":"/home/someone/.local/bin/tatolab"},' +
       '"app_update":{"kind":"not_checked"},"app_update_announcement":null,' +
       `"local_api_socket":${JSON.stringify(runtimeThatIsDown.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
@@ -729,7 +729,7 @@ test("adding a project answers the window in the contract's shape, from the chos
   expect(refreshRequests).toHaveBeenCalledTimes(2);
   expect(JSON.stringify(await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-7" }, FROM_THE_PROJECTS_WINDOW))).toBe(
     '{"ok":true,"value":{"kind":"described","description":{"action":"Rj12j3eujz3zn0dposliv79k9-7","project_directory":"/tmp/tatolab-proof/streams/kind-butte",' +
-      '"kind":"load","state":"in_progress","step":"starting","streams":[{"stream":"kind-butte-main-e51c2f","display_name":"main","state":null}],"failed_because":null}}}',
+      '"kind":"load","state":"in_progress","step":"starting","streams":[{"stream":"kind-butte-main-e51c2f","display_name":"main","state":null}],"failed_because":null,"venv_sync":null}}}',
   );
   expect(await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-999" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: true,
@@ -1085,6 +1085,7 @@ test("a graph transaction in the open project reaches the runtime's transact hel
     streams: [hallwaysMainListed],
     streams_not_listed_because: null,
     command_line_tool_link: { kind: "not_linked", path: "/home/sam/.local/bin/tatolab" },
+    project_venv_syncs_under_way: [],
     app_update: { kind: "not_offered", reason: "a test updates nothing" },
     app_update_announcement: null,
     local_api_socket: sharedState.localApiSocketPath,

@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { afterEach, expect, test } from "vitest";
 import type { CarriedRuntime } from "./platform/carried_runtime.js";
 import { RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL, RUNTIME_STARTING_GRACE_PERIOD_MS } from "./carried_runtime_run_as_the_apps_child.js";
@@ -87,7 +88,7 @@ test("a healthy runtime's status names its streams and machine, read as the wind
   expect(JSON.stringify(await controller.composeStatus(0))).toBe(
     '{"app_version":"0.45.0","app_build":null,"platform":"macos","runtime_state":"running","runtime_not_running_because":null,' +
       '"machine_name":"jonathanf-macbook","streams":[{"stream":"p-main-0a1b2c","display_name":"main","location":{"project_directory":"/p","project":"0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55","stream_asset":"7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68"},' +
-      '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"streams_not_listed_because":null,' +
+      '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"project_venv_syncs_under_way":[],"streams_not_listed_because":null,' +
       '"command_line_tool_link":{"kind":"not_linked","path":"/Users/someone/.local/bin/tatolab"},' +
       '"app_update":{"kind":"not_checked"},"app_update_announcement":null,' +
       `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
@@ -96,6 +97,50 @@ test("a healthy runtime's status names its streams and machine, read as the wind
       '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
   );
   expect(carriedRuntimeStarts.runtimesStarted).toHaveLength(0);
+});
+
+const recordedResponseBody = (fixtureFileName: string) => readFile(new URL(`./test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
+
+test("a project's stream on its making_the_venv step brings its action's venv sync into the status, described once per round", async () => {
+  const { controller, localApiServer } = await controllerOverFakes([
+    healthyAnswer(),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-new-project-preparing-on-its-making-the-venv-step.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-new-project-downloading-numpy-and-pillow.json")),
+    theMachine(),
+  ]);
+
+  const status = await controller.composeStatus(0);
+
+  expect(status.project_venv_syncs_under_way).toEqual([
+    {
+      action: "Rvxjb0uiacgp6c3o13o9qvzj1-1",
+      project_directory: "/private/tmp/tatolab-proof-projects/numpy-pillow",
+      venv_sync: expect.objectContaining({ phase: "downloading", downloads_started: 4, downloads_done: 3 }),
+    },
+  ]);
+  const describeRequests = localApiServer.receivedRequests().filter((request) => request.includes("Mcp-Name: describe_stream_action"));
+  expect(describeRequests).toHaveLength(1);
+  expect(describeRequests[0]).toContain('"action":"Rvxjb0uiacgp6c3o13o9qvzj1-1"');
+});
+
+test("a project's sync whose action cannot be described is left out, its stream still listed on its step, and the runtime's words logged once", async () => {
+  const writtenLogLines: string[] = [];
+  const notHeld = async () => httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json"));
+  const listedOnMakingTheVenv = async () =>
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-new-project-preparing-on-its-making-the-venv-step.json"));
+  const { controller } = await controllerOverFakes(
+    [healthyAnswer(), await listedOnMakingTheVenv(), await notHeld(), theMachine(), healthyAnswer(), await listedOnMakingTheVenv(), await notHeld()],
+    { tatolabAppLog: createTatolabAppLog("warn", (logLine) => writtenLogLines.push(logLine)) },
+  );
+
+  const status = await controller.composeStatus(0);
+  await controller.composeStatus(1);
+
+  expect(status.project_venv_syncs_under_way).toEqual([]);
+  expect(status.streams?.[0]?.step).toBe("making_the_venv");
+  const syncNotDescribedLines = writtenLogLines.filter((logLine) => logLine.includes("could not be described"));
+  expect(syncNotDescribedLines).toHaveLength(1);
+  expect(syncNotDescribedLines[0]).toContain("is not held");
 });
 
 test("a healthy runtime whose streams cannot be read lists none, and says why in the failure's own words", async () => {

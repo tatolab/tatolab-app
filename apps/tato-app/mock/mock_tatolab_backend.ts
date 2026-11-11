@@ -54,7 +54,10 @@ import {
   type TatolabAppOpenAtLogin,
   type TatolabCommandLineToolVersion,
   type StreamGraphSummary,
+  type ProjectVenvSyncUnderWay,
   type StreamActionDescription,
+  type StreamActionVenvSync,
+  STREAM_ACTION_STEP_MAKING_THE_VENV,
   type StreamActionCancelAnswer,
   type StreamActionFollowed,
   type StreamProjectFolderChosenFor,
@@ -146,6 +149,47 @@ const MOCK_RUNTIME_RESTART_MILLISECONDS = 700;
 
 /** How long the mock runtime's uv takes to make a project's `.venv`, before it compiles it. */
 const MOCK_PYTHON_ENVIRONMENT_MILLISECONDS = 3200;
+
+/** What the mock's uv has done at each stage of making a project's `.venv`, shaped as uv 0.13's lines for a numpy and pillow sync make the runtime's `venv_sync`. */
+const MOCK_VENV_SYNC_STAGES: readonly StreamActionVenvSync[] = [
+  { phase: "resolving", packages_resolved: null, packages_prepared: null, packages_installed: null, downloads_started: 0, downloads_done: 0, packages: [] },
+  {
+    phase: "downloading",
+    packages_resolved: 8,
+    packages_prepared: null,
+    packages_installed: null,
+    downloads_started: 2,
+    downloads_done: 1,
+    packages: [
+      { name: "numpy", version: null, kind: "distribution", state: "downloaded", download_size_bytes: 16_672_358 },
+      { name: "pillow", version: null, kind: "distribution", state: "downloading", download_size_bytes: 7_130_317 },
+    ],
+  },
+  {
+    phase: "installing",
+    packages_resolved: 8,
+    packages_prepared: 8,
+    packages_installed: null,
+    downloads_started: 2,
+    downloads_done: 2,
+    packages: [
+      { name: "numpy", version: null, kind: "distribution", state: "downloaded", download_size_bytes: 16_672_358 },
+      { name: "pillow", version: null, kind: "distribution", state: "downloaded", download_size_bytes: 7_130_317 },
+    ],
+  },
+  {
+    phase: "installed",
+    packages_resolved: 8,
+    packages_prepared: 8,
+    packages_installed: 8,
+    downloads_started: 2,
+    downloads_done: 2,
+    packages: [
+      { name: "numpy", version: "2.3.4", kind: "distribution", state: "installed", download_size_bytes: 16_672_358 },
+      { name: "pillow", version: "12.0.0", kind: "distribution", state: "installed", download_size_bytes: 7_130_317 },
+    ],
+  },
+];
 /** The folders the mock runtime draws a new project in under `~/streams`, the first one free. */
 const MOCK_NEW_PROJECT_FOLDER_NAMES = ["kind-butte", "quiet-harbor", "amber-delta"];
 /** The stream asset of the mock's doorways project that fails to load, as a stream whose camera is missing does. */
@@ -432,6 +476,7 @@ function initialMockStatus(
     runtime_not_running_because: null,
     machine_name: machine.name,
     streams: [],
+    project_venv_syncs_under_way: [],
     streams_not_listed_because: scenario === "not-listed" ? MOCK_STREAMS_NOT_LISTED_BECAUSE : null,
     command_line_tool_link:
       commandLineToolLinkScenario === "linked"
@@ -701,14 +746,14 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     }
     writeProjectRecord(description.project_directory, description.action, "info", `the stream action ${description.action} was cancelled at the step it was on`);
     Object.assign(description, { state: "cancelled", step: null });
-    publishStatus({ streams: listStreams() });
+    publishStatus({ streams: listStreams(), project_venv_syncs_under_way: projectVenvSyncsUnderWay() });
     return true;
   };
 
   /** Queues a load of `projectDirectory` that fails after a beat with `failedBecause`, as the runtime fails a load it cannot begin. */
   const queueAMockProjectLoadThatFails = (projectDirectory: string, failedBecause: string): string => {
     const action = nextStreamActionId();
-    const description: StreamActionDescription = { action, project_directory: projectDirectory, kind: "load", state: "queued", step: null, streams: [], failed_because: null };
+    const description: StreamActionDescription = { action, project_directory: projectDirectory, kind: "load", state: "queued", step: null, streams: [], failed_because: null, venv_sync: null };
     projectLoadsQueued.set(action, description);
     window.setTimeout(() => Object.assign(description, { state: "failed", failed_because: failedBecause }), MOCK_STREAM_ACTION_STEP_MILLISECONDS);
     return action;
@@ -721,7 +766,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
    */
   const queueAMockProjectLoad = (projectDirectory: string): string => {
     const action = nextStreamActionId();
-    const description: StreamActionDescription = { action, project_directory: projectDirectory, kind: "load", state: "queued", step: null, streams: [], failed_because: null };
+    const description: StreamActionDescription = { action, project_directory: projectDirectory, kind: "load", state: "queued", step: null, streams: [], failed_because: null, venv_sync: null };
     projectLoadsQueued.set(action, description);
     void workOnTheMockProjectLoad(description);
     return action;
@@ -748,6 +793,14 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     return failedStreams;
   };
 
+  /** Each load's sync under way, as the main process reads it from the actions its listed streams name on `making_the_venv`. */
+  const projectVenvSyncsUnderWay = (): ProjectVenvSyncUnderWay[] =>
+    [...projectLoadsQueued.values()].flatMap((description) =>
+      description.state === "in_progress" && description.step === STREAM_ACTION_STEP_MAKING_THE_VENV && description.venv_sync !== null
+        ? [{ action: description.action, project_directory: description.project_directory, venv_sync: structuredClone(description.venv_sync) }]
+        : [],
+    );
+
   const workOnTheMockProjectLoad = async (description: StreamActionDescription): Promise<void> => {
     const projectDirectory = description.project_directory;
     const project = projectFolders.get(projectDirectory);
@@ -763,7 +816,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         streamActionOfEachStream.set(streamId, description.action);
         listedStreamsNotLoaded.set(streamId, { ...fixture.listing, display_name: displayNamesRenamedTo.get(streamId) ?? fixture.listing.display_name, state: "preparing", node_count: null, action: description.action, step });
       }
-      publishStatus({ streams: listStreams() });
+      publishStatus({ streams: listStreams(), project_venv_syncs_under_way: projectVenvSyncsUnderWay() });
     };
     await sleep(MOCK_STREAM_ACTION_STEP_MILLISECONDS);
     if (description.state === "cancelled") return;
@@ -775,13 +828,18 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       Object.assign(description, { state: "in_progress", step: "making_the_venv" });
       listEveryStreamPreparingAt("making_the_venv");
       writeProjectRecord(projectDirectory, description.action, "info", `${projectDirectory}/.venv/bin/python does not start, so ${projectDirectory}/.venv is made again`);
-      await sleep(MOCK_PYTHON_ENVIRONMENT_MILLISECONDS);
+      for (const venvSyncStage of MOCK_VENV_SYNC_STAGES) {
+        description.venv_sync = structuredClone(venvSyncStage);
+        publishStatus({ project_venv_syncs_under_way: projectVenvSyncsUnderWay() });
+        await sleep(MOCK_PYTHON_ENVIRONMENT_MILLISECONDS / MOCK_VENV_SYNC_STAGES.length);
+        if (description.state === "cancelled" || streamActionsAskedToCancel.has(description.action)) break;
+      }
       if (endTheLoadAtItsCancel(description)) return;
       if (isMakingThePythonEnvironmentRefused) {
         writeProjectRecord(projectDirectory, description.action, "error", MOCK_UV_SYNC_REFUSAL);
         description.streams = listEveryStreamOfTheProjectFailedOnItsSync(projectDirectory, streamFixtures).map((listing) => ({ stream: listing.stream, display_name: listing.display_name, state: "failed" }));
         Object.assign(description, { state: "failed", step: null, failed_because: MOCK_UV_SYNC_REFUSAL });
-        publishStatus({ streams: listStreams() });
+        publishStatus({ streams: listStreams(), project_venv_syncs_under_way: projectVenvSyncsUnderWay() });
         return;
       }
       writeProjectRecord(projectDirectory, description.action, "info", `\`uv sync\` made ${projectDirectory}/.venv`);
@@ -816,7 +874,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       return { stream: listing.stream, display_name: listing.display_name, state: "running" };
     });
     Object.assign(description, { state: "done", step: null });
-    publishStatus({ streams: listStreams() });
+    publishStatus({ streams: listStreams(), project_venv_syncs_under_way: projectVenvSyncsUnderWay() });
   };
 
   /** Writes `records` to the log of the project `projectDirectory`, its retention deleting the oldest past what it keeps. */

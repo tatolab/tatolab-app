@@ -45,8 +45,10 @@ function useWallClockForDisplay(everyMs: number): number {
 function useStudioActivityLog(status: TatolabStatus): [StudioActivityLog, () => void] {
   const [activityLog, setActivityLog] = useState<StudioActivityLog>(EMPTY_STUDIO_ACTIVITY_LOG);
   useEffect(() => {
-    setActivityLog((previousLog) => nextStudioActivityLog(previousLog, { listedStreams: status.streams, appUpdate: status.app_update }));
-  }, [status.streams, status.app_update]);
+    setActivityLog((previousLog) =>
+      nextStudioActivityLog(previousLog, { listedStreams: status.streams, projectVenvSyncsUnderWay: status.project_venv_syncs_under_way, appUpdate: status.app_update }),
+    );
+  }, [status.streams, status.project_venv_syncs_under_way, status.app_update]);
   return [activityLog, () => setActivityLog(studioActivityLogWithTheEndedCleared)];
 }
 
@@ -58,6 +60,7 @@ function StudioActivityProgressMeter({ activity }: { activity: StudioActivity })
         detail={activity.detail}
         percent={activity.progress.kind === "share_known" ? activity.progress.percent : null}
         outcome="in_progress"
+        parts={activity.package_lines}
         data-studio-activity={activity.activity_id}
       />
     );

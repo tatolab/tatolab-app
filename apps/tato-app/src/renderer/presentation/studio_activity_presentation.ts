@@ -1,11 +1,10 @@
 // What the studio's Activity panel lists: each download and install the runtime or the app is doing,
 // with its progress, and each that has ended since the window opened, with how it ended.
 
+import type { ProgressMeterPart } from "@tatolab/tato-app-view-sdk/design_system/progress_meter";
 import type { ListedStream } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { TatolabAppUpdateState } from "../../shared/tatolab_backend_contract";
+import { STREAM_ACTION_STEP_MAKING_THE_VENV, type ProjectVenvSyncUnderWay, type StreamActionVenvSync, type StreamActionVenvSyncPackage, type TatolabAppUpdateState } from "../../shared/tatolab_backend_contract";
 
-/** The step of a stream action in which the runtime runs `uv sync` for the stream's project, downloading and installing its Python packages. */
-export const STREAM_ACTION_STEP_MAKING_THE_PYTHON_ENVIRONMENT = "making_the_venv";
 
 /** How many ended activities the panel keeps, newest first. */
 export const ENDED_STUDIO_ACTIVITIES_KEPT = 20;
@@ -13,9 +12,10 @@ export const ENDED_STUDIO_ACTIVITIES_KEPT = 20;
 /** How far one activity has got: a share of its whole when the source says, else only that it is under way. */
 export type StudioActivityProgress = { kind: "share_known"; percent: number } | { kind: "share_unknown" };
 
+
 /** One download or install in the Activity panel, under way or ended. */
 export type StudioActivity =
-  | { activity_id: string; title: string; kind: "in_progress"; detail: string; progress: StudioActivityProgress }
+  | { activity_id: string; title: string; kind: "in_progress"; detail: string; progress: StudioActivityProgress; package_lines: ProgressMeterPart[] }
   | { activity_id: string; title: string; kind: "done"; detail: string }
   | { activity_id: string; title: string; kind: "failed"; refusal: string };
 
@@ -28,9 +28,10 @@ export interface StudioActivityLog {
 /** The log of a window that has seen no activity yet. */
 export const EMPTY_STUDIO_ACTIVITY_LOG: StudioActivityLog = { in_progress: [], ended: [] };
 
-/** What the Activity panel reads on each status: the runtime's listed streams and the app's update. */
+/** What the Activity panel reads on each status: the runtime's listed streams, each project's sync under way, and the app's update. */
 export interface StudioActivitySources {
   listedStreams: readonly ListedStream[] | null;
+  projectVenvSyncsUnderWay: readonly ProjectVenvSyncUnderWay[];
   appUpdate: TatolabAppUpdateState;
 }
 
@@ -41,19 +42,88 @@ function projectNameOfTheFolder(projectDirectory: string): string {
 const PYTHON_PACKAGES_ACTIVITY_PREFIX = "python_packages:";
 const APP_UPDATE_ACTIVITY_PREFIX = "app_update:";
 
-function pythonPackagesActivitiesOf(listedStreams: readonly ListedStream[] | null): StudioActivity[] {
+const BYTES_PER_MEGABYTE = 1_000_000;
+
+function megabytesOf(bytes: number): string {
+  return `${(bytes / BYTES_PER_MEGABYTE).toFixed(1)} MB`;
+}
+
+const VENV_SYNC_PACKAGE_STATE_WORDS: Readonly<Record<string, string>> = {
+  downloading: "Downloading",
+  downloaded: "Downloaded",
+  building: "Building",
+  built: "Built",
+  installed: "Installed",
+  uninstalled: "Removed",
+};
+
+function packageLineOf(venvSyncPackage: StreamActionVenvSyncPackage): ProgressMeterPart {
+  const name = venvSyncPackage.kind === "python_interpreter" ? `Python (${venvSyncPackage.name})` : venvSyncPackage.name;
+  const detailParts = [
+    venvSyncPackage.version,
+    VENV_SYNC_PACKAGE_STATE_WORDS[venvSyncPackage.state] ?? venvSyncPackage.state,
+    venvSyncPackage.download_size_bytes === null ? null : megabytesOf(venvSyncPackage.download_size_bytes),
+  ];
+  return { name, detail: detailParts.filter((detailPart) => detailPart !== null).join(" · ") };
+}
+
+/** The sized downloads uv has finished and named so far; uv names each download only as it starts, so the whole is never known ahead. */
+function downloadedBytesOf(venvSync: StreamActionVenvSync): { downloadedBytes: number; namedBytes: number } {
+  const sizedPackages = venvSync.packages.filter((venvSyncPackage) => venvSyncPackage.download_size_bytes !== null);
+  const namedBytes = sizedPackages.reduce((sum, venvSyncPackage) => sum + (venvSyncPackage.download_size_bytes ?? 0), 0);
+  const downloadedBytes = sizedPackages
+    .filter((venvSyncPackage) => venvSyncPackage.state !== "downloading")
+    .reduce((sum, venvSyncPackage) => sum + (venvSyncPackage.download_size_bytes ?? 0), 0);
+  return { downloadedBytes, namedBytes };
+}
+
+function packagesCountWords(packageCount: number | null): string {
+  if (packageCount === null) return "packages";
+  return packageCount === 1 ? "1 package" : `${packageCount} packages`;
+}
+
+function detailAndProgressOfTheSync(venvSync: StreamActionVenvSync): { detail: string; progress: StudioActivityProgress } {
+  switch (venvSync.phase) {
+    case "resolving":
+      return { detail: "Resolving packages…", progress: { kind: "share_unknown" } };
+    case "downloading": {
+      const { downloadedBytes, namedBytes } = downloadedBytesOf(venvSync);
+      if (namedBytes === 0) return { detail: "Downloading…", progress: { kind: "share_unknown" } };
+      return {
+        detail: `Downloading ${venvSync.downloads_done} of ${venvSync.downloads_started} · ${megabytesOf(downloadedBytes)} of ${megabytesOf(namedBytes)}`,
+        progress: { kind: "share_unknown" },
+      };
+    }
+    case "building":
+      return { detail: "Building packages…", progress: { kind: "share_unknown" } };
+    case "installing":
+      return { detail: "Installing packages…", progress: { kind: "share_unknown" } };
+    case "installed":
+      if (venvSync.packages_installed === 0) return { detail: "Packages already up to date", progress: { kind: "share_known", percent: 100 } };
+      return { detail: `Installed ${packagesCountWords(venvSync.packages_installed)}`, progress: { kind: "share_known", percent: 100 } };
+    default:
+      return { detail: "Downloading and installing…", progress: { kind: "share_unknown" } };
+  }
+}
+
+function pythonPackagesActivitiesOf(listedStreams: readonly ListedStream[] | null, projectVenvSyncsUnderWay: readonly ProjectVenvSyncUnderWay[]): StudioActivity[] {
   const projectFoldersInstalling = new Set(
     (listedStreams ?? []).flatMap((listedStream) =>
-      listedStream.step === STREAM_ACTION_STEP_MAKING_THE_PYTHON_ENVIRONMENT && listedStream.location !== null ? [listedStream.location.project_directory] : [],
+      listedStream.step === STREAM_ACTION_STEP_MAKING_THE_VENV && listedStream.location !== null ? [listedStream.location.project_directory] : [],
     ),
   );
-  return [...projectFoldersInstalling].map((projectFolder) => ({
-    activity_id: `${PYTHON_PACKAGES_ACTIVITY_PREFIX}${projectFolder}`,
-    title: `${projectNameOfTheFolder(projectFolder)}'s Python packages`,
-    kind: "in_progress",
-    detail: "Downloading and installing…",
-    progress: { kind: "share_unknown" },
-  }));
+  return [...projectFoldersInstalling].map((projectFolder) => {
+    const venvSync = projectVenvSyncsUnderWay.find((syncUnderWay) => syncUnderWay.project_directory === projectFolder)?.venv_sync ?? null;
+    const { detail, progress } = venvSync === null ? { detail: "Downloading and installing…", progress: { kind: "share_unknown" } as const } : detailAndProgressOfTheSync(venvSync);
+    return {
+      activity_id: `${PYTHON_PACKAGES_ACTIVITY_PREFIX}${projectFolder}`,
+      title: `${projectNameOfTheFolder(projectFolder)}'s Python packages`,
+      kind: "in_progress",
+      detail,
+      progress,
+      package_lines: venvSync === null ? [] : venvSync.packages.map(packageLineOf),
+    };
+  });
 }
 
 function appUpdateActivitiesOf(appUpdate: TatolabAppUpdateState): StudioActivity[] {
@@ -65,13 +135,14 @@ function appUpdateActivitiesOf(appUpdate: TatolabAppUpdateState): StudioActivity
       kind: "in_progress",
       detail: `Downloading · ${Math.round(appUpdate.percent)}%`,
       progress: { kind: "share_known", percent: appUpdate.percent },
+      package_lines: [],
     },
   ];
 }
 
 /** Every download and install under way in `sources`. */
 export function studioActivitiesInProgressOf(sources: StudioActivitySources): StudioActivity[] {
-  return [...pythonPackagesActivitiesOf(sources.listedStreams), ...appUpdateActivitiesOf(sources.appUpdate)];
+  return [...pythonPackagesActivitiesOf(sources.listedStreams, sources.projectVenvSyncsUnderWay), ...appUpdateActivitiesOf(sources.appUpdate)];
 }
 
 function endOfThePythonPackagesActivity(activity: StudioActivity, projectFolder: string, listedStreams: readonly ListedStream[] | null): StudioActivity {

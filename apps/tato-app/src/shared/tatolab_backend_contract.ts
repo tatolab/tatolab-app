@@ -167,6 +167,8 @@ export interface TatolabStatus {
   machine_name: string | null;
   /** `null` when the streams were not listed: the runtime is down or listing them failed. */
   streams: ListedStream[] | null;
+  /** Each project's `.venv` sync under way, for each action a listed stream names on its `making_the_venv` step whose sync uv has started; empty otherwise. */
+  project_venv_syncs_under_way: ProjectVenvSyncUnderWay[];
   /** Why listing the streams failed while the runtime answers, in the failure's own words; `null` when they were listed or the runtime is down. */
   streams_not_listed_because: string | null;
   command_line_tool_link: CommandLineToolLink;
@@ -249,6 +251,45 @@ export interface StreamActionDescription {
   streams: StreamTakenInByAnAction[];
   /** Why a `failed` action failed, in the runtime's words; `null` otherwise. */
   failed_because: string | null;
+  /** What the action's latest uv sync of the project's `.venv` has done, kept once it ends; `null` for an action that has not synced. */
+  venv_sync: StreamActionVenvSync | null;
+}
+
+/** The stream action step in which the runtime runs uv to make the project's `.venv`. */
+export const STREAM_ACTION_STEP_MAKING_THE_VENV = "making_the_venv";
+
+/** One package uv named in a stream action's sync, as the runtime's `venv_sync.packages[]` spells it. */
+export interface StreamActionVenvSyncPackage {
+  name: string;
+  /** Named once uv installs or uninstalls it; `null` before. */
+  version: string | null;
+  /** `distribution`, `python_interpreter`, or a kind newer than this app. */
+  kind: string;
+  /** `downloading`, `downloaded`, `building`, `built`, `installed`, `uninstalled`, or a state newer than this app. */
+  state: string;
+  /** The size uv states as the download starts; uv names only downloads over about a MiB, and no byte as it arrives. */
+  download_size_bytes: number | null;
+}
+
+/** A stream action's uv sync of its project's `.venv`, read from uv's own lines, as the runtime's `venv_sync` spells it. */
+export interface StreamActionVenvSync {
+  /** `resolving`, `downloading`, `building`, `installing`, `installed`, or a phase newer than this app. */
+  phase: string;
+  /** Each count is uv's own, `null` until uv states it. */
+  packages_resolved: number | null;
+  packages_prepared: number | null;
+  packages_installed: number | null;
+  downloads_started: number;
+  downloads_done: number;
+  /** Each package uv named, first named first. */
+  packages: StreamActionVenvSyncPackage[];
+}
+
+/** A project's sync under way, read from the stream action making its `.venv`. */
+export interface ProjectVenvSyncUnderWay {
+  action: string;
+  project_directory: string;
+  venv_sync: StreamActionVenvSync;
 }
 
 /** What `cancel_stream_action` answers: the action, `cancelled` for one dropped from its queue, or `in_progress` for one stopping at the step it is on, or a state newer than this app. */
