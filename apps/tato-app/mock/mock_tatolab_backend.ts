@@ -273,6 +273,8 @@ export interface MockTatolabOptions {
   doesTheMainStreamDeclareGraphInputs: boolean;
   /** `?subgraphs=generated`: `main` holds a graph generator's frozen output. */
   doesTheMainStreamHoldAGeneratedSubgraph: boolean;
+  /** `?node_states=stopped`: every node of `main` that has a state reads `Stopped` once the stream settles, so none of its ports writes. */
+  areTheMainStreamsNodesStopped: boolean;
 }
 
 /** The query parameter a Module manager window's page is told by. */
@@ -408,6 +410,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isTheCompositorInMain: pageQuery.get("compositor") === "layered",
     doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",
     doesTheMainStreamHoldAGeneratedSubgraph: pageQuery.get("subgraphs") === "generated",
+    areTheMainStreamsNodesStopped: pageQuery.get("node_states") === "stopped",
   };
 }
 
@@ -536,7 +539,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const assetsImportedWhileTheMockRuns: ProjectAsset[] = [];
-  const mainStream =
+  const mainStreamAsChosen =
     scenario === "node-error"
       ? fixtures.mainStreamWithDisplayWindowInError
       : scenario === "dropping"
@@ -550,6 +553,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
               : mockTatolabOptions.doesTheMainStreamHoldAGeneratedSubgraph
                 ? fixtures.mainStreamHoldingAGeneratedSubgraph
                 : fixtures.mainStream;
+  const mainStream: MockStreamFixture = mockTatolabOptions.areTheMainStreamsNodesStopped
+    ? { ...mainStreamAsChosen, graph: { ...mainStreamAsChosen.graph, nodes: mainStreamAsChosen.graph.nodes.map((node) => (node.state === null ? node : { ...node, state: "Stopped" })) } }
+    : mainStreamAsChosen;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
   const menusKeptForTheSystemMenuBar: SystemMenuBarMenu[] = [];

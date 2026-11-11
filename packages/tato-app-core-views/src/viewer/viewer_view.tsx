@@ -3,16 +3,19 @@ import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FieldMenu, MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
+import { PortFamilyPlaceholder } from "@tatolab/tato-app-view-sdk/design_system/port_family_placeholder";
 import type { PortViewerEvent, StopWatching, TatoAppViewConnection, ViewAskDone } from "@tatolab/tato-app-view-sdk";
 import type {
   PortViewerMessageReading,
   PortViewerTarget,
   StreamGraphDeclaredPort,
+  StreamGraphNode,
   StreamGraphReading,
   StreamGraphSummary,
   StreamTabAddress,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
+import { nodeTitle } from "../shared/node_words";
 import { portStreamFactsWords } from "../shared/port_stream_facts_words";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { PortViewerMessageReadingShown, packetsUnitsSeenWith, type PacketsUnitSeen } from "./port_viewer_message_readings";
@@ -21,6 +24,8 @@ import {
   everyOutputPortOf,
   portTheViewerPlays,
   portWordsOf,
+  selectedNodeWithNothingToVisualize,
+  stateKeepingThePlayedNodeFromWriting,
   viewerChosenPortOf,
   viewerPortChoiceKey,
   type ViewerChosenPort,
@@ -55,7 +60,7 @@ function drawCpuReadPixels(canvas: HTMLCanvasElement, width: number, height: num
   return true;
 }
 
-/** What a port viewer shows besides its picture: waiting for the first message, another family's latest message read by its family, a format it cannot draw, or why it is reopening or has ended. */
+/** What a port's visualizer shows besides its picture: waiting for the first message, another family's latest message read by its family, a format it cannot draw, or why it is reopening or has ended. */
 type PortViewerShown =
   | { kind: "waiting" }
   | { kind: "picture"; format_wire_name: string }
@@ -66,7 +71,7 @@ type PortViewerShown =
 
 const MESSAGE_READING_REDRAWN_EVERY_MS = 66;
 
-/** The picture, or the messages, one port viewer reads from a running node's output port. */
+/** The picture, or the messages, the Node visualizer reads from a running node's output port. */
 function PortViewerPicture({
   connection,
   target,
@@ -78,7 +83,7 @@ function PortViewerPicture({
   target: PortViewerTarget;
   nodeName: string;
   portWords: string;
-  streamFactsOfThePort: Pick<StreamGraphDeclaredPort, "stream_facts" | "values_checked">;
+  streamFactsOfThePort: Pick<StreamGraphDeclaredPort, "family" | "stream_facts" | "values_checked">;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [shown, setShown] = useState<PortViewerShown>({ kind: "waiting" });
@@ -129,7 +134,7 @@ function PortViewerPicture({
   const streamFactsWords = portStreamFactsWords(streamFactsOfThePort).join(" · ");
   return (
     <div
-      className={isAPicture || shown.kind === "waiting" ? "relative flex min-h-0 flex-1 flex-col bg-black" : "relative flex min-h-0 flex-1 flex-col"}
+      className={isAPicture ? "relative flex min-h-0 flex-1 flex-col bg-black" : "relative flex min-h-0 flex-1 flex-col"}
       data-viewer-playing={`${nodeName}/${port}`}
       data-viewer-port-state={shown.kind}
     >
@@ -139,7 +144,14 @@ function PortViewerPicture({
           {streamFactsWords}
         </div>
       )}
-      {shown.kind === "waiting" && <WaitingState title={`Reading ${portWords}`} explanation="The picture shows once the node writes its next frame." />}
+      {shown.kind === "waiting" && (
+        <PortFamilyPlaceholder
+          family={streamFactsOfThePort.family}
+          title={portWords}
+          explanation={streamFactsOfThePort.family === "image" || streamFactsOfThePort.family === null ? "Waiting for the node's next frame." : "Waiting for the node's next message."}
+          data-viewer-waiting=""
+        />
+      )}
       {shown.kind === "messages" && (
         <div className="flex min-h-0 flex-1 flex-col" data-viewer-messages={shown.reading.family}>
           <div className="flex min-w-0 items-baseline gap-2 border-b border-line px-3 py-1.5 text-xs">
@@ -154,10 +166,20 @@ function PortViewerPicture({
         </div>
       )}
       {shown.kind === "undrawable" && (
-        <WaitingState title={`${portWords} is ${shown.format_wire_name}`} explanation={`The Viewer draws four-byte BGRA and RGBA frames it reads as pixels; ${shown.format_wire_name} arrives later.`} />
+        <WaitingState title={`${portWords} is ${shown.format_wire_name}`} explanation={`The Node visualizer draws four-byte BGRA and RGBA frames it reads as pixels; ${shown.format_wire_name} arrives later.`} />
       )}
-      {shown.kind === "reopening" && <WaitingState title={`Reopening ${portWords}`} explanation={shown.because} data-viewer-reopening="" />}
-      {shown.kind === "ended" && <WaitingState isFailure title={`Stopped reading ${portWords}`} explanation={shown.because} data-viewer-ended="" />}
+      {shown.kind === "reopening" && (
+        <PortFamilyPlaceholder family={streamFactsOfThePort.family} title={portWords} explanation="Reopening this port…" details={shown.because} data-viewer-reopening="" />
+      )}
+      {shown.kind === "ended" && (
+        <PortFamilyPlaceholder
+          family={streamFactsOfThePort.family}
+          title={portWords}
+          explanation="Nothing is reaching this port right now. It shows here live once the node runs again."
+          details={shown.because}
+          data-viewer-ended=""
+        />
+      )}
     </div>
   );
 }
@@ -172,14 +194,59 @@ function useTheGraphOfTheTab(connection: TatoAppViewConnection, stream: string):
   return useViewReading(watchTheTabsGraph);
 }
 
-/** The Viewer of a graph it has read: the live picture of the port it plays. */
-function ViewerOfTheGraph({ connection, streamTab, graph, playedPort }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress; graph: StreamGraphSummary; playedPort: ViewerPortAddress | null }) {
+/** Why a node in `state` shows no live preview, and when it will. */
+function nodeNotRunningWords(state: string): string {
+  if (state === "Error") return "This node failed. It shows here live once it runs again.";
+  if (state === "Paused") return "Paused. It shows here live once the node runs again.";
+  return "Not running. It shows here live once the stream plays.";
+}
+
+/** The Node visualizer of a graph it has read: the live picture of the port it plays while that port's node runs, or else the port family's placeholder. */
+function ViewerOfTheGraph({
+  connection,
+  streamTab,
+  graph,
+  playedPort,
+  selectedNodeWithNothingToPlay,
+}: {
+  connection: TatoAppViewConnection;
+  streamTab: StreamTabAddress;
+  graph: StreamGraphSummary;
+  playedPort: ViewerPortAddress | null;
+  selectedNodeWithNothingToPlay: StreamGraphNode | null;
+}) {
+  if (selectedNodeWithNothingToPlay !== null) {
+    return (
+      <PortFamilyPlaceholder
+        family={null}
+        title={nodeTitle(selectedNodeWithNothingToPlay.name, selectedNodeWithNothingToPlay.type)}
+        explanation="This node has no output, and nothing is linked into it yet. Link a node into it to see what reaches it here."
+        data-viewer-state="node_with_nothing_to_play"
+      />
+    );
+  }
   if (playedPort === null) {
     return (
-      <WaitingState
-        title={`${streamTab.display_name} has no output to view`}
-        explanation="The Viewer plays any output port of a running node. None of this stream's nodes declares one."
+      <PortFamilyPlaceholder
+        family={null}
+        title={`${streamTab.display_name} has no output to visualize`}
+        explanation="Add a node with an output and it shows here."
         data-viewer-state="no_output_port"
+      />
+    );
+  }
+  const portWords = portWordsOf(graph, playedPort);
+  const declaredPort = declaredOutputPortOf(graph, playedPort) ?? { family: null, stream_facts: null, values_checked: null };
+  const playedNodeState = stateKeepingThePlayedNodeFromWriting(graph, playedPort);
+  if (playedNodeState !== null) {
+    return (
+      <PortFamilyPlaceholder
+        family={declaredPort.family}
+        title={portWords}
+        explanation={nodeNotRunningWords(playedNodeState)}
+        details={graph.nodes.find((node) => node.id === playedPort.node_id)?.failed_because ?? undefined}
+        data-viewer-state="node_not_running"
+        data-viewer-node-state={playedNodeState}
       />
     );
   }
@@ -189,13 +256,13 @@ function ViewerOfTheGraph({ connection, streamTab, graph, playedPort }: { connec
       connection={connection}
       target={{ stream: streamTab.stream, node_id: playedPort.node_id, port: playedPort.port }}
       nodeName={playedPort.node_name}
-      portWords={portWordsOf(graph, playedPort)}
-      streamFactsOfThePort={declaredOutputPortOf(graph, playedPort) ?? { stream_facts: null, values_checked: null }}
+      portWords={portWords}
+      streamFactsOfThePort={declaredPort}
     />
   );
 }
 
-/** The port the Viewer plays, chosen from every output of the tab's graph, or following the selection; the choice is kept in the area's settings. */
+/** The port the Node visualizer plays, chosen from every output of the tab's graph, or following the selection; the choice is kept in the area's settings. */
 function ViewerPortChooser({
   connection,
   graph,
@@ -235,7 +302,7 @@ function ViewerPortChooser({
   );
 }
 
-/** The Viewer's frame for the open stream tab: its port chooser in the header row, and its picture under why the last port choice was refused, once the tab's graph, the selection and the area's settings are read. */
+/** The Node visualizer's frame for the open stream tab: its port chooser in the header row, and its picture under why the last port choice was refused, once the tab's graph, the selection and the area's settings are read. */
 function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress }) {
   const graphReading = useTheGraphOfTheTab(connection, streamTab.stream);
   const listedStreams = useViewReading(connection.watchListedStreams);
@@ -248,9 +315,15 @@ function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConn
     return (
       <CoreViewFrame connection={connection}>
         {preparingWords !== null ? (
-          <WaitingState title={preparingWords.title} explanation={preparingWords.explanation} data-viewer-state="preparing" />
+          <PortFamilyPlaceholder family={null} title={preparingWords.title} explanation={preparingWords.explanation} data-viewer-state="preparing" />
         ) : (
-          <WaitingState title={`Nothing of ${streamTab.display_name} to view yet`} explanation={graphReading.because} data-viewer-state="not_read" />
+          <PortFamilyPlaceholder
+            family={null}
+            title={`Nothing of ${streamTab.display_name} to visualize yet`}
+            explanation="Its nodes show here once the runtime serves the stream's graph."
+            details={graphReading.because}
+            data-viewer-state="not_read"
+          />
         )}
       </CoreViewFrame>
     );
@@ -258,6 +331,7 @@ function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConn
   const { graph } = graphReading;
   const chosenPortSetting = viewerChosenPortOf(settings.reading);
   const playedPort = portTheViewerPlays(graph, selection, chosenPortSetting);
+  const selectedNodeWithNothingToPlay = selectedNodeWithNothingToVisualize(graph, selection, chosenPortSetting);
   return (
     <CoreViewFrame
       connection={connection}
@@ -266,19 +340,19 @@ function ViewerOfTheTab({ connection, streamTab }: { connection: TatoAppViewConn
       }
     >
       <RefusalOfTheLatestAskBar refusal={portChoiceRefusal} />
-      <ViewerOfTheGraph connection={connection} streamTab={streamTab} graph={graph} playedPort={playedPort} />
+      <ViewerOfTheGraph connection={connection} streamTab={streamTab} graph={graph} playedPort={playedPort} selectedNodeWithNothingToPlay={selectedNodeWithNothingToPlay} />
     </CoreViewFrame>
   );
 }
 
-/** The Viewer view's whole frame: the live picture of any output port of the active stream's running nodes, the selected node's unless a port is chosen in its header row. */
+/** The Node visualizer view's whole frame: the live picture of any output port of the active stream's nodes, the selected node's unless a port is chosen in its header row, and its family's placeholder while nothing live reaches it. */
 export function ViewerView({ connection }: { connection: TatoAppViewConnection }) {
   const activeStreamTab = useViewReadingSoFar(connection.watchActiveStreamTab);
   if (activeStreamTab.kind === "not_read_yet") return <CoreViewFrame connection={connection}>{null}</CoreViewFrame>;
   if (activeStreamTab.reading === null) {
     return (
       <CoreViewFrame connection={connection}>
-        <WaitingState title="No stream is open" explanation="Double-click a stream in the outliner to view it here." data-viewer-state="no_tab" />
+        <PortFamilyPlaceholder family={null} title="No stream is open" explanation="Double-click a stream in the outliner to visualize its nodes here." data-viewer-state="no_tab" />
       </CoreViewFrame>
     );
   }

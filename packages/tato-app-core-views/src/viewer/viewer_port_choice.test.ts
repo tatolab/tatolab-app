@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NODE_STUDIO_FIELDS_NONE_SET, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { outputPortTheViewerPlays, portTheViewerPlays, viewerChosenPortOf } from "./viewer_port_choice";
+import { outputPortTheViewerPlays, portTheViewerPlays, selectedNodeWithNothingToVisualize, stateKeepingThePlayedNodeFromWriting, viewerChosenPortOf } from "./viewer_port_choice";
 
 const STREAM = "show-main-0a1b2c";
 
@@ -22,7 +22,7 @@ const GRAPH: StreamGraphSummary = {
   graph_document_text: "",
 };
 
-describe("the output port the Viewer plays", () => {
+describe("the output port the Node visualizer plays", () => {
   it("is the stream's first Image port that feeds nothing on, while no node of the stream is selected", () => {
     expect(outputPortTheViewerPlays(GRAPH, { kind: "nothing" })).toEqual({ node_id: "id-halftonelenseffect", node_name: "halftonelenseffect", port: "video_to_downstream" });
     expect(outputPortTheViewerPlays(GRAPH, { kind: "node", stream: "another-stream", node: "camera" })).toEqual({ node_id: "id-halftonelenseffect", node_name: "halftonelenseffect", port: "video_to_downstream" });
@@ -56,7 +56,42 @@ describe("the output port the Viewer plays", () => {
   });
 });
 
-describe("the port a Viewer area keeps", () => {
+describe("a selected node with no output of its own", () => {
+  const DISPLAY = nodeWithOutputs("displaywindow", []);
+  const graphWithADisplay: StreamGraphSummary = {
+    ...GRAPH,
+    nodes: [...GRAPH.nodes, DISPLAY],
+    links: [...GRAPH.links, { id: "meter-to-display", source_node: "brightnessmeter", source_port: "readings", target_node: "displaywindow", target_port: "readings" }, { id: "camera-to-display", source_node: "camera", source_port: "video", target_node: "displaywindow", target_port: "video" }].map((link) => ({ state: "wired", ...link })),
+  };
+  const displaySelected = { kind: "node", stream: STREAM, node: "displaywindow" } as const;
+
+  it("plays what feeds its inputs, a picture first", () => {
+    expect(outputPortTheViewerPlays(graphWithADisplay, displaySelected)).toEqual({ node_id: "id-camera", node_name: "camera", port: "video" });
+    expect(selectedNodeWithNothingToVisualize(graphWithADisplay, displaySelected, null)).toBeNull();
+  });
+
+  it("has nothing to visualize while nothing is linked into it, unless a port is chosen", () => {
+    const graphWithAnUnlinkedDisplay: StreamGraphSummary = { ...GRAPH, nodes: [...GRAPH.nodes, DISPLAY] };
+    expect(selectedNodeWithNothingToVisualize(graphWithAnUnlinkedDisplay, displaySelected, null)).toBe(DISPLAY);
+    expect(selectedNodeWithNothingToVisualize(graphWithAnUnlinkedDisplay, displaySelected, { stream: STREAM, node_id: "id-camera", port: "video" })).toBeNull();
+    expect(selectedNodeWithNothingToVisualize(graphWithAnUnlinkedDisplay, { kind: "node", stream: STREAM, node: "camera" }, null)).toBeNull();
+  });
+});
+
+describe("the state keeping a played node from writing", () => {
+  const cameraPort = { node_id: "id-camera", node_name: "camera", port: "video" };
+
+  it("is none while the node runs, or while the graph names no state", () => {
+    expect(stateKeepingThePlayedNodeFromWriting(GRAPH, cameraPort)).toBeNull();
+    expect(stateKeepingThePlayedNodeFromWriting({ ...GRAPH, nodes: [{ ...CAMERA, state: null }] }, cameraPort)).toBeNull();
+  });
+
+  it("is the runtime's state for a node stopped, failed or not started yet", () => {
+    for (const state of ["Stopped", "Error", "Pending", "Idle", "Paused"]) expect(stateKeepingThePlayedNodeFromWriting({ ...GRAPH, nodes: [{ ...CAMERA, state }] }, cameraPort)).toBe(state);
+  });
+});
+
+describe("the port a Node visualizer area keeps", () => {
   it("is its chosen_port setting, and follows the selection for anything that is not a port", () => {
     expect(viewerChosenPortOf({ chosen_port: { stream: STREAM, node_id: "id-camera", port: "video" } })).toEqual({ stream: STREAM, node_id: "id-camera", port: "video" });
     expect(viewerChosenPortOf({ chosen_port: null })).toBeNull();

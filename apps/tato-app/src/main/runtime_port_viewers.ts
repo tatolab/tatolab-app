@@ -1,4 +1,4 @@
-// The Viewer's reads of any output port of any running node: one `/mcp/stdio` connection for every
+// The Node visualizer's reads of any output port of any running node: one `/mcp/stdio` connection for every
 // viewer the app's windows hold, one runtime viewer per port however many windows show it, and a
 // read of each port's latest message on every tick. An Image frame goes to each window as a shared
 // texture and is released once every window has let go of it; a frame a shared texture cannot

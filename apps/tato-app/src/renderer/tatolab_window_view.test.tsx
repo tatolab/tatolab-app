@@ -591,21 +591,34 @@ describe("the studio", () => {
     expect(await shownLayout()).toBe("code");
   });
 
-  it("plays the open stream's last picture in the Viewer's own frame, reading the port as a port viewer", async () => {
+  it("plays the open stream's last picture in the Node visualizer's own frame, reading the port as a port viewer", async () => {
     await mountedWindowOverTheMock("state=running");
     await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
     fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
 
-    const playing = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>("[data-viewer-playing]") ?? expect.unreachable("the Viewer plays nothing"));
+    const playing = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>("[data-viewer-playing]") ?? expect.unreachable("the Node visualizer plays nothing"));
     expect(playing.getAttribute("data-viewer-playing")).toBe("invertingeffect/video_to_downstream");
     expect(playing.querySelector("canvas")?.getAttribute("aria-label")).toBe("Live picture of Inverting Effect › video_to_downstream");
     await waitFor(() => expect(playing.getAttribute("data-viewer-port-state")).toBe("ended"));
     expect(playing.textContent).toContain("This page has no WebCodecs VideoFrame to play the mock's frames.");
   });
 
-  it("chooses the Viewer's port from its own header row, and keeps the choice in the area's settings", async () => {
+  it("shows a stopped node's port as its family's placeholder in the Node visualizer, opening no read of it", async () => {
+    await mountedWindowOverTheMock("state=running&node_states=stopped");
+    await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
+    fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
+
+    const placeholder = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-state="node_not_running"]') ?? expect.unreachable("no placeholder for the stopped node"));
+    expect(placeholder.getAttribute("data-viewer-node-state")).toBe("Stopped");
+    expect(placeholder.getAttribute("data-family")).toBe("image");
+    expect(placeholder.textContent).toContain("Inverting Effect › video_to_downstream");
+    expect(placeholder.textContent).toContain("Not running. It shows here live once the stream plays.");
+    expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).toBeNull();
+  });
+
+  it("chooses the Node visualizer's port from its own header row, and keeps the choice in the area's settings", async () => {
     await mountedWindowOverTheMock("state=running");
-    const viewerPage = await waitFor(() => (coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]") === null ? expect.unreachable("the Viewer plays nothing") : coreViewPage("viewer", "viewer")));
+    const viewerPage = await waitFor(() => (coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]") === null ? expect.unreachable("the Node visualizer plays nothing") : coreViewPage("viewer", "viewer")));
     pressAsAPointerDoes(viewerPage.querySelector<HTMLElement>("[data-viewer-port-chooser]") ?? expect.unreachable("no port chooser"));
     // The view's component draws in the test's own module graph, so its menu's popup goes to the window's document, not the frame's.
     const sourceChoice = await waitFor(
@@ -676,7 +689,7 @@ describe("the studio", () => {
 
     await popOutTheViewOf("viewer");
     const mainStreamTab = { stream: PATTERN_MAIN_STREAM, project_name: "pattern", display_name: "main" };
-    await waitFor(() => expect(popOutsAsked).toEqual([{ view_type_id: "viewer", window_title: "main · Viewer", pinned_to: { stream_tab: mainStreamTab, selection: { kind: "nothing" }, settings: null } }]));
+    await waitFor(() => expect(popOutsAsked).toEqual([{ view_type_id: "viewer", window_title: "main · Node visualizer", pinned_to: { stream_tab: mainStreamTab, selection: { kind: "nothing" }, settings: null } }]));
     await popOutTheViewOf("outliner");
     await waitFor(() => expect(popOutsAsked[1]).toMatchObject({ view_type_id: "outliner", window_title: "main · Outliner" }));
     expect(document.querySelector("[data-view-pop-out-refusal]")).toBeNull();
@@ -690,15 +703,15 @@ describe("the studio", () => {
     const mainStreamTab = { stream: PATTERN_MAIN_STREAM, project_name: "pattern", display_name: "main" };
     const poppedOutViewer: PoppedOutView = {
       view_type_id: "viewer",
-      window_title: "main › invertingeffect · Viewer",
+      window_title: "main › invertingeffect · Node visualizer",
       pinned_to: { stream_tab: mainStreamTab, selection: { kind: "node", stream: PATTERN_MAIN_STREAM, node: "invertingeffect" }, settings: null },
     };
     await mountedWindowOverTheMock(`state=running&popped_out_view=${encodeURIComponent(JSON.stringify(poppedOutViewer))}`);
 
-    const playing = await waitFor(() => coreViewPage("viewer").querySelector<HTMLElement>("[data-viewer-playing]") ?? expect.unreachable("the popped-out Viewer plays nothing"));
+    const playing = await waitFor(() => coreViewPage("viewer").querySelector<HTMLElement>("[data-viewer-playing]") ?? expect.unreachable("the popped-out Node visualizer plays nothing"));
     expect(playing.getAttribute("data-viewer-playing")).toBe("invertingeffect/video_to_downstream");
     expect(document.querySelector('[data-popped-out-view="viewer"] iframe[data-tatolab-view="viewer"]')).not.toBeNull();
-    expect(textOf("[data-popped-out-view-title]")).toBe("main › invertingeffect · Viewer");
+    expect(textOf("[data-popped-out-view-title]")).toBe("main › invertingeffect · Node visualizer");
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
     expect(document.querySelector("[data-studio-area]")).toBeNull();
     expect(document.querySelector("[data-projects]")).toBeNull();
