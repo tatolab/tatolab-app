@@ -123,7 +123,6 @@ export function portsToConnect(
 ): PortToConnect[] {
   const disconnecting = replacing === null ? [] : [disconnectTheLink(stream, node, direction, port.name, replacing)];
   const candidates = portsThatCouldJoin(graph, node, direction, port).flatMap(({ node: otherNode, port: otherPort, isOfTheFamily }): (PortToConnect & { isOfTheFamily: boolean })[] => {
-    if (replacing !== null && replacing.node.id === otherNode.id && replacing.port === otherPort.name) return [];
     const thisEnd = { node: node.id, port: port.name };
     const otherEnd = { node: otherNode.id, port: otherPort.name };
     const connecting: StreamGraphAction = direction === "input" ? { operation: "connect", stream, source: otherEnd, target: thisEnd } : { operation: "connect", stream, source: thisEnd, target: otherEnd };

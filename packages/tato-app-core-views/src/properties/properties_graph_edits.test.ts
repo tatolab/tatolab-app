@@ -110,11 +110,10 @@ test("an output's target picker lists the other nodes' inputs not linked yet, it
   expect(choices[0]?.connecting).toEqual([{ operation: "connect", stream: "stream-asset", source: { node: "id-camera", port: "level" }, target: { node: "id-meter", port: "gain" } }]);
 });
 
-test("an input's target picker lists every other node's outputs, never its own, a linked one included", () => {
+test("an input's target picker lists every other node's outputs but the one it is linked with, never its own", () => {
   const choices = portsToConnect("stream-asset", graph, meter, "input", aPort("frames", "image"), null);
   expect(choices.map(({ nodeTitle, port, cannotBecause }) => [`${nodeTitle} › ${port}`, cannotBecause])).toEqual([
     ["Camera › video", null],
-    ["Invert › video_out", null],
     ["Camera › level", "Channels, can't connect"],
   ]);
   expect(choices[0]?.connecting).toEqual([{ operation: "connect", stream: "stream-asset", source: { node: "id-camera", port: "video" }, target: { node: "id-meter", port: "frames" } }]);
@@ -141,11 +140,8 @@ test("a port picked in the Stream graph joins as its picker's choice would, or s
   expect(connectingThePortPicked("stream-asset", graph, meter, "input", aPort("frames", "image"), linkedEnd ?? null, { node: "id-invert", port: "video_out" }).kind).toBe("cannot_join");
 });
 
-test("the Stream graph lights each node with a port of the family that can join, an output's lit only by inputs not linked yet", () => {
-  expect([...portsThatCanJoinByNodeId(graph, meter, "input", aPort("frames", "image"))]).toEqual([
-    ["id-camera", ["video"]],
-    ["id-invert", ["video_out"]],
-  ]);
+test("the Stream graph lights each node with a port of the family that can join, an input's not by the output it is linked with, an output's only by inputs not linked yet", () => {
+  expect([...portsThatCanJoinByNodeId(graph, meter, "input", aPort("frames", "image"))]).toEqual([["id-camera", ["video"]]]);
   expect([...portsThatCanJoinByNodeId(graph, camera, "output", aPort("video", "image"))]).toEqual([]);
   expect([...portsThatCanJoinByNodeId(graph, camera, "output", aPort("level", "channels"))]).toEqual([["id-meter", ["gain"]]]);
 });
