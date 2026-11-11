@@ -12,6 +12,7 @@ import {
   type StreamGraphNodeStudioFields,
   type StreamGraphSummary,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { castAsTheRuntimeNamesAnUnnamedNode, nodeTypeClassName } from "../shared/node_words";
 
 /** A point on the canvas. */
 export interface StreamGraphCanvasPosition {
@@ -273,6 +274,23 @@ export function selectionCollapsedEdits(edited: EditedStreamGraph, nodeNames: re
 export function subgraphUnlockedEdits(edited: EditedStreamGraph, subgraphName: string): StreamGraphAction[] {
   const fragment = edited.nodeIdByName.get(subgraphName);
   return fragment === undefined ? [] : [{ operation: "unlock_generator_fragment", stream: edited.streamAsset, fragment }];
+}
+
+/** The name a newly placed generator's subgraph takes: the generator function's name as the runtime casts it, with the next free `-2`, `-3` … so it never refreshes a subgraph the graph holds already. */
+export function nameOfTheNewGeneratorSubgraph(graph: Pick<StreamGraphSummary, "nodes">, generator: string): string {
+  const takenNames = new Set(graph.nodes.map((node) => node.name));
+  const functionName = castAsTheRuntimeNamesAnUnnamedNode(nodeTypeClassName(generator));
+  let name = functionName;
+  for (let suffix = 2; takenNames.has(name); suffix += 1) name = `${functionName}-${suffix}`;
+  return name;
+}
+
+/** A graph generator run and its subgraph placed with its card at `position`, under a name no node holds. */
+export function generatorSubgraphPlacedEdits(edited: EditedStreamGraph, generator: string, position: StreamGraphCanvasPosition): StreamGraphAction[] {
+  return [
+    { operation: "import_graph_generator", stream: edited.streamAsset, generator, name: nameOfTheNewGeneratorSubgraph(edited.graph, generator), as: NODE_PLACED_IN_THIS_TRANSACTION },
+    { operation: "set_studio_fields", stream: edited.streamAsset, node: NODE_PLACED_IN_THIS_TRANSACTION, studio: { position: toTheCanvasPixel(position) } },
+  ];
 }
 
 /** A graph generator's subgraph run again from its code with the settings it holds, which the runtime replaces in place under its name. */

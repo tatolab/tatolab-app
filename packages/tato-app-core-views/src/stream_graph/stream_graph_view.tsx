@@ -29,6 +29,7 @@ import {
   cardCollapsedEdits,
   cardLetGoOverALinkEdits,
   cardsMovedEdits,
+  generatorSubgraphPlacedEdits,
   deletedEdits,
   doesTheGraphShowTheStudioSentAhead,
   editedStreamGraphOf,
@@ -48,7 +49,7 @@ import {
   type LooseWire,
 } from "./stream_graph_edits";
 import { streamGraphLevelReached } from "./stream_graph_levels";
-import { nodeTypeSearchItems, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
+import { graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeSearchItems, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
 import { StreamGraphSubgraphReadOnlyBanner, StreamGraphSubgraphTrail } from "./stream_graph_subgraph_strip";
 import { streamGraphSavedWords } from "./stream_graph_saved_words";
 import { isTheSamePlaceLeft, settingsWithTheStreamLeft, whereTheStreamWasLeft, type WhereAStreamWasLeft } from "./stream_graph_where_left";
@@ -277,18 +278,31 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
     [connection, projectFolderOfTheStream],
   );
   const projectNodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
+  const projectNodeTypeListing = projectNodeTypesReading?.kind === "listed" ? projectNodeTypesReading.listing : null;
   const catalog = useMemo(
-    () => nodeTypesTheSearchOffers(catalogReading?.kind === "listed" ? catalogReading.catalog.node_types : [], projectNodeTypesReading?.kind === "listed" ? projectNodeTypesReading.listing : null),
-    [catalogReading, projectNodeTypesReading],
+    () => nodeTypesTheSearchOffers(catalogReading?.kind === "listed" ? catalogReading.catalog.node_types : [], projectNodeTypeListing),
+    [catalogReading, projectNodeTypeListing],
   );
   const looseWireOfTheSearch = nodeTypeSearchAsked?.looseWire ?? null;
-  const nodeTypeSearchItemsOffered = useMemo(() => nodeTypeSearchItems(catalog, looseWireOfTheSearch), [catalog, looseWireOfTheSearch]);
+  const nodeTypeSearchItemsOffered = useMemo(
+    () => [...nodeTypeSearchItems(catalog, looseWireOfTheSearch), ...graphGeneratorSearchItems(projectNodeTypeListing, looseWireOfTheSearch)],
+    [catalog, projectNodeTypeListing, looseWireOfTheSearch],
+  );
   const placeTheChosenNodeType = useCallback(
-    (nodeType: string, staysOpen: boolean) => {
-      const chosen = catalog.find((entry) => entry.type === nodeType);
-      if (nodeTypeSearchAsked === null || chosen === undefined || editedGraph === null || "because" in editedGraph) return;
-      void sendTheGesture(nodePlacedEdits(editedGraph, chosen, nodeTypeSearchAsked.at.on_the_canvas, nodeTypeSearchAsked.looseWire));
-      if (!staysOpen) {
+    (searchItemId: string, staysOpen: boolean) => {
+      if (nodeTypeSearchAsked === null || editedGraph === null || "because" in editedGraph) return;
+      const chosenGenerator = graphGeneratorOfTheSearchItem(searchItemId);
+      const chosenNodeType = catalog.find((entry) => entry.type === searchItemId);
+      const placedEdits =
+        chosenGenerator !== null
+          ? generatorSubgraphPlacedEdits(editedGraph, chosenGenerator, nodeTypeSearchAsked.at.on_the_canvas)
+          : chosenNodeType === undefined
+            ? null
+            : nodePlacedEdits(editedGraph, chosenNodeType, nodeTypeSearchAsked.at.on_the_canvas, nodeTypeSearchAsked.looseWire);
+      if (placedEdits === null) return;
+      void sendTheGesture(placedEdits);
+      // A second generator placed before the graph shows the first would take the first's name, which refreshes it.
+      if (!staysOpen || chosenGenerator !== null) {
         setNodeTypeSearchAsked(null);
         return;
       }

@@ -5,6 +5,9 @@ import {
   cardCollapsedEdits,
   cardLetGoOverALinkEdits,
   cardsMovedEdits,
+  generatorSubgraphPlacedEdits,
+  nameOfTheNewGeneratorSubgraph,
+  NODE_PLACED_IN_THIS_TRANSACTION,
   deletedEdits,
   doesTheGraphShowTheStudioSentAhead,
   editedStreamGraphOf,
@@ -249,4 +252,14 @@ describe("subgraphs", () => {
     expect(subgraphRefreshedEdits(graph, "levels")).toEqual([{ operation: "import_graph_generator", stream: STREAM_ASSET, generator: "generators.mics:mic_levels", name: "levels", config: { mic_count: 2 } }]);
     expect(subgraphRefreshedEdits(graph, "subgraph")).toEqual([]);
   });
+});
+
+test("a_graph_generator_is_placed_under_a_name_no_node_holds_with_its_card_where_asked_in_one_transaction", () => {
+  const LEVELS = { ...graphNode("mic_levels", "uuid-levels", {}), type: "generators.mics:mic_levels", fragment: { kind: "generated" as const, nodes: [], links: [], groups: [] } };
+  expect(nameOfTheNewGeneratorSubgraph(GRAPH, "generators.mics:mic_levels")).toBe("mic_levels");
+  expect(nameOfTheNewGeneratorSubgraph({ nodes: [...GRAPH.nodes, LEVELS] }, "generators.mics:mic_levels")).toBe("mic_levels-2");
+  expect(generatorSubgraphPlacedEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, LEVELS] }), "generators.mics:mic_levels", { x: 120.4, y: 80.6 })).toEqual([
+    { operation: "import_graph_generator", stream: STREAM_ASSET, generator: "generators.mics:mic_levels", name: "mic_levels-2", as: NODE_PLACED_IN_THIS_TRANSACTION },
+    { operation: "set_studio_fields", stream: STREAM_ASSET, node: NODE_PLACED_IN_THIS_TRANSACTION, studio: { position: [120, 81] } },
+  ]);
 });

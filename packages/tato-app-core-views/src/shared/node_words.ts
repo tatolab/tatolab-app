@@ -21,8 +21,8 @@ export function nameInWords(name: string): string {
   return words.map((word) => (WORDS_WRITTEN_IN_CAPITALS.has(word.toLowerCase()) ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1))).join(" ");
 }
 
-/** The runtime's cast of a class name into the name a node it names takes: lowercase, every other character a `-`. */
-function castAsTheRuntimeNamesAnUnnamedNode(className: string): string {
+/** The runtime's cast of a name into the name a node takes: lowercase, every other character a `-`. */
+export function castAsTheRuntimeNamesAnUnnamedNode(className: string): string {
   return className
     .normalize("NFKD")
     .replace(/\p{M}/gu, "")
