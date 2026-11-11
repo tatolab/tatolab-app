@@ -1364,6 +1364,30 @@ describe("Module manager", () => {
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="night-lights"]')).not.toBeNull());
   });
 
+  it("shows a folder dropped on the Marketplace in Modules, picked, and clears the search on each section change", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=marketplace");
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="tatolab-camera"]')).not.toBeNull());
+    const searchField = document.querySelector<HTMLInputElement>("[data-module-manager-search] input") ?? document.querySelector<HTMLInputElement>("input[data-module-manager-search]") ?? expect.unreachable("no search");
+    fireEvent.change(searchField, { target: { value: "camera" } });
+
+    const moduleManagerWindow = document.querySelector<HTMLElement>("[data-module-manager-window]") ?? expect.unreachable("no window");
+    fireEvent.drop(moduleManagerWindow, { dataTransfer: { files: [new File(["zip"], "night-lights.zip")], types: ["Files"] } });
+
+    await waitFor(() => expect(document.querySelector('[data-module-manager-show][aria-current="page"]')?.getAttribute("data-module-manager-show")).toBe("added_to_this_project"));
+    await waitFor(() => expect(document.querySelector('[data-module-manager-detail="night-lights"]')).not.toBeNull());
+    expect((document.querySelector<HTMLInputElement>("[data-module-manager-search] input") ?? document.querySelector<HTMLInputElement>("input[data-module-manager-search]"))?.value).toBe("");
+  });
+
+  it("shows the first card's details in a section the picked card is not in", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project");
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());
+    fireEvent.click(moduleManagerRow("lobby-wall"));
+
+    pressed('[data-module-manager-show="marketplace"]');
+
+    await waitFor(() => expect(document.querySelector("[data-module-manager-detail]")?.getAttribute("data-module-manager-detail")).toBe(document.querySelector("[data-module-manager-row]")?.getAttribute("data-module-manager-row")));
+  });
+
   it("shows the runtime's refusal of an import in its own words", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project", { addDependencyToTheWorkspace: () => Promise.reject("/Users/jonathanf/streams/doorways is not a project: it holds no tatolab-project.json") });
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());

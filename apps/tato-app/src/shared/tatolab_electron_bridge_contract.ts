@@ -226,7 +226,7 @@ export function isATatolabStreamPageRequest(eventPayload: unknown): eventPayload
 /** The sections of the Modules and Marketplace window: the modules added to this project, and the catalog's packages and samples. */
 export const MODULES_SHOWN = ["added_to_this_project", "marketplace"] as const;
 
-/** One section of the Module manager window. */
+/** One section of the Modules and Marketplace window. */
 export type ModulesShown = (typeof MODULES_SHOWN)[number];
 
 /** Whether a value is a `ModulesShown`. */

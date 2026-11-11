@@ -121,7 +121,7 @@ function ModuleCardDetails({
             An update is available from where it was copied.
           </p>
         )}
-        {dependency !== null && dependency.check_refused_because !== null && <RefusalLine tone="warning" lead="Its source could not be checked:" words={dependency.check_refused_because} />}
+        {dependency !== null && dependency.check_refused_because !== null && <RefusalLine tone="warning" lead="Where it was copied from could not be checked:" words={dependency.check_refused_because} />}
         {entry !== null && <MembersSections nodes={entry.nodes} streams={entry.streams} />}
         {dependency !== null && (
           <PanelSection title={`Edited since its copy (${dependency.edited_files.length})`}>
@@ -193,12 +193,16 @@ export function ModuleManagerWindowView({
   platform: TatolabPlatform;
 }) {
   const [modulesShown, setModulesShown] = useState<ModulesShown>(sectionAsked?.shows ?? "marketplace");
+  const [searchText, setSearchText] = useState("");
+  const showTheSection = useCallback((sectionToShow: ModulesShown) => {
+    setModulesShown(sectionToShow);
+    setSearchText("");
+  }, []);
   useEffect(() => {
-    if (sectionAsked !== null) setModulesShown(sectionAsked.shows);
-  }, [sectionAsked]);
+    if (sectionAsked !== null) showTheSection(sectionAsked.shows);
+  }, [sectionAsked, showTheSection]);
   const [catalog, setCatalog] = useState<PackageCatalogReading | null>(null);
   const [modulesOfTheProject, setModulesOfTheProject] = useState<ModulesOfTheProjectListing>({ kind: "listing" });
-  const [searchText, setSearchText] = useState("");
   const [pickedRowId, setPickedRowId] = useState<string | null>(null);
   const [isTheDetailsPanelClosed, setIsTheDetailsPanelClosed] = useState(false);
   const [workUnderWay, setWorkUnderWay] = useState<string | null>(null);
@@ -237,7 +241,7 @@ export function ModuleManagerWindowView({
   const pickedRow = (() => {
     if (isTheDetailsPanelClosed) return null;
     if (pickedRowId === null) return cardRows[0] ?? null;
-    return moduleCardRowPickedBy(cardRows, pickedRowId);
+    return moduleCardRowPickedBy(cardRows, pickedRowId) ?? cardRows[0] ?? null;
   })();
   const pickTheCard = (rowId: string) => {
     setPickedRowId(rowId);
@@ -263,6 +267,7 @@ export function ModuleManagerWindowView({
   };
   const addFrom = (source: string) =>
     doTheWork(`Importing ${source}`, () => sources.addDependencyToTheWorkspace(source), (added) => {
+      showTheSection("added_to_this_project");
       pickTheCard(added.folder);
       void listTheModulesOfTheProject();
     });
@@ -315,7 +320,7 @@ export function ModuleManagerWindowView({
     if (modulesOfTheProject.kind === "listing") return <WaitingState title="Reading the catalog and the project's modules" data-module-manager-state="reading" />;
     if (cardRows.length > 0) {
       return (
-        <div className="grid auto-rows-min grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3.5 overflow-y-auto p-5" data-module-manager-cards="">
+        <div className="grid auto-rows-min grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3.5 overflow-y-auto px-9 py-5" data-module-manager-cards="">
           {cardRows.map((row) => (
             <ModuleCard
               key={row.row_id}
@@ -370,7 +375,7 @@ export function ModuleManagerWindowView({
           }))}
           shownSectionId={modulesShown}
           onSectionChosen={(sectionId) => {
-            if (isModulesShown(sectionId)) setModulesShown(sectionId);
+            if (isModulesShown(sectionId)) showTheSection(sectionId);
           }}
           dataAttributeOfEachSection="data-module-manager-show"
           placement="window"
@@ -378,13 +383,13 @@ export function ModuleManagerWindowView({
         />
         <main className="flex min-w-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex shrink-0 flex-wrap items-center gap-2 px-5 pt-5 pb-1">
-              <h1 className="mr-auto shrink-0 text-xl font-semibold whitespace-nowrap">{shownSection.label}</h1>
+            <div className="flex shrink-0 flex-wrap items-center gap-2 px-9 pt-8 pb-1">
+              <h1 className="mr-auto shrink-0 text-2xl font-semibold whitespace-nowrap">{shownSection.label}</h1>
               {workUnderWay !== null && <PendingActionWords words={`${workUnderWay}…`} />}
               <SearchField label={shownSection.searchPlaceholder} placeholder={shownSection.searchPlaceholder} text={searchText} onTextChanged={setSearchText} data-module-manager-search="" />
             </div>
             {modulesShown === "added_to_this_project" && (
-              <div className="flex shrink-0 flex-wrap items-center gap-2 px-5 pt-2 pb-1">
+              <div className="flex shrink-0 flex-wrap items-center gap-2 px-9 pt-3 pb-1">
                 <ActionButton size="small" icon={FolderPlus} isDisabled={isBusy} onPressed={() => chooseAndAdd("folder")} data-module-manager-add="folder">
                   Add from folder…
                 </ActionButton>
