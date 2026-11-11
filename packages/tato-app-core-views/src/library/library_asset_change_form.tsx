@@ -14,8 +14,10 @@ import { assetFileName, assetFileNameRefusal, assetFolderOf, assetFolderRefusal,
 /** Which change of an asset the Library asks for: a new name in its folder, another folder under its name, or no longer tracking it. */
 export type LibraryAssetChange = "rename" | "move" | "delete";
 
-/** The words of each change's form: its title, what it does, the field it asks for, its action and what it says while it runs. */
-const LIBRARY_ASSET_CHANGE_WORDS: Record<LibraryAssetChange, { title: string; description: string; fieldLabel: string; actionWords: string; pendingWords: string; refusalLead: string }> = {
+type LibraryAssetChangeWords = { title: string; actionWords: string; pendingWords: string; refusalLead: string };
+
+/** The words of Rename's and Move's forms: what each does and the field it asks for, beside its title and action. */
+const RELOCATE_ASSET_WORDS: Record<"rename" | "move", LibraryAssetChangeWords & { description: string; fieldLabel: string }> = {
   rename: {
     title: "Rename asset",
     description: "The file takes the new name in the folder it sits in. Nodes that read it keep reading it, since the asset keeps its UUID.",
@@ -32,34 +34,18 @@ const LIBRARY_ASSET_CHANGE_WORDS: Record<LibraryAssetChange, { title: string; de
     pendingWords: "Moving…",
     refusalLead: "The asset wasn't moved:",
   },
-  delete: {
-    title: "Delete asset",
-    description: "and its record leave the project. Undo brings the record back, but not the file's bytes.",
-    fieldLabel: "",
-    actionWords: "Delete",
-    pendingWords: "Deleting…",
-    refusalLead: "The asset wasn't deleted:",
-  },
 };
 
-function RenameOrMoveTheAssetFields({ change, asset, typedText, onTextTyped }: { change: "rename" | "move"; asset: ProjectAsset; typedText: string; onTextTyped: (text: string) => void }) {
-  const fieldId = useId();
-  const words = LIBRARY_ASSET_CHANGE_WORDS[change];
-  const pathItLandsAt = change === "rename" ? assetPathRenamed(asset.path, typedText) : assetPathMoved(asset.path, typedText);
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={fieldId} className="text-xs text-fg-2">
-        {words.fieldLabel}
-      </label>
-      <TextField id={fieldId} label={words.fieldLabel} text={typedText} onTextChanged={onTextTyped} isMachineWord isRequired={change === "rename"} data-library-asset-change-field="" />
-      <span className="truncate font-mono text-xs text-fg-3" title={pathItLandsAt} data-library-asset-change-lands-at="">
-        {pathItLandsAt}
-      </span>
-    </div>
-  );
-}
+/** The words of Delete's form. */
+const DELETE_ASSET_WORDS: LibraryAssetChangeWords & { descriptionOf: (fileName: string) => string } = {
+  title: "Delete asset",
+  descriptionOf: (fileName) => `${fileName} and its record leave the project.`,
+  actionWords: "Delete",
+  pendingWords: "Deleting…",
+  refusalLead: "The asset wasn't deleted:",
+};
 
-/** The form for `change` of `asset` in the project in `projectFolder`: Rename and Move ask for a name or a folder, Delete asks to be sure; it closes once the runtime has made the change, or on Escape or Cancel. */
+/** The form for `change` of `asset` in the project in `projectFolder`: Rename and Move ask for a name or a folder, Delete asks to be sure; it closes once the runtime has made the change, or on Escape or Cancel while nothing is asked. */
 export function LibraryAssetChangeForm({
   change,
   asset,
@@ -73,84 +59,116 @@ export function LibraryAssetChangeForm({
   connection: Pick<TatoAppViewConnection, "relocateAssetInTheProject" | "deleteAssetFromTheProject">;
   onClosed: () => void;
 }) {
-  const words = LIBRARY_ASSET_CHANGE_WORDS[change];
+  const fieldId = useId();
+  const refusalId = useId();
+  const words = change === "delete" ? DELETE_ASSET_WORDS : RELOCATE_ASSET_WORDS[change];
   const [typedText, setTypedText] = useState(change === "rename" ? assetFileName(asset.path) : change === "move" ? assetFolderOf(asset.path) : "");
   const [changeRefusal, setChangeRefusal] = useState<string | null>(null);
   const [isChanging, setIsChanging] = useState(false);
   const fieldRefusal = change === "rename" ? assetFileNameRefusal(typedText) : change === "move" ? assetFolderRefusal(typedText) : null;
-  const pathItLandsAt = change === "rename" ? assetPathRenamed(asset.path, typedText) : change === "move" ? assetPathMoved(asset.path, typedText) : null;
+  const pathItLandsAt = change === "rename" ? assetPathRenamed(asset.path, typedText) : assetPathMoved(asset.path, typedText);
+  const formElement = useRef<HTMLElement>(null);
+  const focusTheFormsFirstControl = () => {
+    const field = formElement.current?.querySelector("input") ?? null;
+    if (field !== null) field.select();
+    else formElement.current?.querySelector<HTMLButtonElement>('[data-library-asset-change-action="cancel"]')?.focus();
+  };
+  useEffect(focusTheFormsFirstControl, []);
   const changeIt = () => {
     if (fieldRefusal !== null || isChanging) return;
-    if (pathItLandsAt === asset.path) {
+    if (change !== "delete" && pathItLandsAt === asset.path) {
       onClosed();
       return;
     }
     setIsChanging(true);
     setChangeRefusal(null);
     const asking: Promise<ViewAskDone> =
-      pathItLandsAt === null ? connection.deleteAssetFromTheProject(projectFolder, asset.asset) : connection.relocateAssetInTheProject(projectFolder, asset.asset, pathItLandsAt);
+      change === "delete" ? connection.deleteAssetFromTheProject(projectFolder, asset.asset) : connection.relocateAssetInTheProject(projectFolder, asset.asset, pathItLandsAt);
     void asking.then((done) => {
+      setIsChanging(false);
       if (done.kind === "done") {
         onClosed();
         return;
       }
-      setIsChanging(false);
       setChangeRefusal(done.because);
+      focusTheFormsFirstControl();
     });
   };
-  const formElement = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const field = formElement.current?.querySelector("input") ?? null;
-    if (field !== null) field.select();
-    else formElement.current?.querySelector<HTMLButtonElement>('[data-library-asset-change-action="cancel"]')?.focus();
-  }, []);
-  const changeOrCloseOnTheKey = (keyboardEvent: KeyboardEvent<HTMLElement>) => {
+  const closeUnlessChanging = () => {
+    if (!isChanging) onClosed();
+  };
+  const answerTheKeyInTheForm = (keyboardEvent: KeyboardEvent<HTMLElement>) => {
     if (keyboardEvent.nativeEvent.isComposing) return;
     if (keyboardEvent.key === "Escape") {
       keyboardEvent.preventDefault();
-      onClosed();
+      closeUnlessChanging();
       return;
     }
     if (keyboardEvent.key !== "Enter" || !(keyboardEvent.target instanceof HTMLInputElement)) return;
     keyboardEvent.preventDefault();
     changeIt();
   };
+  const refusalUnderTheField =
+    changeRefusal !== null ? (
+      <RefusalLine layout="under_field" lead={words.refusalLead} words={changeRefusal} data-library-asset-change-refusal="" />
+    ) : fieldRefusal !== null && typedText.trim() !== "" ? (
+      <RefusalLine layout="under_field" tone="warning" words={fieldRefusal} data-library-asset-change-field-refusal="" />
+    ) : null;
   return (
-    <section ref={formElement} aria-label={words.title} className="flex flex-col gap-2 border-b px-4 py-3" onKeyDown={changeOrCloseOnTheKey} data-library-asset-change-form={change}>
+    <section ref={formElement} aria-label={words.title} className="flex flex-col gap-2 border-b px-4 py-3" onKeyDown={answerTheKeyInTheForm} data-library-asset-change-form={change}>
       <h3 className="text-sm font-medium text-fg">{words.title}</h3>
-      <p className="text-xs text-fg-3">{change === "delete" ? `${assetFileName(asset.path)} ${words.description}` : words.description}</p>
-      {change !== "delete" && (
-        <RenameOrMoveTheAssetFields
-          change={change}
-          asset={asset}
-          typedText={typedText}
-          onTextTyped={(text) => {
-            setTypedText(text);
-            setChangeRefusal(null);
-          }}
-        />
-      )}
-      {fieldRefusal !== null && typedText.trim() !== "" && (
-        <p className="text-xs text-fg-3" data-library-asset-change-field-refusal="">
-          {fieldRefusal}
-        </p>
-      )}
-      {changeRefusal !== null && (
-        <div data-library-asset-change-refusal="">
-          <RefusalLine lead={words.refusalLead} words={changeRefusal} />
-        </div>
+      {change === "delete" ? (
+        <>
+          <p className="text-xs text-fg-3">{DELETE_ASSET_WORDS.descriptionOf(assetFileName(asset.path))}</p>
+          {changeRefusal !== null && (
+            <RefusalLine lead={words.refusalLead} words={changeRefusal} data-library-asset-change-refusal="" />
+          )}
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-fg-3">{RELOCATE_ASSET_WORDS[change].description}</p>
+          <div>
+            <label htmlFor={fieldId} className="block pb-1 text-2xs text-fg-3">
+              {RELOCATE_ASSET_WORDS[change].fieldLabel}
+            </label>
+            <TextField
+              id={fieldId}
+              label={RELOCATE_ASSET_WORDS[change].fieldLabel}
+              text={typedText}
+              onTextChanged={(text) => {
+                setTypedText(text);
+                setChangeRefusal(null);
+              }}
+              isMachineWord
+              isRequired={change === "rename"}
+              isRefused={changeRefusal !== null}
+              describedBy={refusalUnderTheField === null ? undefined : refusalId}
+              className="w-full"
+              data-library-asset-change-field=""
+            />
+            {refusalUnderTheField !== null && (
+              <div id={refusalId}>{refusalUnderTheField}</div>
+            )}
+            <span className="block truncate pt-1 font-mono text-2xs text-fg-3" title={pathItLandsAt} data-library-asset-change-lands-at="">
+              {pathItLandsAt}
+            </span>
+          </div>
+        </>
       )}
       <div className="flex items-center justify-end gap-2">
-        <ActionButton appearance="quiet" onPressed={onClosed} data-library-asset-change-action="cancel">
+        <ActionButton appearance="quiet" size="small" isDisabled={isChanging} onPressed={closeUnlessChanging} data-library-asset-change-action="cancel">
           Cancel
         </ActionButton>
-        {isChanging ? (
-          <PendingActionWords words={words.pendingWords} />
-        ) : (
-          <ActionButton appearance={change === "delete" ? "destructive" : "primary"} disabledReason={fieldRefusal} onPressed={changeIt} data-library-asset-change-action={change}>
-            {words.actionWords}
-          </ActionButton>
-        )}
+        {isChanging && <PendingActionWords words={words.pendingWords} />}
+        <ActionButton
+          appearance={change === "delete" ? "destructive" : "primary"}
+          size="small"
+          disabledReason={isChanging ? words.pendingWords : fieldRefusal}
+          onPressed={changeIt}
+          data-library-asset-change-action={change}
+        >
+          {words.actionWords}
+        </ActionButton>
       </div>
     </section>
   );

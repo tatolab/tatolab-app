@@ -768,9 +768,11 @@ export function importAssetsIntoTheOpenProject(sharedState: TatolabAppSharedStat
   });
 }
 
+const AN_ASSET_OF_THE_OPEN_PROJECT_IN_WORDS = "the UUID of an asset of the open project";
+
 /** `relocate_asset_in_the_open_project`'s `{ asset, to_path }` as the window sends it, or why it is not. */
 export function relocateAssetArgumentsFrom(commandArguments: unknown): Result<{ asset: string; to_path: string }, string> {
-  const asset = oneTextArgumentFrom("relocate_asset_in_the_open_project", commandArguments, "asset", "the UUID of an asset of the open project");
+  const asset = oneTextArgumentFrom("relocate_asset_in_the_open_project", commandArguments, "asset", AN_ASSET_OF_THE_OPEN_PROJECT_IN_WORDS);
   if (!asset.ok) return asset;
   const toPath = oneTextArgumentFrom("relocate_asset_in_the_open_project", commandArguments, "to_path", "the asset's new path in the project");
   return toPath.ok ? succeeded({ asset: asset.value, to_path: toPath.value }) : toPath;
@@ -1313,7 +1315,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       return commandAnswerOfNothingFrom(await relocateAssetInTheOpenProject(sharedState, relocating.value.asset, relocating.value.to_path, commandFromWindow));
     },
     delete_asset_from_the_open_project: async (commandArguments, commandFromWindow) => {
-      const asset = oneTextArgumentFrom("delete_asset_from_the_open_project", commandArguments, "asset", "the UUID of an asset of the open project");
+      const asset = oneTextArgumentFrom("delete_asset_from_the_open_project", commandArguments, "asset", AN_ASSET_OF_THE_OPEN_PROJECT_IN_WORDS);
       if (!asset.ok) return { ok: false, refusal: asset.failure };
       return commandAnswerOfNothingFrom(await deleteAssetFromTheOpenProject(sharedState, asset.value, commandFromWindow));
     },

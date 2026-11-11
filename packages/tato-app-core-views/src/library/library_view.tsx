@@ -1,5 +1,5 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Boxes, FilePlus2, Folder, FolderInput, PencilLine, Trash2 } from "lucide-react";
 import { IconButton } from "@tatolab/tato-app-view-sdk/design_system/icon_button";
 import { MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
@@ -301,23 +301,28 @@ function DeclarationsOfTheProject({ connection, projectFolder, declarationsShown
 function DetailsOfTheAsset({ asset, projectFolder, connection, onHidden }: { asset: ProjectAsset; projectFolder: string; connection: TatoAppViewConnection; onHidden: () => void }) {
   const importSettings = Object.entries(asset.import_settings);
   const [changeAsked, setChangeAsked] = useState<LibraryAssetChange | null>(null);
+  const changeButtons = useRef<HTMLSpanElement>(null);
+  const closeTheChangeForm = (change: LibraryAssetChange) => {
+    setChangeAsked(null);
+    requestAnimationFrame(() => changeButtons.current?.querySelector<HTMLButtonElement>(`[data-library-asset-change="${change}"]`)?.focus());
+  };
   return (
     <SidePanel
       label="Chosen asset"
       title={assetFileName(asset.path)}
       subtitle={<span className="font-mono">{asset.path}</span>}
       actions={
-        <>
+        <span ref={changeButtons} className="contents">
           <IconButton icon={PencilLine} label="Rename…" onPressed={() => setChangeAsked("rename")} data-library-asset-change="rename" />
           <IconButton icon={FolderInput} label="Move…" onPressed={() => setChangeAsked("move")} data-library-asset-change="move" />
           <IconButton icon={Trash2} label="Delete…" onPressed={() => setChangeAsked("delete")} data-library-asset-change="delete" />
-        </>
+        </span>
       }
       hiding={{ hideLabel: "Hide details", onHidden }}
       data-library-asset-details={asset.asset}
     >
       {changeAsked !== null && (
-        <LibraryAssetChangeForm key={`${asset.asset}/${changeAsked}`} change={changeAsked} asset={asset} projectFolder={projectFolder} connection={connection} onClosed={() => setChangeAsked(null)} />
+        <LibraryAssetChangeForm key={`${asset.asset}/${changeAsked}`} change={changeAsked} asset={asset} projectFolder={projectFolder} connection={connection} onClosed={() => closeTheChangeForm(changeAsked)} />
       )}
       <div className="flex flex-col gap-3 px-4 py-3">
         <KeyValueRows
@@ -407,7 +412,7 @@ function AssetsOfTheProject({
       <WorkAreaWithSidePanel
         sidePanel={
           chosenAsset === null ? null : (
-            <DetailsOfTheAsset asset={chosenAsset} projectFolder={projectFolder} connection={connection} onHidden={() => onAssetsShownChanged({ shownFolderId, chosenAssetUuid: null })} />
+            <DetailsOfTheAsset key={chosenAsset.asset} asset={chosenAsset} projectFolder={projectFolder} connection={connection} onHidden={() => onAssetsShownChanged({ shownFolderId, chosenAssetUuid: null })} />
           )
         }
       >

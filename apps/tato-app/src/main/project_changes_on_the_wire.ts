@@ -46,11 +46,11 @@ export type ProjectAssetTool = "import_asset" | "relocate_asset" | "delete_asset
 /** The asset `toolName` answered, from its `asset`'s `asset` and `path`. */
 export function assetAtItsPathFromTheToolResult(toolName: ProjectAssetTool, toolResultText: string): Result<ProjectAssetAtItsPath, string> {
   return toolResultReadWith(toolName, toolResultText, (toolResult) => {
-    const imported = requiredObject(toolResult, "asset");
-    if (!imported.ok) return imported;
-    const asset = requiredText(imported.value, "asset");
+    const assetTheToolAnswered = requiredObject(toolResult, "asset");
+    if (!assetTheToolAnswered.ok) return assetTheToolAnswered;
+    const asset = requiredText(assetTheToolAnswered.value, "asset");
     if (!asset.ok) return asset;
-    const assetPath = requiredText(imported.value, "path");
+    const assetPath = requiredText(assetTheToolAnswered.value, "path");
     if (!assetPath.ok) return assetPath;
     return succeeded({ asset: asset.value, path: assetPath.value });
   });
