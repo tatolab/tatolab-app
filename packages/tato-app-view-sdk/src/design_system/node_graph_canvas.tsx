@@ -53,7 +53,7 @@ import {
   type NodeGraphPosition,
 } from "./support/node_graph_layout";
 import { isPartOfTheGraphOutsideTheView } from "./support/node_graph_map_visibility";
-import { canPinsOfTheseFamiliesBeWired, frameRectangleAroundCards, linkUnderACard, placeClearBelowTheCards, type NodeGraphLinkMidpoint } from "./support/node_graph_editing";
+import { canPinsOfTheseFamiliesBeWired, frameACardIsLetGoIn, frameRectangleAroundCards, linkUnderACard, placeClearBelowTheCards, type NodeGraphLinkMidpoint } from "./support/node_graph_editing";
 
 /** The family a pin carries, which picks its shape and colour and its links' colour. */
 export type NodeGraphPinFamily =
@@ -215,6 +215,13 @@ export interface NodeGraphCanvasViewport {
 }
 
 
+/** A card's new top-left corner and the frame it belongs to there, by `frame_id`; `null` for none. */
+export interface NodeGraphCanvasCardMove {
+  node_id: string;
+  position: NodeGraphPosition;
+  frame_id: string | null;
+}
+
 /** Whether an edit the canvas asked for was applied; a refused one puts what it moved back. */
 export type NodeGraphCanvasEditAnswer = "applied" | "refused";
 
@@ -223,8 +230,8 @@ const NODE_GRAPH_PLACED_ROOM = { width: 240, height: 120 };
 
 /** What a person's edits on the canvas ask for; each call is one gesture. */
 export interface NodeGraphCanvasEditing {
-  /** Cards dragged and let go, each at its new top-left corner, together with every card that had no saved place, so the layout stays as seen; a lone card with no links let go of over a link is spliced into it in the same gesture. */
-  onCardsMoved(moves: readonly { node_id: string; position: NodeGraphPosition }[], cardLetGoOverALink: { node_id: string; link_id: string } | null): Promise<NodeGraphCanvasEditAnswer>;
+  /** Cards dragged and let go, each at its new top-left corner and in the frame it now belongs to, together with every card that had no saved place, so the layout stays as seen; a lone card with no links let go of over a link is spliced into it in the same gesture. */
+  onCardsMoved(moves: readonly NodeGraphCanvasCardMove[], cardLetGoOverALink: { node_id: string; link_id: string } | null): Promise<NodeGraphCanvasEditAnswer>;
   /** A wire drawn from an output pin to an input pin of a family it can carry. */
   onPinsWired(source: NodeGraphCanvasPinEnd, target: NodeGraphCanvasPinEnd): void;
   /** A wire dragged off a pin and let go of over empty canvas, to place a node there that it feeds or reads. */
@@ -884,6 +891,7 @@ function NodeGraphFlow({
   const isLaidOutOnMeasuredWidths = measuredCardWidths?.shapeKey === shapeKey;
   const [hasBeenFramed, setHasBeenFramed] = useState(false);
   const [heldCardPositions, setHeldCardPositions] = useState<HeldPositionById>(new Map());
+  const [heldCardFrames, setHeldCardFrames] = useState<ReadonlyMap<string, string | null>>(new Map());
   const [heldNotePositions, setHeldNotePositions] = useState<HeldPositionById>(new Map());
   const [heldNoteSizes, setHeldNoteSizes] = useState<ReadonlyMap<string, NodeGraphNoteSize>>(new Map());
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set(selectedNodeId === null ? [] : [selectedNodeId]));
@@ -904,6 +912,10 @@ function NodeGraphFlow({
       return stillInTheGraph.length === selectedBefore.size ? selectedBefore : new Set(stillInTheGraph);
     });
   }, [savedPositionByNode]);
+  useEffect(() => {
+    const frameIdByNode = new Map(nodes.map((node) => [node.node_id, node.frame_id]));
+    setHeldCardFrames((held) => heldValuesNotShownYet(held, (nodeId, frameId) => !frameIdByNode.has(nodeId) || frameIdByNode.get(nodeId) === frameId));
+  }, [nodes]);
   useEffect(() => {
     const noteById = new Map(notes.map((note) => [note.note_id, note]));
     setHeldNotePositions((held) => heldValuesNotShownYet(held, (noteId, position) => samePosition(position, noteById.get(noteId)?.position)));
@@ -933,6 +945,7 @@ function NodeGraphFlow({
       heldCardPositions.get(node.node_id) ?? node.saved_position ?? laidOutPositionByNode.get(node.node_id) ?? { x: 0, y: 0 },
     [heldCardPositions, laidOutPositionByNode],
   );
+  const frameOfTheCard = useCallback((node: NodeGraphCanvasNode): string | null => (heldCardFrames.has(node.node_id) ? (heldCardFrames.get(node.node_id) ?? null) : node.frame_id), [heldCardFrames]);
   const sizeOfTheCard = useCallback(
     (node: NodeGraphCanvasNode) =>
       cardSizeByNode.get(node.node_id) ?? {
@@ -945,7 +958,7 @@ function NodeGraphFlow({
   const flowNodes: NodeGraphFlowNode[] = useMemo(() => {
     const frameNodes: NodeGraphFrameFlowNode[] = frames.flatMap((graphFrame) => {
       const rectangle = frameRectangleAroundCards(
-        nodes.filter((node) => node.frame_id === graphFrame.frame_id).map((node) => ({ position: positionOfTheCard(node), ...sizeOfTheCard(node) })),
+        nodes.filter((node) => frameOfTheCard(node) === graphFrame.frame_id).map((node) => ({ position: positionOfTheCard(node), ...sizeOfTheCard(node) })),
       );
       if (rectangle === null) return [];
       return [
@@ -993,7 +1006,7 @@ function NodeGraphFlow({
       ariaLabel: `Node ${graphNode.title}`,
     }));
     return [...frameNodes, ...noteNodes, ...cardNodes];
-  }, [frames, notes, nodes, editing, positionOfTheCard, sizeOfTheCard, cardSizeByNode, heldNotePositions, heldNoteSizes, selectedIds, selectedNoteIds]);
+  }, [frames, notes, nodes, editing, positionOfTheCard, frameOfTheCard, sizeOfTheCard, cardSizeByNode, heldNotePositions, heldNoteSizes, selectedIds, selectedNoteIds]);
   const nodeById = useMemo(
     () => new Map(nodes.map((node) => [node.node_id, node])),
     [nodes],
@@ -1208,16 +1221,31 @@ function NodeGraphFlow({
         onlyCard !== undefined && onlyNode !== undefined && !links.some((link) => link.source_node_id === onlyCard.id || link.target_node_id === onlyCard.id)
           ? linkUnderACard({ position: onlyCard.position, ...sizeOfTheCard(onlyNode) }, linkMidpointsDrawn())
           : null;
-      const moves = [
-        ...draggedCards.map((card) => ({ node_id: card.id, position: onTheCanvasPixel(card.position) })),
-        ...nodes.filter((node) => node.saved_position === null && !draggedIds.has(node.node_id)).map((node) => ({ node_id: node.node_id, position: onTheCanvasPixel(positionOfTheCard(node)) })),
+      const framesLeftStanding = frames.map((graphFrame) => ({
+        frame_id: graphFrame.frame_id,
+        rectangle: frameRectangleAroundCards(
+          nodes.filter((node) => !draggedIds.has(node.node_id) && frameOfTheCard(node) === graphFrame.frame_id).map((node) => ({ position: positionOfTheCard(node), ...sizeOfTheCard(node) })),
+        ),
+      }));
+      const moves: NodeGraphCanvasCardMove[] = [
+        ...draggedCards.flatMap((card) => {
+          const node = nodeById.get(card.id);
+          return node === undefined ? [] : [{ node_id: card.id, position: onTheCanvasPixel(card.position), frame_id: frameACardIsLetGoIn({ position: card.position, ...sizeOfTheCard(node) }, frameOfTheCard(node), framesLeftStanding) }];
+        }),
+        ...nodes
+          .filter((node) => node.saved_position === null && !draggedIds.has(node.node_id))
+          .map((node) => ({ node_id: node.node_id, position: onTheCanvasPixel(positionOfTheCard(node)), frame_id: frameOfTheCard(node) })),
       ];
+      const movedIds = moves.map((move) => move.node_id);
       setHeldCardPositions((held) => withEntriesSet(held, moves.map((move) => ({ id: move.node_id, value: move.position }))));
+      setHeldCardFrames((held) => withEntriesSet(held, moves.map((move) => ({ id: move.node_id, value: move.frame_id }))));
       void editing.onCardsMoved(moves, onlyCard === undefined || linkLetGoOver === null ? null : { node_id: onlyCard.id, link_id: linkLetGoOver }).then((answer) => {
-        if (answer === "refused") setHeldCardPositions((held) => withoutTheIds(held, moves.map((move) => move.node_id)));
+        if (answer !== "refused") return;
+        setHeldCardPositions((held) => withoutTheIds(held, movedIds));
+        setHeldCardFrames((held) => withoutTheIds(held, movedIds));
       });
     },
-    [editing, nodeById, nodes, links, positionOfTheCard, sizeOfTheCard, linkMidpointsDrawn],
+    [editing, nodeById, nodes, links, frames, positionOfTheCard, frameOfTheCard, sizeOfTheCard, linkMidpointsDrawn],
   );
 
   const keepTheResizedNote = useCallback(

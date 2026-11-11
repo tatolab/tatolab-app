@@ -91,15 +91,17 @@ function nodeIdOf(edited: EditedStreamGraph, nodeName: string): string | null {
   return edited.nodeIdByName.get(nodeName) ?? null;
 }
 
-/** Each moved card's new place: its node's studio fields as they are, with the new position. */
-export function cardsMovedEdits(edited: EditedStreamGraph, moves: readonly { node_id: string; position: StreamGraphCanvasPosition }[]): StreamGraphAction[] {
+/** Each moved card's new place and the group it now belongs to: its node's studio fields as they are, with the new position and group. */
+export function cardsMovedEdits(edited: EditedStreamGraph, moves: readonly { node_id: string; position: StreamGraphCanvasPosition; frame_id: string | null }[]): StreamGraphAction[] {
   return moves.flatMap((move) => {
     const node = edited.graph.nodes.find((graphNode) => graphNode.name === move.node_id);
     if (node === undefined) return [];
     const position = toTheCanvasPixel(move.position);
     const studio = studioToBuildOn(edited, node);
-    if (studio.position !== null && studio.position[0] === position[0] && studio.position[1] === position[1]) return [];
-    return [{ operation: "set_studio_fields", stream: edited.streamAsset, node: node.id, studio: studioObjectOf({ ...studio, position }) }];
+    const group = move.frame_id;
+    const isWhereItWas = studio.position !== null && studio.position[0] === position[0] && studio.position[1] === position[1];
+    if (isWhereItWas && studio.group === group) return [];
+    return [{ operation: "set_studio_fields", stream: edited.streamAsset, node: node.id, studio: studioObjectOf({ ...studio, position, group }) }];
   });
 }
 
