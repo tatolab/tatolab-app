@@ -24,7 +24,7 @@ export function StreamMenuDialogsView({
     return (
       <NameFormDialog
         dialogKind="new_stream"
-        words={{ title: "New stream", description: "Add an empty stream to this project. It plays along with the project.", actionWords: "Create", pendingWords: "Creating…", refusalLead: "The stream wasn't created:" }}
+        words={{ title: "New stream", description: "Add an empty stream to this project.", actionWords: "Create", pendingWords: "Creating…", refusalLead: "The stream wasn't created:" }}
         startingName=""
         nameRefusal={streamDisplayNameRefusal}
         nameTheThing={(displayName) => streamEdits.createStream(displayName)}
