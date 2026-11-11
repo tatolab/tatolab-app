@@ -22,7 +22,7 @@ function node(
   nodeId = "",
   config: StreamGraphNode["config"] = {},
 ): StreamGraphNode {
-  return { id: nodeId, name, type: nodeType, state, failed_because: null, config, ...ports, ...counters, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null };
+  return { id: nodeId, name, type: nodeType, state, failed_because: null, process_raising_because: null, config, ...ports, ...counters, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null };
 }
 
 function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
@@ -431,4 +431,21 @@ test("a_recorded_graph_reads_a_graph_generators_output_as_a_generated_fragment_n
   expect(subgraph.fragment?.kind).toBe("generated");
   expect(subgraph.fragment?.nodes.map((graphNode) => [graphNode.name, graphNode.type])).toEqual([["bars", "tatolab.testpattern:TestPatternSource"]]);
   expect(subgraph.fragment?.links).toEqual([]);
+});
+
+test("a_running_node_reads_what_its_process_keeps_raising_word_for_word_and_null_once_it_runs_cleanly", () => {
+  const raisedBecause = "process() raised RuntimeError: broke on purpose (nodes/invert.py, line 29)";
+  const graph = {
+    nodes: [
+      { name: "invert", type: "nodes.invert:Invert", components: { state: "Running", failed_because: null, process_raising_because: raisedBecause } },
+      { name: "display", type: "tatolab.stream:Display", components: { state: "Running", failed_because: null, process_raising_because: null } },
+    ],
+  };
+
+  const summary = streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify(graph));
+
+  expect(summary.ok && summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.state, graphNode.process_raising_because])).toEqual([
+    ["invert", "Running", raisedBecause],
+    ["display", "Running", null],
+  ]);
 });

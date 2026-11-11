@@ -9,6 +9,7 @@ function graphNode(name: string, inputs: string[], outputs: string[]): StreamGra
     type: `nodes.${name}:Effect`,
     state: "Running",
     failed_because: null,
+    process_raising_because: null,
     config: {},
     input_ports: inputs.map((port) => ({ name: port, family: "image" as const, stream_facts: null, values_checked: null })),
     output_ports: outputs.map((port) => ({ name: port, family: null, stream_facts: null, values_checked: null })),
@@ -71,6 +72,23 @@ test("each_link_is_drawn_by_its_state_and_described_in_words", () => {
     ["L1", "carrying", "camera.video → invert.video_in, wired"],
     ["invert.video_out->display.video", "waiting", "invert.video_out → display.video, waiting for the other machine"],
     ["L3", "waiting", "camera.video → display.video, reconnecting_later"],
+  ]);
+});
+
+test("a_running_node_whose_process_keeps_raising_is_a_failed_card_carrying_what_it_raised_word_for_word", () => {
+  const raisedBecause = "process() raised RuntimeError: broke on purpose (nodes/invert.py, line 29)";
+  const graph: StreamGraphSummary = {
+    ...GRAPH,
+    nodes: [
+      { ...graphNode("invert", ["video_in"], ["video_out"]), state: "Running", process_raising_because: raisedBecause },
+      { ...graphNode("camera", [], ["video"]), state: "Running" },
+    ],
+    links: [],
+  };
+
+  expect(streamGraphCanvasContents(graph, null).nodes.map((node) => [node.node_id, node.condition])).toEqual([
+    ["invert", { look: "failed", failed_because: raisedBecause }],
+    ["camera", { look: "healthy" }],
   ]);
 });
 

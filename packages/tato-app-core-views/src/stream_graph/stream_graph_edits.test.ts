@@ -33,6 +33,7 @@ function graphNode(name: string, id: string, ports: { inputs?: [string, "image" 
     type: `nodes.${name}:Node`,
     state: "Running",
     failed_because: null,
+    process_raising_because: null,
     config: {},
     pins: {},
     input_ports: declared(ports.inputs),

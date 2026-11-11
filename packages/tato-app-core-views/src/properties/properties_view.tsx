@@ -481,6 +481,14 @@ function PropertiesOfTheSelectedNode({
             )}
           </div>
         )}
+        {node.state !== "Error" && node.process_raising_because !== null && (
+          <div data-properties-node-process-raising={node.name}>
+            <FailureBanner place="panel">This node keeps running, but its process() raises on every call.</FailureBanner>
+            <div className="border-b px-3 py-2.5">
+              <RuntimeFailureWords words={node.process_raising_because} data-properties-process-raising-because={node.name} />
+            </div>
+          </div>
+        )}
         {streamAsset === null && <p className="border-b px-3 py-1.5 text-xs text-fg-3">This runtime names no stream asset for {streamName}, so its nodes can't be edited from here.</p>}
         <PropertySection title="Config">
           {configForm.kind === "takes_no_config" ? (
