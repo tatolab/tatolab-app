@@ -5,6 +5,9 @@ import {
   cardCollapsedEdits,
   cardLetGoOverALinkEdits,
   cardsMovedEdits,
+  generatorSubgraphPlacedEdits,
+  nameOfTheNewGeneratorSubgraph,
+  NODE_PLACED_IN_THIS_TRANSACTION,
   deletedEdits,
   doesTheGraphShowTheStudioSentAhead,
   editedStreamGraphOf,
@@ -82,14 +85,29 @@ describe("moving_cards", () => {
   test("each_moved_card_replaces_its_studio_whole_keeping_every_other_field_and_a_card_left_where_it_was_asks_nothing", () => {
     expect(
       cardsMovedEdits(edited(), [
-        { node_id: "pattern", position: { x: 40.4, y: -12.6 } },
-        { node_id: "halftone", position: { x: 300, y: 20 } },
+        { node_id: "pattern", position: { x: 40.4, y: -12.6 }, frame_id: null },
+        { node_id: "halftone", position: { x: 300, y: 20 }, frame_id: null },
       ]),
     ).toEqual([
       { operation: "set_studio_fields", stream: STREAM_ASSET, node: "uuid-pattern", studio: { position: [40, -13], comment: "the source", metadata: { pinned: true } } },
       { operation: "set_studio_fields", stream: STREAM_ASSET, node: "uuid-halftone", studio: { position: [300, 20] } },
     ]);
-    expect(cardsMovedEdits(edited(), [{ node_id: "pattern", position: { x: 0.2, y: 0 } }])).toEqual([]);
+    expect(cardsMovedEdits(edited(), [{ node_id: "pattern", position: { x: 0.2, y: 0 }, frame_id: null }])).toEqual([]);
+  });
+
+  test("a_card_let_go_in_a_frame_joins_its_group_and_one_let_go_outside_leaves_it_in_the_same_studio_edit", () => {
+    const group = "4b6c1e0a-2f1d-4a57-9b36-0d5e7c1a9f42";
+    const grouped = edited({ ...GRAPH, nodes: [{ ...PATTERN, studio: { ...PATTERN.studio, group } }, HALFTONE, DISPLAY], groups: [{ id: group, title: "Inputs", description: null, colour: null }] });
+    expect(
+      cardsMovedEdits(grouped, [
+        { node_id: "halftone", position: { x: 300, y: 20 }, frame_id: group },
+        { node_id: "pattern", position: { x: 0, y: 0 }, frame_id: null },
+      ]),
+    ).toEqual([
+      { operation: "set_studio_fields", stream: STREAM_ASSET, node: "uuid-halftone", studio: { position: [300, 20], group } },
+      { operation: "set_studio_fields", stream: STREAM_ASSET, node: "uuid-pattern", studio: { position: [0, 0], comment: "the source", metadata: { pinned: true } } },
+    ]);
+    expect(cardsMovedEdits(grouped, [{ node_id: "pattern", position: { x: 0, y: 0 }, frame_id: group }])).toEqual([]);
   });
 });
 
@@ -210,7 +228,7 @@ test("a_second_studio_edit_sent_before_the_graph_shows_the_first_builds_on_it_in
   const sentAhead = studioFieldsSetBy(collapsing);
   const editedAhead = editedStreamGraphOf(GRAPH, sentAhead);
   if ("because" in editedAhead) return expect.unreachable(editedAhead.because);
-  expect(cardsMovedEdits(editedAhead, [{ node_id: "halftone", position: { x: 10, y: 20 } }])).toEqual([
+  expect(cardsMovedEdits(editedAhead, [{ node_id: "halftone", position: { x: 10, y: 20 }, frame_id: null }])).toEqual([
     { operation: "set_studio_fields", stream: STREAM_ASSET, node: "uuid-halftone", studio: { position: [10, 20], collapsed: true } },
   ]);
   expect(cardCollapsedEdits(editedAhead, "halftone", true)).toEqual([]);
@@ -234,4 +252,14 @@ describe("subgraphs", () => {
     expect(subgraphRefreshedEdits(graph, "levels")).toEqual([{ operation: "import_graph_generator", stream: STREAM_ASSET, generator: "generators.mics:mic_levels", name: "levels", config: { mic_count: 2 } }]);
     expect(subgraphRefreshedEdits(graph, "subgraph")).toEqual([]);
   });
+});
+
+test("a_graph_generator_is_placed_under_a_name_no_node_holds_with_its_card_where_asked_in_one_transaction", () => {
+  const LEVELS = { ...graphNode("mic_levels", "uuid-levels", {}), type: "generators.mics:mic_levels", fragment: { kind: "generated" as const, nodes: [], links: [], groups: [] } };
+  expect(nameOfTheNewGeneratorSubgraph(GRAPH, "generators.mics:mic_levels")).toBe("mic_levels");
+  expect(nameOfTheNewGeneratorSubgraph({ nodes: [...GRAPH.nodes, LEVELS] }, "generators.mics:mic_levels")).toBe("mic_levels-2");
+  expect(generatorSubgraphPlacedEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, LEVELS] }), "generators.mics:mic_levels", { x: 120.4, y: 80.6 })).toEqual([
+    { operation: "import_graph_generator", stream: STREAM_ASSET, generator: "generators.mics:mic_levels", name: "mic_levels-2", as: NODE_PLACED_IN_THIS_TRANSACTION },
+    { operation: "set_studio_fields", stream: STREAM_ASSET, node: NODE_PLACED_IN_THIS_TRANSACTION, studio: { position: [120, 81] } },
+  ]);
 });
