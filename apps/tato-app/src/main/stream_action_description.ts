@@ -73,30 +73,27 @@ function streamTakenInOnTheWire(streamOnTheWire: unknown): Result<StreamTakenInB
   return succeeded({ stream: stream.value, display_name: displayName.value, state: state.value });
 }
 
-/** A `describe_stream_action` tool result read field for field; unknown fields are ignored. */
-export function streamActionDescriptionFromTheDescribeStreamActionToolResult(toolResultText: string): Result<StreamActionDescription, string> {
-  const toolResult = toolResultObject("describe_stream_action", toolResultText);
-  if (!toolResult.ok) return readOrSayWhy("describe_stream_action", toolResult);
-  const action = requiredText(toolResult.value, "action");
-  if (!action.ok) return readOrSayWhy("describe_stream_action", action);
-  const projectDirectory = requiredText(toolResult.value, "project_directory");
-  if (!projectDirectory.ok) return readOrSayWhy("describe_stream_action", projectDirectory);
-  const kind = requiredText(toolResult.value, "kind");
-  if (!kind.ok) return readOrSayWhy("describe_stream_action", kind);
-  const state = requiredText(toolResult.value, "state");
-  if (!state.ok) return readOrSayWhy("describe_stream_action", state);
-  const step = optionalText(toolResult.value, "step");
-  if (!step.ok) return readOrSayWhy("describe_stream_action", step);
-  const streamsOnTheWire = arrayOrEmpty(toolResult.value, "streams");
-  if (!streamsOnTheWire.ok) return readOrSayWhy("describe_stream_action", streamsOnTheWire);
+function streamActionDescriptionOnTheWireRead(descriptionOnTheWire: JsonObjectOnTheWire): Result<StreamActionDescription, string> {
+  const action = requiredText(descriptionOnTheWire, "action");
+  if (!action.ok) return action;
+  const projectDirectory = requiredText(descriptionOnTheWire, "project_directory");
+  if (!projectDirectory.ok) return projectDirectory;
+  const kind = requiredText(descriptionOnTheWire, "kind");
+  if (!kind.ok) return kind;
+  const state = requiredText(descriptionOnTheWire, "state");
+  if (!state.ok) return state;
+  const step = optionalText(descriptionOnTheWire, "step");
+  if (!step.ok) return step;
+  const streamsOnTheWire = arrayOrEmpty(descriptionOnTheWire, "streams");
+  if (!streamsOnTheWire.ok) return streamsOnTheWire;
   const streams = everyOneRead(streamsOnTheWire.value, streamTakenInOnTheWire);
-  if (!streams.ok) return readOrSayWhy("describe_stream_action", streams);
-  const failedBecause = optionalText(toolResult.value, "failed_because");
-  if (!failedBecause.ok) return readOrSayWhy("describe_stream_action", failedBecause);
-  const venvSyncOnTheWire = optionalObject(toolResult.value, "venv_sync");
-  if (!venvSyncOnTheWire.ok) return readOrSayWhy("describe_stream_action", venvSyncOnTheWire);
+  if (!streams.ok) return streams;
+  const failedBecause = optionalText(descriptionOnTheWire, "failed_because");
+  if (!failedBecause.ok) return failedBecause;
+  const venvSyncOnTheWire = optionalObject(descriptionOnTheWire, "venv_sync");
+  if (!venvSyncOnTheWire.ok) return venvSyncOnTheWire;
   const venvSync = venvSyncOnTheWire.value === null ? succeeded(null) : venvSyncOnTheWireRead(venvSyncOnTheWire.value);
-  if (!venvSync.ok) return readOrSayWhy("describe_stream_action", venvSync);
+  if (!venvSync.ok) return venvSync;
   return succeeded({
     action: action.value,
     project_directory: projectDirectory.value,
@@ -107,6 +104,35 @@ export function streamActionDescriptionFromTheDescribeStreamActionToolResult(too
     failed_because: failedBecause.value,
     venv_sync: venvSync.value,
   });
+}
+
+/** A `describe_stream_action` tool result read field for field; unknown fields are ignored. */
+export function streamActionDescriptionFromTheDescribeStreamActionToolResult(toolResultText: string): Result<StreamActionDescription, string> {
+  const toolResult = toolResultObject("describe_stream_action", toolResultText);
+  if (!toolResult.ok) return readOrSayWhy("describe_stream_action", toolResult);
+  return readOrSayWhy("describe_stream_action", streamActionDescriptionOnTheWireRead(toolResult.value));
+}
+
+/** The text of the resource `streamlib://stream-action/<action>`, read as `describe_stream_action` answers it; unknown fields are ignored. */
+export function streamActionDescriptionFromTheStreamActionResourceText(resourceText: string): Result<StreamActionDescription, string> {
+  const resource = toolResultObject("streamlib://stream-action", resourceText);
+  if (!resource.ok) return readOrSayWhy("streamlib://stream-action", resource);
+  return readOrSayWhy("streamlib://stream-action", streamActionDescriptionOnTheWireRead(resource.value));
+}
+
+/** The text of the resource `streamlib://stream-actions`: every action queued or under way, under `actions`, each as `describe_stream_action` answers it. */
+export function streamActionsUnderWayFromTheStreamActionsResourceText(resourceText: string): Result<StreamActionDescription[], string> {
+  const resource = toolResultObject("streamlib://stream-actions", resourceText);
+  if (!resource.ok) return readOrSayWhy("streamlib://stream-actions", resource);
+  const actionsOnTheWire = arrayOrEmpty(resource.value, "actions");
+  if (!actionsOnTheWire.ok) return readOrSayWhy("streamlib://stream-actions", actionsOnTheWire);
+  return readOrSayWhy(
+    "streamlib://stream-actions",
+    everyOneRead(actionsOnTheWire.value, (actionOnTheWire) => {
+      const description = jsonObject(actionOnTheWire, "an action");
+      return description.ok ? streamActionDescriptionOnTheWireRead(description.value) : description;
+    }),
+  );
 }
 
 function venvSyncPackageOnTheWireRead(packageOnTheWire: unknown): Result<StreamActionVenvSyncPackage, string> {

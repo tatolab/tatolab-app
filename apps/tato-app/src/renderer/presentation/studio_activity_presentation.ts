@@ -158,6 +158,16 @@ function endOfThePythonPackagesActivity(activity: StudioActivity, projectFolder:
   return { activity_id: activity.activity_id, title: activity.title, kind: "done", detail: detailAndProgressOfTheSync(endedSync).detail, package_lines: endedSync.packages.map(packageLineOf) };
 }
 
+/** A row for each sync that started and ended between two statuses, so no status showed it under way. */
+function syncsThatEndedUnseenOf(sources: StudioActivitySources, previouslyInProgressIds: ReadonlySet<string>, stillInProgressIds: ReadonlySet<string>): StudioActivity[] {
+  return sources.projectVenvSyncsJustEnded.flatMap((syncJustEnded) => {
+    const activityId = `${PYTHON_PACKAGES_ACTIVITY_PREFIX}${syncJustEnded.project_directory}`;
+    if (previouslyInProgressIds.has(activityId) || stillInProgressIds.has(activityId)) return [];
+    const unseenActivity: StudioActivity = { activity_id: activityId, title: `${projectNameOfTheFolder(syncJustEnded.project_directory)}'s Python packages`, kind: "done", detail: "", package_lines: [] };
+    return [endOfThePythonPackagesActivity(unseenActivity, syncJustEnded.project_directory, sources)];
+  });
+}
+
 function endOfTheAppUpdateActivity(activity: StudioActivity, appUpdate: TatolabAppUpdateState): StudioActivity {
   if (appUpdate.kind === "failed") return { activity_id: activity.activity_id, title: activity.title, kind: "failed", refusal: appUpdate.refusal };
   return { activity_id: activity.activity_id, title: activity.title, kind: "done", detail: appUpdate.kind === "ready_to_restart" ? "Downloaded · ready to restart" : "Downloaded", package_lines: [] };
@@ -175,6 +185,8 @@ export function nextStudioActivityLog(previousLog: StudioActivityLog, sources: S
   const inProgress = studioActivitiesInProgressOf(sources);
   const stillInProgressIds = new Set(inProgress.map((activity) => activity.activity_id));
   const justEnded = previousLog.in_progress.filter((activity) => !stillInProgressIds.has(activity.activity_id)).map((activity) => endOfTheActivity(activity, sources));
+  const previouslyInProgressIds = new Set(previousLog.in_progress.map((activity) => activity.activity_id));
+  justEnded.push(...syncsThatEndedUnseenOf(sources, previouslyInProgressIds, stillInProgressIds));
   if (justEnded.length === 0 && inProgress.length === previousLog.in_progress.length && inProgress.every((activity, index) => sameActivity(activity, previousLog.in_progress[index]))) {
     return previousLog;
   }

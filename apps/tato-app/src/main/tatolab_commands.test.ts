@@ -119,6 +119,7 @@ async function sharedStateOverFakes(
     readDeveloperMode: () => false,
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     whenTheRuntimeExits: () => {},
+    projectVenvSyncsOnTheStreamActionsFeed: { keepFollowing: () => {}, takeTheProjectVenvSyncs: () => ({ underWay: [], justEnded: [] }) },
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(controller, () => {}, () => 0, quietTatolabAppLog);
