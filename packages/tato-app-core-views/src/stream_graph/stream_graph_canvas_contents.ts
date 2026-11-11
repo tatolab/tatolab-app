@@ -36,9 +36,10 @@ function linkLookAndWords(linkState: string): { look: NodeGraphLinkLook; words: 
   }
 }
 
-/** How a node's card shows its processor state: `Error` failed with the runtime's reason, `Restarting` restarting, every other state healthy. */
+/** How a node's card shows its processor state: `Error` failed with the runtime's reason, a `process()` that keeps raising failed with what it raised, `Restarting` restarting, every other state healthy. */
 function cardConditionOf(node: StreamGraphNode): NodeGraphCardCondition {
   if (node.state === "Error") return { look: "failed", failed_because: node.failed_because };
+  if (node.process_raising_because !== null) return { look: "failed", failed_because: node.process_raising_because };
   if (node.state === "Restarting") return { look: "restarting" };
   return { look: "healthy" };
 }
@@ -56,6 +57,14 @@ function canvasLinkOf(link: StreamGraphLink): NodeGraphCanvasLink {
   };
 }
 
+/** The quiet type beside a card's title: a subgraph's kind (a generated one by its generator), or a node's type when its name is the one the code gave. */
+function typeNameOnTheCard(node: StreamGraphNode): string | null {
+  if (node.fragment?.kind === "authored") return "Subgraph";
+  if (node.fragment?.kind === "placed_stream") return "Stream";
+  if (node.fragment?.kind === "generated") return nodeTypeClassName(node.type);
+  return isANameTheCodeGave(node.name, node.type) ? nodeTypeClassName(node.type) : null;
+}
+
 const descriptionWords = (description: string | undefined): string | null => (description === undefined || description.trim() === "" ? null : description.trim());
 
 const portDescription = (ports: readonly NodeCatalogPort[] | undefined, portName: string): string | null => descriptionWords(ports?.find((port) => port.name === portName)?.description);
@@ -68,7 +77,7 @@ export function streamGraphCanvasContents(graph: StreamGraphSummary, catalog: No
     nodes: graph.nodes.map((node) => ({
       node_id: node.name,
       title: nodeTitle(node.name, node.type),
-      type_name: isANameTheCodeGave(node.name, node.type) ? nodeTypeClassName(node.type) : null,
+      type_name: typeNameOnTheCard(node),
       description: descriptionWords(catalogEntryByType.get(node.type)?.description),
       condition: cardConditionOf(node),
       input_pins: node.input_ports.map((port) => ({
@@ -81,6 +90,7 @@ export function streamGraphCanvasContents(graph: StreamGraphSummary, catalog: No
       saved_position: node.studio.position === null ? null : { x: node.studio.position[0], y: node.studio.position[1] },
       frame_id: node.studio.group !== null && groupIds.has(node.studio.group) ? node.studio.group : null,
       is_collapsed: node.studio.collapsed === true,
+      subgraph: node.fragment?.kind ?? null,
     })),
     links: graph.links.map(canvasLinkOf),
     frames: graph.groups.map((group) => ({ frame_id: group.id, title: group.title, description: group.description, colour: group.colour })),

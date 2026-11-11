@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { canPinsOfTheseFamiliesBeWired, frameRectangleAroundCards, linkUnderACard, NODE_GRAPH_CLEAR_PLACE_GAP, NODE_GRAPH_FRAME_PADDING, NODE_GRAPH_FRAME_TITLE_ROOM, placeClearBelowTheCards } from "./node_graph_editing";
+import { canPinsOfTheseFamiliesBeWired, frameACardIsLetGoIn, frameRectangleAroundCards, linkUnderACard, NODE_GRAPH_CLEAR_PLACE_GAP, NODE_GRAPH_FRAME_PADDING, NODE_GRAPH_FRAME_TITLE_ROOM, placeClearBelowTheCards } from "./node_graph_editing";
 
 test("pins_of_one_family_wire_pins_of_two_families_do_not_and_an_unknown_family_is_left_to_the_runtime", () => {
   expect(canPinsOfTheseFamiliesBeWired("image", "image")).toBe(true);
@@ -47,4 +47,22 @@ test("something_placed_from_a_tool_lands_under_the_lowest_card_level_with_the_le
     ),
   ).toEqual({ x: 100, y: 280 + NODE_GRAPH_CLEAR_PLACE_GAP });
   expect(placeClearBelowTheCards([], { x: 7, y: 9 })).toEqual({ x: 7, y: 9 });
+});
+
+test("a_dragged_card_joins_the_frame_its_centre_lands_in_leaves_its_own_when_let_go_outside_and_keeps_a_frame_dragged_whole", () => {
+  const card = (x: number, y: number) => ({ position: { x, y }, width: 100, height: 60 });
+  const inputs = { frame_id: "inputs", rectangle: { x: 0, y: 0, width: 400, height: 300 } };
+  const outputs = { frame_id: "outputs", rectangle: { x: 600, y: 0, width: 400, height: 300 } };
+  const insideInputs = { frame_id: "inside", rectangle: { x: 100, y: 100, width: 200, height: 150 } };
+
+  expect(frameACardIsLetGoIn(card(650, 50), null, [inputs, outputs])).toBe("outputs");
+  expect(frameACardIsLetGoIn(card(450, 50), null, [inputs, outputs])).toBeNull();
+  expect(frameACardIsLetGoIn(card(150, 120), null, [inputs, insideInputs])).toBe("inside");
+
+  expect(frameACardIsLetGoIn(card(50, 50), "inputs", [inputs, outputs])).toBe("inputs");
+  expect(frameACardIsLetGoIn(card(450, 50), "inputs", [inputs, outputs])).toBeNull();
+  expect(frameACardIsLetGoIn(card(650, 50), "inputs", [inputs, outputs])).toBe("outputs");
+  expect(frameACardIsLetGoIn(card(150, 120), "inputs", [inputs, insideInputs])).toBe("inputs");
+
+  expect(frameACardIsLetGoIn(card(650, 50), "inputs", [{ frame_id: "inputs", rectangle: null }, outputs])).toBe("inputs");
 });

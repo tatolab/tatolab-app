@@ -101,3 +101,24 @@
   border: 1px solid var(--studio-graph-card-line);
   border-radius: var(--radius-md);
 }
+
+/* A graph generator's output is read only until it is unlocked, so its card's edge is dashed. */
+.node-graph-card[data-subgraph="generated"] { border-style: dashed; }
+
+.node-graph-frame-colour-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.node-graph-frame-description-editable {
+  pointer-events: auto;
+  width: fit-content;
+  max-width: 100%;
+}
+.node-graph-frame-description-field {
+  pointer-events: auto;
+  display: block;
+  width: calc(100% - 20px);
+  border-radius: var(--radius-sm);
+  background: var(--studio-control);
+}

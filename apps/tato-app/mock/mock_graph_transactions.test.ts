@@ -120,11 +120,15 @@ test("a group frames its nodes until it is removed, and a note is added, changed
   const group = grouped.transaction.added_groups[0]?.group ?? "";
   expect(graph.groups).toEqual([{ id: group, title: "Frame", description: null, colour: null }]);
   expect(graph.nodes[0]?.studio?.group).toBe(group);
+  const described = applyMockGraphTransaction(targetsOf(graph), [{ operation: "set_group_fields", stream: STREAM_ASSET, group, description: "The source", colour: "#3fcf8e" }]);
+  if (described.kind !== "applied") return expect.unreachable(described.refusal.runtime_words);
+  expect(graph.groups).toEqual([{ id: group, title: "Frame", description: "The source", colour: "#3fcf8e" }]);
+  expect(described.inverse_operations.map(graphActionApplyingTheHistoryOperation)).toEqual([{ operation: "set_group_fields", stream: STREAM_ASSET, group, title: "Frame", description: "" }]);
   const ungrouped = applyMockGraphTransaction(targetsOf(graph), [{ operation: "remove_group", stream: STREAM_ASSET, group }]);
   if (ungrouped.kind !== "applied") return expect.unreachable(ungrouped.refusal.runtime_words);
   expect(graph.groups).toEqual([]);
   expect(graph.nodes[0]?.studio?.group).toBeNull();
-  expect(ungrouped.inverse_operations.map(graphActionApplyingTheHistoryOperation)).toEqual([{ operation: "add_group", stream: STREAM_ASSET, title: "Frame", nodes: [TEST_PATTERN] }]);
+  expect(ungrouped.inverse_operations.map(graphActionApplyingTheHistoryOperation)).toEqual([{ operation: "add_group", stream: STREAM_ASSET, title: "Frame", description: "The source", colour: "#3fcf8e", nodes: [TEST_PATTERN] }]);
 
   const noted = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_note", stream: STREAM_ASSET, text: "Note", position: [10, 20], size: [220, 110] }]);
   if (noted.kind !== "applied") return expect.unreachable(noted.refusal.runtime_words);
@@ -138,4 +142,28 @@ test("a group frames its nodes until it is removed, and a note is added, changed
   const restoring = unnoted.inverse_operations.map(graphActionApplyingTheHistoryOperation).flatMap((action) => (action === null ? [] : [action]));
   expect(applyMockGraphTransaction(targetsOf(graph), restoring, "undo_or_redo", unnoted.inverse_operations).kind).toBe("applied");
   expect(graph.notes?.map((restored) => restored.id)).toEqual([note]);
+});
+
+test("a collapsed node becomes a subgraph wired through its Graph Input and Output, and unlocking it, as its undo does, wires the node back", () => {
+  const graph = aTestPatternAlone();
+  const built = applyMockGraphTransaction(targetsOf(graph), [
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:DisplayWindow", as: "window" },
+    { operation: "connect", stream: STREAM_ASSET, source: { node: TEST_PATTERN, port: "video" }, target: { node: "window", port: "video" } },
+  ]);
+  if (built.kind !== "applied") return expect.unreachable(built.refusal.runtime_words);
+  const window = mockNodeIdOf(STREAM_ID, "displaywindow");
+
+  const collapsed = applyMockGraphTransaction(targetsOf(graph), [{ operation: "collapse_selection_into_subgraph", stream: STREAM_ASSET, nodes: [window], name: "Output" }]);
+  if (collapsed.kind !== "applied") return expect.unreachable(collapsed.refusal.runtime_words);
+  expect(graph.nodes.map((node) => node.name)).toEqual(["testpatternsource", "output"]);
+  expect(graph.links).toMatchObject([{ source_node: "testpatternsource", source_port: "video", target_node: "output", target_port: "displaywindow-video" }]);
+  expect(graph.nodes[1]?.fragment?.nodes.map((node) => node.name)).toEqual(["displaywindow", "displaywindow-video"]);
+  expect(graph.nodes[1]?.input_ports.map((port) => [port.name, port.family])).toEqual([["displaywindow-video", "image"]]);
+
+  const undo = collapsed.inverse_operations.map(graphActionApplyingTheHistoryOperation);
+  expect(undo).toEqual([{ operation: "unlock_generator_fragment", stream: STREAM_ASSET, fragment: mockNodeIdOf(STREAM_ID, "output") }]);
+  const unlocked = applyMockGraphTransaction(targetsOf(graph), undo.flatMap((action) => (action === null ? [] : [action])));
+  if (unlocked.kind !== "applied") return expect.unreachable(unlocked.refusal.runtime_words);
+  expect(graph.nodes.map((node) => node.name)).toEqual(["testpatternsource", "displaywindow"]);
+  expect(graph.links).toMatchObject([{ source_node: "testpatternsource", source_port: "video", target_node: "displaywindow", target_port: "video" }]);
 });

@@ -4,7 +4,7 @@ import { RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL, RUNTIME_STARTING_GRACE_PERIOD_M
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
 import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import { failedWith, succeeded } from "./result.js";
-import { MachineNameAskedOncePerRuntimeUpEpisode, TatolabAppController } from "./tatolab_app_controller.js";
+import { MachineNameAskedOncePerRuntimeUpEpisode, TatolabAppController, type TatolabAppControllerSources } from "./tatolab_app_controller.js";
 import type { TatolabAppUpdateState } from "../shared/tatolab_backend_contract.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 
@@ -39,6 +39,7 @@ test("a_machine_name_the_runtime_did_not_give_is_asked_again_only_after_a_restar
 });
 
 interface ControllerOverFakesOptions {
+  projectVenvSyncsOnTheStreamActionsFeed?: TatolabAppControllerSources["projectVenvSyncsOnTheStreamActionsFeed"];
   readMonotonicClockMs?: () => number;
   tatolabAppLog?: ReturnType<typeof createTatolabAppLog>;
   carriedRuntime?: CarriedRuntime | null;
@@ -68,6 +69,7 @@ async function controllerOverFakes(scriptedLocalApiResponses: readonly Buffer[],
     readDeveloperMode: () => false,
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     whenTheRuntimeExits: () => runtimeExits.push("exited"),
+    projectVenvSyncsOnTheStreamActionsFeed: options.projectVenvSyncsOnTheStreamActionsFeed ?? { keepFollowing: () => {}, takeTheProjectVenvSyncs: () => ({ underWay: [], justEnded: [] }) },
     tatolabAppLog: options.tatolabAppLog ?? createTatolabAppLog("error", () => {}),
   });
   return { controller, carriedRuntimeStarts, commandLineToolLink, localApiServer, runtimeExits };
@@ -87,7 +89,7 @@ test("a healthy runtime's status names its streams and machine, read as the wind
   expect(JSON.stringify(await controller.composeStatus(0))).toBe(
     '{"app_version":"0.45.0","app_build":null,"platform":"macos","runtime_state":"running","runtime_not_running_because":null,' +
       '"machine_name":"jonathanf-macbook","streams":[{"stream":"p-main-0a1b2c","display_name":"main","location":{"project_directory":"/p","project":"0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55","stream_asset":"7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68"},' +
-      '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"streams_not_listed_because":null,' +
+      '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"project_venv_syncs_under_way":[],"project_venv_syncs_just_ended":[],"streams_not_listed_because":null,' +
       '"command_line_tool_link":{"kind":"not_linked","path":"/Users/someone/.local/bin/tatolab"},' +
       '"app_update":{"kind":"not_checked"},"app_update_announcement":null,' +
       `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
@@ -97,6 +99,29 @@ test("a healthy runtime's status names its streams and machine, read as the wind
   );
   expect(carriedRuntimeStarts.runtimesStarted).toHaveLength(0);
 });
+
+
+test("each status round follows the stream actions while the runtime answers and carries the syncs the feed took", async () => {
+  const runtimeAnsweringAtEachRound: boolean[] = [];
+  const syncJustEnded = {
+    action: "Rvxjb0uiacgp6c3o13o9qvzj1-1",
+    project_directory: "/private/tmp/tatolab-proof-projects/numpy-pillow",
+    venv_sync: { phase: "installed", packages_resolved: 8, packages_prepared: 4, packages_installed: 8, downloads_started: 0, downloads_done: 0, packages: [] },
+  };
+  const { controller } = await controllerOverFakes([healthyAnswer(), noStreams(), theMachine()], {
+    projectVenvSyncsOnTheStreamActionsFeed: {
+      keepFollowing: (isTheRuntimeAnswering) => runtimeAnsweringAtEachRound.push(isTheRuntimeAnswering),
+      takeTheProjectVenvSyncs: () => ({ underWay: [], justEnded: [syncJustEnded] }),
+    },
+  });
+
+  const status = await controller.composeStatus(0);
+
+  expect(runtimeAnsweringAtEachRound).toEqual([true]);
+  expect(status.project_venv_syncs_under_way).toEqual([]);
+  expect(status.project_venv_syncs_just_ended).toEqual([syncJustEnded]);
+});
+
 
 test("a healthy runtime whose streams cannot be read lists none, and says why in the failure's own words", async () => {
   const { controller } = await controllerOverFakes([

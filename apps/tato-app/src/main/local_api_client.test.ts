@@ -13,7 +13,10 @@ import {
   queuedStreamActionFromTheToolResult,
   streamDisplayNameSetFromTheSetStreamDisplayNameToolResult,
 } from "./local_api_client.js";
+import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
+import { STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI, streamActionResourceUri } from "./project_venv_syncs_on_the_stream_actions_feed.js";
 import type { Result } from "./result.js";
+import { streamActionDescriptionFromTheStreamActionResourceText, streamActionsUnderWayFromTheStreamActionsResourceText } from "./stream_action_description.js";
 import {
   projectCreationQueuedFromTheCreateProjectToolResult,
   projectRunQueuedFromTheStartOrReloadProjectToolResult,
@@ -694,6 +697,7 @@ test("describing_a_stream_action_reads_its_state_step_and_streams_from_queued_to
       step: null,
       streams: [],
       failed_because: null,
+      venv_sync: null,
     },
   });
   expect(describedOf(answerOf(await server.client().describeStreamAction("Riioiuiuj7n1z3ghkm7s9n1xi-6")))).toMatchObject({ state: "in_progress", step: "making_the_venv" });
@@ -702,6 +706,40 @@ test("describing_a_stream_action_reads_its_state_step_and_streams_from_queued_to
     { stream: "hallways-back_door-2416d3", display_name: "back_door", state: "failed" },
   ]);
   expect(toolCallsReceivedBy(server)[0]).toEqual(["describe_stream_action", { action: "Rj12j3eujz3zn0dposliv79k9-9" }]);
+});
+
+test("describing_a_stream_action_reads_its_venv_sync_package_by_package_while_uv_downloads_and_once_it_installed", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-new-project-downloading-numpy-and-pillow.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-new-project-done-numpy-and-pillow-installed.json")),
+  ]);
+
+  expect(describedOf(answerOf(await server.client().describeStreamAction("Rvxjb0uiacgp6c3o13o9qvzj1-1"))).venv_sync).toEqual({
+    phase: "downloading",
+    packages_resolved: 9,
+    packages_prepared: null,
+    packages_installed: null,
+    downloads_started: 4,
+    downloads_done: 3,
+    packages: [
+      { name: "numpy", version: null, kind: "distribution", state: "downloaded", download_size_bytes: 5452595 },
+      { name: "pillow", version: null, kind: "distribution", state: "downloaded", download_size_bytes: 4823450 },
+      { name: "numba", version: null, kind: "distribution", state: "downloaded", download_size_bytes: 2726298 },
+      { name: "llvmlite", version: null, kind: "distribution", state: "downloading", download_size_bytes: 40579891 },
+    ],
+  });
+  const done = describedOf(answerOf(await server.client().describeStreamAction("Rvxjb0uiacgp6c3o13o9qvzj1-1")));
+  expect(done).toMatchObject({ state: "done", step: null, venv_sync: { phase: "installed", packages_prepared: 4, packages_installed: 8, downloads_done: 4 } });
+  expect(done.venv_sync?.packages.map((venvSyncPackage) => [venvSyncPackage.name, venvSyncPackage.version, venvSyncPackage.download_size_bytes])).toEqual([
+    ["numpy", "2.5.4", 5452595],
+    ["pillow", "13.0.0", 4823450],
+    ["numba", "0.68.1", 2726298],
+    ["llvmlite", "0.50.0", 40579891],
+    ["tatolab-compositor", "0.68.59", null],
+    ["tatolab-ops", "0.68.59", null],
+    ["tatolab-stream", "0.68.59", null],
+    ["tatolab-testpattern", "0.68.59", null],
+  ]);
 });
 
 test("a_failed_action_reads_its_reason_one_the_tool_no_longer_holds_answers_its_words_and_a_json_rpc_error_stays_a_refusal", async () => {
@@ -743,6 +781,7 @@ test("a_cancel_answers_cancelled_for_a_queued_action_and_in_progress_for_one_it_
     step: null,
     streams: [],
     failed_because: null,
+    venv_sync: null,
   });
   expect(answerOf(await server.client().cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-12"))).toEqual({ action: "Ra19ljkh20wimdvgya5udt9v1-12", state: "cancelled" });
   expect(toolCallsReceivedBy(server)[0]).toEqual(["cancel_stream_action", { action: "Ra19ljkh20wimdvgya5udt9v1-10" }]);
@@ -816,6 +855,25 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
 
   const expectedStreamCount = process.env["TATOLAB_APP_LIVE_EXPECTED_STREAM_COUNT"];
   if (expectedStreamCount !== undefined) expect(streams.length).toBe(Number(expectedStreamCount));
+});
+
+test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_serves_its_stream_actions_and_each_action_as_resources_the_app_reads", async () => {
+  const opened = await LocalApiMcpStdioConnection.open(process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"] ?? "", 5_000, "0.45.0");
+  const connection = answerOf(opened);
+  try {
+    const actionsUnderWay = answerOf(streamActionsUnderWayFromTheStreamActionsResourceText(answerOf(await connection.readResourceText(STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI))));
+    for (const description of actionsUnderWay) {
+      const oneAction = answerOf(streamActionDescriptionFromTheStreamActionResourceText(answerOf(await connection.readResourceText(streamActionResourceUri(description.action)))));
+      expect(oneAction.action).toBe(description.action);
+    }
+    const finishedAction = process.env["TATOLAB_APP_LIVE_FINISHED_STREAM_ACTION"];
+    if (finishedAction !== undefined) {
+      const finished = answerOf(streamActionDescriptionFromTheStreamActionResourceText(answerOf(await connection.readResourceText(streamActionResourceUri(finishedAction)))));
+      expect(finished.action).toBe(finishedAction);
+    }
+  } finally {
+    connection.close();
+  }
 });
 
 test("a_dependency_added_from_a_folder_or_a_zip_answers_the_import_the_runtime_copied", async () => {

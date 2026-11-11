@@ -23,7 +23,9 @@ import {
 } from "@xyflow/react";
 import { cn } from "cn";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
-import { ChevronDown, ChevronRight, Frame, Plus, Scan, SquareX, StickyNote } from "lucide-react";
+import { ChevronDown, ChevronRight, Combine, Frame, Palette, Pencil, Pipette, Plus, Scan, SquareX, StickyNote, Text, Ungroup } from "lucide-react";
+import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
+import { RightClickMenu, RightClickMenuItem, RightClickMenuSeparator, RightClickMenuSingleChoiceGroup, RightClickSubmenu } from "./menus";
 import {
   createContext,
   memo,
@@ -33,6 +35,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -50,7 +53,7 @@ import {
   type NodeGraphPosition,
 } from "./support/node_graph_layout";
 import { isPartOfTheGraphOutsideTheView } from "./support/node_graph_map_visibility";
-import { canPinsOfTheseFamiliesBeWired, frameRectangleAroundCards, linkUnderACard, placeClearBelowTheCards, type NodeGraphLinkMidpoint } from "./support/node_graph_editing";
+import { canPinsOfTheseFamiliesBeWired, frameACardIsLetGoIn, frameRectangleAroundCards, linkUnderACard, placeClearBelowTheCards, type NodeGraphLinkMidpoint } from "./support/node_graph_editing";
 
 /** The family a pin carries, which picks its shape and colour and its links' colour. */
 export type NodeGraphPinFamily =
@@ -106,7 +109,12 @@ export interface NodeGraphCanvasNode {
   frame_id: string | null;
   /** Drawn as its header alone, its wires meeting the header's edges. */
   is_collapsed: boolean;
+  /** How the subgraph it holds came to be, which a double-click steps inside; `null` for a node that holds none. */
+  subgraph: NodeGraphSubgraphKind | null;
 }
+
+/** How a subgraph came to be: a graph generator's read-only output, a collapsed selection, or another stream placed by reference. */
+export type NodeGraphSubgraphKind = "generated" | "authored" | "placed_stream";
 
 /** A labelled frame drawn around the cards that name it, with its title on a tab, its description under it, and a tint of its colour. */
 export interface NodeGraphCanvasFrame {
@@ -115,6 +123,32 @@ export interface NodeGraphCanvasFrame {
   description: string | null;
   /** A CSS colour the frame is tinted with; `null` for the canvas's own. */
   colour: string | null;
+}
+
+/** What an edit of a frame changes: its title, its description or its colour, each one given. */
+export interface NodeGraphCanvasFrameChange {
+  title?: string;
+  description?: string;
+  colour?: string;
+}
+
+/** The colours a frame's right-click menu offers before Custom color…, each a hex colour as the runtime stores a group's. */
+export const NODE_GRAPH_FRAME_COLOURS: readonly { name: string; colour: string }[] = [
+  { name: "Red", colour: "#c46a6a" },
+  { name: "Yellow", colour: "#c9b45a" },
+  { name: "Green", colour: "#6f9e6a" },
+  { name: "Blue", colour: "#5f86b8" },
+  { name: "Purple", colour: "#8f72b5" },
+];
+
+/** How many colours other frames use beyond the presets a frame's menu offers again. */
+const FRAME_COLOURS_USED_ELSEWHERE_OFFERED = 3;
+
+/** The colours the canvas's frames use that no preset is, newest frame first, at most `FRAME_COLOURS_USED_ELSEWHERE_OFFERED`. */
+function frameColoursUsedBeyondThePresets(frames: readonly NodeGraphCanvasFrame[]): readonly string[] {
+  const presetColours = new Set(NODE_GRAPH_FRAME_COLOURS.map(({ colour }) => colour.toLowerCase()));
+  const usedColours = frames.flatMap((frame) => (frame.colour === null || presetColours.has(frame.colour.toLowerCase()) ? [] : [frame.colour.toLowerCase()]));
+  return [...new Set(usedColours.reverse())].slice(0, FRAME_COLOURS_USED_ELSEWHERE_OFFERED);
 }
 
 /** A note on the canvas beside the cards: its text, where its top-left corner sits and its size. */
@@ -180,8 +214,13 @@ export interface NodeGraphCanvasViewport {
   zoom: number;
 }
 
-/** Why the toolbar's Subgraph cannot be pressed yet. */
-const SUBGRAPH_NOT_BUILT_YET = "Making a subgraph from the selection isn't built yet";
+
+/** A card's new top-left corner and the frame it belongs to there, by `frame_id`; `null` for none. */
+export interface NodeGraphCanvasCardMove {
+  node_id: string;
+  position: NodeGraphPosition;
+  frame_id: string | null;
+}
 
 /** Whether an edit the canvas asked for was applied; a refused one puts what it moved back. */
 export type NodeGraphCanvasEditAnswer = "applied" | "refused";
@@ -191,8 +230,8 @@ const NODE_GRAPH_PLACED_ROOM = { width: 240, height: 120 };
 
 /** What a person's edits on the canvas ask for; each call is one gesture. */
 export interface NodeGraphCanvasEditing {
-  /** Cards dragged and let go, each at its new top-left corner, together with every card that had no saved place, so the layout stays as seen; a lone card with no links let go of over a link is spliced into it in the same gesture. */
-  onCardsMoved(moves: readonly { node_id: string; position: NodeGraphPosition }[], cardLetGoOverALink: { node_id: string; link_id: string } | null): Promise<NodeGraphCanvasEditAnswer>;
+  /** Cards dragged and let go, each at its new top-left corner and in the frame it now belongs to, together with every card that had no saved place, so the layout stays as seen; a lone card with no links let go of over a link is spliced into it in the same gesture. */
+  onCardsMoved(moves: readonly NodeGraphCanvasCardMove[], cardLetGoOverALink: { node_id: string; link_id: string } | null): Promise<NodeGraphCanvasEditAnswer>;
   /** A wire drawn from an output pin to an input pin of a family it can carry. */
   onPinsWired(source: NodeGraphCanvasPinEnd, target: NodeGraphCanvasPinEnd): void;
   /** A wire dragged off a pin and let go of over empty canvas, to place a node there that it feeds or reads. */
@@ -205,8 +244,12 @@ export interface NodeGraphCanvasEditing {
   onDeleted(deleted: { node_ids: readonly string[]; link_ids: readonly string[]; note_ids: readonly string[] }): void;
   /** F, ⌘G or Frame pressed with cards selected, to frame them. */
   onFrameAskedFor(nodeIds: readonly string[]): Promise<NodeGraphCanvasEditAnswer>;
-  /** A frame's title edited on its tab. */
-  onFrameRenamed(frameId: string, title: string): void;
+  /** ⌘⇧G or Subgraph pressed with cards selected, to collapse them into one subgraph. */
+  onSubgraphAskedFor(nodeIds: readonly string[]): void;
+  /** A frame's title or description edited on its tab, or a colour chosen from its right-click menu; a field not given is kept. */
+  onFrameChanged(frameId: string, change: NodeGraphCanvasFrameChange): void;
+  /** Remove frame chosen from a frame's right-click menu: the frame goes and its cards stay. */
+  onFrameRemoved(frameId: string): void;
   /** A card's chevron pressed, to collapse it to its header or open it again. */
   onCardCollapsed(nodeId: string, collapsed: boolean): void;
   /** A note's text edited, or the note moved or resized. */
@@ -266,10 +309,29 @@ const NodeGraphNoteEditingContext = createContext<NodeGraphCanvasEditing["onNote
 const NodeGraphNoteResizingContext = createContext<((noteId: string, resized: NodeGraphPosition & { width: number; height: number }) => void) | null>(null);
 
 /** What a card's chevron and a frame's title ask for on an editable canvas; `null` on a read-only one. */
-const NodeGraphCardAndFrameEditingContext = createContext<Pick<NodeGraphCanvasEditing, "onFrameRenamed" | "onCardCollapsed"> | null>(null);
+const NodeGraphCardAndFrameEditingContext = createContext<Pick<NodeGraphCanvasEditing, "onFrameChanged" | "onFrameRemoved" | "onCardCollapsed"> | null>(null);
 
-/** The frame whose title is being edited, and how a frame starts or stops having it edited; `null` outside a canvas. */
-const NodeGraphFrameRenamingContext = createContext<{ frameIdBeingRenamed: string | null; renameTheFrame: (frameId: string | null) => void } | null>(null);
+/** The colours the canvas's frames use beyond the presets, which each frame's Color menu offers again. */
+const NodeGraphFrameColoursUsedContext = createContext<readonly string[]>([]);
+
+/** Opens the colour picker for the frame it names. */
+const NodeGraphFrameColourPickingContext = createContext<(frameId: string) => void>(() => undefined);
+
+/** Which of a frame's words is typed on its tab: its title or its description. */
+type NodeGraphFrameWordsField = "title" | "description";
+
+/** A frame's title or description being edited, with what was typed for it before its field opened. */
+interface NodeGraphFrameWordsBeingEdited {
+  frame_id: string;
+  field: NodeGraphFrameWordsField;
+  typed_ahead?: string;
+}
+
+/** The frame whose title or description is being edited, and how a frame starts or stops having one edited; `null` outside a canvas. */
+const NodeGraphFrameWordsEditingContext = createContext<{
+  frameWordsBeingEdited: NodeGraphFrameWordsBeingEdited | null;
+  editTheFrameWords: (edited: NodeGraphFrameWordsBeingEdited | null) => void;
+} | null>(null);
 
 /** Every pin a link joins, by `linkedPinKey`, which a card draws filled. */
 const NodeGraphLinkedPinsContext = createContext<ReadonlySet<string>>(
@@ -338,6 +400,7 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
       data-selected={isSelected || undefined}
       data-condition={graphNode.condition.look}
       data-collapsed={graphNode.is_collapsed || undefined}
+      data-subgraph={graphNode.subgraph ?? undefined}
     >
       <div
         className="node-graph-card-header relative flex items-center gap-2 px-2"
@@ -356,6 +419,7 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
             {graphNode.is_collapsed ? <ChevronRight className="size-3" strokeWidth={2} aria-hidden /> : <ChevronDown className="size-3" strokeWidth={2} aria-hidden />}
           </button>
         )}
+        {graphNode.subgraph !== null && <Combine className="size-3 shrink-0 text-fg-2" strokeWidth={2} aria-label="Subgraph" data-node-graph-card-subgraph={graphNode.subgraph} />}
         <span className="truncate text-xs font-semibold text-fg">
           {graphNode.title}
         </span>
@@ -503,52 +567,174 @@ function NodeGraphNoteView({ data, selected }: NodeProps<NodeGraphNoteFlowNode>)
   );
 }
 
-/** A frame behind its cards: its title on a coloured tab, which a double-click edits on an editable canvas, and its description under it. */
+/** A frame's title or description typed in place: Enter or leaving the field keeps it, Escape puts the words back. */
+function NodeGraphFrameWordsField({
+  label,
+  className,
+  style,
+  words,
+  typedAhead = null,
+  onKept,
+  ...controlDataAttributes
+}: {
+  label: string;
+  className: string;
+  style: CSSProperties | undefined;
+  words: string;
+  /** What was typed before the field opened, which it opens holding with the caret after it. */
+  typedAhead?: string | null;
+  onKept: (words: string) => void;
+} & ControlDataAttributes) {
+  return (
+    <input
+      aria-label={label}
+      className={cn("nodrag outline-none", className)}
+      style={style}
+      autoFocus
+      defaultValue={typedAhead ?? words}
+      onFocus={(focusEvent) => {
+        if (typedAhead === null) focusEvent.target.select();
+        else focusEvent.target.setSelectionRange(typedAhead.length, typedAhead.length);
+      }}
+      onBlur={(blurEvent) => onKept(blurEvent.target.value)}
+      onKeyDown={(keyboardEvent) => {
+        if (keyboardEvent.key === "Escape") keyboardEvent.currentTarget.value = words;
+        if (keyboardEvent.key === "Enter" || keyboardEvent.key === "Escape") keyboardEvent.currentTarget.blur();
+        keyboardEvent.stopPropagation();
+      }}
+      {...controlDataAttributes}
+    />
+  );
+}
+
+/** What a right-click on a frame's tab offers on an editable canvas: rename it, describe it, colour it, or remove it and keep its cards. */
+function NodeGraphFrameRightClickChoices({
+  graphFrame,
+  frameEditing,
+  editTheFrameWords,
+  openTheColourPicker,
+}: {
+  graphFrame: NodeGraphCanvasFrame;
+  frameEditing: Pick<NodeGraphCanvasEditing, "onFrameChanged" | "onFrameRemoved">;
+  editTheFrameWords: (field: NodeGraphFrameWordsField) => void;
+  openTheColourPicker: () => void;
+}) {
+  const hasADescription = graphFrame.description !== null && graphFrame.description !== "";
+  const coloursUsedElsewhere = useContext(NodeGraphFrameColoursUsedContext);
+  const colourChoices = [...NODE_GRAPH_FRAME_COLOURS, ...coloursUsedElsewhere.map((colour) => ({ name: colour.toUpperCase(), colour }))];
+  return (
+    <>
+      <RightClickMenuItem icon={Pencil} onChosen={() => editTheFrameWords("title")} data-node-graph-frame-choice="rename">
+        Rename
+      </RightClickMenuItem>
+      <RightClickMenuItem icon={Text} onChosen={() => editTheFrameWords("description")} data-node-graph-frame-choice="describe">
+        {hasADescription ? "Edit description" : "Add description"}
+      </RightClickMenuItem>
+      <RightClickSubmenu label="Color" icon={Palette} data-node-graph-frame-choice="colour">
+        <RightClickMenuSingleChoiceGroup
+          choices={colourChoices.map(({ name, colour }) => ({
+            choice: colour,
+            label: (
+              <span className="flex items-center gap-2">
+                <span className="node-graph-frame-colour-swatch" style={{ backgroundColor: colour }} aria-hidden />
+                {name}
+              </span>
+            ),
+          }))}
+          chosen={graphFrame.colour?.toLowerCase() ?? null}
+          onChosen={(colour) => frameEditing.onFrameChanged(graphFrame.frame_id, { colour })}
+          dataAttributeOfEachChoice="data-node-graph-frame-colour"
+        />
+        <RightClickMenuSeparator />
+        <RightClickMenuItem icon={Pipette} onChosen={openTheColourPicker} data-node-graph-frame-choice="custom_colour">
+          Custom color…
+        </RightClickMenuItem>
+      </RightClickSubmenu>
+      <RightClickMenuSeparator />
+      <RightClickMenuItem icon={Ungroup} isDestructive onChosen={() => frameEditing.onFrameRemoved(graphFrame.frame_id)} data-node-graph-frame-choice="remove">
+        Remove frame
+      </RightClickMenuItem>
+    </>
+  );
+}
+
+/** A frame behind its cards: its title on a coloured tab and its description under it, each edited on a double-click or from the tab's right-click menu on an editable canvas. */
 function NodeGraphFrameView({ data }: NodeProps<NodeGraphFrameFlowNode>) {
   const { graphFrame } = data;
   const cardAndFrameEditing = useContext(NodeGraphCardAndFrameEditingContext);
-  const frameRenaming = useContext(NodeGraphFrameRenamingContext);
-  const isBeingRenamed = frameRenaming?.frameIdBeingRenamed === graphFrame.frame_id;
+  const frameWordsEditing = useContext(NodeGraphFrameWordsEditingContext);
+  const fieldBeingEdited = frameWordsEditing?.frameWordsBeingEdited?.frame_id === graphFrame.frame_id ? frameWordsEditing.frameWordsBeingEdited.field : null;
+  const description = graphFrame.description ?? "";
   const keepTheTitle = (title: string) => {
     const trimmedTitle = title.trim();
-    if (trimmedTitle !== "" && trimmedTitle !== graphFrame.title) cardAndFrameEditing?.onFrameRenamed(graphFrame.frame_id, trimmedTitle);
-    frameRenaming?.renameTheFrame(null);
+    if (trimmedTitle !== "" && trimmedTitle !== graphFrame.title) cardAndFrameEditing?.onFrameChanged(graphFrame.frame_id, { title: trimmedTitle });
+    frameWordsEditing?.editTheFrameWords(null);
   };
+  const keepTheDescription = (typedDescription: string) => {
+    const trimmedDescription = typedDescription.trim();
+    if (trimmedDescription !== description) cardAndFrameEditing?.onFrameChanged(graphFrame.frame_id, { description: trimmedDescription });
+    frameWordsEditing?.editTheFrameWords(null);
+  };
+  const editTheWords = (field: NodeGraphFrameWordsField) => frameWordsEditing?.editTheFrameWords({ frame_id: graphFrame.frame_id, field });
+  const editTheWordsOnADoubleClick = (field: NodeGraphFrameWordsField) => (cardAndFrameEditing === null ? undefined : () => editTheWords(field));
+  const pickTheFramesColour = useContext(NodeGraphFrameColourPickingContext);
   const titleTabStyle = graphFrame.colour === null ? undefined : { backgroundColor: `color-mix(in srgb, ${graphFrame.colour} 30%, var(--studio-area))` };
+  const titleTab = (
+    <span
+      className="node-graph-frame-title nopan truncate text-xs font-semibold"
+      style={titleTabStyle}
+      onDoubleClick={editTheWordsOnADoubleClick("title")}
+      data-node-graph-frame-title={graphFrame.frame_id}
+    >
+      {graphFrame.title}
+    </span>
+  );
   return (
     <div
       className="node-graph-frame size-full"
       style={graphFrame.colour === null ? undefined : { borderColor: `color-mix(in srgb, ${graphFrame.colour} 45%, transparent)`, backgroundColor: `color-mix(in srgb, ${graphFrame.colour} 7%, transparent)` }}
       data-node-graph-frame={graphFrame.frame_id}
     >
-      {isBeingRenamed ? (
-        <input
-          aria-label="Frame title"
-          className="node-graph-frame-title nodrag text-xs font-semibold text-fg outline-none"
+      {fieldBeingEdited === "title" ? (
+        <NodeGraphFrameWordsField
+          label="Frame title"
+          className="node-graph-frame-title text-xs font-semibold text-fg"
           style={titleTabStyle}
-          autoFocus
-          defaultValue={graphFrame.title}
-          onFocus={(focusEvent) => focusEvent.target.select()}
-          onBlur={(blurEvent) => keepTheTitle(blurEvent.target.value)}
-          onKeyDown={(keyboardEvent) => {
-            if (keyboardEvent.key === "Escape") keyboardEvent.currentTarget.value = graphFrame.title;
-            if (keyboardEvent.key === "Enter" || keyboardEvent.key === "Escape") keyboardEvent.currentTarget.blur();
-            keyboardEvent.stopPropagation();
-          }}
+          words={graphFrame.title}
+          typedAhead={frameWordsEditing?.frameWordsBeingEdited?.typed_ahead ?? null}
+          onKept={keepTheTitle}
           data-node-graph-frame-title-field={graphFrame.frame_id}
         />
+      ) : cardAndFrameEditing === null ? (
+        titleTab
       ) : (
-        <span
-          className="node-graph-frame-title nopan truncate text-xs font-semibold"
-          style={titleTabStyle}
-          onDoubleClick={cardAndFrameEditing === null ? undefined : () => frameRenaming?.renameTheFrame(graphFrame.frame_id)}
-          data-node-graph-frame-title={graphFrame.frame_id}
+        <RightClickMenu
+          label={`Frame ${graphFrame.title}`}
+          choices={<NodeGraphFrameRightClickChoices graphFrame={graphFrame} frameEditing={cardAndFrameEditing} editTheFrameWords={editTheWords} openTheColourPicker={() => pickTheFramesColour(graphFrame.frame_id)} />}
+          returnsFocusToTheRowOnClosing={false}
         >
-          {graphFrame.title}
-        </span>
+          {titleTab}
+        </RightClickMenu>
       )}
-      {graphFrame.description !== null && graphFrame.description !== "" && (
-        <p className="node-graph-frame-description truncate px-2.5 text-2xs text-fg-2">{graphFrame.description}</p>
+      {fieldBeingEdited === "description" ? (
+        <NodeGraphFrameWordsField
+          label="Frame description"
+          className="node-graph-frame-description node-graph-frame-description-field mx-2.5 text-2xs text-fg"
+          style={undefined}
+          words={description}
+          onKept={keepTheDescription}
+          data-node-graph-frame-description-field={graphFrame.frame_id}
+        />
+      ) : (
+        description !== "" && (
+          <p
+            className={cn("node-graph-frame-description truncate px-2.5 text-2xs text-fg-2", cardAndFrameEditing !== null && "node-graph-frame-description-editable nopan")}
+            onDoubleClick={editTheWordsOnADoubleClick("description")}
+            data-node-graph-frame-description={graphFrame.frame_id}
+          >
+            {description}
+          </p>
+        )
       )}
     </div>
   );
@@ -686,6 +872,7 @@ function NodeGraphFlow({
   toolsInTheWindowToolbar,
   viewportWhereItWasLeft,
   onViewportLeft,
+  onSubgraphOpened,
   overlay,
 }: {
   label: string;
@@ -699,6 +886,7 @@ function NodeGraphFlow({
   toolsInTheWindowToolbar: NodeGraphCanvasToolsInTheWindowToolbar | null;
   viewportWhereItWasLeft: NodeGraphCanvasViewport | null;
   onViewportLeft: ((viewport: NodeGraphCanvasViewport) => void) | null;
+  onSubgraphOpened: ((nodeId: string) => void) | null;
   overlay?: ReactNode;
 }) {
   const reactFlow = useReactFlow();
@@ -717,6 +905,7 @@ function NodeGraphFlow({
   const isLaidOutOnMeasuredWidths = measuredCardWidths?.shapeKey === shapeKey;
   const [hasBeenFramed, setHasBeenFramed] = useState(false);
   const [heldCardPositions, setHeldCardPositions] = useState<HeldPositionById>(new Map());
+  const [heldCardFrames, setHeldCardFrames] = useState<ReadonlyMap<string, string | null>>(new Map());
   const [heldNotePositions, setHeldNotePositions] = useState<HeldPositionById>(new Map());
   const [heldNoteSizes, setHeldNoteSizes] = useState<ReadonlyMap<string, NodeGraphNoteSize>>(new Map());
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set(selectedNodeId === null ? [] : [selectedNodeId]));
@@ -737,6 +926,10 @@ function NodeGraphFlow({
       return stillInTheGraph.length === selectedBefore.size ? selectedBefore : new Set(stillInTheGraph);
     });
   }, [savedPositionByNode]);
+  useEffect(() => {
+    const frameIdByNode = new Map(nodes.map((node) => [node.node_id, node.frame_id]));
+    setHeldCardFrames((held) => heldValuesNotShownYet(held, (nodeId, frameId) => !frameIdByNode.has(nodeId) || frameIdByNode.get(nodeId) === frameId));
+  }, [nodes]);
   useEffect(() => {
     const noteById = new Map(notes.map((note) => [note.note_id, note]));
     setHeldNotePositions((held) => heldValuesNotShownYet(held, (noteId, position) => samePosition(position, noteById.get(noteId)?.position)));
@@ -766,6 +959,7 @@ function NodeGraphFlow({
       heldCardPositions.get(node.node_id) ?? node.saved_position ?? laidOutPositionByNode.get(node.node_id) ?? { x: 0, y: 0 },
     [heldCardPositions, laidOutPositionByNode],
   );
+  const frameOfTheCard = useCallback((node: NodeGraphCanvasNode): string | null => (heldCardFrames.has(node.node_id) ? (heldCardFrames.get(node.node_id) ?? null) : node.frame_id), [heldCardFrames]);
   const sizeOfTheCard = useCallback(
     (node: NodeGraphCanvasNode) =>
       cardSizeByNode.get(node.node_id) ?? {
@@ -778,7 +972,7 @@ function NodeGraphFlow({
   const flowNodes: NodeGraphFlowNode[] = useMemo(() => {
     const frameNodes: NodeGraphFrameFlowNode[] = frames.flatMap((graphFrame) => {
       const rectangle = frameRectangleAroundCards(
-        nodes.filter((node) => node.frame_id === graphFrame.frame_id).map((node) => ({ position: positionOfTheCard(node), ...sizeOfTheCard(node) })),
+        nodes.filter((node) => frameOfTheCard(node) === graphFrame.frame_id).map((node) => ({ position: positionOfTheCard(node), ...sizeOfTheCard(node) })),
       );
       if (rectangle === null) return [];
       return [
@@ -826,7 +1020,7 @@ function NodeGraphFlow({
       ariaLabel: `Node ${graphNode.title}`,
     }));
     return [...frameNodes, ...noteNodes, ...cardNodes];
-  }, [frames, notes, nodes, editing, positionOfTheCard, sizeOfTheCard, cardSizeByNode, heldNotePositions, heldNoteSizes, selectedIds, selectedNoteIds]);
+  }, [frames, notes, nodes, editing, positionOfTheCard, frameOfTheCard, sizeOfTheCard, cardSizeByNode, heldNotePositions, heldNoteSizes, selectedIds, selectedNoteIds]);
   const nodeById = useMemo(
     () => new Map(nodes.map((node) => [node.node_id, node])),
     [nodes],
@@ -1041,16 +1235,31 @@ function NodeGraphFlow({
         onlyCard !== undefined && onlyNode !== undefined && !links.some((link) => link.source_node_id === onlyCard.id || link.target_node_id === onlyCard.id)
           ? linkUnderACard({ position: onlyCard.position, ...sizeOfTheCard(onlyNode) }, linkMidpointsDrawn())
           : null;
-      const moves = [
-        ...draggedCards.map((card) => ({ node_id: card.id, position: onTheCanvasPixel(card.position) })),
-        ...nodes.filter((node) => node.saved_position === null && !draggedIds.has(node.node_id)).map((node) => ({ node_id: node.node_id, position: onTheCanvasPixel(positionOfTheCard(node)) })),
+      const framesLeftStanding = frames.map((graphFrame) => ({
+        frame_id: graphFrame.frame_id,
+        rectangle: frameRectangleAroundCards(
+          nodes.filter((node) => !draggedIds.has(node.node_id) && frameOfTheCard(node) === graphFrame.frame_id).map((node) => ({ position: positionOfTheCard(node), ...sizeOfTheCard(node) })),
+        ),
+      }));
+      const moves: NodeGraphCanvasCardMove[] = [
+        ...draggedCards.flatMap((card) => {
+          const node = nodeById.get(card.id);
+          return node === undefined ? [] : [{ node_id: card.id, position: onTheCanvasPixel(card.position), frame_id: frameACardIsLetGoIn({ position: card.position, ...sizeOfTheCard(node) }, frameOfTheCard(node), framesLeftStanding) }];
+        }),
+        ...nodes
+          .filter((node) => node.saved_position === null && !draggedIds.has(node.node_id))
+          .map((node) => ({ node_id: node.node_id, position: onTheCanvasPixel(positionOfTheCard(node)), frame_id: frameOfTheCard(node) })),
       ];
+      const movedIds = moves.map((move) => move.node_id);
       setHeldCardPositions((held) => withEntriesSet(held, moves.map((move) => ({ id: move.node_id, value: move.position }))));
+      setHeldCardFrames((held) => withEntriesSet(held, moves.map((move) => ({ id: move.node_id, value: move.frame_id }))));
       void editing.onCardsMoved(moves, onlyCard === undefined || linkLetGoOver === null ? null : { node_id: onlyCard.id, link_id: linkLetGoOver }).then((answer) => {
-        if (answer === "refused") setHeldCardPositions((held) => withoutTheIds(held, moves.map((move) => move.node_id)));
+        if (answer !== "refused") return;
+        setHeldCardPositions((held) => withoutTheIds(held, movedIds));
+        setHeldCardFrames((held) => withoutTheIds(held, movedIds));
       });
     },
-    [editing, nodeById, nodes, links, positionOfTheCard, sizeOfTheCard, linkMidpointsDrawn],
+    [editing, nodeById, nodes, links, frames, positionOfTheCard, frameOfTheCard, sizeOfTheCard, linkMidpointsDrawn],
   );
 
   const keepTheResizedNote = useCallback(
@@ -1109,12 +1318,14 @@ function NodeGraphFlow({
     [editing, pinFamilyOf, canvasPointOf],
   );
 
-  const [frameIdBeingRenamed, setFrameIdBeingRenamed] = useState<string | null>(null);
+  const [frameWordsBeingEdited, setFrameWordsBeingEdited] = useState<NodeGraphFrameWordsBeingEdited | null>(null);
   const frameIdsWhenAFrameWasAskedFor = useRef<ReadonlySet<string> | null>(null);
+  const titleTypedWhileTheFrameIsMade = useRef({ typed: "", isEntered: false });
   const frameTheSelection = useCallback(() => {
     if (editing === null) return;
     const frameIdsBefore = new Set(frames.map((frame) => frame.frame_id));
     frameIdsWhenAFrameWasAskedFor.current = frameIdsBefore;
+    titleTypedWhileTheFrameIsMade.current = { typed: "", isEntered: false };
     void editing.onFrameAskedFor([...selectedIds]).then((answer) => {
       if (answer === "refused" && frameIdsWhenAFrameWasAskedFor.current === frameIdsBefore) frameIdsWhenAFrameWasAskedFor.current = null;
     });
@@ -1125,12 +1336,30 @@ function NodeGraphFlow({
     const newFrame = frames.find((frame) => !frameIdsBefore.has(frame.frame_id));
     if (newFrame === undefined) return;
     frameIdsWhenAFrameWasAskedFor.current = null;
-    setFrameIdBeingRenamed(newFrame.frame_id);
-  }, [frames]);
-  const frameRenaming = useMemo(() => ({ frameIdBeingRenamed, renameTheFrame: setFrameIdBeingRenamed }), [frameIdBeingRenamed]);
-  const cardAndFrameEditing = useMemo(() => (editing === null ? null : { onFrameRenamed: editing.onFrameRenamed, onCardCollapsed: editing.onCardCollapsed }), [editing]);
+    const { typed, isEntered } = titleTypedWhileTheFrameIsMade.current;
+    titleTypedWhileTheFrameIsMade.current = { typed: "", isEntered: false };
+    const typedTitle = typed.trim();
+    if (isEntered && typedTitle !== "") {
+      editing?.onFrameChanged(newFrame.frame_id, { title: typedTitle });
+      return;
+    }
+    if (isEntered) return;
+    setFrameWordsBeingEdited({ frame_id: newFrame.frame_id, field: "title", ...(typed === "" ? {} : { typed_ahead: typed }) });
+  }, [frames, editing]);
+  const frameWordsEditing = useMemo(() => ({ frameWordsBeingEdited, editTheFrameWords: setFrameWordsBeingEdited }), [frameWordsBeingEdited]);
+  const [frameIdWhoseColourIsPicked, setFrameIdWhoseColourIsPicked] = useState<string | null>(null);
+  const frameWhoseColourIsPicked = frames.find((frame) => frame.frame_id === frameIdWhoseColourIsPicked) ?? null;
+  const frameColoursUsed = useMemo(() => frameColoursUsedBeyondThePresets(frames), [frames]);
+  const cardAndFrameEditing = useMemo(
+    () => (editing === null ? null : { onFrameChanged: editing.onFrameChanged, onFrameRemoved: editing.onFrameRemoved, onCardCollapsed: editing.onCardCollapsed }),
+    [editing],
+  );
 
   const frameSelectionDisabledReason = selectedIds.size === 0 ? "Select the nodes to frame first" : null;
+  const subgraphDisabledReason = selectedIds.size === 0 ? "Select the nodes to collapse into a subgraph first" : null;
+  const collapseTheSelectionIntoASubgraph = useCallback(() => {
+    if (editing !== null && selectedIds.size > 0) editing.onSubgraphAskedFor([...selectedIds]);
+  }, [editing, selectedIds]);
   const onToolbarToolsChanged = toolsInTheWindowToolbar?.onToolsChanged;
   const isEditable = editing !== null;
   useEffect(() => {
@@ -1140,9 +1369,9 @@ function NodeGraphFlow({
       { tool: "add_node", disabled_reason: disabledReasonWhileReadOnly },
       { tool: "frame_selection", disabled_reason: disabledReasonWhileReadOnly ?? frameSelectionDisabledReason },
       { tool: "add_note", disabled_reason: disabledReasonWhileReadOnly },
-      { tool: "add_subgraph", disabled_reason: disabledReasonWhileReadOnly ?? SUBGRAPH_NOT_BUILT_YET },
+      { tool: "add_subgraph", disabled_reason: disabledReasonWhileReadOnly ?? subgraphDisabledReason },
     ]);
-  }, [onToolbarToolsChanged, isEditable, frameSelectionDisabledReason]);
+  }, [onToolbarToolsChanged, isEditable, frameSelectionDisabledReason, subgraphDisabledReason]);
   useEffect(() => {
     if (onToolbarToolsChanged === undefined) return;
     return () => onToolbarToolsChanged(NODE_GRAPH_TOOLS_WHILE_NO_GRAPH_IS_SHOWN);
@@ -1154,16 +1383,32 @@ function NodeGraphFlow({
       if (editing === null) return;
       if (tool === "add_node") editing.onNodeAskedFor(clearPlaceBroughtIntoView());
       else if (tool === "add_note") editing.onNoteAskedFor(clearPlaceBroughtIntoView());
-      else if (tool === "frame_selection" && selectedIds.size > 0) frameTheSelection();
+      else if (tool === "frame_selection" && selectedIds.size > 0) {
+        // The frame's title field opens only once the runtime answers; the canvas holds focus meanwhile so what is typed reaches it.
+        canvasElement.current?.focus({ preventScroll: true });
+        frameTheSelection();
+      }
+      else if (tool === "add_subgraph") collapseTheSelectionIntoASubgraph();
     };
     return () => {
       pressFromTheToolbar.current = null;
     };
-  }, [pressFromTheToolbar, editing, clearPlaceBroughtIntoView, frameTheSelection, selectedIds]);
+  }, [pressFromTheToolbar, editing, clearPlaceBroughtIntoView, frameTheSelection, collapseTheSelectionIntoASubgraph, selectedIds]);
 
   const followTheKeys = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (editing === null || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) return;
+      const titleTyped = titleTypedWhileTheFrameIsMade.current;
+      if (frameIdsWhenAFrameWasAskedFor.current !== null && !titleTyped.isEntered && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        if (event.key.length === 1) titleTyped.typed += event.key;
+        else if (event.key === "Backspace") titleTyped.typed = titleTyped.typed.slice(0, -1);
+        else if (event.key === "Enter") titleTyped.isEntered = true;
+        else if (event.key === "Escape") titleTypedWhileTheFrameIsMade.current = { typed: "", isEntered: true };
+        if (event.key.length === 1 || event.key === "Backspace" || event.key === "Enter" || event.key === "Escape") {
+          event.preventDefault();
+          return;
+        }
+      }
       const isOnAControl = event.target instanceof Element && event.target.closest("button, a, select, [role=menuitem]") !== null;
       if (event.key === "Tab" && !isOnAControl && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault();
@@ -1175,6 +1420,9 @@ function NodeGraphFlow({
       ) {
         event.preventDefault();
         frameTheSelection();
+      } else if (selectedIds.size > 0 && (event.key === "g" || event.key === "G") && (event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey) {
+        event.preventDefault();
+        collapseTheSelectionIntoASubgraph();
       } else if (event.key === "Backspace" || event.key === "Delete") {
         if (selectedIds.size === 0 && selectedLinkIds.size === 0 && selectedNoteIds.size === 0) return;
         event.preventDefault();
@@ -1187,7 +1435,7 @@ function NodeGraphFlow({
         }
       }
     },
-    [editing, middleOfTheView, selectedIds, selectedLinkIds, selectedNoteIds, frameTheSelection, onNodeSelected],
+    [editing, middleOfTheView, selectedIds, selectedLinkIds, selectedNoteIds, frameTheSelection, collapseTheSelectionIntoASubgraph, onNodeSelected],
   );
 
   return (
@@ -1196,7 +1444,9 @@ function NodeGraphFlow({
         <NodeGraphNoteEditingContext value={editing?.onNoteChanged ?? null}>
         <NodeGraphNoteResizingContext value={editing === null ? null : keepTheResizedNote}>
           <NodeGraphCardAndFrameEditingContext value={cardAndFrameEditing}>
-            <NodeGraphFrameRenamingContext value={frameRenaming}>
+            <NodeGraphFrameWordsEditingContext value={frameWordsEditing}>
+            <NodeGraphFrameColoursUsedContext value={frameColoursUsed}>
+            <NodeGraphFrameColourPickingContext value={setFrameIdWhoseColourIsPicked}>
           <NodeGraphLinkedPinsContext value={linkedPins}>
             <div
               ref={canvasElement}
@@ -1204,6 +1454,9 @@ function NodeGraphFlow({
               tabIndex={editing === null ? undefined : 0}
               onKeyDown={followTheKeys}
               onPointerMove={(event: ReactPointerEvent<HTMLDivElement>) => {
+                pointerRestsAt.current = canvasPointOf({ x: event.clientX, y: event.clientY });
+              }}
+              onPointerDownCapture={(event: ReactPointerEvent<HTMLDivElement>) => {
                 pointerRestsAt.current = canvasPointOf({ x: event.clientX, y: event.clientY });
               }}
               data-node-graph-editable={editing !== null || undefined}
@@ -1223,6 +1476,9 @@ function NodeGraphFlow({
                 onNodeDragStop={(_event, _node, draggedNodes) => keepTheMovedCards(draggedNodes)}
                 onMoveEnd={(event, viewport) => {
                   if (event !== null && hasBeenFramed) onViewportLeft?.({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
+                }}
+                onNodeDoubleClick={(_event, flowNode) => {
+                  if (flowNode.type === "node_graph_card" && (nodeById.get(flowNode.id)?.subgraph ?? null) !== null) onSubgraphOpened?.(flowNode.id);
                 }}
                 onConnect={wireThePins}
                 onConnectEnd={followTheWireLetGo}
@@ -1297,7 +1553,24 @@ function NodeGraphFlow({
               </ReactFlow>
             </div>
           </NodeGraphLinkedPinsContext>
-            </NodeGraphFrameRenamingContext>
+            {cardAndFrameEditing !== null && (
+              <ColourPickerDialog
+                isOpen={frameWhoseColourIsPicked !== null}
+                onOpenChange={(isOpen) => {
+                  if (!isOpen) setFrameIdWhoseColourIsPicked(null);
+                }}
+                title={frameWhoseColourIsPicked === null ? "Frame color" : `Color of ${frameWhoseColourIsPicked.title}`}
+                startingColour={frameWhoseColourIsPicked?.colour !== null && frameWhoseColourIsPicked?.colour !== undefined && isAHexColour(frameWhoseColourIsPicked.colour) ? frameWhoseColourIsPicked.colour : (NODE_GRAPH_FRAME_COLOURS[0]?.colour ?? "#ffffff")}
+                recentColours={frameColoursUsed}
+                onColourPicked={(colour) => {
+                  if (frameWhoseColourIsPicked !== null) cardAndFrameEditing.onFrameChanged(frameWhoseColourIsPicked.frame_id, { colour });
+                }}
+                data-node-graph-frame-colour-picker=""
+              />
+            )}
+            </NodeGraphFrameColourPickingContext>
+            </NodeGraphFrameColoursUsedContext>
+            </NodeGraphFrameWordsEditingContext>
           </NodeGraphCardAndFrameEditingContext>
         </NodeGraphNoteResizingContext>
         </NodeGraphNoteEditingContext>
@@ -1325,6 +1598,7 @@ export function NodeGraphCanvas({
   toolsInTheWindowToolbar = null,
   viewportWhereItWasLeft = null,
   onViewportLeft = null,
+  onSubgraphOpened = null,
   overlay,
   ...controlDataAttributes
 }: {
@@ -1343,6 +1617,8 @@ export function NodeGraphCanvas({
   viewportWhereItWasLeft?: NodeGraphCanvasViewport | null;
   /** Told where the person leaves the pan and zoom after each pan or zoom of theirs. */
   onViewportLeft?: ((viewport: NodeGraphCanvasViewport) => void) | null;
+  /** Told when a person double-clicks a card that holds a subgraph, to step inside it; `null` steps nowhere. */
+  onSubgraphOpened?: ((nodeId: string) => void) | null;
   overlay?: ReactNode;
 } & ControlDataAttributes) {
   return (
@@ -1360,6 +1636,7 @@ export function NodeGraphCanvas({
           toolsInTheWindowToolbar={toolsInTheWindowToolbar}
           viewportWhereItWasLeft={viewportWhereItWasLeft}
           onViewportLeft={onViewportLeft}
+          onSubgraphOpened={onSubgraphOpened}
           overlay={overlay}
         />
       </ReactFlowProvider>

@@ -12,6 +12,7 @@ import {
   type StreamGraphNodeStudioFields,
   type StreamGraphSummary,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { castAsTheRuntimeNamesAnUnnamedNode, nodeTypeClassName } from "../shared/node_words";
 
 /** A point on the canvas. */
 export interface StreamGraphCanvasPosition {
@@ -91,15 +92,17 @@ function nodeIdOf(edited: EditedStreamGraph, nodeName: string): string | null {
   return edited.nodeIdByName.get(nodeName) ?? null;
 }
 
-/** Each moved card's new place: its node's studio fields as they are, with the new position. */
-export function cardsMovedEdits(edited: EditedStreamGraph, moves: readonly { node_id: string; position: StreamGraphCanvasPosition }[]): StreamGraphAction[] {
+/** Each moved card's new place and the group it now belongs to: its node's studio fields as they are, with the new position and group. */
+export function cardsMovedEdits(edited: EditedStreamGraph, moves: readonly { node_id: string; position: StreamGraphCanvasPosition; frame_id: string | null }[]): StreamGraphAction[] {
   return moves.flatMap((move) => {
     const node = edited.graph.nodes.find((graphNode) => graphNode.name === move.node_id);
     if (node === undefined) return [];
     const position = toTheCanvasPixel(move.position);
     const studio = studioToBuildOn(edited, node);
-    if (studio.position !== null && studio.position[0] === position[0] && studio.position[1] === position[1]) return [];
-    return [{ operation: "set_studio_fields", stream: edited.streamAsset, node: node.id, studio: studioObjectOf({ ...studio, position }) }];
+    const group = move.frame_id;
+    const isWhereItWas = studio.position !== null && studio.position[0] === position[0] && studio.position[1] === position[1];
+    if (isWhereItWas && studio.group === group) return [];
+    return [{ operation: "set_studio_fields", stream: edited.streamAsset, node: node.id, studio: studioObjectOf({ ...studio, position, group }) }];
   });
 }
 
@@ -199,12 +202,23 @@ export function selectionFramedEdits(edited: EditedStreamGraph, nodeNames: reado
   return nodes.length === 0 ? [] : [{ operation: "add_group", stream: edited.streamAsset, title: PLACED_FRAME_TITLE, nodes }];
 }
 
-/** A frame's new title; a blank one is no edit, since the runtime refuses a group with no title. */
-export function frameRenamedEdits(edited: EditedStreamGraph, group: string, title: string): StreamGraphAction[] {
-  const trimmedTitle = title.trim();
+/** A frame's new title, description or colour, each one that differs from the frame's; a blank title is no edit, since the runtime refuses a group with no title. */
+export function frameChangedEdits(edited: EditedStreamGraph, group: string, change: { title?: string; description?: string; colour?: string }): StreamGraphAction[] {
   const frame = edited.graph.groups.find((graphGroup) => graphGroup.id === group);
-  if (frame === undefined || trimmedTitle === "" || trimmedTitle === frame.title) return [];
-  return [{ operation: "set_group_fields", stream: edited.streamAsset, group, title: trimmedTitle }];
+  if (frame === undefined) return [];
+  const title = change.title?.trim();
+  const description = change.description?.trim();
+  const changedFields = {
+    ...(title === undefined || title === "" || title === frame.title ? {} : { title }),
+    ...(description === undefined || description === (frame.description ?? "") ? {} : { description }),
+    ...(change.colour === undefined || change.colour === frame.colour ? {} : { colour: change.colour }),
+  };
+  return Object.keys(changedFields).length === 0 ? [] : [{ operation: "set_group_fields", stream: edited.streamAsset, group, ...changedFields }];
+}
+
+/** A frame taken out, its nodes left where they are, ungrouped. */
+export function frameRemovedEdits(edited: EditedStreamGraph, group: string): StreamGraphAction[] {
+  return edited.graph.groups.some((graphGroup) => graphGroup.id === group) ? [{ operation: "remove_group", stream: edited.streamAsset, group }] : [];
 }
 
 /** A card collapsed to its header, or opened again: its node's studio fields as they are, with `collapsed`. */
@@ -237,4 +251,51 @@ export function noteChangedEdits(
       ...(change.size === undefined ? {} : { size: toTheCanvasPixel({ x: change.size.width, y: change.size.height }) }),
     },
   ];
+}
+
+/** What a collapsed selection's subgraph is named: `subgraph`, or the first of `subgraph-2`, `subgraph-3` … no node of the graph has. */
+export function nameOfTheNewSubgraph(graph: Pick<StreamGraphSummary, "nodes">): string {
+  const takenNames = new Set(graph.nodes.map((node) => node.name));
+  let name = "subgraph";
+  for (let suffix = 2; takenNames.has(name); suffix += 1) name = `subgraph-${suffix}`;
+  return name;
+}
+
+/** The selected cards collapsed into one new subgraph named `subgraphName`, which the runtime makes an authored fragment wired as they were. */
+export function selectionCollapsedEdits(edited: EditedStreamGraph, nodeNames: readonly string[], subgraphName: string): StreamGraphAction[] {
+  const nodes = nodeNames.flatMap((nodeName) => {
+    const nodeId = edited.nodeIdByName.get(nodeName);
+    return nodeId === undefined ? [] : [nodeId];
+  });
+  return nodes.length === 0 ? [] : [{ operation: "collapse_selection_into_subgraph", stream: edited.streamAsset, nodes, name: subgraphName }];
+}
+
+/** A subgraph unlocked: its nodes become plain nodes of the stream, wired as they were. */
+export function subgraphUnlockedEdits(edited: EditedStreamGraph, subgraphName: string): StreamGraphAction[] {
+  const fragment = edited.nodeIdByName.get(subgraphName);
+  return fragment === undefined ? [] : [{ operation: "unlock_generator_fragment", stream: edited.streamAsset, fragment }];
+}
+
+/** The name a newly placed generator's subgraph takes: the generator function's name as the runtime casts it, with the next free `-2`, `-3` … so it never refreshes a subgraph the graph holds already. */
+export function nameOfTheNewGeneratorSubgraph(graph: Pick<StreamGraphSummary, "nodes">, generator: string): string {
+  const takenNames = new Set(graph.nodes.map((node) => node.name));
+  const functionName = castAsTheRuntimeNamesAnUnnamedNode(nodeTypeClassName(generator));
+  let name = functionName;
+  for (let suffix = 2; takenNames.has(name); suffix += 1) name = `${functionName}-${suffix}`;
+  return name;
+}
+
+/** A graph generator run and its subgraph placed with its card at `position`, under a name no node holds. */
+export function generatorSubgraphPlacedEdits(edited: EditedStreamGraph, generator: string, position: StreamGraphCanvasPosition): StreamGraphAction[] {
+  return [
+    { operation: "import_graph_generator", stream: edited.streamAsset, generator, name: nameOfTheNewGeneratorSubgraph(edited.graph, generator), as: NODE_PLACED_IN_THIS_TRANSACTION },
+    { operation: "set_studio_fields", stream: edited.streamAsset, node: NODE_PLACED_IN_THIS_TRANSACTION, studio: { position: toTheCanvasPixel(position) } },
+  ];
+}
+
+/** A graph generator's subgraph run again from its code with the settings it holds, which the runtime replaces in place under its name. */
+export function subgraphRefreshedEdits(edited: EditedStreamGraph, subgraphName: string): StreamGraphAction[] {
+  const subgraph = edited.graph.nodes.find((node) => node.name === subgraphName);
+  if (subgraph === undefined || subgraph.fragment?.kind !== "generated") return [];
+  return [{ operation: "import_graph_generator", stream: edited.streamAsset, generator: subgraph.type, name: subgraph.name, config: subgraph.config }];
 }

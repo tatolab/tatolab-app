@@ -5,7 +5,7 @@ import { outputPortTheViewerPlays, portTheViewerPlays, viewerChosenPortOf } from
 const STREAM = "show-main-0a1b2c";
 
 function nodeWithOutputs(name: string, outputPorts: StreamGraphNode["output_ports"]): StreamGraphNode {
-  return { id: `id-${name}`, name, type: "Processor", state: "Running", failed_because: null, config: {}, input_ports: [], output_ports: outputPorts, dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET };
+  return { id: `id-${name}`, name, type: "Processor", state: "Running", failed_because: null, process_raising_because: null, config: {}, input_ports: [], output_ports: outputPorts, dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null };
 }
 
 const CAMERA = nodeWithOutputs("camera", [{ name: "video", family: "image", stream_facts: null, values_checked: null }]);

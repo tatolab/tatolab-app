@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { NodeCatalogEntry, ProjectNodeTypeListing } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { nodeTypeSearchItems, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
+import { GRAPH_GENERATORS_SEARCH_CATEGORY, graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeSearchItems, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
 
 const catalogEntry = (type: string, description: string, inputs: [string, "image" | "array" | null][], outputs: [string, "image" | "array" | null][]): NodeCatalogEntry => ({
   type,
@@ -51,4 +51,22 @@ test("offers each node type the project and its imports declare, not an installe
   expect(offered[1]).toEqual({ type: "nodes.invert:Invert", description: "Inverts each frame", config_schema: null, inputs: [{ name: "video_in", description: "", family: "image" }], outputs: [{ name: "video_out", description: "", family: "image" }] });
   expect(offered[2]?.inputs).toEqual([]);
   expect(nodeTypesTheSearchOffers([BLUR], null)).toEqual([BLUR]);
+});
+
+test("each_graph_generator_of_the_projects_own_source_is_offered_as_a_subgraph_and_none_for_a_loose_wire", () => {
+  const listing: ProjectNodeTypeListing = {
+    project_directory: "/p",
+    project: "p-uuid",
+    project_name: "Night Show",
+    sources: [
+      { origin: { source: "project" }, node_types: [], graph_generators: [{ generator: "generators.mics:mic_levels", description: "A level meter per microphone", promoted_config: [], path: "generators/mics.py", line: 3 }], unreadable_modules: [] },
+      { origin: { source: "dependency", project: "lights-uuid", folder: "lights", version: "1.0.0" }, node_types: [], graph_generators: [{ generator: "generators.dmx:fixtures", description: "", promoted_config: [], path: "imports/lights/generators/dmx.py", line: 1 }], unreadable_modules: [] },
+    ],
+  };
+  const offered = graphGeneratorSearchItems(listing, null);
+  expect(offered).toEqual([{ item_id: "graph_generator:generators.mics:mic_levels", title: "Mic Levels", summary: "A level meter per microphone", category: GRAPH_GENERATORS_SEARCH_CATEGORY }]);
+  expect(offered.map((item) => graphGeneratorOfTheSearchItem(item.item_id))).toEqual(["generators.mics:mic_levels"]);
+  expect(graphGeneratorOfTheSearchItem("nodes.blur:GaussianBlur")).toBeNull();
+  expect(graphGeneratorSearchItems(listing, { side: "output", family: "image" })).toEqual([]);
+  expect(graphGeneratorSearchItems(null, null)).toEqual([]);
 });

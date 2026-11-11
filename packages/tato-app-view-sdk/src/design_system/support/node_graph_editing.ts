@@ -1,6 +1,6 @@
 // What the node graph canvas decides on its own while a person edits a graph: whether two pins can be
-// wired, the rectangle a labelled frame is drawn around its cards with, and which link a dropped card
-// lands on.
+// wired, the rectangle a labelled frame is drawn around its cards with, which frame a dropped card
+// belongs to, and which link a dropped card lands on.
 
 import type { NodeGraphPosition } from "./node_graph_layout";
 
@@ -44,6 +44,25 @@ export function frameRectangleAroundCards(cards: readonly NodeGraphCardRectangle
     width: right - left + NODE_GRAPH_FRAME_PADDING * 2,
     height: bottom - top + NODE_GRAPH_FRAME_PADDING * 2 + NODE_GRAPH_FRAME_TITLE_ROOM,
   };
+}
+
+/** A frame's rectangle drawn around its cards that were not dragged, by its id; `null` when every card of the frame was dragged. */
+export interface NodeGraphFrameLeftStanding {
+  frame_id: string;
+  rectangle: NodeGraphFrameRectangle | null;
+}
+
+function isInsideTheFrame(point: NodeGraphPosition, rectangle: NodeGraphFrameRectangle): boolean {
+  return point.x >= rectangle.x && point.x <= rectangle.x + rectangle.width && point.y >= rectangle.y && point.y <= rectangle.y + rectangle.height;
+}
+
+/** The frame a dragged card belongs to once let go, judged by its centre: it stays in its own frame while inside it, or while the whole frame moved with it; otherwise it joins the smallest frame it lands inside, or none. */
+export function frameACardIsLetGoIn(card: NodeGraphCardRectangle, cardsFrameId: string | null, framesLeftStanding: readonly NodeGraphFrameLeftStanding[]): string | null {
+  const centre = { x: card.position.x + card.width / 2, y: card.position.y + card.height / 2 };
+  const ownFrame = cardsFrameId === null ? undefined : framesLeftStanding.find((frame) => frame.frame_id === cardsFrameId);
+  if (cardsFrameId !== null && (ownFrame === undefined || ownFrame.rectangle === null || isInsideTheFrame(centre, ownFrame.rectangle))) return cardsFrameId;
+  const framesLandedIn = framesLeftStanding.flatMap(({ frame_id, rectangle }) => (rectangle !== null && isInsideTheFrame(centre, rectangle) ? [{ frame_id, area: rectangle.width * rectangle.height }] : []));
+  return framesLandedIn.reduce<{ frame_id: string; area: number } | null>((smallest, candidate) => (smallest === null || candidate.area < smallest.area ? candidate : smallest), null)?.frame_id ?? null;
 }
 
 /** A link's midpoint on the canvas, by its id. */

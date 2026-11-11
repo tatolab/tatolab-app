@@ -59,8 +59,8 @@ function graphNodeRow(stream: ListedStream, projectName: string, node: StreamGra
     row: {
       row_id: nodeRowId(stream.stream, node.name),
       label: nodeTitle(node.name, node.type),
-      icon: node.failed_because === null ? "graph_node" : "failed",
-      tone: node.failed_because === null ? undefined : "failed",
+      icon: node.failed_because === null && node.process_raising_because === null ? "graph_node" : "failed",
+      tone: node.failed_because === null && node.process_raising_because === null ? undefined : "failed",
       aside: nodeTypeClassName(node.type),
     },
     meaning: { kind: "node", stream: stream.stream, node: node.name, display_name: stream.display_name, project_name: projectName },

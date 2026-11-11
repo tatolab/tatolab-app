@@ -32,6 +32,7 @@ import type {
   JsonValue,
 } from "../shared/tatolab_backend_contract.js";
 import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_apps_child.js";
+import type { ProjectVenvSyncsOnTheStreamActionsFeed } from "./project_venv_syncs_on_the_stream_actions_feed.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
@@ -92,6 +93,8 @@ export interface TatolabAppControllerSources {
   readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion;
   /** Called each time the app's runtime exits, so the status is read again at once. */
   whenTheRuntimeExits: () => void;
+  /** Each project's `.venv` sync, followed on the runtime's stream actions while it answers. */
+  projectVenvSyncsOnTheStreamActionsFeed: Pick<ProjectVenvSyncsOnTheStreamActionsFeed, "keepFollowing" | "takeTheProjectVenvSyncs">;
   tatolabAppLog: TatolabAppLog;
 }
 
@@ -115,6 +118,7 @@ export class TatolabAppController {
     private readonly readDeveloperMode: () => boolean,
     private readonly readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion,
     private readonly tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin,
+    private readonly projectVenvSyncsOnTheStreamActionsFeed: TatolabAppControllerSources["projectVenvSyncsOnTheStreamActionsFeed"],
     private readonly tatolabAppLog: TatolabAppLog,
   ) {}
 
@@ -140,6 +144,7 @@ export class TatolabAppController {
       sources.readDeveloperMode,
       sources.readTheCommandLineToolVersion,
       sources.platformForThisBuild.tatolabAppOpenedAtLogin,
+      sources.projectVenvSyncsOnTheStreamActionsFeed,
       sources.tatolabAppLog,
     );
   }
@@ -198,6 +203,7 @@ export class TatolabAppController {
     } else {
       this.machineNameOfTheRunningRuntime.runtimeIsDown();
     }
+    this.projectVenvSyncsOnTheStreamActionsFeed.keepFollowing(healthCheck.ok);
     this.carriedRuntimeRunAsTheAppsChild.keepTheRuntimeRunning(healthCheck.ok, nowMs);
     const { runtimeState, runtimeNotRunningBecause } = this.carriedRuntimeRunAsTheAppsChild.runtimeStateNow(healthCheck.ok, nowMs);
     if (this.runtimeNotRunningOnset.conditionJustStartedHolding(runtimeState === "not_running") && !healthCheck.ok) {
@@ -207,6 +213,7 @@ export class TatolabAppController {
       });
     }
 
+    const { underWay, justEnded } = this.projectVenvSyncsOnTheStreamActionsFeed.takeTheProjectVenvSyncs();
     return {
       app_version: this.appVersion,
       app_build: this.appBuild,
@@ -215,6 +222,8 @@ export class TatolabAppController {
       runtime_not_running_because: runtimeNotRunningBecause,
       machine_name: machineName,
       streams,
+      project_venv_syncs_under_way: underWay,
+      project_venv_syncs_just_ended: justEnded,
       streams_not_listed_because: streamsNotListedBecause,
       command_line_tool_link: await this.commandLineToolLink.observeTheLink(),
       app_update: this.readTheAppUpdateState(),

@@ -147,6 +147,8 @@ export const streamGraphNodeSchema = z.object({
   state: z.string().nullable(),
   /** Why it failed, in the runtime's own words: set while it reads `Error`, `null` otherwise. */
   failed_because: z.string().nullable(),
+  /** What its `process()` last raised, in the runtime's own words, while it keeps raising and stays `Running`; `null` once a call runs cleanly, and for a node that never raised. */
+  process_raising_because: z.string().nullable(),
   /** Its config as the graph renders it; `{}` when it renders none. */
   config: z.record(z.string(), jsonValueSchema),
   /** The value set on each unlinked input, by input name, as the graph's `pins` renders it; an input left at its port's default is absent. */
@@ -159,9 +161,32 @@ export const streamGraphNodeSchema = z.object({
   refused_bags_by_output_port: z.record(z.string(), z.number()),
   /** What Tato Studio draws it with, from its `studio` key under the runtime's studio contract. */
   studio: streamGraphNodeStudioFieldsSchema,
+  /** What it holds when it is a subgraph, from its `fragment` key; `null` on every other node. */
+  get fragment() {
+    return streamGraphFragmentSchema.nullable();
+  },
 });
 /** One node of a stream's graph. */
 export type StreamGraphNode = z.infer<typeof streamGraphNodeSchema>;
+
+/** How a subgraph came to be: `generated` is a `@graph_generator`'s frozen output, its node's `type` the generator; `authored` a collapsed selection (`tatolab.project:AuthoredFragment`); `placed_stream` another stream placed by reference (`tatolab.project:StreamFragment`). */
+export const streamGraphFragmentKindSchema = z.enum(["generated", "authored", "placed_stream"]);
+/** How a subgraph came to be. */
+export type StreamGraphFragmentKind = z.infer<typeof streamGraphFragmentKindSchema>;
+
+/** The graph a subgraph node holds: its nodes, each read as a stream's node is, the links between them and its labelled groups. */
+export const streamGraphFragmentSchema = z.object({
+  kind: streamGraphFragmentKindSchema,
+  get nodes() {
+    return z.array(streamGraphNodeSchema);
+  },
+  get links() {
+    return z.array(streamGraphLinkSchema);
+  },
+  groups: z.array(streamGraphGroupSchema),
+});
+/** The graph a subgraph node holds. */
+export type StreamGraphFragment = z.infer<typeof streamGraphFragmentSchema>;
 
 /** One link of a stream's graph, from an output port to an input port; the source may be in another stream. */
 export const streamGraphLinkSchema = z.object({

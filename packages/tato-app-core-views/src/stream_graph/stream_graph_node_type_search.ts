@@ -1,6 +1,6 @@
-// The node types the Add node search offers over a stream's graph: each type its stream's catalog lists and each
-// its project's sources declare, titled in words and listed under its module, and, for a wire dragged off a pin,
-// only those that can take the wire.
+// What the Add node search offers over a stream's graph: each node type its stream's catalog lists and each its
+// project's sources declare, titled in words and listed under its module, then each graph generator the project's
+// own source declares, placed as a subgraph; for a wire dragged off a pin, only the node types that can take it.
 
 import type { SearchPopoverItem } from "@tatolab/tato-app-view-sdk/design_system/support/search_popover_rows";
 import type { NodeCatalogEntry, ProjectNodeType, ProjectNodeTypeListing } from "@tatolab/tato-app-view-sdk/studio_readings";
@@ -33,4 +33,28 @@ export function nodeTypesTheSearchOffers(catalog: readonly NodeCatalogEntry[], p
     if (!offeredByType.has(declared.type)) offeredByType.set(declared.type, catalogEntryOfTheDeclaration(declared));
   }
   return [...offeredByType.values()];
+}
+
+const GRAPH_GENERATOR_SEARCH_ITEM_PREFIX = "graph_generator:";
+
+/** The category the search lists graph generators under. */
+export const GRAPH_GENERATORS_SEARCH_CATEGORY = "Subgraphs from code";
+
+/** Each graph generator the project's own source declares, offered to place as a subgraph; none for a loose wire, since a generator's ports are known only once it runs. */
+export function graphGeneratorSearchItems(projectNodeTypes: ProjectNodeTypeListing | null, looseWire: Pick<LooseWire, "side" | "family"> | null): SearchPopoverItem[] {
+  if (looseWire !== null) return [];
+  return (projectNodeTypes?.sources ?? [])
+    .filter(({ origin }) => origin.source === "project")
+    .flatMap((source) => source.graph_generators)
+    .map((graphGenerator) => ({
+      item_id: `${GRAPH_GENERATOR_SEARCH_ITEM_PREFIX}${graphGenerator.generator}`,
+      title: nameInWords(nodeTypeClassName(graphGenerator.generator)),
+      summary: graphGenerator.description,
+      category: GRAPH_GENERATORS_SEARCH_CATEGORY,
+    }));
+}
+
+/** The `<module>:<function>` a search item places, or `null` for a node type's item. */
+export function graphGeneratorOfTheSearchItem(itemId: string): string | null {
+  return itemId.startsWith(GRAPH_GENERATOR_SEARCH_ITEM_PREFIX) ? itemId.slice(GRAPH_GENERATOR_SEARCH_ITEM_PREFIX.length) : null;
 }

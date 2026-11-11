@@ -11,6 +11,7 @@
 @import "./base.css" layer(base);
 @import "@xyflow/react/dist/base.css" layer(components);
 @import "./node_graph_canvas.css" layer(components);
+@import "./colour_picker.css" layer(components);
 
 /* The design system's components, wherever the page importing this sheet lives. Tailwind finds a page's own classes only under
    its Vite root, so a view built outside that root imports this sheet from a sheet of its own that adds `@source "./";`. */

@@ -2,9 +2,9 @@
 // document — node ids, config, ports, components with state and metrics, link ids and ends,
 // `machine` — and the summary the main process would read from it.
 
-import { mockGraphNodeIdOf, type MockStreamGraph } from "./mock_stream_fixtures";
+import { mockGraphNodeIdOf, type MockGraphNode, type MockStreamGraph } from "./mock_stream_fixtures";
 import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { JsonValue, ListedStream, PortStreamFacts, StreamGraphDeclaredPort, StreamGraphNode, StreamGraphNodeStudioFields, StreamGraphSummary } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, ListedStream, PortStreamFacts, StreamGraphDeclaredPort, StreamGraphLink, StreamGraphNode, StreamGraphNodeStudioFields, StreamGraphSummary } from "../src/shared/tatolab_backend_contract";
 
 /** Where a mock stream's run stands when its graph is read. */
 export interface MockStreamGraphMoment {
@@ -74,27 +74,39 @@ export function mockStreamGraphSummary(
   const nodeState = (state: string | null) => (state === null ? null : moment.hasSettled ? state : "Pending");
   const linkState = (state: string) => (moment.hasSettled ? state : "pending");
   const climbed = (perSecond: number) => (moment.hasSettled ? Math.floor(perSecond * moment.secondsSinceSettled) : 0);
-  const nodes: StreamGraphNode[] = graph.nodes.map((node) => ({
-    id: mockGraphNodeIdOf(streamId, node),
-    name: node.name,
-    type: node.type,
-    state: nodeState(node.state),
-    failed_because: moment.hasSettled ? (node.failed_because ?? null) : null,
-    config: node.config,
-    pins: node.pins ?? {},
-    input_ports: servedPorts(node.input_ports),
-    output_ports: servedPorts(node.output_ports),
-    dropped_bags_by_link: Object.fromEntries(
-      graph.links.filter((link) => link.target_node === node.name).map((link) => [link.id, climbed(graph.counterRates.droppedPerSecondByLinkId[link.id] ?? 0)]),
-    ),
-    refused_bags_by_output_port: Object.fromEntries(
-      [...new Set([...graph.links.filter((link) => link.source_node === node.name).map((link) => link.source_port)])].map((port) => [
-        port,
-        climbed(graph.counterRates.refusedPerSecondByOutput.find((output) => output.node === node.name && output.port === port)?.perSecond ?? 0),
-      ]),
-    ),
-    studio: node.studio ?? NODE_STUDIO_FIELDS_NONE_SET,
-  }));
+  const nodesOfTheLevel = (levelNodes: MockGraphNode[], levelLinks: StreamGraphLink[]): StreamGraphNode[] =>
+    levelNodes.map((node) => ({
+      id: mockGraphNodeIdOf(streamId, node),
+      name: node.name,
+      type: node.type,
+      state: nodeState(node.state),
+      failed_because: moment.hasSettled ? (node.failed_because ?? null) : null,
+      process_raising_because: moment.hasSettled ? (node.process_raising_because ?? null) : null,
+      config: node.config,
+      pins: node.pins ?? {},
+      input_ports: servedPorts(node.input_ports),
+      output_ports: servedPorts(node.output_ports),
+      dropped_bags_by_link: Object.fromEntries(
+        levelLinks.filter((link) => link.target_node === node.name).map((link) => [link.id, climbed(graph.counterRates.droppedPerSecondByLinkId[link.id] ?? 0)]),
+      ),
+      refused_bags_by_output_port: Object.fromEntries(
+        [...new Set([...levelLinks.filter((link) => link.source_node === node.name).map((link) => link.source_port)])].map((port) => [
+          port,
+          climbed(graph.counterRates.refusedPerSecondByOutput.find((output) => output.node === node.name && output.port === port)?.perSecond ?? 0),
+        ]),
+      ),
+      studio: node.studio ?? NODE_STUDIO_FIELDS_NONE_SET,
+      fragment:
+        node.fragment === undefined
+          ? null
+          : {
+              kind: node.fragment.kind,
+              nodes: nodesOfTheLevel(node.fragment.nodes, node.fragment.links),
+              links: node.fragment.links.map((link) => ({ ...link, state: linkState(link.state) })),
+              groups: node.fragment.groups,
+            },
+    }));
+  const nodes = nodesOfTheLevel(graph.nodes, graph.links);
   const groups = graph.groups ?? [];
   const notes = graph.notes ?? [];
   const graphDocument = {
@@ -129,6 +141,7 @@ export function mockStreamGraphSummary(
       components: node.state === null ? {} : {
         state: nodes[nodeIndex]?.state ?? null,
         failed_because: nodes[nodeIndex]?.failed_because ?? null,
+        process_raising_because: nodes[nodeIndex]?.process_raising_because ?? null,
         paused: false,
         metrics: {
           frames_dropped: 0,

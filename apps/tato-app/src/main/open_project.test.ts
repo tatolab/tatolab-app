@@ -167,7 +167,7 @@ function aFakeRuntimeChangingProjects(options: { deletionStates: readonly Stream
 
 /** The deletion of `projectDirectory` as `describe_stream_action` describes it in `state`. */
 function aDeletionIn(projectDirectory: string, state: string, failedBecause: string | null = null): StreamActionFollowed {
-  return { kind: "described", description: { action: "deletion-1", project_directory: projectDirectory, kind: "delete", state, step: null, streams: [], failed_because: failedBecause } };
+  return { kind: "described", description: { action: "deletion-1", project_directory: projectDirectory, kind: "delete", state, step: null, streams: [], failed_because: failedBecause, venv_sync: null } };
 }
 
 function refusalOfAFolderHoldingNoProject(folder: string): string {
