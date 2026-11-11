@@ -302,13 +302,24 @@ function theRuntimeListsEveryStreamOfTheProjectStopped(listedStreams: readonly L
   return listedStreams.every((listedStream) => listedStream.location?.project_directory !== projectDirectory || listedStream.state === "stopped");
 }
 
+/** Whether the runtime last listed a stream of `projectDirectory` running, paused or being started. */
+function theRuntimeRunsTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): boolean {
+  const listedStreams = sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [];
+  return listedStreams.some((listedStream) => listedStream.location?.project_directory === projectDirectory && STREAM_STATES_OF_A_PROJECT_THE_RUNTIME_RUNS.has(listedStream.state));
+}
+
 /** The runtime's `reload_project` queued on `projectDirectory` when it last listed a stream of it running, paused or being started, else its `start_project`. */
 function startOrReloadTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
-  const listedStreams = sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [];
-  const theRuntimeRunsTheProject = listedStreams.some(
-    (listedStream) => listedStream.location?.project_directory === projectDirectory && STREAM_STATES_OF_A_PROJECT_THE_RUNTIME_RUNS.has(listedStream.state),
-  );
-  return theRuntimeRunsTheProject ? sharedState.controller.reloadProject(projectDirectory) : sharedState.controller.startProject(projectDirectory);
+  return theRuntimeRunsTheProject(sharedState, projectDirectory) ? sharedState.controller.reloadProject(projectDirectory) : sharedState.controller.startProject(projectDirectory);
+}
+
+/** After a save of `savedFile`, a `.py` file of `projectDirectory`, the runtime's `reload_project` queued while it runs or is paused, as `tatolab dev` reloads on a save, so the saved node code runs; a stopped project is left stopped, and a refusal is logged in the runtime's own words. */
+export async function reloadTheRunningProjectAfterASavedPythonFile(sharedState: TatolabAppSharedState, projectDirectory: string, savedFile: string): Promise<void> {
+  if (path.extname(savedFile) !== ".py" || !theRuntimeRunsTheProject(sharedState, projectDirectory)) return;
+  const queued = await sharedState.controller.reloadProject(projectDirectory);
+  sharedState.statusPublisher.requestRefresh();
+  if (queued.ok) sharedState.tatolabAppLog.info("reloaded the project after a save of its Python file", { project_folder: projectDirectory, file: savedFile, action: queued.value.action });
+  else sharedState.tatolabAppLog.warn("the runtime refused the reload after a save of the project's Python file", { project_folder: projectDirectory, file: savedFile, refusal: queued.failure.failureDescription });
 }
 
 /** `reload_project { project_directory }`: a project the runtime lists read again from disk with `reload_project` while it runs, or started with `start_project` while it is stopped or failed, then a status round; refused in the runtime's own words. */
@@ -1126,7 +1137,9 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
       if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
       const { file, text, based_on_version } = saveArguments.value;
-      return commandAnswerFrom(await answerTheWindow("save_project_file", () => studioWindow.value.openProjectFiles.saveProjectFile(file, text, based_on_version)));
+      const saved = await answerTheWindow("save_project_file", () => studioWindow.value.openProjectFiles.saveProjectFile(file, text, based_on_version));
+      if (saved.ok) await reloadTheRunningProjectAfterASavedPythonFile(sharedState, studioWindow.value.openProject.projectFolder, file);
+      return commandAnswerFrom(saved);
     },
     create_node_file: async (commandArguments, commandFromWindow) => {
       const file = oneTextArgumentFrom("create_node_file", commandArguments, "file", "an absolute path for a new .py file in the open project");
