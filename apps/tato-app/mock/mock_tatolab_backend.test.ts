@@ -143,6 +143,25 @@ describe("the mock backend's stream actions", () => {
     expect((await settled(backend.describeStreamGraph(MAIN))).nodes[0]?.config).toEqual(firstNode.config);
   });
 
+  it("gives a committed group the same id in the running graph as in the saved one, so a later edit of it applies", async () => {
+    const { backend } = await runningMockBackend();
+    const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
+      await vi.advanceTimersByTimeAsync(100);
+      return answering;
+    };
+    const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
+    const firstNode = (await settled(backend.describeStreamGraph(MAIN))).nodes[0];
+    if (firstNode === undefined) return expect.unreachable("the main stream holds a node");
+
+    const grouped = await settled(backend.transactInTheOpenProject([{ operation: "add_group", stream: streamAsset, title: "Frame", nodes: [firstNode.id] }], "commit", null));
+    if (grouped.kind !== "applied") return expect.unreachable("the group was added");
+    const group = (await settled(backend.describeStreamGraph(MAIN))).groups[0];
+    expect(group?.id).toBe(grouped.transaction.added_groups[0]?.group);
+    const coloured = await settled(backend.transactInTheOpenProject([{ operation: "set_group_fields", stream: streamAsset, group: group?.id ?? "", colour: "#3fcf8e", description: "The source" }], "commit", null));
+    expect(coloured.kind).toBe("applied");
+    expect((await settled(backend.describeStreamGraph(MAIN))).groups[0]).toMatchObject({ colour: "#3fcf8e", description: "The source" });
+  });
+
   it("lists a record an earlier runtime wrote, failed with no location, with ?streams=earlier_record", async () => {
     vi.useFakeTimers();
     const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("streams=earlier_record")));

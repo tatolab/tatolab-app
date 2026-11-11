@@ -567,7 +567,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   /** Commit `operations`: applied to the saved graphs, which answer, then to the running ones. */
   const commitGraphActions = (operations: readonly StreamGraphAction[], applying: "a_transaction" | "undo_or_redo", historyOperationsReplayed: readonly JsonValue[] = []) => {
     const outcome = applyMockGraphTransaction(savedGraphTargetsOfTheOpenProject(), operations, applying, historyOperationsReplayed);
-    if (outcome.kind === "applied") applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations, applying, historyOperationsReplayed);
+    if (outcome.kind === "applied") applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations, applying, outcome.history_operations);
     return outcome;
   };
   /** `undoOrRedo`, its graph operations applied to the mock graphs as the runtime applies them; a transaction naming no graph changes none. */

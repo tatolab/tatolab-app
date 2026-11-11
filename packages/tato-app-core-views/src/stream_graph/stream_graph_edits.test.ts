@@ -8,7 +8,8 @@ import {
   deletedEdits,
   doesTheGraphShowTheStudioSentAhead,
   editedStreamGraphOf,
-  frameRenamedEdits,
+  frameChangedEdits,
+  frameRemovedEdits,
   studioFieldsSetBy,
   nodePlacedEdits,
   noteChangedEdits,
@@ -173,12 +174,24 @@ test("a_note_is_placed_at_the_point_and_its_change_sets_only_the_fields_that_cha
   ]);
 });
 
-test("a_frame_renamed_sets_its_title_trimmed_and_a_blank_or_unchanged_title_asks_nothing", () => {
+test("a_frame_changed_sets_only_the_fields_that_differ_trimmed_and_a_blank_title_or_nothing_changed_asks_nothing", () => {
+  const group = "21d9c0ee-a01d-40a0-ad61-bd05476819e7";
+  const framed = edited({ ...GRAPH, groups: [{ id: group, title: "Frame", description: null, colour: "#6f9bff" }] });
+  expect(frameChangedEdits(framed, group, { title: "  Titles " })).toEqual([{ operation: "set_group_fields", stream: STREAM_ASSET, group, title: "Titles" }]);
+  expect(frameChangedEdits(framed, group, { title: "   " })).toEqual([]);
+  expect(frameChangedEdits(framed, group, { title: "Frame" })).toEqual([]);
+  expect(frameChangedEdits(framed, group, { description: " The camera " })).toEqual([{ operation: "set_group_fields", stream: STREAM_ASSET, group, description: "The camera" }]);
+  expect(frameChangedEdits(framed, group, { description: "" })).toEqual([]);
+  expect(frameChangedEdits(framed, group, { colour: "#3fcf8e" })).toEqual([{ operation: "set_group_fields", stream: STREAM_ASSET, group, colour: "#3fcf8e" }]);
+  expect(frameChangedEdits(framed, group, { colour: "#6f9bff" })).toEqual([]);
+  expect(frameChangedEdits(framed, "another-group", { title: "Titles" })).toEqual([]);
+});
+
+test("a_frame_removed_takes_out_its_group_and_one_the_graph_does_not_hold_asks_nothing", () => {
   const group = "21d9c0ee-a01d-40a0-ad61-bd05476819e7";
   const framed = edited({ ...GRAPH, groups: [{ id: group, title: "Frame", description: null, colour: null }] });
-  expect(frameRenamedEdits(framed, group, "  Titles ")).toEqual([{ operation: "set_group_fields", stream: STREAM_ASSET, group, title: "Titles" }]);
-  expect(frameRenamedEdits(framed, group, "   ")).toEqual([]);
-  expect(frameRenamedEdits(framed, group, "Frame")).toEqual([]);
+  expect(frameRemovedEdits(framed, group)).toEqual([{ operation: "remove_group", stream: STREAM_ASSET, group }]);
+  expect(frameRemovedEdits(framed, "another-group")).toEqual([]);
 });
 
 test("a_card_collapsed_keeps_its_other_studio_fields_and_one_already_so_asks_nothing", () => {
