@@ -12,14 +12,9 @@ const PICTURE_TONE_CLASS_NAMES: Record<ProjectAssetPictureTone, string> = {
   other: "bg-studio-control",
 };
 
-/** Where an asset's picture is drawn: on its card, at the card's width, or atop its details, as a band of a fixed height. */
-export type ProjectAssetPictureSize = "card" | "details_band";
-
-const PICTURE_SIZE_CLASS_NAMES: Record<ProjectAssetPictureSize, string> = { card: "aspect-[16/9]", details_band: "h-24 shrink-0" };
-
-/** An asset's picture: tinted by what it is, with quiet words at its foot, as its format. */
-export function ProjectAssetPicture({ tone, words, size }: { tone: ProjectAssetPictureTone; words: string; size: ProjectAssetPictureSize }) {
-  return <span className={cn("flex w-full items-end rounded-[4px] px-1.5 py-1 text-2xs text-fg-2", PICTURE_SIZE_CLASS_NAMES[size], PICTURE_TONE_CLASS_NAMES[tone])}>{words}</span>;
+/** An asset's picture on its card: tinted by what it is, with quiet words at its foot, as its format. */
+function ProjectAssetPicture({ tone, words }: { tone: ProjectAssetPictureTone; words: string }) {
+  return <span className={cn("flex aspect-[16/9] w-full items-end rounded-[4px] px-1.5 py-1 text-2xs text-fg-2", PICTURE_TONE_CLASS_NAMES[tone])}>{words}</span>;
 }
 
 /** One asset in a grid of a project's assets: a tinted picture with a word on it such as its format, its file's name, and what it is and how big; pressing it selects it, the selected one outlined. */
@@ -53,7 +48,7 @@ export function ProjectAssetCard({
       )}
       {...controlDataAttributes}
     >
-      <ProjectAssetPicture tone={pictureTone} words={pictureWords} size="card" />
+      <ProjectAssetPicture tone={pictureTone} words={pictureWords} />
       <span className="mt-1 truncate text-[13px] font-semibold text-fg">{name}</span>
       <span className="truncate text-2xs text-fg-3">{kindAndSizeWords}</span>
     </button>
