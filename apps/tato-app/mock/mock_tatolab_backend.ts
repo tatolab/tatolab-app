@@ -597,9 +597,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     window.setTimeout(() => chooseTheEntry(entryToChoose), 0);
   };
   let openProjectReading = mockOpenProjectReading(openProjectScenario, fixtures.machine.homeDirectory);
+  const mockStudioViewsListedInTheProject = () => (mockTatolabOptions.isTheFixtureViewListed ? [mockStudioViewListing(), mockStudioViewListingThatDoesNotOpen()] : []);
   const workspaceDependencies = new MockWorkspaceDependencies(
     openProjectReading.kind === "read" ? openProjectReading.open_project.project.folder : `${fixtures.machine.homeDirectory}/streams/pattern`,
     mockTatolabOptions.moduleManagerWorkspaceDependencies ?? "copied",
+    () => mockStudioViewsListedInTheProject(),
   );
   let recentProjects = mockRecentProjects(recentProjectsInTheQuery, fixtures.machine.homeDirectory, Date.now());
   const coverImageUrlsByFolder = new Map<string, string>();
@@ -1767,7 +1769,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     listStudioViewsOfTheOpenProject: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (openProjectReading.kind !== "read") throw "No project is open in this window.";
-      return mockTatolabOptions.isTheFixtureViewListed ? [mockStudioViewListing(), mockStudioViewListingThatDoesNotOpen()] : [];
+      return mockStudioViewsListedInTheProject();
     },
     writeStudioViewOutput: async (stream, node, port) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

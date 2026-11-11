@@ -383,7 +383,15 @@ export interface WorkspaceDependency extends ProjectDependency {
   newer_version_exists: boolean | null;
   /** Why its source could not be read for the check, in the runtime's words. */
   check_refused_because: string | null;
+  /** The views its `views/` folders bring, as the runtime's `list_project_views` of the workspace lists them, or why that listing was refused, in the runtime's words. */
+  views: ViewsOfAWorkspaceDependency;
 }
+
+/** The views one import brings, or why the runtime listed none. */
+export type ViewsOfAWorkspaceDependency = { kind: "listed"; views: ViewOfAWorkspaceDependency[] } | { kind: "not_listed"; because: string };
+
+/** One view an import brings: its node type, its `tatolab_view.json` as written (`null` when it is not JSON), and whether it opens. */
+export type ViewOfAWorkspaceDependency = { view_type_id: string; manifest_json: JsonValue | null } & StudioViewOpening;
 
 /** What `update_workspace_dependency` answers: the copy updated, or, with the overwrite not confirmed, each file edited since its copy and nothing changed. */
 export type WorkspaceDependencyUpdate = { kind: "updated"; dependency: ProjectDependency } | { kind: "edited_since_its_copy"; edited_files: string[] };

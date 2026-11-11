@@ -2,7 +2,8 @@
 // whether the project has added it, then the project's modules the catalog does not list.
 
 import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
-import type { PackageCatalogEntry, PackageCatalogMember, PackageCatalogReading, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
+import type { PackageCatalogEntry, PackageCatalogMember, PackageCatalogReading, ViewsOfAWorkspaceDependency, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
+import { manifestOfAListedView, titleTheManifestNames } from "../view_host/studio_view_type_registry";
 
 /** One card of the Modules window: a catalog entry, the project's module of it, or both. */
 export interface ModuleCardRow {
@@ -103,4 +104,33 @@ export function moduleCardMarkOf(row: ModuleCardRow): { words: string; isNews: b
 /** The first 12 characters of a version's SHA-256, as a card's details show it. */
 export function shortVersionOf(version: string): string {
   return version.slice(0, 12);
+}
+
+/** One row of a module's "Adds these views": its title, and its declared ports in words, or why it does not open in the runtime's or the schema's words. */
+export type ModuleViewRow = { view_type_id: string; title: string } & ({ opens: true; ports_words: string } | { opens: false; not_opened_because: string });
+
+/** What a module's details say of its views: each one a row, and what those that open can reach in words (`null` when none opens); or why the runtime listed none. */
+export type ModuleViewsShown = { kind: "listed"; rows: ModuleViewRow[]; reach_words: string | null } | { kind: "not_listed"; because: string };
+
+const DEVICE_WORDS = { camera: "the camera", microphone: "the microphone" } as const;
+
+/** The views of `views` as a module's details show them, each manifest read with the view SDK's schema. */
+export function moduleViewsShownOf(views: ViewsOfAWorkspaceDependency): ModuleViewsShown {
+  if (views.kind === "not_listed") return views;
+  const devicesDeclared = new Set<keyof typeof DEVICE_WORDS>();
+  const rows = views.views.map((listedView): ModuleViewRow => {
+    const title = titleTheManifestNames(listedView.manifest_json, listedView.view_type_id);
+    const manifestReading = manifestOfAListedView(listedView);
+    if (manifestReading.kind === "not_opened") return { view_type_id: listedView.view_type_id, title, opens: false, not_opened_because: manifestReading.because };
+    const { manifest } = manifestReading;
+    for (const capability of manifest.capabilities) if (capability === "camera" || capability === "microphone") devicesDeclared.add(capability);
+    const portsWords = manifest.placement === "area" ? "Opens in any area" : `${manifest.inputs.length} in · ${manifest.outputs.length} out`;
+    return { view_type_id: listedView.view_type_id, title, opens: true, ports_words: portsWords };
+  });
+  const devicesWords = (["camera", "microphone"] as const)
+    .filter((device) => devicesDeclared.has(device))
+    .map((device) => DEVICE_WORDS[device])
+    .join(" and ");
+  const reachWords = !rows.some((row) => row.opens) ? null : devicesWords === "" ? "Full access, like its nodes." : `Full access, like its nodes. They ask for ${devicesWords}.`;
+  return { kind: "listed", rows, reach_words: reachWords };
 }

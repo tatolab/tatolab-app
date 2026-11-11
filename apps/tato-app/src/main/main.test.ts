@@ -58,7 +58,10 @@ function refusalOfAFolderHoldingNoProject(toolName: string, projectDirectory: st
   return toolFailureResponse(`${toolName} failed: ${projectDirectory} holds no project: it has no tatolab-project.json`);
 }
 
-/** A runtime that answers `list_assets`, `list_dependencies` and `add_dependency` from each project's `tatolab-project.json`, copying an import whole, and no other request. */
+/** The `tatolab_view.json` of the one view, `views/meter`, the fake runtime lists in each import. */
+const FAKE_METER_VIEW_MANIFEST = { contract: "1.0", title: "Meter", entry: "index.html", placement: "node", inputs: [{ name: "level", family: "array" }] };
+
+/** A runtime that answers `list_assets`, `list_dependencies`, `add_dependency` and `list_project_views` from each project's `tatolab-project.json`, copying an import whole, listing a `meter` view in each import, and no other request. */
 async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
   const fakeRuntime = await FakeLocalApiServer.answeringEachToolCall(async (toolName, toolArguments) => {
     const projectDirectory = String(toolArguments["project_directory"]);
@@ -86,6 +89,23 @@ async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
       }
       case "list_streams":
         return toolResultResponse({ streams: [] });
+      case "list_project_views":
+        if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
+        return toolResultResponse({
+          project_directory: projectDirectory,
+          project: projectFile.project,
+          project_name: projectFile.name,
+          views: projectFile.dependencies.map((dependency) => ({
+            view_type: `${dependency.folder}:meter`,
+            project: dependency.project,
+            project_name: dependency.folder,
+            import_folder: dependency.folder,
+            view_folder_in_the_project: `imports/${dependency.folder}/views/meter`,
+            opens: true,
+            not_opened_because: null,
+            manifest: FAKE_METER_VIEW_MANIFEST,
+          })),
+        });
       case "start_project":
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
         return toolResultResponse({ action: "5d0c9a51-6a8b-4f3e-9d7e-2b1c0f4e8a77", project_directory: projectDirectory });
@@ -711,7 +731,7 @@ describe("one window per project", () => {
       expect(fakeShell.urlsFetched).toEqual(["https://get.tatolab.com/catalog/v1.json", "https://get.tatolab.com/catalog/v1.json"]);
     });
 
-    test("lists the project's imports as the runtime lists them, each named from its copy, and only to a Module manager window", async () => {
+    test("lists the project's imports as the runtime lists them, each named from its copy with the views its folder brings, and only to a Module manager window", async () => {
       const { fakeShell, nightShowFolder, lobbyWallFolder } = await aStudioWindowOfNightShowImportingLobbyWall();
 
       expect(await fakeShell.invokeTheCommand("list_workspace_dependencies", { check_for_newer: false }, 3)).toEqual({
@@ -727,6 +747,7 @@ describe("one window per project", () => {
             edited_files: [],
             newer_version_exists: null,
             check_refused_because: null,
+            views: { kind: "listed", views: [{ view_type_id: "lobby-wall:meter", manifest_json: FAKE_METER_VIEW_MANIFEST, opens: true, not_opened_because: null }] },
           },
         ],
       });
