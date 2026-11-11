@@ -32,7 +32,8 @@ function card(nodeId: string, isCollapsed: boolean): NodeGraphCanvasNode {
 }
 
 function editingRecorded() {
-  const onFrameRenamed = vi.fn();
+  const onFrameChanged = vi.fn();
+  const onFrameRemoved = vi.fn();
   const onCardCollapsed = vi.fn();
   const applied = async () => "applied" as const;
   const editing: NodeGraphCanvasEditing = {
@@ -45,19 +46,20 @@ function editingRecorded() {
     onFrameAskedFor: applied,
     onSubgraphAskedFor: vi.fn(),
     onNoteChanged: applied,
-    onFrameRenamed,
+    onFrameChanged,
+    onFrameRemoved,
     onCardCollapsed,
   };
-  return { editing, onFrameRenamed, onCardCollapsed };
+  return { editing, onFrameChanged, onFrameRemoved, onCardCollapsed };
 }
 
-function drawnCanvas(editing: NodeGraphCanvasEditing, isCollapsed = false) {
+function drawnCanvas(editing: NodeGraphCanvasEditing | null, isCollapsed = false, description: string | null = null) {
   return render(
     <NodeGraphCanvas
       label="Stream graph"
       nodes={[card("pattern", isCollapsed)]}
       links={[]}
-      frames={[{ frame_id: FRAME_ID, title: "Frame", description: null, colour: null }]}
+      frames={[{ frame_id: FRAME_ID, title: "Frame", description, colour: null }]}
       selectedNodeId={null}
       onNodeSelected={vi.fn()}
       editing={editing}
@@ -77,7 +79,7 @@ describe("the node graph canvas", () => {
 
 describe("the node graph canvas while it takes edits", () => {
   it("renames a frame from its title tab on a double-click, keeping the trimmed title, and asks nothing on Escape or an unchanged title", async () => {
-    const { editing, onFrameRenamed } = editingRecorded();
+    const { editing, onFrameChanged } = editingRecorded();
     const { container } = drawnCanvas(editing);
     const titleTab = await vi.waitFor(() => container.querySelector<HTMLElement>(`[data-node-graph-frame-title="${FRAME_ID}"]`) ?? expect.unreachable("no frame title"));
 
@@ -85,13 +87,66 @@ describe("the node graph canvas while it takes edits", () => {
     const titleField = await vi.waitFor(() => container.querySelector<HTMLInputElement>(`[data-node-graph-frame-title-field="${FRAME_ID}"]`) ?? expect.unreachable("no title field"));
     fireEvent.change(titleField, { target: { value: "  Titles " } });
     fireEvent.keyDown(titleField, { key: "Enter" });
-    expect(onFrameRenamed).toHaveBeenCalledWith(FRAME_ID, "Titles");
+    expect(onFrameChanged).toHaveBeenCalledWith(FRAME_ID, { title: "Titles" });
 
     fireEvent.doubleClick(await vi.waitFor(() => container.querySelector<HTMLElement>(`[data-node-graph-frame-title="${FRAME_ID}"]`) ?? expect.unreachable("no frame title")));
     const secondField = await vi.waitFor(() => container.querySelector<HTMLInputElement>(`[data-node-graph-frame-title-field="${FRAME_ID}"]`) ?? expect.unreachable("no title field"));
     fireEvent.change(secondField, { target: { value: "Something else" } });
     fireEvent.keyDown(secondField, { key: "Escape" });
-    expect(onFrameRenamed).toHaveBeenCalledTimes(1);
+    expect(onFrameChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("edits a frame's description on a double-click, keeping the trimmed words, and asks nothing for unchanged words", async () => {
+    const { editing, onFrameChanged } = editingRecorded();
+    const { container } = drawnCanvas(editing, false, "Where the frames come in");
+    const description = await vi.waitFor(() => container.querySelector<HTMLElement>(`[data-node-graph-frame-description="${FRAME_ID}"]`) ?? expect.unreachable("no description"));
+
+    fireEvent.doubleClick(description);
+    const descriptionField = await vi.waitFor(() => container.querySelector<HTMLInputElement>(`[data-node-graph-frame-description-field="${FRAME_ID}"]`) ?? expect.unreachable("no description field"));
+    expect(descriptionField.value).toBe("Where the frames come in");
+    fireEvent.keyDown(descriptionField, { key: "Enter" });
+    expect(onFrameChanged).not.toHaveBeenCalled();
+
+    fireEvent.doubleClick(await vi.waitFor(() => container.querySelector<HTMLElement>(`[data-node-graph-frame-description="${FRAME_ID}"]`) ?? expect.unreachable("no description")));
+    const secondField = await vi.waitFor(() => container.querySelector<HTMLInputElement>(`[data-node-graph-frame-description-field="${FRAME_ID}"]`) ?? expect.unreachable("no description field"));
+    fireEvent.change(secondField, { target: { value: " The camera and the clip " } });
+    fireEvent.keyDown(secondField, { key: "Enter" });
+    expect(onFrameChanged).toHaveBeenCalledWith(FRAME_ID, { description: "The camera and the clip" });
+  });
+
+  it("offers a frame's right-click menu on its title tab: describing it opens the description field, and Remove frame asks for its removal", async () => {
+    const { editing, onFrameRemoved } = editingRecorded();
+    const { container } = drawnCanvas(editing);
+    const titleTab = await vi.waitFor(() => container.querySelector<HTMLElement>(`[data-node-graph-frame-title="${FRAME_ID}"]`) ?? expect.unreachable("no frame title"));
+
+    fireEvent.contextMenu(titleTab);
+    const describe = await vi.waitFor(() => document.querySelector<HTMLElement>('[data-node-graph-frame-choice="describe"]') ?? expect.unreachable("no Add description"));
+    expect(describe.textContent).toBe("Add description");
+    fireEvent.click(describe);
+    await vi.waitFor(() => container.querySelector(`[data-node-graph-frame-description-field="${FRAME_ID}"]`) ?? expect.unreachable("no description field"));
+
+    fireEvent.contextMenu(await vi.waitFor(() => container.querySelector<HTMLElement>(`[data-node-graph-frame-title="${FRAME_ID}"]`) ?? expect.unreachable("no frame title")));
+    fireEvent.click(await vi.waitFor(() => document.querySelector<HTMLElement>('[data-node-graph-frame-choice="remove"]') ?? expect.unreachable("no Remove frame")));
+    expect(onFrameRemoved).toHaveBeenCalledWith(FRAME_ID);
+  });
+
+  it("gives a frame a colour of the person's own from Custom color…, picked over the window", async () => {
+    const { editing, onFrameChanged } = editingRecorded();
+    const { container } = drawnCanvas(editing);
+    fireEvent.contextMenu(await vi.waitFor(() => container.querySelector<HTMLElement>(`[data-node-graph-frame-title="${FRAME_ID}"]`) ?? expect.unreachable("no frame title")));
+    fireEvent.click(await vi.waitFor(() => document.querySelector<HTMLElement>('[data-node-graph-frame-choice="colour"]') ?? expect.unreachable("no Color")));
+    fireEvent.click(await vi.waitFor(() => document.querySelector<HTMLElement>('[data-node-graph-frame-choice="custom_colour"]') ?? expect.unreachable("no Custom color")));
+    const hexField = await vi.waitFor(() => document.querySelector<HTMLInputElement>("[data-node-graph-frame-colour-picker] [data-colour-picker-hex]") ?? expect.unreachable("no picker"));
+    fireEvent.change(hexField, { target: { value: "#4aa8a8" } });
+    fireEvent.click(document.querySelector('[data-colour-picker-action="use"]') ?? expect.unreachable("no Use color"));
+    expect(onFrameChanged).toHaveBeenCalledWith(FRAME_ID, { colour: "#4aa8a8" });
+  });
+
+  it("offers no right-click menu on a read-only canvas's frame", async () => {
+    const { container } = drawnCanvas(null);
+    const titleTab = await vi.waitFor(() => container.querySelector<HTMLElement>(`[data-node-graph-frame-title="${FRAME_ID}"]`) ?? expect.unreachable("no frame title"));
+    fireEvent.contextMenu(titleTab);
+    expect(document.querySelector('[data-node-graph-frame-choice="remove"]')).toBeNull();
   });
 
   it("collapses a card from its chevron, which names the card's pins and says whether they show", async () => {

@@ -32,7 +32,8 @@ import {
   deletedEdits,
   doesTheGraphShowTheStudioSentAhead,
   editedStreamGraphOf,
-  frameRenamedEdits,
+  frameChangedEdits,
+  frameRemovedEdits,
   nodePlacedEdits,
   noteChangedEdits,
   notePlacedEdits,
@@ -251,7 +252,8 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
         });
       },
       onNoteChanged: (noteId, change) => sendTheGesture(noteChangedEdits(editedGraph, noteId, change)),
-      onFrameRenamed: (frameId, title) => void sendTheGesture(frameRenamedEdits(editedGraph, frameId, title)),
+      onFrameChanged: (frameId, change) => void sendTheGesture(frameChangedEdits(editedGraph, frameId, change)),
+      onFrameRemoved: (frameId) => void sendTheGesture(frameRemovedEdits(editedGraph, frameId)),
       onCardCollapsed: (nodeId, collapsed) => void sendTheStudioGesture(cardCollapsedEdits(editedGraph, nodeId, collapsed)),
     };
   }, [importedProjectName, editedGraph, sendTheGesture, sendTheStudioGesture, select, streamTab.stream, keepWhereTheStreamWasLeft]);

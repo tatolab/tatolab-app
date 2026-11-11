@@ -120,11 +120,15 @@ test("a group frames its nodes until it is removed, and a note is added, changed
   const group = grouped.transaction.added_groups[0]?.group ?? "";
   expect(graph.groups).toEqual([{ id: group, title: "Frame", description: null, colour: null }]);
   expect(graph.nodes[0]?.studio?.group).toBe(group);
+  const described = applyMockGraphTransaction(targetsOf(graph), [{ operation: "set_group_fields", stream: STREAM_ASSET, group, description: "The source", colour: "#3fcf8e" }]);
+  if (described.kind !== "applied") return expect.unreachable(described.refusal.runtime_words);
+  expect(graph.groups).toEqual([{ id: group, title: "Frame", description: "The source", colour: "#3fcf8e" }]);
+  expect(described.inverse_operations.map(graphActionApplyingTheHistoryOperation)).toEqual([{ operation: "set_group_fields", stream: STREAM_ASSET, group, title: "Frame", description: "" }]);
   const ungrouped = applyMockGraphTransaction(targetsOf(graph), [{ operation: "remove_group", stream: STREAM_ASSET, group }]);
   if (ungrouped.kind !== "applied") return expect.unreachable(ungrouped.refusal.runtime_words);
   expect(graph.groups).toEqual([]);
   expect(graph.nodes[0]?.studio?.group).toBeNull();
-  expect(ungrouped.inverse_operations.map(graphActionApplyingTheHistoryOperation)).toEqual([{ operation: "add_group", stream: STREAM_ASSET, title: "Frame", nodes: [TEST_PATTERN] }]);
+  expect(ungrouped.inverse_operations.map(graphActionApplyingTheHistoryOperation)).toEqual([{ operation: "add_group", stream: STREAM_ASSET, title: "Frame", description: "The source", colour: "#3fcf8e", nodes: [TEST_PATTERN] }]);
 
   const noted = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_note", stream: STREAM_ASSET, text: "Note", position: [10, 20], size: [220, 110] }]);
   if (noted.kind !== "applied") return expect.unreachable(noted.refusal.runtime_words);

@@ -199,12 +199,23 @@ export function selectionFramedEdits(edited: EditedStreamGraph, nodeNames: reado
   return nodes.length === 0 ? [] : [{ operation: "add_group", stream: edited.streamAsset, title: PLACED_FRAME_TITLE, nodes }];
 }
 
-/** A frame's new title; a blank one is no edit, since the runtime refuses a group with no title. */
-export function frameRenamedEdits(edited: EditedStreamGraph, group: string, title: string): StreamGraphAction[] {
-  const trimmedTitle = title.trim();
+/** A frame's new title, description or colour, each one that differs from the frame's; a blank title is no edit, since the runtime refuses a group with no title. */
+export function frameChangedEdits(edited: EditedStreamGraph, group: string, change: { title?: string; description?: string; colour?: string }): StreamGraphAction[] {
   const frame = edited.graph.groups.find((graphGroup) => graphGroup.id === group);
-  if (frame === undefined || trimmedTitle === "" || trimmedTitle === frame.title) return [];
-  return [{ operation: "set_group_fields", stream: edited.streamAsset, group, title: trimmedTitle }];
+  if (frame === undefined) return [];
+  const title = change.title?.trim();
+  const description = change.description?.trim();
+  const changedFields = {
+    ...(title === undefined || title === "" || title === frame.title ? {} : { title }),
+    ...(description === undefined || description === (frame.description ?? "") ? {} : { description }),
+    ...(change.colour === undefined || change.colour === frame.colour ? {} : { colour: change.colour }),
+  };
+  return Object.keys(changedFields).length === 0 ? [] : [{ operation: "set_group_fields", stream: edited.streamAsset, group, ...changedFields }];
+}
+
+/** A frame taken out, its nodes left where they are, ungrouped. */
+export function frameRemovedEdits(edited: EditedStreamGraph, group: string): StreamGraphAction[] {
+  return edited.graph.groups.some((graphGroup) => graphGroup.id === group) ? [{ operation: "remove_group", stream: edited.streamAsset, group }] : [];
 }
 
 /** A card collapsed to its header, or opened again: its node's studio fields as they are, with `collapsed`. */

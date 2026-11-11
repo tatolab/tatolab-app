@@ -89,7 +89,7 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
       const group = historyOperation["group"];
       if (typeof group !== "string" || !isAJsonObject(to)) return null;
       const { title, description, colour } = to;
-      return { operation, stream, group, ...(typeof title === "string" ? { title } : {}), ...(typeof description === "string" ? { description } : {}), ...(typeof colour === "string" ? { colour } : {}) };
+      return { operation, stream, group, ...(typeof title === "string" ? { title } : {}), ...(typeof description === "string" ? { description } : description === null ? { description: "" } : {}), ...(typeof colour === "string" ? { colour } : {}) };
     }
     case "add_group":
     case "remove_group": {
@@ -98,7 +98,7 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
       if (operation === "remove_group") return { operation, stream, group: group["id"] };
       const { title, description, colour, nodes } = group;
       const memberIds = Array.isArray(nodes) ? nodes.flatMap((member) => (typeof member === "string" ? [member] : [])) : [];
-      return { operation, stream, title, nodes: memberIds, ...(typeof description === "string" ? { description } : {}), ...(typeof colour === "string" ? { colour } : {}) };
+      return { operation, stream, title, nodes: memberIds, ...(typeof description === "string" ? { description } : description === null ? { description: "" } : {}), ...(typeof colour === "string" ? { colour } : {}) };
     }
     case "set_note_fields": {
       const note = historyOperation["note"];
@@ -139,7 +139,8 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
 /**
  * Apply `operations` to `targetsByStreamAsset`'s graphs as one transaction: each graph is changed only once every
  * operation has applied to a copy of it. Applied by an undo or a redo, an `add_node`'s `as` is the id the node had, which
- * it takes again, and an `add_group` or `add_note` takes the id its operation in `historyOperationsReplayed` recorded.
+ * it takes again. An `add_group` or `add_note` takes the id its operation in `historyOperationsReplayed` recorded, so the
+ * running graph a commit changes after the saved one gets the same ids.
  */
 export function applyMockGraphTransaction(
   targetsByStreamAsset: ReadonlyMap<string, MockStreamGraphTarget>,
@@ -172,7 +173,7 @@ export function applyMockGraphTransaction(
     const idTheReplayedOperationKept = (field: "group" | "note"): string | null => {
       const replayed = historyOperationsReplayed[operationIndex];
       const kept = isAJsonObject(replayed) ? replayed[field] : undefined;
-      return applying === "undo_or_redo" && isAJsonObject(kept) && typeof kept["id"] === "string" ? kept["id"] : null;
+      return isAJsonObject(kept) && typeof kept["id"] === "string" ? kept["id"] : null;
     };
     const recordInHistory = (historyOperation: { [key: string]: JsonValue }, inverseOperation: { [key: string]: JsonValue }) => {
       historyOperations.push({ stream: operation.stream, ...historyOperation });

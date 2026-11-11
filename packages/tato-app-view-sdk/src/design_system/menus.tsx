@@ -2,7 +2,18 @@ import { cn } from "cn";
 import { ChevronDown, Ellipsis, type LucideIcon } from "lucide-react";
 import { useId, type ReactElement, type ReactNode } from "react";
 import { Button } from "./ui/button";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "./ui/context-menu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "./ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -207,30 +218,98 @@ export function MenuItemThatCannotBeChosen({
 }
 
 /** A menu a right-click on `children` opens at the pointer; `children` is the row itself, so a click in the menu never reaches the row. */
-export function RightClickMenu({ label, choices, children }: { label: string; choices: ReactNode; children: ReactElement }) {
+export function RightClickMenu({
+  label,
+  choices,
+  returnsFocusToTheRowOnClosing = true,
+  children,
+}: {
+  label: string;
+  choices: ReactNode;
+  /** False for a menu whose choices open a field that takes the focus, which the row taking it back would close. */
+  returnsFocusToTheRowOnClosing?: boolean;
+  children: ReactElement;
+}) {
   return (
     <ContextMenu>
       <ContextMenuTrigger render={children} />
-      <ContextMenuContent aria-label={label} className={MENU_WIDTH_CLASS_NAMES.fit}>
+      <ContextMenuContent aria-label={label} className={MENU_WIDTH_CLASS_NAMES.fit} finalFocus={returnsFocusToTheRowOnClosing}>
         {choices}
       </ContextMenuContent>
     </ContextMenu>
   );
 }
 
-/** One choice of a right-click menu, drawn as a dropdown menu's choice is. */
+/** One choice of a right-click menu, drawn as a dropdown menu's choice is; a destructive one reads red. */
 export function RightClickMenuItem({
   icon: ItemIcon,
+  isDestructive = false,
   onChosen,
   children,
   ...controlDataAttributes
-}: { icon?: LucideIcon; onChosen: () => void; children: ReactNode } & ControlDataAttributes) {
+}: { icon?: LucideIcon; isDestructive?: boolean; onChosen: () => void; children: ReactNode } & ControlDataAttributes) {
   return (
-    <ContextMenuItem onClick={onChosen} className={MENU_ITEM_CLASS_NAMES} {...controlDataAttributes}>
-      {ItemIcon !== undefined && <ItemIcon className={MENU_ITEM_ICON_CLASS_NAMES} strokeWidth={1.75} aria-hidden />}
+    <ContextMenuItem
+      variant={isDestructive ? "destructive" : "default"}
+      onClick={onChosen}
+      className={cn(MENU_ITEM_CLASS_NAMES, "data-[variant=destructive]:text-danger-text data-[variant=destructive]:focus:text-danger-text")}
+      {...controlDataAttributes}
+    >
+      {ItemIcon !== undefined && <ItemIcon className={cn(MENU_ITEM_ICON_CLASS_NAMES, isDestructive && "text-danger")} strokeWidth={1.75} aria-hidden />}
       {children}
     </ContextMenuItem>
   );
+}
+
+/** A choice of a right-click menu that opens its own menu of `children` beside it. */
+export function RightClickSubmenu({ label, icon: ItemIcon, children, ...controlDataAttributes }: { label: string; icon?: LucideIcon; children: ReactNode } & ControlDataAttributes) {
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger className={MENU_ITEM_CLASS_NAMES} {...controlDataAttributes}>
+        {ItemIcon !== undefined && <ItemIcon className={MENU_ITEM_ICON_CLASS_NAMES} strokeWidth={1.75} aria-hidden />}
+        {label}
+      </ContextMenuSubTrigger>
+      <ContextMenuSubContent aria-label={label} className={cn(MENU_WIDTH_CLASS_NAMES.fit, "shadow-lg")}>
+        {children}
+      </ContextMenuSubContent>
+    </ContextMenuSub>
+  );
+}
+
+/** A right-click menu's choices of which at most one is chosen, the chosen one marked; choosing one closes the menu. */
+export function RightClickMenuSingleChoiceGroup<Choice extends string>({
+  choices,
+  chosen,
+  onChosen,
+  dataAttributeOfEachChoice,
+}: {
+  choices: readonly MenuSingleChoice<Choice>[];
+  /** `null` while none of them is chosen. */
+  chosen: Choice | null;
+  onChosen: (choice: Choice) => void;
+  /** Set on each choice to its value, as `data-node-graph-frame-colour="#4aa8a8"`. */
+  dataAttributeOfEachChoice?: ControlDataAttributeName;
+}) {
+  return (
+    <ContextMenuRadioGroup
+      value={chosen}
+      onValueChange={(value: string) => {
+        const chosenChoice = choices.find((menuChoice) => menuChoice.choice === value);
+        if (chosenChoice !== undefined) onChosen(chosenChoice.choice);
+      }}
+    >
+      {choices.map(({ choice, label }) => (
+        <ContextMenuRadioItem key={choice} value={choice} closeOnClick className="pl-2" {...(dataAttributeOfEachChoice === undefined ? {} : { [dataAttributeOfEachChoice]: choice })}>
+          {label}
+        </ContextMenuRadioItem>
+      ))}
+    </ContextMenuRadioGroup>
+  );
+}
+
+/** A hairline between groups of a right-click menu's choices. */
+export function RightClickMenuSeparator() {
+  return <ContextMenuSeparator />;
 }
 
 /** A choice of a menu that is on or off, ticked while on; choosing it leaves the menu open. */
