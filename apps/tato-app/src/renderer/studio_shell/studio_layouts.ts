@@ -1,8 +1,10 @@
-// The studio's five layouts, after the concept canvas's grids, and each one's edited tree, kept per
-// project folder in the page's storage so a project reopens as it was left.
+// The studio's five layouts, the presets after the concept canvas's grids, and each one's edited tree and hidden
+// edges, with the presets the person saved, kept per project folder in the page's storage so a project reopens as
+// it was left.
 
 import { studioAreaLayoutFromSaved, type StudioArea, type StudioAreaLayoutNode, type StudioAreaSplit } from "./studio_area_layout";
 import type { TatolabWindowLocalStorage } from "../tatolab_window_local_storage";
+import { NO_STUDIO_LAYOUT_EDGE_HIDDEN, type StudioLayoutEdgesHidden } from "./studio_layout_shapes";
 
 /** A layout by the name it is saved under. */
 export type StudioLayoutName = "build" | "compose" | "spatial" | "code" | "perform";
@@ -23,10 +25,18 @@ export const STUDIO_LAYOUTS: readonly { name: StudioLayoutName; title: string; s
  */
 const STUDIO_LAYOUT_DEFAULT_REVISIONS: Record<StudioLayoutName, number> = { build: 2, compose: 1, spatial: 1, code: 2, perform: 2 };
 
-/** Each layout's tree as the person left it, and the one chosen. */
+/** A layout the person saved as a preset, by the name they gave it. */
+export interface StudioLayoutPresetSaved {
+  title: string;
+  layout: StudioAreaLayoutNode;
+}
+
+/** Each layout's tree as the person left it with the edges they hid, the one chosen, and the presets they saved. */
 export interface StudioLayoutsOfAFolder {
   chosen_layout: StudioLayoutName;
   layouts: Record<StudioLayoutName, StudioAreaLayoutNode>;
+  edges_hidden: Record<StudioLayoutName, StudioLayoutEdgesHidden>;
+  presets_saved: readonly StudioLayoutPresetSaved[];
 }
 
 function area(areaId: string, viewTypeId: string | null): StudioArea {
@@ -103,9 +113,27 @@ export function studioLayoutsFromSaved(saved: unknown): StudioLayoutsOfAFolder {
   const isKeptUnderTheCurrentDefault = (layoutName: StudioLayoutName) => (savedField(savedRevisions, layoutName) ?? 1) === STUDIO_LAYOUT_DEFAULT_REVISIONS[layoutName];
   const layoutOf = (layoutName: StudioLayoutName) =>
     (isKeptUnderTheCurrentDefault(layoutName) ? studioAreaLayoutFromSaved(savedField(savedLayouts, layoutName)) : null) ?? defaultStudioLayout(layoutName);
+  const savedEdgesHidden = savedField(saved, "edges_hidden");
+  const edgesHiddenOf = (layoutName: StudioLayoutName): StudioLayoutEdgesHidden => {
+    if (!isKeptUnderTheCurrentDefault(layoutName)) return NO_STUDIO_LAYOUT_EDGE_HIDDEN;
+    const edgesHiddenSaved = savedField(savedEdgesHidden, layoutName);
+    return {
+      left: savedField(edgesHiddenSaved, "left") === true,
+      bottom: savedField(edgesHiddenSaved, "bottom") === true,
+      right: savedField(edgesHiddenSaved, "right") === true,
+    };
+  };
+  const savedPresets = savedField(saved, "presets_saved");
+  const presetsSaved = (Array.isArray(savedPresets) ? savedPresets : []).flatMap((savedPreset): StudioLayoutPresetSaved[] => {
+    const title = savedField(savedPreset, "title");
+    const layout = studioAreaLayoutFromSaved(savedField(savedPreset, "layout"));
+    return typeof title === "string" && title.trim() !== "" && layout !== null ? [{ title, layout }] : [];
+  });
   return {
     chosen_layout: isAStudioLayoutName(chosenLayout) ? chosenLayout : "build",
     layouts: { build: layoutOf("build"), compose: layoutOf("compose"), spatial: layoutOf("spatial"), code: layoutOf("code"), perform: layoutOf("perform") },
+    edges_hidden: { build: edgesHiddenOf("build"), compose: edgesHiddenOf("compose"), spatial: edgesHiddenOf("spatial"), code: edgesHiddenOf("code"), perform: edgesHiddenOf("perform") },
+    presets_saved: presetsSaved,
   };
 }
 

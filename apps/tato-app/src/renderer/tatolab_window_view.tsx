@@ -194,6 +194,9 @@ export function mountTatolabWindow(
         (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
       );
     },
+    shapeTheLayout: (shape) => studioWindowModel.shapeTheChosenLayout(shape),
+    applyTheSavedLayoutPreset: (presetIndex) => studioWindowModel.applyTheSavedLayoutPreset(presetIndex),
+    askToSaveTheLayoutAsAPreset: () => studioWindowModel.layoutPresetNameAsked.publish(true),
     openSettings: () => studioWindowModel.settingsSection.publish("project"),
     openAbout: () => studioWindowModel.settingsSection.publish("about"),
     checkForAppUpdates: () => {

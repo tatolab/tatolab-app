@@ -95,3 +95,26 @@ describe("layouts kept per project folder", () => {
     expect(new StudioLayoutsKeptInStorage(null).readLayoutsOf("/a").chosen_layout).toBe("build");
   });
 });
+
+describe("hidden edges and saved presets", () => {
+  it("keep and read back with the folder's layouts, a preset with no name or a layout that does not parse left out", () => {
+    const layoutsKept = new StudioLayoutsKeptInStorage(storageInMemory());
+    const presetLayout: StudioAreaLayoutNode = { kind: "area", area_id: "only", view_type_id: "viewer" };
+    const layouts = studioLayoutsFromSaved(undefined);
+    layoutsKept.keepLayoutsOf("/a", {
+      ...layouts,
+      edges_hidden: { ...layouts.edges_hidden, build: { left: true, bottom: false, right: false } },
+      presets_saved: [{ title: "Show night", layout: presetLayout }],
+    });
+
+    const readBack = layoutsKept.readLayoutsOf("/a");
+    expect(readBack.edges_hidden.build).toEqual({ left: true, bottom: false, right: false });
+    expect(readBack.edges_hidden.code).toEqual({ left: false, bottom: false, right: false });
+    expect(readBack.presets_saved).toEqual([{ title: "Show night", layout: presetLayout }]);
+    expect(studioLayoutsFromSaved({ presets_saved: [{ title: " ", layout: presetLayout }, { title: "Broken", layout: { kind: "area" } }] }).presets_saved).toEqual([]);
+  });
+
+  it("shows every edge again when the layout's default changed", () => {
+    expect(studioLayoutsFromSaved({ edges_hidden: { build: { left: true } }, default_revisions: { build: 1 } }).edges_hidden.build.left).toBe(false);
+  });
+});

@@ -26,7 +26,10 @@ import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet
 import { StudioStatusBar } from "./studio_status_bar";
 import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
-import { studioMenuBarMenus, studioMenusInTheSystemMenuBar, type StreamTabsInTheMenus, type StudioMenuBarCommands, type StudioMenuInTheSystemMenuBar } from "./studio_menu_bar_model";
+import { studioMenuBarMenus, studioMenusInTheSystemMenuBar, type StreamTabsInTheMenus, type StudioLayoutsInTheMenus, type StudioMenuBarCommands, type StudioMenuInTheSystemMenuBar } from "./studio_menu_bar_model";
+import { NameFormDialog } from "./name_form_dialog_view";
+import { studioLayoutWithEdgesHidden } from "./studio_layout_shapes";
+import { StudioTitleRowLayoutButtons } from "./studio_title_row_layout_buttons";
 import { StreamMenuDialogsView, type StreamEditsOfTheStreamMenu } from "./stream_menu_dialogs_view";
 import type { StudioWindowModel } from "./studio_window_model";
 
@@ -244,6 +247,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const activeStreamTab = useWatchedStudioValue(model.activeStreamTab);
   const closedStreamTabs = useWatchedStudioValue(model.closedStreamTabs);
   const streamMenuQuestion = useWatchedStudioValue(model.streamMenuQuestion);
+  const layoutPresetNameAsked = useWatchedStudioValue(model.layoutPresetNameAsked);
   const streamDeletionRefusal = useWatchedStudioValue(model.streamDeletionRefusal);
   const settingsSection = useWatchedStudioValue(model.settingsSection);
   const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
@@ -257,6 +261,11 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null;
   const menusLiveInTheSystemMenuBar = presentPlatform(platform).menusLiveInTheSystemMenuBar;
   const chosenLayoutShown = isAProjectShown ? studioLayouts.chosen_layout : null;
+  const presetTitlesSavedJoined = isAProjectShown ? studioLayouts.presets_saved.map(({ title }) => title).join("\n") : "";
+  const layoutsInTheMenus = useMemo<StudioLayoutsInTheMenus | null>(
+    () => (chosenLayoutShown === null ? null : { chosen_layout: chosenLayoutShown, preset_titles_saved: presetTitlesSavedJoined === "" ? [] : presetTitlesSavedJoined.split("\n") }),
+    [chosenLayoutShown, presetTitlesSavedJoined],
+  );
   const shownStreamDisplayName = isAProjectShown ? (activeStreamTab?.display_name ?? null) : null;
   const openStreamTabCount = isAProjectShown ? openStreamTabs.tabs.length : 0;
   const hasAClosedStreamTabToReopen = isAProjectShown && closedStreamTabs.length > 0;
@@ -265,15 +274,15 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
     [shownStreamDisplayName, openStreamTabCount, hasAClosedStreamTabToReopen],
   );
   useEffect(() => {
-    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(chosenLayoutShown, streamTabsInTheMenus, status.app_update, commands));
-  }, [menusLiveInTheSystemMenuBar, systemMenuBar, chosenLayoutShown, streamTabsInTheMenus, status.app_update, commands]);
+    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(layoutsInTheMenus, streamTabsInTheMenus, status.app_update, commands));
+  }, [menusLiveInTheSystemMenuBar, systemMenuBar, layoutsInTheMenus, streamTabsInTheMenus, status.app_update, commands]);
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       {isAProjectShown ? (
         <header className="flex shrink-0 flex-col bg-studio-menu-bar">
           {!menusLiveInTheSystemMenuBar && (
             <div className="flex h-8 items-center pr-2.5 pl-(--studio-menu-bar-leading-inset)" data-studio-menu-row="">
-              <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, streamTabsInTheMenus, status.app_update, commands)} />
+              <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, layoutsInTheMenus, streamTabsInTheMenus, status.app_update, commands)} />
             </div>
           )}
           <div
@@ -297,6 +306,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               whenNoneIsOpen="Open a stream from the outliner to see it here."
             />
             <div className="min-w-6 flex-1" />
+            <StudioTitleRowLayoutButtons model={model} studioLayouts={studioLayouts} commands={commands} platform={platform} />
           </div>
         </header>
       ) : (
@@ -315,7 +325,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         <>
           <main className="relative flex min-h-0 flex-1 p-(--studio-area-gap)" data-studio-layout={studioLayouts.chosen_layout}>
             <StudioAreaLayoutNodeView
-              node={studioLayouts.layouts[studioLayouts.chosen_layout]}
+              node={studioLayoutWithEdgesHidden(studioLayouts.layouts[studioLayouts.chosen_layout], studioLayouts.edges_hidden[studioLayouts.chosen_layout])}
               layoutKey={studioLayouts.chosen_layout}
               sources={sources}
             />
@@ -326,6 +336,25 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
             platform={platform}
           />
         </>
+      )}
+      {isAProjectShown && layoutPresetNameAsked && (
+        <NameFormDialog
+          dialogKind="save_layout_preset"
+          words={{
+            title: "Save layout as preset",
+            description: "The areas shown now are saved under this name, in this project's layout menu.",
+            actionWords: "Save",
+            pendingWords: "Saving…",
+            refusalLead: "The preset wasn't saved:",
+          }}
+          startingName=""
+          nameRefusal={(typedName) => (typedName.trim() === "" ? "Name the preset" : null)}
+          nameTheThing={(title) => {
+            model.saveTheChosenLayoutAsAPreset(title);
+            return Promise.resolve();
+          }}
+          onClosed={() => model.layoutPresetNameAsked.publish(false)}
+        />
       )}
       {isAProjectShown && <StreamMenuDialogsView question={streamMenuQuestion} streamEdits={sources.streamEdits} onClosed={() => model.streamMenuQuestion.publish(null)} />}
       <NewProjectSheetView openedWith={newProjectSheetOpenedWith} sources={sources.newProject} onClosed={() => model.newProjectSheetOpenedWith.publish(null)} />

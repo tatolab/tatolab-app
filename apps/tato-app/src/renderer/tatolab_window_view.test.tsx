@@ -703,6 +703,41 @@ describe("the studio", () => {
     expect(await shownLayout()).toBe("code");
   });
 
+  it("hides the layout's left and right areas from the title row's buttons, reshapes it from the layout menu, and saves it as a preset", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const areaIdsShown = () => [...document.querySelectorAll<HTMLElement>("[data-studio-area]")].map((area) => area.getAttribute("data-studio-area"));
+    const edgeButton = (edge: string) => document.querySelector<HTMLElement>(`[data-studio-layout-edge="${edge}"]`) ?? expect.unreachable(`no ${edge} edge button`);
+    await waitFor(() => expect(areaIdsShown()).toEqual(["outliner", "stream-graph", "viewer", "properties"]));
+    expect(document.querySelector("[data-studio-layout-edge=bottom]")).toBeNull();
+
+    fireEvent.click(edgeButton("left"));
+    await waitFor(() => expect(areaIdsShown()).toEqual(["stream-graph", "viewer", "properties"]));
+    expect(edgeButton("left").getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(edgeButton("right"));
+    await waitFor(() => expect(areaIdsShown()).toEqual(["stream-graph"]));
+    fireEvent.click(edgeButton("left"));
+    fireEvent.click(edgeButton("right"));
+    await waitFor(() => expect(areaIdsShown()).toEqual(["outliner", "stream-graph", "viewer", "properties"]));
+
+    pressAsAPointerDoes(document.querySelector<HTMLElement>("[data-studio-layout-menu]") ?? expect.unreachable("no layout menu button"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Two rows" }));
+    await waitFor(() => expect(areaIdsShown()).toEqual(["stream-graph", "outliner"]));
+    await waitFor(() => expect(edgeButton("bottom")).not.toBeNull());
+
+    pressAsAPointerDoes(document.querySelector<HTMLElement>("[data-studio-layout-menu]") ?? expect.unreachable("no layout menu button"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Save layout as preset…" }));
+    const presetDialog = await waitFor(() => document.querySelector<HTMLElement>('[data-name-form-dialog="save_layout_preset"]') ?? expect.unreachable("no Save layout as preset dialog"));
+    fireEvent.change(within(presetDialog).getByRole("textbox"), { target: { value: "Show night" } });
+    fireEvent.click(within(presetDialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(document.querySelector('[data-name-form-dialog="save_layout_preset"]')).toBeNull());
+
+    fireEvent.keyDown(document, { key: "4", metaKey: true });
+    expect(await shownLayout()).toBe("code");
+    pressAsAPointerDoes(document.querySelector<HTMLElement>("[data-studio-layout-menu]") ?? expect.unreachable("no layout menu button"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Show night" }));
+    await waitFor(() => expect(areaIdsShown()).toEqual(["stream-graph", "outliner"]));
+  });
+
   it("on macOS, draws no menus of its own and shows them in the system menu bar, where Window › Layout ticks the layout shown and switches it", async () => {
     const { backendChanges, menusShownLast, chooseFromTheSystemMenuBar } = systemMenuBarOverTheMock();
     await mountedWindowOverTheMock("state=running", backendChanges);

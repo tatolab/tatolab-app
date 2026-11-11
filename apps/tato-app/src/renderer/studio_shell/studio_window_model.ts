@@ -9,9 +9,10 @@ import type { SettingsSection } from "../presentation/settings_presentation";
 import type { StudioWindowValuesServedToViews } from "../view_host/studio_view_host_services";
 import { WatchedStudioValue } from "../view_host/watched_studio_value";
 import type { JsonValue, ListedStreamsReading, StopWatching, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
-import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, type StudioAreaLayoutNode } from "./studio_area_layout";
+import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, type StudioAreaLayoutNode } from "./studio_area_layout";
 import { STUDIO_LAYOUTS, type StudioLayoutName, type StudioLayoutsKeptInStorage, type StudioLayoutsOfAFolder } from "./studio_layouts";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
+import { NO_STUDIO_LAYOUT_EDGE_HIDDEN, studioLayoutShapedAs, studioLayoutWithEdgesHidden, studioLayoutWithShownSplitSizes, type StudioLayoutEdge, type StudioLayoutShape } from "./studio_layout_shapes";
 import { showViewTypeInAreaOf, watchAreasForTheViewType, type StudioViewTypeAreaSources } from "./studio_view_type_areas";
 
 /** What the window's view types are named by, and when the ones it holds change. */
@@ -99,6 +100,8 @@ export class StudioWindowModel {
   readonly studioLayouts = new WatchedStudioValue<StudioLayoutsOfAFolder | null>(null);
   /** The area of the chosen layout that fills the window in place of the layout; `null` while the layout shows. */
   readonly expandedAreaId = new WatchedStudioValue<string | null>(null);
+  /** Whether the dialog that names the layout to save as a preset shows. */
+  readonly layoutPresetNameAsked = new WatchedStudioValue(false);
   /** What views of each type were last opened on, by view type id. */
   readonly viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
   /** Why the last run or stop of the open project was refused, until it is dismissed or another is asked for. */
@@ -291,9 +294,14 @@ export class StudioWindowModel {
     this.streamMenuQuestion.publish({ kind: "name_a_new_stream" });
   }
 
-  /** Whether the studio window shows a dialog of its own over its stream tabs: the Stream menu's, Preferences, or the New project sheet. */
+  /** Whether the studio window shows a dialog of its own over its stream tabs: the Stream menu's, Save layout as preset's, Settings, or the New project sheet. */
   isADialogShownOverTheStreamTabs(): boolean {
-    return this.streamMenuQuestion.readLatest() !== null || this.settingsSection.readLatest() !== null || this.newProjectSheetOpenedWith.readLatest() !== null;
+    return (
+      this.streamMenuQuestion.readLatest() !== null ||
+      this.layoutPresetNameAsked.readLatest() ||
+      this.settingsSection.readLatest() !== null ||
+      this.newProjectSheetOpenedWith.readLatest() !== null
+    );
   }
 
   /** Ask, in the Stream menu's dialog, about the shown tab's stream: its new name, or whether to delete it. */
@@ -357,6 +365,47 @@ export class StudioWindowModel {
     this.changeLayouts((layouts) => ({ ...layouts, chosen_layout: layoutName }));
   }
 
+  /** Reshape the chosen layout as `shape`, keeping the views it shows where they fit, every edge shown. */
+  shapeTheChosenLayout(shape: StudioLayoutShape): void {
+    this.expandedAreaId.publish(null);
+    this.changeLayouts((layouts) => ({
+      ...layouts,
+      layouts: { ...layouts.layouts, [layouts.chosen_layout]: studioLayoutShapedAs(layouts.layouts[layouts.chosen_layout], shape) },
+      edges_hidden: { ...layouts.edges_hidden, [layouts.chosen_layout]: NO_STUDIO_LAYOUT_EDGE_HIDDEN },
+    }));
+  }
+
+  /** Hide the chosen layout's area at `edge`, or show it again. */
+  toggleTheChosenLayoutsEdge(edge: StudioLayoutEdge): void {
+    this.expandedAreaId.publish(null);
+    this.changeLayouts((layouts) => {
+      const edgesHidden = layouts.edges_hidden[layouts.chosen_layout];
+      return { ...layouts, edges_hidden: { ...layouts.edges_hidden, [layouts.chosen_layout]: { ...edgesHidden, [edge]: !edgesHidden[edge] } } };
+    });
+  }
+
+  /** Lay the chosen layout out as the preset the person saved at `presetIndex`, every edge shown. */
+  applyTheSavedLayoutPreset(presetIndex: number): void {
+    this.expandedAreaId.publish(null);
+    this.changeLayouts((layouts) => {
+      const preset = layouts.presets_saved[presetIndex];
+      if (preset === undefined) return layouts;
+      return {
+        ...layouts,
+        layouts: { ...layouts.layouts, [layouts.chosen_layout]: preset.layout },
+        edges_hidden: { ...layouts.edges_hidden, [layouts.chosen_layout]: NO_STUDIO_LAYOUT_EDGE_HIDDEN },
+      };
+    });
+  }
+
+  /** Save the chosen layout, as it shows, as a preset named `title`, after the ones saved before. */
+  saveTheChosenLayoutAsAPreset(title: string): void {
+    this.changeLayouts((layouts) => ({
+      ...layouts,
+      presets_saved: [...layouts.presets_saved, { title, layout: studioLayoutWithEdgesHidden(layouts.layouts[layouts.chosen_layout], layouts.edges_hidden[layouts.chosen_layout]) }],
+    }));
+  }
+
   /** Grow area `areaId` of the chosen layout to fill the window, or put the layout back. */
   expandArea(areaId: string, isExpanded: boolean): void {
     if (isExpanded) this.expandedAreaId.publish(areaId);
@@ -375,7 +424,7 @@ export class StudioWindowModel {
 
   /** Keep the sizes a drag left split `splitId` of the chosen layout at. */
   keepSplitSizes(splitId: string, sizePercentByPartId: Readonly<Record<string, number>>): void {
-    this.changeChosenLayoutTree((tree) => layoutWithSplitSizes(tree, splitId, sizePercentByPartId));
+    this.changeChosenLayoutTree((tree) => studioLayoutWithShownSplitSizes(tree, splitId, sizePercentByPartId));
   }
 
   private raiseEachNewFailureOfTheOpenProjectsStreams(listedStreams: readonly ListedStream[]): void {
