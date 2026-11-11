@@ -1,11 +1,10 @@
-import { readFile } from "node:fs/promises";
 import { afterEach, expect, test } from "vitest";
 import type { CarriedRuntime } from "./platform/carried_runtime.js";
 import { RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL, RUNTIME_STARTING_GRACE_PERIOD_MS } from "./carried_runtime_run_as_the_apps_child.js";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
 import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import { failedWith, succeeded } from "./result.js";
-import { MachineNameAskedOncePerRuntimeUpEpisode, TatolabAppController } from "./tatolab_app_controller.js";
+import { MachineNameAskedOncePerRuntimeUpEpisode, TatolabAppController, type TatolabAppControllerSources } from "./tatolab_app_controller.js";
 import type { TatolabAppUpdateState } from "../shared/tatolab_backend_contract.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 
@@ -40,6 +39,7 @@ test("a_machine_name_the_runtime_did_not_give_is_asked_again_only_after_a_restar
 });
 
 interface ControllerOverFakesOptions {
+  projectVenvSyncsOnTheStreamActionsFeed?: TatolabAppControllerSources["projectVenvSyncsOnTheStreamActionsFeed"];
   readMonotonicClockMs?: () => number;
   tatolabAppLog?: ReturnType<typeof createTatolabAppLog>;
   carriedRuntime?: CarriedRuntime | null;
@@ -69,6 +69,7 @@ async function controllerOverFakes(scriptedLocalApiResponses: readonly Buffer[],
     readDeveloperMode: () => false,
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     whenTheRuntimeExits: () => runtimeExits.push("exited"),
+    projectVenvSyncsOnTheStreamActionsFeed: options.projectVenvSyncsOnTheStreamActionsFeed ?? { keepFollowing: () => {}, takeTheProjectVenvSyncs: () => ({ underWay: [], justEnded: [] }) },
     tatolabAppLog: options.tatolabAppLog ?? createTatolabAppLog("error", () => {}),
   });
   return { controller, carriedRuntimeStarts, commandLineToolLink, localApiServer, runtimeExits };
@@ -99,81 +100,28 @@ test("a healthy runtime's status names its streams and machine, read as the wind
   expect(carriedRuntimeStarts.runtimesStarted).toHaveLength(0);
 });
 
-const recordedResponseBody = (fixtureFileName: string) => readFile(new URL(`./test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
 
-test("a project's stream on its making_the_venv step brings its action's venv sync into the status, described once per round", async () => {
-  const { controller, localApiServer } = await controllerOverFakes([
-    healthyAnswer(),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-new-project-preparing-on-its-making-the-venv-step.json")),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-new-project-downloading-numpy-and-pillow.json")),
-    theMachine(),
-  ]);
+test("each status round follows the stream actions while the runtime answers and carries the syncs the feed took", async () => {
+  const runtimeAnsweringAtEachRound: boolean[] = [];
+  const syncJustEnded = {
+    action: "Rvxjb0uiacgp6c3o13o9qvzj1-1",
+    project_directory: "/private/tmp/tatolab-proof-projects/numpy-pillow",
+    venv_sync: { phase: "installed", packages_resolved: 8, packages_prepared: 4, packages_installed: 8, downloads_started: 0, downloads_done: 0, packages: [] },
+  };
+  const { controller } = await controllerOverFakes([healthyAnswer(), noStreams(), theMachine()], {
+    projectVenvSyncsOnTheStreamActionsFeed: {
+      keepFollowing: (isTheRuntimeAnswering) => runtimeAnsweringAtEachRound.push(isTheRuntimeAnswering),
+      takeTheProjectVenvSyncs: () => ({ underWay: [], justEnded: [syncJustEnded] }),
+    },
+  });
 
   const status = await controller.composeStatus(0);
 
-  expect(status.project_venv_syncs_under_way).toEqual([
-    {
-      action: "Rvxjb0uiacgp6c3o13o9qvzj1-1",
-      project_directory: "/private/tmp/tatolab-proof-projects/numpy-pillow",
-      venv_sync: expect.objectContaining({ phase: "downloading", downloads_started: 4, downloads_done: 3 }),
-    },
-  ]);
-  const describeRequests = localApiServer.receivedRequests().filter((request) => request.includes("Mcp-Name: describe_stream_action"));
-  expect(describeRequests).toHaveLength(1);
-  expect(describeRequests[0]).toContain('"action":"Rvxjb0uiacgp6c3o13o9qvzj1-1"');
-});
-
-test("a sync whose streams left the making_the_venv step since the last round is described once more and brought into the status as just ended, then dropped", async () => {
-  const listedOnMakingTheVenv = async () =>
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-new-project-preparing-on-its-making-the-venv-step.json"));
-  const { controller, localApiServer } = await controllerOverFakes([
-    healthyAnswer(),
-    await listedOnMakingTheVenv(),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-new-project-downloading-numpy-and-pillow.json")),
-    theMachine(),
-    healthyAnswer(),
-    noStreams(),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-new-project-done-numpy-and-pillow-installed.json")),
-    healthyAnswer(),
-    noStreams(),
-  ]);
-
-  const syncing = await controller.composeStatus(0);
-  const ended = await controller.composeStatus(1);
-  const afterwards = await controller.composeStatus(2);
-
-  expect(syncing.project_venv_syncs_just_ended).toEqual([]);
-  expect(ended.project_venv_syncs_under_way).toEqual([]);
-  expect(ended.project_venv_syncs_just_ended).toEqual([
-    {
-      action: "Rvxjb0uiacgp6c3o13o9qvzj1-1",
-      project_directory: "/private/tmp/tatolab-proof-projects/numpy-pillow",
-      venv_sync: expect.objectContaining({ phase: "installed", packages_installed: 8 }),
-    },
-  ]);
-  expect(afterwards.project_venv_syncs_just_ended).toEqual([]);
-  expect(localApiServer.receivedRequests().filter((request) => request.includes("Mcp-Name: describe_stream_action"))).toHaveLength(2);
-});
-
-test("a project's sync whose action cannot be described is left out, its stream still listed on its step, and the runtime's words logged once", async () => {
-  const writtenLogLines: string[] = [];
-  const notHeld = async () => httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json"));
-  const listedOnMakingTheVenv = async () =>
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-new-project-preparing-on-its-making-the-venv-step.json"));
-  const { controller } = await controllerOverFakes(
-    [healthyAnswer(), await listedOnMakingTheVenv(), await notHeld(), theMachine(), healthyAnswer(), await listedOnMakingTheVenv(), await notHeld()],
-    { tatolabAppLog: createTatolabAppLog("warn", (logLine) => writtenLogLines.push(logLine)) },
-  );
-
-  const status = await controller.composeStatus(0);
-  await controller.composeStatus(1);
-
+  expect(runtimeAnsweringAtEachRound).toEqual([true]);
   expect(status.project_venv_syncs_under_way).toEqual([]);
-  expect(status.streams?.[0]?.step).toBe("making_the_venv");
-  const syncNotDescribedLines = writtenLogLines.filter((logLine) => logLine.includes("could not be described"));
-  expect(syncNotDescribedLines).toHaveLength(1);
-  expect(syncNotDescribedLines[0]).toContain("is not held");
+  expect(status.project_venv_syncs_just_ended).toEqual([syncJustEnded]);
 });
+
 
 test("a healthy runtime whose streams cannot be read lists none, and says why in the failure's own words", async () => {
   const { controller } = await controllerOverFakes([

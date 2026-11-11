@@ -13,7 +13,10 @@ import {
   queuedStreamActionFromTheToolResult,
   streamDisplayNameSetFromTheSetStreamDisplayNameToolResult,
 } from "./local_api_client.js";
+import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
+import { STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI, streamActionResourceUri } from "./project_venv_syncs_on_the_stream_actions_feed.js";
 import type { Result } from "./result.js";
+import { streamActionDescriptionFromTheStreamActionResourceText, streamActionsUnderWayFromTheStreamActionsResourceText } from "./stream_action_description.js";
 import {
   projectCreationQueuedFromTheCreateProjectToolResult,
   projectRunQueuedFromTheStartOrReloadProjectToolResult,
@@ -852,6 +855,25 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
 
   const expectedStreamCount = process.env["TATOLAB_APP_LIVE_EXPECTED_STREAM_COUNT"];
   if (expectedStreamCount !== undefined) expect(streams.length).toBe(Number(expectedStreamCount));
+});
+
+test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_serves_its_stream_actions_and_each_action_as_resources_the_app_reads", async () => {
+  const opened = await LocalApiMcpStdioConnection.open(process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"] ?? "", 5_000, "0.45.0");
+  const connection = answerOf(opened);
+  try {
+    const actionsUnderWay = answerOf(streamActionsUnderWayFromTheStreamActionsResourceText(answerOf(await connection.readResourceText(STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI))));
+    for (const description of actionsUnderWay) {
+      const oneAction = answerOf(streamActionDescriptionFromTheStreamActionResourceText(answerOf(await connection.readResourceText(streamActionResourceUri(description.action)))));
+      expect(oneAction.action).toBe(description.action);
+    }
+    const finishedAction = process.env["TATOLAB_APP_LIVE_FINISHED_STREAM_ACTION"];
+    if (finishedAction !== undefined) {
+      const finished = answerOf(streamActionDescriptionFromTheStreamActionResourceText(answerOf(await connection.readResourceText(streamActionResourceUri(finishedAction)))));
+      expect(finished.action).toBe(finishedAction);
+    }
+  } finally {
+    connection.close();
+  }
 });
 
 test("a_dependency_added_from_a_folder_or_a_zip_answers_the_import_the_runtime_copied", async () => {

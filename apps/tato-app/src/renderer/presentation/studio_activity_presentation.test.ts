@@ -192,7 +192,7 @@ describe("the studio's Activity panel", () => {
     const caughtOnlyBeforeUvStarted = nextStudioActivityLog(EMPTY_STUDIO_ACTIVITY_LOG, { ...NOTHING_UNDER_WAY, listedStreams: [NIGHT_SHOW_MAIN] });
     expect(caughtOnlyBeforeUvStarted.in_progress[0]).toMatchObject({ detail: "Downloading and installing…", package_lines: [] });
 
-    const ended = nextStudioActivityLog(caughtOnlyBeforeUvStarted, {
+    const endingSources: StudioActivitySources = {
       ...NOTHING_UNDER_WAY,
       listedStreams: [{ ...NIGHT_SHOW_MAIN, step: "starting" }],
       projectVenvSyncsJustEnded: [
@@ -213,7 +213,9 @@ describe("the studio's Activity panel", () => {
           },
         },
       ],
-    });
+    };
+    const ended = nextStudioActivityLog(caughtOnlyBeforeUvStarted, endingSources);
+    expect(nextStudioActivityLog(ended, endingSources)).toBe(ended);
 
     expect(ended.in_progress).toEqual([]);
     expect(ended.ended).toEqual([
@@ -245,5 +247,34 @@ describe("the studio's Activity panel", () => {
     });
     expect(nextStudioActivityLog(installing, endedAt("installed")).ended[0]).toMatchObject({ kind: "done", detail: "Packages already up to date", package_lines: [] });
     expect(nextStudioActivityLog(installing, endedAt("installing")).ended[0]).toMatchObject({ kind: "done", detail: "Installed", package_lines: [] });
+  });
+
+  it("adds an ended row for a sync that started and ended between two statuses, which no status showed under way, and adds none when that status is sent again", () => {
+    const lobbyFolder = "/Users/jonathanf/streams/lobby/";
+    const sources: StudioActivitySources = {
+      ...NOTHING_UNDER_WAY,
+      listedStreams: [{ ...LOBBY_MAIN, state: "running", action: null, step: null }],
+      projectVenvSyncsJustEnded: [
+        {
+          action: "Rlobby-1",
+          project_directory: lobbyFolder,
+          venv_sync: {
+            phase: "installed",
+            packages_resolved: 9,
+            packages_prepared: 4,
+            packages_installed: 1,
+            downloads_started: 0,
+            downloads_done: 0,
+            packages: [{ name: "numpy", version: "2.5.4", kind: "distribution", state: "installed", download_size_bytes: null }],
+          },
+        },
+      ],
+    };
+    const log = nextStudioActivityLog(EMPTY_STUDIO_ACTIVITY_LOG, sources);
+    expect(nextStudioActivityLog(log, sources)).toBe(log);
+    expect(log.in_progress).toEqual([]);
+    expect(log.ended).toEqual([
+      { activity_id: `python_packages:${lobbyFolder}`, title: "lobby's Python packages", kind: "done", detail: "Installed 1 package", package_lines: [{ name: "numpy", detail: "2.5.4 · Installed" }] },
+    ]);
   });
 });

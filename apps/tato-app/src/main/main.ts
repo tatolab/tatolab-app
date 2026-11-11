@@ -50,6 +50,7 @@ import { localApiRequestFailure } from "./local_api_client.js";
 import { answerAProjectViewFileRequest, ProjectViewsListedToTheWindows, type AnswerAProjectViewFileRequest } from "./project_view_files.js";
 import { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
+import { ProjectVenvSyncsOnTheStreamActionsFeed } from "./project_venv_syncs_on_the_stream_actions_feed.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import { runtimeViewerChannelReaderOpenerOver } from "./runtime_viewer_frame_import_addon.js";
@@ -62,6 +63,8 @@ const PORT_VIEWER_REQUEST_TIMEOUT_MS = 5_000;
 
 /** How long a read of a project's change feed waits on the runtime. */
 const PROJECT_TRANSACTIONS_FEED_REQUEST_TIMEOUT_MS = 10_000;
+/** How long a read of the runtime's stream actions waits for its answer. */
+const STREAM_ACTIONS_FEED_REQUEST_TIMEOUT_MS = 10_000;
 
 const TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET = "Tato Studio has not reached the runtime yet.";
 
@@ -320,6 +323,12 @@ export async function startTatolabApp(
     runProgramToCompletion,
     tatolabAppLog,
   );
+  const projectVenvSyncsOnTheStreamActionsFeed = new ProjectVenvSyncsOnTheStreamActionsFeed({
+    openTheFeedConnection: () => LocalApiMcpStdioConnection.open(platformForThisBuild.localApiSocket, STREAM_ACTIONS_FEED_REQUEST_TIMEOUT_MS, thisCopyOfTatolab.appVersion),
+    whenTheSyncsChange: () => statusPublisherOnceBuilt?.requestRefresh(),
+    tatolabAppLog,
+  });
+  tatolabElectronAppShell.onTheAppQuitting(() => projectVenvSyncsOnTheStreamActionsFeed.stopFollowing());
   const controller = TatolabAppController.create({
     platform: platformItems.platform,
     platformForThisBuild,
@@ -333,6 +342,7 @@ export async function startTatolabApp(
     readDeveloperMode: () => developerModeSwitch.isOnNow(),
     readTheCommandLineToolVersion: () => tatolabCommandLineToolVersion.versionNow(),
     whenTheRuntimeExits: () => statusPublisherOnceBuilt?.requestRefresh(),
+    projectVenvSyncsOnTheStreamActionsFeed,
     tatolabAppLog,
   });
   controllerOnceBuilt = controller;

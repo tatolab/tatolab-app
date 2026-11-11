@@ -4,7 +4,6 @@
 import type {
   ListedStream,
   ProjectCreationQueued,
-  ProjectVenvSyncOfAStreamAction,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   ProjectRunQueued,
@@ -32,8 +31,8 @@ import type {
   TatolabStatus,
   JsonValue,
 } from "../shared/tatolab_backend_contract.js";
-import { STREAM_ACTION_STEP_MAKING_THE_VENV } from "../shared/tatolab_backend_contract.js";
 import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_apps_child.js";
+import type { ProjectVenvSyncsOnTheStreamActionsFeed } from "./project_venv_syncs_on_the_stream_actions_feed.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
@@ -94,12 +93,9 @@ export interface TatolabAppControllerSources {
   readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion;
   /** Called each time the app's runtime exits, so the status is read again at once. */
   whenTheRuntimeExits: () => void;
+  /** Each project's `.venv` sync, followed on the runtime's stream actions while it answers. */
+  projectVenvSyncsOnTheStreamActionsFeed: Pick<ProjectVenvSyncsOnTheStreamActionsFeed, "keepFollowing" | "takeTheProjectVenvSyncs">;
   tatolabAppLog: TatolabAppLog;
-}
-
-interface ProjectVenvSyncsUnderWayAndJustEnded {
-  readonly underWay: ProjectVenvSyncOfAStreamAction[];
-  readonly justEnded: ProjectVenvSyncOfAStreamAction[];
 }
 
 /** The app's runtime, the command's link, and what the controller remembers between status rounds. */
@@ -122,6 +118,7 @@ export class TatolabAppController {
     private readonly readDeveloperMode: () => boolean,
     private readonly readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion,
     private readonly tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin,
+    private readonly projectVenvSyncsOnTheStreamActionsFeed: TatolabAppControllerSources["projectVenvSyncsOnTheStreamActionsFeed"],
     private readonly tatolabAppLog: TatolabAppLog,
   ) {}
 
@@ -147,6 +144,7 @@ export class TatolabAppController {
       sources.readDeveloperMode,
       sources.readTheCommandLineToolVersion,
       sources.platformForThisBuild.tatolabAppOpenedAtLogin,
+      sources.projectVenvSyncsOnTheStreamActionsFeed,
       sources.tatolabAppLog,
     );
   }
@@ -191,61 +189,21 @@ export class TatolabAppController {
     return set;
   }
 
-  /** Each action a listed stream named on its `making_the_venv` step at the last round that listed the streams, so its sync is read once more as it leaves. */
-  private actionsMakingTheVenvAtTheLastRound: ReadonlySet<string> = new Set();
-
-  /** Each round's syncs: under way, for each action a listed stream names on its `making_the_venv` step, and just ended, for each action named there last round and no longer; an action not described is left out. */
-  private async projectVenvSyncsOf(streams: readonly ListedStream[]): Promise<ProjectVenvSyncsUnderWayAndJustEnded> {
-    const actionsMakingTheVenv = new Set(streams.flatMap((listedStream) => (listedStream.step === STREAM_ACTION_STEP_MAKING_THE_VENV && listedStream.action !== null ? [listedStream.action] : [])));
-    const actionsThatLeftTheVenvStep = [...this.actionsMakingTheVenvAtTheLastRound].filter((action) => !actionsMakingTheVenv.has(action));
-    this.actionsMakingTheVenvAtTheLastRound = actionsMakingTheVenv;
-    const [underWay, justEnded] = await Promise.all([this.venvSyncsOfTheActions([...actionsMakingTheVenv]), this.venvSyncsOfTheActions(actionsThatLeftTheVenvStep)]);
-    return { underWay, justEnded };
-  }
-
-  private async venvSyncsOfTheActions(actions: readonly string[]): Promise<ProjectVenvSyncOfAStreamAction[]> {
-    const followedActions = await Promise.all(actions.map((action) => this.localApiClient.describeStreamAction(action)));
-    return actions.flatMap((action, actionIndex) => {
-      const followed = followedActions[actionIndex];
-      if (followed === undefined) return [];
-      if (!followed.ok) {
-        this.warnOnceThatTheSyncWasNotDescribed(action, followed.failure.failureDescription);
-        return [];
-      }
-      if (followed.value.kind === "not_held") {
-        this.warnOnceThatTheSyncWasNotDescribed(action, followed.value.words);
-        return [];
-      }
-      const { project_directory, venv_sync } = followed.value.description;
-      return venv_sync === null ? [] : [{ action, project_directory, venv_sync }];
-    });
-  }
-
-  private readonly actionsWhoseSyncWasNotDescribed = new Set<string>();
-
-  private warnOnceThatTheSyncWasNotDescribed(action: string, because: string): void {
-    if (this.actionsWhoseSyncWasNotDescribed.has(action)) return;
-    this.actionsWhoseSyncWasNotDescribed.add(action);
-    this.tatolabAppLog.warn("a project's sync could not be described, so the Activity panel shows its step alone", { action, because });
-  }
-
   /** Observe everything once at `nowMs`, start the app's runtime when none answers, and compose the status. */
   async composeStatus(nowMs: number): Promise<TatolabStatus> {
     const healthCheck = await this.localApiClient.checkHealth();
     let streams: ListedStream[] | null = null;
     let streamsNotListedBecause: string | null = null;
     let machineName: string | null = null;
-    let projectVenvSyncs: Promise<ProjectVenvSyncsUnderWayAndJustEnded> = Promise.resolve({ underWay: [], justEnded: [] });
     if (healthCheck.ok) {
       const listing = await this.listedStreams();
       streams = listing.ok ? listing.value : null;
-      if (streams !== null) projectVenvSyncs = this.projectVenvSyncsOf(streams);
       streamsNotListedBecause = listing.ok ? null : listing.failure;
       machineName = await this.machineNameOfTheRunningRuntime.machineName(() => this.askTheRuntimeItsMachineName());
     } else {
       this.machineNameOfTheRunningRuntime.runtimeIsDown();
-      this.actionsMakingTheVenvAtTheLastRound = new Set();
     }
+    this.projectVenvSyncsOnTheStreamActionsFeed.keepFollowing(healthCheck.ok);
     this.carriedRuntimeRunAsTheAppsChild.keepTheRuntimeRunning(healthCheck.ok, nowMs);
     const { runtimeState, runtimeNotRunningBecause } = this.carriedRuntimeRunAsTheAppsChild.runtimeStateNow(healthCheck.ok, nowMs);
     if (this.runtimeNotRunningOnset.conditionJustStartedHolding(runtimeState === "not_running") && !healthCheck.ok) {
@@ -255,7 +213,7 @@ export class TatolabAppController {
       });
     }
 
-    const { underWay, justEnded } = await projectVenvSyncs;
+    const { underWay, justEnded } = this.projectVenvSyncsOnTheStreamActionsFeed.takeTheProjectVenvSyncs();
     return {
       app_version: this.appVersion,
       app_build: this.appBuild,
