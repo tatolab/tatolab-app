@@ -364,12 +364,13 @@ function PortRowsOfOneDirection({
           }),
       }));
     const pickingOfATarget = (stream: string, targetKey: string, replacing: LinkedEndOfAPort | null, whenConnected: () => void): PropertyPortTarget["pickInTheStreamGraph"] => {
-      const targetId = `${place}/${targetKey}`;
+      const targetId = `${node.id}/${place}/${targetKey}`;
       return {
         isPicking: targetPickingInTheStreamGraph === targetId,
         onToggled: (isPicking) =>
-          pickInTheStreamGraph(targetId, isPicking, { node: node.id, port: port.name, direction }, place, (picked) => {
-            const joining = connectingThePortPicked(stream, graph, node, direction, port, replacing, picked);
+          pickInTheStreamGraph(targetId, isPicking, { node: node.id, port: port.name, direction }, place, (picked, graphWhenPicked) => {
+            const nodeWhenPicked = graphWhenPicked.nodes.find((graphNode) => graphNode.id === node.id) ?? node;
+            const joining = connectingThePortPicked(stream, graphWhenPicked, nodeWhenPicked, direction, port, replacing, picked);
             if (joining.kind === "cannot_join") {
               graphEdits.keepTheRefusal(place, joining.because);
               return;
@@ -460,7 +461,7 @@ type PickInTheStreamGraphForATarget = (
   isPicking: boolean,
   pick: Omit<PortPickInTheStreamGraph, "stream">,
   place: PlaceOfAnEdit,
-  whenPicked: (picked: { node: string; port: string }) => void,
+  whenPicked: (picked: { node: string; port: string }, graphWhenPicked: StreamGraphSummary) => void,
 ) => void;
 
 /** A view node's row naming how many areas show its view, with Show in an area to show it in another; nothing for a node that is not a view's. */
@@ -521,10 +522,12 @@ function PropertiesOfTheSelectedNode({
   const nodeShownWhileItWasSelectedByName = useRef<{ nodeName: string; nodeId: string } | null>(null);
   const [blankTargetPickers, setBlankTargetPickers] = useState<BlankTargetPickersOfTheNode>(NO_BLANK_TARGET_PICKERS);
   const [targetPickingInTheStreamGraph, setTargetPickingInTheStreamGraph] = useState<string | null>(null);
+  const isPickingInTheStreamGraph = useRef(false);
   useEffect(() => {
+    isPickingInTheStreamGraph.current = targetPickingInTheStreamGraph !== null;
     if (targetPickingInTheStreamGraph === null) return;
     const endThePickOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") void connection.endThePortPick();
+      if (event.key === "Escape" && !event.defaultPrevented) void connection.endThePortPick();
     };
     document.addEventListener("keydown", endThePickOnEscape);
     return () => document.removeEventListener("keydown", endThePickOnEscape);
@@ -538,6 +541,17 @@ function PropertiesOfTheSelectedNode({
   const node = nodeSelectedByName ?? nodeRenamedSinceItWasSelected;
   if (nodeSelectedByName !== undefined) nodeShownWhileItWasSelectedByName.current = { nodeName, nodeId: nodeSelectedByName.id };
   const graphEdits = graphEditsInTheProject.ofTheNode(node?.id ?? "");
+  const latestGraph = useRef(graph);
+  useEffect(() => {
+    latestGraph.current = graph;
+  }, [graph]);
+  const nodeIdShown = node?.id;
+  useEffect(
+    () => () => {
+      if (isPickingInTheStreamGraph.current) void connection.endThePortPick();
+    },
+    [nodeIdShown, connection],
+  );
   const pickInTheStreamGraph: PickInTheStreamGraphForATarget = (targetId, isPicking, pick, place, whenPicked) => {
     if (!isPicking) {
       void connection.endThePortPick();
@@ -546,7 +560,8 @@ function PropertiesOfTheSelectedNode({
     setTargetPickingInTheStreamGraph(targetId);
     void connection.pickAPortInTheStreamGraph({ ...pick, stream }).then((ending) => {
       setTargetPickingInTheStreamGraph((picking) => (picking === targetId ? null : picking));
-      if (ending.kind === "picked") whenPicked(ending);
+      const graphWhenPicked = latestGraph.current;
+      if (ending.kind === "picked" && graphWhenPicked !== null) whenPicked(ending, graphWhenPicked);
       else if (ending.kind === "not_started") graphEdits.keepTheRefusal(place, ending.because);
     });
   };

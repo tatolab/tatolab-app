@@ -1007,8 +1007,6 @@ function NodeGraphFlow({
 }) {
   const reactFlow = useReactFlow();
   const [nodeAskingWhichPort, setNodeAskingWhichPort] = useState<string | null>(null);
-  const isAskingWhichPort = useRef(false);
-  isAskingWhichPort.current = nodeAskingWhichPort !== null;
   const portPickingOfTheCards = useMemo(
     () =>
       portPicking === null
@@ -1031,13 +1029,13 @@ function NodeGraphFlow({
     }
     const ownerDocument = canvasElement.current?.ownerDocument ?? document;
     const endThePickOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || isAskingWhichPort.current) return;
+      if (event.key !== "Escape" || event.defaultPrevented || nodeAskingWhichPort !== null) return;
       event.preventDefault();
       portPicking.onEnded();
     };
     ownerDocument.addEventListener("keydown", endThePickOnEscape);
     return () => ownerDocument.removeEventListener("keydown", endThePickOnEscape);
-  }, [portPicking]);
+  }, [portPicking, nodeAskingWhichPort]);
   const pickTheCard = (nodeId: string) => {
     const portsThatCanJoin = portPicking?.portsThatCanJoinByNodeId.get(nodeId);
     if (portPicking === null || portsThatCanJoin === undefined) return;
@@ -1693,9 +1691,9 @@ function NodeGraphFlow({
               data-node-graph-editable={editing !== null || undefined}
             >
               {portPicking !== null && (
-                <div className="pointer-events-none absolute top-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-brand px-2.5 py-0.5 text-2xs whitespace-nowrap text-on-brand" role="status" data-node-graph-port-pick-banner="">
-                  <Crosshair className="size-3" strokeWidth={1.75} aria-hidden />
-                  {portPicking.words} · Esc ends the pick
+                <div className="pointer-events-none absolute top-2 left-1/2 z-10 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-1.5 rounded-full bg-brand px-2.5 py-0.5 text-2xs whitespace-nowrap text-on-brand" role="status" data-node-graph-port-pick-banner="">
+                  <Crosshair className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
+                  <span className="min-w-0 truncate">{portPicking.words} · Esc ends the pick</span>
                 </div>
               )}
               <ReactFlow<NodeGraphFlowNode, NodeGraphLinkFlowEdge>

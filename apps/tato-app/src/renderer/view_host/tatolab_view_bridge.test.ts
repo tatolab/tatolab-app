@@ -299,6 +299,23 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(portPickHeld.portPick.readLatest()).toBeNull();
   });
 
+  it("ends the pick a view still holds when the view closes, and leaves another view's pick alone", async () => {
+    const { connection, portPickHeld, bridge } = await connectedView(DJ_DECK_MANIFEST, {});
+    const pick = { stream: "set", node: "id-deck-a", port: "audio", direction: "output" } as const;
+    void connection.pickAPortInTheStreamGraph(pick);
+    await messagesDelivered();
+    expect(portPickHeld.portPick.readLatest()).toEqual(pick);
+    bridge.close();
+    expect(portPickHeld.portPick.readLatest()).toBeNull();
+
+    const another = await connectedView(DJ_DECK_MANIFEST, {});
+    const othersPick = another.portPickHeld.start({ ...pick, port: "cue" }, null);
+    another.bridge.close();
+    expect(another.portPickHeld.portPick.readLatest()).toEqual({ ...pick, port: "cue" });
+    another.portPickHeld.end("done");
+    expect(await othersPick).toEqual({ kind: "ended", because: "done" });
+  });
+
   it("names the person editing, whose own edits Undo reverts", async () => {
     const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
     expect(await connection.readThePersonEditing()).toEqual({ kind: "read", author: { kind: "person", name: "sam" } });

@@ -195,8 +195,8 @@
   --studio-port-band-second-line: #26262a;
   --studio-port-target-picker: #111113;
   --studio-port-target-picker-line: #38383e;
-  --studio-port-pick-line: #6f9bff;
-  --studio-port-pick-glow: rgba(111, 155, 255, 0.35);
+  --studio-port-pick-line: var(--brand-text);
+  --studio-port-pick-glow: rgba(124, 155, 255, 0.35);
   --studio-asset-card: #232327;
   --studio-asset-media: #1d2440;
   --studio-asset-scene: #251f3a;

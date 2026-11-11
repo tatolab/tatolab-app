@@ -61,6 +61,7 @@ export class TatolabViewBridge {
   private readonly inputWatchesByWatchId = new Map<number, InputWatch>();
   private readonly pythonLanguageServersByWatchId = new Map<number, PythonLanguageServerConnection>();
   private isClosed = false;
+  private isAPickOfTheViewHeld = false;
 
   private readonly onMessageFromTheView = (event: MessageEvent<unknown>): void => {
     const sentPayload: unknown = typeof event.data === "object" && event.data !== null && "payload" in event.data ? event.data.payload : null;
@@ -115,6 +116,7 @@ export class TatolabViewBridge {
   close(): void {
     if (this.isClosed) return;
     this.isClosed = true;
+    if (this.isAPickOfTheViewHeld) this.hostServices.endThePortPick(`${this.manifest.title} closed.`);
     for (const stopWatching of this.stopWatchingByWatchId.values()) stopWatching();
     this.stopWatchingByWatchId.clear();
     for (const inputWatch of this.inputWatchesByWatchId.values()) inputWatch.portViewerConnection?.close();
@@ -337,7 +339,9 @@ export class TatolabViewBridge {
         return showing.kind === "opened" ? { kind: "done" } : { kind: "refused", because: showing.because };
       }
       case "pick_a_port_in_the_stream_graph": {
+        this.isAPickOfTheViewHeld = true;
         const ending = await this.hostServices.pickAPortInTheStreamGraph(ask.pick);
+        this.isAPickOfTheViewHeld = false;
         if (ending.kind === "picked") return { kind: "port_picked", node: ending.node, port: ending.port };
         return ending.kind === "ended" ? { kind: "port_pick_ended", because: ending.because } : { kind: "refused", because: ending.because };
       }

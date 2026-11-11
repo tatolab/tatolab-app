@@ -419,13 +419,13 @@ export interface PropertyPortTarget {
 function NodeAndPortWords({ linkedWith, portClassName }: { linkedWith: { nodeTitle: string; port: string } | null; portClassName: string }) {
   return (
     <>
-      <Box className="size-[13px] shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
+      <Box className="size-[13px] shrink-0 text-fg-3 @max-[220px]/port-target:hidden" strokeWidth={1.75} aria-hidden />
       {linkedWith === null ? (
         <span className="text-fg-3">None</span>
       ) : (
         <>
           <b className="min-w-0 truncate font-semibold">{linkedWith.nodeTitle}</b>
-          <span className={cn("min-w-[3ch] shrink-[3] truncate", portClassName)}>{linkedWith.port}</span>
+          <span className={cn("min-w-[3ch] shrink-[3] truncate @max-[220px]/port-target:hidden", portClassName)}>{linkedWith.port}</span>
         </>
       )}
     </>
@@ -436,13 +436,14 @@ function NodeAndPortWords({ linkedWith, portClassName }: { linkedWith: { nodeTit
 export function PropertyPortTargetPicker({ portName, target }: { portName: string; target: PropertyPortTarget }) {
   const linkedWith = target.linkedWith;
   return (
-    <div className="flex min-w-0 items-center gap-1 pl-[17px]" data-property-port-target={linkedWith === null ? "" : `${linkedWith.nodeTitle} › ${linkedWith.port}`}>
+    <div className="@container/port-target flex min-w-0 items-center gap-1 pl-[17px]" data-property-port-target={linkedWith === null ? "" : `${linkedWith.nodeTitle} › ${linkedWith.port}`}>
       <FieldMenu
         label={linkedWith === null ? `Target of ${portName}: none` : `Target of ${portName}: ${linkedWith.nodeTitle} ${linkedWith.port}`}
         appearance="port_target"
         fillsItsPlace
         menuWidth="wide"
         isOpenAtFirst={target.isOpenAtFirst ?? false}
+        tooltip={linkedWith === null ? undefined : `${linkedWith.nodeTitle} › ${linkedWith.port}`}
         words={<NodeAndPortWords linkedWith={linkedWith} portClassName="text-fg-3" />}
         data-property-port-target-picker={portName}
       >

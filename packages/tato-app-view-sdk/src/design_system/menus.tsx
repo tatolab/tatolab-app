@@ -2,6 +2,7 @@ import { cn } from "cn";
 import { ChevronDown, Ellipsis, type LucideIcon } from "lucide-react";
 import { useId, type ReactElement, type ReactNode } from "react";
 import { Button } from "./ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -121,6 +122,7 @@ export function FieldMenu({
   menuAlignment = "start",
   appearance = "field",
   isOpenAtFirst = false,
+  tooltip,
   children,
   ...controlDataAttributes
 }: {
@@ -138,24 +140,27 @@ export function FieldMenu({
   appearance?: FieldMenuAppearance;
   /** Opens its menu as it first appears, for a field added to be chosen at once. */
   isOpenAtFirst?: boolean;
+  /** Shown on hover, as the whole of words a narrow field cuts short. */
+  tooltip?: string;
   children: ReactNode;
 } & ControlDataAttributes) {
-  return (
+  const fieldButton = (
+    <Button
+      variant="outline"
+      size={size === "compact" ? "xs" : "sm"}
+      className={cn(
+        FIELD_MENU_APPEARANCE_CLASS_NAMES[appearance],
+        appearance === "field" && size === "compact" && "h-6 gap-1 rounded-[4px] bg-transparent text-[11.5px] dark:bg-transparent",
+        appearance === "field" && isNarrowing && "border-line-strong text-fg dark:border-line-strong",
+        fillsItsPlace ? "w-full" : appearance === "field" && "max-w-96",
+        FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
+      )}
+    />
+  );
+  const fieldMenu = (
     <DropdownMenu defaultOpen={isOpenAtFirst}>
       <DropdownMenuTrigger
-        render={
-          <Button
-            variant="outline"
-            size={size === "compact" ? "xs" : "sm"}
-            className={cn(
-              FIELD_MENU_APPEARANCE_CLASS_NAMES[appearance],
-              appearance === "field" && size === "compact" && "h-6 gap-1 rounded-[4px] bg-transparent text-[11.5px] dark:bg-transparent",
-              appearance === "field" && isNarrowing && "border-line-strong text-fg dark:border-line-strong",
-              fillsItsPlace ? "w-full" : appearance === "field" && "max-w-96",
-              FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
-            )}
-          />
-        }
+        render={tooltip === undefined ? fieldButton : <TooltipTrigger render={fieldButton} />}
         aria-label={label}
         {...controlDataAttributes}
       >
@@ -167,6 +172,13 @@ export function FieldMenu({
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+  if (tooltip === undefined) return fieldMenu;
+  return (
+    <Tooltip>
+      {fieldMenu}
+      <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
   );
 }
 

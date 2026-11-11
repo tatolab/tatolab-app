@@ -21,6 +21,7 @@ import type {
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { streamPreparingWords } from "../shared/stream_preparing_words";
+import { nodeTitle } from "../shared/node_words";
 import { portsThatCanJoinByNodeId } from "../shared/ports_that_can_join";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 import { useStreamGraphEditsSentToTheRuntime } from "./stream_graph_edit_sending";
@@ -99,17 +100,19 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
     const pickingNode = graph.nodes.find((graphNode) => graphNode.id === portPick.node);
     const pickingPort = (portPick.direction === "input" ? pickingNode?.input_ports : pickingNode?.output_ports)?.find((declaredPort) => declaredPort.name === portPick.port);
     if (pickingNode === undefined || pickingPort === undefined) return null;
+    const nodeNameById = new Map(graph.nodes.map((graphNode) => [graphNode.id, graphNode.name]));
+    const nodeIdByName = new Map(graph.nodes.map((graphNode) => [graphNode.name, graphNode.id]));
     const portsByNodeName = new Map<string, readonly string[]>();
     for (const [nodeId, ports] of portsThatCanJoinByNodeId(graph, pickingNode, portPick.direction, pickingPort)) {
-      const nodeName = graph.nodes.find((graphNode) => graphNode.id === nodeId)?.name;
+      const nodeName = nodeNameById.get(nodeId);
       if (nodeName !== undefined) portsByNodeName.set(nodeName, ports);
     }
     return {
-      words: `Pick the other end of ${pickingNode.name} › ${pickingPort.name}`,
+      words: `Pick the other end of ${nodeTitle(pickingNode.name, pickingNode.type)} › ${pickingPort.name}`,
       portsThatCanJoinByNodeId: portsByNodeName,
       onPicked: (nodeName, port) => {
-        const pickedNode = graph.nodes.find((graphNode) => graphNode.name === nodeName);
-        if (pickedNode !== undefined) void connection.answerThePortPick(pickedNode.id, port);
+        const pickedNodeId = nodeIdByName.get(nodeName);
+        if (pickedNodeId !== undefined) void connection.answerThePortPick(pickedNodeId, port);
       },
       onEnded: () => void connection.endThePortPick(),
     };
