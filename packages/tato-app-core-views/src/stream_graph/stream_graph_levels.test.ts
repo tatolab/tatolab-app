@@ -3,7 +3,7 @@ import { NODE_STUDIO_FIELDS_NONE_SET, type StreamGraphFragment, type StreamGraph
 import { streamGraphLevelReached, whyTheInsideOfTheSubgraphIsReadOnly } from "./stream_graph_levels";
 
 function graphNode(name: string, type: string, fragment: StreamGraphFragment | null = null): StreamGraphNode {
-  return { id: `uuid-${name}`, name, type, state: null, failed_because: null, config: {}, pins: {}, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, studio: NODE_STUDIO_FIELDS_NONE_SET, fragment };
+  return { id: `uuid-${name}`, name, type, state: null, failed_because: null, process_raising_because: null, config: {}, pins: {}, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, studio: NODE_STUDIO_FIELDS_NONE_SET, fragment };
 }
 
 const BLUR = graphNode("blur", "nodes.blur:Blur");

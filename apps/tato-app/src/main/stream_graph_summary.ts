@@ -194,6 +194,7 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
   if (!pins.ok) return pins;
   const state = components.value["state"];
   const failedBecause = components.value["failed_because"];
+  const processRaisingBecause = components.value["process_raising_because"];
   const metrics = components.value["metrics"];
   const ports = objectOrEmpty(node.value, "ports");
   if (!ports.ok) return ports;
@@ -209,6 +210,7 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
     type: nodeType.value,
     state: typeof state === "string" ? state : null,
     failed_because: typeof failedBecause === "string" ? failedBecause : null,
+    process_raising_because: typeof processRaisingBecause === "string" ? processRaisingBecause : null,
     config: Object.fromEntries(Object.entries(config.value).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]))),
     pins: Object.fromEntries(Object.entries(pins.value).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]))),
     input_ports: inputPorts.value,

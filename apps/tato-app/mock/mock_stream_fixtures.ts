@@ -95,6 +95,8 @@ export interface MockGraphNode {
   state: string | null;
   /** Why it failed, in the runtime's words, while `state` reads `Error`. */
   failed_because?: string;
+  /** What its `process()` raised, in the runtime's words, while it keeps raising and stays `Running`. */
+  process_raising_because?: string;
   config: Record<string, JsonValue>;
   /** The value each unlinked input holds, by input name. */
   pins?: Record<string, JsonValue>;

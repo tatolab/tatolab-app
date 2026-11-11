@@ -44,6 +44,7 @@ function graphNode(name: string, type: string, group: string | null, failedBecau
     type,
     state: failedBecause === null ? "Running" : "Error",
     failed_because: failedBecause,
+    process_raising_because: null,
     config: {},
     pins: {},
     input_ports: [],
@@ -98,6 +99,15 @@ describe("the outliner's tree", () => {
       "  stray · Display leaf",
       "door collapsed",
     ]);
+  });
+
+  it("marks a running node whose process() keeps raising as failed", () => {
+    const raising = { ...graphNode("Halftone", "tatolab.stream:HalftoneLensEffect", null), process_raising_because: "process() raised ValueError: no lens (nodes/halftone.py, line 12)" };
+    if (LOBBY_WALL_GRAPH.kind !== "read") throw new Error("LOBBY_WALL_GRAPH is a read graph");
+    const graph: StreamGraphReading = { kind: "read", graph: { ...LOBBY_WALL_GRAPH.graph, nodes: [raising] } };
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [listedStream("/w/studio", "lobby_wall")] }, { "lobby_wall-id": graph }, "lobby_wall-id", {});
+    const halftone = rows.find(({ row }) => row.label === "Halftone");
+    expect([halftone?.row.icon, halftone?.row.tone]).toEqual(["failed", "failed"]);
   });
 
   it("marks a failed node and selects each node by its stream and name", () => {
