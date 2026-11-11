@@ -169,6 +169,48 @@ describe("the node graph canvas while it takes edits", () => {
     expect(titleField.value).toBe("Look");
   });
 
+  it("titles a new frame with what was typed and entered while it was made, opening no field, and leaves it untitled after Escape", async () => {
+    const { editing, onFrameChanged } = editingRecorded();
+    const NEW_FRAME_ID = "5f0c2d9e-7b8a-4c61-9e3d-2a1b0c9d8e7f";
+    const canvasWith = (frameIds: string[]) => (
+      <NodeGraphCanvas
+        label="Stream graph"
+        nodes={[{ ...card("pattern", false), frame_id: frameIds.at(-1) ?? null }]}
+        links={[]}
+        frames={frameIds.map((frame_id) => ({ frame_id, title: "Frame", description: null, colour: null }))}
+        selectedNodeId="pattern"
+        onNodeSelected={vi.fn()}
+        editing={editing}
+      />
+    );
+    const { container, rerender } = render(canvasWith([]));
+    const canvas = await vi.waitFor(() => container.querySelector<HTMLElement>("[data-node-graph-editable]") ?? expect.unreachable("no editable canvas"));
+    fireEvent.keyDown(canvas, { key: "f" });
+    for (const key of ["I", "n", "Enter", "x"]) fireEvent.keyDown(canvas, { key });
+    rerender(canvasWith([NEW_FRAME_ID]));
+    await vi.waitFor(() => expect(onFrameChanged).toHaveBeenCalledWith(NEW_FRAME_ID, { title: "In" }));
+    expect(container.querySelector(`[data-node-graph-frame-title-field="${NEW_FRAME_ID}"]`)).toBeNull();
+
+    const SECOND_FRAME_ID = "0b7e4c2a-9d31-4f58-a6e2-3c8d1f0e9b75";
+    fireEvent.keyDown(canvas, { key: "f" });
+    for (const key of ["L", "Escape"]) fireEvent.keyDown(canvas, { key });
+    rerender(canvasWith([NEW_FRAME_ID, SECOND_FRAME_ID]));
+    await vi.waitFor(() => container.querySelector(`[data-node-graph-frame="${SECOND_FRAME_ID}"]`) ?? expect.unreachable("no second frame"));
+    expect(container.querySelector(`[data-node-graph-frame-title-field="${SECOND_FRAME_ID}"]`)).toBeNull();
+    expect(onFrameChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for a node where the pointer last pressed when Tab follows a click that brought no pointer move", async () => {
+    const { editing } = editingRecorded();
+    const onNodeAskedFor = vi.fn();
+    const { container } = drawnCanvas({ ...editing, onNodeAskedFor });
+    const canvas = await vi.waitFor(() => container.querySelector<HTMLElement>("[data-node-graph-editable]") ?? expect.unreachable("no editable canvas"));
+    fireEvent.pointerMove(canvas, { clientX: 900, clientY: 500 });
+    fireEvent.pointerDown(canvas, { clientX: 120, clientY: 480 });
+    fireEvent.keyDown(canvas, { key: "Tab" });
+    expect(onNodeAskedFor).toHaveBeenCalledWith(expect.objectContaining({ in_the_element: { x: 120, y: 480 } }));
+  });
+
   it("offers no right-click menu on a read-only canvas's frame", async () => {
     const { container } = drawnCanvas(null);
     const titleTab = await vi.waitFor(() => container.querySelector<HTMLElement>(`[data-node-graph-frame-title="${FRAME_ID}"]`) ?? expect.unreachable("no frame title"));

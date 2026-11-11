@@ -1320,12 +1320,12 @@ function NodeGraphFlow({
 
   const [frameWordsBeingEdited, setFrameWordsBeingEdited] = useState<NodeGraphFrameWordsBeingEdited | null>(null);
   const frameIdsWhenAFrameWasAskedFor = useRef<ReadonlySet<string> | null>(null);
-  const titleTypedWhileTheFrameIsMade = useRef("");
+  const titleTypedWhileTheFrameIsMade = useRef({ typed: "", isEntered: false });
   const frameTheSelection = useCallback(() => {
     if (editing === null) return;
     const frameIdsBefore = new Set(frames.map((frame) => frame.frame_id));
     frameIdsWhenAFrameWasAskedFor.current = frameIdsBefore;
-    titleTypedWhileTheFrameIsMade.current = "";
+    titleTypedWhileTheFrameIsMade.current = { typed: "", isEntered: false };
     void editing.onFrameAskedFor([...selectedIds]).then((answer) => {
       if (answer === "refused" && frameIdsWhenAFrameWasAskedFor.current === frameIdsBefore) frameIdsWhenAFrameWasAskedFor.current = null;
     });
@@ -1336,10 +1336,16 @@ function NodeGraphFlow({
     const newFrame = frames.find((frame) => !frameIdsBefore.has(frame.frame_id));
     if (newFrame === undefined) return;
     frameIdsWhenAFrameWasAskedFor.current = null;
-    const typedAhead = titleTypedWhileTheFrameIsMade.current;
-    titleTypedWhileTheFrameIsMade.current = "";
-    setFrameWordsBeingEdited({ frame_id: newFrame.frame_id, field: "title", ...(typedAhead === "" ? {} : { typed_ahead: typedAhead }) });
-  }, [frames]);
+    const { typed, isEntered } = titleTypedWhileTheFrameIsMade.current;
+    titleTypedWhileTheFrameIsMade.current = { typed: "", isEntered: false };
+    const typedTitle = typed.trim();
+    if (isEntered && typedTitle !== "") {
+      editing?.onFrameChanged(newFrame.frame_id, { title: typedTitle });
+      return;
+    }
+    if (isEntered) return;
+    setFrameWordsBeingEdited({ frame_id: newFrame.frame_id, field: "title", ...(typed === "" ? {} : { typed_ahead: typed }) });
+  }, [frames, editing]);
   const frameWordsEditing = useMemo(() => ({ frameWordsBeingEdited, editTheFrameWords: setFrameWordsBeingEdited }), [frameWordsBeingEdited]);
   const [frameIdWhoseColourIsPicked, setFrameIdWhoseColourIsPicked] = useState<string | null>(null);
   const frameWhoseColourIsPicked = frames.find((frame) => frame.frame_id === frameIdWhoseColourIsPicked) ?? null;
@@ -1392,10 +1398,16 @@ function NodeGraphFlow({
   const followTheKeys = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (editing === null || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) return;
-      if (frameIdsWhenAFrameWasAskedFor.current !== null && !event.metaKey && !event.ctrlKey && !event.altKey && (event.key.length === 1 || event.key === "Backspace")) {
-        event.preventDefault();
-        titleTypedWhileTheFrameIsMade.current = event.key === "Backspace" ? titleTypedWhileTheFrameIsMade.current.slice(0, -1) : titleTypedWhileTheFrameIsMade.current + event.key;
-        return;
+      const titleTyped = titleTypedWhileTheFrameIsMade.current;
+      if (frameIdsWhenAFrameWasAskedFor.current !== null && !titleTyped.isEntered && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        if (event.key.length === 1) titleTyped.typed += event.key;
+        else if (event.key === "Backspace") titleTyped.typed = titleTyped.typed.slice(0, -1);
+        else if (event.key === "Enter") titleTyped.isEntered = true;
+        else if (event.key === "Escape") titleTypedWhileTheFrameIsMade.current = { typed: "", isEntered: true };
+        if (event.key.length === 1 || event.key === "Backspace" || event.key === "Enter" || event.key === "Escape") {
+          event.preventDefault();
+          return;
+        }
       }
       const isOnAControl = event.target instanceof Element && event.target.closest("button, a, select, [role=menuitem]") !== null;
       if (event.key === "Tab" && !isOnAControl && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
@@ -1442,6 +1454,9 @@ function NodeGraphFlow({
               tabIndex={editing === null ? undefined : 0}
               onKeyDown={followTheKeys}
               onPointerMove={(event: ReactPointerEvent<HTMLDivElement>) => {
+                pointerRestsAt.current = canvasPointOf({ x: event.clientX, y: event.clientY });
+              }}
+              onPointerDownCapture={(event: ReactPointerEvent<HTMLDivElement>) => {
                 pointerRestsAt.current = canvasPointOf({ x: event.clientX, y: event.clientY });
               }}
               data-node-graph-editable={editing !== null || undefined}
