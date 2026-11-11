@@ -12,6 +12,7 @@ import {
   Network,
   Package,
   Shapes,
+  SquareDashed,
   SlidersHorizontal,
   TriangleAlert,
   Workflow,
@@ -33,6 +34,8 @@ export type StudioIconName =
   | "file"
   | "folder"
   | "stream"
+  | "graph_group"
+  | "graph_node"
   | "node_category"
   | "node_type"
   | "graph_generator"
@@ -54,6 +57,8 @@ const STUDIO_ICONS: Record<StudioIconName, LucideIcon> = {
   file: FileText,
   folder: Folder,
   stream: Workflow,
+  graph_group: SquareDashed,
+  graph_node: Box,
   node_category: Folder,
   node_type: Blocks,
   graph_generator: Network,
