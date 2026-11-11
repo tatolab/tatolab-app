@@ -1550,8 +1550,42 @@ describe("Settings", () => {
     await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
     const sectionList = within(screen.getByRole("navigation", { name: "Settings" }));
     expect(sectionList.getByRole("button", { name: "General" }).getAttribute("aria-current")).toBe("page");
-    expect(sectionList.getAllByRole("button").map((sectionButton) => sectionButton.textContent)).toEqual(["General", "Developer", "Runtime", "Command line", "About"]);
+    expect(sectionList.getAllByRole("button").map((sectionButton) => sectionButton.textContent)).toEqual(["General", "Developer", "Project", "Runtime", "Command line", "About"]);
     expect(sectionList.getByText("This machine")).toBeTruthy();
+    expect(sectionList.getByText("This project")).toBeTruthy();
+  });
+
+  it("changes the open project's name, description and cover in Settings' Project section", async () => {
+    const setRecentProjectDescription = vi.fn<(folder: string, description: string) => Promise<void>>(async () => undefined);
+    const renameRecentProject = vi.fn<(folder: string, name: string) => Promise<void>>(async () => undefined);
+    const setRecentProjectCover = vi.fn<(folder: string, image: string | null) => Promise<void>>(async () => undefined);
+    const chooseProjectCoverImage = vi.fn<() => Promise<string | null>>(async () => "/Users/jonathanf/Pictures/stage.png");
+    await mountedWindowOverTheMock("state=running", { setRecentProjectDescription, renameRecentProject, setRecentProjectCover, chooseProjectCoverImage });
+    await openSettingsOn("project");
+    const projectSettings = await waitFor(() => document.querySelector<HTMLElement>(`[data-project-settings="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no Project section"));
+    const nameField = await waitFor(() => projectSettings.querySelector<HTMLInputElement>("[data-project-details-name]") ?? expect.unreachable("no name field"));
+    expect(nameField.value).toBe("pattern");
+
+    fireEvent.change(nameField, { target: { value: "Lobby pattern" } });
+    fireEvent.keyDown(nameField, { key: "Enter" });
+    await waitFor(() => expect(renameRecentProject).toHaveBeenCalledWith(PATTERN_PROJECT, "Lobby pattern"));
+
+    const descriptionField = projectSettings.querySelector<HTMLTextAreaElement>("[data-project-details-description]") ?? expect.unreachable("no description field");
+    fireEvent.change(descriptionField, { target: { value: "The lobby's test pattern." } });
+    fireEvent.blur(descriptionField);
+    await waitFor(() => expect(setRecentProjectDescription).toHaveBeenCalledWith(PATTERN_PROJECT, "The lobby's test pattern."));
+
+    fireEvent.click(within(projectSettings).getByRole("button", { name: "Choose image…" }));
+    await waitFor(() => expect(setRecentProjectCover).toHaveBeenCalledWith(PATTERN_PROJECT, "/Users/jonathanf/Pictures/stage.png"));
+  });
+
+  it("asks for an open project in Settings' Project section while none is open", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
+    await waitFor(() => expect(document.querySelectorAll("[data-projects-project]").length).toBeGreaterThan(0));
+    fireEvent.keyDown(document, { key: ",", metaKey: true });
+    fireEvent.keyDown(document, { key: ",", ctrlKey: true });
+    fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-settings-section="project"]') ?? expect.unreachable("no Project section")));
+    await waitFor(() => expect(document.querySelector('[data-settings-page="project"]')?.textContent).toContain("Open a project to change its name, description and cover."));
   });
 
   it("names the running runtime's version and uptime and its local API socket, and restarts it through Starting", { timeout: 10_000 }, async () => {

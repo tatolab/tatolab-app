@@ -424,6 +424,10 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         shownSection={settingsSection}
         onSectionChosen={(section) => model.settingsSection.publish(section)}
         onClosed={() => model.settingsSection.publish(null)}
+        openProjectInSettings={{
+          openProjectFolder: openProject.kind === "read" ? openProject.open_project.project.folder : null,
+          projectSettingsSources: sources.projects,
+        }}
       />
       <AppUpdateAnnouncementDialogView
         onUpdateInstallChosen={() => {

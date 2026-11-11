@@ -10,7 +10,7 @@ import type {
 import { presentRuntimeStatus, type StatusTone } from "./runtime_presentation";
 
 /** A section of Settings. */
-export type SettingsSection = "general" | "developer" | "runtime" | "command-line" | "about";
+export type SettingsSection = "general" | "developer" | "project" | "runtime" | "command-line" | "about";
 
 /** Settings' sections in the order its list shows them, under the group each sits in. */
 export const SETTINGS_SECTION_GROUPS: readonly { groupLabel: string; sections: readonly { section: SettingsSection; label: string }[] }[] = [
@@ -21,6 +21,7 @@ export const SETTINGS_SECTION_GROUPS: readonly { groupLabel: string; sections: r
       { section: "developer", label: "Developer" },
     ],
   },
+  { groupLabel: "This project", sections: [{ section: "project", label: "Project" }] },
   {
     groupLabel: "This machine",
     sections: [

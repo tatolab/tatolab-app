@@ -1,4 +1,4 @@
-import { Code, Cpu, FolderOpen, Info, RotateCw, SlidersHorizontal, SquareTerminal, type LucideIcon } from "lucide-react";
+import { Code, Cpu, FolderOpen, Image, Info, RotateCw, SlidersHorizontal, SquareTerminal, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { useEffect, useState, type ReactNode } from "react";
 import { describeBackendRejection } from "../backend/tatolab_backend";
@@ -31,11 +31,13 @@ import {
   type SettingsSection,
 } from "../presentation/settings_presentation";
 import { useActionThroughTheBackend, type BackendActionRefusal } from "./action_through_the_backend";
+import { ProjectSettingsSectionView, type ProjectSettingsSources } from "./project_settings_section_view";
 import { useRuntimeDescriptionReading, useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 const SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
   general: SlidersHorizontal,
   developer: Code,
+  project: Image,
   runtime: Cpu,
   "command-line": SquareTerminal,
   about: Info,
@@ -399,9 +401,17 @@ function AboutSection() {
   );
 }
 
-const SECTION_VIEWS: Record<SettingsSection, () => ReactNode> = {
+/** What the open project's section reads and changes it through. */
+interface OpenProjectInSettings {
+  /** `null` while no project is open in the window. */
+  openProjectFolder: string | null;
+  projectSettingsSources: ProjectSettingsSources;
+}
+
+const SECTION_VIEWS: Record<SettingsSection, (openProjectInSettings: OpenProjectInSettings) => ReactNode> = {
   general: GeneralSection,
   developer: DeveloperSection,
+  project: ProjectSettingsSectionView,
   runtime: RuntimeSection,
   "command-line": CommandLineSection,
   about: AboutSection,
@@ -411,15 +421,17 @@ function isASettingsSection(sectionId: string): sectionId is SettingsSection {
   return sectionId in SECTION_VIEWS;
 }
 
-/** Settings over the studio, open on `shownSection` while it is not `null`: General, Developer, Runtime, Command line and About. */
+/** Settings over the studio, open on `shownSection` while it is not `null`: General, Developer, Project, Runtime, Command line and About. */
 export function SettingsDialogView({
   shownSection,
   onSectionChosen,
   onClosed,
+  openProjectInSettings,
 }: {
   shownSection: SettingsSection | null;
   onSectionChosen: (section: SettingsSection) => void;
   onClosed: () => void;
+  openProjectInSettings: OpenProjectInSettings;
 }) {
   const ShownSectionView = SECTION_VIEWS[shownSection ?? "general"];
   return (
@@ -440,7 +452,7 @@ export function SettingsDialogView({
       data-settings-page={shownSection ?? "general"}
     >
       <div className="flex flex-col gap-6">
-        <ShownSectionView />
+        <ShownSectionView {...openProjectInSettings} />
       </div>
     </SectionedDialog>
   );
