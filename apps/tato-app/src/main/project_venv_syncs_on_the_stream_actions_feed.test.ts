@@ -19,18 +19,26 @@ async function recordedStreamActionDescription(fixtureFileName: string): Promise
   return JSON.parse(text);
 }
 
+/** The text of a recorded resource read, its `contents[0].text`, as the runtime served it. */
+async function recordedResourceText(fixtureFileName: string): Promise<string> {
+  const resourceRead: { result: { contents: { text: string }[] } } = JSON.parse(await readFile(new URL(`./test-fixtures/${fixtureFileName}`, import.meta.url), "utf8"));
+  return resourceRead.result.contents[0]?.text ?? expect.unreachable(`${fixtureFileName} holds no resource text`);
+}
+
 const downloading = () => recordedStreamActionDescription("local-api-describe-stream-action-of-a-new-project-downloading-numpy-and-pillow.json");
 const done = () => recordedStreamActionDescription("local-api-describe-stream-action-of-a-new-project-done-numpy-and-pillow-installed.json");
 
-/** A stand-in connection whose stream actions resource reads `actionsUnderWay` as the test sets it, and whose ended actions read from `endedActions`. */
+/** A stand-in connection whose stream actions resource reads `actionsUnderWay` as the test sets it, and whose ended actions read from `endedActions`; a text in `recordedResourceTexts` is served for its uri as it stands. */
 function fakeStreamActionsConnection() {
-  const served = { actionsUnderWay: [] as Record<string, unknown>[], endedActions: new Map<string, Record<string, unknown>>() };
+  const served = { actionsUnderWay: [] as Record<string, unknown>[], endedActions: new Map<string, Record<string, unknown>>(), recordedResourceTexts: new Map<string, string>() };
   const recorded = { resourceReads: [] as string[], closed: false, listenStopped: false };
   let sendAnUpdate: () => void = () => undefined;
   let endTheListen: (why: string) => void = () => undefined;
   const connection: LocalApiResourceFollowingConnection = {
     readResourceText: async (uri) => {
       recorded.resourceReads.push(uri);
+      const recordedText = served.recordedResourceTexts.get(uri);
+      if (recordedText !== undefined) return succeeded(recordedText);
       if (uri === STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI) return succeeded(JSON.stringify({ actions: served.actionsUnderWay }));
       const ended = [...served.endedActions].find(([action]) => uri === streamActionResourceUri(action));
       return ended === undefined ? theRuntimesRefusal(`no stream action at ${uri}`) : succeeded(JSON.stringify(ended[1]));
@@ -254,4 +262,29 @@ test("a feed whose listen ended hands over no sync as under way until a new conn
   fake.endTheListen("the runtime stopped");
 
   expect(feed.takeTheProjectVenvSyncs().underWay).toEqual([]);
+});
+
+test("a recorded new project's sync is under way on its making_the_venv step, and once it leaves the list its recorded resource ends it as installed", async () => {
+  const recordedAction = "Robwi215r483sn5t185x0l5s1-1";
+  const fake = fakeStreamActionsConnection();
+  fake.served.recordedResourceTexts.set(STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI, await recordedResourceText("local-api-stream-actions-resource-of-a-new-project-syncing-on-its-making-the-venv-step.json"));
+  fake.served.recordedResourceTexts.set(streamActionResourceUri(recordedAction), await recordedResourceText("local-api-stream-action-resource-of-a-new-project-done-after-its-sync.json"));
+  const { feed } = feedOver(fake);
+  feed.keepFollowing(true);
+  await settle();
+
+  const syncing = feed.takeTheProjectVenvSyncs();
+  expect(syncing.underWay).toEqual([
+    { action: recordedAction, project_directory: "/Users/fonta/Documents/Tato Studio/sync-289a", venv_sync: expect.objectContaining({ phase: "installed", packages_installed: 8 }) },
+  ]);
+  expect(syncing.underWay[0]?.venv_sync.packages.map((recordedPackage) => `${recordedPackage.name} ${recordedPackage.version}`)).toContain("tatolab-stream 0.68.61");
+
+  fake.served.recordedResourceTexts.delete(STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI);
+  fake.sendAnUpdate();
+  await settle();
+
+  const ended = feed.takeTheProjectVenvSyncs();
+  expect(ended.underWay).toEqual([]);
+  expect(ended.justEnded).toEqual([{ action: recordedAction, project_directory: "/Users/fonta/Documents/Tato Studio/sync-289a", venv_sync: expect.objectContaining({ phase: "installed", packages_installed: 8 }) }]);
+  expect(ended.justEnded[0]?.venv_sync.packages).toHaveLength(8);
 });
