@@ -10,6 +10,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useStore,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -48,6 +49,7 @@ import {
   nodeGraphCardHeight,
   type NodeGraphPosition,
 } from "./support/node_graph_layout";
+import { isPartOfTheGraphOutsideTheView } from "./support/node_graph_map_visibility";
 import { canPinsOfTheseFamiliesBeWired, frameRectangleAroundCards, linkUnderACard, placeClearBelowTheCards, type NodeGraphLinkMidpoint } from "./support/node_graph_editing";
 
 /** The family a pin carries, which picks its shape and colour and its links' colour. */
@@ -700,6 +702,7 @@ function NodeGraphFlow({
   overlay?: ReactNode;
 }) {
   const reactFlow = useReactFlow();
+  const isTheMapShown = useStore(isPartOfTheGraphOutsideTheView);
   const canvasElement = useRef<HTMLDivElement>(null);
   const pointerRestsAt = useRef<NodeGraphCanvasPoint | null>(null);
   const [cardSizeByNode, setCardSizeByNode] = useState<
@@ -1277,17 +1280,19 @@ function NodeGraphFlow({
                     </>
                   )}
                 </div>
-                <MiniMap
-                  className="node-graph-minimap"
-                  style={{ width: 168, height: 108 }}
-                  ariaLabel="Map of the whole graph"
-                  pannable
-                  zoomable
-                  nodeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--fg-3)" : "transparent")}
-                  nodeStrokeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--studio-graph-card-line)" : "transparent")}
-                  maskColor="var(--scrim)"
-                  bgColor="var(--studio-graph-tools)"
-                />
+                {isTheMapShown && (
+                  <MiniMap
+                    className="node-graph-minimap"
+                    style={{ width: 168, height: 108 }}
+                    ariaLabel="Map of the whole graph"
+                    pannable
+                    zoomable
+                    nodeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--fg-3)" : "transparent")}
+                    nodeStrokeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--studio-graph-card-line)" : "transparent")}
+                    maskColor="var(--scrim)"
+                    bgColor="var(--studio-graph-tools)"
+                  />
+                )}
                 {overlay}
               </ReactFlow>
             </div>
