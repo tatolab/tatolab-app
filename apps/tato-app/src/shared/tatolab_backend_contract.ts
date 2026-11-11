@@ -30,6 +30,7 @@ export type {
   ProjectNodeTypeListing,
   ProjectAsset,
   ProjectAssetListing,
+  ProjectAssetsImported,
   ProjectTheRuntimeNames,
   ImportedProjectSource,
   ImportedProject,

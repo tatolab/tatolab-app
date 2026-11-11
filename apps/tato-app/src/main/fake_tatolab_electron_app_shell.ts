@@ -61,6 +61,7 @@ export type FakeShellRecord = (
   | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }
   | { asked: "ask_for_a_project_folder"; chosenFor: ProjectFolderDialogPurpose; defaultFolder: string }
   | { asked: "ask_for_a_dependency_source"; sourceKind: DependencySourceKind; defaultFolder: string }
+  | { asked: "ask_for_files_to_import_as_assets"; defaultFolder: string }
   | { asked: "ask_for_a_project_archive"; defaultFolder: string }
   | { asked: "ask_for_a_project_cover_image"; defaultFolder: string }
 ) & { windowContentsId?: number };
@@ -109,6 +110,8 @@ export class FakeTatolabElectronAppShell {
   projectFolderTheDialogAnswers: string | null = null;
   /** The folder or `.zip` the dependency source dialog answers, or `null` for the person cancelling. */
   dependencySourceTheDialogAnswers: string | null = null;
+  /** The files the import-assets dialog answers, or `null` for the person cancelling. */
+  assetFilesTheDialogAnswers: readonly string[] | null = null;
   /** The `.zip` the project archive dialog answers, or `null` for the person cancelling. */
   projectArchiveTheDialogAnswers: string | null = null;
   /** The image the project cover image dialog answers, or `null` for the person cancelling. */
@@ -186,6 +189,10 @@ export class FakeTatolabElectronAppShell {
     askThePersonForADependencySource: async (sourceKind, defaultFolder) => {
       this.records.push({ asked: "ask_for_a_dependency_source", sourceKind, defaultFolder });
       return succeeded(this.dependencySourceTheDialogAnswers);
+    },
+    askThePersonForFilesToImportAsAssets: async (defaultFolder) => {
+      this.records.push({ asked: "ask_for_files_to_import_as_assets", defaultFolder });
+      return succeeded(this.assetFilesTheDialogAnswers);
     },
     watchFolderEntries: () => null,
     fetchTextOverHttps: async (url) => {

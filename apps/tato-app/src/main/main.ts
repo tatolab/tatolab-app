@@ -44,6 +44,7 @@ import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_pr
 import type { ProjectFilesOfTheRuntime } from "./open_project_files.js";
 import { ProjectOpening, type FolderEntriesWatch, type ProjectArchiveDialog, type ProjectCoverImageDialog, type ProjectFolderDialog, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
+import { ProjectAssetsImportedFromChosenFiles, type ProjectAssetFilesDialog } from "./project_assets_imported_from_chosen_files.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { localApiRequestFailure } from "./local_api_client.js";
 import { answerAProjectViewFileRequest, ProjectViewsListedToTheWindows, type AnswerAProjectViewFileRequest } from "./project_view_files.js";
@@ -107,6 +108,8 @@ export interface TatolabElectronAppShell {
   askThePersonForAProjectCoverImage: ProjectCoverImageDialog;
   /** The desktop's open dialog over the window, which Module manager imports a project's folder or `.zip` through. */
   askThePersonForADependencySource: DependencySourceDialog;
+  /** The desktop's open dialog over the window, which the Library's Import asset… asks for files through. */
+  askThePersonForFilesToImportAsAssets: ProjectAssetFilesDialog;
   /** How the code pane's language servers start, each in its own process. */
   startANodeLanguageServer: StartANodeLanguageServer;
   /** Pyright's `langserver.index.js` as this build carries it. */
@@ -420,6 +423,11 @@ export async function startTatolabApp(
     fetchBytesOverHttps: tatolabElectronAppShell.fetchBytesOverHttps,
     moduleDownloadsFolder: path.join(tatolabElectronAppShell.appConfigDirectory, MODULE_DOWNLOADS_FOLDER_NAME),
     dependencySourceDialog: tatolabElectronAppShell.askThePersonForADependencySource,
+    projectAssetsImportedFromChosenFiles: new ProjectAssetsImportedFromChosenFiles({
+      homeDirectory: tatolabElectronAppShell.homeDirectory,
+      projectAssetFilesDialog: tatolabElectronAppShell.askThePersonForFilesToImportAsAssets,
+      projectChanges: controller,
+    }),
     thePersonEditingInStudio: tatolabElectronAppShell.thePersonSignedInToThisComputer,
     projectViewsListed,
     systemMediaAccessAskedAheadForViews: new SystemMediaAccessAskedAheadForViews(platformForThisBuild.systemMediaAccess, tatolabElectronAppShell.systemNotifications),

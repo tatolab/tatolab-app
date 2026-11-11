@@ -82,7 +82,7 @@ function openProjectNodeTypesNode(projectRowId: string, projectNodeTypes: Projec
   if (projectNodeTypes?.kind === "listed") {
     const { listing } = projectNodeTypes;
     const ownSource = listing.sources.find((source) => source.origin.source === "project") ?? { origin: { source: "project" as const }, node_types: [], graph_generators: [], unreadable_modules: [] };
-    return nodeTypesNode(projectRowId, ownSource, nodeTypeSourceTitle(ownSource.origin, listing.project_name), listing.project_directory);
+    return nodeTypesNode(projectRowId, ownSource, nodeTypeSourceTitle(ownSource.origin), listing.project_directory);
   }
   const nodeTypesRowId = `${projectRowId}/node_types`;
   return {

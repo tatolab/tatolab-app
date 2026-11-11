@@ -90,6 +90,11 @@ export class ProjectListingReadingsPolledWhileWatched<Listing> {
     };
   };
 
+  /** List `projectFolder` again at once while a view watches it, so a change the window just made shows without waiting a round. */
+  listTheProjectAgainNow(projectFolder: string): void {
+    this.listingsByProjectFolder.get(projectFolder)?.poll.pollNow();
+  }
+
   private listingOf(projectFolder: string): OneProjectsListing<Listing> {
     const known = this.listingsByProjectFolder.get(projectFolder);
     if (known !== undefined) return known;

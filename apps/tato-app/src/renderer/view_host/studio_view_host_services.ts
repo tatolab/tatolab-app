@@ -5,7 +5,7 @@ import type { ProjectAssetListing, ProjectNodeTypeListing } from "../../shared/t
 import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
-import type { ListedStreamsReading, OpenProjectReading, StreamTabAddress, StudioSelection, StudioViewHostServices, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
+import type { ListedStreamsReading, OpenProjectReading, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { WatchedStudioValue } from "./watched_studio_value";
 
@@ -23,13 +23,38 @@ export interface StudioWindowValuesServedToViews {
 
 /** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types, assets and history, their language servers, and the port viewers of their running nodes. */
 export interface StudioViewHostProjectServices {
-  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "writeStudioViewOutput">;
+  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "writeStudioViewOutput">;
   projectLogReadings: ProjectLogReadings;
   projectNodeTypeReadings: ProjectListingReadingsPolledWhileWatched<ProjectNodeTypeListing>;
   projectAssetReadings: ProjectListingReadingsPolledWhileWatched<ProjectAssetListing>;
   projectTransactionsReadings: ProjectTransactionsReadings;
   pythonLanguageServerConnections: PythonLanguageServerConnections;
   portViewerConnections: PortViewerConnections;
+}
+
+/** Why a view naming a folder other than the window's open project imports nothing into it. */
+export function onlyTheOpenProjectImportsAssetsRefusal(projectFolder: string): string {
+  return `Tato Studio imports assets into this window's project only, not ${projectFolder}.`;
+}
+
+/** What a view's Import asset… reaches: the window's open project, the backend that asks the person and imports, and the project's asset listing to read again. */
+export interface AssetImportForAViewSources {
+  readTheOpenProject: () => OpenProjectReading;
+  backend: Pick<TatolabBackend, "importAssetsIntoTheOpenProject">;
+  listTheProjectAgainNow: (projectFolder: string) => void;
+}
+
+/** The files the person chooses imported into `projectFolder` when it is the window's open project, its asset listing read again at once; refused for any other folder. */
+export async function importAssetsIntoTheOpenProjectForAView(projectFolder: string, assetImportSources: AssetImportForAViewSources): Promise<ProjectAssetsImporting> {
+  const openProject = assetImportSources.readTheOpenProject();
+  if (openProject.kind !== "read" || openProject.open_project.project.folder !== projectFolder) return { kind: "not_imported", because: onlyTheOpenProjectImportsAssetsRefusal(projectFolder) };
+  return assetImportSources.backend.importAssetsIntoTheOpenProject().then(
+    (assetsImported): ProjectAssetsImporting => {
+      assetImportSources.listTheProjectAgainNow(projectFolder);
+      return assetsImported === null ? { kind: "nothing_chosen" } : { kind: "imported", assets_imported: assetsImported };
+    },
+    (rejection: unknown): ProjectAssetsImporting => ({ kind: "not_imported", because: describeBackendRejection(rejection) }),
+  );
 }
 
 /** What every view's bridge answers its frame from, read from `sources`, for a stream's graph and catalog from `streamReadings`, and for the open project and its imports from `projectServices`. */
@@ -83,6 +108,12 @@ export function studioViewHostServicesOf(
     watchProjectLog: projectServices.projectLogReadings.watchProjectLog,
     watchProjectNodeTypes: projectServices.projectNodeTypeReadings.watchTheProject,
     watchProjectAssets: projectServices.projectAssetReadings.watchTheProject,
+    importAssetsIntoTheProject: (projectFolder) =>
+      importAssetsIntoTheOpenProjectForAView(projectFolder, {
+        readTheOpenProject: sources.openProject.readLatest,
+        backend,
+        listTheProjectAgainNow: (folder) => projectServices.projectAssetReadings.listTheProjectAgainNow(folder),
+      }),
     watchProjectTransactions: projectServices.projectTransactionsReadings.watchProjectTransactions,
     undoInTheProject: projectServices.projectTransactionsReadings.undoInTheProject,
     redoInTheProject: projectServices.projectTransactionsReadings.redoInTheProject,

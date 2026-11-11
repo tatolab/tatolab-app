@@ -159,7 +159,7 @@ describe("the Library's tree", () => {
   it("lists each source by its title, the project first, each node type under its category and each module that does not parse", () => {
     const rows = libraryTreeOfTheListing(patternListing(), {}, "node_types");
     expect(rows.map(({ row }) => `${"  ".repeat(row.depth)}${row.label} ${row.expansion}`)).toEqual([
-      "pattern expanded",
+      "This project expanded",
       "  Effects expanded",
       "    caption_overlay leaf",
       "    InvertingEffect leaf",
@@ -190,7 +190,7 @@ describe("the Library's tree", () => {
   it("shows each module that does not parse in the parser's words, for that module only", () => {
     const rows = libraryTreeOfTheListing(patternListing(true), {}, "node_types");
     expect(rows.slice(0, 3).map(({ row }) => [row.label, row.tone ?? "plain"])).toEqual([
-      ["pattern", "plain"],
+      ["This project", "plain"],
       ["nodes/half_written.py:12:5: SyntaxError: expected ':'", "unreadable"],
       ["nodes/inverting_effect.py:3:1: SyntaxError: unterminated triple-quoted string literal (detected at line 23)", "unreadable"],
     ]);
@@ -199,13 +199,13 @@ describe("the Library's tree", () => {
 
   it("says a source declares no node types, and keeps a row the person closed closed", () => {
     const listing = { ...patternListing(), sources: [{ origin: { source: "project" as const }, node_types: [], graph_generators: [], unreadable_modules: [] }] };
-    expect(libraryTreeOfTheListing(listing, {}, "node_types").map(({ row }) => row.label)).toEqual(["pattern", "Declares no node types"]);
-    expect(libraryTreeOfTheListing(listing, { "source:project": false }, "node_types").map(({ row }) => row.label)).toEqual(["pattern"]);
+    expect(libraryTreeOfTheListing(listing, {}, "node_types").map(({ row }) => row.label)).toEqual(["This project", "Declares no node types"]);
+    expect(libraryTreeOfTheListing(listing, { "source:project": false }, "node_types").map(({ row }) => row.label)).toEqual(["This project"]);
   });
 
   it("lists only the graph generators, straight under each source that declares one, opening each in the project's folder", () => {
     const rows = libraryTreeOfTheListing(patternListing(), {}, "graph_generators");
-    expect(rows.map(({ row }) => `${"  ".repeat(row.depth)}${row.label} ${row.expansion}`)).toEqual(["pattern expanded", "  two_cameras_side_by_side leaf"]);
+    expect(rows.map(({ row }) => `${"  ".repeat(row.depth)}${row.label} ${row.expansion}`)).toEqual(["This project expanded", "  two_cameras_side_by_side leaf"]);
     const generator = rows[1]?.meaning;
     expect(generator?.kind === "graph_generator_declaration" ? generator.file : null).toBe(`${STREAMS_FOLDER}/pattern/nodes/scenes.py`);
     expect(libraryTreeOfTheListing({ ...patternListing(), sources: [LIGHTING_RIG_DEPENDENCY] }, {}, "graph_generators")).toEqual([]);
