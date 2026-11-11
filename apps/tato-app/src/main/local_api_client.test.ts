@@ -1351,19 +1351,17 @@ test("describing_a_project_calls_set_project_description_and_reads_its_settings_
   ]);
 });
 
-test("an_asset_the_person_imports_is_recorded_under_them_and_answered_by_its_uuid_and_path", async () => {
+test("an_asset_the_person_imports_naming_no_path_lands_in_its_kinds_folder_numbered_past_a_name_taken_recorded_under_them_and_answered_by_its_uuid_and_path", async () => {
   const server = await fakeLocalApiServerAnswering([
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-answer-for-stills-poster-png-imported-by-a-person.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-answer-for-poster-png-numbered-poster-3-in-media-imported-by-a-person.json")),
   ]);
-  const galleryWall = "/tmp/tatolab-proof-projects/gallery-wall";
+  const tidePool = "/tmp/tatolab-proof-projects/tide-pool";
 
-  expect(answerOf(await server.client().importAsset(galleryWall, "/tmp/poster.png", "stills/poster.png", { kind: "person", name: "sam" }))).toEqual({
-    asset: "0f10d6b7-3e8b-414f-aca0-30ded70632dc",
-    path: "stills/poster.png",
+  expect(answerOf(await server.client().importAsset(tidePool, "/tmp/poster.png", null, { kind: "person", name: "sam" }))).toEqual({
+    asset: "d18ac59c-d741-45fc-8d21-d3febd0d14a0",
+    path: "media/poster-3.png",
   });
-  expect(toolCallsReceivedBy(server)).toEqual([
-    ["import_asset", { project_directory: galleryWall, source: "/tmp/poster.png", asset_path: "stills/poster.png", author: { kind: "person", name: "sam" } }],
-  ]);
+  expect(toolCallsReceivedBy(server)).toEqual([["import_asset", { project_directory: tidePool, source: "/tmp/poster.png", author: { kind: "person", name: "sam" } }]]);
 });
 
 test("covering_a_project_imports_the_image_with_import_asset_then_names_it_with_set_project_cover_and_each_refusal_is_in_the_runtimes_words", async () => {

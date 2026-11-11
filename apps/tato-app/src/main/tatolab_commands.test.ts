@@ -930,24 +930,24 @@ test("undo and redo in the open project ask the runtime by the window's author a
 test("importing assets into the open project copies each file the person chooses into the project, naming no path, by the person editing, answering each one imported and each refusal in the runtime's words", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-answer-for-stills-poster-png-imported-by-a-person.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-refusal-for-a-path-night-show-already-holds.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-answer-for-poster-png-numbered-poster-3-in-media-imported-by-a-person.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-refusal-for-main-graph-json-a-stream-graph-document.json")),
     ],
     "linux",
   );
-  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "gallery-wall-"));
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "tide-pool-"));
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
   const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
   expect(await commandHandlers.import_assets_into_the_open_project(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: null });
-  sharedState.assetFilesTheDialogAnswers.files = ["/home/sam/poster.png", "/home/sam/cover-art.png"];
+  sharedState.assetFilesTheDialogAnswers.files = ["/home/sam/poster.png", "/home/sam/main.graph.json"];
   expect(await commandHandlers.import_assets_into_the_open_project(undefined, fromTheStudioWindow)).toEqual({
     ok: true,
     value: {
-      imported: [{ asset: "0f10d6b7-3e8b-414f-aca0-30ded70632dc", path: "stills/poster.png" }],
-      refused: [{ file_name: "cover-art.png", because: "import_asset failed: `media/cover-art.png` is already the path of the asset 7593be3b-210b-4656-ab21-2213bfa307b5" }],
+      imported: [{ asset: "d18ac59c-d741-45fc-8d21-d3febd0d14a0", path: "media/poster-3.png" }],
+      refused: [{ file_name: "main.graph.json", because: "import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write" }],
     },
   });
   expect(await commandHandlers.import_assets_into_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
