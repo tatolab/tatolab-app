@@ -1,4 +1,4 @@
-// The words of a view node's "Shown in" row in Properties: how many of the chosen layout's areas
+// The words of a view node's "Shown in" row in Properties: how many of the layout's areas
 // show its view, and the areas Show in an area offers.
 
 import type { AreaForAViewType } from "@tatolab/tato-app-view-sdk";

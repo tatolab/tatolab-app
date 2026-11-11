@@ -15,6 +15,7 @@ import type {
   RuntimeDescription,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
+  StudioWarning,
   StreamActionCancelAnswer,
   StreamActionFollowed,
   StreamGraphSummary,
@@ -91,6 +92,8 @@ export interface TatolabAppControllerSources {
   readDeveloperMode: () => boolean;
   /** The `tatolab` CLI's version as read so far this launch, which each status carries. */
   readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion;
+  /** Each warning that holds now, which each status carries. */
+  readTheStudioWarnings: () => StudioWarning[];
   /** Called each time the app's runtime exits, so the status is read again at once. */
   whenTheRuntimeExits: () => void;
   /** Each project's `.venv` sync, followed on the runtime's stream actions while it answers. */
@@ -117,6 +120,7 @@ export class TatolabAppController {
     private readonly readStreamFailureNotifications: () => StreamFailureNotificationsState,
     private readonly readDeveloperMode: () => boolean,
     private readonly readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion,
+    private readonly readTheStudioWarnings: () => StudioWarning[],
     private readonly tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin,
     private readonly projectVenvSyncsOnTheStreamActionsFeed: TatolabAppControllerSources["projectVenvSyncsOnTheStreamActionsFeed"],
     private readonly tatolabAppLog: TatolabAppLog,
@@ -143,6 +147,7 @@ export class TatolabAppController {
       sources.readStreamFailureNotifications,
       sources.readDeveloperMode,
       sources.readTheCommandLineToolVersion,
+      sources.readTheStudioWarnings,
       sources.platformForThisBuild.tatolabAppOpenedAtLogin,
       sources.projectVenvSyncsOnTheStreamActionsFeed,
       sources.tatolabAppLog,
@@ -233,6 +238,7 @@ export class TatolabAppController {
       developer_mode: this.readDeveloperMode(),
       open_at_login: await this.tatolabAppOpenedAtLogin.readOpenAtLogin(),
       command_line_tool_version: this.readTheCommandLineToolVersion(),
+      studio_warnings: this.readTheStudioWarnings(),
     };
   }
 

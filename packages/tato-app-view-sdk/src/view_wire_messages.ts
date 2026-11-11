@@ -66,7 +66,7 @@ export const modulesAndMarketplaceSectionSchema = z.enum(["added_to_this_project
 /** A section of the Modules and Marketplace window. */
 export type ModulesAndMarketplaceSection = z.infer<typeof modulesAndMarketplaceSectionSchema>;
 
-/** One area of the studio window's chosen layout, as a view of some type could be shown in it: what it shows now, by its view's title, and whether that is the view type itself or the area of the view asking. */
+/** One area of the studio window's layout, as a view of some type could be shown in it: what it shows now, by its view's title, and whether that is the view type itself or the area of the view asking. */
 export const areaForAViewTypeSchema = z.object({
   area_id: z.string(),
   /** The title of the view the area shows, `null` while it shows none. */
@@ -77,13 +77,13 @@ export const areaForAViewTypeSchema = z.object({
 /** One area a view of some type could be shown in. */
 export type AreaForAViewType = z.infer<typeof areaForAViewTypeSchema>;
 
-/** The areas of the chosen layout for a view type, as its node's Show in an area lists them: none when no view type has that id, or why the window has no areas. */
+/** The areas of the layout for a view type, as its node's Show in an area lists them: none when no view type has that id, or why the window has no areas. */
 export const areasForAViewTypeReadingSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("not_a_view_type") }),
   z.object({ kind: z.literal("areas_listed"), view_title: z.string(), areas: z.array(areaForAViewTypeSchema) }),
   z.object({ kind: z.literal("no_areas"), because: z.string() }),
 ]);
-/** The areas of the chosen layout for a view type. */
+/** The areas of the layout for a view type. */
 export type AreasForAViewTypeReading = z.infer<typeof areasForAViewTypeReadingSchema>;
 
 /** A port of a stream's node whose other end the person is picking in the Stream graph: an input picks an output, an output an input. */
@@ -122,7 +122,9 @@ export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("settings") }),
   z.object({ kind: z.literal("opened_on") }),
   z.object({ kind: z.literal("header_row") }),
-  /** The chosen layout's areas for the view type `view_type_id`, read again as the layout or the view types change. */
+  /** Whether the view's area fills the window now, at once and on each change. */
+  z.object({ kind: z.literal("area_expansion") }),
+  /** The layout's areas for the view type `view_type_id`, read again as the layout or the view types change. */
   z.object({ kind: z.literal("areas_for_the_view_type"), view_type_id: z.string() }),
   /** The port whose other end the person is picking in the Stream graph, `null` while none is. */
   z.object({ kind: z.literal("port_pick") }),
@@ -175,7 +177,7 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("relocate_asset_in_the_project"), project_folder: z.string(), asset: z.string(), to_path: z.string() }),
   /** Stop tracking the asset `asset` of the project, its file leaving it, through the runtime's `delete_asset`, by the person editing. */
   z.object({ kind: z.literal("delete_asset_from_the_project"), project_folder: z.string(), asset: z.string() }),
-  /** Show the view type `view_type_id` in area `area_id` of the chosen layout, in place of what it shows. */
+  /** Show the view type `view_type_id` in area `area_id` of the layout, in place of what it shows. */
   z.object({ kind: z.literal("show_view_type_in_area"), view_type_id: z.string(), area_id: z.string() }),
   /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
   z.object({ kind: z.literal("open_modules_and_marketplace"), shows: modulesAndMarketplaceSectionSchema }),
@@ -185,6 +187,8 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("answer_the_port_pick"), node: z.string(), port: z.string() }),
   /** End the pick held with nothing picked. */
   z.object({ kind: z.literal("end_the_port_pick") }),
+  /** Grow the view's area to fill the window, or put the layout back; refused where the view shows outside a layout. */
+  z.object({ kind: z.literal("expand_the_area"), is_expanded: z.boolean() }),
 ]);
 /** What a view may ask Studio to do. */
 export type ViewAsk = z.infer<typeof viewAskSchema>;
@@ -223,6 +227,7 @@ export const viewWatchedReadingSchema = z.discriminatedUnion("subject", [
   z.object({ subject: z.literal("settings"), reading: jsonValueSchema }),
   z.object({ subject: z.literal("opened_on"), reading: viewOpenedOnSchema }),
   z.object({ subject: z.literal("header_row"), reading: viewHeaderRowSchema }),
+  z.object({ subject: z.literal("area_expansion"), reading: z.object({ is_expanded: z.boolean() }) }),
   z.object({ subject: z.literal("areas_for_the_view_type"), reading: areasForAViewTypeReadingSchema }),
   z.object({ subject: z.literal("port_pick"), reading: portPickInTheStreamGraphSchema.nullable() }),
 ]);

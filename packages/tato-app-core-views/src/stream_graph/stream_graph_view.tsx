@@ -463,7 +463,7 @@ function StreamGraphBody({ connection }: { connection: TatoAppViewConnection }) 
 /** The Stream graph view's whole frame: the active stream tab's nodes and links, drawn the Blueprint way, under its header row. */
 export function StreamGraphView({ connection }: { connection: TatoAppViewConnection }) {
   return (
-    <CoreViewFrame connection={connection}>
+    <CoreViewFrame connection={connection} toolbarLabel="Stream graph tools">
       <StreamGraphBody connection={connection} />
     </CoreViewFrame>
   );

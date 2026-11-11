@@ -23,7 +23,7 @@ import {
 } from "@xyflow/react";
 import { cn } from "cn";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
-import { ChevronDown, ChevronRight, Combine, Crosshair, Frame, Palette, Pencil, Pipette, Plus, Scan, SquareX, StickyNote, Text, Trash2, Ungroup, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronDown, ChevronRight, Combine, Crosshair, Frame, Palette, Pencil, Pipette, Plus, Scan, Search, SquareX, StickyNote, Text, Trash2, Ungroup, ZoomIn, ZoomOut } from "lucide-react";
 import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
 import { MenuItem, MenuOpenBesideItsParent, RightClickMenu, RightClickMenuItem, RightClickMenuSeparator, RightClickMenuSingleChoiceGroup, RightClickSubmenu } from "./menus";
 import {
@@ -43,7 +43,9 @@ import {
 } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { IconButton } from "./icon_button";
-import { Toolbar, ToolbarDivider, ToolbarGroup } from "./toolbar";
+import { ToolbarDivider, ToolbarGroup } from "./toolbar";
+import { StudioViewToolbarTools } from "./studio_area_frame";
+import { NodeGraphFindBar, nodeGraphFindIndexAfterAStep, nodeGraphNodeIdsMatching, NodeGraphNodesFoundContext, NO_NODE_GRAPH_NODE_FOUND, type NodeGraphNodesFound } from "./node_graph_find_bar";
 import {
   layOutNodeGraph,
   NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT,
@@ -391,9 +393,11 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
   const selectedNodeIds = useContext(NodeGraphSelectionContext);
   const cardAndFrameEditing = useContext(NodeGraphCardAndFrameEditingContext);
   const portPicking = useContext(NodeGraphPortPickingContext);
+  const nodesFound = useContext(NodeGraphNodesFoundContext);
   const { graphNode } = data;
   const portsThatCanJoin = portPicking?.portsThatCanJoinByNodeId.get(graphNode.node_id) ?? null;
   const isSelected = selectedNodeIds.has(graphNode.node_id);
+  const findLook = nodesFound.current_node_id === graphNode.node_id ? "current" : nodesFound.found_node_ids.has(graphNode.node_id) ? "found" : undefined;
   const failureWords = failureWordsTheCardShows(graphNode);
   const pinRowCount = Math.max(
     graphNode.input_pins.length,
@@ -409,6 +413,7 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
       data-node-graph-card={graphNode.node_id}
       data-port-pick={portPicking === null ? undefined : portsThatCanJoin === null ? "dim" : "lit"}
       data-selected={isSelected || undefined}
+      data-found={findLook}
       data-condition={graphNode.condition.look}
       data-collapsed={graphNode.is_collapsed || undefined}
       data-subgraph={graphNode.subgraph ?? undefined}
@@ -1529,6 +1534,21 @@ function NodeGraphFlow({
       onNodeSelected(null);
     }
   }, [editing, selectedIds, selectedLinkIds, selectedNoteIds, onNodeSelected]);
+  const [nodeFind, setNodeFind] = useState<{ find_words: string; current_index: number } | null>(null);
+  const nodeIdsFound = useMemo(() => (nodeFind === null ? [] : nodeGraphNodeIdsMatching(nodes, nodeFind.find_words)), [nodes, nodeFind]);
+  const currentNodeIdFound = nodeFind === null ? null : (nodeIdsFound[Math.min(nodeFind.current_index, nodeIdsFound.length - 1)] ?? null);
+  const nodesFound = useMemo<NodeGraphNodesFound>(
+    () => (nodeFind === null ? NO_NODE_GRAPH_NODE_FOUND : { found_node_ids: new Set(nodeIdsFound), current_node_id: currentNodeIdFound }),
+    [nodeFind, nodeIdsFound, currentNodeIdFound],
+  );
+  useEffect(() => {
+    if (currentNodeIdFound !== null) void reactFlow.fitView({ nodes: [{ id: currentNodeIdFound }], minZoom: reactFlow.getZoom(), maxZoom: reactFlow.getZoom(), duration: 200 });
+  }, [currentNodeIdFound, reactFlow]);
+  const openTheNodeFind = useCallback(() => setNodeFind((findSoFar) => findSoFar ?? { find_words: "", current_index: 0 }), []);
+  const closeTheNodeFind = useCallback(() => {
+    setNodeFind(null);
+    canvasElement.current?.focus({ preventScroll: true });
+  }, []);
   const [rightClicked, setRightClicked] = useState<NodeGraphRightClicked | null>(null);
   const followTheRightClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -1572,7 +1592,13 @@ function NodeGraphFlow({
   );
   const followTheKeys = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      if (editing === null || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) return;
+      if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) return;
+      if ((event.key === "f" || event.key === "F") && (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
+        event.preventDefault();
+        openTheNodeFind();
+        return;
+      }
+      if (editing === null) return;
       const titleTyped = titleTypedWhileTheFrameIsMade.current;
       if (frameIdsWhenAFrameWasAskedFor.current !== null && !titleTyped.isEntered && !event.metaKey && !event.ctrlKey && !event.altKey) {
         if (event.key.length === 1) titleTyped.typed += event.key;
@@ -1604,7 +1630,7 @@ function NodeGraphFlow({
         deleteTheSelection();
       }
     },
-    [editing, middleOfTheView, selectedIds, selectedLinkIds, selectedNoteIds, frameTheSelection, collapseTheSelectionIntoASubgraph, deleteTheSelection],
+    [editing, middleOfTheView, selectedIds, selectedLinkIds, selectedNoteIds, frameTheSelection, collapseTheSelectionIntoASubgraph, deleteTheSelection, openTheNodeFind],
   );
 
   return (
@@ -1618,8 +1644,9 @@ function NodeGraphFlow({
             <NodeGraphFrameColoursUsedContext value={frameColoursUsed}>
             <NodeGraphFrameColourPickingContext value={setFrameIdWhoseColourIsPicked}>
           <NodeGraphLinkedPinsContext value={linkedPins}>
+          <NodeGraphNodesFoundContext value={nodesFound}>
             <div className="flex size-full flex-col">
-            <Toolbar label={`${label} tools`} look="view_ribbon">
+            <StudioViewToolbarTools label={`${label} tools`}>
               {editing !== null && (
                 <>
                   <ToolbarGroup>
@@ -1653,7 +1680,11 @@ function NodeGraphFlow({
                 <IconButton icon={ZoomIn} label="Zoom in" onPressed={() => void reactFlow.zoomIn({ duration: 150 })} data-node-graph-tool="zoom_in" />
                 <IconButton icon={ZoomOut} label="Zoom out" onPressed={() => void reactFlow.zoomOut({ duration: 150 })} data-node-graph-tool="zoom_out" />
               </ToolbarGroup>
-            </Toolbar>
+              <ToolbarDivider />
+              <ToolbarGroup>
+                <IconButton icon={Search} label="Find nodes" tooltip="Find nodes (⌘F)" onPressed={openTheNodeFind} data-node-graph-tool="find" />
+              </ToolbarGroup>
+            </StudioViewToolbarTools>
             <RightClickMenu
               label={`${label}: what to do`}
               returnsFocusToTheRowOnClosing={false}
@@ -1695,6 +1726,16 @@ function NodeGraphFlow({
                   <Crosshair className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
                   <span className="min-w-0 truncate">{portPicking.words} · Esc ends the pick</span>
                 </div>
+              )}
+              {nodeFind !== null && (
+                <NodeGraphFindBar
+                  findWords={nodeFind.find_words}
+                  onFindWordsChanged={(findWords) => setNodeFind({ find_words: findWords, current_index: 0 })}
+                  currentIndex={Math.max(0, nodeIdsFound.indexOf(currentNodeIdFound ?? ""))}
+                  matchCount={nodeIdsFound.length}
+                  onStepped={(step) => setNodeFind((findSoFar) => (findSoFar === null ? null : { ...findSoFar, current_index: nodeGraphFindIndexAfterAStep(findSoFar.current_index, nodeIdsFound.length, step) }))}
+                  onClosed={closeTheNodeFind}
+                />
               )}
               <ReactFlow<NodeGraphFlowNode, NodeGraphLinkFlowEdge>
                 aria-label={label}
@@ -1767,6 +1808,7 @@ function NodeGraphFlow({
             </div>
             </RightClickMenu>
             </div>
+          </NodeGraphNodesFoundContext>
           </NodeGraphLinkedPinsContext>
             {cardAndFrameEditing !== null && (
               <ColourPickerDialog

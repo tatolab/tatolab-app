@@ -116,6 +116,10 @@ export interface TatoAppViewConnection {
   watchOpenedOn(listener: (openedOn: ViewOpenedOn) => void): StopWatching;
   /** Where the view's own header row lies in its frame, after Studio's view-type menu, at once and on each change. */
   watchHeaderRow(listener: (headerRow: ViewHeaderRow) => void): StopWatching;
+  /** Whether the view's area fills the window now, at once and on each change; never `true` outside a layout. */
+  watchAreaExpansion(listener: (isExpanded: boolean) => void): StopWatching;
+  /** Grow the view's area to fill the window, or put the layout back; refused where the view shows outside a layout, as in a popped-out window. */
+  expandTheArea(isExpanded: boolean): Promise<ViewAskDone>;
   /** Select `selection` in Studio. */
   select(selection: StudioSelection): Promise<ViewAskDone>;
   /** Open `streamTab` in Studio. */
@@ -138,9 +142,9 @@ export interface TatoAppViewConnection {
   undoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
   /** Redo what `author`'s latest undo in the project reversed, answering the redo the runtime applied. */
   redoInTheProject(projectFolder: string, author: ProjectTransactionAuthor): Promise<ProjectTransactionApplying>;
-  /** The chosen layout's areas for the view type `viewTypeId`, at once and again as the layout or the view types change. */
+  /** The layout's areas for the view type `viewTypeId`, at once and again as the layout or the view types change. */
   watchAreasForTheViewType(viewTypeId: string, listener: (reading: AreasForAViewTypeReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
-  /** Show the view type `viewTypeId` in area `areaId` of the chosen layout, in place of what it shows. */
+  /** Show the view type `viewTypeId` in area `areaId` of the layout, in place of what it shows. */
   showViewTypeInArea(viewTypeId: string, areaId: string): Promise<ViewAskDone>;
   /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
   openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewAskDone>;
@@ -291,6 +295,8 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       watchSettings: (listener) => watchFor({ kind: "settings" }, (watched) => watched.subject === "settings" && listener(settingsOf(watched.reading)), IGNORE_THE_REFUSAL),
       watchOpenedOn: (listener) => watchFor({ kind: "opened_on" }, (watched) => watched.subject === "opened_on" && listener(watched.reading), IGNORE_THE_REFUSAL),
       watchHeaderRow: (listener) => watchFor({ kind: "header_row" }, (watched) => watched.subject === "header_row" && listener(watched.reading), IGNORE_THE_REFUSAL),
+      watchAreaExpansion: (listener) => watchFor({ kind: "area_expansion" }, (watched) => watched.subject === "area_expansion" && listener(watched.reading.is_expanded), IGNORE_THE_REFUSAL),
+      expandTheArea: (isExpanded) => ask({ kind: "expand_the_area", is_expanded: isExpanded }).then(doneOf),
       select: (selection) => ask({ kind: "select", selection }).then(doneOf),
       openStreamTab: (streamTab) => ask({ kind: "open_stream_tab", stream_tab: streamTab }).then(doneOf),
       openView: (viewTypeId, on) => ask({ kind: "open_view", view_type_id: viewTypeId, on }).then(doneOf),

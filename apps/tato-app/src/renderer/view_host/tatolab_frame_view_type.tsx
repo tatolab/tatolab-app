@@ -68,6 +68,7 @@ function TatolabViewFrame({
       watchSavedSettings: (listener) => savedSettings.watch(({ saved }) => listener(saved)),
       rememberSettings: (settings) => rememberSettingsRef.current(settings),
       watchHeaderRow: area.header_row.watch,
+      expansion: area.expansion,
     };
     const channel = new MessageChannel();
     const bridge = new TatolabViewBridge(channel.port1, listed.view_type_id, manifest, hostServices, areaServices, inputWiringRef.current, viewNode);

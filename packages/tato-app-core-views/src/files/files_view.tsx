@@ -131,23 +131,19 @@ export function FilesView({ connection }: { connection: TatoAppViewConnection })
   const openProject = useViewReading(connection.watchOpenProject);
   const [projectTheNewNodeFileFormIsOpenFor, setProjectTheNewNodeFileFormIsOpenFor] = useState<string | null>(null);
   const openProjectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
-  const projectName = openProject?.kind === "read" ? openProject.open_project.project.name : null;
   const isTheNewNodeFileFormOpen = openProjectFolder !== null && projectTheNewNodeFileFormIsOpenFor === openProjectFolder;
   return (
     <CoreViewFrame
       connection={connection}
-      headerCaption={projectName}
-      headerTools={
-        <span className="ml-auto flex">
+      toolbarLabel="Files tools"
+      toolbarTools={
           <IconButton
             icon={FilePlus}
             label={isTheNewNodeFileFormOpen ? "Close New node file" : "New node file"}
-            size="compact"
             disabledReason={openProjectFolder === null ? "Open a project to add a node file to it." : null}
             onPressed={() => setProjectTheNewNodeFileFormIsOpenFor(isTheNewNodeFileFormOpen ? null : openProjectFolder)}
             data-files-new-node-file=""
           />
-        </span>
       }
     >
       <FilesBody connection={connection} openProject={openProject} isTheNewNodeFileFormOpen={isTheNewNodeFileFormOpen} closeTheNewNodeFileForm={() => setProjectTheNewNodeFileFormIsOpenFor(null)} />

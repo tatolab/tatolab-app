@@ -26,6 +26,9 @@
   border-color: var(--studio-graph-card-selected);
   box-shadow: 0 0 0 1px var(--studio-graph-card-selected), 0 8px 20px rgba(0, 0, 0, 0.5);
 }
+/* A find's matches: each ringed in the brand's soft colour, the one the find is on ringed in the brand's own. */
+.node-graph-card[data-found="found"] { border-color: var(--brand-text); box-shadow: 0 0 0 3px var(--brand-soft), var(--studio-graph-card-shadow); }
+.node-graph-card[data-found="current"] { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand), 0 0 0 6px var(--brand-soft), var(--studio-graph-card-shadow); }
 
 /* While a port is picked, the cards with a port that can join light up and the rest dim. */
 .node-graph-card-pickable {

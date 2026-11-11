@@ -26,7 +26,7 @@ export interface RuntimeViewerImageFrame {
   bytesPerRow: number;
   /** Linux: each plane's DMA-BUF; `null` when the memory crossed as OPAQUE_FD. */
   dmaBufPlanes: RuntimeViewerDmaBufPlane[] | null;
-  /** Linux: Electron's `nativePixmap.modifier` for the planes. */
+  /** Linux: Electron's `nativePixmap.modifier` for the planes: the DRM format modifier the runtime states for them, in decimal. */
   dmaBufModifier: string | null;
   /** Linux: the first plane's bytes, copied, for memory that crossed as OPAQUE_FD. */
   cpuReadBytes: Buffer | null;
