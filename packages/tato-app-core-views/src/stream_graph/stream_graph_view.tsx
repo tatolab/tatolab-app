@@ -261,10 +261,12 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
       const outermostSubgraph = subgraphsSteppedThrough[0];
       if (editedGraph === null || "because" in editedGraph || outermostSubgraph === undefined) return;
       void sendTheGesture(actionsOf(editedGraph, outermostSubgraph.name)).then((answer) => {
-        if (answer === "applied" && returnsToTheStreamsLevel) stepToTheLevel(0);
+        if (answer !== "applied" || !returnsToTheStreamsLevel) return;
+        stepToTheLevel(0);
+        select({ kind: "nothing" });
       });
     },
-    [editedGraph, subgraphsSteppedThrough, sendTheGesture, stepToTheLevel],
+    [editedGraph, subgraphsSteppedThrough, sendTheGesture, stepToTheLevel, select],
   );
   const projectFolderOfTheStream = listedStream?.location?.project_directory ?? null;
   const watchTheProjectsNodeTypes = useCallback(
