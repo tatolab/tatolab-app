@@ -50,6 +50,8 @@ export class ProjectVenvSyncsOnTheStreamActionsFeed {
   private actionsMakingTheVenvAtTheLastRead = new Map<string, StreamActionDescription>();
   private actionsListedAtTheLastRead: ReadonlySet<string> = new Set();
   private syncsJustEnded: ProjectVenvSyncOfAStreamAction[] = [];
+  private actionsWhoseSyncEndedWhileListed = new Set<string>();
+  private hasReadOverTheFollowedConnection = false;
   private hasSaidWhyTheFeedEnded = false;
 
   constructor(private readonly sources: ProjectVenvSyncsOnTheStreamActionsFeedSources) {}
@@ -60,6 +62,7 @@ export class ProjectVenvSyncsOnTheStreamActionsFeed {
       this.forgetTheFollowedConnection();
       this.actionsMakingTheVenvAtTheLastRead = new Map();
       this.actionsListedAtTheLastRead = new Set();
+      this.actionsWhoseSyncEndedWhileListed = new Set();
       return;
     }
     if (!this.isFollowing) void this.follow();
@@ -69,7 +72,7 @@ export class ProjectVenvSyncsOnTheStreamActionsFeed {
   takeTheProjectVenvSyncs(): ProjectVenvSyncsUnderWayAndJustEnded {
     const justEnded = this.syncsJustEnded;
     this.syncsJustEnded = [];
-    const underWay = [...this.actionsMakingTheVenvAtTheLastRead.values()].flatMap((description) => syncOfTheAction(description) ?? []);
+    const underWay = this.hasReadOverTheFollowedConnection ? [...this.actionsMakingTheVenvAtTheLastRead.values()].flatMap((description) => syncOfTheAction(description) ?? []) : [];
     return { underWay, justEnded };
   }
 
@@ -101,6 +104,7 @@ export class ProjectVenvSyncsOnTheStreamActionsFeed {
           return;
         }
         this.hasSaidWhyTheFeedEnded = false;
+        this.hasReadOverTheFollowedConnection = true;
         await this.noticeTheActionsUnderWay(followedStreamActions, actionsUnderWay.value);
       },
       whenTheListenEnded: (whyItEnded) => this.endBecause(whyItEnded),
@@ -113,14 +117,19 @@ export class ProjectVenvSyncsOnTheStreamActionsFeed {
     const listedActions = new Map(actionsUnderWay.map((description) => [description.action, description]));
     const actionsMakingTheVenv = new Map(actionsUnderWay.filter(isMakingTheVenv).map((description) => [description.action, description]));
     const actionsThatLeftTheList = [...this.actionsListedAtTheLastRead].filter((action) => !listedActions.has(action));
+    const actionsToReadAsTheyEnd = actionsThatLeftTheList.filter((action) => !this.actionsWhoseSyncEndedWhileListed.has(action));
+    for (const action of actionsThatLeftTheList) this.actionsWhoseSyncEndedWhileListed.delete(action);
     const syncsThatLeftTheVenvStepStillListed = [...this.actionsMakingTheVenvAtTheLastRead.keys()].flatMap((action) => {
       const listedNow = listedActions.get(action);
-      return listedNow === undefined || isMakingTheVenv(listedNow) ? [] : (syncOfTheAction(listedNow) ?? []);
+      const endedSync = listedNow === undefined || isMakingTheVenv(listedNow) ? null : syncOfTheAction(listedNow);
+      if (endedSync === null) return [];
+      this.actionsWhoseSyncEndedWhileListed.add(action);
+      return [endedSync];
     });
     const hadAnySyncUnderWay = this.actionsMakingTheVenvAtTheLastRead.size > 0;
     this.actionsListedAtTheLastRead = new Set(listedActions.keys());
     this.actionsMakingTheVenvAtTheLastRead = actionsMakingTheVenv;
-    const endedSyncsReadAgain = await Promise.all(actionsThatLeftTheList.map((action) => this.lastSyncOfTheEndedAction(followedStreamActions, action)));
+    const endedSyncsReadAgain = await Promise.all(actionsToReadAsTheyEnd.map((action) => this.lastSyncOfTheEndedAction(followedStreamActions, action)));
     if (followedStreamActions.isStopped()) return;
     const syncsJustEnded = [...syncsThatLeftTheVenvStepStillListed, ...endedSyncsReadAgain.flatMap((endedSync) => endedSync ?? [])];
     this.syncsJustEnded.push(...syncsJustEnded);
@@ -147,6 +156,7 @@ export class ProjectVenvSyncsOnTheStreamActionsFeed {
 
   /** Stop the followed connection, and any follow still opening one, so the next round opens a new one. */
   private forgetTheFollowedConnection(): void {
+    this.hasReadOverTheFollowedConnection = false;
     this.followedStreamActions?.stop();
     this.followedStreamActions = null;
     this.isFollowing = false;

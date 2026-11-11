@@ -23,10 +23,15 @@ export type StudioActivity =
 export interface StudioActivityLog {
   in_progress: StudioActivity[];
   ended: StudioActivity[];
+  /** The actions whose just-ended sync this log has already ended a row for, newest first, so a status sent again ends none twice. */
+  sync_actions_ended: readonly string[];
 }
 
 /** The log of a window that has seen no activity yet. */
-export const EMPTY_STUDIO_ACTIVITY_LOG: StudioActivityLog = { in_progress: [], ended: [] };
+export const EMPTY_STUDIO_ACTIVITY_LOG: StudioActivityLog = { in_progress: [], ended: [], sync_actions_ended: [] };
+
+/** How many ended sync actions the log remembers, more than a status could ever name at once. */
+const SYNC_ACTIONS_ENDED_REMEMBERED = 64;
 
 /** What the Activity panel reads on each status: the runtime's listed streams, each project's sync under way and just ended, and the app's update. */
 export interface StudioActivitySources {
@@ -181,7 +186,9 @@ function endOfTheActivity(activity: StudioActivity, sources: StudioActivitySourc
 }
 
 /** The log after a status reading `sources`: what is under way now, and each activity that was under way and no longer is, ended as the status says. */
-export function nextStudioActivityLog(previousLog: StudioActivityLog, sources: StudioActivitySources): StudioActivityLog {
+export function nextStudioActivityLog(previousLog: StudioActivityLog, sourcesAsSent: StudioActivitySources): StudioActivityLog {
+  const syncsNotEndedYet = sourcesAsSent.projectVenvSyncsJustEnded.filter((syncJustEnded) => !previousLog.sync_actions_ended.includes(syncJustEnded.action));
+  const sources: StudioActivitySources = { ...sourcesAsSent, projectVenvSyncsJustEnded: syncsNotEndedYet };
   const inProgress = studioActivitiesInProgressOf(sources);
   const stillInProgressIds = new Set(inProgress.map((activity) => activity.activity_id));
   const justEnded = previousLog.in_progress.filter((activity) => !stillInProgressIds.has(activity.activity_id)).map((activity) => endOfTheActivity(activity, sources));
@@ -190,7 +197,11 @@ export function nextStudioActivityLog(previousLog: StudioActivityLog, sources: S
   if (justEnded.length === 0 && inProgress.length === previousLog.in_progress.length && inProgress.every((activity, index) => sameActivity(activity, previousLog.in_progress[index]))) {
     return previousLog;
   }
-  return { in_progress: inProgress, ended: [...justEnded, ...previousLog.ended].slice(0, ENDED_STUDIO_ACTIVITIES_KEPT) };
+  return {
+    in_progress: inProgress,
+    ended: [...justEnded, ...previousLog.ended].slice(0, ENDED_STUDIO_ACTIVITIES_KEPT),
+    sync_actions_ended: [...syncsNotEndedYet.map((syncJustEnded) => syncJustEnded.action), ...previousLog.sync_actions_ended].slice(0, SYNC_ACTIONS_ENDED_REMEMBERED),
+  };
 }
 
 function sameActivity(activity: StudioActivity, other: StudioActivity | undefined): boolean {
@@ -199,7 +210,7 @@ function sameActivity(activity: StudioActivity, other: StudioActivity | undefine
 
 /** The log with its ended activities cleared, as Clear does. */
 export function studioActivityLogWithTheEndedCleared(log: StudioActivityLog): StudioActivityLog {
-  return { in_progress: log.in_progress, ended: [] };
+  return { in_progress: log.in_progress, ended: [], sync_actions_ended: log.sync_actions_ended };
 }
 
 /** What the status bar's Activity button says: what is under way, or how many have ended; `null` when the log is empty and the button is not shown. */

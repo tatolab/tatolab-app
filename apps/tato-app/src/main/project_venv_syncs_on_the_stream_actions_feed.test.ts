@@ -120,7 +120,7 @@ test("a sync no read caught under way still ends: an action seen only before uv 
   expect(syncChanges()).toBe(1);
 });
 
-test("an action still listed that moves past making_the_venv ends with the sync it carries, read no more", async () => {
+test("an action still listed that moves past making_the_venv ends once, with the sync it carries, and is not read again as it leaves", async () => {
   const fake = fakeStreamActionsConnection();
   fake.served.actionsUnderWay = [await downloading()];
   const { feed } = feedOver(fake);
@@ -134,6 +134,14 @@ test("an action still listed that moves past making_the_venv ends with the sync 
 
   expect(fake.recorded.resourceReads.filter((uri) => uri !== STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI)).toEqual([]);
   expect(feed.takeTheProjectVenvSyncs().justEnded).toEqual([expect.objectContaining({ action: ACTION, venv_sync: expect.objectContaining({ phase: "installed" }) })]);
+
+  fake.served.actionsUnderWay = [];
+  fake.served.endedActions.set(ACTION, doneDescription);
+  fake.sendAnUpdate();
+  await settle();
+
+  expect(fake.recorded.resourceReads.filter((uri) => uri !== STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI)).toEqual([]);
+  expect(feed.takeTheProjectVenvSyncs().justEnded).toEqual([]);
 });
 
 test("an ended action the runtime no longer holds is logged and shows no sync", async () => {
@@ -233,4 +241,17 @@ test("a connection closed while its read is still out is never read from again, 
   expect(nextConnection.recorded.resourceReads).toEqual([STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI]);
   expect(feed.takeTheProjectVenvSyncs().underWay.map((syncUnderWay) => syncUnderWay.action)).toEqual([ACTION]);
   expect(syncChanges).toBe(1);
+});
+
+test("a feed whose listen ended hands over no sync as under way until a new connection is read", async () => {
+  const fake = fakeStreamActionsConnection();
+  fake.served.actionsUnderWay = [await downloading()];
+  const { feed } = feedOver(fake);
+  feed.keepFollowing(true);
+  await settle();
+  expect(feed.takeTheProjectVenvSyncs().underWay).toHaveLength(1);
+
+  fake.endTheListen("the runtime stopped");
+
+  expect(feed.takeTheProjectVenvSyncs().underWay).toEqual([]);
 });
