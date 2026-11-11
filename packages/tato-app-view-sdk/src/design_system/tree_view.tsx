@@ -78,15 +78,20 @@ function treeKeyOutcome(
   }
 }
 
+/** How a row was picked: on its own, toggled in or out of the rows selected with ⌘ or Ctrl, or extended to with ⇧. */
+export type TreeRowPick = "alone" | "toggled" | "extended";
+
 /**
- * A tree of rows, each at its depth with guide lines down its parents' depths: a click selects a row and its chevron
- * opens or closes it; from the keyboard the arrows, Home and End move the selection, Right and Left open and close a
- * row or move to its first child or its parent, and Enter activates it.
+ * A tree of rows, each at its depth with guide lines down its parents' depths: a click selects a row, ⌘ or ⇧ with it
+ * adds rows where the tree selects several, and its chevron opens or closes it; from the keyboard the arrows, Home and
+ * End move the selection, Right and Left open and close a row or move to its first child or its parent, and Enter
+ * activates it; where the tree selects several, ⇧ with Up or Down extends the selection and Space toggles the focused row.
  */
 export function TreeView({
   label,
   rows,
   selectedRowId,
+  alsoSelectedRowIds,
   onRowSelected,
   onRowActivated,
   onExpansionToggled,
@@ -94,8 +99,11 @@ export function TreeView({
   label: string;
   /** The rows that show, in order: a collapsed row's rows are left out. */
   rows: readonly TreeViewRow[];
+  /** The row selected, or picked last among several. */
   selectedRowId: string | null;
-  onRowSelected: (rowId: string) => void;
+  /** The other rows selected with it, for a tree that selects several; left out, a ⌘-click or ⇧-click picks a row on its own. */
+  alsoSelectedRowIds?: ReadonlySet<string>;
+  onRowSelected: (rowId: string, pick: TreeRowPick) => void;
   onRowActivated: (rowId: string) => void;
   onExpansionToggled: (rowId: string, expand: boolean) => void;
 }) {
@@ -112,8 +120,14 @@ export function TreeView({
     treeElement.current?.querySelector<HTMLElement>(`[data-tree-row-id="${CSS.escape(rowId)}"]`)?.focus();
   };
 
+  const selectsSeveralRows = alsoSelectedRowIds !== undefined;
   const answerKey = (keyboardEvent: KeyboardEvent<HTMLDivElement>) => {
     const focusedIndex = rows.findIndex((row) => row.row_id === focusableRowId);
+    if (selectsSeveralRows && keyboardEvent.key === " " && focusableRowId !== null) {
+      keyboardEvent.preventDefault();
+      onRowSelected(focusableRowId, "toggled");
+      return;
+    }
     const outcome = treeKeyOutcome(keyboardEvent.key, rows, focusedIndex);
     if (outcome === null) return;
     keyboardEvent.preventDefault();
@@ -121,7 +135,8 @@ export function TreeView({
       const movedToRow = rows[outcome.moveTo];
       if (movedToRow === undefined) return;
       focusRow(movedToRow.row_id);
-      onRowSelected(movedToRow.row_id);
+      const extendsTheSelection = selectsSeveralRows && keyboardEvent.shiftKey && (keyboardEvent.key === "ArrowDown" || keyboardEvent.key === "ArrowUp");
+      onRowSelected(movedToRow.row_id, extendsTheSelection ? "extended" : "alone");
     } else if ("toggle" in outcome) {
       onExpansionToggled(outcome.toggle.rowId, outcome.toggle.expand);
     } else {
@@ -130,10 +145,10 @@ export function TreeView({
   };
 
   return (
-    <div ref={treeElement} role="tree" aria-label={label} onKeyDown={answerKey} className="@container flex flex-col p-1 text-xs">
+    <div ref={treeElement} role="tree" aria-label={label} aria-multiselectable={selectsSeveralRows ? true : undefined} onKeyDown={answerKey} className="@container flex flex-col p-1 text-xs">
       {rows.map((row) => {
         const RowIcon = studioIconNamed(row.icon);
-        const isSelected = row.row_id === selectedRowId;
+        const isSelected = row.row_id === selectedRowId || alsoSelectedRowIds?.has(row.row_id) === true;
         const isCurrent = row.isCurrent === true;
         return (
           <div
@@ -146,9 +161,10 @@ export function TreeView({
             data-tree-row-id={row.row_id}
             data-tree-row-current={isCurrent ? "" : undefined}
             onFocus={() => setFocusedRowId(row.row_id)}
-            onClick={() => {
+            onClick={(clickEvent) => {
               focusRow(row.row_id);
-              onRowSelected(row.row_id);
+              const pick: TreeRowPick = !selectsSeveralRows ? "alone" : clickEvent.metaKey || clickEvent.ctrlKey ? "toggled" : clickEvent.shiftKey ? "extended" : "alone";
+              onRowSelected(row.row_id, pick);
             }}
             onDoubleClick={() => onRowActivated(row.row_id)}
             className={cn(
