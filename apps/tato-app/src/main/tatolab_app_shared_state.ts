@@ -2,10 +2,11 @@
 // controller, the status publisher, the updater, and the requests the tray and the window both make.
 
 import type { ProjectViewsListedToTheWindows } from "./project_view_files.js";
-import { describeCaughtFailure } from "./result.js";
+import { describeCaughtFailure, type Result } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabAppUpdater } from "./tatolab_app_updater.js";
+import type { TatolabAppUpdateAnnouncements } from "./tatolab_app_update_announcements.js";
 import type { TatolabAppWindows } from "./tatolab_app_windows.js";
 import type { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import type { StreamProjectFolderOpeners } from "./stream_project_folder_opening.js";
@@ -17,6 +18,7 @@ import type { PythonLanguageServers } from "./python_language_servers.js";
 import type { RuntimePortViewers } from "./runtime_port_viewers.js";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
+import type { ProjectAssetsImportedFromChosenFiles } from "./project_assets_imported_from_chosen_files.js";
 import type { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import type { ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import type { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
@@ -26,6 +28,10 @@ export interface TatolabAppSharedState {
   controller: TatolabAppController;
   statusPublisher: TatolabStatusPublisher;
   tatolabAppUpdater: TatolabAppUpdater;
+  /** The update dialog the Projects and studio windows show. */
+  tatolabAppUpdateAnnouncements: TatolabAppUpdateAnnouncements;
+  /** Open a web page in the person's browser, as an update's release notes open. */
+  openAWebPageInTheBrowser: (webPageUrl: string) => Promise<Result<void, string>>;
   streamProjectFolderOpeners: StreamProjectFolderOpeners;
   streamProjectAdding: StreamProjectAdding;
   streamFailureNotifications: StreamFailureNotifications;
@@ -49,6 +55,8 @@ export interface TatolabAppSharedState {
   moduleDownloadsFolder: string;
   /** How Module manager asks for a project's folder or `.zip` to import. */
   dependencySourceDialog: DependencySourceDialog;
+  /** How the Library's Import asset… imports the files the person chooses. */
+  projectAssetsImportedFromChosenFiles: ProjectAssetsImportedFromChosenFiles;
   /** The person signed in to this computer, the author Studio's graph edits are recorded under. */
   thePersonEditingInStudio: ProjectTransactionAuthor;
   /** The views each studio window listed as ones that open, the only ones whose files are served. */

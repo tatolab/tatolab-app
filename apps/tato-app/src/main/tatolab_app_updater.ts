@@ -60,14 +60,11 @@ export function tatolabAppUpdateNotifierOver(systemNotifications: SystemNotifica
   };
 }
 
-/** Where a choice the person made was made: the tray or the update-ready dialog, whose outcome only a notification shows, or the window, where its menus and Settings show it. */
-export type TatolabAppUpdateCheckChosenFrom = "tray" | "update_ready_dialog" | "window";
+/** Where a choice the person made was made: the tray, whose outcome only a notification shows, or the window, where its menus and Settings show it. */
+export type TatolabAppUpdateCheckChosenFrom = "tray" | "window";
 
-/** What the person chose in the dialog that says a downloaded version is ready: install it now, or close the dialog until the app next opens. */
-export type ChoiceInTheUpdateReadyDialog = "install_update" | "cancel";
-
-/** The dialog that says `version` downloaded and is ready to install, answering the person's choice. */
-export type AskWhetherToInstallTheDownloadedVersion = (version: string) => Promise<ChoiceInTheUpdateReadyDialog>;
+/** Say `version` downloaded and is ready to install, in the update dialog the windows show. */
+export type AnnounceTheDownloadedVersionIsReady = (version: string) => void;
 
 /** Starts `work` every `intervalMs`, as `setInterval` does. */
 export type RepeatingTimer = (intervalMs: number, work: () => void) => void;
@@ -79,13 +76,13 @@ type TatolabAppUpdateCheckStartedBy = { kind: "the_app_on_its_own" } | { kind: "
 export class TatolabAppUpdater {
   private appUpdateState: TatolabAppUpdateState;
   private readonly versionsAlreadyNotified = new Set<string>();
-  private readonly versionsTheUpdateReadyDialogAskedAbout = new Set<string>();
+  private readonly versionsAnnouncedReady = new Set<string>();
 
   /** An updater over `feedForThisBuild`, calling `onStateChanged` after each change of `state()`. */
   constructor(
     private readonly feedForThisBuild: TatolabAppUpdateFeedForThisBuild,
     private readonly notifier: TatolabAppUpdateNotifier,
-    private readonly askWhetherToInstallTheDownloadedVersion: AskWhetherToInstallTheDownloadedVersion,
+    private readonly announceTheDownloadedVersionIsReady: AnnounceTheDownloadedVersionIsReady,
     private readonly onStateChanged: () => void,
     private readonly tatolabAppLog: TatolabAppLog,
   ) {
@@ -196,18 +193,15 @@ export class TatolabAppUpdater {
     }
     this.changeStateTo({ kind: "ready_to_restart", version });
     this.versionsAlreadyNotified.add(version);
-    this.askOnceWhetherToInstall(version);
+    if (this.versionsAnnouncedReady.has(version)) return;
+    this.versionsAnnouncedReady.add(version);
+    this.announceTheDownloadedVersionIsReady(version);
   }
 
-  /** Show the update-ready dialog for `version` once while the app runs, without waiting on it; Install Update takes the version as Restart to Update does. */
-  private askOnceWhetherToInstall(version: string): void {
-    if (this.versionsTheUpdateReadyDialogAskedAbout.has(version)) return;
-    this.versionsTheUpdateReadyDialogAskedAbout.add(version);
-    this.askWhetherToInstallTheDownloadedVersion(version)
-      .then((choice) => (choice === "install_update" && this.appUpdateState.kind === "ready_to_restart" && this.appUpdateState.version === version ? this.takeTheNewerVersion("update_ready_dialog") : undefined))
-      .catch((unexpectedFailure: unknown) => {
-        this.tatolabAppLog.error("the update-ready dialog ended on a failure nothing expected", { version, failure: describeCaughtFailure(unexpectedFailure) });
-      });
+  /** Install Update in the update dialog for `version`: install it as Restart to Update does, while it is still the version staged; nothing otherwise. */
+  async installTheVersionTheUpdateDialogNamed(version: string): Promise<void> {
+    if (this.appUpdateState.kind !== "ready_to_restart" || this.appUpdateState.version !== version) return;
+    await this.takeTheNewerVersion("window");
   }
 
   /** Tell the person through `notify`: once per version for a check on its own, every time for a choice from the tray, and never for one from the window, which shows it. */
@@ -229,7 +223,7 @@ export class TatolabAppUpdater {
   private failChosenUpdate(chosenFrom: TatolabAppUpdateCheckChosenFrom, refusal: string): void {
     this.tatolabAppLog.warn("the update failed; the installed Tatolab keeps running", { refusal });
     this.changeStateTo({ kind: "failed", refusal });
-    if (chosenFrom !== "window") this.notifier.notifyTheUpdateFailed();
+    if (chosenFrom === "tray") this.notifier.notifyTheUpdateFailed();
   }
 
   private changeStateTo(appUpdateState: TatolabAppUpdateState): void {

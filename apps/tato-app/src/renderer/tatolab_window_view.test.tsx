@@ -216,7 +216,7 @@ describe("the studio", () => {
     await showTheLibraryInTheViewerArea();
 
     await waitFor(() => libraryRow("source:project"));
-    expect(libraryRow("source:project").textContent).toBe("pattern");
+    expect(libraryRow("source:project").textContent).toBe("This project");
     expect(coreViewPage("library").querySelector('[data-tree-row-id="source:project/graph_generators"]')).toBeNull();
     expect(libraryRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11").textContent).toBe("imports/hall-of-light");
     expect(libraryRow("source:distribution:tatolab-testpattern").getAttribute("aria-expanded")).toBe("false");
@@ -256,6 +256,43 @@ describe("the studio", () => {
     expect(details.textContent).toContain("poster.png");
     expect(details.textContent).toContain("sha256 c59c…fa05");
     expect(details.textContent).toContain("11 KB");
+  });
+
+  it("imports the file the person chooses, which the runtime places in its kind's folder, shows it at once and opens its details", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
+    await showInTheLibrary("assets");
+
+    const library = coreViewPage("library");
+    await waitFor(() => library.querySelector('[data-library-asset="luts/warm.cube"]') ?? expect.unreachable("no assets listed"));
+    fireEvent.click(library.querySelector<HTMLElement>("[data-library-import-asset]") ?? expect.unreachable("no Import asset button"));
+
+    const imported = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset="media/night-sky.jpg"]') ?? expect.unreachable("the imported file is not shown"));
+    expect(imported.textContent).toBe("JPGnight-sky.jpgmedia · 2.2 MB");
+    const details = await waitFor(() => library.querySelector<HTMLElement>("[data-library-asset-details]") ?? expect.unreachable("no details"));
+    expect(details.textContent).toContain("media/night-sky.jpg");
+    expect(library.querySelector("[data-library-import-refused]")).toBeNull();
+  });
+
+  it("shows each file the runtime refused to import in its words, beside the file it imported, the search cleared so the import shows", async () => {
+    await mountedWindowOverTheMock("state=running&asset_import=refuses_one");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Library/ }));
+    await showInTheLibrary("assets");
+
+    const library = coreViewPage("library");
+    await waitFor(() => library.querySelector('[data-library-asset="luts/warm.cube"]') ?? expect.unreachable("no assets listed"));
+    fireEvent.change(library.querySelector<HTMLInputElement>("[data-library-asset-search]") ?? expect.unreachable("no search field"), { target: { value: "cube" } });
+    fireEvent.click(library.querySelector<HTMLElement>("[data-library-import-asset]") ?? expect.unreachable("no Import asset button"));
+
+    const refusal = await waitFor(() => library.querySelector<HTMLElement>("[data-library-import-refused]") ?? expect.unreachable("no refusal"));
+    expect(refusal.textContent).toBe("Didn't import main.graph.json: import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write");
+    expect(library.querySelector<HTMLInputElement>("[data-library-asset-search]")?.value).toBe("");
+    await waitFor(() => library.querySelector('[data-library-asset="media/night-sky.jpg"]') ?? expect.unreachable("the imported file is not shown"));
+    expect(library.querySelector("[data-library-asset-details]")?.textContent).toContain("media/night-sky.jpg");
   });
 
   it("lists in an area's view-type menu each view with who brought it, and a view that does not open as a row that cannot be chosen, with why", async () => {
@@ -1585,6 +1622,54 @@ describe("opening the window", () => {
       expect(document.body.textContent).not.toContain("Install the Tatolab runtime");
       document.body.replaceChildren();
     }
+  });
+});
+
+describe("the update dialog", () => {
+  it("says a downloaded version is ready over the Projects window, holds focus on Cancel, and Install Update answers it and opens Settings › About", async () => {
+    const answersGiven: string[] = [];
+    const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&project=none&update=ready")));
+    await mountedWindowOverTheMock("state=running&project=none&update=ready", {
+      answerTheAppUpdateAnnouncement: (kind, version, answer) => {
+        answersGiven.push(`${kind} ${version} ${answer}`);
+        return mockBackend.answerTheAppUpdateAnnouncement(kind, version, answer);
+      },
+    });
+
+    const updateDialog = await screen.findByRole("dialog", { name: "Tato Studio 0.46.0 is ready to install" });
+    expect(within(updateDialog).getByText("Installing it restarts Tato Studio, which stops every stream it runs until you run it again.")).toBeTruthy();
+    await waitFor(() => expect(document.activeElement?.textContent).toBe("Cancel"));
+    fireEvent.click(within(updateDialog).getByRole("button", { name: "Install Update" }));
+
+    expect(answersGiven).toEqual(["update_ready 0.46.0 take_its_action"]);
+    await waitFor(() => expect(document.querySelector("[data-settings-about]")).not.toBeNull());
+  });
+
+  it("says which version the app is now after an update, and OK closes it at once, before the next status", async () => {
+    const answersGiven: string[] = [];
+    await mountedWindowOverTheMock("state=running&project=none&update=landed", {
+      answerTheAppUpdateAnnouncement: async (kind, version, answer) => {
+        answersGiven.push(`${kind} ${version} ${answer}`);
+      },
+    });
+
+    const updateDialog = await screen.findByRole("dialog", { name: "Tato Studio is now version 0.45.0" });
+    expect(within(updateDialog).getByText("Each project's dependencies are brought up to date automatically the next time it runs.")).toBeTruthy();
+    expect(within(updateDialog).getByRole("button", { name: "Release Notes" })).toBeTruthy();
+    fireEvent.click(within(updateDialog).getByRole("button", { name: "OK" }));
+
+    expect(answersGiven).toEqual(["update_landed 0.45.0 dismiss"]);
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Tato Studio is now version 0.45.0" })).toBeNull());
+  });
+
+  it("shows the window's refusal of an answer in its own words", async () => {
+    await mountedWindowOverTheMock("state=running&project=none&update=landed", {
+      answerTheAppUpdateAnnouncement: () => Promise.reject("The release notes did not open: no browser"),
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Release Notes" }));
+
+    await waitFor(() => expect(textOf("[data-app-update-choice-refusal]")).toContain("The release notes did not open: no browser"));
   });
 });
 

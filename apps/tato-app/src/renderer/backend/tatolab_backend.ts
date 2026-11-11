@@ -13,6 +13,7 @@ import type {
   NodeCatalog,
   ProjectNodeTypeListing,
   ProjectAssetListing,
+  ProjectAssetsImported,
   OpenProjectReading,
   ProjectTransaction,
   ProjectTransactionAuthor,
@@ -36,6 +37,8 @@ import type {
   StreamActionCancelAnswer,
   StreamActionFollowed,
   StreamProjectFolderChosenFor,
+  TatolabAppUpdateAnnouncementAnswer,
+  TatolabAppUpdateAnnouncementKind,
   TatolabStatus,
   ProjectFolderChosenFor,
   ProjectArchiveChosenToImport,
@@ -67,10 +70,14 @@ export interface TatolabBackend {
   listProjectNodeTypes(projectDirectory: string): Promise<ProjectNodeTypeListing>;
   /** Every asset of the project in `projectDirectory`, its graph documents among them; rejects in the runtime's own words. */
   listProjectAssets(projectDirectory: string): Promise<ProjectAssetListing>;
+  /** Ask the person for files and import each into the window's project, where the runtime places it in its kind's folder, by the person editing; `null` when they choose nothing, rejecting in Studio's or the runtime's words. */
+  importAssetsIntoTheOpenProject(): Promise<ProjectAssetsImported | null>;
   /** Check for a newer Tato Studio, downloading one that installs in place; how that goes arrives as the status's `app_update`. */
   checkForTatolabAppUpdates(): Promise<void>;
   /** Restart into a downloaded Tato Studio, download one a check found, or open a `.deb`'s download; how that goes arrives as the status's `app_update`. */
   takeTheNewerTatolabAppVersion(): Promise<void>;
+  /** Answer the update dialog for the announcement of `kind` for `version`: Install Update or Release Notes for `take_its_action`, or closing it; the status's `app_update_announcement` moves on. */
+  answerTheAppUpdateAnnouncement(kind: TatolabAppUpdateAnnouncementKind, version: string, answer: TatolabAppUpdateAnnouncementAnswer): Promise<void>;
   /** Queue the removal of every stream the runtime holds from `projectDirectory`, resolving once it is queued and rejecting with its refusal; the streams stopping, then gone, arrive as the next statuses. */
   removeProject(projectDirectory: string): Promise<void>;
   /** Show the stream `streamId` under `displayName`, resolving once the runtime has recorded it and rejecting with its refusal; the new name arrives as the next status. */

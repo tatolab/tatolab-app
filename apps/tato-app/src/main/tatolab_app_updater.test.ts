@@ -9,7 +9,6 @@ import {
   type TatolabAppUpdateFeedForThisBuild,
   type TatolabAppUpdateFeedInstallingInPlace,
   type TatolabAppUpdateFeedOpeningTheDownload,
-  type ChoiceInTheUpdateReadyDialog,
   type TatolabAppUpdateNotifier,
   tatolabAppUpdateNotifierOver,
 } from "./tatolab_app_updater.js";
@@ -56,33 +55,23 @@ class FakeTatolabAppUpdateFeedOpeningTheDownload implements TatolabAppUpdateFeed
   }
 }
 
-/** Flush the update-ready dialog's answer, which the updater takes without waiting on it. */
-function settleTheUpdateReadyDialog(): Promise<void> {
-  return new Promise((settled) => setImmediate(settled));
-}
-
 function updaterOver(feedForThisBuild: TatolabAppUpdateFeedForThisBuild) {
   const notifications: string[] = [];
-  const updateReadyDialogsShown: string[] = [];
-  const choicesInTheNextUpdateReadyDialogs: ChoiceInTheUpdateReadyDialog[] = [];
+  const versionsAnnouncedReady: string[] = [];
   const statesSeen: TatolabAppUpdateState[] = [];
   const notifier: TatolabAppUpdateNotifier = {
     notifyANewerVersionIsAvailable: (version) => notifications.push(`available ${version}`),
     notifyTheAppIsUpToDate: () => notifications.push("up to date"),
     notifyTheUpdateFailed: () => notifications.push("failed"),
   };
-  const askWhetherToInstallTheDownloadedVersion = (version: string) => {
-    updateReadyDialogsShown.push(version);
-    return Promise.resolve(choicesInTheNextUpdateReadyDialogs.shift() ?? "cancel");
-  };
   const updater: TatolabAppUpdater = new TatolabAppUpdater(
     feedForThisBuild,
     notifier,
-    askWhetherToInstallTheDownloadedVersion,
+    (version) => versionsAnnouncedReady.push(version),
     () => statesSeen.push(updater.state()),
     createTatolabAppLog("error", () => {}),
   );
-  return { updater, notifications, statesSeen, updateReadyDialogsShown, choicesInTheNextUpdateReadyDialogs };
+  return { updater, notifications, statesSeen, versionsAnnouncedReady };
 }
 
 function updaterOverAFeedInstallingInPlace() {
@@ -114,8 +103,8 @@ test("the app checks at launch and then once a day", () => {
   expect(repeatedIntervals).toEqual([APP_UPDATE_CHECK_INTERVAL_MS]);
 });
 
-test("a check on its own downloads a newer version in the background, and the update-ready dialog says so once per version", async () => {
-  const { updater, feed, notifications, statesSeen, updateReadyDialogsShown } = updaterOverAFeedInstallingInPlace();
+test("a check on its own downloads a newer version in the background, and announces it ready once per version", async () => {
+  const { updater, feed, notifications, statesSeen, versionsAnnouncedReady } = updaterOverAFeedInstallingInPlace();
   feed.newerVersion = succeeded("0.47.0");
   feed.downloadProgressPercents = [0, 42, 42, 100];
   await updater.checkOnItsOwn();
@@ -130,12 +119,11 @@ test("a check on its own downloads a newer version in the background, and the up
   expect(updater.state()).toEqual({ kind: "ready_to_restart", version: "0.47.0" });
   expect(feed.downloadCount).toBe(1);
   expect(feed.installCount).toBe(0);
-  expect(updateReadyDialogsShown).toEqual(["0.47.0"]);
+  expect(versionsAnnouncedReady).toEqual(["0.47.0"]);
   feed.newerVersion = succeeded("0.48.0");
   await updater.checkOnItsOwn();
-  await settleTheUpdateReadyDialog();
   expect(updater.state()).toEqual({ kind: "ready_to_restart", version: "0.48.0" });
-  expect(updateReadyDialogsShown).toEqual(["0.47.0", "0.48.0"]);
+  expect(versionsAnnouncedReady).toEqual(["0.47.0", "0.48.0"]);
   expect(feed.installCount).toBe(0);
   expect(notifications).toEqual([]);
 });
@@ -161,7 +149,7 @@ test("a check on its own with nothing newer reads up to date and notifies nobody
 });
 
 test("a failed check on its own keeps a version already staged, and otherwise shows the updater's words", async () => {
-  const { updater, feed, updateReadyDialogsShown } = updaterOverAFeedInstallingInPlace();
+  const { updater, feed, versionsAnnouncedReady } = updaterOverAFeedInstallingInPlace();
   feed.newerVersion = failedWith("net::ERR_INTERNET_DISCONNECTED");
   await updater.checkOnItsOwn();
   expect(updater.state()).toEqual({ kind: "failed", refusal: "net::ERR_INTERNET_DISCONNECTED" });
@@ -170,7 +158,7 @@ test("a failed check on its own keeps a version already staged, and otherwise sh
   feed.newerVersion = failedWith("net::ERR_INTERNET_DISCONNECTED");
   await updater.checkOnItsOwn();
   expect(updater.state()).toEqual({ kind: "ready_to_restart", version: "0.47.0" });
-  expect(updateReadyDialogsShown).toEqual(["0.47.0"]);
+  expect(versionsAnnouncedReady).toEqual(["0.47.0"]);
 });
 
 test("choosing Check for Updates… downloads a newer version and waits for Restart to Update, which installs it and relaunches", async () => {
@@ -186,12 +174,11 @@ test("choosing Check for Updates… downloads a newer version and waits for Rest
 });
 
 test("the tray's updates item checks, then restarts into the version it staged", async () => {
-  const { updater, feed, updateReadyDialogsShown } = updaterOverAFeedInstallingInPlace();
+  const { updater, feed, versionsAnnouncedReady } = updaterOverAFeedInstallingInPlace();
   feed.newerVersion = succeeded("0.47.0");
   await updater.respondToTheTrayUpdatesItem();
-  await settleTheUpdateReadyDialog();
   expect(updater.state()).toEqual({ kind: "ready_to_restart", version: "0.47.0" });
-  expect(updateReadyDialogsShown).toEqual(["0.47.0"]);
+  expect(versionsAnnouncedReady).toEqual(["0.47.0"]);
   await updater.respondToTheTrayUpdatesItem();
   expect(feed.installCount).toBe(1);
   expect(updater.state()).toEqual({ kind: "installing", version: "0.47.0" });
@@ -219,58 +206,45 @@ test("a failed update says why in the updater's own words, by notification only 
   expect(notifications).toEqual(["failed"]);
 });
 
-test("Install Update in the update-ready dialog installs the downloaded version and relaunches, as Restart to Update does", async () => {
-  const { updater, feed, statesSeen, choicesInTheNextUpdateReadyDialogs } = updaterOverAFeedInstallingInPlace();
+test("Install Update in the update dialog installs the downloaded version and relaunches, as Restart to Update does", async () => {
+  const { updater, feed, statesSeen } = updaterOverAFeedInstallingInPlace();
   feed.newerVersion = succeeded("0.47.0");
-  choicesInTheNextUpdateReadyDialogs.push("install_update");
   await updater.checkOnItsOwn();
-  await settleTheUpdateReadyDialog();
+  await updater.installTheVersionTheUpdateDialogNamed("0.47.0");
   expect(feed.installCount).toBe(1);
   expect(statesSeen.at(-1)).toEqual({ kind: "installing", version: "0.47.0" });
 });
 
-test("Cancel in the update-ready dialog installs nothing, and the next launch's updater asks again", async () => {
+test("a dismissed update dialog installs nothing, and the next launch's updater announces the version again", async () => {
   const thisLaunch = updaterOverAFeedInstallingInPlace();
   thisLaunch.feed.newerVersion = succeeded("0.47.0");
-  thisLaunch.choicesInTheNextUpdateReadyDialogs.push("cancel");
   await thisLaunch.updater.checkOnItsOwn();
   await thisLaunch.updater.checkForUpdatesOnRequest("window");
-  await settleTheUpdateReadyDialog();
   expect(thisLaunch.feed.installCount).toBe(0);
   expect(thisLaunch.updater.state()).toEqual({ kind: "ready_to_restart", version: "0.47.0" });
-  expect(thisLaunch.updateReadyDialogsShown).toEqual(["0.47.0"]);
+  expect(thisLaunch.versionsAnnouncedReady).toEqual(["0.47.0"]);
   const nextLaunch = updaterOverAFeedInstallingInPlace();
   nextLaunch.feed.newerVersion = succeeded("0.47.0");
   await nextLaunch.updater.checkOnItsOwn();
-  expect(nextLaunch.updateReadyDialogsShown).toEqual(["0.47.0"]);
+  expect(nextLaunch.versionsAnnouncedReady).toEqual(["0.47.0"]);
 });
 
-test("an install chosen in the update-ready dialog that fails says so by notification", async () => {
-  const { updater, feed, notifications, choicesInTheNextUpdateReadyDialogs } = updaterOverAFeedInstallingInPlace();
+test("an install chosen in the update dialog that fails shows the updater's words in the window and notifies nobody", async () => {
+  const { updater, feed, notifications } = updaterOverAFeedInstallingInPlace();
   feed.newerVersion = succeeded("0.47.0");
   feed.installing = failedWith("Could not get code signature for running application");
-  choicesInTheNextUpdateReadyDialogs.push("install_update");
   await updater.checkForUpdatesOnRequest("window");
-  await settleTheUpdateReadyDialog();
+  await updater.installTheVersionTheUpdateDialogNamed("0.47.0");
   expect(updater.state()).toEqual({ kind: "failed", refusal: "Could not get code signature for running application" });
-  expect(notifications).toEqual(["failed"]);
+  expect(notifications).toEqual([]);
 });
 
 test("Install Update chosen after Restart to Update already started installs once", async () => {
-  let answerTheDialog: (choice: ChoiceInTheUpdateReadyDialog) => void = () => {};
-  const feed = new FakeTatolabAppUpdateFeedInstallingInPlace();
+  const { updater, feed } = updaterOverAFeedInstallingInPlace();
   feed.newerVersion = succeeded("0.47.0");
-  const updater = new TatolabAppUpdater(
-    { kind: "offered", feed },
-    { notifyANewerVersionIsAvailable: () => {}, notifyTheAppIsUpToDate: () => {}, notifyTheUpdateFailed: () => {} },
-    () => new Promise((answer) => (answerTheDialog = answer)),
-    () => {},
-    createTatolabAppLog("error", () => {}),
-  );
   await updater.checkOnItsOwn();
   await updater.takeTheNewerVersion("window");
-  answerTheDialog("install_update");
-  await settleTheUpdateReadyDialog();
+  await updater.installTheVersionTheUpdateDialogNamed("0.47.0");
   expect(feed.installCount).toBe(1);
 });
 
@@ -313,25 +287,12 @@ test("each update notification reads as plain sentences, and the update's own wo
 });
 
 test("Install Update in a dialog for a version a newer download has since replaced installs nothing", async () => {
-  let answerTheFirstDialog: (choice: ChoiceInTheUpdateReadyDialog) => void = () => {};
-  const feed = new FakeTatolabAppUpdateFeedInstallingInPlace();
-  const dialogsShown: string[] = [];
-  const updater = new TatolabAppUpdater(
-    { kind: "offered", feed },
-    { notifyANewerVersionIsAvailable: () => {}, notifyTheAppIsUpToDate: () => {}, notifyTheUpdateFailed: () => {} },
-    (version) => {
-      dialogsShown.push(version);
-      return version === "0.47.0" ? new Promise((answer) => (answerTheFirstDialog = answer)) : Promise.resolve("cancel");
-    },
-    () => {},
-    createTatolabAppLog("error", () => {}),
-  );
+  const { updater, feed, versionsAnnouncedReady } = updaterOverAFeedInstallingInPlace();
   feed.newerVersion = succeeded("0.47.0");
   await updater.checkOnItsOwn();
   feed.newerVersion = succeeded("0.48.0");
   await updater.checkOnItsOwn();
-  answerTheFirstDialog("install_update");
-  await settleTheUpdateReadyDialog();
-  expect(dialogsShown).toEqual(["0.47.0", "0.48.0"]);
+  await updater.installTheVersionTheUpdateDialogNamed("0.47.0");
+  expect(versionsAnnouncedReady).toEqual(["0.47.0", "0.48.0"]);
   expect(feed.installCount).toBe(0);
 });

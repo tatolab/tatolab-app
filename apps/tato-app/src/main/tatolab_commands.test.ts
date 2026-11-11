@@ -51,7 +51,9 @@ import {
 } from "./tatolab_commands.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { StreamProjectAdding } from "./stream_project_adding.js";
+import { TatolabAppUpdateAnnouncements } from "./tatolab_app_update_announcements.js";
 import { TatolabAppUpdater } from "./tatolab_app_updater.js";
+import { ProjectAssetsImportedFromChosenFiles } from "./project_assets_imported_from_chosen_files.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
 
@@ -80,11 +82,13 @@ async function sharedStateOverFakes(
     carriedRuntimeStarts: FakeCarriedRuntimeStarts;
     terminal: FakeTerminalOpenedInAFolder;
     foldersShownInTheFileManager: string[];
+    webPagesOpenedInTheBrowser: string[];
     localApiSocketPath: string;
     systemNotifications: FakeSystemNotifications;
     systemMediaAccess: FakeSystemMediaAccess;
     tatolabAppOpenedAtLogin: FakeTatolabAppOpenedAtLogin;
     menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[];
+    assetFilesTheDialogAnswers: { files: readonly string[] | null };
   }
 > {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
@@ -108,6 +112,7 @@ async function sharedStateOverFakes(
     appBuild: { tatolab_app_commit: "22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1", build_kind: "dev", built_with_uncommitted_changes: true },
     readMonotonicClockMs: () => 0,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readTheAppUpdateAnnouncement: () => null,
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readDeveloperMode: () => false,
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
@@ -118,11 +123,12 @@ async function sharedStateOverFakes(
   const tatolabAppUpdater = new TatolabAppUpdater(
     { kind: "not_offered", reason: "this fake platform updates nothing" },
     { notifyANewerVersionIsAvailable: () => {}, notifyTheAppIsUpToDate: () => {}, notifyTheUpdateFailed: () => {} },
-    () => Promise.resolve("cancel"),
+    () => {},
     () => {},
     quietTatolabAppLog,
   );
   const foldersShownInTheFileManager: string[] = [];
+  const webPagesOpenedInTheBrowser: string[] = [];
   const systemNotifications = new FakeSystemNotifications();
   const systemMediaAccess = new FakeSystemMediaAccess();
   const streamFailureNotifications = await StreamFailureNotifications.load(
@@ -134,6 +140,7 @@ async function sharedStateOverFakes(
   const developerModeSwitch = await HeldRememberedSwitch.load(RememberedSwitchFile.developerModeInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog));
   const fakeShellForTheWindows = new FakeTatolabElectronAppShell();
   const menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[] = [];
+  const assetFilesTheDialogAnswers: { files: readonly string[] | null } = { files: null };
   const appWindows = new TatolabAppWindows({
     mainWindowHostFactory: fakeShellForTheWindows.tatolabElectronAppShell.mainWindowHostFactory,
     platformItems: { mainWindowChrome: { titleBarStyle: "default" }, setDockIconVisible: () => {} },
@@ -177,6 +184,11 @@ async function sharedStateOverFakes(
     controller,
     statusPublisher,
     tatolabAppUpdater,
+    tatolabAppUpdateAnnouncements: new TatolabAppUpdateAnnouncements(() => {}),
+    openAWebPageInTheBrowser: async (webPageUrl) => {
+      webPagesOpenedInTheBrowser.push(webPageUrl);
+      return succeeded(undefined);
+    },
     streamProjectFolderOpeners: {
       openAFolderInTheFileManager: async (folder) => {
         foldersShownInTheFileManager.push(folder);
@@ -217,6 +229,12 @@ async function sharedStateOverFakes(
     fetchBytesOverHttps: async () => failedWith("these tests reach no network"),
     moduleDownloadsFolder: path.join(appConfigDirectory, "module-downloads"),
     dependencySourceDialog: async () => succeeded(null),
+    projectAssetsImportedFromChosenFiles: new ProjectAssetsImportedFromChosenFiles({
+      homeDirectory: appConfigDirectory,
+      projectAssetFilesDialog: async () => succeeded(assetFilesTheDialogAnswers.files),
+      projectChanges: controller,
+    }),
+    assetFilesTheDialogAnswers,
     thePersonEditingInStudio: { kind: "person", name: "sam" },
     projectViewsListed: new ProjectViewsListedToTheWindows(),
     systemMediaAccessAskedAheadForViews: new SystemMediaAccessAskedAheadForViews(systemMediaAccess, systemNotifications),
@@ -226,6 +244,7 @@ async function sharedStateOverFakes(
     carriedRuntimeStarts,
     terminal,
     foldersShownInTheFileManager,
+    webPagesOpenedInTheBrowser,
     localApiSocketPath: localApiServer.localApiSocketPath,
     streamFailureNotifications,
     systemNotifications,
@@ -271,7 +290,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '{"stream":"pattern-main-41d0c2","display_name":"main","location":{"project_directory":"/private/tmp/x/pattern","project":"0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55","stream_asset":"7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68"},' +
       '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"streams_not_listed_because":null,' +
       '"command_line_tool_link":{"kind":"linked","path":"/Users/someone/.local/bin/tatolab"},' +
-      '"app_update":{"kind":"not_checked"},' +
+      '"app_update":{"kind":"not_checked"},"app_update_announcement":null,' +
       `"local_api_socket":${JSON.stringify(runningRuntime.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
       '"developer_mode":false,' +
@@ -284,7 +303,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '"app_build":{"tatolab_app_commit":"22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1","build_kind":"dev","built_with_uncommitted_changes":true},' +
       '"platform":"linux","runtime_state":"starting","runtime_not_running_because":null,"machine_name":null,' +
       '"streams":null,"streams_not_listed_because":null,"command_line_tool_link":{"kind":"not_linked","path":"/home/someone/.local/bin/tatolab"},' +
-      '"app_update":{"kind":"not_checked"},' +
+      '"app_update":{"kind":"not_checked"},"app_update_announcement":null,' +
       `"local_api_socket":${JSON.stringify(runtimeThatIsDown.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
       '"developer_mode":false,' +
@@ -839,6 +858,41 @@ test("turning_stream_failure_notifications_off_is_remembered_shown_in_the_next_s
   });
 });
 
+test("answering_the_update_dialog_takes_its_announcement_away_and_release_notes_opens_the_announced_page_never_one_from_the_window", async () => {
+  const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "macos");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  sharedState.tatolabAppUpdateAnnouncements.announceTheUpdateLanded("0.69.0");
+
+  expect(
+    await commandHandlers.answer_the_app_update_announcement(
+      { kind: "update_landed", version: "0.69.0", answer: "take_its_action", release_notes_url: "https://example.com" },
+      FROM_THE_PROJECTS_WINDOW,
+    ),
+  ).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.answer_the_app_update_announcement({ kind: "update_landed", version: "0.69.0", answer: "take_its_action" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(sharedState.webPagesOpenedInTheBrowser).toEqual(["https://github.com/tatolab/tatolab-app/releases/tag/v0.69.0"]);
+  expect(sharedState.tatolabAppUpdateAnnouncements.shownAnnouncement()).toBeNull();
+
+  sharedState.tatolabAppUpdateAnnouncements.announceTheUpdateLanded("0.69.1");
+  expect(await commandHandlers.answer_the_app_update_announcement({ kind: "update_landed", version: "0.69.1", answer: "dismiss" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(sharedState.webPagesOpenedInTheBrowser).toHaveLength(1);
+  expect(sharedState.tatolabAppUpdateAnnouncements.shownAnnouncement()).toBeNull();
+});
+
+test("answering_the_update_dialog_refuses_a_kind_or_an_answer_it_does_not_know", async () => {
+  const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "macos");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(await commandHandlers.answer_the_app_update_announcement({ kind: "update_gone", version: "0.69.0", answer: "dismiss" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "answer_the_app_update_announcement takes `kind` update_ready or update_landed, not update_gone",
+  });
+  expect(await commandHandlers.answer_the_app_update_announcement({ kind: "update_ready", version: "0.69.0", answer: "later" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "answer_the_app_update_announcement takes `answer` take_its_action or dismiss, not later",
+  });
+});
+
 test("turning_developer_mode_on_is_remembered_shown_in_the_next_status_and_refuses_anything_but_true_or_false", async () => {
   const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "macos");
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
@@ -917,6 +971,33 @@ test("undo and redo in the open project ask the runtime by the window's author a
   expect(await commandHandlers.undo_in_the_open_project({ author: sam }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 
+/** The window's `ProjectAssetsImported` reads exactly this JSON. */
+test("importing assets into the open project copies each file the person chooses into the project, naming no path, by the person editing, answering each one imported and each refusal in the runtime's words", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-answer-for-poster-png-numbered-poster-3-in-media-imported-by-a-person.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-refusal-for-main-graph-json-a-stream-graph-document.json")),
+    ],
+    "linux",
+  );
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "tide-pool-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(await commandHandlers.import_assets_into_the_open_project(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  sharedState.assetFilesTheDialogAnswers.files = ["/home/sam/poster.png", "/home/sam/main.graph.json"];
+  expect(await commandHandlers.import_assets_into_the_open_project(undefined, fromTheStudioWindow)).toEqual({
+    ok: true,
+    value: {
+      imported: [{ asset: "d18ac59c-d741-45fc-8d21-d3febd0d14a0", path: "media/poster-3.png" }],
+      refused: [{ file_name: "main.graph.json", because: "import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write" }],
+    },
+  });
+  expect(await commandHandlers.import_assets_into_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+});
+
 /** The window's `ProjectGraphTransactionTheRuntimeAnswered` reads exactly this JSON. */
 test("a graph transaction in the open project reaches the runtime's transact held to its shape and to the project's streams, by the person editing, answering what it applied or the runtime's structured refusal", async () => {
   const sharedState = await sharedStateOverFakes(
@@ -956,6 +1037,7 @@ test("a graph transaction in the open project reaches the runtime's transact hel
     streams_not_listed_because: null,
     command_line_tool_link: { kind: "not_linked", path: "/home/sam/.local/bin/tatolab" },
     app_update: { kind: "not_offered", reason: "a test updates nothing" },
+    app_update_announcement: null,
     local_api_socket: sharedState.localApiSocketPath,
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
     developer_mode: false,

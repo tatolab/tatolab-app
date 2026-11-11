@@ -8,6 +8,7 @@ import type {
   NodeCatalog,
   ProjectNodeTypeListing,
   ProjectAssetListing,
+  ProjectAssetsImported,
   JsonValue,
   DependencySourceKind,
   ProjectDependency,
@@ -36,6 +37,8 @@ import type {
   StreamActionFollowed,
   StreamGraphSummary,
   StreamProjectFolderChosenFor,
+  TatolabAppUpdateAnnouncementKind,
+  TatolabAppUpdateAnnouncementAnswer,
   TatolabStatus,
   ProjectFileRead,
   ProjectFileSaved,
@@ -63,8 +66,10 @@ export const TATOLAB_COMMAND_NAMES = [
   "describe_node_catalog",
   "list_project_node_types",
   "list_project_assets",
+  "import_assets_into_the_open_project",
   "check_for_tatolab_app_updates",
   "take_the_newer_tatolab_app_version",
+  "answer_the_app_update_announcement",
   "remove_project",
   "rename_stream",
   "open_stream_project_folder",
@@ -235,6 +240,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   list_project_assets: { commandArguments: { project_directory: string }; answer: ProjectAssetListing };
   check_for_tatolab_app_updates: { commandArguments: undefined; answer: null };
   take_the_newer_tatolab_app_version: { commandArguments: undefined; answer: null };
+  /** The `kind` and `version` of the announcement the dialog answered, as the status carried it; an answer to one no longer waiting does nothing. */
+  answer_the_app_update_announcement: { commandArguments: { kind: TatolabAppUpdateAnnouncementKind; version: string; answer: TatolabAppUpdateAnnouncementAnswer }; answer: null };
   /** Answers once the runtime has queued the removal of every stream it holds from the project; deletes no file. */
   remove_project: { commandArguments: { project_directory: string }; answer: null };
   /** `stream` a stream's id; answers once the runtime has recorded `display_name`, refused in its own words. */
@@ -340,6 +347,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   undo_in_the_open_project: { commandArguments: { author: ProjectTransactionAuthor }; answer: ProjectTransaction };
   /** The runtime's `transact` of `operations` on the graphs of the asking studio window's project's streams, as one transaction by the person editing; a stream outside the project is refused in Studio's words, a refusal the runtime structures is answered as `refused`, any other refusal in its own words. */
   transact_in_the_open_project: { commandArguments: ProjectGraphTransactionSentByTheWindow; answer: ProjectGraphTransactionTheRuntimeAnswered };
+  /** From a studio window only: the desktop's open dialog for files, each one chosen copied by the runtime's `import_asset` into the window's project, which places it in its kind's folder under its own name, numbered past a name already taken, by the person editing; `null` when they choose nothing. A file refused leaves the rest to import. */
+  import_assets_into_the_open_project: { commandArguments: undefined; answer: ProjectAssetsImported | null };
   /** The person editing in Studio, whose graph edits the runtime records under them. */
   read_the_person_editing_in_studio: { commandArguments: undefined; answer: ProjectTransactionAuthor };
   /** The runtime's `redo` by `author` on the asking studio window's project, answering the redo it applied; refused in the runtime's own words. */

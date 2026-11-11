@@ -36,10 +36,10 @@ import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./m
 import { MockProjectFiles } from "./mock_project_files";
 import { MOCK_PERSON_EDITING_IN_STUDIO, MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
-import { mockProjectAssetListing } from "./mock_project_assets";
+import { mockImportTheFilesChosen, mockProjectAssetListing, type MockAssetImportScenario } from "./mock_project_assets";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
-import type { JsonValue, ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, ProjectAsset, ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
 import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
@@ -57,6 +57,7 @@ import {
   type StreamActionCancelAnswer,
   type StreamActionFollowed,
   type StreamProjectFolderChosenFor,
+  type TatolabAppUpdateAnnouncement,
   type TatolabAppUpdateState,
   type TatolabPlatform,
   type TatolabStatus,
@@ -108,11 +109,14 @@ const MOCK_STREAM_ACTION_STEP_MILLISECONDS = 700;
 /**
  * What a check for updates finds in the mock, picked with `?update=`: nothing newer (the default), a newer
  * version installed in place not yet downloaded (`available`), one already downloaded and staged (`ready`),
- * one whose download opens (`download`), or a check that fails.
+ * one whose download opens (`download`), a check that fails, or the first launch since an update landed (`landed`).
  */
-export type MockTatolabAppUpdateScenario = "up-to-date" | "available" | "ready" | "download" | "failed";
+export type MockTatolabAppUpdateScenario = "up-to-date" | "available" | "ready" | "download" | "failed" | "landed";
 
-const MOCK_TATOLAB_APP_UPDATE_SCENARIOS: readonly MockTatolabAppUpdateScenario[] = ["up-to-date", "available", "ready", "download", "failed"];
+const MOCK_TATOLAB_APP_UPDATE_SCENARIOS: readonly MockTatolabAppUpdateScenario[] = ["up-to-date", "available", "ready", "download", "failed", "landed"];
+
+/** The version the mock app runs as. */
+const MOCK_APP_VERSION = "0.45.0";
 
 /** The newer version the mock's feed offers. */
 const MOCK_NEWER_TATOLAB_VERSION = "0.46.0";
@@ -206,6 +210,8 @@ export interface MockTatolabOptions {
   arePortFamiliesServed: boolean;
   /** `?node_types=unreadable_project`: every module of the open project's own node code does not parse; one of them does not by default. */
   isEveryOwnNodeModuleUnreadable: boolean;
+  /** `?asset_import=refuses_one`: Import asset… also refuses a graph document chosen beside the file it imports. */
+  assetImportScenario: MockAssetImportScenario;
   /** `?popped_out_view=<popped-out view as JSON>`: the page is a view popped out of the studio, as Pop out into a window opens it in a new tab; the studio by default. */
   poppedOutView: PoppedOutView | null;
   /** `?module_manager=open|edited_files|newer`: the page is the open project's Module manager window, as File › Module manager… opens it in a new tab, its import as copied, edited since, or with a newer version on its source; `null` for any other page. */
@@ -336,6 +342,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     recentProjectsInTheQuery: pageQuery.get("recent"),
     arePortFamiliesServed: pageQuery.get("port_families") !== "unserved",
     isEveryOwnNodeModuleUnreadable: pageQuery.get("node_types") === "unreadable_project",
+    assetImportScenario: pageQuery.get("asset_import") === "refuses_one" ? "refuses_one" : "imports_one",
     poppedOutView: mockPoppedOutViewFrom(pageQuery.get(POPPED_OUT_VIEW_QUERY_PARAMETER)),
     moduleManagerWorkspaceDependencies: mockWorkspaceDependenciesScenarioNamed(pageQuery.get(MODULE_MANAGER_QUERY_PARAMETER)),
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
@@ -376,8 +383,16 @@ function initialMockAppUpdateState(appUpdateScenario: MockTatolabAppUpdateScenar
       return { kind: "available", version: MOCK_NEWER_TATOLAB_VERSION, delivery: "open_the_download" };
     case "up-to-date":
     case "failed":
+    case "landed":
       return { kind: "not_checked" };
   }
+}
+
+/** The update dialog the mock shows as the page opens: the staged version's in `ready`, and the version the app is now in `landed`. */
+function initialMockAppUpdateAnnouncement(appUpdateScenario: MockTatolabAppUpdateScenario, appVersion: string): TatolabAppUpdateAnnouncement | null {
+  if (appUpdateScenario === "ready") return { kind: "update_ready", version: MOCK_NEWER_TATOLAB_VERSION };
+  if (appUpdateScenario === "landed") return { kind: "update_landed", version: appVersion, release_notes_url: `https://github.com/tatolab/tatolab-app/releases/tag/v${appVersion}` };
+  return null;
 }
 
 function initialMockStatus(
@@ -395,7 +410,7 @@ function initialMockStatus(
   }: MockTatolabOptions,
 ): TatolabStatus {
   const runningStatus: TatolabStatus = {
-    app_version: "0.45.0",
+    app_version: MOCK_APP_VERSION,
     app_build: appBuild,
     platform,
     runtime_state: "running",
@@ -410,6 +425,7 @@ function initialMockStatus(
           ? { kind: "taken_by_something_else", path: machine.commandLineToolLinkedAt }
           : { kind: "not_linked", path: machine.commandLineToolLinkedAt },
     app_update: initialMockAppUpdateState(appUpdateScenario),
+    app_update_announcement: initialMockAppUpdateAnnouncement(appUpdateScenario, MOCK_APP_VERSION),
     local_api_socket: machine.localApiSocket,
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: !doesTheDesktopShowNoNotifications },
     developer_mode: isDeveloperModeOn,
@@ -458,6 +474,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     recentProjectsInTheQuery,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
+  const assetsImportedWhileTheMockRuns: ProjectAsset[] = [];
   const mainStream =
     scenario === "node-error"
       ? fixtures.mainStreamWithDisplayWindowInError
@@ -1058,7 +1075,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
 
   const downloadTheNewerVersion = (percent: number): void => {
     if (percent >= 100) {
-      publishStatus({ app_update: { kind: "ready_to_restart", version: MOCK_NEWER_TATOLAB_VERSION } });
+      publishStatus({ app_update: { kind: "ready_to_restart", version: MOCK_NEWER_TATOLAB_VERSION }, app_update_announcement: { kind: "update_ready", version: MOCK_NEWER_TATOLAB_VERSION } });
       return;
     }
     publishStatus({ app_update: { kind: "downloading", version: MOCK_NEWER_TATOLAB_VERSION, percent } });
@@ -1131,9 +1148,22 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     listProjectAssets: async (projectDirectory) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      const listing = mockProjectAssetListing(projectDirectory, `${fixtures.machine.homeDirectory}/streams`);
+      const listing = mockProjectAssetListing(projectDirectory, `${fixtures.machine.homeDirectory}/streams`, assetsImportedWhileTheMockRuns);
       if (listing === null) throw `list_assets failed: ${projectDirectory} holds no project: it has no tatolab-project.json`;
       return listing;
+    },
+    importAssetsIntoTheOpenProject: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openProjectReading.kind !== "read") throw "No project is open in this window.";
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const assetsImported = mockImportTheFilesChosen(
+        openProjectReading.open_project.project.folder,
+        `${fixtures.machine.homeDirectory}/streams`,
+        assetsImportedWhileTheMockRuns,
+        mockTatolabOptions.assetImportScenario,
+      );
+      if (typeof assetsImported === "string") throw assetsImported;
+      return assetsImported;
     },
     checkForTatolabAppUpdates: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -1150,6 +1180,14 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         return;
       }
       if (appUpdate.kind === "available" && appUpdate.delivery === "install_and_relaunch") downloadTheNewerVersion(0);
+    },
+    answerTheAppUpdateAnnouncement: async (kind, version, answer) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const answered = mockStatus.app_update_announcement;
+      if (answered === null || answered.kind !== kind || answered.version !== version) return;
+      publishStatus({ app_update_announcement: null });
+      const appUpdate = mockStatus.app_update;
+      if (answer === "take_its_action" && answered.kind === "update_ready" && appUpdate.kind === "ready_to_restart") publishStatus({ app_update: { kind: "installing", version: appUpdate.version } });
     },
     removeProject: async (projectDirectory) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

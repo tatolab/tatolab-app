@@ -30,6 +30,7 @@ function aStatusListing(streams: ListedStream[]): TatolabStatus {
     streams_not_listed_because: null,
     command_line_tool_link: { kind: "not_linked", path: "/usr/local/bin/tatolab" },
     app_update: { kind: "not_offered", reason: "a test updates nothing" },
+    app_update_announcement: null,
     local_api_socket: "/tmp/streamlib-501/local-api.sock",
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
     developer_mode: false,
@@ -226,28 +227,16 @@ test("a popped-out view's language servers send it their events, and stop as it 
   expect(languageServersStopped).toEqual([languageServerOfThePoppedOutView]);
 });
 
-test("a question for the window in front is asked over a studio window on screen, and over the Projects window, shown, when none is", async () => {
-  const anUpdateQuestion = { message: "Tato Studio 0.69.0 is ready to install.", detail: "", buttonLabels: ["Install Update", "Cancel"], defaultButtonIndex: 1, cancelButtonIndex: 1 };
+test("the update dialog leaves the window on screen as it is, and shows the Projects window when none is", async () => {
   const { fakeShell, appWindows, projectFolder } = await windowsWithNightShowOpen(async () => succeeded(undefined));
   fakeShell.forgetTheRecords();
-  await appWindows.askAQuestionOverTheWindowInFront(anUpdateQuestion);
-  expect(fakeShell.records).toEqual([{ asked: "ask_a_question_over_the_window", question: anUpdateQuestion, windowContentsId: STUDIO_WINDOW_CONTENTS_ID }]);
+  appWindows.showAWindowForTheUpdateDialog();
+  expect(fakeShell.records).toEqual([]);
 
   appWindows.sendEveryWindowTheStatus(aStatusListing([aStreamOf(projectFolder, "stopped")]));
   fakeShell.requestTheCloseOfTheWindow(STUDIO_WINDOW_CONTENTS_ID);
   fakeShell.requestTheCloseOfTheWindow(PROJECTS_WINDOW_CONTENTS_ID);
-  fakeShell.forgetTheRecords();
-  await appWindows.askAQuestionOverTheWindowInFront(anUpdateQuestion);
+  expect(fakeShell.mainWindowShowing).toBe(false);
+  appWindows.showAWindowForTheUpdateDialog();
   expect(fakeShell.mainWindowShowing).toBe(true);
-  expect(fakeShell.records.at(-1)).toEqual({ asked: "ask_a_question_over_the_window", question: anUpdateQuestion });
-});
-
-test("a question for the window in front is asked over the window last in focus while it is on screen", async () => {
-  const anUpdateQuestion = { message: "Tato Studio 0.69.0 is ready to install.", detail: "", buttonLabels: ["Install Update", "Cancel"], defaultButtonIndex: 1, cancelButtonIndex: 1 };
-  const { fakeShell, appWindows } = await windowsWithNightShowOpen(async () => succeeded(undefined));
-  appWindows.showTheProjectsWindow();
-  appWindows.noticeTheWindowFocused(PROJECTS_WINDOW_CONTENTS_ID);
-  fakeShell.forgetTheRecords();
-  await appWindows.askAQuestionOverTheWindowInFront(anUpdateQuestion);
-  expect(fakeShell.records).toEqual([{ asked: "ask_a_question_over_the_window", question: anUpdateQuestion }]);
 });

@@ -369,9 +369,13 @@ export class LocalApiClient {
     return this.changeProjectSettings("set_project_cover", { project_directory: projectDirectory, cover });
   }
 
-  /** Copy the file at `source`, an absolute path on this machine, into the project in `projectDirectory` as an asset at `assetPath` through `import_asset`, the kind its extension implies; refused in the runtime's own words. */
-  async importAsset(projectDirectory: string, source: string, assetPath: string): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("import_asset", { project_directory: projectDirectory, source, asset_path: assetPath }, FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS);
+  /** Copy the file at `source`, an absolute path on this machine, into the project in `projectDirectory` as an asset through `import_asset`, the kind its extension implies, at `assetPath` or, for `null`, in its kind's folder under its own name numbered past a name already taken; recorded under `author` or, for `null`, the runtime's own; refused in the runtime's own words. */
+  async importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool(
+      "import_asset",
+      { project_directory: projectDirectory, source, ...(assetPath === null ? {} : { asset_path: assetPath }), ...(author === null ? {} : { author: authorOnTheWire(author) }) },
+      FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS,
+    );
     if (!toolResultText.ok) return toolResultText;
     const imported = assetFromTheImportAssetToolResult(toolResultText.value);
     return imported.ok ? imported : localApiRequestFailure(imported.failure);
@@ -570,7 +574,7 @@ export class LocalApiClient {
       project_directory: projectDirectory,
       path: filePath,
       content: text,
-      author: { kind: author.kind, name: author.name },
+      author: authorOnTheWire(author),
       idempotency_key: idempotencyKey,
     });
     if (!toolResultText.ok) return toolResultText;
@@ -623,7 +627,7 @@ export class LocalApiClient {
   }
 
   private async undoOrRedoInTheProject(toolName: "undo" | "redo", projectDirectory: string, author: ProjectTransactionAuthor): Promise<Result<ProjectTransaction, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool(toolName, { project_directory: projectDirectory, author: { kind: author.kind, name: author.name } });
+    const toolResultText = await this.callMcpTool(toolName, { project_directory: projectDirectory, author: authorOnTheWire(author) });
     if (!toolResultText.ok) return toolResultText;
     const transaction = projectTransactionFromTheUndoOrRedoToolResult(toolName, toolResultText.value);
     return transaction.ok ? transaction : localApiRequestFailure(transaction.failure);
@@ -639,7 +643,7 @@ export class LocalApiClient {
     const toolAnswer = await this.callMcpToolKeepingItsRefusal("transact", {
       operations,
       mode,
-      author: { kind: author.kind, name: author.name },
+      author: authorOnTheWire(author),
       ...(idempotencyKey === null ? {} : { idempotency_key: idempotencyKey }),
     });
     if (!toolAnswer.ok) return toolAnswer;
@@ -871,4 +875,9 @@ function dechunkedBody(chunkedBody: Buffer): Result<Buffer, string> {
     if (remaining.length < chunkSize + 2) return failedWith("the body ended after a chunk");
     remaining = remaining.subarray(chunkSize + 2);
   }
+}
+
+/** `author` as the runtime's tools take it: its kind and name, nothing else. */
+function authorOnTheWire(author: ProjectTransactionAuthor): { kind: ProjectTransactionAuthor["kind"]; name: string } {
+  return { kind: author.kind, name: author.name };
 }

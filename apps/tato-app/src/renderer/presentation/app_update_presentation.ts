@@ -1,4 +1,5 @@
-import type { TatolabAppUpdateState } from "../../shared/tatolab_backend_contract";
+import type { ConfirmationQuestion } from "@tatolab/tato-app-view-sdk/design_system/confirmation_dialog";
+import type { TatolabAppUpdateAnnouncement, TatolabAppUpdateState } from "../../shared/tatolab_backend_contract";
 
 /** Which backend command an updates control runs: check for a newer version, or take the one found or staged. */
 export type TatolabAppUpdateCommand = "check_for_updates" | "take_the_newer_version";
@@ -86,4 +87,23 @@ export function presentTatolabAppUpdateMenuEntry(appUpdate: TatolabAppUpdateStat
   if (appUpdate.kind === "ready_to_restart") return { ...action, label: `Restart to Update to ${appUpdate.version}` };
   if (appUpdate.kind === "downloading") return { ...action, label: "Downloading Update…" };
   return action;
+}
+
+/** The update dialog's words for `announcement`: Install Update or Cancel for a staged version, Release Notes or OK for the version the app is now. */
+export function presentTatolabAppUpdateAnnouncement(announcement: TatolabAppUpdateAnnouncement): ConfirmationQuestion {
+  switch (announcement.kind) {
+    case "update_ready":
+      return {
+        title: `Tato Studio ${announcement.version} is ready to install`,
+        explanation: "Installing it restarts Tato Studio, which stops every stream it runs until you run it again.",
+        confirmWords: "Install Update",
+      };
+    case "update_landed":
+      return {
+        title: `Tato Studio is now version ${announcement.version}`,
+        explanation: "Each project's dependencies are brought up to date automatically the next time it runs.",
+        confirmWords: "Release Notes",
+        dismissWords: "OK",
+      };
+  }
 }

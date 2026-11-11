@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write"}],"isError":true}}
