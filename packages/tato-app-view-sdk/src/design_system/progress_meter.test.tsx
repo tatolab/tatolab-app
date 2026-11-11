@@ -22,4 +22,24 @@ describe("ProgressMeter", () => {
     expect(screen.getByText("error: Failed to fetch").className).toContain("text-danger-text");
     expect(document.querySelector("[data-meter-under-test]")?.getAttribute("data-progress-meter-outcome")).toBe("failed");
   });
+
+  it("lists each part it names under the bar, a line each, and none when it names none", () => {
+    render(
+      <ProgressMeter
+        label="Night Show's Python packages"
+        detail="Downloading 1 of 2"
+        percent={null}
+        outcome="in_progress"
+        parts={[
+          { name: "numpy", detail: "Downloaded · 5.5 MB" },
+          { name: "llvmlite", detail: "Downloading · 40.6 MB" },
+        ]}
+      />,
+    );
+    const partsList = screen.getByRole("list", { name: "Night Show's Python packages, each part" });
+    expect([...partsList.querySelectorAll("li")].map((part) => part.textContent)).toEqual(["numpyDownloaded · 5.5 MB", "llvmliteDownloading · 40.6 MB"]);
+    cleanup();
+    render(<ProgressMeter label="Tato Studio 0.68.69" detail="Downloading · 42%" percent={41.6} outcome="in_progress" />);
+    expect(screen.queryByRole("list")).toBeNull();
+  });
 });

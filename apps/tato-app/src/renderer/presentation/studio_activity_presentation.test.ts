@@ -107,7 +107,7 @@ describe("the studio's Activity panel", () => {
     expect(studioActivityButtonWordsOf(EMPTY_STUDIO_ACTIVITY_LOG)).toBeNull();
   });
 
-  it("follows a project's sync phase by phase: resolving with no known share, downloading by the share of sized bytes uv has finished, then installing and installed, naming each package", () => {
+  it("follows a project's sync phase by phase, naming each package: resolving, downloading by the bytes uv has finished of those it named with no known share, since uv names each download only as it starts, then installing and installed", () => {
     const syncOfNightShow = (venv_sync: StudioActivitySources["projectVenvSyncsUnderWay"][number]["venv_sync"]): StudioActivitySources => ({
       ...NOTHING_UNDER_WAY,
       listedStreams: [NIGHT_SHOW_MAIN],
@@ -137,7 +137,7 @@ describe("the studio's Activity panel", () => {
     );
     expect(downloading.in_progress[0]).toMatchObject({
       detail: "Downloading 1 of 3 · 16.0 MB of 20.0 MB",
-      progress: { kind: "share_known", percent: 80 },
+      progress: { kind: "share_unknown" },
       package_lines: [
         { name: "numpy", detail: "Downloaded · 16.0 MB" },
         { name: "pillow", detail: "Downloading · 4.0 MB" },
@@ -149,7 +149,7 @@ describe("the studio's Activity panel", () => {
       downloading,
       syncOfNightShow({ phase: "installing", packages_resolved: 8, packages_prepared: 8, packages_installed: null, downloads_started: 3, downloads_done: 3, packages: [] }),
     );
-    expect(installing.in_progress[0]).toMatchObject({ detail: "Installing 8 packages…", progress: { kind: "share_unknown" } });
+    expect(installing.in_progress[0]).toMatchObject({ detail: "Installing packages…", progress: { kind: "share_unknown" } });
 
     const installed = nextStudioActivityLog(
       installing,
@@ -170,7 +170,7 @@ describe("the studio's Activity panel", () => {
     });
   });
 
-  it("says downloading with no known share while no download uv names has a size, and a phase newer than this app as downloading and installing", () => {
+  it("says downloading while no download uv names has a size, an install with nothing to install as up to date, and a phase newer than this app as downloading and installing", () => {
     const syncOf = (phase: string): StudioActivitySources => ({
       ...NOTHING_UNDER_WAY,
       listedStreams: [NIGHT_SHOW_MAIN],
@@ -178,11 +178,12 @@ describe("the studio's Activity panel", () => {
         {
           action: "Riioiuiuj7n1z3ghkm7s9n1xi-6",
           project_directory: "/Users/jonathanf/Documents/Tato Studio/Night Show",
-          venv_sync: { phase, packages_resolved: 2, packages_prepared: null, packages_installed: null, downloads_started: 0, downloads_done: 0, packages: [] },
+          venv_sync: { phase, packages_resolved: 2, packages_prepared: null, packages_installed: 0, downloads_started: 0, downloads_done: 0, packages: [] },
         },
       ],
     });
     expect(nextStudioActivityLog(EMPTY_STUDIO_ACTIVITY_LOG, syncOf("downloading")).in_progress[0]).toMatchObject({ detail: "Downloading…", progress: { kind: "share_unknown" } });
+    expect(nextStudioActivityLog(EMPTY_STUDIO_ACTIVITY_LOG, syncOf("installed")).in_progress[0]).toMatchObject({ detail: "Packages already up to date", progress: { kind: "share_known", percent: 100 } });
     expect(nextStudioActivityLog(EMPTY_STUDIO_ACTIVITY_LOG, syncOf("verifying")).in_progress[0]).toMatchObject({ detail: "Downloading and installing…", progress: { kind: "share_unknown" } });
   });
 });

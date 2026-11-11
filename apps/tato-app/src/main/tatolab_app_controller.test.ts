@@ -105,8 +105,8 @@ test("a project's stream on its making_the_venv step brings its action's venv sy
   const { controller, localApiServer } = await controllerOverFakes([
     healthyAnswer(),
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-new-project-preparing-on-its-making-the-venv-step.json")),
-    theMachine(),
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-new-project-downloading-numpy-and-pillow.json")),
+    theMachine(),
   ]);
 
   const status = await controller.composeStatus(0);
@@ -123,18 +123,24 @@ test("a project's stream on its making_the_venv step brings its action's venv sy
   expect(describeRequests[0]).toContain('"action":"Rvxjb0uiacgp6c3o13o9qvzj1-1"');
 });
 
-test("a project's sync whose action cannot be described is left out, its stream still listed on its step", async () => {
-  const { controller } = await controllerOverFakes([
-    healthyAnswer(),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-new-project-preparing-on-its-making-the-venv-step.json")),
-    theMachine(),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json")),
-  ]);
+test("a project's sync whose action cannot be described is left out, its stream still listed on its step, and the runtime's words logged once", async () => {
+  const writtenLogLines: string[] = [];
+  const notHeld = async () => httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json"));
+  const listedOnMakingTheVenv = async () =>
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-new-project-preparing-on-its-making-the-venv-step.json"));
+  const { controller } = await controllerOverFakes(
+    [healthyAnswer(), await listedOnMakingTheVenv(), await notHeld(), theMachine(), healthyAnswer(), await listedOnMakingTheVenv(), await notHeld()],
+    { tatolabAppLog: createTatolabAppLog("warn", (logLine) => writtenLogLines.push(logLine)) },
+  );
 
   const status = await controller.composeStatus(0);
+  await controller.composeStatus(1);
 
   expect(status.project_venv_syncs_under_way).toEqual([]);
   expect(status.streams?.[0]?.step).toBe("making_the_venv");
+  const syncNotDescribedLines = writtenLogLines.filter((logLine) => logLine.includes("could not be described"));
+  expect(syncNotDescribedLines).toHaveLength(1);
+  expect(syncNotDescribedLines[0]).toContain("is not held");
 });
 
 test("a healthy runtime whose streams cannot be read lists none, and says why in the failure's own words", async () => {

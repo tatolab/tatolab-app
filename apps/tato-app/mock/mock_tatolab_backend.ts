@@ -56,6 +56,7 @@ import {
   type ProjectVenvSyncUnderWay,
   type StreamActionDescription,
   type StreamActionVenvSync,
+  STREAM_ACTION_STEP_MAKING_THE_VENV,
   type StreamActionCancelAnswer,
   type StreamActionFollowed,
   type StreamProjectFolderChosenFor,
@@ -724,7 +725,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     }
     writeProjectRecord(description.project_directory, description.action, "info", `the stream action ${description.action} was cancelled at the step it was on`);
     Object.assign(description, { state: "cancelled", step: null });
-    publishStatus({ streams: listStreams() });
+    publishStatus({ streams: listStreams(), project_venv_syncs_under_way: projectVenvSyncsUnderWay() });
     return true;
   };
 
@@ -774,7 +775,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   /** Each load's sync under way, as the main process reads it from the actions its listed streams name on `making_the_venv`. */
   const projectVenvSyncsUnderWay = (): ProjectVenvSyncUnderWay[] =>
     [...projectLoadsQueued.values()].flatMap((description) =>
-      description.state === "in_progress" && description.step === "making_the_venv" && description.venv_sync !== null
+      description.state === "in_progress" && description.step === STREAM_ACTION_STEP_MAKING_THE_VENV && description.venv_sync !== null
         ? [{ action: description.action, project_directory: description.project_directory, venv_sync: structuredClone(description.venv_sync) }]
         : [],
     );

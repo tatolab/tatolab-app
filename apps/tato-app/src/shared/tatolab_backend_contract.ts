@@ -252,6 +252,9 @@ export interface StreamActionDescription {
   venv_sync: StreamActionVenvSync | null;
 }
 
+/** The stream action step in which the runtime runs uv to make the project's `.venv`. */
+export const STREAM_ACTION_STEP_MAKING_THE_VENV = "making_the_venv";
+
 /** One package uv named in a stream action's sync, as the runtime's `venv_sync.packages[]` spells it. */
 export interface StreamActionVenvSyncPackage {
   name: string;

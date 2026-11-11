@@ -1247,7 +1247,7 @@ describe("the studio", () => {
     await waitFor(() => document.querySelector<HTMLInputElement>("[data-new-project-name]") ?? expect.unreachable("no New project sheet"));
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
-    const packageList = await screen.findByRole("list", { name: "Untitled project 2's Python packages, each package" }, { timeout: 4000 });
+    const packageList = await screen.findByRole("list", { name: "Untitled project 2's Python packages, each part" }, { timeout: 4000 });
     await waitFor(() => expect(within(packageList).getByText("pillow")).toBeTruthy(), { timeout: 4000 });
     expect(document.querySelector("[data-studio-activity-panel]")?.textContent).toMatch(/Downloading|Installing|Installed/);
     await waitFor(() => expect(textOf("[data-studio-activity-panel]")).toContain("Installed"), { timeout: 6000 });
