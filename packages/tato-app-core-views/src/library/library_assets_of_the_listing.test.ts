@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ProjectAsset, ProjectAssetListing } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { assetFileName, assetFolderIdShownOf, importRefusalsOf, assetKindAndSizeWords, noAssetShownWords, assetFormatWords, assetPictureToneOf, assetsShownInTheFolder, assetsTheLibraryLists, byteLengthInWords, EVERY_ASSET_FOLDER_ID, libraryAssetFoldersOf, shortenedDigest } from "./library_assets_of_the_listing";
+import { assetFileName, assetFileNameRefusal, assetFolderOf, assetFolderRefusal, assetPathMoved, assetPathRenamed, assetFolderIdShownOf, importRefusalsOf, assetKindAndSizeWords, noAssetShownWords, assetFormatWords, assetPictureToneOf, assetsShownInTheFolder, assetsTheLibraryLists, byteLengthInWords, EVERY_ASSET_FOLDER_ID, libraryAssetFoldersOf, shortenedDigest } from "./library_assets_of_the_listing";
 
 const assetAt = (path: string, kind: string, contentByteLen = 1): ProjectAsset => ({ asset: `uuid-of-${path}`, kind, path, content_sha256: "0".repeat(64), content_byte_len: contentByteLen, import_settings: {} });
 
@@ -67,5 +67,24 @@ describe("the Library's assets", () => {
     ).toEqual([{ lead: "Didn't import poster.png:", because: "import_asset failed: `media/poster.png` is already the path of the asset b" }]);
     expect(importRefusalsOf({ kind: "nothing_chosen" })).toEqual([]);
     expect(importRefusalsOf({ kind: "not_imported", because: "No project is open in this window." })).toEqual([{ lead: "Didn't import:", because: "No project is open in this window." }]);
+  });
+
+  it("renames an asset in the folder it sits in and moves it under the name it has, the project's top an empty folder", () => {
+    expect(assetFolderOf("media/posters/poster.png")).toBe("media/posters");
+    expect(assetFolderOf("readme-cover.jpg")).toBe("");
+    expect(assetPathRenamed("media/poster.png", " harbour-poster.png ")).toBe("media/harbour-poster.png");
+    expect(assetPathRenamed("readme-cover.jpg", "cover.jpg")).toBe("cover.jpg");
+    expect(assetPathMoved("media/poster.png", "/media/archive/")).toBe("media/archive/poster.png");
+    expect(assetPathMoved("media/poster.png", "")).toBe("poster.png");
+  });
+
+  it("refuses a file name that is empty or names a folder, and a folder outside the project", () => {
+    expect(assetFileNameRefusal("harbour-poster.png")).toBeNull();
+    expect(assetFileNameRefusal("  ")).toBe("Name the file.");
+    expect(assetFileNameRefusal("archive/poster.png")).toBe("A file name holds no “/”. Move puts the asset in another folder.");
+    expect(assetFolderRefusal("media/archive")).toBeNull();
+    expect(assetFolderRefusal("")).toBeNull();
+    expect(assetFolderRefusal("/Users/sam")).toBe("Name a folder inside the project, as media/archive.");
+    expect(assetFolderRefusal("media/../../elsewhere")).toBe("Name a folder inside the project, as media/archive.");
   });
 });

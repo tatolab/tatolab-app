@@ -1,6 +1,7 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useMemo, useState } from "react";
-import { Boxes, FilePlus2, Folder } from "lucide-react";
+import { Boxes, FilePlus2, Folder, FolderInput, PencilLine, Trash2 } from "lucide-react";
+import { IconButton } from "@tatolab/tato-app-view-sdk/design_system/icon_button";
 import { MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { ProjectAssetCard } from "@tatolab/tato-app-view-sdk/design_system/project_asset_card";
 import { CardGrid } from "@tatolab/tato-app-view-sdk/design_system/card_grid";
@@ -23,6 +24,7 @@ import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
 import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../shared/node_type_listing_tree";
+import { LibraryAssetChangeForm, type LibraryAssetChange } from "./library_asset_change_form";
 import { libraryTreeOfTheListing, type LibraryDeclarationsShown, type LibraryRowMeaning } from "./library_tree_of_the_listing";
 import {
   assetFileName,
@@ -296,16 +298,27 @@ function DeclarationsOfTheProject({ connection, projectFolder, declarationsShown
 }
 
 /** The chosen asset: its file's name and path, what it is, its UUID, its bytes' digest and size, and each setting its import took. */
-function DetailsOfTheAsset({ asset, onHidden }: { asset: ProjectAsset; onHidden: () => void }) {
+function DetailsOfTheAsset({ asset, projectFolder, connection, onHidden }: { asset: ProjectAsset; projectFolder: string; connection: TatoAppViewConnection; onHidden: () => void }) {
   const importSettings = Object.entries(asset.import_settings);
+  const [changeAsked, setChangeAsked] = useState<LibraryAssetChange | null>(null);
   return (
     <SidePanel
       label="Chosen asset"
       title={assetFileName(asset.path)}
       subtitle={<span className="font-mono">{asset.path}</span>}
+      actions={
+        <>
+          <IconButton icon={PencilLine} label="Rename…" onPressed={() => setChangeAsked("rename")} data-library-asset-change="rename" />
+          <IconButton icon={FolderInput} label="Move…" onPressed={() => setChangeAsked("move")} data-library-asset-change="move" />
+          <IconButton icon={Trash2} label="Delete…" onPressed={() => setChangeAsked("delete")} data-library-asset-change="delete" />
+        </>
+      }
       hiding={{ hideLabel: "Hide details", onHidden }}
       data-library-asset-details={asset.asset}
     >
+      {changeAsked !== null && (
+        <LibraryAssetChangeForm key={`${asset.asset}/${changeAsked}`} change={changeAsked} asset={asset} projectFolder={projectFolder} connection={connection} onClosed={() => setChangeAsked(null)} />
+      )}
       <div className="flex flex-col gap-3 px-4 py-3">
         <KeyValueRows
           rows={[
@@ -347,11 +360,15 @@ interface AssetsShownInTheLibrary {
 
 /** The open project's assets as the runtime lists them: its folders down the left, the chosen folder's assets as cards, and the chosen asset's details. */
 function AssetsOfTheProject({
+  connection,
+  projectFolder,
   assetsReading,
   searchText,
   assetsShown: { shownFolderId, chosenAssetUuid },
   onAssetsShownChanged,
 }: {
+  connection: TatoAppViewConnection;
+  projectFolder: string;
   assetsReading: ProjectAssetsReading | null;
   searchText: string;
   assetsShown: AssetsShownInTheLibrary;
@@ -388,7 +405,11 @@ function AssetsOfTheProject({
         dataAttributeOfEachSection="data-library-asset-folder"
       />
       <WorkAreaWithSidePanel
-        sidePanel={chosenAsset === null ? null : <DetailsOfTheAsset asset={chosenAsset} onHidden={() => onAssetsShownChanged({ shownFolderId, chosenAssetUuid: null })} />}
+        sidePanel={
+          chosenAsset === null ? null : (
+            <DetailsOfTheAsset asset={chosenAsset} projectFolder={projectFolder} connection={connection} onHidden={() => onAssetsShownChanged({ shownFolderId, chosenAssetUuid: null })} />
+          )
+        }
       >
         <div className="scrollbar-thin min-w-0 flex-1 overflow-y-auto p-3">
           {assetsInTheFolder.length === 0 ? (
@@ -457,7 +478,7 @@ function LibraryBody({
       {choices.importRefusals.map((importRefusal, refusalIndex) => (
         <RefusalLine key={refusalIndex} layout="bar" lead={importRefusal.lead} words={importRefusal.because} data-library-import-refused="" />
       ))}
-      <AssetsOfTheProject assetsReading={assetsReading} searchText={choices.searchText} assetsShown={choices.assetsShown} onAssetsShownChanged={onAssetsShownChanged} />
+      <AssetsOfTheProject connection={connection} projectFolder={projectFolder} assetsReading={assetsReading} searchText={choices.searchText} assetsShown={choices.assetsShown} onAssetsShownChanged={onAssetsShownChanged} />
     </>
   );
 }

@@ -30,6 +30,12 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     listProjectNodeTypes: (projectDirectory) => invokeTatolabCommand("list_project_node_types", { project_directory: projectDirectory }),
     listProjectAssets: (projectDirectory) => invokeTatolabCommand("list_project_assets", { project_directory: projectDirectory }),
     importAssetsIntoTheOpenProject: () => invokeTatolabCommand("import_assets_into_the_open_project", undefined),
+    relocateAssetInTheOpenProject: async (asset, toPath) => {
+      await invokeTatolabCommand("relocate_asset_in_the_open_project", { asset, to_path: toPath });
+    },
+    deleteAssetFromTheOpenProject: async (asset) => {
+      await invokeTatolabCommand("delete_asset_from_the_open_project", { asset });
+    },
     checkForTatolabAppUpdates: async () => {
       await invokeTatolabCommand("check_for_tatolab_app_updates", undefined);
     },

@@ -1,5 +1,6 @@
 // The browser mock's `list_assets`: the pattern project's graph documents, under the stream asset
-// UUIDs its streams are listed with, beside the media, scene and data files imported into it.
+// UUIDs its streams are listed with, beside the media, scene and data files imported into it, as the
+// mock's own imports, renames, moves and deletes left them.
 
 import type { ProjectAsset, ProjectAssetListing, ProjectAssetsImported } from "../src/shared/tatolab_backend_contract";
 import { mockStreamLocationOf } from "./mock_stream_fixtures";
@@ -44,17 +45,29 @@ const IMPORTED_INTO_THE_PATTERN_PROJECT: readonly ProjectAsset[] = [
 /** The file the browser mock's open dialog answers Import asset… with, as the runtime would describe it once imported. */
 const MOCK_FILE_CHOSEN_TO_IMPORT = { name: "night-sky", extension: ".jpg", kind: "media", content_sha256: "4f1b7e0c9a2d5e8f1b4c7a0d3e6f9b2c5a8d1e4f7b0c3a6d9e2f5b8c1a4d7e0f", content_byte_len: 2_202_009 } as const;
 
+/** The pattern project's assets as the mock's Import asset…, Rename, Move and Delete changed them while it runs: each imported, each put at a new path by its UUID, and each no longer tracked. */
+export interface MockProjectAssetsChangedWhileTheMockRuns {
+  imported: ProjectAsset[];
+  relocatedPathByAsset: Map<string, string>;
+  deleted: Set<string>;
+}
+
+/** No asset of the pattern project changed yet. */
+export function mockProjectAssetsUnchanged(): MockProjectAssetsChangedWhileTheMockRuns {
+  return { imported: [], relocatedPathByAsset: new Map(), deleted: new Set() };
+}
+
 /** What the browser mock's Import asset… does: imports the one file its dialog answers with, or also refuses a graph document chosen beside it, in the runtime's words. */
 export type MockAssetImportScenario = "imports_one" | "refuses_one";
 
-/** The mock's `import_assets_into_the_open_project`: the file its dialog answers with imported into its kind's folder of the pattern project in `streamsFolder`, as the runtime places an import that names no path, its name numbered `-2`, `-3` past one already there, kept in `assetsImportedWhileTheMockRuns`, and with `refuses_one` a graph document refused beside it. */
+/** The mock's `import_assets_into_the_open_project`: the file its dialog answers with imported into its kind's folder of the pattern project in `streamsFolder`, as the runtime places an import that names no path, its name numbered `-2`, `-3` past one already there, kept in `assetsChangedWhileTheMockRuns`, and with `refuses_one` a graph document refused beside it. */
 export function mockImportTheFilesChosen(
   projectDirectory: string,
   streamsFolder: string,
-  assetsImportedWhileTheMockRuns: ProjectAsset[],
+  assetsChangedWhileTheMockRuns: MockProjectAssetsChangedWhileTheMockRuns,
   assetImportScenario: MockAssetImportScenario,
 ): ProjectAssetsImported | string {
-  const listing = mockProjectAssetListing(projectDirectory, streamsFolder, assetsImportedWhileTheMockRuns);
+  const listing = mockProjectAssetListing(projectDirectory, streamsFolder, assetsChangedWhileTheMockRuns);
   if (listing === null) return `import_asset failed: ${projectDirectory} holds no project`;
   const pathsHeld = new Set(listing.assets.map((asset) => asset.path));
   let numberPastTheFilesHeld = 1;
@@ -62,14 +75,14 @@ export function mockImportTheFilesChosen(
     `${MOCK_FILE_CHOSEN_TO_IMPORT.kind}/${MOCK_FILE_CHOSEN_TO_IMPORT.name}${numberPastTheFilesHeld === 1 ? "" : `-${numberPastTheFilesHeld}`}${MOCK_FILE_CHOSEN_TO_IMPORT.extension}`;
   while (pathsHeld.has(pathNumbered())) numberPastTheFilesHeld += 1;
   const imported: ProjectAsset = {
-    asset: `5e0c6a1d-7f2b-4c93-8a1e-${String(assetsImportedWhileTheMockRuns.length + 1).padStart(12, "0")}`,
+    asset: `5e0c6a1d-7f2b-4c93-8a1e-${String(assetsChangedWhileTheMockRuns.imported.length + 1).padStart(12, "0")}`,
     kind: MOCK_FILE_CHOSEN_TO_IMPORT.kind,
     path: pathNumbered(),
     content_sha256: MOCK_FILE_CHOSEN_TO_IMPORT.content_sha256,
     content_byte_len: MOCK_FILE_CHOSEN_TO_IMPORT.content_byte_len,
     import_settings: {},
   };
-  assetsImportedWhileTheMockRuns.push(imported);
+  assetsChangedWhileTheMockRuns.imported.push(imported);
   const refused =
     assetImportScenario === "refuses_one"
       ? [{ file_name: "main.graph.json", because: `import_asset failed: \`data/main.graph.json\` is not an asset path: it names a stream's graph document, which only the stream verbs write` }]
@@ -77,8 +90,28 @@ export function mockImportTheFilesChosen(
   return { imported: [{ asset: imported.asset, path: imported.path }], refused };
 }
 
-/** The mock runtime's `list_assets` for `projectDirectory` in `streamsFolder`, `assetsImportedWhileTheMockRuns` among them, or `null` for a folder it holds no project in. */
-export function mockProjectAssetListing(projectDirectory: string, streamsFolder: string, assetsImportedWhileTheMockRuns: readonly ProjectAsset[]): ProjectAssetListing | null {
+/** The mock runtime's `relocate_asset` of `asset` in the pattern project in `streamsFolder` to `toPath`, kept in `assetsChangedWhileTheMockRuns`, refused in the runtime's words for an asset it does not hold or a path another asset takes. */
+export function mockRelocateTheAsset(projectDirectory: string, streamsFolder: string, assetsChangedWhileTheMockRuns: MockProjectAssetsChangedWhileTheMockRuns, asset: string, toPath: string): string | null {
+  const listing = mockProjectAssetListing(projectDirectory, streamsFolder, assetsChangedWhileTheMockRuns);
+  if (listing === null) return `relocate_asset failed: ${projectDirectory} holds no project`;
+  if (!listing.assets.some((listed) => listed.asset === asset)) return `relocate_asset failed: the project holds no asset ${asset}`;
+  const takenBy = listing.assets.find((listed) => listed.path === toPath && listed.asset !== asset);
+  if (takenBy !== undefined) return `relocate_asset failed: \`${toPath}\` is already the path of the asset ${takenBy.asset}`;
+  assetsChangedWhileTheMockRuns.relocatedPathByAsset.set(asset, toPath);
+  return null;
+}
+
+/** The mock runtime's `delete_asset` of `asset` in the pattern project in `streamsFolder`, kept in `assetsChangedWhileTheMockRuns`, refused in the runtime's words for an asset it does not hold. */
+export function mockDeleteTheAsset(projectDirectory: string, streamsFolder: string, assetsChangedWhileTheMockRuns: MockProjectAssetsChangedWhileTheMockRuns, asset: string): string | null {
+  const listing = mockProjectAssetListing(projectDirectory, streamsFolder, assetsChangedWhileTheMockRuns);
+  if (listing === null) return `delete_asset failed: ${projectDirectory} holds no project`;
+  if (!listing.assets.some((listed) => listed.asset === asset)) return `delete_asset failed: the project holds no asset ${asset}`;
+  assetsChangedWhileTheMockRuns.deleted.add(asset);
+  return null;
+}
+
+/** The mock runtime's `list_assets` for `projectDirectory` in `streamsFolder`, as `assetsChangedWhileTheMockRuns` left it, or `null` for a folder it holds no project in. */
+export function mockProjectAssetListing(projectDirectory: string, streamsFolder: string, assetsChangedWhileTheMockRuns: MockProjectAssetsChangedWhileTheMockRuns): ProjectAssetListing | null {
   if (projectDirectory !== `${streamsFolder}/pattern`) return null;
   const graphDocuments = ["main", "pattern_two", "recorder"].map(
     (streamName): ProjectAsset => ({
@@ -94,6 +127,9 @@ export function mockProjectAssetListing(projectDirectory: string, streamsFolder:
     project_directory: projectDirectory,
     project: PATTERN_PROJECT,
     project_name: "pattern",
-    assets: [...IMPORTED_INTO_THE_PATTERN_PROJECT, ...assetsImportedWhileTheMockRuns, ...graphDocuments].sort((first, second) => first.path.localeCompare(second.path)),
+    assets: [...IMPORTED_INTO_THE_PATTERN_PROJECT, ...assetsChangedWhileTheMockRuns.imported, ...graphDocuments]
+      .filter((asset) => !assetsChangedWhileTheMockRuns.deleted.has(asset.asset))
+      .map((asset) => ({ ...asset, path: assetsChangedWhileTheMockRuns.relocatedPathByAsset.get(asset.asset) ?? asset.path }))
+      .sort((first, second) => first.path.localeCompare(second.path)),
   };
 }

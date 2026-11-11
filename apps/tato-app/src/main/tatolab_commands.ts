@@ -713,6 +713,34 @@ export function importAssetsIntoTheOpenProject(sharedState: TatolabAppSharedStat
   });
 }
 
+/** `relocate_asset_in_the_open_project`'s `{ asset, to_path }` as the window sends it, or why it is not. */
+export function relocateAssetArgumentsFrom(commandArguments: unknown): Result<{ asset: string; to_path: string }, string> {
+  const asset = oneTextArgumentFrom("relocate_asset_in_the_open_project", commandArguments, "asset", "the UUID of an asset of the open project");
+  if (!asset.ok) return asset;
+  const toPath = oneTextArgumentFrom("relocate_asset_in_the_open_project", commandArguments, "to_path", "the asset's new path in the project");
+  return toPath.ok ? succeeded({ asset: asset.value, to_path: toPath.value }) : toPath;
+}
+
+/** `relocate_asset_in_the_open_project`: `asset` of the asking window's project put at `toPath` by the person editing; refused in the Projects window, or in the runtime's own words. */
+export function relocateAssetInTheOpenProject(sharedState: TatolabAppSharedState, asset: string, toPath: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+  return answerTheWindow("relocate_asset_in_the_open_project", async () => {
+    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!studioWindow.ok) return studioWindow;
+    const relocated = await sharedState.controller.relocateAsset(studioWindow.value.projectTransactionsFeed.projectFolder, asset, toPath, sharedState.thePersonEditingInStudio);
+    return relocated.ok ? succeeded(undefined) : failedWith(relocated.failure.failureDescription);
+  });
+}
+
+/** `delete_asset_from_the_open_project`: `asset` of the asking window's project no longer tracked, by the person editing; refused in the Projects window, or in the runtime's own words. */
+export function deleteAssetFromTheOpenProject(sharedState: TatolabAppSharedState, asset: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+  return answerTheWindow("delete_asset_from_the_open_project", async () => {
+    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!studioWindow.ok) return studioWindow;
+    const deleted = await sharedState.controller.deleteAsset(studioWindow.value.projectTransactionsFeed.projectFolder, asset, sharedState.thePersonEditingInStudio);
+    return deleted.ok ? succeeded(undefined) : failedWith(deleted.failure.failureDescription);
+  });
+}
+
 /** `pop_out_view`'s arguments as the window sends them, or why they are not. */
 export function popOutViewArgumentsFrom(commandArguments: unknown): Result<PoppedOutView, string> {
   const pinnedTo = isAJsonObject(commandArguments) ? commandArguments["pinned_to"] : undefined;
@@ -1214,6 +1242,16 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       return commandAnswerFrom(await transactInTheOpenProject(sharedState, transacting.value, commandFromWindow));
     },
     import_assets_into_the_open_project: async (_commandArguments, commandFromWindow) => commandAnswerFrom(await importAssetsIntoTheOpenProject(sharedState, commandFromWindow)),
+    relocate_asset_in_the_open_project: async (commandArguments, commandFromWindow) => {
+      const relocating = relocateAssetArgumentsFrom(commandArguments);
+      if (!relocating.ok) return { ok: false, refusal: relocating.failure };
+      return commandAnswerOfNothingFrom(await relocateAssetInTheOpenProject(sharedState, relocating.value.asset, relocating.value.to_path, commandFromWindow));
+    },
+    delete_asset_from_the_open_project: async (commandArguments, commandFromWindow) => {
+      const asset = oneTextArgumentFrom("delete_asset_from_the_open_project", commandArguments, "asset", "the UUID of an asset of the open project");
+      if (!asset.ok) return { ok: false, refusal: asset.failure };
+      return commandAnswerOfNothingFrom(await deleteAssetFromTheOpenProject(sharedState, asset.value, commandFromWindow));
+    },
     read_the_person_editing_in_studio: async () => ({ ok: true, value: sharedState.thePersonEditingInStudio }),
     redo_in_the_open_project: async (commandArguments, commandFromWindow) => {
       const author = undoOrRedoArgumentsFrom("redo_in_the_open_project", commandArguments);

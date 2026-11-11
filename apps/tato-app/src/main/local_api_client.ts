@@ -64,9 +64,9 @@ import { projectAssetListingFromTheListAssetsToolResult } from "./project_asset_
 import {
   duplicateFromTheDuplicateProjectToolResult,
   projectFromTheImportProjectToolResult,
-  assetFromTheImportAssetToolResult,
+  assetAtItsPathFromTheToolResult,
   projectSettingsFromTheToolResult,
-  type AssetImportedByTheRuntime,
+  type ProjectAssetAtItsPath,
   type ProjectSettingsAfterTheTransaction,
   type ProjectSettingsTool,
 } from "./project_changes_on_the_wire.js";
@@ -370,15 +370,31 @@ export class LocalApiClient {
   }
 
   /** Copy the file at `source`, an absolute path on this machine, into the project in `projectDirectory` as an asset through `import_asset`, the kind its extension implies, at `assetPath` or, for `null`, in its kind's folder under its own name numbered past a name already taken; recorded under `author` or, for `null`, the runtime's own; refused in the runtime's own words. */
-  async importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>> {
+  async importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>> {
     const toolResultText = await this.callMcpTool(
       "import_asset",
       { project_directory: projectDirectory, source, ...(assetPath === null ? {} : { asset_path: assetPath }), ...(author === null ? {} : { author: authorOnTheWire(author) }) },
       FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS,
     );
     if (!toolResultText.ok) return toolResultText;
-    const imported = assetFromTheImportAssetToolResult(toolResultText.value);
+    const imported = assetAtItsPathFromTheToolResult("import_asset", toolResultText.value);
     return imported.ok ? imported : localApiRequestFailure(imported.failure);
+  }
+
+  /** Put the asset `asset` of the project in `projectDirectory` at `toPath`, renaming it, moving it to another folder or both, through `relocate_asset`, one transaction recorded under `author`; answers it at its new path, refused in the runtime's own words. */
+  async relocateAsset(projectDirectory: string, asset: string, toPath: string, author: ProjectTransactionAuthor): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("relocate_asset", { project_directory: projectDirectory, asset, to_path: toPath, author: authorOnTheWire(author) });
+    if (!toolResultText.ok) return toolResultText;
+    const relocated = assetAtItsPathFromTheToolResult("relocate_asset", toolResultText.value);
+    return relocated.ok ? relocated : localApiRequestFailure(relocated.failure);
+  }
+
+  /** Stop tracking the asset `asset` of the project in `projectDirectory` through `delete_asset`, its file and sidecar leaving the project, one transaction recorded under `author`; answers it as it was, refused in the runtime's own words, as while a stream's graph document references it. */
+  async deleteAsset(projectDirectory: string, asset: string, author: ProjectTransactionAuthor): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("delete_asset", { project_directory: projectDirectory, asset, author: authorOnTheWire(author) });
+    if (!toolResultText.ok) return toolResultText;
+    const deleted = assetAtItsPathFromTheToolResult("delete_asset", toolResultText.value);
+    return deleted.ok ? deleted : localApiRequestFailure(deleted.failure);
   }
 
   /** Copy the project in `projectDirectory` with its history into `into`, a folder that does not exist yet, as a project of its own; refused in the runtime's own words. */

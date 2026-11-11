@@ -36,11 +36,11 @@ import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./m
 import { MockProjectFiles } from "./mock_project_files";
 import { MOCK_PERSON_EDITING_IN_STUDIO, MockProjectTransactions, mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
-import { mockImportTheFilesChosen, mockProjectAssetListing, type MockAssetImportScenario } from "./mock_project_assets";
+import { mockDeleteTheAsset, mockImportTheFilesChosen, mockProjectAssetListing, mockProjectAssetsUnchanged, mockRelocateTheAsset, type MockAssetImportScenario } from "./mock_project_assets";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { isModulesShown, type ModulesShown } from "../src/shared/tatolab_electron_bridge_contract";
-import type { JsonValue, ProjectAsset, ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, ProjectGraphTransaction, ProjectTransaction, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
 import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
@@ -535,7 +535,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     recentProjectsInTheQuery,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
-  const assetsImportedWhileTheMockRuns: ProjectAsset[] = [];
+  const assetsChangedWhileTheMockRuns = mockProjectAssetsUnchanged();
   const mainStream =
     scenario === "node-error"
       ? fixtures.mainStreamWithDisplayWindowInError
@@ -1228,7 +1228,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     listProjectAssets: async (projectDirectory) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      const listing = mockProjectAssetListing(projectDirectory, `${fixtures.machine.homeDirectory}/streams`, assetsImportedWhileTheMockRuns);
+      const listing = mockProjectAssetListing(projectDirectory, `${fixtures.machine.homeDirectory}/streams`, assetsChangedWhileTheMockRuns);
       if (listing === null) throw `list_assets failed: ${projectDirectory} holds no project: it has no tatolab-project.json`;
       return listing;
     },
@@ -1239,11 +1239,25 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       const assetsImported = mockImportTheFilesChosen(
         openProjectReading.open_project.project.folder,
         `${fixtures.machine.homeDirectory}/streams`,
-        assetsImportedWhileTheMockRuns,
+        assetsChangedWhileTheMockRuns,
         mockTatolabOptions.assetImportScenario,
       );
       if (typeof assetsImported === "string") throw assetsImported;
       return assetsImported;
+    },
+    relocateAssetInTheOpenProject: async (asset, toPath) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openProjectReading.kind !== "read") throw "No project is open in this window.";
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const refusal = mockRelocateTheAsset(openProjectReading.open_project.project.folder, `${fixtures.machine.homeDirectory}/streams`, assetsChangedWhileTheMockRuns, asset, toPath);
+      if (refusal !== null) throw refusal;
+    },
+    deleteAssetFromTheOpenProject: async (asset) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openProjectReading.kind !== "read") throw "No project is open in this window.";
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const refusal = mockDeleteTheAsset(openProjectReading.open_project.project.folder, `${fixtures.machine.homeDirectory}/streams`, assetsChangedWhileTheMockRuns, asset);
+      if (refusal !== null) throw refusal;
     },
     checkForTatolabAppUpdates: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

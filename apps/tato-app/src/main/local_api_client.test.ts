@@ -1447,6 +1447,48 @@ test("covering_a_project_imports_the_image_with_import_asset_then_names_it_with_
   ]);
 });
 
+test("an_asset_the_person_renames_or_moves_keeps_its_uuid_at_its_new_path_recorded_under_them_and_a_path_another_asset_takes_is_refused_in_the_runtimes_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-relocate-asset-answer-for-poster-png-renamed-to-harbour-poster-png-by-a-person.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-relocate-asset-answer-for-harbour-poster-png-moved-into-media-posters.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-relocate-asset-refusal-for-a-path-another-asset-of-harbour-lights-takes.json")),
+  ]);
+  const harbourLights = "/tmp/tatolab-proof-projects/harbour-lights";
+  const poster = "7fc01c14-399c-4749-a45b-2c99a77ce0a6";
+  const sam = { kind: "person", name: "sam" } as const;
+
+  expect(answerOf(await server.client().relocateAsset(harbourLights, poster, "media/harbour-poster.png", sam))).toEqual({ asset: poster, path: "media/harbour-poster.png" });
+  expect(answerOf(await server.client().relocateAsset(harbourLights, poster, "media/posters/harbour-poster.png", sam))).toEqual({ asset: poster, path: "media/posters/harbour-poster.png" });
+  expect(failureOf(await server.client().relocateAsset(harbourLights, poster, "media/opening.png", sam))).toEqual({
+    failureDescription: "relocate_asset failed: `media/opening.png` is already the path of the asset 4ce7c229-734b-4210-9bb5-e321bf4183de",
+    isTheRuntimesRefusal: true,
+  });
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["relocate_asset", { project_directory: harbourLights, asset: poster, to_path: "media/harbour-poster.png", author: sam }],
+    ["relocate_asset", { project_directory: harbourLights, asset: poster, to_path: "media/posters/harbour-poster.png", author: sam }],
+    ["relocate_asset", { project_directory: harbourLights, asset: poster, to_path: "media/opening.png", author: sam }],
+  ]);
+});
+
+test("an_asset_the_person_deletes_is_answered_as_it_was_recorded_under_them_and_one_the_project_does_not_hold_is_refused_in_the_runtimes_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-asset-answer-for-opening-png-deleted-by-a-person.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-asset-refusal-for-an-asset-harbour-lights-does-not-hold.json")),
+  ]);
+  const harbourLights = "/tmp/tatolab-proof-projects/harbour-lights";
+  const sam = { kind: "person", name: "sam" } as const;
+
+  expect(answerOf(await server.client().deleteAsset(harbourLights, "4ce7c229-734b-4210-9bb5-e321bf4183de", sam))).toEqual({ asset: "4ce7c229-734b-4210-9bb5-e321bf4183de", path: "media/opening.png" });
+  expect(failureOf(await server.client().deleteAsset(harbourLights, "00000000-0000-4000-8000-000000000000", sam))).toEqual({
+    failureDescription: "delete_asset failed: the project holds no asset 00000000-0000-4000-8000-000000000000",
+    isTheRuntimesRefusal: true,
+  });
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["delete_asset", { project_directory: harbourLights, asset: "4ce7c229-734b-4210-9bb5-e321bf4183de", author: sam }],
+    ["delete_asset", { project_directory: harbourLights, asset: "00000000-0000-4000-8000-000000000000", author: sam }],
+  ]);
+});
+
 const RECORDED_NIGHT_SHOW = "/private/tmp/tl-rec053/projects/night-show";
 
 test("project files are listed, read whole as bytes, and written as one transaction by the author under a key, each through the runtime's file tools, a refusal in its own words", async () => {

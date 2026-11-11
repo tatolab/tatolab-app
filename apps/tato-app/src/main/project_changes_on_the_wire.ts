@@ -1,5 +1,6 @@
 // What the runtime answers when a project itself changes: `rename_project`, `set_project_description`
-// and `set_project_cover` how people see the project after the transaction, `duplicate_project` the duplicate, a project of its own under a
+// and `set_project_cover` how people see the project after the transaction, `import_asset`, `relocate_asset` and
+// `delete_asset` the asset each changed, `duplicate_project` the duplicate, a project of its own under a
 // new UUID, and `import_project` the project it unpacked from a `.zip` of one.
 
 import type { ProjectTheRuntimeNames } from "../shared/tatolab_backend_contract.js";
@@ -15,8 +16,8 @@ export interface ProjectSettingsAfterTheTransaction {
   cover: string | null;
 }
 
-/** A media, scene or data asset `import_asset` made: its UUID and its `/`-separated path in the project. */
-export interface AssetImportedByTheRuntime {
+/** A media, scene or data asset an asset tool answered: its UUID and its `/`-separated path in the project. */
+export interface ProjectAssetAtItsPath {
   asset: string;
   path: string;
 }
@@ -39,9 +40,12 @@ export function projectSettingsFromTheToolResult(toolName: ProjectSettingsTool, 
   return toolResultReadWith(toolName, toolResultText, projectSettingsIn);
 }
 
-/** The asset `import_asset` made, from its `asset`'s `asset` and `path`. */
-export function assetFromTheImportAssetToolResult(toolResultText: string): Result<AssetImportedByTheRuntime, string> {
-  return toolResultReadWith("import_asset", toolResultText, (toolResult) => {
+/** The tools that answer one asset: the one `import_asset` made, the one `relocate_asset` put at its new path, and the one `delete_asset` stopped tracking, as it was. */
+export type ProjectAssetTool = "import_asset" | "relocate_asset" | "delete_asset";
+
+/** The asset `toolName` answered, from its `asset`'s `asset` and `path`. */
+export function assetAtItsPathFromTheToolResult(toolName: ProjectAssetTool, toolResultText: string): Result<ProjectAssetAtItsPath, string> {
+  return toolResultReadWith(toolName, toolResultText, (toolResult) => {
     const imported = requiredObject(toolResult, "asset");
     if (!imported.ok) return imported;
     const asset = requiredText(imported.value, "asset");

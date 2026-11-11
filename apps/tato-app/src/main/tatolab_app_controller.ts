@@ -36,7 +36,7 @@ import type { ProjectVenvSyncsOnTheStreamActionsFeed } from "./project_venv_sync
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
-import type { AssetImportedByTheRuntime, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
+import type { ProjectAssetAtItsPath, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
 import type { NodeFileCreationRecorded, ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
 import type { ProjectViewTheRuntimeListed, StudioViewOutputWritten } from "./project_views_on_the_wire.js";
 import { LocalApiClient, type LocalApiRequestFailure, type StreamDisplayNameSet } from "./local_api_client.js";
@@ -367,8 +367,18 @@ export class TatolabAppController {
   }
 
   /** Copy the file at `source` into the project in `projectDirectory` at `assetPath` or, for `null`, in its kind's folder, through the runtime's `import_asset`, by `author` or, for `null`, the runtime's own. */
-  importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Promise<Result<AssetImportedByTheRuntime, LocalApiRequestFailure>> {
+  importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>> {
     return this.localApiClient.importAsset(projectDirectory, source, assetPath, author);
+  }
+
+  /** Put the asset `asset` of the project in `projectDirectory` at `toPath` through the runtime's `relocate_asset`, by `author`. */
+  relocateAsset(projectDirectory: string, asset: string, toPath: string, author: ProjectTransactionAuthor): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>> {
+    return this.localApiClient.relocateAsset(projectDirectory, asset, toPath, author);
+  }
+
+  /** Stop tracking the asset `asset` of the project in `projectDirectory` through the runtime's `delete_asset`, by `author`. */
+  deleteAsset(projectDirectory: string, asset: string, author: ProjectTransactionAuthor): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>> {
+    return this.localApiClient.deleteAsset(projectDirectory, asset, author);
   }
 
   /** Make a project in `projectDirectory` from the `.zip` `source` through the runtime's `import_project`. */
