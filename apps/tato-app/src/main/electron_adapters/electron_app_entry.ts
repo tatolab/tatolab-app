@@ -15,7 +15,7 @@ import {
   tatolabAppCopyHandedOverOnTheSingleInstanceLock,
   tatolabAppCopyOnTheSingleInstanceLock,
 } from "../tatolab_app_copy_handoff.js";
-import { TATOLAB_APP_IDENTIFIER } from "../platform/tatolab_app_identifier.js";
+import { tatolabAppIdentifierOfTheBuild } from "../platform/tatolab_app_identifier.js";
 import { tatolabPlatformItemsForThisBuild } from "../platform/tatolab_platform_items.js";
 import type { TatolabPlatformHostServices } from "../platform/tatolab_platform_for_this_build.js";
 import { startTheCarriedRuntimeAsAChildProcess } from "../platform/carried_runtime_child_process.js";
@@ -62,7 +62,7 @@ const tatolabPlatformHostServices: TatolabPlatformHostServices = {
   appLoginItemSettings: ELECTRON_APP_LOGIN_ITEM_SETTINGS,
   appMediaAccessSettings: ELECTRON_APP_MEDIA_ACCESS_SETTINGS,
 };
-const appConfigDirectory = path.join(app.getPath("appData"), TATOLAB_APP_IDENTIFIER);
+const appConfigDirectory = path.join(app.getPath("appData"), tatolabAppIdentifierOfTheBuild(TATOLAB_APP_BUILD_FEATURES));
 
 /** The account name of the person signed in; `os.userInfo()` throws when the account has no passwd entry, as in some containers, and the home folder's name stands in. */
 function accountNameOfThePersonSignedIn(): string {
