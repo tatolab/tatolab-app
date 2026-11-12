@@ -1,6 +1,6 @@
 // Tests' stand-in for the runtime's local API: a Unix socket answering each connection with the
-// next scripted raw HTTP response, or each MCP tool call by its tool, and the responses the runtime
-// writes. Never imported by shipped code.
+// next scripted raw HTTP response, or each `POST /control` by its operation, and the responses the
+// runtime writes. Never imported by shipped code.
 
 import { mkdtemp, rm } from "node:fs/promises";
 import net from "node:net";
@@ -10,8 +10,8 @@ import { LocalApiClient } from "./local_api_client.js";
 /** The temporary directory the socket goes in: macOS caps a socket path at 104 bytes, which its `$TMPDIR` alone nearly fills. */
 const SHORT_TEMPORARY_DIRECTORY_PREFIX = "/tmp/tl-app-";
 
-/** Answers one MCP tool call by its tool's name and arguments, or `null` to close the connection unanswered, as no runtime would. */
-export type FakeLocalApiToolCallAnswer = (toolName: string, toolArguments: Readonly<Record<string, unknown>>) => Promise<Buffer | null>;
+/** Answers one control operation call by its method and params, or `null` to close the connection unanswered, as no runtime would. */
+export type FakeLocalApiControlOperationAnswer = (method: string, params: Readonly<Record<string, unknown>>) => Promise<Buffer | null>;
 
 /** A local API that answers each connection with the next scripted raw response, recording every request it read. */
 export class FakeLocalApiServer {
@@ -44,8 +44,8 @@ export class FakeLocalApiServer {
     return new FakeLocalApiServer(localApiSocketPath, socketDirectory, server, requestsReceived, responsesLeft);
   }
 
-  /** A server answering each MCP tool call with what `answerTheToolCall` gives for it, and closing every other request unanswered. */
-  static async answeringEachToolCall(answerTheToolCall: FakeLocalApiToolCallAnswer): Promise<FakeLocalApiServer> {
+  /** A server answering each `POST /control` with what `answerTheCall` gives for its operation, and closing every other request unanswered. */
+  static async answeringEachControlOperation(answerTheCall: FakeLocalApiControlOperationAnswer): Promise<FakeLocalApiServer> {
     const socketDirectory = await mkdtemp(SHORT_TEMPORARY_DIRECTORY_PREFIX);
     const localApiSocketPath = path.join(socketDirectory, "local-api.sock");
     const requestsReceived: string[] = [];
@@ -53,12 +53,12 @@ export class FakeLocalApiServer {
       connection.on("error", () => {});
       readOneRequest(connection, (request) => {
         requestsReceived.push(request);
-        const toolCall = toolCallIn(request);
-        if (toolCall === null) {
+        const operationCall = controlOperationCallIn(request);
+        if (operationCall === null) {
           connection.destroy();
           return;
         }
-        void answerTheToolCall(toolCall.toolName, toolCall.toolArguments).then((answer) => (answer === null ? connection.destroy() : connection.end(answer)));
+        void answerTheCall(operationCall.method, operationCall.params).then((answer) => (answer === null ? connection.destroy() : connection.end(answer)));
       });
     });
     await new Promise<void>((listening) => server.listen(localApiSocketPath, listening));
@@ -72,7 +72,7 @@ export class FakeLocalApiServer {
 
   /** A client of this server. */
   client(): LocalApiClient {
-    return new LocalApiClient(this.localApiSocketPath, 2_000, "0.45.0");
+    return new LocalApiClient(this.localApiSocketPath, 2_000);
   }
 
   /** Every request the server read, in order. */
@@ -107,24 +107,17 @@ function readOneRequest(connection: net.Socket, onRequest: (request: string) => 
   });
 }
 
-function toolCallIn(request: string): { toolName: string; toolArguments: Record<string, unknown> } | null {
+function controlOperationCallIn(request: string): { method: string; params: Record<string, unknown> } | null {
+  if (!request.startsWith("POST /control ")) return null;
   const body = request.slice(request.indexOf("\r\n\r\n") + 4);
   try {
     const parsed: unknown = JSON.parse(body);
-    if (typeof parsed !== "object" || parsed === null || !("method" in parsed) || parsed.method !== "tools/call" || !("params" in parsed)) return null;
-    const params = parsed.params;
-    if (typeof params !== "object" || params === null || !("name" in params) || typeof params.name !== "string") return null;
-    const toolArguments = "arguments" in params && typeof params.arguments === "object" && params.arguments !== null ? Object.fromEntries(Object.entries(params.arguments)) : {};
-    return { toolName: params.name, toolArguments };
+    if (typeof parsed !== "object" || parsed === null || !("method" in parsed) || typeof parsed.method !== "string") return null;
+    const params = "params" in parsed && typeof parsed.params === "object" && parsed.params !== null ? Object.fromEntries(Object.entries(parsed.params)) : {};
+    return { method: parsed.method, params };
   } catch {
     return null;
   }
-}
-
-/** The JSON-RPC response the runtime's rmcp server writes for a tool that ran and failed, in `failureWords`. */
-export function toolFailureResponse(failureWords: string): Buffer {
-  const body = { jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: failureWords }], isError: true } };
-  return httpResponse("200 OK", "application/json", JSON.stringify(body));
 }
 
 /** An HTTP/1.1 response carrying `body` as `contentType`. */
@@ -132,12 +125,47 @@ export function httpResponse(statusLine: string, contentType: string, body: stri
   return Buffer.from(`HTTP/1.1 ${statusLine}\r\ncontent-type: ${contentType}\r\ncontent-length: ${Buffer.byteLength(body)}\r\n\r\n${body}`, "utf8");
 }
 
-/** The JSON-RPC response the runtime's rmcp server writes for a tool result: the tool's JSON as one pretty-printed text block. */
-export function toolResultResponse(toolResult: unknown): Buffer {
-  const body = {
-    jsonrpc: "2.0",
-    id: 1,
-    result: { content: [{ type: "text", text: JSON.stringify(toolResult, null, 2) }], isError: false },
-  };
-  return httpResponse("200 OK", "application/json", JSON.stringify(body));
+/** The JSON-RPC body `POST /control` answers with for `jsonRpcAnswerText`, as the runtime writes it. */
+function controlResponse(jsonRpcAnswerText: string): Buffer {
+  return httpResponse("200 OK", "application/json", jsonRpcAnswerText);
+}
+
+/** The runtime's answer to an operation that answered `result`. */
+export function controlOperationResultResponse(result: unknown): Buffer {
+  return controlResponse(JSON.stringify({ jsonrpc: "2.0", id: 1, result }));
+}
+
+/** The runtime's answer to an operation that refused, in `runtimeWords`, with the structured `refusal` (`ProjectActionRefusalOnTheWire`). */
+export function controlOperationRefusedResponse(runtimeWords: string, refusal: unknown): Buffer {
+  return controlResponse(JSON.stringify({ jsonrpc: "2.0", id: 1, error: { code: 1, message: runtimeWords, data: refusal } }));
+}
+
+/** The runtime's answer to an operation that failed, in `runtimeWords`. */
+export function controlOperationFailedResponse(runtimeWords: string): Buffer {
+  return controlResponse(JSON.stringify({ jsonrpc: "2.0", id: 1, error: { code: 2, message: runtimeWords } }));
+}
+
+/**
+ * The answer `POST /control` gives for the operation a recorded MCP `tools/call` response answered: its result's text spliced in
+ * whole, so its numbers keep their digits, or its words as a refusal (code 1, with `structuredContent.refusal` as the data) or a
+ * failure (code 2). The JSON-RPC adapter serializes the same result type the MCP tool printed.
+ */
+export function controlOperationResponseOfTheRecordedToolResponse(recordedToolResponseBody: string): Buffer {
+  const recorded: unknown = JSON.parse(recordedToolResponseBody);
+  const toolResult = typeof recorded === "object" && recorded !== null && "result" in recorded ? recorded.result : null;
+  if (typeof toolResult !== "object" || toolResult === null || !("content" in toolResult) || !Array.isArray(toolResult.content)) {
+    return controlResponse(recordedToolResponseBody);
+  }
+  const firstContent: unknown = toolResult.content[0];
+  const text = typeof firstContent === "object" && firstContent !== null && "text" in firstContent && typeof firstContent.text === "string" ? firstContent.text : "";
+  if (!("isError" in toolResult) || toolResult.isError !== true) return controlResponse(`{"jsonrpc":"2.0","id":1,"result":${text}}`);
+  const structuredContent = "structuredContent" in toolResult ? toolResult.structuredContent : null;
+  const refusal = typeof structuredContent === "object" && structuredContent !== null && "refusal" in structuredContent ? structuredContent.refusal : null;
+  return refusal === null ? controlOperationFailedResponse(text) : controlOperationRefusedResponse(text, refusal);
+}
+
+/** The result text a recorded MCP `tools/call` response carries, parsed: what the control operation answers as its result. */
+export function operationResultOfTheRecordedToolResponse(recordedToolResponseBody: string): unknown {
+  const recorded: unknown = JSON.parse(controlOperationResponseOfTheRecordedToolResponse(recordedToolResponseBody).toString("utf8").split("\r\n\r\n")[1] ?? "null");
+  return typeof recorded === "object" && recorded !== null && "result" in recorded ? recorded.result : null;
 }

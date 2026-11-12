@@ -6,7 +6,7 @@
 import path from "node:path";
 import type { ProjectCreationQueued, ProjectStreamActionQueued, StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
 import { isAnExistingFolderOnThisMachine, realPathOrAsGiven } from "./file_system_entries_on_this_machine.js";
-import type { LocalApiRequestFailure } from "./local_api_client.js";
+import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** The folder under the home directory the runtime draws a new project's folder in, where the dialog opens for one. */

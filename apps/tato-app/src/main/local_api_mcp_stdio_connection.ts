@@ -1,26 +1,20 @@
-// One long-lived `/mcp/stdio` connection to the runtime's local API: an HTTP/1.1 `GET /mcp/stdio`
-// with `Upgrade: mcp-stdio` that the runtime answers `101`, after which the socket carries
-// newline-delimited JSON-RPC both ways. Every request carries the same per-request `_meta` as a
-// `POST /mcp` one, so no handshake comes first. The runtime ties a viewer to the connection that
-// opened it: `open_viewer` and `close_viewer` are served only here, and closing the connection
-// closes every viewer it opened. A project's change feed is followed here too: a
-// `subscriptions/listen` request stays unanswered while it holds, and the runtime writes a
-// `notifications/resources/updated` line naming the resource each time it changes.
+// One long-lived `/mcp/stdio` connection to the runtime's local API, which follows the MCP resources
+// the control contract serves no operation for: a project's change feed and the stream-actions
+// feed. An HTTP/1.1 `GET /mcp/stdio` with `Upgrade: mcp-stdio` that the runtime answers `101` makes
+// the socket carry newline-delimited JSON-RPC both ways. Every request carries the per-request
+// `_meta` the runtime requires, so no handshake comes first. A `subscriptions/listen` request stays
+// unanswered while it holds, and the runtime writes a `notifications/resources/updated` line naming
+// the resource each time it changes.
 
 import net from "node:net";
-import {
-  LOCAL_API_MCP_CLIENT_NAME,
-  LOCAL_API_MCP_PROTOCOL_VERSION,
-  localApiRequestFailure,
-  mcpToolAnswerFromTheJsonRpcResponse,
-  mcpToolCallRequestBody,
-  parseHttpResponse,
-  theRuntimesRefusal,
-  type LocalApiRequestFailure,
-  type McpToolAnswer,
-} from "./local_api_client.js";
-import { isAJsonObject, jsonObject, optionalText, parseJsonOnTheWire, requiredText, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
-import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
+import { TATO_STUDIO_MCP_CLIENT_NAME } from "../shared/tatolab_backend_contract.js";
+import { parseHttpResponse } from "./local_api_client.js";
+import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
+import { isAJsonObject, parseJsonOnTheWire } from "./json_on_the_wire.js";
+import { describeCaughtFailure, succeeded, type Result } from "./result.js";
+
+/** The MCP protocol revision the runtime serves, and the only one. */
+export const LOCAL_API_MCP_PROTOCOL_VERSION = "2026-07-28";
 
 /** The request target and upgrade token of the runtime's `/mcp/stdio` route (`local_api_wire_contract.rs`). */
 const MCP_STDIO_UPGRADE_REQUEST_TARGET = "/mcp/stdio";
@@ -31,79 +25,6 @@ const JSON_RPC_METHOD_NOT_FOUND = -32601;
 
 /** The most bytes one JSON-RPC line from the runtime may carry before the connection gives up on it. */
 const LARGEST_MCP_STDIO_LINE_BYTES = 8 * 1024 * 1024;
-
-/** What `open_viewer` answers (`OpenViewerToolResult`): where the viewer's own process subscribes to read the port. */
-export interface OpenedRuntimeViewer {
-  /** The id `close_viewer` takes: `<stream>/<node_id>/<port>`. */
-  viewer: string;
-  stream: string;
-  /** The node's id, as `graph` lists it. */
-  node_id: string;
-  /** The node's name: its label, not its identity. */
-  node_name: string;
-  port: string;
-  /** The root of the iceoryx2 domain the port's channel lives in. */
-  iceoryx2_domain_root: string;
-  /** The iceoryx2 service whose reserved subscriber slot the viewer takes. */
-  channel: string;
-  /** The surface-sharing socket's path on Linux, its Mach service's name on macOS; `null` on macOS when the open named no `viewer_process_id`. */
-  surface_share_address: string | null;
-}
-
-/** The output port of a running node a viewer reads, and the process that imports its Image frames. */
-export interface RuntimeViewerTarget {
-  stream: string;
-  /** The node's id, as `graph` lists it. */
-  node_id: string;
-  port: string;
-  /** The pid of the process that imports the frames; the runtime's surface-sharing service on macOS admits only that process. */
-  viewer_process_id: number;
-}
-
-/** An `open_viewer` tool result read field for field; unknown fields are ignored. */
-export function openedRuntimeViewerFromTheOpenViewerToolResult(toolResultText: string): Result<OpenedRuntimeViewer, string> {
-  const parsedToolResult = parseJsonOnTheWire(toolResultText);
-  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the open_viewer result") : parsedToolResult;
-  const openedViewer = toolResult.ok ? openedRuntimeViewerOnTheWire(toolResult.value) : toolResult;
-  return openedViewer.ok ? openedViewer : failedWith(`the runtime's open_viewer result could not be read: ${openedViewer.failure}`);
-}
-
-function openedRuntimeViewerOnTheWire(toolResult: JsonObjectOnTheWire): Result<OpenedRuntimeViewer, string> {
-  const viewer = requiredText(toolResult, "viewer");
-  if (!viewer.ok) return viewer;
-  const stream = requiredText(toolResult, "stream");
-  if (!stream.ok) return stream;
-  const nodeId = requiredText(toolResult, "node_id");
-  if (!nodeId.ok) return nodeId;
-  const nodeName = requiredText(toolResult, "node_name");
-  if (!nodeName.ok) return nodeName;
-  const port = requiredText(toolResult, "port");
-  if (!port.ok) return port;
-  const iceoryx2DomainRoot = requiredText(toolResult, "iceoryx2_domain_root");
-  if (!iceoryx2DomainRoot.ok) return iceoryx2DomainRoot;
-  const channel = requiredText(toolResult, "channel");
-  if (!channel.ok) return channel;
-  const surfaceShareAddress = optionalText(toolResult, "surface_share_address");
-  if (!surfaceShareAddress.ok) return surfaceShareAddress;
-  return succeeded({
-    viewer: viewer.value,
-    stream: stream.value,
-    node_id: nodeId.value,
-    node_name: nodeName.value,
-    port: port.value,
-    iceoryx2_domain_root: iceoryx2DomainRoot.value,
-    channel: channel.value,
-    surface_share_address: surfaceShareAddress.value,
-  });
-}
-
-/** A `close_viewer` tool result's `viewer`, the id of the viewer it closed. */
-export function closedViewerFromTheCloseViewerToolResult(toolResultText: string): Result<string, string> {
-  const parsedToolResult = parseJsonOnTheWire(toolResultText);
-  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the close_viewer result") : parsedToolResult;
-  const viewer = toolResult.ok ? requiredText(toolResult.value, "viewer") : toolResult;
-  return viewer.ok ? viewer : failedWith(`the runtime's close_viewer result could not be read: ${viewer.failure}`);
-}
 
 /** A request sent on the connection and not yet answered: what it asked, how its answer line settles it, and how it fails unanswered. */
 interface McpStdioRequestAwaitingItsAnswer {
@@ -123,7 +44,7 @@ function jsonRpcRequestLine(requestId: number, method: string, params: Readonly<
 function perRequestMeta(appVersion: string): Record<string, unknown> {
   return {
     "io.modelcontextprotocol/protocolVersion": LOCAL_API_MCP_PROTOCOL_VERSION,
-    "io.modelcontextprotocol/clientInfo": { name: LOCAL_API_MCP_CLIENT_NAME, version: appVersion },
+    "io.modelcontextprotocol/clientInfo": { name: TATO_STUDIO_MCP_CLIENT_NAME, version: appVersion },
     "io.modelcontextprotocol/clientCapabilities": {},
   };
 }
@@ -157,7 +78,7 @@ export interface McpStdioResourceListen {
   stop(): void;
 }
 
-/** One upgraded `/mcp/stdio` connection to the runtime, carrying any number of tool calls at once until it closes. */
+/** One upgraded `/mcp/stdio` connection to the runtime, carrying any number of resource reads and listens at once until it closes. */
 export class LocalApiMcpStdioConnection {
   private nextRequestId = 1;
   private readonly requestsAwaitingTheirAnswers = new Map<number, McpStdioRequestAwaitingItsAnswer>();
@@ -245,34 +166,6 @@ export class LocalApiMcpStdioConnection {
     });
   }
 
-  /** Open a viewer of `target`'s output port, held open until `closeViewer` or this connection closes; refused in the runtime's own words. */
-  async openViewer(target: RuntimeViewerTarget): Promise<Result<OpenedRuntimeViewer, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("open_viewer", {
-      stream: target.stream,
-      node_id: target.node_id,
-      port: target.port,
-      viewer_process_id: target.viewer_process_id,
-    });
-    if (!toolResultText.ok) return toolResultText;
-    const openedViewer = openedRuntimeViewerFromTheOpenViewerToolResult(toolResultText.value);
-    return openedViewer.ok ? openedViewer : localApiRequestFailure(openedViewer.failure);
-  }
-
-  /** Close the viewer `viewer` this connection opened, answering the id the runtime closed; refused in the runtime's own words. */
-  async closeViewer(viewer: string): Promise<Result<string, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("close_viewer", { viewer });
-    if (!toolResultText.ok) return toolResultText;
-    const closedViewer = closedViewerFromTheCloseViewerToolResult(toolResultText.value);
-    return closedViewer.ok ? closedViewer : localApiRequestFailure(closedViewer.failure);
-  }
-
-  /** Call `toolName` with `toolArguments` on this connection, answering the text of its result's first text block; a tool's own failure is the runtime's refusal. */
-  async callMcpTool(toolName: string, toolArguments: Readonly<Record<string, unknown>>): Promise<Result<string, LocalApiRequestFailure>> {
-    const toolAnswer = await this.sendToolCallAndAwaitItsAnswer(toolName, toolArguments);
-    if (!toolAnswer.ok) return toolAnswer;
-    return toolAnswer.value.kind === "answered" ? succeeded(toolAnswer.value.text) : theRuntimesRefusal(toolAnswer.value.words);
-  }
-
   /** The text of the resource `uri`, read with `resources/read`; refused in the runtime's own words, as for a project no tool has opened. */
   readResourceText(uri: string): Promise<Result<string, LocalApiRequestFailure>> {
     return new Promise((settle) => {
@@ -335,23 +228,9 @@ export class LocalApiMcpStdioConnection {
     return this.whyTheConnectionClosed === null;
   }
 
-  /** Close the connection, which closes every viewer it opened; every request still awaiting its answer fails. */
+  /** Close the connection; every request still awaiting its answer fails. */
   close(): void {
     this.closeBecause(`the app closed its ${MCP_STDIO_UPGRADE_REQUEST_TARGET} connection to the runtime at ${this.localApiSocketPath}`);
-  }
-
-  private sendToolCallAndAwaitItsAnswer(toolName: string, toolArguments: Readonly<Record<string, unknown>>): Promise<Result<McpToolAnswer, LocalApiRequestFailure>> {
-    return new Promise((settle) => {
-      this.sendRequest(
-        (requestId) => mcpToolCallRequestBody(requestId, toolName, toolArguments, this.appVersion),
-        {
-          askedFor: `\`${toolName}\``,
-          settleWithTheAnswerLine: (answerLineText) => settle(mcpToolAnswerFromTheJsonRpcResponse(toolName, answerLineText, MCP_STDIO_UPGRADE_REQUEST_TARGET)),
-          failUnanswered: (failure) => settle({ ok: false, failure }),
-        },
-        true,
-      );
-    });
   }
 
   /** Send the request line `requestLineOf` makes for its id, its answer settling `awaiting`; one that `timesOut` fails after the request timeout. Answers the request's id. */

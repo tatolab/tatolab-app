@@ -383,6 +383,8 @@ export const projectAssetSchema = z.object({
   import_settings: z.record(z.string(), jsonValueSchema),
   /** Its preview picture; `null` for an asset with none, as a stream, audio or a LUT, and for one whose bytes the runtime is still reading. */
   preview: projectAssetPreviewSchema.nullable(),
+  /** Each member of its `media_facts` the runtime read, such as `image` or `video` and `audio`; `null` while its bytes are still being read, and for an asset with no media facts, as a stream. */
+  media_its_bytes_hold: z.array(z.string()).nullable(),
 });
 /** One asset of a project. */
 export type ProjectAsset = z.infer<typeof projectAssetSchema>;

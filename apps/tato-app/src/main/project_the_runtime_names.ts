@@ -16,14 +16,14 @@ export interface ProjectSummaryTheRuntimeServes extends ProjectTheRuntimeNames {
   cover_path: string | null;
 }
 
-/** The project `list_assets` answered with `toolResultText`, or why it could not be read. */
-export function projectTheRuntimeNamesFromTheListAssetsToolResult(toolResultText: string): Result<ProjectTheRuntimeNames, string> {
-  return toolResultReadWith("list_assets", toolResultText, (toolResult) => projectNamedIn(toolResult, "project_name"));
+/** The project `list_assets` answered with `operationResult`, or why it could not be read. */
+export function projectTheRuntimeNamesFromTheListAssetsToolResult(operationResult: unknown): Result<ProjectTheRuntimeNames, string> {
+  return toolResultReadWith("list_assets", operationResult, (toolResult) => projectNamedIn(toolResult, "project_name"));
 }
 
-/** The project `list_assets` answered with `toolResultText`, with its description and last edit, or why it could not be read. */
-export function projectSummaryFromTheListAssetsToolResult(toolResultText: string): Result<ProjectSummaryTheRuntimeServes, string> {
-  return toolResultReadWith("list_assets", toolResultText, projectSummaryIn);
+/** The project `list_assets` answered with `operationResult`, with its description and last edit, or why it could not be read. */
+export function projectSummaryFromTheListAssetsToolResult(operationResult: unknown): Result<ProjectSummaryTheRuntimeServes, string> {
+  return toolResultReadWith("list_assets", operationResult, projectSummaryIn);
 }
 
 /** The project a tool result names by its `project_directory`, its `project` UUID and its name at `nameKey`. */

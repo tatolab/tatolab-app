@@ -42,7 +42,8 @@ import type { AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_
 import type { NodeFileCreationRecorded, ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
 import type { ProjectViewTheRuntimeListed, StudioViewOutputWritten } from "./project_views_on_the_wire.js";
 import type { GraphInputWritten } from "./graph_input_written_on_the_wire.js";
-import { LocalApiClient, type LocalApiRequestFailure, type StreamAssetChange } from "./local_api_client.js";
+import { LocalApiClient, type StreamAssetChange } from "./local_api_client.js";
+import { type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import type { TatolabCommandLineToolLink } from "./platform/command_line_tool_link_in_the_home_folder.js";
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
@@ -143,7 +144,7 @@ export class TatolabAppController {
       ),
       sources.platformForThisBuild.commandLineToolLink,
       sources.platformForThisBuild.localApiSocket,
-      new LocalApiClient(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS, sources.appVersion),
+      new LocalApiClient(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS),
       sources.readTheAppUpdateState,
       sources.readTheAppUpdateAnnouncement,
       sources.readStreamFailureNotifications,

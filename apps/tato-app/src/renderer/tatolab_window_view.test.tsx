@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OpenProjectReading, PoppedOutView, ProjectTransaction, RecentProject, SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
+import type { JsonValue, OpenProjectReading, PoppedOutView, ProjectTransaction, RecentProject, SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
 import { createMockTatolabBackend, readMockTatolabOptions } from "../../mock/mock_tatolab_backend";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
@@ -1142,6 +1142,49 @@ describe("the studio", () => {
     await waitFor(() => expect(entryLabels()).toEqual(["layers:0", "layers:1"]), { timeout: 5000 });
     expect(secondX().value).toBe("0");
     expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
+  });
+
+  it("picks an image asset for Image File's asset field from the project's images by path, sends its UUID, undoes it with one ⌘Z, and shows a refusal in the runtime's words under the field", { timeout: 20_000 }, async () => {
+    const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running")));
+    const assetsSent: JsonValue[] = [];
+    let refusesTheNextAssetSet = false;
+    await mountedWindowOverTheMock("state=running", {
+      ...mockBackend,
+      transactInTheOpenProject: async (operations, mode, idempotencyKey) => {
+        const assetSet = operations.find((operation) => operation.operation === "set_node_config" && "asset" in operation.config);
+        if (assetSet !== undefined && assetSet.operation === "set_node_config") {
+          assetsSent.push(assetSet.config["asset"] ?? null);
+          if (refusesTheNextAssetSet)
+            return { kind: "refused", refusal: { action: "transact", refused_operation_index: 0, refused_node: assetSet.node, refused_link: null, refused_field: "asset", runtime_words: "config field `asset`: not an asset of the project" } };
+        }
+        return mockBackend.transactInTheOpenProject(operations, mode, idempotencyKey);
+      },
+    });
+    const streamGraph = coreViewPage("stream_graph", "stream-graph");
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-tool="add_node"]') ?? expect.unreachable("no Add node in the graph's ribbon")));
+    const nodeSearch = await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Add a node" }));
+    const nodeSearchField = within(nodeSearch).getByRole("combobox");
+    fireEvent.change(nodeSearchField, { target: { value: "Image File" } });
+    fireEvent.keyDown(nodeSearchField, { key: "Enter" });
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="imagefile"]') ?? expect.unreachable("no Image File card"), { timeout: 5000 }));
+
+    const properties = () => coreViewPage("properties");
+    const assetField = () => properties().querySelector<HTMLElement>('[data-config-field="asset"] button') ?? expect.unreachable("no asset picker");
+    await waitFor(() => expect(assetField().textContent).toBe("None"));
+    pressAsAPointerDoes(assetField());
+    expect((await screen.findAllByRole("menuitem")).map((menuItem) => menuItem.textContent)).toEqual(["media/poster.png"]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "media/poster.png" }));
+    await waitFor(() => expect(assetField().textContent).toBe("media/poster.png"), { timeout: 5000 });
+    expect(assetsSent).toEqual(["baaf9e5a-0aff-45f7-a7ea-b83db51e5a3b"]);
+
+    fireEvent.keyDown(document, { key: "z", metaKey: true });
+    await waitFor(() => expect(assetField().textContent).toBe("None"), { timeout: 5000 });
+
+    refusesTheNextAssetSet = true;
+    pressAsAPointerDoes(assetField());
+    fireEvent.click(await screen.findByRole("menuitem", { name: "media/poster.png" }));
+    await waitFor(() => expect(properties().querySelector('[data-config-field="asset"]')?.textContent).toContain("config field `asset`: not an asset of the project"), { timeout: 5000 });
+    expect(assetField().textContent).toBe("None");
   });
 
   it("exposes a number config field as a Graph Input from Properties, the node taking it as an input fed by the new Graph Input", async () => {

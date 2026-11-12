@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, test } from "vitest";
 import type { ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
-import { localApiRequestFailure } from "./local_api_client.js";
+import { localApiRequestFailure } from "./local_api_request_failure.js";
 import { ProjectAssetsImportedFromChosenFiles } from "./project_assets_imported_from_chosen_files.js";
 import { succeeded } from "./result.js";
 

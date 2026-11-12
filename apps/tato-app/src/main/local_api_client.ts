@@ -1,23 +1,8 @@
-// The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
-// local API's Unix socket. `GET /health` says the runtime is up, `describe_runtime` names its
-// version, uptime and log folder, the MCP tools `list_streams`, `logs` and `graph` over
-// `POST /mcp` list its streams, read a project's log records and draw one stream's graph,
-// `create_project`, `open_project` and `reload_project` queue a project's load, which
-// `describe_stream_action` follows, `start_playback` and `stop_playback` queue the start and the stop
-// of its playback, `close_project` its unloading, `remove_project` queues the removal of a project's streams, `delete_project` its removal and its
-// folder's move to the Trash, `rename_project` and `duplicate_project` rename and copy a project,
-// `import_project` makes one from a `.zip`, `create_stream`, `set_stream_display_name` and
-// `delete_stream` make, rename and delete a stream asset, `transact` applies graph actions as one transaction and answers its structured refusal,
-// `add_dependency`, `update_dependency` and `list_dependencies` copy, copy again and
-// list the projects a project imports, `GET /api/graph` names the machine, and `GET /api/registry` lists the node types a
-// stream can add.
-//
-// The MCP request is spelled as StreamLib's runtime requires one (`streamlib-api-server`'s
-// `mcp.rs` serves rmcp's stateless Streamable HTTP with per-request protocol metadata
-// required): the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers, an `Accept` of
-// both JSON and SSE, and `_meta` carrying the protocol version, client info and capabilities.
+// The app's client of the runtime's local API. Every control operation is one `POST /control` through
+// the generated `@tatolab/runtime-client`, typed by the contract the runtime unit carries; `GET
+// /health` says the runtime is up, `GET /api/graph` names the machine, and `GET /api/registry` lists
+// the node types a stream can add, each one short HTTP/1.1 request over the local API's Unix socket.
 
-import { TATO_STUDIO_MCP_CLIENT_NAME } from "../shared/tatolab_backend_contract.js";
 import { isUtf8 } from "node:buffer";
 import net from "node:net";
 import type {
@@ -46,6 +31,9 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import {
   arrayOrEmpty,
+  holdEachNumberAsItsWrittenDigits,
+  jsonTextKeepingTheWrittenNumbers,
+  prettyJsonTextKeepingTheWrittenNumbers,
   everyOneRead,
   isAJsonObject,
   jsonObject,
@@ -59,6 +47,15 @@ import {
   requiredUnsignedInteger,
 } from "./json_on_the_wire.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
+import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
+import {
+  callOneControlOperationOverAPost,
+  durationAsTheTimeoutFailureSpellsIt,
+  type ControlOperationAnswer,
+  type ControlOperationMethodName,
+  type ControlOperationParams,
+  type ControlOperationResultReviver,
+} from "./tatolab_runtime_control_operation_call.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
 import { projectAssetListingFromTheListAssetsToolResult } from "./project_asset_listing.js";
@@ -73,8 +70,12 @@ import {
   type ProjectSettingsTool,
 } from "./project_changes_on_the_wire.js";
 import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTheListAssetsToolResult, type ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
-import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
-import { projectActionRefusalFromTheStructuredContent, projectGraphTransactionFromTheTransactToolResult } from "./project_graph_transaction_on_the_wire.js";
+import {
+  projectActionRefusalOnTheWire,
+  projectTransactionFromTheUndoOrRedoToolResult,
+  transactionsResourceUriFromTheListAssetsToolResult,
+} from "./project_transactions_on_the_wire.js";
+import { projectGraphTransactionFromTheTransactToolResult } from "./project_graph_transaction_on_the_wire.js";
 import {
   projectFileBytesFromTheReadProjectFileToolResult,
   projectFilesFromTheListProjectFilesToolResult,
@@ -107,13 +108,7 @@ import {
   streamActionDescriptionFromTheDescribeStreamActionToolResult,
 } from "./stream_action_description.js";
 
-/** The MCP protocol revision the runtime serves, and the only one. */
-export const LOCAL_API_MCP_PROTOCOL_VERSION = "2026-07-28";
-
-/** The client name the app gives the runtime in every MCP request's `_meta`. */
-export const LOCAL_API_MCP_CLIENT_NAME = TATO_STUDIO_MCP_CLIENT_NAME;
-
-/** The most bytes one local API response may carry before the client gives up on it. */
+/** The most bytes one plain HTTP answer of the local API may carry before the client gives up on it. */
 const LARGEST_LOCAL_API_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 /** How long `list_project_node_types` may go without a byte: the runtime bounds the project's interpreter reading its source at 60 seconds, and answers its refusal soon after. */
@@ -124,23 +119,6 @@ const PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS = 180_000;
 
 /** How long a tool that copies a whole project may go without a byte: a duplicate copies its files and history, an import unpacks a `.zip`. */
 const FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS = 120_000;
-
-/** Why a local API request came back without an answer. */
-export interface LocalApiRequestFailure {
-  failureDescription: string;
-  /** Whether the runtime answered and refused, in its own words, rather than not answering or answering something unreadable. */
-  isTheRuntimesRefusal: boolean;
-}
-
-/** A failure that is not the runtime's refusal: nothing answered, or what answered could not be read. */
-export function localApiRequestFailure(failureDescription: string): { ok: false; failure: LocalApiRequestFailure } {
-  return failedWith({ failureDescription, isTheRuntimesRefusal: false });
-}
-
-/** The runtime's refusal, in its own words. */
-export function theRuntimesRefusal(failureDescription: string): { ok: false; failure: LocalApiRequestFailure } {
-  return failedWith({ failureDescription, isTheRuntimesRefusal: true });
-}
 
 /** A stream's `location` on the wire: `project_directory`, its project's UUID as `project` and its stream asset's UUID as `stream_asset`. */
 function streamLocationOnTheWire(location: JsonObjectOnTheWire): Result<StreamLocation, string> {
@@ -164,9 +142,8 @@ export interface StreamAssetChange {
 }
 
 /** A stream-asset tool's result read field for field; unknown fields, the rest of the asset and a `create_stream`'s load `action` among them, are ignored. */
-export function streamAssetChangeFromTheToolResult(toolName: StreamAssetChangeToolName, toolResultText: string): Result<StreamAssetChange, string> {
-  const parsedToolResult = parseJsonOnTheWire(toolResultText);
-  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, `the ${toolName} result`) : parsedToolResult;
+export function streamAssetChangeFromTheToolResult(toolName: StreamAssetChangeToolName, operationResult: unknown): Result<StreamAssetChange, string> {
+  const toolResult = jsonObject(operationResult, `the ${toolName} result`);
   const streamAssetChange = toolResult.ok ? streamAssetChangeOnTheWire(toolResult.value) : toolResult;
   return streamAssetChange.ok ? streamAssetChange : failedWith(`the runtime's ${toolName} result could not be read: ${streamAssetChange.failure}`);
 }
@@ -184,9 +161,8 @@ function streamAssetChangeOnTheWire(toolResult: JsonObjectOnTheWire): Result<Str
 }
 
 /** A `describe_runtime` tool result read field for field; unknown fields are ignored. */
-export function runtimeDescriptionFromTheDescribeRuntimeToolResult(toolResultText: string): Result<RuntimeDescription, string> {
-  const parsedToolResult = parseJsonOnTheWire(toolResultText);
-  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the describe_runtime result") : parsedToolResult;
+export function runtimeDescriptionFromTheDescribeRuntimeToolResult(operationResult: unknown): Result<RuntimeDescription, string> {
+  const toolResult = jsonObject(operationResult, "the describe_runtime result");
   const runtimeDescription = toolResult.ok ? runtimeDescriptionOnTheWire(toolResult.value) : toolResult;
   return runtimeDescription.ok ? runtimeDescription : failedWith(`the runtime's describe_runtime result could not be read: ${runtimeDescription.failure}`);
 }
@@ -213,14 +189,13 @@ export interface LocalApiHttpResponse {
 type HttpRequestHeader = readonly [headerName: string, headerValue: string];
 
 /** Every stream a `list_streams` tool result lists. A stream's unknown state is kept as spelled, a `null` location is an earlier runtime's record, and unknown fields are ignored. */
-export function listedStreamsFromTheListStreamsToolResult(toolResultText: string): Result<ListedStream[], string> {
-  const listedStreams = listedStreamsFromTheParsedToolResult(parseJsonOnTheWire(toolResultText));
+export function listedStreamsFromTheListStreamsToolResult(operationResult: unknown): Result<ListedStream[], string> {
+  const listedStreams = listedStreamsFromTheParsedToolResult(operationResult);
   return listedStreams.ok ? listedStreams : failedWith(`the runtime's list_streams result could not be read: ${listedStreams.failure}`);
 }
 
-function listedStreamsFromTheParsedToolResult(parsedToolResult: Result<unknown, string>): Result<ListedStream[], string> {
-  if (!parsedToolResult.ok) return parsedToolResult;
-  const toolResult = jsonObject(parsedToolResult.value, "the list_streams result");
+function listedStreamsFromTheParsedToolResult(operationResult: unknown): Result<ListedStream[], string> {
+  const toolResult = jsonObject(operationResult, "the list_streams result");
   if (!toolResult.ok) return toolResult;
   const streams = toolResult.value["streams"];
   if (streams === undefined) return failedWith("missing field `streams`");
@@ -273,9 +248,8 @@ function captureDevicesWhoseAccessWasNeverAskedForOnTheWire(listedStream: JsonOb
 }
 
 /** The action id a tool result that queued a stream action names, read from the result of `toolName`. */
-export function queuedStreamActionFromTheToolResult(toolName: ProjectActionToolName, toolResultText: string): Result<string, string> {
-  const parsedToolResult = parseJsonOnTheWire(toolResultText);
-  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, `the ${toolName} result`) : parsedToolResult;
+export function queuedStreamActionFromTheToolResult(toolName: ProjectActionToolName, operationResult: unknown): Result<string, string> {
+  const toolResult = jsonObject(operationResult, `the ${toolName} result`);
   const action = toolResult.ok ? requiredText(toolResult.value, "action") : toolResult;
   return action.ok ? action : failedWith(`the runtime's ${toolName} result could not be read: ${action.failure}`);
 }
@@ -283,18 +257,12 @@ export function queuedStreamActionFromTheToolResult(toolName: ProjectActionToolN
 /** A runtime tool that queues an action on a whole project. */
 type ProjectActionToolName = "stop_playback" | "close_project" | "remove_project" | "delete_project";
 
-/** `durationMs` as a timeout refusal spells it: whole seconds as `3s`, anything else as `200ms`. */
-function durationAsTheTimeoutRefusalSpellsIt(durationMs: number): string {
-  return durationMs % 1000 === 0 ? `${durationMs / 1000}s` : `${durationMs}ms`;
-}
-
 /** A client of the local API served at one socket path. */
 export class LocalApiClient {
-  /** A client of the local API at `localApiSocketPath`, giving up on a request that goes `requestTimeoutMs` without a byte, and naming itself in MCP requests as `appVersion`. */
+  /** A client of the local API at `localApiSocketPath`, giving up on a request unanswered after `requestTimeoutMs`. */
   constructor(
     private readonly localApiSocketPath: string,
     private readonly requestTimeoutMs: number,
-    private readonly appVersion: string,
   ) {}
 
   /** Whether the runtime answers `GET /health` with `ok`. */
@@ -308,17 +276,17 @@ export class LocalApiClient {
 
   /** How the running runtime describes itself, from its `describe_runtime` tool. */
   async describeRuntime(): Promise<Result<RuntimeDescription, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("describe_runtime", {});
-    if (!toolResultText.ok) return toolResultText;
-    const runtimeDescription = runtimeDescriptionFromTheDescribeRuntimeToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("describe_runtime", {});
+    if (!operationResult.ok) return operationResult;
+    const runtimeDescription = runtimeDescriptionFromTheDescribeRuntimeToolResult(operationResult.value);
     return runtimeDescription.ok ? runtimeDescription : localApiRequestFailure(runtimeDescription.failure);
   }
 
   /** Every stream the runtime holds, from its `list_streams` tool. */
   async listStreams(): Promise<Result<ListedStream[], LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("list_streams", {});
-    if (!toolResultText.ok) return toolResultText;
-    const listedStreams = listedStreamsFromTheListStreamsToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("list_streams", {});
+    if (!operationResult.ok) return operationResult;
+    const listedStreams = listedStreamsFromTheListStreamsToolResult(operationResult.value);
     return listedStreams.ok ? listedStreams : localApiRequestFailure(listedStreams.failure);
   }
 
@@ -338,15 +306,20 @@ export class LocalApiClient {
     after: string | null,
     count: number,
   ): Promise<Result<ProjectLogRecordsPage, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("logs", {
-      project_directory: projectDirectory,
-      ...(narrowing.stream === null ? {} : { stream: narrowing.stream }),
-      ...(narrowing.action === null ? {} : { action: narrowing.action }),
-      ...(after === null ? {} : { after }),
-      count,
-    });
-    if (!toolResultText.ok) return toolResultText;
-    const page = projectLogRecordsPageFromTheLogsToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation(
+      "logs",
+      {
+        project_directory: projectDirectory,
+        ...(narrowing.stream === null ? {} : { stream: narrowing.stream }),
+        ...(narrowing.action === null ? {} : { action: narrowing.action }),
+        ...(after === null ? {} : { after }),
+        count,
+      },
+      this.requestTimeoutMs,
+      holdEachNumberAsItsWrittenDigits,
+    );
+    if (!operationResult.ok) return operationResult;
+    const page = projectLogRecordsPageFromTheLogsToolResult(jsonTextKeepingTheWrittenNumbers(operationResult.value));
     return page.ok ? page : localApiRequestFailure(page.failure);
   }
 
@@ -388,64 +361,67 @@ export class LocalApiClient {
 
   /** Copy the file at `source`, an absolute path on this machine, into the project in `projectDirectory` as an asset through `import_asset`, the kind its extension implies, at `assetPath` or, for `null`, in its kind's folder under its own name numbered past a name already taken; recorded under `author` or, for `null`, the runtime's own; refused in the runtime's own words. */
   async importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool(
+    const operationResult = await this.callControlOperation(
       "import_asset",
       { project_directory: projectDirectory, source, ...(assetPath === null ? {} : { asset_path: assetPath }), ...(author === null ? {} : { author: authorOnTheWire(author) }) },
       FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS,
     );
-    if (!toolResultText.ok) return toolResultText;
-    const imported = assetAtItsPathFromTheToolResult("import_asset", toolResultText.value);
+    if (!operationResult.ok) return operationResult;
+    const imported = assetAtItsPathFromTheToolResult("import_asset", operationResult.value);
     return imported.ok ? imported : localApiRequestFailure(imported.failure);
   }
 
   /** Put the asset `asset` of the project in `projectDirectory` at `toPath`, renaming it, moving it to another folder or both, through `relocate_asset`, one transaction recorded under `author`; answers it at its new path, refused in the runtime's own words. */
   async relocateAsset(projectDirectory: string, asset: string, toPath: string, author: ProjectTransactionAuthor): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("relocate_asset", { project_directory: projectDirectory, asset, to_path: toPath, author: authorOnTheWire(author) });
-    if (!toolResultText.ok) return toolResultText;
-    const relocated = assetAtItsPathFromTheToolResult("relocate_asset", toolResultText.value);
+    const operationResult = await this.callControlOperation("relocate_asset", { project_directory: projectDirectory, asset, to_path: toPath, author: authorOnTheWire(author) });
+    if (!operationResult.ok) return operationResult;
+    const relocated = assetAtItsPathFromTheToolResult("relocate_asset", operationResult.value);
     return relocated.ok ? relocated : localApiRequestFailure(relocated.failure);
   }
 
   /** Stop tracking the asset `asset` of the project in `projectDirectory` through `delete_asset`, its file and sidecar leaving the project, one transaction recorded under `author`; answers it as it was, refused in the runtime's own words, as while a stream's graph document references it. */
   async deleteAsset(projectDirectory: string, asset: string, author: ProjectTransactionAuthor): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("delete_asset", { project_directory: projectDirectory, asset, author: authorOnTheWire(author) });
-    if (!toolResultText.ok) return toolResultText;
-    const deleted = assetAtItsPathFromTheToolResult("delete_asset", toolResultText.value);
+    const operationResult = await this.callControlOperation("delete_asset", { project_directory: projectDirectory, asset, author: authorOnTheWire(author) });
+    if (!operationResult.ok) return operationResult;
+    const deleted = assetAtItsPathFromTheToolResult("delete_asset", operationResult.value);
     return deleted.ok ? deleted : localApiRequestFailure(deleted.failure);
   }
 
   /** Copy the project in `projectDirectory` with its history into `into`, a folder that does not exist yet, as a project of its own; refused in the runtime's own words. */
   async duplicateProject(projectDirectory: string, into: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("duplicate_project", { project_directory: projectDirectory, into }, FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS);
-    if (!toolResultText.ok) return toolResultText;
-    const duplicate = duplicateFromTheDuplicateProjectToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("duplicate_project", { project_directory: projectDirectory, into }, FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS);
+    if (!operationResult.ok) return operationResult;
+    const duplicate = duplicateFromTheDuplicateProjectToolResult(operationResult.value);
     return duplicate.ok ? duplicate : localApiRequestFailure(duplicate.failure);
   }
 
   /** Make a project in `projectDirectory`, a folder that does not exist yet, from `source`, an absolute `.zip` of one, through the runtime's `import_project`; runs nothing, refused in the runtime's own words. */
   async importProject(source: string, projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("import_project", { source, project_directory: projectDirectory }, FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS);
-    if (!toolResultText.ok) return toolResultText;
-    const imported = projectFromTheImportProjectToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("import_project", { source, project_directory: projectDirectory }, FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS);
+    if (!operationResult.ok) return operationResult;
+    const imported = projectFromTheImportProjectToolResult(operationResult.value);
     return imported.ok ? imported : localApiRequestFailure(imported.failure);
   }
 
-  /** Call `toolName`, one of the tools that change how people see a project, answering its settings after the transaction; refused in the runtime's own words. */
-  private async changeProjectSettings(toolName: ProjectSettingsTool, toolArguments: Record<string, string | null>): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool(toolName, toolArguments);
-    if (!toolResultText.ok) return toolResultText;
-    const settings = projectSettingsFromTheToolResult(toolName, toolResultText.value);
+  /** Call `toolName`, one of the operations that change how people see a project, answering its settings after the transaction; refused in the runtime's own words. */
+  private async changeProjectSettings<SettingsOperation extends ProjectSettingsTool>(
+    toolName: SettingsOperation,
+    toolArguments: ControlOperationParams<SettingsOperation>,
+  ): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>> {
+    const operationResult = await this.callControlOperation(toolName, toolArguments);
+    if (!operationResult.ok) return operationResult;
+    const settings = projectSettingsFromTheToolResult(toolName, operationResult.value);
     return settings.ok ? settings : localApiRequestFailure(settings.failure);
   }
 
   /** Call the tool `toolName` that queues an action, answering the id of the action the runtime queued; refused in the runtime's own words. */
   private async queueRuntimeAction(
     toolName: ProjectActionToolName,
-    toolArguments: Record<string, string>,
+    toolArguments: ControlOperationParams<ProjectActionToolName>,
   ): Promise<Result<string, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool(toolName, toolArguments);
-    if (!toolResultText.ok) return toolResultText;
-    const action = queuedStreamActionFromTheToolResult(toolName, toolResultText.value);
+    const operationResult = await this.callControlOperation(toolName, toolArguments);
+    if (!operationResult.ok) return operationResult;
+    const action = queuedStreamActionFromTheToolResult(toolName, operationResult.value);
     return action.ok ? action : localApiRequestFailure(action.failure);
   }
 
@@ -464,18 +440,21 @@ export class LocalApiClient {
     return this.changeOneStreamAsset("delete_stream", { project_directory: projectDirectory, stream_asset: streamAsset, author: authorOnTheWire(author) });
   }
 
-  private async changeOneStreamAsset(toolName: StreamAssetChangeToolName, toolArguments: Readonly<Record<string, unknown>>): Promise<Result<StreamAssetChange, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool(toolName, toolArguments);
-    if (!toolResultText.ok) return toolResultText;
-    const streamAssetChange = streamAssetChangeFromTheToolResult(toolName, toolResultText.value);
+  private async changeOneStreamAsset<StreamAssetOperation extends StreamAssetChangeToolName>(
+    toolName: StreamAssetOperation,
+    toolArguments: ControlOperationParams<StreamAssetOperation>,
+  ): Promise<Result<StreamAssetChange, LocalApiRequestFailure>> {
+    const operationResult = await this.callControlOperation(toolName, toolArguments);
+    if (!operationResult.ok) return operationResult;
+    const streamAssetChange = streamAssetChangeFromTheToolResult(toolName, operationResult.value);
     return streamAssetChange.ok ? streamAssetChange : localApiRequestFailure(streamAssetChange.failure);
   }
 
   /** Queue the creation of a new project in `projectDirectory`, or with `null` in a folder the runtime draws under `~/streams`, and its run; answered at once, refused in the runtime's own words. */
   async createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("create_project", projectDirectory === null ? {} : { project_directory: projectDirectory });
-    if (!toolResultText.ok) return toolResultText;
-    const queued = projectCreationQueuedFromTheCreateProjectToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("create_project", projectDirectory === null ? {} : { project_directory: projectDirectory });
+    if (!operationResult.ok) return operationResult;
+    const queued = projectCreationQueuedFromTheCreateProjectToolResult(operationResult.value);
     return queued.ok ? queued : localApiRequestFailure(queued.failure);
   }
 
@@ -498,34 +477,34 @@ export class LocalApiClient {
     toolName: ProjectStreamActionToolName,
     projectDirectory: string,
   ): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool(toolName, { project_directory: projectDirectory });
-    if (!toolResultText.ok) return toolResultText;
-    const queued = projectStreamActionQueuedFromTheToolResult(toolName, toolResultText.value);
+    const operationResult = await this.callControlOperation(toolName, { project_directory: projectDirectory });
+    if (!operationResult.ok) return operationResult;
+    const queued = projectStreamActionQueuedFromTheToolResult(toolName, operationResult.value);
     return queued.ok ? queued : localApiRequestFailure(queued.failure);
   }
 
   /** Where the stream action `action` is: its state and step, and the streams it took in; refused in the runtime's own words, as for an action it no longer holds. */
   async describeStreamAction(action: string): Promise<Result<StreamActionFollowed, LocalApiRequestFailure>> {
-    const toolAnswer = await this.callMcpToolKeepingItsRefusal("describe_stream_action", { action });
-    if (!toolAnswer.ok) return toolAnswer;
-    if (toolAnswer.value.kind === "refused_by_the_tool") return succeeded({ kind: "not_held", words: toolAnswer.value.words });
-    const description = streamActionDescriptionFromTheDescribeStreamActionToolResult(toolAnswer.value.text);
+    const operationAnswer = await this.callControlOperationKeepingItsRefusal("describe_stream_action", { action });
+    if (!operationAnswer.ok) return operationAnswer;
+    if (operationAnswer.value.kind === "refused_by_the_operation") return succeeded({ kind: "not_held", words: operationAnswer.value.words });
+    const description = streamActionDescriptionFromTheDescribeStreamActionToolResult(operationAnswer.value.result);
     return description.ok ? succeeded({ kind: "described", description: description.value }) : localApiRequestFailure(description.failure);
   }
 
   /** End the stream action `action` early through the runtime's `cancel_stream_action`: dropped while queued, stopped at its step while running; refused in the runtime's own words, as for a stop past cancelling. */
   async cancelStreamAction(action: string): Promise<Result<StreamActionCancelAnswer, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("cancel_stream_action", { action });
-    if (!toolResultText.ok) return toolResultText;
-    const answer = streamActionCancelAnswerFromTheCancelStreamActionToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("cancel_stream_action", { action });
+    if (!operationResult.ok) return operationResult;
+    const answer = streamActionCancelAnswerFromTheCancelStreamActionToolResult(operationResult.value);
     return answer.ok ? answer : localApiRequestFailure(answer.failure);
   }
 
-  /** The graph of the loaded stream `stream` from the runtime's `graph` tool, the text `tatolab graph --stream` prints. */
+  /** The graph of the loaded stream `stream` from the runtime's `graph` operation, its numbers kept as the runtime wrote them. */
   async describeStreamGraph(stream: string): Promise<Result<StreamGraphSummary, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("graph", { stream });
-    if (!toolResultText.ok) return toolResultText;
-    const summary = streamGraphSummaryFromTheGraphToolResult(stream, toolResultText.value);
+    const operationResult = await this.callControlOperation("graph", { stream }, this.requestTimeoutMs, holdEachNumberAsItsWrittenDigits);
+    if (!operationResult.ok) return operationResult;
+    const summary = streamGraphSummaryFromTheGraphToolResult(stream, prettyJsonTextKeepingTheWrittenNumbers(operationResult.value));
     return summary.ok ? summary : localApiRequestFailure(summary.failure);
   }
 
@@ -539,85 +518,93 @@ export class LocalApiClient {
 
   /** What the project in `projectDirectory`, each import and each installed distribution declare, from the runtime's `list_project_node_types`, read from source without running it; refused in the runtime's own words. */
   async listProjectNodeTypes(projectDirectory: string): Promise<Result<ProjectNodeTypeListing, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("list_project_node_types", { project_directory: projectDirectory }, PROJECT_NODE_TYPE_LISTING_RESPONSE_TIMEOUT_MS);
-    if (!toolResultText.ok) return toolResultText;
-    const listing = projectNodeTypeListingFromTheToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("list_project_node_types", { project_directory: projectDirectory }, PROJECT_NODE_TYPE_LISTING_RESPONSE_TIMEOUT_MS);
+    if (!operationResult.ok) return operationResult;
+    const listing = projectNodeTypeListingFromTheToolResult(operationResult.value);
     return listing.ok ? listing : localApiRequestFailure(listing.failure);
   }
 
   /** Every asset of the project in `projectDirectory`, its graph documents among them, from the runtime's `list_assets`; refused in the runtime's own words, as for a folder holding no `tatolab-project.json`. */
   async listProjectAssets(projectDirectory: string): Promise<Result<ProjectAssetListing, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("list_assets", { project_directory: projectDirectory });
-    if (!toolResultText.ok) return toolResultText;
-    const listing = projectAssetListingFromTheListAssetsToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("list_assets", { project_directory: projectDirectory });
+    if (!operationResult.ok) return operationResult;
+    const listing = projectAssetListingFromTheListAssetsToolResult(operationResult.value);
     return listing.ok ? listing : localApiRequestFailure(listing.failure);
+  }
+
+  /** The change feed's resource of the project in `projectDirectory`, as the runtime's `list_assets` names it under `transactions_resource_uri`; refused in the runtime's own words. */
+  async nameTheChangeFeedOfTheProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    const operationResult = await this.callControlOperation("list_assets", { project_directory: projectDirectory });
+    if (!operationResult.ok) return operationResult;
+    const uri = transactionsResourceUriFromTheListAssetsToolResult(operationResult.value);
+    return uri.ok ? uri : localApiRequestFailure(uri.failure);
   }
 
   /** The preview picture of the asset `asset` of the project in `projectDirectory`, an image's own or a video's poster frame, through `read_asset_preview`; refused in the runtime's own words, as for an asset with none or whose bytes it is still reading. */
   async readAssetPreview(projectDirectory: string, asset: string): Promise<Result<AssetPreviewPictureTheRuntimeRead, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("read_asset_preview", { project_directory: projectDirectory, asset });
-    if (!toolResultText.ok) return toolResultText;
-    const picture = assetPreviewPictureFromTheReadAssetPreviewToolResult(asset, toolResultText.value);
+    const operationResult = await this.callControlOperation("read_asset_preview", { project_directory: projectDirectory, asset });
+    if (!operationResult.ok) return operationResult;
+    const picture = assetPreviewPictureFromTheReadAssetPreviewToolResult(asset, operationResult.value);
     return picture.ok ? picture : localApiRequestFailure(picture.failure);
   }
 
   /** The project in `projectDirectory` as the runtime's `list_assets` names it; refused in the runtime's own words, as for a folder holding no `tatolab-project.json`. */
   async nameTheProject(projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("list_assets", { project_directory: projectDirectory });
-    if (!toolResultText.ok) return toolResultText;
-    const project = projectTheRuntimeNamesFromTheListAssetsToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("list_assets", { project_directory: projectDirectory });
+    if (!operationResult.ok) return operationResult;
+    const project = projectTheRuntimeNamesFromTheListAssetsToolResult(operationResult.value);
     return project.ok ? project : localApiRequestFailure(project.failure);
   }
 
   /** The project in `projectDirectory` as its card shows it, from `list_assets`: its name, description and last edit; refused in the runtime's own words. */
   async summarizeTheProject(projectDirectory: string): Promise<Result<ProjectSummaryTheRuntimeServes, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("list_assets", { project_directory: projectDirectory });
-    if (!toolResultText.ok) return toolResultText;
-    const summary = projectSummaryFromTheListAssetsToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("list_assets", { project_directory: projectDirectory });
+    if (!operationResult.ok) return operationResult;
+    const summary = projectSummaryFromTheListAssetsToolResult(operationResult.value);
     return summary.ok ? summary : localApiRequestFailure(summary.failure);
   }
 
   /** Copy the project in `source`, an absolute folder or `.zip`, into `imports/` of the project in `projectDirectory` through the runtime's `add_dependency`; refused in the runtime's own words. */
   async addDependency(projectDirectory: string, source: string): Promise<Result<ProjectDependency, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("add_dependency", { project_directory: projectDirectory, source }, PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS);
-    if (!toolResultText.ok) return toolResultText;
-    const dependency = projectDependencyFromTheAddDependencyToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("add_dependency", { project_directory: projectDirectory, source }, PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS);
+    if (!operationResult.ok) return operationResult;
+    const dependency = projectDependencyFromTheAddDependencyToolResult(operationResult.value);
     return dependency.ok ? dependency : localApiRequestFailure(dependency.failure);
   }
 
   /** Copy the import `project` of the project in `projectDirectory` again from its source through the runtime's `update_dependency`, overwriting files edited since its copy only with `overwriteEditedFiles`; refused in the runtime's own words. */
   async updateDependency(projectDirectory: string, project: string, overwriteEditedFiles: boolean): Promise<Result<WorkspaceDependencyUpdate, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool(
+    const operationResult = await this.callControlOperation(
       "update_dependency",
       { project_directory: projectDirectory, project, overwrite_edited_files: overwriteEditedFiles },
       PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS,
     );
-    if (!toolResultText.ok) return toolResultText;
-    const update = dependencyUpdateFromTheUpdateDependencyToolResult(toolResultText.value);
+    if (!operationResult.ok) return operationResult;
+    const update = dependencyUpdateFromTheUpdateDependencyToolResult(operationResult.value);
     return update.ok ? update : localApiRequestFailure(update.failure);
   }
 
   /** Each import of the project in `projectDirectory` from the runtime's `list_dependencies`, each source read for a newer version with `checkForNewer`; refused in the runtime's own words. */
   async listDependencies(projectDirectory: string, checkForNewer: boolean): Promise<Result<ListedProjectDependency[], LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("list_dependencies", { project_directory: projectDirectory, check_for_newer: checkForNewer }, PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS);
-    if (!toolResultText.ok) return toolResultText;
-    const dependencies = workspaceDependenciesFromTheListDependenciesToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("list_dependencies", { project_directory: projectDirectory, check_for_newer: checkForNewer }, PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS);
+    if (!operationResult.ok) return operationResult;
+    const dependencies = workspaceDependenciesFromTheListDependenciesToolResult(operationResult.value);
     return dependencies.ok ? dependencies : localApiRequestFailure(dependencies.failure);
   }
 
   /** The files of the project in `projectDirectory`, or of its folder `under` alone, from the runtime's `list_project_files`; refused in the runtime's own words. */
   async listProjectFiles(projectDirectory: string, under: string | null): Promise<Result<ProjectFileTheRuntimeListed[], LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("list_project_files", under === null ? { project_directory: projectDirectory } : { project_directory: projectDirectory, under });
-    if (!toolResultText.ok) return toolResultText;
-    const listed = projectFilesFromTheListProjectFilesToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("list_project_files", under === null ? { project_directory: projectDirectory } : { project_directory: projectDirectory, under });
+    if (!operationResult.ok) return operationResult;
+    const listed = projectFilesFromTheListProjectFilesToolResult(operationResult.value);
     return listed.ok ? listed : localApiRequestFailure(listed.failure);
   }
 
   /** The bytes of the file `filePath`, `/`-separated in the project in `projectDirectory`, from the runtime's `read_project_file`; refused in the runtime's own words. */
   async readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("read_project_file", { project_directory: projectDirectory, path: filePath });
-    if (!toolResultText.ok) return toolResultText;
-    const fileBytes = projectFileBytesFromTheReadProjectFileToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("read_project_file", { project_directory: projectDirectory, path: filePath });
+    if (!operationResult.ok) return operationResult;
+    const fileBytes = projectFileBytesFromTheReadProjectFileToolResult(operationResult.value);
     return fileBytes.ok ? fileBytes : localApiRequestFailure(fileBytes.failure);
   }
 
@@ -629,15 +616,15 @@ export class LocalApiClient {
     author: ProjectTransactionAuthor,
     idempotencyKey: string,
   ): Promise<Result<ProjectFileWriteRecorded, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("write_project_file", {
+    const operationResult = await this.callControlOperation("write_project_file", {
       project_directory: projectDirectory,
       path: filePath,
       content: text,
       author: authorOnTheWire(author),
       idempotency_key: idempotencyKey,
     });
-    if (!toolResultText.ok) return toolResultText;
-    const written = projectFileWriteFromTheWriteProjectFileToolResult(toolResultText.value);
+    if (!operationResult.ok) return operationResult;
+    const written = projectFileWriteFromTheWriteProjectFileToolResult(operationResult.value);
     return written.ok ? written : localApiRequestFailure(written.failure);
   }
 
@@ -648,38 +635,38 @@ export class LocalApiClient {
     author: ProjectTransactionAuthor,
     idempotencyKey: string,
   ): Promise<Result<NodeFileCreationRecorded, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("create_node_file", {
+    const operationResult = await this.callControlOperation("create_node_file", {
       project_directory: projectDirectory,
       path: filePath,
       author: { kind: author.kind, name: author.name },
       idempotency_key: idempotencyKey,
     });
-    if (!toolResultText.ok) return toolResultText;
-    const created = nodeFileCreationFromTheCreateNodeFileToolResult(toolResultText.value);
+    if (!operationResult.ok) return operationResult;
+    const created = nodeFileCreationFromTheCreateNodeFileToolResult(operationResult.value);
     return created.ok ? created : localApiRequestFailure(created.failure);
   }
 
   /** Each view the project in `projectDirectory` and its imports bring, from the runtime's `list_project_views`; refused in the runtime's own words. */
   async listProjectViews(projectDirectory: string): Promise<Result<ProjectViewTheRuntimeListed[], LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("list_project_views", { project_directory: projectDirectory });
-    if (!toolResultText.ok) return toolResultText;
-    const listed = projectViewsFromTheListProjectViewsToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("list_project_views", { project_directory: projectDirectory });
+    if (!operationResult.ok) return operationResult;
+    const listed = projectViewsFromTheListProjectViewsToolResult(operationResult.value);
     return listed.ok ? listed : localApiRequestFailure(listed.failure);
   }
 
   /** Publish `value` on the output `port` of the view node `node` in `stream`, through the runtime's `write_studio_view_output`; live data, recorded nowhere; refused in the runtime's own words. */
   async writeStudioViewOutput(stream: string, node: string, port: string, value: JsonValue): Promise<Result<StudioViewOutputWritten, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("write_studio_view_output", { stream, node, port, value });
-    if (!toolResultText.ok) return toolResultText;
-    const written = studioViewOutputFromTheWriteStudioViewOutputToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("write_studio_view_output", { stream, node, port, value });
+    if (!operationResult.ok) return operationResult;
+    const written = studioViewOutputFromTheWriteStudioViewOutputToolResult(operationResult.value);
     return written.ok ? written : localApiRequestFailure(written.failure);
   }
 
   /** Hand `value` to the Input `input` of the running stream `stream`, through the runtime's `write_graph_input`; live data, recorded nowhere, the last write winning; refused in the runtime's own words. */
   async writeGraphInput(stream: string, input: string, value: JsonValue): Promise<Result<GraphInputWritten, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("write_graph_input", { stream, input, value });
-    if (!toolResultText.ok) return toolResultText;
-    const written = graphInputWrittenFromTheWriteGraphInputToolResult(toolResultText.value);
+    const operationResult = await this.callControlOperation("write_graph_input", { stream, input, value });
+    if (!operationResult.ok) return operationResult;
+    const written = graphInputWrittenFromTheWriteGraphInputToolResult(operationResult.value);
     return written.ok ? written : localApiRequestFailure(written.failure);
   }
 
@@ -694,9 +681,9 @@ export class LocalApiClient {
   }
 
   private async undoOrRedoInTheProject(toolName: "undo" | "redo", projectDirectory: string, author: ProjectTransactionAuthor): Promise<Result<ProjectTransaction, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool(toolName, { project_directory: projectDirectory, author: authorOnTheWire(author) });
-    if (!toolResultText.ok) return toolResultText;
-    const transaction = projectTransactionFromTheUndoOrRedoToolResult(toolName, toolResultText.value);
+    const operationResult = await this.callControlOperation(toolName, { project_directory: projectDirectory, author: authorOnTheWire(author) });
+    if (!operationResult.ok) return operationResult;
+    const transaction = projectTransactionFromTheUndoOrRedoToolResult(toolName, operationResult.value);
     return transaction.ok ? transaction : localApiRequestFailure(transaction.failure);
   }
 
@@ -707,18 +694,18 @@ export class LocalApiClient {
     idempotencyKey: string | null,
     author: ProjectTransactionAuthor,
   ): Promise<Result<ProjectGraphTransactionTheRuntimeAnswered, LocalApiRequestFailure>> {
-    const toolAnswer = await this.callMcpToolKeepingItsRefusal("transact", {
-      operations,
+    const operationAnswer = await this.callControlOperationKeepingItsRefusal("transact", {
+      operations: [...operations],
       mode,
       author: authorOnTheWire(author),
       ...(idempotencyKey === null ? {} : { idempotency_key: idempotencyKey }),
     });
-    if (!toolAnswer.ok) return toolAnswer;
-    if (toolAnswer.value.kind === "refused_by_the_tool") {
-      const refusal = projectActionRefusalFromTheStructuredContent(toolAnswer.value.structuredContent);
-      return refusal.ok ? succeeded({ kind: "refused", refusal: refusal.value }) : theRuntimesRefusal(toolAnswer.value.words);
+    if (!operationAnswer.ok) return operationAnswer;
+    if (operationAnswer.value.kind === "refused_by_the_operation") {
+      const refusal = projectActionRefusalOnTheWire(operationAnswer.value.refusal);
+      return refusal.ok ? succeeded({ kind: "refused", refusal: refusal.value }) : theRuntimesRefusal(operationAnswer.value.words);
     }
-    const transaction = projectGraphTransactionFromTheTransactToolResult(toolAnswer.value.text);
+    const transaction = projectGraphTransactionFromTheTransactToolResult(operationAnswer.value.result);
     return transaction.ok ? succeeded({ kind: "applied", transaction: transaction.value }) : localApiRequestFailure(transaction.failure);
   }
 
@@ -735,39 +722,26 @@ export class LocalApiClient {
     );
   }
 
-  /** Call the MCP tool `toolName` with `toolArguments` in one stateless request, giving up after `responseTimeoutMs` without a byte, answering the text of its first content block; a tool that ran and failed is refused in its own words. */
-  private async callMcpTool(
-    toolName: string,
-    toolArguments: Readonly<Record<string, unknown>>,
+  /** Call `method` with `params` in one `POST /control`, giving up after `responseTimeoutMs`, answering its result read with `resultReviver` when one is given; the operation's own refusal is the runtime's, in its words. */
+  private async callControlOperation<Method extends ControlOperationMethodName>(
+    method: Method,
+    params: ControlOperationParams<Method>,
     responseTimeoutMs: number = this.requestTimeoutMs,
-  ): Promise<Result<string, LocalApiRequestFailure>> {
-    const toolAnswer = await this.callMcpToolKeepingItsRefusal(toolName, toolArguments, responseTimeoutMs);
-    if (!toolAnswer.ok) return toolAnswer;
-    return toolAnswer.value.kind === "answered" ? succeeded(toolAnswer.value.text) : theRuntimesRefusal(toolAnswer.value.words);
+    resultReviver: ControlOperationResultReviver | null = null,
+  ): Promise<Result<unknown, LocalApiRequestFailure>> {
+    const answer = await this.callControlOperationKeepingItsRefusal(method, params, responseTimeoutMs, resultReviver);
+    if (!answer.ok) return answer;
+    return answer.value.kind === "answered" ? succeeded(answer.value.result) : theRuntimesRefusal(answer.value.words);
   }
 
-  /** As `callMcpTool`, but a tool that ran and failed answers its words apart from every other refusal, the JSON-RPC layer's included. */
-  private async callMcpToolKeepingItsRefusal(
-    toolName: string,
-    toolArguments: Readonly<Record<string, unknown>>,
+  /** As `callControlOperation`, but the operation's own refusal is answered apart from every other failure, with the structured refusal when the runtime gave one. */
+  private callControlOperationKeepingItsRefusal<Method extends ControlOperationMethodName>(
+    method: Method,
+    params: ControlOperationParams<Method>,
     responseTimeoutMs: number = this.requestTimeoutMs,
-  ): Promise<Result<McpToolAnswer, LocalApiRequestFailure>> {
-    const requestBody = mcpToolCallRequestBody(1, toolName, toolArguments, this.appVersion);
-    const response = await this.sendOneHttpRequestAndReadItsResponse(
-      "POST",
-      "/mcp",
-      [
-        ["Accept", "application/json, text/event-stream"],
-        ["Content-Type", "application/json"],
-        ["MCP-Protocol-Version", LOCAL_API_MCP_PROTOCOL_VERSION],
-        ["Mcp-Method", "tools/call"],
-        ["Mcp-Name", toolName],
-      ],
-      Buffer.from(requestBody, "utf8"),
-      responseTimeoutMs,
-    );
-    if (!response.ok) return response;
-    return mcpToolAnswerFromTheJsonRpcResponse(toolName, response.value.body.toString("utf8"), String(response.value.statusCode));
+    resultReviver: ControlOperationResultReviver | null = null,
+  ): Promise<Result<ControlOperationAnswer, LocalApiRequestFailure>> {
+    return callOneControlOperationOverAPost(this.localApiSocketPath, method, params, responseTimeoutMs, resultReviver);
   }
 
   private sendOneHttpRequestAndReadItsResponse(
@@ -809,7 +783,7 @@ export class LocalApiClient {
       });
       connection.on("timeout", () => {
         settleOnce(
-          localApiRequestFailure(`${method} ${requestTarget} to ${socketText} did not answer within ${durationAsTheTimeoutRefusalSpellsIt(responseTimeoutMs)}`),
+          localApiRequestFailure(`${method} ${requestTarget} to ${socketText} did not answer within ${durationAsTheTimeoutFailureSpellsIt(responseTimeoutMs)}`),
         );
       });
       connection.on("error", (connectionFailure) => {
@@ -817,7 +791,7 @@ export class LocalApiClient {
         const failureDescription = !connected
           ? `no runtime answers at ${socketText}: ${failureText}`
           : requestSent
-            ? `${method} ${requestTarget} to ${socketText} did not answer within ${durationAsTheTimeoutRefusalSpellsIt(responseTimeoutMs)}: ${failureText}`
+            ? `${method} ${requestTarget} to ${socketText} did not answer within ${durationAsTheTimeoutFailureSpellsIt(responseTimeoutMs)}: ${failureText}`
             : `the request ${method} ${requestTarget} to ${socketText} could not be sent: ${failureText}`;
         settleOnce(localApiRequestFailure(failureDescription));
       });
@@ -838,56 +812,6 @@ export function httpRequestBytes(method: string, requestTarget: string, extraHea
   if (requestBody !== null) requestHead += `Content-Length: ${requestBody.length}\r\n`;
   requestHead += "Connection: close\r\n\r\n";
   return Buffer.concat([Buffer.from(requestHead, "utf8"), requestBody ?? Buffer.alloc(0)]);
-}
-
-/** The JSON-RPC `tools/call` request `requestId` for `toolName`, carrying the per-request `_meta` the runtime requires over `POST /mcp` and `/mcp/stdio` alike. */
-export function mcpToolCallRequestBody(requestId: number, toolName: string, toolArguments: Readonly<Record<string, unknown>>, appVersion: string): string {
-  return JSON.stringify({
-    jsonrpc: "2.0",
-    id: requestId,
-    method: "tools/call",
-    params: {
-      name: toolName,
-      arguments: toolArguments,
-      _meta: {
-        "io.modelcontextprotocol/protocolVersion": LOCAL_API_MCP_PROTOCOL_VERSION,
-        "io.modelcontextprotocol/clientInfo": { name: LOCAL_API_MCP_CLIENT_NAME, version: appVersion },
-        "io.modelcontextprotocol/clientCapabilities": {},
-      },
-    },
-  });
-}
-
-/** What a tool call answered: the text of its first content block, or the words of a tool that ran and failed (`isError`). */
-export type McpToolAnswer = { kind: "answered"; text: string } | { kind: "refused_by_the_tool"; words: string; structuredContent: unknown };
-
-/** What the JSON-RPC response `jsonRpcResponseText` to a `toolName` call answered, `answeredOver` naming how it came (an HTTP status, or `/mcp/stdio`) in a failure's words. */
-export function mcpToolAnswerFromTheJsonRpcResponse(toolName: string, jsonRpcResponseText: string, answeredOver: string): Result<McpToolAnswer, LocalApiRequestFailure> {
-  const jsonRpcResponse = parseJsonOnTheWire(jsonRpcResponseText);
-  if (!jsonRpcResponse.ok) {
-    return localApiRequestFailure(`\`${toolName}\` answered ${answeredOver} with a body that is not JSON-RPC: ${jsonRpcResponse.failure}`);
-  }
-  const jsonRpcFields = isAJsonObject(jsonRpcResponse.value) ? jsonRpcResponse.value : {};
-  const jsonRpcError = jsonRpcFields["error"];
-  if (jsonRpcError !== undefined) {
-    const message = isAJsonObject(jsonRpcError) && typeof jsonRpcError["message"] === "string" ? jsonRpcError["message"] : "no message";
-    return theRuntimesRefusal(`the runtime refused \`${toolName}\` (${answeredOver}): ${message}`);
-  }
-  const toolResult = jsonRpcFields["result"];
-  if (toolResult === undefined) return localApiRequestFailure(`\`${toolName}\` answered with neither a result nor an error`);
-  const toolResultFields = isAJsonObject(toolResult) ? toolResult : {};
-  const content = toolResultFields["content"];
-  const firstText = Array.isArray(content) ? content.map(textOfATextBlock).find((blockText) => blockText !== null) ?? null : null;
-  const toolFailed = toolResultFields["isError"] === true;
-  if (toolFailed) return succeeded({ kind: "refused_by_the_tool", words: firstText ?? `\`${toolName}\` failed and gave no reason`, structuredContent: toolResultFields["structuredContent"] ?? null });
-  return firstText === null ? localApiRequestFailure(`\`${toolName}\` answered with no text`) : succeeded({ kind: "answered", text: firstText });
-}
-
-/** A content block's text when it is a text block carrying text. */
-function textOfATextBlock(contentBlock: unknown): string | null {
-  if (!isAJsonObject(contentBlock) || contentBlock["type"] !== "text") return null;
-  const blockText = contentBlock["text"];
-  return typeof blockText === "string" ? blockText : null;
 }
 
 /** A complete HTTP/1.1 response read to end of stream: its status and its body, de-chunked when it was sent chunked. */

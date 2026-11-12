@@ -2,7 +2,7 @@ import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { TatolabStatus } from "../shared/tatolab_backend_contract.js";
-import { FakeLocalApiServer, toolFailureResponse, toolResultResponse } from "./fake_local_api_server.js";
+import { FakeLocalApiServer, controlOperationFailedResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
 import { FakeTatolabElectronAppShell, PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { startTatolabApp, type TatolabRunningApp } from "./main.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
@@ -55,7 +55,7 @@ async function readAFakeProjectFile(projectDirectory: string): Promise<FakeProje
 }
 
 function refusalOfAFolderHoldingNoProject(toolName: string, projectDirectory: string): Buffer {
-  return toolFailureResponse(`${toolName} failed: ${projectDirectory} holds no project: it has no tatolab-project.json`);
+  return controlOperationFailedResponse(`${toolName} failed: ${projectDirectory} holds no project: it has no tatolab-project.json`);
 }
 
 /** The `tatolab_view.json` of the one view, `views/meter`, the fake runtime lists in each import. */
@@ -63,35 +63,35 @@ const FAKE_METER_VIEW_MANIFEST = { contract: "1.0", title: "Meter", entry: "inde
 
 /** A runtime that answers `list_assets`, `list_dependencies`, `add_dependency` and `list_project_views` from each project's `tatolab-project.json`, copying an import whole, listing a `meter` view in each import, and no other request. */
 async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
-  const fakeRuntime = await FakeLocalApiServer.answeringEachToolCall(async (toolName, toolArguments) => {
+  const fakeRuntime = await FakeLocalApiServer.answeringEachControlOperation(async (toolName, toolArguments) => {
     const projectDirectory = String(toolArguments["project_directory"]);
     const projectFile = await readAFakeProjectFile(projectDirectory);
     switch (toolName) {
       case "list_assets":
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
-        return toolResultResponse({ project_directory: projectDirectory, project: projectFile.project, project_name: projectFile.name, assets: [] });
+        return controlOperationResultResponse({ project_directory: projectDirectory, project: projectFile.project, project_name: projectFile.name, assets: [] });
       case "list_dependencies":
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
-        return toolResultResponse({ dependencies: projectFile.dependencies.map((dependency) => ({ dependency })) });
+        return controlOperationResultResponse({ dependencies: projectFile.dependencies.map((dependency) => ({ dependency })) });
       case "add_dependency": {
         const source = String(toolArguments["source"]);
         const sourceProjectFile = await readAFakeProjectFile(source);
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
-        if (sourceProjectFile === null) return toolFailureResponse(`add_dependency failed: ${source} holds no tatolab-project.json`);
+        if (sourceProjectFile === null) return controlOperationFailedResponse(`add_dependency failed: ${source} holds no tatolab-project.json`);
         const folder = path.basename(source);
         if (projectFile.dependencies.some((dependency) => dependency.project === sourceProjectFile.project)) {
-          return toolFailureResponse(`add_dependency failed: the project already imports ${sourceProjectFile.project} in imports/${folder}`);
+          return controlOperationFailedResponse(`add_dependency failed: the project already imports ${sourceProjectFile.project} in imports/${folder}`);
         }
         const dependency = { project: sourceProjectFile.project, folder, source, version: FAKE_IMPORT_VERSION };
         await cp(source, path.join(projectDirectory, "imports", folder), { recursive: true });
         await writeFile(path.join(projectDirectory, "tatolab-project.json"), JSON.stringify({ ...projectFile, dependencies: [...projectFile.dependencies, dependency] }));
-        return toolResultResponse({ dependency, transaction: "400abda2-8e24-4e95-bef0-7139fd68d853", commit: "7402198987b8ef4b1d2f370b8f090ccde0865a56" });
+        return controlOperationResultResponse({ dependency, transaction: "400abda2-8e24-4e95-bef0-7139fd68d853", commit: "7402198987b8ef4b1d2f370b8f090ccde0865a56" });
       }
       case "list_streams":
-        return toolResultResponse({ streams: [] });
+        return controlOperationResultResponse({ streams: [] });
       case "list_project_views":
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
-        return toolResultResponse({
+        return controlOperationResultResponse({
           project_directory: projectDirectory,
           project: projectFile.project,
           project_name: projectFile.name,
@@ -108,7 +108,7 @@ async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
         });
       case "open_project":
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
-        return toolResultResponse({ action: "5d0c9a51-6a8b-4f3e-9d7e-2b1c0f4e8a77", project_directory: projectDirectory });
+        return controlOperationResultResponse({ action: "5d0c9a51-6a8b-4f3e-9d7e-2b1c0f4e8a77", project_directory: projectDirectory });
       default:
         return null;
     }

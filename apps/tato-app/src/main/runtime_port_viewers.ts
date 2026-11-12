@@ -6,8 +6,8 @@
 
 import type { ListedStream } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { PortViewerEvent, PortViewerImageFrameFacts, PortViewerTarget, TatolabStatus } from "../shared/tatolab_backend_contract.js";
-import type { LocalApiRequestFailure } from "./local_api_client.js";
-import type { OpenedRuntimeViewer, RuntimeViewerTarget } from "./local_api_mcp_stdio_connection.js";
+import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
+import type { OpenedRuntimeViewer, RuntimeViewerTarget } from "./runtime_viewer_control_connection.js";
 import { portViewerMessageReadingOf } from "./port_viewer_message_reading.js";
 import { failedWith, succeeded, describeCaughtFailure, type Result } from "./result.js";
 import {
@@ -18,7 +18,7 @@ import {
 } from "./runtime_viewer_image_frame_import.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 
-/** The connection port viewers are opened over: `LocalApiMcpStdioConnection`. */
+/** The connection port viewers are opened over: `RuntimeViewerControlConnection`. */
 export interface RuntimeViewerConnection {
   openViewer(target: RuntimeViewerTarget): Promise<Result<OpenedRuntimeViewer, LocalApiRequestFailure>>;
   closeViewer(viewer: string): Promise<Result<string, LocalApiRequestFailure>>;

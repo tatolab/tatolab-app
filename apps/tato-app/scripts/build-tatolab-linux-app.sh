@@ -126,6 +126,7 @@ mkdir -p "$linux_build_directory" "$output_directory"
 
 echo "==> Electron app"
 npm ci
+"$scripts_directory/place-tatolab-runtime-client.sh" --from-runtime-unit "$runtime_unit_directory"
 npm run build -- ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"} \
   ${release_build_arguments[@]+"${release_build_arguments[@]}"}
 echo "==> viewer addon (streamlib $streamlib_commit)"

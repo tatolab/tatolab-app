@@ -18,7 +18,6 @@ import {
   type JsonObjectOnTheWire,
   optionalText,
   optionalUnsignedInteger,
-  parseJsonOnTheWire,
   requiredArray,
   requiredText,
   requiredUnsignedInteger,
@@ -27,15 +26,14 @@ import {
 import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
-/** The listing `list_project_node_types` answered with `toolResultText`, or why it could not be read. */
-export function projectNodeTypeListingFromTheToolResult(toolResultText: string): Result<ProjectNodeTypeListing, string> {
-  const listing = listingFromTheParsedToolResult(parseJsonOnTheWire(toolResultText));
+/** The listing `list_project_node_types` answered with `operationResult`, or why it could not be read. */
+export function projectNodeTypeListingFromTheToolResult(operationResult: unknown): Result<ProjectNodeTypeListing, string> {
+  const listing = listingFromTheParsedToolResult(operationResult);
   return listing.ok ? listing : failedWith(`the runtime's list_project_node_types result could not be read: ${listing.failure}`);
 }
 
-function listingFromTheParsedToolResult(parsedToolResult: Result<unknown, string>): Result<ProjectNodeTypeListing, string> {
-  if (!parsedToolResult.ok) return parsedToolResult;
-  const toolResult = jsonObject(parsedToolResult.value, "the listing");
+function listingFromTheParsedToolResult(operationResult: unknown): Result<ProjectNodeTypeListing, string> {
+  const toolResult = jsonObject(operationResult, "the listing");
   if (!toolResult.ok) return toolResult;
   const projectDirectory = requiredText(toolResult.value, "project_directory");
   if (!projectDirectory.ok) return projectDirectory;

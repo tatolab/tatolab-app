@@ -1,12 +1,12 @@
 import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { projectViewFolderUrl, ProjectViewsListedToTheWindows } from "./project_view_files.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
-import { localApiRequestFailure } from "./local_api_client.js";
+import { localApiRequestFailure } from "./local_api_request_failure.js";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
 import type { ListedStream, SystemMenuBarMenu, TatolabPlatform } from "../shared/tatolab_backend_contract.js";
-import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
+import { FakeLocalApiServer, controlOperationFailedResponse, controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
 import {
   FakeCarriedRuntimeStarts,
   FakeTatolabAppOpenedAtLogin,
@@ -78,12 +78,11 @@ const THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS: ProjectReadingsOfTheRuntime = 
 
 const recordedResponseBody = (fixtureFileName: string) => readFile(new URL(`./test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
 
-/** The MCP tool a request to the fake local API called and its arguments, or none for a request that calls no tool. */
-function mcpToolCallOfTheRequest(request: string): [string, unknown][] {
-  const toolName = /Mcp-Name: (\S+)/.exec(request)?.[1];
-  if (toolName === undefined) return [];
-  const requestBody: { params: { arguments: unknown } } = JSON.parse(request.slice(request.indexOf("\r\n\r\n") + 4));
-  return [[toolName, requestBody.params.arguments]];
+/** The control operation a request to the fake local API called and its params, or none for a request that calls no operation. */
+function controlOperationCallOfTheRequest(request: string): [string, unknown][] {
+  if (!request.startsWith("POST /control ")) return [];
+  const requestBody: { method: string; params: unknown } = JSON.parse(request.slice(request.indexOf("\r\n\r\n") + 4));
+  return [[requestBody.method, requestBody.params]];
 }
 
 async function sharedStateOverFakes(
@@ -105,7 +104,7 @@ async function sharedStateOverFakes(
     tatolabAppOpenedAtLogin: FakeTatolabAppOpenedAtLogin;
     menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[];
     assetFilesTheDialogAnswers: { files: readonly string[] | null };
-    localApiToolCallsReceived: () => [string, unknown][];
+    localApiControlOperationCallsReceived: () => [string, unknown][];
   }
 > {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
@@ -179,6 +178,7 @@ async function sharedStateOverFakes(
     personSavingTheFiles: { kind: "person", name: "sam" },
     mintAnIdempotencyKey: () => "a-save",
     openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
+    nameTheChangeFeedOfTheProject: async () => localApiRequestFailure("no runtime answers"),
     runAfter: () => () => {},
     closeTheProjectAsItsWindowCloses: async () => succeeded(undefined),
     whenAWindowStartingLanguageServersClosed: () => {},
@@ -270,7 +270,7 @@ async function sharedStateOverFakes(
     foldersShownInTheFileManager,
     webPagesOpenedInTheBrowser,
     localApiSocketPath: localApiServer.localApiSocketPath,
-    localApiToolCallsReceived: () => localApiServer.receivedRequests().flatMap(mcpToolCallOfTheRequest),
+    localApiControlOperationCallsReceived: () => localApiServer.receivedRequests().flatMap(controlOperationCallOfTheRequest),
     streamFailureNotifications,
     systemNotifications,
     tatolabAppOpenedAtLogin,
@@ -288,7 +288,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
   const runningRuntime = await sharedStateOverFakes(
     [
       httpResponse("200 OK", "text/plain", "ok"),
-      toolResultResponse({
+      controlOperationResultResponse({
         streams: [
           {
             stream: "pattern-main-41d0c2",
@@ -409,12 +409,8 @@ test("a refusal from the runtime reaches the window in the runtime's own words",
   const logsRefusal = "logs failed: Resource not found: this runtime holds no stream of the project in /tmp/nope";
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: graphRefusal }], isError: true } })),
-      httpResponse(
-        "200 OK",
-        "application/json",
-        JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: logsRefusal }], isError: true } }),
-      ),
+      controlOperationFailedResponse(graphRefusal),
+      controlOperationFailedResponse(logsRefusal),
     ],
     "macos"
   );
@@ -463,7 +459,7 @@ test("a command's arguments are read as the window sends them, and anything else
 test("each command answers the window in the contract's shape, a refusal in its own words and nothing as null", async () => {
   const graphRefusal = "graph failed: Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main";
   const sharedState = await sharedStateOverFakes(
-    [httpResponse("200 OK", "application/json", JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: graphRefusal }], isError: true } }))],
+    [controlOperationFailedResponse(graphRefusal)],
     "linux"
   );
   let quitRequests = 0;
@@ -489,8 +485,8 @@ test("each command answers the window in the contract's shape, a refusal in its 
 test("removing a project queues on the runtime, then observes again whether it queued or was refused", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-project-answer-for-the-project-doorways.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-project-refusal-for-a-project-the-runtime-holds-no-stream-of.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-remove-project-answer-for-the-project-doorways.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-remove-project-refusal-for-a-project-the-runtime-holds-no-stream-of.json")),
     ],
     "linux"
   );
@@ -507,9 +503,9 @@ test("each queued action answers the window null, and a missing argument or a pr
   const sharedState = await sharedStateOverFakes(
     [
       httpResponse("200 OK", "text/plain", "ok"),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-project-answer-for-the-project-doorways.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-remove-project-answer-for-the-project-doorways.json")),
     ],
     "linux"
   );
@@ -585,10 +581,10 @@ test("reloading a project the runtime lists open queues reload_project, one it l
   const sharedState = await sharedStateOverFakes(
     [
       httpResponse("200 OK", "text/plain", "ok"),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-playing-a-stopped-and-a-closed-project.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-a-playing-a-stopped-and-a-closed-project.json")),
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-reload-project-answer-for-the-stopped-project-pattern.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-open-project-answer-for-the-closed-project-lobby.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-reload-project-answer-for-the-stopped-project-pattern.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-open-project-answer-for-the-closed-project-lobby.json")),
     ],
     "linux"
   );
@@ -651,11 +647,11 @@ test("opening a project opens it only when the runtime, asked then, lists none o
   const listedStreams = await recordedResponseBody("local-api-list-streams-tool-result-of-a-playing-a-stopped-and-a-closed-project.json");
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", listedStreams),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-open-project-answer-for-the-closed-project-lobby.json")),
-      httpResponse("200 OK", "application/json", listedStreams),
-      httpResponse("200 OK", "application/json", listedStreams),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-open-project-refusal-for-the-open-project-pattern.json")),
+      controlOperationResponseOfTheRecordedToolResponse(listedStreams),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-open-project-answer-for-the-closed-project-lobby.json")),
+      controlOperationResponseOfTheRecordedToolResponse(listedStreams),
+      controlOperationResponseOfTheRecordedToolResponse(listedStreams),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-open-project-refusal-for-the-open-project-pattern.json")),
     ],
     "linux"
   );
@@ -732,10 +728,10 @@ test("renaming a stream sets the display name of the stream asset the runtime li
   const sharedState = await sharedStateOverFakes(
     [
       httpResponse("200 OK", "text/plain", "ok"),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-hallways-running.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-hallways-running.json")),
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-set-stream-display-name-answer-for-the-main-stream-of-hallways-renamed-heat-map.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-set-stream-display-name-refusal-for-a-display-name-that-shows-nothing.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-set-stream-display-name-answer-for-the-main-stream-of-hallways-renamed-heat-map.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-set-stream-display-name-refusal-for-a-display-name-that-shows-nothing.json")),
     ],
     "macos"
   );
@@ -749,7 +745,7 @@ test("renaming a stream sets the display name of the stream asset the runtime li
     refusal: `set_stream_display_name failed: "   " cannot be a stream's display name: it shows nothing`,
   });
   expect(refreshRequests).toHaveBeenCalledTimes(2);
-  expect(sharedState.localApiToolCallsReceived().filter(([toolName]) => toolName === "set_stream_display_name")).toEqual([
+  expect(sharedState.localApiControlOperationCallsReceived().filter(([toolName]) => toolName === "set_stream_display_name")).toEqual([
     ["set_stream_display_name", { project_directory: "/private/tmp/tatolab-proof-projects/hallways", stream_asset: "666895f1-e258-4587-8c62-ed07c0cc70db", display_name: "Heat map", author: { kind: "person", name: "sam" } }],
     ["set_stream_display_name", { project_directory: "/private/tmp/tatolab-proof-projects/hallways", stream_asset: "666895f1-e258-4587-8c62-ed07c0cc70db", display_name: "   ", author: { kind: "person", name: "sam" } }],
   ]);
@@ -767,7 +763,7 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
   const sharedState = await sharedStateOverFakes(
     [
       httpResponse("200 OK", "text/plain", "ok"),
-      toolResultResponse({
+      controlOperationResultResponse({
         streams: [
           {
             stream: "main-main-9e44b1",
@@ -824,10 +820,10 @@ test("adding a project answers the window in the contract's shape, from the chos
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-open-project-answer-for-the-closed-project-lobby.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-project-answer-with-no-folder-drawn-kind-butte.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-the-create-of-kind-butte-starting.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-open-project-answer-for-the-closed-project-lobby.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-create-project-answer-with-no-folder-drawn-kind-butte.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-stream-action-of-the-create-of-kind-butte-starting.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json")),
       httpResponse("503 Service Unavailable", "text/plain", "starting"),
     ],
     "macos",
@@ -865,8 +861,8 @@ test("adding a project answers the window in the contract's shape, from the chos
 test("cancel_stream_action answers the window in the contract's shape, asks for a status round, and carries a declined cancel in the runtime's words", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-cancel-stream-action-answer-for-a-run-of-slowpoke-making-the-venv-in-progress.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-cancel-stream-action-refusal-for-a-running-stop-of-doorways-front-door.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-cancel-stream-action-answer-for-a-run-of-slowpoke-making-the-venv-in-progress.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-cancel-stream-action-refusal-for-a-running-stop-of-doorways-front-door.json")),
     ],
     "linux",
   );
@@ -957,7 +953,7 @@ test("New project's commands suggest an untitled project in Documents/Tato Studi
 test("describing_the_runtime_answers_the_window_in_the_contracts_shape_and_a_runtime_that_is_down_in_why", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      toolResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 4_000, runtime_log_directory: null, from_later: true }),
+      controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 4_000, runtime_log_directory: null, from_later: true }),
       httpResponse("503 Service Unavailable", "text/plain", ""),
     ],
     "macos"
@@ -969,7 +965,7 @@ test("describing_the_runtime_answers_the_window_in_the_contracts_shape_and_a_run
   );
   expect(await commandHandlers.describe_runtime(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: "`describe_runtime` answered 503 with a body that is not JSON-RPC: Unexpected end of JSON input",
+    refusal: `\`describe_runtime\` to ${sharedState.localApiSocketPath} got no answer: the runtime answered \`describe_runtime\` with HTTP 503: `,
   });
 });
 
@@ -998,8 +994,8 @@ test("opening_the_runtimes_log_folder_opens_the_folder_the_runtime_names_and_nev
   const runtimeLogFolder = "/Users/jonathanf/Library/Application Support/Tatolab/logs";
   const sharedState = await sharedStateOverFakes(
     [
-      toolResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 4_000, runtime_log_directory: runtimeLogFolder }),
-      toolResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 5_000, runtime_log_directory: null }),
+      controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 4_000, runtime_log_directory: runtimeLogFolder }),
+      controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 5_000, runtime_log_directory: null }),
     ],
     "macos",
     [runtimeLogFolder],
@@ -1130,8 +1126,8 @@ test("a window's menus are kept for the system menu bar on macOS, shown while it
 test("undo and redo in the open project ask the runtime by the window's author and answer its transaction, or its refusal in its own words", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-undo-tool-result-of-sam-undoing-their-import-into-lobby.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-redo-tool-refusal-for-sam-with-nothing-left-to-redo.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-undo-tool-result-of-sam-undoing-their-import-into-lobby.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-redo-tool-refusal-for-sam-with-nothing-left-to-redo.json")),
     ],
     "linux",
   );
@@ -1157,10 +1153,10 @@ test("deleting_a_stream_deletes_the_stream_asset_the_runtime_last_listed_for_it_
   const sharedState = await sharedStateOverFakes(
     [
       httpResponse("200 OK", "text/plain", "ok"),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-lobby-with-its-new-stream-preview.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-lobby-with-its-new-stream-preview.json")),
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "sams-laptop", streams: [] })),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-stream-answer-for-preview-of-lobby.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-stream-refusal-for-a-stream-asset-the-project-no-longer-holds.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-delete-stream-answer-for-preview-of-lobby.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-delete-stream-refusal-for-a-stream-asset-the-project-no-longer-holds.json")),
     ],
     "linux",
   );
@@ -1172,7 +1168,7 @@ test("deleting_a_stream_deletes_the_stream_asset_the_runtime_last_listed_for_it_
     ok: false,
     refusal: "delete_stream failed: the project holds no stream asset 38766917-e6ed-443f-bad5-6d70eff6efac",
   });
-  expect(sharedState.localApiToolCallsReceived().filter(([toolName]) => toolName === "delete_stream")[0]).toEqual([
+  expect(sharedState.localApiControlOperationCallsReceived().filter(([toolName]) => toolName === "delete_stream")[0]).toEqual([
     "delete_stream",
     { project_directory: "/root/streams/lobby", stream_asset: "38766917-e6ed-443f-bad5-6d70eff6efac", author: { kind: "person", name: "sam" } },
   ]);
@@ -1187,10 +1183,10 @@ test("deleting_a_stream_deletes_the_stream_asset_the_runtime_last_listed_for_it_
 test("creating_a_stream_in_the_open_project_places_its_graph_document_in_streams_under_a_name_no_file_holds_by_the_person_editing_and_answers_its_stream_asset", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-project-files-tool-result-of-lobby-under-streams.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-stream-answer-for-preview-in-lobby-loading-it.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-project-files-tool-result-of-lobby-under-streams.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-stream-refusal-for-a-display-name-that-shows-nothing.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-files-tool-result-of-lobby-under-streams.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-create-stream-answer-for-preview-in-lobby-loading-it.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-files-tool-result-of-lobby-under-streams.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-create-stream-refusal-for-a-display-name-that-shows-nothing.json")),
     ],
     "linux",
   );
@@ -1207,7 +1203,7 @@ test("creating_a_stream_in_the_open_project_places_its_graph_document_in_streams
     ok: false,
     refusal: `create_stream failed: "   " cannot be a stream's display name: it shows nothing`,
   });
-  expect(sharedState.localApiToolCallsReceived().slice(0, 2)).toEqual([
+  expect(sharedState.localApiControlOperationCallsReceived().slice(0, 2)).toEqual([
     ["list_project_files", { project_directory: projectFolder, under: "streams" }],
     ["create_stream", { project_directory: projectFolder, path: "streams/preview.graph.json", display_name: "Preview", author: { kind: "person", name: "sam" } }],
   ]);
@@ -1222,8 +1218,8 @@ test("creating_a_stream_in_the_open_project_places_its_graph_document_in_streams
 test("importing assets into the open project copies each file the person chooses into the project, naming no path, by the person editing, answering each one imported and each refusal in the runtime's words", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-answer-for-poster-png-numbered-poster-3-in-media-imported-by-a-person.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-import-asset-refusal-for-main-graph-json-a-stream-graph-document.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-import-asset-answer-for-poster-png-numbered-poster-3-in-media-imported-by-a-person.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-import-asset-refusal-for-main-graph-json-a-stream-graph-document.json")),
     ],
     "linux",
   );
@@ -1248,10 +1244,10 @@ test("importing assets into the open project copies each file the person chooses
 test("renaming, moving and deleting an asset of the open project reach the runtime by the person editing, answering nothing, or the runtime's refusal in its own words", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-relocate-asset-answer-for-poster-png-renamed-to-harbour-poster-png-by-a-person.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-relocate-asset-refusal-for-a-path-another-asset-of-harbour-lights-takes.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-asset-answer-for-opening-png-deleted-by-a-person.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-delete-asset-refusal-for-an-asset-harbour-lights-does-not-hold.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-relocate-asset-answer-for-poster-png-renamed-to-harbour-poster-png-by-a-person.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-relocate-asset-refusal-for-a-path-another-asset-of-harbour-lights-takes.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-delete-asset-answer-for-opening-png-deleted-by-a-person.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-delete-asset-refusal-for-an-asset-harbour-lights-does-not-hold.json")),
     ],
     "linux",
   );
@@ -1282,8 +1278,8 @@ test("renaming, moving and deleting an asset of the open project reach the runti
 test("an asset's preview picture of the open project reaches the window as a data URL, or the runtime's refusal in its own words, and only a studio window may ask", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-read-asset-preview-tool-result-of-harbour-dusk-png.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-read-asset-preview-refusal-for-quay-walk-mp4-with-no-poster-frame.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-read-asset-preview-tool-result-of-harbour-dusk-png.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-read-asset-preview-refusal-for-quay-walk-mp4-with-no-poster-frame.json")),
     ],
     "linux",
   );
@@ -1321,8 +1317,8 @@ test("an asset's preview picture of the open project reaches the window as a dat
 test("a graph transaction in the open project reaches the runtime's transact held to its shape and to the project's streams, by the person editing, answering what it applied or the runtime's structured refusal", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-transact-tool-result-of-setting-the-test-pattern-to-640-by-360.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-transact-refusal-for-an-image-output-into-a-channels-input.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-transact-tool-result-of-setting-the-test-pattern-to-640-by-360.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-transact-refusal-for-an-image-output-into-a-channels-input.json")),
     ],
     "linux",
   );
@@ -1413,7 +1409,7 @@ test("listing the open project's views asks the system ahead for the camera and 
   const nightShow = "/private/tmp/tl-rec-cam/projects/night-show";
   const listingDeclaringTheCamera = await recordedResponseBody("local-api-list-project-views-tool-result-of-night-show-with-a-view-declaring-the-camera-and-microphone.json");
   const sharedState = await sharedStateOverFakes(
-    [httpResponse("200 OK", "application/json", listingDeclaringTheCamera), httpResponse("200 OK", "application/json", listingDeclaringTheCamera)],
+    [controlOperationResponseOfTheRecordedToolResponse(listingDeclaringTheCamera), controlOperationResponseOfTheRecordedToolResponse(listingDeclaringTheCamera)],
     "macos",
     [],
     null,
@@ -1447,7 +1443,7 @@ test("listing the open project's views asks the system ahead for the camera and 
 test("the open project's views are the runtime's list_project_views of its folder, each folder served under the window page's scheme, and refused in the Projects window", async () => {
   const nightShow = "/private/tmp/tl-rec053/projects/night-show";
   const sharedState = await sharedStateOverFakes(
-    [httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-project-views-tool-result-of-night-show-importing-lobby-wall.json"))],
+    [controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-views-tool-result-of-night-show-importing-lobby-wall.json"))],
     "macos",
     [],
     null,
@@ -1494,8 +1490,8 @@ test("the open project's views are the runtime's list_project_views of its folde
 test("a Graph Input's value reaches the runtime's write_graph_input from a studio window, answered null once taken, refused in the runtime's own words, and from the Projects window or with arguments that are not text and JSON refused before it is asked", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-graph-input-tool-result-of-s06-perform-brightness.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-graph-input-refusal-for-the-stopped-project-s06-perform.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-write-graph-input-tool-result-of-s06-perform-brightness.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-write-graph-input-refusal-for-the-stopped-project-s06-perform.json")),
     ],
     "macos",
   );
@@ -1522,8 +1518,8 @@ test("a Graph Input's value reaches the runtime's write_graph_input from a studi
 test("a view's output value reaches the runtime's write_studio_view_output from a studio window, answered null once taken, refused in the runtime's own words, and from the Projects window or with arguments that are not text and JSON refused before it is asked", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-studio-view-output-tool-result-of-the-deck-node-cue.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-write-studio-view-output-refusal-for-the-stopped-stream-night-show.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-write-studio-view-output-tool-result-of-the-deck-node-cue.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-write-studio-view-output-refusal-for-the-stopped-stream-night-show.json")),
     ],
     "macos",
   );

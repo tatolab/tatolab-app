@@ -25,9 +25,13 @@ import {
 } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
-function jsonObjectOfTheRuntimesAnswer(answerName: string, answerText: string): Result<JsonObjectOnTheWire, string> {
+function jsonObjectOfTheRuntimesAnswer(answerName: string, answer: unknown): Result<JsonObjectOnTheWire, string> {
+  return jsonObject(answer, `the ${answerName} answer`);
+}
+
+function jsonObjectOfTheRuntimesAnswerText(answerName: string, answerText: string): Result<JsonObjectOnTheWire, string> {
   const parsedAnswer = parseJsonOnTheWire(answerText);
-  return parsedAnswer.ok ? jsonObject(parsedAnswer.value, `the ${answerName} answer`) : parsedAnswer;
+  return parsedAnswer.ok ? jsonObjectOfTheRuntimesAnswer(answerName, parsedAnswer.value) : parsedAnswer;
 }
 
 function readOrSayWhy<ReadValue>(answerName: string, read: Result<ReadValue, string>): Result<ReadValue, string> {
@@ -35,8 +39,8 @@ function readOrSayWhy<ReadValue>(answerName: string, read: Result<ReadValue, str
 }
 
 /** A `create_project` tool result read field for field; unknown fields are ignored. */
-export function projectCreationQueuedFromTheCreateProjectToolResult(toolResultText: string): Result<ProjectCreationQueued, string> {
-  const toolResult = jsonObjectOfTheRuntimesAnswer("create_project", toolResultText);
+export function projectCreationQueuedFromTheCreateProjectToolResult(operationResult: unknown): Result<ProjectCreationQueued, string> {
+  const toolResult = jsonObjectOfTheRuntimesAnswer("create_project", operationResult);
   if (!toolResult.ok) return readOrSayWhy("create_project", toolResult);
   const action = requiredText(toolResult.value, "action");
   if (!action.ok) return readOrSayWhy("create_project", action);
@@ -53,9 +57,9 @@ export type ProjectStreamActionToolName = "open_project" | "start_playback" | "r
 /** An `open_project`, `start_playback` or `reload_project` tool result, named by `toolName`, read field for field; unknown fields are ignored. */
 export function projectStreamActionQueuedFromTheToolResult(
   toolName: ProjectStreamActionToolName,
-  toolResultText: string,
+  operationResult: unknown,
 ): Result<ProjectStreamActionQueued, string> {
-  const toolResult = jsonObjectOfTheRuntimesAnswer(toolName, toolResultText);
+  const toolResult = jsonObjectOfTheRuntimesAnswer(toolName, operationResult);
   if (!toolResult.ok) return readOrSayWhy(toolName, toolResult);
   const action = requiredText(toolResult.value, "action");
   if (!action.ok) return readOrSayWhy(toolName, action);
@@ -110,22 +114,22 @@ function streamActionDescriptionOnTheWireRead(descriptionOnTheWire: JsonObjectOn
 }
 
 /** A `describe_stream_action` tool result read field for field; unknown fields are ignored. */
-export function streamActionDescriptionFromTheDescribeStreamActionToolResult(toolResultText: string): Result<StreamActionDescription, string> {
-  const toolResult = jsonObjectOfTheRuntimesAnswer("describe_stream_action", toolResultText);
+export function streamActionDescriptionFromTheDescribeStreamActionToolResult(operationResult: unknown): Result<StreamActionDescription, string> {
+  const toolResult = jsonObjectOfTheRuntimesAnswer("describe_stream_action", operationResult);
   if (!toolResult.ok) return readOrSayWhy("describe_stream_action", toolResult);
   return readOrSayWhy("describe_stream_action", streamActionDescriptionOnTheWireRead(toolResult.value));
 }
 
 /** The text of the resource `streamlib://stream-action/<action>`, read as `describe_stream_action` answers it; unknown fields are ignored. */
 export function streamActionDescriptionFromTheStreamActionResourceText(resourceText: string): Result<StreamActionDescription, string> {
-  const resource = jsonObjectOfTheRuntimesAnswer("streamlib://stream-action", resourceText);
+  const resource = jsonObjectOfTheRuntimesAnswerText("streamlib://stream-action", resourceText);
   if (!resource.ok) return readOrSayWhy("streamlib://stream-action", resource);
   return readOrSayWhy("streamlib://stream-action", streamActionDescriptionOnTheWireRead(resource.value));
 }
 
 /** The text of the resource `streamlib://stream-actions`: every action queued or under way, under `actions`, each as `describe_stream_action` answers it. */
 export function streamActionsUnderWayFromTheStreamActionsResourceText(resourceText: string): Result<StreamActionDescription[], string> {
-  const resource = jsonObjectOfTheRuntimesAnswer("streamlib://stream-actions", resourceText);
+  const resource = jsonObjectOfTheRuntimesAnswerText("streamlib://stream-actions", resourceText);
   if (!resource.ok) return readOrSayWhy("streamlib://stream-actions", resource);
   const actionsOnTheWire = arrayOrEmpty(resource.value, "actions");
   if (!actionsOnTheWire.ok) return readOrSayWhy("streamlib://stream-actions", actionsOnTheWire);
@@ -183,8 +187,8 @@ function venvSyncOnTheWireRead(venvSyncOnTheWire: JsonObjectOnTheWire): Result<S
 }
 
 /** A `cancel_stream_action` tool result read field for field; unknown fields are ignored. */
-export function streamActionCancelAnswerFromTheCancelStreamActionToolResult(toolResultText: string): Result<StreamActionCancelAnswer, string> {
-  const toolResult = jsonObjectOfTheRuntimesAnswer("cancel_stream_action", toolResultText);
+export function streamActionCancelAnswerFromTheCancelStreamActionToolResult(operationResult: unknown): Result<StreamActionCancelAnswer, string> {
+  const toolResult = jsonObjectOfTheRuntimesAnswer("cancel_stream_action", operationResult);
   if (!toolResult.ok) return readOrSayWhy("cancel_stream_action", toolResult);
   const action = requiredText(toolResult.value, "action");
   if (!action.ok) return readOrSayWhy("cancel_stream_action", action);

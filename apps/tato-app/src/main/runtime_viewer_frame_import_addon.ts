@@ -2,7 +2,7 @@
 // `out/native/` beside the app, and opening a runtime viewer's channel reader on it.
 
 import { createRequire } from "node:module";
-import type { OpenedRuntimeViewer } from "./local_api_mcp_stdio_connection.js";
+import type { OpenedRuntimeViewer } from "./runtime_viewer_control_connection.js";
 import type { ViewerImageFrameReading } from "./platform/viewer_image_frame_reading.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import type { RuntimeViewerChannelReaderOfTheAddon } from "./runtime_viewer_image_frame_import.js";
