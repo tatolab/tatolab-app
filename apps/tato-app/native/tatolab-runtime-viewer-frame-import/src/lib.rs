@@ -22,7 +22,7 @@ use streamlib_ipc_types::{
 };
 
 /// One plane of a DMA-BUF frame, as Electron's `nativePixmap.planes[]` takes it.
-#[napi(object)]
+#[napi(object, use_nullable = true)]
 pub struct RuntimeViewerDmaBufPlane {
     /// The plane's file descriptor, valid until the frame is released.
     pub fd: i32,
@@ -32,7 +32,7 @@ pub struct RuntimeViewerDmaBufPlane {
 }
 
 /// An Image frame the reader holds claimed, with what Electron imports it from.
-#[napi(object)]
+#[napi(object, use_nullable = true)]
 pub struct RuntimeViewerImageFrame {
     /// The id `releaseHeldImageFrame` takes.
     pub held_frame_id: u32,
@@ -57,7 +57,7 @@ pub struct RuntimeViewerImageFrame {
 
 /// A Channels block's layout, as its descriptor states it; the payload holds `channelCount` runs
 /// of `samplesPerChannel` samples, channel by channel.
-#[napi(object)]
+#[napi(object, use_nullable = true)]
 #[derive(Clone)]
 pub struct RuntimeViewerChannelsBlock {
     /// The index, counted from the stream's first sample, of the block's first sample.
@@ -70,7 +70,7 @@ pub struct RuntimeViewerChannelsBlock {
 }
 
 /// One row of an Array frame's attribute table.
-#[napi(object)]
+#[napi(object, use_nullable = true)]
 #[derive(Clone)]
 pub struct RuntimeViewerArrayAttribute {
     pub name: String,
@@ -87,7 +87,7 @@ pub struct RuntimeViewerArrayAttribute {
 }
 
 /// The latest message a viewer read from the port.
-#[napi(object)]
+#[napi(object, use_nullable = true)]
 pub struct RuntimeViewerMessageRead {
     /// The port family the message's descriptor names: `image`, `channels`, `packets`, `records`,
     /// `array`, or `bytes` for a payload no family describes.
