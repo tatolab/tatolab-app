@@ -251,6 +251,10 @@ test("renaming a placed stream's Graph Output port carries the links onto that p
   ]);
   expect(renamed.history_operations.at(-1)).toMatchObject({ stream: STREAM_ASSET, operation: "carry_the_links_onto_the_ports_of_a_placed_stream", placed_stream: placedStream });
 
+  const unlockedGraph = structuredClone(graph);
+  expect(applyMockGraphTransaction(targetsOf(unlockedGraph), [{ operation: "unlock_subgraph", stream: STREAM_ASSET, fragment: look }]).kind).toBe("applied");
+  expect(unlockedGraph.links.map((link) => [link.source_node, link.source_port, link.target_node])).toContainEqual(["testpatternsource", "video", "displaywindow"]);
+
   const removed = applyMockGraphTransaction(targetsOf(graph), [{ operation: "remove_node", stream: STREAM_ASSET, node: graphOutput, level: [look] }]);
   if (removed.kind !== "applied") return expect.unreachable(removed.refusal.runtime_words);
   expect(graph.links).toEqual([]);

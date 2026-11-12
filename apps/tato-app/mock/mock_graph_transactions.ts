@@ -624,12 +624,19 @@ export function applyMockGraphTransaction(
           const isAnInterfaceNode = (node: MockGraphNode) => node.type === "tatolab.stream:GraphInput" || node.type === "tatolab.stream:GraphOutput";
           const interfaceNames = new Set(subgraph.fragment.nodes.filter(isAnInterfaceNode).map((node) => node.name));
           const plainNodes = subgraph.fragment.nodes.filter((node) => !isAnInterfaceNode(node));
+          const interfaceNodeOfThePort = (direction: "input" | "output", port: string) =>
+            subgraph.fragment?.nodes.find((node) => {
+              const stoodFor = portTheInterfaceNodeStandsFor(node);
+              return stoodFor?.direction === direction && stoodFor.port === port;
+            })?.name;
           const links: typeof graph.links = [];
           for (const link of graph.links) {
             if (link.target_node === subgraph.name) {
-              for (const inside of subgraph.fragment.links.filter((candidate) => candidate.source_node === link.target_port)) links.push({ ...link, target_node: inside.target_node, target_port: inside.target_port });
+              const interfaceNode = interfaceNodeOfThePort("input", link.target_port);
+              for (const inside of subgraph.fragment.links.filter((candidate) => candidate.source_node === interfaceNode)) links.push({ ...link, target_node: inside.target_node, target_port: inside.target_port });
             } else if (link.source_node === subgraph.name) {
-              const inside = subgraph.fragment.links.find((candidate) => candidate.target_node === link.source_port);
+              const interfaceNode = interfaceNodeOfThePort("output", link.source_port);
+              const inside = subgraph.fragment.links.find((candidate) => candidate.target_node === interfaceNode);
               if (inside !== undefined) links.push({ ...link, source_node: inside.source_node, source_port: inside.source_port });
             } else links.push(link);
           }
