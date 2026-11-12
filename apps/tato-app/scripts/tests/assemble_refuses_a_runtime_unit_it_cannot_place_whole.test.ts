@@ -202,6 +202,17 @@ test("a unit built from the resolved commit passes the commit check", async () =
 });
 
 
+test("a unit that carries the TypeScript control client is not refused for it", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, [...PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES, "runtime-client"]);
+  // The test-root marker makes assemble stop at its next refusal, so the bundle is never built from planted files.
+  await writeFile(path.join(runtimeUnitDirectory, "machine-directories-under-a-test-root"), "");
+  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+  expect(assembleOutcome.exitCode).toBe(1);
+  expect(assembleOutcome.stderr).toContain("refusing to ship a test-root runtime unit");
+  expect(assembleOutcome.stderr).not.toContain("runtime-client");
+  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+});
+
 test("a unit with no carried wheels, or no uv metadata naming its carried Python, is refused and the bundle is untouched", async () => {
   for (const [presentLibraryDirectories, missingEntry] of [
     [["lend", "imports", "samples", "python-downloads"], "lib/tatolab/carried-wheels"],
