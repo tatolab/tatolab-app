@@ -9,6 +9,8 @@ import type { StudioAreaExpansion, ViewHeaderRow } from "../view_host/studio_vie
 import type { StudioViewHostServices } from "../view_host/studio_view_contract";
 import type { StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
+import { ProjectAssetPickerDialogView } from "./project_asset_picker_dialog_view";
+import type { ProjectAssetPickHeldInTheWindow } from "../view_host/project_asset_pick_held_in_the_window";
 
 const HEADER_ROW_OF_THE_POPPED_OUT_AREA: ViewHeaderRow = { leading_inset_px: 0, height_px: 30 };
 
@@ -18,15 +20,17 @@ const EXPANSION_OF_A_POPPED_OUT_VIEW: StudioAreaExpansion = {
   expand: () => ({ kind: "refused", because: "A popped-out view's window already holds only this view." }),
 };
 
-/** A view popped out of a studio window: that view alone, with the settings its area held, under a title strip where macOS draws the window buttons over the content, and why its project wasn't read. */
+/** A view popped out of a studio window: that view alone, with the settings its area held, under a title strip where macOS draws the window buttons over the content, why its project wasn't read, and the asset picker over it while the view holds an asset pick. */
 export function PoppedOutViewWindowView({
   target,
   viewTypeRegistry,
   viewHostServices,
+  projectAssetPickHeld,
   projectReadingRefusal,
   platform,
 }: {
   target: PoppedOutView;
+  projectAssetPickHeld: ProjectAssetPickHeldInTheWindow;
   viewTypeRegistry: StudioViewTypeRegistry;
   viewHostServices: StudioViewHostServices;
   projectReadingRefusal: string | null;
@@ -60,6 +64,7 @@ export function PoppedOutViewWindowView({
           </StudioViewFailureBoundary>
         )}
       </main>
+      <ProjectAssetPickerDialogView projectAssetPickHeld={projectAssetPickHeld} viewTypeRegistry={viewTypeRegistry} viewHostServices={viewHostServices} />
     </div>
   );
 }

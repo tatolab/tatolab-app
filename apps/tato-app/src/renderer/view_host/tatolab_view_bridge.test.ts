@@ -9,6 +9,7 @@ import {
 } from "@tatolab/tato-app-view-sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import { PortPickHeldInTheWindow } from "./port_pick_held_in_the_window";
+import { ProjectAssetPickHeldInTheWindow } from "./project_asset_pick_held_in_the_window";
 import { WatchedStudioValue } from "./watched_studio_value";
 import type {
   JsonValue,
@@ -95,7 +96,7 @@ function recordingHostServices() {
   const viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
   const languageServerMessagesSent: JsonValue[] = [];
   const undosAsked: { projectFolder: string; author: ProjectTransactionAuthor }[] = [];
-  const assetImportsAsked: string[] = [];
+  const assetImportsAsked: { projectFolder: string; media: readonly string[] | null }[] = [];
   const assetChangesAsked: string[][] = [];
   const modulesAndMarketplaceSectionsOpened: string[] = [];
   const viewTypesShownInAreas: { viewTypeId: string; areaId: string }[] = [];
@@ -104,6 +105,7 @@ function recordingHostServices() {
   const outputsWritten: { viewNode: StudioViewNodeAddress; port: string; value: JsonValue }[] = [];
   const graphInputsWritten: { stream: string; input: string; value: JsonValue }[] = [];
   const portPickHeld = new PortPickHeldInTheWindow();
+  const projectAssetPickHeld = new ProjectAssetPickHeldInTheWindow();
   const hostServices: StudioViewHostServices = {
     watchOpenProject: (listener) => {
       listener({ kind: "none_open" });
@@ -142,8 +144,8 @@ function recordingHostServices() {
       listener({ kind: "listed", studio_views: [STUDIO_VIEW_LISTED_DJ_DECK] });
       return () => undefined;
     },
-    importAssetsIntoTheProject: async (projectFolder) => {
-      assetImportsAsked.push(projectFolder);
+    importAssetsIntoTheProject: async (projectFolder, media) => {
+      assetImportsAsked.push({ projectFolder, media });
       if (projectFolder === "/cancelled") return { kind: "nothing_chosen" };
       return {
         kind: "imported",
@@ -227,6 +229,10 @@ function recordingHostServices() {
     pickAPortInTheStreamGraph: (pick) => portPickHeld.start(pick, null),
     answerThePortPick: (node, port) => portPickHeld.answer(node, port),
     endThePortPick: (because) => portPickHeld.end(because),
+    pickAProjectAsset: (pick) => projectAssetPickHeld.start(pick, null),
+    watchProjectAssetPickShownHere: projectAssetPickHeld.projectAssetPick.watch,
+    answerTheProjectAssetPick: (asset) => projectAssetPickHeld.answer(asset),
+    endTheProjectAssetPick: (because) => projectAssetPickHeld.end(because),
     watchPortViewer: (target, onEvent) => {
       const opened = { target, onEvent, closed: false };
       portViewersOpened.push(opened);
@@ -237,7 +243,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, portPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten, graphInputsWritten };
+  return { hostServices, portPickHeld, projectAssetPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten, graphInputsWritten };
 }
 
 /** An area that keeps the settings it is asked to remember, says where the view's header row lies, and expands while a layout holds it. */
@@ -337,6 +343,36 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(await othersPick).toEqual({ kind: "ended", because: "done" });
   });
 
+  it("carries an asset pick from the view asking to the asset picker answering it, and its end in words", async () => {
+    const { connection, projectAssetPickHeld } = await connectedView(DJ_DECK_MANIFEST, {});
+    const pick = { media: ["image"], chosen_now: null };
+    const picking = connection.pickAProjectAsset(pick);
+    await messagesDelivered();
+    expect(projectAssetPickHeld.projectAssetPick.readLatest()).toEqual(pick);
+    const picksShown: unknown[] = [];
+    connection.watchProjectAssetPick((shown) => picksShown.push(shown));
+    await messagesDelivered();
+    expect(picksShown).toEqual([pick]);
+    expect(await connection.answerTheProjectAssetPick("baaf9e5a-uuid")).toEqual({ kind: "done" });
+    expect(await picking).toEqual({ kind: "chosen", asset: "baaf9e5a-uuid" });
+    expect(picksShown).toEqual([pick, null]);
+    expect(await connection.answerTheProjectAssetPick("baaf9e5a-uuid")).toEqual({ kind: "refused", because: "No asset is being chosen in the asset picker." });
+
+    const pickingAgain = connection.pickAProjectAsset(pick);
+    await messagesDelivered();
+    projectAssetPickHeld.end("The asset picker closed.");
+    expect(await pickingAgain).toEqual({ kind: "ended", because: "The asset picker closed." });
+  });
+
+  it("ends the asset pick a view still holds when the view closes", async () => {
+    const { connection, projectAssetPickHeld, bridge } = await connectedView(DJ_DECK_MANIFEST, {});
+    const picking = connection.pickAProjectAsset({ media: null, chosen_now: "a-uuid" });
+    await messagesDelivered();
+    bridge.close();
+    expect(projectAssetPickHeld.projectAssetPick.readLatest()).toBeNull();
+    void picking;
+  });
+
   it("names the person editing, whose own edits Undo reverts", async () => {
     const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
     expect(await connection.readThePersonEditing()).toEqual({ kind: "read", author: { kind: "person", name: "sam" } });
@@ -361,12 +397,15 @@ describe("a view's connection to Studio, through the one bridge every view is se
 
   it("imports the files the person chooses, each refusal in the runtime's words", async () => {
     const { connection, assetImportsAsked } = await connectedView(DJ_DECK_MANIFEST, {});
-    expect(await connection.importAssetsIntoTheProject("/set")).toEqual({
+    expect(await connection.importAssetsIntoTheProject("/set", ["image"])).toEqual({
       kind: "imported",
       assets_imported: { imported: [{ asset: "a-uuid", path: "media/intro.mp4" }], refused: [{ file_name: "main.graph.json", because: "import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write" }] },
     });
-    expect(await connection.importAssetsIntoTheProject("/cancelled")).toEqual({ kind: "nothing_chosen" });
-    expect(assetImportsAsked).toEqual(["/set", "/cancelled"]);
+    expect(await connection.importAssetsIntoTheProject("/cancelled", null)).toEqual({ kind: "nothing_chosen" });
+    expect(assetImportsAsked).toEqual([
+      { projectFolder: "/set", media: ["image"] },
+      { projectFolder: "/cancelled", media: null },
+    ]);
   });
 
   it("renames, moves and deletes an asset of the project, a refusal in the runtime's words", async () => {

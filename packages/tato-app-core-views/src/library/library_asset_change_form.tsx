@@ -1,6 +1,6 @@
-// The Library's Rename, Move and Delete of an asset: a form at the top of the asset's details that asks the
-// runtime's `relocate_asset` or `delete_asset` through the view's connection and closes once the runtime has
-// changed the project. It sits in the panel, not over it, since a view's dialog is held to the view's area.
+// The Library's Rename, Move and Delete of an asset, opened from its card's ⋯ menu: a form above the cards that
+// asks the runtime's `relocate_asset` or `delete_asset` through the view's connection and closes once the runtime
+// has changed the project. It sits in the view, not over it, since a view's dialog is held to the view's area.
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import type { TatoAppViewConnection, ViewAskDone } from "@tatolab/tato-app-view-sdk";

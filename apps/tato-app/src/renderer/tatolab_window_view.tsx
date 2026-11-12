@@ -14,6 +14,7 @@ import {
 import { RUN_LIVE_KEY, studioMenusSentToTheSystemMenuBar, type StudioMenuBarCommands } from "./studio_shell/studio_menu_bar_model";
 import { ModuleManagerWindowView, type ModuleManagerSources } from "./studio_shell/module_manager_window_view";
 import { PoppedOutViewWindowView } from "./studio_shell/popped_out_view_window_view";
+import { THE_ASSET_PICKER_CLOSED } from "./studio_shell/project_asset_picker_dialog_view";
 import { poppedOutViewOfTheArea } from "./studio_shell/popped_out_view_pin";
 import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_window";
 import { StudioWindowModel } from "./studio_shell/studio_window_model";
@@ -117,6 +118,7 @@ function TatolabWindowRoot({
         target={poppedOutView}
         viewTypeRegistry={studioWindowSources.viewTypeRegistry}
         viewHostServices={studioWindowSources.viewHostServices}
+        projectAssetPickHeld={studioWindowSources.model.projectAssetPickHeld}
         projectReadingRefusal={projectOpeningRefusal}
         platform={studioWindowSources.platform}
       />
@@ -382,6 +384,12 @@ export function mountTatolabWindow(
   }
 
   const runTheStudioShortcutOfTheKey = (keyboardEvent: KeyboardEvent) => {
+    // The asset picker's dialog hears Escape only in the window's document, never in the Library's frame it holds.
+    if (keyboardEvent.key === "Escape" && !keyboardEvent.defaultPrevented && studioWindowModel.projectAssetPickHeld.projectAssetPick.readLatest() !== null) {
+      keyboardEvent.preventDefault();
+      studioWindowModel.projectAssetPickHeld.end(THE_ASSET_PICKER_CLOSED);
+      return;
+    }
     if (statusStore === null || studioWindowModel.poppedOutView.readLatest() !== null || studioWindowModel.moduleManagerWorkspace.readLatest() !== null) return;
     if (keyboardEvent.key === RUN_LIVE_KEY && !keyboardEvent.metaKey && !keyboardEvent.ctrlKey && !keyboardEvent.altKey) {
       if (studioWindowModel.studioLayout.readLatest() === null) return;

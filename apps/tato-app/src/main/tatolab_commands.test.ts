@@ -1229,16 +1229,17 @@ test("importing assets into the open project copies each file the person chooses
   const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
-  expect(await commandHandlers.import_assets_into_the_open_project(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.import_assets_into_the_open_project({ media: null }, fromTheStudioWindow)).toEqual({ ok: true, value: null });
   sharedState.assetFilesTheDialogAnswers.files = ["/home/sam/poster.png", "/home/sam/main.graph.json"];
-  expect(await commandHandlers.import_assets_into_the_open_project(undefined, fromTheStudioWindow)).toEqual({
+  expect(await commandHandlers.import_assets_into_the_open_project({ media: null }, fromTheStudioWindow)).toEqual({
     ok: true,
     value: {
       imported: [{ asset: "d18ac59c-d741-45fc-8d21-d3febd0d14a0", path: "media/poster-3.png" }],
       refused: [{ file_name: "main.graph.json", because: "import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write" }],
     },
   });
-  expect(await commandHandlers.import_assets_into_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+  expect(await commandHandlers.import_assets_into_the_open_project({ media: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+  expect(await commandHandlers.import_assets_into_the_open_project({ media: "image" }, fromTheStudioWindow)).toEqual({ ok: false, refusal: "import_assets_into_the_open_project needs `media`, a list of media names or null" });
 });
 
 test("renaming, moving and deleting an asset of the open project reach the runtime by the person editing, answering nothing, or the runtime's refusal in its own words", async () => {

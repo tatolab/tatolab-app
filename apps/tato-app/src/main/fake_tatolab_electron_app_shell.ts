@@ -9,6 +9,7 @@ import path from "node:path";
 import type { DependencySourceKind, PortViewerImageFrameFacts, StreamProjectFolderChosenFor, SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
 import type { ProjectFolderDialogPurpose } from "./open_project.js";
 import type { AnswerAProjectViewFileRequest } from "./project_view_files.js";
+import type { ProjectAssetFileFilter } from "./project_asset_file_filters.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { FakeCarriedRuntimeStarts, FakeSystemMediaAccess, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import type { CarriedRuntime } from "./platform/carried_runtime.js";
@@ -61,7 +62,7 @@ export type FakeShellRecord = (
   | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }
   | { asked: "ask_for_a_project_folder"; chosenFor: ProjectFolderDialogPurpose; defaultFolder: string }
   | { asked: "ask_for_a_dependency_source"; sourceKind: DependencySourceKind; defaultFolder: string }
-  | { asked: "ask_for_files_to_import_as_assets"; defaultFolder: string }
+  | { asked: "ask_for_files_to_import_as_assets"; defaultFolder: string; fileFilters: readonly ProjectAssetFileFilter[] }
   | { asked: "ask_for_a_project_archive"; defaultFolder: string }
   | { asked: "ask_for_a_project_cover_image"; defaultFolder: string }
 ) & { windowContentsId?: number };
@@ -190,8 +191,8 @@ export class FakeTatolabElectronAppShell {
       this.records.push({ asked: "ask_for_a_dependency_source", sourceKind, defaultFolder });
       return succeeded(this.dependencySourceTheDialogAnswers);
     },
-    askThePersonForFilesToImportAsAssets: async (defaultFolder) => {
-      this.records.push({ asked: "ask_for_files_to_import_as_assets", defaultFolder });
+    askThePersonForFilesToImportAsAssets: async (defaultFolder, fileFilters) => {
+      this.records.push({ asked: "ask_for_files_to_import_as_assets", defaultFolder, fileFilters });
       return succeeded(this.assetFilesTheDialogAnswers);
     },
     watchFolderEntries: () => null,

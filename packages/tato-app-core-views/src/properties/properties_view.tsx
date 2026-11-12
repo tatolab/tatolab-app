@@ -8,6 +8,7 @@ import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import {
+  PropertyAssetField,
   PropertyCheckbox,
   PropertyChoiceField,
   PropertyHeadingNameField,
@@ -42,7 +43,9 @@ import { nameInWords, nodeTitle, nodeTypeClassName, wordsForTheSeveralSelectedNo
 import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, recordsOfAListField, type ConfigFormField } from "./config_form_fields";
 import { propertiesListedWords, propertiesMatchingTheSearch } from "./properties_matching_the_search";
 import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
-import { chosenProjectAssetWords, projectAssetPickerNote, projectAssetsForTheAssetFieldsOf, projectAssetsTheFieldOffers } from "./project_asset_choices";
+import { chosenProjectAssetOf, chosenProjectAssetWords, projectAssetsForTheAssetFieldsOf } from "./project_asset_choices";
+import { previewPictureUrlOf } from "../library/library_asset_preview_pictures";
+import { useAssetPreviewPicturesOfTheProject } from "../library/use_asset_preview_pictures_of_the_project";
 import { blankTargetPickerKeysOfThePort, NO_BLANK_TARGET_PICKERS, withABlankTargetPickerAdded, withoutTheBlankTargetPicker, type BlankTargetPickersOfTheNode } from "./blank_target_pickers";
 import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
 import {
@@ -67,10 +70,13 @@ import {
   type SetNodeConfigAction,
 } from "./properties_graph_edits";
 
-const WATCH_NO_PROJECT_ASSETS = (_listener: (reading: ProjectAssetsReading) => void): StopWatching => () => undefined;
+/** The open project a config field naming an asset reads its assets from and opens the asset picker through; `null` while no project is open. */
+interface OpenProjectOfTheAssetFields {
+  connection: TatoAppViewConnection;
+  projectFolder: string;
+}
 
-/** Watches the open project's assets, which a config field naming an asset offers to pick from; only a field shown watches them. */
-const WatchOfTheOpenProjectsAssetsContext = createContext<(listener: (reading: ProjectAssetsReading) => void) => StopWatching>(WATCH_NO_PROJECT_ASSETS);
+const OpenProjectOfTheAssetFieldsContext = createContext<OpenProjectOfTheAssetFields | null>(null);
 
 /** The id of the field holding the value an unlinked input of the node takes. */
 function pinValueFieldId(nodeId: string, portName: string): string {
@@ -182,7 +188,16 @@ function ConfigFieldControl({
         />
       );
     case "project_asset":
-      return <ProjectAssetPicker fieldId={fieldId} field={field} mediaItTakes={control.media_it_takes} isTheTypesDefault={isTheTypesDefault} onChosen={isEditable ? commitTheConfigFieldValue : undefined} />;
+      return (
+        <ProjectAssetFieldOfTheConfig
+          fieldId={fieldId}
+          field={field}
+          mediaItTakes={control.media_it_takes}
+          isTheTypesDefault={isTheTypesDefault}
+          onChosen={isEditable ? commitTheConfigFieldValue : undefined}
+          onPickNotStarted={(because) => graphEdits.keepTheRefusal(place, because)}
+        />
+      );
     case "list_of_records":
       return (
         <PropertyListEntryCount
@@ -205,32 +220,62 @@ function ConfigFieldControl({
   }
 }
 
-/** A config field naming a project asset: the asset it names, by path, in a menu of the project's assets of the media it takes; read only without `onChosen`. */
-function ProjectAssetPicker({
-  fieldId,
-  field,
-  mediaItTakes,
-  isTheTypesDefault,
-  onChosen,
-}: {
+/** What a config field naming a project asset is handed: its value, the media it takes, whether it is the type's default, what choosing an asset does, read only without `onChosen`, and where a picker that did not open says why. */
+interface ProjectAssetFieldOfTheConfigProps {
   fieldId: string;
   field: ConfigFormField;
   mediaItTakes: string[] | null;
   isTheTypesDefault: boolean;
   onChosen: ((asset: JsonValue) => void) | undefined;
-}) {
-  const projectAssets = projectAssetsForTheAssetFieldsOf(useViewReading(useContext(WatchOfTheOpenProjectsAssetsContext)));
+  onPickNotStarted: (because: string) => void;
+}
+
+/** A config field naming a project asset: the asset it names, by path with its picture, beside a button that opens Studio's asset picker; the value as written while no project is open. */
+function ProjectAssetFieldOfTheConfig(props: ProjectAssetFieldOfTheConfigProps) {
+  const openProject = useContext(OpenProjectOfTheAssetFieldsContext);
+  if (openProject === null) {
+    const { fieldId, field, isTheTypesDefault } = props;
+    return <PropertyAssetField fieldId={fieldId} words={chosenProjectAssetWords([], field.value_source === "unset" ? null : field.value)} previewPictureUrl={null} isTheTypesDefault={isTheTypesDefault} />;
+  }
+  return <ProjectAssetFieldOfTheOpenProject key={openProject.projectFolder} {...props} openProject={openProject} />;
+}
+
+function ProjectAssetFieldOfTheOpenProject({
+  fieldId,
+  field,
+  mediaItTakes,
+  isTheTypesDefault,
+  onChosen,
+  onPickNotStarted,
+  openProject: { connection, projectFolder },
+}: ProjectAssetFieldOfTheConfigProps & { openProject: OpenProjectOfTheAssetFields }) {
+  const watchTheProjectsAssets = useCallback((listener: (reading: ProjectAssetsReading) => void): StopWatching => connection.watchProjectAssets(projectFolder, listener), [connection, projectFolder]);
+  const projectAssets = projectAssetsForTheAssetFieldsOf(useViewReading(watchTheProjectsAssets));
+  const previewPictures = useAssetPreviewPicturesOfTheProject(connection, projectFolder);
+  const [isThePickerOpen, setIsThePickerOpen] = useState(false);
   const assetsListed = projectAssets.kind === "listed" ? projectAssets.assets : [];
-  const assetsOffered = projectAssetsTheFieldOffers(assetsListed, mediaItTakes);
-  const noneChoice = field.is_nullable && onChosen !== undefined ? [{ words: "None", onChosen: () => onChosen(null) }] : [];
+  const value = field.value_source === "unset" ? null : field.value;
+  const chosenAsset = chosenProjectAssetOf(assetsListed, value);
+  const chooseAnAsset = (whenChosen: (asset: JsonValue) => void) => {
+    setIsThePickerOpen(true);
+    void connection.pickAProjectAsset({ media: mediaItTakes, chosen_now: chosenAsset?.asset ?? null }).then((ending) => {
+      setIsThePickerOpen(false);
+      if (ending.kind === "chosen") whenChosen(ending.asset);
+      else if (ending.kind === "not_started") onPickNotStarted(ending.because);
+    });
+  };
   return (
-    <PropertyChoiceField
-      fieldId={fieldId}
-      words={chosenProjectAssetWords(assetsListed, field.value_source === "unset" ? null : field.value)}
-      isTheTypesDefault={isTheTypesDefault}
-      noteAboveTheChoices={projectAssetPickerNote(projectAssets, mediaItTakes)}
-      choices={onChosen === undefined ? undefined : [...noneChoice, ...assetsOffered.map((asset) => ({ words: asset.path, onChosen: () => onChosen(asset.asset) }))]}
-    />
+    <div className="flex min-w-0 flex-col gap-1">
+      <PropertyAssetField
+        fieldId={fieldId}
+        words={chosenProjectAssetWords(assetsListed, value)}
+        previewPictureUrl={chosenAsset === null ? null : previewPictureUrlOf(previewPictures?.pictureOf(chosenAsset) ?? null)}
+        isTheTypesDefault={isTheTypesDefault}
+        choosing={onChosen === undefined ? undefined : { label: `Choose an asset for ${nameInWords(field.key)}…`, disabledReason: isThePickerOpen ? "The asset picker is open." : null, onChooseAsked: () => chooseAnAsset(onChosen) }}
+        clearing={onChosen === undefined || !field.is_nullable || value === null || value === "" ? undefined : { label: `Choose no asset for ${nameInWords(field.key)}`, onCleared: () => onChosen(null) }}
+      />
+      {projectAssets.kind === "refused" && <RefusalLine lead="The project's assets weren't listed:" words={projectAssets.because} data-property-asset-listing-refusal="" />}
+    </div>
   );
 }
 
@@ -844,10 +889,7 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
   const openProject = useViewReading(connection.watchOpenProject);
   const projectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
   const graphEditsInTheProject = useGraphEditsInTheOpenProject(connection, projectFolder);
-  const watchTheProjectsAssets = useCallback(
-    (listener: (reading: ProjectAssetsReading) => void): StopWatching => (projectFolder === null ? WATCH_NO_PROJECT_ASSETS(listener) : connection.watchProjectAssets(projectFolder, listener)),
-    [connection, projectFolder],
-  );
+  const openProjectOfTheAssetFields = useMemo(() => (projectFolder === null ? null : { connection, projectFolder }), [connection, projectFolder]);
   const [searchWords, setSearchWords] = useState("");
   if (selection?.kind === "nodes" && activeStreamTab?.stream === selection.stream) {
     return <SummaryOfTheSeveralSelectedNodes connection={connection} stream={selection.stream} nodeNames={selection.nodes} />;
@@ -860,7 +902,7 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
       <StudioViewToolbarTools label="Properties search">
         <SearchField label="Search properties" placeholder="Search properties" text={searchWords} onTextChanged={setSearchWords} width="fills_the_row" data-properties-search="" />
       </StudioViewToolbarTools>
-      <WatchOfTheOpenProjectsAssetsContext.Provider value={watchTheProjectsAssets}>
+      <OpenProjectOfTheAssetFieldsContext.Provider value={openProjectOfTheAssetFields}>
         <PropertiesOfTheSelectedNode
           key={selection.stream}
           connection={connection}
@@ -869,7 +911,7 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
           graphEditsInTheProject={graphEditsInTheProject}
           searchWords={searchWords}
         />
-      </WatchOfTheOpenProjectsAssetsContext.Provider>
+      </OpenProjectOfTheAssetFieldsContext.Provider>
     </>
   );
 }

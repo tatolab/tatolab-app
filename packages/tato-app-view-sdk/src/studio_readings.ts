@@ -922,7 +922,7 @@ export const viewOpenedOnSchema = z
 /** What a view's area was opened on. */
 export type ViewOpenedOn = z.infer<typeof viewOpenedOnSchema>;
 
-/** Where the view's own header row lies inside its frame: Studio's view-type menu covers the row's start up to `leading_inset_px`, and the row is `height_px` tall. */
-export const viewHeaderRowSchema = z.object({ leading_inset_px: z.number().nonnegative(), height_px: z.number().positive() });
+/** Where the view's own header row lies inside its frame: Studio's view-type menu covers the row's start up to `leading_inset_px`, and the row is `height_px` tall, `0` where the frame has no header row, as in the asset picker. */
+export const viewHeaderRowSchema = z.object({ leading_inset_px: z.number().nonnegative(), height_px: z.number().nonnegative() });
 /** Where the view's own header row lies inside its frame. */
 export type ViewHeaderRow = z.infer<typeof viewHeaderRowSchema>;

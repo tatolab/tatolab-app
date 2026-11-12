@@ -18,6 +18,11 @@ export function previewPictureUrlOf(previewPicture: LibraryAssetPreviewPicture |
   return previewPicture?.kind === "read" ? previewPicture.picture.picture_url : null;
 }
 
+/** The runtime's words for why a held picture was not read, `null` while it is being read, was read, or the asset has none. */
+export function previewPictureNotReadBecauseOf(previewPicture: LibraryAssetPreviewPicture | null): string | null {
+  return previewPicture?.kind === "not_read" ? previewPicture.because : null;
+}
+
 /** The key a picture is kept under: its asset and the digest of the bytes it was made from. */
 function previewPictureKeyOf(asset: ProjectAsset): string {
   return `${asset.asset}:${asset.content_sha256}`;
