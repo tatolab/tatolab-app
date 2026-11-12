@@ -8,8 +8,6 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const POLL_MILLISECONDS = 1000;
-
 function graphOfTheTypes(stream: string, nodeTypes: string[]): StreamGraphSummary {
   return {
     stream,
@@ -57,71 +55,91 @@ function countingBackend() {
   return { backend, served, reads, streamsFollowed, pushTheStreamGraphChanged };
 }
 
-test("two_views_watching_one_stream_share_one_poll_and_a_reading_unchanged_tells_neither_again", async () => {
+test("two_views_watching_one_stream_share_one_read_and_nothing_is_read_again_until_a_change_is_pushed", async () => {
   vi.useFakeTimers();
-  const { backend, reads } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend, POLL_MILLISECONDS);
+  const { backend, reads, pushTheStreamGraphChanged } = countingBackend();
+  const readings = new StreamGraphAndCatalogReadings(backend);
   const firstView: StreamGraphReading[] = [];
   const secondView: StreamGraphReading[] = [];
   const stopFirst = readings.watchStreamGraph("main", (reading) => firstView.push(reading));
   const stopSecond = readings.watchStreamGraph("main", (reading) => secondView.push(reading));
-  await vi.advanceTimersByTimeAsync(POLL_MILLISECONDS * 3 + 10);
-  expect(reads.graph).toBe(4);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(reads.graph).toBe(1);
+  pushTheStreamGraphChanged("main");
+  await vi.advanceTimersByTimeAsync(10);
+  expect(reads.graph).toBe(2);
   expect(firstView.map((reading) => reading.kind)).toEqual(["read"]);
   expect(secondView.map((reading) => reading.kind)).toEqual(["read"]);
   stopFirst();
   stopSecond();
-  await vi.advanceTimersByTimeAsync(POLL_MILLISECONDS * 3);
-  expect(reads.graph).toBe(4);
+  pushTheStreamGraphChanged("main");
+  await vi.advanceTimersByTimeAsync(10);
+  expect(reads.graph).toBe(2);
+});
+
+test("changes_pushed_while_a_read_is_in_flight_read_the_graph_once_more_after_it", async () => {
+  const { backend, reads, pushTheStreamGraphChanged } = countingBackend();
+  const readings = new StreamGraphAndCatalogReadings(backend);
+  readings.watchStreamGraph("main", () => undefined);
+  pushTheStreamGraphChanged("main");
+  pushTheStreamGraphChanged("main");
+  pushTheStreamGraphChanged("main");
+  await vi.waitFor(() => expect(reads.graph).toBe(2));
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(reads.graph).toBe(2);
 });
 
 test("a_hidden_window_reads_nothing_and_reads_again_once_shown", async () => {
   vi.useFakeTimers();
   const { backend, reads } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend, POLL_MILLISECONDS);
-  readings.setPollingAllowed(false);
+  const readings = new StreamGraphAndCatalogReadings(backend);
+  readings.setReadingAllowed(false);
   readings.watchStreamGraph("main", () => undefined);
-  await vi.advanceTimersByTimeAsync(POLL_MILLISECONDS * 2);
+  await vi.advanceTimersByTimeAsync(10);
   expect(reads.graph).toBe(0);
-  readings.setPollingAllowed(true);
+  readings.setReadingAllowed(true);
   await vi.advanceTimersByTimeAsync(10);
   expect(reads.graph).toBe(1);
 });
 
 test("the_catalog_is_read_once_and_again_only_when_the_graph_names_a_type_it_lacks", async () => {
   vi.useFakeTimers();
-  const { backend, served, reads } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend, POLL_MILLISECONDS);
+  const { backend, served, reads, pushTheStreamGraphChanged } = countingBackend();
+  const readings = new StreamGraphAndCatalogReadings(backend);
   const catalogReadings: NodeCatalogReading[] = [];
   readings.watchNodeCatalog("main", (reading) => catalogReadings.push(reading));
-  await vi.advanceTimersByTimeAsync(POLL_MILLISECONDS * 2 + 10);
+  await vi.advanceTimersByTimeAsync(10);
+  pushTheStreamGraphChanged("main");
+  await vi.advanceTimersByTimeAsync(10);
   expect(reads.catalog).toBe(1);
   served.graphTypes = ["A", "B"];
   served.catalogTypes = ["A", "B"];
-  await vi.advanceTimersByTimeAsync(POLL_MILLISECONDS);
+  pushTheStreamGraphChanged("main");
+  await vi.advanceTimersByTimeAsync(10);
   expect(reads.catalog).toBe(2);
   expect(catalogReadings.map((reading) => (reading.kind === "listed" ? reading.catalog.node_types.map((entry) => entry.type) : reading.because))).toEqual([["A"], ["A", "B"]]);
 });
 
-test("a_refused_catalog_is_shown_in_the_runtimes_words_and_read_again", async () => {
+test("a_refused_catalog_is_shown_in_the_runtimes_words_and_read_again_on_the_next_change", async () => {
   vi.useFakeTimers();
-  const { backend, served, reads } = countingBackend();
+  const { backend, served, reads, pushTheStreamGraphChanged } = countingBackend();
   served.catalogRefusal = "no stream with the id `main` is loaded in this runtime";
-  const readings = new StreamGraphAndCatalogReadings(backend, POLL_MILLISECONDS);
+  const readings = new StreamGraphAndCatalogReadings(backend);
   const catalogReadings: NodeCatalogReading[] = [];
   readings.watchNodeCatalog("main", (reading) => catalogReadings.push(reading));
   await vi.advanceTimersByTimeAsync(10);
   expect(catalogReadings).toEqual([{ kind: "not_listed", because: "no stream with the id `main` is loaded in this runtime" }]);
   served.catalogRefusal = null;
-  await vi.advanceTimersByTimeAsync(POLL_MILLISECONDS);
+  pushTheStreamGraphChanged("main");
+  await vi.advanceTimersByTimeAsync(10);
   expect(reads.catalog).toBeGreaterThanOrEqual(2);
   expect(catalogReadings.at(-1)?.kind).toBe("listed");
 });
 
-test("a_pushed_change_reads_the_graph_at_once_without_waiting_for_the_poll", async () => {
+test("a_pushed_change_reads_the_graph_at_once", async () => {
   vi.useFakeTimers();
   const { backend, served, reads, pushTheStreamGraphChanged } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend, POLL_MILLISECONDS);
+  const readings = new StreamGraphAndCatalogReadings(backend);
   const graphReadings: StreamGraphReading[] = [];
   readings.watchStreamGraph("main", (reading) => graphReadings.push(reading));
   await vi.advanceTimersByTimeAsync(10);
@@ -137,17 +155,17 @@ test("a_pushed_change_reads_the_graph_at_once_without_waiting_for_the_poll", asy
 test("a_stream_is_followed_while_a_view_watches_it_and_the_window_is_shown", async () => {
   vi.useFakeTimers();
   const { backend, reads, streamsFollowed, pushTheStreamGraphChanged } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend, POLL_MILLISECONDS);
+  const readings = new StreamGraphAndCatalogReadings(backend);
   const stopWatching = readings.watchStreamGraph("main", () => undefined);
   expect([...streamsFollowed]).toEqual(["main"]);
-  readings.setPollingAllowed(false);
+  readings.setReadingAllowed(false);
   expect([...streamsFollowed]).toEqual([]);
   await vi.advanceTimersByTimeAsync(10);
   const readsWhileHidden = reads.graph;
   pushTheStreamGraphChanged("main");
   await vi.advanceTimersByTimeAsync(10);
   expect(reads.graph).toBe(readsWhileHidden);
-  readings.setPollingAllowed(true);
+  readings.setReadingAllowed(true);
   expect([...streamsFollowed]).toEqual(["main"]);
   stopWatching();
   expect([...streamsFollowed]).toEqual([]);
