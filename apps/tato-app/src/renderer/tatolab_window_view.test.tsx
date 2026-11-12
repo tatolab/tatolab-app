@@ -290,7 +290,7 @@ describe("the studio", () => {
     expect(coreViewPage("library").querySelector('[data-tree-row-id="source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11"]')).toBeNull();
   });
 
-  it("shows the project's assets in the Library by folder, narrowed by the search, with the chosen asset's details, its graph documents left out", async () => {
+  it("shows the project's assets in the Library by folder, narrowed by the search, the card pressed outlined and no details beside it, its graph documents left out", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
@@ -315,14 +315,14 @@ describe("the studio", () => {
     fireEvent.change(library.querySelector<HTMLInputElement>("[data-library-asset-search]") ?? expect.unreachable("no search field"), { target: { value: "POSTER" } });
     await waitFor(() => expect(assetCardPaths()).toEqual(["media/poster.png"]));
 
-    fireEvent.click(library.querySelector<HTMLElement>('[data-library-asset="media/poster.png"]') ?? expect.unreachable("no poster card"));
-    const details = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset-details="baaf9e5a-0aff-45f7-a7ea-b83db51e5a3b"]') ?? expect.unreachable("no details"));
-    expect(details.textContent).toContain("poster.png");
-    expect(details.textContent).toContain("sha256 c59c…fa05");
-    expect(details.textContent).toContain("11 KB");
+    const posterCard = library.querySelector<HTMLElement>('[data-library-asset="media/poster.png"]') ?? expect.unreachable("no poster card");
+    fireEvent.click(posterCard);
+    await waitFor(() => expect(posterCard.getAttribute("aria-pressed")).toBe("true"));
+    expect(posterCard.textContent).toBe("PNGposter.pngmedia · 11 KB");
+    expect(library.querySelector("aside")).toBeNull();
   });
 
-  it("shows each asset's preview picture on its card and in its details, an asset with none keeping its tinted card and showing no picture in its details", async () => {
+  it("shows each asset's preview picture on its card, an asset with none keeping its tinted card", async () => {
     await mountedWindowOverTheMock("state=running");
     await showTheLibraryInTheViewerArea();
     await showInTheLibrary("assets");
@@ -335,19 +335,9 @@ describe("the studio", () => {
     expect(cardPicture("media/lobby-intro.mp4").querySelector("img")?.getAttribute("src")).toMatch(/^data:image\//);
     expect(cardPicture("luts/warm.cube").dataset.projectAssetPicture).toBe("tinted");
     expect(cardPicture("scenes/stage.usdz").dataset.projectAssetPicture).toBe("tinted");
-
-    fireEvent.click(library.querySelector<HTMLElement>('[data-library-asset="media/lobby-intro.mp4"]') ?? expect.unreachable("no video card"));
-    const details = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset-details="207ef246-3d00-4167-b394-bb591f7c4b8f"]') ?? expect.unreachable("no details"));
-    expect(details.querySelector<HTMLElement>("[data-project-asset-picture]")?.dataset.projectAssetPicture).toBe("preview");
-    expect(details.textContent).toContain("512 × 288");
-
-    fireEvent.click(library.querySelector<HTMLElement>('[data-library-asset="luts/warm.cube"]') ?? expect.unreachable("no LUT card"));
-    const lutDetails = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset-details="045c7554-dab9-483e-a8fc-064bf9ad3668"]') ?? expect.unreachable("no LUT details"));
-    expect(lutDetails.querySelector("[data-project-asset-picture]")).toBeNull();
-    expect(lutDetails.textContent).not.toContain("Preview");
   });
 
-  it("shows in an asset's details the runtime's words when its preview picture is refused, over the tinted picture", async () => {
+  it("keeps an asset's card tinted when the runtime refuses its preview picture, the runtime's words under it", async () => {
     const refusal = "read_asset_preview failed: no file is at asset 207ef246-3d00-4167-b394-bb591f7c4b8f's path";
     await mountedWindowOverTheMock("state=running", {
       readAssetPreviewOfTheOpenProject: async () => {
@@ -357,11 +347,9 @@ describe("the studio", () => {
     await showTheLibraryInTheViewerArea();
     await showInTheLibrary("assets");
     const library = coreViewPage("library");
-    fireEvent.click(await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset="media/lobby-intro.mp4"]') ?? expect.unreachable("no video card")));
-    const refusalWords = await waitFor(() => library.querySelector<HTMLElement>("[data-library-asset-preview-not-read-because]") ?? expect.unreachable("no refusal shown"));
-    expect(refusalWords.textContent).toBe(refusal);
-    expect(library.querySelector<HTMLElement>("[data-library-asset-details-picture] [data-project-asset-picture]")?.dataset.projectAssetPicture).toBe("tinted");
-    expect(library.querySelector<HTMLElement>('[data-library-asset="media/lobby-intro.mp4"] [data-project-asset-picture]')?.dataset.projectAssetPicture).toBe("tinted");
+    const videoCard = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset="media/lobby-intro.mp4"]') ?? expect.unreachable("no video card"));
+    await waitFor(() => expect(videoCard.parentElement?.querySelector("[data-project-asset-preview-refusal]")?.textContent).toContain(refusal));
+    expect(videoCard.querySelector<HTMLElement>("[data-project-asset-picture]")?.dataset.projectAssetPicture).toBe("tinted");
   });
 
   it("lists in the Library the views the project and its imports bring by who brought them, Studio's own last, with the chosen view's ports or why it does not open", async () => {
@@ -387,7 +375,7 @@ describe("the studio", () => {
     await waitFor(() => expect(viewRowIds()).toEqual(["pattern/pattern:picture_and_fader"]));
   });
 
-  it("imports the file the person chooses, which the runtime places in its kind's folder, shows it at once and opens its details", async () => {
+  it("imports the file the person chooses, which the runtime places in its kind's folder, shows it at once and outlines its card", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
@@ -400,23 +388,26 @@ describe("the studio", () => {
 
     const imported = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset="media/night-sky.jpg"]') ?? expect.unreachable("the imported file is not shown"));
     expect(imported.textContent).toBe("JPGnight-sky.jpgmedia · 2.2 MB");
-    const details = await waitFor(() => library.querySelector<HTMLElement>("[data-library-asset-details]") ?? expect.unreachable("no details"));
-    expect(details.textContent).toContain("media/night-sky.jpg");
+    await waitFor(() => expect(imported.getAttribute("aria-pressed")).toBe("true"));
     expect(library.querySelector("[data-library-import-refused]")).toBeNull();
   });
 
-  it("renames, moves and deletes the chosen asset through the runtime, a path another asset takes refused in its words", async () => {
+  it("renames, moves and deletes an asset from its card's ⋯ menu through the runtime, a path another asset takes refused in its words", async () => {
     await mountedWindowOverTheMock("state=running");
     await showTheLibraryInTheViewerArea();
     await showInTheLibrary("assets");
 
     const library = coreViewPage("library");
-    fireEvent.click(await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset="media/poster.png"]') ?? expect.unreachable("no poster card")));
-    const details = () => library.querySelector<HTMLElement>("[data-library-asset-details]") ?? expect.unreachable("no details");
+    const chooseFromTheCardsMenu = async (assetPath: string, change: string) => {
+      const card = await waitFor(() => library.querySelector<HTMLElement>(`[data-library-asset="${assetPath}"]`) ?? expect.unreachable(`no card for ${assetPath}`));
+      pressAsAPointerDoes(card.parentElement?.querySelector<HTMLElement>("[data-project-asset-more-actions]") ?? expect.unreachable(`no ⋯ menu on ${assetPath}`));
+      // A fake core view frame is drawn by the window's own React, so its menu's portal opens in the window's document.
+      fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>(`[data-library-asset-change="${change}"]`) ?? expect.unreachable(`no ${change} in the ⋯ menu`)));
+    };
     const formField = () => library.querySelector<HTMLInputElement>("[data-library-asset-change-field]") ?? expect.unreachable("no form field");
     const pressTheForms = (action: string) => fireEvent.click(library.querySelector<HTMLElement>(`[data-library-asset-change-action="${action}"]`) ?? expect.unreachable(`no ${action} button`));
 
-    fireEvent.click(await waitFor(() => details().querySelector<HTMLElement>('[data-library-asset-change="rename"]') ?? expect.unreachable("no Rename")));
+    await chooseFromTheCardsMenu("media/poster.png", "rename");
     await waitFor(() => expect(formField().value).toBe("poster.png"));
     fireEvent.change(formField(), { target: { value: "lobby-intro.mp4" } });
     pressTheForms("rename");
@@ -426,8 +417,9 @@ describe("the studio", () => {
     pressTheForms("rename");
     await waitFor(() => expect(library.querySelector('[data-library-asset="media/harbour-poster.png"]')).not.toBeNull());
     await waitFor(() => expect(library.querySelector("[data-library-asset-change-form]")).toBeNull());
+    await waitFor(() => expect(library.activeElement?.closest("[data-project-asset-more-actions]")?.parentElement?.parentElement?.querySelector("[data-library-asset]")?.getAttribute("data-library-asset")).toBe("media/harbour-poster.png"));
 
-    fireEvent.click(details().querySelector<HTMLElement>('[data-library-asset-change="move"]') ?? expect.unreachable("no Move"));
+    await chooseFromTheCardsMenu("media/harbour-poster.png", "move");
     await waitFor(() => expect(formField().value).toBe("media"));
     fireEvent.change(formField(), { target: { value: "media/posters" } });
     expect(library.querySelector("[data-library-asset-change-lands-at]")?.textContent).toBe("media/posters/harbour-poster.png");
@@ -435,11 +427,11 @@ describe("the studio", () => {
     await waitFor(() => expect(library.querySelector('[data-library-asset="media/posters/harbour-poster.png"]')).not.toBeNull());
     await waitFor(() => expect(library.querySelector("[data-library-asset-change-form]")).toBeNull());
 
-    fireEvent.click(details().querySelector<HTMLElement>('[data-library-asset-change="delete"]') ?? expect.unreachable("no Delete"));
+    await chooseFromTheCardsMenu("media/posters/harbour-poster.png", "delete");
     await waitFor(() => library.querySelector('[data-library-asset-change-action="delete"]') ?? expect.unreachable("no Delete button"));
     pressTheForms("delete");
     await waitFor(() => expect(library.querySelector('[data-library-asset="media/posters/harbour-poster.png"]')).toBeNull());
-    expect(library.querySelector("[data-library-asset-details]")).toBeNull();
+    expect(library.querySelector("[data-library-asset-change-form]")).toBeNull();
   });
 
   it("shows each file the runtime refused to import in its words, beside the file it imported, the search cleared so the import shows", async () => {
@@ -457,8 +449,8 @@ describe("the studio", () => {
     const refusal = await waitFor(() => library.querySelector<HTMLElement>("[data-library-import-refused]") ?? expect.unreachable("no refusal"));
     expect(refusal.textContent).toBe("Didn't import main.graph.json: import_asset failed: `data/main.graph.json` is not an asset path: it names a stream's graph document, which only the stream verbs write");
     expect(library.querySelector<HTMLInputElement>("[data-library-asset-search]")?.value).toBe("");
-    await waitFor(() => library.querySelector('[data-library-asset="media/night-sky.jpg"]') ?? expect.unreachable("the imported file is not shown"));
-    expect(library.querySelector("[data-library-asset-details]")?.textContent).toContain("media/night-sky.jpg");
+    const imported = await waitFor(() => library.querySelector<HTMLElement>('[data-library-asset="media/night-sky.jpg"]') ?? expect.unreachable("the imported file is not shown"));
+    await waitFor(() => expect(imported.getAttribute("aria-pressed")).toBe("true"));
   });
 
   it("lists in an area's view-type menu each view with who brought it, and a view that does not open as a row that cannot be chosen, with why", async () => {
@@ -1144,12 +1136,17 @@ describe("the studio", () => {
     expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
   });
 
-  it("picks an image asset for Image File's asset field from the project's images by path, sends its UUID, undoes it with one ⌘Z, and shows a refusal in the runtime's words under the field", { timeout: 20_000 }, async () => {
+  it("chooses an image for Image File's asset field in the asset picker over the window, sends its UUID, undoes it with one ⌘Z, imports one that is chosen at once, and shows a refusal in the runtime's words under the field", { timeout: 30_000 }, async () => {
     const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running")));
     const assetsSent: JsonValue[] = [];
+    const mediaTheImportOffered: (readonly string[] | null)[] = [];
     let refusesTheNextAssetSet = false;
     await mountedWindowOverTheMock("state=running", {
       ...mockBackend,
+      importAssetsIntoTheOpenProject: (media) => {
+        mediaTheImportOffered.push(media);
+        return mockBackend.importAssetsIntoTheOpenProject(media);
+      },
       transactInTheOpenProject: async (operations, mode, idempotencyKey) => {
         const assetSet = operations.find((operation) => operation.operation === "set_node_config" && "asset" in operation.config);
         if (assetSet !== undefined && assetSet.operation === "set_node_config") {
@@ -1169,22 +1166,70 @@ describe("the studio", () => {
     fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="imagefile"]') ?? expect.unreachable("no Image File card"), { timeout: 5000 }));
 
     const properties = () => coreViewPage("properties");
-    const assetField = () => properties().querySelector<HTMLElement>('[data-config-field="asset"] button') ?? expect.unreachable("no asset picker");
-    await waitFor(() => expect(assetField().textContent).toBe("None"));
-    pressAsAPointerDoes(assetField());
-    expect((await screen.findAllByRole("menuitem")).map((menuItem) => menuItem.textContent)).toEqual(["media/poster.png"]);
-    fireEvent.click(screen.getByRole("menuitem", { name: "media/poster.png" }));
-    await waitFor(() => expect(assetField().textContent).toBe("media/poster.png"), { timeout: 5000 });
+    const assetWords = () => properties().querySelector<HTMLInputElement>('[data-config-field="asset"] [data-property-asset-field] input') ?? expect.unreachable("no asset field");
+    const openThePicker = async () => {
+      fireEvent.click(properties().querySelector<HTMLElement>('[data-config-field="asset"] [data-property-asset-choose]') ?? expect.unreachable("no Choose an asset… button"));
+      await waitFor(() => screen.getByRole("dialog", { name: "Choose an image" }));
+      const pickerFrame = await waitFor(() => document.querySelector<HTMLIFrameElement>('[data-project-asset-picker] iframe[data-tatolab-view="library"]') ?? expect.unreachable("no Library in the asset picker"));
+      return pickerFrame.contentDocument ?? expect.unreachable("the picker's Library has no page");
+    };
+    const pickerCardPaths = (picker: Document) => [...picker.querySelectorAll<HTMLElement>("[data-library-asset]")].map((card) => card.dataset.libraryAsset);
+    await waitFor(() => expect(assetWords().value).toBe("None"));
+    expect(properties().querySelector('[data-config-field="asset"] [data-property-asset-picture]')).toBeNull();
+
+    const picker = await openThePicker();
+    await waitFor(() => expect(pickerCardPaths(picker)).toEqual(["media/poster.png"]));
+    expect(picker.querySelector("[data-library-shown]")).toBeNull();
+    expect(picker.querySelector("[data-project-asset-more-actions]")).toBeNull();
+    fireEvent.click(picker.querySelector<HTMLElement>('[data-library-asset="media/poster.png"]') ?? expect.unreachable("no poster card in the picker"));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Choose an image" })).toBeNull());
+    await waitFor(() => expect(assetWords().value).toBe("media/poster.png"), { timeout: 5000 });
     expect(assetsSent).toEqual(["baaf9e5a-0aff-45f7-a7ea-b83db51e5a3b"]);
+    await waitFor(() => expect(properties().querySelector('[data-config-field="asset"] [data-property-asset-picture]')?.getAttribute("src")).toMatch(/^data:image\//));
 
     fireEvent.keyDown(document, { key: "z", metaKey: true });
-    await waitFor(() => expect(assetField().textContent).toBe("None"), { timeout: 5000 });
+    await waitFor(() => expect(assetWords().value).toBe("None"), { timeout: 5000 });
+
+    const pickerToImportFrom = await openThePicker();
+    fireEvent.click(await waitFor(() => pickerToImportFrom.querySelector<HTMLElement>("[data-library-import-asset]") ?? expect.unreachable("no Import in the picker")));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Choose an image" })).toBeNull(), { timeout: 5000 });
+    await waitFor(() => expect(assetWords().value).toBe("media/night-sky.jpg"), { timeout: 5000 });
+    expect(mediaTheImportOffered).toEqual([["image"]]);
+    expect(assetsSent).toEqual(["baaf9e5a-0aff-45f7-a7ea-b83db51e5a3b", "5e0c6a1d-7f2b-4c93-8a1e-000000000001"]);
+
+    await openThePicker();
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Choose an image" })).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Choose an image" })).toBeNull());
+    expect(assetWords().value).toBe("media/night-sky.jpg");
+
+    const pickerToEscapeFrom = await openThePicker();
+    await waitFor(() => expect(pickerCardPaths(pickerToEscapeFrom)).not.toEqual([]));
+    fireEvent.keyDown(pickerToEscapeFrom.body, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Choose an image" })).toBeNull());
+    expect(assetWords().value).toBe("media/night-sky.jpg");
 
     refusesTheNextAssetSet = true;
-    pressAsAPointerDoes(assetField());
-    fireEvent.click(await screen.findByRole("menuitem", { name: "media/poster.png" }));
+    const pickerToBeRefused = await openThePicker();
+    fireEvent.click(await waitFor(() => pickerToBeRefused.querySelector<HTMLElement>('[data-library-asset="media/poster.png"]') ?? expect.unreachable("no poster card in the picker")));
     await waitFor(() => expect(properties().querySelector('[data-config-field="asset"]')?.textContent).toContain("config field `asset`: not an asset of the project"), { timeout: 5000 });
-    expect(assetField().textContent).toBe("None");
+    expect(assetWords().value).toBe("media/night-sky.jpg");
+  });
+
+  it("shows under Image File's asset field the runtime's words when it refuses to list the project's assets", { timeout: 20_000 }, async () => {
+    const refusal = "list_assets failed: the project's assets folder is unreadable";
+    await mountedWindowOverTheMock("state=running", {
+      listProjectAssets: async () => {
+        throw refusal;
+      },
+    });
+    const streamGraph = coreViewPage("stream_graph", "stream-graph");
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-tool="add_node"]') ?? expect.unreachable("no Add node in the graph's ribbon")));
+    const nodeSearchField = within(await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Add a node" }))).getByRole("combobox");
+    fireEvent.change(nodeSearchField, { target: { value: "Image File" } });
+    fireEvent.keyDown(nodeSearchField, { key: "Enter" });
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="imagefile"]') ?? expect.unreachable("no Image File card"), { timeout: 5000 }));
+
+    await waitFor(() => expect(coreViewPage("properties").querySelector('[data-config-field="asset"] [data-property-asset-listing-refusal]')?.textContent).toContain(refusal), { timeout: 5000 });
   });
 
   it("exposes a number config field as a Graph Input from Properties, the node taking it as an input fed by the new Graph Input", async () => {

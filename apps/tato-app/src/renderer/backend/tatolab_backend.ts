@@ -78,8 +78,8 @@ export interface TatolabBackend {
   listProjectNodeTypes(projectDirectory: string): Promise<ProjectNodeTypeListing>;
   /** Every asset of the project in `projectDirectory`, its graph documents among them; rejects in the runtime's own words. */
   listProjectAssets(projectDirectory: string): Promise<ProjectAssetListing>;
-  /** Ask the person for files and import each into the window's project, where the runtime places it in its kind's folder, by the person editing; `null` when they choose nothing, rejecting in Studio's or the runtime's words. */
-  importAssetsIntoTheOpenProject(): Promise<ProjectAssetsImported | null>;
+  /** Ask the person for files, offering first those of `media` (`null` for any), and import each into the window's project, where the runtime places it in its kind's folder, by the person editing; `null` when they choose nothing, rejecting in Studio's or the runtime's words. */
+  importAssetsIntoTheOpenProject(media: readonly string[] | null): Promise<ProjectAssetsImported | null>;
   /** Put the asset `asset` of the window's project at `toPath`, renaming it, moving it or both, by the person editing; rejects in Studio's or the runtime's words. */
   relocateAssetInTheOpenProject(asset: string, toPath: string): Promise<void>;
   /** The preview picture of `asset` of this studio window's project, an image's own or a video's poster frame; rejected in the runtime's own words, as for an asset with none. */

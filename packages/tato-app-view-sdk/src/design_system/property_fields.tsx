@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Box, Check, ChevronDown, ChevronRight, Crosshair, Minus, Plus, RotateCcw, X } from "lucide-react";
+import { Box, Check, ChevronDown, ChevronRight, Crosshair, FolderOpen, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { WithControlTooltip } from "./control_tooltip";
@@ -141,6 +141,9 @@ export function PropertyListEntryCount({ fieldId, entryCount, isTheTypesDefault 
 }
 
 const PROPERTY_FIELD_CLASS_NAMES = "h-6 w-full min-w-0 rounded-[4px] border-0 bg-studio-control px-2 text-[11.5px] outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+/** A property field's look on a box holding its input, ringed while the input inside holds the keyboard's focus. */
+const PROPERTY_FIELD_HOLDING_AN_INPUT_CLASS_NAMES = "h-6 w-full min-w-0 rounded-[4px] bg-studio-control px-2 text-[11.5px] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring";
 
 /** How a value that is not the node's own reads: its type's default, dimmed. */
 function valueToneClassName(isTheTypesDefault: boolean): string {
@@ -336,15 +339,12 @@ export function PropertyChoiceField({
   words,
   isTheTypesDefault = false,
   choices,
-  noteAboveTheChoices,
 }: {
   fieldId: string;
   words: string;
   isTheTypesDefault?: boolean;
   /** Each value the menu offers, in words, with what choosing it does. */
   choices?: { words: string; onChosen: () => void }[];
-  /** A quiet line the open menu shows above its choices, as why it offers none. */
-  noteAboveTheChoices?: string;
 }) {
   const chevron = <ChevronDown aria-hidden className="pointer-events-none absolute top-1/2 right-1.5 size-3.5 -translate-y-1/2 text-fg-3" strokeWidth={1.75} />;
   if (choices === undefined) {
@@ -362,7 +362,6 @@ export function PropertyChoiceField({
         {chevron}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-auto min-w-40">
-        {noteAboveTheChoices !== undefined && <MenuNote>{noteAboveTheChoices}</MenuNote>}
         {choices.map((choice) => (
           <MenuItem key={choice.words} onChosen={choice.onChosen}>
             <span className="font-mono text-xs">{choice.words}</span>
@@ -370,6 +369,44 @@ export function PropertyChoiceField({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** How a field naming a project asset opens the asset picker: the button's name, why it cannot now, and what pressing it does. */
+export interface PropertyAssetChoosing {
+  label: string;
+  disabledReason: string | null;
+  onChooseAsked: () => void;
+}
+
+/** A field naming a project asset: a small picture of the asset when it has one, its words read only, and an icon button beside them that opens the asset picker, left out where `choosing` is not given, with one that names no asset where `clearing` is. */
+export function PropertyAssetField({
+  fieldId,
+  words,
+  previewPictureUrl,
+  isTheTypesDefault = false,
+  choosing,
+  clearing,
+}: {
+  fieldId: string;
+  words: string;
+  /** A `data:` URL of the asset's preview picture, `null` while it has none or none is read yet. */
+  previewPictureUrl: string | null;
+  isTheTypesDefault?: boolean;
+  choosing?: PropertyAssetChoosing;
+  clearing?: { label: string; onCleared: () => void };
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-1" data-property-asset-field="">
+      <div className={cn(PROPERTY_FIELD_HOLDING_AN_INPUT_CLASS_NAMES, "flex items-center gap-1.5 pl-0.5")}>
+        {previewPictureUrl !== null && (
+          <img src={previewPictureUrl} alt="" draggable={false} className="h-5 w-[30px] shrink-0 rounded-[3px] bg-well object-cover" data-property-asset-picture="" />
+        )}
+        <input id={fieldId} readOnly value={words} title={words} className={cn("min-w-0 flex-1 bg-transparent font-mono outline-none", previewPictureUrl === null && "pl-1.5", valueToneClassName(isTheTypesDefault))} />
+      </div>
+      {clearing !== undefined && <IconButton icon={X} label={clearing.label} size="compact" onPressed={clearing.onCleared} data-property-asset-clear="" />}
+      {choosing !== undefined && <IconButton icon={FolderOpen} label={choosing.label} disabledReason={choosing.disabledReason} size="compact" onPressed={choosing.onChooseAsked} data-property-asset-choose="" />}
+    </div>
   );
 }
 

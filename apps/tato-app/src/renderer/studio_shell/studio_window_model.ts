@@ -9,6 +9,7 @@ import type { SettingsSection } from "../presentation/settings_presentation";
 import type { StudioWindowValuesServedToViews } from "../view_host/studio_view_host_services";
 import { WatchedStudioValue } from "../view_host/watched_studio_value";
 import { PortPickHeldInTheWindow } from "../view_host/port_pick_held_in_the_window";
+import { ProjectAssetPickHeldInTheWindow } from "../view_host/project_asset_pick_held_in_the_window";
 import type { JsonValue, ListedStreamsReading, StopWatching, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
 import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, type StudioAreaLayoutNode } from "./studio_area_layout";
 import type { StudioLayoutKeptInStorage, StudioLayoutOfAFolder } from "./studio_layout";
@@ -138,10 +139,16 @@ export class StudioWindowModel {
   /** The one port whose other end the person is picking in the Stream graph, ended when its stream's tab stops being the one shown. */
   readonly portPickHeld = new PortPickHeldInTheWindow();
 
+  /** The one asset pick the window's asset picker shows, ended when the window's project stops being the one read. */
+  readonly projectAssetPickHeld = new ProjectAssetPickHeldInTheWindow();
+
   constructor(private readonly layoutKept: StudioLayoutKeptInStorage) {
     this.openStreamTabs.watch((openStreamTabs) => {
       const pick = this.portPickHeld.portPick.readLatest();
       if (pick !== null && openStreamTabs.active_stream !== pick.stream) this.portPickHeld.end("The stream's tab is no longer the one shown.");
+    });
+    this.openProject.watch((openProject) => {
+      if (openProject.kind !== "read") this.projectAssetPickHeld.end("The project closed.");
     });
   }
 
@@ -163,6 +170,9 @@ export class StudioWindowModel {
       pickAPortInTheStreamGraph: (pick) => this.portPickHeld.start(pick, this.whyNoPortCanBePickedInTheStreamGraphOf(pick.stream)),
       answerThePortPick: (node, port) => this.portPickHeld.answer(node, port),
       endThePortPick: (because) => this.portPickHeld.end(because),
+      pickAProjectAsset: (pick) => this.projectAssetPickHeld.start(pick, this.openProject.readLatest().kind === "read" ? null : "No project is open to choose an asset of."),
+      answerTheProjectAssetPick: (asset) => this.projectAssetPickHeld.answer(asset),
+      endTheProjectAssetPick: (because) => this.projectAssetPickHeld.end(because),
     };
   }
 
@@ -316,13 +326,14 @@ export class StudioWindowModel {
     this.streamMenuQuestion.publish({ kind: "name_a_new_stream" });
   }
 
-  /** Whether the studio window shows a dialog of its own over its stream tabs: the Stream menu's, Save layout as preset's, Settings, or the New project sheet. */
+  /** Whether the studio window shows a dialog of its own over its stream tabs: the Stream menu's, Save layout as preset's, Settings, the New project sheet, or the asset picker. */
   isADialogShownOverTheStreamTabs(): boolean {
     return (
       this.streamMenuQuestion.readLatest() !== null ||
       this.layoutPresetNameAsked.readLatest() ||
       this.settingsSection.readLatest() !== null ||
-      this.newProjectSheetOpenedWith.readLatest() !== null
+      this.newProjectSheetOpenedWith.readLatest() !== null ||
+      this.projectAssetPickHeld.projectAssetPick.readLatest() !== null
     );
   }
 

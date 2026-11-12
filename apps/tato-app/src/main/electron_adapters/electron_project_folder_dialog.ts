@@ -1,5 +1,6 @@
 import { PROJECT_COVER_IMAGE_MEDIA_TYPES, type ProjectFolderDialogPurpose } from "../open_project.js";
 import type { Result } from "../result.js";
+import type { ProjectAssetFileFilter } from "../project_asset_file_filters.js";
 import { askThePersonForEveryPathThroughAnOpenDialogOverTheFocusedWindow, askThePersonThroughAnOpenDialogOverTheFocusedWindow } from "./electron_open_dialog_over_the_focused_window.js";
 
 /** The desktop's folder dialog, sheeted over the focused window, for an existing project or the folder a new project goes in; `null` when the person cancels. */
@@ -37,10 +38,16 @@ export async function askThePersonForAProjectCoverImageThroughElectron(defaultFo
   );
 }
 
-/** The desktop's open dialog, sheeted over the focused window, for the files to import into a project as assets; `null` when the person cancels. */
-export async function askThePersonForFilesToImportAsAssetsThroughElectron(defaultFolder: string): Promise<Result<readonly string[] | null, string>> {
+/** The desktop's open dialog, sheeted over the focused window, for the files to import into a project as assets, offering `fileFilters`; `null` when the person cancels. */
+export async function askThePersonForFilesToImportAsAssetsThroughElectron(defaultFolder: string, fileFilters: readonly ProjectAssetFileFilter[]): Promise<Result<readonly string[] | null, string>> {
   return askThePersonForEveryPathThroughAnOpenDialogOverTheFocusedWindow(
-    { title: "Import assets", buttonLabel: "Import", defaultPath: defaultFolder, properties: ["openFile", "multiSelections"] },
+    {
+      title: "Import assets",
+      buttonLabel: "Import",
+      defaultPath: defaultFolder,
+      properties: ["openFile", "multiSelections"],
+      filters: fileFilters.map((fileFilter) => ({ name: fileFilter.name, extensions: [...fileFilter.extensions] })),
+    },
     "The import dialog",
   );
 }

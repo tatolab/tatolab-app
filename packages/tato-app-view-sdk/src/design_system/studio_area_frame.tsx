@@ -84,8 +84,9 @@ export function StudioAreaOverAViewsOwnFrame({
   );
 }
 
-/** A view's own header row, drawn in its frame: an area header's look, its tools laid out after `headerRow`'s inset, where Studio's view-type menu lies over the row; an area header's height until Studio has said where the row lies. */
+/** A view's own header row, drawn in its frame: an area header's look, its tools laid out after `headerRow`'s inset, where Studio's view-type menu lies over the row; an area header's height until Studio has said where the row lies, and none where Studio says the row is `0` tall. */
 export function StudioAreaHeaderRowInAFrame({ headerRow, children }: { headerRow: ViewHeaderRow | null; children?: ReactNode }) {
+  if (headerRow?.height_px === 0) return null;
   return (
     <div
       className={cn("flex shrink-0 items-center gap-1.5 border-b border-studio-area-header-line bg-studio-area-header pr-1.5", headerRow === null && "h-(--studio-area-header-height)")}

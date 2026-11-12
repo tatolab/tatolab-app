@@ -27,8 +27,9 @@ import type {
   StreamGraphAction,
   ThePersonEditingReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { AreaForAViewType, ModulesAndMarketplaceSection, PortPickEnding, PortPickInTheStreamGraph, PortViewerEvent, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
+import type { AreaForAViewType, ModulesAndMarketplaceSection, PortPickEnding, PortPickInTheStreamGraph, PortViewerEvent, ProjectAssetPick, ProjectAssetPickEnding, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
 import type { PortPickAnswering } from "./port_pick_held_in_the_window";
+import type { ProjectAssetPickAnswering } from "./project_asset_pick_held_in_the_window";
 
 export type {
   JsonValue,
@@ -146,8 +147,8 @@ export interface StudioViewHostServices {
   showViewTypeInArea(viewTypeId: string, areaId: string): ViewOpening;
   /** The open project's Modules and Marketplace window opened on `shows`, or brought forward on it. */
   openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewOpening>;
-  /** The files the person chooses imported into `projectFolder`, the open project only. */
-  importAssetsIntoTheProject(projectFolder: string): Promise<ProjectAssetsImporting>;
+  /** The files the person chooses, the dialog offering those of `media` (`null` for any), imported into `projectFolder`, the open project only. */
+  importAssetsIntoTheProject(projectFolder: string, media: readonly string[] | null): Promise<ProjectAssetsImporting>;
   /** Put the asset `asset` of the window's project, when `projectFolder` names it, at `toPath` by the person editing, the project's assets listed again at once; refused for any other folder, or in the runtime's own words. */
   relocateAssetInTheProject(projectFolder: string, asset: string, toPath: string): Promise<ProjectAssetChanging>;
   /** The preview picture of the asset `asset` of the window's project, when `projectFolder` names it; refused for any other folder, or in the runtime's own words. */
@@ -180,6 +181,14 @@ export interface StudioViewHostServices {
   answerThePortPick(node: string, port: string): PortPickAnswering;
   /** End the pick held, if any, with nothing picked. */
   endThePortPick(because: string): void;
+  /** Hold `pick` in the window's asset picker, ending any asset pick held, until the person chooses an asset or closes the picker. */
+  pickAProjectAsset(pick: ProjectAssetPick): Promise<ProjectAssetPickEnding>;
+  /** The asset pick a view is shown in the asset picker to answer, at once and on each change; always `null` for a view shown anywhere else. */
+  watchProjectAssetPickShownHere(listener: (pick: ProjectAssetPick | null) => void): StopWatching;
+  /** End the asset pick held with the asset `asset` chosen. */
+  answerTheProjectAssetPick(asset: string): ProjectAssetPickAnswering;
+  /** End the asset pick held, if any, with nothing chosen. */
+  endTheProjectAssetPick(because: string): void;
   /** Read `target`'s output port, each frame or message and the viewer's end arriving on `onEvent`. */
   watchPortViewer(target: PortViewerTarget, onEvent: (event: PortViewerEvent) => void): PortViewerConnection;
 }

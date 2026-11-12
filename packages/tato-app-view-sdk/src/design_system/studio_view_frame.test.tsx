@@ -19,6 +19,15 @@ describe("a view's frame", () => {
     expect(toolbarRow.compareDocumentPosition(screen.getByText("the view")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("draws no header row where Studio says the row is 0 tall, the toolbar row first", () => {
+    render(
+      <StudioViewFrame headerRow={{ leading_inset_px: 0, height_px: 0 }} toolbarLabel="Library tools">
+        <p>the view</p>
+      </StudioViewFrame>,
+    );
+    expect(screen.getByRole("toolbar", { name: "Library tools" }).previousElementSibling).toBeNull();
+  });
+
   it("takes tools from deep in the view into its toolbar row, after the frame's own", () => {
     render(
       <StudioViewFrame headerRow={null} toolbarLabel="Stream graph tools" toolbarTools={<button type="button">Frame's own</button>}>

@@ -39,8 +39,10 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
 async function pressWhenShown(selector: string): Promise<boolean> {
   const element = await waitForElement<HTMLElement>(selector);
   if (element === null) return false;
+  // An event made in the window and sent into a view's frame leaves that frame's menus placed at its corner, so each is made in the element's own page.
+  const PointerEventOfTheElementsPage = element.ownerDocument.defaultView?.PointerEvent ?? PointerEvent;
   for (const eventName of ["pointerdown", "mousedown", "pointerup", "mouseup"]) {
-    element.dispatchEvent(new PointerEvent(eventName, { bubbles: true, cancelable: true, button: 0, pointerType: "mouse", isPrimary: true }));
+    element.dispatchEvent(new PointerEventOfTheElementsPage(eventName, { bubbles: true, cancelable: true, button: 0, pointerType: "mouse", isPrimary: true }));
   }
   element.click();
   return true;
@@ -80,9 +82,9 @@ async function openEveryOutlinerRow(): Promise<void> {
  * Drives the mock window to the screen the page's query names, as a person would get there, once the window has
  * mounted. In the studio: `?layout_shape=<shape>` (that shape chosen from the title row's layout menu, as `grid`), `?outliner=open`
  * (every row opened), `?select=<row id>` (that outliner row clicked, as `stream:<stream id>`), `?open_stream=<stream id>`
- * (its row double-clicked, opening its tab), `?select_node=<node name>` (that node's card clicked in the stream graph), `?code_file=<file>` (that file of the open project, as `nodes/inverting_effect.py`, opened from the code area's + menu, with `?area_menu=…&area_view=code` showing one), `?run=live` (F5 pressed), `?menu=<menu>` (that menu of the bar opened, as `Window`) with
+ * (its row double-clicked, opening its tab), `?add_node=<words>` (those words typed in the stream graph's Add node search and Enter pressed, as `Image File`), `?select_node=<node name>` (that node's card clicked in the stream graph, as `imagefile` once added), `?asset_picker=open` (the selected node's asset field's Choose an asset… pressed, opening the asset picker), `?code_file=<file>` (that file of the open project, as `nodes/inverting_effect.py`, opened from the code area's + menu, with `?area_menu=…&area_view=code` showing one), `?run=live` (F5 pressed), `?menu=<menu>` (that menu of the bar opened, as `Window`) with
  * `?submenu=<entry>` (that entry's submenu opened, as `Layout`) or `?menu_entry=<entry>` (that entry chosen, as `New stream…`; on macOS the backend's `?system_menu_entry=Stream › New stream…` chooses it), `?stream_name=<name>` (that name typed in New stream's or Rename stream's dialog), and `?area_menu=<area id>` (that area's
- * view-type menu opened) with `?area_view=<view type id>` (that view chosen in it, as a project's view with the backend's `?studio_views=fixture`), `?library_shown=node_types|views|graph_generators|assets` (that choice of the Library's Show menu, with `?library_asset=<path>` that asset's card clicked, as `media/lobby-intro.mp4`, and `?library_asset_change=rename|move|delete` that change's form opened in its details), `?library_row=<row id>` (that Library row clicked, as `source:project/category:Effects/node_type:nodes.inverting_effect:InvertingEffect`, with the backend's `?node_types=unreadable_project` listing every module of the project's own unreadable), `?transaction_row=<transaction>` (that row of Transactions clicked, with the backend's `?developer_mode=on` and `?area_view=transactions`) and `?transactions_filter=open` (its Filter ▾ opened); with the backend's `?project=none|unreadable` (none shows the Projects window, empty with `?recent=none`), `?popped_out_view=<popped-out view as JSON>` (the window an area's Pop out into a window opens), `?module_manager=open` (the window File › Marketplace… and Modules… open) with `?module_manager_section=<section>` (the section it opens on, as `added_to_this_project`) and `?catalog=unserved` (get.tatolab.com serving no catalog), `?subgraphs=generated` (the main stream holding a graph generator's frozen output), `?node_states=stopped` (every node of the main stream reading `Stopped`, so the Node visualizer shows its placeholders), `?graph_inputs=declared` (the main stream declaring four Graph Inputs, a ranged number, a bool, a list of numbers and a record, which the Controls view shows; `?state=node-error|dropping` and `?studio_views=fixture` take precedence), and `?port_families=unserved` (no port's family in the graph or the catalog, as a runtime from before strict-port-families). `?page=projects` opens the Projects window from File › Projects; `?page=settings` opens Settings, on
+ * view-type menu opened) with `?area_view=<view type id>` (that view chosen in it, as a project's view with the backend's `?studio_views=fixture`), `?library_shown=node_types|views|graph_generators|assets` (that choice of the Library's Show menu, with `?library_asset=<path>` that asset's card clicked, as `media/lobby-intro.mp4`, and `?library_asset_change=rename|move|delete` that change's form opened from its card's ⋯ menu), `?library_row=<row id>` (that Library row clicked, as `source:project/category:Effects/node_type:nodes.inverting_effect:InvertingEffect`, with the backend's `?node_types=unreadable_project` listing every module of the project's own unreadable), `?transaction_row=<transaction>` (that row of Transactions clicked, with the backend's `?developer_mode=on` and `?area_view=transactions`) and `?transactions_filter=open` (its Filter ▾ opened); with the backend's `?project=none|unreadable` (none shows the Projects window, empty with `?recent=none`), `?popped_out_view=<popped-out view as JSON>` (the window an area's Pop out into a window opens), `?module_manager=open` (the window File › Marketplace… and Modules… open) with `?module_manager_section=<section>` (the section it opens on, as `added_to_this_project`) and `?catalog=unserved` (get.tatolab.com serving no catalog), `?subgraphs=generated` (the main stream holding a graph generator's frozen output), `?node_states=stopped` (every node of the main stream reading `Stopped`, so the Node visualizer shows its placeholders), `?graph_inputs=declared` (the main stream declaring four Graph Inputs, a ranged number, a bool, a list of numbers and a record, which the Controls view shows; `?state=node-error|dropping` and `?studio_views=fixture` take precedence), and `?port_families=unserved` (no port's family in the graph or the catalog, as a runtime from before strict-port-families). `?page=projects` opens the Projects window from File › Projects; `?page=settings` opens Settings, on
  * `?section=general|developer|project|runtime|command-line|about`; there `?restart=pressed|refused` presses Restart and `?link=pressed`
  * presses Link tatolab, with the backend's `?cli_link=not_linked`. `?sheet=new_project` presses the Projects window's New project, then
  * `?new_project_name=<name>` types that name and `?new_project=browse|create` presses Browse… or Create. On the
@@ -104,8 +106,16 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     const streamRow = await waitForElement<HTMLElement>(`[data-outliner] [data-tree-row-id="${CSS.escape(`stream:${openedStream}`)}"]`);
     streamRow?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
   }
+  const nodeAdded = pageQuery.get("add_node");
+  if (nodeAdded !== null && (await clickWhenShown(`[data-node-graph-tool="add_node"]`))) {
+    await typeWhenShown(`[role="dialog"] [role="combobox"]`, nodeAdded);
+    // The search lists what the words match once React has drawn them, and Enter places the first match.
+    await new Promise((settled) => window.setTimeout(settled, 300));
+    queryTheWindowAndItsViewFrames<HTMLElement>(`[role="dialog"] [role="combobox"]`)?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  }
   const selectedNode = pageQuery.get("select_node");
   if (selectedNode !== null) await clickWhenShown(`[data-stream-graph] .react-flow__node:has([data-node-graph-card="${CSS.escape(selectedNode)}"])`);
+  if (pageQuery.get("asset_picker") === "open") await clickWhenShown(`[data-property-asset-choose]`, 6000);
   if (pageQuery.get("run") === "live" && (await waitForElement("[data-studio-title-row]")) !== null) document.dispatchEvent(new KeyboardEvent("keydown", { key: "F5", bubbles: true }));
   const areaMenu = pageQuery.get("area_menu");
   if (areaMenu !== null) await pressWhenShown(`[data-area-view-type-menu="${CSS.escape(areaMenu)}"]`);
@@ -127,7 +137,9 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   const libraryAsset = pageQuery.get("library_asset");
   if (libraryAsset !== null) await clickWhenShown(`[data-library-asset="${CSS.escape(libraryAsset)}"]`);
   const libraryAssetChange = pageQuery.get("library_asset_change");
-  if (libraryAsset !== null && libraryAssetChange !== null) await clickWhenShown(`[data-library-asset-change="${CSS.escape(libraryAssetChange)}"]`);
+  if (libraryAsset !== null && libraryAssetChange !== null && (await pressWhenShown(`[data-library-asset="${CSS.escape(libraryAsset)}"] ~ * [data-project-asset-more-actions]`))) {
+    await clickWhenShown(`[data-library-asset-change="${CSS.escape(libraryAssetChange)}"]`);
+  }
   const libraryRow = pageQuery.get("library_row");
   if (libraryRow !== null) await clickWhenShown(`[data-library-declarations] [data-tree-row-id="${CSS.escape(libraryRow)}"]`);
   const menu = pageQuery.get("menu");

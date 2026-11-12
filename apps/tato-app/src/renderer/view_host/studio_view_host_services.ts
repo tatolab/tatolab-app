@@ -8,8 +8,9 @@ import type { PortViewerConnections } from "./port_viewer_connections";
 import type { AreasForAViewTypeInTheWindow, ListedStreamsReading, LiveValueWriting, OpenProjectReading, StopWatching, ProjectAssetChanging, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, StudioViewsReading, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { WatchedStudioValue } from "./watched_studio_value";
-import type { PortPickEnding, PortPickInTheStreamGraph } from "@tatolab/tato-app-view-sdk";
+import type { PortPickEnding, PortPickInTheStreamGraph, ProjectAssetPick, ProjectAssetPickEnding } from "@tatolab/tato-app-view-sdk";
 import type { PortPickAnswering } from "./port_pick_held_in_the_window";
+import type { ProjectAssetPickAnswering } from "./project_asset_pick_held_in_the_window";
 
 /** What the studio publishes to its views, and what it does when a view opens a stream's tab. */
 export interface StudioWindowValuesServedToViews {
@@ -27,6 +28,9 @@ export interface StudioWindowValuesServedToViews {
   pickAPortInTheStreamGraph(pick: PortPickInTheStreamGraph): Promise<PortPickEnding>;
   answerThePortPick(node: string, port: string): PortPickAnswering;
   endThePortPick(because: string): void;
+  pickAProjectAsset(pick: ProjectAssetPick): Promise<ProjectAssetPickEnding>;
+  answerTheProjectAssetPick(asset: string): ProjectAssetPickAnswering;
+  endTheProjectAssetPick(because: string): void;
 }
 
 /** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types, assets and history, their language servers, and the port viewers of their running nodes. */
@@ -54,11 +58,11 @@ export interface AssetImportForAViewSources {
   listTheProjectAgainNow: (projectFolder: string) => void;
 }
 
-/** The files the person chooses imported into `projectFolder` when it is the window's open project, its asset listing read again at once; refused for any other folder. */
-export async function importAssetsIntoTheOpenProjectForAView(projectFolder: string, assetImportSources: AssetImportForAViewSources): Promise<ProjectAssetsImporting> {
+/** The files the person chooses, the dialog offering those of `media`, imported into `projectFolder` when it is the window's open project, its asset listing read again at once; refused for any other folder. */
+export async function importAssetsIntoTheOpenProjectForAView(projectFolder: string, media: readonly string[] | null, assetImportSources: AssetImportForAViewSources): Promise<ProjectAssetsImporting> {
   const openProject = assetImportSources.readTheOpenProject();
   if (openProject.kind !== "read" || openProject.open_project.project.folder !== projectFolder) return { kind: "not_imported", because: onlyTheOpenProjectImportsAssetsRefusal(projectFolder) };
-  return assetImportSources.backend.importAssetsIntoTheOpenProject().then(
+  return assetImportSources.backend.importAssetsIntoTheOpenProject(media).then(
     (assetsImported): ProjectAssetsImporting => {
       assetImportSources.listTheProjectAgainNow(projectFolder);
       return assetsImported === null ? { kind: "nothing_chosen" } : { kind: "imported", assets_imported: assetsImported };
@@ -128,6 +132,13 @@ export function studioViewHostServicesOf(
     pickAPortInTheStreamGraph: (pick) => sources.pickAPortInTheStreamGraph(pick),
     answerThePortPick: (node, port) => sources.answerThePortPick(node, port),
     endThePortPick: (because) => sources.endThePortPick(because),
+    pickAProjectAsset: (pick) => sources.pickAProjectAsset(pick),
+    watchProjectAssetPickShownHere: (listener) => {
+      listener(null);
+      return () => undefined;
+    },
+    answerTheProjectAssetPick: (asset) => sources.answerTheProjectAssetPick(asset),
+    endTheProjectAssetPick: (because) => sources.endTheProjectAssetPick(because),
     watchActiveStreamTab: sources.activeStreamTab.watch,
     openStreamTab: (streamTab) => sources.openStreamTab(streamTab),
     watchStreamGraph: streamReadings.watchStreamGraph,
@@ -168,8 +179,8 @@ export function studioViewHostServicesOf(
     watchProjectLog: projectServices.projectLogReadings.watchProjectLog,
     watchProjectNodeTypes: projectServices.projectNodeTypeReadings.watchTheProject,
     watchProjectAssets: projectServices.projectAssetReadings.watchTheProject,
-    importAssetsIntoTheProject: (projectFolder) =>
-      importAssetsIntoTheOpenProjectForAView(projectFolder, {
+    importAssetsIntoTheProject: (projectFolder, media) =>
+      importAssetsIntoTheOpenProjectForAView(projectFolder, media, {
         readTheOpenProject: sources.openProject.readLatest,
         backend,
         listTheProjectAgainNow: (folder) => projectServices.projectAssetReadings.listTheProjectAgainNow(folder),

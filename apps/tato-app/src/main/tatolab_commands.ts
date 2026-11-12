@@ -837,12 +837,20 @@ export function undoOrRedoInTheOpenProject(
   });
 }
 
-/** `import_assets_into_the_open_project`: the files the person chooses imported into the asking window's project by the person editing; `null` when they choose nothing, refused in the Projects window. */
-export function importAssetsIntoTheOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectAssetsImported | null, string>> {
+/** `import_assets_into_the_open_project`'s `{ media }` as the window sends it: the `media_facts` members the dialog offers files of, `null` for any; or why it is not. */
+export function importAssetsArgumentsFrom(commandArguments: unknown): Result<{ media: readonly string[] | null }, string> {
+  const media = isAJsonObject(commandArguments) ? commandArguments["media"] : undefined;
+  if (media === null) return succeeded({ media: null });
+  if (Array.isArray(media) && media.every((medium: unknown): medium is string => typeof medium === "string")) return succeeded({ media });
+  return failedWith("import_assets_into_the_open_project needs `media`, a list of media names or null");
+}
+
+/** `import_assets_into_the_open_project`: the files the person chooses, the dialog offering those of `media` first, imported into the asking window's project by the person editing; `null` when they choose nothing, refused in the Projects window. */
+export function importAssetsIntoTheOpenProject(sharedState: TatolabAppSharedState, media: readonly string[] | null, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectAssetsImported | null, string>> {
   return answerTheWindow("import_assets_into_the_open_project", async () => {
     const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!studioWindow.ok) return studioWindow;
-    return sharedState.projectAssetsImportedFromChosenFiles.importTheFilesThePersonChooses(studioWindow.value.projectTransactionsFeed.projectFolder, sharedState.thePersonEditingInStudio);
+    return sharedState.projectAssetsImportedFromChosenFiles.importTheFilesThePersonChooses(studioWindow.value.projectTransactionsFeed.projectFolder, media, sharedState.thePersonEditingInStudio);
   });
 }
 
@@ -1433,7 +1441,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!transacting.ok) return { ok: false, refusal: transacting.failure };
       return commandAnswerFrom(await transactInTheOpenProject(sharedState, transacting.value, commandFromWindow));
     },
-    import_assets_into_the_open_project: async (_commandArguments, commandFromWindow) => commandAnswerFrom(await importAssetsIntoTheOpenProject(sharedState, commandFromWindow)),
+    import_assets_into_the_open_project: async (commandArguments, commandFromWindow) => {
+      const importing = importAssetsArgumentsFrom(commandArguments);
+      if (!importing.ok) return { ok: false, refusal: importing.failure };
+      return commandAnswerFrom(await importAssetsIntoTheOpenProject(sharedState, importing.value.media, commandFromWindow));
+    },
     relocate_asset_in_the_open_project: async (commandArguments, commandFromWindow) => {
       const relocating = relocateAssetArgumentsFrom(commandArguments);
       if (!relocating.ok) return { ok: false, refusal: relocating.failure };

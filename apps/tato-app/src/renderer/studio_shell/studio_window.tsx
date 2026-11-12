@@ -29,6 +29,7 @@ import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
 import { studioMenuBarMenus, studioMenusInTheSystemMenuBar, type StreamTabsInTheMenus, type StudioLayoutInTheMenus, type StudioMenuBarCommands, type StudioMenuInTheSystemMenuBar } from "./studio_menu_bar_model";
 import { NameFormDialog } from "./name_form_dialog_view";
+import { ProjectAssetPickerDialogView } from "./project_asset_picker_dialog_view";
 import { studioLayoutWithEdgesHidden } from "./studio_layout_shapes";
 import { StudioTitleRowLayoutButtons } from "./studio_title_row_layout_buttons";
 import { StreamMenuDialogsView, type StreamEditsOfTheStreamMenu } from "./stream_menu_dialogs_view";
@@ -355,6 +356,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
           onClosed={() => model.layoutPresetNameAsked.publish(false)}
         />
       )}
+      {isAProjectShown && <ProjectAssetPickerDialogView projectAssetPickHeld={model.projectAssetPickHeld} viewTypeRegistry={sources.viewTypeRegistry} viewHostServices={sources.viewHostServices} />}
       {isAProjectShown && <StreamMenuDialogsView question={streamMenuQuestion} streamEdits={sources.streamEdits} onClosed={() => model.streamMenuQuestion.publish(null)} />}
       <NewProjectSheetView openedWith={newProjectSheetOpenedWith} sources={sources.newProject} onClosed={() => model.newProjectSheetOpenedWith.publish(null)} />
       <SettingsDialogView

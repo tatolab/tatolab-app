@@ -42,6 +42,7 @@ import {
   type ModulesAndMarketplaceSection,
   type PortPickInTheStreamGraph,
   type PortViewerEvent,
+  type ProjectAssetPick,
   type ViewAsk,
   type ViewAskAnswer,
   type ViewGrant,
@@ -73,6 +74,9 @@ export function newGestureIdempotencyKey(): string {
 
 /** How a pick in the Stream graph ended: the other end the person picked, by its node's id and port, nothing picked and why, or why it never started. */
 export type PortPickEnding = { kind: "picked"; node: string; port: string } | { kind: "ended"; because: string } | { kind: "not_started"; because: string };
+
+/** How a pick in the asset picker ended: the UUID of the asset the person chose, nothing chosen and why, or why it never started. */
+export type ProjectAssetPickEnding = { kind: "chosen"; asset: string } | { kind: "ended"; because: string } | { kind: "not_started"; because: string };
 
 /** Studio done, or refused in its own words. */
 export type ViewAskDone = { kind: "done" } | { kind: "refused"; because: string };
@@ -149,8 +153,8 @@ export interface TatoAppViewConnection {
   showViewTypeInArea(viewTypeId: string, areaId: string): Promise<ViewAskDone>;
   /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
   openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewAskDone>;
-  /** Ask the person for files in the desktop's open dialog and import each into the project, where the runtime places it in its kind's folder under its own name, numbered past a name already taken. */
-  importAssetsIntoTheProject(projectFolder: string): Promise<ProjectAssetsImporting>;
+  /** Ask the person for files in the desktop's open dialog, offering the files of `media` (`null` for any), and import each into the project, where the runtime places it in its kind's folder under its own name, numbered past a name already taken. */
+  importAssetsIntoTheProject(projectFolder: string, media: readonly string[] | null): Promise<ProjectAssetsImporting>;
   /** Put the asset `asset` of the project at `toPath`, `/`-separated in the project, renaming it, moving it or both, by the person editing; refused in the runtime's own words, as for a path another asset takes. */
   relocateAssetInTheProject(projectFolder: string, asset: string, toPath: string): Promise<ViewAskDone>;
   /** Hand `value` to the Input `input` of the running stream `stream`, as its family takes it: live, recorded nowhere, the last write winning; refused in the runtime's own words. */
@@ -171,6 +175,12 @@ export interface TatoAppViewConnection {
   answerThePortPick(node: string, port: string): Promise<ViewAskDone>;
   /** End the pick held with nothing picked. */
   endThePortPick(): Promise<ViewAskDone>;
+  /** Have the person choose a project asset of `pick`'s media in Studio's asset picker over the window, ending any asset pick held; answered once the picker closes. */
+  pickAProjectAsset(pick: ProjectAssetPick): Promise<ProjectAssetPickEnding>;
+  /** The asset pick this view is shown in Studio's asset picker to answer, at once and on each change; `null` for a view shown anywhere else. */
+  watchProjectAssetPick(listener: (pick: ProjectAssetPick | null) => void, whenRefused?: WhenStudioRefuses): StopWatching;
+  /** End the asset pick held with the asset `asset` chosen, by its UUID. */
+  answerTheProjectAssetPick(asset: string): Promise<ViewAskDone>;
   /** Send `payload` on the `node` view's output `output`. */
   sendOutput(output: string, payload: ViewOutputPayload): Promise<ViewAskDone>;
   /** Stop every watch and close the port. */
@@ -330,8 +340,8 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       redoInTheProject: (projectFolder, author) => ask({ kind: "redo_in_the_project", project_folder: projectFolder, author }).then(transactionApplyingOf),
       transactInTheProject: (projectFolder, operations, sending) =>
         ask({ kind: "transact_in_the_project", project_folder: projectFolder, operations: [...operations], mode: sending.mode, idempotency_key: sending.idempotencyKey }).then(graphTransactionApplyingOf),
-      importAssetsIntoTheProject: (projectFolder) =>
-        ask({ kind: "import_assets_into_the_project", project_folder: projectFolder }).then((answer): ProjectAssetsImporting => {
+      importAssetsIntoTheProject: (projectFolder, media) =>
+        ask({ kind: "import_assets_into_the_project", project_folder: projectFolder, media: media === null ? null : [...media] }).then((answer): ProjectAssetsImporting => {
           if (answer.kind === "project_assets_imported") return { kind: "imported", assets_imported: answer.assets_imported };
           if (answer.kind === "nothing_chosen") return { kind: "nothing_chosen" };
           return { kind: "not_imported", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
@@ -357,6 +367,15 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       watchPortPick: (listener, whenRefused = IGNORE_THE_REFUSAL) => watchFor({ kind: "port_pick" }, (watched) => watched.subject === "port_pick" && listener(watched.reading), whenRefused),
       answerThePortPick: (node, port) => ask({ kind: "answer_the_port_pick", node, port }).then(doneOf),
       endThePortPick: () => ask({ kind: "end_the_port_pick" }).then(doneOf),
+      pickAProjectAsset: (pick) =>
+        ask({ kind: "pick_a_project_asset", pick }).then((answer): ProjectAssetPickEnding => {
+          if (answer.kind === "project_asset_chosen") return { kind: "chosen", asset: answer.asset };
+          if (answer.kind === "project_asset_pick_ended") return { kind: "ended", because: answer.because };
+          return { kind: "not_started", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
+      watchProjectAssetPick: (listener, whenRefused = IGNORE_THE_REFUSAL) =>
+        watchFor({ kind: "project_asset_pick" }, (watched) => watched.subject === "project_asset_pick" && listener(watched.reading), whenRefused),
+      answerTheProjectAssetPick: (asset) => ask({ kind: "answer_the_project_asset_pick", asset }).then(doneOf),
       readThePersonEditing: () =>
         ask({ kind: "read_the_person_editing" }).then((answer): ThePersonEditingReading => {
           if (answer.kind === "the_person_editing") return { kind: "read", author: answer.author };

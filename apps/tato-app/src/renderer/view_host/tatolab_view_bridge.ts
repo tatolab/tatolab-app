@@ -64,6 +64,7 @@ export class TatolabViewBridge {
   private readonly pythonLanguageServersByWatchId = new Map<number, PythonLanguageServerConnection>();
   private isClosed = false;
   private isAPickOfTheViewHeld = false;
+  private assetPicksOfTheViewHeld = 0;
 
   private readonly onMessageFromTheView = (event: MessageEvent<unknown>): void => {
     const sentPayload: unknown = typeof event.data === "object" && event.data !== null && "payload" in event.data ? event.data.payload : null;
@@ -119,6 +120,7 @@ export class TatolabViewBridge {
     if (this.isClosed) return;
     this.isClosed = true;
     if (this.isAPickOfTheViewHeld) this.hostServices.endThePortPick(`${this.manifest.title} closed.`);
+    if (this.assetPicksOfTheViewHeld > 0) this.hostServices.endTheProjectAssetPick(`${this.manifest.title} closed.`);
     for (const stopWatching of this.stopWatchingByWatchId.values()) stopWatching();
     this.stopWatchingByWatchId.clear();
     for (const inputWatch of this.inputWatchesByWatchId.values()) inputWatch.portViewerConnection?.close();
@@ -220,6 +222,9 @@ export class TatolabViewBridge {
         return;
       case "port_pick":
         keep(this.hostServices.watchPortPick((reading) => sendReading({ subject: "port_pick", reading })));
+        return;
+      case "project_asset_pick":
+        keep(this.hostServices.watchProjectAssetPickShownHere((reading) => sendReading({ subject: "project_asset_pick", reading })));
         return;
       case "area_expansion":
         keep(this.areaServices.expansion.watchIsExpanded((isExpanded) => sendReading({ subject: "area_expansion", reading: { is_expanded: isExpanded } })));
@@ -327,7 +332,7 @@ export class TatolabViewBridge {
         return { kind: "done" };
       }
       case "import_assets_into_the_project": {
-        const importing = await this.hostServices.importAssetsIntoTheProject(ask.project_folder);
+        const importing = await this.hostServices.importAssetsIntoTheProject(ask.project_folder, ask.media);
         if (importing.kind === "imported") return { kind: "project_assets_imported", assets_imported: importing.assets_imported };
         return importing.kind === "nothing_chosen" ? { kind: "nothing_chosen" } : { kind: "refused", because: importing.because };
       }
@@ -365,6 +370,17 @@ export class TatolabViewBridge {
       case "end_the_port_pick":
         this.hostServices.endThePortPick(`${this.manifest.title} ended the pick.`);
         return { kind: "done" };
+      case "pick_a_project_asset": {
+        this.assetPicksOfTheViewHeld += 1;
+        const ending = await this.hostServices.pickAProjectAsset(ask.pick);
+        this.assetPicksOfTheViewHeld -= 1;
+        if (ending.kind === "chosen") return { kind: "project_asset_chosen", asset: ending.asset };
+        return ending.kind === "ended" ? { kind: "project_asset_pick_ended", because: ending.because } : { kind: "refused", because: ending.because };
+      }
+      case "answer_the_project_asset_pick": {
+        const answering = this.hostServices.answerTheProjectAssetPick(ask.asset);
+        return answering.kind === "answered" ? { kind: "done" } : { kind: "refused", because: answering.because };
+      }
       case "expand_the_area": {
         const expanding = this.areaServices.expansion.expand(ask.is_expanded);
         return expanding.kind === "done" ? { kind: "done" } : { kind: "refused", because: expanding.because };

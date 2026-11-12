@@ -98,6 +98,16 @@ export const portPickInTheStreamGraphSchema = z.object({
 /** A port whose other end is being picked in the Stream graph. */
 export type PortPickInTheStreamGraph = z.infer<typeof portPickInTheStreamGraphSchema>;
 
+/** A project asset the person is choosing in Studio's asset picker, as for a config field naming one. */
+export const projectAssetPickSchema = z.object({
+  /** The `media_facts` members of which a chosen asset's bytes hold one, as `["image"]`; `null` takes any asset of the project. */
+  media: z.array(z.string()).nullable(),
+  /** The UUID of the asset chosen now, which the picker marks; `null` for none. */
+  chosen_now: z.string().nullable(),
+});
+/** A project asset being chosen in Studio's asset picker. */
+export type ProjectAssetPick = z.infer<typeof projectAssetPickSchema>;
+
 /** What a view may watch. */
 export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("open_project") }),
@@ -129,6 +139,8 @@ export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("areas_for_the_view_type"), view_type_id: z.string() }),
   /** The port whose other end the person is picking in the Stream graph, `null` while none is. */
   z.object({ kind: z.literal("port_pick") }),
+  /** The asset pick the view is shown in Studio's asset picker to answer; `null` for a view shown anywhere else. */
+  z.object({ kind: z.literal("project_asset_pick") }),
 ]);
 /** What a view may watch. */
 export type ViewWatchedSubject = z.infer<typeof viewWatchedSubjectSchema>;
@@ -174,8 +186,8 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   }),
   /** The person editing in Studio, the author history records their edits under and their own undo takes. */
   z.object({ kind: z.literal("read_the_person_editing") }),
-  /** Ask the person for files in the desktop's open dialog and import each into the project through the runtime's `import_asset`, which places it in its kind's folder. */
-  z.object({ kind: z.literal("import_assets_into_the_project"), project_folder: z.string() }),
+  /** Ask the person for files in the desktop's open dialog, offering the files of `media` (`null` for any), and import each into the project through the runtime's `import_asset`, which places it in its kind's folder. */
+  z.object({ kind: z.literal("import_assets_into_the_project"), project_folder: z.string(), media: z.array(z.string()).nullable().default(null) }),
   /** Put the asset `asset` of the project at `to_path`, renaming it, moving it or both, through the runtime's `relocate_asset`, by the person editing. */
   z.object({ kind: z.literal("relocate_asset_in_the_project"), project_folder: z.string(), asset: z.string(), to_path: z.string() }),
   /** The preview picture of the asset `asset` of the project, an image's own or a video's poster frame, through the runtime's `read_asset_preview`. */
@@ -192,6 +204,10 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("answer_the_port_pick"), node: z.string(), port: z.string() }),
   /** End the pick held with nothing picked. */
   z.object({ kind: z.literal("end_the_port_pick") }),
+  /** Have the person choose a project asset in Studio's asset picker over the window, ending any asset pick held; answered once the picker closes. */
+  z.object({ kind: z.literal("pick_a_project_asset"), pick: projectAssetPickSchema }),
+  /** End the asset pick held with the asset `asset` chosen, by its UUID. */
+  z.object({ kind: z.literal("answer_the_project_asset_pick"), asset: z.string() }),
   /** Grow the view's area to fill the window, or put the layout back; refused where the view shows outside a layout. */
   z.object({ kind: z.literal("expand_the_area"), is_expanded: z.boolean() }),
 ]);
@@ -235,6 +251,7 @@ export const viewWatchedReadingSchema = z.discriminatedUnion("subject", [
   z.object({ subject: z.literal("area_expansion"), reading: z.object({ is_expanded: z.boolean() }) }),
   z.object({ subject: z.literal("areas_for_the_view_type"), reading: areasForAViewTypeReadingSchema }),
   z.object({ subject: z.literal("port_pick"), reading: portPickInTheStreamGraphSchema.nullable() }),
+  z.object({ subject: z.literal("project_asset_pick"), reading: projectAssetPickSchema.nullable() }),
 ]);
 /** One reading of a watched subject. */
 export type ViewWatchedReading = z.infer<typeof viewWatchedReadingSchema>;
@@ -260,6 +277,10 @@ export const viewAskAnswerSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("port_picked"), node: z.string(), port: z.string() }),
   /** The pick ended with nothing picked, and why: Esc, the pick asked again, another pick, or the stream's tab closing. */
   z.object({ kind: z.literal("port_pick_ended"), because: z.string() }),
+  /** The asset the person chose in the asset picker, by its UUID. */
+  z.object({ kind: z.literal("project_asset_chosen"), asset: z.string() }),
+  /** The asset picker closed with nothing chosen, and why: closed by the person, or another pick. */
+  z.object({ kind: z.literal("project_asset_pick_ended"), because: z.string() }),
 ]);
 /** What Studio answers an ask with. */
 export type ViewAskAnswer = z.infer<typeof viewAskAnswerSchema>;
