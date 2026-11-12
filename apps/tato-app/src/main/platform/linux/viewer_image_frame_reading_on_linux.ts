@@ -1,6 +1,5 @@
 // How a Linux viewer reads the runtime's frames, decided from the desktop session before any window opens.
 
-import type { ChromiumCommandLineSwitch } from "../chromium_command_line_switch.js";
 import type { ViewerImageFrameReading } from "../viewer_image_frame_reading.js";
 
 /** The session variables a Linux desktop sets, which Electron's own choice of Wayland or X11 follows. */
@@ -10,12 +9,6 @@ export interface LinuxDesktopSessionVariables {
   /** `WAYLAND_DISPLAY`, set while a Wayland compositor answers. */
   waylandDisplay: string | undefined;
 }
-
-/**
- * Chromium shows a DMA-BUF import only through ANGLE's Vulkan backend: under Wayland with it, linear and tiled buffers show exact
- * pixels; Electron already runs natively on Wayland in a Wayland session.
- */
-export const LINUX_CHROMIUM_COMMAND_LINE_SWITCHES: readonly ChromiumCommandLineSwitch[] = [{ name: "use-angle", value: "vulkan" }];
 
 /**
  * A Wayland session imports each frame with no copy; any other session copies it through the CPU. Under X11 on NVIDIA's driver,

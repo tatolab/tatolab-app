@@ -51,9 +51,19 @@ test("a page that has painted but draws no first status within the wait limit sh
   expect(timesPutOnScreen).toBe(1);
 });
 
-test("the wait limit counts from the first paint, never from the window's creation", () => {
+test("a hidden window's page that has not painted yet, as under Wayland, still shows once the wait limit after the show has run", () => {
   firstShowGate.show();
+
+  vi.advanceTimersByTime(MAIN_WINDOW_FIRST_STATUS_DRAW_WAIT_LIMIT_MS - 1);
+  expect(timesPutOnScreen).toBe(0);
+  vi.advanceTimersByTime(1);
+
+  expect(timesPutOnScreen).toBe(1);
+});
+
+test("the wait limit never runs on a window nobody asked to show and whose page has not painted", () => {
   vi.advanceTimersByTime(MAIN_WINDOW_FIRST_STATUS_DRAW_WAIT_LIMIT_MS * 5);
+  firstShowGate.pageDrewItsFirstStatus();
 
   expect(timesPutOnScreen).toBe(0);
 });

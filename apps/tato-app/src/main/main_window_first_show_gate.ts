@@ -1,4 +1,4 @@
-/** How long after its page first paints the window still waits for the page's first status before showing empty. */
+/** How long after its page first paints, or after a show while it has not painted, the window still waits for the page's first status before showing empty. */
 export const MAIN_WINDOW_FIRST_STATUS_DRAW_WAIT_LIMIT_MS = 2000;
 
 /** Holds the window's first show until its page has drawn its first status, will draw nothing, or has run past the wait limit; after that a show is immediate. */
@@ -11,8 +11,7 @@ export class MainWindowFirstShowGate {
 
   /** The window's page painted for the first time, empty until it draws its first status. */
   pageFirstPainted(): void {
-    if (this.pageIsReadyToShow || this.drawWaitLimitTimer !== null) return;
-    this.drawWaitLimitTimer = setTimeout(() => this.pageIsReady(), MAIN_WINDOW_FIRST_STATUS_DRAW_WAIT_LIMIT_MS);
+    this.startTheDrawWaitLimit();
   }
 
   /** The window's page drew its first status. */
@@ -27,8 +26,13 @@ export class MainWindowFirstShowGate {
 
   /** Put the window on screen now, or as soon as its page is ready. */
   show(): void {
-    if (this.pageIsReadyToShow) this.putTheWindowOnScreen();
-    else this.showWaitsForThePage = true;
+    if (this.pageIsReadyToShow) {
+      this.putTheWindowOnScreen();
+      return;
+    }
+    this.showWaitsForThePage = true;
+    // Chromium under Wayland paints no window before it is mapped, so a hidden window's page never first-paints there.
+    this.startTheDrawWaitLimit();
   }
 
   /** Drop a show still waiting for the page. */
@@ -39,6 +43,11 @@ export class MainWindowFirstShowGate {
   /** Whether a show is waiting for the page, which counts as the window showing. */
   showIsWaitingForThePage(): boolean {
     return this.showWaitsForThePage && !this.pageIsReadyToShow;
+  }
+
+  private startTheDrawWaitLimit(): void {
+    if (this.pageIsReadyToShow || this.drawWaitLimitTimer !== null) return;
+    this.drawWaitLimitTimer = setTimeout(() => this.pageIsReady(), MAIN_WINDOW_FIRST_STATUS_DRAW_WAIT_LIMIT_MS);
   }
 
   private pageIsReady(): void {

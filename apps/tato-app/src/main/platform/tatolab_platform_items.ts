@@ -6,7 +6,6 @@
 import type { TatolabPlatform } from "../../shared/tatolab_backend_contract.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
 import type { ApplicationMenu } from "./application_menu.js";
-import type { ChromiumCommandLineSwitch } from "./chromium_command_line_switch.js";
 import type { DockIconHost, MainWindowChrome } from "./main_window_chrome.js";
 import type { TatolabPlatformForThisBuild, TatolabPlatformHostServices } from "./tatolab_platform_for_this_build.js";
 import type { TrayIconImage } from "./tray_icon_image.js";
@@ -18,7 +17,6 @@ import { LINUX_MAIN_WINDOW_CHROME, setLinuxDockIconVisible } from "./linux/main_
 import { linuxTatolabPlatformForThisBuild } from "./linux/linux_tatolab_platform_for_this_build.js";
 import { streamlibCommitFileTheAppCarriesInTheResources, viewerAddonThePackagedAppCarriesBesideItsAsar } from "./linux/tatolab_machine_paths.js";
 import { LINUX_TRAY_ICON_IMAGE } from "./linux/tray_icon_image.js";
-import { LINUX_CHROMIUM_COMMAND_LINE_SWITCHES } from "./linux/viewer_image_frame_reading_on_linux.js";
 
 /** The platform items the app's lifecycle, window and tray use. */
 export interface TatolabPlatformItems {
@@ -27,8 +25,6 @@ export interface TatolabPlatformItems {
   mainWindowChrome: MainWindowChrome;
   applicationMenu: ApplicationMenu;
   setDockIconVisible(dockIconHost: DockIconHost, dockIconVisible: boolean): void;
-  /** The switches Chromium starts with, set before the app is ready: none on macOS, ANGLE's Vulkan backend on Linux. */
-  chromiumCommandLineSwitches: readonly ChromiumCommandLineSwitch[];
   /** The file naming the streamlib commit of the runtime the app carries, found from the app's resources folder; `null` where the app carries none. */
   streamlibCommitFileTheAppCarries(appResourcesDirectory: string): string | null;
   /** The viewer addon a packaged app carries, found from the app's resources folder. */
@@ -52,7 +48,6 @@ export function tatolabPlatformItemsFor(nodePlatformName: string): TatolabPlatfo
         mainWindowChrome: MACOS_MAIN_WINDOW_CHROME,
         applicationMenu: "macos_menu_bar",
         setDockIconVisible: setMacosDockIconVisible,
-        chromiumCommandLineSwitches: [],
         streamlibCommitFileTheAppCarries: streamlibCommitFileTheAppCarriesBeside,
         viewerAddonThePackagedAppCarries: viewerAddonThePackagedAppCarriesInItsFrameworks,
         tatolabPlatformForThisBuild: macosTatolabPlatformForThisBuild,
@@ -64,7 +59,6 @@ export function tatolabPlatformItemsFor(nodePlatformName: string): TatolabPlatfo
         mainWindowChrome: LINUX_MAIN_WINDOW_CHROME,
         applicationMenu: "none",
         setDockIconVisible: setLinuxDockIconVisible,
-        chromiumCommandLineSwitches: LINUX_CHROMIUM_COMMAND_LINE_SWITCHES,
         streamlibCommitFileTheAppCarries: streamlibCommitFileTheAppCarriesInTheResources,
         viewerAddonThePackagedAppCarries: viewerAddonThePackagedAppCarriesBesideItsAsar,
         tatolabPlatformForThisBuild: linuxTatolabPlatformForThisBuild,
