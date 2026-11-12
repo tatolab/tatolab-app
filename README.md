@@ -365,6 +365,10 @@ is under `app/`; streamlib owns `packages/`, `simple/`, `releases/`, `install.sh
 the `.dmg`, `.deb` and AppImage go on this repository's `v<version>` GitHub release. The secrets
 (the Developer ID, the App Store Connect key as `APPLE_API_KEY_P8_BASE64`, `APPLE_API_KEY_ID` and
 `APPLE_API_ISSUER`, and the R2 keys for get.tatolab.com) come from the repository's Infisical sync.
+The release runs no tests. Each platform's files are kept in the Actions cache under the app
+version, the streamlib version and the commit, so a re-run, or a publishing dispatch after a build-only
+one, takes them instead of building again; the macOS runtime unit, which streamlib does not publish,
+is kept per streamlib release, so a release over the same runtime skips streamlib's build.
 `apps/tato-app/scripts/bump-homebrew-cask.sh` still writes `Casks/tato-studio.rb` for tatolab/homebrew-tap by hand.
 
 A pull request runs only `.github/workflows/ci.yml`: types, lint and the unit tests.
