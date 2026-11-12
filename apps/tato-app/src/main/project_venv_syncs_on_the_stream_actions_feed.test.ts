@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
-import { localApiRequestFailure, theRuntimesRefusal } from "./local_api_client.js";
+import { localApiRequestFailure, theRuntimesRefusal } from "./local_api_request_failure.js";
 import {
   ProjectVenvSyncsOnTheStreamActionsFeed,
   STREAM_ACTIONS_UNDER_WAY_RESOURCE_URI,

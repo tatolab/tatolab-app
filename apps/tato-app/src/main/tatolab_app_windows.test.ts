@@ -1,4 +1,4 @@
-import { localApiRequestFailure } from "./local_api_client.js";
+import { localApiRequestFailure } from "./local_api_request_failure.js";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -78,6 +78,7 @@ async function windowsWithNightShowOpen(closeTheProject: (projectFolder: string)
     personSavingTheFiles: { kind: "person", name: "sam" },
     mintAnIdempotencyKey: () => "a-save",
     openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
+    nameTheChangeFeedOfTheProject: async () => localApiRequestFailure("no runtime answers"),
     runAfter: () => () => {},
     closeTheProjectAsItsWindowCloses: (folder) => {
       projectsClosed.push(folder);

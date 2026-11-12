@@ -4,20 +4,17 @@
 // (`ProjectActionRefusalOnTheWire`), each optional key left out when the refusal names none. Every other key a
 // newer runtime adds is ignored.
 
-import type { GraphLinkEnd, JsonValue, ProjectActionRefusal, ProjectGraphTransaction } from "../shared/tatolab_backend_contract.js";
+import type { GraphLinkEnd, JsonValue, ProjectGraphTransaction } from "../shared/tatolab_backend_contract.js";
 import {
   arrayOrEmpty,
   everyOneRead,
-  isAJsonObject,
   isAJsonValue,
   jsonObject,
   type JsonObjectOnTheWire,
   optionalText,
-  parseJsonOnTheWire,
   requiredArray,
   requiredText,
 } from "./json_on_the_wire.js";
-import { projectActionRefusalAt } from "./project_transactions_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 function graphLinkEndOnTheWire(value: unknown, what: string): Result<GraphLinkEnd, string> {
@@ -126,15 +123,10 @@ function projectGraphTransactionFromItsFields(fields: JsonObjectOnTheWire): Resu
   });
 }
 
-/** The transaction a graph tool answered with `toolResultText`, or why it could not be read. */
-export function projectGraphTransactionFromTheTransactToolResult(toolResultText: string): Result<ProjectGraphTransaction, string> {
-  const parsed = parseJsonOnTheWire(toolResultText);
-  const fields = parsed.ok ? jsonObject(parsed.value, "the transact result") : parsed;
+/** The transaction a graph tool answered with `operationResult`, or why it could not be read. */
+export function projectGraphTransactionFromTheTransactToolResult(operationResult: unknown): Result<ProjectGraphTransaction, string> {
+  const fields = jsonObject(operationResult, "the transact result");
   const transaction = fields.ok ? projectGraphTransactionFromItsFields(fields.value) : fields;
   return transaction.ok ? transaction : failedWith(`the runtime's transact answer could not be read: ${transaction.failure}`);
 }
 
-/** The structured refusal a refused action's `structuredContent` carries under `refusal`, or why it carries none that can be read. */
-export function projectActionRefusalFromTheStructuredContent(structuredContent: unknown): Result<ProjectActionRefusal, string> {
-  return isAJsonObject(structuredContent) ? projectActionRefusalAt(structuredContent) : failedWith("the refusal carries no structured content");
-}

@@ -28,9 +28,9 @@ export function previewPictureSizeIn(previewObject: JsonObjectOnTheWire): Result
   return succeeded({ pixel_width: pixelWidth.value, pixel_height: pixelHeight.value, media_type: mediaType.value });
 }
 
-/** The picture `read_asset_preview` answered with `toolResultText` for `asset`, or why it could not be read. */
-export function assetPreviewPictureFromTheReadAssetPreviewToolResult(asset: string, toolResultText: string): Result<AssetPreviewPictureTheRuntimeRead, string> {
-  return toolResultReadWith("read_asset_preview", toolResultText, (toolResult) => assetPreviewPictureIn(asset, toolResult));
+/** The picture `read_asset_preview` answered with `operationResult` for `asset`, or why it could not be read. */
+export function assetPreviewPictureFromTheReadAssetPreviewToolResult(asset: string, operationResult: unknown): Result<AssetPreviewPictureTheRuntimeRead, string> {
+  return toolResultReadWith("read_asset_preview", operationResult, (toolResult) => assetPreviewPictureIn(asset, toolResult));
 }
 
 function assetPreviewPictureIn(asset: string, toolResult: JsonObjectOnTheWire): Result<AssetPreviewPictureTheRuntimeRead, string> {

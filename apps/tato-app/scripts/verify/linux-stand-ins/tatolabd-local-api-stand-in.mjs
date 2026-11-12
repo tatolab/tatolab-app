@@ -1,7 +1,7 @@
 // A stand-in for tatolabd's local API, for proof in a Linux container where no runtime runs: it
-// answers on `<socket>` what the app reads — `GET /health`, the MCP tools `list_streams`, `logs`
-// and `graph`, and `GET /api/graph`'s machine name — and the queued project actions `stop_playback`
-// and `remove_project`, changing its listing as the runtime does once an action
+// answers on `<socket>` what the app reads — `GET /health`, the control operations `list_streams`,
+// `logs` and `graph` over `POST /control`, and `GET /api/graph`'s machine name — and the queued
+// project actions `stop_playback` and `remove_project`, changing its listing as the runtime does once an action
 // finishes, from the responses recorded from a real runtime under src/main/test-fixtures/.
 // Usage: node tatolabd-local-api-stand-in.mjs <socket>
 import { readFileSync, rmSync } from "node:fs";
@@ -93,8 +93,10 @@ function httpResponse(statusCode, contentType, bodyText) {
   ]);
 }
 
+/** `POST /control`'s answer: the result's text spliced in whole, so its numbers keep their digits, or a failure (code 2) in its words. */
 function toolResult(requestId, toolResultText, isError = false) {
-  return httpResponse(200, "application/json", JSON.stringify({ jsonrpc: "2.0", id: requestId, result: { content: [{ type: "text", text: toolResultText }], isError } }));
+  if (isError) return httpResponse(200, "application/json", JSON.stringify({ jsonrpc: "2.0", id: requestId, error: { code: 2, message: toolResultText } }));
+  return httpResponse(200, "application/json", `{"jsonrpc":"2.0","id":${JSON.stringify(requestId)},"result":${toolResultText}}`);
 }
 
 function answer(method, requestTarget, requestBody) {
@@ -103,9 +105,9 @@ function answer(method, requestTarget, requestBody) {
   if (method === "GET" && url.pathname === "/api/graph") {
     return httpResponse(200, "application/json", JSON.stringify({ machine: STAND_IN_MACHINE_NAME, streams: [] }));
   }
-  if (method === "POST" && url.pathname === "/mcp") {
+  if (method === "POST" && url.pathname === "/control") {
     const toolCall = JSON.parse(requestBody);
-    const { name, arguments: toolArguments } = toolCall.params;
+    const { method: name, params: toolArguments } = toolCall;
     if (name === "list_streams") return toolResult(toolCall.id, JSON.stringify(listedStreams));
     if (name === "stop_playback" || name === "remove_project") return projectActionToolResult(toolCall.id, name, toolArguments);
     if (name === "graph") {

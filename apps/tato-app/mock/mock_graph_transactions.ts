@@ -161,7 +161,7 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
     case "unfold_fragment": {
       const { fragment, name, nodes } = historyOperation;
       if (typeof fragment !== "string" || typeof name !== "string" || !Array.isArray(nodes)) return null;
-      if (operation === "unfold_fragment") return { operation: "unlock_generator_fragment", stream, fragment };
+      if (operation === "unfold_fragment") return { operation: "unlock_subgraph", stream, fragment };
       return { operation: "collapse_selection_into_subgraph", stream, name, nodes: nodes.flatMap((member) => (typeof member === "string" ? [member] : [])) };
     }
     case "connect":
@@ -215,7 +215,7 @@ export function applyMockGraphTransaction(
               ? `node ${subgraphId} \`${subgraph.name}\` is no subgraph, so it has no inside to edit`
               : subgraph.fragment.kind === "placed_stream"
                 ? `node ${subgraphId} \`${subgraph.name}\` places another stream, which is edited as its own stream, never from inside the node placing it`
-                : `node ${subgraphId} \`${subgraph.name}\` holds what the graph generator \`${subgraph.type}\` builds, which a refresh replaces; unlock it with unlock_generator_fragment to edit inside it`;
+                : `node ${subgraphId} \`${subgraph.name}\` holds what the graph generator \`${subgraph.type}\` builds, which a refresh replaces; unlock it with unlock_subgraph to edit inside it`;
         return { kind: "refused", refusal: { action: "transact", refused_operation_index: operationIndex, refused_node: subgraphId, refused_link: null, refused_field: null, runtime_words: why } };
       }
       graph = subgraph.fragment;
@@ -534,7 +534,7 @@ export function applyMockGraphTransaction(
           recordInHistory({ operation: "refresh_fragment", node: fragment, from: { type: subgraph.type, config: from }, to: { type: subgraph.type, config: subgraph.config } }, { operation: "refresh_fragment", node: fragment, from: { type: subgraph.type, config: subgraph.config }, to: { type: subgraph.type, config: from } });
           break;
         }
-        case "unlock_generator_fragment": {
+        case "unlock_subgraph": {
           const subgraph = nodeNamed(operation.fragment);
           if (subgraph.fragment === undefined) throw refusedNaming(`node ${operation.fragment} is not a fragment`, { refused_node: operation.fragment });
           if (subgraph.fragment.kind === "placed_stream") throw refusedNaming("a placed stream cannot be unlocked; edit that stream instead", { refused_node: operation.fragment });

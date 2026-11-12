@@ -79,15 +79,15 @@ test("an edit whose author edited again after undoing it reads as no longer redo
 });
 
 test("the transaction a recorded undo and redo answer is read with its lineage", async () => {
-  const undone = answerOf(projectTransactionFromTheUndoOrRedoToolResult("undo", await recordedAnswerText("local-api-undo-tool-result-of-sam-undoing-their-import-into-lobby.json")));
-  const redone = answerOf(projectTransactionFromTheUndoOrRedoToolResult("redo", await recordedAnswerText("local-api-redo-tool-result-of-sam-redoing-their-import-into-lobby.json")));
+  const undone = answerOf(projectTransactionFromTheUndoOrRedoToolResult("undo", JSON.parse(await recordedAnswerText("local-api-undo-tool-result-of-sam-undoing-their-import-into-lobby.json"))));
+  const redone = answerOf(projectTransactionFromTheUndoOrRedoToolResult("redo", JSON.parse(await recordedAnswerText("local-api-redo-tool-result-of-sam-redoing-their-import-into-lobby.json"))));
 
   expect(undone).toMatchObject({ author_kind: "person", author_name: "Sam", undoes: SAMS_IMPORT, redoes: null, undo_state: null });
   expect(redone).toMatchObject({ redoes: SAMS_IMPORT, undoes: null, undo_state: "applied", operations: [{ operation: "import_asset" }] });
 });
 
 test("list_assets names the project's change feed", async () => {
-  const uri = answerOf(transactionsResourceUriFromTheListAssetsToolResult(await recordedAnswerText("local-api-list-assets-tool-result-of-the-project-lobby-naming-its-transactions-resource.json")));
+  const uri = answerOf(transactionsResourceUriFromTheListAssetsToolResult(JSON.parse(await recordedAnswerText("local-api-list-assets-tool-result-of-the-project-lobby-naming-its-transactions-resource.json"))));
   expect(uri).toBe(`streamlib://project/${PROJECT}/transactions`);
 });
 
@@ -126,8 +126,8 @@ test("an entry or an undo state newer than this app leaves the rest of the feed 
 
 test("a change feed or undo result missing what it must carry is not read", () => {
   expect(projectTransactionsFromTheResourceText('{"project":"p","project_directory":"/d"}')).toEqual({ ok: false, failure: expect.stringMatching(/^the project's change feed could not be read: .*transactions/) });
-  expect(projectTransactionFromTheUndoOrRedoToolResult("redo", '{"format_version":2,"transaction":"t"}')).toEqual({ ok: false, failure: expect.stringMatching(/^the runtime's redo result could not be read: .*commit/) });
-  expect(transactionsResourceUriFromTheListAssetsToolResult('{"assets":[]}')).toEqual({ ok: false, failure: expect.stringMatching(/^the runtime's list_assets result names no change feed: /) });
+  expect(projectTransactionFromTheUndoOrRedoToolResult("redo", JSON.parse('{"format_version":2,"transaction":"t"}'))).toEqual({ ok: false, failure: expect.stringMatching(/^the runtime's redo result could not be read: .*commit/) });
+  expect(transactionsResourceUriFromTheListAssetsToolResult(JSON.parse('{"assets":[]}'))).toEqual({ ok: false, failure: expect.stringMatching(/^the runtime's list_assets result names no change feed: /) });
   expect(projectTransactionsFromTheResourceText('{"project":"p","project_directory":"/d","transactions":[{"transaction":"t"}]}')).toEqual({ ok: false, failure: expect.stringMatching(/`status`/) });
 
 });

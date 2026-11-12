@@ -1,8 +1,8 @@
 import type { ListedStream } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { expect, test } from "vitest";
 import type { PortViewerEvent, PortViewerImageFrameFacts } from "../shared/tatolab_backend_contract.js";
-import type { LocalApiRequestFailure } from "./local_api_client.js";
-import type { OpenedRuntimeViewer, RuntimeViewerTarget } from "./local_api_mcp_stdio_connection.js";
+import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
+import type { OpenedRuntimeViewer, RuntimeViewerTarget } from "./runtime_viewer_control_connection.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import {
   PORT_VIEWER_READ_EVERY_MS,

@@ -4,7 +4,7 @@
 // `check_for_newer`, whether its source holds another version. Every other key is ignored.
 
 import type { ProjectDependency, WorkspaceDependencyUpdate } from "../shared/tatolab_backend_contract.js";
-import { arrayOrEmpty, everyOneRead, jsonObject, type JsonObjectOnTheWire, optionalText, parseJsonOnTheWire, requiredArray, requiredText, requiredTrueOrFalse } from "./json_on_the_wire.js";
+import { arrayOrEmpty, everyOneRead, jsonObject, type JsonObjectOnTheWire, optionalText, requiredArray, requiredText, requiredTrueOrFalse } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** One import as `list_dependencies` answers it. */
@@ -16,18 +16,18 @@ export interface ListedProjectDependency {
   check_refused_because: string | null;
 }
 
-/** The import `add_dependency` answered with `toolResultText`, or why it could not be read. */
-export function projectDependencyFromTheAddDependencyToolResult(toolResultText: string): Result<ProjectDependency, string> {
-  const dependency = withTheToolResultObject(toolResultText, (toolResult) => {
+/** The import `add_dependency` answered with `operationResult`, or why it could not be read. */
+export function projectDependencyFromTheAddDependencyToolResult(operationResult: unknown): Result<ProjectDependency, string> {
+  const dependency = withTheToolResultObject(operationResult, (toolResult) => {
     const dependencyOnTheWire = jsonObject(toolResult["dependency"], "the dependency");
     return dependencyOnTheWire.ok ? projectDependencyOnTheWire(dependencyOnTheWire.value) : dependencyOnTheWire;
   });
   return dependency.ok ? dependency : failedWith(`the runtime's add_dependency result could not be read: ${dependency.failure}`);
 }
 
-/** What `update_dependency` answered with `toolResultText`: the copy it committed, or the files it waits on the overwrite of; or why it could not be read. */
-export function dependencyUpdateFromTheUpdateDependencyToolResult(toolResultText: string): Result<WorkspaceDependencyUpdate, string> {
-  const update = withTheToolResultObject(toolResultText, (toolResult): Result<WorkspaceDependencyUpdate, string> => {
+/** What `update_dependency` answered with `operationResult`: the copy it committed, or the files it waits on the overwrite of; or why it could not be read. */
+export function dependencyUpdateFromTheUpdateDependencyToolResult(operationResult: unknown): Result<WorkspaceDependencyUpdate, string> {
+  const update = withTheToolResultObject(operationResult, (toolResult): Result<WorkspaceDependencyUpdate, string> => {
     const overwriteConfirmationNeeded = requiredTrueOrFalse(toolResult, "overwrite_confirmation_needed");
     if (!overwriteConfirmationNeeded.ok) return overwriteConfirmationNeeded;
     if (overwriteConfirmationNeeded.value) {
@@ -42,19 +42,17 @@ export function dependencyUpdateFromTheUpdateDependencyToolResult(toolResultText
   return update.ok ? update : failedWith(`the runtime's update_dependency result could not be read: ${update.failure}`);
 }
 
-/** Each import `list_dependencies` answered with `toolResultText`, in the order `tatolab-project.json` lists them, or why they could not be read. */
-export function workspaceDependenciesFromTheListDependenciesToolResult(toolResultText: string): Result<ListedProjectDependency[], string> {
-  const listed = withTheToolResultObject(toolResultText, (toolResult) => {
+/** Each import `list_dependencies` answered with `operationResult`, in the order `tatolab-project.json` lists them, or why they could not be read. */
+export function workspaceDependenciesFromTheListDependenciesToolResult(operationResult: unknown): Result<ListedProjectDependency[], string> {
+  const listed = withTheToolResultObject(operationResult, (toolResult) => {
     const dependencies = requiredArray(toolResult, "dependencies");
     return dependencies.ok ? everyOneRead(dependencies.value, listedProjectDependencyOnTheWire) : dependencies;
   });
   return listed.ok ? listed : failedWith(`the runtime's list_dependencies result could not be read: ${listed.failure}`);
 }
 
-function withTheToolResultObject<ReadValue>(toolResultText: string, readTheToolResult: (toolResult: JsonObjectOnTheWire) => Result<ReadValue, string>): Result<ReadValue, string> {
-  const parsedToolResult = parseJsonOnTheWire(toolResultText);
-  if (!parsedToolResult.ok) return parsedToolResult;
-  const toolResult = jsonObject(parsedToolResult.value, "the tool result");
+function withTheToolResultObject<ReadValue>(operationResult: unknown, readTheToolResult: (toolResult: JsonObjectOnTheWire) => Result<ReadValue, string>): Result<ReadValue, string> {
+  const toolResult = jsonObject(operationResult, "the tool result");
   return toolResult.ok ? readTheToolResult(toolResult.value) : toolResult;
 }
 

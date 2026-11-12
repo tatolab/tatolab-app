@@ -2,14 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { LOCAL_API_MCP_PROTOCOL_VERSION, type LocalApiRequestFailure } from "./local_api_client.js";
-import {
-  closedViewerFromTheCloseViewerToolResult,
-  LocalApiMcpStdioConnection,
-  openedRuntimeViewerFromTheOpenViewerToolResult,
-  resourceTextFromTheResourcesReadAnswer,
-  type OpenedRuntimeViewer,
-} from "./local_api_mcp_stdio_connection.js";
+import { LOCAL_API_MCP_PROTOCOL_VERSION, LocalApiMcpStdioConnection, resourceTextFromTheResourcesReadAnswer } from "./local_api_mcp_stdio_connection.js";
 import type { Result } from "./result.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
@@ -82,30 +75,12 @@ async function fakeMcpStdioRuntime(upgradeResponse: string, answerRequest: FakeR
 
 const UPGRADED = "HTTP/1.1 101 Switching Protocols\r\nconnection: upgrade\r\nupgrade: mcp-stdio\r\n\r\n";
 
-/** The JSON-RPC line the runtime's rmcp server writes for request `id`'s tool result: the tool's JSON as one pretty-printed text block. */
-function toolResultLine(id: unknown, toolResult: unknown, isError = false): string {
-  const text = typeof toolResult === "string" ? toolResult : JSON.stringify(toolResult, null, 2);
-  return JSON.stringify({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }], isError } });
+const FEED_URI = "streamlib://project/2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90/transactions";
+
+/** The JSON-RPC line the runtime's rmcp server writes for request `id`'s `resources/read`: one contents block holding `text`. */
+function resourceTextLine(id: unknown, text: string): string {
+  return JSON.stringify({ jsonrpc: "2.0", id, result: { contents: [{ uri: FEED_URI, mimeType: "application/json", text }] } });
 }
-
-function toolCallParams(request: Record<string, unknown>): Record<string, unknown> {
-  const params = request["params"];
-  return typeof params === "object" && params !== null ? Object.fromEntries(Object.entries(params)) : {};
-}
-
-/** An `open_viewer` result in the shape `OpenViewerToolResult` (`local_api_wire_contract.rs`) serializes to. */
-const OPEN_VIEWER_RESULT_ON_LINUX = {
-  viewer: "pattern-main-1a2b3c/7f3a/video",
-  stream: "pattern-main-1a2b3c",
-  node_id: "7f3a",
-  node_name: "pattern",
-  port: "video",
-  iceoryx2_domain_root: "/run/user/1000/tatolab/iceoryx2",
-  channel: "streamlib/pattern-main-1a2b3c/pattern/video",
-  surface_share_address: "/run/user/1000/tatolab/surface-share.sock",
-};
-
-const LINUX_VIEWER: OpenedRuntimeViewer = OPEN_VIEWER_RESULT_ON_LINUX;
 
 async function openConnection(localApiSocketPath: string, requestTimeoutMs = 2_000): Promise<LocalApiMcpStdioConnection> {
   const connection = answerOf(await LocalApiMcpStdioConnection.open(localApiSocketPath, requestTimeoutMs, "0.45.0"));
@@ -113,23 +88,22 @@ async function openConnection(localApiSocketPath: string, requestTimeoutMs = 2_0
   return connection;
 }
 
-test("the_connection_upgrades_with_mcp_stdio_and_opens_a_viewer_with_the_per_request_meta", async () => {
-  const runtime = await fakeMcpStdioRuntime(UPGRADED, (request) => [toolResultLine(request["id"], OPEN_VIEWER_RESULT_ON_LINUX)]);
+test("the_connection_upgrades_with_mcp_stdio_and_reads_a_resource_with_the_per_request_meta", async () => {
+  const runtime = await fakeMcpStdioRuntime(UPGRADED, (request) => [resourceTextLine(request["id"], '{"transactions":[]}')]);
   const connection = await openConnection(runtime.localApiSocketPath);
 
-  const openedViewer = answerOf(await connection.openViewer({ stream: "pattern-main-1a2b3c", node_id: "7f3a", port: "video", viewer_process_id: 4242 }));
-
-  expect(openedViewer).toEqual(LINUX_VIEWER);
+  expect(answerOf(await connection.readResourceText(FEED_URI))).toBe('{"transactions":[]}');
   expect(runtime.upgradeRequestsRead).toEqual(["GET /mcp/stdio HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\nUpgrade: mcp-stdio"]);
-  const [openViewerRequest] = runtime.requestLinesRead;
-  expect(openViewerRequest).toMatchObject({ jsonrpc: "2.0", method: "tools/call" });
-  expect(toolCallParams(openViewerRequest ?? {})).toEqual({
-    name: "open_viewer",
-    arguments: { stream: "pattern-main-1a2b3c", node_id: "7f3a", port: "video", viewer_process_id: 4242 },
-    _meta: {
-      "io.modelcontextprotocol/protocolVersion": LOCAL_API_MCP_PROTOCOL_VERSION,
-      "io.modelcontextprotocol/clientInfo": { name: "tatolab-app", version: "0.45.0" },
-      "io.modelcontextprotocol/clientCapabilities": {},
+  expect(runtime.requestLinesRead[0]).toMatchObject({
+    jsonrpc: "2.0",
+    method: "resources/read",
+    params: {
+      uri: FEED_URI,
+      _meta: {
+        "io.modelcontextprotocol/protocolVersion": LOCAL_API_MCP_PROTOCOL_VERSION,
+        "io.modelcontextprotocol/clientInfo": { name: "tatolab-app", version: "0.45.0" },
+        "io.modelcontextprotocol/clientCapabilities": {},
+      },
     },
   });
 });
@@ -140,45 +114,23 @@ test("answers_that_come_back_out_of_order_settle_the_requests_they_answer", asyn
     requestsHeld.push(request);
     if (requestsHeld.length < 2) return null;
     const [first, second] = requestsHeld;
-    return [toolResultLine(second?.["id"], { viewer: "s/b/out" }), toolResultLine(first?.["id"], OPEN_VIEWER_RESULT_ON_LINUX)];
+    return [resourceTextLine(second?.["id"], "second"), resourceTextLine(first?.["id"], "first")];
   });
   const connection = await openConnection(runtime.localApiSocketPath);
 
-  const [openedViewer, closedViewer] = await Promise.all([
-    connection.openViewer({ stream: "pattern-main-1a2b3c", node_id: "7f3a", port: "video", viewer_process_id: 1 }),
-    connection.closeViewer("s/b/out"),
-  ]);
+  const [firstRead, secondRead] = await Promise.all([connection.readResourceText(FEED_URI), connection.readResourceText(FEED_URI)]);
 
-  expect(answerOf(openedViewer).viewer).toBe("pattern-main-1a2b3c/7f3a/video");
-  expect(answerOf(closedViewer)).toBe("s/b/out");
+  expect(answerOf(firstRead)).toBe("first");
+  expect(answerOf(secondRead)).toBe("second");
   expect(new Set(runtime.requestLinesRead.map((request) => request["id"])).size).toBe(2);
 });
 
 test("bytes_the_runtime_writes_with_the_101_are_read_as_the_first_lines", async () => {
   const notification = JSON.stringify({ jsonrpc: "2.0", method: "notifications/message", params: { level: "info", data: "hello" } });
-  const runtime = await fakeMcpStdioRuntime(UPGRADED, (request) => [toolResultLine(request["id"], { viewer: "a/b/c" })], `${notification}\n`);
+  const runtime = await fakeMcpStdioRuntime(UPGRADED, (request) => [resourceTextLine(request["id"], "{}")], `${notification}\n`);
   const connection = await openConnection(runtime.localApiSocketPath);
 
-  expect(answerOf(await connection.closeViewer("a/b/c"))).toBe("a/b/c");
-});
-
-test("a_viewer_the_tool_refuses_is_the_runtimes_refusal_in_its_own_words", async () => {
-  const refusal = "open_viewer failed: node `pattern` of stream `pattern-main-1a2b3c` is not running";
-  const runtime = await fakeMcpStdioRuntime(UPGRADED, (request) => [toolResultLine(request["id"], refusal, true)]);
-  const connection = await openConnection(runtime.localApiSocketPath);
-
-  const failure = failureOf(await connection.openViewer({ stream: "pattern-main-1a2b3c", node_id: "7f3a", port: "video", viewer_process_id: 1 }));
-
-  expect(failure).toEqual<LocalApiRequestFailure>({ failureDescription: refusal, isTheRuntimesRefusal: true });
-});
-
-test("a_json_rpc_error_is_the_runtimes_refusal_naming_mcp_stdio", async () => {
-  const runtime = await fakeMcpStdioRuntime(UPGRADED, (request) => [JSON.stringify({ jsonrpc: "2.0", id: request["id"], error: { code: -32602, message: "unknown field `extra`" } })]);
-  const connection = await openConnection(runtime.localApiSocketPath);
-
-  const failure = failureOf(await connection.callMcpTool("open_viewer", { extra: true }));
-
-  expect(failure).toEqual<LocalApiRequestFailure>({ failureDescription: "the runtime refused `open_viewer` (/mcp/stdio): unknown field `extra`", isTheRuntimesRefusal: true });
+  expect(answerOf(await connection.readResourceText(FEED_URI))).toBe("{}");
 });
 
 test("a_runtime_that_refuses_the_upgrade_is_refused_in_its_own_words", async () => {
@@ -206,12 +158,12 @@ test("an_unanswered_request_times_out_and_is_cancelled_on_the_connection", async
   const runtime = await fakeMcpStdioRuntime(UPGRADED, () => null);
   const connection = await openConnection(runtime.localApiSocketPath, 100);
 
-  const failure = failureOf(await connection.closeViewer("a/b/c"));
+  const failure = failureOf(await connection.readResourceText(FEED_URI));
   await expect.poll(() => runtime.requestLinesRead.length).toBe(2);
 
-  expect(failure.failureDescription).toMatch(/`close_viewer` to the runtime at .* did not answer within 100ms/);
-  const [closeViewerRequest, cancellation] = runtime.requestLinesRead;
-  expect(cancellation).toMatchObject({ method: "notifications/cancelled", params: { requestId: closeViewerRequest?.["id"] } });
+  expect(failure.failureDescription).toMatch(/^reading streamlib:\/\/project\/.* to the runtime at .* did not answer within 100ms$/);
+  const [readRequest, cancellation] = runtime.requestLinesRead;
+  expect(cancellation).toMatchObject({ method: "notifications/cancelled", params: { requestId: readRequest?.["id"] } });
   expect(connection.isOpen()).toBe(true);
 });
 
@@ -221,54 +173,30 @@ test("the_runtime_closing_the_connection_fails_the_requests_awaiting_answers_and
   const whyItClosed: string[] = [];
   connection.onClosed((why) => whyItClosed.push(why));
 
-  const awaitingItsAnswer = connection.openViewer({ stream: "s", node_id: "n", port: "p", viewer_process_id: 1 });
+  const awaitingItsAnswer = connection.readResourceText(FEED_URI);
   await expect.poll(() => runtime.requestLinesRead.length).toBe(1);
   runtime.closeEveryConnection();
   const failure = failureOf(await awaitingItsAnswer);
 
   expect(failure.isTheRuntimesRefusal).toBe(false);
-  expect(failure.failureDescription).toMatch(/^`open_viewer` was not answered: the runtime at .* closed the \/mcp\/stdio connection$/);
+  expect(failure.failureDescription).toMatch(/^reading streamlib:.* was not answered: the runtime at .* closed the \/mcp\/stdio connection$/);
   expect(whyItClosed).toHaveLength(1);
   expect(connection.isOpen()).toBe(false);
-  expect(failureOf(await connection.closeViewer("s/n/p")).failureDescription).toMatch(/^`close_viewer` was not sent: /);
+  expect(failureOf(await connection.readResourceText(FEED_URI)).failureDescription).toMatch(/^reading streamlib:.* was not sent: /);
 });
 
 test("a_request_from_the_runtime_is_answered_method_not_found", async () => {
   const runtime = await fakeMcpStdioRuntime(UPGRADED, (request) =>
-    request["method"] === "tools/call" ? [JSON.stringify({ jsonrpc: "2.0", id: "ping-1", method: "ping" }), toolResultLine(request["id"], { viewer: "a/b/c" })] : null,
+    request["method"] === "resources/read" ? [JSON.stringify({ jsonrpc: "2.0", id: "ping-1", method: "ping" }), resourceTextLine(request["id"], "{}")] : null,
   );
   const connection = await openConnection(runtime.localApiSocketPath);
 
-  answerOf(await connection.closeViewer("a/b/c"));
+  answerOf(await connection.readResourceText(FEED_URI));
   await expect.poll(() => runtime.requestLinesRead.length).toBe(2);
 
   expect(runtime.requestLinesRead[1]).toEqual({ jsonrpc: "2.0", id: "ping-1", error: { code: -32601, message: "the app serves no requests" } });
 });
 
-test("an_open_viewer_result_on_macos_without_a_viewer_process_names_no_surface_share_address", () => {
-  const { surface_share_address: _surfaceShareAddress, ...withoutSurfaceShareAddress } = OPEN_VIEWER_RESULT_ON_LINUX;
-
-  expect(answerOf(openedRuntimeViewerFromTheOpenViewerToolResult(JSON.stringify(withoutSurfaceShareAddress)))).toEqual({ ...LINUX_VIEWER, surface_share_address: null });
-});
-
-test("an_open_viewer_result_missing_its_channel_cannot_be_read", () => {
-  const { channel: _channel, ...withoutChannel } = OPEN_VIEWER_RESULT_ON_LINUX;
-
-  expect(failureOf(openedRuntimeViewerFromTheOpenViewerToolResult(JSON.stringify(withoutChannel)))).toMatch(/^the runtime's open_viewer result could not be read: .*channel/);
-  expect(failureOf(closedViewerFromTheCloseViewerToolResult("{}"))).toMatch(/^the runtime's close_viewer result could not be read: /);
-});
-
-const FEED_URI = "streamlib://project/2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90/transactions";
-
-test("a_resource_is_read_with_resources_read_and_answers_its_first_contents_text", async () => {
-  const runtime = await fakeMcpStdioRuntime(UPGRADED, (request) => [
-    JSON.stringify({ jsonrpc: "2.0", id: request["id"], result: { contents: [{ uri: FEED_URI, mimeType: "application/json", text: '{"transactions":[]}' }] } }),
-  ]);
-  const connection = await openConnection(runtime.localApiSocketPath);
-
-  expect(answerOf(await connection.readResourceText(FEED_URI))).toBe('{"transactions":[]}');
-  expect(runtime.requestLinesRead[0]).toMatchObject({ method: "resources/read", params: { uri: FEED_URI, _meta: { "io.modelcontextprotocol/protocolVersion": LOCAL_API_MCP_PROTOCOL_VERSION } } });
-});
 
 test("a_resource_the_runtime_refuses_is_its_refusal_in_its_own_words", async () => {
   const runtime = await fakeMcpStdioRuntime(UPGRADED, (request) => [JSON.stringify({ jsonrpc: "2.0", id: request["id"], error: { code: -32002, message: "no project is open at that uri" } })]);

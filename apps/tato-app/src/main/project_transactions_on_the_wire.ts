@@ -85,9 +85,14 @@ function refusedLinkEndAt(link: JsonObjectOnTheWire, key: "source" | "target"): 
   return port.ok ? succeeded({ node: node.value, port: port.value }) : port;
 }
 
-/** The structured refusal `fields` carries under `refusal`, as a refused action's `structuredContent` and the feed's refused actions do, or why it cannot be read. */
+/** The structured refusal `fields` carries under `refusal`, as the feed's refused actions do, or why it cannot be read. */
 export function projectActionRefusalAt(fields: JsonObjectOnTheWire): Result<ProjectActionRefusal, string> {
-  const refusal = jsonObject(fields["refusal"], "a refusal");
+  return projectActionRefusalOnTheWire(fields["refusal"]);
+}
+
+/** `refusalOnTheWire` read as a structured refusal (`ProjectActionRefusalOnTheWire`), or why it cannot be read. */
+export function projectActionRefusalOnTheWire(refusalOnTheWire: unknown): Result<ProjectActionRefusal, string> {
+  const refusal = jsonObject(refusalOnTheWire, "a refusal");
   if (!refusal.ok) return refusal;
   const action = requiredText(refusal.value, "action");
   if (!action.ok) return action;
@@ -185,18 +190,16 @@ export function projectTransactionsFromTheResourceText(resourceText: string): Re
   });
 }
 
-/** The transaction an `undo` or `redo` tool answered with `toolResultText`, or why it could not be read. */
-export function projectTransactionFromTheUndoOrRedoToolResult(toolName: "undo" | "redo", toolResultText: string): Result<ProjectTransaction, string> {
-  const parsed = parseJsonOnTheWire(toolResultText);
-  const fields = parsed.ok ? jsonObject(parsed.value, `the ${toolName} result`) : parsed;
+/** The transaction an `undo` or `redo` tool answered with `operationResult`, or why it could not be read. */
+export function projectTransactionFromTheUndoOrRedoToolResult(toolName: "undo" | "redo", operationResult: unknown): Result<ProjectTransaction, string> {
+  const fields = jsonObject(operationResult, `the ${toolName} result`);
   const transaction = fields.ok ? projectTransactionFromItsFields(fields.value) : fields;
   return transaction.ok ? transaction : failedWith(`the runtime's ${toolName} result could not be read: ${transaction.failure}`);
 }
 
 /** The change-feed resource `list_assets` names under `transactions_resource_uri`, or why it names none. */
-export function transactionsResourceUriFromTheListAssetsToolResult(toolResultText: string): Result<string, string> {
-  const parsed = parseJsonOnTheWire(toolResultText);
-  const fields = parsed.ok ? jsonObject(parsed.value, "the listing") : parsed;
+export function transactionsResourceUriFromTheListAssetsToolResult(operationResult: unknown): Result<string, string> {
+  const fields = jsonObject(operationResult, "the listing");
   const uri = fields.ok ? requiredText(fields.value, "transactions_resource_uri") : fields;
   return uri.ok ? uri : failedWith(`the runtime's list_assets result names no change feed: ${uri.failure}`);
 }

@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"error":{"code":2,"message":"`project_directory` must be an absolute path; got `relative`"}}

@@ -280,7 +280,7 @@ describe("subgraphs", () => {
 
   test("unlock_names_the_subgraph_by_uuid_and_refresh_runs_its_generator_again_under_its_name_with_its_settings", () => {
     const graph = edited({ ...GRAPH, nodes: [...GRAPH.nodes, LEVELS, LOOK] });
-    expect(subgraphUnlockedEdits(graph, "subgraph")).toEqual([{ operation: "unlock_generator_fragment", stream: STREAM_ASSET, fragment: "uuid-look" }]);
+    expect(subgraphUnlockedEdits(graph, "subgraph")).toEqual([{ operation: "unlock_subgraph", stream: STREAM_ASSET, fragment: "uuid-look" }]);
     expect(subgraphRefreshedEdits(graph, "levels")).toEqual([{ operation: "import_graph_generator", stream: STREAM_ASSET, generator: "generators.mics:mic_levels", name: "levels", config: { mic_count: 2 } }]);
     expect(subgraphRefreshedEdits(graph, "subgraph")).toEqual([]);
   });
