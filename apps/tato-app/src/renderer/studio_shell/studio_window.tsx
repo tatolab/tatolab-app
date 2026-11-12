@@ -256,7 +256,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
   const viewPopOutRefusal = useWatchedStudioValue(model.viewPopOutRefusal);
   const recentProjectChangeRefusal = useWatchedStudioValue(model.recentProjectChangeRefusal);
-  const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
+  const projectPlaybackRefusal = useWatchedStudioValue(model.projectPlaybackRefusal);
   const projectEditRefusal = useWatchedStudioValue(model.projectEditRefusal);
   const appUpdateChoiceRefusal = useWatchedStudioValue(model.appUpdateChoiceRefusal);
   const studioWarningDismissRefusal = useWatchedStudioValue(model.studioWarningDismissRefusal);
@@ -403,13 +403,13 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               data-view-pop-out-refusal=""
             />
           )}
-          {projectRunRefusal !== null && (
+          {projectPlaybackRefusal !== null && (
             <WindowNotice
               tone="failure"
-              title={PROJECT_PLAYBACK_REFUSAL_TITLES[projectRunRefusal.asked_to]}
-              detail={projectRunRefusal.because}
-              onDismissed={() => model.projectRunRefusal.publish(null)}
-              data-project-run-refusal=""
+              title={PROJECT_PLAYBACK_REFUSAL_TITLES[projectPlaybackRefusal.asked_to]}
+              detail={projectPlaybackRefusal.because}
+              onDismissed={() => model.projectPlaybackRefusal.publish(null)}
+              data-project-playback-refusal=""
             />
           )}
           {projectEditRefusal !== null && (

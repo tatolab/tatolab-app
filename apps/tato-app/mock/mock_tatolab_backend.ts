@@ -1174,9 +1174,12 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     }, steps.length * MOCK_STREAM_ACTION_STEP_MILLISECONDS);
   };
 
+  /** The streams of the project in `projectDirectory` the mock holds loaded, playing or paused. */
+  const loadedStreamsOfTheMockProjectIn = (projectDirectory: string): MockLoadedStream[] => [...loadedStreams.values()].filter((loadedStream) => loadedStream.fixture.listing.location?.project_directory === projectDirectory);
+
   /** The playback a `reload_project` of `projectDirectory` keeps: playing while a stream of it plays, held stopped otherwise. */
   const mockPlaybackAReloadOfTheProjectKeeps = (projectDirectory: string): MockProjectPlaybackAfterItsLoad =>
-    [...loadedStreams.values()].some((loadedStream) => loadedStream.fixture.listing.location?.project_directory === projectDirectory) ? "playing" : "held_stopped";
+    loadedStreamsOfTheMockProjectIn(projectDirectory).length > 0 ? "playing" : "held_stopped";
 
   /** Lists `listing` under `state` with `action` queued and no step yet, as the runtime lists an action waiting its turn. */
   const queueTheStreamAction = (listing: ListedStream, state: "preparing" | "stopping", action: string): void => {
@@ -1190,9 +1193,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     publishStatus({ streams: listStreams() });
   };
 
-    /** `stop_playback` as the runtime does it: one action queued that stops every playing stream of the project, each recorded stopped; refused when none of them plays. */
+  /** `stop_playback` as the runtime does it: one action queued that stops every playing stream of the project, each recorded stopped; refused when none of them plays. */
   const stopMockProject = (projectDirectory: string): void => {
-    const loadedStreamsOfTheProject = [...loadedStreams.values()].filter((loadedStream) => loadedStream.fixture.listing.location?.project_directory === projectDirectory);
+    const loadedStreamsOfTheProject = loadedStreamsOfTheMockProjectIn(projectDirectory);
     if (loadedStreamsOfTheProject.length === 0) {
       throw `Runtime error: no stream of the project in ${projectDirectory} plays, so there is none to stop; \`start_playback\` plays it. Loaded: ${streamIdsListedForARefusal(loadedStreams.keys())}. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
     }
@@ -1201,7 +1204,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     for (const loadedStream of loadedStreamsOfTheProject) {
       const listing = loadedStream.fixture.listing;
       loadedStreams.delete(listing.stream);
-      recordedFixturesNotLoaded.set(listing.stream, { ...loadedStream.fixture, listing: { ...listing, state: "running" } });
+      recordedFixturesNotLoaded.set(listing.stream, loadedStream.fixture);
       queueTheStreamAction(listing, "stopping", action);
       workOnTheStreamAction(listing, "stopping", action, ["stopping"], () => {
         writeRuntimeRecord(listing, action, "info", `Stopped the stream \`${listing.stream}\``);
@@ -1830,7 +1833,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (openProjectReading.kind === "unreadable") throw openProjectReading.refusal;
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
       const folder = openProjectReading.open_project.project.folder;
-      const loadedStreamsOfTheProject = [...loadedStreams.values()].filter((loadedStream) => loadedStream.fixture.listing.location?.project_directory === folder);
+      const loadedStreamsOfTheProject = loadedStreamsOfTheMockProjectIn(folder);
       if (loadedStreamsOfTheProject.some((loadedStream) => loadedStream.fixture.listing.state === "paused")) {
         setTheMockPlaybackOfTheStreams(loadedStreamsOfTheProject, "running");
         return;
@@ -1843,7 +1846,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (openProjectReading.kind === "none_open") throw "No project is open to pause.";
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
       const folder = openProjectReading.kind === "read" ? openProjectReading.open_project.project.folder : openProjectReading.folder;
-      const loadedStreamsOfTheProject = [...loadedStreams.values()].filter((loadedStream) => loadedStream.fixture.listing.location?.project_directory === folder);
+      const loadedStreamsOfTheProject = loadedStreamsOfTheMockProjectIn(folder);
       if (loadedStreamsOfTheProject.length === 0) {
         throw `Runtime error: no stream of the project in ${folder} plays, so there is none to pause; \`start_playback\` plays it. Loaded: ${streamIdsListedForARefusal(loadedStreams.keys())}`;
       }

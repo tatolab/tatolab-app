@@ -97,6 +97,10 @@ describe("the mock backend's stream actions", () => {
     expect(pausedWhileStopped.answer).toEqual({
       refusal: expect.stringMatching(/^Runtime error: no stream of the project in \/Users\/jonathanf\/streams\/pattern plays, so there is none to pause; `start_playback` plays it\. Loaded: /),
     });
+    await streamsAfterEachChange(() => backend.runOpenProject());
+    const playedAgain = await streamsAfterEachChange(() => Promise.resolve(), 3000);
+    expect(listingWithTheId(playedAgain.streams, MAIN)).toMatchObject({ state: "running" });
+    expect(listingWithTheId(playedAgain.streams, RECORDER)).toMatchObject({ state: "running" });
   });
 
   it("refuses what the runtime refuses, in words shaped as the runtime's", async () => {

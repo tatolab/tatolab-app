@@ -12,7 +12,7 @@ import {
   parseHttpResponse,
   runtimeDescriptionFromTheDescribeRuntimeToolResult,
   queuedStreamActionFromTheToolResult,
-  streamsThePlaybackHoldReachedFromTheToolResult,
+  streamsThePauseOrResumeReachedFromTheToolResult,
   streamAssetChangeFromTheToolResult,
 } from "./local_api_client.js";
 import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
@@ -590,7 +590,7 @@ test("a_pause_of_a_stopped_project_and_a_resume_of_a_playing_one_are_refused_in_
 });
 
 test("a_pause_answer_naming_no_streams_is_refused_naming_it", () => {
-  expect(failureOf(streamsThePlaybackHoldReachedFromTheToolResult("pause_playback", JSON.parse('{"project_directory":"/tmp/tatolab-proof-projects/hallways"}')))).toBe(
+  expect(failureOf(streamsThePauseOrResumeReachedFromTheToolResult("pause_playback", JSON.parse('{"project_directory":"/tmp/tatolab-proof-projects/hallways"}')))).toBe(
     "the runtime's pause_playback result could not be read: missing field `streams`",
   );
 });

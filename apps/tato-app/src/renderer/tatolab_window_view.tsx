@@ -210,16 +210,16 @@ export function mountTatolabWindow(
       backend.takeTheNewerTatolabAppVersion().catch((rejection: unknown) => studioWindowModel.appUpdateChoiceRefusal.publish(describeBackendRejection(rejection)));
     },
     runTheProjectLive: () => {
-      studioWindowModel.projectRunRefusal.publish(null);
-      backend.runOpenProject().catch((rejection: unknown) => studioWindowModel.projectRunRefusal.publish({ asked_to: "run", because: describeBackendRejection(rejection) }));
+      studioWindowModel.projectPlaybackRefusal.publish(null);
+      backend.runOpenProject().catch((rejection: unknown) => studioWindowModel.projectPlaybackRefusal.publish({ asked_to: "run", because: describeBackendRejection(rejection) }));
     },
     pauseTheProject: () => {
-      studioWindowModel.projectRunRefusal.publish(null);
-      backend.pauseOpenProject().catch((rejection: unknown) => studioWindowModel.projectRunRefusal.publish({ asked_to: "pause", because: describeBackendRejection(rejection) }));
+      studioWindowModel.projectPlaybackRefusal.publish(null);
+      backend.pauseOpenProject().catch((rejection: unknown) => studioWindowModel.projectPlaybackRefusal.publish({ asked_to: "pause", because: describeBackendRejection(rejection) }));
     },
     stopTheProject: () => {
-      studioWindowModel.projectRunRefusal.publish(null);
-      backend.stopOpenProject().catch((rejection: unknown) => studioWindowModel.projectRunRefusal.publish({ asked_to: "stop", because: describeBackendRejection(rejection) }));
+      studioWindowModel.projectPlaybackRefusal.publish(null);
+      backend.stopOpenProject().catch((rejection: unknown) => studioWindowModel.projectPlaybackRefusal.publish({ asked_to: "stop", because: describeBackendRejection(rejection) }));
     },
     undoYourLastEdit: () => undoOrRedoTheOpenProject("undo"),
     redoYourLastUndo: () => undoOrRedoTheOpenProject("redo"),

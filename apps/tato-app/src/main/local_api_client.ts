@@ -42,6 +42,7 @@ import {
   optionalText,
   optionalUnsignedInteger,
   parseJsonOnTheWire,
+  requiredArray,
   requiredObject,
   requiredText,
   requiredUnsignedInteger,
@@ -256,16 +257,14 @@ export function queuedStreamActionFromTheToolResult(toolName: ProjectActionToolN
 }
 
 /** A runtime tool that pauses or resumes a whole project's playback at once, queueing no action. */
-type ProjectPlaybackHoldToolName = "pause_playback" | "resume_playback";
+type ProjectPlaybackPauseOrResumeToolName = "pause_playback" | "resume_playback";
 
 /** The id of each stream a `pause_playback` or `resume_playback` result names under `streams`, read from the result of `toolName`. */
-export function streamsThePlaybackHoldReachedFromTheToolResult(toolName: ProjectPlaybackHoldToolName, operationResult: unknown): Result<string[], string> {
+export function streamsThePauseOrResumeReachedFromTheToolResult(toolName: ProjectPlaybackPauseOrResumeToolName, operationResult: unknown): Result<string[], string> {
   return toolResultReadWith(toolName, operationResult, (toolResult) => {
-    const projectDirectory = requiredText(toolResult, "project_directory");
-    if (!projectDirectory.ok) return projectDirectory;
-    const streams = toolResult["streams"];
-    if (!Array.isArray(streams)) return failedWith(streams === undefined ? "missing field `streams`" : "`streams` is not a list");
-    return streams.every((stream): stream is string => typeof stream === "string") ? succeeded(streams) : failedWith("`streams` holds a stream id that is not a string");
+    const streams = requiredArray(toolResult, "streams");
+    if (!streams.ok) return streams;
+    return everyOneRead(streams.value, (stream) => (typeof stream === "string" ? succeeded(stream) : failedWith("`streams` holds a value that is not a string")));
   });
 }
 
@@ -345,18 +344,18 @@ export class LocalApiClient {
 
   /** Pause the playback of the project in `projectDirectory` at once, answering the id of each stream it paused; refused in the runtime's own words, as when none of them plays. */
   pausePlayback(projectDirectory: string): Promise<Result<string[], LocalApiRequestFailure>> {
-    return this.holdOrResumeThePlayback("pause_playback", projectDirectory);
+    return this.pauseOrResumeThePlayback("pause_playback", projectDirectory);
   }
 
   /** Resume the paused playback of the project in `projectDirectory` at once, answering the id of each stream it resumed; refused in the runtime's own words, as for a project that is not paused. */
   resumePlayback(projectDirectory: string): Promise<Result<string[], LocalApiRequestFailure>> {
-    return this.holdOrResumeThePlayback("resume_playback", projectDirectory);
+    return this.pauseOrResumeThePlayback("resume_playback", projectDirectory);
   }
 
-  private async holdOrResumeThePlayback(toolName: ProjectPlaybackHoldToolName, projectDirectory: string): Promise<Result<string[], LocalApiRequestFailure>> {
+  private async pauseOrResumeThePlayback(toolName: ProjectPlaybackPauseOrResumeToolName, projectDirectory: string): Promise<Result<string[], LocalApiRequestFailure>> {
     const operationResult = await this.callControlOperation(toolName, { project_directory: projectDirectory });
     if (!operationResult.ok) return operationResult;
-    const streams = streamsThePlaybackHoldReachedFromTheToolResult(toolName, operationResult.value);
+    const streams = streamsThePauseOrResumeReachedFromTheToolResult(toolName, operationResult.value);
     return streams.ok ? streams : localApiRequestFailure(streams.failure);
   }
 

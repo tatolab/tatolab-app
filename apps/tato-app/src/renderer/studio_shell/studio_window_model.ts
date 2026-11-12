@@ -108,8 +108,8 @@ export class StudioWindowModel {
   readonly layoutPresetNameAsked = new WatchedStudioValue(false);
   /** What views of each type were last opened on, by view type id. */
   readonly viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
-  /** Why the last run or stop of the open project was refused, until it is dismissed or another is asked for. */
-  readonly projectRunRefusal = new WatchedStudioValue<{ asked_to: ProjectPlaybackAskedFor; because: string } | null>(null);
+  /** Why the last run, pause or stop of the open project was refused, until it is dismissed or another is asked for. */
+  readonly projectPlaybackRefusal = new WatchedStudioValue<{ asked_to: ProjectPlaybackAskedFor; because: string } | null>(null);
   /** Why the person's last undo or redo was refused, in the runtime's words, until it is dismissed or another is asked for. */
   readonly projectEditRefusal = new WatchedStudioValue<{ asked_to: "undo" | "redo"; because: string } | null>(null);
   /** Why the last update choice from the menus did not reach the app, until it is dismissed or another is made. */
