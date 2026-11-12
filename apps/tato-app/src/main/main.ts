@@ -52,7 +52,6 @@ import { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked
 import { LocalApiClient } from "./local_api_client.js";
 import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
 import { RuntimeViewerControlConnection } from "./runtime_viewer_control_connection.js";
-import { ProjectVenvSyncsOnTheStreamActionsFeed } from "./project_venv_syncs_on_the_stream_actions_feed.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { StreamActionChangesFollowedForTheStatus, streamActionChangesConnectionOver } from "./stream_action_changes_followed_for_the_status.js";
 import { StreamGraphChangesFollowedForTheWindows, streamGraphChangesConnectionOver } from "./stream_graph_changes_followed_for_the_windows.js";
@@ -67,13 +66,13 @@ import { isAnotherBuildOfTatolab, type TatolabAppCopy } from "./tatolab_app_copy
 /** How long a port viewer's `open_viewer` or `close_viewer` waits on the runtime. */
 const PORT_VIEWER_REQUEST_TIMEOUT_MS = 5_000;
 
-/** How long the stream graph and stream action changes' connections wait for the runtime to answer a subscribe. */
+/** How long the stream graph changes' connection waits for the runtime to answer a subscribe. */
 const STREAM_GRAPH_CHANGES_REQUEST_TIMEOUT_MS = 5_000;
 
 /** How long a read of a project's change feed waits on the runtime. */
 const PROJECT_TRANSACTIONS_FEED_REQUEST_TIMEOUT_MS = 10_000;
-/** How long a read of the runtime's stream actions waits for its answer. */
-const STREAM_ACTIONS_FEED_REQUEST_TIMEOUT_MS = 10_000;
+/** How long the stream action changes' connection waits for the runtime to answer a subscribe or a describe. */
+const STREAM_ACTION_CHANGES_REQUEST_TIMEOUT_MS = 10_000;
 
 const TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET = "Tato Studio has not reached the runtime yet.";
 
@@ -344,12 +343,17 @@ export async function startTatolabApp(
     runProgramToCompletion,
     tatolabAppLog,
   );
-  const projectVenvSyncsOnTheStreamActionsFeed = new ProjectVenvSyncsOnTheStreamActionsFeed({
-    openTheFeedConnection: () => LocalApiMcpStdioConnection.open(platformForThisBuild.localApiSocket, STREAM_ACTIONS_FEED_REQUEST_TIMEOUT_MS, thisCopyOfTatolab.appVersion),
-    whenTheSyncsChange: () => statusPublisherOnceBuilt?.requestRefresh(),
+  const streamActionChangesFollowed = new StreamActionChangesFollowedForTheStatus({
+    openTheStreamActionChangesConnection: async () => {
+      const opened = await TatolabRuntimeControlWebSocketConnection.open(platformForThisBuild.localApiSocket, STREAM_ACTION_CHANGES_REQUEST_TIMEOUT_MS);
+      return opened.ok ? succeeded(streamActionChangesConnectionOver(opened.value)) : opened;
+    },
+    waitThen: (afterMs, then) => {
+      setTimeout(then, afterMs);
+    },
+    readTheStatusAgain: () => statusPublisherOnceBuilt?.requestRefresh(),
     tatolabAppLog,
   });
-  tatolabElectronAppShell.onTheAppQuitting(() => projectVenvSyncsOnTheStreamActionsFeed.stopFollowing());
   const controller = TatolabAppController.create({
     platform: platformItems.platform,
     platformForThisBuild,
@@ -364,7 +368,7 @@ export async function startTatolabApp(
     readTheCommandLineToolVersion: () => tatolabCommandLineToolVersion.versionNow(),
     readTheStudioWarnings: () => studioWarnings.warningsNow(),
     whenTheRuntimeExits: () => statusPublisherOnceBuilt?.requestRefresh(),
-    projectVenvSyncsOnTheStreamActionsFeed,
+    projectVenvSyncsOfTheFollowedStreamActions: streamActionChangesFollowed,
     tatolabAppLog,
   });
   controllerOnceBuilt = controller;
@@ -439,17 +443,6 @@ export async function startTatolabApp(
     tatolabAppLog,
   });
   streamGraphChangesFollowedOnceBuilt = streamGraphChangesFollowed;
-  const streamActionChangesFollowed = new StreamActionChangesFollowedForTheStatus({
-    openTheStreamActionChangesConnection: async () => {
-      const opened = await TatolabRuntimeControlWebSocketConnection.open(platformForThisBuild.localApiSocket, STREAM_GRAPH_CHANGES_REQUEST_TIMEOUT_MS);
-      return opened.ok ? succeeded(streamActionChangesConnectionOver(opened.value)) : opened;
-    },
-    waitThen: (afterMs, then) => {
-      setTimeout(then, afterMs);
-    },
-    readTheStatusAgain: () => statusPublisher.requestRefresh(),
-    tatolabAppLog,
-  });
   statusPublisher.attachRuntimePortViewers(runtimePortViewers);
   const sharedState: TatolabAppSharedState = {
     controller,

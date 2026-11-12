@@ -90,7 +90,7 @@ export class ProjectListingReadingsPolledWhileWatched<Listing> {
     };
   };
 
-  /** List `projectFolder` again at once while a view watches it, so a change the window just made shows without waiting a round. */
+  /** List `projectFolder` again at once while a view watches it, so a change to the project shows without waiting a round. */
   listTheProjectAgainNow(projectFolder: string): void {
     this.listingsByProjectFolder.get(projectFolder)?.poll.pollNow();
   }

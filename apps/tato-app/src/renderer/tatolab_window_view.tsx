@@ -155,9 +155,16 @@ export function mountTatolabWindow(
   const pythonLanguageServerConnections = new PythonLanguageServerConnections(backend);
   const portViewerConnections = new PortViewerConnections(backend);
   const studioWindowModel = new StudioWindowModel(new StudioLayoutKeptInStorage(tatolabWindowLocalStorage()));
-  const projectTransactionsReadings = new ProjectTransactionsReadings(backend, () => {
+  const readTheOpenProjectFolder = () => {
     const openProject = studioWindowModel.openProject.readLatest();
     return openProject.kind === "read" ? openProject.open_project.project.folder : null;
+  };
+  const projectTransactionsReadings = new ProjectTransactionsReadings(backend, readTheOpenProjectFolder);
+  backend.onProjectTransactionsChanged(() => {
+    const openProjectFolder = readTheOpenProjectFolder();
+    if (openProjectFolder === null) return;
+    projectAssetReadings.listTheProjectAgainNow(openProjectFolder);
+    projectNodeTypeReadings.listTheProjectAgainNow(openProjectFolder);
   });
 
   const chooseProjectFolder = (chosenFor: ProjectFolderChosenFor) => {

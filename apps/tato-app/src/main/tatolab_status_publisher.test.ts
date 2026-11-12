@@ -58,7 +58,7 @@ function controllerReadingTheLocalApiAt(localApiSocket: string, carriedRuntimeSt
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     readTheStudioWarnings: () => [],
     whenTheRuntimeExits: () => {},
-    projectVenvSyncsOnTheStreamActionsFeed: { keepFollowing: () => {}, takeTheProjectVenvSyncs: () => ({ underWay: [], justEnded: [] }) },
+    projectVenvSyncsOfTheFollowedStreamActions: { takeTheProjectVenvSyncs: () => ({ underWay: [], justEnded: [] }) },
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
 }

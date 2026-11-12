@@ -33,7 +33,7 @@ import type {
   JsonValue,
 } from "../shared/tatolab_backend_contract.js";
 import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_apps_child.js";
-import type { ProjectVenvSyncsOnTheStreamActionsFeed } from "./project_venv_syncs_on_the_stream_actions_feed.js";
+import type { StreamActionChangesFollowedForTheStatus } from "./stream_action_changes_followed_for_the_status.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
@@ -100,7 +100,7 @@ export interface TatolabAppControllerSources {
   /** Called each time the app's runtime exits, so the status is read again at once. */
   whenTheRuntimeExits: () => void;
   /** Each project's `.venv` sync, followed on the runtime's stream actions while it answers. */
-  projectVenvSyncsOnTheStreamActionsFeed: Pick<ProjectVenvSyncsOnTheStreamActionsFeed, "keepFollowing" | "takeTheProjectVenvSyncs">;
+  projectVenvSyncsOfTheFollowedStreamActions: Pick<StreamActionChangesFollowedForTheStatus, "takeTheProjectVenvSyncs">;
   tatolabAppLog: TatolabAppLog;
 }
 
@@ -125,7 +125,7 @@ export class TatolabAppController {
     private readonly readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion,
     private readonly readTheStudioWarnings: () => StudioWarning[],
     private readonly tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin,
-    private readonly projectVenvSyncsOnTheStreamActionsFeed: TatolabAppControllerSources["projectVenvSyncsOnTheStreamActionsFeed"],
+    private readonly projectVenvSyncsOfTheFollowedStreamActions: TatolabAppControllerSources["projectVenvSyncsOfTheFollowedStreamActions"],
     private readonly tatolabAppLog: TatolabAppLog,
   ) {}
 
@@ -152,7 +152,7 @@ export class TatolabAppController {
       sources.readTheCommandLineToolVersion,
       sources.readTheStudioWarnings,
       sources.platformForThisBuild.tatolabAppOpenedAtLogin,
-      sources.projectVenvSyncsOnTheStreamActionsFeed,
+      sources.projectVenvSyncsOfTheFollowedStreamActions,
       sources.tatolabAppLog,
     );
   }
@@ -211,7 +211,6 @@ export class TatolabAppController {
     } else {
       this.machineNameOfTheRunningRuntime.runtimeIsDown();
     }
-    this.projectVenvSyncsOnTheStreamActionsFeed.keepFollowing(healthCheck.ok);
     this.carriedRuntimeRunAsTheAppsChild.keepTheRuntimeRunning(healthCheck.ok, nowMs);
     const { runtimeState, runtimeNotRunningBecause } = this.carriedRuntimeRunAsTheAppsChild.runtimeStateNow(healthCheck.ok, nowMs);
     if (this.runtimeNotRunningOnset.conditionJustStartedHolding(runtimeState === "not_running") && !healthCheck.ok) {
@@ -221,7 +220,7 @@ export class TatolabAppController {
       });
     }
 
-    const { underWay, justEnded } = this.projectVenvSyncsOnTheStreamActionsFeed.takeTheProjectVenvSyncs();
+    const { underWay, justEnded } = this.projectVenvSyncsOfTheFollowedStreamActions.takeTheProjectVenvSyncs();
     return {
       app_version: this.appVersion,
       app_build: this.appBuild,

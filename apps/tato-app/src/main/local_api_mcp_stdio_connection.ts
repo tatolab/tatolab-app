@@ -1,6 +1,5 @@
-// One long-lived `/mcp/stdio` connection to the runtime's local API, which follows the MCP resources
-// the control contract serves no operation for: a project's change feed and the stream-actions
-// feed. An HTTP/1.1 `GET /mcp/stdio` with `Upgrade: mcp-stdio` that the runtime answers `101` makes
+// One long-lived `/mcp/stdio` connection to the runtime's local API, which follows the MCP resource
+// the control contract serves no operation for: a project's change feed. An HTTP/1.1 `GET /mcp/stdio` with `Upgrade: mcp-stdio` that the runtime answers `101` makes
 // the socket carry newline-delimited JSON-RPC both ways. Every request carries the per-request
 // `_meta` the runtime requires, so no handshake comes first. A `subscriptions/listen` request stays
 // unanswered while it holds, and the runtime writes a `notifications/resources/updated` line naming

@@ -39,7 +39,7 @@ test("a_machine_name_the_runtime_did_not_give_is_asked_again_only_after_a_restar
 });
 
 interface ControllerOverFakesOptions {
-  projectVenvSyncsOnTheStreamActionsFeed?: TatolabAppControllerSources["projectVenvSyncsOnTheStreamActionsFeed"];
+  projectVenvSyncsOfTheFollowedStreamActions?: TatolabAppControllerSources["projectVenvSyncsOfTheFollowedStreamActions"];
   readMonotonicClockMs?: () => number;
   tatolabAppLog?: ReturnType<typeof createTatolabAppLog>;
   carriedRuntime?: CarriedRuntime | null;
@@ -70,7 +70,7 @@ async function controllerOverFakes(scriptedLocalApiResponses: readonly Buffer[],
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     readTheStudioWarnings: () => [],
     whenTheRuntimeExits: () => runtimeExits.push("exited"),
-    projectVenvSyncsOnTheStreamActionsFeed: options.projectVenvSyncsOnTheStreamActionsFeed ?? { keepFollowing: () => {}, takeTheProjectVenvSyncs: () => ({ underWay: [], justEnded: [] }) },
+    projectVenvSyncsOfTheFollowedStreamActions: options.projectVenvSyncsOfTheFollowedStreamActions ?? { takeTheProjectVenvSyncs: () => ({ underWay: [], justEnded: [] }) },
     tatolabAppLog: options.tatolabAppLog ?? createTatolabAppLog("error", () => {}),
   });
   return { controller, carriedRuntimeStarts, commandLineToolLink, localApiServer, runtimeExits };
@@ -102,23 +102,20 @@ test("a healthy runtime's status names its streams and machine, read as the wind
 });
 
 
-test("each status round follows the stream actions while the runtime answers and carries the syncs the feed took", async () => {
-  const runtimeAnsweringAtEachRound: boolean[] = [];
+test("each status round carries the syncs the followed stream actions took", async () => {
   const syncJustEnded = {
     action: "Rvxjb0uiacgp6c3o13o9qvzj1-1",
     project_directory: "/private/tmp/tatolab-proof-projects/numpy-pillow",
     venv_sync: { phase: "installed", packages_resolved: 8, packages_prepared: 4, packages_installed: 8, downloads_started: 0, downloads_done: 0, packages: [] },
   };
   const { controller } = await controllerOverFakes([healthyAnswer(), noStreams(), theMachine()], {
-    projectVenvSyncsOnTheStreamActionsFeed: {
-      keepFollowing: (isTheRuntimeAnswering) => runtimeAnsweringAtEachRound.push(isTheRuntimeAnswering),
+    projectVenvSyncsOfTheFollowedStreamActions: {
       takeTheProjectVenvSyncs: () => ({ underWay: [], justEnded: [syncJustEnded] }),
     },
   });
 
   const status = await controller.composeStatus(0);
 
-  expect(runtimeAnsweringAtEachRound).toEqual([true]);
   expect(status.project_venv_syncs_under_way).toEqual([]);
   expect(status.project_venv_syncs_just_ended).toEqual([syncJustEnded]);
 });

@@ -19,7 +19,6 @@ import {
   optionalObject,
   optionalText,
   optionalUnsignedInteger,
-  parseJsonOnTheWire,
   requiredText,
   requiredUnsignedInteger,
 } from "./json_on_the_wire.js";
@@ -27,11 +26,6 @@ import { failedWith, succeeded, type Result } from "./result.js";
 
 function jsonObjectOfTheRuntimesAnswer(answerName: string, answer: unknown): Result<JsonObjectOnTheWire, string> {
   return jsonObject(answer, `the ${answerName} answer`);
-}
-
-function jsonObjectOfTheRuntimesAnswerText(answerName: string, answerText: string): Result<JsonObjectOnTheWire, string> {
-  const parsedAnswer = parseJsonOnTheWire(answerText);
-  return parsedAnswer.ok ? jsonObjectOfTheRuntimesAnswer(answerName, parsedAnswer.value) : parsedAnswer;
 }
 
 function readOrSayWhy<ReadValue>(answerName: string, read: Result<ReadValue, string>): Result<ReadValue, string> {
@@ -118,28 +112,6 @@ export function streamActionDescriptionFromTheDescribeStreamActionToolResult(ope
   const toolResult = jsonObjectOfTheRuntimesAnswer("describe_stream_action", operationResult);
   if (!toolResult.ok) return readOrSayWhy("describe_stream_action", toolResult);
   return readOrSayWhy("describe_stream_action", streamActionDescriptionOnTheWireRead(toolResult.value));
-}
-
-/** The text of the resource `streamlib://stream-action/<action>`, read as `describe_stream_action` answers it; unknown fields are ignored. */
-export function streamActionDescriptionFromTheStreamActionResourceText(resourceText: string): Result<StreamActionDescription, string> {
-  const resource = jsonObjectOfTheRuntimesAnswerText("streamlib://stream-action", resourceText);
-  if (!resource.ok) return readOrSayWhy("streamlib://stream-action", resource);
-  return readOrSayWhy("streamlib://stream-action", streamActionDescriptionOnTheWireRead(resource.value));
-}
-
-/** The text of the resource `streamlib://stream-actions`: every action queued or under way, under `actions`, each as `describe_stream_action` answers it. */
-export function streamActionsUnderWayFromTheStreamActionsResourceText(resourceText: string): Result<StreamActionDescription[], string> {
-  const resource = jsonObjectOfTheRuntimesAnswerText("streamlib://stream-actions", resourceText);
-  if (!resource.ok) return readOrSayWhy("streamlib://stream-actions", resource);
-  const actionsOnTheWire = arrayOrEmpty(resource.value, "actions");
-  if (!actionsOnTheWire.ok) return readOrSayWhy("streamlib://stream-actions", actionsOnTheWire);
-  return readOrSayWhy(
-    "streamlib://stream-actions",
-    everyOneRead(actionsOnTheWire.value, (actionOnTheWire) => {
-      const description = jsonObject(actionOnTheWire, "an action");
-      return description.ok ? streamActionDescriptionOnTheWireRead(description.value) : description;
-    }),
-  );
 }
 
 function venvSyncPackageOnTheWireRead(packageOnTheWire: unknown): Result<StreamActionVenvSyncPackage, string> {
