@@ -178,6 +178,9 @@ export const TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT = "tatolab-module-manage
 /** The event each new reading of a studio window's project's change feed arrives on: a transaction applied, or the feed lost or followed again; it carries a `ProjectTransactionsReading`. */
 export const TATOLAB_PROJECT_TRANSACTIONS_CHANGED_EVENT = "tatolab-project-transactions-changed";
 
+/** The event a studio window is told on that a file of its project may have changed; it carries nothing. */
+export const TATOLAB_PROJECT_FILES_CHANGED_EVENT = "tatolab-project-files-changed";
+
 /** The event each message a Python language server sends, and each server's end, arrives on; it carries a `PythonLanguageServerEvent`. */
 export const TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT = "tatolab-python-language-server-event";
 
@@ -481,6 +484,8 @@ export interface TatolabElectronBridge {
   onModuleManagerSectionAsked(listener: (shows: ModulesShown) => void): () => void;
   /** Calls `listener` with each reading of the window's project's change feed the main process sends; the returned function stops it. */
   onProjectTransactionsChanged(listener: (reading: ProjectTransactionsReading) => void): () => void;
+  /** Calls `listener` each time the main process tells the window a file of its project may have changed; the returned function stops it. */
+  onProjectFilesChanged(listener: () => void): () => void;
   /** Calls `listener` with each message a Python language server sends and each server's end; the returned function stops it. */
   onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
   /** Calls `listener` with each event of every port viewer the window opened; the returned function stops it. */

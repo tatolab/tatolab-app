@@ -4,6 +4,7 @@ import {
   TATOLAB_COMMAND_NAMES,
   TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT,
   TATOLAB_OPEN_PROJECT_CHANGED_EVENT,
+  TATOLAB_PROJECT_FILES_CHANGED_EVENT,
   TATOLAB_PROJECT_TRANSACTIONS_CHANGED_EVENT,
   TATOLAB_PORT_VIEWER_EVENT,
   TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT,
@@ -112,6 +113,13 @@ const tatolabElectronBridge: TatolabElectronBridge = {
     ipcRenderer.on(TATOLAB_PROJECT_TRANSACTIONS_CHANGED_EVENT, projectTransactionsChangedListener);
     return () => {
       ipcRenderer.removeListener(TATOLAB_PROJECT_TRANSACTIONS_CHANGED_EVENT, projectTransactionsChangedListener);
+    };
+  },
+  onProjectFilesChanged: (listener) => {
+    const projectFilesChangedListener = () => listener();
+    ipcRenderer.on(TATOLAB_PROJECT_FILES_CHANGED_EVENT, projectFilesChangedListener);
+    return () => {
+      ipcRenderer.removeListener(TATOLAB_PROJECT_FILES_CHANGED_EVENT, projectFilesChangedListener);
     };
   },
   onPythonLanguageServerEvent: (listener) => {
