@@ -212,6 +212,8 @@ export interface TatolabBackend {
   readOpenProjectTransactions(): Promise<ProjectTransactionsReading>;
   /** Calls `listener` with each reading of the open project's change feed: a transaction the runtime applied, or the feed lost or followed again; the returned function stops it. */
   onProjectTransactionsChanged(listener: (reading: ProjectTransactionsReading) => void): () => void;
+  /** Calls `listener` each time a file of the open project may have changed: saved in its folder by an editor or another tool, or changed while the app was not told; the returned function stops it. */
+  onProjectFilesChanged(listener: () => void): () => void;
   /** The runtime's `undo` by `author` on the open project, resolving with the undo it applied and rejecting in the runtime's own words. */
   undoInTheOpenProject(author: ProjectTransactionAuthor): Promise<ProjectTransaction>;
   /** The runtime's `transact` of `operations` on the graphs of the open project's streams as one transaction recorded as Studio's own, resolving with what it applied or the runtime's structured refusal, and rejecting in words for any other refusal. */

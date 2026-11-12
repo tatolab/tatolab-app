@@ -30,7 +30,7 @@ import { CORE_VIEWS } from "@tatolab/tato-app-core-views";
 import { watchTheStudioViewsOfTheRegistry } from "./view_host/studio_views_listed_for_views";
 import { ProjectLogReadings } from "./view_host/project_log_readings";
 import { ProjectTransactionsReadings } from "./view_host/project_transactions_readings";
-import { ProjectListingReadingsPolledWhileWatched } from "./view_host/project_listing_readings_polled_while_watched";
+import { ProjectListingReadingsWhileWatched } from "./view_host/project_listing_readings_while_watched";
 import { PythonLanguageServerConnections } from "./view_host/python_language_server_connections";
 import { PortViewerConnections } from "./view_host/port_viewer_connections";
 import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "./window_visibility";
@@ -148,12 +148,12 @@ export function mountTatolabWindow(
   const projectLogReadings = new ProjectLogReadings(backend);
   projectLogReadings.setReadingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => projectLogReadings.setReadingAllowed(isVisible));
-  const projectNodeTypeReadings = new ProjectListingReadingsPolledWhileWatched((projectFolder) => backend.listProjectNodeTypes(projectFolder));
-  projectNodeTypeReadings.setPollingAllowed(isTatolabWindowVisible());
-  onTatolabWindowVisibilityChanged((isVisible) => projectNodeTypeReadings.setPollingAllowed(isVisible));
-  const projectAssetReadings = new ProjectListingReadingsPolledWhileWatched((projectFolder) => backend.listProjectAssets(projectFolder));
-  projectAssetReadings.setPollingAllowed(isTatolabWindowVisible());
-  onTatolabWindowVisibilityChanged((isVisible) => projectAssetReadings.setPollingAllowed(isVisible));
+  const projectNodeTypeReadings = new ProjectListingReadingsWhileWatched((projectFolder) => backend.listProjectNodeTypes(projectFolder));
+  projectNodeTypeReadings.setReadingAllowed(isTatolabWindowVisible());
+  onTatolabWindowVisibilityChanged((isVisible) => projectNodeTypeReadings.setReadingAllowed(isVisible));
+  const projectAssetReadings = new ProjectListingReadingsWhileWatched((projectFolder) => backend.listProjectAssets(projectFolder));
+  projectAssetReadings.setReadingAllowed(isTatolabWindowVisible());
+  onTatolabWindowVisibilityChanged((isVisible) => projectAssetReadings.setReadingAllowed(isVisible));
   const pythonLanguageServerConnections = new PythonLanguageServerConnections(backend);
   const portViewerConnections = new PortViewerConnections(backend);
   const studioWindowModel = new StudioWindowModel(new StudioLayoutKeptInStorage(tatolabWindowLocalStorage()));
@@ -162,12 +162,14 @@ export function mountTatolabWindow(
     return openProject.kind === "read" ? openProject.open_project.project.folder : null;
   };
   const projectTransactionsReadings = new ProjectTransactionsReadings(backend, readTheOpenProjectFolder);
-  backend.onProjectTransactionsChanged(() => {
+  const listTheOpenProjectAgain = () => {
     const openProjectFolder = readTheOpenProjectFolder();
     if (openProjectFolder === null) return;
     projectAssetReadings.listTheProjectAgainNow(openProjectFolder);
     projectNodeTypeReadings.listTheProjectAgainNow(openProjectFolder);
-  });
+  };
+  backend.onProjectTransactionsChanged(listTheOpenProjectAgain);
+  backend.onProjectFilesChanged(listTheOpenProjectAgain);
 
   const chooseProjectFolder = (chosenFor: ProjectFolderChosenFor) => {
     studioWindowModel.projectOpeningRefusal.publish(null);

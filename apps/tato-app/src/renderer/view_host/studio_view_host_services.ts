@@ -1,6 +1,6 @@
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import type { ProjectLogReadings } from "./project_log_readings";
-import type { ProjectListingReadingsPolledWhileWatched } from "./project_listing_readings_polled_while_watched";
+import type { ProjectListingReadingsWhileWatched } from "./project_listing_readings_while_watched";
 import type { AssetPreviewPicture, AssetPreviewReading, ProjectAssetListing, ProjectNodeTypeListing } from "../../shared/tatolab_backend_contract";
 import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
@@ -37,8 +37,8 @@ export interface StudioWindowValuesServedToViews {
 export interface StudioViewHostProjectServices {
   backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "deleteAssetFromTheOpenProject" | "writeStudioViewOutput" | "writeGraphInput" | "openModuleManagerWindow">;
   projectLogReadings: ProjectLogReadings;
-  projectNodeTypeReadings: ProjectListingReadingsPolledWhileWatched<ProjectNodeTypeListing>;
-  projectAssetReadings: ProjectListingReadingsPolledWhileWatched<ProjectAssetListing>;
+  projectNodeTypeReadings: ProjectListingReadingsWhileWatched<ProjectNodeTypeListing>;
+  projectAssetReadings: ProjectListingReadingsWhileWatched<ProjectAssetListing>;
   projectTransactionsReadings: ProjectTransactionsReadings;
   pythonLanguageServerConnections: PythonLanguageServerConnections;
   portViewerConnections: PortViewerConnections;

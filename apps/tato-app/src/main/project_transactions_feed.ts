@@ -1,7 +1,10 @@
 // The change feed of the project a studio window shows, followed over one `/control/ws`
 // WebSocket: `read_project_changes` opens the project in the runtime and answers its feed, whose
 // project UUID `subscribe_project_changes` names, and each `project_changed` of that project,
-// `missed` among them, reads the feed again, one read at a time. A connection that closes is
+// `missed` among them, reads the feed again, one read at a time. A `files_changed`, a file an
+// editor or another tool changed in the project's folder, leaves the feed as it is: the window is
+// told the project's files changed, as it is after `missed` and after each subscribe, when a change
+// may have gone untold. A connection that closes is
 // followed again at once, keeping the last reading; when that fails too the window is told why,
 // and the feed is followed again every few seconds until the runtime answers.
 
@@ -32,6 +35,8 @@ export interface ProjectTransactionsFeedOfAStudioWindowSources {
   /** Runs `work` once after `delayMs`; the answer cancels it. */
   runAfter: (delayMs: number, work: () => void) => () => void;
   sendTheWindowTheProjectTransactions: (reading: ProjectTransactionsReading) => void;
+  /** Tell the window a file of the project changed, so it lists the project again. */
+  tellTheWindowTheProjectFilesChanged: () => void;
 }
 
 /** `controlWebSocketConnection` as the connection a project's feed is followed over. */
@@ -107,7 +112,9 @@ export class ProjectTransactionsFeedOfAStudioWindow {
     }
     const project = firstRead.value.project;
     feedConnection.onProjectChanged((change) => {
-      if (this.feedConnection === feedConnection && change.project === project) void this.readTheFeed(feedConnection);
+      if (this.feedConnection !== feedConnection || change.project !== project) return;
+      if (change.change === "files_changed" || change.change === "missed") this.sources.tellTheWindowTheProjectFilesChanged();
+      if (change.change !== "files_changed") void this.readTheFeed(feedConnection);
     });
     const subscribed = await feedConnection.subscribeToTheProjectChanges(project);
     if (this.feedConnection !== feedConnection) return;
@@ -116,6 +123,7 @@ export class ProjectTransactionsFeedOfAStudioWindow {
       return;
     }
     this.hasFollowedAgainAtOnce = false;
+    this.sources.tellTheWindowTheProjectFilesChanged();
     this.publish({ kind: "read", project_transactions: firstRead.value });
     await this.readTheFeed(feedConnection);
   }

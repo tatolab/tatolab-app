@@ -10,6 +10,7 @@ const UNANSWERING_TATOLAB_ELECTRON_BRIDGE: TatolabElectronBridge = {
   onOpenProjectChanged: () => () => undefined,
   onModuleManagerSectionAsked: () => () => undefined,
   onProjectTransactionsChanged: () => () => undefined,
+  onProjectFilesChanged: () => () => undefined,
   onPythonLanguageServerEvent: () => () => undefined,
   onPortViewerEvent: () => () => undefined,
   onStreamGraphChanged: () => () => undefined,

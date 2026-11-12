@@ -6,6 +6,7 @@ import type { OpenProjectReading, ProjectTransactionsReading, PortViewerEvent, P
 import {
   TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT,
   TATOLAB_OPEN_PROJECT_CHANGED_EVENT,
+  TATOLAB_PROJECT_FILES_CHANGED_EVENT,
   TATOLAB_PROJECT_TRANSACTIONS_CHANGED_EVENT,
   TATOLAB_PORT_VIEWER_EVENT,
   TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT,
@@ -185,6 +186,11 @@ export class TatolabMainWindow implements WindowShowingPortViewers, WindowFollow
   /** Send the window `reading` as `tatolab-project-transactions-changed`; nothing, before the window is first shown, which reads the feed when it opens. */
   sendTheWindowTheProjectTransactions(reading: ProjectTransactionsReading): void {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_PROJECT_TRANSACTIONS_CHANGED_EVENT, reading);
+  }
+
+  /** Tell the window its project's files changed, as `tatolab-project-files-changed`; nothing, before the window is first shown, which lists the project when it opens. */
+  tellTheWindowTheProjectFilesChanged(): void {
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_PROJECT_FILES_CHANGED_EVENT, null);
   }
 
   /** Send the window `event` as `tatolab-python-language-server-event`; nothing, before the window is first shown. */
