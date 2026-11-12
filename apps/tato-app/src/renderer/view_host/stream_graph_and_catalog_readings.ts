@@ -1,11 +1,16 @@
-// Each stream's graph and node catalog as the host serves them to its views: one poll per stream,
-// however many views watch it, read only while one does and the window is shown.
+// Each stream's graph and node catalog as the host serves them to its views: one reading per stream,
+// however many views watch it, kept only while one does and the window is shown. The graph is read
+// again at once on each change the runtime pushes, and on a slower poll for the drop counts, link
+// states and process errors it does not push.
 
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import { RepeatingBackendPoll } from "../repeating_backend_poll";
 import type { NodeCatalogReading, StopWatching, StreamGraphReading } from "./studio_view_contract";
 
-/** How often a watched stream's graph is read. */
+/** What the host reads a stream's graph and catalog through, and is told of its graph's changes by. */
+type StreamGraphAndCatalogBackend = Pick<TatolabBackend, "describeStreamGraph" | "describeNodeCatalog" | "followStreamGraphChanges" | "stopFollowingStreamGraphChanges" | "onStreamGraphChanged">;
+
+/** How often a watched stream's graph is read when no change is pushed. */
 export const STREAM_GRAPH_POLL_MILLISECONDS = 2500;
 
 /** A reading every watcher is told of once there is one, then on each change. */
@@ -44,15 +49,34 @@ class LatestReadingWatchers<Reading> {
 class OneStreamsReadings {
   readonly graph = new LatestReadingWatchers<StreamGraphReading>();
   readonly catalog = new LatestReadingWatchers<NodeCatalogReading>();
-  readonly graphPoll: RepeatingBackendPoll;
+  private readonly graphPoll: RepeatingBackendPoll;
   private isCatalogReadInFlight = false;
+  private isFollowingTheGraphChanges = false;
 
   constructor(
     private readonly stream: string,
-    private readonly backend: Pick<TatolabBackend, "describeStreamGraph" | "describeNodeCatalog">,
+    private readonly backend: StreamGraphAndCatalogBackend,
     pollMilliseconds: number,
   ) {
     this.graphPoll = new RepeatingBackendPoll(() => this.readTheGraph(), pollMilliseconds);
+  }
+
+  /** Read the graph and follow its pushed changes while `isWatched`. */
+  setWatched(isWatched: boolean): void {
+    if (isWatched === this.isFollowingTheGraphChanges) return;
+    this.isFollowingTheGraphChanges = isWatched;
+    if (isWatched) {
+      this.graphPoll.start();
+      void this.backend.followStreamGraphChanges(this.stream).catch((rejection: unknown) => this.graph.publish({ kind: "not_read", because: describeBackendRejection(rejection) }));
+      return;
+    }
+    this.graphPoll.stop();
+    void this.backend.stopFollowingStreamGraphChanges(this.stream).catch(() => undefined);
+  }
+
+  /** Read the graph again at once, as the runtime pushed a change to it. */
+  readTheGraphAgain(): void {
+    this.graphPoll.pollNow();
   }
 
   /** Read the catalog when nobody has, after a refusal, or when the graph names a type it lacks; one read at a time. */
@@ -94,9 +118,11 @@ export class StreamGraphAndCatalogReadings {
   private isPollingAllowed = true;
 
   constructor(
-    private readonly backend: Pick<TatolabBackend, "describeStreamGraph" | "describeNodeCatalog">,
+    private readonly backend: StreamGraphAndCatalogBackend,
     private readonly pollMilliseconds: number = STREAM_GRAPH_POLL_MILLISECONDS,
-  ) {}
+  ) {
+    backend.onStreamGraphChanged((stream) => this.readingsByStream.get(stream)?.readTheGraphAgain());
+  }
 
   /** Read only while the window is shown. */
   setPollingAllowed(isAllowed: boolean): void {
@@ -124,10 +150,9 @@ export class StreamGraphAndCatalogReadings {
     return readings;
   }
 
-  /** The graph is polled for a catalog's watchers as well, so a reload that brings a new type reads the catalog again. */
+  /** The graph is read for a catalog's watchers as well, so a reload that brings a new type reads the catalog again. */
   private updatePolling(readings: OneStreamsReadings): void {
-    if (this.isPollingAllowed && readings.graph.watcherCount + readings.catalog.watcherCount > 0) readings.graphPoll.start();
-    else readings.graphPoll.stop();
+    readings.setWatched(this.isPollingAllowed && readings.graph.watcherCount + readings.catalog.watcherCount > 0);
   }
 
   private stopWatchingOnce(readings: OneStreamsReadings, stopTheListener: () => void): StopWatching {

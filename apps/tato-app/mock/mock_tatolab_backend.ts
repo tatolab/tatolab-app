@@ -729,6 +729,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     const graphActions = undoOrRedo.operations.filter((operation) => !isAHistoryOperationTheMockMakesAgainFromTheEditInside(operation)).map(graphActionApplyingTheHistoryOperation);
     const everyOneNamesAGraph = graphActions.every((graphAction): graphAction is StreamGraphAction => graphAction !== null);
     if (everyOneNamesAGraph && graphActions.length > 0) commitGraphActions(graphActions, "undo_or_redo", undoOrRedo.operations);
+    pushEveryFollowedStreamGraphChanged();
     return undoOrRedo;
   };
   const listedStreamsNotLoaded = new Map<string, ListedStream>([
@@ -755,9 +756,20 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   let runtimeEngineStartedAtMilliseconds = Date.now() - MOCK_RUNTIME_UP_FOR_AT_OPEN_MILLISECONDS;
   let liveTickTimer: number | undefined;
 
+  /** The streams the window follows the graphs of, and who is told when one changes. */
+  const streamsWhoseGraphsAreFollowed = new Set<string>();
+  const streamGraphChangedListeners = new Set<(streamId: string) => void>();
+  /** Tell the window each followed stream's graph changed after the command that changed it answers, as the runtime pushes `stream_graph_changed`. */
+  const pushEveryFollowedStreamGraphChanged = (): void => {
+    window.setTimeout(() => {
+      for (const streamId of streamsWhoseGraphsAreFollowed) for (const listener of streamGraphChangedListeners) listener(streamId);
+    }, 0);
+  };
+
   const publishStatus = (statusChanges: Partial<TatolabStatus>): void => {
     mockStatus = { ...mockStatus, project_venv_syncs_just_ended: [], ...statusChanges };
     for (const statusListener of statusListeners) statusListener(structuredClone(mockStatus));
+    pushEveryFollowedStreamGraphChanged();
   };
 
   /** The ids of the streams run from the window's Add stream, listed after the fixtures', in the order they were run. */
@@ -1373,6 +1385,18 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       return graphOfLoadedStream(loadedStreamOfTheId(streamId));
     },
+    followStreamGraphChanges: async (streamId) => {
+      streamsWhoseGraphsAreFollowed.add(streamId);
+    },
+    stopFollowingStreamGraphChanges: async (streamId) => {
+      streamsWhoseGraphsAreFollowed.delete(streamId);
+    },
+    onStreamGraphChanged: (listener) => {
+      streamGraphChangedListeners.add(listener);
+      return () => {
+        streamGraphChangedListeners.delete(listener);
+      };
+    },
     describeNodeCatalog: async (streamId) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       loadedStreamOfTheId(streamId);
@@ -1784,6 +1808,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       }
       const outcome = mode === "commit" ? commitGraphActions(operations, "a_transaction") : applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations);
       if (outcome.kind === "refused") return outcome;
+      pushEveryFollowedStreamGraphChanged();
       const recorded = mode === "commit" ? mockProjectTransactions.record(MOCK_PERSON_EDITING_IN_STUDIO, outcome.history_operations, outcome.inverse_operations) : null;
       const transaction: ProjectGraphTransaction = { mode, transaction: recorded?.transaction ?? null, commit: recorded?.commit ?? null, ...outcome.transaction };
       if (idempotencyKey !== null && mode === "commit") graphTransactionsCommittedByIdempotencyKey.set(idempotencyKey, structuredClone(transaction));
@@ -1898,6 +1923,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       const refusal = refusalOfAGraphInputWrite(loadedStream, listStreams()?.find((listing) => listing.stream === stream)?.state ?? null, input, value);
       if (refusal !== null) throw `write_graph_input failed: ${refusal}`;
       loadedStream.valueWrittenToEachGraphInput.set(input, value);
+      pushEveryFollowedStreamGraphChanged();
     },
     openPortViewer: async (target) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

@@ -14,6 +14,8 @@ import {
   ControlRequestInvalid,
   TatolabRuntimeClient,
   type ControlCallOptions,
+  type ControlNotificationMethodName,
+  type ControlNotifications,
   type ControlOperationMethodName,
   type ControlOperations,
 } from "@tatolab/runtime-client";
@@ -21,7 +23,7 @@ import { TATO_STUDIO_MCP_CLIENT_NAME } from "../shared/tatolab_backend_contract.
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { describeCaughtFailure, succeeded, type Result } from "./result.js";
 
-export type { ControlOperationMethodName };
+export type { ControlNotifications, ControlOperationMethodName };
 
 /** The params `method` takes, as the control contract declares them. */
 export type ControlOperationParams<Method extends ControlOperationMethodName> = ControlOperations[Method]["params"];
@@ -124,6 +126,11 @@ export class TatolabRuntimeControlWebSocketConnection {
   async callControlOperation<Method extends ControlOperationMethodName>(method: Method, params: ControlOperationParams<Method>): Promise<Result<ControlOperationAnswer, LocalApiRequestFailure>> {
     if (this.whyTheConnectionClosed !== null) return localApiRequestFailure(`\`${method}\` was not sent: ${this.whyTheConnectionClosed}`);
     return controlOperationAnswerOfTheCall(method, this.localApiSocketPath, this.requestTimeoutMs, (callOptions) => this.controlClient.call(method, params, callOptions));
+  }
+
+  /** Call `listener` with the params of each `method` notification the runtime sends on this connection until it closes; the returned function stops it. */
+  onNotification<Method extends ControlNotificationMethodName>(method: Method, listener: (params: ControlNotifications[Method]) => void): () => void {
+    return this.controlClient.onNotification(method, listener);
   }
 
   /** Call `whenTheConnectionCloses` once, with why, when the connection closes from either end; at once if it already has. */

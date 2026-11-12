@@ -1,5 +1,6 @@
 import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { projectViewFolderUrl, ProjectViewsListedToTheWindows } from "./project_view_files.js";
+import { StreamGraphChangesFollowedForTheWindows } from "./stream_graph_changes_followed_for_the_windows.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { localApiRequestFailure } from "./local_api_request_failure.js";
 import os from "node:os";
@@ -241,6 +242,11 @@ async function sharedStateOverFakes(
       repeatEvery: () => () => undefined,
       waitThen: () => undefined,
       streamStateTheRuntimeListsNow: () => "running",
+      tatolabAppLog: quietTatolabAppLog,
+    }),
+    streamGraphChangesFollowed: new StreamGraphChangesFollowedForTheWindows({
+      openTheStreamGraphChangesConnection: async () => localApiRequestFailure("these tests open no stream graph changes connection"),
+      waitThen: () => undefined,
       tatolabAppLog: quietTatolabAppLog,
     }),
     systemMenuBar: new SystemMenuBarOfTheFocusedWindow({

@@ -1487,6 +1487,21 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (windowShowingPortViewers !== null) sharedState.runtimePortViewers.closeAPortViewer(portViewer.value, windowShowingPortViewers);
       return { ok: true, value: null };
     },
+    follow_stream_graph_changes: async (commandArguments, commandFromWindow) => {
+      const followed = streamArgumentsFrom("follow_stream_graph_changes", commandArguments);
+      if (!followed.ok) return { ok: false, refusal: followed.failure };
+      const windowFollowingStreamGraphs = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
+      if (windowFollowingStreamGraphs === null) return { ok: false, refusal: "Only a studio window or a popped-out view follows a stream's graph." };
+      sharedState.streamGraphChangesFollowed.followTheStreamGraph(followed.value.stream, windowFollowingStreamGraphs);
+      return { ok: true, value: null };
+    },
+    stop_following_stream_graph_changes: async (commandArguments, commandFromWindow) => {
+      const followed = streamArgumentsFrom("stop_following_stream_graph_changes", commandArguments);
+      if (!followed.ok) return { ok: false, refusal: followed.failure };
+      const windowFollowingStreamGraphs = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
+      if (windowFollowingStreamGraphs !== null) sharedState.streamGraphChangesFollowed.stopFollowingTheStreamGraph(followed.value.stream, windowFollowingStreamGraphs);
+      return { ok: true, value: null };
+    },
     show_menus_in_the_system_menu_bar: async (commandArguments, commandFromWindow) => {
       const menus = systemMenuBarMenusFrom(commandArguments);
       if (!menus.ok) return { ok: false, refusal: menus.failure };

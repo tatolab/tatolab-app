@@ -67,6 +67,11 @@ export interface TatolabBackend {
   /** The page of `projectDirectory`'s log after the cursor `after`, from its first record when `null`, narrowed as `narrowing` asks; rejects in the runtime's own words. */
   readProjectLogRecords(projectDirectory: string, narrowing: ProjectLogNarrowing, after: string | null): Promise<ProjectLogRecordsPage>;
   describeStreamGraph(streamId: string): Promise<StreamGraphSummary>;
+  /** Follow the graph of the stream `streamId`, each change the runtime pushes arriving through `onStreamGraphChanged`; a stream not loaded yet is followed once it is. */
+  followStreamGraphChanges(streamId: string): Promise<void>;
+  stopFollowingStreamGraphChanges(streamId: string): Promise<void>;
+  /** Calls `listener` with the id of each followed stream whose graph changed; the returned function stops it. */
+  onStreamGraphChanged(listener: (streamId: string) => void): () => void;
   /** Every node type the loaded stream `streamId` can add, rejecting in the runtime's own words. */
   describeNodeCatalog(streamId: string): Promise<NodeCatalog>;
   /** What the project in `projectDirectory` and each source it draws node code from declares, read from source without running it; rejects in the runtime's own words. */
