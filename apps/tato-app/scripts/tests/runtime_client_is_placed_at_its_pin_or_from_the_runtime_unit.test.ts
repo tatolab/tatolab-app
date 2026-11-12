@@ -1,7 +1,7 @@
 // scripts/place-tatolab-runtime-client.sh places @tatolab/runtime-client in the workspace's
 // node_modules: the files its package.json lists, fetched from streamlib at the pinned commit and
 // kept while the pin holds, or a runtime unit's own copy when that copy serves the pinned contract
-// version. Each test copies the script into a scratch workspace and fetches from a planted streamlib.
+// version and the unit was built from a streamlib holding the pinned commit. Each test copies the script into a scratch workspace and fetches from a planted streamlib.
 
 import { execFile } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -56,6 +56,22 @@ async function commitAndPinARuntimeClient(contractVersion: number, clientSourceT
   return commit;
 }
 
+/** Commits a change in the planted streamlib that leaves the runtime client alone, answering the commit. */
+async function commitAnotherStreamlibChange(changeName: string): Promise<string> {
+  await writeFile(path.join(plantedStreamlib, `${changeName}.txt`), changeName);
+  await runProgram("git", ["add", "-A"], plantedStreamlib);
+  await runProgram("git", ["commit", "-q", "-m", changeName], plantedStreamlib);
+  return (await runProgram("git", ["rev-parse", "HEAD"], plantedStreamlib)).stdout.trim();
+}
+
+/** Writes a runtime unit built from streamlib `streamlibCommit`, carrying a runtime client serving `contractVersion`. */
+async function writeRuntimeUnitBuiltFrom(streamlibCommit: string, contractVersion: number, clientSourceText: string): Promise<string> {
+  const runtimeUnit = path.join(scratchDirectory, "tatolab-runtime");
+  await writeRuntimeClientPackage(path.join(runtimeUnit, "lib", "tatolab", "runtime-client"), contractVersion, clientSourceText);
+  await writeFile(path.join(runtimeUnit, "streamlib-commit"), `${streamlibCommit}\n`);
+  return runtimeUnit;
+}
+
 function placeTheRuntimeClient(...placeArguments: string[]): Promise<ProgramOutcome> {
   return runProgram(path.join(scratchWorkspace, "apps", "tato-app", "scripts", "place-tatolab-runtime-client.sh"), placeArguments, scratchWorkspace);
 }
@@ -101,16 +117,50 @@ test("a new pin is fetched over the package an earlier pin placed", async () => 
   expect(await readFile(path.join(placedPackage(), "index.js"), "utf8")).toBe("later client");
 });
 
-test("a runtime unit's copy serving the pinned contract version takes the pinned copy's place", async () => {
+test("a runtime unit's copy serving the pinned contract version, built from a later streamlib, takes the pinned copy's place", async () => {
   await commitAndPinARuntimeClient(2, "pinned client");
-  const runtimeUnit = path.join(scratchDirectory, "tatolab-runtime");
-  await writeRuntimeClientPackage(path.join(runtimeUnit, "lib", "tatolab", "runtime-client"), 2, "the unit's client");
+  const runtimeUnit = await writeRuntimeUnitBuiltFrom(await commitAnotherStreamlibChange("a later operation"), 2, "the unit's client");
 
   const placed = await placeTheRuntimeClient("--from-repository", plantedStreamlib, "--from-runtime-unit", runtimeUnit);
 
   expect(placed.exitCode, placed.stderr).toBe(0);
   expect(await readFile(path.join(placedPackage(), "index.js"), "utf8")).toBe("the unit's client");
   expect(await readFile(path.join(placedPackage(), ".placed-from"), "utf8")).toBe(`runtime unit ${runtimeUnit}\n`);
+});
+
+test("a runtime unit built from the pinned commit itself is placed", async () => {
+  const pinnedCommit = await commitAndPinARuntimeClient(2, "pinned client");
+  const runtimeUnit = await writeRuntimeUnitBuiltFrom(pinnedCommit, 2, "the unit's client");
+
+  const placed = await placeTheRuntimeClient("--from-repository", plantedStreamlib, "--from-runtime-unit", runtimeUnit);
+
+  expect(placed.exitCode, placed.stderr).toBe(0);
+  expect(await readFile(path.join(placedPackage(), "index.js"), "utf8")).toBe("the unit's client");
+});
+
+test("a runtime unit built from a streamlib older than the pin is refused naming both commits, though it serves the pinned contract version", async () => {
+  const olderStreamlibCommit = await commitAnotherStreamlibChange("before the operation the app calls");
+  const pinnedCommit = await commitAndPinARuntimeClient(2, "pinned client");
+  const runtimeUnit = await writeRuntimeUnitBuiltFrom(olderStreamlibCommit, 2, "an older unit's client");
+
+  const placed = await placeTheRuntimeClient("--from-repository", plantedStreamlib, "--from-runtime-unit", runtimeUnit);
+
+  expect(placed.exitCode).toBe(1);
+  expect(placed.stderr).toContain(
+    `runtime unit ${runtimeUnit} was built from streamlib ${olderStreamlibCommit}, which does not contain streamlib ${pinnedCommit} that Tato Studio is pinned to`,
+  );
+  expect(await readFile(path.join(placedPackage(), "index.js"), "utf8")).toBe("pinned client");
+});
+
+test("a runtime unit naming no streamlib commit is refused", async () => {
+  await commitAndPinARuntimeClient(2, "pinned client");
+  const runtimeUnit = path.join(scratchDirectory, "tatolab-runtime");
+  await writeRuntimeClientPackage(path.join(runtimeUnit, "lib", "tatolab", "runtime-client"), 2, "the unit's client");
+
+  const placed = await placeTheRuntimeClient("--from-repository", plantedStreamlib, "--from-runtime-unit", runtimeUnit);
+
+  expect(placed.exitCode).toBe(1);
+  expect(placed.stderr).toContain(`runtime unit ${runtimeUnit} names no streamlib commit it was built from in streamlib-commit`);
 });
 
 test("a runtime unit serving another contract version is refused naming both, and the pinned copy stays", async () => {

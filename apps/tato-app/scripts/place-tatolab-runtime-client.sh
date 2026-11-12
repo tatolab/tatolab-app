@@ -4,7 +4,9 @@
 # bundled against. By default it is streamlib's sdk/tatolab-runtime-client/ at the commit
 # apps/tato-app/tatolab-runtime-client-pin.json names, fetched once and kept while the pin holds.
 # With --from-runtime-unit, a packaged build puts the copy the runtime unit it bundles carries in
-# its place, refused when that copy serves another contract version than the pinned one.
+# its place, refused when that copy serves another contract version than the pinned one, or when
+# the unit was built from a streamlib that does not contain the pinned commit: within one contract
+# version a later streamlib adds operations, which an older runtime answers as unknown.
 #
 # Usage: place-tatolab-runtime-client.sh [--from-runtime-unit DIR] [--from-repository URL]
 #   --from-runtime-unit DIR  place DIR/lib/tatolab/runtime-client/ instead of the pinned copy
@@ -65,6 +67,17 @@ place_the_pinned_package() {
   place_package_files_from "$fetch_directory/sdk/tatolab-runtime-client" "streamlib $pinned_streamlib_commit"
 }
 
+# Exits 0 when streamlib $2 contains $1, 1 when it does not, 3 when $2 cannot be fetched. Only
+# commits are fetched (`tree:0`), so the whole history the check walks stays small.
+streamlib_commit_contains_the_pin() {
+  local pinned_commit="$1" unit_commit="$2" ancestry_directory
+  ancestry_directory="$(mktemp -d)"
+  trap 'rm -rf "$ancestry_directory"' RETURN
+  git -C "$ancestry_directory" init -q
+  git -C "$ancestry_directory" fetch -q --filter=tree:0 "$streamlib_repository_url" "$unit_commit" 2>/dev/null || return 3
+  git -C "$ancestry_directory" merge-base --is-ancestor "$pinned_commit" "$unit_commit" 2>/dev/null || return 1
+}
+
 place_the_pinned_package
 if [ -n "$runtime_unit_directory" ]; then
   unit_package="$runtime_unit_directory/lib/tatolab/runtime-client"
@@ -75,6 +88,16 @@ if [ -n "$runtime_unit_directory" ]; then
     echo "runtime unit $runtime_unit_directory serves control contract version $unit_contract_version; Tato Studio is pinned to version $pinned_contract_version (streamlib $pinned_streamlib_commit in $pin_file)" >&2
     exit 1
   }
+  unit_streamlib_commit="$(cat "$runtime_unit_directory/streamlib-commit" 2>/dev/null || true)"
+  [[ "$unit_streamlib_commit" =~ ^[0-9a-f]{40}$ ]] \
+    || { echo "runtime unit $runtime_unit_directory names no streamlib commit it was built from in streamlib-commit" >&2; exit 1; }
+  ancestry_status=0
+  streamlib_commit_contains_the_pin "$pinned_streamlib_commit" "$unit_streamlib_commit" || ancestry_status=$?
+  case "$ancestry_status" in
+    0) ;;
+    3) echo "streamlib $unit_streamlib_commit, which runtime unit $runtime_unit_directory was built from, could not be fetched from $streamlib_repository_url" >&2; exit 3 ;;
+    *) echo "runtime unit $runtime_unit_directory was built from streamlib $unit_streamlib_commit, which does not contain streamlib $pinned_streamlib_commit that Tato Studio is pinned to in $pin_file: the runtime is older than the one the app's code calls" >&2; exit 1 ;;
+  esac
   place_package_files_from "$unit_package" "runtime unit $runtime_unit_directory"
 fi
 echo "$placed_package: $(cat "$placed_from_marker")"
