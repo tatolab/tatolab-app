@@ -1806,6 +1806,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       return mockStatus.runtime_state === "running" ? mockProjectTransactions.read() : { kind: "not_read", because: noRuntimeAnswersRefusal() };
     },
     onProjectTransactionsChanged: (listener) => mockProjectTransactions?.onChanged(listener) ?? (() => undefined),
+    onProjectFilesChanged: () => () => undefined,
     undoInTheOpenProject: async (author) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockProjectTransactions === null) throw "No project is open in this window.";

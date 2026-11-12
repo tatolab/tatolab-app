@@ -44,6 +44,9 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
     onProjectTransactionsChanged() {
       return () => undefined;
     },
+    onProjectFilesChanged() {
+      return () => undefined;
+    },
     onPythonLanguageServerEvent() {
       return () => undefined;
     },
