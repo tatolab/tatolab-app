@@ -1,10 +1,10 @@
-// Port viewers' connection to the runtime: one `/control/stream` connection, because the runtime ties
+// Port viewers' connection to the runtime: one `/control/ws` WebSocket, because the runtime ties
 // a viewer to the connection that opened it and closes every viewer a connection opened when it closes.
 
 import { jsonObject, optionalText, requiredText, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { failedWith, succeeded, type Result } from "./result.js";
-import { TatolabRuntimeControlStreamConnection } from "./tatolab_runtime_control_operation_call.js";
+import { TatolabRuntimeControlWebSocketConnection } from "./tatolab_runtime_control_operation_call.js";
 
 /** What `open_viewer` answers (`OpenViewerToolResult`): where the viewer's own process subscribes to read the port. */
 export interface OpenedRuntimeViewer {
@@ -77,19 +77,19 @@ export function closedViewerFromTheCloseViewerToolResult(operationResult: unknow
   return viewer.ok ? viewer : failedWith(`the runtime's close_viewer result could not be read: ${viewer.failure}`);
 }
 
-/** One `/control/stream` connection port viewers are opened over, held open while any of them is. */
+/** One `/control/ws` WebSocket port viewers are opened over, held open while any of them is. */
 export class RuntimeViewerControlConnection {
-  private constructor(private readonly controlStreamConnection: TatolabRuntimeControlStreamConnection) {}
+  private constructor(private readonly controlWebSocketConnection: TatolabRuntimeControlWebSocketConnection) {}
 
   /** Open a connection to the local API at `localApiSocketPath`, giving up on it and on any later answer after `requestTimeoutMs`. */
   static async open(localApiSocketPath: string, requestTimeoutMs: number): Promise<Result<RuntimeViewerControlConnection, LocalApiRequestFailure>> {
-    const opened = await TatolabRuntimeControlStreamConnection.open(localApiSocketPath, requestTimeoutMs);
+    const opened = await TatolabRuntimeControlWebSocketConnection.open(localApiSocketPath, requestTimeoutMs);
     return opened.ok ? succeeded(new RuntimeViewerControlConnection(opened.value)) : opened;
   }
 
   /** Open a viewer of `target`'s output port, held open until `closeViewer` or this connection closes; refused in the runtime's own words. */
   async openViewer(target: RuntimeViewerTarget): Promise<Result<OpenedRuntimeViewer, LocalApiRequestFailure>> {
-    const answered = await this.controlStreamConnection.callControlOperation("open_viewer", {
+    const answered = await this.controlWebSocketConnection.callControlOperation("open_viewer", {
       stream: target.stream,
       node_id: target.node_id,
       port: target.port,
@@ -103,7 +103,7 @@ export class RuntimeViewerControlConnection {
 
   /** Close the viewer `viewer` this connection opened, answering the id the runtime closed; refused in the runtime's own words. */
   async closeViewer(viewer: string): Promise<Result<string, LocalApiRequestFailure>> {
-    const answered = await this.controlStreamConnection.callControlOperation("close_viewer", { viewer });
+    const answered = await this.controlWebSocketConnection.callControlOperation("close_viewer", { viewer });
     if (!answered.ok) return answered;
     if (answered.value.kind === "refused_by_the_operation") return theRuntimesRefusal(answered.value.words);
     const closedViewer = closedViewerFromTheCloseViewerToolResult(answered.value.result);
@@ -112,16 +112,16 @@ export class RuntimeViewerControlConnection {
 
   /** Call `whenTheConnectionCloses` once, with why, when the connection closes from either end; at once if it already has. */
   onClosed(whenTheConnectionCloses: (whyItClosed: string) => void): void {
-    this.controlStreamConnection.onClosed(whenTheConnectionCloses);
+    this.controlWebSocketConnection.onClosed(whenTheConnectionCloses);
   }
 
   /** Whether the connection is still open. */
   isOpen(): boolean {
-    return this.controlStreamConnection.isOpen();
+    return this.controlWebSocketConnection.isOpen();
   }
 
   /** Close the connection, which closes every viewer it opened. */
   close(): void {
-    this.controlStreamConnection.close();
+    this.controlWebSocketConnection.close();
   }
 }

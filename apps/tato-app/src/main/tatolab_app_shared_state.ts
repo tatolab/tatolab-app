@@ -17,6 +17,7 @@ import type { HeldRememberedSwitch } from "./remembered_switch_file.js";
 import type { ProjectOpening } from "./open_project.js";
 import type { PythonLanguageServers } from "./python_language_servers.js";
 import type { RuntimePortViewers } from "./runtime_port_viewers.js";
+import type { StreamGraphChangesFollowedForTheWindows } from "./stream_graph_changes_followed_for_the_windows.js";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import type { ProjectAssetsImportedFromChosenFiles } from "./project_assets_imported_from_chosen_files.js";
@@ -48,6 +49,8 @@ export interface TatolabAppSharedState {
   pythonLanguageServers: PythonLanguageServers;
   /** The Node visualizer's reads of running nodes' output ports, for the studio windows and the Node visualizers popped out of them. */
   runtimePortViewers: RuntimePortViewers;
+  /** The graph changes the runtime pushes of each stream a studio window or a popped-out view follows. */
+  streamGraphChangesFollowed: StreamGraphChangesFollowedForTheWindows;
   /** macOS's one menu bar, which shows the focused window's menus. */
   systemMenuBar: SystemMenuBarOfTheFocusedWindow;
   /** How the module manager fetches the package catalog. */

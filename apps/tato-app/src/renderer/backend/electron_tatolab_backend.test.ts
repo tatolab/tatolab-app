@@ -50,6 +50,9 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
     onPortViewerEvent() {
       return () => undefined;
     },
+    onStreamGraphChanged() {
+      return () => undefined;
+    },
     onPortViewerImageFrame() {
       return () => undefined;
     },

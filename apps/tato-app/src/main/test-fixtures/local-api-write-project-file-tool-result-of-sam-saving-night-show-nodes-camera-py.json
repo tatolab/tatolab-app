@@ -1,1 +1,1 @@
-{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"path\": \"nodes/camera.py\",\n  \"transaction\": \"c394e90f-a850-4603-81c3-8d25ba25ea76\",\n  \"commit\": \"a85ff7d5a389463bfcf6af6a27e268b013849bf6\"\n}"}],"isError":false}}
+{"jsonrpc":"2.0","id":1,"result":{"path":"nodes/camera.py","content_sha256":"8e769b201489bae6dfe8d6a0ae6ca7fd37c552f63eda75030edfa94de50c7d9c","transaction":"841dea3f-0f85-44f6-a3bf-7ab09d1fa179","commit":"bbd985b362ad3ff5e7154324bcd13d19022e9ff2"}}

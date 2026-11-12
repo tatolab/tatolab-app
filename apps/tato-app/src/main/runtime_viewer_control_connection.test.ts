@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
+import { CONTROL_OPERATION_METHOD_NAMES } from "@tatolab/runtime-client";
 import { afterEach, expect, test } from "vitest";
 import { type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import type { Result } from "./result.js";
@@ -27,14 +29,46 @@ function failureOf<T, F>(result: Result<T, F>): F {
   return result.failure;
 }
 
-/** How the fake runtime answers one call on `/control/stream` after `discover`: the lines to write back, or `null` to leave it unanswered. */
-type FakeControlStreamAnswer = (call: Record<string, unknown>) => string[] | null;
+/** How the fake runtime answers one call on `/control/ws` after `discover`: the messages to send back, or `null` to leave it unanswered. */
+type FakeControlWebSocketAnswer = (call: Record<string, unknown>) => string[] | null;
 
-/** What `discover` answers, as the runtime's `DiscoverToolResult` serializes it, trimmed to what a client reads. */
-const DISCOVERED = { contract_version: 2, runtime_version: "0.68.74" };
+/** What `discover` answers, in the shape the runtime's `DiscoverResult` serializes to. */
+const DISCOVERED = { contract_version: 2, runtime_version: "0.68.74", build_id: "test-build", operations: [...CONTROL_OPERATION_METHOD_NAMES] };
 
-/** A local API that upgrades `/control/stream`, answers `discover`, and then each call line with `answerCall`, recording every upgrade and call it read. */
-async function fakeControlStreamRuntime(answerCall: FakeControlStreamAnswer) {
+/** The GUID RFC 6455 appends to a client's `Sec-WebSocket-Key` before hashing it into `Sec-WebSocket-Accept`. */
+const WEBSOCKET_ACCEPT_KEY_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+
+const WEBSOCKET_TEXT_OPCODE = 0x1;
+const WEBSOCKET_CLOSE_OPCODE = 0x8;
+
+/** One unmasked, final server frame carrying `payload` with `opcode`, as RFC 6455 frames it. */
+function serverWebSocketFrame(opcode: number, payload: Buffer): Buffer {
+  const lengthBytes = payload.length < 126 ? Buffer.from([payload.length]) : Buffer.alloc(9);
+  if (payload.length >= 126) {
+    lengthBytes[0] = 127;
+    lengthBytes.writeBigUInt64BE(BigInt(payload.length), 1);
+  }
+  return Buffer.concat([Buffer.from([0x80 | opcode]), lengthBytes, payload]);
+}
+
+/** The first whole masked client frame in `bytes`, unmasked, with the bytes after it; or `null` while it has not all arrived. */
+function firstClientWebSocketFrame(bytes: Buffer): { opcode: number; payload: Buffer; bytesAfter: Buffer } | null {
+  if (bytes.length < 2) return null;
+  const opcode = (bytes[0] ?? 0) & 0x0f;
+  const shortLength = (bytes[1] ?? 0) & 0x7f;
+  const lengthFieldBytes = shortLength === 126 ? 2 : shortLength === 127 ? 8 : 0;
+  const maskStart = 2 + lengthFieldBytes;
+  if (bytes.length < maskStart + 4) return null;
+  const payloadLength = shortLength === 126 ? bytes.readUInt16BE(2) : shortLength === 127 ? Number(bytes.readBigUInt64BE(2)) : shortLength;
+  const payloadStart = maskStart + 4;
+  if (bytes.length < payloadStart + payloadLength) return null;
+  const mask = bytes.subarray(maskStart, payloadStart);
+  const payload = Buffer.from(bytes.subarray(payloadStart, payloadStart + payloadLength).map((byte, index) => byte ^ (mask[index % 4] ?? 0)));
+  return { opcode, payload, bytesAfter: bytes.subarray(payloadStart + payloadLength) };
+}
+
+/** A local API that upgrades `/control/ws`, answers `discover`, and then each call with `answerCall`, recording every upgrade and call it read. */
+async function fakeControlWebSocketRuntime(answerCall: FakeControlWebSocketAnswer) {
   const socketDirectory = await mkdtemp("/tmp/tl-app-");
   const localApiSocketPath = path.join(socketDirectory, "local-api.sock");
   const upgradeRequestsRead: string[] = [];
@@ -42,31 +76,41 @@ async function fakeControlStreamRuntime(answerCall: FakeControlStreamAnswer) {
   const connectionsOpen: net.Socket[] = [];
   const server = net.createServer((connection) => {
     connectionsOpen.push(connection);
-    let bytesRead = Buffer.alloc(0);
+    const sendText = (messageText: string) => connection.write(serverWebSocketFrame(WEBSOCKET_TEXT_OPCODE, Buffer.from(messageText, "utf8")));
+    let bytesRead: Buffer = Buffer.alloc(0);
     let upgraded = false;
     connection.on("data", (chunk: Buffer) => {
       bytesRead = Buffer.concat([bytesRead, chunk]);
       if (!upgraded) {
         const headEnd = bytesRead.indexOf("\r\n\r\n");
         if (headEnd === -1) return;
-        upgradeRequestsRead.push(bytesRead.subarray(0, headEnd).toString("utf8"));
+        const upgradeHead = bytesRead.subarray(0, headEnd).toString("utf8");
+        upgradeRequestsRead.push(upgradeHead);
         bytesRead = bytesRead.subarray(headEnd + 4);
         upgraded = true;
-        connection.write("HTTP/1.1 101 Switching Protocols\r\nconnection: upgrade\r\nupgrade: control-jsonrpc\r\n\r\n");
+        const websocketKey = /^sec-websocket-key:\s*(\S+)\s*$/im.exec(upgradeHead)?.[1] ?? "";
+        const acceptKey = createHash("sha1").update(websocketKey + WEBSOCKET_ACCEPT_KEY_GUID).digest("base64");
+        connection.write(`HTTP/1.1 101 Switching Protocols\r\nconnection: upgrade\r\nupgrade: websocket\r\nsec-websocket-accept: ${acceptKey}\r\n\r\n`);
       }
-      for (let lineEnd = bytesRead.indexOf(0x0a); lineEnd !== -1; lineEnd = bytesRead.indexOf(0x0a)) {
-        const call: unknown = JSON.parse(bytesRead.subarray(0, lineEnd).toString("utf8"));
-        bytesRead = bytesRead.subarray(lineEnd + 1);
+      for (let frame = firstClientWebSocketFrame(bytesRead); frame !== null; frame = firstClientWebSocketFrame(bytesRead)) {
+        bytesRead = frame.bytesAfter;
+        if (frame.opcode === WEBSOCKET_CLOSE_OPCODE) {
+          connection.end(serverWebSocketFrame(WEBSOCKET_CLOSE_OPCODE, frame.payload.subarray(0, 2)));
+          return;
+        }
+        if (frame.opcode !== WEBSOCKET_TEXT_OPCODE) continue;
+        const call: unknown = JSON.parse(frame.payload.toString("utf8"));
         if (typeof call !== "object" || call === null) continue;
         const callFields = Object.fromEntries(Object.entries(call));
         if (callFields["method"] === "discover") {
-          connection.write(`${JSON.stringify({ jsonrpc: "2.0", id: callFields["id"], result: DISCOVERED })}\n`);
+          sendText(JSON.stringify({ jsonrpc: "2.0", id: callFields["id"], result: DISCOVERED }));
           continue;
         }
         callsRead.push(callFields);
-        for (const answerLine of answerCall(callFields) ?? []) connection.write(`${answerLine}\n`);
+        for (const answerText of answerCall(callFields) ?? []) sendText(answerText);
       }
     });
+    connection.on("error", () => connection.destroy());
     connection.once("end", () => connection.end());
   });
   await new Promise<void>((listening) => server.listen(localApiSocketPath, listening));
@@ -107,15 +151,15 @@ async function openConnection(localApiSocketPath: string, requestTimeoutMs = 2_0
   return connection;
 }
 
-test("the_connection_upgrades_control_stream_by_the_apps_name_and_opens_a_viewer_with_open_viewer", async () => {
-  const runtime = await fakeControlStreamRuntime((call) => [resultLine(call["id"], OPEN_VIEWER_RESULT_ON_LINUX)]);
+test("the_connection_upgrades_control_ws_by_the_apps_name_and_opens_a_viewer_with_open_viewer", async () => {
+  const runtime = await fakeControlWebSocketRuntime((call) => [resultLine(call["id"], OPEN_VIEWER_RESULT_ON_LINUX)]);
   const connection = await openConnection(runtime.localApiSocketPath);
 
   const openedViewer = answerOf(await connection.openViewer({ stream: "pattern-main-1a2b3c", node_id: "7f3a", port: "video", viewer_process_id: 4242 }));
 
   expect(openedViewer).toEqual(LINUX_VIEWER);
   const upgradeHeadLines = (runtime.upgradeRequestsRead[0] ?? "").toLowerCase().split("\r\n");
-  expect(upgradeHeadLines[0]).toBe("get /control/stream http/1.1");
+  expect(upgradeHeadLines[0]).toBe("get /control/ws http/1.1");
   expect(upgradeHeadLines).toContain("tatolab-control-client-name: tatolab-app");
   expect(runtime.callsRead).toEqual([
     { jsonrpc: "2.0", id: expect.anything(), method: "open_viewer", params: { stream: "pattern-main-1a2b3c", node_id: "7f3a", port: "video", viewer_process_id: 4242 } },
@@ -124,7 +168,7 @@ test("the_connection_upgrades_control_stream_by_the_apps_name_and_opens_a_viewer
 
 test("answers_that_come_back_out_of_order_settle_the_calls_they_answer", async () => {
   const callsHeld: Record<string, unknown>[] = [];
-  const runtime = await fakeControlStreamRuntime((call) => {
+  const runtime = await fakeControlWebSocketRuntime((call) => {
     callsHeld.push(call);
     if (callsHeld.length < 2) return null;
     const [first, second] = callsHeld;
@@ -143,7 +187,7 @@ test("answers_that_come_back_out_of_order_settle_the_calls_they_answer", async (
 
 test("a_viewer_the_operation_refuses_is_the_runtimes_refusal_in_its_own_words", async () => {
   const refusal = "open_viewer failed: node `pattern` of stream `pattern-main-1a2b3c` is not running";
-  const runtime = await fakeControlStreamRuntime((call) => [JSON.stringify({ jsonrpc: "2.0", id: call["id"], error: { code: 2, message: refusal } })]);
+  const runtime = await fakeControlWebSocketRuntime((call) => [JSON.stringify({ jsonrpc: "2.0", id: call["id"], error: { code: 2, message: refusal } })]);
   const connection = await openConnection(runtime.localApiSocketPath);
 
   const failure = failureOf(await connection.openViewer({ stream: "pattern-main-1a2b3c", node_id: "7f3a", port: "video", viewer_process_id: 1 }));
@@ -162,7 +206,7 @@ test("no_runtime_at_the_socket_fails_to_open_without_a_refusal", async () => {
 });
 
 test("an_unanswered_call_times_out_and_leaves_the_connection_open", async () => {
-  const runtime = await fakeControlStreamRuntime(() => null);
+  const runtime = await fakeControlWebSocketRuntime(() => null);
   const connection = await openConnection(runtime.localApiSocketPath, 100);
 
   const failure = failureOf(await connection.closeViewer("a/b/c"));
@@ -172,7 +216,7 @@ test("an_unanswered_call_times_out_and_leaves_the_connection_open", async () => 
 });
 
 test("the_runtime_closing_the_connection_fails_the_calls_awaiting_answers_and_tells_the_listeners", async () => {
-  const runtime = await fakeControlStreamRuntime(() => null);
+  const runtime = await fakeControlWebSocketRuntime(() => null);
   const connection = await openConnection(runtime.localApiSocketPath);
   const whyItClosed: string[] = [];
   connection.onClosed((why) => whyItClosed.push(why));
@@ -184,7 +228,7 @@ test("the_runtime_closing_the_connection_fails_the_calls_awaiting_answers_and_te
 
   expect(failure.isTheRuntimesRefusal).toBe(false);
   expect(failure.failureDescription).toMatch(/^`open_viewer` to .* got no answer: /);
-  await expect.poll(() => whyItClosed).toEqual([`the runtime at ${runtime.localApiSocketPath} closed the /control/stream connection`]);
+  await expect.poll(() => whyItClosed).toEqual([`the runtime at ${runtime.localApiSocketPath} closed the /control/ws connection`]);
   expect(connection.isOpen()).toBe(false);
   expect(failureOf(await connection.closeViewer("s/n/p")).failureDescription).toMatch(/^`close_viewer` was not sent: /);
 });

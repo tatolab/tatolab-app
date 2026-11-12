@@ -69,7 +69,13 @@ async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
     switch (toolName) {
       case "list_assets":
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
-        return controlOperationResultResponse({ project_directory: projectDirectory, project: projectFile.project, project_name: projectFile.name, assets: [] });
+        return controlOperationResultResponse({
+          project_directory: projectDirectory,
+          project: projectFile.project,
+          project_name: projectFile.name,
+          assets: [],
+          transactions_resource_uri: `streamlib://project/${projectFile.project}/transactions`,
+        });
       case "list_dependencies":
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
         return controlOperationResultResponse({ dependencies: projectFile.dependencies.map((dependency) => ({ dependency })) });
@@ -104,6 +110,8 @@ async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
             opens: true,
             not_opened_because: null,
             manifest: FAKE_METER_VIEW_MANIFEST,
+            inputs: [],
+            outputs: [],
           })),
         });
       case "open_project":

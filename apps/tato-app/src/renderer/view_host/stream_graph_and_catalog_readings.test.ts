@@ -22,11 +22,28 @@ function graphOfTheTypes(stream: string, nodeTypes: string[]): StreamGraphSummar
   };
 }
 
-/** A backend whose graph names `served.graphTypes` and whose catalog lists `served.catalogTypes`, or refuses in `served.catalogRefusal`, counting each read. */
+/** A backend whose graph names `served.graphTypes` and whose catalog lists `served.catalogTypes`, or refuses in `served.catalogRefusal`, counting each read, recording the streams followed, and pushing a graph change with `pushTheStreamGraphChanged`. */
 function countingBackend() {
   const served: { graphTypes: string[]; catalogTypes: string[]; catalogRefusal: string | null } = { graphTypes: ["A"], catalogTypes: ["A"], catalogRefusal: null };
   const reads = { graph: 0, catalog: 0 };
+  const streamsFollowed = new Set<string>();
+  const streamGraphChangedListeners = new Set<(stream: string) => void>();
+  const pushTheStreamGraphChanged = (stream: string) => {
+    for (const listener of streamGraphChangedListeners) listener(stream);
+  };
   const backend = {
+    followStreamGraphChanges: (stream: string): Promise<void> => {
+      streamsFollowed.add(stream);
+      return Promise.resolve();
+    },
+    stopFollowingStreamGraphChanges: (stream: string): Promise<void> => {
+      streamsFollowed.delete(stream);
+      return Promise.resolve();
+    },
+    onStreamGraphChanged: (listener: (stream: string) => void): (() => void) => {
+      streamGraphChangedListeners.add(listener);
+      return () => streamGraphChangedListeners.delete(listener);
+    },
     describeStreamGraph: (stream: string): Promise<StreamGraphSummary> => {
       reads.graph += 1;
       return Promise.resolve(graphOfTheTypes(stream, served.graphTypes));
@@ -37,7 +54,7 @@ function countingBackend() {
       return Promise.resolve({ stream, node_types: served.catalogTypes.map((type) => ({ type, description: "", config_schema: null, inputs: [], outputs: [] })) });
     },
   };
-  return { backend, served, reads };
+  return { backend, served, reads, streamsFollowed, pushTheStreamGraphChanged };
 }
 
 test("two_views_watching_one_stream_share_one_poll_and_a_reading_unchanged_tells_neither_again", async () => {
@@ -99,4 +116,39 @@ test("a_refused_catalog_is_shown_in_the_runtimes_words_and_read_again", async ()
   await vi.advanceTimersByTimeAsync(POLL_MILLISECONDS);
   expect(reads.catalog).toBeGreaterThanOrEqual(2);
   expect(catalogReadings.at(-1)?.kind).toBe("listed");
+});
+
+test("a_pushed_change_reads_the_graph_at_once_without_waiting_for_the_poll", async () => {
+  vi.useFakeTimers();
+  const { backend, served, reads, pushTheStreamGraphChanged } = countingBackend();
+  const readings = new StreamGraphAndCatalogReadings(backend, POLL_MILLISECONDS);
+  const graphReadings: StreamGraphReading[] = [];
+  readings.watchStreamGraph("main", (reading) => graphReadings.push(reading));
+  await vi.advanceTimersByTimeAsync(10);
+  expect(reads.graph).toBe(1);
+  served.graphTypes = ["A", "B"];
+  pushTheStreamGraphChanged("main");
+  pushTheStreamGraphChanged("another-stream");
+  await vi.advanceTimersByTimeAsync(10);
+  expect(reads.graph).toBe(2);
+  expect(graphReadings.map((reading) => (reading.kind === "read" ? reading.graph.nodes.map((node) => node.type) : reading.because))).toEqual([["A"], ["A", "B"]]);
+});
+
+test("a_stream_is_followed_while_a_view_watches_it_and_the_window_is_shown", async () => {
+  vi.useFakeTimers();
+  const { backend, reads, streamsFollowed, pushTheStreamGraphChanged } = countingBackend();
+  const readings = new StreamGraphAndCatalogReadings(backend, POLL_MILLISECONDS);
+  const stopWatching = readings.watchStreamGraph("main", () => undefined);
+  expect([...streamsFollowed]).toEqual(["main"]);
+  readings.setPollingAllowed(false);
+  expect([...streamsFollowed]).toEqual([]);
+  await vi.advanceTimersByTimeAsync(10);
+  const readsWhileHidden = reads.graph;
+  pushTheStreamGraphChanged("main");
+  await vi.advanceTimersByTimeAsync(10);
+  expect(reads.graph).toBe(readsWhileHidden);
+  readings.setPollingAllowed(true);
+  expect([...streamsFollowed]).toEqual(["main"]);
+  stopWatching();
+  expect([...streamsFollowed]).toEqual([]);
 });

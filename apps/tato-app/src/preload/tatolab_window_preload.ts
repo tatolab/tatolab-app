@@ -8,10 +8,12 @@ import {
   TATOLAB_PORT_VIEWER_EVENT,
   TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT,
   TATOLAB_STATUS_CHANGED_EVENT,
+  TATOLAB_STREAM_GRAPH_CHANGED_EVENT,
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
   TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT,
   TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE,
   isAModuleManagerSectionAsked,
+  isAStreamGraphChanged,
   isASystemMenuBarEntryChosen,
   isATatolabStreamPageRequest,
   isPortViewerImageFrameFacts,
@@ -67,6 +69,15 @@ const tatolabElectronBridge: TatolabElectronBridge = {
     ipcRenderer.on(TATOLAB_STREAM_PAGE_REQUESTED_EVENT, streamPageRequestedListener);
     return () => {
       ipcRenderer.removeListener(TATOLAB_STREAM_PAGE_REQUESTED_EVENT, streamPageRequestedListener);
+    };
+  },
+  onStreamGraphChanged: (listener) => {
+    const streamGraphChangedListener = (_streamGraphChangedEvent: IpcRendererEvent, streamGraphChanged: unknown) => {
+      if (isAStreamGraphChanged(streamGraphChanged)) listener(streamGraphChanged.stream);
+    };
+    ipcRenderer.on(TATOLAB_STREAM_GRAPH_CHANGED_EVENT, streamGraphChangedListener);
+    return () => {
+      ipcRenderer.removeListener(TATOLAB_STREAM_GRAPH_CHANGED_EVENT, streamGraphChangedListener);
     };
   },
   onOpenProjectChanged: (listener) => {

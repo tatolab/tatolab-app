@@ -1,5 +1,6 @@
 import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { projectViewFolderUrl, ProjectViewsListedToTheWindows } from "./project_view_files.js";
+import { StreamGraphChangesFollowedForTheWindows } from "./stream_graph_changes_followed_for_the_windows.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { localApiRequestFailure } from "./local_api_request_failure.js";
 import os from "node:os";
@@ -243,6 +244,11 @@ async function sharedStateOverFakes(
       streamStateTheRuntimeListsNow: () => "running",
       tatolabAppLog: quietTatolabAppLog,
     }),
+    streamGraphChangesFollowed: new StreamGraphChangesFollowedForTheWindows({
+      openTheStreamGraphChangesConnection: async () => localApiRequestFailure("these tests open no stream graph changes connection"),
+      waitThen: () => undefined,
+      tatolabAppLog: quietTatolabAppLog,
+    }),
     systemMenuBar: new SystemMenuBarOfTheFocusedWindow({
       applicationMenu: platform === "macos" ? "macos_menu_bar" : "none",
       setTheApplicationMenu: (_applicationMenu, menusOfTheFocusedWindow) => menusShownInTheSystemMenuBar.push(menusOfTheFocusedWindow),
@@ -297,6 +303,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
             state: "running",
             node_count: 4,
             failed_because: null,
+            capture_devices_whose_access_was_never_asked_for: [],
             action: null,
             step: null,
             from_later: 1,
@@ -789,6 +796,7 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
             state: "running",
             node_count: 4,
             failed_because: null,
+            capture_devices_whose_access_was_never_asked_for: [],
             action: null,
             step: null,
           },
