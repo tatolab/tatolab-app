@@ -11,11 +11,13 @@ import {
   TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT,
   TATOLAB_STATUS_CHANGED_EVENT,
   TATOLAB_STREAM_GRAPH_CHANGED_EVENT,
+  TATOLAB_PROJECT_LOG_RECORDS_WRITTEN_EVENT,
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
   TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT,
   type ModuleManagerSectionAsked,
   type ModulesShown,
   type StreamGraphChanged,
+  type ProjectLogRecordsWritten,
   type SystemMenuBarEntryChosen,
   type TatolabStreamPageRequest,
 } from "../shared/tatolab_electron_bridge_contract.js";
@@ -23,6 +25,7 @@ import { failedWith, type Result } from "./result.js";
 import type { WindowShowingPortViewers } from "./runtime_port_viewers.js";
 import type { SharedTextureImportOfARuntimeViewerFrame } from "./runtime_viewer_image_frame_import.js";
 import type { WindowFollowingStreamGraphs } from "./stream_graph_changes_followed_for_the_windows.js";
+import type { WindowFollowingProjectLogs } from "./project_log_records_followed_for_the_windows.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { MainWindowChrome } from "./platform/main_window_chrome.js";
 
@@ -102,7 +105,7 @@ export interface TatolabMainWindowListeners {
 }
 
 /** One window of the app, created the first time it is shown. */
-export class TatolabMainWindow implements WindowShowingPortViewers, WindowFollowingStreamGraphs {
+export class TatolabMainWindow implements WindowShowingPortViewers, WindowFollowingStreamGraphs, WindowFollowingProjectLogs {
   private mainWindowHost: MainWindowHost | null = null;
   private theAppIsQuitting = false;
   private isShownByTheApp = false;
@@ -197,6 +200,11 @@ export class TatolabMainWindow implements WindowShowingPortViewers, WindowFollow
   /** Send the window `stream` as `tatolab-stream-graph-changed`; nothing, before the window is first shown, which reads each graph it follows when it opens. */
   sendTheWindowTheStreamGraphChanged(stream: string): void {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_STREAM_GRAPH_CHANGED_EVENT, { stream } satisfies StreamGraphChanged);
+  }
+
+  /** Send the window `projectDirectory` as `tatolab-project-log-records-written`; nothing, before the window is first shown, which reads each log it follows when it opens. */
+  sendTheWindowTheProjectLogRecordsWritten(projectDirectory: string): void {
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_PROJECT_LOG_RECORDS_WRITTEN_EVENT, { project_directory: projectDirectory } satisfies ProjectLogRecordsWritten);
   }
 
   /** Send the window the system menu bar entry `entryId` the person chose from its menus, as `tatolab-system-menu-bar-entry-chosen`. */

@@ -146,8 +146,8 @@ export function mountTatolabWindow(
   streamGraphAndCatalogReadings.setReadingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => streamGraphAndCatalogReadings.setReadingAllowed(isVisible));
   const projectLogReadings = new ProjectLogReadings(backend);
-  projectLogReadings.setPollingAllowed(isTatolabWindowVisible());
-  onTatolabWindowVisibilityChanged((isVisible) => projectLogReadings.setPollingAllowed(isVisible));
+  projectLogReadings.setReadingAllowed(isTatolabWindowVisible());
+  onTatolabWindowVisibilityChanged((isVisible) => projectLogReadings.setReadingAllowed(isVisible));
   const projectNodeTypeReadings = new ProjectListingReadingsPolledWhileWatched((projectFolder) => backend.listProjectNodeTypes(projectFolder));
   projectNodeTypeReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => projectNodeTypeReadings.setPollingAllowed(isVisible));

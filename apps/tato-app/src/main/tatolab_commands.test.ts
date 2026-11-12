@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { projectViewFolderUrl, ProjectViewsListedToTheWindows } from "./project_view_files.js";
-import { StreamGraphChangesFollowedForTheWindows } from "./stream_graph_changes_followed_for_the_windows.js";
+import { streamGraphChangesFollowedForTheWindows } from "./stream_graph_changes_followed_for_the_windows.js";
+import { projectLogRecordsFollowedForTheWindows } from "./project_log_records_followed_for_the_windows.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { localApiRequestFailure } from "./local_api_request_failure.js";
 import os from "node:os";
@@ -243,8 +244,13 @@ async function sharedStateOverFakes(
       streamStateTheRuntimeListsNow: () => "running",
       tatolabAppLog: quietTatolabAppLog,
     }),
-    streamGraphChangesFollowed: new StreamGraphChangesFollowedForTheWindows({
-      openTheStreamGraphChangesConnection: async () => localApiRequestFailure("these tests open no stream graph changes connection"),
+    streamGraphChangesFollowed: streamGraphChangesFollowedForTheWindows({
+      openThePushesConnection: async () => localApiRequestFailure("these tests open no stream graph changes connection"),
+      waitThen: () => undefined,
+      tatolabAppLog: quietTatolabAppLog,
+    }),
+    projectLogRecordsFollowed: projectLogRecordsFollowedForTheWindows({
+      openThePushesConnection: async () => localApiRequestFailure("these tests open no project log records connection"),
       waitThen: () => undefined,
       tatolabAppLog: quietTatolabAppLog,
     }),
@@ -535,6 +541,11 @@ test("each queued action answers the window null, and a missing argument or a pr
     refusal: "The runtime lists no stream from /etc.",
   });
   expect(await commandHandlers.list_project_node_types({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
+  expect(await commandHandlers.follow_project_log_records({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
+  expect(await commandHandlers.follow_project_log_records({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "Only a studio window or a popped-out view follows a project's log.",
+  });
   expect(await commandHandlers.list_project_node_types({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "list_project_node_types needs `project_directory`, a project's folder" });
 });
 

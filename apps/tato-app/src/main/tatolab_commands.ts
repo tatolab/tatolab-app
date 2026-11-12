@@ -1504,14 +1504,31 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!followed.ok) return { ok: false, refusal: followed.failure };
       const windowFollowingStreamGraphs = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
       if (windowFollowingStreamGraphs === null) return { ok: false, refusal: "Only a studio window or a popped-out view follows a stream's graph." };
-      sharedState.streamGraphChangesFollowed.followTheStreamGraph(followed.value.stream, windowFollowingStreamGraphs);
+      sharedState.streamGraphChangesFollowed.follow(followed.value.stream, windowFollowingStreamGraphs);
       return { ok: true, value: null };
     },
     stop_following_stream_graph_changes: async (commandArguments, commandFromWindow) => {
       const followed = streamArgumentsFrom("stop_following_stream_graph_changes", commandArguments);
       if (!followed.ok) return { ok: false, refusal: followed.failure };
       const windowFollowingStreamGraphs = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
-      if (windowFollowingStreamGraphs !== null) sharedState.streamGraphChangesFollowed.stopFollowingTheStreamGraph(followed.value.stream, windowFollowingStreamGraphs);
+      if (windowFollowingStreamGraphs !== null) sharedState.streamGraphChangesFollowed.stopFollowing(followed.value.stream, windowFollowingStreamGraphs);
+      return { ok: true, value: null };
+    },
+    follow_project_log_records: async (commandArguments, commandFromWindow) => {
+      const projectDirectory = oneTextArgumentFrom("follow_project_log_records", commandArguments, "project_directory", "a project's folder");
+      if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
+      const followableProjectDirectory = projectDirectoryTheWindowMayAskTheRuntimeAbout(sharedState, projectDirectory.value, commandFromWindow);
+      if (!followableProjectDirectory.ok) return { ok: false, refusal: followableProjectDirectory.failure };
+      const windowFollowingProjectLogs = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
+      if (windowFollowingProjectLogs === null) return { ok: false, refusal: "Only a studio window or a popped-out view follows a project's log." };
+      sharedState.projectLogRecordsFollowed.follow(projectDirectory.value, windowFollowingProjectLogs);
+      return { ok: true, value: null };
+    },
+    stop_following_project_log_records: async (commandArguments, commandFromWindow) => {
+      const projectDirectory = oneTextArgumentFrom("stop_following_project_log_records", commandArguments, "project_directory", "the directory of a project the window follows the log of");
+      if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
+      const windowFollowingProjectLogs = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
+      if (windowFollowingProjectLogs !== null) sharedState.projectLogRecordsFollowed.stopFollowing(projectDirectory.value, windowFollowingProjectLogs);
       return { ok: true, value: null };
     },
     show_menus_in_the_system_menu_bar: async (commandArguments, commandFromWindow) => {
