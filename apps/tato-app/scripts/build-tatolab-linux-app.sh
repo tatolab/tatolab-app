@@ -264,6 +264,8 @@ for core_first_party_module in tatolab_compositor tatolab_ops tatolab_testpatter
   grep -qE "[[:space:]]\./usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/imports/$core_first_party_module-[^/]+\.whl\$" <<<"$deb_contents" \
     || { echo "the .deb carries no $core_first_party_module wheel in usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/imports" >&2; exit 1; }
 done
+grep -qE "[[:space:]]\./usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/samples/[^/]+/tatolab-project\.json\$" <<<"$deb_contents" \
+  || { echo "the .deb carries no sample project in usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/samples" >&2; exit 1; }
 ! grep -qF './usr/lib/tatolab/resources/install.sh' <<<"$deb_contents" \
   || { echo "the .deb carries streamlib's install.sh, which the app never runs" >&2; exit 1; }
 echo "    Depends: $deb_depends"

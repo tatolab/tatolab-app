@@ -294,6 +294,9 @@ verify_app_bundle() {
   [ -z "$missing_core_first_party_modules" ] \
     && pass "the helper's Resources/imports carries a wheel of each core first-party module beside the lend" \
     || fail "the helper's Resources/imports has no wheel of:$missing_core_first_party_modules, so a project's .venv would lack them"
+  compgen -G "$helper_contents/Resources/samples/*/tatolab-project.json" >/dev/null \
+    && pass "the helper's Resources/samples carries the sample projects beside the lend" \
+    || fail "the helper's Resources/samples carries no sample project, so no project can be created from one"
   verify_the_carried_archives "$helper_contents/Resources"
   [ ! -e "$contents/Resources/python" ] && [ ! -e "$contents/Frameworks/tatolab-python" ] && [ ! -e "$contents/MacOS/uv" ] \
     && pass "the bundle carries no Python or uv of the app's own" || fail "the bundle carries a Python or uv of the app's own (Resources/python, Frameworks/tatolab-python or MacOS/uv)"
