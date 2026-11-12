@@ -14,6 +14,7 @@ export type ConfigFormFieldControl =
   | { kind: "number"; is_whole_number: boolean; minimum: number | null; maximum: number | null }
   | { kind: "toggle" }
   | { kind: "choice"; choices: JsonValue[] }
+  | { kind: "project_asset"; media_it_takes: string[] | null }
   | { kind: "list_of_records"; item_schema: JsonObject; new_item: JsonObject }
   | { kind: "json" };
 
@@ -70,6 +71,19 @@ function withNullUnionUnwrapped(schema: JsonObject, documentRoot: JsonObject): {
   return { schema: { ...nonNullBranches[0], ...ownKeywords }, isNullable: true };
 }
 
+// The keyword a string config key holding a project asset's UUID carries, as the runtime's
+// `tatolab.stream.ProjectAssetUuid` writes it: `{"media": [...]}` names the `media_facts`
+// members of which the asset holds one, and `{}` takes any asset of the project.
+const PROJECT_ASSET_SCHEMA_KEYWORD = "x-tatolab-project-asset";
+
+/** The media a project asset key takes, `null` for any asset, or `undefined` for a key that holds no project asset. */
+function mediaAProjectAssetKeyTakes(schema: JsonObject): string[] | null | undefined {
+  const keyword = schema[PROJECT_ASSET_SCHEMA_KEYWORD];
+  if (!isAJsonObject(keyword)) return undefined;
+  const media = keyword["media"];
+  return Array.isArray(media) ? media.filter((medium): medium is string => typeof medium === "string") : null;
+}
+
 /** The bounds a number schema sets, each `null` where it sets none. */
 function rangeOfTheSchema(schema: JsonObject): { minimum: number | null; maximum: number | null } {
   const minimum = schema["minimum"];
@@ -105,8 +119,10 @@ function controlOfTheSchema(schema: JsonObject, documentRoot: JsonObject): { con
   if ("const" in schema && schema["const"] !== undefined) return { control: { kind: "choice", choices: [schema["const"]] }, isNullable };
   if (types.length !== 1) return { control: { kind: "json" }, isNullable };
   switch (types[0]) {
-    case "string":
-      return { control: { kind: "text" }, isNullable };
+    case "string": {
+      const mediaItTakes = mediaAProjectAssetKeyTakes(schema);
+      return { control: mediaItTakes === undefined ? { kind: "text" } : { kind: "project_asset", media_it_takes: mediaItTakes }, isNullable };
+    }
     case "integer":
       return { control: { kind: "number", is_whole_number: true, ...rangeOfTheSchema(schema) }, isNullable };
     case "number":

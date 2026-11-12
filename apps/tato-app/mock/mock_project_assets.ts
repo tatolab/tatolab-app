@@ -16,6 +16,7 @@ const IMPORTED_INTO_THE_PATTERN_PROJECT: readonly ProjectAsset[] = [
     content_byte_len: 75,
     import_settings: {},
     preview: null,
+    media_its_bytes_hold: ["lut"],
   },
   {
     asset: "207ef246-3d00-4167-b394-bb591f7c4b8f",
@@ -25,6 +26,7 @@ const IMPORTED_INTO_THE_PATTERN_PROJECT: readonly ProjectAsset[] = [
     content_byte_len: 39_845_888,
     import_settings: {},
     preview: { pixel_width: 512, pixel_height: 288, media_type: "image/png" },
+    media_its_bytes_hold: ["video", "audio"],
   },
   {
     asset: "baaf9e5a-0aff-45f7-a7ea-b83db51e5a3b",
@@ -34,6 +36,7 @@ const IMPORTED_INTO_THE_PATTERN_PROJECT: readonly ProjectAsset[] = [
     content_byte_len: 11_194,
     import_settings: {},
     preview: { pixel_width: 384, pixel_height: 512, media_type: "image/png" },
+    media_its_bytes_hold: ["image"],
   },
   {
     asset: "6d3e1f90-2b7a-4c58-9e04-1a8f5c7d2b36",
@@ -43,6 +46,7 @@ const IMPORTED_INTO_THE_PATTERN_PROJECT: readonly ProjectAsset[] = [
     content_byte_len: 2_621_440,
     import_settings: { up_axis: "y" },
     preview: null,
+    media_its_bytes_hold: ["scene"],
   },
 ];
 
@@ -86,6 +90,7 @@ export function mockImportTheFilesChosen(
     content_byte_len: MOCK_FILE_CHOSEN_TO_IMPORT.content_byte_len,
     import_settings: {},
     preview: { pixel_width: 512, pixel_height: 341, media_type: "image/png" },
+    media_its_bytes_hold: ["image"],
   };
   assetsChangedWhileTheMockRuns.imported.push(imported);
   const refused =
@@ -127,6 +132,7 @@ export function mockProjectAssetListing(projectDirectory: string, streamsFolder:
       content_byte_len: 1_112,
       import_settings: {},
       preview: null,
+      media_its_bytes_hold: null,
     }),
   );
   return {

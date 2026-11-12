@@ -16,6 +16,7 @@ const assetWithAPreview = (asset: string, contentSha256 = "a".repeat(64)): Proje
   content_byte_len: 1,
   import_settings: {},
   preview: POSTER_FRAME,
+  media_its_bytes_hold: ["video"],
 });
 
 const pictureOf = (asset: string): AssetPreviewReading => ({

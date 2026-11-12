@@ -143,3 +143,23 @@ test("a_new_entry_holds_only_the_required_keys_defaults_and_a_list_nested_in_an_
     ["points", "json"],
   ]);
 });
+
+test("a_string_key_the_runtime_marks_as_a_project_asset_reads_as_an_asset_picker_of_the_media_it_takes", () => {
+  const form = configFormOf(
+    {
+      type: "object",
+      properties: {
+        asset: { type: "string", default: "", "x-tatolab-project-asset": { media: ["image"] } },
+        backdrop: { anyOf: [{ type: "string" }, { type: "null" }], default: null, "x-tatolab-project-asset": {} },
+        label: { type: "string", default: "" },
+      },
+      additionalProperties: false,
+    },
+    { asset: "38ab4435-5f49-4cd1-b60e-f03acf54db34" },
+  );
+  expect(form.kind === "fields" && form.fields.map((field) => [field.key, field.control, field.is_nullable])).toEqual([
+    ["asset", { kind: "project_asset", media_it_takes: ["image"] }, false],
+    ["backdrop", { kind: "project_asset", media_it_takes: null }, true],
+    ["label", { kind: "text" }, false],
+  ]);
+});

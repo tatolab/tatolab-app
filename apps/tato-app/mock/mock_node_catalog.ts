@@ -143,6 +143,17 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
     outputs: [port("encoded", "Annex-B access units", "packets")],
   },
   {
+    type: "tatolab.ops:ImageFile",
+    description: "Publishes the project image asset its config names, once at start and again on each config change.",
+    config_schema: {
+      type: "object",
+      properties: { asset: { type: "string", default: "", "x-tatolab-project-asset": { media: ["image"] } } },
+      additionalProperties: false,
+    },
+    inputs: [],
+    outputs: [port("image", "", "image")],
+  },
+  {
     type: "tatolab.compositor:AlphaOverCompositor",
     description: "Video layers stacked back to front, in premultiplied alpha, on the GPU",
     config_schema: {
