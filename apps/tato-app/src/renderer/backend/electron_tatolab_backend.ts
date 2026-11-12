@@ -156,7 +156,12 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     saveProjectFile: (file, text, basedOnVersion) => invokeTatolabCommand("save_project_file", { file, text, based_on_version: basedOnVersion }),
     createNodeFile: (file) => invokeTatolabCommand("create_node_file", { file }),
     listProjectFiles: (projectFolder) => invokeTatolabCommand("list_project_files", { project_folder: projectFolder }),
-    runOpenProject: () => invokeTatolabCommand("run_open_project", undefined),
+    runOpenProject: async () => {
+      await invokeTatolabCommand("run_open_project", undefined);
+    },
+    pauseOpenProject: async () => {
+      await invokeTatolabCommand("pause_open_project", undefined);
+    },
     stopOpenProject: async () => {
       await invokeTatolabCommand("stop_open_project", undefined);
     },

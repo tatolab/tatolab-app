@@ -42,9 +42,11 @@ import {
   optionalText,
   optionalUnsignedInteger,
   parseJsonOnTheWire,
+  requiredArray,
   requiredObject,
   requiredText,
   requiredUnsignedInteger,
+  toolResultReadWith,
 } from "./json_on_the_wire.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
@@ -254,6 +256,18 @@ export function queuedStreamActionFromTheToolResult(toolName: ProjectActionToolN
   return action.ok ? action : failedWith(`the runtime's ${toolName} result could not be read: ${action.failure}`);
 }
 
+/** A runtime tool that pauses or resumes a whole project's playback at once, queueing no action. */
+type ProjectPlaybackPauseOrResumeToolName = "pause_playback" | "resume_playback";
+
+/** The id of each stream a `pause_playback` or `resume_playback` result names under `streams`, read from the result of `toolName`. */
+export function streamsThePauseOrResumeReachedFromTheToolResult(toolName: ProjectPlaybackPauseOrResumeToolName, operationResult: unknown): Result<string[], string> {
+  return toolResultReadWith(toolName, operationResult, (toolResult) => {
+    const streams = requiredArray(toolResult, "streams");
+    if (!streams.ok) return streams;
+    return everyOneRead(streams.value, (stream) => (typeof stream === "string" ? succeeded(stream) : failedWith("`streams` holds a value that is not a string")));
+  });
+}
+
 /** A runtime tool that queues an action on a whole project. */
 type ProjectActionToolName = "stop_playback" | "close_project" | "remove_project" | "delete_project";
 
@@ -326,6 +340,23 @@ export class LocalApiClient {
   /** Queue the stop of the playback of the project in `projectDirectory`, which keeps each stream's graph loaded, answering the id of the action it queued; refused in the runtime's own words, as when none of them plays. */
   stopPlayback(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
     return this.queueRuntimeAction("stop_playback", { project_directory: projectDirectory });
+  }
+
+  /** Pause the playback of the project in `projectDirectory` at once, answering the id of each stream it paused; refused in the runtime's own words, as when none of them plays. */
+  pausePlayback(projectDirectory: string): Promise<Result<string[], LocalApiRequestFailure>> {
+    return this.pauseOrResumeThePlayback("pause_playback", projectDirectory);
+  }
+
+  /** Resume the paused playback of the project in `projectDirectory` at once, answering the id of each stream it resumed; refused in the runtime's own words, as for a project that is not paused. */
+  resumePlayback(projectDirectory: string): Promise<Result<string[], LocalApiRequestFailure>> {
+    return this.pauseOrResumeThePlayback("resume_playback", projectDirectory);
+  }
+
+  private async pauseOrResumeThePlayback(toolName: ProjectPlaybackPauseOrResumeToolName, projectDirectory: string): Promise<Result<string[], LocalApiRequestFailure>> {
+    const operationResult = await this.callControlOperation(toolName, { project_directory: projectDirectory });
+    if (!operationResult.ok) return operationResult;
+    const streams = streamsThePauseOrResumeReachedFromTheToolResult(toolName, operationResult.value);
+    return streams.ok ? streams : localApiRequestFailure(streams.failure);
   }
 
   /** Queue the close of the open project in `projectDirectory`, which ends its playback and unloads every stream of it, answering the id of the action it queued; refused in the runtime's own words, as for a project that is not open. */

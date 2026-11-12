@@ -517,6 +517,7 @@ test("each queued action answers the window null, and a missing argument or a pr
   await sharedState.statusPublisher.refreshAndPublish();
 
   expect(await commandHandlers.stop_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+  expect(await commandHandlers.pause_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
   expect(await commandHandlers.remove_project({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(await commandHandlers.remove_project({ stream: "pattern-main-d76f70" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
@@ -574,6 +575,12 @@ function projectActionsQueuedOn(sharedState: TatolabAppSharedState) {
     projectActionsQueued.push(["stop_playback", projectDirectory]);
     return succeeded("stop_playback-1");
   });
+  const heldOrResumed = (verb: string) => async (projectDirectory: string) => {
+    projectActionsQueued.push([verb, projectDirectory]);
+    return succeeded(["hallways-main-80cbae"]);
+  };
+  vi.spyOn(sharedState.controller, "pausePlayback").mockImplementation(heldOrResumed("pause_playback"));
+  vi.spyOn(sharedState.controller, "resumePlayback").mockImplementation(heldOrResumed("resume_playback"));
   return projectActionsQueued;
 }
 
@@ -666,7 +673,7 @@ test("opening a project opens it only when the runtime, asked then, lists none o
   expect(refused).toEqual(failedWith(expect.stringContaining("is already open, so there is none to open; `reload_project` re-reads what changed on disk")));
 });
 
-test("Live opens then plays a closed project, reloads then plays a stopped one with a failed stream, only reloads a playing one with a failed stream, and plays any other open one", async () => {
+test("Live opens then plays a closed project, reloads then plays a stopped one with a failed stream, only reloads a playing one with a failed stream, resumes a paused one, and plays any other open one; Pause pauses it", async () => {
   const sharedState = await sharedStateOverFakes([httpResponse("200 OK", "text/plain", "ok")], "linux", [], null, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS);
   await sharedState.statusPublisher.refreshAndPublish();
   const projectFolder = await realpath(await mkdtemp(path.join(os.tmpdir(), "hallways-")));
@@ -683,7 +690,7 @@ test("Live opens then plays a closed project, reloads then plays a stopped one w
   };
 
   expect(await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, "closed")])).toEqual({
-    answer: { ok: true, value: { action: "start_playback-1", project_directory: projectFolder } },
+    answer: { ok: true, value: null },
     queued: [
       ["open_project", projectFolder],
       ["start_playback", projectFolder],
@@ -698,10 +705,20 @@ test("Live opens then plays a closed project, reloads then plays a stopped one w
     ["start_playback", projectFolder],
   ]);
   expect(await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, "running"), listedStreamOfTheProject(projectFolder, "failed", "lobby")])).toEqual({
-    answer: { ok: true, value: { action: "reload_project-1", project_directory: projectFolder } },
+    answer: { ok: true, value: null },
     queued: [["reload_project", projectFolder]],
   });
   expect((await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, "stopped")])).queued).toEqual([["start_playback", projectFolder]]);
+  expect(await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, "paused")])).toEqual({ answer: { ok: true, value: null }, queued: [["resume_playback", projectFolder]] });
+  expect((await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, "paused"), listedStreamOfTheProject(projectFolder, "failed", "lobby")])).queued).toEqual([
+    ["reload_project", projectFolder],
+    ["resume_playback", projectFolder],
+  ]);
+
+  statusLastPublishedListing(sharedState, [listedStreamOfTheProject(projectFolder, "running")]);
+  projectActionsQueued.splice(0);
+  expect(await commandHandlers.pause_open_project(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  expect(projectActionsQueued).toEqual([["pause_playback", projectFolder]]);
 
   statusLastPublishedListing(sharedState, [listedStreamOfTheProject(projectFolder, "running")]);
   projectActionsQueued.splice(0);

@@ -25,6 +25,7 @@ function commandsCounted(): StudioMenuBarCommands {
     checkForAppUpdates: vi.fn(),
     takeTheNewerAppVersion: vi.fn(),
     runTheProjectLive: vi.fn(),
+    pauseTheProject: vi.fn(),
     stopTheProject: vi.fn(),
     undoYourLastEdit: vi.fn(),
     redoYourLastUndo: vi.fn(),
@@ -130,11 +131,12 @@ describe("the layout menu", () => {
 });
 
 describe("the studio's Run and Stream menus", () => {
-  it("runs and stops while a project is open", () => {
+  it("runs, pauses and stops while a project is open", () => {
     const commands = commandsCounted();
     const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, UP_TO_DATE, commands);
     for (const [menuLabel, entryLabel] of [
       ["Run", "Live"],
+      ["Run", "Pause"],
       ["Run", "Stop"],
     ] as const) {
       const entry = entryOf(menus, menuLabel, entryLabel);
@@ -144,6 +146,7 @@ describe("the studio's Run and Stream menus", () => {
     expect(entryOf(menus, "Run", "Live")).toMatchObject({ shortcutHint: "F5" });
     expect(entryOf(menus, "Run", "Stop")).toMatchObject({ shortcutHint: "Shift F5" });
     expect(commands.runTheProjectLive).toHaveBeenCalledOnce();
+    expect(commands.pauseTheProject).toHaveBeenCalledOnce();
     expect(commands.stopTheProject).toHaveBeenCalledOnce();
   });
 

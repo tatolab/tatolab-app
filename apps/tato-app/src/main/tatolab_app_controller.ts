@@ -260,6 +260,16 @@ export class TatolabAppController {
     return this.localApiClient.stopPlayback(projectDirectory);
   }
 
+  /** Pause the playback of the project in `projectDirectory` at once through the runtime's `pause_playback`, answering the id of each stream it paused. */
+  pausePlayback(projectDirectory: string): Promise<Result<string[], LocalApiRequestFailure>> {
+    return this.localApiClient.pausePlayback(projectDirectory);
+  }
+
+  /** Resume the paused playback of the project in `projectDirectory` at once through the runtime's `resume_playback`, answering the id of each stream it resumed. */
+  resumePlayback(projectDirectory: string): Promise<Result<string[], LocalApiRequestFailure>> {
+    return this.localApiClient.resumePlayback(projectDirectory);
+  }
+
   /** Queue the close of the open project in `projectDirectory` through the runtime's `close_project`, answering the id of the action the runtime queued. */
   closeProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
     return this.localApiClient.closeProject(projectDirectory);

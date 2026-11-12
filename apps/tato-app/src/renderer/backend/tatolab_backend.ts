@@ -218,8 +218,10 @@ export interface TatolabBackend {
   createNodeFile(file: string): Promise<NodeFileCreated>;
   /** Every file of `projectFolder`, the folder of the open project or of one of its imports. */
   listProjectFiles(projectFolder: string): Promise<ProjectFiles>;
-  /** Queue `start_playback` on the open project's folder, opening it first while the runtime holds it closed and reloading it first while a stream of it has failed, resolving with the action queued and rejecting in the runtime's own words. */
-  runOpenProject(): Promise<ProjectStreamActionQueued>;
+  /** Start the playback of the open project's folder: `start_playback` queued, opening it first while the runtime holds it closed and reloading it first while a stream of it has failed, or `resume_playback` while it is paused; resolving once asked and rejecting in the runtime's own words. */
+  runOpenProject(): Promise<void>;
+  /** Pause the playback of the open project's folder at once with `pause_playback`, resolving once paused and rejecting in the runtime's own words; its streams' `paused` arrives as the next status. */
+  pauseOpenProject(): Promise<void>;
   /** Queue `stop_playback` on the open project's folder, which keeps its graphs loaded, resolving once it is queued and rejecting in the runtime's own words; its streams' `stopping`, then `stopped`, arrive as the next statuses. */
   stopOpenProject(): Promise<void>;
   /** Start Pyright's language server in `projectFolder`, resolving with the session its messages arrive under. */

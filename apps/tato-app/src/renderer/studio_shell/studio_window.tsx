@@ -32,10 +32,12 @@ import { NameFormDialog } from "./name_form_dialog_view";
 import { studioLayoutWithEdgesHidden } from "./studio_layout_shapes";
 import { StudioTitleRowLayoutButtons } from "./studio_title_row_layout_buttons";
 import { StreamMenuDialogsView, type StreamEditsOfTheStreamMenu } from "./stream_menu_dialogs_view";
-import type { StudioWindowModel } from "./studio_window_model";
+import type { ProjectPlaybackAskedFor, StudioWindowModel } from "./studio_window_model";
 
 /** Who the view-type menu says brings the views the app ships with itself. */
 const TATO_STUDIO_AS_A_VIEW_SOURCE = "Tato Studio";
+
+const PROJECT_PLAYBACK_REFUSAL_TITLES: Readonly<Record<ProjectPlaybackAskedFor, string>> = { run: "The project didn't run", pause: "The project didn't pause", stop: "The project didn't stop" };
 
 /** Where the studio window's menus go on macOS: the system menu bar, while this window is in focus. */
 export interface StudioWindowSystemMenuBar {
@@ -254,7 +256,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
   const viewPopOutRefusal = useWatchedStudioValue(model.viewPopOutRefusal);
   const recentProjectChangeRefusal = useWatchedStudioValue(model.recentProjectChangeRefusal);
-  const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
+  const projectPlaybackRefusal = useWatchedStudioValue(model.projectPlaybackRefusal);
   const projectEditRefusal = useWatchedStudioValue(model.projectEditRefusal);
   const appUpdateChoiceRefusal = useWatchedStudioValue(model.appUpdateChoiceRefusal);
   const studioWarningDismissRefusal = useWatchedStudioValue(model.studioWarningDismissRefusal);
@@ -401,13 +403,13 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               data-view-pop-out-refusal=""
             />
           )}
-          {projectRunRefusal !== null && (
+          {projectPlaybackRefusal !== null && (
             <WindowNotice
               tone="failure"
-              title={projectRunRefusal.asked_to === "run" ? "The project didn't run" : "The project didn't stop"}
-              detail={projectRunRefusal.because}
-              onDismissed={() => model.projectRunRefusal.publish(null)}
-              data-project-run-refusal=""
+              title={PROJECT_PLAYBACK_REFUSAL_TITLES[projectPlaybackRefusal.asked_to]}
+              detail={projectPlaybackRefusal.because}
+              onDismissed={() => model.projectPlaybackRefusal.publish(null)}
+              data-project-playback-refusal=""
             />
           )}
           {projectEditRefusal !== null && (
