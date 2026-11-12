@@ -26,10 +26,13 @@ export function chosenProjectAssetWords(assets: readonly ProjectAsset[], value: 
   return assets.find((asset) => asset.asset === value)?.path ?? value;
 }
 
+/** Each `media_facts` member the runtime names, in the window's words. */
+const MEDIUM_WORDS: Readonly<Record<string, string>> = { image: "image", video: "video", audio: "audio file", lut: "LUT", scene: "3D scene" };
+
 /** The media a field takes, in words, as "image" or "image or video"; "asset" for any. */
 function mediaWords(mediaItTakes: readonly string[] | null): string {
   if (mediaItTakes === null || mediaItTakes.length === 0) return "asset";
-  return mediaItTakes.join(" or ");
+  return mediaItTakes.map((medium) => MEDIUM_WORDS[medium] ?? medium).join(" or ");
 }
 
 /** The line the picker's menu shows above its choices: why it offers none, or `undefined` when it offers some. */
@@ -37,5 +40,5 @@ export function projectAssetPickerNote(projectAssets: ProjectAssetsForTheAssetFi
   if (projectAssets.kind === "not_listed_yet") return "Reading the project's assets…";
   if (projectAssets.kind === "refused") return projectAssets.because;
   if (projectAssetsTheFieldOffers(projectAssets.assets, mediaItTakes).length > 0) return undefined;
-  return `The project holds no ${mediaWords(mediaItTakes)}. Import one in the Library.`;
+  return `No ${mediaWords(mediaItTakes)} of the project is ready to pick. Import one in the Library, and a file just imported shows here once the runtime has read it.`;
 }

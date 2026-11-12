@@ -37,7 +37,9 @@ test("the_chosen_asset_reads_as_its_path_none_as_none_and_a_value_naming_no_asse
 test("the_picker_says_why_it_offers_nothing_and_says_nothing_when_it_offers_an_asset", () => {
   const listed = projectAssetsForTheAssetFieldsOf({ kind: "listed", listing: { project_directory: "/p", project: "p", project_name: "p", assets: HARBOUR_LIGHTS } });
   expect(projectAssetPickerNote(listed, ["image"])).toBeUndefined();
-  expect(projectAssetPickerNote(listed, ["scene"])).toBe("The project holds no scene. Import one in the Library.");
+  expect(projectAssetPickerNote(listed, ["scene"])).toBe("No 3D scene of the project is ready to pick. Import one in the Library, and a file just imported shows here once the runtime has read it.");
+  const listedEmpty = projectAssetsForTheAssetFieldsOf({ kind: "listed", listing: { project_directory: "/p", project: "p", project_name: "p", assets: [] } });
+  expect(projectAssetPickerNote(listedEmpty, ["lut", "audio"])).toBe("No LUT or audio file of the project is ready to pick. Import one in the Library, and a file just imported shows here once the runtime has read it.");
   expect(projectAssetPickerNote(projectAssetsForTheAssetFieldsOf(null), ["image"])).toBe("Reading the project's assets…");
   expect(projectAssetPickerNote(projectAssetsForTheAssetFieldsOf({ kind: "not_listed", because: "list_assets failed: /p holds no project" }), ["image"])).toBe("list_assets failed: /p holds no project");
 });

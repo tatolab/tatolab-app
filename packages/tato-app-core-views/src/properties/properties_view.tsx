@@ -42,7 +42,7 @@ import { nameInWords, nodeTitle, nodeTypeClassName, wordsForTheSeveralSelectedNo
 import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, recordsOfAListField, type ConfigFormField } from "./config_form_fields";
 import { propertiesListedWords, propertiesMatchingTheSearch } from "./properties_matching_the_search";
 import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
-import { chosenProjectAssetWords, projectAssetPickerNote, projectAssetsForTheAssetFieldsOf, projectAssetsTheFieldOffers, type ProjectAssetsForTheAssetFields } from "./project_asset_choices";
+import { chosenProjectAssetWords, projectAssetPickerNote, projectAssetsForTheAssetFieldsOf, projectAssetsTheFieldOffers } from "./project_asset_choices";
 import { blankTargetPickerKeysOfThePort, NO_BLANK_TARGET_PICKERS, withABlankTargetPickerAdded, withoutTheBlankTargetPicker, type BlankTargetPickersOfTheNode } from "./blank_target_pickers";
 import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
 import {
@@ -67,10 +67,10 @@ import {
   type SetNodeConfigAction,
 } from "./properties_graph_edits";
 
-/** The open project's assets, which a config field naming an asset offers to pick from. */
-const ProjectAssetsForTheAssetFieldsContext = createContext<ProjectAssetsForTheAssetFields>({ kind: "not_listed_yet" });
+const WATCH_NO_PROJECT_ASSETS = (_listener: (reading: ProjectAssetsReading) => void): StopWatching => () => undefined;
 
-const WATCH_NO_PROJECT_ASSETS = (): StopWatching => () => undefined;
+/** Watches the open project's assets, which a config field naming an asset offers to pick from; only a field shown watches them. */
+const WatchOfTheOpenProjectsAssetsContext = createContext<(listener: (reading: ProjectAssetsReading) => void) => StopWatching>(WATCH_NO_PROJECT_ASSETS);
 
 /** The id of the field holding the value an unlinked input of the node takes. */
 function pinValueFieldId(nodeId: string, portName: string): string {
@@ -219,7 +219,7 @@ function ProjectAssetPicker({
   isTheTypesDefault: boolean;
   onChosen: ((asset: JsonValue) => void) | undefined;
 }) {
-  const projectAssets = useContext(ProjectAssetsForTheAssetFieldsContext);
+  const projectAssets = projectAssetsForTheAssetFieldsOf(useViewReading(useContext(WatchOfTheOpenProjectsAssetsContext)));
   const assetsListed = projectAssets.kind === "listed" ? projectAssets.assets : [];
   const assetsOffered = projectAssetsTheFieldOffers(assetsListed, mediaItTakes);
   const noneChoice = field.is_nullable && onChosen !== undefined ? [{ words: "None", onChosen: () => onChosen(null) }] : [];
@@ -845,10 +845,9 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
   const projectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
   const graphEditsInTheProject = useGraphEditsInTheOpenProject(connection, projectFolder);
   const watchTheProjectsAssets = useCallback(
-    (listener: (reading: ProjectAssetsReading) => void): StopWatching => (projectFolder === null ? WATCH_NO_PROJECT_ASSETS() : connection.watchProjectAssets(projectFolder, listener)),
+    (listener: (reading: ProjectAssetsReading) => void): StopWatching => (projectFolder === null ? WATCH_NO_PROJECT_ASSETS(listener) : connection.watchProjectAssets(projectFolder, listener)),
     [connection, projectFolder],
   );
-  const projectAssets = projectAssetsForTheAssetFieldsOf(useViewReading(watchTheProjectsAssets));
   const [searchWords, setSearchWords] = useState("");
   if (selection?.kind === "nodes" && activeStreamTab?.stream === selection.stream) {
     return <SummaryOfTheSeveralSelectedNodes connection={connection} stream={selection.stream} nodeNames={selection.nodes} />;
@@ -861,7 +860,7 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
       <StudioViewToolbarTools label="Properties search">
         <SearchField label="Search properties" placeholder="Search properties" text={searchWords} onTextChanged={setSearchWords} width="fills_the_row" data-properties-search="" />
       </StudioViewToolbarTools>
-      <ProjectAssetsForTheAssetFieldsContext.Provider value={projectAssets}>
+      <WatchOfTheOpenProjectsAssetsContext.Provider value={watchTheProjectsAssets}>
         <PropertiesOfTheSelectedNode
           key={selection.stream}
           connection={connection}
@@ -870,7 +869,7 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
           graphEditsInTheProject={graphEditsInTheProject}
           searchWords={searchWords}
         />
-      </ProjectAssetsForTheAssetFieldsContext.Provider>
+      </WatchOfTheOpenProjectsAssetsContext.Provider>
     </>
   );
 }
