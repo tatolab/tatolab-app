@@ -5,6 +5,7 @@ import { newGestureIdempotencyKey, type TatoAppViewConnection } from "@tatolab/t
 import type { NodeGraphCanvasEditAnswer } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import type { ProjectGraphTransactionApplying, StreamGraphAction } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { useCallback, useRef, useState } from "react";
+import { streamGraphActionsAtTheLevel } from "./stream_graph_edits";
 
 /** Why the latest edit did not apply: the window's lead, then the refusal's own words. */
 export interface StreamGraphEditRefusal {
@@ -24,22 +25,28 @@ export function streamGraphEditRefusalOf(applying: ProjectGraphTransactionApplyi
   }
 }
 
-/** Sends each gesture's actions to `projectFolder`'s runtime as one transaction, answering whether it applied; the refusal of the latest one sent, until a later one applies. */
+/** Sends each gesture's actions to `projectFolder`'s runtime as one transaction, inside the subgraph `level` names when given, answering whether it applied; the refusal of the latest one sent, until a later one applies. */
 export function useStreamGraphEditsSentToTheRuntime(
   connection: TatoAppViewConnection,
   projectFolder: string | null,
-): { sendTheGesture: (operations: readonly StreamGraphAction[]) => Promise<NodeGraphCanvasEditAnswer>; refusalOfTheLatestEdit: StreamGraphEditRefusal | null } {
+): {
+  sendTheGesture: (operations: readonly StreamGraphAction[], level?: readonly string[]) => Promise<NodeGraphCanvasEditAnswer>;
+  refusalOfTheLatestEdit: StreamGraphEditRefusal | null;
+} {
   const [refusalOfTheLatestEdit, setRefusalOfTheLatestEdit] = useState<StreamGraphEditRefusal | null>(null);
   const latestGestureNumber = useRef(0);
   const sendTheGesture = useCallback(
-    async (operations: readonly StreamGraphAction[]): Promise<NodeGraphCanvasEditAnswer> => {
+    async (operations: readonly StreamGraphAction[], level: readonly string[] = []): Promise<NodeGraphCanvasEditAnswer> => {
       if (operations.length === 0) return "applied";
       latestGestureNumber.current += 1;
       const gestureNumber = latestGestureNumber.current;
+      const operationsAtTheLevel = streamGraphActionsAtTheLevel(operations, level);
       const applying: ProjectGraphTransactionApplying =
         projectFolder === null
           ? { kind: "not_sent", because: "The runtime lists this stream in no project, so Studio has no project to edit it in." }
-          : await connection.transactInTheProject(projectFolder, operations, { mode: "commit", idempotencyKey: newGestureIdempotencyKey() });
+          : "because" in operationsAtTheLevel
+            ? { kind: "not_sent", because: operationsAtTheLevel.because }
+            : await connection.transactInTheProject(projectFolder, operationsAtTheLevel, { mode: "commit", idempotencyKey: newGestureIdempotencyKey() });
       const refusal = streamGraphEditRefusalOf(applying);
       if (gestureNumber === latestGestureNumber.current) setRefusalOfTheLatestEdit(refusal);
       return refusal === null ? "applied" : "refused";

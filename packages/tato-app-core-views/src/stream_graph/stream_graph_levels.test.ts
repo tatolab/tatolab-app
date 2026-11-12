@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { NODE_STUDIO_FIELDS_NONE_SET, type StreamGraphFragment, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { streamGraphLevelReached, whyTheInsideOfTheSubgraphIsReadOnly } from "./stream_graph_levels";
+import { levelOfTheSubgraphsSteppedThrough, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly, whyTheInsideOfTheSubgraphIsReadOnly } from "./stream_graph_levels";
 
 function graphNode(name: string, type: string, fragment: StreamGraphFragment | null = null): StreamGraphNode {
   return { id: `uuid-${name}`, name, type, state: null, failed_because: null, process_raising_because: null, config: {}, pins: {}, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment, graph_interface: null };
@@ -41,11 +41,24 @@ test("a_name_the_graph_no_longer_holds_or_that_holds_no_subgraph_stops_the_steps
   expect(streamGraphLevelReached(GRAPH, ["camera"]).subgraphs_stepped_through).toEqual([]);
 });
 
-test("the_read_only_words_say_what_each_kind_of_subgraph_waits_on_or_needs", () => {
+test("an_edit_inside_names_the_level_by_the_uuids_of_the_subgraphs_stepped_through_outermost_first", () => {
+  const steppedThrough = streamGraphLevelReached(GRAPH, ["look", "inner"]).subgraphs_stepped_through;
+  expect(levelOfTheSubgraphsSteppedThrough(steppedThrough)).toEqual(["uuid-look", "uuid-inner"]);
+  expect(levelOfTheSubgraphsSteppedThrough(steppedThrough, 1)).toEqual(["uuid-look"]);
+  expect(levelOfTheSubgraphsSteppedThrough([])).toEqual([]);
+});
+
+test("only_authored_subgraphs_all_the_way_in_leave_the_level_editable_and_the_first_other_keeps_it_read_only", () => {
+  expect(theSubgraphKeepingTheLevelReadOnly(streamGraphLevelReached(GRAPH, ["look", "inner"]).subgraphs_stepped_through)).toBeNull();
+  const generated = graphNode("levels", "generators.mics:mic_levels", { kind: "generated", nodes: [INNER], links: [], groups: [] });
+  const graphHoldingAGenerator: StreamGraphSummary = { ...GRAPH, nodes: [...GRAPH.nodes, generated] };
+  expect(theSubgraphKeepingTheLevelReadOnly(streamGraphLevelReached(graphHoldingAGenerator, ["levels", "inner"]).subgraphs_stepped_through)).toEqual({ subgraph: generated, depth: 0 });
+});
+
+test("the_read_only_words_say_what_a_generators_subgraph_and_a_placed_stream_need", () => {
   expect(whyTheInsideOfTheSubgraphIsReadOnly(graphNode("levels", "generators.mics:mic_levels", { kind: "generated", nodes: [], links: [], groups: [] }))).toBe(
     "Made by generators.mics:mic_levels. Refresh it from its code, or unlock it to edit its nodes.",
   );
-  expect(whyTheInsideOfTheSubgraphIsReadOnly(LOOK)).toBe("Editing inside a subgraph waits on tatolab/streamlib#3519. Unlock it to edit its nodes.");
   expect(whyTheInsideOfTheSubgraphIsReadOnly(graphNode("lobby", "tatolab.project:StreamFragment", { kind: "placed_stream", nodes: [], links: [], groups: [] }))).toBe(
     "Another stream, placed by reference. Edit it in its own tab.",
   );

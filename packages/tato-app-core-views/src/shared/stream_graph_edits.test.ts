@@ -21,6 +21,7 @@ import {
   selectionFramedEdits,
   nameOfTheNewSubgraph,
   selectionCollapsedEdits,
+  streamGraphActionsAtTheLevel,
   subgraphRefreshedEdits,
   subgraphUnlockedEdits,
   type EditedStreamGraph,
@@ -121,6 +122,35 @@ test("a_wire_drawn_between_pins_connects_them_by_node_uuid", () => {
 
 test("a_wire_to_a_card_the_graph_no_longer_holds_asks_nothing_rather_than_naming_it_by_its_name", () => {
   expect(pinsWiredEdits(edited(), { node_id: "pattern", pin: "video" }, { node_id: "gone", pin: "frames" })).toEqual([]);
+});
+
+test("the_studio_sent_ahead_for_a_node_inside_a_subgraph_is_shown_once_the_subgraph_holds_it", () => {
+  const sentAhead = { ...HALFTONE.studio, collapsed: true };
+  const subgraphHolding = (studio: StreamGraphNode["studio"]): StreamGraphSummary => ({
+    ...GRAPH,
+    nodes: [PATTERN, { ...graphNode("look", "uuid-look", {}), fragment: { kind: "authored", nodes: [{ ...HALFTONE, studio }], links: [], groups: [] } }],
+  });
+  expect(doesTheGraphShowTheStudioSentAhead(subgraphHolding(HALFTONE.studio), "uuid-halftone", sentAhead)).toBe(false);
+  expect(doesTheGraphShowTheStudioSentAhead(subgraphHolding(sentAhead), "uuid-halftone", sentAhead)).toBe(true);
+});
+
+describe("editing_inside_a_subgraph", () => {
+  test("each_action_names_the_level_and_the_streams_own_level_names_none", () => {
+    const wired = pinsWiredEdits(edited(), { node_id: "pattern", pin: "video" }, { node_id: "halftone", pin: "frames" });
+    expect(streamGraphActionsAtTheLevel(wired, [])).toEqual(wired);
+    expect(streamGraphActionsAtTheLevel(wired, ["uuid-look", "uuid-inner"])).toEqual([
+      { operation: "connect", stream: STREAM_ASSET, level: ["uuid-look", "uuid-inner"], source: { node: "uuid-pattern", port: "video" }, target: { node: "uuid-halftone", port: "frames" } },
+    ]);
+  });
+
+  test("a_note_or_a_subgraph_placed_from_code_is_not_sent_inside_a_subgraph_and_says_why", () => {
+    expect(streamGraphActionsAtTheLevel(notePlacedEdits(edited(), { x: 0, y: 0 }), ["uuid-look"])).toEqual({
+      because: "The runtime keeps a note only on the stream's own level, not inside a subgraph.",
+    });
+    expect(streamGraphActionsAtTheLevel(generatorSubgraphPlacedEdits(edited(), "generators.looks:soft_look", { x: 0, y: 0 }), ["uuid-look"])).toEqual({
+      because: "The runtime places a subgraph from code or from another stream only on the stream's own level.",
+    });
+  });
 });
 
 test("the_studio_sent_ahead_is_shown_once_the_graph_holds_each_field_it_set_even_beside_a_field_another_edit_set", () => {
