@@ -189,6 +189,26 @@ describe("the outliner's tree", () => {
     ]);
   });
 
+  it("says what a preparing stream is doing in place of the graph read the runtime refuses while it loads", () => {
+    const preparingStream: ListedStream = { ...listedStream("/w/studio", "preparing"), state: "preparing", node_count: null, step: "making_the_venv" };
+    const graphs: Record<string, StreamGraphReading> = { "preparing-id": { kind: "not_read", because: "graph failed: no stream with the id `preparing-id` is loaded in this runtime" } };
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [preparingStream] }, graphs, null, { "stream:preparing-id": true });
+    expect(rows.map(({ row }) => [row.label, row.icon, row.tone ?? "plain"])).toEqual([
+      ["preparing", "stream", "plain"],
+      ["Installing the project's Python packages…", "waiting", "waiting"],
+    ]);
+  });
+
+  it("says a stream not running is not running, keeping the runtime's refusal of its graph for a running one", () => {
+    const stoppedStream: ListedStream = { ...listedStream("/w/studio", "stopped"), state: "stopped", node_count: null };
+    const graphs: Record<string, StreamGraphReading> = { "stopped-id": { kind: "not_read", because: "graph failed: no stream with the id `stopped-id` is loaded in this runtime" } };
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [stoppedStream] }, graphs, null, { "stream:stopped-id": true });
+    expect(rows.map(({ row }) => [row.label, row.icon, row.tone ?? "plain"])).toEqual([
+      ["stopped", "stream", "plain"],
+      ["Not running", "waiting", "waiting"],
+    ]);
+  });
+
   it("says when the project has no streams, while they wait on the runtime, or why listing them failed, in the failure's own words", () => {
     expect(tree([listedStream("/elsewhere", "other")], {}, null)).toEqual(["No streams yet leaf"]);
     expect(outlinerTreeOfTheProject(PROJECT, { kind: "not_listed", because: "Stopped" }, {}, null, {}).map(({ row }) => row.label)).toEqual(["Streams not read yet"]);

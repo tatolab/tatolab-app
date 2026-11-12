@@ -7,6 +7,7 @@ import type { ListedStream, ListedStreamsReading, OpenProject, StreamGraphAction
 import { shownStudioTreeRows, studioTreeNodesMatching, type StudioTreeNode } from "../shared/node_type_listing_tree";
 import { nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { editedStreamGraphOf, selectionFramedEdits } from "../shared/stream_graph_edits";
+import { streamPreparingWords } from "../shared/stream_preparing_words";
 import { nodesTheSelectionHolds, nodesTheSelectionHoldsInTheStream, selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 
 /** What a row stands for, so choosing it selects or opens the right thing. */
@@ -129,7 +130,12 @@ function streamChildren(stream: ListedStream, projectName: string, graphReading:
   if (stream.state === "failed" && stream.failed_because !== null) {
     return [leafNode({ row_id: `${rowId}/failed`, label: stream.failed_because, icon: "unreadable", tone: "failed" })];
   }
+  const preparingWords = streamPreparingWords(stream, stream.display_name);
+  if (preparingWords !== null && (graphReading === undefined || graphReading.kind === "not_read")) {
+    return [leafNode({ row_id: `${rowId}/preparing`, label: preparingWords.explanation, icon: "waiting", tone: "waiting" })];
+  }
   if (graphReading === undefined) return [leafNode({ row_id: `${rowId}/waiting`, label: "Nodes not read yet", icon: "waiting", tone: "waiting" })];
+  if (graphReading.kind === "not_read" && stream.state !== "running") return [leafNode({ row_id: `${rowId}/not-running`, label: "Not running", icon: "waiting", tone: "waiting" })];
   if (graphReading.kind === "not_read") return [leafNode({ row_id: `${rowId}/not-read`, label: graphReading.because, icon: "unreadable", tone: "unreadable" })];
   const { groups, nodes } = graphReading.graph;
   if (nodes.length === 0 && groups.length === 0) return [leafNode({ row_id: `${rowId}/empty`, label: "No nodes yet", icon: "waiting", tone: "waiting" })];

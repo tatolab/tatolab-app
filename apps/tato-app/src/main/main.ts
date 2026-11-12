@@ -54,6 +54,7 @@ import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js"
 import { RuntimeViewerControlConnection } from "./runtime_viewer_control_connection.js";
 import { ProjectVenvSyncsOnTheStreamActionsFeed } from "./project_venv_syncs_on_the_stream_actions_feed.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
+import { StreamActionChangesFollowedForTheStatus, streamActionChangesConnectionOver } from "./stream_action_changes_followed_for_the_status.js";
 import { StreamGraphChangesFollowedForTheWindows, streamGraphChangesConnectionOver } from "./stream_graph_changes_followed_for_the_windows.js";
 import { TatolabRuntimeControlWebSocketConnection } from "./tatolab_runtime_control_operation_call.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
@@ -66,7 +67,7 @@ import { isAnotherBuildOfTatolab, type TatolabAppCopy } from "./tatolab_app_copy
 /** How long a port viewer's `open_viewer` or `close_viewer` waits on the runtime. */
 const PORT_VIEWER_REQUEST_TIMEOUT_MS = 5_000;
 
-/** How long the stream graph changes' connection waits for the runtime to answer a subscribe. */
+/** How long the stream graph and stream action changes' connections wait for the runtime to answer a subscribe. */
 const STREAM_GRAPH_CHANGES_REQUEST_TIMEOUT_MS = 5_000;
 
 /** How long a read of a project's change feed waits on the runtime. */
@@ -438,6 +439,17 @@ export async function startTatolabApp(
     tatolabAppLog,
   });
   streamGraphChangesFollowedOnceBuilt = streamGraphChangesFollowed;
+  const streamActionChangesFollowed = new StreamActionChangesFollowedForTheStatus({
+    openTheStreamActionChangesConnection: async () => {
+      const opened = await TatolabRuntimeControlWebSocketConnection.open(platformForThisBuild.localApiSocket, STREAM_GRAPH_CHANGES_REQUEST_TIMEOUT_MS);
+      return opened.ok ? succeeded(streamActionChangesConnectionOver(opened.value)) : opened;
+    },
+    waitThen: (afterMs, then) => {
+      setTimeout(then, afterMs);
+    },
+    readTheStatusAgain: () => statusPublisher.requestRefresh(),
+    tatolabAppLog,
+  });
   statusPublisher.attachRuntimePortViewers(runtimePortViewers);
   const sharedState: TatolabAppSharedState = {
     controller,
@@ -489,6 +501,7 @@ export async function startTatolabApp(
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.pythonLanguageServers.stopEveryLanguageServer());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.runtimePortViewers.closeEveryPortViewer());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.streamGraphChangesFollowed.stopFollowingEveryStreamGraph());
+  tatolabElectronAppShell.onTheAppQuitting(() => streamActionChangesFollowed.stop());
   const quitTheApp = () =>
     quitTheTatolabApp(
       tatolabAppWindows,
@@ -527,6 +540,7 @@ export async function startTatolabApp(
   }
   runInTheBackgroundWithTheController(sharedState, "tatolab-app-opened", async (controller, statusPublisher) => {
     statusPublisher.startPolling();
+    streamActionChangesFollowed.follow();
     tatolabAppUpdater.startCheckingOnItsOwn(tatolabElectronAppShell.repeatingTimer);
     await controller.linkTheCommandLineToolUnlessSomethingElseHoldsTheName();
     statusPublisher.requestRefresh();
