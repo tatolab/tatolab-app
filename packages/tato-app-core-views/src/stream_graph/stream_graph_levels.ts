@@ -1,7 +1,8 @@
 // The levels of a stream's graph the canvas can show: the stream's own, and the inside of each subgraph
 // stepped into from it, reached by the names of the subgraph nodes stepped through and edited by their UUIDs.
 
-import type { StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { StreamGraphNode, StreamGraphSummary, StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 
 /** One level of a stream's graph: what the canvas draws there, and the subgraph nodes stepped through to reach it, outermost first. */
 export interface StreamGraphLevel {
@@ -56,6 +57,13 @@ export function theSubgraphKeepingTheLevelReadOnly(subgraphsSteppedThrough: read
 /** The `level` a graph action names to edit inside the first `depth` subgraphs stepped through: their UUIDs, outermost first. */
 export function levelOfTheSubgraphsSteppedThrough(subgraphsSteppedThrough: readonly StreamGraphNode[], depth: number = subgraphsSteppedThrough.length): string[] {
   return subgraphsSteppedThrough.slice(0, depth).map((subgraph) => subgraph.id);
+}
+
+/** The selection of the subgraph node stepped out of when the canvas steps from inside `subgraphsSteppedThrough` back to `depthReached`, at the level it is drawn; `null` when no subgraph is stepped out of. */
+export function selectionOfTheSubgraphSteppedOutOf(stream: string, subgraphsSteppedThrough: readonly StreamGraphNode[], depthReached: number): StudioSelection | null {
+  const subgraphSteppedOutOf = subgraphsSteppedThrough[depthReached];
+  if (subgraphSteppedOutOf === undefined) return null;
+  return selectionOfTheNodes(stream, [subgraphSteppedOutOf.name], levelOfTheSubgraphsSteppedThrough(subgraphsSteppedThrough, depthReached));
 }
 
 /** Why the inside of `subgraph`, a graph generator's output or an import's stream, is read only, in words for the strip over it. */

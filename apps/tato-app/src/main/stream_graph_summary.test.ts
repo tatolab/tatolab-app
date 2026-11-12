@@ -413,6 +413,29 @@ test("a_recorded_graph_reads_a_graph_generators_output_as_a_generated_fragment_n
   expect(subgraph.fragment?.links).toEqual([]);
 });
 
+test("a_recorded_graph_reads_a_placed_project_stream_as_a_placed_stream_subgraph_with_its_inside_and_its_input_port", async () => {
+  const summary = streamGraphSummaryFromTheGraphToolResult(
+    "subgraph-proof-main-b022ac",
+    await recordedGraphToolResultText("local-api-graph-tool-result-of-a-stream-placing-a-project-stream.json"),
+  );
+
+  if (!summary.ok) return expect.unreachable(summary.failure);
+  const subgraph = summary.value.nodes.find((graphNode) => graphNode.name === "subgraph") ?? expect.unreachable("no placed stream");
+  expect(subgraph.type).toBe("tatolab.project:StreamFragment");
+  expect(subgraph.config).toEqual({ stream: { asset: "eed1d26b-7128-4f80-af18-0100011aa173" } });
+  expect(subgraph.fragment?.kind).toBe("placed_stream");
+  expect(subgraph.fragment?.nodes.map((graphNode) => [graphNode.name, graphNode.type])).toEqual([
+    ["halftonelenseffect", "nodes.halftone_lens_effect:HalftoneLensEffect"],
+    ["brightnessmeter", "nodes.brightness_meter:BrightnessMeter"],
+    ["halftonelenseffect-video-from-upstream", "tatolab.stream:GraphInput"],
+  ]);
+  expect(subgraph.fragment?.links).toHaveLength(2);
+  expect(subgraph.input_ports.map((port) => port.name)).toEqual(["halftonelenseffect-video-from-upstream"]);
+  expect(summary.value.links.map((link) => [link.source_node, link.source_port, link.target_node, link.target_port])).toEqual([
+    ["testpatternsource", "video", "subgraph", "halftonelenseffect-video-from-upstream"],
+  ]);
+});
+
 test("a_running_node_reads_what_its_process_keeps_raising_word_for_word_and_null_once_it_runs_cleanly", () => {
   const raisedBecause = "process() raised RuntimeError: broke on purpose (nodes/invert.py, line 29)";
   const graph = {

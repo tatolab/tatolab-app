@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { NODE_STUDIO_FIELDS_NONE_SET, type StreamGraphFragment, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { levelOfTheSubgraphsSteppedThrough, streamGraphLevelAtTheSubgraphIds, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly, whyTheInsideOfTheSubgraphIsReadOnly } from "./stream_graph_levels";
+import { levelOfTheSubgraphsSteppedThrough, selectionOfTheSubgraphSteppedOutOf, streamGraphLevelAtTheSubgraphIds, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly, whyTheInsideOfTheSubgraphIsReadOnly } from "./stream_graph_levels";
 
 function graphNode(name: string, type: string, fragment: StreamGraphFragment | null = null, config: StreamGraphNode["config"] = {}): StreamGraphNode {
   return { id: `uuid-${name}`, name, type, state: null, failed_because: null, process_raising_because: null, config, pins: {}, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment, graph_interface: null };
@@ -52,6 +52,13 @@ test("an_edit_inside_names_the_level_by_the_uuids_of_the_subgraphs_stepped_throu
   expect(levelOfTheSubgraphsSteppedThrough(steppedThrough)).toEqual(["uuid-look", "uuid-inner"]);
   expect(levelOfTheSubgraphsSteppedThrough(steppedThrough, 1)).toEqual(["uuid-look"]);
   expect(levelOfTheSubgraphsSteppedThrough([])).toEqual([]);
+});
+
+test("stepping_out_selects_the_subgraph_stepped_out_of_at_the_level_it_is_drawn_and_nothing_when_none_is_left", () => {
+  const steppedThrough = streamGraphLevelReached(GRAPH, ["look", "inner"]).subgraphs_stepped_through;
+  expect(selectionOfTheSubgraphSteppedOutOf("main", steppedThrough, 1)).toEqual({ kind: "node", stream: "main", node: "inner", level: ["uuid-look"] });
+  expect(selectionOfTheSubgraphSteppedOutOf("main", steppedThrough, 0)).toEqual({ kind: "node", stream: "main", node: "look" });
+  expect(selectionOfTheSubgraphSteppedOutOf("main", steppedThrough, 2)).toBeNull();
 });
 
 test("only_streams_of_the_project_placed_all_the_way_in_leave_the_level_editable_and_the_first_other_keeps_it_read_only", () => {

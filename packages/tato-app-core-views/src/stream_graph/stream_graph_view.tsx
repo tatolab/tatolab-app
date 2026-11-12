@@ -14,6 +14,7 @@ import type {
   ProjectNodeTypesReading,
   OpenProjectReading,
   StreamGraphAction,
+  StreamGraphNode,
   StreamGraphNodeStudioFields,
   StreamGraphReading,
   StreamTabAddress,
@@ -49,7 +50,7 @@ import {
   type LooseWire,
 } from "../shared/stream_graph_edits";
 import { nodesTheSelectionHoldsInTheStream, selectionOfTheNodes } from "../shared/nodes_of_the_selection";
-import { levelOfTheSubgraphsSteppedThrough, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly } from "./stream_graph_levels";
+import { levelOfTheSubgraphsSteppedThrough, selectionOfTheSubgraphSteppedOutOf, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly } from "./stream_graph_levels";
 import { graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeSearchItems, nodeTypeSearchNarrowing, nodeTypesTheProjectDeclares, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
 import { StreamGraphSubgraphReadOnlyBanner, StreamGraphSubgraphTrail } from "./stream_graph_subgraph_strip";
 import { isTheSamePlaceLeft, settingsWithTheStreamLeft, whereTheStreamWasLeft, type WhereAStreamWasLeft } from "./stream_graph_where_left";
@@ -67,6 +68,8 @@ interface NodeTypeSearchAsked {
 const OPENING_AN_IMPORT_TO_EDIT_ARRIVES_WITH = "tatolab/tatolab-app#133";
 
 /** The import a stream's project is, by its name, when the open project imports the project the runtime lists it from; `null` for the project's own. */
+const NO_SUBGRAPHS_STEPPED_THROUGH: readonly StreamGraphNode[] = [];
+
 function importedProjectNameOfTheStream(stream: string, openProject: OpenProjectReading | null, listedStreams: ListedStreamsReading | null): string | null {
   if (openProject?.kind !== "read" || listedStreams?.kind !== "listed") return null;
   const projectDirectory = listedStreams.streams.find((listedStream) => listedStream.stream === stream)?.location?.project_directory;
@@ -119,7 +122,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
     };
   }, [portPick, streamTab.stream, graphReading, connection]);
   const levelShown = useMemo(() => (graphReading?.kind === "read" ? streamGraphLevelReached(graphReading.graph, subgraphNamesSteppedThrough) : null), [graphReading, subgraphNamesSteppedThrough]);
-  const subgraphsSteppedThrough = levelShown?.subgraphs_stepped_through ?? [];
+  const subgraphsSteppedThrough = levelShown?.subgraphs_stepped_through ?? NO_SUBGRAPHS_STEPPED_THROUGH;
   const innermostSubgraph = subgraphsSteppedThrough.at(-1) ?? null;
   const subgraphKeepingTheLevelReadOnly = theSubgraphKeepingTheLevelReadOnly(subgraphsSteppedThrough);
   const levelOfTheEdits = useMemo(() => levelOfTheSubgraphsSteppedThrough(subgraphsSteppedThrough), [subgraphsSteppedThrough]);
@@ -136,9 +139,12 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   }, [levelShown, subgraphNamesSteppedThrough.length]);
   const stepToTheLevel = useCallback(
     (depth: number) => {
-      setSubgraphNamesSteppedThrough((namesBefore) => namesBefore.slice(0, Math.max(depth, 0)));
+      const depthReached = Math.max(depth, 0);
+      const selectionOfTheSubgraph = selectionOfTheSubgraphSteppedOutOf(streamTab.stream, subgraphsSteppedThrough, depthReached);
+      if (selectionOfTheSubgraph !== null && nodesSelectedAtTheLevelShown.length > 0) select(selectionOfTheSubgraph);
+      setSubgraphNamesSteppedThrough((namesBefore) => namesBefore.slice(0, depthReached));
     },
-    [],
+    [subgraphsSteppedThrough, nodesSelectedAtTheLevelShown, streamTab.stream, select],
   );
   const stepInsideTheSubgraph = useCallback(
     (subgraphName: string) => {
