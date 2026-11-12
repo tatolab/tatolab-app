@@ -155,10 +155,12 @@ export class MockProjectTransactions {
     return () => this.listeners.delete(listener);
   }
 
-  /** Undo `author`'s latest transaction not undone yet, in the runtime's words when there is none. */
-  undo(author: ProjectTransactionAuthor): ProjectTransaction {
+  /** Undo `author`'s latest transaction not undone yet, in the runtime's words when there is none or `whyTheUndoIsRefused` gives a reason. */
+  undo(author: ProjectTransactionAuthor, whyTheUndoIsRefused: (undone: ProjectTransaction) => string | null = () => null): ProjectTransaction {
     const undone = this.whatTheAuthorCanUndoAndRedo(author).undoable.at(-1);
     if (undone === undefined) throw this.refuse(author, "undo", `${author.name} has no transaction left to undo`);
+    const refusal = whyTheUndoIsRefused(undone);
+    if (refusal !== null) throw this.refuse(author, "undo", refusal);
     return this.apply(author, undone.inverse_operations, undone.operations, { undoes: undone.transaction });
   }
 

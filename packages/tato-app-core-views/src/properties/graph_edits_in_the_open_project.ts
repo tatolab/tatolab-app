@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { newGestureIdempotencyKey, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { GraphEditMode, JsonValue, StreamGraphAction } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { streamGraphActionsAtTheLevel } from "../shared/stream_graph_edits";
 
 /** Where on a node's panel an edit was made, which its refusal shows under: the name, a config field, or a port. */
 export type PlaceOfAnEdit = "name" | `config:${string}` | `input:${string}` | `output:${string}`;
@@ -41,7 +42,7 @@ const NO_REFUSALS: ReadonlyMap<PlaceOfAnEdit, string> = new Map();
  * Sends the panel's edits to the open project in the order they were made, across every node it shows, each refusal
  * kept under its node and place in the runtime's words until a later commit on that node applies. A drag's live edits wait for the one before to be answered,
  * the newest replacing any not sent yet, so the runtime is never sent more than it can apply; its commit drops a
- * live edit not sent yet.
+ * live edit not sent yet. A node's edits at a level, inside a subgraph, carry that level, and only its commits are sent.
  */
 export function useGraphEditsInTheOpenProject(connection: Pick<TatoAppViewConnection, "transactInTheProject">, projectFolder: string | null) {
   const [refusalsByNode, setRefusalsByNode] = useState<ReadonlyMap<string, ReadonlyMap<PlaceOfAnEdit, string>>>(new Map());
@@ -106,10 +107,20 @@ export function useGraphEditsInTheOpenProject(connection: Pick<TatoAppViewConnec
     [sendNow],
   );
   const ofTheNode = useCallback(
-    (nodeId: string): GraphEditsOfTheNode => ({
+    (nodeId: string, level: readonly string[] = []): GraphEditsOfTheNode => ({
       refusalsByPlace: refusalsByNode.get(nodeId) ?? NO_REFUSALS,
-      commit: (place, operations, idempotencyKey) => commit(nodeId, place, operations, idempotencyKey),
-      sendLive: (place, operations, idempotencyKey) => sendLive(nodeId, place, operations, idempotencyKey),
+      commit: (place, operations, idempotencyKey) => {
+        const operationsAtTheLevel = streamGraphActionsAtTheLevel(operations, level);
+        if (!Array.isArray(operationsAtTheLevel)) {
+          keepTheRefusal(nodeId, place, operationsAtTheLevel.because);
+          return Promise.resolve(false);
+        }
+        return commit(nodeId, place, operationsAtTheLevel, idempotencyKey);
+      },
+      sendLive: (place, operations, idempotencyKey) => {
+        // The runtime makes an edit inside a placed stream on the project's documents only, so a drag at a level is sent once, as its commit.
+        if (level.length === 0) sendLive(nodeId, place, operations, idempotencyKey);
+      },
       keepTheRefusal: (place, refusal) => keepTheRefusal(nodeId, place, refusal),
       configToEditFrom: (configTheReadingShows) => {
         const sentAhead = configsSentAheadOfTheReading.current.get(nodeId);

@@ -3,6 +3,11 @@
 // refused as it refuses (`ProjectActionRefusalOnTheWire`), in words modelled on the runtime's. History keeps each
 // operation as the runtime does: its stream by asset UUID, with `from` and `to`, the inverse swapping them. An
 // action the mock does not model is refused, naming it.
+//
+// A placed stream's nodes are held inside each `tatolab.project:StreamFragment` node placing it, every placement kept
+// alike: an edit at its level is made on one and copied to the others, recorded on the placed stream's asset, and the
+// links onto a port it renames or removes are carried at every placement. History names a node inside by the id its
+// first placement draws it under, where the runtime names it by the placed stream's own.
 
 import { mockGraphNodeIdOf, mockUuidOf, type MockGraphNode, type MockStreamGraph } from "./mock_stream_fixtures";
 import { studioAsTheRuntimeRendersIt } from "./mock_stream_graph_document";
@@ -53,6 +58,92 @@ function studioFieldsOfTheAction(studio: Record<string, JsonValue>, refusedNode:
 }
 
 const GRAPH_INPUT_NODE_TYPE = "tatolab.stream:GraphInput";
+const GRAPH_OUTPUT_NODE_TYPE = "tatolab.stream:GraphOutput";
+const STREAM_FRAGMENT_NODE_TYPE = "tatolab.project:StreamFragment";
+
+/** The stream a project's Stream Fragment node places, by asset UUID, and the import it is a stream of, `null` for one of the project's own; `null` for any other node. */
+function streamTheNodePlaces(node: MockGraphNode): { asset: string; from: JsonValue | null } | null {
+  if (node.type !== STREAM_FRAGMENT_NODE_TYPE) return null;
+  const heldStream = node.config["stream"];
+  if (!isAJsonObject(heldStream) || typeof heldStream["asset"] !== "string") return null;
+  return { asset: heldStream["asset"], from: heldStream["from"] ?? null };
+}
+
+/** The asset of the project's own stream `node` places; `null` for an import's stream or any other node. */
+function ownStreamTheNodePlaces(node: MockGraphNode): string | null {
+  const placed = streamTheNodePlaces(node);
+  return placed !== null && placed.from === null ? placed.asset : null;
+}
+
+/** Why `subgraph`, the node `subgraphId` names at a level, has no inside an edit can reach, in the runtime's words; `null` when it places one of the project's own streams. */
+function whyTheNodeHasNoInsideToEdit(subgraph: MockGraphNode | undefined, subgraphId: string): string | null {
+  if (subgraph === undefined) return `no node ${subgraphId} in the stream's graph`;
+  const placed = streamTheNodePlaces(subgraph);
+  if (placed !== null && subgraph.fragment !== undefined) {
+    return placed.from === null ? null : `node ${subgraphId} \`${subgraph.name}\` places a stream of the import ${JSON.stringify(placed.from)}, which is edited by opening the import's folder as a project of its own`;
+  }
+  if (subgraph.fragment !== undefined) return `node ${subgraphId} \`${subgraph.name}\` holds what the graph generator \`${subgraph.type}\` builds, which a refresh replaces; unlock it with unlock_subgraph to edit inside it`;
+  return `node ${subgraphId} \`${subgraph.name}\` is no subgraph, so it has no inside to edit`;
+}
+
+/** The port a Graph Input or Output node inside a subgraph stands for: its config's `port`, else its name; `null` for any other node. */
+function portTheInterfaceNodeStandsFor(node: MockGraphNode): { direction: "input" | "output"; port: string; family: PortFamily | null } | null {
+  if (node.type !== GRAPH_INPUT_NODE_TYPE && node.type !== GRAPH_OUTPUT_NODE_TYPE) return null;
+  const port = typeof node.config["port"] === "string" ? node.config["port"] : node.name;
+  const family = node.type === GRAPH_INPUT_NODE_TYPE ? (node.output_ports[0]?.family ?? null) : (node.input_ports[0]?.family ?? null);
+  return { direction: node.type === GRAPH_INPUT_NODE_TYPE ? "input" : "output", port, family };
+}
+
+/** Every node placing the project's own stream `placedStream` at any level of `level`, the graph of `holdingStream`, with the level and the stream that hold it. */
+function eachPlacementOf(placedStream: string, level: MockGraphLevel, holdingStream: string): { placing: MockGraphNode; holdingLevel: MockGraphLevel; holdingStream: string }[] {
+  return level.nodes.flatMap((node) => [
+    ...(ownStreamTheNodePlaces(node) === placedStream ? [{ placing: node, holdingLevel: level, holdingStream }] : []),
+    ...(node.fragment === undefined ? [] : eachPlacementOf(placedStream, node.fragment, ownStreamTheNodePlaces(node) ?? holdingStream)),
+  ]);
+}
+
+/** The ports the Graph Input and Output nodes of `level` stand for, by the id each node is drawn under. */
+function portsOfTheInterfaceNodes(level: MockGraphLevel, nodeIdOf: (node: MockGraphNode) => string): Map<string, NonNullable<ReturnType<typeof portTheInterfaceNodeStandsFor>>> {
+  return new Map(level.nodes.flatMap((node) => {
+    const stoodFor = portTheInterfaceNodeStandsFor(node);
+    return stoodFor === null ? [] : [[nodeIdOf(node), stoodFor] as const];
+  }));
+}
+
+/** The first placement of `placedStream` in `graphsByStreamAsset`: the stream asset whose graph holds it and the path of node ids from that stream's own level to it. */
+function firstPlacementOf(placedStream: string, targetsByStreamAsset: ReadonlyMap<string, MockStreamGraphTarget>): { streamAsset: string; level: string[] } | null {
+  const pathTo = (streamId: string, level: MockGraphLevel): string[] | null => {
+    for (const node of level.nodes) {
+      const nodeId = mockGraphNodeIdOf(streamId, node);
+      if (ownStreamTheNodePlaces(node) === placedStream && node.fragment !== undefined) return [nodeId];
+      const inside = node.fragment === undefined ? null : pathTo(streamId, node.fragment);
+      if (inside !== null) return [nodeId, ...inside];
+    }
+    return null;
+  };
+  for (const [streamAsset, target] of targetsByStreamAsset) {
+    const level = pathTo(target.stream_id, target.graph);
+    if (level !== null) return { streamAsset, level };
+  }
+  return null;
+}
+
+/** The stream asset holding each placement of `placedStream` in `targetsByStreamAsset`'s graphs, and what its first placement holds, as a placed stream's graph document does; `null` when nothing places it. */
+export function thePlacementsOfTheStream(placedStream: string, targetsByStreamAsset: ReadonlyMap<string, MockStreamGraphTarget>): { holdingStreams: string[]; document: JsonValue } | null {
+  const placements = [...targetsByStreamAsset].flatMap(([streamAsset, target]) => eachPlacementOf(placedStream, target.graph, streamAsset));
+  const firstFragment = placements[0]?.placing.fragment;
+  if (firstFragment === undefined) return null;
+  return { holdingStreams: placements.map((placement) => placement.holdingStream), document: placedStreamDocumentOf(firstFragment) };
+}
+
+function placedStreamDocumentOf(level: MockGraphLevel): JsonValue {
+  return JSON.parse(JSON.stringify({ nodes: level.nodes, links: level.links, groups: level.groups ?? [] }));
+}
+
+/** The history operations that change no mock graph of their own: a placed stream's document, which the mock holds inside its placements, and the links an edit inside carries, which the mock carries again when it applies that edit. */
+export function isAHistoryOperationTheMockMakesAgainFromTheEditInside(historyOperation: JsonValue): boolean {
+  return isAJsonObject(historyOperation) && ["create_stream_document", "delete_stream_document", "carry_the_links_onto_the_ports_of_a_placed_stream"].includes(String(historyOperation["operation"]));
+}
 
 const PORT_FAMILIES_AS_THE_RUNTIME_SPELLS_THEM: readonly PortFamily[] = ["image", "array", "channels", "packets", "records"];
 
@@ -79,6 +170,8 @@ function familyAsTheRuntimeNamesIt(family: PortFamily | null): string {
 let mockLinksMade = 0;
 /** How many groups and notes the mock has made, so each one's UUID is new, as the runtime's always is. */
 let mockGroupsAndNotesMade = 0;
+/** How many streams a collapse has saved, so each one's asset UUID is new. */
+let mockPlacedStreamsSaved = 0;
 
 /** Whether `value` is a JSON object, not a list or `null`. */
 export const isAJsonObject = (value: JsonValue | undefined): value is { [key: string]: JsonValue } => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -91,22 +184,6 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
   if (typeof stream !== "string") return null;
   const to = historyOperation["to"] ?? null;
   switch (operation) {
-    case "edit_inside_fragment": {
-      const { fragment, edit } = historyOperation;
-      if (typeof fragment !== "string" || !isAJsonObject(edit)) return null;
-      const actionInside = graphActionApplyingTheHistoryOperation({ ...edit, stream });
-      if (actionInside === null) return null;
-      switch (actionInside.operation) {
-        case "import_graph_generator":
-        case "use_dependency_stream":
-        case "add_note":
-        case "set_note_fields":
-        case "remove_note":
-          return null;
-        default:
-          return { ...actionInside, level: [fragment, ...(actionInside.level ?? [])] };
-      }
-    }
     case "set_node_config":
       return typeof node === "string" && typeof to === "object" && to !== null && !Array.isArray(to) ? { operation, stream, node, config: to } : null;
     case "set_pin_value": {
@@ -161,7 +238,7 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
     case "unfold_fragment": {
       const { fragment, name, nodes } = historyOperation;
       if (typeof fragment !== "string" || typeof name !== "string" || !Array.isArray(nodes)) return null;
-      if (operation === "unfold_fragment") return { operation: "unlock_generator_fragment", stream, fragment };
+      if (operation === "unfold_fragment") return { operation: "unlock_subgraph", stream, fragment };
       return { operation: "collapse_selection_into_subgraph", stream, name, nodes: nodes.flatMap((member) => (typeof member === "string" ? [member] : [])) };
     }
     case "connect":
@@ -183,7 +260,8 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
  * Apply `operations` to `targetsByStreamAsset`'s graphs as one transaction: each graph is changed only once every
  * operation has applied to a copy of it. Applied by an undo or a redo, an `add_node`'s `as` is the id the node had, which
  * it takes again. An `add_group` or `add_note` takes the id its operation in `historyOperationsReplayed` recorded, so the
- * running graph a commit changes after the saved one gets the same ids.
+ * running graph a commit changes after the saved one gets the same ids. An operation naming a placed stream's asset, as
+ * history does, is made at that stream's first placement.
  */
 export function applyMockGraphTransaction(
   targetsByStreamAsset: ReadonlyMap<string, MockStreamGraphTarget>,
@@ -197,31 +275,29 @@ export function applyMockGraphTransaction(
   const historyOperations: JsonValue[] = [];
   const inverseOperations: JsonValue[] = [];
   for (const [operationIndex, operation] of operations.entries()) {
-    const target = targetsByStreamAsset.get(operation.stream);
-    const streamGraph = workingGraphs.get(operation.stream);
+    const placementNamed = targetsByStreamAsset.has(operation.stream) ? null : firstPlacementOf(operation.stream, targetsByStreamAsset);
+    const streamAsset = placementNamed?.streamAsset ?? operation.stream;
+    const target = targetsByStreamAsset.get(streamAsset);
+    const streamGraph = workingGraphs.get(streamAsset);
     if (target === undefined || streamGraph === undefined) {
       return { kind: "refused", refusal: { action: "transact", refused_operation_index: operationIndex, refused_node: null, refused_link: null, refused_field: null, runtime_words: `no loaded stream is the stream asset ${operation.stream}` } };
     }
     const nodeIdOf = (graphNode: MockGraphNode) => mockGraphNodeIdOf(target.stream_id, graphNode);
-    const level = "level" in operation ? (operation.level ?? []) : [];
+    const level = [...(placementNamed?.level ?? []), ...("level" in operation ? (operation.level ?? []) : [])];
     let graph: MockGraphLevel = streamGraph;
+    let streamOfTheLevel = streamAsset;
     for (const subgraphId of level) {
       const subgraph = graph.nodes.find((candidate) => nodeIdOf(candidate) === subgraphId);
-      if (subgraph?.fragment?.kind !== "authored") {
-        const why =
-          subgraph === undefined
-            ? `no node ${subgraphId} in the stream's graph`
-            : subgraph.fragment === undefined
-              ? `node ${subgraphId} \`${subgraph.name}\` is no subgraph, so it has no inside to edit`
-              : subgraph.fragment.kind === "placed_stream"
-                ? `node ${subgraphId} \`${subgraph.name}\` places another stream, which is edited as its own stream, never from inside the node placing it`
-                : `node ${subgraphId} \`${subgraph.name}\` holds what the graph generator \`${subgraph.type}\` builds, which a refresh replaces; unlock it with unlock_generator_fragment to edit inside it`;
-        return { kind: "refused", refusal: { action: "transact", refused_operation_index: operationIndex, refused_node: subgraphId, refused_link: null, refused_field: null, runtime_words: why } };
+      const whyNoInside = whyTheNodeHasNoInsideToEdit(subgraph, subgraphId);
+      const placedStream = subgraph === undefined ? null : ownStreamTheNodePlaces(subgraph);
+      if (whyNoInside !== null || subgraph?.fragment === undefined || placedStream === null) {
+        return { kind: "refused", refusal: { action: "transact", refused_operation_index: operationIndex, refused_node: subgraphId, refused_link: null, refused_field: null, runtime_words: whyNoInside ?? `node ${subgraphId} names no stream` } };
       }
       graph = subgraph.fragment;
+      streamOfTheLevel = placedStream;
     }
-    const atTheLevel = (operationAtItsLevel: { [key: string]: JsonValue }): { [key: string]: JsonValue } =>
-      level.reduceRight<{ [key: string]: JsonValue }>((edit, fragment) => ({ operation: "edit_inside_fragment", fragment, edit, port_links_taken_out: [], port_links_put_back: [] }), operationAtItsLevel);
+    const isAtAPlacedStreamsLevel = level.length > 0;
+    const portsOfTheLevelBeforeTheEdit = portsOfTheInterfaceNodes(graph, nodeIdOf);
     const nodeNamed = (node: string) => {
       const nodeId = nodeIdsByLabel.get(node) ?? node;
       const graphNode = graph.nodes.find((candidate) => nodeIdOf(candidate) === nodeId);
@@ -232,16 +308,19 @@ export function applyMockGraphTransaction(
       const graphNode = nodeNamed(end.node);
       return { graphNode, end: { node: nodeIdOf(graphNode), port: end.port } };
     };
+    const theReplayedFoldsPlacedStream = (): string | null => {
+      const replayed = historyOperationsReplayed.filter((historyOperation) => !isAHistoryOperationTheMockMakesAgainFromTheEditInside(historyOperation))[operationIndex];
+      return isAJsonObject(replayed) && replayed["operation"] === "fold_into_fragment" && typeof replayed["placed_stream"] === "string" ? replayed["placed_stream"] : null;
+    };
     const idTheReplayedOperationKept = (field: "group" | "note"): string | null => {
-      let replayed = historyOperationsReplayed[operationIndex];
-      while (isAJsonObject(replayed) && replayed["operation"] === "edit_inside_fragment") replayed = replayed["edit"];
+      const replayed = historyOperationsReplayed.filter((historyOperation) => !isAHistoryOperationTheMockMakesAgainFromTheEditInside(historyOperation))[operationIndex];
       const kept = isAJsonObject(replayed) ? replayed[field] : undefined;
       return isAJsonObject(kept) && typeof kept["id"] === "string" ? kept["id"] : null;
     };
     const recordInHistory = (historyOperation: { [key: string]: JsonValue }, inverseOperation: { [key: string]: JsonValue }) => {
-      historyOperations.push({ stream: operation.stream, ...atTheLevel(historyOperation) });
-      inverseOperations.unshift({ stream: operation.stream, ...atTheLevel(inverseOperation) });
-      applied.operations.push({ ...atTheLevel(historyOperation), stream: target.stream_id });
+      historyOperations.push({ stream: streamOfTheLevel, ...historyOperation });
+      inverseOperations.unshift({ stream: streamOfTheLevel, ...inverseOperation });
+      applied.operations.push({ ...historyOperation, stream: target.stream_id });
     };
     try {
       switch (operation.operation) {
@@ -359,7 +438,7 @@ export function applyMockGraphTransaction(
               const linked = nodeName === node.name ? node : graph.nodes.find((candidate) => candidate.name === nodeName);
               return { node: linked === undefined ? nodeName : nodeIdOf(linked), port };
             };
-            inverseOperations.splice(1, 0, { stream: operation.stream, operation: "connect", link: { source: endOf(link.source_node, link.source_port), target: endOf(link.target_node, link.target_port) } });
+            inverseOperations.splice(1, 0, { stream: streamOfTheLevel, operation: "connect", link: { source: endOf(link.source_node, link.source_port), target: endOf(link.target_node, link.target_port) } });
           }
           break;
         }
@@ -482,14 +561,16 @@ export function applyMockGraphTransaction(
             name: interfaceName,
             type,
             state: null,
-            config: {},
+            config: family === null ? { port: interfaceName } : { port: interfaceName, family },
             input_ports: type === "tatolab.stream:GraphOutput" ? [{ name: "value", family, stream_facts: null, values_checked: null }] : [],
             output_ports: type === "tatolab.stream:GraphInput" ? [{ name: "value", family, stream_facts: null, values_checked: null }] : [],
           });
-          const insideNodes: MockGraphNode[] = [...members];
+          const insideNodes: MockGraphNode[] = members.map((member) => (member.studio === undefined ? member : { ...member, studio: { ...member.studio, group: null } }));
           const insideLinks: typeof graph.links = [];
           const outsideLinks: typeof graph.links = [];
-          const subgraph: MockGraphNode = { name, type: "tatolab.project:AuthoredFragment", state: null, config: {}, input_ports: [], output_ports: [] };
+          mockPlacedStreamsSaved += 1;
+          const placedStream = theReplayedFoldsPlacedStream() ?? mockUuidOf(`placed stream\n${target.stream_id}\n${mockPlacedStreamsSaved}\n${name}`);
+          const subgraph: MockGraphNode = { name, type: STREAM_FRAGMENT_NODE_TYPE, state: null, config: { stream: { asset: placedStream } }, input_ports: [], output_ports: [] };
           for (const link of graph.links) {
             const isSourceInside = memberNames.has(link.source_node);
             const isTargetInside = memberNames.has(link.target_node);
@@ -514,7 +595,7 @@ export function applyMockGraphTransaction(
               outsideLinks.push({ ...link, source_node: name, source_port: interfaceName });
             } else outsideLinks.push(link);
           }
-          subgraph.fragment = { kind: "authored", nodes: insideNodes, links: insideLinks, groups: [] };
+          subgraph.fragment = { kind: "placed_stream", nodes: insideNodes, links: insideLinks, groups: [] };
           const firstMember = members[0];
           if (firstMember?.studio?.position !== undefined && firstMember.studio.position !== null) subgraph.studio = { ...NODE_STUDIO_FIELDS_NONE_SET, position: firstMember.studio.position };
           graph.nodes = [...graph.nodes.filter((node) => !members.includes(node)), subgraph];
@@ -522,7 +603,10 @@ export function applyMockGraphTransaction(
           const memberIds = members.map(nodeIdOf);
           const fragment = nodeIdOf(subgraph);
           applied.added_nodes.push({ stream: target.stream_id, node: fragment, name, as: operation.as ?? null });
-          recordInHistory({ operation: "fold_into_fragment", fragment, name, nodes: memberIds }, { operation: "unfold_fragment", fragment, name, nodes: memberIds });
+          const savedStreamDocument = { stream: placedStream, path: `streams/${name}.graph.json`, document: placedStreamDocumentOf(subgraph.fragment) };
+          historyOperations.push({ operation: "create_stream_document", ...savedStreamDocument });
+          inverseOperations.unshift({ operation: "delete_stream_document", ...savedStreamDocument });
+          recordInHistory({ operation: "fold_into_fragment", fragment, name, nodes: memberIds, placed_stream: placedStream }, { operation: "unfold_fragment", fragment, name, nodes: memberIds, placed_stream: placedStream });
           break;
         }
         case "import_graph_generator": {
@@ -534,10 +618,9 @@ export function applyMockGraphTransaction(
           recordInHistory({ operation: "refresh_fragment", node: fragment, from: { type: subgraph.type, config: from }, to: { type: subgraph.type, config: subgraph.config } }, { operation: "refresh_fragment", node: fragment, from: { type: subgraph.type, config: subgraph.config }, to: { type: subgraph.type, config: from } });
           break;
         }
-        case "unlock_generator_fragment": {
+        case "unlock_subgraph": {
           const subgraph = nodeNamed(operation.fragment);
           if (subgraph.fragment === undefined) throw refusedNaming(`node ${operation.fragment} is not a fragment`, { refused_node: operation.fragment });
-          if (subgraph.fragment.kind === "placed_stream") throw refusedNaming("a placed stream cannot be unlocked; edit that stream instead", { refused_node: operation.fragment });
           const isAnInterfaceNode = (node: MockGraphNode) => node.type === "tatolab.stream:GraphInput" || node.type === "tatolab.stream:GraphOutput";
           const interfaceNames = new Set(subgraph.fragment.nodes.filter(isAnInterfaceNode).map((node) => node.name));
           const plainNodes = subgraph.fragment.nodes.filter((node) => !isAnInterfaceNode(node));
@@ -560,6 +643,46 @@ export function applyMockGraphTransaction(
         }
         default:
           throw refusedNaming(`the mock runtime does not apply \`${operation.operation}\``);
+      }
+      if (isAtAPlacedStreamsLevel) {
+        const portsOfTheLevelAfterTheEdit = portsOfTheInterfaceNodes(graph, nodeIdOf);
+        const portNamedAfterTheEdit = (direction: "input" | "output", portBefore: string): string | null => {
+          const interfaceNode = [...portsOfTheLevelBeforeTheEdit].find(([, stoodFor]) => stoodFor.direction === direction && stoodFor.port === portBefore)?.[0];
+          return interfaceNode === undefined ? portBefore : (portsOfTheLevelAfterTheEdit.get(interfaceNode)?.port ?? null);
+        };
+        const portsOf = (direction: "input" | "output") =>
+          [...portsOfTheLevelAfterTheEdit.values()].filter((stoodFor) => stoodFor.direction === direction).map((stoodFor) => ({ name: stoodFor.port, family: stoodFor.family, stream_facts: null, values_checked: null }));
+        const carriedByHoldingStream = new Map<string, { port_links_taken_out: JsonValue[]; port_links_put_back: JsonValue[] }>();
+        for (const [workingStreamAsset, workingGraph] of workingGraphs) {
+          for (const { placing, holdingLevel, holdingStream } of eachPlacementOf(streamOfTheLevel, workingGraph, workingStreamAsset)) {
+            if (placing.fragment !== graph) placing.fragment = { kind: "placed_stream", ...structuredClone({ nodes: graph.nodes, links: graph.links, groups: graph.groups ?? [] }) };
+            placing.input_ports = portsOf("input");
+            placing.output_ports = portsOf("output");
+            const carried = carriedByHoldingStream.get(holdingStream) ?? { port_links_taken_out: [], port_links_put_back: [] };
+            const linksKept: StreamGraphLink[] = [];
+            for (const [position, link] of holdingLevel.links.entries()) {
+              const portAfter =
+                link.target_node === placing.name ? portNamedAfterTheEdit("input", link.target_port) : link.source_node === placing.name ? portNamedAfterTheEdit("output", link.source_port) : undefined;
+              if (portAfter === undefined || portAfter === (link.target_node === placing.name ? link.target_port : link.source_port)) {
+                linksKept.push(link);
+                continue;
+              }
+              carried.port_links_taken_out.push({ position, value: { ...link } });
+              if (portAfter === null) continue;
+              const linkCarried = link.target_node === placing.name ? { ...link, target_port: portAfter } : { ...link, source_port: portAfter };
+              carried.port_links_put_back.push({ position: linksKept.length, value: { ...linkCarried } });
+              linksKept.push(linkCarried);
+            }
+            holdingLevel.links = linksKept;
+            carriedByHoldingStream.set(holdingStream, carried);
+          }
+        }
+        for (const [holdingStream, carried] of carriedByHoldingStream) {
+          if (carried.port_links_taken_out.length === 0) continue;
+          const carry = { operation: "carry_the_links_onto_the_ports_of_a_placed_stream", placed_stream: streamOfTheLevel };
+          historyOperations.push({ stream: holdingStream, ...carry, ...carried });
+          inverseOperations.unshift({ stream: holdingStream, ...carry, port_links_taken_out: carried.port_links_put_back, port_links_put_back: carried.port_links_taken_out });
+        }
       }
     } catch (refused) {
       if (!(refused instanceof MockGraphActionRefused)) throw refused;

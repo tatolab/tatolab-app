@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
-import { mockNodeIdOf, type MockStreamGraph } from "./mock_stream_fixtures";
+import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, isAHistoryOperationTheMockMakesAgainFromTheEditInside, isAJsonObject, thePlacementsOfTheStream, type MockStreamGraphTarget } from "./mock_graph_transactions";
+import { mockNodeIdOf, type MockGraphNode, type MockStreamGraph } from "./mock_stream_fixtures";
 
 const STREAM_ASSET = "a-stream-asset";
 const STREAM_ID = "pattern-main-1a2b3c";
@@ -144,7 +144,7 @@ test("a group frames its nodes until it is removed, and a note is added, changed
   expect(graph.notes?.map((restored) => restored.id)).toEqual([note]);
 });
 
-test("a collapsed node becomes a subgraph wired through its Graph Input and Output, and unlocking it, as its undo does, wires the node back", () => {
+test("a collapsed node is saved as a stream the subgraph places, wired through its Graph Input, and its undo unlocks it, wiring the node back", () => {
   const graph = aTestPatternAlone();
   const built = applyMockGraphTransaction(targetsOf(graph), [
     { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:DisplayWindow", as: "window" },
@@ -156,12 +156,21 @@ test("a collapsed node becomes a subgraph wired through its Graph Input and Outp
   const collapsed = applyMockGraphTransaction(targetsOf(graph), [{ operation: "collapse_selection_into_subgraph", stream: STREAM_ASSET, nodes: [window], name: "Output" }]);
   if (collapsed.kind !== "applied") return expect.unreachable(collapsed.refusal.runtime_words);
   expect(graph.nodes.map((node) => node.name)).toEqual(["testpatternsource", "output"]);
+  const placing = graph.nodes[1] ?? expect.unreachable("no subgraph");
+  const placedStream = assetPlacedBy(placing);
+  expect(placing).toMatchObject({ type: "tatolab.project:StreamFragment", config: { stream: { asset: placedStream } }, fragment: { kind: "placed_stream" } });
   expect(graph.links).toMatchObject([{ source_node: "testpatternsource", source_port: "video", target_node: "output", target_port: "displaywindow-video" }]);
-  expect(graph.nodes[1]?.fragment?.nodes.map((node) => node.name)).toEqual(["displaywindow", "displaywindow-video"]);
-  expect(graph.nodes[1]?.input_ports.map((port) => [port.name, port.family])).toEqual([["displaywindow-video", "image"]]);
+  expect(placing.fragment?.nodes.map((node) => node.name)).toEqual(["displaywindow", "displaywindow-video"]);
+  expect(placing.input_ports.map((port) => [port.name, port.family])).toEqual([["displaywindow-video", "image"]]);
+  expect(collapsed.history_operations).toMatchObject([
+    { operation: "create_stream_document", stream: placedStream, path: "streams/output.graph.json" },
+    { operation: "fold_into_fragment", stream: STREAM_ASSET, placed_stream: placedStream },
+  ]);
+  const created = collapsed.history_operations[0];
+  expect(thePlacementsOfTheStream(placedStream, targetsOf(graph))).toEqual({ holdingStreams: [STREAM_ASSET], document: isAJsonObject(created) ? created["document"] : null });
 
-  const undo = collapsed.inverse_operations.map(graphActionApplyingTheHistoryOperation);
-  expect(undo).toEqual([{ operation: "unlock_generator_fragment", stream: STREAM_ASSET, fragment: mockNodeIdOf(STREAM_ID, "output") }]);
+  const undo = collapsed.inverse_operations.filter((operation) => !isAHistoryOperationTheMockMakesAgainFromTheEditInside(operation)).map(graphActionApplyingTheHistoryOperation);
+  expect(undo).toEqual([{ operation: "unlock_subgraph", stream: STREAM_ASSET, fragment: mockNodeIdOf(STREAM_ID, "output") }]);
   const unlocked = applyMockGraphTransaction(targetsOf(graph), undo.flatMap((action) => (action === null ? [] : [action])));
   if (unlocked.kind !== "applied") return expect.unreachable(unlocked.refusal.runtime_words);
   expect(graph.nodes.map((node) => node.name)).toEqual(["testpatternsource", "displaywindow"]);
@@ -191,30 +200,72 @@ test("a Python node takes a number config field as a Channels input fed by a Gra
   expect(refusedFamily.kind === "refused" && refusedFamily.refusal.runtime_words).toContain('names family "Channels", and a family is one of image, array, channels, packets, records');
 });
 
-test("an edit at a subgraph's level changes only its inside, history wraps it in the subgraph, and the inverse undoes it there", () => {
+/** The stream asset `placing`, a Stream Fragment node, places. */
+function assetPlacedBy(placing: MockGraphNode): string {
+  const placed = placing.config["stream"];
+  return isAJsonObject(placed) && typeof placed["asset"] === "string" ? placed["asset"] : expect.unreachable("the node places no stream");
+}
+
+/** `aTestPatternAlone` with its source saved as the stream `look`, which `look` and `look-again` both place, each wired to a display window through the stream's one port. */
+function aLookPlacedTwice(): { graph: MockStreamGraph; placedStream: string; look: string } {
   const graph = aTestPatternAlone();
-  const collapsed = applyMockGraphTransaction(targetsOf(graph), [{ operation: "collapse_selection_into_subgraph", stream: STREAM_ASSET, name: "look", nodes: [TEST_PATTERN] }]);
+  const collapsed = applyMockGraphTransaction(targetsOf(graph), [
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:DisplayWindow", as: "window" },
+    { operation: "connect", stream: STREAM_ASSET, source: { node: TEST_PATTERN, port: "video" }, target: { node: "window", port: "video" } },
+    { operation: "collapse_selection_into_subgraph", stream: STREAM_ASSET, name: "look", nodes: [TEST_PATTERN] },
+  ]);
   if (collapsed.kind !== "applied") return expect.unreachable(collapsed.refusal.runtime_words);
-  const look = mockNodeIdOf(STREAM_ID, "look");
-  const added = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:DisplayWindow", level: [look] }]);
+  const look = graph.nodes.find((node) => node.name === "look") ?? expect.unreachable("no look");
+  graph.nodes.push({ ...structuredClone(look), name: "look-again" });
+  graph.nodes.push({ name: "displaywindow-2", type: "tatolab.stream:DisplayWindow", state: "Running", config: {}, input_ports: [{ name: "video", family: "image", stream_facts: null, values_checked: null }], output_ports: [] });
+  graph.links.push({ id: "Lagain", source_node: "look-again", source_port: "testpatternsource-video", target_node: "displaywindow-2", target_port: "video", state: "wired" });
+  return { graph, placedStream: assetPlacedBy(look), look: mockNodeIdOf(STREAM_ID, "look") };
+}
+
+test("an edit at a placed stream's level reaches every placement, is recorded on that stream, and its undo, naming that stream, undoes it at both", () => {
+  const { graph, placedStream, look } = aLookPlacedTwice();
+  const added = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:DisplayWindow", name: "preview", level: [look] }]);
   if (added.kind !== "applied") return expect.unreachable(added.refusal.runtime_words);
-  expect(graph.nodes.map((node) => node.name)).toEqual(["look"]);
-  expect(graph.nodes[0]?.fragment?.nodes.map((node) => node.name)).toEqual(["testpatternsource", "displaywindow"]);
-  expect(added.history_operations[0]).toMatchObject({ stream: STREAM_ASSET, operation: "edit_inside_fragment", fragment: look, edit: { operation: "add_node" } });
+  const insideOf = (name: string) => graph.nodes.find((node) => node.name === name)?.fragment?.nodes.map((node) => node.name);
+  expect(insideOf("look")).toEqual(["testpatternsource", "testpatternsource-video", "preview"]);
+  expect(insideOf("look-again")).toEqual(["testpatternsource", "testpatternsource-video", "preview"]);
+  expect(added.history_operations).toMatchObject([{ stream: placedStream, operation: "add_node", node: { name: "preview" } }]);
 
   const undo = added.inverse_operations.map(graphActionApplyingTheHistoryOperation);
-  expect(undo).toEqual([{ operation: "remove_node", stream: STREAM_ASSET, node: mockNodeIdOf(STREAM_ID, "displaywindow"), level: [look] }]);
+  expect(undo).toEqual([{ operation: "remove_node", stream: placedStream, node: mockNodeIdOf(STREAM_ID, "preview") }]);
   const undone = applyMockGraphTransaction(targetsOf(graph), undo.flatMap((action) => (action === null ? [] : [action])), "undo_or_redo");
   expect(undone.kind).toBe("applied");
-  expect(graph.nodes[0]?.fragment?.nodes.map((node) => node.name)).toEqual(["testpatternsource"]);
+  expect(insideOf("look")).toEqual(["testpatternsource", "testpatternsource-video"]);
+  expect(insideOf("look-again")).toEqual(["testpatternsource", "testpatternsource-video"]);
 });
 
-test("an edit at the level of a generated subgraph is refused in the runtime's words", () => {
+test("renaming a placed stream's Graph Output port carries the links onto that port at every placement, and removing the node takes them out", () => {
+  const { graph, placedStream, look } = aLookPlacedTwice();
+  const graphOutput = mockNodeIdOf(STREAM_ID, "testpatternsource-video");
+  const renamed = applyMockGraphTransaction(targetsOf(graph), [{ operation: "set_node_config", stream: STREAM_ASSET, node: graphOutput, config: { port: "picture", family: "image" }, level: [look] }]);
+  if (renamed.kind !== "applied") return expect.unreachable(renamed.refusal.runtime_words);
+  expect(graph.nodes.find((node) => node.name === "look-again")?.output_ports.map((port) => port.name)).toEqual(["picture"]);
+  expect(graph.links.map((link) => [link.source_node, link.source_port, link.target_node])).toEqual([
+    ["look", "picture", "displaywindow"],
+    ["look-again", "picture", "displaywindow-2"],
+  ]);
+  expect(renamed.history_operations.at(-1)).toMatchObject({ stream: STREAM_ASSET, operation: "carry_the_links_onto_the_ports_of_a_placed_stream", placed_stream: placedStream });
+
+  const removed = applyMockGraphTransaction(targetsOf(graph), [{ operation: "remove_node", stream: STREAM_ASSET, node: graphOutput, level: [look] }]);
+  if (removed.kind !== "applied") return expect.unreachable(removed.refusal.runtime_words);
+  expect(graph.links).toEqual([]);
+  expect(graph.nodes.find((node) => node.name === "look")?.output_ports).toEqual([]);
+});
+
+test("an edit at the level of a generated subgraph, or of an import's placed stream, is refused in the runtime's words", () => {
   const graph = aTestPatternAlone();
   graph.nodes.push({ name: "halftone-look", type: "generators.looks:halftone_look", state: null, config: {}, input_ports: [], output_ports: [], fragment: { kind: "generated", nodes: [], links: [], groups: [] } });
+  graph.nodes.push({ name: "grain", type: "tatolab.project:StreamFragment", state: null, config: { stream: { asset: "grain-asset", from: "an-import" } }, input_ports: [], output_ports: [], fragment: { kind: "placed_stream", nodes: [], links: [], groups: [] } });
   const halftoneLook = mockNodeIdOf(STREAM_ID, "halftone-look");
   const refused = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:DisplayWindow", level: [halftoneLook] }]);
   if (refused.kind !== "refused") return expect.unreachable("the generated subgraph's inside took the edit");
   expect(refused.refusal).toMatchObject({ refused_operation_index: 0, refused_node: halftoneLook });
-  expect(refused.refusal.runtime_words).toContain("unlock_generator_fragment");
+  expect(refused.refusal.runtime_words).toContain("unlock it with unlock_subgraph");
+  const refusedInTheImport = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:DisplayWindow", level: [mockNodeIdOf(STREAM_ID, "grain")] }]);
+  expect(refusedInTheImport.kind === "refused" && refusedInTheImport.refusal.runtime_words).toContain("places a stream of the import");
 });

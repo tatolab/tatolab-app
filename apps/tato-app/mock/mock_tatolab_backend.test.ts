@@ -162,6 +162,35 @@ describe("the mock backend's stream actions", () => {
     expect((await settled(backend.describeStreamGraph(MAIN))).groups[0]).toMatchObject({ colour: "#3fcf8e", description: "The source" });
   });
 
+  it("saves a collapse as a placed stream, commits an edit inside it but refuses one live, and undoes both in turn", async () => {
+    const { backend } = await runningMockBackend();
+    const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
+      await vi.advanceTimersByTimeAsync(100);
+      return answering;
+    };
+    const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
+    const graphBefore = await settled(backend.describeStreamGraph(MAIN));
+    const firstNode = graphBefore.nodes[0];
+    if (firstNode === undefined) return expect.unreachable("the main stream holds a node");
+
+    const collapsed = await settled(backend.transactInTheOpenProject([{ operation: "collapse_selection_into_subgraph", stream: streamAsset, nodes: [firstNode.id], name: "look", as: "look" }], "commit", null));
+    if (collapsed.kind !== "applied") return expect.unreachable("the collapse applied");
+    const look = collapsed.transaction.added_nodes[0]?.node ?? "";
+    const lookNode = (await settled(backend.describeStreamGraph(MAIN))).nodes.find((node) => node.id === look);
+    expect(lookNode).toMatchObject({ type: "tatolab.project:StreamFragment", fragment: { kind: "placed_stream" } });
+
+    const addInside = { operation: "add_node" as const, stream: streamAsset, level: [look], type: "tatolab.stream:DisplayWindow", name: "preview" };
+    expect(await settled(backend.transactInTheOpenProject([addInside], "live", null))).toMatchObject({ kind: "refused", refusal: { runtime_words: expect.stringContaining("an edit inside a placed stream is refused live") } });
+    expect((await settled(backend.transactInTheOpenProject([addInside], "commit", null))).kind).toBe("applied");
+    const insideNames = async () => (await settled(backend.describeStreamGraph(MAIN))).nodes.find((node) => node.id === look)?.fragment?.nodes.map((node) => node.name);
+    expect(await insideNames()).toContain("preview");
+
+    await settled(backend.undoInTheOpenProject({ kind: "person", name: "Sam" }));
+    expect(await insideNames()).not.toContain("preview");
+    await settled(backend.undoInTheOpenProject({ kind: "person", name: "Sam" }));
+    expect((await settled(backend.describeStreamGraph(MAIN))).nodes.map((node) => node.id).sort()).toEqual(graphBefore.nodes.map((node) => node.id).sort());
+  });
+
   it("lists a record an earlier runtime wrote, failed with no location, with ?streams=earlier_record", async () => {
     vi.useFakeTimers();
     const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("streams=earlier_record")));

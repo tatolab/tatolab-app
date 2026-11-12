@@ -52,7 +52,7 @@ The operations, as they stand once the module rework (streamlib #3402, #3401) la
 
 | Family | Operations | Notes |
 | --- | --- | --- |
-| Graph | `add_node`, `remove_node`, `connect`, `disconnect`, `set_node_config`, `set_pin_value`, `rename_node`, `set_studio_fields`, `set_exposed_config_fields`, `refresh_fragment`, `add_group`, `remove_group`, `set_group_fields` | Nodes and links named by UUID; each records what its inverse needs. Decided with Studio: `collapse_selection_into_subgraph` and `unlock_generator_fragment` (a generator's frozen output becomes plain nodes) |
+| Graph | `add_node`, `remove_node`, `connect`, `disconnect`, `set_node_config`, `set_pin_value`, `rename_node`, `set_studio_fields`, `set_exposed_config_fields`, `refresh_fragment`, `add_group`, `remove_group`, `set_group_fields` | Nodes and links named by UUID; each records what its inverse needs. Decided with Studio: `collapse_selection_into_subgraph` (the selection saved as a stream of the project and placed) and `unlock_subgraph` (a placed stream or a generator's frozen output becomes plain nodes) |
 | Asset | `import_asset`, `relocate_asset`, `delete_asset`, `set_asset_settings` | A replaced file goes through a `replace_asset` action (decided, to add); replacing a file outside the runtime is unsupported |
 | Import | `place_import`, `remove_import` | A module copied whole into `imports/<folder>/` |
 | Graph document | `create_stream_document`, `delete_stream_document` | Get `create_stream` / `delete_stream` verbs (decided, to add); Studio's New stream waits on them |

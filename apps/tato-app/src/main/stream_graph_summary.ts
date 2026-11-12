@@ -35,8 +35,6 @@ import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
 import { portStreamFactsOnTheWire, portValuesCheckedOnTheWire } from "./port_stream_facts_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
-/** The node type of a collapsed selection's subgraph (`AUTHORED_FRAGMENT_NODE_TYPE` in streamlib). */
-const AUTHORED_FRAGMENT_NODE_TYPE = "tatolab.project:AuthoredFragment";
 /** The node type of another stream placed by reference (`STREAM_FRAGMENT_NODE_TYPE` in streamlib). */
 const STREAM_FRAGMENT_NODE_TYPE = "tatolab.project:StreamFragment";
 
@@ -242,7 +240,6 @@ function graphInterfacePortOnTheWire(graphInterfaceOnTheWire: unknown): StreamGr
 
 /** How the subgraph a node of type `nodeType` holds came to be. */
 function streamGraphFragmentKindOfTheNodeType(nodeType: string): StreamGraphFragmentKind {
-  if (nodeType === AUTHORED_FRAGMENT_NODE_TYPE) return "authored";
   if (nodeType === STREAM_FRAGMENT_NODE_TYPE) return "placed_stream";
   return "generated";
 }

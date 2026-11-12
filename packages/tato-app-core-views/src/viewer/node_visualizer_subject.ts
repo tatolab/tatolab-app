@@ -9,7 +9,7 @@ export type NodeVisualizerSubject = { kind: "nothing_selected" } | { kind: "node
 
 /** The selected node of `graph`'s stream and what the Node visualizer plays of it: its first port that may carry a picture, an Image port or one whose family the runtime does not serve, or else its first port of any family. */
 export function nodeVisualizerSubjectOf(graph: StreamGraphSummary, selection: StudioSelection | null): NodeVisualizerSubject {
-  if (selection?.kind !== "node" || selection.stream !== graph.stream) return { kind: "nothing_selected" };
+  if (selection?.kind !== "node" || selection.stream !== graph.stream || (selection.level ?? []).length > 0) return { kind: "nothing_selected" };
   const selectedNode = graph.nodes.find((node) => node.name === selection.node);
   if (selectedNode === undefined) return { kind: "nothing_selected" };
   const played =

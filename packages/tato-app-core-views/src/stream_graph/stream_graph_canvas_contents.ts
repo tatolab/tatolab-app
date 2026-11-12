@@ -59,8 +59,7 @@ function canvasLinkOf(link: StreamGraphLink): NodeGraphCanvasLink {
 
 /** The quiet type beside a card's title: a subgraph's kind (a generated one by its generator), or a node's type when its name is the one the code gave. */
 function typeNameOnTheCard(node: StreamGraphNode): string | null {
-  if (node.fragment?.kind === "authored") return "Subgraph";
-  if (node.fragment?.kind === "placed_stream") return "Stream";
+  if (node.fragment?.kind === "placed_stream") return "Subgraph";
   if (node.fragment?.kind === "generated") return nodeTypeClassName(node.type);
   return isANameTheCodeGave(node.name, node.type) ? nodeTypeClassName(node.type) : null;
 }

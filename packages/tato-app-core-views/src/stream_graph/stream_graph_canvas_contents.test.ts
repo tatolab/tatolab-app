@@ -157,14 +157,13 @@ test("a card and its pins carry their node type's descriptions from the stream's
 });
 
 test("a_subgraph_card_carries_its_kind_and_names_it_beside_its_title", () => {
-  const holding = (type: string, kind: "generated" | "authored" | "placed_stream"): StreamGraphNode => ({ ...graphNode("look", [], []), type, fragment: { kind, nodes: [], links: [], groups: [] } });
+  const holding = (type: string, kind: "generated" | "placed_stream"): StreamGraphNode => ({ ...graphNode("look", [], []), type, fragment: { kind, nodes: [], links: [], groups: [] } });
   const cards = streamGraphCanvasContents(
-    { ...GRAPH, links: [], nodes: [holding("tatolab.project:AuthoredFragment", "authored"), { ...holding("generators.looks:mic_levels", "generated"), name: "levels" }, { ...holding("tatolab.project:StreamFragment", "placed_stream"), name: "lobby" }] },
+    { ...GRAPH, links: [], nodes: [holding("tatolab.project:StreamFragment", "placed_stream"), { ...holding("generators.looks:mic_levels", "generated"), name: "levels" }] },
     null,
   ).nodes;
   expect(cards.map((card) => [card.node_id, card.subgraph, card.type_name])).toEqual([
-    ["look", "authored", "Subgraph"],
+    ["look", "placed_stream", "Subgraph"],
     ["levels", "generated", "mic_levels"],
-    ["lobby", "placed_stream", "Stream"],
   ]);
 });

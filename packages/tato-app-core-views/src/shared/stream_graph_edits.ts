@@ -276,7 +276,7 @@ export function nameOfTheNewSubgraph(graph: Pick<StreamGraphSummary, "nodes">): 
   return name;
 }
 
-/** The selected cards collapsed into one new subgraph named `subgraphName`, which the runtime makes an authored fragment wired as they were. */
+/** The selected cards collapsed into one new subgraph named `subgraphName`, which the runtime saves as a stream of the project and places where they were, wired as they were. */
 export function selectionCollapsedEdits(edited: EditedStreamGraph, nodeNames: readonly string[], subgraphName: string): StreamGraphAction[] {
   const nodes = nodeNames.flatMap((nodeName) => {
     const nodeId = edited.nodeIdByName.get(nodeName);
@@ -285,10 +285,10 @@ export function selectionCollapsedEdits(edited: EditedStreamGraph, nodeNames: re
   return nodes.length === 0 ? [] : [{ operation: "collapse_selection_into_subgraph", stream: edited.streamAsset, nodes, name: subgraphName }];
 }
 
-/** A subgraph unlocked: its nodes become plain nodes of the stream, wired as they were. */
+/** A subgraph unlocked: its nodes, or a copy of the placed stream's, become plain nodes of the stream, wired as they were. */
 export function subgraphUnlockedEdits(edited: EditedStreamGraph, subgraphName: string): StreamGraphAction[] {
   const fragment = edited.nodeIdByName.get(subgraphName);
-  return fragment === undefined ? [] : [{ operation: "unlock_generator_fragment", stream: edited.streamAsset, fragment }];
+  return fragment === undefined ? [] : [{ operation: "unlock_subgraph", stream: edited.streamAsset, fragment }];
 }
 
 /** The name a newly placed generator's subgraph takes: the generator function's name as the runtime casts it, with the next free `-2`, `-3` … so it never refreshes a subgraph the graph holds already. */
