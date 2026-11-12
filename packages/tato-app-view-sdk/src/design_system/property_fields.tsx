@@ -336,12 +336,15 @@ export function PropertyChoiceField({
   words,
   isTheTypesDefault = false,
   choices,
+  noteAboveTheChoices,
 }: {
   fieldId: string;
   words: string;
   isTheTypesDefault?: boolean;
   /** Each value the menu offers, in words, with what choosing it does. */
   choices?: { words: string; onChosen: () => void }[];
+  /** A quiet line the open menu shows above its choices, as why it offers none. */
+  noteAboveTheChoices?: string;
 }) {
   const chevron = <ChevronDown aria-hidden className="pointer-events-none absolute top-1/2 right-1.5 size-3.5 -translate-y-1/2 text-fg-3" strokeWidth={1.75} />;
   if (choices === undefined) {
@@ -359,6 +362,7 @@ export function PropertyChoiceField({
         {chevron}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-auto min-w-40">
+        {noteAboveTheChoices !== undefined && <MenuNote>{noteAboveTheChoices}</MenuNote>}
         {choices.map((choice) => (
           <MenuItem key={choice.words} onChosen={choice.onChosen}>
             <span className="font-mono text-xs">{choice.words}</span>

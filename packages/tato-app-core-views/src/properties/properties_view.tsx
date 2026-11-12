@@ -1,5 +1,5 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
@@ -29,6 +29,7 @@ import type {
   NodeCatalogEntry,
   NodeCatalogPort,
   NodeCatalogReading,
+  ProjectAssetsReading,
   StreamGraphDeclaredPort,
   StreamGraphNode,
   StreamGraphReading,
@@ -41,6 +42,7 @@ import { nameInWords, nodeTitle, nodeTypeClassName, wordsForTheSeveralSelectedNo
 import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, recordsOfAListField, type ConfigFormField } from "./config_form_fields";
 import { propertiesListedWords, propertiesMatchingTheSearch } from "./properties_matching_the_search";
 import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
+import { chosenProjectAssetWords, projectAssetPickerNote, projectAssetsForTheAssetFieldsOf, projectAssetsTheFieldOffers } from "./project_asset_choices";
 import { blankTargetPickerKeysOfThePort, NO_BLANK_TARGET_PICKERS, withABlankTargetPickerAdded, withoutTheBlankTargetPicker, type BlankTargetPickersOfTheNode } from "./blank_target_pickers";
 import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
 import {
@@ -64,6 +66,11 @@ import {
   setTheConfigField,
   type SetNodeConfigAction,
 } from "./properties_graph_edits";
+
+const WATCH_NO_PROJECT_ASSETS = (_listener: (reading: ProjectAssetsReading) => void): StopWatching => () => undefined;
+
+/** Watches the open project's assets, which a config field naming an asset offers to pick from; only a field shown watches them. */
+const WatchOfTheOpenProjectsAssetsContext = createContext<(listener: (reading: ProjectAssetsReading) => void) => StopWatching>(WATCH_NO_PROJECT_ASSETS);
 
 /** The id of the field holding the value an unlinked input of the node takes. */
 function pinValueFieldId(nodeId: string, portName: string): string {
@@ -174,6 +181,8 @@ function ConfigFieldControl({
           }
         />
       );
+    case "project_asset":
+      return <ProjectAssetPicker fieldId={fieldId} field={field} mediaItTakes={control.media_it_takes} isTheTypesDefault={isTheTypesDefault} onChosen={isEditable ? commitTheConfigFieldValue : undefined} />;
     case "list_of_records":
       return (
         <PropertyListEntryCount
@@ -194,6 +203,35 @@ function ConfigFieldControl({
         />
       );
   }
+}
+
+/** A config field naming a project asset: the asset it names, by path, in a menu of the project's assets of the media it takes; read only without `onChosen`. */
+function ProjectAssetPicker({
+  fieldId,
+  field,
+  mediaItTakes,
+  isTheTypesDefault,
+  onChosen,
+}: {
+  fieldId: string;
+  field: ConfigFormField;
+  mediaItTakes: string[] | null;
+  isTheTypesDefault: boolean;
+  onChosen: ((asset: JsonValue) => void) | undefined;
+}) {
+  const projectAssets = projectAssetsForTheAssetFieldsOf(useViewReading(useContext(WatchOfTheOpenProjectsAssetsContext)));
+  const assetsListed = projectAssets.kind === "listed" ? projectAssets.assets : [];
+  const assetsOffered = projectAssetsTheFieldOffers(assetsListed, mediaItTakes);
+  const noneChoice = field.is_nullable && onChosen !== undefined ? [{ words: "None", onChosen: () => onChosen(null) }] : [];
+  return (
+    <PropertyChoiceField
+      fieldId={fieldId}
+      words={chosenProjectAssetWords(assetsListed, field.value_source === "unset" ? null : field.value)}
+      isTheTypesDefault={isTheTypesDefault}
+      noteAboveTheChoices={projectAssetPickerNote(projectAssets, mediaItTakes)}
+      choices={onChosen === undefined ? undefined : [...noneChoice, ...assetsOffered.map((asset) => ({ words: asset.path, onChosen: () => onChosen(asset.asset) }))]}
+    />
+  );
 }
 
 /** A top-level config field's row, and for a list of records, each entry's own rows under it. */
@@ -806,6 +844,10 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
   const openProject = useViewReading(connection.watchOpenProject);
   const projectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
   const graphEditsInTheProject = useGraphEditsInTheOpenProject(connection, projectFolder);
+  const watchTheProjectsAssets = useCallback(
+    (listener: (reading: ProjectAssetsReading) => void): StopWatching => (projectFolder === null ? WATCH_NO_PROJECT_ASSETS(listener) : connection.watchProjectAssets(projectFolder, listener)),
+    [connection, projectFolder],
+  );
   const [searchWords, setSearchWords] = useState("");
   if (selection?.kind === "nodes" && activeStreamTab?.stream === selection.stream) {
     return <SummaryOfTheSeveralSelectedNodes connection={connection} stream={selection.stream} nodeNames={selection.nodes} />;
@@ -818,14 +860,16 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
       <StudioViewToolbarTools label="Properties search">
         <SearchField label="Search properties" placeholder="Search properties" text={searchWords} onTextChanged={setSearchWords} width="fills_the_row" data-properties-search="" />
       </StudioViewToolbarTools>
-      <PropertiesOfTheSelectedNode
-        key={selection.stream}
-        connection={connection}
-        stream={selection.stream}
-        nodeName={selection.node}
-        graphEditsInTheProject={graphEditsInTheProject}
-        searchWords={searchWords}
-      />
+      <WatchOfTheOpenProjectsAssetsContext.Provider value={watchTheProjectsAssets}>
+        <PropertiesOfTheSelectedNode
+          key={selection.stream}
+          connection={connection}
+          stream={selection.stream}
+          nodeName={selection.node}
+          graphEditsInTheProject={graphEditsInTheProject}
+          searchWords={searchWords}
+        />
+      </WatchOfTheOpenProjectsAssetsContext.Provider>
     </>
   );
 }

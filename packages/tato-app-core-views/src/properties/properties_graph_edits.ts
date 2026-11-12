@@ -28,6 +28,7 @@ export function configValueFromTheWordsTyped(field: Pick<ConfigFormField, "contr
       return jsonValueTyped(words);
     case "text":
     case "choice":
+    case "project_asset":
     case "toggle":
       return { kind: "value", value: words };
   }

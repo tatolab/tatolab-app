@@ -1222,6 +1222,11 @@ test("a_real_asset_listing_sizes_an_images_preview_picture_and_a_video_whose_pos
     ["media/quay-walk.mp4", null],
     ["streams/main.graph.json", null],
   ]);
+  expect(listing.assets.map((asset) => [asset.path, asset.media_its_bytes_hold])).toEqual([
+    ["media/harbour-dusk.png", ["image"]],
+    ["media/quay-walk.mp4", ["video"]],
+    ["streams/main.graph.json", null],
+  ]);
 });
 
 test("a_real_preview_picture_read_answers_the_png_and_a_video_with_no_poster_frame_is_refused_in_the_runtimes_own_words", async () => {
@@ -1283,6 +1288,7 @@ test("a_real_asset_listing_lists_each_imported_file_and_graph_document_and_a_fol
     content_byte_len: 48493,
     import_settings: {},
     preview: null,
+    media_its_bytes_hold: null,
   });
   expect(failureOf(await server.client().listProjectAssets("/tmp/tatolab-proof-projects/not-a-project")).failureDescription).toBe(
     "list_assets failed: /tmp/tatolab-proof-projects/not-a-project holds no project: it has no tatolab-project.json",
