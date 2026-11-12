@@ -1,4 +1,6 @@
+import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
+import type { StreamActionDescription } from "../shared/tatolab_backend_contract.js";
 import { localApiRequestFailure } from "./local_api_request_failure.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import {
@@ -6,26 +8,49 @@ import {
   StreamActionChangesFollowedForTheStatus,
   type StreamActionChangesConnection,
 } from "./stream_action_changes_followed_for_the_status.js";
+import { streamActionDescriptionFromTheDescribeStreamActionToolResult } from "./stream_action_description.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
+import type { ControlNotifications } from "./tatolab_runtime_control_operation_call.js";
 
-const quietTatolabAppLog = createTatolabAppLog("error", () => {});
+const SYNCING_ACTION = "Rvxjb0uiacgp6c3o13o9qvzj1-1";
 
-/** A `/control/ws` connection that subscribes, or refuses in `subscribeRefusal`, and lets a test push a change or close it from the runtime's end. */
+/** The `describe_stream_action` answer a recorded tool response carries, read as the app reads one. */
+async function recordedStreamActionDescription(fixtureFileName: string): Promise<StreamActionDescription> {
+  const toolResponse: { result: { content: { text: string }[] } } = JSON.parse(await readFile(new URL(`./test-fixtures/${fixtureFileName}`, import.meta.url), "utf8"));
+  const described = streamActionDescriptionFromTheDescribeStreamActionToolResult(JSON.parse(toolResponse.result.content[0]?.text ?? "{}"));
+  return described.ok ? described.value : expect.unreachable(described.failure);
+}
+
+const makingTheVenv = () => recordedStreamActionDescription("local-api-describe-stream-action-of-a-new-project-downloading-numpy-and-pillow.json");
+const doneAfterItsSync = () => recordedStreamActionDescription("local-api-describe-stream-action-of-a-new-project-done-numpy-and-pillow-installed.json");
+
+/** A `/control/ws` connection that subscribes, or refuses in `subscribeRefusal`, describes each action as `describedActions` holds it now, and lets a test push a change or close it from the runtime's end. */
 class FakeStreamActionChangesConnection implements StreamActionChangesConnection {
   subscribeCount = 0;
   isClosed = false;
-  private readonly streamActionChangedListeners: (() => void)[] = [];
+  readonly actionsDescribed: string[] = [];
+  private readonly streamActionChangedListeners: ((change: ControlNotifications["stream_action_changed"]) => void)[] = [];
   private readonly closedListeners: ((whyItClosed: string) => void)[] = [];
 
-  constructor(private readonly subscribeRefusal: string | null) {}
+  constructor(
+    private readonly subscribeRefusal: string | null,
+    private readonly actionsUnderWay: string[],
+    private readonly describedActions: Map<string, StreamActionDescription>,
+  ) {}
 
-  async subscribeToTheStreamActionChanges(): Promise<Result<void, string>> {
+  async subscribeToTheStreamActionChanges(): Promise<Result<string[], string>> {
     this.subscribeCount += 1;
-    return this.subscribeRefusal === null ? succeeded(undefined) : failedWith(this.subscribeRefusal);
+    return this.subscribeRefusal === null ? succeeded(this.actionsUnderWay) : failedWith(this.subscribeRefusal);
   }
 
-  onStreamActionChanged(whenAStreamActionChanged: () => void): void {
-    this.streamActionChangedListeners.push(whenAStreamActionChanged);
+  onStreamActionChanged(listener: (change: ControlNotifications["stream_action_changed"]) => void): void {
+    this.streamActionChangedListeners.push(listener);
+  }
+
+  async describeTheStreamAction(action: string): Promise<Result<StreamActionDescription, string>> {
+    this.actionsDescribed.push(action);
+    const description = this.describedActions.get(action);
+    return description === undefined ? failedWith(`describe_stream_action failed: no stream action ${action} is held`) : succeeded(description);
   }
 
   onClosed(whenTheConnectionCloses: (whyItClosed: string) => void): void {
@@ -36,8 +61,12 @@ class FakeStreamActionChangesConnection implements StreamActionChangesConnection
     this.isClosed = true;
   }
 
-  pushAStreamActionChanged(): void {
-    for (const listener of this.streamActionChangedListeners) listener();
+  pushAStreamActionChanged(action = "Rsome-other-action-1"): void {
+    for (const listener of this.streamActionChangedListeners) listener({ change: "changed", action });
+  }
+
+  pushMissed(): void {
+    for (const listener of this.streamActionChangedListeners) listener({ change: "missed" });
   }
 
   closeFromTheRuntime(): void {
@@ -47,15 +76,17 @@ class FakeStreamActionChangesConnection implements StreamActionChangesConnection
 }
 
 /** The followed stream actions over fake connections, counting each status read asked for; waits run only when `runTheWaits` is called. */
-function streamActionsFollowedOverFakeConnections(subscribeRefusals: (string | null)[] = []) {
+function streamActionsFollowedOverFakeConnections(options: { subscribeRefusals?: (string | null)[]; actionsUnderWay?: string[] } = {}) {
   const connectionsOpened: FakeStreamActionChangesConnection[] = [];
   const waitsPending: { afterMs: number; then: () => void }[] = [];
   const statusReads = { asked: 0 };
+  const describedActions = new Map<string, StreamActionDescription>();
+  const logLines: string[] = [];
   let doesTheRuntimeAnswer = true;
   const followed = new StreamActionChangesFollowedForTheStatus({
     openTheStreamActionChangesConnection: async () => {
       if (!doesTheRuntimeAnswer) return localApiRequestFailure("no runtime answers at /tmp/local-api.sock");
-      const connection = new FakeStreamActionChangesConnection(subscribeRefusals[connectionsOpened.length] ?? null);
+      const connection = new FakeStreamActionChangesConnection(options.subscribeRefusals?.[connectionsOpened.length] ?? null, options.actionsUnderWay ?? [], describedActions);
       connectionsOpened.push(connection);
       return succeeded(connection);
     },
@@ -63,13 +94,15 @@ function streamActionsFollowedOverFakeConnections(subscribeRefusals: (string | n
     readTheStatusAgain: () => {
       statusReads.asked += 1;
     },
-    tatolabAppLog: quietTatolabAppLog,
+    tatolabAppLog: createTatolabAppLog("warn", (logLine) => logLines.push(logLine)),
   });
   return {
     followed,
     connectionsOpened,
     waitsPending,
     statusReads,
+    describedActions,
+    logLines,
     setTheRuntimeAnswers: (answers: boolean) => {
       doesTheRuntimeAnswer = answers;
     },
@@ -98,24 +131,104 @@ test("each_stream_action_change_reads_the_status_again_and_so_does_the_subscript
   expect(statusReads.asked).toBe(3);
 });
 
-test("a_connection_the_runtime_closes_is_followed_again_after_a_wait", async () => {
-  const { followed, connectionsOpened, waitsPending, statusReads, runTheWaits } = streamActionsFollowedOverFakeConnections();
+test("a_sync_on_its_making_the_venv_step_is_under_way_and_ends_once_with_the_sync_its_ended_action_carries", async () => {
+  const { followed, connectionsOpened, describedActions, statusReads } = streamActionsFollowedOverFakeConnections();
   followed.follow();
   await settle();
 
+  describedActions.set(SYNCING_ACTION, await makingTheVenv());
+  connectionsOpened[0]?.pushAStreamActionChanged(SYNCING_ACTION);
+  await settle();
+  const whileSyncing = followed.takeTheProjectVenvSyncs();
+  const statusReadsWhileSyncing = statusReads.asked;
+  describedActions.set(SYNCING_ACTION, await doneAfterItsSync());
+  connectionsOpened[0]?.pushAStreamActionChanged(SYNCING_ACTION);
+  await settle();
+  const onceDone = followed.takeTheProjectVenvSyncs();
+
+  expect(whileSyncing.underWay.map((sync) => [sync.action, sync.venv_sync.phase])).toEqual([[SYNCING_ACTION, "downloading"]]);
+  expect(whileSyncing.justEnded).toEqual([]);
+  expect(statusReadsWhileSyncing).toBe(3);
+  expect(onceDone.underWay).toEqual([]);
+  expect(onceDone.justEnded.map((sync) => [sync.action, sync.venv_sync.phase])).toEqual([[SYNCING_ACTION, "installed"]]);
+  expect(followed.takeTheProjectVenvSyncs()).toEqual({ underWay: [], justEnded: [] });
+});
+
+test("a_sync_no_describe_caught_under_way_still_ends_once_its_action_is_described_done", async () => {
+  const { followed, connectionsOpened, describedActions } = streamActionsFollowedOverFakeConnections();
+  followed.follow();
+  await settle();
+
+  describedActions.set(SYNCING_ACTION, await doneAfterItsSync());
+  connectionsOpened[0]?.pushAStreamActionChanged(SYNCING_ACTION);
+  await settle();
+
+  expect(followed.takeTheProjectVenvSyncs().justEnded.map((sync) => sync.action)).toEqual([SYNCING_ACTION]);
+});
+
+test("an_action_already_past_its_sync_as_the_subscription_began_hands_over_no_ended_sync", async () => {
+  const { followed, describedActions, connectionsOpened } = streamActionsFollowedOverFakeConnections({ actionsUnderWay: [SYNCING_ACTION] });
+  describedActions.set(SYNCING_ACTION, { ...(await doneAfterItsSync()), state: "in_progress", step: "starting" });
+
+  followed.follow();
+  await settle();
+  connectionsOpened[0]?.pushAStreamActionChanged(SYNCING_ACTION);
+  await settle();
+
+  expect(connectionsOpened[0]?.actionsDescribed).toEqual([SYNCING_ACTION, SYNCING_ACTION]);
+  expect(followed.takeTheProjectVenvSyncs()).toEqual({ underWay: [], justEnded: [] });
+});
+
+test("missed_describes_every_action_followed_again", async () => {
+  const { followed, describedActions, connectionsOpened } = streamActionsFollowedOverFakeConnections({ actionsUnderWay: [SYNCING_ACTION] });
+  describedActions.set(SYNCING_ACTION, await makingTheVenv());
+  followed.follow();
+  await settle();
+
+  describedActions.set(SYNCING_ACTION, await doneAfterItsSync());
+  connectionsOpened[0]?.pushMissed();
+  await settle();
+
+  expect(connectionsOpened[0]?.actionsDescribed).toEqual([SYNCING_ACTION, SYNCING_ACTION]);
+  expect(followed.takeTheProjectVenvSyncs().justEnded.map((sync) => sync.venv_sync.phase)).toEqual(["installed"]);
+});
+
+test("an_action_the_runtime_no_longer_describes_is_logged_and_shows_no_sync", async () => {
+  const { followed, connectionsOpened, logLines } = streamActionsFollowedOverFakeConnections();
+  followed.follow();
+  await settle();
+
+  connectionsOpened[0]?.pushAStreamActionChanged(SYNCING_ACTION);
+  await settle();
+
+  expect(followed.takeTheProjectVenvSyncs()).toEqual({ underWay: [], justEnded: [] });
+  expect(logLines.join("\n")).toContain(`no stream action ${SYNCING_ACTION} is held`);
+});
+
+test("a_connection_the_runtime_closes_drops_its_syncs_under_way_and_is_followed_again_after_a_wait", async () => {
+  const { followed, connectionsOpened, describedActions, waitsPending, statusReads, runTheWaits } = streamActionsFollowedOverFakeConnections();
+  followed.follow();
+  await settle();
+  describedActions.set(SYNCING_ACTION, await makingTheVenv());
+  connectionsOpened[0]?.pushAStreamActionChanged(SYNCING_ACTION);
+  await settle();
+  const statusReadsBeforeTheClose = statusReads.asked;
+
   connectionsOpened[0]?.closeFromTheRuntime();
   connectionsOpened[0]?.pushAStreamActionChanged();
+  expect(followed.takeTheProjectVenvSyncs().underWay).toEqual([]);
+  expect(statusReads.asked).toBe(statusReadsBeforeTheClose + 1);
   expect(waitsPending.map((wait) => wait.afterMs)).toEqual([STREAM_ACTIONS_FOLLOWED_AGAIN_AFTER_MS]);
   runTheWaits();
   await settle();
   connectionsOpened[1]?.pushAStreamActionChanged();
 
   expect(connectionsOpened).toHaveLength(2);
-  expect(statusReads.asked).toBe(3);
+  expect(statusReads.asked).toBe(statusReadsBeforeTheClose + 3);
 });
 
 test("a_runtime_that_does_not_answer_or_refuses_the_subscription_is_followed_again_after_a_wait", async () => {
-  const { followed, connectionsOpened, statusReads, setTheRuntimeAnswers, runTheWaits } = streamActionsFollowedOverFakeConnections(["subscribe_stream_action_changes failed: not now"]);
+  const { followed, connectionsOpened, statusReads, setTheRuntimeAnswers, runTheWaits } = streamActionsFollowedOverFakeConnections({ subscribeRefusals: ["subscribe_stream_action_changes failed: not now"] });
   setTheRuntimeAnswers(false);
 
   followed.follow();
