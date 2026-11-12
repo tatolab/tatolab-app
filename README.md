@@ -369,6 +369,9 @@ The release runs no tests. Each platform's files are kept in the Actions cache u
 version, the streamlib version and the commit, so a re-run, or a publishing dispatch after a build-only
 one, takes them instead of building again; the macOS runtime unit, which streamlib does not publish,
 is kept per streamlib release, so a release over the same runtime skips streamlib's build.
+When the streamlib release it would bundle does not contain the commit
+`apps/tato-app/tatolab-runtime-client-pin.json` names, the run builds and publishes nothing and says so
+in a warning; streamlib's next release dispatches it with a runtime that does.
 `apps/tato-app/scripts/bump-homebrew-cask.sh` still writes `Casks/tato-studio.rb` for tatolab/homebrew-tap by hand.
 
 A pull request runs only `.github/workflows/ci.yml`: types, lint and the unit tests.

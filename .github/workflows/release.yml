@@ -48,11 +48,14 @@ jobs:
       streamlib_tag: ${{ steps.plan.outputs.streamlib_tag }}
       streamlib_version: ${{ steps.plan.outputs.streamlib_version }}
       linux_runtime_tarball_url: ${{ steps.plan.outputs.linux_runtime_tarball_url }}
+      streamlib_release_contains_the_client_pin: ${{ steps.client-pin.outputs.streamlib_release_contains_the_client_pin }}
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-          sparse-checkout: apps/tato-app/scripts/plan_tatolab_app_release.mjs
+          sparse-checkout: |
+            apps/tato-app/scripts/plan_tatolab_app_release.mjs
+            apps/tato-app/tatolab-runtime-client-pin.json
           sparse-checkout-cone-mode: false
 
       - uses: actions/setup-node@v5
@@ -64,9 +67,29 @@ jobs:
           REQUESTED_STREAMLIB_VERSION: ${{ inputs.streamlib_version }}
         run: node apps/tato-app/scripts/plan_tatolab_app_release.mjs "$REQUESTED_STREAMLIB_VERSION"
 
+      # The app's code calls the streamlib its client pin names, and the build refuses a runtime
+      # older than that. A merge that moves the pin past every streamlib release builds and
+      # publishes nothing; streamlib's next release dispatches this workflow with its version.
+      - id: client-pin
+        env:
+          STREAMLIB_TAG: ${{ steps.plan.outputs.streamlib_tag }}
+        run: |
+          set -euo pipefail
+          pinned_streamlib_commit="$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).streamlib_commit)' apps/tato-app/tatolab-runtime-client-pin.json)"
+          ancestry_directory="$RUNNER_TEMP/streamlib-ancestry"
+          git init -q "$ancestry_directory"
+          git -C "$ancestry_directory" fetch -q --filter=tree:0 https://github.com/tatolab/streamlib.git "refs/tags/$STREAMLIB_TAG"
+          if git -C "$ancestry_directory" merge-base --is-ancestor "$pinned_streamlib_commit" FETCH_HEAD; then
+            echo "streamlib_release_contains_the_client_pin=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::streamlib $STREAMLIB_TAG does not contain streamlib $pinned_streamlib_commit, which the app's runtime client is pinned to: nothing is built or published until a streamlib release carries it"
+            echo "streamlib_release_contains_the_client_pin=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build-macos:
     name: Build, sign and notarize for macOS
     needs: plan
+    if: needs.plan.outputs.streamlib_release_contains_the_client_pin == 'true'
     # Pinned, not macos-latest: the image decides the SDK, and the app's floor is macOS 26.0.
     runs-on: macos-26
     timeout-minutes: 240
@@ -214,6 +237,7 @@ jobs:
   build-linux:
     name: Build for Linux
     needs: plan
+    if: needs.plan.outputs.streamlib_release_contains_the_client_pin == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     env:
