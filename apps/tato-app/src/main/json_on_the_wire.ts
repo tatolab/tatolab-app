@@ -32,7 +32,7 @@ export function holdEachNumberAsItsWrittenDigits(_key: string, value: unknown, c
   return typeof value === "number" ? new JsonNumberAsWritten(context?.source ?? String(value)) : value;
 }
 
-/** `value` as compact JSON text, each number parsed with `holdEachNumberAsItsWrittenDigits` keeping its written digits. */
+/** `value` as compact JSON text, each number parsed with `holdEachNumberAsItsWrittenDigits` keeping its written digits, and each `bigint` written as its digits. */
 export function jsonTextKeepingTheWrittenNumbers(value: unknown): string {
   return jsonTextIndentedKeepingTheWrittenNumbers(value, "", "");
 }
@@ -44,6 +44,7 @@ export function prettyJsonTextKeepingTheWrittenNumbers(value: unknown): string {
 
 function jsonTextIndentedKeepingTheWrittenNumbers(value: unknown, indentPerLevel: string, indentOfThisLevel: string): string {
   if (value instanceof JsonNumberAsWritten) return value.writtenDigits;
+  if (typeof value === "bigint") return value.toString();
   const indentOfTheNextLevel = indentOfThisLevel + indentPerLevel;
   const lineBreak = indentPerLevel === "" ? "" : "\n";
   const keySeparator = indentPerLevel === "" ? ":" : ": ";

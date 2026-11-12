@@ -83,7 +83,7 @@ const theMachine = () => httpResponse("200 OK", "application/json", JSON.stringi
 test("a healthy runtime's status names its streams and machine, read as the window reads them, and starts no runtime of the app's", async () => {
   const { controller, localApiServer, carriedRuntimeStarts } = await controllerOverFakes([
     healthyAnswer(),
-    controlOperationResultResponse({ streams: [{ stream: "p-main-0a1b2c", display_name: "main", location: { project_directory: "/p", project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68" }, state: "running", node_count: 4, failed_because: null }] }),
+    controlOperationResultResponse({ streams: [{ stream: "p-main-0a1b2c", display_name: "main", location: { project_directory: "/p", project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68" }, state: "running", node_count: 4, failed_because: null, capture_devices_whose_access_was_never_asked_for: [] }] }),
     theMachine(),
   ]);
 
@@ -127,13 +127,15 @@ test("each status round follows the stream actions while the runtime answers and
 test("a healthy runtime whose streams cannot be read lists none, and says why in the failure's own words", async () => {
   const { controller } = await controllerOverFakes([
     healthyAnswer(),
-    controlOperationResultResponse({ streams: [{ stream: "p-main-0a1b2c", display_name: "main", location: { project_directory: "/p", stream_function: "stream:main" }, state: "running", node_count: 4, failed_because: null }] }),
+    controlOperationResultResponse({ streams: [{ stream: "p-main-0a1b2c", display_name: "main", location: { project_directory: "/p", stream_function: "stream:main" }, state: "running", node_count: 4, failed_because: null, capture_devices_whose_access_was_never_asked_for: [] }] }),
     theMachine(),
   ]);
 
   const status = await controller.composeStatus(0);
   expect(status.streams).toBeNull();
-  expect(status.streams_not_listed_because).toBe("the runtime's list_streams result could not be read: missing field `project`");
+  expect(status.streams_not_listed_because).toBe(
+    "the runtime's answer to `list_streams` does not match the control contract: streams.0.location.project: Invalid input: expected string, received undefined; streams.0.location.stream_asset: Invalid input: expected string, received undefined",
+  );
 });
 
 test("a round that finds no runtime answering starts the carried one, which reads starting, then running once it answers", async () => {

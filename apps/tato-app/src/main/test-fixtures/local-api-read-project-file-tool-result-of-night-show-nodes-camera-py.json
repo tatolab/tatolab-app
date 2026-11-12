@@ -1,1 +1,1 @@
-{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"path\": \"nodes/camera.py\",\n  \"byte_len\": 43,\n  \"content_base64\": \"aW1wb3J0IHN0cmVhbWxpYgoKCkNBTUVSQV9ERVZJQ0VfSU5ERVggPSAwCg==\"\n}"}],"isError":false}}
+{"jsonrpc":"2.0","id":1,"result":{"path":"nodes/camera.py","byte_len":43,"content_base64":"aW1wb3J0IHN0cmVhbWxpYgoKCkNBTUVSQV9ERVZJQ0VfSU5ERVggPSAwCg==","content_sha256":"8c6551160625a2700aecd88a6974e74d2bbbf4d01a41624ea8e3277c492fa7ac"}}

@@ -885,7 +885,7 @@ test("a_failed_action_reads_its_reason_one_the_tool_no_longer_holds_answers_its_
   const server = await fakeLocalApiServerAnswering([
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-stream-action-of-a-create-into-pattern-failed-on-its-files.json")),
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json")),
-    httpResponse("500 Internal Server Error", "application/json", '{"jsonrpc":"2.0","id":1,"error":{"code":-32603,"message":"the runtime is shutting down"}}'),
+    httpResponse("200 OK", "application/json", '{"jsonrpc":"2.0","id":1,"error":{"code":-32603,"message":"the runtime is shutting down"}}'),
   ]);
 
   const failedCreation = describedOf(answerOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-5")));
@@ -1472,7 +1472,7 @@ test("a_refused_graph_transaction_answers_the_runtimes_structured_refusal_naming
 test("a_graph_transaction_refused_with_no_structured_refusal_fails_in_the_runtimes_own_words", async () => {
   const server = await fakeLocalApiServerAnswering([controlOperationFailedResponse("transact failed: the runtime is shutting down")]);
 
-  const failure = failureOf(await server.client().transactOnTheStreamGraphs([{ operation: "remove_node", stream: "s", node: "n" }], "live", null, SAM_EDITING_IN_STUDIO));
+  const failure = failureOf(await server.client().transactOnTheStreamGraphs([{ operation: "remove_node", stream: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68", node: "n" }], "live", null, SAM_EDITING_IN_STUDIO));
 
   expect(failure).toEqual({ isTheRuntimesRefusal: true, failureDescription: "transact failed: the runtime is shutting down" });
 });
@@ -1686,7 +1686,7 @@ test("an_asset_the_person_deletes_is_answered_as_it_was_recorded_under_them_and_
   ]);
 });
 
-const RECORDED_NIGHT_SHOW = "/private/tmp/tl-rec053/projects/night-show";
+const RECORDED_NIGHT_SHOW = "/tmp/tl-rec/projects/night-show";
 
 test("project files are listed, read whole as bytes, and written as one transaction by the author under a key, each through the runtime's file tools, a refusal in its own words", async () => {
   const server = await fakeLocalApiServerAnswering([
@@ -1716,14 +1716,14 @@ test("project files are listed, read whole as bytes, and written as one transact
   });
   expect(answerOf(await server.client().writeProjectFile(RECORDED_NIGHT_SHOW, "nodes/camera.py", "import streamlib\n", sam, "save-1"))).toEqual({
     path: "nodes/camera.py",
-    transaction: "c394e90f-a850-4603-81c3-8d25ba25ea76",
-    commit: "a85ff7d5a389463bfcf6af6a27e268b013849bf6",
+    transaction: "841dea3f-0f85-44f6-a3bf-7ab09d1fa179",
+    commit: "bbd985b362ad3ff5e7154324bcd13d19022e9ff2",
   });
   expect(failureOf(await server.client().writeProjectFile(RECORDED_NIGHT_SHOW, "imports/lobby-wall/views/meter/index.html", "<p></p>\n", sam, "save-2")).failureDescription).toBe(
     "write_project_file failed: the file `imports/lobby-wall/views/meter/index.html` is not written with write_project_file: an import's files are edited by opening `imports/<folder>/` as a project of its own",
   );
   expect(failureOf(await server.client().writeProjectFile(RECORDED_NIGHT_SHOW, "nodes/camera.py", "import streamlib\n", sam, "save-3")).failureDescription).toBe(
-    "write_project_file failed: a transaction must hold at least one change",
+    "write_project_file failed: `nodes/camera.py` already holds this content, so the write has nothing to change",
   );
   expect(controlOperationCallsReceivedBy(server)).toEqual([
     ["list_project_files", { project_directory: RECORDED_NIGHT_SHOW }],

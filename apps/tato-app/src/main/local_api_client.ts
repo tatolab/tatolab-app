@@ -31,7 +31,6 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import {
   arrayOrEmpty,
-  holdEachNumberAsItsWrittenDigits,
   jsonTextKeepingTheWrittenNumbers,
   prettyJsonTextKeepingTheWrittenNumbers,
   everyOneRead,
@@ -56,7 +55,6 @@ import {
   type ControlOperationAnswer,
   type ControlOperationMethodName,
   type ControlOperationParams,
-  type ControlOperationResultReviver,
 } from "./tatolab_runtime_control_operation_call.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
@@ -329,8 +327,6 @@ export class LocalApiClient {
         ...(after === null ? {} : { after }),
         count,
       },
-      this.requestTimeoutMs,
-      holdEachNumberAsItsWrittenDigits,
     );
     if (!operationResult.ok) return operationResult;
     const page = projectLogRecordsPageFromTheLogsToolResult(jsonTextKeepingTheWrittenNumbers(operationResult.value));
@@ -533,7 +529,7 @@ export class LocalApiClient {
 
   /** The graph of the loaded stream `stream` from the runtime's `graph` operation, its numbers kept as the runtime wrote them. */
   async describeStreamGraph(stream: string): Promise<Result<StreamGraphSummary, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("graph", { stream }, this.requestTimeoutMs, holdEachNumberAsItsWrittenDigits);
+    const operationResult = await this.callControlOperation("graph", { stream });
     if (!operationResult.ok) return operationResult;
     const summary = streamGraphSummaryFromTheGraphToolResult(stream, prettyJsonTextKeepingTheWrittenNumbers(operationResult.value));
     return summary.ok ? summary : localApiRequestFailure(summary.failure);
@@ -753,14 +749,13 @@ export class LocalApiClient {
     );
   }
 
-  /** Call `method` with `params` in one `POST /control`, giving up after `responseTimeoutMs`, answering its result read with `resultReviver` when one is given; the operation's own refusal is the runtime's, in its words. */
+  /** Call `method` with `params` in one `POST /control`, giving up after `responseTimeoutMs`; the operation's own refusal is the runtime's, in its words. */
   private async callControlOperation<Method extends ControlOperationMethodName>(
     method: Method,
     params: ControlOperationParams<Method>,
     responseTimeoutMs: number = this.requestTimeoutMs,
-    resultReviver: ControlOperationResultReviver | null = null,
   ): Promise<Result<unknown, LocalApiRequestFailure>> {
-    const answer = await this.callControlOperationKeepingItsRefusal(method, params, responseTimeoutMs, resultReviver);
+    const answer = await this.callControlOperationKeepingItsRefusal(method, params, responseTimeoutMs);
     if (!answer.ok) return answer;
     return answer.value.kind === "answered" ? succeeded(answer.value.result) : theRuntimesRefusal(answer.value.words);
   }
@@ -770,9 +765,8 @@ export class LocalApiClient {
     method: Method,
     params: ControlOperationParams<Method>,
     responseTimeoutMs: number = this.requestTimeoutMs,
-    resultReviver: ControlOperationResultReviver | null = null,
   ): Promise<Result<ControlOperationAnswer, LocalApiRequestFailure>> {
-    return callOneControlOperationOverAPost(this.localApiSocketPath, method, params, responseTimeoutMs, resultReviver);
+    return callOneControlOperationOverAPost(this.localApiSocketPath, method, params, responseTimeoutMs);
   }
 
   private sendOneHttpRequestAndReadItsResponse(
