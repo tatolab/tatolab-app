@@ -4,7 +4,7 @@
 // draw from is ignored.
 
 import type { JsonValue, StudioViewOpening } from "../shared/tatolab_backend_contract.js";
-import { everyOneRead, isAJsonValue, jsonObject, optionalText, parseJsonOnTheWire, requiredArray, requiredText, requiredTrueOrFalse } from "./json_on_the_wire.js";
+import { everyOneRead, isAJsonValue, jsonObject, optionalText, requiredArray, requiredText, requiredTrueOrFalse } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** One view `list_project_views` listed: `opens`, and `not_opened_because` in the runtime's own words when it does not. */
@@ -29,15 +29,14 @@ export interface ProjectViewFactsTheRuntimeListed {
   manifest: JsonValue | null;
 }
 
-/** The views `list_project_views` answered with `toolResultText`, or why they could not be read. */
-export function projectViewsFromTheListProjectViewsToolResult(toolResultText: string): Result<ProjectViewTheRuntimeListed[], string> {
-  const listed = viewsFromTheParsedToolResult(parseJsonOnTheWire(toolResultText));
+/** The views `list_project_views` answered with `operationResult`, or why they could not be read. */
+export function projectViewsFromTheListProjectViewsToolResult(operationResult: unknown): Result<ProjectViewTheRuntimeListed[], string> {
+  const listed = viewsFromTheParsedToolResult(operationResult);
   return listed.ok ? listed : failedWith(`the runtime's list_project_views result could not be read: ${listed.failure}`);
 }
 
-function viewsFromTheParsedToolResult(parsedToolResult: Result<unknown, string>): Result<ProjectViewTheRuntimeListed[], string> {
-  if (!parsedToolResult.ok) return parsedToolResult;
-  const toolResult = jsonObject(parsedToolResult.value, "the listing");
+function viewsFromTheParsedToolResult(operationResult: unknown): Result<ProjectViewTheRuntimeListed[], string> {
+  const toolResult = jsonObject(operationResult, "the listing");
   if (!toolResult.ok) return toolResult;
   const views = requiredArray(toolResult.value, "views");
   if (!views.ok) return views;
@@ -82,15 +81,14 @@ export interface StudioViewOutputWritten {
   port: string;
 }
 
-/** The output `write_studio_view_output` answered with `toolResultText`, or why it could not be read. */
-export function studioViewOutputFromTheWriteStudioViewOutputToolResult(toolResultText: string): Result<StudioViewOutputWritten, string> {
-  const written = outputFromTheParsedToolResult(parseJsonOnTheWire(toolResultText));
+/** The output `write_studio_view_output` answered with `operationResult`, or why it could not be read. */
+export function studioViewOutputFromTheWriteStudioViewOutputToolResult(operationResult: unknown): Result<StudioViewOutputWritten, string> {
+  const written = outputFromTheParsedToolResult(operationResult);
   return written.ok ? written : failedWith(`the runtime's write_studio_view_output result could not be read: ${written.failure}`);
 }
 
-function outputFromTheParsedToolResult(parsedToolResult: Result<unknown, string>): Result<StudioViewOutputWritten, string> {
-  if (!parsedToolResult.ok) return parsedToolResult;
-  const toolResult = jsonObject(parsedToolResult.value, "the output written");
+function outputFromTheParsedToolResult(operationResult: unknown): Result<StudioViewOutputWritten, string> {
+  const toolResult = jsonObject(operationResult, "the output written");
   if (!toolResult.ok) return toolResult;
   const stream = requiredText(toolResult.value, "stream");
   if (!stream.ok) return stream;

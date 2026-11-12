@@ -46,10 +46,12 @@ import { ProjectOpening, type FolderEntriesWatch, type ProjectArchiveDialog, typ
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import { ProjectAssetsImportedFromChosenFiles, type ProjectAssetFilesDialog } from "./project_assets_imported_from_chosen_files.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
-import { localApiRequestFailure } from "./local_api_client.js";
+import { localApiRequestFailure } from "./local_api_request_failure.js";
 import { answerAProjectViewFileRequest, ProjectViewsListedToTheWindows, type AnswerAProjectViewFileRequest } from "./project_view_files.js";
 import { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
+import { LocalApiClient } from "./local_api_client.js";
 import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
+import { RuntimeViewerControlConnection } from "./runtime_viewer_control_connection.js";
 import { ProjectVenvSyncsOnTheStreamActionsFeed } from "./project_venv_syncs_on_the_stream_actions_feed.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
@@ -237,6 +239,10 @@ export async function startTatolabApp(
       localApiSocketOnceKnown === null
         ? localApiRequestFailure(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET)
         : LocalApiMcpStdioConnection.open(localApiSocketOnceKnown, PROJECT_TRANSACTIONS_FEED_REQUEST_TIMEOUT_MS, thisCopyOfTatolab.appVersion),
+    nameTheChangeFeedOfTheProject: async (projectFolder) =>
+      localApiSocketOnceKnown === null
+        ? localApiRequestFailure(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET)
+        : new LocalApiClient(localApiSocketOnceKnown, PROJECT_TRANSACTIONS_FEED_REQUEST_TIMEOUT_MS).nameTheChangeFeedOfTheProject(projectFolder),
     runAfter: (delayMs, work) => {
       const timer = setTimeout(work, delayMs);
       return () => clearTimeout(timer);
@@ -398,7 +404,7 @@ export async function startTatolabApp(
   });
   pythonLanguageServersOnceBuilt = pythonLanguageServers;
   const runtimePortViewers = new RuntimePortViewers({
-    openTheViewerConnection: () => LocalApiMcpStdioConnection.open(platformForThisBuild.localApiSocket, PORT_VIEWER_REQUEST_TIMEOUT_MS, thisCopyOfTatolab.appVersion),
+    openTheViewerConnection: () => RuntimeViewerControlConnection.open(platformForThisBuild.localApiSocket, PORT_VIEWER_REQUEST_TIMEOUT_MS),
     openAChannelReader: runtimeViewerChannelReaderOpenerOver(tatolabElectronAppShell.runtimeViewerFrameImportAddonPath, platformForThisBuild.viewerImageFrameReading),
     viewerProcessId: tatolabElectronAppShell.mainProcessId,
     repeatEvery: (everyMs, tick) => {

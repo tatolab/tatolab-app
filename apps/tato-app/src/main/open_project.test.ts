@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 import type { OpenProjectReading, ProjectCreationQueued, ProjectFolderChosenFor, StreamActionFollowed } from "../shared/tatolab_backend_contract.js";
-import type { LocalApiRequestFailure } from "./local_api_client.js";
+import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import {
   OPEN_PROJECT_REREAD_QUIET_MS,
   OpenProjectOfAStudioWindow,

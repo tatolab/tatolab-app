@@ -10,7 +10,7 @@ const EMPTY_SOURCE_LISTS = { node_types: [], graph_generators: [], unreadable_mo
 
 test("each_source_reads_with_its_origin_node_types_ports_generators_and_unreadable_modules", () => {
   const listing = projectNodeTypeListingFromTheToolResult(
-    listingText([
+    JSON.parse(listingText([
       {
         source: "project",
         node_types: [
@@ -57,7 +57,7 @@ test("each_source_reads_with_its_origin_node_types_ports_generators_and_unreadab
         unreadable_modules: [],
       },
       { source: "installed_distribution", distribution: "camera", distribution_version: "0.1.0", ...EMPTY_SOURCE_LISTS },
-    ]),
+    ])),
   );
 
   expect(listing).toEqual({
@@ -117,7 +117,7 @@ test("each_source_reads_with_its_origin_node_types_ports_generators_and_unreadab
 
 test("an_entry_point_whose_declaration_source_does_not_show_reads_with_no_kind_ports_or_place", () => {
   const listing = projectNodeTypeListingFromTheToolResult(
-    listingText([
+    JSON.parse(listingText([
       {
         source: "installed_distribution",
         distribution: "tatolab-testpattern",
@@ -126,7 +126,7 @@ test("an_entry_point_whose_declaration_source_does_not_show_reads_with_no_kind_p
         graph_generators: [],
         unreadable_modules: [{ module: "tatolab.testpattern.broken", path: "tatolab/testpattern/broken.py", line: null, column: null, why: "could not be read: Permission denied" }],
       },
-    ]),
+    ])),
   );
 
   expect(listing.ok && listing.value.sources[0]).toEqual({
@@ -138,17 +138,17 @@ test("an_entry_point_whose_declaration_source_does_not_show_reads_with_no_kind_p
 });
 
 test("a_source_of_an_origin_newer_than_this_app_still_lists_under_the_name_the_runtime_gives_it", () => {
-  const listing = projectNodeTypeListingFromTheToolResult(listingText([{ source: "workspace_member", member: "lights", ...EMPTY_SOURCE_LISTS }]));
+  const listing = projectNodeTypeListingFromTheToolResult(JSON.parse(listingText([{ source: "workspace_member", member: "lights", ...EMPTY_SOURCE_LISTS }])));
 
   expect(listing.ok && listing.value.sources[0]?.origin).toEqual({ source: "newer_than_this_app", source_name: "workspace_member" });
 });
 
 test("a_listing_missing_a_field_is_refused_naming_it", () => {
-  expect(projectNodeTypeListingFromTheToolResult(listingText([{ source: "project", node_types: [], graph_generators: [] }]))).toEqual({
+  expect(projectNodeTypeListingFromTheToolResult(JSON.parse(listingText([{ source: "project", node_types: [], graph_generators: [] }])))).toEqual({
     ok: false,
     failure: "the runtime's list_project_node_types result could not be read: missing field `unreadable_modules`",
   });
-  expect(projectNodeTypeListingFromTheToolResult(JSON.stringify({ project_directory: "/w/pattern", project: "p", sources: [] }))).toEqual({
+  expect(projectNodeTypeListingFromTheToolResult({ project_directory: "/w/pattern", project: "p", sources: [] })).toEqual({
     ok: false,
     failure: "the runtime's list_project_node_types result could not be read: missing field `project_name`",
   });

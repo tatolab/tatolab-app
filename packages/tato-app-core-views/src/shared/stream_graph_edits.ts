@@ -288,7 +288,7 @@ export function selectionCollapsedEdits(edited: EditedStreamGraph, nodeNames: re
 /** A subgraph unlocked: its nodes become plain nodes of the stream, wired as they were. */
 export function subgraphUnlockedEdits(edited: EditedStreamGraph, subgraphName: string): StreamGraphAction[] {
   const fragment = edited.nodeIdByName.get(subgraphName);
-  return fragment === undefined ? [] : [{ operation: "unlock_generator_fragment", stream: edited.streamAsset, fragment }];
+  return fragment === undefined ? [] : [{ operation: "unlock_subgraph", stream: edited.streamAsset, fragment }];
 }
 
 /** The name a newly placed generator's subgraph takes: the generator function's name as the runtime casts it, with the next free `-2`, `-3` … so it never refreshes a subgraph the graph holds already. */

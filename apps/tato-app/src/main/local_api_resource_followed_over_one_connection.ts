@@ -4,7 +4,7 @@
 // one more read after it. Stopping it stops the listen and closes the connection, and nothing it
 // reads is handed on after that.
 
-import type { LocalApiRequestFailure } from "./local_api_client.js";
+import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import type { McpStdioResourceListen } from "./local_api_mcp_stdio_connection.js";
 import type { Result } from "./result.js";
 

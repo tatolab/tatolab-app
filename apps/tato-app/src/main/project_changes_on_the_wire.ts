@@ -35,17 +35,17 @@ function projectSettingsIn(toolResult: JsonObjectOnTheWire): Result<ProjectSetti
 /** The tools that change how people see a project, each answering its settings after the transaction. */
 export type ProjectSettingsTool = "rename_project" | "set_project_description" | "set_project_cover";
 
-/** How people see the project after `toolName`, one of the tools that change its settings, answered `toolResultText`. */
-export function projectSettingsFromTheToolResult(toolName: ProjectSettingsTool, toolResultText: string): Result<ProjectSettingsAfterTheTransaction, string> {
-  return toolResultReadWith(toolName, toolResultText, projectSettingsIn);
+/** How people see the project after `toolName`, one of the tools that change its settings, answered `operationResult`. */
+export function projectSettingsFromTheToolResult(toolName: ProjectSettingsTool, operationResult: unknown): Result<ProjectSettingsAfterTheTransaction, string> {
+  return toolResultReadWith(toolName, operationResult, projectSettingsIn);
 }
 
 /** The tools that answer one asset: the one `import_asset` made, the one `relocate_asset` put at its new path, and the one `delete_asset` stopped tracking, as it was. */
 export type ProjectAssetTool = "import_asset" | "relocate_asset" | "delete_asset";
 
 /** The asset `toolName` answered, from its `asset`'s `asset` and `path`. */
-export function assetAtItsPathFromTheToolResult(toolName: ProjectAssetTool, toolResultText: string): Result<ProjectAssetAtItsPath, string> {
-  return toolResultReadWith(toolName, toolResultText, (toolResult) => {
+export function assetAtItsPathFromTheToolResult(toolName: ProjectAssetTool, operationResult: unknown): Result<ProjectAssetAtItsPath, string> {
+  return toolResultReadWith(toolName, operationResult, (toolResult) => {
     const assetTheToolAnswered = requiredObject(toolResult, "asset");
     if (!assetTheToolAnswered.ok) return assetTheToolAnswered;
     const asset = requiredText(assetTheToolAnswered.value, "asset");
@@ -57,11 +57,11 @@ export function assetAtItsPathFromTheToolResult(toolName: ProjectAssetTool, tool
 }
 
 /** The duplicate `duplicate_project` made: its `project_directory`, `project` and `project_name`. */
-export function duplicateFromTheDuplicateProjectToolResult(toolResultText: string): Result<ProjectTheRuntimeNames, string> {
-  return toolResultReadWith("duplicate_project", toolResultText, (toolResult) => projectNamedIn(toolResult, "project_name"));
+export function duplicateFromTheDuplicateProjectToolResult(operationResult: unknown): Result<ProjectTheRuntimeNames, string> {
+  return toolResultReadWith("duplicate_project", operationResult, (toolResult) => projectNamedIn(toolResult, "project_name"));
 }
 
 /** The project `import_project` unpacked: its `project_directory`, `project` and `name`. */
-export function projectFromTheImportProjectToolResult(toolResultText: string): Result<ProjectTheRuntimeNames, string> {
-  return toolResultReadWith("import_project", toolResultText, (toolResult) => projectNamedIn(toolResult, "name"));
+export function projectFromTheImportProjectToolResult(operationResult: unknown): Result<ProjectTheRuntimeNames, string> {
+  return toolResultReadWith("import_project", operationResult, (toolResult) => projectNamedIn(toolResult, "name"));
 }

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 import type { ProjectCreationQueued, ProjectStreamActionQueued, StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
-import type { LocalApiRequestFailure } from "./local_api_client.js";
+import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { StreamProjectAdding, type ProjectLoadsOnTheRuntime } from "./stream_project_adding.js";
 

@@ -46,7 +46,7 @@ import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
 import { readThePackageCatalog } from "./package_catalog.js";
 import { importFolderInsideTheWorkspace, workspaceDependenciesOf } from "./workspace_dependencies.js";
 import { downloadTheCatalogEntrysZip } from "./marketplace_module_download.js";
-import type { LocalApiRequestFailure } from "./local_api_client.js";
+import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import {
   runTatolabAppUpdateWorkInTheBackground,

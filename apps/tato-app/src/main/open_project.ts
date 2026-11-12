@@ -21,7 +21,7 @@ import type {
   ProjectTransactionAuthor,
 } from "../shared/tatolab_backend_contract.js";
 import { realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
-import type { LocalApiRequestFailure } from "./local_api_client.js";
+import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import type { ProjectAssetAtItsPath, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";

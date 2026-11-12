@@ -22,7 +22,7 @@ async function toolResultTextRecordedIn(fixtureFileName: string): Promise<string
 const namedByItsFolder = async (projectFolder: string) => succeeded({ folder: projectFolder, project: "uuid", name: projectFolder.split("/").pop() ?? "" });
 
 test("each import carries the views the runtime lists under its folder, and none of the workspace's own or another import's", async () => {
-  const workspaceViews = projectViewsFromTheListProjectViewsToolResult(await toolResultTextRecordedIn("local-api-list-project-views-tool-result-of-night-show-importing-lobby-wall.json"));
+  const workspaceViews = projectViewsFromTheListProjectViewsToolResult(JSON.parse(await toolResultTextRecordedIn("local-api-list-project-views-tool-result-of-night-show-importing-lobby-wall.json")));
   expect(workspaceViews.ok).toBe(true);
 
   const dependencies = await workspaceDependenciesOf(NIGHT_SHOW, LOBBY_WALL_AND_DOORWAYS, workspaceViews, namedByItsFolder);

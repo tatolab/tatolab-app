@@ -6,7 +6,7 @@
 // shorter than a status round still reaches the window as just ended.
 
 import { STREAM_ACTION_STEP_MAKING_THE_VENV, type ProjectVenvSyncOfAStreamAction, type StreamActionDescription } from "../shared/tatolab_backend_contract.js";
-import type { LocalApiRequestFailure } from "./local_api_client.js";
+import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { LocalApiResourceFollowedOverOneConnection, type LocalApiResourceFollowingConnection } from "./local_api_resource_followed_over_one_connection.js";
 import type { Result } from "./result.js";
 import { streamActionDescriptionFromTheStreamActionResourceText, streamActionsUnderWayFromTheStreamActionsResourceText } from "./stream_action_description.js";

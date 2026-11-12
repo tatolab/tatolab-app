@@ -834,7 +834,7 @@ export const streamGraphActionSchema = z.discriminatedUnion("operation", [
     as: z.string().optional(),
   }),
   z.strictObject({ operation: z.literal("collapse_selection_into_subgraph"), stream: z.string(), level: streamGraphActionLevelSchema, nodes: z.array(z.string()), name: z.string(), as: z.string().optional() }),
-  z.strictObject({ operation: z.literal("unlock_generator_fragment"), stream: z.string(), level: streamGraphActionLevelSchema, fragment: z.string() }),
+  z.strictObject({ operation: z.literal("unlock_subgraph"), stream: z.string(), level: streamGraphActionLevelSchema, fragment: z.string() }),
   z.strictObject({ operation: z.literal("add_note"), stream: z.string(), text: z.string(), position: studioCanvasPairSchema, size: studioCanvasPairSchema }),
   z.strictObject({
     operation: z.literal("set_note_fields"),

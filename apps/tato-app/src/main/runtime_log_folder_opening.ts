@@ -3,7 +3,7 @@
 // path of its choosing.
 
 import type { RuntimeDescription } from "../shared/tatolab_backend_contract.js";
-import type { LocalApiRequestFailure } from "./local_api_client.js";
+import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { failedWith, type Result } from "./result.js";
 import { openedWhenAnExistingFolder, type StreamProjectFolderOpeners } from "./stream_project_folder_opening.js";
 

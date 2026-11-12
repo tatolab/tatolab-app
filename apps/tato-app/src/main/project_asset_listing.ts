@@ -10,9 +10,9 @@ import { previewPictureSizeIn } from "./asset_preview_picture_on_the_wire.js";
 import { projectNamedIn } from "./project_the_runtime_names.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
-/** The assets `list_assets` answered with `toolResultText`, or why they could not be read. */
-export function projectAssetListingFromTheListAssetsToolResult(toolResultText: string): Result<ProjectAssetListing, string> {
-  return toolResultReadWith("list_assets", toolResultText, projectAssetListingIn);
+/** The assets `list_assets` answered with `operationResult`, or why they could not be read. */
+export function projectAssetListingFromTheListAssetsToolResult(operationResult: unknown): Result<ProjectAssetListing, string> {
+  return toolResultReadWith("list_assets", operationResult, projectAssetListingIn);
 }
 
 function projectAssetListingIn(toolResult: JsonObjectOnTheWire): Result<ProjectAssetListing, string> {

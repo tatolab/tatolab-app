@@ -1,7 +1,8 @@
 import { expect, test } from "vitest";
 import type { ProjectTransactionsReading } from "../shared/tatolab_backend_contract.js";
-import { localApiRequestFailure, theRuntimesRefusal } from "./local_api_client.js";
-import { PROJECT_TRANSACTIONS_FOLLOWED_AGAIN_AFTER_MS, ProjectTransactionsFeedOfAStudioWindow, type ProjectTransactionsFeedConnection } from "./project_transactions_feed.js";
+import { localApiRequestFailure, theRuntimesRefusal } from "./local_api_request_failure.js";
+import type { LocalApiResourceFollowingConnection } from "./local_api_resource_followed_over_one_connection.js";
+import { PROJECT_TRANSACTIONS_FOLLOWED_AGAIN_AFTER_MS, ProjectTransactionsFeedOfAStudioWindow } from "./project_transactions_feed.js";
 import { succeeded } from "./result.js";
 
 const PROJECT_FOLDER = "/home/sam/streams/pattern";
@@ -28,16 +29,16 @@ function feedText(transactionIds: readonly string[]): string {
   });
 }
 
-/** A stand-in connection serving the feed `transactionIds` holds, recording each call, its listen's update and end in the test's hands. */
+/** A stand-in `list_assets` naming the feed, and a connection serving the feed `transactionIds` holds, recording each call, its listen's update and end in the test's hands. */
 function fakeFeedConnection(transactionIds: string[]) {
-  const recorded = { toolCalls: [] as string[], resourceReads: 0, closed: false, listenStopped: false };
+  const recorded = { operationCalls: [] as string[], resourceReads: 0, closed: false, listenStopped: false };
   let sendAnUpdate: () => void = () => undefined;
   let endTheListen: (why: string) => void = () => undefined;
-  const connection: ProjectTransactionsFeedConnection = {
-    callMcpTool: async (toolName) => {
-      recorded.toolCalls.push(toolName);
-      return succeeded(JSON.stringify({ project: "2c4b1f0e", project_directory: PROJECT_FOLDER, project_name: "pattern", transactions_resource_uri: FEED_URI, assets: [] }));
-    },
+  const nameTheChangeFeedOfTheProject = async (projectFolder: string) => {
+    recorded.operationCalls.push(`list_assets ${projectFolder}`);
+    return succeeded(FEED_URI);
+  };
+  const connection: LocalApiResourceFollowingConnection = {
     readResourceText: async (uri) => {
       recorded.resourceReads += 1;
       return uri === FEED_URI ? succeeded(feedText(transactionIds)) : theRuntimesRefusal(`no resource ${uri}`);
@@ -55,7 +56,7 @@ function fakeFeedConnection(transactionIds: string[]) {
       recorded.closed = true;
     },
   };
-  return { connection, recorded, sendAnUpdate: () => sendAnUpdate(), endTheListen: (why: string) => endTheListen(why) };
+  return { connection, nameTheChangeFeedOfTheProject, recorded, sendAnUpdate: () => sendAnUpdate(), endTheListen: (why: string) => endTheListen(why) };
 }
 
 function transactionIdsOf(reading: ProjectTransactionsReading): string[] | string {
@@ -73,6 +74,7 @@ test("opens the project with list_assets, sends the feed it reads, and reads it 
   const readingsSent: ProjectTransactionsReading[] = [];
   const feed = new ProjectTransactionsFeedOfAStudioWindow(PROJECT_FOLDER, {
     openTheFeedConnection: async () => succeeded(fake.connection),
+    nameTheChangeFeedOfTheProject: fake.nameTheChangeFeedOfTheProject,
     runAfter: () => () => undefined,
     sendTheWindowTheProjectTransactions: (reading) => readingsSent.push(reading),
   });
@@ -81,7 +83,7 @@ test("opens the project with list_assets, sends the feed it reads, and reads it 
   fake.sendAnUpdate();
   await settled();
 
-  expect(fake.recorded.toolCalls).toEqual(["list_assets"]);
+  expect(fake.recorded.operationCalls).toEqual([`list_assets ${PROJECT_FOLDER}`]);
   expect(readingsSent.map(transactionIdsOf)).toEqual([["t1"], ["t2", "t1"]]);
   expect(transactionIdsOf(feed.readProjectTransactions())).toEqual(["t2", "t1"]);
 });
@@ -95,6 +97,7 @@ test("a listen that ends is followed again at once, keeping the last reading, an
       connectionsOpened += 1;
       return succeeded(fake.connection);
     },
+    nameTheChangeFeedOfTheProject: fake.nameTheChangeFeedOfTheProject,
     runAfter: () => () => undefined,
     sendTheWindowTheProjectTransactions: (reading) => readingsSent.push(reading),
   });
@@ -103,7 +106,7 @@ test("a listen that ends is followed again at once, keeping the last reading, an
   await settled();
 
   expect(connectionsOpened).toBe(2);
-  expect(fake.recorded.toolCalls).toEqual(["list_assets", "list_assets"]);
+  expect(fake.recorded.operationCalls).toEqual([`list_assets ${PROJECT_FOLDER}`, `list_assets ${PROJECT_FOLDER}`]);
   expect(readingsSent.map(transactionIdsOf)).toEqual([["t1"]]);
 });
 
@@ -117,6 +120,7 @@ test("tells the window why the feed ended in the runtime's words when following 
       connectionsOpened += 1;
       return connectionsOpened === 2 ? localApiRequestFailure("no runtime answers at /run/tatolab/local-api.sock") : succeeded(fake.connection);
     },
+    nameTheChangeFeedOfTheProject: fake.nameTheChangeFeedOfTheProject,
     runAfter: (delayMs, work) => {
       followsLater.push({ delayMs, work });
       return () => undefined;
@@ -139,6 +143,7 @@ test("stops listening and closes its connection when the window closes, and send
   const readingsSent: ProjectTransactionsReading[] = [];
   const feed = new ProjectTransactionsFeedOfAStudioWindow(PROJECT_FOLDER, {
     openTheFeedConnection: async () => succeeded(fake.connection),
+    nameTheChangeFeedOfTheProject: fake.nameTheChangeFeedOfTheProject,
     runAfter: () => () => undefined,
     sendTheWindowTheProjectTransactions: (reading) => readingsSent.push(reading),
   });

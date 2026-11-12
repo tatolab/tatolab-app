@@ -8,6 +8,7 @@
     "packages/*"
   ],
   "scripts": {
+    "postinstall": "apps/tato-app/scripts/place-tatolab-runtime-client.sh",
     "dev": "npm run dev --workspace tato-app",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",

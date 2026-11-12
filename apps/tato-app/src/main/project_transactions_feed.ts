@@ -6,22 +6,19 @@
 // few seconds until the runtime answers.
 
 import type { ProjectTransactionsReading } from "../shared/tatolab_backend_contract.js";
-import type { LocalApiRequestFailure } from "./local_api_client.js";
+import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { LocalApiResourceFollowedOverOneConnection, type LocalApiResourceFollowingConnection } from "./local_api_resource_followed_over_one_connection.js";
-import { projectTransactionsFromTheResourceText, transactionsResourceUriFromTheListAssetsToolResult } from "./project_transactions_on_the_wire.js";
+import { projectTransactionsFromTheResourceText } from "./project_transactions_on_the_wire.js";
 import type { Result } from "./result.js";
 
 /** How long after the feed's connection ends it is followed again. */
 export const PROJECT_TRANSACTIONS_FOLLOWED_AGAIN_AFTER_MS = 3_000;
 
-/** The parts of a `LocalApiMcpStdioConnection` the feed uses, so a test can stand in for one. */
-export interface ProjectTransactionsFeedConnection extends LocalApiResourceFollowingConnection {
-  callMcpTool(toolName: string, toolArguments: Readonly<Record<string, unknown>>): Promise<Result<string, LocalApiRequestFailure>>;
-}
-
-/** What following a window's project feed reaches: a connection to the runtime, a timer, and the window. */
+/** What following a window's project feed reaches: the runtime's `list_assets`, a connection to the runtime, a timer, and the window. */
 export interface ProjectTransactionsFeedOfAStudioWindowSources {
-  openTheFeedConnection: () => Promise<Result<ProjectTransactionsFeedConnection, LocalApiRequestFailure>>;
+  /** The change feed's resource of the project in `projectFolder`, as `list_assets` names it, which opens the project in the runtime; or why it names none. */
+  nameTheChangeFeedOfTheProject: (projectFolder: string) => Promise<Result<string, LocalApiRequestFailure>>;
+  openTheFeedConnection: () => Promise<Result<LocalApiResourceFollowingConnection, LocalApiRequestFailure>>;
   /** Runs `work` once after `delayMs`; the answer cancels it. */
   runAfter: (delayMs: number, work: () => void) => () => void;
   sendTheWindowTheProjectTransactions: (reading: ProjectTransactionsReading) => void;
@@ -30,7 +27,7 @@ export interface ProjectTransactionsFeedOfAStudioWindowSources {
 /** The change feed of the project in `projectFolder`, followed while its studio window is open. */
 export class ProjectTransactionsFeedOfAStudioWindow {
   private lastReading: ProjectTransactionsReading = { kind: "not_read", because: "The project's history has not been read yet." };
-  private feedConnection: ProjectTransactionsFeedConnection | null = null;
+  private feedConnection: LocalApiResourceFollowingConnection | null = null;
   private followedTransactions: LocalApiResourceFollowedOverOneConnection | null = null;
   private cancelTheNextFollow: (() => void) | null = null;
   private isFollowing = false;
@@ -64,11 +61,10 @@ export class ProjectTransactionsFeedOfAStudioWindow {
     }
     const feedConnection = opened.value;
     this.feedConnection = feedConnection;
-    const listed = await feedConnection.callMcpTool("list_assets", { project_directory: this.projectFolder });
+    const uri = await this.sources.nameTheChangeFeedOfTheProject(this.projectFolder);
     if (this.feedConnection !== feedConnection) return;
-    const uri = listed.ok ? transactionsResourceUriFromTheListAssetsToolResult(listed.value) : { ok: false as const, failure: listed.failure.failureDescription };
     if (!uri.ok) {
-      this.endBecause(uri.failure, "tell_the_window");
+      this.endBecause(uri.failure.failureDescription, "tell_the_window");
       return;
     }
     const followedTransactions = new LocalApiResourceFollowedOverOneConnection(feedConnection, uri.value, {

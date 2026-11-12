@@ -161,7 +161,7 @@ test("a collapsed node becomes a subgraph wired through its Graph Input and Outp
   expect(graph.nodes[1]?.input_ports.map((port) => [port.name, port.family])).toEqual([["displaywindow-video", "image"]]);
 
   const undo = collapsed.inverse_operations.map(graphActionApplyingTheHistoryOperation);
-  expect(undo).toEqual([{ operation: "unlock_generator_fragment", stream: STREAM_ASSET, fragment: mockNodeIdOf(STREAM_ID, "output") }]);
+  expect(undo).toEqual([{ operation: "unlock_subgraph", stream: STREAM_ASSET, fragment: mockNodeIdOf(STREAM_ID, "output") }]);
   const unlocked = applyMockGraphTransaction(targetsOf(graph), undo.flatMap((action) => (action === null ? [] : [action])));
   if (unlocked.kind !== "applied") return expect.unreachable(unlocked.refusal.runtime_words);
   expect(graph.nodes.map((node) => node.name)).toEqual(["testpatternsource", "displaywindow"]);
@@ -216,5 +216,5 @@ test("an edit at the level of a generated subgraph is refused in the runtime's w
   const refused = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:DisplayWindow", level: [halftoneLook] }]);
   if (refused.kind !== "refused") return expect.unreachable("the generated subgraph's inside took the edit");
   expect(refused.refusal).toMatchObject({ refused_operation_index: 0, refused_node: halftoneLook });
-  expect(refused.refusal.runtime_words).toContain("unlock_generator_fragment");
+  expect(refused.refusal.runtime_words).toContain("unlock_subgraph");
 });

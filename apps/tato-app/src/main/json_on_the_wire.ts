@@ -27,13 +27,35 @@ interface JsonParseSourceContext {
   source?: string;
 }
 
-function jsonTextKeepingTheWrittenNumbers(value: unknown): string {
+/** A `JSON.parse` reviver holding each number as the digits it was written in, so `jsonTextKeepingTheWrittenNumbers` writes them back unchanged. */
+export function holdEachNumberAsItsWrittenDigits(_key: string, value: unknown, context?: JsonParseSourceContext): unknown {
+  return typeof value === "number" ? new JsonNumberAsWritten(context?.source ?? String(value)) : value;
+}
+
+/** `value` as compact JSON text, each number parsed with `holdEachNumberAsItsWrittenDigits` keeping its written digits. */
+export function jsonTextKeepingTheWrittenNumbers(value: unknown): string {
+  return jsonTextIndentedKeepingTheWrittenNumbers(value, "", "");
+}
+
+/** `value` as JSON text indented two spaces a level, as `JSON.stringify(value, null, 2)` and serde's pretty printer write it, each number keeping its written digits. */
+export function prettyJsonTextKeepingTheWrittenNumbers(value: unknown): string {
+  return jsonTextIndentedKeepingTheWrittenNumbers(value, "  ", "");
+}
+
+function jsonTextIndentedKeepingTheWrittenNumbers(value: unknown, indentPerLevel: string, indentOfThisLevel: string): string {
   if (value instanceof JsonNumberAsWritten) return value.writtenDigits;
-  if (Array.isArray(value)) return `[${value.map(jsonTextKeepingTheWrittenNumbers).join(",")}]`;
+  const indentOfTheNextLevel = indentOfThisLevel + indentPerLevel;
+  const lineBreak = indentPerLevel === "" ? "" : "\n";
+  const keySeparator = indentPerLevel === "" ? ":" : ": ";
+  const enclosed = (open: string, members: string[], close: string) =>
+    members.length === 0 ? `${open}${close}` : `${open}${lineBreak}${members.map((member) => indentOfTheNextLevel + member).join(`,${lineBreak}`)}${lineBreak}${indentOfThisLevel}${close}`;
+  if (Array.isArray(value)) return enclosed("[", value.map((element) => jsonTextIndentedKeepingTheWrittenNumbers(element, indentPerLevel, indentOfTheNextLevel)), "]");
   if (typeof value === "object" && value !== null) {
-    return `{${Object.entries(value)
-      .map(([key, nestedValue]) => `${JSON.stringify(key)}:${jsonTextKeepingTheWrittenNumbers(nestedValue)}`)
-      .join(",")}}`;
+    return enclosed(
+      "{",
+      Object.entries(value).map(([key, nestedValue]) => `${JSON.stringify(key)}${keySeparator}${jsonTextIndentedKeepingTheWrittenNumbers(nestedValue, indentPerLevel, indentOfTheNextLevel)}`),
+      "}",
+    );
   }
   return JSON.stringify(value) ?? "null";
 }
@@ -45,9 +67,7 @@ function jsonTextKeepingTheWrittenNumbers(value: unknown): string {
  */
 export function jsonTextsKeepingTheWrittenNumbers(jsonText: string, pickValues: (parsedValue: unknown) => readonly unknown[]): Result<string[], string> {
   try {
-    const parsedValue: unknown = JSON.parse(jsonText, (_key: string, value: unknown, context?: JsonParseSourceContext) =>
-      typeof value === "number" ? new JsonNumberAsWritten(context?.source ?? String(value)) : value,
-    );
+    const parsedValue: unknown = JSON.parse(jsonText, holdEachNumberAsItsWrittenDigits);
     return succeeded(pickValues(parsedValue).map(jsonTextKeepingTheWrittenNumbers));
   } catch (parseFailure) {
     return failedWith(describeCaughtFailure(parseFailure));
@@ -69,10 +89,9 @@ export function jsonObject(value: unknown, what: string): Result<JsonObjectOnThe
   return isAJsonObject(value) ? succeeded(value) : failedWith(`${what} is not an object`);
 }
 
-/** `toolResultText`, the result `toolName` answered, read as an object with `readTheResult`, or why it could not be read, naming the tool. */
-export function toolResultReadWith<Read>(toolName: string, toolResultText: string, readTheResult: (toolResult: JsonObjectOnTheWire) => Result<Read, string>): Result<Read, string> {
-  const parsedToolResult = parseJsonOnTheWire(toolResultText);
-  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, `the ${toolName} result`) : parsedToolResult;
+/** `operationResult`, the result `toolName` answered, read as an object with `readTheResult`, or why it could not be read, naming the tool. */
+export function toolResultReadWith<Read>(toolName: string, operationResult: unknown, readTheResult: (toolResult: JsonObjectOnTheWire) => Result<Read, string>): Result<Read, string> {
+  const toolResult = jsonObject(operationResult, `the ${toolName} result`);
   const read = toolResult.ok ? readTheResult(toolResult.value) : toolResult;
   return read.ok ? read : failedWith(`the runtime's ${toolName} result could not be read: ${read.failure}`);
 }

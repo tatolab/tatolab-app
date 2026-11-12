@@ -77,6 +77,8 @@ done
 for runtime_unit_entry in "$runtime_unit_directory"/bin/* "$runtime_unit_directory"/lib/tatolab/*; do
   case "${runtime_unit_entry#"$runtime_unit_directory/"}" in
     bin/tatolabd|bin/tatolab|bin/uv|bin/tatolab-video-poster-frame|lib/tatolab/lend|lib/tatolab/imports|lib/tatolab/samples|lib/tatolab/carried-wheels|lib/tatolab/python-downloads) ;;
+    # The TypeScript control client is what Studio is built against; nothing in the bundle runs it.
+    lib/tatolab/runtime-client) ;;
     # The browser host is a CEF app bundle: code, which signing takes only under MacOS/ or Frameworks/.
     lib/tatolab/browser-host) echo "runtime unit $runtime_unit_directory ships lib/tatolab/browser-host, which this script does not place in the bundle: build the unit without CEF_PATH" >&2; exit 1 ;;
     *) echo "runtime unit $runtime_unit_directory ships ${runtime_unit_entry#"$runtime_unit_directory/"}, which this script does not place in the bundle" >&2; exit 1 ;;
