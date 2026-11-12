@@ -179,7 +179,6 @@ async function sharedStateOverFakes(
     personSavingTheFiles: { kind: "person", name: "sam" },
     mintAnIdempotencyKey: () => "a-save",
     openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
-    nameTheChangeFeedOfTheProject: async () => localApiRequestFailure("no runtime answers"),
     runAfter: () => () => {},
     closeTheProjectAsItsWindowCloses: async () => succeeded(undefined),
     whenAWindowStartingLanguageServersClosed: () => {},

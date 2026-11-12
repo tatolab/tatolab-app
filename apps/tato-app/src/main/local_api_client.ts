@@ -73,7 +73,6 @@ import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTh
 import {
   projectActionRefusalOnTheWire,
   projectTransactionFromTheUndoOrRedoToolResult,
-  transactionsResourceUriFromTheListAssetsToolResult,
 } from "./project_transactions_on_the_wire.js";
 import { projectGraphTransactionFromTheTransactToolResult } from "./project_graph_transaction_on_the_wire.js";
 import {
@@ -557,14 +556,6 @@ export class LocalApiClient {
     if (!operationResult.ok) return operationResult;
     const listing = projectAssetListingFromTheListAssetsToolResult(operationResult.value);
     return listing.ok ? listing : localApiRequestFailure(listing.failure);
-  }
-
-  /** The change feed's resource of the project in `projectDirectory`, as the runtime's `list_assets` names it under `transactions_resource_uri`; refused in the runtime's own words. */
-  async nameTheChangeFeedOfTheProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("list_assets", { project_directory: projectDirectory });
-    if (!operationResult.ok) return operationResult;
-    const uri = transactionsResourceUriFromTheListAssetsToolResult(operationResult.value);
-    return uri.ok ? uri : localApiRequestFailure(uri.failure);
   }
 
   /** The preview picture of the asset `asset` of the project in `projectDirectory`, an image's own or a video's poster frame, through `read_asset_preview`; refused in the runtime's own words, as for an asset with none or whose bytes it is still reading. */

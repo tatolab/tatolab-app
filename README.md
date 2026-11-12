@@ -25,7 +25,7 @@ from a folder or a `.zip` with `add_dependency`, copies a newer version in with 
 asking before it overwrites a file edited since the copy, and opens an import to edit in its own window.
 Marketplace lists the projects in the catalog at `get.tatolab.com/catalog/v1.json`; Import downloads an
 entry's `.zip`, checks its SHA-256, and adds it as any other. Every window shares the one runtime. It reads
-everything from the runtime's local API: each project's name from `list_assets`, `list_streams`, `logs` and `graph` over MCP, and
+everything from the runtime's local API: each project's name from `list_assets`, `list_streams`, `logs` and `graph` over `POST /control`, with changes pushed over `/control/ws`, and
 `GET /api/graph` for the machine's name. A project is open or closed, and an open one plays or
 stops as a whole. Opening a project's window opens it with `open_project` when the runtime holds it
 closed, its playback stopped. Run › Live queues `start_playback` (after `open_project` on a closed
