@@ -65,8 +65,6 @@ export interface TatolabAppWindowsSources {
   mintAnIdempotencyKey: () => string;
   /** A connection each studio window follows its project's change feed over. */
   openTheProjectTransactionsFeedConnection: ProjectTransactionsFeedOfAStudioWindowSources["openTheFeedConnection"];
-  /** The change feed of a window's project, as the runtime's `list_assets` names it. */
-  nameTheChangeFeedOfTheProject: ProjectTransactionsFeedOfAStudioWindowSources["nameTheChangeFeedOfTheProject"];
   /** Runs `work` once after `delayMs`; the answer cancels it. */
   runAfter: (delayMs: number, work: () => void) => () => void;
   /** Queue the close of the project in `projectFolder` on the runtime as its window closes, which ends its playback and unloads its streams; refused in the runtime's own words. */
@@ -367,7 +365,6 @@ export class TatolabAppWindows {
     const openedProject = openProject.readOpenProject();
     const projectTransactionsFeed = new ProjectTransactionsFeedOfAStudioWindow(openedProject.kind === "read" ? openedProject.open_project.project.folder : projectFolder, {
       openTheFeedConnection: this.sources.openTheProjectTransactionsFeedConnection,
-      nameTheChangeFeedOfTheProject: this.sources.nameTheChangeFeedOfTheProject,
       runAfter: this.sources.runAfter,
       sendTheWindowTheProjectTransactions: (reading) => {
         tatolabMainWindow.sendTheWindowTheProjectTransactions(reading);

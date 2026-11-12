@@ -78,7 +78,6 @@ async function windowsWithNightShowOpen(closeTheProject: (projectFolder: string)
     personSavingTheFiles: { kind: "person", name: "sam" },
     mintAnIdempotencyKey: () => "a-save",
     openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
-    nameTheChangeFeedOfTheProject: async () => localApiRequestFailure("no runtime answers"),
     runAfter: () => () => {},
     closeTheProjectAsItsWindowCloses: (folder) => {
       projectsClosed.push(folder);

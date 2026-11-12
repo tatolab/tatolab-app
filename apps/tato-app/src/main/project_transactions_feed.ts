@@ -1,34 +1,66 @@
-// The change feed of the project a studio window shows, followed over one `/mcp/stdio`
-// connection: `list_assets` opens the project in the runtime and names its feed's resource, a
-// `subscriptions/listen` on that resource is told of each transaction the runtime applies, and
-// the resource is read again after each. A listen that ends is followed again at once, keeping the
-// last reading; when that fails too the window is told why, and the feed is followed again every
-// few seconds until the runtime answers.
+// The change feed of the project a studio window shows, followed over one `/control/ws`
+// WebSocket: `read_project_changes` opens the project in the runtime and answers its feed, whose
+// project UUID `subscribe_project_changes` names, and each `project_changed` of that project,
+// `missed` among them, reads the feed again, one read at a time. A connection that closes is
+// followed again at once, keeping the last reading; when that fails too the window is told why,
+// and the feed is followed again every few seconds until the runtime answers.
 
-import type { ProjectTransactionsReading } from "../shared/tatolab_backend_contract.js";
+import type { ProjectTransactions, ProjectTransactionsReading } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
-import { LocalApiResourceFollowedOverOneConnection, type LocalApiResourceFollowingConnection } from "./local_api_resource_followed_over_one_connection.js";
-import { projectTransactionsFromTheResourceText } from "./project_transactions_on_the_wire.js";
-import type { Result } from "./result.js";
+import { projectTransactionsFromTheChangeFeed } from "./project_transactions_on_the_wire.js";
+import { failedWith, succeeded, type Result } from "./result.js";
+import type { ControlNotifications, TatolabRuntimeControlWebSocketConnection } from "./tatolab_runtime_control_operation_call.js";
 
 /** How long after the feed's connection ends it is followed again. */
 export const PROJECT_TRANSACTIONS_FOLLOWED_AGAIN_AFTER_MS = 3_000;
 
-/** What following a window's project feed reaches: the runtime's `list_assets`, a connection to the runtime, a timer, and the window. */
+/** The parts of a `/control/ws` connection a project's feed is followed over, so a test can stand in for one. */
+export interface ProjectChangesConnection {
+  /** The runtime's `read_project_changes` of the project in `projectFolder`, or why it was not read. */
+  readTheProjectChanges(projectFolder: string): Promise<Result<ProjectTransactions, string>>;
+  /** The runtime's `subscribe_project_changes` of the project whose UUID is `project`; refused in its words. */
+  subscribeToTheProjectChanges(project: string): Promise<Result<void, string>>;
+  /** Call `listener` with each `project_changed` the runtime sends on this connection. */
+  onProjectChanged(listener: (change: ControlNotifications["project_changed"]) => void): void;
+  onClosed(whenTheConnectionCloses: (whyItClosed: string) => void): void;
+  close(): void;
+}
+
+/** What following a window's project feed reaches: a connection to the runtime, a timer, and the window. */
 export interface ProjectTransactionsFeedOfAStudioWindowSources {
-  /** The change feed's resource of the project in `projectFolder`, as `list_assets` names it, which opens the project in the runtime; or why it names none. */
-  nameTheChangeFeedOfTheProject: (projectFolder: string) => Promise<Result<string, LocalApiRequestFailure>>;
-  openTheFeedConnection: () => Promise<Result<LocalApiResourceFollowingConnection, LocalApiRequestFailure>>;
+  openTheFeedConnection: () => Promise<Result<ProjectChangesConnection, LocalApiRequestFailure>>;
   /** Runs `work` once after `delayMs`; the answer cancels it. */
   runAfter: (delayMs: number, work: () => void) => () => void;
   sendTheWindowTheProjectTransactions: (reading: ProjectTransactionsReading) => void;
 }
 
+/** `controlWebSocketConnection` as the connection a project's feed is followed over. */
+export function projectChangesConnectionOver(controlWebSocketConnection: TatolabRuntimeControlWebSocketConnection): ProjectChangesConnection {
+  return {
+    readTheProjectChanges: async (projectFolder) => {
+      const read = await controlWebSocketConnection.callControlOperation("read_project_changes", { project_directory: projectFolder });
+      if (!read.ok) return failedWith(read.failure.failureDescription);
+      return read.value.kind === "refused_by_the_operation" ? failedWith(read.value.words) : projectTransactionsFromTheChangeFeed(read.value.result);
+    },
+    subscribeToTheProjectChanges: async (project) => {
+      const subscribed = await controlWebSocketConnection.callControlOperation("subscribe_project_changes", { projects: [project] });
+      if (!subscribed.ok) return failedWith(subscribed.failure.failureDescription);
+      return subscribed.value.kind === "refused_by_the_operation" ? failedWith(subscribed.value.words) : succeeded(undefined);
+    },
+    onProjectChanged: (listener) => {
+      controlWebSocketConnection.onNotification("project_changed", listener);
+    },
+    onClosed: (whenTheConnectionCloses) => controlWebSocketConnection.onClosed(whenTheConnectionCloses),
+    close: () => controlWebSocketConnection.close(),
+  };
+}
+
 /** The change feed of the project in `projectFolder`, followed while its studio window is open. */
 export class ProjectTransactionsFeedOfAStudioWindow {
   private lastReading: ProjectTransactionsReading = { kind: "not_read", because: "The project's history has not been read yet." };
-  private feedConnection: LocalApiResourceFollowingConnection | null = null;
-  private followedTransactions: LocalApiResourceFollowedOverOneConnection | null = null;
+  private feedConnection: ProjectChangesConnection | null = null;
+  private readInFlight: Promise<void> | null = null;
+  private isAnotherReadWanted = false;
   private cancelTheNextFollow: (() => void) | null = null;
   private isFollowing = false;
   private hasStopped = false;
@@ -61,27 +93,31 @@ export class ProjectTransactionsFeedOfAStudioWindow {
     }
     const feedConnection = opened.value;
     this.feedConnection = feedConnection;
-    const uri = await this.sources.nameTheChangeFeedOfTheProject(this.projectFolder);
+    feedConnection.onClosed((whyItClosed) => {
+      if (this.feedConnection !== feedConnection) return;
+      const followsAgainAtOnce = this.lastReading.kind === "read" && !this.hasFollowedAgainAtOnce;
+      this.hasFollowedAgainAtOnce = followsAgainAtOnce;
+      this.endBecause(whyItClosed, followsAgainAtOnce ? "follow_again_at_once" : "tell_the_window");
+    });
+    const firstRead = await feedConnection.readTheProjectChanges(this.projectFolder);
     if (this.feedConnection !== feedConnection) return;
-    if (!uri.ok) {
-      this.endBecause(uri.failure.failureDescription, "tell_the_window");
+    if (!firstRead.ok) {
+      this.endBecause(firstRead.failure, "tell_the_window");
       return;
     }
-    const followedTransactions = new LocalApiResourceFollowedOverOneConnection(feedConnection, uri.value, {
-      whenRead: (reading) => {
-        const transactions = reading.ok ? projectTransactionsFromTheResourceText(reading.value) : reading;
-        if (transactions.ok) this.hasFollowedAgainAtOnce = false;
-        this.publish(transactions.ok ? { kind: "read", project_transactions: transactions.value } : { kind: "not_read", because: transactions.failure });
-      },
-      whenTheListenEnded: (whyItEnded) => {
-        if (this.feedConnection !== feedConnection) return;
-        const followsAgainAtOnce = this.lastReading.kind === "read" && !this.hasFollowedAgainAtOnce;
-        this.hasFollowedAgainAtOnce = followsAgainAtOnce;
-        this.endBecause(whyItEnded, followsAgainAtOnce ? "follow_again_at_once" : "tell_the_window");
-      },
+    const project = firstRead.value.project;
+    feedConnection.onProjectChanged((change) => {
+      if (this.feedConnection === feedConnection && change.project === project) void this.readTheFeed(feedConnection);
     });
-    this.followedTransactions = followedTransactions;
-    await followedTransactions.start();
+    const subscribed = await feedConnection.subscribeToTheProjectChanges(project);
+    if (this.feedConnection !== feedConnection) return;
+    if (!subscribed.ok) {
+      this.endBecause(subscribed.failure, "tell_the_window");
+      return;
+    }
+    this.hasFollowedAgainAtOnce = false;
+    this.publish({ kind: "read", project_transactions: firstRead.value });
+    await this.readTheFeed(feedConnection);
   }
 
   /** Follow the feed again at once, as the runtime starts answering. */
@@ -95,6 +131,25 @@ export class ProjectTransactionsFeedOfAStudioWindow {
     this.cancelTheNextFollow?.();
     this.cancelTheNextFollow = null;
     this.closeTheConnection();
+  }
+
+  private readTheFeed(feedConnection: ProjectChangesConnection): Promise<void> {
+    if (this.readInFlight !== null) {
+      this.isAnotherReadWanted = true;
+      return this.readInFlight;
+    }
+    const read = (async () => {
+      do {
+        this.isAnotherReadWanted = false;
+        const reading = await feedConnection.readTheProjectChanges(this.projectFolder);
+        if (this.feedConnection !== feedConnection) return;
+        this.publish(reading.ok ? { kind: "read", project_transactions: reading.value } : { kind: "not_read", because: reading.failure });
+      } while (this.isAnotherReadWanted && this.feedConnection === feedConnection);
+    })().finally(() => {
+      if (this.readInFlight === read) this.readInFlight = null;
+    });
+    this.readInFlight = read;
+    return read;
   }
 
   private endBecause(why: string, thenWhat: "tell_the_window" | "follow_again_at_once"): void {
@@ -113,10 +168,11 @@ export class ProjectTransactionsFeedOfAStudioWindow {
   }
 
   private closeTheConnection(): void {
-    if (this.followedTransactions === null) this.feedConnection?.close();
-    this.followedTransactions?.stop();
-    this.followedTransactions = null;
+    const feedConnection = this.feedConnection;
     this.feedConnection = null;
+    this.readInFlight = null;
+    this.isAnotherReadWanted = false;
+    feedConnection?.close();
   }
 
   private publish(reading: ProjectTransactionsReading): void {

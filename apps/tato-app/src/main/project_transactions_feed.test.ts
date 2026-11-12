@@ -1,17 +1,19 @@
 import { expect, test } from "vitest";
-import type { ProjectTransactionsReading } from "../shared/tatolab_backend_contract.js";
-import { localApiRequestFailure, theRuntimesRefusal } from "./local_api_request_failure.js";
-import type { LocalApiResourceFollowingConnection } from "./local_api_resource_followed_over_one_connection.js";
-import { PROJECT_TRANSACTIONS_FOLLOWED_AGAIN_AFTER_MS, ProjectTransactionsFeedOfAStudioWindow } from "./project_transactions_feed.js";
-import { succeeded } from "./result.js";
+import type { ProjectTransactions, ProjectTransactionsReading } from "../shared/tatolab_backend_contract.js";
+import { localApiRequestFailure } from "./local_api_request_failure.js";
+import { PROJECT_TRANSACTIONS_FOLLOWED_AGAIN_AFTER_MS, ProjectTransactionsFeedOfAStudioWindow, projectChangesConnectionOver, type ProjectChangesConnection } from "./project_transactions_feed.js";
+import { projectTransactionsFromTheChangeFeed } from "./project_transactions_on_the_wire.js";
+import { failedWith, succeeded, type Result } from "./result.js";
+import { TatolabRuntimeControlWebSocketConnection, type ControlNotifications } from "./tatolab_runtime_control_operation_call.js";
 
 const PROJECT_FOLDER = "/home/sam/streams/pattern";
-const FEED_URI = "streamlib://project/2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90/transactions";
+const PROJECT = "2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90";
+const ANOTHER_PROJECT = "7d1e0c55-3b2a-4f6e-9c1d-0a8b2e4f6c13";
 
-/** A change feed's resource text in the runtime's shape, holding transactions named by `transactionIds`, newest first. */
-function feedText(transactionIds: readonly string[]): string {
-  return JSON.stringify({
-    project: "2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90",
+/** A change feed in the runtime's shape, holding transactions named by `transactionIds`, newest first. */
+function changeFeedHolding(transactionIds: readonly string[]): ProjectTransactions {
+  const changeFeed = projectTransactionsFromTheChangeFeed({
+    project: PROJECT,
     project_directory: PROJECT_FOLDER,
     transactions: transactionIds.map((transaction) => ({
       status: "applied",
@@ -27,36 +29,48 @@ function feedText(transactionIds: readonly string[]): string {
       applied_at: "2026-11-10T18:17:08Z",
     })),
   });
+  return changeFeed.ok ? changeFeed.value : expect.unreachable(changeFeed.failure);
 }
 
-/** A stand-in `list_assets` naming the feed, and a connection serving the feed `transactionIds` holds, recording each call, its listen's update and end in the test's hands. */
-function fakeFeedConnection(transactionIds: string[]) {
-  const recorded = { operationCalls: [] as string[], resourceReads: 0, closed: false, listenStopped: false };
-  let sendAnUpdate: () => void = () => undefined;
-  let endTheListen: (why: string) => void = () => undefined;
-  const nameTheChangeFeedOfTheProject = async (projectFolder: string) => {
-    recorded.operationCalls.push(`list_assets ${projectFolder}`);
-    return succeeded(FEED_URI);
-  };
-  const connection: LocalApiResourceFollowingConnection = {
-    readResourceText: async (uri) => {
-      recorded.resourceReads += 1;
-      return uri === FEED_URI ? succeeded(feedText(transactionIds)) : theRuntimesRefusal(`no resource ${uri}`);
-    },
-    listenForUpdatesOfTheResource: (_uri, whenUpdated, whenEnded) => {
-      sendAnUpdate = whenUpdated;
-      endTheListen = whenEnded;
-      return {
-        stop: () => {
-          recorded.listenStopped = true;
-        },
-      };
-    },
-    close: () => {
-      recorded.closed = true;
-    },
-  };
-  return { connection, nameTheChangeFeedOfTheProject, recorded, sendAnUpdate: () => sendAnUpdate(), endTheListen: (why: string) => endTheListen(why) };
+/** A `/control/ws` connection serving the feed `transactionIds` holds, recording each call, and letting a test push a change or close it from the runtime's end. */
+class FakeProjectChangesConnection implements ProjectChangesConnection {
+  readonly calls: string[] = [];
+  isClosed = false;
+  private readonly projectChangedListeners: ((change: ControlNotifications["project_changed"]) => void)[] = [];
+  private readonly closedListeners: ((whyItClosed: string) => void)[] = [];
+
+  constructor(private readonly transactionIds: string[]) {}
+
+  async readTheProjectChanges(projectFolder: string): Promise<Result<ProjectTransactions, string>> {
+    this.calls.push(`read_project_changes ${projectFolder}`);
+    return succeeded(changeFeedHolding(this.transactionIds));
+  }
+
+  async subscribeToTheProjectChanges(project: string): Promise<Result<void, string>> {
+    this.calls.push(`subscribe_project_changes ${project}`);
+    return project === PROJECT ? succeeded(undefined) : failedWith(`no project ${project}`);
+  }
+
+  onProjectChanged(listener: (change: ControlNotifications["project_changed"]) => void): void {
+    this.projectChangedListeners.push(listener);
+  }
+
+  onClosed(whenTheConnectionCloses: (whyItClosed: string) => void): void {
+    this.closedListeners.push(whenTheConnectionCloses);
+  }
+
+  close(): void {
+    this.isClosed = true;
+  }
+
+  pushAProjectChanged(project = PROJECT): void {
+    for (const listener of this.projectChangedListeners) listener({ project, change: "applied" });
+  }
+
+  closeFromTheRuntime(why: string): void {
+    this.isClosed = true;
+    for (const listener of this.closedListeners) listener(why);
+  }
 }
 
 function transactionIdsOf(reading: ProjectTransactionsReading): string[] | string {
@@ -68,69 +82,68 @@ function settled(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-test("opens the project with list_assets, sends the feed it reads, and reads it again on each update the listen is told of", async () => {
-  const transactionIds = ["t1"];
-  const fake = fakeFeedConnection(transactionIds);
-  const readingsSent: ProjectTransactionsReading[] = [];
-  const feed = new ProjectTransactionsFeedOfAStudioWindow(PROJECT_FOLDER, {
-    openTheFeedConnection: async () => succeeded(fake.connection),
-    nameTheChangeFeedOfTheProject: fake.nameTheChangeFeedOfTheProject,
-    runAfter: () => () => undefined,
-    sendTheWindowTheProjectTransactions: (reading) => readingsSent.push(reading),
-  });
-  await feed.follow();
-  transactionIds.unshift("t2");
-  fake.sendAnUpdate();
-  await settled();
-
-  expect(fake.recorded.operationCalls).toEqual([`list_assets ${PROJECT_FOLDER}`]);
-  expect(readingsSent.map(transactionIdsOf)).toEqual([["t1"], ["t2", "t1"]]);
-  expect(transactionIdsOf(feed.readProjectTransactions())).toEqual(["t2", "t1"]);
-});
-
-test("a listen that ends is followed again at once, keeping the last reading, and the window hears nothing", async () => {
-  const fake = fakeFeedConnection(["t1"]);
-  const readingsSent: ProjectTransactionsReading[] = [];
-  let connectionsOpened = 0;
-  const feed = new ProjectTransactionsFeedOfAStudioWindow(PROJECT_FOLDER, {
-    openTheFeedConnection: async () => {
-      connectionsOpened += 1;
-      return succeeded(fake.connection);
-    },
-    nameTheChangeFeedOfTheProject: fake.nameTheChangeFeedOfTheProject,
-    runAfter: () => () => undefined,
-    sendTheWindowTheProjectTransactions: (reading) => readingsSent.push(reading),
-  });
-  await feed.follow();
-  fake.endTheListen("the runtime ended the listen");
-  await settled();
-
-  expect(connectionsOpened).toBe(2);
-  expect(fake.recorded.operationCalls).toEqual([`list_assets ${PROJECT_FOLDER}`, `list_assets ${PROJECT_FOLDER}`]);
-  expect(readingsSent.map(transactionIdsOf)).toEqual([["t1"]]);
-});
-
-test("tells the window why the feed ended in the runtime's words when following it again fails, and tries again after a while", async () => {
-  const fake = fakeFeedConnection(["t1"]);
+/** A window's feed over fake connections serving `transactionIds`; an open in `failingOpens` (counted from 1) answers that no runtime answers, and each follow later waits for the test. */
+function feedOverFakeConnections(transactionIds: string[], failingOpens: number[] = []) {
+  const connectionsOpened: FakeProjectChangesConnection[] = [];
   const readingsSent: ProjectTransactionsReading[] = [];
   const followsLater: { delayMs: number; work: () => void }[] = [];
-  let connectionsOpened = 0;
+  let opens = 0;
   const feed = new ProjectTransactionsFeedOfAStudioWindow(PROJECT_FOLDER, {
     openTheFeedConnection: async () => {
-      connectionsOpened += 1;
-      return connectionsOpened === 2 ? localApiRequestFailure("no runtime answers at /run/tatolab/local-api.sock") : succeeded(fake.connection);
+      opens += 1;
+      if (failingOpens.includes(opens)) return localApiRequestFailure("no runtime answers at /run/tatolab/local-api.sock");
+      const connection = new FakeProjectChangesConnection(transactionIds);
+      connectionsOpened.push(connection);
+      return succeeded(connection);
     },
-    nameTheChangeFeedOfTheProject: fake.nameTheChangeFeedOfTheProject,
     runAfter: (delayMs, work) => {
       followsLater.push({ delayMs, work });
       return () => undefined;
     },
     sendTheWindowTheProjectTransactions: (reading) => readingsSent.push(reading),
   });
+  return { feed, connectionsOpened, readingsSent, followsLater };
+}
+
+test("reads_the_feed_subscribes_its_project_and_reads_it_again_on_each_change_of_that_project_alone", async () => {
+  const transactionIds = ["t1"];
+  const { feed, connectionsOpened, readingsSent } = feedOverFakeConnections(transactionIds);
+
   await feed.follow();
-  fake.endTheListen("`listening to the feed` was not answered: the runtime closed the /mcp/stdio connection");
+  transactionIds.unshift("t2");
+  connectionsOpened[0]?.pushAProjectChanged();
   await settled();
-  expect(fake.recorded.closed).toBe(true);
+  connectionsOpened[0]?.pushAProjectChanged(ANOTHER_PROJECT);
+  await settled();
+
+  expect(connectionsOpened[0]?.calls).toEqual([
+    `read_project_changes ${PROJECT_FOLDER}`,
+    `subscribe_project_changes ${PROJECT}`,
+    `read_project_changes ${PROJECT_FOLDER}`,
+    `read_project_changes ${PROJECT_FOLDER}`,
+  ]);
+  expect(readingsSent.map(transactionIdsOf)).toEqual([["t1"], ["t2", "t1"]]);
+  expect(transactionIdsOf(feed.readProjectTransactions())).toEqual(["t2", "t1"]);
+});
+
+test("a_connection_that_closes_is_followed_again_at_once_keeping_the_last_reading_and_the_window_hears_nothing", async () => {
+  const { feed, connectionsOpened, readingsSent } = feedOverFakeConnections(["t1"]);
+  await feed.follow();
+
+  connectionsOpened[0]?.closeFromTheRuntime("the runtime closed the /control/ws connection");
+  await settled();
+
+  expect(connectionsOpened).toHaveLength(2);
+  expect(connectionsOpened[1]?.calls.slice(0, 2)).toEqual([`read_project_changes ${PROJECT_FOLDER}`, `subscribe_project_changes ${PROJECT}`]);
+  expect(readingsSent.map(transactionIdsOf)).toEqual([["t1"]]);
+});
+
+test("tells_the_window_why_the_feed_ended_in_the_runtimes_words_when_following_it_again_fails_and_tries_again_after_a_while", async () => {
+  const { feed, connectionsOpened, readingsSent, followsLater } = feedOverFakeConnections(["t1"], [2]);
+  await feed.follow();
+
+  connectionsOpened[0]?.closeFromTheRuntime("the runtime closed the /control/ws connection");
+  await settled();
   expect(followsLater.map((later) => later.delayMs)).toEqual([PROJECT_TRANSACTIONS_FOLLOWED_AGAIN_AFTER_MS]);
   followsLater[0]?.work();
   await settled();
@@ -138,21 +151,29 @@ test("tells the window why the feed ended in the runtime's words when following 
   expect(readingsSent.map(transactionIdsOf)).toEqual([["t1"], "no runtime answers at /run/tatolab/local-api.sock", ["t1"]]);
 });
 
-test("stops listening and closes its connection when the window closes, and sends nothing after", async () => {
-  const fake = fakeFeedConnection(["t1"]);
-  const readingsSent: ProjectTransactionsReading[] = [];
-  const feed = new ProjectTransactionsFeedOfAStudioWindow(PROJECT_FOLDER, {
-    openTheFeedConnection: async () => succeeded(fake.connection),
-    nameTheChangeFeedOfTheProject: fake.nameTheChangeFeedOfTheProject,
-    runAfter: () => () => undefined,
-    sendTheWindowTheProjectTransactions: (reading) => readingsSent.push(reading),
-  });
+test("closes_its_connection_when_the_window_closes_and_sends_nothing_after", async () => {
+  const { feed, connectionsOpened, readingsSent } = feedOverFakeConnections(["t1"]);
   await feed.follow();
+
   feed.stopFollowing();
-  fake.sendAnUpdate();
+  connectionsOpened[0]?.pushAProjectChanged();
   await settled();
 
-  expect(fake.recorded.listenStopped).toBe(true);
-  expect(fake.recorded.closed).toBe(true);
+  expect(connectionsOpened[0]?.isClosed).toBe(true);
   expect(readingsSent).toHaveLength(1);
+});
+
+const liveLocalApiSocket = process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"];
+const liveProjectFolder = process.env["TATOLAB_APP_LIVE_PROJECT_FOLDER"];
+
+test.skipIf(liveLocalApiSocket === undefined || liveProjectFolder === undefined)("a_real_runtime_answers_a_projects_change_feed_and_subscribes_its_project_over_control_ws", async () => {
+  const opened = await TatolabRuntimeControlWebSocketConnection.open(liveLocalApiSocket ?? "", 5_000);
+  const connection = projectChangesConnectionOver(opened.ok ? opened.value : expect.unreachable(opened.failure.failureDescription));
+  try {
+    const changeFeed = await connection.readTheProjectChanges(liveProjectFolder ?? "");
+    const project = changeFeed.ok ? changeFeed.value.project : expect.unreachable(changeFeed.failure);
+    expect(await connection.subscribeToTheProjectChanges(project)).toEqual(succeeded(undefined));
+  } finally {
+    connection.close();
+  }
 });

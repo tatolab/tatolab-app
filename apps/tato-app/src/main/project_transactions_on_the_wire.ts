@@ -1,5 +1,5 @@
-// A project's change feed as the runtime's `streamlib://project/<project>/transactions` resource
-// renders it (`ProjectTransactionsResourceContents` in `local_api_wire_contract.rs`): applied and
+// A project's change feed as the runtime's `read_project_changes` answers it
+// (`ProjectTransactionsResourceContents` in `local_api_wire_contract.rs`): applied and
 // refused entries in one array, tagged by `status`, which this reads apart into `transactions` and
 // `refused_actions`, each keeping the runtime's order; an entry of a `status` newer than this app is
 // left out. The runtime orders the array by the second each entry happened, a refusal first on a
@@ -15,7 +15,6 @@ import {
   optionalObject,
   optionalText,
   optionalUnsignedInteger,
-  parseJsonOnTheWire,
   requiredArray,
   requiredText,
   requiredUnsignedInteger,
@@ -168,10 +167,9 @@ function changeFeedEntryOnTheWire(value: unknown): Result<ChangeFeedEntry, strin
   return succeeded({ status: "newer_than_this_app" });
 }
 
-/** The change feed the resource's text `resourceText` holds, or why it could not be read. */
-export function projectTransactionsFromTheResourceText(resourceText: string): Result<ProjectTransactions, string> {
-  const parsed = parseJsonOnTheWire(resourceText);
-  const fields = parsed.ok ? jsonObject(parsed.value, "the change feed") : parsed;
+/** The change feed `read_project_changes` answers, or why it could not be read. */
+export function projectTransactionsFromTheChangeFeed(changeFeed: unknown): Result<ProjectTransactions, string> {
+  const fields = jsonObject(changeFeed, "the change feed");
   if (!fields.ok) return failedWith(`the project's change feed could not be read: ${fields.failure}`);
   const project = requiredText(fields.value, "project");
   const projectDirectory = requiredText(fields.value, "project_directory");
@@ -197,9 +195,3 @@ export function projectTransactionFromTheUndoOrRedoToolResult(toolName: "undo" |
   return transaction.ok ? transaction : failedWith(`the runtime's ${toolName} result could not be read: ${transaction.failure}`);
 }
 
-/** The change-feed resource `list_assets` names under `transactions_resource_uri`, or why it names none. */
-export function transactionsResourceUriFromTheListAssetsToolResult(operationResult: unknown): Result<string, string> {
-  const fields = jsonObject(operationResult, "the listing");
-  const uri = fields.ok ? requiredText(fields.value, "transactions_resource_uri") : fields;
-  return uri.ok ? uri : failedWith(`the runtime's list_assets result names no change feed: ${uri.failure}`);
-}
