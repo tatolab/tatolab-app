@@ -54,7 +54,7 @@ export function StreamGraphSubgraphTrail({
   );
 }
 
-/** Over the inside of a graph generator's subgraph or a placed stream: why it is read only, with Refresh from code and Unlock for a generator's. */
+/** Over the inside of a graph generator's subgraph or an import's stream: why it is read only, with Refresh from code for a generator's and Unlock for either. */
 export function StreamGraphSubgraphReadOnlyBanner({
   subgraph,
   isOnTheStreamsOwnLevel,
@@ -82,11 +82,9 @@ export function StreamGraphSubgraphReadOnlyBanner({
               Refresh from code
             </ActionButton>
           )}
-          {kind !== "placed_stream" && (
-            <ActionButton size="small" disabledReason={editsRefusedBecause} onPressed={onUnlocked} data-stream-graph-action="subgraph_unlock">
-              Unlock
-            </ActionButton>
-          )}
+          <ActionButton size="small" disabledReason={editsRefusedBecause} onPressed={onUnlocked} data-stream-graph-action="subgraph_unlock">
+            Unlock
+          </ActionButton>
         </span>
       }
       data-stream-graph-subgraph-read-only={kind ?? undefined}

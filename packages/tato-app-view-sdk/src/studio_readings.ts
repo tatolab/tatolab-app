@@ -185,8 +185,8 @@ export const streamGraphNodeSchema = z.object({
 /** One node of a stream's graph. */
 export type StreamGraphNode = z.infer<typeof streamGraphNodeSchema>;
 
-/** How a subgraph came to be: `generated` is a `@graph_generator`'s frozen output, its node's `type` the generator; `authored` a collapsed selection (`tatolab.project:AuthoredFragment`); `placed_stream` another stream placed by reference (`tatolab.project:StreamFragment`). */
-export const streamGraphFragmentKindSchema = z.enum(["generated", "authored", "placed_stream"]);
+/** How a subgraph came to be: `generated` is a `@graph_generator`'s frozen output, its node's `type` the generator; `placed_stream` a stream placed by reference (`tatolab.project:StreamFragment`), which a collapse saves the selection as. */
+export const streamGraphFragmentKindSchema = z.enum(["generated", "placed_stream"]);
 /** How a subgraph came to be. */
 export type StreamGraphFragmentKind = z.infer<typeof streamGraphFragmentKindSchema>;
 
@@ -571,9 +571,10 @@ export const studioSelectionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("nothing") }),
   z.object({ kind: z.literal("project"), project_name: z.string(), project_folder: z.string().nullable() }),
   z.object({ kind: z.literal("stream"), stream: z.string(), project_folder: z.string() }),
-  z.object({ kind: z.literal("node"), stream: z.string(), node: z.string() }),
-  /** Two or more nodes of one stream selected together, by name, the one picked last at the end. */
-  z.object({ kind: z.literal("nodes"), stream: z.string(), nodes: z.array(z.string()).min(2) }),
+  /** One node of a stream, by name, at `level`: the path of subgraph node UUIDs from the stream's own level inward, its own level when absent. */
+  z.object({ kind: z.literal("node"), stream: z.string(), node: z.string(), level: z.array(z.string()).optional() }),
+  /** Two or more nodes of one level of a stream selected together, by name, the one picked last at the end. */
+  z.object({ kind: z.literal("nodes"), stream: z.string(), nodes: z.array(z.string()).min(2), level: z.array(z.string()).optional() }),
 ]);
 /** What Studio has selected. */
 export type StudioSelection = z.infer<typeof studioSelectionSchema>;

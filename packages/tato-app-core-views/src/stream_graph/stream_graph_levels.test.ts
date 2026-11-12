@@ -1,19 +1,25 @@
 import { expect, test } from "vitest";
 import { NODE_STUDIO_FIELDS_NONE_SET, type StreamGraphFragment, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { levelOfTheSubgraphsSteppedThrough, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly, whyTheInsideOfTheSubgraphIsReadOnly } from "./stream_graph_levels";
+import { levelOfTheSubgraphsSteppedThrough, selectionOfTheSubgraphSteppedOutOf, streamGraphLevelAtTheSubgraphIds, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly, whyTheInsideOfTheSubgraphIsReadOnly } from "./stream_graph_levels";
 
-function graphNode(name: string, type: string, fragment: StreamGraphFragment | null = null): StreamGraphNode {
-  return { id: `uuid-${name}`, name, type, state: null, failed_because: null, process_raising_because: null, config: {}, pins: {}, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment, graph_interface: null };
+function graphNode(name: string, type: string, fragment: StreamGraphFragment | null = null, config: StreamGraphNode["config"] = {}): StreamGraphNode {
+  return { id: `uuid-${name}`, name, type, state: null, failed_because: null, process_raising_because: null, config, pins: {}, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment, graph_interface: null };
 }
 
 const BLUR = graphNode("blur", "nodes.blur:Blur");
-const INNER = graphNode("inner", "tatolab.project:AuthoredFragment", { kind: "authored", nodes: [BLUR], links: [], groups: [] });
-const LOOK = graphNode("look", "tatolab.project:AuthoredFragment", {
-  kind: "authored",
-  nodes: [graphNode("in", "tatolab.stream:GraphInput"), INNER],
-  links: [{ id: "L9", source_node: "in", source_port: "value", target_node: "inner", target_port: "in-video", state: "wired" }],
-  groups: [{ id: "g", title: "Inside", description: null, colour: null }],
-});
+const PLACED_STREAM = "tatolab.project:StreamFragment";
+const INNER = graphNode("inner", PLACED_STREAM, { kind: "placed_stream", nodes: [BLUR], links: [], groups: [] }, { stream: { asset: "asset-inner" } });
+const LOOK = graphNode(
+  "look",
+  PLACED_STREAM,
+  {
+    kind: "placed_stream",
+    nodes: [graphNode("in", "tatolab.stream:GraphInput"), INNER],
+    links: [{ id: "L9", source_node: "in", source_port: "value", target_node: "inner", target_port: "in-video", state: "wired" }],
+    groups: [{ id: "g", title: "Inside", description: null, colour: null }],
+  },
+  { stream: { asset: "asset-look" } },
+);
 const GRAPH: StreamGraphSummary = {
   stream: "main",
   stream_asset: "asset",
@@ -48,18 +54,34 @@ test("an_edit_inside_names_the_level_by_the_uuids_of_the_subgraphs_stepped_throu
   expect(levelOfTheSubgraphsSteppedThrough([])).toEqual([]);
 });
 
-test("only_authored_subgraphs_all_the_way_in_leave_the_level_editable_and_the_first_other_keeps_it_read_only", () => {
-  expect(theSubgraphKeepingTheLevelReadOnly(streamGraphLevelReached(GRAPH, ["look", "inner"]).subgraphs_stepped_through)).toBeNull();
-  const generated = graphNode("levels", "generators.mics:mic_levels", { kind: "generated", nodes: [INNER], links: [], groups: [] });
-  const graphHoldingAGenerator: StreamGraphSummary = { ...GRAPH, nodes: [...GRAPH.nodes, generated] };
-  expect(theSubgraphKeepingTheLevelReadOnly(streamGraphLevelReached(graphHoldingAGenerator, ["levels", "inner"]).subgraphs_stepped_through)).toEqual({ subgraph: generated, depth: 0 });
+test("stepping_out_selects_the_subgraph_stepped_out_of_at_the_level_it_is_drawn_and_nothing_when_none_is_left", () => {
+  const steppedThrough = streamGraphLevelReached(GRAPH, ["look", "inner"]).subgraphs_stepped_through;
+  expect(selectionOfTheSubgraphSteppedOutOf("main", steppedThrough, 1)).toEqual({ kind: "node", stream: "main", node: "inner", level: ["uuid-look"] });
+  expect(selectionOfTheSubgraphSteppedOutOf("main", steppedThrough, 0)).toEqual({ kind: "node", stream: "main", node: "look" });
+  expect(selectionOfTheSubgraphSteppedOutOf("main", steppedThrough, 2)).toBeNull();
 });
 
-test("the_read_only_words_say_what_a_generators_subgraph_and_a_placed_stream_need", () => {
+test("only_streams_of_the_project_placed_all_the_way_in_leave_the_level_editable_and_the_first_other_keeps_it_read_only", () => {
+  expect(theSubgraphKeepingTheLevelReadOnly(streamGraphLevelReached(GRAPH, ["look", "inner"]).subgraphs_stepped_through)).toBeNull();
+  const generated = graphNode("levels", "generators.mics:mic_levels", { kind: "generated", nodes: [INNER], links: [], groups: [] });
+  const imported = graphNode("lobby", PLACED_STREAM, { kind: "placed_stream", nodes: [INNER], links: [], groups: [] }, { stream: { asset: "asset-lobby", from: "project-lobby-wall" } });
+  const graphHoldingBoth: StreamGraphSummary = { ...GRAPH, nodes: [...GRAPH.nodes, generated, imported] };
+  expect(theSubgraphKeepingTheLevelReadOnly(streamGraphLevelReached(graphHoldingBoth, ["levels", "inner"]).subgraphs_stepped_through)).toEqual({ subgraph: generated, depth: 0 });
+  expect(theSubgraphKeepingTheLevelReadOnly(streamGraphLevelReached(graphHoldingBoth, ["lobby", "inner"]).subgraphs_stepped_through)).toEqual({ subgraph: imported, depth: 0 });
+});
+
+test("the_read_only_words_say_what_a_generators_subgraph_and_an_imports_stream_need", () => {
   expect(whyTheInsideOfTheSubgraphIsReadOnly(graphNode("levels", "generators.mics:mic_levels", { kind: "generated", nodes: [], links: [], groups: [] }))).toBe(
     "Made by generators.mics:mic_levels. Refresh it from its code, or unlock it to edit its nodes.",
   );
-  expect(whyTheInsideOfTheSubgraphIsReadOnly(graphNode("lobby", "tatolab.project:StreamFragment", { kind: "placed_stream", nodes: [], links: [], groups: [] }))).toBe(
-    "Another stream, placed by reference. Edit it in its own tab.",
+  expect(whyTheInsideOfTheSubgraphIsReadOnly(graphNode("lobby", PLACED_STREAM, { kind: "placed_stream", nodes: [], links: [], groups: [] }, { stream: { asset: "a", from: "p" } }))).toBe(
+    "A stream of an imported project. Open the import as its own project to edit it, or unlock it to edit a copy here.",
   );
+});
+
+test("a level named by its subgraph UUIDs is reached as the subgraph names stepped through reach it, and one naming no subgraph reaches none", () => {
+  expect(streamGraphLevelAtTheSubgraphIds(GRAPH, [])).toEqual({ graph: GRAPH, subgraphs_stepped_through: [] });
+  expect(streamGraphLevelAtTheSubgraphIds(GRAPH, ["uuid-look", "uuid-inner"])).toEqual(streamGraphLevelReached(GRAPH, ["look", "inner"]));
+  expect(streamGraphLevelAtTheSubgraphIds(GRAPH, ["uuid-look", "uuid-blur"])).toBeNull();
+  expect(streamGraphLevelAtTheSubgraphIds(GRAPH, ["uuid-camera"])).toBeNull();
 });

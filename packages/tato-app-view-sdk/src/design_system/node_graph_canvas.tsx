@@ -117,7 +117,7 @@ export interface NodeGraphCanvasNode {
 }
 
 /** How a subgraph came to be: a graph generator's read-only output, a collapsed selection, or another stream placed by reference. */
-export type NodeGraphSubgraphKind = "generated" | "authored" | "placed_stream";
+export type NodeGraphSubgraphKind = "generated" | "placed_stream";
 
 /** A pick of a port the canvas shows: what its banner says, which ports of which nodes can join, and what picking one or ending the pick does. */
 export interface NodeGraphPortPicking {

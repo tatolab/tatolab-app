@@ -128,7 +128,7 @@ test("the_studio_sent_ahead_for_a_node_inside_a_subgraph_is_shown_once_the_subgr
   const sentAhead = { ...HALFTONE.studio, collapsed: true };
   const subgraphHolding = (studio: StreamGraphNode["studio"]): StreamGraphSummary => ({
     ...GRAPH,
-    nodes: [PATTERN, { ...graphNode("look", "uuid-look", {}), fragment: { kind: "authored", nodes: [{ ...HALFTONE, studio }], links: [], groups: [] } }],
+    nodes: [PATTERN, { ...graphNode("look", "uuid-look", {}), fragment: { kind: "placed_stream", nodes: [{ ...HALFTONE, studio }], links: [], groups: [] } }],
   });
   expect(doesTheGraphShowTheStudioSentAhead(subgraphHolding(HALFTONE.studio), "uuid-halftone", sentAhead)).toBe(false);
   expect(doesTheGraphShowTheStudioSentAhead(subgraphHolding(sentAhead), "uuid-halftone", sentAhead)).toBe(true);
@@ -268,7 +268,7 @@ test("a_second_studio_edit_sent_before_the_graph_shows_the_first_builds_on_it_in
 
 describe("subgraphs", () => {
   const LEVELS = { ...graphNode("levels", "uuid-levels", { outputs: [["level", "array"]] }), type: "generators.mics:mic_levels", config: { mic_count: 2 }, fragment: { kind: "generated" as const, nodes: [], links: [], groups: [] } };
-  const LOOK = { ...graphNode("subgraph", "uuid-look", {}), type: "tatolab.project:AuthoredFragment", fragment: { kind: "authored" as const, nodes: [], links: [], groups: [] } };
+  const LOOK = { ...graphNode("subgraph", "uuid-look", {}), type: "tatolab.project:StreamFragment", fragment: { kind: "placed_stream" as const, nodes: [], links: [], groups: [] } };
 
   test("a_collapsed_selection_names_its_nodes_by_uuid_and_takes_the_first_free_subgraph_name", () => {
     expect(selectionCollapsedEdits(edited(), ["pattern", "halftone", "gone"], nameOfTheNewSubgraph(GRAPH))).toEqual([

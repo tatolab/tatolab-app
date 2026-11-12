@@ -45,6 +45,10 @@ import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
 import { chosenProjectAssetWords, projectAssetPickerNote, projectAssetsForTheAssetFieldsOf, projectAssetsTheFieldOffers } from "./project_asset_choices";
 import { blankTargetPickerKeysOfThePort, NO_BLANK_TARGET_PICKERS, withABlankTargetPickerAdded, withoutTheBlankTargetPicker, type BlankTargetPickersOfTheNode } from "./blank_target_pickers";
 import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
+import { streamGraphLevelAtTheSubgraphIds } from "../stream_graph/stream_graph_levels";
+
+/** The stream's own level, which a node selection with no `level` is at. */
+const NO_LEVEL: readonly string[] = [];
 import {
   configFieldsToExposeAsGraphInputs,
   configValueFromTheWordsTyped,
@@ -402,7 +406,8 @@ function PortRowsOfOneDirection({
   onBlankTargetPickersChanged: (changeTheBlankTargetPickers: (blankTargetPickers: BlankTargetPickersOfTheNode) => BlankTargetPickersOfTheNode) => void;
   /** The picker whose port is being picked in the Stream graph, as `<place>/<target key>`; `null` while none is. */
   targetPickingInTheStreamGraph: string | null;
-  pickInTheStreamGraph: PickInTheStreamGraphForATarget;
+  /** Picks a port in the Stream graph for a target; `null` where the Stream graph picks none, inside a subgraph. */
+  pickInTheStreamGraph: PickInTheStreamGraphForATarget | null;
   /** The ports a search over the properties keeps, by name. */
   portNamesListed: ReadonlySet<string>;
   searchWords: string;
@@ -431,6 +436,7 @@ function PortRowsOfOneDirection({
           }),
       }));
     const pickingOfATarget = (stream: string, targetKey: string, replacing: LinkedEndOfAPort | null, whenConnected: () => void): PropertyPortTarget["pickInTheStreamGraph"] => {
+      if (pickInTheStreamGraph === null) return undefined;
       const targetId = `${node.id}/${place}/${targetKey}`;
       return {
         isPicking: targetPickingInTheStreamGraph === targetId,
@@ -601,12 +607,14 @@ function ViewNodeShownInAreasRow({ connection, viewTypeId }: { connection: TatoA
 function PropertiesOfTheSelectedNode({
   connection,
   stream,
+  level,
   nodeName,
   graphEditsInTheProject,
   searchWords,
 }: {
   connection: TatoAppViewConnection;
   stream: string;
+  level: readonly string[];
   nodeName: string;
   graphEditsInTheProject: GraphEditsInTheOpenProject;
   searchWords: string;
@@ -629,7 +637,8 @@ function PropertiesOfTheSelectedNode({
     document.addEventListener("keydown", endThePickOnEscape);
     return () => document.removeEventListener("keydown", endThePickOnEscape);
   }, [targetPickingInTheStreamGraph, connection]);
-  const graph = graphReading?.kind === "read" ? graphReading.graph : null;
+  const streamGraph = graphReading?.kind === "read" ? graphReading.graph : null;
+  const graph = useMemo(() => (streamGraph === null ? null : (streamGraphLevelAtTheSubgraphIds(streamGraph, level)?.graph ?? null)), [streamGraph, level]);
   const nodeSelectedByName = graph?.nodes.find((graphNode) => graphNode.name === nodeName);
   const nodeRenamedSinceItWasSelected =
     nodeSelectedByName === undefined && nodeShownWhileItWasSelectedByName.current?.nodeName === nodeName
@@ -637,7 +646,7 @@ function PropertiesOfTheSelectedNode({
       : undefined;
   const node = nodeSelectedByName ?? nodeRenamedSinceItWasSelected;
   if (nodeSelectedByName !== undefined) nodeShownWhileItWasSelectedByName.current = { nodeName, nodeId: nodeSelectedByName.id };
-  const graphEdits = graphEditsInTheProject.ofTheNode(node?.id ?? "");
+  const graphEdits = graphEditsInTheProject.ofTheNode(node?.id ?? "", level);
   const latestGraph = useRef(graph);
   useEffect(() => {
     latestGraph.current = graph;
@@ -671,8 +680,9 @@ function PropertiesOfTheSelectedNode({
         kind: "node",
         stream,
         node: nameTheNodeGoesByNow,
+        ...(level.length === 0 ? {} : { level: [...level] }),
       });
-  }, [connection, stream, nodeName, nameTheNodeGoesByNow]);
+  }, [connection, stream, level, nodeName, nameTheNodeGoesByNow]);
 
   if (graphReading === null) return null;
   if (graphReading.kind === "not_read") return <WaitingState title={`${nodeName} can't be read`} explanation={graphReading.because} data-properties-state="graph_not_read" />;
@@ -781,7 +791,7 @@ function PropertiesOfTheSelectedNode({
               blankTargetPickers={blankTargetPickers}
               onBlankTargetPickersChanged={setBlankTargetPickers}
               targetPickingInTheStreamGraph={targetPickingInTheStreamGraph}
-              pickInTheStreamGraph={pickInTheStreamGraph}
+              pickInTheStreamGraph={level.length === 0 ? pickInTheStreamGraph : null}
               portNamesListed={matching.input_ports_listed}
               searchWords={searchWords}
             />
@@ -801,7 +811,7 @@ function PropertiesOfTheSelectedNode({
               blankTargetPickers={blankTargetPickers}
               onBlankTargetPickersChanged={setBlankTargetPickers}
               targetPickingInTheStreamGraph={targetPickingInTheStreamGraph}
-              pickInTheStreamGraph={pickInTheStreamGraph}
+              pickInTheStreamGraph={level.length === 0 ? pickInTheStreamGraph : null}
               portNamesListed={matching.output_ports_listed}
               searchWords={searchWords}
             />
@@ -831,10 +841,11 @@ function PropertiesOfTheSelectedNode({
 }
 
 /** How many nodes are selected together and their titles, in place of fields that would belong to no one node. */
-function SummaryOfTheSeveralSelectedNodes({ connection, stream, nodeNames }: { connection: TatoAppViewConnection; stream: string; nodeNames: readonly string[] }) {
+function SummaryOfTheSeveralSelectedNodes({ connection, stream, level, nodeNames }: { connection: TatoAppViewConnection; stream: string; level: readonly string[]; nodeNames: readonly string[] }) {
   const watchTheStreamsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(stream, listener), [connection, stream]);
   const graphReading = useViewReading(watchTheStreamsGraph);
-  const { title, explanation } = wordsForTheSeveralSelectedNodes(nodeNames, graphReading?.kind === "read" ? graphReading.graph.nodes : []);
+  const nodesOfTheLevel = graphReading?.kind === "read" ? (streamGraphLevelAtTheSubgraphIds(graphReading.graph, level)?.graph.nodes ?? []) : [];
+  const { title, explanation } = wordsForTheSeveralSelectedNodes(nodeNames, nodesOfTheLevel);
   return <WaitingState title={title} explanation={explanation} data-properties-state="several_nodes" />;
 }
 
@@ -850,7 +861,7 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
   );
   const [searchWords, setSearchWords] = useState("");
   if (selection?.kind === "nodes" && activeStreamTab?.stream === selection.stream) {
-    return <SummaryOfTheSeveralSelectedNodes connection={connection} stream={selection.stream} nodeNames={selection.nodes} />;
+    return <SummaryOfTheSeveralSelectedNodes connection={connection} stream={selection.stream} level={selection.level ?? NO_LEVEL} nodeNames={selection.nodes} />;
   }
   if (selection?.kind !== "node" || activeStreamTab?.stream !== selection.stream) {
     return <WaitingState title="Nothing to show" explanation="Select a node in the stream graph to edit its config and see what it's connected to." data-properties-state="no_node" />;
@@ -862,9 +873,10 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
       </StudioViewToolbarTools>
       <WatchOfTheOpenProjectsAssetsContext.Provider value={watchTheProjectsAssets}>
         <PropertiesOfTheSelectedNode
-          key={selection.stream}
+          key={`${selection.stream}/${(selection.level ?? []).join("/")}`}
           connection={connection}
           stream={selection.stream}
+          level={selection.level ?? NO_LEVEL}
           nodeName={selection.node}
           graphEditsInTheProject={graphEditsInTheProject}
           searchWords={searchWords}

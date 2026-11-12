@@ -1,7 +1,8 @@
 // The levels of a stream's graph the canvas can show: the stream's own, and the inside of each subgraph
 // stepped into from it, reached by the names of the subgraph nodes stepped through and edited by their UUIDs.
 
-import type { StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { StreamGraphNode, StreamGraphSummary, StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 
 /** One level of a stream's graph: what the canvas draws there, and the subgraph nodes stepped through to reach it, outermost first. */
 export interface StreamGraphLevel {
@@ -22,9 +23,33 @@ export function streamGraphLevelReached(graph: StreamGraphSummary, subgraphNames
   return { graph: level, subgraphs_stepped_through: steppedThrough };
 }
 
-/** The first subgraph stepped through whose inside the runtime edits nothing in, a graph generator's output or a placed stream, which keeps every level inside it read only; `null` when each is authored. */
+/** The level of `graph` that `level`, the path of subgraph node UUIDs from the stream's own level inward, reaches; `null` when one of them is no subgraph of the level before. */
+export function streamGraphLevelAtTheSubgraphIds(graph: StreamGraphSummary, level: readonly string[]): StreamGraphLevel | null {
+  let levelReached: StreamGraphLevel = { graph, subgraphs_stepped_through: [] };
+  for (const subgraphId of level) {
+    const subgraphName = levelReached.graph.nodes.find((node) => node.id === subgraphId && node.fragment !== null)?.name;
+    if (subgraphName === undefined) return null;
+    levelReached = streamGraphLevelReached(graph, [...levelReached.subgraphs_stepped_through.map((subgraph) => subgraph.name), subgraphName]);
+  }
+  return levelReached;
+}
+
+/** Whether the runtime edits the inside of `subgraph`: a stream of its own project placed by reference, never an import's stream or a graph generator's output. */
+export function isTheInsideOfTheSubgraphEdited(subgraph: StreamGraphNode): boolean {
+  return subgraph.fragment?.kind === "placed_stream" && theImportAPlacedStreamIsOf(subgraph) === null;
+}
+
+/** The import whose stream `subgraph` places, from its config's `stream.from`; `null` for a stream of its own project. */
+function theImportAPlacedStreamIsOf(subgraph: StreamGraphNode): string | null {
+  const placedStream = subgraph.config["stream"];
+  if (placedStream === null || typeof placedStream !== "object" || Array.isArray(placedStream)) return null;
+  const importedFrom = placedStream["from"];
+  return typeof importedFrom === "string" ? importedFrom : null;
+}
+
+/** The first subgraph stepped through whose inside the runtime edits nothing in, a graph generator's output or an import's stream, which keeps every level inside it read only; `null` when each is a stream of the project. */
 export function theSubgraphKeepingTheLevelReadOnly(subgraphsSteppedThrough: readonly StreamGraphNode[]): { subgraph: StreamGraphNode; depth: number } | null {
-  const depth = subgraphsSteppedThrough.findIndex((subgraph) => subgraph.fragment?.kind !== "authored");
+  const depth = subgraphsSteppedThrough.findIndex((subgraph) => !isTheInsideOfTheSubgraphEdited(subgraph));
   const subgraph = subgraphsSteppedThrough[depth];
   return subgraph === undefined ? null : { subgraph, depth };
 }
@@ -34,9 +59,16 @@ export function levelOfTheSubgraphsSteppedThrough(subgraphsSteppedThrough: reado
   return subgraphsSteppedThrough.slice(0, depth).map((subgraph) => subgraph.id);
 }
 
-/** Why the inside of `subgraph`, a graph generator's output or a placed stream, is read only, in words for the strip over it. */
+/** The selection of the subgraph node stepped out of when the canvas steps from inside `subgraphsSteppedThrough` back to `depthReached`, at the level it is drawn; `null` when no subgraph is stepped out of. */
+export function selectionOfTheSubgraphSteppedOutOf(stream: string, subgraphsSteppedThrough: readonly StreamGraphNode[], depthReached: number): StudioSelection | null {
+  const subgraphSteppedOutOf = subgraphsSteppedThrough[depthReached];
+  if (subgraphSteppedOutOf === undefined) return null;
+  return selectionOfTheNodes(stream, [subgraphSteppedOutOf.name], levelOfTheSubgraphsSteppedThrough(subgraphsSteppedThrough, depthReached));
+}
+
+/** Why the inside of `subgraph`, a graph generator's output or an import's stream, is read only, in words for the strip over it. */
 export function whyTheInsideOfTheSubgraphIsReadOnly(subgraph: StreamGraphNode): string {
   return subgraph.fragment?.kind === "placed_stream"
-    ? "Another stream, placed by reference. Edit it in its own tab."
+    ? "A stream of an imported project. Open the import as its own project to edit it, or unlock it to edit a copy here."
     : `Made by ${subgraph.type}. Refresh it from its code, or unlock it to edit its nodes.`;
 }

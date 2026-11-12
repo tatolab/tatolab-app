@@ -42,7 +42,7 @@ import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { isModulesShown, type ModulesShown } from "../src/shared/tatolab_electron_bridge_contract";
 import type { JsonValue, ProjectGraphTransaction, ProjectTransaction, StreamAssetCreated, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
 import { streamDocumentNameNumberedPast, streamDocumentNameOfTheDisplayName } from "../src/shared/stream_document_name";
-import { applyMockGraphTransaction, isAJsonObject, graphActionApplyingTheHistoryOperation, type MockStreamGraphTarget } from "./mock_graph_transactions";
+import { applyMockGraphTransaction, isAJsonObject, isAHistoryOperationTheMockMakesAgainFromTheEditInside, graphActionApplyingTheHistoryOperation, thePlacementsOfTheStream, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
@@ -705,9 +705,28 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     if (outcome.kind === "applied") applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations, applying, outcome.history_operations);
     return outcome;
   };
+  /** Why undoing `undone` is refused, in the runtime's words: the stream it saved is edited since, or placed by another node still; `null` when nothing refuses it. */
+  const whyTheUndoIsRefused = (undone: ProjectTransaction): string | null => {
+    for (const inverseOperation of undone.inverse_operations) {
+      if (!isAJsonObject(inverseOperation) || inverseOperation["operation"] !== "delete_stream_document") continue;
+      const { stream: placedStream, path, document } = inverseOperation;
+      if (typeof placedStream !== "string" || typeof path !== "string") continue;
+      const placements = thePlacementsOfTheStream(placedStream, savedGraphTargetsOfTheOpenProject());
+      if (placements === null) continue;
+      if (JSON.stringify(placements.document) !== JSON.stringify(document)) return `the graph document ${path} was edited after the transaction being reversed wrote it; taking it out would lose those edits`;
+      const streamsStillPlacingIt = placements.holdingStreams.slice(1);
+      if (streamsStillPlacingIt.length === 0) continue;
+      const documentPathOf = (streamAsset: string) => {
+        const holdingStream = [...loadedStreams.values()].find((loadedStream) => loadedStream.fixture.listing.location?.stream_asset === streamAsset);
+        return `streams/${holdingStream?.fixture.listing.display_name ?? streamAsset}.graph.json`;
+      };
+      return `the asset ${placedStream} cannot be deleted while [${[...new Set(streamsStillPlacingIt.map(documentPathOf))].map((documentPath) => JSON.stringify(documentPath)).join(", ")}] reference it`;
+    }
+    return null;
+  };
   /** `undoOrRedo`, its graph operations applied to the mock graphs as the runtime applies them; a transaction naming no graph changes none. */
   const applyingItsGraphOperations = (undoOrRedo: ProjectTransaction): ProjectTransaction => {
-    const graphActions = undoOrRedo.operations.map(graphActionApplyingTheHistoryOperation);
+    const graphActions = undoOrRedo.operations.filter((operation) => !isAHistoryOperationTheMockMakesAgainFromTheEditInside(operation)).map(graphActionApplyingTheHistoryOperation);
     const everyOneNamesAGraph = graphActions.every((graphAction): graphAction is StreamGraphAction => graphAction !== null);
     if (everyOneNamesAGraph && graphActions.length > 0) commitGraphActions(graphActions, "undo_or_redo", undoOrRedo.operations);
     return undoOrRedo;
@@ -1738,7 +1757,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockProjectTransactions === null) throw "No project is open in this window.";
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      return applyingItsGraphOperations(mockProjectTransactions.undo(author));
+      return applyingItsGraphOperations(mockProjectTransactions.undo(author, whyTheUndoIsRefused));
     },
     transactInTheOpenProject: async (operations, mode, idempotencyKey) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -1749,6 +1768,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         return { kind: "applied", transaction: { ...structuredClone(committedBefore), added_nodes: committedBefore.added_nodes.map((addedNode) => ({ ...addedNode, as: null })) } };
       }
       savedGraphTargetsOfTheOpenProject();
+      const operationInsideAPlacedStream = operations.findIndex((operation) => "level" in operation && (operation.level ?? []).length > 0);
+      if (mode === "live" && operationInsideAPlacedStream !== -1) {
+        const refusal = { action: "transact", refused_operation_index: operationInsideAPlacedStream, refused_node: null, refused_link: null, refused_field: null };
+        return { kind: "refused", refusal: { ...refusal, runtime_words: "an edit inside a placed stream is refused live: it is made on the project's graph documents, with `mode` `commit`" } };
+      }
       const outcome = mode === "commit" ? commitGraphActions(operations, "a_transaction") : applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations);
       if (outcome.kind === "refused") return outcome;
       const recorded = mode === "commit" ? mockProjectTransactions.record(MOCK_PERSON_EDITING_IN_STUDIO, outcome.history_operations, outcome.inverse_operations) : null;

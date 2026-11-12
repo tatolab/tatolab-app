@@ -41,9 +41,9 @@ function drawTheGraphEdits(connection: Pick<TatoAppViewConnection, "transactInTh
     get edits(): GraphEditsOfTheNode {
       return this.editsOfTheNode("node-id");
     },
-    editsOfTheNode(nodeId: string): GraphEditsOfTheNode {
+    editsOfTheNode(nodeId: string, level: readonly string[] = []): GraphEditsOfTheNode {
       if (drawn.edits === null) throw new Error("The graph edits were not drawn.");
-      return drawn.edits.ofTheNode(nodeId);
+      return drawn.edits.ofTheNode(nodeId, level);
     },
   };
 }
@@ -193,4 +193,24 @@ test("a refused config edit stops later edits starting from the config it sent",
   await studio.theTransactionAsked(0).answer(aRefusalInTheRuntimesWords("fps must be at least 1."));
 
   expect(drawn.edits.configToEditFrom(configTheReadingShows)).toBe(configTheReadingShows);
+});
+
+test("a node's edits at a level inside a subgraph carry that level, a drag's live edits are not sent, and its commit is", async () => {
+  const studio = aStudioThatAnswersEachTransactionLater();
+  const graphEdits = drawTheGraphEdits(studio.connection, "/projects/pattern");
+  const editsInside = () => graphEdits.editsOfTheNode("node-id", ["subgraph-id"]);
+
+  editsInside().sendLive("config:fps", settingFps(24), "drag");
+  await letTheQueuedSendsRun();
+  expect(studio.asked).toEqual([]);
+  void editsInside().commit("config:fps", settingFps(30), "drag");
+  await letTheQueuedSendsRun();
+  expect(studio.asked.map((transaction) => [transaction.mode, transaction.operations])).toEqual([["commit", [{ ...settingFps(30)[0], level: ["subgraph-id"] }]]]);
+  await studio.theTransactionAsked(0).answer(anApplied("commit"));
+
+  const notedInside = await editsInside().commit("name", [{ operation: "add_note", stream: "stream-asset", text: "Note", position: [0, 0], size: [10, 10] }]);
+  expect(notedInside).toBe(false);
+  await letTheQueuedSendsRun();
+  expect(studio.asked).toHaveLength(1);
+  expect(editsInside().refusalsByPlace.get("name")).toBe("The runtime keeps a note only on the stream's own level, not inside a subgraph.");
 });
