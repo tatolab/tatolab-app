@@ -53,6 +53,9 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
     onStreamGraphChanged() {
       return () => undefined;
     },
+    onProjectLogRecordsWritten() {
+      return () => undefined;
+    },
     onPortViewerImageFrame() {
       return () => undefined;
     },

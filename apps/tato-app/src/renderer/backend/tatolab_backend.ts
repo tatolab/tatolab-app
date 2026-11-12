@@ -66,6 +66,11 @@ export interface TatolabBackend {
   quitTatolabApp(): Promise<void>;
   /** The page of `projectDirectory`'s log after the cursor `after`, from its first record when `null`, narrowed as `narrowing` asks; rejects in the runtime's own words. */
   readProjectLogRecords(projectDirectory: string, narrowing: ProjectLogNarrowing, after: string | null): Promise<ProjectLogRecordsPage>;
+  /** Follow the log of the project in `projectDirectory`, each write the runtime pushes arriving through `onProjectLogRecordsWritten`. */
+  followProjectLogRecords(projectDirectory: string): Promise<void>;
+  stopFollowingProjectLogRecords(projectDirectory: string): Promise<void>;
+  /** Calls `listener` with the directory of each followed project whose log has new records; the returned function stops it. */
+  onProjectLogRecordsWritten(listener: (projectDirectory: string) => void): () => void;
   describeStreamGraph(streamId: string): Promise<StreamGraphSummary>;
   /** Follow the graph of the stream `streamId`, each change the runtime pushes arriving through `onStreamGraphChanged`; a stream not loaded yet is followed once it is. */
   followStreamGraphChanges(streamId: string): Promise<void>;

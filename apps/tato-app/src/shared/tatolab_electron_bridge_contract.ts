@@ -147,15 +147,17 @@ export const TATOLAB_COMMAND_NAMES = [
   "close_port_viewer",
   "follow_stream_graph_changes",
   "stop_following_stream_graph_changes",
+  "follow_project_log_records",
+  "stop_following_project_log_records",
   "show_menus_in_the_system_menu_bar",
 ] as const;
 
 /**
- * One command the window invokes. Arguments: `set_stream_failure_notifications`, `set_developer_mode` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
+ * One command the window invokes. Arguments: `set_stream_failure_notifications`, `set_developer_mode` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`, `follow_project_log_records` and `stop_following_project_log_records` `{ project_directory }`,
  * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`, `delete_stream` `{ stream }`, `create_stream_in_the_open_project` `{ display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `open_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
  * `choose_project_folder` `{ chosen_for }`, `open_recent_project`, `duplicate_recent_project` and `delete_recent_project` `{ folder }`, `rename_recent_project` `{ folder, name }`, `read_recent_project_cover` `{ folder }`, `set_recent_project_description` `{ folder, description }`, `set_recent_project_cover` `{ folder, image }`, `import_project_archive` `{ archive, name, location }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_view` a `PoppedOutView`, `open_module_manager_window` `{ shows }`, `list_workspace_dependencies` `{ check_for_newer }`, `choose_dependency_source` `{ source_kind }`, `add_dependency_to_the_workspace` `{ source }`, `update_workspace_dependency` `{ project, overwrite_edited_files }`, `import_from_the_marketplace` `{ name }`, `open_import_to_edit` `{ folder }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
- * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` and the recent-project commands only on one of the recent projects, `import_project_archive` on any absolute `.zip`, which the runtime reads, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab
+ * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` and the recent-project commands only on one of the recent projects, `import_project_archive` on any absolute `.zip`, which the runtime reads, and `read_project_log_records`, `follow_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab
  * that installs in place, downloads it; `take_the_newer_tatolab_app_version` restarts into a downloaded one, downloads one a check found, or opens a `.deb`'s download, the person choosing it being the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
  */
@@ -184,6 +186,9 @@ export const TATOLAB_PORT_VIEWER_EVENT = "tatolab-port-viewer-event";
 
 /** The event each change the runtime pushes to the graph of a stream the window follows arrives on, and a change it may have missed, so the window reads that graph again; it carries a `StreamGraphChanged`. */
 export const TATOLAB_STREAM_GRAPH_CHANGED_EVENT = "tatolab-stream-graph-changed";
+
+/** The event each write the runtime pushes to the log of a project the window follows arrives on, and a write it may have missed, so the window reads that log on from its cursor; it carries a `ProjectLogRecordsWritten`. */
+export const TATOLAB_PROJECT_LOG_RECORDS_WRITTEN_EVENT = "tatolab-project-log-records-written";
 
 /** The event the system menu bar sends the window an entry the person chose on, from the menus that window last showed there; it carries a `SystemMenuBarEntryChosen`. */
 export const TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT = "tatolab-system-menu-bar-entry-chosen";
@@ -237,6 +242,16 @@ export interface TatolabStreamPageRequest {
 /** What `tatolab-stream-graph-changed` carries: the stream, by stream id, whose graph changed. */
 export interface StreamGraphChanged {
   stream: string;
+}
+
+/** What `tatolab-project-log-records-written` carries: the project, by the directory the window followed it as, whose log has new records. */
+export interface ProjectLogRecordsWritten {
+  project_directory: string;
+}
+
+/** Whether an event's payload is a `ProjectLogRecordsWritten`. */
+export function isAProjectLogRecordsWritten(eventPayload: unknown): eventPayload is ProjectLogRecordsWritten {
+  return typeof eventPayload === "object" && eventPayload !== null && "project_directory" in eventPayload && typeof eventPayload.project_directory === "string";
 }
 
 /** Whether an event's payload is a `StreamGraphChanged`. */
@@ -437,6 +452,10 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   follow_stream_graph_changes: { commandArguments: { stream: string }; answer: null };
   /** Stops following `stream`'s graph; one the window does not follow is left as it is. */
   stop_following_stream_graph_changes: { commandArguments: { stream: string }; answer: null };
+  /** From a studio window or a popped-out view: follow the log of the project in `project_directory`, each write the runtime pushes to it arriving on `tatolab-project-log-records-written`. */
+  follow_project_log_records: { commandArguments: { project_directory: string }; answer: null };
+  /** Stops following the project's log; one the window does not follow is left as it is. */
+  stop_following_project_log_records: { commandArguments: { project_directory: string }; answer: null };
   /** macOS: the asking window's menus, which the system menu bar shows while that window is focused, each choice arriving back on `tatolab-system-menu-bar-entry-chosen`; kept and never shown on Linux, whose windows draw their own. Refused for menus not in the contract's shape. */
   show_menus_in_the_system_menu_bar: { commandArguments: { menus: SystemMenuBarMenu[] }; answer: null };
 }>;
@@ -470,6 +489,8 @@ export interface TatolabElectronBridge {
   onPortViewerImageFrame(listener: (videoFrame: PortViewerVideoFrame, frameFacts: PortViewerImageFrameFacts) => void): () => void;
   /** Calls `listener` with the stream id of each stream the window follows whose graph changed; the returned function stops it. */
   onStreamGraphChanged(listener: (stream: string) => void): () => void;
+  /** Calls `listener` with the directory of each project the window follows whose log has new records; the returned function stops it. */
+  onProjectLogRecordsWritten(listener: (projectDirectory: string) => void): () => void;
   /** Calls `listener` with the `entry_id` of each entry the person chooses in the system menu bar from this window's menus; the returned function stops it. */
   onSystemMenuBarEntryChosen(listener: (entryId: string) => void): () => void;
   /** Tell the main process the window has drawn its first status, so it can put the window on screen. */

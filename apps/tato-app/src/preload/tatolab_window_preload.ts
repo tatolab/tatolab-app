@@ -9,11 +9,13 @@ import {
   TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT,
   TATOLAB_STATUS_CHANGED_EVENT,
   TATOLAB_STREAM_GRAPH_CHANGED_EVENT,
+  TATOLAB_PROJECT_LOG_RECORDS_WRITTEN_EVENT,
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
   TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT,
   TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE,
   isAModuleManagerSectionAsked,
   isAStreamGraphChanged,
+  isAProjectLogRecordsWritten,
   isASystemMenuBarEntryChosen,
   isATatolabStreamPageRequest,
   isPortViewerImageFrameFacts,
@@ -78,6 +80,15 @@ const tatolabElectronBridge: TatolabElectronBridge = {
     ipcRenderer.on(TATOLAB_STREAM_GRAPH_CHANGED_EVENT, streamGraphChangedListener);
     return () => {
       ipcRenderer.removeListener(TATOLAB_STREAM_GRAPH_CHANGED_EVENT, streamGraphChangedListener);
+    };
+  },
+  onProjectLogRecordsWritten: (listener) => {
+    const projectLogRecordsWrittenListener = (_projectLogRecordsWrittenEvent: IpcRendererEvent, projectLogRecordsWritten: unknown) => {
+      if (isAProjectLogRecordsWritten(projectLogRecordsWritten)) listener(projectLogRecordsWritten.project_directory);
+    };
+    ipcRenderer.on(TATOLAB_PROJECT_LOG_RECORDS_WRITTEN_EVENT, projectLogRecordsWrittenListener);
+    return () => {
+      ipcRenderer.removeListener(TATOLAB_PROJECT_LOG_RECORDS_WRITTEN_EVENT, projectLogRecordsWrittenListener);
     };
   },
   onOpenProjectChanged: (listener) => {

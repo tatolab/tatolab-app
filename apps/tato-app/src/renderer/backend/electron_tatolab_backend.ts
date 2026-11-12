@@ -25,6 +25,13 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     },
     readProjectLogRecords: (projectDirectory, narrowing, after) =>
       invokeTatolabCommand("read_project_log_records", { project_directory: projectDirectory, stream: narrowing.stream, action: narrowing.action, after }),
+    followProjectLogRecords: async (projectDirectory) => {
+      await invokeTatolabCommand("follow_project_log_records", { project_directory: projectDirectory });
+    },
+    stopFollowingProjectLogRecords: async (projectDirectory) => {
+      await invokeTatolabCommand("stop_following_project_log_records", { project_directory: projectDirectory });
+    },
+    onProjectLogRecordsWritten: (listener) => tatolabElectronBridge.onProjectLogRecordsWritten(listener),
     describeStreamGraph: (streamId) => invokeTatolabCommand("describe_stream_graph", { stream: streamId }),
     followStreamGraphChanges: async (streamId) => {
       await invokeTatolabCommand("follow_stream_graph_changes", { stream: streamId });

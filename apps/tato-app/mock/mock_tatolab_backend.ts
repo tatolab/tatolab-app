@@ -766,6 +766,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     }, 0);
   };
 
+  /** The projects the window follows the logs of, and who is told when one is written. */
+  const projectsWhoseLogsAreFollowed = new Set<string>();
+  const projectLogRecordsWrittenListeners = new Set<(projectDirectory: string) => void>();
+
   const publishStatus = (statusChanges: Partial<TatolabStatus>): void => {
     mockStatus = { ...mockStatus, project_venv_syncs_just_ended: [], ...statusChanges };
     for (const statusListener of statusListeners) statusListener(structuredClone(mockStatus));
@@ -1021,6 +1025,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       projectLog.recordsDeletedCount += recordsPastWhatItKeeps;
     }
     projectLogs.set(projectDirectory, projectLog);
+    if (!projectsWhoseLogsAreFollowed.has(projectDirectory)) return;
+    window.setTimeout(() => {
+      for (const listener of projectLogRecordsWrittenListeners) listener(projectDirectory);
+    }, 0);
   };
 
   /** Writes one record the runtime writes for `listing` outside any step, now, under `action`. */
@@ -1380,6 +1388,18 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       const isTheOpenProject = openProjectReading.kind === "read" && openProjectReading.open_project.project.folder === projectDirectory;
       if (!isTheOpenProject && !(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) throw `The runtime lists no stream from ${projectDirectory}.`;
       return readMockProjectLog(projectDirectory, narrowing, after);
+    },
+    followProjectLogRecords: async (projectDirectory) => {
+      projectsWhoseLogsAreFollowed.add(projectDirectory);
+    },
+    stopFollowingProjectLogRecords: async (projectDirectory) => {
+      projectsWhoseLogsAreFollowed.delete(projectDirectory);
+    },
+    onProjectLogRecordsWritten: (listener) => {
+      projectLogRecordsWrittenListeners.add(listener);
+      return () => {
+        projectLogRecordsWrittenListeners.delete(listener);
+      };
     },
     describeStreamGraph: async (streamId) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
