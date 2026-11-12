@@ -8,12 +8,20 @@ import { mockGraphNodeIdOf, mockUuidOf, type MockGraphNode, type MockStreamGraph
 import { studioAsTheRuntimeRendersIt } from "./mock_stream_graph_document";
 import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { MOCK_NODE_CATALOG_ENTRIES } from "./mock_node_catalog";
-import type { JsonValue, PortFamily, ProjectActionRefusal, ProjectGraphTransaction, StreamGraphAction, StreamGraphActionLinkEnd, StreamGraphNodeStudioFields } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, PortFamily, ProjectActionRefusal, ProjectGraphTransaction, StreamGraphAction, StreamGraphActionLinkEnd, StreamGraphGroup, StreamGraphLink, StreamGraphNodeStudioFields, StreamGraphNote } from "../src/shared/tatolab_backend_contract";
 
 /** A mock stream a graph action can name: its id, and the graph the mock holds for it. */
 export interface MockStreamGraphTarget {
   stream_id: string;
   graph: MockStreamGraph;
+}
+
+/** One level of a mock stream's graph: the stream's own, or the inside of a subgraph, which holds no notes. */
+interface MockGraphLevel {
+  nodes: MockGraphNode[];
+  links: StreamGraphLink[];
+  groups?: StreamGraphGroup[];
+  notes?: StreamGraphNote[];
 }
 
 /** What a mock transaction did, with each operation and its inverse as history records them, or the refusal that left every graph as it was. */
@@ -83,6 +91,22 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
   if (typeof stream !== "string") return null;
   const to = historyOperation["to"] ?? null;
   switch (operation) {
+    case "edit_inside_fragment": {
+      const { fragment, edit } = historyOperation;
+      if (typeof fragment !== "string" || !isAJsonObject(edit)) return null;
+      const actionInside = graphActionApplyingTheHistoryOperation({ ...edit, stream });
+      if (actionInside === null) return null;
+      switch (actionInside.operation) {
+        case "import_graph_generator":
+        case "use_dependency_stream":
+        case "add_note":
+        case "set_note_fields":
+        case "remove_note":
+          return null;
+        default:
+          return { ...actionInside, level: [fragment, ...(actionInside.level ?? [])] };
+      }
+    }
     case "set_node_config":
       return typeof node === "string" && typeof to === "object" && to !== null && !Array.isArray(to) ? { operation, stream, node, config: to } : null;
     case "set_pin_value": {
@@ -174,11 +198,30 @@ export function applyMockGraphTransaction(
   const inverseOperations: JsonValue[] = [];
   for (const [operationIndex, operation] of operations.entries()) {
     const target = targetsByStreamAsset.get(operation.stream);
-    const graph = workingGraphs.get(operation.stream);
-    if (target === undefined || graph === undefined) {
+    const streamGraph = workingGraphs.get(operation.stream);
+    if (target === undefined || streamGraph === undefined) {
       return { kind: "refused", refusal: { action: "transact", refused_operation_index: operationIndex, refused_node: null, refused_link: null, refused_field: null, runtime_words: `no loaded stream is the stream asset ${operation.stream}` } };
     }
     const nodeIdOf = (graphNode: MockGraphNode) => mockGraphNodeIdOf(target.stream_id, graphNode);
+    const level = "level" in operation ? (operation.level ?? []) : [];
+    let graph: MockGraphLevel = streamGraph;
+    for (const subgraphId of level) {
+      const subgraph = graph.nodes.find((candidate) => nodeIdOf(candidate) === subgraphId);
+      if (subgraph?.fragment?.kind !== "authored") {
+        const why =
+          subgraph === undefined
+            ? `no node ${subgraphId} in the stream's graph`
+            : subgraph.fragment === undefined
+              ? `node ${subgraphId} \`${subgraph.name}\` is no subgraph, so it has no inside to edit`
+              : subgraph.fragment.kind === "placed_stream"
+                ? `node ${subgraphId} \`${subgraph.name}\` places another stream, which is edited as its own stream, never from inside the node placing it`
+                : `node ${subgraphId} \`${subgraph.name}\` holds what the graph generator \`${subgraph.type}\` builds, which a refresh replaces; unlock it with unlock_generator_fragment to edit inside it`;
+        return { kind: "refused", refusal: { action: "transact", refused_operation_index: operationIndex, refused_node: subgraphId, refused_link: null, refused_field: null, runtime_words: why } };
+      }
+      graph = subgraph.fragment;
+    }
+    const atTheLevel = (operationAtItsLevel: { [key: string]: JsonValue }): { [key: string]: JsonValue } =>
+      level.reduceRight<{ [key: string]: JsonValue }>((edit, fragment) => ({ operation: "edit_inside_fragment", fragment, edit, port_links_taken_out: [], port_links_put_back: [] }), operationAtItsLevel);
     const nodeNamed = (node: string) => {
       const nodeId = nodeIdsByLabel.get(node) ?? node;
       const graphNode = graph.nodes.find((candidate) => nodeIdOf(candidate) === nodeId);
@@ -190,14 +233,15 @@ export function applyMockGraphTransaction(
       return { graphNode, end: { node: nodeIdOf(graphNode), port: end.port } };
     };
     const idTheReplayedOperationKept = (field: "group" | "note"): string | null => {
-      const replayed = historyOperationsReplayed[operationIndex];
+      let replayed = historyOperationsReplayed[operationIndex];
+      while (isAJsonObject(replayed) && replayed["operation"] === "edit_inside_fragment") replayed = replayed["edit"];
       const kept = isAJsonObject(replayed) ? replayed[field] : undefined;
       return isAJsonObject(kept) && typeof kept["id"] === "string" ? kept["id"] : null;
     };
     const recordInHistory = (historyOperation: { [key: string]: JsonValue }, inverseOperation: { [key: string]: JsonValue }) => {
-      historyOperations.push({ stream: operation.stream, ...historyOperation });
-      inverseOperations.unshift({ stream: operation.stream, ...inverseOperation });
-      applied.operations.push({ ...historyOperation, stream: target.stream_id });
+      historyOperations.push({ stream: operation.stream, ...atTheLevel(historyOperation) });
+      inverseOperations.unshift({ stream: operation.stream, ...atTheLevel(inverseOperation) });
+      applied.operations.push({ ...atTheLevel(historyOperation), stream: target.stream_id });
     };
     try {
       switch (operation.operation) {

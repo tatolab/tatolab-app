@@ -764,6 +764,9 @@ export type StreamGraphActionLinkEnd = z.infer<typeof streamGraphActionLinkEndSc
 
 const jsonObjectSchema = z.record(z.string(), jsonValueSchema);
 
+/** The subgraph a graph action edits inside: the path of subgraph node UUIDs from the stream's own level inward; the stream's own level when absent. */
+const streamGraphActionLevelSchema = z.array(z.string()).optional();
+
 /**
  * One action on a stream's graph as the runtime's `transact` takes it (`StreamGraphAction` in streamlib's
  * `stream_graph_action.rs`), tagged by `operation`: `stream` is the stream asset's UUID, a node is named by its
@@ -773,6 +776,7 @@ export const streamGraphActionSchema = z.discriminatedUnion("operation", [
   z.strictObject({
     operation: z.literal("add_node"),
     stream: z.string(),
+    level: streamGraphActionLevelSchema,
     type: z.string(),
     name: z.string().optional(),
     config: jsonObjectSchema.optional(),
@@ -781,16 +785,16 @@ export const streamGraphActionSchema = z.discriminatedUnion("operation", [
     studio: jsonObjectSchema.optional(),
     as: z.string().optional(),
   }),
-  z.strictObject({ operation: z.literal("remove_node"), stream: z.string(), node: z.string() }),
-  z.strictObject({ operation: z.literal("connect"), stream: z.string(), source: streamGraphActionLinkEndSchema, target: streamGraphActionLinkEndSchema }),
-  z.strictObject({ operation: z.literal("disconnect"), stream: z.string(), source: streamGraphActionLinkEndSchema, target: streamGraphActionLinkEndSchema }),
+  z.strictObject({ operation: z.literal("remove_node"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string() }),
+  z.strictObject({ operation: z.literal("connect"), stream: z.string(), level: streamGraphActionLevelSchema, source: streamGraphActionLinkEndSchema, target: streamGraphActionLinkEndSchema }),
+  z.strictObject({ operation: z.literal("disconnect"), stream: z.string(), level: streamGraphActionLevelSchema, source: streamGraphActionLinkEndSchema, target: streamGraphActionLinkEndSchema }),
   /** Replaces the node's config whole. */
-  z.strictObject({ operation: z.literal("set_node_config"), stream: z.string(), node: z.string(), config: jsonObjectSchema }),
+  z.strictObject({ operation: z.literal("set_node_config"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), config: jsonObjectSchema }),
   /** An absent or `null` value takes the input's value off. */
-  z.strictObject({ operation: z.literal("set_pin_value"), stream: z.string(), node: z.string(), input: z.string(), value: jsonValueSchema.optional() }),
-  z.strictObject({ operation: z.literal("rename_node"), stream: z.string(), node: z.string(), name: z.string() }),
+  z.strictObject({ operation: z.literal("set_pin_value"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), input: z.string(), value: jsonValueSchema.optional() }),
+  z.strictObject({ operation: z.literal("rename_node"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), name: z.string() }),
   /** Replaces the node's studio fields whole. */
-  z.strictObject({ operation: z.literal("set_studio_fields"), stream: z.string(), node: z.string(), studio: jsonObjectSchema }),
+  z.strictObject({ operation: z.literal("set_studio_fields"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), studio: jsonObjectSchema }),
   z.strictObject({
     operation: z.literal("import_graph_generator"),
     stream: z.string(),
@@ -799,10 +803,11 @@ export const streamGraphActionSchema = z.discriminatedUnion("operation", [
     config: jsonObjectSchema.optional(),
     as: z.string().optional(),
   }),
-  z.strictObject({ operation: z.literal("set_exposed_config_fields"), stream: z.string(), node: z.string(), exposed_config_fields: z.array(z.string()) }),
+  z.strictObject({ operation: z.literal("set_exposed_config_fields"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), exposed_config_fields: z.array(z.string()) }),
   z.strictObject({
     operation: z.literal("add_group"),
     stream: z.string(),
+    level: streamGraphActionLevelSchema,
     title: z.string(),
     description: z.string().optional(),
     colour: z.string().optional(),
@@ -811,12 +816,13 @@ export const streamGraphActionSchema = z.discriminatedUnion("operation", [
   z.strictObject({
     operation: z.literal("set_group_fields"),
     stream: z.string(),
+    level: streamGraphActionLevelSchema,
     group: z.string(),
     title: z.string().optional(),
     description: z.string().optional(),
     colour: z.string().optional(),
   }),
-  z.strictObject({ operation: z.literal("remove_group"), stream: z.string(), group: z.string() }),
+  z.strictObject({ operation: z.literal("remove_group"), stream: z.string(), level: streamGraphActionLevelSchema, group: z.string() }),
   z.strictObject({
     operation: z.literal("use_dependency_stream"),
     stream: z.string(),
@@ -825,8 +831,8 @@ export const streamGraphActionSchema = z.discriminatedUnion("operation", [
     name: z.string().optional(),
     as: z.string().optional(),
   }),
-  z.strictObject({ operation: z.literal("collapse_selection_into_subgraph"), stream: z.string(), nodes: z.array(z.string()), name: z.string(), as: z.string().optional() }),
-  z.strictObject({ operation: z.literal("unlock_generator_fragment"), stream: z.string(), fragment: z.string() }),
+  z.strictObject({ operation: z.literal("collapse_selection_into_subgraph"), stream: z.string(), level: streamGraphActionLevelSchema, nodes: z.array(z.string()), name: z.string(), as: z.string().optional() }),
+  z.strictObject({ operation: z.literal("unlock_generator_fragment"), stream: z.string(), level: streamGraphActionLevelSchema, fragment: z.string() }),
   z.strictObject({ operation: z.literal("add_note"), stream: z.string(), text: z.string(), position: studioCanvasPairSchema, size: studioCanvasPairSchema }),
   z.strictObject({
     operation: z.literal("set_note_fields"),

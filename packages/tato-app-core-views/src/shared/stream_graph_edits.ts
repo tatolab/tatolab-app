@@ -79,9 +79,19 @@ export function studioFieldsSetBy(actions: readonly StreamGraphAction[]): Map<st
   return studioByNodeId;
 }
 
-/** Whether the graph now shows each studio field set ahead for its node, whatever else another edit set beside them. */
+/** The node of UUID `nodeId` at any level of `nodes` and the subgraphs they hold. */
+function nodeAtAnyLevel(nodes: readonly StreamGraphNode[], nodeId: string): StreamGraphNode | undefined {
+  for (const node of nodes) {
+    if (node.id === nodeId) return node;
+    const inside = node.fragment === null ? undefined : nodeAtAnyLevel(node.fragment.nodes, nodeId);
+    if (inside !== undefined) return inside;
+  }
+  return undefined;
+}
+
+/** Whether the graph now shows each studio field set ahead for its node, at whatever level of its subgraphs the node is, whatever else another edit set beside them. */
 export function doesTheGraphShowTheStudioSentAhead(graph: StreamGraphSummary, nodeId: string, studioSentAhead: StreamGraphNodeStudioFields): boolean {
-  const node = graph.nodes.find((graphNode) => graphNode.id === nodeId);
+  const node = nodeAtAnyLevel(graph.nodes, nodeId);
   if (node === undefined) return true;
   const shown = studioObjectOf(node.studio);
   return Object.entries(studioObjectOf(studioSentAhead)).every(([field, value]) => JSON.stringify(shown[field]) === JSON.stringify(value));
@@ -303,4 +313,24 @@ export function subgraphRefreshedEdits(edited: EditedStreamGraph, subgraphName: 
   const subgraph = edited.graph.nodes.find((node) => node.name === subgraphName);
   if (subgraph === undefined || subgraph.fragment?.kind !== "generated") return [];
   return [{ operation: "import_graph_generator", stream: edited.streamAsset, generator: subgraph.type, name: subgraph.name, config: subgraph.config }];
+}
+
+/** `actions` sent inside the subgraph `level` names, the path of subgraph node UUIDs from the stream's own level inward; why not when one of them is an edit the runtime makes only on the stream's own level. */
+export function streamGraphActionsAtTheLevel(actions: readonly StreamGraphAction[], level: readonly string[]): StreamGraphAction[] | { because: string } {
+  if (level.length === 0) return [...actions];
+  const actionsAtTheLevel: StreamGraphAction[] = [];
+  for (const action of actions) {
+    switch (action.operation) {
+      case "import_graph_generator":
+      case "use_dependency_stream":
+        return { because: "The runtime places a subgraph from code or from another stream only on the stream's own level." };
+      case "add_note":
+      case "set_note_fields":
+      case "remove_note":
+        return { because: "The runtime keeps a note only on the stream's own level, not inside a subgraph." };
+      default:
+        actionsAtTheLevel.push({ ...action, level: [...level] });
+    }
+  }
+  return actionsAtTheLevel;
 }

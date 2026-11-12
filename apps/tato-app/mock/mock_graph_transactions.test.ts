@@ -190,3 +190,31 @@ test("a Python node takes a number config field as a Channels input fed by a Gra
   const refusedFamily = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", name: "level", config: { port: "level", family: "Channels" } }]);
   expect(refusedFamily.kind === "refused" && refusedFamily.refusal.runtime_words).toContain('names family "Channels", and a family is one of image, array, channels, packets, records');
 });
+
+test("an edit at a subgraph's level changes only its inside, history wraps it in the subgraph, and the inverse undoes it there", () => {
+  const graph = aTestPatternAlone();
+  const collapsed = applyMockGraphTransaction(targetsOf(graph), [{ operation: "collapse_selection_into_subgraph", stream: STREAM_ASSET, name: "look", nodes: [TEST_PATTERN] }]);
+  if (collapsed.kind !== "applied") return expect.unreachable(collapsed.refusal.runtime_words);
+  const look = mockNodeIdOf(STREAM_ID, "look");
+  const added = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:DisplayWindow", level: [look] }]);
+  if (added.kind !== "applied") return expect.unreachable(added.refusal.runtime_words);
+  expect(graph.nodes.map((node) => node.name)).toEqual(["look"]);
+  expect(graph.nodes[0]?.fragment?.nodes.map((node) => node.name)).toEqual(["testpatternsource", "displaywindow"]);
+  expect(added.history_operations[0]).toMatchObject({ stream: STREAM_ASSET, operation: "edit_inside_fragment", fragment: look, edit: { operation: "add_node" } });
+
+  const undo = added.inverse_operations.map(graphActionApplyingTheHistoryOperation);
+  expect(undo).toEqual([{ operation: "remove_node", stream: STREAM_ASSET, node: mockNodeIdOf(STREAM_ID, "displaywindow"), level: [look] }]);
+  const undone = applyMockGraphTransaction(targetsOf(graph), undo.flatMap((action) => (action === null ? [] : [action])), "undo_or_redo");
+  expect(undone.kind).toBe("applied");
+  expect(graph.nodes[0]?.fragment?.nodes.map((node) => node.name)).toEqual(["testpatternsource"]);
+});
+
+test("an edit at the level of a generated subgraph is refused in the runtime's words", () => {
+  const graph = aTestPatternAlone();
+  graph.nodes.push({ name: "halftone-look", type: "generators.looks:halftone_look", state: null, config: {}, input_ports: [], output_ports: [], fragment: { kind: "generated", nodes: [], links: [], groups: [] } });
+  const halftoneLook = mockNodeIdOf(STREAM_ID, "halftone-look");
+  const refused = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:DisplayWindow", level: [halftoneLook] }]);
+  if (refused.kind !== "refused") return expect.unreachable("the generated subgraph's inside took the edit");
+  expect(refused.refusal).toMatchObject({ refused_operation_index: 0, refused_node: halftoneLook });
+  expect(refused.refusal.runtime_words).toContain("unlock_generator_fragment");
+});

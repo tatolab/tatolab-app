@@ -1,5 +1,5 @@
 // The levels of a stream's graph the canvas can show: the stream's own, and the inside of each subgraph
-// stepped into from it, reached by the names of the subgraph nodes stepped through.
+// stepped into from it, reached by the names of the subgraph nodes stepped through and edited by their UUIDs.
 
 import type { StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 
@@ -22,14 +22,21 @@ export function streamGraphLevelReached(graph: StreamGraphSummary, subgraphNames
   return { graph: level, subgraphs_stepped_through: steppedThrough };
 }
 
-/** Why the inside of `subgraph` is read only, in words for the strip over it. */
+/** The first subgraph stepped through whose inside the runtime edits nothing in, a graph generator's output or a placed stream, which keeps every level inside it read only; `null` when each is authored. */
+export function theSubgraphKeepingTheLevelReadOnly(subgraphsSteppedThrough: readonly StreamGraphNode[]): { subgraph: StreamGraphNode; depth: number } | null {
+  const depth = subgraphsSteppedThrough.findIndex((subgraph) => subgraph.fragment?.kind !== "authored");
+  const subgraph = subgraphsSteppedThrough[depth];
+  return subgraph === undefined ? null : { subgraph, depth };
+}
+
+/** The `level` a graph action names to edit inside the first `depth` subgraphs stepped through: their UUIDs, outermost first. */
+export function levelOfTheSubgraphsSteppedThrough(subgraphsSteppedThrough: readonly StreamGraphNode[], depth: number = subgraphsSteppedThrough.length): string[] {
+  return subgraphsSteppedThrough.slice(0, depth).map((subgraph) => subgraph.id);
+}
+
+/** Why the inside of `subgraph`, a graph generator's output or a placed stream, is read only, in words for the strip over it. */
 export function whyTheInsideOfTheSubgraphIsReadOnly(subgraph: StreamGraphNode): string {
-  switch (subgraph.fragment?.kind) {
-    case "generated":
-      return `Made by ${subgraph.type}. Refresh it from its code, or unlock it to edit its nodes.`;
-    case "placed_stream":
-      return "Another stream, placed by reference. Edit it in its own tab.";
-    default:
-      return "Editing inside a subgraph waits on tatolab/streamlib#3519. Unlock it to edit its nodes.";
-  }
+  return subgraph.fragment?.kind === "placed_stream"
+    ? "Another stream, placed by reference. Edit it in its own tab."
+    : `Made by ${subgraph.type}. Refresh it from its code, or unlock it to edit its nodes.`;
 }
