@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Runtime error: no stream of the project in /tmp/tatolab-proof-projects/hallways plays, so there is none to pause; `start_playback` plays it. Loaded: hallways-main-06e134"}],"isError":true}}

@@ -213,6 +213,10 @@ export function mountTatolabWindow(
       studioWindowModel.projectRunRefusal.publish(null);
       backend.runOpenProject().catch((rejection: unknown) => studioWindowModel.projectRunRefusal.publish({ asked_to: "run", because: describeBackendRejection(rejection) }));
     },
+    pauseTheProject: () => {
+      studioWindowModel.projectRunRefusal.publish(null);
+      backend.pauseOpenProject().catch((rejection: unknown) => studioWindowModel.projectRunRefusal.publish({ asked_to: "pause", because: describeBackendRejection(rejection) }));
+    },
     stopTheProject: () => {
       studioWindowModel.projectRunRefusal.publish(null);
       backend.stopOpenProject().catch((rejection: unknown) => studioWindowModel.projectRunRefusal.publish({ asked_to: "stop", because: describeBackendRejection(rejection) }));

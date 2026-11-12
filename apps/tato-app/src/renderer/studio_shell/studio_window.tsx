@@ -32,10 +32,12 @@ import { NameFormDialog } from "./name_form_dialog_view";
 import { studioLayoutWithEdgesHidden } from "./studio_layout_shapes";
 import { StudioTitleRowLayoutButtons } from "./studio_title_row_layout_buttons";
 import { StreamMenuDialogsView, type StreamEditsOfTheStreamMenu } from "./stream_menu_dialogs_view";
-import type { StudioWindowModel } from "./studio_window_model";
+import type { ProjectPlaybackAskedFor, StudioWindowModel } from "./studio_window_model";
 
 /** Who the view-type menu says brings the views the app ships with itself. */
 const TATO_STUDIO_AS_A_VIEW_SOURCE = "Tato Studio";
+
+const PROJECT_PLAYBACK_REFUSAL_TITLES: Readonly<Record<ProjectPlaybackAskedFor, string>> = { run: "The project didn't run", pause: "The project didn't pause", stop: "The project didn't stop" };
 
 /** Where the studio window's menus go on macOS: the system menu bar, while this window is in focus. */
 export interface StudioWindowSystemMenuBar {
@@ -404,7 +406,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
           {projectRunRefusal !== null && (
             <WindowNotice
               tone="failure"
-              title={projectRunRefusal.asked_to === "run" ? "The project didn't run" : "The project didn't stop"}
+              title={PROJECT_PLAYBACK_REFUSAL_TITLES[projectRunRefusal.asked_to]}
               detail={projectRunRefusal.because}
               onDismissed={() => model.projectRunRefusal.publish(null)}
               data-project-run-refusal=""

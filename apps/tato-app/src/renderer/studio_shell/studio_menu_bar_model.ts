@@ -33,8 +33,10 @@ export interface StudioMenuBarCommands {
   applyTheSavedLayoutPreset(presetIndex: number): void;
   /** Window › Layout › Save layout as preset…: ask for the preset's name. */
   askToSaveTheLayoutAsAPreset(): void;
-  /** Run › Live: run the open project, which loads every stream asset in it again. */
+  /** Run › Live: play the open project, resuming it while it is paused. */
   runTheProjectLive(): void;
+  /** Run › Pause: pause the open project's playback, every stream of it held where it stands. */
+  pauseTheProject(): void;
   /** Run › Stop: stop the open project's running streams. */
   stopTheProject(): void;
   /** Edit › Undo: undo the last edit the person made in the open project that is not undone yet. */
@@ -186,7 +188,7 @@ function studioMenuParts(
     },
     runMenu: {
       label: "Run",
-      entries: [projectCommand("Live", commands.runTheProjectLive, RUN_LIVE_KEY), projectCommand("Stop", commands.stopTheProject, STOP_KEY_HINT), laterCommand("Render to file…")],
+      entries: [projectCommand("Live", commands.runTheProjectLive, RUN_LIVE_KEY), projectCommand("Pause", commands.pauseTheProject), projectCommand("Stop", commands.stopTheProject, STOP_KEY_HINT), laterCommand("Render to file…")],
     },
     windowEntries: [studioLayoutEntry, laterCommand("Maximise area"), laterCommand("New window")],
     aboutEntry: { kind: "command", label: "About Tato Studio", onChosen: commands.openAbout },

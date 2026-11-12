@@ -77,6 +77,28 @@ describe("the mock backend's stream actions", () => {
     expect(listingWithTheId(stopped.streams, CAMERA)).toMatchObject({ state: "running" });
   });
 
+  it("pauses every running stream of the open project at once, resumes them on Live, and stops a paused project", async () => {
+    const { backend, streamsAfterEachChange } = await runningMockBackend();
+
+    const paused = await streamsAfterEachChange(() => backend.pauseOpenProject());
+    expect(paused.answer).toEqual({ queued: true });
+    expect(listingWithTheId(paused.streams, MAIN)).toMatchObject({ state: "paused", action: null });
+    expect(listingWithTheId(paused.streams, RECORDER)).toMatchObject({ state: "paused" });
+    expect(listingWithTheId(paused.streams, CAMERA)).toMatchObject({ state: "running" });
+    const resumed = await streamsAfterEachChange(() => backend.runOpenProject());
+    expect(resumed.answer).toEqual({ queued: true });
+    expect(listingWithTheId(resumed.streams, MAIN)).toMatchObject({ state: "running" });
+    expect(listingWithTheId(resumed.streams, RECORDER)).toMatchObject({ state: "running" });
+    await streamsAfterEachChange(() => backend.pauseOpenProject());
+    await streamsAfterEachChange(() => backend.stopOpenProject());
+    const stopped = await streamsAfterEachChange(() => Promise.resolve(), 1000);
+    expect(listingWithTheId(stopped.streams, MAIN)).toMatchObject({ state: "stopped" });
+    const pausedWhileStopped = await streamsAfterEachChange(() => backend.pauseOpenProject());
+    expect(pausedWhileStopped.answer).toEqual({
+      refusal: expect.stringMatching(/^Runtime error: no stream of the project in \/Users\/jonathanf\/streams\/pattern plays, so there is none to pause; `start_playback` plays it\. Loaded: /),
+    });
+  });
+
   it("refuses what the runtime refuses, in words shaped as the runtime's", async () => {
     const { backend, streamsAfterEachChange } = await runningMockBackend();
 

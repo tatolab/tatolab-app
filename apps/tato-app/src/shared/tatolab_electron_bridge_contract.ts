@@ -133,6 +133,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "write_studio_view_output",
   "write_graph_input",
   "run_open_project",
+  "pause_open_project",
   "read_open_project_transactions",
   "undo_in_the_open_project",
   "transact_in_the_open_project",
@@ -384,8 +385,10 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   write_studio_view_output: { commandArguments: { stream: string; node: string; port: string; value: JsonValue }; answer: null };
   /** From a studio window or a popped-out view only: `value` handed to the Input `input` of the running stream `stream`, which its top-level `GraphInput` publishes: an Array Input a number or lists of numbers of one shape, a Channels Input a number, a bool or `{ samples, sample_rate }`, a Records Input a JSON object; live data, recorded nowhere, the last write winning; refused in the runtime's own words. */
   write_graph_input: { commandArguments: { stream: string; input: string; value: JsonValue }; answer: null };
-  /** The runtime's `start_playback` queued on the open project's folder, which the window never names, after `open_project` while the runtime holds it closed and `reload_project` while a stream of it has failed; refused in the runtime's own words, or while no project is open. */
-  run_open_project: { commandArguments: undefined; answer: ProjectStreamActionQueued };
+  /** The playback of the open project's folder, which the window never names, started: `start_playback` queued after `open_project` while the runtime holds it closed and `reload_project` while a stream of it has failed, or `resume_playback` while it is paused; refused in the runtime's own words, or while no project is open. */
+  run_open_project: { commandArguments: undefined; answer: null };
+  /** The runtime's `pause_playback` of the open project's folder, which the window never names: every stream of it held loaded and `paused` at once. Refused in the runtime's own words, or while no project is open. */
+  pause_open_project: { commandArguments: undefined; answer: null };
   /** The asking studio window's project's change feed as last read; refused in the Projects window. */
   read_open_project_transactions: { commandArguments: undefined; answer: ProjectTransactionsReading };
   /** The runtime's `undo` by `author` on the asking studio window's project, answering the undo it applied; refused in the runtime's own words. */

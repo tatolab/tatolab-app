@@ -12,6 +12,7 @@ import {
   parseHttpResponse,
   runtimeDescriptionFromTheDescribeRuntimeToolResult,
   queuedStreamActionFromTheToolResult,
+  streamsThePlaybackHoldReachedFromTheToolResult,
   streamAssetChangeFromTheToolResult,
 } from "./local_api_client.js";
 import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
@@ -556,6 +557,42 @@ test("a_stop_of_the_playback_of_a_project_none_of_whose_streams_plays_is_refused
       "Runtime error: no stream of the project in /tmp/tatolab-proof-projects/pattern plays, so there is none to stop; `start_playback` plays it. Loaded: hallways-main-80cbae, pattern-main-32fee2. Recorded: hallways-main-80cbae, lobby-main-298da3 (closed), pattern-main-32fee2 (stopped)",
     isTheRuntimesRefusal: true,
   });
+});
+
+test("pausing_then_resuming_the_playback_calls_pause_playback_and_resume_playback_with_its_folder_and_answers_the_streams_each_reached", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-pause-playback-answer-for-the-playing-project-hallways.json")),
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-resume-playback-answer-for-the-paused-project-hallways.json")),
+  ]);
+
+  expect(answerOf(await server.client().pausePlayback("/tmp/tatolab-proof-projects/hallways"))).toEqual(["hallways-main-06e134"]);
+  expect(answerOf(await server.client().resumePlayback("/tmp/tatolab-proof-projects/hallways"))).toEqual(["hallways-main-06e134"]);
+  expect(controlOperationCallsReceivedBy(server)).toEqual([
+    ["pause_playback", { project_directory: "/tmp/tatolab-proof-projects/hallways" }],
+    ["resume_playback", { project_directory: "/tmp/tatolab-proof-projects/hallways" }],
+  ]);
+});
+
+test("a_pause_of_a_stopped_project_and_a_resume_of_a_playing_one_are_refused_in_the_runtimes_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-pause-playback-refusal-for-the-stopped-project-hallways.json")),
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-resume-playback-refusal-for-the-playing-project-hallways.json")),
+  ]);
+
+  expect(failureOf(await server.client().pausePlayback("/tmp/tatolab-proof-projects/hallways"))).toEqual({
+    failureDescription: "Runtime error: no stream of the project in /tmp/tatolab-proof-projects/hallways plays, so there is none to pause; `start_playback` plays it. Loaded: hallways-main-06e134",
+    isTheRuntimesRefusal: true,
+  });
+  expect(failureOf(await server.client().resumePlayback("/tmp/tatolab-proof-projects/hallways"))).toEqual({
+    failureDescription: "Runtime error: the project in /tmp/tatolab-proof-projects/hallways is not paused, so there is none to resume",
+    isTheRuntimesRefusal: true,
+  });
+});
+
+test("a_pause_answer_naming_no_streams_is_refused_naming_it", () => {
+  expect(failureOf(streamsThePlaybackHoldReachedFromTheToolResult("pause_playback", JSON.parse('{"project_directory":"/tmp/tatolab-proof-projects/hallways"}')))).toBe(
+    "the runtime's pause_playback result could not be read: missing field `streams`",
+  );
 });
 
 test("closing_a_project_queues_close_project_with_its_folder_and_a_closed_one_is_refused_in_the_runtimes_own_words", async () => {

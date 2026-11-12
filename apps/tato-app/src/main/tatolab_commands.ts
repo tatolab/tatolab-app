@@ -327,6 +327,9 @@ export function openStreamProject(sharedState: TatolabAppSharedState, folder: st
 /** The state the runtime lists each stream of a closed project in: unloaded until `open_project`. */
 const STREAM_STATE_OF_A_CLOSED_PROJECT = "closed";
 
+/** The state the runtime lists each loaded stream of a project in while `pause_playback` holds its playback. */
+const STREAM_STATE_WHILE_THE_PROJECT_IS_PAUSED = "paused";
+
 /** The states the runtime lists a stream in while its project's playback plays or is paused. */
 const STREAM_STATES_WHILE_THE_PROJECT_PLAYS: ReadonlySet<string> = new Set(["running", "paused"]);
 
@@ -362,19 +365,27 @@ export async function openTheProjectWhenTheRuntimeHoldsItClosed(
 
 /**
  * The playback of the project in `projectDirectory` started as the runtime last listed it: a closed project opened, then played; an open one with a failed stream
- * reloaded, which retries it, then played unless it plays already; any other open one played with `start_playback`, which refuses a project that plays.
+ * reloaded, which retries it and keeps the playback, then played as the others were; a paused one resumed with `resume_playback`; one that plays left to
+ * `start_playback`, which refuses it in its own words; any other open one played with `start_playback`.
  */
-async function startThePlaybackOfTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
+async function startThePlaybackOfTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<void, LocalApiRequestFailure>> {
   const streamsOfTheProject = streamsOfTheProjectIn(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectDirectory);
   if (!theStreamsListTheProjectOpen(streamsOfTheProject)) {
     const opened = await sharedState.controller.openProject(projectDirectory);
-    return opened.ok ? sharedState.controller.startPlayback(projectDirectory) : opened;
+    return nothingOnceDone(opened.ok ? await sharedState.controller.startPlayback(projectDirectory) : opened);
   }
+  const theProjectIsPaused = streamsOfTheProject.some((listedStream) => listedStream.state === STREAM_STATE_WHILE_THE_PROJECT_IS_PAUSED);
   if (streamsOfTheProject.some((listedStream) => listedStream.state === "failed")) {
     const reloaded = await sharedState.controller.reloadProject(projectDirectory);
-    if (!reloaded.ok || streamsOfTheProject.some((listedStream) => STREAM_STATES_WHILE_THE_PROJECT_PLAYS.has(listedStream.state))) return reloaded;
+    if (!reloaded.ok) return reloaded;
+    if (!theProjectIsPaused && streamsOfTheProject.some((listedStream) => STREAM_STATES_WHILE_THE_PROJECT_PLAYS.has(listedStream.state))) return succeeded(undefined);
   }
-  return sharedState.controller.startPlayback(projectDirectory);
+  if (theProjectIsPaused) return nothingOnceDone(await sharedState.controller.resumePlayback(projectDirectory));
+  return nothingOnceDone(await sharedState.controller.startPlayback(projectDirectory));
+}
+
+function nothingOnceDone<Answer>(done: Result<Answer, LocalApiRequestFailure>): Result<void, LocalApiRequestFailure> {
+  return done.ok ? succeeded(undefined) : done;
 }
 
 /** The runtime's `reload_project` queued on `projectDirectory` when it last listed the project open, which keeps its playback, else its `open_project`. */
@@ -698,8 +709,8 @@ export function createNewProjectArgumentsFrom(commandArguments: unknown): Result
   return location.ok ? succeeded({ name: name.value, location: location.value }) : location;
 }
 
-/** `run_open_project`: the playback of the asking window's project started, opening it first while it is closed and reloading it first while a stream of it has failed, then a status round; refused in the Projects window, or in the runtime's own words. */
-export function runOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectStreamActionQueued, string>> {
+/** `run_open_project`: the playback of the asking window's project started, opening it first while it is closed, reloading it first while a stream of it has failed and resuming it while it is paused, then a status round; refused in the Projects window, or in the runtime's own words. */
+export function runOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
   return answerTheWindow("run_open_project", async () => {
     const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!studioWindow.ok) return studioWindow;
@@ -708,6 +719,17 @@ export function runOpenProject(sharedState: TatolabAppSharedState, commandFromWi
     const queued = await startThePlaybackOfTheProject(sharedState, reading.open_project.project.folder);
     sharedState.statusPublisher.requestRefresh();
     return queued.ok ? queued : failedWith(queued.failure.failureDescription);
+  });
+}
+
+/** `pause_open_project`: the runtime's `pause_playback` of the asking window's project's folder, which holds every stream of it loaded and `paused` at once, then a status round; refused in the Projects window, or in the runtime's own words. */
+export function pauseOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+  return answerTheWindow("pause_open_project", async () => {
+    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!studioWindow.ok) return studioWindow;
+    const paused = await sharedState.controller.pausePlayback(studioWindow.value.openProject.projectFolder);
+    sharedState.statusPublisher.requestRefresh();
+    return paused.ok ? succeeded(undefined) : failedWith(paused.failure.failureDescription);
   });
 }
 
@@ -1387,7 +1409,8 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
         ),
       );
     },
-    run_open_project: async (_commandArguments, commandFromWindow) => commandAnswerFrom(await runOpenProject(sharedState, commandFromWindow)),
+    run_open_project: async (_commandArguments, commandFromWindow) => commandAnswerOfNothingFrom(await runOpenProject(sharedState, commandFromWindow)),
+    pause_open_project: async (_commandArguments, commandFromWindow) => commandAnswerOfNothingFrom(await pauseOpenProject(sharedState, commandFromWindow)),
     stop_open_project: async (_commandArguments, commandFromWindow) => commandAnswerOfNothingFrom(await stopOpenProject(sharedState, commandFromWindow)),
     read_open_project_transactions: async (_commandArguments, commandFromWindow) => {
       const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
