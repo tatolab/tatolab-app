@@ -56,6 +56,7 @@ import {
   type TatolabCommandLineToolVersion,
   type StreamGraphSummary,
   type ProjectVenvSyncOfAStreamAction,
+  type FailedProjectStreamAction,
   type StreamActionDescription,
   type StreamActionVenvSync,
   STREAM_ACTION_STEP_MAKING_THE_VENV,
@@ -105,6 +106,10 @@ const MOCK_RUNTIME_STARTUP_MILLISECONDS = 2400;
 const MOCK_COMMAND_LINE_TOOL_LINK_MILLISECONDS = 400;
 const MOCK_LIVE_TICK_MILLISECONDS = 700;
 const MOCK_STREAM_SETTLE_MILLISECONDS = 1600;
+/** The runtime's words for an `open_project` it fails while a record an earlier runtime wrote from another folder holds the project's stream id. */
+const mockOpenRefusedForAnEarlierRuntimesRecord = (projectDirectory: string): string =>
+  `Stream graph error: the stream id \`pattern-main\` of the stream asset 7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68 of the project 0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55 in ${projectDirectory} is held by a record an earlier runtime wrote from ${projectDirectory}-copy; two streams cannot share one id, so \`rm\` the stream that holds it, or give a second copy of a project its own project UUID`;
+
 /** How long `main` stays listed but not loaded in the `loading` scenario. */
 const MOCK_MAIN_LOADING_MILLISECONDS = 9000;
 const MOCK_RECORDS_PAGE_SIZE = 500;
@@ -258,6 +263,8 @@ export interface MockTatolabOptions {
   isMakingThePythonEnvironmentRefused: boolean;
   /** `?streams=earlier_record`: the runtime also lists a record an earlier runtime wrote, failed and naming no location. */
   doesTheRuntimeListAnEarlierRuntimesRecord: boolean;
+  /** `?project_open=refused`: the runtime fails the open project's `open_project`, as it does while a record an earlier runtime wrote elsewhere holds its stream id. */
+  isTheOpenProjectsOpenRefused: boolean;
   /** `?project=none|unreadable`: no project open, or one the runtime names no project in; the pattern project by default. */
   openProjectScenario: MockOpenProjectScenario;
   /** `?history=empty`: the open project has no transactions yet; a few by the person, an agent and the runtime by default. */
@@ -422,6 +429,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     appBuild: mockAppBuild(pageQuery.get("app_build")),
     isMakingThePythonEnvironmentRefused: pageQuery.get("add_venv") === "refused",
     doesTheRuntimeListAnEarlierRuntimesRecord: pageQuery.get("streams") === "earlier_record",
+    isTheOpenProjectsOpenRefused: pageQuery.get("project_open") === "refused",
     openProjectScenario: mockOpenProjectScenarioNamed(pageQuery.get("project")),
     projectHistoryScenario: mockProjectHistoryScenarioNamed(pageQuery.get("history")),
     recentProjectsInTheQuery: pageQuery.get("recent"),
@@ -552,6 +560,7 @@ function initialMockStatus(
     streams: [],
     project_venv_syncs_under_way: [],
     project_venv_syncs_just_ended: [],
+    project_stream_action_failures: [],
     streams_not_listed_because: scenario === "not-listed" ? MOCK_STREAMS_NOT_LISTED_BECAUSE : null,
     command_line_tool_link:
       commandLineToolLinkScenario === "linked"
@@ -605,6 +614,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     streamPageRequestedByANotification,
     isMakingThePythonEnvironmentRefused,
     doesTheRuntimeListAnEarlierRuntimesRecord,
+    isTheOpenProjectsOpenRefused,
     openProjectScenario,
     projectHistoryScenario,
     recentProjectsInTheQuery,
@@ -827,6 +837,14 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const projectLoadsQueued = new Map<string, StreamActionDescription>();
   /** Whether each queued load leaves its streams playing or held stopped, by action. */
   const playbackAfterEachProjectLoad = new Map<string, MockProjectPlaybackAfterItsLoad>();
+  /** Each project whose latest queued load failed, as the main process holds it from the actions it follows. */
+  const projectStreamActionFailures = (): FailedProjectStreamAction[] => {
+    const latestLoadOfEachProject = new Map<string, StreamActionDescription>();
+    for (const description of projectLoadsQueued.values()) latestLoadOfEachProject.set(description.project_directory, description);
+    return [...latestLoadOfEachProject.values()].flatMap(({ action, project_directory, kind, state, failed_because }) =>
+      state === "failed" && failed_because !== null ? [{ action, project_directory, kind, failed_because }] : [],
+    );
+  };
   const notHeldWords = (action: string): string =>
     `the stream action \`${action}\` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log`;
 
@@ -882,7 +900,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     const action = nextStreamActionId();
     const description: StreamActionDescription = { action, project_directory: projectDirectory, kind, state: "queued", step: null, streams: [], failed_because: null, venv_sync: null };
     projectLoadsQueued.set(action, description);
-    window.setTimeout(() => Object.assign(description, { state: "failed", failed_because: failedBecause }), MOCK_STREAM_ACTION_STEP_MILLISECONDS);
+    publishStatus({ project_stream_action_failures: projectStreamActionFailures() });
+    window.setTimeout(() => {
+      Object.assign(description, { state: "failed", failed_because: failedBecause });
+      publishStatus({ project_stream_action_failures: projectStreamActionFailures() });
+    }, MOCK_STREAM_ACTION_STEP_MILLISECONDS);
     return action;
   };
 
@@ -896,6 +918,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     playbackAfterEachProjectLoad.set(action, playbackAfterTheLoad);
     const description: StreamActionDescription = { action, project_directory: projectDirectory, kind, state: "queued", step: null, streams: [], failed_because: null, venv_sync: null };
     projectLoadsQueued.set(action, description);
+    publishStatus({ project_stream_action_failures: projectStreamActionFailures() });
     void workOnTheMockProjectLoad(description);
     return action;
   };
@@ -1366,6 +1389,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   if (mockStatus.runtime_state === "running") bringRuntimeUp();
   // The app starts its runtime as it opens, so a starting runtime comes up as the real one does.
   if (scenario === "starting") startRuntime();
+  if (isTheOpenProjectsOpenRefused && openProjectReading.kind === "read") {
+    const projectDirectory = openProjectReading.open_project.project.folder;
+    queueAMockProjectLoadThatFails(projectDirectory, "open", mockOpenRefusedForAnEarlierRuntimesRecord(projectDirectory));
+  }
 
   return {
     getTatolabStatus: async () => {

@@ -8,7 +8,7 @@
 // reaches the window. A connection that cannot open, cannot subscribe or closes is followed again
 // after a wait.
 
-import { STREAM_ACTION_STEP_MAKING_THE_VENV, type ProjectVenvSyncOfAStreamAction, type StreamActionDescription } from "../shared/tatolab_backend_contract.js";
+import { STREAM_ACTION_STEP_MAKING_THE_VENV, type FailedProjectStreamAction, type ProjectVenvSyncOfAStreamAction, type StreamActionDescription } from "../shared/tatolab_backend_contract.js";
 import { everyOneRead, jsonObject, requiredArray } from "./json_on_the_wire.js";
 import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { failedWith, succeeded, type Result } from "./result.js";
@@ -101,6 +101,7 @@ export class StreamActionChangesFollowedForTheStatus {
   private actionsWhoseSyncWasHandedOver = new Set<string>();
   private actionsBeingDescribed = new Map<string, { isAnotherDescribeWanted: boolean; endedSyncOfTheNextDescription: EndedSyncOfTheDescription }>();
   private syncsJustEnded: ProjectVenvSyncOfAStreamAction[] = [];
+  private latestFailedActionOfEachProject = new Map<string, FailedProjectStreamAction>();
 
   constructor(private readonly sources: StreamActionChangesFollowedForTheStatusSources) {}
 
@@ -125,6 +126,11 @@ export class StreamActionChangesFollowedForTheStatus {
     this.syncsJustEnded = [];
     const underWay = [...this.actionsMakingTheVenv.values()].flatMap((description) => syncOfTheAction(description) ?? []);
     return { underWay, justEnded };
+  }
+
+  /** Each project whose latest followed stream action failed, until another action of the project is described or the connection is lost. */
+  projectStreamActionFailuresNow(): FailedProjectStreamAction[] {
+    return [...this.latestFailedActionOfEachProject.values()];
   }
 
   private async openAndSubscribe(): Promise<void> {
@@ -211,7 +217,25 @@ export class StreamActionChangesFollowedForTheStatus {
       }
     }
     if (hasEnded(description)) this.actionsWhoseSyncWasHandedOver.delete(action);
-    if (didTheSyncsChange) this.sources.readTheStatusAgain();
+    const didTheProjectsFailureChange = this.noticeWhetherTheActionFailed(description);
+    if (didTheSyncsChange || didTheProjectsFailureChange) this.sources.readTheStatusAgain();
+  }
+
+  private noticeWhetherTheActionFailed(description: StreamActionDescription): boolean {
+    const failureHeld = this.latestFailedActionOfEachProject.get(description.project_directory);
+    if (description.state === "failed" && description.failed_because !== null) {
+      if (failureHeld?.action === description.action) return false;
+      this.latestFailedActionOfEachProject.set(description.project_directory, {
+        action: description.action,
+        project_directory: description.project_directory,
+        kind: description.kind,
+        failed_because: description.failed_because,
+      });
+      return true;
+    }
+    if (failureHeld === undefined || failureHeld.action === description.action) return false;
+    this.latestFailedActionOfEachProject.delete(description.project_directory);
+    return true;
   }
 
   private forgetTheConnection(): void {
@@ -220,6 +244,7 @@ export class StreamActionChangesFollowedForTheStatus {
     this.actionsMakingTheVenv = new Map();
     this.actionsWhoseSyncWasHandedOver = new Set();
     this.actionsBeingDescribed = new Map();
+    this.latestFailedActionOfEachProject = new Map();
   }
 
   private followAgainAfterAWait(whyItIsNotFollowed: string): void {

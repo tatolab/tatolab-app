@@ -40,6 +40,7 @@ test("a_machine_name_the_runtime_did_not_give_is_asked_again_only_after_a_restar
 
 interface ControllerOverFakesOptions {
   projectVenvSyncsOfTheFollowedStreamActions?: TatolabAppControllerSources["projectVenvSyncsOfTheFollowedStreamActions"];
+  projectStreamActionFailuresOfTheFollowedStreamActions?: TatolabAppControllerSources["projectStreamActionFailuresOfTheFollowedStreamActions"];
   readMonotonicClockMs?: () => number;
   tatolabAppLog?: ReturnType<typeof createTatolabAppLog>;
   carriedRuntime?: CarriedRuntime | null;
@@ -71,6 +72,7 @@ async function controllerOverFakes(scriptedLocalApiResponses: readonly Buffer[],
     readTheStudioWarnings: () => [],
     whenTheRuntimeExits: () => runtimeExits.push("exited"),
     projectVenvSyncsOfTheFollowedStreamActions: options.projectVenvSyncsOfTheFollowedStreamActions ?? { takeTheProjectVenvSyncs: () => ({ underWay: [], justEnded: [] }) },
+    projectStreamActionFailuresOfTheFollowedStreamActions: options.projectStreamActionFailuresOfTheFollowedStreamActions ?? { projectStreamActionFailuresNow: () => [] },
     tatolabAppLog: options.tatolabAppLog ?? createTatolabAppLog("error", () => {}),
   });
   return { controller, carriedRuntimeStarts, commandLineToolLink, localApiServer, runtimeExits };
@@ -90,7 +92,7 @@ test("a healthy runtime's status names its streams and machine, read as the wind
   expect(JSON.stringify(await controller.composeStatus(0))).toBe(
     '{"app_version":"0.45.0","app_build":null,"platform":"macos","runtime_state":"running","runtime_not_running_because":null,' +
       '"machine_name":"jonathanf-macbook","streams":[{"stream":"p-main-0a1b2c","display_name":"main","location":{"project_directory":"/p","project":"0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55","stream_asset":"7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68"},' +
-      '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"project_venv_syncs_under_way":[],"project_venv_syncs_just_ended":[],"streams_not_listed_because":null,' +
+      '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"project_venv_syncs_under_way":[],"project_venv_syncs_just_ended":[],"project_stream_action_failures":[],"streams_not_listed_because":null,' +
       '"command_line_tool_link":{"kind":"not_linked","path":"/Users/someone/.local/bin/tatolab"},' +
       '"app_update":{"kind":"not_checked"},"app_update_announcement":null,' +
       `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
@@ -118,6 +120,22 @@ test("each status round carries the syncs the followed stream actions took", asy
 
   expect(status.project_venv_syncs_under_way).toEqual([]);
   expect(status.project_venv_syncs_just_ended).toEqual([syncJustEnded]);
+});
+
+test("each status round carries each project whose latest stream action failed, in the runtime's words", async () => {
+  const openThatFailed = {
+    action: "Rvxjb0uiacgp6c3o13o9qvzj1-2",
+    project_directory: "/Users/someone/Sample Project",
+    kind: "open",
+    failed_because: "the stream id is held by a record an earlier runtime wrote",
+  };
+  const { controller } = await controllerOverFakes([healthyAnswer(), noStreams(), theMachine()], {
+    projectStreamActionFailuresOfTheFollowedStreamActions: { projectStreamActionFailuresNow: () => [openThatFailed] },
+  });
+
+  const status = await controller.composeStatus(0);
+
+  expect(status.project_stream_action_failures).toEqual([openThatFailed]);
 });
 
 

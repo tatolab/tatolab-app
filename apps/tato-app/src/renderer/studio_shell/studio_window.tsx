@@ -13,7 +13,7 @@ import { WindowNotice } from "@tatolab/tato-app-view-sdk/design_system/window_no
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { streamTabsDrawnInTheTitleRow } from "../presentation/stream_tabs_presentation";
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
-import { presentRecentProjectChangeRefusalTitle } from "../presentation/projects_presentation";
+import { presentProjectStreamActionFailureTitle, presentRecentProjectChangeRefusalTitle } from "../presentation/projects_presentation";
 import { AppUpdateAnnouncementDialogView } from "./app_update_announcement_dialog_view";
 import { StudioWarningDialogView } from "./studio_warning_dialog_view";
 import { SettingsDialogView } from "../setup_and_settings/settings_dialog_view";
@@ -262,6 +262,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const appUpdateChoiceRefusal = useWatchedStudioValue(model.appUpdateChoiceRefusal);
   const studioWarningDismissRefusal = useWatchedStudioValue(model.studioWarningDismissRefusal);
   const openProjectStreamFailureRaised = useWatchedStudioValue(model.openProjectStreamFailureRaised);
+  const openProjectStreamActionFailureRaised = useWatchedStudioValue(model.openProjectStreamActionFailureRaised);
   const newProjectSheetOpenedWith = useWatchedStudioValue(model.newProjectSheetOpenedWith);
   const isAProjectShown = openProject.kind !== "none_open" && studioLayout !== null;
   const menusLiveInTheSystemMenuBar = presentPlatform(platform).menusLiveInTheSystemMenuBar;
@@ -385,6 +386,15 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               detail={projectOpeningRefusal}
               onDismissed={() => model.projectOpeningRefusal.publish(null)}
               data-project-opening-refusal=""
+            />
+          )}
+          {openProjectStreamActionFailureRaised !== null && (
+            <WindowNotice
+              tone="failure"
+              title={presentProjectStreamActionFailureTitle(openProjectStreamActionFailureRaised.kind)}
+              detail={openProjectStreamActionFailureRaised.failed_because}
+              onDismissed={() => model.dismissTheOpenProjectStreamActionFailure()}
+              data-open-project-stream-action-failure={openProjectStreamActionFailureRaised.kind}
             />
           )}
           {recentProjectChangeRefusal !== null && (
