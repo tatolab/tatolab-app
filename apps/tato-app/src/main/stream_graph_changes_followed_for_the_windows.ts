@@ -13,10 +13,10 @@ export interface WindowFollowingStreamGraphs {
 }
 
 /** Every stream graph the app's windows follow, each by its stream id. */
-export type StreamGraphChangesFollowedForTheWindows = ControlPushesFollowedForTheWindows<WindowFollowingStreamGraphs>;
+export type StreamGraphChangesFollowedForTheWindows = ControlPushesFollowedForTheWindows<WindowFollowingStreamGraphs, null>;
 
 /** `controlWebSocketConnection` as the connection stream graphs are followed over: `subscribe_stream_graph_changes`, and each `stream_graph_changed`. */
-export function streamGraphChangesConnectionOver(controlWebSocketConnection: TatolabRuntimeControlWebSocketConnection): ControlPushesConnection {
+export function streamGraphChangesConnectionOver(controlWebSocketConnection: TatolabRuntimeControlWebSocketConnection): ControlPushesConnection<null> {
   return {
     subscribeToThePushesOf: async (stream) => {
       const subscribed = await controlWebSocketConnection.callControlOperation("subscribe_stream_graph_changes", { streams: [stream] });
@@ -24,7 +24,7 @@ export function streamGraphChangesConnectionOver(controlWebSocketConnection: Tat
       return subscribed.value.kind === "refused_by_the_operation" ? failedWith(subscribed.value.words) : succeeded(undefined);
     },
     onPushed: (listener) => {
-      controlWebSocketConnection.onNotification("stream_graph_changed", (change) => listener(change.stream));
+      controlWebSocketConnection.onNotification("stream_graph_changed", (change) => listener(change.stream, null));
     },
     onClosed: (whenTheConnectionCloses) => controlWebSocketConnection.onClosed(whenTheConnectionCloses),
     isOpen: () => controlWebSocketConnection.isOpen(),
@@ -34,7 +34,7 @@ export function streamGraphChangesConnectionOver(controlWebSocketConnection: Tat
 
 /** The stream graphs the app's windows follow, each change told to the windows following it. */
 export function streamGraphChangesFollowedForTheWindows(
-  sources: Omit<ControlPushesFollowedForTheWindowsSources<WindowFollowingStreamGraphs>, "tellTheWindowItChanged" | "subjectAsTheLogNamesIt">,
+  sources: Omit<ControlPushesFollowedForTheWindowsSources<WindowFollowingStreamGraphs, null>, "tellTheWindowItChanged" | "subjectAsTheLogNamesIt">,
 ): StreamGraphChangesFollowedForTheWindows {
   return new ControlPushesFollowedForTheWindows({
     ...sources,

@@ -98,15 +98,16 @@ export function linkCommandLineTool(sharedState: TatolabAppSharedState): Promise
   return answerTheWindowThenRefreshTheStatus(sharedState, "link_command_line_tool", () => sharedState.controller.linkTheCommandLineTool());
 }
 
-/** `read_project_log_records { project_directory, stream, action, after }`: the project's log records after the cursor `after`, narrowed to `stream` and `action` when they are given; refused in the runtime's own words. */
+/** `read_project_log_records { project_directory, stream, action, after, until }`: the project's log records after the cursor `after` and before the cursor `until`, narrowed to `stream` and `action` when they are given; refused in the runtime's own words. */
 export function readProjectLogRecords(
   sharedState: TatolabAppSharedState,
   projectDirectory: string,
   narrowing: ProjectLogNarrowing,
   after: string | null,
+  until: string | null,
 ): Promise<Result<ProjectLogRecordsPage, string>> {
   return answerTheWindow("read_project_log_records", async () => {
-    const page = await sharedState.controller.readProjectLogRecords(projectDirectory, narrowing, after);
+    const page = await sharedState.controller.readProjectLogRecords(projectDirectory, narrowing, after, until);
     return page.ok ? page : failedWith(page.failure.failureDescription);
   });
 }
@@ -528,22 +529,24 @@ function isTextOrNull(value: unknown): value is string | null {
 /** `read_project_log_records`'s arguments as the window sends them, or why they are not. */
 export function readProjectLogRecordsArgumentsFrom(
   commandArguments: unknown,
-): Result<{ projectDirectory: string; narrowing: ProjectLogNarrowing; after: string | null }, string> {
+): Result<{ projectDirectory: string; narrowing: ProjectLogNarrowing; after: string | null; until: string | null }, string> {
   if (
     !isAJsonObject(commandArguments) ||
     typeof commandArguments["project_directory"] !== "string" ||
     !isTextOrNull(commandArguments["stream"]) ||
     !isTextOrNull(commandArguments["action"]) ||
-    !isTextOrNull(commandArguments["after"])
+    !isTextOrNull(commandArguments["after"]) ||
+    !isTextOrNull(commandArguments["until"])
   ) {
     return failedWith(
-      "read_project_log_records needs `project_directory`, a project's folder, and `stream`, `action` and `after`, each text or null: a stream's id, a stream action's id, and the cursor of the page before",
+      "read_project_log_records needs `project_directory`, a project's folder, and `stream`, `action`, `after` and `until`, each text or null: a stream's id, a stream action's id, the cursor of the page before, and the cursor the read stops at",
     );
   }
   return succeeded({
     projectDirectory: commandArguments["project_directory"],
     narrowing: { stream: commandArguments["stream"], action: commandArguments["action"] },
     after: commandArguments["after"],
+    until: commandArguments["until"],
   });
 }
 
@@ -1101,10 +1104,10 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     read_project_log_records: async (commandArguments, commandFromWindow) => {
       const readArguments = readProjectLogRecordsArgumentsFrom(commandArguments);
       if (!readArguments.ok) return { ok: false, refusal: readArguments.failure };
-      const { projectDirectory, narrowing, after } = readArguments.value;
+      const { projectDirectory, narrowing, after, until } = readArguments.value;
       const readableProjectDirectory = projectDirectoryTheWindowMayAskTheRuntimeAbout(sharedState, projectDirectory, commandFromWindow);
       if (!readableProjectDirectory.ok) return { ok: false, refusal: readableProjectDirectory.failure };
-      return commandAnswerFrom(await readProjectLogRecords(sharedState, readableProjectDirectory.value, narrowing, after));
+      return commandAnswerFrom(await readProjectLogRecords(sharedState, readableProjectDirectory.value, narrowing, after, until));
     },
     check_for_tatolab_app_updates: async () => {
       runTatolabAppUpdateWorkInTheBackground(sharedState, "check_for_tatolab_app_updates", (tatolabAppUpdater) => tatolabAppUpdater.checkForUpdatesOnRequest("window"));

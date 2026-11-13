@@ -7,9 +7,9 @@ import { createTatolabAppLog } from "./tatolab_app_log.js";
 const quietTatolabAppLog = createTatolabAppLog("error", () => {});
 
 /** A `/control/ws` connection that subscribes each stream in `streamsLoaded`, refuses any other in the runtime's words, and records every subscribe. */
-class FakeStreamGraphChangesConnection implements ControlPushesConnection {
+class FakeStreamGraphChangesConnection implements ControlPushesConnection<null> {
   readonly streamsSubscribed: string[] = [];
-  private readonly streamGraphChangedListeners: ((stream: string) => void)[] = [];
+  private readonly streamGraphChangedListeners: ((stream: string, pushed: null) => void)[] = [];
   private readonly closedListeners: ((whyItClosed: string) => void)[] = [];
   private isOpenNow = true;
 
@@ -20,7 +20,7 @@ class FakeStreamGraphChangesConnection implements ControlPushesConnection {
     return this.streamsLoaded.has(stream) ? succeeded(undefined) : failedWith(`subscribe_stream_graph_changes failed: no stream with the id \`${stream}\` is loaded in this runtime`);
   }
 
-  onPushed(listener: (stream: string) => void): void {
+  onPushed(listener: (stream: string, pushed: null) => void): void {
     this.streamGraphChangedListeners.push(listener);
   }
 
@@ -37,7 +37,7 @@ class FakeStreamGraphChangesConnection implements ControlPushesConnection {
   }
 
   pushTheStreamGraphChanged(stream: string): void {
-    for (const listener of this.streamGraphChangedListeners) listener(stream);
+    for (const listener of this.streamGraphChangedListeners) listener(stream, null);
   }
 
   closeFromTheRuntime(): void {
@@ -56,7 +56,7 @@ function streamGraphChangesFollowedOverFakeConnections(streamsLoaded: Set<string
   const connectionsOpened: FakeStreamGraphChangesConnection[] = [];
   const waitsPending: { afterMs: number; then: () => void }[] = [];
   let doesTheRuntimeAnswer = true;
-  const followed = new ControlPushesFollowedForTheWindows<{ streamsToldChanged: string[] }>({
+  const followed = new ControlPushesFollowedForTheWindows<{ streamsToldChanged: string[] }, null>({
     openThePushesConnection: async () => {
       if (!doesTheRuntimeAnswer) return localApiRequestFailure("no runtime answers at /tmp/local-api.sock");
       const connection = new FakeStreamGraphChangesConnection(streamsLoaded);

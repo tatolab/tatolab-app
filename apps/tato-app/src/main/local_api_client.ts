@@ -310,11 +310,12 @@ export class LocalApiClient {
     return machine.ok ? machine : localApiRequestFailure(`the runtime's /api/graph names no machine: ${machine.failure}`);
   }
 
-  /** Up to `count` of the log records of the project in `projectDirectory` after the cursor `after` (`null` for the oldest held), narrowed as `narrowing` asks, from the runtime's `logs` tool. */
+  /** Up to `count` of the log records of the project in `projectDirectory` after the cursor `after` (`null` for the oldest held) and before the cursor `until` (`null` for none), narrowed as `narrowing` asks, from the runtime's `logs` tool. */
   async readProjectLogRecords(
     projectDirectory: string,
     narrowing: ProjectLogNarrowing,
     after: string | null,
+    until: string | null,
     count: number,
   ): Promise<Result<ProjectLogRecordsPage, LocalApiRequestFailure>> {
     const operationResult = await this.callControlOperation(
@@ -324,6 +325,7 @@ export class LocalApiClient {
         ...(narrowing.stream === null ? {} : { stream: narrowing.stream }),
         ...(narrowing.action === null ? {} : { action: narrowing.action }),
         ...(after === null ? {} : { after }),
+        ...(until === null ? {} : { until }),
         count,
       },
     );

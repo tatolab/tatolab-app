@@ -428,7 +428,7 @@ test("a refusal from the runtime reaches the window in the runtime's own words",
   );
 
   expect(await describeStreamGraph(sharedState, "nope")).toEqual(failedWith(graphRefusal));
-  expect(await readProjectLogRecords(sharedState, "/tmp/nope", { stream: null, action: null }, null)).toEqual(failedWith(logsRefusal));
+  expect(await readProjectLogRecords(sharedState, "/tmp/nope", { stream: null, action: null }, null, null)).toEqual(failedWith(logsRefusal));
 });
 
 test("the window asking for the status before the first round waits for it", async () => {
@@ -459,10 +459,11 @@ test("a command's arguments are read as the window sends them, and anything else
   expect(enabledArgumentsFrom("set_stream_failure_notifications", { enabled: false })).toEqual(succeeded({ enabled: false }));
   expect(enabledArgumentsFrom("set_stream_failure_notifications", { enabled: "yes" }).ok).toBe(false);
   expect(enabledArgumentsFrom("set_stream_failure_notifications", null).ok).toBe(false);
-  expect(readProjectLogRecordsArgumentsFrom({ project_directory: "/tmp/p", stream: "pattern-main-d76f70", action: null, after: "1:7830" })).toEqual(
-    succeeded({ projectDirectory: "/tmp/p", narrowing: { stream: "pattern-main-d76f70", action: null }, after: "1:7830" }),
+  expect(readProjectLogRecordsArgumentsFrom({ project_directory: "/tmp/p", stream: "pattern-main-d76f70", action: null, after: "1:7830", until: "1:9120" })).toEqual(
+    succeeded({ projectDirectory: "/tmp/p", narrowing: { stream: "pattern-main-d76f70", action: null }, after: "1:7830", until: "1:9120" }),
   );
-  expect(readProjectLogRecordsArgumentsFrom({ project_directory: "/tmp/p", stream: null, action: null, after: 79 }).ok).toBe(false);
+  expect(readProjectLogRecordsArgumentsFrom({ project_directory: "/tmp/p", stream: null, action: null, after: 79, until: null }).ok).toBe(false);
+  expect(readProjectLogRecordsArgumentsFrom({ project_directory: "/tmp/p", stream: null, action: null, after: null }).ok).toBe(false);
   expect(readProjectLogRecordsArgumentsFrom({ stream: null, action: null, after: null }).ok).toBe(false);
   expect(streamArgumentsFrom("describe_stream_graph", { stream: "main" })).toEqual(succeeded({ stream: "main" }));
   expect(streamArgumentsFrom("describe_stream_graph", {}).ok).toBe(false);
@@ -489,7 +490,7 @@ test("each command answers the window in the contract's shape, a refusal in its 
   expect(await commandHandlers.read_project_log_records({ stream: "camera" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal:
-      "read_project_log_records needs `project_directory`, a project's folder, and `stream`, `action` and `after`, each text or null: a stream's id, a stream action's id, and the cursor of the page before",
+      "read_project_log_records needs `project_directory`, a project's folder, and `stream`, `action`, `after` and `until`, each text or null: a stream's id, a stream action's id, the cursor of the page before, and the cursor the read stops at",
   });
   expect(await commandHandlers.describe_stream_graph(null, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "describe_stream_graph needs `stream`, a stream's id" });
 });
@@ -536,7 +537,7 @@ test("each queued action answers the window null, and a missing argument or a pr
     refusal: "remove_project needs `project_directory`, a project's folder as the runtime lists it",
   });
   expect(await commandHandlers.remove_project({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
-  expect(await commandHandlers.read_project_log_records({ project_directory: "/etc", stream: null, action: null, after: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+  expect(await commandHandlers.read_project_log_records({ project_directory: "/etc", stream: null, action: null, after: null, until: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "The runtime lists no stream from /etc.",
   });

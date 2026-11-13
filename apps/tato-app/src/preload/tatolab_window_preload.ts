@@ -86,7 +86,7 @@ const tatolabElectronBridge: TatolabElectronBridge = {
   },
   onProjectLogRecordsWritten: (listener) => {
     const projectLogRecordsWrittenListener = (_projectLogRecordsWrittenEvent: IpcRendererEvent, projectLogRecordsWritten: unknown) => {
-      if (isAProjectLogRecordsWritten(projectLogRecordsWritten)) listener(projectLogRecordsWritten.project_directory);
+      if (isAProjectLogRecordsWritten(projectLogRecordsWritten)) listener(projectLogRecordsWritten.project_directory, projectLogRecordsWritten.pushed);
     };
     ipcRenderer.on(TATOLAB_PROJECT_LOG_RECORDS_WRITTEN_EVENT, projectLogRecordsWrittenListener);
     return () => {

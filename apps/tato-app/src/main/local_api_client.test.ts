@@ -399,7 +399,7 @@ test("reading_a_projects_log_asks_the_logs_tool_for_the_project_narrowed_to_a_st
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-logs-tool-result-of-the-project-pattern-narrowed-to-its-stream-main-first-4.json")),
   ]);
 
-  const page = answerOf(await server.client().readProjectLogRecords("/tmp/tatolab-proof-projects/pattern", { stream: "pattern-main-d76f70", action: null }, null, 4));
+  const page = answerOf(await server.client().readProjectLogRecords("/tmp/tatolab-proof-projects/pattern", { stream: "pattern-main-d76f70", action: null }, null, null, 4));
 
   expect(page.project_directory).toBe("/tmp/tatolab-proof-projects/pattern");
   expect(page.next_after).toBe("1:7830");
@@ -415,13 +415,13 @@ test("reading_a_projects_log_asks_the_logs_tool_for_the_project_narrowed_to_a_st
   expect(JSON.parse(body).params).toEqual({ project_directory: "/tmp/tatolab-proof-projects/pattern", stream: "pattern-main-d76f70", count: 4 });
 });
 
-test("reading_on_from_a_cursor_narrowed_to_an_action_sends_the_cursor_and_the_action_and_no_stream", async () => {
+test("reading_on_from_a_cursor_until_another_narrowed_to_an_action_sends_both_cursors_and_the_action_and_no_stream", async () => {
   const server = await fakeLocalApiServerAnswering([
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-logs-tool-result-of-the-project-doorways-narrowed-to-one-load-first-12.json")),
   ]);
 
   const page = answerOf(
-    await server.client().readProjectLogRecords("/tmp/tatolab-proof-projects/doorways", { stream: null, action: "Rnd53mwtsrixjyxk7h3jfq5j5-7" }, "1:0", 12),
+    await server.client().readProjectLogRecords("/tmp/tatolab-proof-projects/doorways", { stream: null, action: "Rnd53mwtsrixjyxk7h3jfq5j5-7" }, "1:0", "1:1000000", 12),
   );
 
   expect(page.records).toHaveLength(12);
@@ -430,6 +430,7 @@ test("reading_on_from_a_cursor_narrowed_to_an_action_sends_the_cursor_and_the_ac
     project_directory: "/tmp/tatolab-proof-projects/doorways",
     action: "Rnd53mwtsrixjyxk7h3jfq5j5-7",
     after: "1:0",
+    until: "1:1000000",
     count: 12,
   });
 });
@@ -439,7 +440,7 @@ test("a_log_read_the_runtime_refuses_carries_its_own_words", async () => {
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-control-refusal-for-logs-of-a-project-directory-that-is-not-absolute.json")),
   ]);
 
-  expect(failureOf(await server.client().readProjectLogRecords("relative", { stream: null, action: null }, null, 500))).toEqual({
+  expect(failureOf(await server.client().readProjectLogRecords("relative", { stream: null, action: null }, null, null, 500))).toEqual({
     failureDescription: "`project_directory` must be an absolute path; got `relative`",
     isTheRuntimesRefusal: true,
   });
@@ -986,11 +987,11 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
       const picture = answerOf(await client.readAssetPreview(projectDirectory, previewedAsset.asset));
       expect([picture.pixel_width, picture.pixel_height, picture.media_type]).toEqual([previewedAsset.preview?.pixel_width, previewedAsset.preview?.pixel_height, previewedAsset.preview?.media_type]);
     }
-    const wholeLog = answerOf(await client.readProjectLogRecords(projectDirectory, { stream: null, action: null }, null, 500));
+    const wholeLog = answerOf(await client.readProjectLogRecords(projectDirectory, { stream: null, action: null }, null, null, 500));
     expect(wholeLog.project_directory).toBe(projectDirectory);
     expect(wholeLog.records.length).toBeGreaterThan(0);
     for (const projectStream of projectStreams) {
-      const streamLog = answerOf(await client.readProjectLogRecords(projectDirectory, { stream: projectStream.stream, action: null }, null, 500));
+      const streamLog = answerOf(await client.readProjectLogRecords(projectDirectory, { stream: projectStream.stream, action: null }, null, null, 500));
       expect(streamLog.records.every((record) => record.stream === projectStream.stream)).toBe(true);
     }
   }

@@ -233,6 +233,15 @@ export interface ProjectLogRecordsPage {
   records_no_longer_held: boolean;
 }
 
+/** The records the runtime pushed of a followed project's log: those after the cursor `after`, up to the cursor `next_after`. */
+export interface ProjectLogRecordsPushed {
+  records: ProjectLogRecord[];
+  after: string;
+  next_after: string;
+  /** Whether the log's retention deleted records between `after` and these. */
+  records_no_longer_held: boolean;
+}
+
 /** What a project folder is chosen for in the app's folder dialog: a project to import, or the folder a new project is created in, which may not exist yet. */
 export type StreamProjectFolderChosenFor = "project_to_open" | "new_project_directory";
 

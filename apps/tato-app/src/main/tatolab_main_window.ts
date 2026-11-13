@@ -2,7 +2,7 @@
 // in the tray, or a project's studio window or a view popped out of one, which closing closes.
 // `TatolabAppWindows` holds them all and shows the Dock icon on macOS while any is on screen.
 
-import type { OpenProjectReading, ProjectTransactionsReading, PortViewerEvent, PortViewerImageFrameFacts, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { OpenProjectReading, ProjectTransactionsReading, PortViewerEvent, PortViewerImageFrameFacts, ProjectLogRecordsPushed, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
   TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT,
   TATOLAB_OPEN_PROJECT_CHANGED_EVENT,
@@ -214,9 +214,9 @@ export class TatolabMainWindow implements WindowShowingPortViewers, WindowFollow
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_STREAM_GRAPH_CHANGED_EVENT, { stream } satisfies StreamGraphChanged);
   }
 
-  /** Send the window `projectDirectory` as `tatolab-project-log-records-written`; nothing, before the window is first shown, which reads each log it follows when it opens. */
-  sendTheWindowTheProjectLogRecordsWritten(projectDirectory: string): void {
-    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_PROJECT_LOG_RECORDS_WRITTEN_EVENT, { project_directory: projectDirectory } satisfies ProjectLogRecordsWritten);
+  /** Send the window `projectDirectory` and the records pushed of its log, or `null` to read on from its cursor, as `tatolab-project-log-records-written`; nothing, before the window is first shown, which reads each log it follows when it opens. */
+  sendTheWindowTheProjectLogRecordsWritten(projectDirectory: string, pushed: ProjectLogRecordsPushed | null): void {
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_PROJECT_LOG_RECORDS_WRITTEN_EVENT, { project_directory: projectDirectory, pushed } satisfies ProjectLogRecordsWritten);
   }
 
   /** Send the window the system menu bar entry `entryId` the person chose from its menus, as `tatolab-system-menu-bar-entry-chosen`. */

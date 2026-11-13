@@ -23,8 +23,8 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     quitTatolabApp: async () => {
       await invokeTatolabCommand("quit_tatolab_app", undefined);
     },
-    readProjectLogRecords: (projectDirectory, narrowing, after) =>
-      invokeTatolabCommand("read_project_log_records", { project_directory: projectDirectory, stream: narrowing.stream, action: narrowing.action, after }),
+    readProjectLogRecords: (projectDirectory, narrowing, after, until) =>
+      invokeTatolabCommand("read_project_log_records", { project_directory: projectDirectory, stream: narrowing.stream, action: narrowing.action, after, until }),
     followProjectLogRecords: async (projectDirectory) => {
       await invokeTatolabCommand("follow_project_log_records", { project_directory: projectDirectory });
     },

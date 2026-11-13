@@ -254,9 +254,14 @@ export class TatolabAppController {
     return this.localApiClient.describeRuntime();
   }
 
-  /** The window's next page of the log of the project in `projectDirectory`, narrowed as `narrowing` asks: the records after the cursor `after`, or the oldest held for `null`. */
-  readProjectLogRecords(projectDirectory: string, narrowing: ProjectLogNarrowing, after: string | null): Promise<Result<ProjectLogRecordsPage, LocalApiRequestFailure>> {
-    return this.localApiClient.readProjectLogRecords(projectDirectory, narrowing, after, PROJECT_LOG_RECORDS_PER_PAGE);
+  /** The window's next page of the log of the project in `projectDirectory`, narrowed as `narrowing` asks: the records after the cursor `after`, or the oldest held for `null`, and before the cursor `until`, or the latest for `null`. */
+  readProjectLogRecords(
+    projectDirectory: string,
+    narrowing: ProjectLogNarrowing,
+    after: string | null,
+    until: string | null,
+  ): Promise<Result<ProjectLogRecordsPage, LocalApiRequestFailure>> {
+    return this.localApiClient.readProjectLogRecords(projectDirectory, narrowing, after, until, PROJECT_LOG_RECORDS_PER_PAGE);
   }
 
   /** Queue the stop of the playback of the project in `projectDirectory` through the runtime's `stop_playback`, answering the id of the action the runtime queued. */

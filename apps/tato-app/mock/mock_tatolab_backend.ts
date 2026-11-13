@@ -51,6 +51,7 @@ import {
   type PoppedOutView,
   type ProjectLogRecord,
   type ProjectLogRecordsPage,
+  type ProjectLogRecordsPushed,
   type RuntimeDescription,
   type TatolabAppBuild,
   type TatolabAppOpenAtLogin,
@@ -779,7 +780,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
 
   /** The projects the window follows the logs of, and who is told when one is written. */
   const projectsWhoseLogsAreFollowed = new Set<string>();
-  const projectLogRecordsWrittenListeners = new Set<(projectDirectory: string) => void>();
+  const projectLogRecordsWrittenListeners = new Set<(projectDirectory: string, pushed: ProjectLogRecordsPushed | null) => void>();
 
   const publishStatus = (statusChanges: Partial<TatolabStatus>): void => {
     mockStatus = { ...mockStatus, project_venv_syncs_just_ended: [], ...statusChanges };
@@ -1038,10 +1039,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     publishStatus({ streams: listStreams(), project_venv_syncs_under_way: projectVenvSyncsUnderWay() });
   };
 
-  /** Writes `records` to the log of the project `projectDirectory`, its retention deleting the oldest past what it keeps. */
+  /** Writes `records` to the log of the project `projectDirectory`, its retention deleting the oldest past what it keeps, and pushes them to a follower. */
   const writeToTheProjectLog = (projectDirectory: string | null, records: ProjectLogRecord[]): void => {
     if (projectDirectory === null || records.length === 0) return;
     const projectLog = projectLogs.get(projectDirectory) ?? { records: [], recordsDeletedCount: 0 };
+    const indexTheRecordsFollow = projectLog.recordsDeletedCount + projectLog.records.length;
     projectLog.records.push(...records);
     const recordsPastWhatItKeeps = projectLog.records.length - mostProjectLogRecordsKept;
     if (recordsPastWhatItKeeps > 0) {
@@ -1050,8 +1052,14 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     }
     projectLogs.set(projectDirectory, projectLog);
     if (!projectsWhoseLogsAreFollowed.has(projectDirectory)) return;
+    const pushed: ProjectLogRecordsPushed = {
+      records: structuredClone(records),
+      after: `1:${indexTheRecordsFollow}`,
+      next_after: `1:${indexTheRecordsFollow + records.length}`,
+      records_no_longer_held: false,
+    };
     window.setTimeout(() => {
-      for (const listener of projectLogRecordsWrittenListeners) listener(projectDirectory);
+      for (const listener of projectLogRecordsWrittenListeners) listener(projectDirectory, pushed);
     }, 0);
   };
 
@@ -1277,8 +1285,8 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     }
   };
 
-  /** `logs` as the runtime answers it: the project's records after the cursor `after`, from its first record kept when `null`, narrowed as asked. */
-  const readMockProjectLog = (projectDirectory: string, narrowing: { stream: string | null; action: string | null }, after: string | null): ProjectLogRecordsPage => {
+  /** `logs` as the runtime answers it: the project's records after the cursor `after`, from its first record kept when `null`, and before the cursor `until`, narrowed as asked. */
+  const readMockProjectLog = (projectDirectory: string, narrowing: { stream: string | null; action: string | null }, after: string | null, until: string | null): ProjectLogRecordsPage => {
     const projectLog = projectLogs.get(projectDirectory);
     if (projectLog === undefined && !(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) {
       throw `Resource not found: this runtime holds no stream of the project in ${projectDirectory}`;
@@ -1286,9 +1294,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     const { records, recordsDeletedCount } = projectLog ?? { records: [], recordsDeletedCount: 0 };
     const askedAfterIndex = after === null ? 0 : Number(after.split(":")[1] ?? "0");
     const firstIndexRead = Math.max(askedAfterIndex, recordsDeletedCount);
+    const indexReadUntil = until === null ? Infinity : Number(until.split(":")[1] ?? "0");
     const recordsOfThePage: ProjectLogRecord[] = [];
     let nextIndex = firstIndexRead;
-    for (; nextIndex < recordsDeletedCount + records.length && recordsOfThePage.length < MOCK_RECORDS_PAGE_SIZE; nextIndex++) {
+    for (; nextIndex < recordsDeletedCount + records.length && nextIndex < indexReadUntil && recordsOfThePage.length < MOCK_RECORDS_PAGE_SIZE; nextIndex++) {
       const record = records[nextIndex - recordsDeletedCount];
       if (record === undefined) continue;
       if ((narrowing.stream === null || record.stream === narrowing.stream) && (narrowing.action === null || record.action === narrowing.action)) recordsOfThePage.push(record);
@@ -1410,12 +1419,12 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     quitTatolabApp: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
     },
-    readProjectLogRecords: async (projectDirectory, narrowing, after) => {
+    readProjectLogRecords: async (projectDirectory, narrowing, after, until) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
       const isTheOpenProject = openProjectReading.kind === "read" && openProjectReading.open_project.project.folder === projectDirectory;
       if (!isTheOpenProject && !(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) throw `The runtime lists no stream from ${projectDirectory}.`;
-      return readMockProjectLog(projectDirectory, narrowing, after);
+      return readMockProjectLog(projectDirectory, narrowing, after, until);
     },
     followProjectLogRecords: async (projectDirectory) => {
       projectsWhoseLogsAreFollowed.add(projectDirectory);

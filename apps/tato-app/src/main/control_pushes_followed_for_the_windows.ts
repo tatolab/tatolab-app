@@ -1,30 +1,30 @@
 // What the app's windows follow of the runtime's pushes over one `/control/ws` WebSocket: each
 // subject, a stream graph or a project's log, is subscribed once however many windows follow it,
-// and each push of a followed subject, `missed` among them, is told to every window following it so
-// it reads that subject again. A subject the runtime would not subscribe is subscribed again after a
-// wait. A connection that closes is opened again after a wait, and each subject told it changed once
-// it is subscribed again.
+// and each push of a followed subject, with what it carries, is handed to every window following
+// it. A subject the runtime would not subscribe is subscribed again after a wait. A connection that
+// closes is opened again after a wait, and each window told to read its subject again once it is
+// subscribed again.
 
 import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 
 /** The parts of a `/control/ws` connection one kind of push is followed over, so a test can stand in for one. */
-export interface ControlPushesConnection {
+export interface ControlPushesConnection<Pushed> {
   /** Subscribe to the pushes of `subject`; refused in the runtime's words. */
   subscribeToThePushesOf(subject: string): Promise<Result<void, string>>;
-  /** Call `listener` with each subject the runtime pushes a change of on this connection, named as it was subscribed. */
-  onPushed(listener: (subject: string) => void): void;
+  /** Call `listener` with each subject the runtime pushes a change of on this connection, named as it was subscribed, and what the push carries. */
+  onPushed(listener: (subject: string, pushed: Pushed) => void): void;
   onClosed(whenTheConnectionCloses: (whyItClosed: string) => void): void;
   isOpen(): boolean;
   close(): void;
 }
 
 /** What following one kind of push reaches: the runtime, the windows, a timer, and the app's log. */
-export interface ControlPushesFollowedForTheWindowsSources<WindowFollowing> {
-  openThePushesConnection(): Promise<Result<ControlPushesConnection, LocalApiRequestFailure>>;
-  /** Tell `windowFollowing` that `subject` changed, so it reads it again. */
-  tellTheWindowItChanged(windowFollowing: WindowFollowing, subject: string): void;
+export interface ControlPushesFollowedForTheWindowsSources<WindowFollowing, Pushed> {
+  openThePushesConnection(): Promise<Result<ControlPushesConnection<Pushed>, LocalApiRequestFailure>>;
+  /** Hand `windowFollowing` what the runtime pushed of `subject`, or `null` to tell it to read `subject` again, as it is subscribed. */
+  tellTheWindowItChanged(windowFollowing: WindowFollowing, subject: string, pushed: Pushed | null): void;
   /** Call `then` once, `afterMs` from now. */
   waitThen(afterMs: number, then: () => void): void;
   tatolabAppLog: TatolabAppLog;
@@ -36,15 +36,15 @@ export interface ControlPushesFollowedForTheWindowsSources<WindowFollowing> {
 export const CONTROL_PUSHES_SUBSCRIBED_AGAIN_AFTER_MS = 2_500;
 
 /** Every subject of one kind the app's windows follow, over one connection held open while any window follows one. */
-export class ControlPushesFollowedForTheWindows<WindowFollowing> {
+export class ControlPushesFollowedForTheWindows<WindowFollowing, Pushed> {
   private readonly windowsFollowingBySubject = new Map<string, Set<WindowFollowing>>();
   private readonly subjectsSubscribed = new Set<string>();
   private readonly subjectsBeingSubscribed = new Set<string>();
   private readonly subjectsAwaitingASubscribe = new Set<string>();
-  private pushesConnection: ControlPushesConnection | null = null;
-  private pushesConnectionOpening: Promise<Result<ControlPushesConnection, string>> | null = null;
+  private pushesConnection: ControlPushesConnection<Pushed> | null = null;
+  private pushesConnectionOpening: Promise<Result<ControlPushesConnection<Pushed>, string>> | null = null;
 
-  constructor(private readonly sources: ControlPushesFollowedForTheWindowsSources<WindowFollowing>) {}
+  constructor(private readonly sources: ControlPushesFollowedForTheWindowsSources<WindowFollowing, Pushed>) {}
 
   /** Tell `windowFollowing` of each push of `subject` from now on, and once as soon as it is subscribed. */
   follow(subject: string, windowFollowing: WindowFollowing): void {
@@ -99,7 +99,7 @@ export class ControlPushesFollowedForTheWindows<WindowFollowing> {
       return;
     }
     this.subjectsSubscribed.add(subject);
-    this.tellTheWindowsItChanged(subject);
+    this.tellTheWindowsItChanged(subject, null);
   }
 
   private subscribeAgainAfterAWait(subject: string, whyItWasNotSubscribed: string): void {
@@ -112,7 +112,7 @@ export class ControlPushesFollowedForTheWindows<WindowFollowing> {
     });
   }
 
-  private thePushesConnection(): Promise<Result<ControlPushesConnection, string>> {
+  private thePushesConnection(): Promise<Result<ControlPushesConnection<Pushed>, string>> {
     if (this.pushesConnection !== null && this.pushesConnection.isOpen()) return Promise.resolve(succeeded(this.pushesConnection));
     if (this.pushesConnectionOpening !== null) return this.pushesConnectionOpening;
     const opening = this.openThePushesConnection().finally(() => {
@@ -122,7 +122,7 @@ export class ControlPushesFollowedForTheWindows<WindowFollowing> {
     return opening;
   }
 
-  private async openThePushesConnection(): Promise<Result<ControlPushesConnection, string>> {
+  private async openThePushesConnection(): Promise<Result<ControlPushesConnection<Pushed>, string>> {
     const opened = await this.sources.openThePushesConnection();
     if (!opened.ok) return failedWith(opened.failure.failureDescription);
     const pushesConnection = opened.value;
@@ -131,21 +131,21 @@ export class ControlPushesFollowedForTheWindows<WindowFollowing> {
       return failedWith(`no window follows a ${this.sources.subjectAsTheLogNamesIt} any longer`);
     }
     this.pushesConnection = pushesConnection;
-    pushesConnection.onPushed((subject) => {
-      if (this.pushesConnection === pushesConnection) this.tellTheWindowsItChanged(subject);
+    pushesConnection.onPushed((subject, pushed) => {
+      if (this.pushesConnection === pushesConnection) this.tellTheWindowsItChanged(subject, pushed);
     });
     pushesConnection.onClosed((whyItClosed) => this.subscribeEverySubjectAgainAfter(pushesConnection, whyItClosed));
     return succeeded(pushesConnection);
   }
 
-  private subscribeEverySubjectAgainAfter(closedConnection: ControlPushesConnection, whyItClosed: string): void {
+  private subscribeEverySubjectAgainAfter(closedConnection: ControlPushesConnection<Pushed>, whyItClosed: string): void {
     if (this.pushesConnection !== closedConnection) return;
     this.pushesConnection = null;
     this.subjectsSubscribed.clear();
     for (const subject of this.windowsFollowingBySubject.keys()) this.subscribeAgainAfterAWait(subject, whyItClosed);
   }
 
-  private tellTheWindowsItChanged(subject: string): void {
-    for (const windowFollowing of [...(this.windowsFollowingBySubject.get(subject) ?? [])]) this.sources.tellTheWindowItChanged(windowFollowing, subject);
+  private tellTheWindowsItChanged(subject: string, pushed: Pushed | null): void {
+    for (const windowFollowing of [...(this.windowsFollowingBySubject.get(subject) ?? [])]) this.sources.tellTheWindowItChanged(windowFollowing, subject, pushed);
   }
 }

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import type { ProjectLogRecord, ProjectLogRecordsPage } from "../../shared/tatolab_backend_contract";
+import type { ProjectLogRecord, ProjectLogRecordsPage, ProjectLogRecordsPushed } from "../../shared/tatolab_backend_contract";
 import { PROJECT_LOG_RECORDS_HELD, ProjectLogReadings } from "./project_log_readings";
 import type { ProjectLogReading } from "./studio_view_contract";
 
@@ -10,18 +10,20 @@ function record(message: string): ProjectLogRecord {
   return { host_ts_ns: null, level: "info", source: "rust", target: null, message, attrs: {}, processor_id: null, sent_by_its_own_process: false, action: null, stream: null, jsonl_line: "{}" };
 }
 
-/** A project log of `log.records`, served two records a page after a numeric cursor, or refused in `log.refusal`; it records each read and follow, and pushes a write with `pushTheLogWritten`. */
+/** A project log of `log.records`, served two records a page after a numeric cursor and before `until`, or refused in `log.refusal`; it records each read and follow, and pushes a write with `pushTheLogWritten`. */
 function pagingBackend() {
   const log: { records: ProjectLogRecord[]; refusal: string | null } = { records: [], refusal: null };
   const cursorsAsked: (string | null)[] = [];
+  const untilsAsked: (string | null)[] = [];
   const projectsFollowed = new Set<string>();
-  const projectLogRecordsWrittenListeners = new Set<(projectDirectory: string) => void>();
+  const projectLogRecordsWrittenListeners = new Set<(projectDirectory: string, pushed: ProjectLogRecordsPushed | null) => void>();
   const backend = {
-    readProjectLogRecords: (_projectFolder: string, _narrowing: unknown, after: string | null): Promise<ProjectLogRecordsPage> => {
+    readProjectLogRecords: (_projectFolder: string, _narrowing: unknown, after: string | null, until: string | null): Promise<ProjectLogRecordsPage> => {
       cursorsAsked.push(after);
+      untilsAsked.push(until);
       if (log.refusal !== null) return Promise.reject(log.refusal);
       const from = after === null ? 0 : Number(after);
-      const records = log.records.slice(from, from + 2);
+      const records = log.records.slice(from, Math.max(from, Math.min(from + 2, until === null ? Infinity : Number(until))));
       return Promise.resolve({ project_directory: PROJECT_FOLDER, records, next_after: String(from + records.length), records_no_longer_held: false });
     },
     followProjectLogRecords: async (projectDirectory: string) => {
@@ -30,15 +32,20 @@ function pagingBackend() {
     stopFollowingProjectLogRecords: async (projectDirectory: string) => {
       projectsFollowed.delete(projectDirectory);
     },
-    onProjectLogRecordsWritten: (listener: (projectDirectory: string) => void) => {
+    onProjectLogRecordsWritten: (listener: (projectDirectory: string, pushed: ProjectLogRecordsPushed | null) => void) => {
       projectLogRecordsWrittenListeners.add(listener);
       return () => projectLogRecordsWrittenListeners.delete(listener);
     },
   };
-  const pushTheLogWritten = (projectDirectory: string): void => {
-    for (const listener of projectLogRecordsWrittenListeners) listener(projectDirectory);
+  const pushTheLogWritten = (projectDirectory: string, pushed: ProjectLogRecordsPushed | null = null): void => {
+    for (const listener of projectLogRecordsWrittenListeners) listener(projectDirectory, pushed);
   };
-  return { backend, log, cursorsAsked, projectsFollowed, pushTheLogWritten };
+  /** Append `records` to the log and push them as following the cursor `after`. */
+  const writeAndPush = (after: number, records: ProjectLogRecord[]): void => {
+    log.records.push(...records);
+    pushTheLogWritten(PROJECT_FOLDER, { records, after: String(after), next_after: String(after + records.length), records_no_longer_held: false });
+  };
+  return { backend, log, cursorsAsked, untilsAsked, projectsFollowed, pushTheLogWritten, writeAndPush };
 }
 
 async function settle(): Promise<void> {
@@ -120,4 +127,41 @@ test("a_long_log_is_read_to_its_end_in_several_reads_and_a_reading_holds_only_th
   const held = latest?.kind === "read" ? latest.records : [];
   expect(held).toHaveLength(PROJECT_LOG_RECORDS_HELD);
   expect(held.at(-1)?.message).toBe(`r${PROJECT_LOG_RECORDS_HELD + 3}`);
+});
+
+test("pushed_records_that_follow_the_cursor_are_appended_with_no_read", async () => {
+  const { backend, log, cursorsAsked, writeAndPush } = pagingBackend();
+  log.records = [record("one")];
+  const readings = new ProjectLogReadings(backend);
+  const seen: ProjectLogReading[] = [];
+  readings.watchProjectLog(PROJECT_FOLDER, (reading) => seen.push(reading));
+  await settle();
+  const cursorsAskedBeforeThePushes = cursorsAsked.length;
+
+  writeAndPush(1, [record("two"), record("three")]);
+  writeAndPush(3, [record("four")]);
+  await settle();
+
+  expect(cursorsAsked).toHaveLength(cursorsAskedBeforeThePushes);
+  expect(messagesOf(seen)).toEqual([["one"], ["one", "two", "three"], ["one", "two", "three", "four"]]);
+});
+
+test("pushed_records_that_do_not_follow_the_cursor_are_read_from_it_up_to_where_the_push_ends_and_the_next_push_is_appended", async () => {
+  const { backend, log, cursorsAsked, untilsAsked, writeAndPush } = pagingBackend();
+  log.records = [record("one")];
+  const readings = new ProjectLogReadings(backend);
+  const seen: ProjectLogReading[] = [];
+  readings.watchProjectLog(PROJECT_FOLDER, (reading) => seen.push(reading));
+  await settle();
+  const readsBeforeThePushes = cursorsAsked.length;
+  log.records.push(record("two"), record("three"), record("four"));
+
+  writeAndPush(4, [record("five")]);
+  await settle();
+  writeAndPush(5, [record("six")]);
+  await settle();
+
+  expect(cursorsAsked.slice(readsBeforeThePushes)).toEqual(["1", "3"]);
+  expect(untilsAsked.slice(readsBeforeThePushes)).toEqual(["5", "5"]);
+  expect(messagesOf(seen).at(-1)).toEqual(["one", "two", "three", "four", "five", "six"]);
 });
