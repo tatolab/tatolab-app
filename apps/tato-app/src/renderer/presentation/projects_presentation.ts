@@ -263,3 +263,15 @@ export function presentRecentProjectChangeRefusalTitle(askedTo: RecentProjectCha
   const titles: Record<RecentProjectChange, string> = { rename: "The project wasn't renamed", duplicate: "The project wasn't duplicated", delete: "The project wasn't deleted" };
   return titles[askedTo];
 }
+
+/** The title of the notice that says the runtime ended a project's stream action `failed`, named for the action's `kind`. */
+export function presentProjectStreamActionFailureTitle(kind: string): string {
+  const titles: Readonly<Record<string, string>> = {
+    open: "The project didn't open",
+    load: "The project didn't reload",
+    start_playback: "The project didn't run",
+    stop: "The project didn't stop",
+    close: "The project didn't close",
+  };
+  return titles[kind] ?? "The runtime couldn't finish what the project asked";
+}

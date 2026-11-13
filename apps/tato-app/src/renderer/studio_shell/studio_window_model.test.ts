@@ -33,6 +33,7 @@ function runningRuntimeListing(streams: ListedStream[]): TatolabStatus {
     command_line_tool_link: { kind: "not_linked", path: "/Users/someone/.local/bin/tatolab" },
     project_venv_syncs_under_way: [],
     project_venv_syncs_just_ended: [],
+    project_stream_action_failures: [],
     app_update: { kind: "not_checked" },
     app_update_announcement: null,
     local_api_socket: "/tmp/local-api.sock",
@@ -246,5 +247,51 @@ describe("a failure of the open project's streams", () => {
     const studioWindowModel = studioWindowModelOpenOnSheetCheck();
     studioWindowModel.showStatus(runningRuntimeListing([listedStream("lobby-main-ab12cd", LOBBY_FOLDER, "main", "failed", "Lobby")]));
     expect(studioWindowModel.openProjectStreamFailureRaised.readLatest()).toBeNull();
+  });
+});
+
+describe("a failure of the open project's latest stream action", () => {
+  const OPEN_THAT_FAILED = {
+    action: "Rvxjb0uiacgp6c3o13o9qvzj1-2",
+    project_directory: SHEET_CHECK_FOLDER,
+    kind: "open",
+    failed_because: "stream sheet-check-main-14aec5 is held by a record an earlier runtime wrote",
+  };
+  const withTheFailures = (failures: TatolabStatus["project_stream_action_failures"]): TatolabStatus => ({ ...runningRuntimeListing([]), project_stream_action_failures: failures });
+
+  it("is raised in the runtime's words while the status holds it, and taken down once another action of the project begins", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+
+    studioWindowModel.showStatus(withTheFailures([OPEN_THAT_FAILED]));
+    expect(studioWindowModel.openProjectStreamActionFailureRaised.readLatest()).toEqual(OPEN_THAT_FAILED);
+
+    studioWindowModel.showStatus(withTheFailures([]));
+    expect(studioWindowModel.openProjectStreamActionFailureRaised.readLatest()).toBeNull();
+  });
+
+  it("is raised when the project's window opens after the action failed, and never for another project", () => {
+    const studioWindowModel = new StudioWindowModel(new StudioLayoutKeptInStorage(null));
+    studioWindowModel.showStatus(withTheFailures([{ ...OPEN_THAT_FAILED, project_directory: LOBBY_FOLDER }, OPEN_THAT_FAILED]));
+    expect(studioWindowModel.openProjectStreamActionFailureRaised.readLatest()).toBeNull();
+
+    studioWindowModel.showOpenProject({
+      kind: "read",
+      open_project: { project: { name: "sheet-check", folder: SHEET_CHECK_FOLDER, project: "5b2e8f14-7c3a-4d90-a6e1-0f9c3b7d2e58" }, imports: [], imports_not_listed_because: null },
+    });
+
+    expect(studioWindowModel.openProjectStreamActionFailureRaised.readLatest()?.project_directory).toBe(SHEET_CHECK_FOLDER);
+  });
+
+  it("stays down once dismissed, until another action of the project fails", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    studioWindowModel.showStatus(withTheFailures([OPEN_THAT_FAILED]));
+
+    studioWindowModel.dismissTheOpenProjectStreamActionFailure();
+    studioWindowModel.showStatus(withTheFailures([OPEN_THAT_FAILED]));
+    expect(studioWindowModel.openProjectStreamActionFailureRaised.readLatest()).toBeNull();
+
+    const reloadThatFailed = { ...OPEN_THAT_FAILED, action: "Rvxjb0uiacgp6c3o13o9qvzj1-3", kind: "load" };
+    studioWindowModel.showStatus(withTheFailures([reloadThatFailed]));
+    expect(studioWindowModel.openProjectStreamActionFailureRaised.readLatest()).toEqual(reloadThatFailed);
   });
 });

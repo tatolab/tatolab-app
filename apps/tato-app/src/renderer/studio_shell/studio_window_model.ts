@@ -1,7 +1,7 @@
 // What the studio window holds between renders: the open project and the runtime's streams it
 // serves its views, the selection, the open stream tabs, and the open project's layout.
 
-import type { ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutView, ProjectArchiveChosenToImport, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { FailedProjectStreamAction, ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutView, ProjectArchiveChosenToImport, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { RecentProjectChangeRefusal } from "../presentation/projects_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
@@ -119,6 +119,8 @@ export class StudioWindowModel {
   readonly studioWarningDismissRefusal = new WatchedStudioValue<string | null>(null);
   /** The open project's stream whose failure the window raises over the studio, until it is dismissed, the stream leaves `failed`, or another project opens. */
   readonly openProjectStreamFailureRaised = new WatchedStudioValue<OpenProjectStreamFailure | null>(null);
+  /** The open project's latest stream action, when the runtime ended it `failed`, until it is dismissed, another action of the project begins, or another project opens. */
+  readonly openProjectStreamActionFailureRaised = new WatchedStudioValue<FailedProjectStreamAction | null>(null);
   /** The workspace when the window is a studio window's Module manager window, as last read from disk; `null` in any other window. */
   readonly moduleManagerWorkspace = new WatchedStudioValue<OpenProjectReading | null>(null);
   /** The section the Module manager window was last asked to show, numbered so the same section asked again is shown again; `null` in any other window. */
@@ -134,6 +136,12 @@ export class StudioWindowModel {
 
   /** Each failure of the open project's streams already raised, as its stream id and its words, so the window raises a failure once until the stream leaves `failed`. */
   private readonly openProjectStreamFailuresRaised = new Set<string>();
+
+  /** Each project whose latest stream action failed, as the last status listed them. */
+  private projectStreamActionFailuresListed: readonly FailedProjectStreamAction[] = [];
+
+  /** Each failed stream action, by its id, whose failure the person dismissed. */
+  private readonly projectStreamActionFailuresDismissed = new Set<string>();
 
 
   /** The one port whose other end the person is picking in the Stream graph, ended when its stream's tab stops being the one shown. */
@@ -254,8 +262,17 @@ export class StudioWindowModel {
       this.streamTabAwaitedByTheOpeningProject = { project_folder: folderNow, stream: null };
     }
     this.openTheStreamTabTheOpeningProjectAwaits();
+    this.raiseTheOpenProjectsStreamActionFailure();
     const listedStreams = this.listedStreams.readLatest();
     if (listedStreams.kind === "listed") this.raiseEachNewFailureOfTheOpenProjectsStreams(listedStreams.streams);
+  }
+
+  /** Stop raising the open project's stream action failure shown now. */
+  dismissTheOpenProjectStreamActionFailure(): void {
+    const failureShown = this.openProjectStreamActionFailureRaised.readLatest();
+    if (failureShown === null) return;
+    this.projectStreamActionFailuresDismissed.add(failureShown.action);
+    this.openProjectStreamActionFailureRaised.publish(null);
   }
 
   /** Open the tab of `stream`, the stream of the project New project just made in `projectFolder`, as that project opens, or now when it is already open. */
@@ -266,6 +283,8 @@ export class StudioWindowModel {
 
   /** Show the streams `status` lists. A tab takes the name the runtime lists its stream under, and one whose stream the runtime no longer lists stays open on its last address. */
   showStatus(status: TatolabStatus): void {
+    this.projectStreamActionFailuresListed = status.project_stream_action_failures;
+    this.raiseTheOpenProjectsStreamActionFailure();
     const listedStreams = listedStreamsReadingOf(status);
     this.listedStreams.publish(listedStreams);
     if (listedStreams.kind !== "listed") return;
@@ -440,6 +459,14 @@ export class StudioWindowModel {
   /** Keep the sizes a drag left split `splitId` of the layout at. */
   keepSplitSizes(splitId: string, sizePercentByPartId: Readonly<Record<string, number>>): void {
     this.changeTheLayoutTree((tree) => studioLayoutWithShownSplitSizes(tree, splitId, sizePercentByPartId));
+  }
+
+  private raiseTheOpenProjectsStreamActionFailure(): void {
+    const projectFolder = openProjectFolderOf(this.openProject.readLatest());
+    const failureListed = this.projectStreamActionFailuresListed.find((failure) => failure.project_directory === projectFolder) ?? null;
+    const failureToShow = failureListed === null || this.projectStreamActionFailuresDismissed.has(failureListed.action) ? null : failureListed;
+    const failureShown = this.openProjectStreamActionFailureRaised.readLatest();
+    if (failureToShow?.action !== failureShown?.action) this.openProjectStreamActionFailureRaised.publish(failureToShow);
   }
 
   private raiseEachNewFailureOfTheOpenProjectsStreams(listedStreams: readonly ListedStream[]): void {
