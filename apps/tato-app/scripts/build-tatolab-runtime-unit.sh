@@ -48,7 +48,8 @@ rm -rf "$runtime_unit_directory"
 (cd "$streamlib_checkout" && env -u CEF_PATH cargo xtask "${xtask_arguments[@]}") >&2
 
 for required in bin/tatolabd bin/tatolab bin/uv bin/tatolab-video-poster-frame lib/tatolab/lend/tatolab/runtime lib/tatolab/imports \
-  lib/tatolab/samples lib/tatolab/carried-wheels lib/tatolab/python-downloads/uv-python-downloads.json; do
+  lib/tatolab/samples lib/tatolab/core-projects/tatolab-core-nodes/tatolab-project.json lib/tatolab/carried-wheels \
+  lib/tatolab/python-downloads/uv-python-downloads.json; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit is missing $required" >&2; exit 1; }
 done
 echo "$streamlib_commit" >"$runtime_unit_directory/streamlib-commit"
