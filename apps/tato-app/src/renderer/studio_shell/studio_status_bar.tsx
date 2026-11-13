@@ -9,6 +9,7 @@ import type { TatolabPlatform, TatolabStatus } from "../../shared/tatolab_backen
 import {
   EMPTY_STUDIO_ACTIVITY_LOG,
   nextStudioActivityLog,
+  opensTheActivityPanelAsItStarts,
   studioActivityButtonWordsOf,
   studioActivityLogWithTheEndedCleared,
   type StudioActivity,
@@ -87,21 +88,21 @@ function StudioActivityProgressMeter({ activity }: { activity: StudioActivity })
 /** Who last opened the Activity panel: the person pressing it, or work starting while nothing was under way, which opens it without moving the person's focus. */
 type StudioActivityPanelOpening = { isOpen: false } | { isOpen: true; openedBy: "the_person" | "work_starting" };
 
-/** The panel's opening, opened by itself each time work starts while none was under way. */
-function useStudioActivityPanelOpening(inProgressCount: number): [StudioActivityPanelOpening, (isOpen: boolean) => void] {
+/** The panel's opening, opened by itself each time a download or install starts while none was under way. */
+function useStudioActivityPanelOpening(downloadsAndInstallsInProgressCount: number): [StudioActivityPanelOpening, (isOpen: boolean) => void] {
   const [panelOpening, setPanelOpening] = useState<StudioActivityPanelOpening>({ isOpen: false });
-  const inProgressCountBefore = useRef(0);
+  const downloadsAndInstallsInProgressCountBefore = useRef(0);
   useEffect(() => {
-    if (inProgressCountBefore.current === 0 && inProgressCount > 0) setPanelOpening({ isOpen: true, openedBy: "work_starting" });
-    inProgressCountBefore.current = inProgressCount;
-  }, [inProgressCount]);
+    if (downloadsAndInstallsInProgressCountBefore.current === 0 && downloadsAndInstallsInProgressCount > 0) setPanelOpening({ isOpen: true, openedBy: "work_starting" });
+    downloadsAndInstallsInProgressCountBefore.current = downloadsAndInstallsInProgressCount;
+  }, [downloadsAndInstallsInProgressCount]);
   return [panelOpening, (isOpen) => setPanelOpening(isOpen ? { isOpen: true, openedBy: "the_person" } : { isOpen: false })];
 }
 
-/** The studio's Activity: a status bar phrase naming what downloads or installs now, opening a panel of each under way with its progress and each ended since the window opened; it opens by itself when work starts. */
+/** The studio's Activity: a status bar phrase naming the project being prepared or what downloads or installs now, opening a panel of each under way with its progress and each install ended since the window opened; it opens by itself when a download or install starts. */
 function StudioActivityPanelButton({ status }: { status: TatolabStatus }) {
   const [activityLog, clearTheEndedActivities] = useStudioActivityLog(status);
-  const [panelOpening, setThePanelOpen] = useStudioActivityPanelOpening(activityLog.in_progress.length);
+  const [panelOpening, setThePanelOpen] = useStudioActivityPanelOpening(activityLog.in_progress.filter(opensTheActivityPanelAsItStarts).length);
   const words = studioActivityButtonWordsOf(activityLog);
   if (words === null) return null;
   return (

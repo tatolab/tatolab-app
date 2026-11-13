@@ -4,6 +4,7 @@ import {
   EMPTY_STUDIO_ACTIVITY_LOG,
   ENDED_STUDIO_ACTIVITIES_KEPT,
   nextStudioActivityLog,
+  opensTheActivityPanelAsItStarts,
   studioActivityButtonWordsOf,
   studioActivityLogWithTheEndedCleared,
   type StudioActivitySources,
@@ -59,8 +60,24 @@ describe("the studio's Activity panel", () => {
     expect(log.ended).toEqual([]);
   });
 
-  it("leaves out a stream on any other step", () => {
-    expect(nextStudioActivityLog(EMPTY_STUDIO_ACTIVITY_LOG, { ...NOTHING_UNDER_WAY, listedStreams: [{ ...NIGHT_SHOW_MAIN, step: "starting" }] })).toBe(EMPTY_STUDIO_ACTIVITY_LOG);
+  it("names a project whose streams are preparing on any other step by its step, which opens no panel by itself and leaves no row once its streams move on", () => {
+    const waiting = nextStudioActivityLog(EMPTY_STUDIO_ACTIVITY_LOG, { ...NOTHING_UNDER_WAY, listedStreams: [{ ...NIGHT_SHOW_MAIN, step: null }, { ...LOBBY_MAIN, step: "reading_the_graph_documents" }] });
+    expect(waiting.in_progress.map((activity) => [activity.title, activity.kind === "in_progress" ? activity.detail : null])).toEqual([
+      ["Preparing Night Show", "Waiting for the project's other stream actions to finish…"],
+      ["Preparing lobby", "Reading the stream's graph…"],
+    ]);
+    expect(waiting.in_progress.some(opensTheActivityPanelAsItStarts)).toBe(false);
+    const starting = nextStudioActivityLog(waiting, { ...NOTHING_UNDER_WAY, listedStreams: [{ ...NIGHT_SHOW_MAIN, step: "starting" }, { ...NIGHT_SHOW_LIGHTS, step: null }] });
+    expect(studioActivityButtonWordsOf(starting)).toBe("Preparing Night Show · Starting its nodes…");
+    const running = nextStudioActivityLog(starting, { ...NOTHING_UNDER_WAY, listedStreams: [{ ...NIGHT_SHOW_MAIN, state: "running", action: null, step: null }] });
+    expect(running).toEqual({ in_progress: [], ended: [], sync_actions_ended: [] });
+    expect(studioActivityButtonWordsOf(running)).toBeNull();
+  });
+
+  it("names a project making its Python environment only by its install, which opens the panel by itself", () => {
+    const installing = nextStudioActivityLog(EMPTY_STUDIO_ACTIVITY_LOG, { ...NOTHING_UNDER_WAY, listedStreams: [NIGHT_SHOW_MAIN, { ...NIGHT_SHOW_LIGHTS, step: null }] });
+    expect(installing.in_progress.map((activity) => activity.title)).toEqual(["Night Show's Python packages"]);
+    expect(installing.in_progress.every(opensTheActivityPanelAsItStarts)).toBe(true);
   });
 
   it("ends an install as installed once its project's streams move on, or failed in the runtime's words when one fails, newest first", () => {
@@ -100,7 +117,7 @@ describe("the studio's Activity panel", () => {
     const installing = nextStudioActivityLog(EMPTY_STUDIO_ACTIVITY_LOG, { ...NOTHING_UNDER_WAY, listedStreams: [NIGHT_SHOW_MAIN] });
     expect(studioActivityButtonWordsOf(installing)).toBe("Night Show's Python packages · Downloading and installing…");
     expect(studioActivityButtonWordsOf(nextStudioActivityLog(installing, { ...NOTHING_UNDER_WAY, listedStreams: [NIGHT_SHOW_MAIN, LOBBY_MAIN] }))).toBe("2 downloads and installs…");
-    expect(studioActivityButtonWordsOf(nextStudioActivityLog(installing, { ...NOTHING_UNDER_WAY, listedStreams: [{ ...NIGHT_SHOW_MAIN, step: "starting" }] }))).toBe("Activity");
+    expect(studioActivityButtonWordsOf(nextStudioActivityLog(installing, { ...NOTHING_UNDER_WAY, listedStreams: [{ ...NIGHT_SHOW_MAIN, state: "running", action: null, step: null }] }))).toBe("Activity");
     expect(studioActivityButtonWordsOf(nextStudioActivityLog(installing, { ...NOTHING_UNDER_WAY, listedStreams: [{ ...NIGHT_SHOW_MAIN, state: "failed", step: null, failed_because: UV_REFUSAL }] }))).toBe(
       "Activity · 1 failed",
     );
@@ -217,7 +234,7 @@ describe("the studio's Activity panel", () => {
     const ended = nextStudioActivityLog(caughtOnlyBeforeUvStarted, endingSources);
     expect(nextStudioActivityLog(ended, endingSources)).toBe(ended);
 
-    expect(ended.in_progress).toEqual([]);
+    expect(ended.in_progress.map((activity) => activity.title)).toEqual(["Preparing Night Show"]);
     expect(ended.ended).toEqual([
       {
         activity_id: `python_packages:${nightShowFolder}`,
