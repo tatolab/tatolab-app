@@ -9,7 +9,10 @@ name: Release
 # streamlib's packages/, simple/, releases/, install.sh and latest: the files land under
 # app/releases/<version>/ first, and the feed's manifests in app/ only once both platforms built, so
 # an installed app never reads a manifest whose files are missing. Secrets come from the
-# repository's Infisical sync.
+# repository's Infisical sync. The release runs no tests; pull requests run them in ci.yml. A
+# platform's files built once for an app version, streamlib release and commit are kept in the
+# Actions cache and taken from it on a later run, and macOS's runtime unit, which streamlib does
+# not publish, is kept per streamlib release, so a release over the same runtime does not build it again.
 on:
   push:
     branches: [main]
@@ -45,11 +48,14 @@ jobs:
       streamlib_tag: ${{ steps.plan.outputs.streamlib_tag }}
       streamlib_version: ${{ steps.plan.outputs.streamlib_version }}
       linux_runtime_tarball_url: ${{ steps.plan.outputs.linux_runtime_tarball_url }}
+      streamlib_release_contains_the_client_pin: ${{ steps.client-pin.outputs.streamlib_release_contains_the_client_pin }}
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-          sparse-checkout: apps/tato-app/scripts/plan_tatolab_app_release.mjs
+          sparse-checkout: |
+            apps/tato-app/scripts/plan_tatolab_app_release.mjs
+            apps/tato-app/tatolab-runtime-client-pin.json
           sparse-checkout-cone-mode: false
 
       - uses: actions/setup-node@v5
@@ -61,18 +67,60 @@ jobs:
           REQUESTED_STREAMLIB_VERSION: ${{ inputs.streamlib_version }}
         run: node apps/tato-app/scripts/plan_tatolab_app_release.mjs "$REQUESTED_STREAMLIB_VERSION"
 
+      # The app's code calls the streamlib its client pin names, and the build refuses a runtime
+      # older than that. A merge that moves the pin past every streamlib release builds and
+      # publishes nothing; streamlib's next release dispatches this workflow with its version.
+      - id: client-pin
+        env:
+          STREAMLIB_TAG: ${{ steps.plan.outputs.streamlib_tag }}
+        run: |
+          set -euo pipefail
+          pinned_streamlib_commit="$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).streamlib_commit)' apps/tato-app/tatolab-runtime-client-pin.json)"
+          ancestry_directory="$RUNNER_TEMP/streamlib-ancestry"
+          git init -q "$ancestry_directory"
+          git -C "$ancestry_directory" fetch -q --filter=tree:0 https://github.com/tatolab/streamlib.git "refs/tags/$STREAMLIB_TAG"
+          if git -C "$ancestry_directory" merge-base --is-ancestor "$pinned_streamlib_commit" FETCH_HEAD; then
+            echo "streamlib_release_contains_the_client_pin=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::streamlib $STREAMLIB_TAG does not contain streamlib $pinned_streamlib_commit, which the app's runtime client is pinned to: nothing is built or published until a streamlib release carries it"
+            echo "streamlib_release_contains_the_client_pin=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build-macos:
     name: Build, sign and notarize for macOS
     needs: plan
+    if: needs.plan.outputs.streamlib_release_contains_the_client_pin == 'true'
     # Pinned, not macos-latest: the image decides the SDK, and the app's floor is macOS 26.0.
     runs-on: macos-26
     timeout-minutes: 240
+    env:
+      RELEASE_FILES_CACHE_KEY: tato-studio-release-files-macos-${{ needs.plan.outputs.app_version }}-${{ needs.plan.outputs.streamlib_version }}-${{ github.sha }}
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
+      - name: Take this release's macOS files built by an earlier run
+        id: cached-release-files
+        uses: actions/cache/restore@v5
+        with:
+          key: ${{ env.RELEASE_FILES_CACHE_KEY }}
+          path: |
+            apps/tato-app/build/Tato-Studio-${{ needs.plan.outputs.app_version }}-arm64.dmg
+            apps/tato-app/build/Tato-Studio-${{ needs.plan.outputs.app_version }}-arm64-mac.zip
+            apps/tato-app/build/latest-mac.yml
+
+      # Its carried code is signed with the Developer ID, the one identity every build signs with.
+      - name: Take the macOS runtime unit built for this streamlib release by an earlier run
+        id: cached-macos-runtime-unit
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v5
+        with:
+          key: tatolab-runtime-unit-macos-${{ needs.plan.outputs.streamlib_tag }}-${{ hashFiles('apps/tato-app/scripts/build-tatolab-runtime-unit.sh') }}
+          path: ${{ runner.temp }}/tatolab-runtime-unit-macos
+
       - name: Every secret the macOS build reads is set
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -94,6 +142,7 @@ jobs:
 
       # cmake and ninja build streamlib's bundled Vulkan loader; shaderc its shaders.
       - name: Install the build tools
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
           HOMEBREW_NO_INSTALL_CLEANUP: "1"
@@ -101,8 +150,10 @@ jobs:
         run: brew install shaderc cmake ninja
 
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
 
       - uses: Swatinem/rust-cache@v2
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
         with:
           shared-key: tato-studio-release-macos
           workspaces: |
@@ -110,22 +161,26 @@ jobs:
             apps/tato-app/native/tatolab-runtime-viewer-frame-import -> target
 
       - uses: actions/setup-node@v5
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
         with:
           node-version: 22
           cache: npm
 
       - uses: actions/setup-python@v6
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
         with:
           python-version: "3.12"
 
       # The Python the build resolves is streamlib's, cloned by the build step after this one, so no
       # file here can key the cache; the streamlib release it bundles does.
       - uses: astral-sh/setup-uv@v7
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
         with:
           cache-dependency-glob: ""
           cache-suffix: ${{ needs.plan.outputs.streamlib_tag }}
 
       - name: Build Tato Studio.app, its .dmg and its update
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -136,6 +191,7 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           STREAMLIB_TAG: ${{ needs.plan.outputs.streamlib_tag }}
           APP_VERSION: ${{ needs.plan.outputs.app_version }}
+          CACHED_MACOS_RUNTIME_UNIT: ${{ steps.cached-macos-runtime-unit.outputs.cache-hit == 'true' && format('{0}/tatolab-runtime-unit-macos', runner.temp) || '' }}
         run: |
           set -euo pipefail
           # notarytool reads the App Store Connect key from a file; it lives only as long as this step.
@@ -143,7 +199,31 @@ jobs:
           (umask 077 && printf "%s" "$APPLE_API_KEY_P8_BASE64" | base64 --decode > "$APPLE_API_KEY_PATH")
           trap 'rm -f "$APPLE_API_KEY_PATH"' EXIT
           export APPLE_API_KEY_PATH
-          apps/tato-app/scripts/build-tatolab-app.sh --streamlib-ref "$STREAMLIB_TAG" --app-version "$APP_VERSION" --release --notarize
+          runtime_unit_arguments=()
+          [ -n "$CACHED_MACOS_RUNTIME_UNIT" ] && runtime_unit_arguments=(--runtime-unit "$CACHED_MACOS_RUNTIME_UNIT")
+          apps/tato-app/scripts/build-tatolab-app.sh --streamlib-ref "$STREAMLIB_TAG" --app-version "$APP_VERSION" --release --notarize \
+            ${runtime_unit_arguments[@]+"${runtime_unit_arguments[@]}"}
+
+      # build-tatolab-runtime-unit.sh empties the unit's directory at the start of every build, so
+      # the cache keeps a copy outside the streamlib checkout.
+      - name: Keep the macOS runtime unit for this streamlib release
+        if: steps.cached-release-files.outputs.cache-hit != 'true' && steps.cached-macos-runtime-unit.outputs.cache-hit != 'true'
+        run: ditto apps/tato-app/build/streamlib/target/tatolab-runtime "$RUNNER_TEMP/tatolab-runtime-unit-macos"
+
+      - if: steps.cached-release-files.outputs.cache-hit != 'true' && steps.cached-macos-runtime-unit.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          key: ${{ steps.cached-macos-runtime-unit.outputs.cache-primary-key }}
+          path: ${{ runner.temp }}/tatolab-runtime-unit-macos
+
+      - if: steps.cached-release-files.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          key: ${{ env.RELEASE_FILES_CACHE_KEY }}
+          path: |
+            apps/tato-app/build/Tato-Studio-${{ needs.plan.outputs.app_version }}-arm64.dmg
+            apps/tato-app/build/Tato-Studio-${{ needs.plan.outputs.app_version }}-arm64-mac.zip
+            apps/tato-app/build/latest-mac.yml
 
       - uses: actions/upload-artifact@v6
         with:
@@ -157,24 +237,41 @@ jobs:
   build-linux:
     name: Build for Linux
     needs: plan
+    if: needs.plan.outputs.streamlib_release_contains_the_client_pin == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 90
+    env:
+      RELEASE_FILES_CACHE_KEY: tato-studio-release-files-linux-${{ needs.plan.outputs.app_version }}-${{ needs.plan.outputs.streamlib_version }}-${{ github.sha }}
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
+      - name: Take this release's Linux files built by an earlier run
+        id: cached-release-files
+        uses: actions/cache/restore@v5
+        with:
+          key: ${{ env.RELEASE_FILES_CACHE_KEY }}
+          path: |
+            apps/tato-app/build/linux/Tato-Studio-${{ needs.plan.outputs.app_version }}-amd64.deb
+            apps/tato-app/build/linux/Tato-Studio-${{ needs.plan.outputs.app_version }}-x86_64.AppImage
+            apps/tato-app/build/linux/latest-linux.yml
+
       - name: Install the packaging tools
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
         run: sudo apt-get update && sudo apt-get install -y dpkg-dev desktop-file-utils curl
 
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
 
       - uses: Swatinem/rust-cache@v2
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
         with:
           shared-key: tato-studio-release-linux
           workspaces: apps/tato-app/native/tatolab-runtime-viewer-frame-import -> target
 
       - uses: actions/setup-node@v5
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
         with:
           node-version: 22
           cache: npm
@@ -182,6 +279,7 @@ jobs:
       # The runtime streamlib built at its glibc floor and serves from get.tatolab.com, which carries
       # the commit it was built from in streamlib-commit.
       - name: Take the release's Linux runtime unit
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
         env:
           TARBALL_URL: ${{ needs.plan.outputs.linux_runtime_tarball_url }}
         run: |
@@ -195,12 +293,22 @@ jobs:
           tar -C "$RUNNER_TEMP/linux-runtime-unit" -xzf "$tarball_directory/$tarball_name"
 
       - name: Build the .deb, the AppImage and their update
+        if: steps.cached-release-files.outputs.cache-hit != 'true'
         env:
           STREAMLIB_TAG: ${{ needs.plan.outputs.streamlib_tag }}
           APP_VERSION: ${{ needs.plan.outputs.app_version }}
         run: >-
           apps/tato-app/scripts/build-tatolab-linux-app.sh --streamlib-ref "$STREAMLIB_TAG"
           --runtime-unit "$RUNNER_TEMP/linux-runtime-unit" --app-version "$APP_VERSION" --release
+
+      - if: steps.cached-release-files.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          key: ${{ env.RELEASE_FILES_CACHE_KEY }}
+          path: |
+            apps/tato-app/build/linux/Tato-Studio-${{ needs.plan.outputs.app_version }}-amd64.deb
+            apps/tato-app/build/linux/Tato-Studio-${{ needs.plan.outputs.app_version }}-x86_64.AppImage
+            apps/tato-app/build/linux/latest-linux.yml
 
       - uses: actions/upload-artifact@v6
         with:

@@ -7,6 +7,7 @@ import {
   projectNameToSave,
   presentProjectDeletionQuestion,
   presentRecentProjectChangePendingWords,
+  presentProjectStreamActionFailureTitle,
   presentRecentProjectChangeRefusalTitle,
   projectRenameRefusal,
   presentProjectsHomeChoices,
@@ -125,6 +126,13 @@ describe("a project's ⋯ menu", () => {
     expect(presentRecentProjectChangeRefusalTitle("rename")).toBe("The project wasn't renamed");
     expect(presentRecentProjectChangeRefusalTitle("duplicate")).toBe("The project wasn't duplicated");
     expect(presentRecentProjectChangeRefusalTitle("delete")).toBe("The project wasn't deleted");
+  });
+
+  it("titles the notice of a stream action the runtime ended failed by the action's kind, and a kind newer than the app plainly", () => {
+    expect(presentProjectStreamActionFailureTitle("open")).toBe("The project didn't open");
+    expect(presentProjectStreamActionFailureTitle("load")).toBe("The project didn't reload");
+    expect(presentProjectStreamActionFailureTitle("start_playback")).toBe("The project didn't run");
+    expect(presentProjectStreamActionFailureTitle("a_kind_newer_than_the_app")).toBe("The runtime couldn't finish what the project asked");
   });
 });
 

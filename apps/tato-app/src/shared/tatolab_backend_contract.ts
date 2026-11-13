@@ -184,6 +184,8 @@ export interface TatolabStatus {
   project_venv_syncs_under_way: ProjectVenvSyncOfAStreamAction[];
   /** Each project's `.venv` sync that ended since the last status: its action's last sync, read once as its streams left the `making_the_venv` step; empty otherwise. */
   project_venv_syncs_just_ended: ProjectVenvSyncOfAStreamAction[];
+  /** Each project whose latest stream action failed, with the runtime's words for why, until another action of the project begins; empty otherwise. */
+  project_stream_action_failures: FailedProjectStreamAction[];
   /** Why listing the streams failed while the runtime answers, in the failure's own words; `null` when they were listed or the runtime is down. */
   streams_not_listed_because: string | null;
   command_line_tool_link: CommandLineToolLink;
@@ -312,6 +314,16 @@ export interface ProjectVenvSyncOfAStreamAction {
   action: string;
   project_directory: string;
   venv_sync: StreamActionVenvSync;
+}
+
+/** A project's stream action the runtime ended `failed`, read once from its description. */
+export interface FailedProjectStreamAction {
+  action: string;
+  project_directory: string;
+  /** `open`, `load`, `start_playback`, or another kind the runtime names. */
+  kind: string;
+  /** Why it failed, in the runtime's words. */
+  failed_because: string;
 }
 
 /** What `cancel_stream_action` answers: the action, `cancelled` for one dropped from its queue, or `in_progress` for one stopping at the step it is on, or a state newer than this app. */

@@ -255,3 +255,49 @@ test("stopping_closes_the_connection_and_reads_the_status_no_more", async () => 
   expect(connectionsOpened[0]?.isClosed).toBe(true);
   expect(statusReads.asked).toBe(1);
 });
+
+const OPEN_ACTION = "Rvxjb0uiacgp6c3o13o9qvzj1-2";
+const RELOAD_ACTION = "Rvxjb0uiacgp6c3o13o9qvzj1-3";
+const EARLIER_RECORD_REFUSAL = "stream p-main-0a1b2c is held by a record an earlier runtime wrote";
+
+async function anOpenThatFailed(): Promise<StreamActionDescription> {
+  const done = await doneAfterItsSync();
+  return { ...done, action: OPEN_ACTION, kind: "open", state: "failed", step: null, streams: [], failed_because: EARLIER_RECORD_REFUSAL, venv_sync: null };
+}
+
+test("an_action_that_failed_holds_its_projects_failure_in_the_runtimes_words_until_another_action_of_the_project_is_described", async () => {
+  const { followed, connectionsOpened, describedActions, statusReads } = streamActionsFollowedOverFakeConnections();
+  const openThatFailed = await anOpenThatFailed();
+  describedActions.set(OPEN_ACTION, openThatFailed);
+  followed.follow();
+  await settle();
+  const statusReadsBeforeTheFailure = statusReads.asked;
+
+  connectionsOpened[0]?.pushAStreamActionChanged(OPEN_ACTION);
+  await settle();
+  connectionsOpened[0]?.pushAStreamActionChanged(OPEN_ACTION);
+  await settle();
+
+  const failureHeld = { action: OPEN_ACTION, project_directory: openThatFailed.project_directory, kind: "open", failed_because: EARLIER_RECORD_REFUSAL };
+  expect(followed.projectStreamActionFailuresNow()).toEqual([failureHeld]);
+  expect(statusReads.asked).toBe(statusReadsBeforeTheFailure + 3);
+
+  describedActions.set(RELOAD_ACTION, { ...openThatFailed, action: RELOAD_ACTION, kind: "load", state: "queued", failed_because: null });
+  connectionsOpened[0]?.pushAStreamActionChanged(RELOAD_ACTION);
+  await settle();
+
+  expect(followed.projectStreamActionFailuresNow()).toEqual([]);
+});
+
+test("a_lost_connection_forgets_every_projects_failure", async () => {
+  const { followed, connectionsOpened, describedActions } = streamActionsFollowedOverFakeConnections();
+  describedActions.set(OPEN_ACTION, await anOpenThatFailed());
+  followed.follow();
+  await settle();
+  connectionsOpened[0]?.pushAStreamActionChanged(OPEN_ACTION);
+  await settle();
+
+  connectionsOpened[0]?.closeFromTheRuntime();
+
+  expect(followed.projectStreamActionFailuresNow()).toEqual([]);
+});

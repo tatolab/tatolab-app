@@ -101,6 +101,8 @@ export interface TatolabAppControllerSources {
   whenTheRuntimeExits: () => void;
   /** Each project's `.venv` sync, followed on the runtime's stream actions while it answers. */
   projectVenvSyncsOfTheFollowedStreamActions: Pick<StreamActionChangesFollowedForTheStatus, "takeTheProjectVenvSyncs">;
+  /** Each project whose latest stream action failed, followed on the runtime's stream actions while it answers. */
+  projectStreamActionFailuresOfTheFollowedStreamActions: Pick<StreamActionChangesFollowedForTheStatus, "projectStreamActionFailuresNow">;
   tatolabAppLog: TatolabAppLog;
 }
 
@@ -126,6 +128,7 @@ export class TatolabAppController {
     private readonly readTheStudioWarnings: () => StudioWarning[],
     private readonly tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin,
     private readonly projectVenvSyncsOfTheFollowedStreamActions: TatolabAppControllerSources["projectVenvSyncsOfTheFollowedStreamActions"],
+    private readonly projectStreamActionFailuresOfTheFollowedStreamActions: TatolabAppControllerSources["projectStreamActionFailuresOfTheFollowedStreamActions"],
     private readonly tatolabAppLog: TatolabAppLog,
   ) {}
 
@@ -153,6 +156,7 @@ export class TatolabAppController {
       sources.readTheStudioWarnings,
       sources.platformForThisBuild.tatolabAppOpenedAtLogin,
       sources.projectVenvSyncsOfTheFollowedStreamActions,
+      sources.projectStreamActionFailuresOfTheFollowedStreamActions,
       sources.tatolabAppLog,
     );
   }
@@ -231,6 +235,7 @@ export class TatolabAppController {
       streams,
       project_venv_syncs_under_way: underWay,
       project_venv_syncs_just_ended: justEnded,
+      project_stream_action_failures: this.projectStreamActionFailuresOfTheFollowedStreamActions.projectStreamActionFailuresNow(),
       streams_not_listed_because: streamsNotListedBecause,
       command_line_tool_link: await this.commandLineToolLink.observeTheLink(),
       app_update: this.readTheAppUpdateState(),

@@ -226,6 +226,19 @@ describe("the mock backend's stream actions", () => {
     expect(listingWithTheId((await status).streams, "doorbell")).toMatchObject({ location: null, state: "failed", failed_because: expect.stringMatching(/^an earlier runtime recorded it/) });
   });
 
+  it("holds the open project's open failed in the runtime's words, with ?project_open=refused", async () => {
+    vi.useFakeTimers();
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("project_open=refused")));
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const status = backend.getTatolabStatus();
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect((await status).project_stream_action_failures).toEqual([
+      expect.objectContaining({ project_directory: PATTERN_FOLDER, kind: "open", failed_because: expect.stringContaining("held by a record an earlier runtime wrote") }),
+    ]);
+  });
+
   it("removes a project: each of its streams stopping, then forgotten, and no other", async () => {
     const { backend, streamsAfterEachChange } = await runningMockBackend();
 

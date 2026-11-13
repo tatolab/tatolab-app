@@ -369,6 +369,7 @@ export async function startTatolabApp(
     readTheStudioWarnings: () => studioWarnings.warningsNow(),
     whenTheRuntimeExits: () => statusPublisherOnceBuilt?.requestRefresh(),
     projectVenvSyncsOfTheFollowedStreamActions: streamActionChangesFollowed,
+    projectStreamActionFailuresOfTheFollowedStreamActions: streamActionChangesFollowed,
     tatolabAppLog,
   });
   controllerOnceBuilt = controller;
