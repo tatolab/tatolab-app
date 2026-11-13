@@ -141,8 +141,8 @@ export type StreamGraphNote = z.infer<typeof streamGraphNoteSchema>;
 export const streamGraphInterfacePortSchema = z.object({
   direction: z.enum(["input", "output"]),
   port: z.string(),
-  /** As the runtime spells it: `image`, `array`, `channels`, `packets` or `records`. */
-  family: z.string(),
+  /** As the runtime spells it: `image`, `array`, `channels`, `packets` or `records`; `null` while the node names none and nothing is linked to it, when the first link's family becomes its own. */
+  family: z.string().nullable(),
   /** What a running top-level Input carries now, the last value a client wrote, else its config's `default`; `null` where the runtime renders none. */
   current_value: jsonValueSchema.nullable(),
 });

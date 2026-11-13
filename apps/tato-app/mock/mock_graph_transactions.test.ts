@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { applyMockGraphTransaction, graphActionApplyingTheHistoryOperation, isAHistoryOperationTheMockMakesAgainFromTheEditInside, isAJsonObject, thePlacementsOfTheStream, type MockStreamGraphTarget } from "./mock_graph_transactions";
+import { applyMockGraphTransaction, configHoldingTheDefaultNameOfAGraphPortOrVariable, graphActionApplyingTheHistoryOperation, isAHistoryOperationTheMockMakesAgainFromTheEditInside, isAJsonObject, thePlacementsOfTheStream, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import { mockNodeIdOf, type MockGraphNode, type MockStreamGraph } from "./mock_stream_fixtures";
 
 const STREAM_ASSET = "a-stream-asset";
@@ -198,6 +198,49 @@ test("a Python node takes a number config field as a Channels input fed by a Gra
   expect(refusedOnANativeNode.kind === "refused" && refusedOnANativeNode.refusal.runtime_words).toContain("Only a Python node exposes a config field");
   const refusedFamily = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", name: "level", config: { port: "level", family: "Channels" } }]);
   expect(refusedFamily.kind === "refused" && refusedFamily.refusal.runtime_words).toContain('names family "Channels", and a family is one of image, array, channels, packets, records');
+});
+
+test("a Graph Input, Graph Output or Set Variable added with no name takes the next free one, and a Get Variable reads the last setter's", () => {
+  const graph = aTestPatternAlone();
+  const added = applyMockGraphTransaction(targetsOf(graph), [
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", config: { family: "channels" } },
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", config: { family: "records" } },
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", config: { port: "brightness", family: "channels" } },
+  ]);
+  if (added.kind !== "applied") return expect.unreachable(added.refusal.runtime_words);
+  expect(graph.nodes.filter((node) => node.type === "tatolab.stream:GraphInput").map((node) => node.config["port"])).toEqual(["input1", "input2", "brightness"]);
+
+  graph.nodes.push(
+    { name: "graphoutput", type: "tatolab.stream:GraphOutput", state: null, config: { port: "Output1", family: "image" }, input_ports: [], output_ports: [] },
+    { name: "setvariable", type: "tatolab.stream:SetVariable", state: null, config: { variable: "var1" }, input_ports: [], output_ports: [] },
+    { name: "setvariable-2", type: "tatolab.stream:SetVariable", state: null, config: { variable: "blur" }, input_ports: [], output_ports: [] },
+  );
+  const named = (type: string) => configHoldingTheDefaultNameOfAGraphPortOrVariable(type, {}, graph.nodes);
+  expect(named("tatolab.stream:GraphOutput")).toEqual({ port: "output2" });
+  expect(named("tatolab.stream:SetVariable")).toEqual({ variable: "var2" });
+  expect(named("tatolab.stream:GetVariable")).toEqual({ variable: "blur" });
+  expect(configHoldingTheDefaultNameOfAGraphPortOrVariable("tatolab.stream:GetVariable", {}, [])).toEqual({});
+  expect(named("tatolab.stream:DisplayWindow")).toEqual({});
+});
+
+test("a Graph Input added with no family carries none until a link gives it the family of the port it feeds, and loses it again when unlinked", () => {
+  const graph = aTestPatternAlone();
+  graph.nodes.push({ name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {}, input_ports: [{ name: "strength", family: "channels", stream_facts: null, values_checked: null }], output_ports: [] });
+  const added = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", as: "graph_input" }]);
+  if (added.kind !== "applied") return expect.unreachable(added.refusal.runtime_words);
+  const graphInput = () => graph.nodes.find((node) => node.type === "tatolab.stream:GraphInput") ?? expect.unreachable("no Graph Input");
+  expect(graphInput()).toMatchObject({ config: { port: "input1" }, output_ports: [{ name: "value", family: null }] });
+
+  const graphInputId = mockNodeIdOf(STREAM_ID, graphInput().name);
+  const inverter = mockNodeIdOf(STREAM_ID, "invertingeffect");
+  const linked = applyMockGraphTransaction(targetsOf(graph), [{ operation: "connect", stream: STREAM_ASSET, source: { node: graphInputId, port: "value" }, target: { node: inverter, port: "strength" } }]);
+  if (linked.kind !== "applied") return expect.unreachable(linked.refusal.runtime_words);
+  expect(graphInput().output_ports[0]?.family).toBe("channels");
+  expect(graphInput().config).toEqual({ port: "input1" });
+
+  const unlinked = applyMockGraphTransaction(targetsOf(graph), [{ operation: "disconnect", stream: STREAM_ASSET, source: { node: graphInputId, port: "value" }, target: { node: inverter, port: "strength" } }]);
+  if (unlinked.kind !== "applied") return expect.unreachable(unlinked.refusal.runtime_words);
+  expect(graphInput().output_ports[0]?.family).toBeNull();
 });
 
 /** The stream asset `placing`, a Stream Fragment node, places. */
