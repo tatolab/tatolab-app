@@ -104,6 +104,31 @@ describe("what the Modules and Marketplace window lists", () => {
 
   it("names a module's folder as the runtime does", () => {
     expect(moduleFolderNameOf("Camera Tools!")).toBe("camera-tools");
+    expect(moduleFolderNameOf("Tatolab_Camera")).toBe("tatolab_camera");
+    expect(moduleFolderNameOf("a - b")).toBe("a--b");
+    expect(moduleFolderNameOf(" !! ")).toBe("module");
+  });
+
+  it("gives a Marketplace download to its catalog entry, though its project names itself by its title", () => {
+    const camera = { ...aModule("camera", "Camera"), source: "/home/jo/.config/Tato Studio/module-downloads/tatolab-camera-0.68.85.zip" };
+    const rows = everyModuleCardRowOf(CATALOG, [camera]);
+    expect(rows.map((row) => [row.row_id, row.module_of_the_project?.folder ?? null])).toEqual([
+      ["camera-halftone", null],
+      ["tatolab-camera", "camera"],
+      ["tatolab-opus", null],
+    ]);
+    expect(moduleCardMarkOf(rows[1])).toEqual({ words: "Added", isNews: false });
+    expect(moduleCardRowPickedBy(moduleCardRowsShownOf(rows, "marketplace", ""), "tatolab-camera")?.module_of_the_project?.folder).toBe("camera");
+  });
+
+  it("gives a Marketplace download to the entry it was downloaded for before one its project's name matches", () => {
+    const halftoneNamedCamera = { ...aModule("tatolab-camera", "tatolab-camera"), source: "/home/jo/.config/Tato Studio/module-downloads/camera-halftone-0.68.29.zip" };
+    const rows = everyModuleCardRowOf(CATALOG, [halftoneNamedCamera]);
+    expect(rows.map((row) => [row.row_id, row.module_of_the_project?.folder ?? null])).toEqual([
+      ["camera-halftone", "tatolab-camera"],
+      ["tatolab-camera", null],
+      ["tatolab-opus", null],
+    ]);
   });
 
   it("shows a version by its first 12 characters", () => {

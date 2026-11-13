@@ -342,8 +342,8 @@ export function ModuleManagerWindowView({
       void listTheModulesOfTheProject();
     });
   const addFromTheCatalog = (entry: PackageCatalogEntry) =>
-    doTheWork(`Downloading and adding ${entry.title}`, () => sources.importFromTheMarketplace(entry.name), (added) => {
-      pickTheCard(added.folder);
+    doTheWork(`Downloading and adding ${entry.title}`, () => sources.importFromTheMarketplace(entry.name), () => {
+      pickTheCard(entry.name);
       void listTheModulesOfTheProject();
     });
   const openToEdit = (dependency: WorkspaceDependency) => {

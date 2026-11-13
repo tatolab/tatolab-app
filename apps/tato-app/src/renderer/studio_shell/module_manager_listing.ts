@@ -1,6 +1,7 @@
 // What the Modules and Marketplace window lists: the catalog's packages and samples in its order, each saying
 // whether the project has added it, then the project's modules the catalog does not list.
 
+import { isAMarketplaceDownloadOf } from "../../shared/marketplace_module_download_file";
 import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { PackageCatalogEntry, PackageCatalogMember, PackageCatalogReading, ViewsOfAWorkspaceDependency, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
 import { manifestOfAListedView, titleTheManifestNames } from "../view_host/studio_view_type_registry";
@@ -17,12 +18,15 @@ export interface ModuleCardRow {
   module_of_the_project: WorkspaceDependency | null;
 }
 
-/** A module's name lowercased with each run of other characters made `-`, as the runtime names its folder under `imports/`. */
+/** The folder the runtime's `add_dependency` copies a project named `name` into under `imports/`: lowercased, each run of characters other than ASCII letters, digits, `-` and `_` made one `-`, trimmed of `-`, or `module` when nothing is left. */
 export function moduleFolderNameOf(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  let folder = "";
+  for (const character of name.trim()) {
+    if (/^[A-Za-z0-9_-]$/.test(character)) folder += character.toLowerCase();
+    else if (!folder.endsWith("-")) folder += "-";
+  }
+  const trimmed = folder.replace(/^-+|-+$/g, "");
+  return trimmed === "" ? "module" : trimmed;
 }
 
 function textsMatchTheSearch(texts: readonly string[], searchText: string): boolean {
@@ -34,14 +38,14 @@ function namesOf(members: readonly PackageCatalogMember[]): string[] {
   return members.map((member) => member.name);
 }
 
-function moduleOfTheProjectFor(entry: PackageCatalogEntry, dependencies: readonly WorkspaceDependency[], foldersAnotherEntryClaimed: ReadonlySet<string>): WorkspaceDependency | null {
+function isNamedLikeTheEntry(entry: PackageCatalogEntry, dependency: WorkspaceDependency): boolean {
   const entryFolderName = moduleFolderNameOf(entry.name);
-  return (
-    dependencies.find(
-      (dependency) =>
-        !foldersAnotherEntryClaimed.has(dependency.folder) && (dependency.folder === entryFolderName || (dependency.name !== null && moduleFolderNameOf(dependency.name) === entryFolderName)),
-    ) ?? null
-  );
+  return dependency.folder === entryFolderName || (dependency.name !== null && moduleFolderNameOf(dependency.name) === entryFolderName);
+}
+
+function moduleOfTheProjectFor(entry: PackageCatalogEntry, dependencies: readonly WorkspaceDependency[], foldersAnotherEntryClaimed: ReadonlySet<string>): WorkspaceDependency | null {
+  const unclaimed = dependencies.filter((dependency) => !foldersAnotherEntryClaimed.has(dependency.folder));
+  return unclaimed.find((dependency) => isAMarketplaceDownloadOf(entry.name, dependency.source)) ?? unclaimed.find((dependency) => isNamedLikeTheEntry(entry, dependency)) ?? null;
 }
 
 /** Every card the window can show, before any filter: the catalog's entries in its order, then the project's modules it does not list, in the runtime's order. */

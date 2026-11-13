@@ -1,6 +1,7 @@
 import { jsonValueSchema } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { MOCK_NODE_CATALOG_ENTRIES } from "./mock_node_catalog";
-import { mockPackageCatalogReading } from "./mock_package_catalog";
+import { MOCK_PACKAGE_CATALOG_ENTRIES, mockPackageCatalogReading } from "./mock_package_catalog";
+import { marketplaceDownloadFileNameOf, MODULE_DOWNLOADS_FOLDER_NAME } from "../src/shared/marketplace_module_download_file";
 import { MockWorkspaceDependencies, mockWorkspaceDependenciesScenarioNamed, type MockWorkspaceDependenciesScenario } from "./mock_workspace_dependencies";
 import {
   createMockStreamFixtures,
@@ -1734,7 +1735,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     },
     importFromTheMarketplace: async (name) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 6);
-      return workspaceDependencies.add(`${fixtures.machine.homeDirectory}/Library/Application Support/Tato Studio/module-downloads/${name}-0.68.29.zip`, name);
+      const entry = MOCK_PACKAGE_CATALOG_ENTRIES.find((listed) => listed.name === name);
+      if (entry === undefined) throw `The catalog lists nothing named ${name}.`;
+      const downloadsFolder = `${fixtures.machine.homeDirectory}/Library/Application Support/Tato Studio/${MODULE_DOWNLOADS_FOLDER_NAME}`;
+      return workspaceDependencies.add(`${downloadsFolder}/${marketplaceDownloadFileNameOf(entry.name, entry.version)}`, entry.title);
     },
     openImportToEdit: async (folder) => {
       if (!workspaceDependencies.holdsTheFolder(folder)) throw `The project imports nothing in imports/${folder}.`;
