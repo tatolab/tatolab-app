@@ -1160,7 +1160,7 @@ checksum = "149309498a5f7334b12ddae0cad8aba81ce785fe91755068867e017cf98fee46"
 [[package]]
 name = "streamlib-consumer-rhi"
 version = "0.68.82"
-source = "git+https://github.com/tatolab/streamlib?rev=8a66b9f5e50826a55b91b91e2af9d86c0b298e79#8a66b9f5e50826a55b91b91e2af9d86c0b298e79"
+source = "git+https://github.com/tatolab/streamlib?rev=2df71a685d71ebb19412c5ba45c590347a6e6689#2df71a685d71ebb19412c5ba45c590347a6e6689"
 dependencies = [
  "libc",
  "objc2",
@@ -1178,7 +1178,7 @@ dependencies = [
 [[package]]
 name = "streamlib-gpu-frame-import-client"
 version = "0.68.82"
-source = "git+https://github.com/tatolab/streamlib?rev=8a66b9f5e50826a55b91b91e2af9d86c0b298e79#8a66b9f5e50826a55b91b91e2af9d86c0b298e79"
+source = "git+https://github.com/tatolab/streamlib?rev=2df71a685d71ebb19412c5ba45c590347a6e6689#2df71a685d71ebb19412c5ba45c590347a6e6689"
 dependencies = [
  "objc2-core-foundation",
  "objc2-io-surface",
@@ -1193,7 +1193,7 @@ dependencies = [
 [[package]]
 name = "streamlib-ipc-types"
 version = "0.68.82"
-source = "git+https://github.com/tatolab/streamlib?rev=8a66b9f5e50826a55b91b91e2af9d86c0b298e79#8a66b9f5e50826a55b91b91e2af9d86c0b298e79"
+source = "git+https://github.com/tatolab/streamlib?rev=2df71a685d71ebb19412c5ba45c590347a6e6689#2df71a685d71ebb19412c5ba45c590347a6e6689"
 dependencies = [
  "iceoryx2",
  "libc",
@@ -1207,7 +1207,7 @@ dependencies = [
 [[package]]
 name = "streamlib-runtime-client-contract"
 version = "0.68.82"
-source = "git+https://github.com/tatolab/streamlib?rev=8a66b9f5e50826a55b91b91e2af9d86c0b298e79#8a66b9f5e50826a55b91b91e2af9d86c0b298e79"
+source = "git+https://github.com/tatolab/streamlib?rev=2df71a685d71ebb19412c5ba45c590347a6e6689#2df71a685d71ebb19412c5ba45c590347a6e6689"
 dependencies = [
  "libc",
  "serde",
@@ -1220,7 +1220,7 @@ dependencies = [
 [[package]]
 name = "streamlib-slang-shader-compiler"
 version = "0.68.82"
-source = "git+https://github.com/tatolab/streamlib?rev=8a66b9f5e50826a55b91b91e2af9d86c0b298e79#8a66b9f5e50826a55b91b91e2af9d86c0b298e79"
+source = "git+https://github.com/tatolab/streamlib?rev=2df71a685d71ebb19412c5ba45c590347a6e6689#2df71a685d71ebb19412c5ba45c590347a6e6689"
 dependencies = [
  "libloading 0.8.9",
  "tracing",
@@ -1229,7 +1229,7 @@ dependencies = [
 [[package]]
 name = "streamlib-surface-client"
 version = "0.68.82"
-source = "git+https://github.com/tatolab/streamlib?rev=8a66b9f5e50826a55b91b91e2af9d86c0b298e79#8a66b9f5e50826a55b91b91e2af9d86c0b298e79"
+source = "git+https://github.com/tatolab/streamlib?rev=2df71a685d71ebb19412c5ba45c590347a6e6689#2df71a685d71ebb19412c5ba45c590347a6e6689"
 dependencies = [
  "libc",
  "mach2",
@@ -1281,7 +1281,7 @@ dependencies = [
 [[package]]
 name = "tatolab-vulkanalia"
 version = "0.35.0"
-source = "git+https://github.com/tatolab/streamlib?rev=8a66b9f5e50826a55b91b91e2af9d86c0b298e79#8a66b9f5e50826a55b91b91e2af9d86c0b298e79"
+source = "git+https://github.com/tatolab/streamlib?rev=2df71a685d71ebb19412c5ba45c590347a6e6689#2df71a685d71ebb19412c5ba45c590347a6e6689"
 dependencies = [
  "libloading 0.8.9",
  "tatolab-vulkanalia-sys",
@@ -1290,7 +1290,7 @@ dependencies = [
 [[package]]
 name = "tatolab-vulkanalia-sys"
 version = "0.35.0"
-source = "git+https://github.com/tatolab/streamlib?rev=8a66b9f5e50826a55b91b91e2af9d86c0b298e79#8a66b9f5e50826a55b91b91e2af9d86c0b298e79"
+source = "git+https://github.com/tatolab/streamlib?rev=2df71a685d71ebb19412c5ba45c590347a6e6689#2df71a685d71ebb19412c5ba45c590347a6e6689"
 dependencies = [
  "bitflags 1.3.2",
 ]
@@ -1298,7 +1298,7 @@ dependencies = [
 [[package]]
 name = "tatolab-vulkanalia-vma"
 version = "0.9.0"
-source = "git+https://github.com/tatolab/streamlib?rev=8a66b9f5e50826a55b91b91e2af9d86c0b298e79#8a66b9f5e50826a55b91b91e2af9d86c0b298e79"
+source = "git+https://github.com/tatolab/streamlib?rev=2df71a685d71ebb19412c5ba45c590347a6e6689#2df71a685d71ebb19412c5ba45c590347a6e6689"
 dependencies = [
  "bitflags 2.13.2",
  "cc",

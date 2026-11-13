@@ -54,6 +54,7 @@ export function mockPortViewerMessageReading(portFamily: PortFamily | null, mess
       samples_per_channel: MOCK_CHANNELS_SAMPLES_PER_BLOCK,
       sample_type: "f32",
       channel_waveforms: [mockWaveformOfATone(120, 0.8, startSample), mockWaveformOfATone(180, 0.45, startSample)],
+      channel_samples: [new Float32Array(MOCK_CHANNELS_SAMPLES_PER_BLOCK), new Float32Array(MOCK_CHANNELS_SAMPLES_PER_BLOCK)],
     };
   }
   if (portFamily === "records") {

@@ -64,6 +64,16 @@ class FakeChannelReader implements RuntimeViewerChannelReaderOfTheAddon {
     return next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
   }
 
+  readEveryMessage(): Promise<RuntimeViewerMessageRead[]> {
+    this.readsMade += 1;
+    const messagesReadNow: RuntimeViewerMessageRead[] = [];
+    for (let next = this.messagesToRead.shift(); next !== undefined; next = this.messagesToRead.shift()) {
+      if (next instanceof Error) return Promise.reject(next);
+      if (next !== null) messagesReadNow.push(next);
+    }
+    return Promise.resolve(messagesReadNow);
+  }
+
   followWrites(tellAWriteCame: (failure: Error | null) => void): void {
     if (this.followRefusal !== null) throw this.followRefusal;
     this.tellAWriteCame = tellAWriteCame;
@@ -98,6 +108,7 @@ class FakeViewerConnection implements RuntimeViewerConnection {
         iceoryx2_domain_root: "/tmp/tatolab/iceoryx2",
         channel: `${target.stream}/${target.node_id}/${target.port}`,
         wake_service: `${target.node_id}/notify`,
+        viewer_reads: target.port === "audio" ? "every_message" : "latest_message",
         surface_share_address: "/tmp/tatolab/surface-share.sock",
       }),
     );
@@ -317,6 +328,22 @@ test("a_message_of_another_family_reaches_the_window_read_by_its_family", async 
 
   expect(windowShowingPortViewers.portViewerEvents).toEqual([
     { port_viewer: "port-viewer-1", kind: "message", reading: { family: "records", record: { label: "face" } }, skipped_since_last_read: 0 },
+  ]);
+});
+
+test("a_viewer_the_runtime_says_reads_every_message_hands_each_message_of_a_read_to_the_window_in_order", async () => {
+  const { runtimePortViewers, channelReaders, writeAndSettle } = harness();
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer({ ...CAMERA_VIDEO, port: "audio" }, windowShowingPortViewers);
+  const recordOf = (frame: number) => ({ portFamily: "records", timestampNs: frame, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(8), ...NO_FAMILY_READING, recordsJson: `{"frame":${frame}}` });
+  channelReaders[0]?.messagesToRead.push(recordOf(1), recordOf(2), recordOf(3));
+
+  await writeAndSettle();
+
+  expect(windowShowingPortViewers.portViewerEvents.map((portViewerEvent) => portViewerEvent.kind === "message" && portViewerEvent.reading)).toEqual([
+    { family: "records", record: { frame: 1 } },
+    { family: "records", record: { frame: 2 } },
+    { family: "records", record: { frame: 3 } },
   ]);
 });
 
