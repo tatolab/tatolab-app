@@ -24,8 +24,7 @@
     var(--studio-area);
 }
 .port-preview-surface { background: var(--port-preview-surface-background); }
-/* The editor's checker behind a not-ready node's picture, showing through the runtime's transparent frames; it is the
-   window's own background and never reaches the stream. */
+/* The editor's checker behind a not-ready node's picture, showing through the runtime's transparent frames. */
 .port-preview-surface[data-viewer-node-not-ready] {
   background: repeating-conic-gradient(color-mix(in oklab, var(--fg-3) 28%, var(--studio-area)) 0% 25%, var(--studio-area) 0% 50%) 0 0 / 16px 16px;
 }

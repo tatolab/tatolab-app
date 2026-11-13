@@ -15,6 +15,8 @@ const aRealGraphOfAStreamWithANodeWhoseStartRaised = () =>
 const aRecordedGraphOfAStreamWithANodeWhoseProcessKeepsRaising = () =>
   recordedGraphToolResultText("local-api-graph-tool-result-of-a-stream-with-a-node-whose-process-keeps-raising.json");
 
+const aRecordedGraphOfAStreamWithANodeThatIsNotReady = () => recordedGraphToolResultText("local-api-graph-tool-result-of-a-stream-with-a-node-that-is-not-ready.json");
+
 const portsStatingNoStreamFacts = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, family: null, stream_facts: null, values_checked: null }));
 
 function node(
@@ -476,6 +478,15 @@ test("a_recorded_graph_reads_what_a_running_nodes_process_keeps_raising_word_for
   expect(summary.ok && summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.state, graphNode.process_raising_because])).toEqual([
     ["testpatternsource", "Running", null],
     ["breaker", "Running", "process() raised RuntimeError: broke on purpose (nodes/breaker.py, line 10)"],
+  ]);
+});
+
+test("a_recorded_graph_reads_why_a_running_node_is_not_ready_word_for_word_and_null_for_every_other_node", async () => {
+  const summary = streamGraphSummaryFromTheGraphToolResult("notready-main-a86c14", await aRecordedGraphOfAStreamWithANodeThatIsNotReady());
+
+  expect(summary.ok && summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.state, graphNode.not_ready_because])).toEqual([
+    ["testpatternsource", "Running", null],
+    ["posterimage", "Running", "ImageFile names no image asset. To fix: set its `asset` config to the UUID of a PNG or JPEG imported into the project"],
   ]);
 });
 
