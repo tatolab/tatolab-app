@@ -33,6 +33,7 @@ import type {
   RecentProject,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
+  ProjectLogRecordsPushed,
   RuntimeDescription,
   StreamGraphSummary,
   ProjectCreationQueued,
@@ -64,13 +65,13 @@ export interface TatolabBackend {
   linkCommandLineTool(): Promise<void>;
   /** Quit the app, stopping its runtime with it. */
   quitTatolabApp(): Promise<void>;
-  /** The page of `projectDirectory`'s log after the cursor `after`, from its first record when `null`, narrowed as `narrowing` asks; rejects in the runtime's own words. */
-  readProjectLogRecords(projectDirectory: string, narrowing: ProjectLogNarrowing, after: string | null): Promise<ProjectLogRecordsPage>;
+  /** The page of `projectDirectory`'s log after the cursor `after`, from its first record when `null`, and before the cursor `until`, to its latest when `null`, narrowed as `narrowing` asks; rejects in the runtime's own words. */
+  readProjectLogRecords(projectDirectory: string, narrowing: ProjectLogNarrowing, after: string | null, until: string | null): Promise<ProjectLogRecordsPage>;
   /** Follow the log of the project in `projectDirectory`, each write the runtime pushes arriving through `onProjectLogRecordsWritten`. */
   followProjectLogRecords(projectDirectory: string): Promise<void>;
   stopFollowingProjectLogRecords(projectDirectory: string): Promise<void>;
-  /** Calls `listener` with the directory of each followed project whose log has new records; the returned function stops it. */
-  onProjectLogRecordsWritten(listener: (projectDirectory: string) => void): () => void;
+  /** Calls `listener` with the directory of each followed project whose log has new records and the records the runtime pushed, or `null` to read on from the cursor; the returned function stops it. */
+  onProjectLogRecordsWritten(listener: (projectDirectory: string, pushed: ProjectLogRecordsPushed | null) => void): () => void;
   describeStreamGraph(streamId: string): Promise<StreamGraphSummary>;
   /** Follow the graph of the stream `streamId`, each change the runtime pushes arriving through `onStreamGraphChanged`; a stream not loaded yet is followed once it is. */
   followStreamGraphChanges(streamId: string): Promise<void>;

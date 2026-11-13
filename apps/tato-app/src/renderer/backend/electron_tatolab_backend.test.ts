@@ -101,7 +101,7 @@ describe("createElectronTatolabBackend", () => {
 
     await backend.linkCommandLineTool();
     await backend.quitTatolabApp();
-    await backend.readProjectLogRecords("/p", { stream: "camera", action: null }, "1:40");
+    await backend.readProjectLogRecords("/p", { stream: "camera", action: null }, "1:40", "1:90");
     await backend.describeStreamGraph("camera");
     await backend.openStreamProjectFolder("camera");
     await backend.openTerminalAtStreamProject("camera");
@@ -110,7 +110,7 @@ describe("createElectronTatolabBackend", () => {
     expect(fakeBridge.invokedCommands).toEqual([
       ["link_command_line_tool", undefined],
       ["quit_tatolab_app", undefined],
-      ["read_project_log_records", { project_directory: "/p", stream: "camera", action: null, after: "1:40" }],
+      ["read_project_log_records", { project_directory: "/p", stream: "camera", action: null, after: "1:40", until: "1:90" }],
       ["describe_stream_graph", { stream: "camera" }],
       ["open_stream_project_folder", { stream: "camera" }],
       ["open_terminal_at_stream_project", { stream: "camera" }],

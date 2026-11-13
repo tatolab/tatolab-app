@@ -38,7 +38,7 @@ async function runningMockBackend(pageQuery = "") {
 
 /** Reads every record of `projectDirectory`'s log narrowed as asked, page after page. */
 async function everyProjectLogRecord(backend: TatolabBackend, projectDirectory: string, narrowing: ProjectLogNarrowing): Promise<ProjectLogRecord[]> {
-  const page = backend.readProjectLogRecords(projectDirectory, narrowing, null);
+  const page = backend.readProjectLogRecords(projectDirectory, narrowing, null, null);
   await vi.advanceTimersByTimeAsync(100);
   return (await page).records;
 }
@@ -269,9 +269,9 @@ describe("the mock backend's project logs", () => {
     expect(mainOnly.length).toBeGreaterThan(0);
     expect(mainOnly.every((record) => record.stream === MAIN)).toBe(true);
 
-    const firstPage = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, null);
+    const firstPage = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, null, null);
     await vi.advanceTimersByTimeAsync(100);
-    const pageAfterIt = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, (await firstPage).next_after);
+    const pageAfterIt = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, (await firstPage).next_after, null);
     await vi.advanceTimersByTimeAsync(100);
     expect((await pageAfterIt).records.length).toBeLessThan(wholeProject.length);
   });
@@ -279,7 +279,7 @@ describe("the mock backend's project logs", () => {
   it("marks records no longer held once the log's retention deleted some, with ?held_records=", async () => {
     const { backend } = await runningMockBackend("held_records=5");
 
-    const page = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, null);
+    const page = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, null, null);
     await vi.advanceTimersByTimeAsync(100);
 
     expect(await page).toMatchObject({ records_no_longer_held: true });
