@@ -80,6 +80,8 @@ export interface RuntimeViewerMessageRead {
 /** The addon's reader of one viewer's channel, opened from what `open_viewer` answered. */
 export interface RuntimeViewerChannelReaderOfTheAddon {
   readLatestMessage(): Promise<RuntimeViewerMessageRead | null>;
+  /** Call `tellAWriteCame` with `null` after each write the port's node makes, until `close`, and once with the failure when the reader stops hearing writes; refused by throwing on a second call. */
+  followWrites(tellAWriteCame: (failure: Error | null) => void): void;
   releaseHeldImageFrame(heldFrameId: number): void;
   close(): void;
 }

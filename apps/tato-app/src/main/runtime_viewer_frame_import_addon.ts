@@ -15,6 +15,7 @@ interface RuntimeViewerFrameImportAddon {
   RuntimeViewerChannelReader: new (
     iceoryx2DomainRoot: string,
     channel: string,
+    wakeService: string,
     surfaceShareAddress: string | null,
     viewerNodeName: string,
     viewedFrameReadBy: ViewerImageFrameReading,
@@ -46,7 +47,14 @@ export function runtimeViewerChannelReaderOpenerOver(
     if (!loadedAddon.ok) return loadedAddon;
     try {
       return succeeded(
-        new loadedAddon.value.RuntimeViewerChannelReader(openedViewer.iceoryx2_domain_root, openedViewer.channel, openedViewer.surface_share_address, viewerNodeName, viewerImageFrameReading),
+        new loadedAddon.value.RuntimeViewerChannelReader(
+          openedViewer.iceoryx2_domain_root,
+          openedViewer.channel,
+          openedViewer.wake_service,
+          openedViewer.surface_share_address,
+          viewerNodeName,
+          viewerImageFrameReading,
+        ),
       );
     } catch (openFailure) {
       return failedWith(describeCaughtFailure(openFailure));

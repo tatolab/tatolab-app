@@ -45,17 +45,12 @@ export interface RuntimePortViewersSources {
   openAChannelReader(openedViewer: OpenedRuntimeViewer, viewerNodeName: string): Result<RuntimeViewerChannelReaderOfTheAddon, string>;
   /** The process that imports the frames, which `open_viewer` admits on macOS: the main process. */
   viewerProcessId: number;
-  /** Call `tick` every `everyMs` until the returned function stops it. */
-  repeatEvery(everyMs: number, tick: () => void): () => void;
   /** Call `then` once, `afterMs` from now. */
   waitThen(afterMs: number, then: () => void): void;
   /** The state the runtime's last listing gives the stream `stream`, or `null` when it lists no such stream. */
   streamStateTheRuntimeListsNow(stream: string): string | null;
   tatolabAppLog: TatolabAppLog;
 }
-
-/** How often a port's latest message is read: once a 60 Hz display frame. */
-export const PORT_VIEWER_READ_EVERY_MS = 16;
 
 /** How long a port viewer waits, after its connection to the runtime closed or its stream was not yet running, before it opens the port again. */
 export const PORT_VIEWER_REOPEN_AFTER_MS = 1_000;
@@ -70,8 +65,8 @@ interface PortViewerSubscription {
 interface RuntimeViewerHeldOpen {
   openedViewer: OpenedRuntimeViewer;
   channelReader: RuntimeViewerChannelReaderOfTheAddon;
-  stopReading: () => void;
   aReadIsUnderWay: boolean;
+  aWriteCameDuringTheRead: boolean;
 }
 
 /** Why a runtime viewer did not open, and whether it was `open_viewer`'s own refusal rather than the connection's or the addon's. */
@@ -204,7 +199,9 @@ export class RuntimePortViewers {
     this.targetKeysBeingOpened.add(targetKey);
     const opened = await this.openTheRuntimeViewer(target);
     this.targetKeysBeingOpened.delete(targetKey);
-    if (opened.ok) this.runtimeViewersByTargetKey.set(targetKey, opened.value);
+    if (!opened.ok) return opened;
+    this.runtimeViewersByTargetKey.set(targetKey, opened.value);
+    this.readTheLatestMessage(targetKey, opened.value);
     return opened;
   }
 
@@ -222,10 +219,16 @@ export class RuntimePortViewers {
     const heldOpen: RuntimeViewerHeldOpen = {
       openedViewer: openedViewer.value,
       channelReader: channelReader.value,
-      stopReading: () => undefined,
       aReadIsUnderWay: false,
+      aWriteCameDuringTheRead: false,
     };
-    heldOpen.stopReading = this.sources.repeatEvery(PORT_VIEWER_READ_EVERY_MS, () => this.readTheLatestMessage(targetKey, heldOpen));
+    try {
+      heldOpen.channelReader.followWrites((failure) => this.heardFromTheWritesFollowed(targetKey, heldOpen, failure));
+    } catch (followRefusal) {
+      heldOpen.channelReader.close();
+      void viewerConnection.value.closeViewer(openedViewer.value.viewer);
+      return failedWith({ words: `the viewer could not follow the port's writes: ${describeCaughtFailure(followRefusal)}`, theRuntimeRefusedToOpenIt: false });
+    }
     this.sources.tatolabAppLog.info("opened a runtime viewer", { viewer: openedViewer.value.viewer });
     return succeeded(heldOpen);
   }
@@ -234,7 +237,6 @@ export class RuntimePortViewers {
     const heldOpen = this.runtimeViewersByTargetKey.get(targetKey);
     if (heldOpen === undefined) return;
     this.runtimeViewersByTargetKey.delete(targetKey);
-    heldOpen.stopReading();
     heldOpen.channelReader.close();
     if (this.viewerConnection !== null && this.viewerConnection.isOpen()) void this.viewerConnection.closeViewer(heldOpen.openedViewer.viewer);
   }
@@ -252,7 +254,6 @@ export class RuntimePortViewers {
     this.viewerConnection = null;
     for (const [targetKey, heldOpen] of [...this.runtimeViewersByTargetKey]) {
       this.runtimeViewersByTargetKey.delete(targetKey);
-      heldOpen.stopReading();
       heldOpen.channelReader.close();
       for (const [portViewer, subscription] of this.subscriptionsOf(targetKey)) {
         subscription.windowShowingPortViewers.sendTheWindowAPortViewerEvent({ port_viewer: portViewer, kind: "reopening", because: whyItClosed });
@@ -282,9 +283,22 @@ export class RuntimePortViewers {
     });
   }
 
+  private heardFromTheWritesFollowed(targetKey: string, heldOpen: RuntimeViewerHeldOpen, failure: Error | null): void {
+    if (this.runtimeViewersByTargetKey.get(targetKey) !== heldOpen) return;
+    if (failure !== null) {
+      this.endEveryPortViewerOf(targetKey, `The viewer stopped reading ${heldOpen.openedViewer.node_name} › ${heldOpen.openedViewer.port}: ${failure.message}`);
+      return;
+    }
+    this.readTheLatestMessage(targetKey, heldOpen);
+  }
+
   private readTheLatestMessage(targetKey: string, heldOpen: RuntimeViewerHeldOpen): void {
-    if (heldOpen.aReadIsUnderWay) return;
+    if (heldOpen.aReadIsUnderWay) {
+      heldOpen.aWriteCameDuringTheRead = true;
+      return;
+    }
     heldOpen.aReadIsUnderWay = true;
+    heldOpen.aWriteCameDuringTheRead = false;
     heldOpen.channelReader.readLatestMessage().then(
       (messageRead) => {
         heldOpen.aReadIsUnderWay = false;
@@ -293,6 +307,7 @@ export class RuntimePortViewers {
           return;
         }
         if (messageRead !== null) this.handTheMessageToItsWindows(targetKey, heldOpen, messageRead);
+        if (heldOpen.aWriteCameDuringTheRead && this.runtimeViewersByTargetKey.get(targetKey) === heldOpen) this.readTheLatestMessage(targetKey, heldOpen);
       },
       (readRefusal: unknown) => {
         heldOpen.aReadIsUnderWay = false;
