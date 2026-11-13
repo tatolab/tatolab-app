@@ -140,6 +140,7 @@ const OPEN_VIEWER_RESULT_ON_LINUX = {
   port: "video",
   iceoryx2_domain_root: "/run/user/1000/tatolab/iceoryx2",
   channel: "streamlib/pattern-main-1a2b3c/pattern/video",
+  wake_service: "streamlib/9c1d/notify",
   surface_share_address: "/run/user/1000/tatolab/surface-share.sock",
 };
 
@@ -244,4 +245,10 @@ test("an_open_viewer_result_missing_its_channel_cannot_be_read", () => {
 
   expect(failureOf(openedRuntimeViewerFromTheOpenViewerToolResult(withoutChannel))).toMatch(/^the runtime's open_viewer result could not be read: .*channel/);
   expect(failureOf(closedViewerFromTheCloseViewerToolResult({}))).toMatch(/^the runtime's close_viewer result could not be read: /);
+});
+
+test("an_open_viewer_result_missing_its_wake_service_cannot_be_read", () => {
+  const { wake_service: _wakeService, ...withoutWakeService } = OPEN_VIEWER_RESULT_ON_LINUX;
+
+  expect(failureOf(openedRuntimeViewerFromTheOpenViewerToolResult(withoutWakeService))).toMatch(/^the runtime's open_viewer result could not be read: .*wake_service/);
 });

@@ -422,10 +422,6 @@ export async function startTatolabApp(
     openTheViewerConnection: () => RuntimeViewerControlConnection.open(platformForThisBuild.localApiSocket, PORT_VIEWER_REQUEST_TIMEOUT_MS),
     openAChannelReader: runtimeViewerChannelReaderOpenerOver(tatolabElectronAppShell.runtimeViewerFrameImportAddonPath, platformForThisBuild.viewerImageFrameReading),
     viewerProcessId: tatolabElectronAppShell.mainProcessId,
-    repeatEvery: (everyMs, tick) => {
-      const repeatingTimer = setInterval(tick, everyMs);
-      return () => clearInterval(repeatingTimer);
-    },
     waitThen: (afterMs, then) => {
       setTimeout(then, afterMs);
     },

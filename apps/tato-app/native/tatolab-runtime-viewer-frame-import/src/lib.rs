@@ -8,16 +8,19 @@
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use napi::bindgen_prelude::{AsyncTask, Buffer};
-use napi::{Env, Error, Result, Task};
+use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
+use napi::{Env, Error, Result, Status, Task};
 use napi_derive::napi;
 use parking_lot::Mutex;
 use streamlib_gpu_frame_import_client::{GpuPoolFrameHeldByAViewer, GpuPoolFrameImporterOfAViewer};
 use streamlib_ipc_types::{
     ArrayFrameAttributeResidency, ArrayFrameDescriptorBody, ChannelsBlockDescriptorBody,
     ChannelsBlockSampleType, DataChannelPayloadDescriptorKind, ImageFrameDescriptorBody,
-    MessageGroupBoundary, MessageReadFromAReservedSlot, OutputPortViewerReader,
+    MessageGroupBoundary, MessageReadFromAReservedSlot, OutputPortViewerReader, OutputPortViewerWake,
     PacketsUnitDescriptorBody, array_frame_attribute_table_of,
 };
 
@@ -127,18 +130,28 @@ struct RuntimeViewerReaderState {
 #[napi]
 pub struct RuntimeViewerChannelReader {
     reader_state: Arc<Mutex<Option<RuntimeViewerReaderState>>>,
+    output_port_viewer_wake: OutputPortViewerWake,
+    writes_are_followed: Arc<AtomicBool>,
+    the_reader_is_closed: Arc<AtomicBool>,
 }
+
+/// How long the thread that follows a viewer's writes waits for one before it checks the reader is still open.
+const WAIT_FOR_A_WRITE_BEFORE_CHECKING_THE_READER_IS_OPEN: Duration = Duration::from_millis(100);
+
+/// What `followWrites` calls: with `null` after each write, with the failure once the wait for writes fails.
+type TellTheWindowAWriteCame = ThreadsafeFunction<(), (), (), Status, true, true>;
 
 #[napi]
 impl RuntimeViewerChannelReader {
     /// Subscribe to `channel` in the iceoryx2 domain at `iceoryx2DomainRoot` as `viewerNodeName`,
-    /// importing Image frames from `surfaceShareAddress` (`null` reads every family but Image). On
+    /// woken through the event service `wakeService`, importing Image frames from `surfaceShareAddress` (`null` reads every family but Image). On
     /// Linux `viewedFrameReadBy` asks the runtime for each frame as DMA-BUF planes the display imports
     /// (`display_import`) or as rows the CPU reads (`cpu_read`); macOS always hands an IOSurface.
     #[napi(constructor)]
     pub fn new(
         iceoryx2_domain_root: String,
         channel: String,
+        wake_service: String,
         surface_share_address: Option<String>,
         viewer_node_name: String,
         viewed_frame_read_by: String,
@@ -147,10 +160,15 @@ impl RuntimeViewerChannelReader {
         let output_port_viewer_reader = OutputPortViewerReader::subscribe(
             std::path::Path::new(&iceoryx2_domain_root),
             &channel,
+            &wake_service,
             &viewer_node_name,
         )
         .map_err(|refusal| Error::from_reason(format!("the viewer could not subscribe to {channel}: {refusal:?}")))?;
+        let output_port_viewer_wake = output_port_viewer_reader.wake();
         Ok(Self {
+            output_port_viewer_wake,
+            writes_are_followed: Arc::new(AtomicBool::new(false)),
+            the_reader_is_closed: Arc::new(AtomicBool::new(false)),
             reader_state: Arc::new(Mutex::new(Some(RuntimeViewerReaderState {
                 output_port_viewer_reader,
                 gpu_pool_frame_importer: surface_share_address.map(gpu_pool_frame_importer_for),
@@ -178,9 +196,46 @@ impl RuntimeViewerChannelReader {
         }
     }
 
-    /// Release every held frame and the channel's reserved slot.
+    /// Call `tellAWriteCame` with `null` after each write the port's node makes, from a thread of
+    /// the reader's own, until `close`; it is called once with the failure when the wait fails. A
+    /// reader's writes are followed once, so a second call is refused.
+    #[napi(ts_args_type = "tellAWriteCame: (failure: Error | null) => void")]
+    pub fn follow_writes(&self, tell_a_write_came: TellTheWindowAWriteCame) -> Result<()> {
+        if self.writes_are_followed.swap(true, Ordering::SeqCst) {
+            return Err(Error::from_reason("this viewer's writes are already followed"));
+        }
+        let output_port_viewer_wake = self.output_port_viewer_wake.clone();
+        let the_reader_is_closed = Arc::clone(&self.the_reader_is_closed);
+        std::thread::Builder::new()
+            .name("tato-studio-viewer-follows-writes".to_owned())
+            .spawn(move || {
+                while !the_reader_is_closed.load(Ordering::SeqCst) {
+                    match output_port_viewer_wake.wait_for_a_write(WAIT_FOR_A_WRITE_BEFORE_CHECKING_THE_READER_IS_OPEN) {
+                        Ok(false) => {}
+                        Ok(true) => {
+                            if the_reader_is_closed.load(Ordering::SeqCst) {
+                                return;
+                            }
+                            tell_a_write_came.call(Ok(()), ThreadsafeFunctionCallMode::NonBlocking);
+                        }
+                        Err(wait_failure) => {
+                            tell_a_write_came.call(
+                                Err(Error::new(Status::GenericFailure, format!("the viewer stopped hearing writes: {wait_failure}"))),
+                                ThreadsafeFunctionCallMode::NonBlocking,
+                            );
+                            return;
+                        }
+                    }
+                }
+            })
+            .map_err(|spawn_failure| Error::from_reason(format!("the thread that follows the viewer's writes did not start: {spawn_failure}")))?;
+        Ok(())
+    }
+
+    /// Stop following writes, and release every held frame and the channel's reserved slot.
     #[napi]
     pub fn close(&self) {
+        self.the_reader_is_closed.store(true, Ordering::SeqCst);
         self.reader_state.lock().take();
     }
 }

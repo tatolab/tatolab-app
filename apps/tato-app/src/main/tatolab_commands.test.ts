@@ -240,7 +240,6 @@ async function sharedStateOverFakes(
       openTheViewerConnection: async () => localApiRequestFailure("these tests open no viewer connection"),
       openAChannelReader: () => failedWith("these tests read no channel"),
       viewerProcessId: 4242,
-      repeatEvery: () => () => undefined,
       waitThen: () => undefined,
       streamStateTheRuntimeListsNow: () => "running",
       tatolabAppLog: quietTatolabAppLog,

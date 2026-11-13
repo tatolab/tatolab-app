@@ -20,6 +20,8 @@ export interface OpenedRuntimeViewer {
   iceoryx2_domain_root: string;
   /** The iceoryx2 service whose reserved subscriber slot the viewer takes. */
   channel: string;
+  /** The iceoryx2 event service the port's node notifies on each write to `channel`. */
+  wake_service: string;
   /** The surface-sharing socket's path on Linux, its Mach service's name on macOS; `null` on macOS when the open named no `viewer_process_id`. */
   surface_share_address: string | null;
 }
@@ -56,6 +58,8 @@ function openedRuntimeViewerOnTheWire(toolResult: JsonObjectOnTheWire): Result<O
   if (!iceoryx2DomainRoot.ok) return iceoryx2DomainRoot;
   const channel = requiredText(toolResult, "channel");
   if (!channel.ok) return channel;
+  const wakeService = requiredText(toolResult, "wake_service");
+  if (!wakeService.ok) return wakeService;
   const surfaceShareAddress = optionalText(toolResult, "surface_share_address");
   if (!surfaceShareAddress.ok) return surfaceShareAddress;
   return succeeded({
@@ -66,6 +70,7 @@ function openedRuntimeViewerOnTheWire(toolResult: JsonObjectOnTheWire): Result<O
     port: port.value,
     iceoryx2_domain_root: iceoryx2DomainRoot.value,
     channel: channel.value,
+    wake_service: wakeService.value,
     surface_share_address: surfaceShareAddress.value,
   });
 }

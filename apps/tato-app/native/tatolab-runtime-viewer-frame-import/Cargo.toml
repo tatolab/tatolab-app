@@ -16,12 +16,12 @@ napi-derive = "3.7.0"
 parking_lot = "0.12"
 rmp-serde = "1.3"
 serde_json = "1"
-streamlib-gpu-frame-import-client = { git = "https://github.com/tatolab/streamlib", rev = "51644810763f97675280866efd4b199291ff02ca" }
-streamlib-ipc-types = { git = "https://github.com/tatolab/streamlib", rev = "51644810763f97675280866efd4b199291ff02ca" }
+streamlib-gpu-frame-import-client = { git = "https://github.com/tatolab/streamlib", rev = "8a66b9f5e50826a55b91b91e2af9d86c0b298e79" }
+streamlib-ipc-types = { git = "https://github.com/tatolab/streamlib", rev = "8a66b9f5e50826a55b91b91e2af9d86c0b298e79" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-streamlib-surface-client = { git = "https://github.com/tatolab/streamlib", rev = "51644810763f97675280866efd4b199291ff02ca" }
-streamlib-consumer-rhi = { git = "https://github.com/tatolab/streamlib", rev = "51644810763f97675280866efd4b199291ff02ca" }
+streamlib-surface-client = { git = "https://github.com/tatolab/streamlib", rev = "8a66b9f5e50826a55b91b91e2af9d86c0b298e79" }
+streamlib-consumer-rhi = { git = "https://github.com/tatolab/streamlib", rev = "8a66b9f5e50826a55b91b91e2af9d86c0b298e79" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-io-surface = "0.3"

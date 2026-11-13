@@ -5,7 +5,6 @@ import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import type { OpenedRuntimeViewer, RuntimeViewerTarget } from "./runtime_viewer_control_connection.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import {
-  PORT_VIEWER_READ_EVERY_MS,
   PORT_VIEWER_REOPEN_AFTER_MS,
   RuntimePortViewers,
   type WindowShowingPortViewers,
@@ -55,10 +54,19 @@ class FakeChannelReader implements RuntimeViewerChannelReaderOfTheAddon {
   readonly messagesToRead: (RuntimeViewerMessageRead | null | Error)[] = [];
   readonly releasedHeldFrameIds: number[] = [];
   closed = false;
+  readsMade = 0;
+  tellAWriteCame: ((failure: Error | null) => void) | null = null;
+  followRefusal: Error | null = null;
 
   readLatestMessage(): Promise<RuntimeViewerMessageRead | null> {
+    this.readsMade += 1;
     const next = this.messagesToRead.shift() ?? null;
     return next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
+  }
+
+  followWrites(tellAWriteCame: (failure: Error | null) => void): void {
+    if (this.followRefusal !== null) throw this.followRefusal;
+    this.tellAWriteCame = tellAWriteCame;
   }
 
   releaseHeldImageFrame(heldFrameId: number): void {
@@ -89,6 +97,7 @@ class FakeViewerConnection implements RuntimeViewerConnection {
         port: target.port,
         iceoryx2_domain_root: "/tmp/tatolab/iceoryx2",
         channel: `${target.stream}/${target.node_id}/${target.port}`,
+        wake_service: `${target.node_id}/notify`,
         surface_share_address: "/tmp/tatolab/surface-share.sock",
       }),
     );
@@ -134,9 +143,9 @@ class FakeWindowShowingPortViewers implements WindowShowingPortViewers {
 function harness() {
   const connections: FakeViewerConnection[] = [];
   const channelReaders: FakeChannelReader[] = [];
-  const repeatingTicks: { everyMs: number; tick: () => void; stopped: boolean }[] = [];
   const waits: { afterMs: number; then: () => void }[] = [];
   let addonRefusal: string | null = null;
+  let followRefusal: Error | null = null;
   const streamStatesTheRuntimeLists = new Map([[CAMERA_VIDEO.stream, "running"]]);
   const runtimePortViewers = new RuntimePortViewers({
     openTheViewerConnection: () => {
@@ -147,47 +156,88 @@ function harness() {
     openAChannelReader: () => {
       if (addonRefusal !== null) return failedWith(addonRefusal);
       const channelReader = new FakeChannelReader();
+      channelReader.followRefusal = followRefusal;
       channelReaders.push(channelReader);
       return succeeded(channelReader);
     },
     viewerProcessId: 4242,
-    repeatEvery: (everyMs, tick) => {
-      const repeating = { everyMs, tick, stopped: false };
-      repeatingTicks.push(repeating);
-      return () => {
-        repeating.stopped = true;
-      };
-    },
     waitThen: (afterMs, then) => waits.push({ afterMs, then }),
     streamStateTheRuntimeListsNow: (stream) => streamStatesTheRuntimeLists.get(stream) ?? null,
     tatolabAppLog: SILENT_TATOLAB_APP_LOG,
   });
-  const tickAndSettle = async () => {
-    for (const repeating of repeatingTicks) if (!repeating.stopped) repeating.tick();
-    await new Promise((settle) => setImmediate(settle));
+  const settle = () => new Promise((settled) => setImmediate(settled));
+  const writeAndSettle = async () => {
+    for (const channelReader of channelReaders) if (!channelReader.closed) channelReader.tellAWriteCame?.(null);
+    await settle();
   };
   return {
     runtimePortViewers,
     connections,
     channelReaders,
-    repeatingTicks,
     waits,
-    tickAndSettle,
+    settle,
+    writeAndSettle,
     refuseInTheAddon: (refusal: string) => {
       addonRefusal = refusal;
+    },
+    refuseToFollowWrites: (refusal: Error) => {
+      followRefusal = refusal;
     },
     streamStatesTheRuntimeLists,
   };
 }
 
-test("a_port_viewer_opens_a_runtime_viewer_as_the_main_process_and_reads_it_every_display_frame", async () => {
-  const { runtimePortViewers, connections, repeatingTicks } = harness();
+test("a_port_viewer_opens_a_runtime_viewer_as_the_main_process_reads_its_latest_message_and_follows_its_writes", async () => {
+  const { runtimePortViewers, connections, channelReaders, settle } = harness();
 
   const opened = await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
+  await settle();
 
   expect(opened).toEqual({ ok: true, value: { port_viewer: "port-viewer-1" } });
   expect(connections[0]?.openedTargets).toEqual([{ ...CAMERA_VIDEO, viewer_process_id: 4242 }]);
-  expect(repeatingTicks.map((repeating) => repeating.everyMs)).toEqual([PORT_VIEWER_READ_EVERY_MS]);
+  expect(channelReaders[0]?.readsMade).toBe(1);
+  expect(channelReaders[0]?.tellAWriteCame).not.toBeNull();
+});
+
+test("a_port_viewer_reads_once_per_write_and_reads_again_after_a_write_that_came_during_a_read", async () => {
+  const { runtimePortViewers, channelReaders, settle } = harness();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
+  await settle();
+  const channelReader = channelReaders[0];
+
+  channelReader?.tellAWriteCame?.(null);
+  channelReader?.tellAWriteCame?.(null);
+  channelReader?.tellAWriteCame?.(null);
+  await settle();
+
+  expect(channelReader?.readsMade).toBe(3);
+  await settle();
+  expect(channelReader?.readsMade).toBe(3);
+});
+
+test("a_port_viewer_whose_writes_cannot_be_followed_does_not_open_and_closes_its_reader_and_runtime_viewer", async () => {
+  const { runtimePortViewers, connections, channelReaders, refuseToFollowWrites } = harness();
+  refuseToFollowWrites(new Error("this viewer's writes are already followed"));
+
+  const opened = await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
+
+  expect(opened.ok).toBe(false);
+  expect(channelReaders[0]?.closed).toBe(true);
+  expect(connections[0]?.closedViewers).toEqual(["studio/camera-id/video"]);
+});
+
+test("a_viewer_that_stops_hearing_writes_ends_every_port_viewer_of_that_port", async () => {
+  const { runtimePortViewers, channelReaders, settle } = harness();
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
+  await settle();
+
+  channelReaders[0]?.tellAWriteCame?.(new Error("the viewer stopped hearing writes: the event service went away"));
+
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([
+    { port_viewer: "port-viewer-1", kind: "ended", because: "The viewer stopped reading camera › video: the viewer stopped hearing writes: the event service went away" },
+  ]);
+  expect(channelReaders[0]?.closed).toBe(true);
 });
 
 test("two_windows_viewing_one_port_share_one_runtime_viewer_and_one_connection", async () => {
@@ -203,7 +253,7 @@ test("two_windows_viewing_one_port_share_one_runtime_viewer_and_one_connection",
 });
 
 test("an_image_frame_reaches_every_window_and_is_released_once_the_last_lets_go", async () => {
-  const { runtimePortViewers, channelReaders, tickAndSettle } = harness();
+  const { runtimePortViewers, channelReaders, writeAndSettle } = harness();
   const firstWindow = new FakeWindowShowingPortViewers();
   const secondWindow = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, firstWindow);
@@ -211,7 +261,7 @@ test("an_image_frame_reaches_every_window_and_is_released_once_the_last_lets_go"
   const channelReader = channelReaders[0];
   channelReader?.messagesToRead.push(imageMessage(DMA_BUF_FRAME));
 
-  await tickAndSettle();
+  await writeAndSettle();
 
   expect(firstWindow.imageFramesReceived[0]?.frameFacts).toEqual({ port_viewer: "port-viewer-1", format_wire_name: "bgra32", skipped_since_last_read: 2 });
   expect(secondWindow.imageFramesReceived[0]?.imageFrame.codedSize).toEqual({ width: 640, height: 480 });
@@ -222,13 +272,13 @@ test("an_image_frame_reaches_every_window_and_is_released_once_the_last_lets_go"
 });
 
 test("a_frame_that_crossed_as_cpu_memory_reaches_the_window_as_its_pixels_and_is_released_at_once", async () => {
-  const { runtimePortViewers, channelReaders, tickAndSettle } = harness();
+  const { runtimePortViewers, channelReaders, writeAndSettle } = harness();
   const windowShowingPortViewers = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
   const cpuReadBytes = Buffer.from([9, 8, 7, 6]);
   channelReaders[0]?.messagesToRead.push(imageMessage({ ...DMA_BUF_FRAME, dmaBufPlanes: null, dmaBufModifier: null, cpuReadBytes }));
 
-  await tickAndSettle();
+  await writeAndSettle();
 
   expect(windowShowingPortViewers.portViewerEvents).toEqual([
     {
@@ -246,24 +296,24 @@ test("a_frame_that_crossed_as_cpu_memory_reaches_the_window_as_its_pixels_and_is
 });
 
 test("a_frame_electron_cannot_import_and_that_has_no_pixels_ends_the_port_viewer_saying_why", async () => {
-  const { runtimePortViewers, channelReaders, tickAndSettle } = harness();
+  const { runtimePortViewers, channelReaders, writeAndSettle } = harness();
   const windowShowingPortViewers = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
   channelReaders[0]?.messagesToRead.push(imageMessage({ ...DMA_BUF_FRAME, formatWireName: "rgba64", electronPixelFormat: null }));
 
-  await tickAndSettle();
+  await writeAndSettle();
 
   expect(windowShowingPortViewers.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "ended", because: "Electron cannot import a rgba64 frame as a shared texture" }]);
   expect(channelReaders[0]?.closed).toBe(true);
 });
 
 test("a_message_of_another_family_reaches_the_window_read_by_its_family", async () => {
-  const { runtimePortViewers, channelReaders, tickAndSettle } = harness();
+  const { runtimePortViewers, channelReaders, writeAndSettle } = harness();
   const windowShowingPortViewers = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
   channelReaders[0]?.messagesToRead.push({ portFamily: "records", timestampNs: 5, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(48), ...NO_FAMILY_READING, recordsJson: '{"label":"face"}' });
 
-  await tickAndSettle();
+  await writeAndSettle();
 
   expect(windowShowingPortViewers.portViewerEvents).toEqual([
     { port_viewer: "port-viewer-1", kind: "message", reading: { family: "records", record: { label: "face" } }, skipped_since_last_read: 0 },
@@ -390,7 +440,7 @@ test("the_addons_refusal_closes_the_runtime_viewer_it_could_not_read", async () 
 });
 
 test("the_runtime_viewer_closes_when_its_last_window_closes", async () => {
-  const { runtimePortViewers, connections, channelReaders, repeatingTicks } = harness();
+  const { runtimePortViewers, connections, channelReaders } = harness();
   const firstWindow = new FakeWindowShowingPortViewers();
   const secondWindow = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, firstWindow);
@@ -402,7 +452,6 @@ test("the_runtime_viewer_closes_when_its_last_window_closes", async () => {
 
   expect(connections[0]?.closedViewers).toEqual(["studio/camera-id/video"]);
   expect(channelReaders[0]?.closed).toBe(true);
-  expect(repeatingTicks[0]?.stopped).toBe(true);
 });
 
 test("a_dropped_connection_tells_the_windows_and_reopens_their_port_on_a_new_one", async () => {
@@ -473,12 +522,12 @@ test("a_stream_listed_running_throughout_keeps_its_runtime_viewer", async () => 
 });
 
 test("a_failed_read_ends_every_port_viewer_of_that_port", async () => {
-  const { runtimePortViewers, channelReaders, tickAndSettle } = harness();
+  const { runtimePortViewers, channelReaders, writeAndSettle } = harness();
   const windowShowingPortViewers = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
   channelReaders[0]?.messagesToRead.push(new Error("the channel's publisher went away"));
 
-  await tickAndSettle();
+  await writeAndSettle();
 
   expect(windowShowingPortViewers.portViewerEvents).toEqual([
     { port_viewer: "port-viewer-1", kind: "ended", because: "The viewer stopped reading camera › video: the channel's publisher went away" },
