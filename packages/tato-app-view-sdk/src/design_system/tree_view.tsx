@@ -21,7 +21,7 @@ export interface TreeViewRow {
   /** Rows the person cannot change from here, as an imported project, marked with a lock. */
   isReadOnly?: boolean;
   /** How the row reads: plainly, as the project's imports, or as something unreadable, failed or waiting. */
-  tone?: "plain" | "imports" | "unreadable" | "failed" | "waiting";
+  tone?: "plain" | "imports" | "unreadable" | "not_ready" | "failed" | "waiting";
   /** Quiet words at the row's end that say what kind of thing it is, as a node's type or `group`. */
   aside?: string;
   /** The row the window works in now, as the stream of the shown tab: a grey fill, its icon in the brand colour and its name stronger; a selected row keeps the selection's fill. */
@@ -35,6 +35,7 @@ const TREE_ROW_TONE_CLASS_NAMES: Record<NonNullable<TreeViewRow["tone"]>, string
   plain: "text-fg-2",
   imports: "text-studio-imports",
   unreadable: "text-danger-text",
+  not_ready: "text-warn-text",
   failed: "text-danger-text",
   waiting: "text-fg-3 italic",
 };

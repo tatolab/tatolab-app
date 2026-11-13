@@ -36,10 +36,11 @@ function linkLookAndWords(linkState: string): { look: NodeGraphLinkLook; words: 
   }
 }
 
-/** How a node's card shows its processor state: `Error` failed with the runtime's reason, a `process()` that keeps raising failed with what it raised, `Restarting` restarting, every other state healthy. */
+/** How a node's card shows its processor state: `Error` failed with the runtime's reason, a `process()` that keeps raising failed with what it raised, a node not ready yet not ready with the runtime's reason, `Restarting` restarting, every other state healthy. */
 function cardConditionOf(node: StreamGraphNode): NodeGraphCardCondition {
   if (node.state === "Error") return { look: "failed", failed_because: node.failed_because };
   if (node.process_raising_because !== null) return { look: "failed", failed_because: node.process_raising_because };
+  if (node.not_ready_because !== null) return { look: "not_ready", not_ready_because: node.not_ready_because };
   if (node.state === "Restarting") return { look: "restarting" };
   return { look: "healthy" };
 }

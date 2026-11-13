@@ -26,7 +26,7 @@ function node(
   nodeId = "",
   config: StreamGraphNode["config"] = {},
 ): StreamGraphNode {
-  return { id: nodeId, name, type: nodeType, state, failed_because: null, process_raising_because: null, config, ...ports, ...counters, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
+  return { id: nodeId, name, type: nodeType, state, failed_because: null, process_raising_because: null, not_ready_because: null, config, ...ports, ...counters, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
 }
 
 function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
@@ -450,6 +450,23 @@ test("a_running_node_reads_what_its_process_keeps_raising_word_for_word_and_null
   expect(summary.ok && summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.state, graphNode.process_raising_because])).toEqual([
     ["invert", "Running", raisedBecause],
     ["display", "Running", null],
+  ]);
+});
+
+test("a_running_node_reads_why_it_is_not_ready_word_for_word_and_null_once_it_is_ready", () => {
+  const notReadyBecause = "`riv_path` is not set";
+  const graph = {
+    nodes: [
+      { name: "lowerthird", type: "tatolab.rive:RiveSource", components: { state: "Running", failed_because: null, process_raising_because: null, not_ready_because: notReadyBecause } },
+      { name: "display", type: "tatolab.stream:Display", components: { state: "Running", failed_because: null, process_raising_because: null, not_ready_because: null } },
+    ],
+  };
+
+  const summary = streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify(graph));
+
+  expect(summary.ok && summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.not_ready_because])).toEqual([
+    ["lowerthird", notReadyBecause],
+    ["display", null],
   ]);
 });
 

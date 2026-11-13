@@ -103,13 +103,19 @@ function leafNode(row: OutlinerTreeNode["row"]): OutlinerTreeNode {
   return { row, meaning: { kind: "nothing_to_select" }, isOpenByDefault: false, children: [] };
 }
 
+/** How a node's row reads: failed while it failed or its `process()` keeps raising, not ready while it reports itself so, plain otherwise. */
+function nodeRowCondition(node: StreamGraphNode): Pick<OutlinerTreeNode["row"], "icon" | "tone"> {
+  if (node.failed_because !== null || node.process_raising_because !== null) return { icon: "failed", tone: "failed" };
+  if (node.not_ready_because !== null) return { icon: "not_ready", tone: "not_ready" };
+  return { icon: "graph_node", tone: undefined };
+}
+
 function graphNodeRow(stream: ListedStream, projectName: string, node: StreamGraphNode): OutlinerTreeNode {
   return {
     row: {
       row_id: nodeRowId(stream.stream, node.name),
       label: nodeTitle(node.name, node.type),
-      icon: node.failed_because === null && node.process_raising_because === null ? "graph_node" : "failed",
-      tone: node.failed_because === null && node.process_raising_because === null ? undefined : "failed",
+      ...nodeRowCondition(node),
       aside: nodeTypeClassName(node.type),
     },
     meaning: { kind: "node", stream: stream.stream, node: node.name, display_name: stream.display_name, project_name: projectName },
