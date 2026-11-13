@@ -9,7 +9,7 @@ export function streamPreparingWords(listedStream: ListedStream | undefined, str
 }
 
 /** A preparing stream's step: a step newer than this app in its own spelling; `null` while its action waits in its project's queue. */
-function preparingStepWords(step: string | null): string {
+export function preparingStepWords(step: string | null): string {
   switch (step) {
     case null:
       return "Waiting for the project's other stream actions to finish…";

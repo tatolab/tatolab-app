@@ -1,7 +1,9 @@
-// What the studio's Activity panel lists: each download and install the runtime or the app is doing,
-// with its progress, and each that has ended since the window opened, with how it ended.
+// What the studio's Activity panel lists: each project the runtime prepares, each download and install
+// the runtime or the app is doing, with its progress, and each install that has ended since the window
+// opened, with how it ended.
 
 import type { ProgressMeterPart } from "@tatolab/tato-app-view-sdk/design_system/progress_meter";
+import { preparingStepWords } from "@tatolab/tato-app-core-views/shared/stream_preparing_words";
 import type { ListedStream } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { STREAM_ACTION_STEP_MAKING_THE_VENV, type ProjectVenvSyncOfAStreamAction, type StreamActionVenvSync, type StreamActionVenvSyncPackage, type TatolabAppUpdateState } from "../../shared/tatolab_backend_contract";
 
@@ -45,6 +47,7 @@ function projectNameOfTheFolder(projectDirectory: string): string {
   return projectDirectory.split("/").filter((folderName) => folderName !== "").at(-1) ?? projectDirectory;
 }
 
+const PREPARING_PROJECT_ACTIVITY_PREFIX = "preparing_project:";
 const PYTHON_PACKAGES_ACTIVITY_PREFIX = "python_packages:";
 const APP_UPDATE_ACTIVITY_PREFIX = "app_update:";
 
@@ -132,6 +135,33 @@ function pythonPackagesActivitiesOf(listedStreams: readonly ListedStream[] | nul
   });
 }
 
+function preparingProjectActivitiesOf(listedStreams: readonly ListedStream[] | null): StudioActivity[] {
+  const stepByProjectFolder = new Map<string, string | null>();
+  for (const listedStream of listedStreams ?? []) {
+    if (listedStream.state !== "preparing" || listedStream.location === null) continue;
+    const projectFolder = listedStream.location.project_directory;
+    if (listedStream.step === STREAM_ACTION_STEP_MAKING_THE_VENV || stepByProjectFolder.get(projectFolder) === STREAM_ACTION_STEP_MAKING_THE_VENV) {
+      stepByProjectFolder.set(projectFolder, STREAM_ACTION_STEP_MAKING_THE_VENV);
+    } else if (listedStream.step !== null || !stepByProjectFolder.has(projectFolder)) {
+      stepByProjectFolder.set(projectFolder, listedStream.step);
+    }
+  }
+  return [...stepByProjectFolder].flatMap(([projectFolder, step]) =>
+    step === STREAM_ACTION_STEP_MAKING_THE_VENV
+      ? []
+      : [
+          {
+            activity_id: `${PREPARING_PROJECT_ACTIVITY_PREFIX}${projectFolder}`,
+            title: `Preparing ${projectNameOfTheFolder(projectFolder)}`,
+            kind: "in_progress",
+            detail: preparingStepWords(step),
+            progress: { kind: "share_unknown" },
+            package_lines: [],
+          },
+        ],
+  );
+}
+
 function appUpdateActivitiesOf(appUpdate: TatolabAppUpdateState): StudioActivity[] {
   if (appUpdate.kind !== "downloading") return [];
   return [
@@ -146,9 +176,18 @@ function appUpdateActivitiesOf(appUpdate: TatolabAppUpdateState): StudioActivity
   ];
 }
 
-/** Every download and install under way in `sources`. */
+/** Every project being prepared, and every download and install under way, in `sources`. */
 export function studioActivitiesInProgressOf(sources: StudioActivitySources): StudioActivity[] {
-  return [...pythonPackagesActivitiesOf(sources.listedStreams, sources.projectVenvSyncsUnderWay), ...appUpdateActivitiesOf(sources.appUpdate)];
+  return [
+    ...preparingProjectActivitiesOf(sources.listedStreams),
+    ...pythonPackagesActivitiesOf(sources.listedStreams, sources.projectVenvSyncsUnderWay),
+    ...appUpdateActivitiesOf(sources.appUpdate),
+  ];
+}
+
+/** Whether `activity` opens the Activity panel by itself as it starts: a download or install does, preparing a project does not. */
+export function opensTheActivityPanelAsItStarts(activity: StudioActivity): boolean {
+  return !activity.activity_id.startsWith(PREPARING_PROJECT_ACTIVITY_PREFIX);
 }
 
 function endOfThePythonPackagesActivity(activity: StudioActivity, projectFolder: string, sources: StudioActivitySources): StudioActivity {
@@ -178,7 +217,9 @@ function endOfTheAppUpdateActivity(activity: StudioActivity, appUpdate: TatolabA
   return { activity_id: activity.activity_id, title: activity.title, kind: "done", detail: appUpdate.kind === "ready_to_restart" ? "Downloaded · ready to restart" : "Downloaded", package_lines: [] };
 }
 
-function endOfTheActivity(activity: StudioActivity, sources: StudioActivitySources): StudioActivity {
+/** How `activity` ended, or `null` for one that leaves no row: a project's preparing, whose outcome its streams show. */
+function endOfTheActivity(activity: StudioActivity, sources: StudioActivitySources): StudioActivity | null {
+  if (activity.activity_id.startsWith(PREPARING_PROJECT_ACTIVITY_PREFIX)) return null;
   if (activity.activity_id.startsWith(PYTHON_PACKAGES_ACTIVITY_PREFIX)) {
     return endOfThePythonPackagesActivity(activity, activity.activity_id.slice(PYTHON_PACKAGES_ACTIVITY_PREFIX.length), sources);
   }
@@ -191,7 +232,9 @@ export function nextStudioActivityLog(previousLog: StudioActivityLog, sourcesAsS
   const sources: StudioActivitySources = { ...sourcesAsSent, projectVenvSyncsJustEnded: syncsNotEndedYet };
   const inProgress = studioActivitiesInProgressOf(sources);
   const stillInProgressIds = new Set(inProgress.map((activity) => activity.activity_id));
-  const justEnded = previousLog.in_progress.filter((activity) => !stillInProgressIds.has(activity.activity_id)).map((activity) => endOfTheActivity(activity, sources));
+  const justEnded = previousLog.in_progress
+    .filter((activity) => !stillInProgressIds.has(activity.activity_id))
+    .flatMap((activity) => endOfTheActivity(activity, sources) ?? []);
   const previouslyInProgressIds = new Set(previousLog.in_progress.map((activity) => activity.activity_id));
   justEnded.push(...syncsThatEndedUnseenOf(sources, previouslyInProgressIds, stillInProgressIds));
   if (justEnded.length === 0 && inProgress.length === previousLog.in_progress.length && inProgress.every((activity, index) => sameActivity(activity, previousLog.in_progress[index]))) {
