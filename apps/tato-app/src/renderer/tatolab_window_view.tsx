@@ -162,14 +162,16 @@ export function mountTatolabWindow(
     return openProject.kind === "read" ? openProject.open_project.project.folder : null;
   };
   const projectTransactionsReadings = new ProjectTransactionsReadings(backend, readTheOpenProjectFolder);
-  const listTheOpenProjectAgain = () => {
+  const listTheOpenProjectsAssetsAgain = () => {
     const openProjectFolder = readTheOpenProjectFolder();
-    if (openProjectFolder === null) return;
-    projectAssetReadings.listTheProjectAgainNow(openProjectFolder);
-    projectNodeTypeReadings.listTheProjectAgainNow(openProjectFolder);
+    if (openProjectFolder !== null) projectAssetReadings.listTheProjectAgainNow(openProjectFolder);
   };
-  backend.onProjectTransactionsChanged(listTheOpenProjectAgain);
-  backend.onProjectFilesChanged(listTheOpenProjectAgain);
+  backend.onProjectTransactionsChanged(listTheOpenProjectsAssetsAgain);
+  backend.onProjectFilesChanged(listTheOpenProjectsAssetsAgain);
+  backend.onProjectNodeTypesChanged(() => {
+    const openProjectFolder = readTheOpenProjectFolder();
+    if (openProjectFolder !== null) projectNodeTypeReadings.listTheProjectAgainNow(openProjectFolder);
+  });
 
   const chooseProjectFolder = (chosenFor: ProjectFolderChosenFor) => {
     studioWindowModel.projectOpeningRefusal.publish(null);

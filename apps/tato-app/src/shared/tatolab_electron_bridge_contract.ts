@@ -181,6 +181,9 @@ export const TATOLAB_PROJECT_TRANSACTIONS_CHANGED_EVENT = "tatolab-project-trans
 /** The event a studio window is told on that a file of its project may have changed; it carries nothing. */
 export const TATOLAB_PROJECT_FILES_CHANGED_EVENT = "tatolab-project-files-changed";
 
+/** The event a studio window is told on that the node types its project offers changed, as the runtime announces each added, removed or updated, or may have gone untold; it carries nothing. */
+export const TATOLAB_PROJECT_NODE_TYPES_CHANGED_EVENT = "tatolab-project-node-types-changed";
+
 /** The event each message a Python language server sends, and each server's end, arrives on; it carries a `PythonLanguageServerEvent`. */
 export const TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT = "tatolab-python-language-server-event";
 
@@ -486,6 +489,8 @@ export interface TatolabElectronBridge {
   onProjectTransactionsChanged(listener: (reading: ProjectTransactionsReading) => void): () => void;
   /** Calls `listener` each time the main process tells the window a file of its project may have changed; the returned function stops it. */
   onProjectFilesChanged(listener: () => void): () => void;
+  /** Calls `listener` each time the main process tells the window the node types its project offers changed; the returned function stops it. */
+  onProjectNodeTypesChanged(listener: () => void): () => void;
   /** Calls `listener` with each message a Python language server sends and each server's end; the returned function stops it. */
   onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
   /** Calls `listener` with each event of every port viewer the window opened; the returned function stops it. */

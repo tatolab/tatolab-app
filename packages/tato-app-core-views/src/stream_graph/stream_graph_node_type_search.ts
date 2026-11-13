@@ -61,11 +61,10 @@ function catalogEntryOfTheDeclaration(declared: ProjectNodeType): NodeCatalogEnt
   return { type: declared.type, description: declared.description, config_schema: null, inputs: portsDeclared(declared.inputs), outputs: portsDeclared(declared.outputs) };
 }
 
-/** The stream's catalog, then each node type the project and its imports declare that the catalog does not list yet, as the runtime lists those only once a node of them is in the graph; an installed distribution's types the catalog lists already. */
+/** The stream's catalog, then each node type the project's listing offers that the catalog does not list yet: the runtime lists the project's and its imports' types only once a node of them is in the graph, and a distribution installed after the stream loaded only once it loads again. */
 export function nodeTypesTheSearchOffers(catalog: readonly NodeCatalogEntry[], projectNodeTypes: ProjectNodeTypeListing | null): NodeCatalogEntry[] {
   const offeredByType = new Map(catalog.map((entry) => [entry.type, entry]));
-  const sourcesTheCatalogLagsBehind = (projectNodeTypes?.sources ?? []).filter(({ origin }) => origin.source === "project" || origin.source === "dependency");
-  for (const declared of sourcesTheCatalogLagsBehind.flatMap((source) => source.node_types)) {
+  for (const declared of (projectNodeTypes?.sources ?? []).flatMap((source) => source.node_types)) {
     if (!offeredByType.has(declared.type)) offeredByType.set(declared.type, catalogEntryOfTheDeclaration(declared));
   }
   return [...offeredByType.values()];

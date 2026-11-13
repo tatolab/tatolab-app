@@ -30,7 +30,7 @@ test("a_loose_wire_narrows_the_search_to_what_takes_or_gives_its_family_and_says
   expect(nodeTypeSearchNarrowing({ node_id: "meter", pin: "level", side: "input", family: null }).heading).toBe("Can feed level");
 });
 
-test("offers each node type the project and its imports declare, not an installed distribution's, that the stream's catalog does not list yet, its ports as declared", () => {
+test("offers each node type the project, its imports and its installed distributions declare that the stream's catalog does not list yet, its ports as declared", () => {
   const listing: ProjectNodeTypeListing = {
     project_directory: "/p",
     project: "p-uuid",
@@ -55,7 +55,7 @@ test("offers each node type the project and its imports declare, not an installe
     ],
   };
   const offered = nodeTypesTheSearchOffers([BLUR], listing);
-  expect(offered.map((entry) => entry.type)).toEqual(["nodes.blur:GaussianBlur", "nodes.invert:Invert", "nodes.native:Half"]);
+  expect(offered.map((entry) => entry.type)).toEqual(["nodes.blur:GaussianBlur", "nodes.invert:Invert", "nodes.native:Half", "tatolab_testpattern:TestPatternSource"]);
   expect(offered[0]).toBe(BLUR);
   expect(offered[1]).toEqual({ type: "nodes.invert:Invert", description: "Inverts each frame", config_schema: null, inputs: [{ name: "video_in", description: "", family: "image" }], outputs: [{ name: "video_out", description: "", family: "image" }] });
   expect(offered[2]?.inputs).toEqual([]);

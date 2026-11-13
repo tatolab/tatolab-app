@@ -1838,6 +1838,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     },
     onProjectTransactionsChanged: (listener) => mockProjectTransactions?.onChanged(listener) ?? (() => undefined),
     onProjectFilesChanged: () => () => undefined,
+    onProjectNodeTypesChanged: () => () => undefined,
     undoInTheOpenProject: async (author) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockProjectTransactions === null) throw "No project is open in this window.";
