@@ -9,7 +9,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
-import { MODULE_DOWNLOADS_FOLDER_NAME } from "./marketplace_module_download.js";
+import { MODULE_DOWNLOADS_FOLDER_NAME } from "../shared/marketplace_module_download_file.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { ProjectTransactionAuthor, SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";

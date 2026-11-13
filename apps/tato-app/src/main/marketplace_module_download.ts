@@ -5,12 +5,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { marketplaceDownloadFileNameOf } from "../shared/marketplace_module_download_file.js";
 import type { PackageCatalogEntry } from "../shared/tatolab_backend_contract.js";
 import type { FetchBytesOverHttps } from "./package_catalog.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
-
-/** The folder inside the app's config directory that holds each Marketplace download. */
-export const MODULE_DOWNLOADS_FOLDER_NAME = "module-downloads";
 
 /** The most bytes one Marketplace download may be. */
 export const LARGEST_MODULE_DOWNLOAD_BYTES = 1024 * 1024 * 1024;
@@ -18,7 +16,7 @@ export const LARGEST_MODULE_DOWNLOAD_BYTES = 1024 * 1024 * 1024;
 /** `entry`'s `.zip` downloaded into `downloadsFolder` as `<name>-<version>.zip` once its SHA-256 matches the catalog's, answering its path; refused in words with nothing left behind otherwise. */
 export async function downloadTheCatalogEntrysZip(entry: PackageCatalogEntry, fetchBytesOverHttps: FetchBytesOverHttps, downloadsFolder: string): Promise<Result<string, string>> {
   if (entry.download === null) return failedWith(`The catalog names no download for ${entry.title}.`);
-  const zipFileName = `${entry.name}-${entry.version}.zip`;
+  const zipFileName = marketplaceDownloadFileNameOf(entry.name, entry.version);
   if (zipFileName.includes("/") || zipFileName.includes("\\") || zipFileName.startsWith(".")) return failedWith(`The catalog's name ${entry.name} or version ${entry.version} is not one a file can be named by.`);
   const downloaded = await fetchBytesOverHttps(entry.download.url, LARGEST_MODULE_DOWNLOAD_BYTES);
   if (!downloaded.ok) return failedWith(`${entry.download.url} could not be downloaded: ${downloaded.failure}`);

@@ -2025,7 +2025,10 @@ describe("Module manager", () => {
     fireEvent.click(moduleManagerRow("tatolab-camera"));
     expect(textOf('[data-module-manager-import="tatolab-camera"]')).toBe("Add to this project");
     pressed('[data-module-manager-import="tatolab-camera"]');
-    await waitFor(() => expect(document.querySelector('[data-module-manager-update]')).not.toBeNull());
+    await waitFor(() => expect(document.querySelector('[data-module-manager-update="camera"]')).not.toBeNull());
+    expect(document.querySelector('[data-module-manager-detail="tatolab-camera"]')).not.toBeNull();
+    expect(document.querySelector('[data-module-manager-import="tatolab-camera"]')).toBeNull();
+    expect(moduleManagerRow("tatolab-camera").textContent).toContain("Added");
   });
 
   it("says the catalog didn't load and what it waits on, and still lists the project's modules", async () => {

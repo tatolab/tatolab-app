@@ -85,7 +85,7 @@ export class MockWorkspaceDependencies {
       source,
       version: MOCK_VERSION_COPIED,
       folder_path: `${this.workspaceFolder}/imports/${name}`,
-      name,
+      name: nameInItsProjectFile,
       edited_files: [],
       newer_version_exists: null,
       check_refused_because: null,
