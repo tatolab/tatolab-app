@@ -287,7 +287,7 @@ verify_app_bundle() {
     && pass "the helper's Resources/lend carries the runtime package" || fail "the helper's Resources/lend has no tatolab/runtime package"
 
   local core_first_party_module missing_core_first_party_modules=""
-  for core_first_party_module in tatolab_compositor tatolab_ops tatolab_testpattern; do
+  for core_first_party_module in tatolab_compositor tatolab_testpattern; do
     compgen -G "$helper_contents/Resources/imports/$core_first_party_module-*.whl" >/dev/null \
       || missing_core_first_party_modules="$missing_core_first_party_modules $core_first_party_module"
   done
@@ -297,6 +297,9 @@ verify_app_bundle() {
   compgen -G "$helper_contents/Resources/samples/*/tatolab-project.json" >/dev/null \
     && pass "the helper's Resources/samples carries the sample projects beside the lend" \
     || fail "the helper's Resources/samples carries no sample project, so no project can be created from one"
+  [ -f "$helper_contents/Resources/core-projects/tatolab-core-nodes/tatolab-project.json" ] \
+    && pass "the helper's Resources/core-projects carries the Core Nodes project beside the lend" \
+    || fail "the helper's Resources/core-projects has no tatolab-core-nodes project, so no project gets the core nodes"
   verify_the_carried_archives "$helper_contents/Resources"
   [ ! -e "$contents/Resources/python" ] && [ ! -e "$contents/Frameworks/tatolab-python" ] && [ ! -e "$contents/MacOS/uv" ] \
     && pass "the bundle carries no Python or uv of the app's own" || fail "the bundle carries a Python or uv of the app's own (Resources/python, Frameworks/tatolab-python or MacOS/uv)"

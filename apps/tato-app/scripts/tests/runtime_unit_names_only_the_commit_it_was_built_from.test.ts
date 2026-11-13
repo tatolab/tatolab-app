@@ -33,6 +33,8 @@ echo replaced > "$unit/lib/tatolab/lend/tatolab/runtime/__init__.py"
 for binary in tatolabd tatolab uv tatolab-video-poster-frame; do echo built > "$unit/bin/$binary"; done
 mkdir -p "$unit/lib/tatolab/imports" "$unit/lib/tatolab/samples" "$unit/lib/tatolab/carried-wheels" "$unit/lib/tatolab/python-downloads"
 echo '{}' > "$unit/lib/tatolab/python-downloads/uv-python-downloads.json"
+mkdir -p "$unit/lib/tatolab/core-projects/tatolab-core-nodes"
+echo '{}' > "$unit/lib/tatolab/core-projects/tatolab-core-nodes/tatolab-project.json"
 [ -n "$CEF_PATH" ] && mkdir -p "$unit/lib/tatolab/browser-host"
 exit 0
 `;

@@ -261,12 +261,14 @@ for carried_runtime_member in streamlib-commit; do
   grep -qF "./usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member" <<<"$deb_contents" \
     || { echo "the .deb carries no usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member" >&2; exit 1; }
 done
-for core_first_party_module in tatolab_compositor tatolab_ops tatolab_testpattern; do
+for core_first_party_module in tatolab_compositor tatolab_testpattern; do
   grep -qE "[[:space:]]\./usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/imports/$core_first_party_module-[^/]+\.whl\$" <<<"$deb_contents" \
     || { echo "the .deb carries no $core_first_party_module wheel in usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/imports" >&2; exit 1; }
 done
 grep -qE "[[:space:]]\./usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/samples/[^/]+/tatolab-project\.json\$" <<<"$deb_contents" \
   || { echo "the .deb carries no sample project in usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/samples" >&2; exit 1; }
+grep -qF "./usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/core-projects/tatolab-core-nodes/tatolab-project.json" <<<"$deb_contents" \
+  || { echo "the .deb carries no Core Nodes project in usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/core-projects" >&2; exit 1; }
 ! grep -qF './usr/lib/tatolab/resources/install.sh' <<<"$deb_contents" \
   || { echo "the .deb carries streamlib's install.sh, which the app never runs" >&2; exit 1; }
 echo "    Depends: $deb_depends"
