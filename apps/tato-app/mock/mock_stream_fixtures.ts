@@ -347,7 +347,6 @@ const TEST_PATTERN_LINKS: StreamGraphLink[] = [
   },
 ];
 
-/** The fixture view's node, its picture wired from the effect, as a project's view stands in its stream's graph. */
 /** What Core Nodes' `ImageFile` reports while its `asset` config is unset, in the runtime's words. */
 const IMAGE_FILE_NOT_READY_BECAUSE = "ImageFile names no image asset. To fix: set its `asset` config to the UUID of a PNG or JPEG imported into the project";
 
@@ -362,6 +361,7 @@ const IMAGE_FILE_NOT_READY_NODE: MockGraphNode = {
   output_ports: portsStatingNoStreamFacts("image", "image"),
 };
 
+/** The fixture view's node, its picture wired from the effect, as a project's view stands in its stream's graph. */
 const PICTURE_AND_FADER_VIEW_NODE: MockGraphNode = {
   name: "pictureandfader",
   type: MOCK_STUDIO_VIEW_TYPE_ID,

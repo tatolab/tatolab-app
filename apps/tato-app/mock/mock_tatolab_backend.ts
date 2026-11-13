@@ -632,16 +632,16 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       : scenario === "node-not-ready"
         ? fixtures.mainStreamWithAnImageFileNotReady
         : scenario === "dropping"
-        ? fixtures.mainStreamWithItsMeterFallingBehind
-        : mockTatolabOptions.isTheFixtureViewListed
-          ? fixtures.mainStreamWithTheFixtureViewsNode
-          : mockTatolabOptions.isTheCompositorInMain
-            ? fixtures.mainStreamWithTheCompositorNode
-            : mockTatolabOptions.doesTheMainStreamDeclareGraphInputs
-              ? fixtures.mainStreamDeclaringGraphInputs
-              : mockTatolabOptions.doesTheMainStreamHoldAGeneratedSubgraph
-                ? fixtures.mainStreamHoldingAGeneratedSubgraph
-                : fixtures.mainStream;
+          ? fixtures.mainStreamWithItsMeterFallingBehind
+          : mockTatolabOptions.isTheFixtureViewListed
+            ? fixtures.mainStreamWithTheFixtureViewsNode
+            : mockTatolabOptions.isTheCompositorInMain
+              ? fixtures.mainStreamWithTheCompositorNode
+              : mockTatolabOptions.doesTheMainStreamDeclareGraphInputs
+                ? fixtures.mainStreamDeclaringGraphInputs
+                : mockTatolabOptions.doesTheMainStreamHoldAGeneratedSubgraph
+                  ? fixtures.mainStreamHoldingAGeneratedSubgraph
+                  : fixtures.mainStream;
   const mainStream: MockStreamFixture = mockTatolabOptions.areTheMainStreamsNodesStopped
     ? { ...mainStreamAsChosen, graph: { ...mainStreamAsChosen.graph, nodes: mainStreamAsChosen.graph.nodes.map((node) => (node.state === null ? node : { ...node, state: "Stopped" })) } }
     : mainStreamAsChosen;
