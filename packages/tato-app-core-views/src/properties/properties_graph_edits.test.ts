@@ -150,6 +150,21 @@ test("the Stream graph lights each node with a port of the family that can join,
   expect([...portsThatCanJoinByNodeId(graph, camera, "output", aPort("level", "channels"))]).toEqual([["id-meter", ["gain"]]]);
 });
 
+test("a Graph Input naming no family can join an input of any family, and any output can join a Graph Output naming none", () => {
+  const waitingInput: StreamGraphNode = { ...aNode("input1", [], [aPort("value", null)]), type: "tatolab.stream:GraphInput", graph_interface: { direction: "input", port: "input1", family: null, current_value: null } };
+  const waitingOutput: StreamGraphNode = { ...aNode("output1", [aPort("value", null)], []), type: "tatolab.stream:GraphOutput", graph_interface: { direction: "output", port: "output1", family: null, current_value: null } };
+  const graphWaiting = { nodes: [camera, invert, meter, waitingInput, waitingOutput], links: graph.links };
+  expect([...portsThatCanJoinByNodeId(graphWaiting, waitingInput, "output", aPort("value", null))]).toEqual([
+    ["id-meter", ["gain"]],
+    ["id-output1", ["value"]],
+  ]);
+  expect([...portsThatCanJoinByNodeId(graphWaiting, waitingOutput, "input", aPort("value", null))]).toEqual([
+    ["id-camera", ["video", "level"]],
+    ["id-invert", ["video_out"]],
+    ["id-input1", ["value"]],
+  ]);
+});
+
 test("an input takes one target picker, an output any number", () => {
   expect(whyThePortTakesNoOtherTarget("input", 0, 0)).toBeNull();
   expect(whyThePortTakesNoOtherTarget("input", 1, 0)).toBe("An input takes one link. Choose another output in its picker.");

@@ -60,6 +60,56 @@ function studioFieldsOfTheAction(studio: Record<string, JsonValue>, refusedNode:
 const GRAPH_INPUT_NODE_TYPE = "tatolab.stream:GraphInput";
 const GRAPH_OUTPUT_NODE_TYPE = "tatolab.stream:GraphOutput";
 const STREAM_FRAGMENT_NODE_TYPE = "tatolab.project:StreamFragment";
+const SET_VARIABLE_NODE_TYPE = "tatolab.stream:SetVariable";
+
+/** Whether `node` is a Graph Input or Output whose config names no family, which takes the family of the first port linked to it. */
+function isAnInterfaceNodeNamingNoFamily(node: MockGraphNode): boolean {
+  return (node.type === GRAPH_INPUT_NODE_TYPE || node.type === GRAPH_OUTPUT_NODE_TYPE) && typeof node.config["family"] !== "string";
+}
+const GET_VARIABLE_NODE_TYPE = "tatolab.stream:GetVariable";
+
+/** The non-empty string each node of `nodeType` among `nodes` holds at `nameKey`, in the order `nodes` lists them. */
+function namesTheNodesOfTheTypeHold(nodes: readonly MockGraphNode[], nodeType: string, nameKey: string): string[] {
+  return nodes.flatMap((node) => {
+    const name = node.config[nameKey];
+    return node.type === nodeType && typeof name === "string" && name !== "" ? [name] : [];
+  });
+}
+
+/** `prefix` and the first number from 1 whose name, compared without case, no node of `nodeType` among `nodes` holds at `nameKey`. */
+function firstNameNoNodeOfTheTypeHolds(nodes: readonly MockGraphNode[], nodeType: string, nameKey: string, prefix: string): string {
+  const taken = new Set(namesTheNodesOfTheTypeHold(nodes, nodeType, nameKey).map((name) => name.toLowerCase()));
+  let number = 1;
+  while (taken.has(`${prefix}${number}`)) number += 1;
+  return `${prefix}${number}`;
+}
+
+/**
+ * `config` holding the name a node of `nodeType` added among `nodes` takes when `config` names none, as the runtime's
+ * `add_node` gives it: a `GraphInput` the next free `input1`, a `GraphOutput` the next free `output1`, a `SetVariable` the
+ * next free `var1`, and a `GetVariable` the variable of the level's last `SetVariable`.
+ */
+export function configHoldingTheDefaultNameOfAGraphPortOrVariable(nodeType: string, config: Record<string, JsonValue>, nodes: readonly MockGraphNode[]): Record<string, JsonValue> {
+  const defaultName = ((): { key: string; name: string } | null => {
+    switch (nodeType) {
+      case GRAPH_INPUT_NODE_TYPE:
+        return { key: "port", name: firstNameNoNodeOfTheTypeHolds(nodes, GRAPH_INPUT_NODE_TYPE, "port", "input") };
+      case GRAPH_OUTPUT_NODE_TYPE:
+        return { key: "port", name: firstNameNoNodeOfTheTypeHolds(nodes, GRAPH_OUTPUT_NODE_TYPE, "port", "output") };
+      case SET_VARIABLE_NODE_TYPE:
+        return { key: "variable", name: firstNameNoNodeOfTheTypeHolds(nodes, SET_VARIABLE_NODE_TYPE, "variable", "var") };
+      case GET_VARIABLE_NODE_TYPE: {
+        const variableOfTheLastSetter = namesTheNodesOfTheTypeHold(nodes, SET_VARIABLE_NODE_TYPE, "variable").at(-1);
+        return variableOfTheLastSetter === undefined ? null : { key: "variable", name: variableOfTheLastSetter };
+      }
+      default:
+        return null;
+    }
+  })();
+  if (defaultName === null) return config;
+  const named = config[defaultName.key];
+  return named === undefined || named === null || named === "" ? { ...config, [defaultName.key]: defaultName.name } : config;
+}
 
 /** The stream a project's Stream Fragment node places, by asset UUID, and the import it is a stream of, `null` for one of the project's own; `null` for any other node. */
 function streamTheNodePlaces(node: MockGraphNode): { asset: string; from: JsonValue | null } | null {
@@ -371,18 +421,19 @@ export function applyMockGraphTransaction(
           for (let suffix = 2; operation.name === undefined && takenNames.has(name); suffix += 1) name = `${shortName}-${suffix}`;
           if (takenNames.has(name)) throw refusedNaming(`node \`${name}\` in this graph already has that name`, { refused_node: operation.as ?? name });
           const portsOf = (ports: typeof catalogEntry.inputs) => ports.map((port) => ({ name: port.name, family: port.family, stream_facts: null, values_checked: port.family === "records" ? false : null }));
-          const config = structuredClone(operation.config ?? {});
+          const config = configHoldingTheDefaultNameOfAGraphPortOrVariable(operation.type, structuredClone(operation.config ?? {}), graph.nodes);
           const pins = structuredClone(operation.pins ?? {});
           const isAGraphInput = operation.type === GRAPH_INPUT_NODE_TYPE;
           const familyTheGraphInputDeclares = isAGraphInput ? config["family"] : undefined;
-          if (isAGraphInput && !isAPortFamilyAsTheRuntimeSpellsIt(familyTheGraphInputDeclares)) {
+          const namesAFamily = familyTheGraphInputDeclares !== undefined && familyTheGraphInputDeclares !== null;
+          if (isAGraphInput && namesAFamily && !isAPortFamilyAsTheRuntimeSpellsIt(familyTheGraphInputDeclares)) {
             throw refusedNaming(
               `Invalid configuration: \`GraphInput\` node \`${name}\`: config key "family" names family ${JSON.stringify(familyTheGraphInputDeclares ?? null)}, and a family is one of image, array, channels, packets, records`,
               { refused_node: operation.as ?? name },
             );
           }
-          const outputPorts = isAPortFamilyAsTheRuntimeSpellsIt(familyTheGraphInputDeclares)
-            ? [{ name: "value", family: familyTheGraphInputDeclares, stream_facts: null, values_checked: null }]
+          const outputPorts = isAGraphInput
+            ? [{ name: "value", family: isAPortFamilyAsTheRuntimeSpellsIt(familyTheGraphInputDeclares) ? familyTheGraphInputDeclares : null, stream_facts: null, values_checked: null }]
             : portsOf(catalogEntry.outputs);
           const addedNode: MockGraphNode = { name, type: operation.type, state: isAGraphInput ? null : "Running", config, pins, input_ports: portsOf(catalogEntry.inputs), output_ports: outputPorts };
           if (operation.studio !== undefined) addedNode.studio = studioFieldsOfTheAction(operation.studio, operation.as ?? name);
@@ -451,6 +502,8 @@ export function applyMockGraphTransaction(
           const sourceSpelled = `${source.graphNode.name}.${operation.source.port}`;
           const targetSpelled = `${targetEnd.graphNode.name}.${operation.target.port}`;
           if (sourcePort === undefined || targetPort === undefined) throw refusedNaming(`Invalid link: no port ${sourceSpelled} to ${targetSpelled}`, { refused_link: refusedLink });
+          if (sourcePort.family === null && isAnInterfaceNodeNamingNoFamily(source.graphNode)) sourcePort.family = targetPort.family;
+          if (targetPort.family === null && isAnInterfaceNodeNamingNoFamily(targetEnd.graphNode)) targetPort.family = sourcePort.family;
           if (sourcePort.family !== targetPort.family) {
             throw refusedNaming(
               `Invalid link: cannot link ${sourceSpelled} (${familyAsTheRuntimeNamesIt(sourcePort.family)}) to ${targetSpelled} (${familyAsTheRuntimeNamesIt(targetPort.family)}): a link joins two ports of one family; no one node converts between them; chain the conversion nodes that do`,
@@ -476,6 +529,11 @@ export function applyMockGraphTransaction(
               !(link.source_node === source.graphNode.name && link.source_port === operation.source.port && link.target_node === targetEnd.graphNode.name && link.target_port === operation.target.port),
           );
           if (graph.links.length === linkCount) throw refusedNaming("no such link in the stream's graph", { refused_link: { source: operation.source, target: operation.target } });
+          for (const end of [source.graphNode, targetEnd.graphNode]) {
+            const isStillLinked = graph.links.some((remaining) => remaining.source_node === end.name || remaining.target_node === end.name);
+            if (!isAnInterfaceNodeNamingNoFamily(end) || isStillLinked) continue;
+            for (const port of [...end.input_ports, ...end.output_ports]) port.family = null;
+          }
           const link = { source: source.end, target: targetEnd.end };
           recordInHistory({ operation: "disconnect", link }, { operation: "connect", link });
           break;

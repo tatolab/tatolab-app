@@ -109,7 +109,6 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
       title: "GraphInputConfig",
       type: "object",
       properties: { port: { type: "string" }, family: { type: "string" } },
-      required: ["port", "family"],
     },
     inputs: [],
     outputs: [port("value", "What a client writes to the Input, of the declared family.", "records")],

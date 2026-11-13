@@ -64,7 +64,15 @@ export function studioAsTheRuntimeRendersIt(studio: StreamGraphNodeStudioFields)
 
 /** Whether a client writes `node`, a top-level `GraphInput` of a family that runs: Array, Channels or Records. */
 export function isAGraphInputAClientWrites(node: MockGraphNode): boolean {
-  return node.type === "tatolab.stream:GraphInput" && typeof node.config["port"] === "string" && ["array", "channels", "records"].includes(String(node.config["family"]));
+  const family = familyTheInterfaceNodeCarries(node);
+  return node.type === "tatolab.stream:GraphInput" && typeof node.config["port"] === "string" && family !== null && ["array", "channels", "records"].includes(family);
+}
+
+/** The family an interface node carries as the runtime resolves it: its config's `family`, else the family the first link gave its port; `null` while it names none and nothing is linked. */
+function familyTheInterfaceNodeCarries(node: MockGraphNode): string | null {
+  const family = node.config["family"];
+  if (typeof family === "string") return family;
+  return (node.type === "tatolab.stream:GraphInput" ? node.output_ports[0]?.family : node.input_ports[0]?.family) ?? null;
 }
 
 /** The port `node` declares as the runtime renders its `graph_interface`: a top-level Input a client writes, while it reads `nodeState` `Running`, carrying the value last written to it by name, else its `default`; `null` for a node that is no interface node. */
@@ -75,8 +83,9 @@ function graphInterfacePortAsTheRuntimeRendersIt(
   valueWrittenToEachGraphInput: ReadonlyMap<string, JsonValue>,
 ): StreamGraphInterfacePort | null {
   const direction = node.type === "tatolab.stream:GraphInput" ? "input" : node.type === "tatolab.stream:GraphOutput" ? "output" : null;
-  const { port, family } = node.config;
-  if (direction === null || typeof port !== "string" || typeof family !== "string") return null;
+  const { port } = node.config;
+  if (direction === null || typeof port !== "string") return null;
+  const family = familyTheInterfaceNodeCarries(node);
   const carriesAValue = isTopLevel && nodeState === "Running" && isAGraphInputAClientWrites(node);
   return { direction, port, family, current_value: carriesAValue ? (valueWrittenToEachGraphInput.get(port) ?? node.config["default"] ?? null) : null };
 }
