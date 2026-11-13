@@ -374,6 +374,10 @@ export class TatolabAppWindows {
         tatolabMainWindow.tellTheWindowTheProjectFilesChanged();
         for (const poppedOutView of studioWindowOnceMade?.poppedOutViews.values() ?? []) poppedOutView.tatolabMainWindow.tellTheWindowTheProjectFilesChanged();
       },
+      tellTheWindowTheProjectNodeTypesChanged: () => {
+        tatolabMainWindow.tellTheWindowTheProjectNodeTypesChanged();
+        for (const poppedOutView of studioWindowOnceMade?.poppedOutViews.values() ?? []) poppedOutView.tatolabMainWindow.tellTheWindowTheProjectNodeTypesChanged();
+      },
     });
     const studioWindow: StudioWindowOfAProject = {
       tatolabMainWindow,

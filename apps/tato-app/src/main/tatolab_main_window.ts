@@ -7,6 +7,7 @@ import {
   TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT,
   TATOLAB_OPEN_PROJECT_CHANGED_EVENT,
   TATOLAB_PROJECT_FILES_CHANGED_EVENT,
+  TATOLAB_PROJECT_NODE_TYPES_CHANGED_EVENT,
   TATOLAB_PROJECT_TRANSACTIONS_CHANGED_EVENT,
   TATOLAB_PORT_VIEWER_EVENT,
   TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT,
@@ -191,6 +192,11 @@ export class TatolabMainWindow implements WindowShowingPortViewers, WindowFollow
   /** Tell the window its project's files changed, as `tatolab-project-files-changed`; nothing, before the window is first shown, which lists the project when it opens. */
   tellTheWindowTheProjectFilesChanged(): void {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_PROJECT_FILES_CHANGED_EVENT, null);
+  }
+
+  /** Tell the window the node types its project offers changed, as `tatolab-project-node-types-changed`; nothing, before the window is first shown, which lists them when it opens. */
+  tellTheWindowTheProjectNodeTypesChanged(): void {
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_PROJECT_NODE_TYPES_CHANGED_EVENT, null);
   }
 
   /** Send the window `event` as `tatolab-python-language-server-event`; nothing, before the window is first shown. */

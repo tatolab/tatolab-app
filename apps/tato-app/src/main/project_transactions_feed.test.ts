@@ -90,6 +90,7 @@ function feedOverFakeConnections(transactionIds: string[], failingOpens: number[
   const readingsSent: ProjectTransactionsReading[] = [];
   const followsLater: { delayMs: number; work: () => void }[] = [];
   const windowToldTheFilesChanged = { times: 0 };
+  const windowToldTheNodeTypesChanged = { times: 0 };
   let opens = 0;
   const feed = new ProjectTransactionsFeedOfAStudioWindow(PROJECT_FOLDER, {
     openTheFeedConnection: async () => {
@@ -107,8 +108,11 @@ function feedOverFakeConnections(transactionIds: string[], failingOpens: number[
     tellTheWindowTheProjectFilesChanged: () => {
       windowToldTheFilesChanged.times += 1;
     },
+    tellTheWindowTheProjectNodeTypesChanged: () => {
+      windowToldTheNodeTypesChanged.times += 1;
+    },
   });
-  return { feed, connectionsOpened, readingsSent, followsLater, windowToldTheFilesChanged };
+  return { feed, connectionsOpened, readingsSent, followsLater, windowToldTheFilesChanged, windowToldTheNodeTypesChanged };
 }
 
 test("reads_the_feed_subscribes_its_project_and_reads_it_again_on_each_change_of_that_project_alone", async () => {
@@ -149,6 +153,38 @@ test("a_file_changed_in_the_folder_tells_the_window_without_reading_the_feed_and
   expect(connectionsOpened[0]?.calls).toEqual([
     `read_project_changes ${PROJECT_FOLDER}`,
     `subscribe_project_changes ${PROJECT}`,
+    `read_project_changes ${PROJECT_FOLDER}`,
+    `read_project_changes ${PROJECT_FOLDER}`,
+  ]);
+});
+
+test("each_node_type_change_of_its_project_tells_the_window_its_node_types_changed_and_leaves_the_feed_unread", async () => {
+  const { feed, connectionsOpened, windowToldTheFilesChanged, windowToldTheNodeTypesChanged } = feedOverFakeConnections(["t1"]);
+  await feed.follow();
+  const toldOnceSubscribed = windowToldTheNodeTypesChanged.times;
+
+  connectionsOpened[0]?.pushAProjectChanged(PROJECT, "node_types_added");
+  await settled();
+  connectionsOpened[0]?.pushAProjectChanged(PROJECT, "node_types_removed");
+  await settled();
+  connectionsOpened[0]?.pushAProjectChanged(PROJECT, "node_types_updated");
+  await settled();
+  connectionsOpened[0]?.pushAProjectChanged(ANOTHER_PROJECT, "node_types_added");
+  await settled();
+  connectionsOpened[0]?.pushAProjectChanged(PROJECT, "venv_made_current");
+  await settled();
+  connectionsOpened[0]?.pushAProjectChanged(PROJECT, "files_changed");
+  await settled();
+  connectionsOpened[0]?.pushAProjectChanged(PROJECT, "missed");
+  await settled();
+
+  expect(toldOnceSubscribed).toBe(1);
+  expect(windowToldTheNodeTypesChanged.times).toBe(5);
+  expect(windowToldTheFilesChanged.times).toBe(3);
+  expect(connectionsOpened[0]?.calls).toEqual([
+    `read_project_changes ${PROJECT_FOLDER}`,
+    `subscribe_project_changes ${PROJECT}`,
+    `read_project_changes ${PROJECT_FOLDER}`,
     `read_project_changes ${PROJECT_FOLDER}`,
     `read_project_changes ${PROJECT_FOLDER}`,
   ]);
@@ -218,6 +254,7 @@ test.skipIf(liveLocalApiSocket === undefined || liveProjectFolder === undefined)
     tellTheWindowTheProjectFilesChanged: () => {
       windowToldTheFilesChanged.times += 1;
     },
+    tellTheWindowTheProjectNodeTypesChanged: () => undefined,
   });
   const savedByAnEditor = path.join(liveProjectFolder ?? "", "saved_by_an_editor_in_the_live_test.txt");
   try {
