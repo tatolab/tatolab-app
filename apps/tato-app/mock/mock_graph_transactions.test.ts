@@ -223,6 +223,26 @@ test("a Graph Input, Graph Output or Set Variable added with no name takes the n
   expect(named("tatolab.stream:DisplayWindow")).toEqual({});
 });
 
+test("a Graph Input added with no family carries none until a link gives it the family of the port it feeds, and loses it again when unlinked", () => {
+  const graph = aTestPatternAlone();
+  graph.nodes.push({ name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {}, input_ports: [{ name: "strength", family: "channels", stream_facts: null, values_checked: null }], output_ports: [] });
+  const added = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", as: "graph_input" }]);
+  if (added.kind !== "applied") return expect.unreachable(added.refusal.runtime_words);
+  const graphInput = () => graph.nodes.find((node) => node.type === "tatolab.stream:GraphInput") ?? expect.unreachable("no Graph Input");
+  expect(graphInput()).toMatchObject({ config: { port: "input1" }, output_ports: [{ name: "value", family: null }] });
+
+  const graphInputId = mockNodeIdOf(STREAM_ID, graphInput().name);
+  const inverter = mockNodeIdOf(STREAM_ID, "invertingeffect");
+  const linked = applyMockGraphTransaction(targetsOf(graph), [{ operation: "connect", stream: STREAM_ASSET, source: { node: graphInputId, port: "value" }, target: { node: inverter, port: "strength" } }]);
+  if (linked.kind !== "applied") return expect.unreachable(linked.refusal.runtime_words);
+  expect(graphInput().output_ports[0]?.family).toBe("channels");
+  expect(graphInput().config).toEqual({ port: "input1" });
+
+  const unlinked = applyMockGraphTransaction(targetsOf(graph), [{ operation: "disconnect", stream: STREAM_ASSET, source: { node: graphInputId, port: "value" }, target: { node: inverter, port: "strength" } }]);
+  if (unlinked.kind !== "applied") return expect.unreachable(unlinked.refusal.runtime_words);
+  expect(graphInput().output_ports[0]?.family).toBeNull();
+});
+
 /** The stream asset `placing`, a Stream Fragment node, places. */
 function assetPlacedBy(placing: MockGraphNode): string {
   const placed = placing.config["stream"];

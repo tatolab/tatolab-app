@@ -229,12 +229,12 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
   });
 }
 
-/** The port a node's `components.graph_interface` declares; `null` where the runtime renders none, or one with no direction, port or family to read. */
+/** The port a node's `components.graph_interface` declares; `null` where the runtime renders none, or one with no direction or port to read. Its `family` is `null` while the runtime waits for a link to resolve it. */
 function graphInterfacePortOnTheWire(graphInterfaceOnTheWire: unknown): StreamGraphInterfacePort | null {
   if (!isAJsonObject(graphInterfaceOnTheWire)) return null;
   const { direction, port, family } = graphInterfaceOnTheWire;
   const currentValue = graphInterfaceOnTheWire["current_value"];
-  if ((direction !== "input" && direction !== "output") || typeof port !== "string" || typeof family !== "string") return null;
+  if ((direction !== "input" && direction !== "output") || typeof port !== "string" || (typeof family !== "string" && family !== null)) return null;
   return { direction, port, family, current_value: isAJsonValue(currentValue) ? currentValue : null };
 }
 
