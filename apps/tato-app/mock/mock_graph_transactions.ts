@@ -60,6 +60,51 @@ function studioFieldsOfTheAction(studio: Record<string, JsonValue>, refusedNode:
 const GRAPH_INPUT_NODE_TYPE = "tatolab.stream:GraphInput";
 const GRAPH_OUTPUT_NODE_TYPE = "tatolab.stream:GraphOutput";
 const STREAM_FRAGMENT_NODE_TYPE = "tatolab.project:StreamFragment";
+const SET_VARIABLE_NODE_TYPE = "tatolab.stream:SetVariable";
+const GET_VARIABLE_NODE_TYPE = "tatolab.stream:GetVariable";
+
+/** The non-empty string each node of `nodeType` among `nodes` holds at `nameKey`, in the order `nodes` lists them. */
+function namesTheNodesOfTheTypeHold(nodes: readonly MockGraphNode[], nodeType: string, nameKey: string): string[] {
+  return nodes.flatMap((node) => {
+    const name = node.config[nameKey];
+    return node.type === nodeType && typeof name === "string" && name !== "" ? [name] : [];
+  });
+}
+
+/** `prefix` and the first number from 1 whose name, compared without case, no node of `nodeType` among `nodes` holds at `nameKey`. */
+function firstNameNoNodeOfTheTypeHolds(nodes: readonly MockGraphNode[], nodeType: string, nameKey: string, prefix: string): string {
+  const taken = new Set(namesTheNodesOfTheTypeHold(nodes, nodeType, nameKey).map((name) => name.toLowerCase()));
+  let number = 1;
+  while (taken.has(`${prefix}${number}`)) number += 1;
+  return `${prefix}${number}`;
+}
+
+/**
+ * `config` holding the name a node of `nodeType` added among `nodes` takes when `config` names none, as the runtime's
+ * `add_node` gives it: a `GraphInput` the next free `input1`, a `GraphOutput` the next free `output1`, a `SetVariable` the
+ * next free `var1`, and a `GetVariable` the variable of the level's last `SetVariable`.
+ */
+export function configHoldingTheDefaultNameOfAGraphPortOrVariable(nodeType: string, config: Record<string, JsonValue>, nodes: readonly MockGraphNode[]): Record<string, JsonValue> {
+  const defaultName = ((): { key: string; name: string } | null => {
+    switch (nodeType) {
+      case GRAPH_INPUT_NODE_TYPE:
+        return { key: "port", name: firstNameNoNodeOfTheTypeHolds(nodes, GRAPH_INPUT_NODE_TYPE, "port", "input") };
+      case GRAPH_OUTPUT_NODE_TYPE:
+        return { key: "port", name: firstNameNoNodeOfTheTypeHolds(nodes, GRAPH_OUTPUT_NODE_TYPE, "port", "output") };
+      case SET_VARIABLE_NODE_TYPE:
+        return { key: "variable", name: firstNameNoNodeOfTheTypeHolds(nodes, SET_VARIABLE_NODE_TYPE, "variable", "var") };
+      case GET_VARIABLE_NODE_TYPE: {
+        const variableOfTheLastSetter = namesTheNodesOfTheTypeHold(nodes, SET_VARIABLE_NODE_TYPE, "variable").at(-1);
+        return variableOfTheLastSetter === undefined ? null : { key: "variable", name: variableOfTheLastSetter };
+      }
+      default:
+        return null;
+    }
+  })();
+  if (defaultName === null) return config;
+  const named = config[defaultName.key];
+  return named === undefined || named === null || named === "" ? { ...config, [defaultName.key]: defaultName.name } : config;
+}
 
 /** The stream a project's Stream Fragment node places, by asset UUID, and the import it is a stream of, `null` for one of the project's own; `null` for any other node. */
 function streamTheNodePlaces(node: MockGraphNode): { asset: string; from: JsonValue | null } | null {
@@ -371,7 +416,7 @@ export function applyMockGraphTransaction(
           for (let suffix = 2; operation.name === undefined && takenNames.has(name); suffix += 1) name = `${shortName}-${suffix}`;
           if (takenNames.has(name)) throw refusedNaming(`node \`${name}\` in this graph already has that name`, { refused_node: operation.as ?? name });
           const portsOf = (ports: typeof catalogEntry.inputs) => ports.map((port) => ({ name: port.name, family: port.family, stream_facts: null, values_checked: port.family === "records" ? false : null }));
-          const config = structuredClone(operation.config ?? {});
+          const config = configHoldingTheDefaultNameOfAGraphPortOrVariable(operation.type, structuredClone(operation.config ?? {}), graph.nodes);
           const pins = structuredClone(operation.pins ?? {});
           const isAGraphInput = operation.type === GRAPH_INPUT_NODE_TYPE;
           const familyTheGraphInputDeclares = isAGraphInput ? config["family"] : undefined;
