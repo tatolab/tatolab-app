@@ -16,7 +16,7 @@ export function StudioTitleRowPlayerControl({ playbackControls, commands }: { pl
       isLive={playbackControls.is_live}
       onPressed={projectPlaybackCommandOf(lead.asked_for, commands)}
       menuLabel="Playback choices"
-      entries={projectPlaybackMenuEntries(playbackControls, true, commands)}
+      entries={projectPlaybackMenuEntries(playbackControls, commands)}
       data-studio-player-control={lead.asked_for}
       menuDataAttributes={{ "data-studio-player-control-menu": "" }}
     />

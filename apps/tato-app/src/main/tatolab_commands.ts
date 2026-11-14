@@ -352,7 +352,7 @@ export async function openTheProjectWhenTheRuntimeHoldsItClosed(
 /**
  * The playback of the project in `projectDirectory` started as the runtime last listed it, a failed stream of an open one first reloaded, which retries it and
  * keeps the playback: a closed project opened, then played; a paused one resumed; one with a running stream left as it plays once a reload retried its failed
- * stream, and otherwise handed to `start_playback`, which refuses it in its own words; a stopped one played.
+ * stream, and otherwise handed to `start_playback`, which refuses it in its own words; a stopped or preparing one handed to `start_playback`.
  */
 async function startThePlaybackOfTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<void, LocalApiRequestFailure>> {
   const { playback, a_stream_has_failed: aStreamHasFailed, a_stream_is_running: aStreamIsRunning } = projectPlaybackAsListed(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectDirectory);
@@ -368,10 +368,10 @@ async function startThePlaybackOfTheProject(sharedState: TatolabAppSharedState, 
     case "paused":
       return resultWithoutItsAnswer(await sharedState.controller.resumePlayback(projectDirectory));
     case "playing":
-    case "starting":
     case "stopping":
       return aStreamHasFailed && aStreamIsRunning ? succeeded(undefined) : resultWithoutItsAnswer(await sharedState.controller.startPlayback(projectDirectory));
     case "stopped":
+    case "preparing":
       return resultWithoutItsAnswer(await sharedState.controller.startPlayback(projectDirectory));
   }
 }

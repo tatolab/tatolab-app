@@ -16,7 +16,7 @@ export interface ProjectPlaybackControls {
   choices: readonly [ProjectPlaybackChoice, ProjectPlaybackChoice, ProjectPlaybackChoice];
   /** The choice the player control's button leads with: the next step from where the playback stands. */
   lead: ProjectPlaybackChoice;
-  /** Whether the project is live, playing, paused or starting, which the player control shows on the brand's ground. */
+  /** Whether the project is live, playing or paused, which the player control shows on the brand's ground. */
   is_live: boolean;
 }
 
@@ -29,10 +29,10 @@ export const ALREADY_PLAYING_REASON = "Already playing";
 export const ALREADY_PAUSED_REASON = "Already paused";
 /** Why Stop waits while the project is stopped. */
 export const ALREADY_STOPPED_REASON = "Already stopped";
-/** Why Pause and Stop wait while the project's streams are not loaded. */
+/** Why Pause waits while the project is not playing, and Stop while it is not loaded. */
 export const NOT_PLAYING_REASON = "The project isn't playing";
-/** Why Play and Pause wait while the runtime starts the project. */
-export const STARTING_REASON = "The project is starting";
+/** Why Play and Pause wait while the runtime opens, loads or starts the project. */
+export const PREPARING_REASON = "The project is preparing";
 /** Why every choice waits while the runtime stops the project. */
 export const STOPPING_REASON = "The project is stopping";
 
@@ -43,7 +43,7 @@ export function presentProjectPlaybackControls(reading: ProjectPlaybackReading):
     return { choices: [run, { asked_for: "pause", label: "Pause", unavailable_because: reading.because }, { asked_for: "stop", label: "Stop", unavailable_because: reading.because }], lead: run, is_live: false };
   }
   const { playback, a_stream_has_failed: aStreamHasFailed } = reading.listed;
-  const choicesWhileUnavailable = (
+  const projectPlaybackChoicesWithTheirReasons = (
     runBecause: string | null,
     pauseBecause: string | null,
     stopBecause: string | null,
@@ -55,27 +55,27 @@ export function presentProjectPlaybackControls(reading: ProjectPlaybackReading):
   ];
   switch (playback) {
     case "closed": {
-      const choices = choicesWhileUnavailable(null, NOT_PLAYING_REASON, NOT_PLAYING_REASON);
+      const choices = projectPlaybackChoicesWithTheirReasons(null, NOT_PLAYING_REASON, NOT_PLAYING_REASON);
       return { choices, lead: choices[0], is_live: false };
     }
     case "stopped": {
-      const choices = choicesWhileUnavailable(null, NOT_PLAYING_REASON, ALREADY_STOPPED_REASON);
+      const choices = projectPlaybackChoicesWithTheirReasons(null, NOT_PLAYING_REASON, ALREADY_STOPPED_REASON);
       return { choices, lead: choices[0], is_live: false };
     }
-    case "starting": {
-      const choices = choicesWhileUnavailable(STARTING_REASON, STARTING_REASON, null);
-      return { choices, lead: choices[2], is_live: true };
+    case "preparing": {
+      const choices = projectPlaybackChoicesWithTheirReasons(PREPARING_REASON, PREPARING_REASON, null);
+      return { choices, lead: choices[0], is_live: false };
     }
     case "playing": {
-      const choices = choicesWhileUnavailable(aStreamHasFailed ? null : ALREADY_PLAYING_REASON, null, null);
+      const choices = projectPlaybackChoicesWithTheirReasons(aStreamHasFailed ? null : ALREADY_PLAYING_REASON, null, null);
       return { choices, lead: choices[1], is_live: true };
     }
     case "paused": {
-      const choices = choicesWhileUnavailable(null, ALREADY_PAUSED_REASON, null, "Resume");
+      const choices = projectPlaybackChoicesWithTheirReasons(null, ALREADY_PAUSED_REASON, null, "Resume");
       return { choices, lead: choices[0], is_live: true };
     }
     case "stopping": {
-      const choices = choicesWhileUnavailable(STOPPING_REASON, STOPPING_REASON, STOPPING_REASON);
+      const choices = projectPlaybackChoicesWithTheirReasons(STOPPING_REASON, STOPPING_REASON, STOPPING_REASON);
       return { choices, lead: choices[2], is_live: false };
     }
   }

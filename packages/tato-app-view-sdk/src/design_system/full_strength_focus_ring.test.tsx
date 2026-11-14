@@ -6,6 +6,7 @@ import { ActionButton } from "./action_button";
 import { CopyIconButton } from "./copy_icon_button";
 import { ExpandingSearchField } from "./expanding_search_field";
 import { IconButton } from "./icon_button";
+import { StudioSplitMenuButton } from "./menu_bar";
 import { InlineLink } from "./inline_link";
 import { ModuleCard } from "./module_card";
 import { ModuleList, ModuleListRow } from "./module_list";
@@ -30,6 +31,7 @@ describe("every design-system control", () => {
         </ActionButton>
         <IconButton icon={Ban} label="Clear" onPressed={() => {}} />
         <ToggleIconButton icon={Ban} label="Wrap lines" isOn onToggled={() => {}} />
+        <StudioSplitMenuButton icon={Ban} label="Pause the project" unavailableBecause={null} isLive onPressed={() => {}} menuLabel="Playback choices" entries={[{ kind: "command", label: "Stop", onChosen: () => {} }]} />
         <CopyIconButton label="Copy as JSON" readTextToCopy={() => ""} />
         <SegmentedChoiceControl label="Levels shown" choices={[{ choice: "all", label: "All" }]} chosen="all" onChosen={() => {}} />
         <InlineLink destination={{ onPressed: () => {} }}>Open</InlineLink>

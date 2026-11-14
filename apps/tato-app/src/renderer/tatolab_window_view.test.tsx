@@ -856,6 +856,18 @@ describe("the studio", () => {
     expect(playerControl().closest("[data-studio-split-menu-button]")?.hasAttribute("data-live")).toBe(false);
   });
 
+  it("sends F5 and Shift F5 only while the playback offers the step each one takes", async () => {
+    const playTheProject = vi.fn(() => Promise.resolve());
+    const stopTheProject = vi.fn(() => Promise.resolve());
+    await mountedWindowOverTheMock("state=running", { runOpenProject: playTheProject, stopOpenProject: stopTheProject });
+    await waitFor(() => expect(document.querySelector<HTMLElement>("[data-studio-player-control]")?.dataset.studioPlayerControl).toBe("pause"));
+
+    fireEvent.keyDown(document, { key: "F5" });
+    expect(playTheProject).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: "F5", shiftKey: true });
+    expect(stopTheProject).toHaveBeenCalledOnce();
+  });
+
   it("hides the layout's left and right areas from the title row's buttons, reshapes it from the layout menu, and saves it as a preset", async () => {
     await mountedWindowOverTheMock("state=running");
     const edgeButton = (edge: string) => document.querySelector<HTMLElement>(`[data-studio-layout-edge="${edge}"]`) ?? expect.unreachable(`no ${edge} edge button`);

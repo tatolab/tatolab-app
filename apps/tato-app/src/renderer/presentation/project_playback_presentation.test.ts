@@ -6,7 +6,7 @@ import {
   ALREADY_STOPPED_REASON,
   NOT_PLAYING_REASON,
   presentProjectPlaybackControls,
-  STARTING_REASON,
+  PREPARING_REASON,
   STOPPING_REASON,
   type ProjectPlaybackControls,
 } from "./project_playback_presentation";
@@ -23,7 +23,7 @@ describe("the open project's playback controls", () => {
   it("offer only the steps the runtime's state allows, leading with the next one", () => {
     expect([offeredOf(controlsOf("closed")), controlsOf("closed").lead.label, controlsOf("closed").is_live]).toEqual([["Play"], "Play", false]);
     expect([offeredOf(controlsOf("stopped")), controlsOf("stopped").lead.label, controlsOf("stopped").is_live]).toEqual([["Play"], "Play", false]);
-    expect([offeredOf(controlsOf("starting")), controlsOf("starting").lead.label, controlsOf("starting").is_live]).toEqual([["Stop"], "Stop", true]);
+    expect([offeredOf(controlsOf("preparing")), controlsOf("preparing").lead.label, controlsOf("preparing").is_live]).toEqual([["Stop"], "Play", false]);
     expect([offeredOf(controlsOf("playing")), controlsOf("playing").lead.label, controlsOf("playing").is_live]).toEqual([["Pause", "Stop"], "Pause", true]);
     expect([offeredOf(controlsOf("paused")), controlsOf("paused").lead.label, controlsOf("paused").is_live]).toEqual([["Resume", "Stop"], "Resume", true]);
     expect([offeredOf(controlsOf("stopping")), controlsOf("stopping").lead.label, controlsOf("stopping").is_live]).toEqual([[], "Stop", false]);
@@ -33,7 +33,7 @@ describe("the open project's playback controls", () => {
     expect(controlsOf("stopped").choices.map((choice) => choice.unavailable_because)).toEqual([null, NOT_PLAYING_REASON, ALREADY_STOPPED_REASON]);
     expect(controlsOf("playing").choices[0].unavailable_because).toBe(ALREADY_PLAYING_REASON);
     expect(controlsOf("paused").choices[1].unavailable_because).toBe(ALREADY_PAUSED_REASON);
-    expect(controlsOf("starting").choices[0].unavailable_because).toBe(STARTING_REASON);
+    expect(controlsOf("preparing").choices[0].unavailable_because).toBe(PREPARING_REASON);
     expect(controlsOf("stopping").lead.unavailable_because).toBe(STOPPING_REASON);
   });
 

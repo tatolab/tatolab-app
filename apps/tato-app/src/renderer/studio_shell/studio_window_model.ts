@@ -5,6 +5,7 @@ import type { FailedProjectStreamAction, ListedStream, NewProjectDefaults, OpenP
 import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { RecentProjectChangeRefusal } from "../presentation/projects_presentation";
 import { projectPlaybackAsListed } from "../../shared/project_playback";
+import { NO_PROJECT_OPEN_REASON } from "./studio_menu_bar_model";
 import type { ProjectPlaybackAskedFor, ProjectPlaybackReading } from "../presentation/project_playback_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
@@ -39,8 +40,10 @@ export function listedStreamsReadingOf(status: TatolabStatus): ListedStreamsRead
   return { kind: "not_listed", because: runtimeStatus.banner?.title ?? runtimeStatus.shortLabel };
 }
 
-/** The playback of the project in `projectFolder` as the runtime lists its streams in `status`, or why it lists none now. */
-export function projectPlaybackReadingOf(status: TatolabStatus, projectFolder: string): ProjectPlaybackReading {
+/** The playback of the open project as the runtime lists its streams in `status`, or why it lists none now, or that no project is open. */
+export function projectPlaybackReadingOf(status: TatolabStatus, openProject: OpenProjectReading): ProjectPlaybackReading {
+  const projectFolder = openProjectFolderOf(openProject);
+  if (projectFolder === null) return { kind: "not_listed", because: NO_PROJECT_OPEN_REASON };
   const listedStreamsReading = listedStreamsReadingOf(status);
   return listedStreamsReading.kind === "listed" ? { kind: "listed", listed: projectPlaybackAsListed(listedStreamsReading.streams, projectFolder) } : { kind: "not_listed", because: listedStreamsReading.because };
 }

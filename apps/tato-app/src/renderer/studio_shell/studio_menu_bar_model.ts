@@ -121,11 +121,11 @@ export function projectPlaybackCommandOf(askedFor: ProjectPlaybackAskedFor, comm
 
 const PROJECT_PLAYBACK_SHORTCUT_HINTS: Readonly<Record<ProjectPlaybackAskedFor, string | undefined>> = { run: RUN_LIVE_KEY, pause: undefined, stop: STOP_KEY_HINT };
 
-/** Run's playback entries, the same in the Run menu and behind the title row's player control: each choice `playbackControls` offers, the rest dim with why, or all of them waiting while no project is open. */
-export function projectPlaybackMenuEntries(playbackControls: ProjectPlaybackControls, isAProjectOpen: boolean, commands: StudioMenuBarCommands): StudioMenuEntry[] {
+/** Run's playback entries, the same in the Run menu and behind the title row's player control: each choice `playbackControls` offers, the rest dim with why. */
+export function projectPlaybackMenuEntries(playbackControls: ProjectPlaybackControls, commands: StudioMenuBarCommands): StudioMenuEntry[] {
   return playbackControls.choices.map((choice: ProjectPlaybackChoice): StudioMenuEntry => {
     const shortcutHint = PROJECT_PLAYBACK_SHORTCUT_HINTS[choice.asked_for];
-    const unavailableBecause = isAProjectOpen ? choice.unavailable_because : NO_PROJECT_OPEN_REASON;
+    const unavailableBecause = choice.unavailable_because;
     if (unavailableBecause !== null) {
       return shortcutHint === undefined ? { kind: "unavailable_command", label: choice.label, unavailableBecause } : { kind: "unavailable_command", label: choice.label, shortcutHint, unavailableBecause };
     }
@@ -217,7 +217,7 @@ function studioMenuParts(
     },
     runMenu: {
       label: "Run",
-      entries: [...projectPlaybackMenuEntries(playbackControls, layout !== null, commands), laterCommand("Render to file…")],
+      entries: [...projectPlaybackMenuEntries(playbackControls, commands), laterCommand("Render to file…")],
     },
     windowEntries: [studioLayoutEntry, laterCommand("Maximise area"), laterCommand("New window")],
     aboutEntry: { kind: "command", label: "About Tato Studio", onChosen: commands.openAbout },

@@ -5,9 +5,9 @@ const STREAM_STATE_OF_A_CLOSED_PROJECT = "closed";
 
 /**
  * A project's playback as the runtime lists its streams: `closed` while none is loaded, `paused` while one is `paused`, `stopping` while one is `stopping`,
- * `starting` while one is `preparing`, `playing` while one is `running`, else `stopped`.
+ * `playing` while one is `running`, `preparing` while one is `preparing` under an action that opens, loads or starts the project, else `stopped`.
  */
-export type ProjectPlayback = "closed" | "stopped" | "starting" | "playing" | "paused" | "stopping";
+export type ProjectPlayback = "closed" | "stopped" | "preparing" | "playing" | "paused" | "stopping";
 
 /** A project's playback as the runtime lists its streams, whether one of them failed, and whether one of them runs. */
 export interface ProjectPlaybackAsListed {
@@ -34,8 +34,8 @@ function projectPlaybackOfTheStreams(streamsOfTheProject: readonly ListedStream[
   if (!theStreamsListTheProjectOpen(streamsOfTheProject)) return "closed";
   if (aStreamOfTheProjectIs(streamsOfTheProject, "paused")) return "paused";
   if (aStreamOfTheProjectIs(streamsOfTheProject, "stopping")) return "stopping";
-  if (aStreamOfTheProjectIs(streamsOfTheProject, "preparing")) return "starting";
   if (aStreamOfTheProjectIs(streamsOfTheProject, "running")) return "playing";
+  if (aStreamOfTheProjectIs(streamsOfTheProject, "preparing")) return "preparing";
   return "stopped";
 }
 

@@ -52,6 +52,8 @@ const UP_TO_DATE: TatolabAppUpdateState = { kind: "up_to_date" };
 
 const STOPPED_PROJECT: ProjectPlaybackControls = presentProjectPlaybackControls({ kind: "listed", listed: { playback: "stopped", a_stream_has_failed: false } });
 
+const NO_PROJECT_PLAYBACK: ProjectPlaybackControls = presentProjectPlaybackControls({ kind: "not_listed", because: NO_PROJECT_OPEN_REASON });
+
 function playbackOf(playback: ProjectPlayback, aStreamHasFailed = false): ProjectPlaybackControls {
   return presentProjectPlaybackControls({ kind: "listed", listed: { playback, a_stream_has_failed: aStreamHasFailed } });
 }
@@ -177,7 +179,7 @@ describe("the studio's Run menu", () => {
   });
 
   it("says why they wait while no project is open", () => {
-    const menus = studioMenuBarMenus("macos", null, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commandsCounted());
+    const menus = studioMenuBarMenus("macos", null, NO_STREAM_TABS, NO_PROJECT_PLAYBACK, UP_TO_DATE, commandsCounted());
     expect(entryOf(menus, "Run", "Play")).toEqual({ kind: "unavailable_command", label: "Play", shortcutHint: "F5", unavailableBecause: NO_PROJECT_OPEN_REASON });
   });
 });
@@ -242,7 +244,7 @@ describe("the studio's menus in macOS's system menu bar", () => {
 
   it("send each entry under the path of labels down to it, running its command when chosen there, and a dim one with why", () => {
     const commands = commandsCounted();
-    const { menus, onChosenByEntryId } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(null, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commands));
+    const { menus, onChosenByEntryId } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(null, NO_STREAM_TABS, NO_PROJECT_PLAYBACK, UP_TO_DATE, commands));
     onChosenByEntryId.get("File › Open project…")?.();
     onChosenByEntryId.get("Tato Studio › About Tato Studio")?.();
     onChosenByEntryId.get("Tato Studio › Check for Updates…")?.();

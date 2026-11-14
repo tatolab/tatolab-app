@@ -12,7 +12,7 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import { ToolbarDivider } from "@tatolab/tato-app-view-sdk/design_system/toolbar";
 import { WindowNotice } from "@tatolab/tato-app-view-sdk/design_system/window_notice";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
-import { presentProjectPlaybackControls, type ProjectPlaybackAskedFor, type ProjectPlaybackControls, type ProjectPlaybackReading } from "../presentation/project_playback_presentation";
+import { presentProjectPlaybackControls, type ProjectPlaybackAskedFor, type ProjectPlaybackControls } from "../presentation/project_playback_presentation";
 import { streamTabsDrawnInTheTitleRow } from "../presentation/stream_tabs_presentation";
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { presentProjectStreamActionFailureTitle, presentRecentProjectChangeRefusalTitle } from "../presentation/projects_presentation";
@@ -29,7 +29,7 @@ import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet
 import { StudioStatusBar } from "./studio_status_bar";
 import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
-import { NO_PROJECT_OPEN_REASON, studioMenuBarMenus, studioMenusInTheSystemMenuBar, type StreamTabsInTheMenus, type StudioLayoutInTheMenus, type StudioMenuBarCommands, type StudioMenuInTheSystemMenuBar } from "./studio_menu_bar_model";
+import { studioMenuBarMenus, studioMenusInTheSystemMenuBar, type StreamTabsInTheMenus, type StudioLayoutInTheMenus, type StudioMenuBarCommands, type StudioMenuInTheSystemMenuBar } from "./studio_menu_bar_model";
 import { NameFormDialog } from "./name_form_dialog_view";
 import { ProjectAssetPickerDialogView } from "./project_asset_picker_dialog_view";
 import { studioLayoutWithEdgesHidden } from "./studio_layout_shapes";
@@ -281,15 +281,14 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
     () => ({ shown_stream_display_name: shownStreamDisplayName, open_tab_count: openStreamTabCount, has_a_closed_tab_to_reopen: hasAClosedStreamTabToReopen }),
     [shownStreamDisplayName, openStreamTabCount, hasAClosedStreamTabToReopen],
   );
-  const openProjectFolder = openProjectFolderOf(openProject);
-  const playbackReading: ProjectPlaybackReading = openProjectFolder === null ? { kind: "not_listed", because: NO_PROJECT_OPEN_REASON } : projectPlaybackReadingOf(status, openProjectFolder);
+  const playbackReading = projectPlaybackReadingOf(status, openProject);
   const playbackListed = playbackReading.kind === "listed" ? playbackReading.listed.playback : null;
   const aStreamOfThePlaybackHasFailed = playbackReading.kind === "listed" && playbackReading.listed.a_stream_has_failed;
-  const playbackNotListedBecause = playbackReading.kind === "not_listed" ? playbackReading.because : null;
+  const playbackNotListedBecause = playbackReading.kind === "not_listed" ? playbackReading.because : "";
   const playbackControls = useMemo<ProjectPlaybackControls>(
     () =>
       presentProjectPlaybackControls(
-        playbackListed === null ? { kind: "not_listed", because: playbackNotListedBecause ?? NO_PROJECT_OPEN_REASON } : { kind: "listed", listed: { playback: playbackListed, a_stream_has_failed: aStreamOfThePlaybackHasFailed } },
+        playbackListed === null ? { kind: "not_listed", because: playbackNotListedBecause } : { kind: "listed", listed: { playback: playbackListed, a_stream_has_failed: aStreamOfThePlaybackHasFailed } },
       ),
     [playbackListed, aStreamOfThePlaybackHasFailed, playbackNotListedBecause],
   );
@@ -350,7 +349,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
           </main>
           <StudioStatusBar
             viewHostServices={sources.viewHostServices}
-            projectFolder={openProject.kind === "read" ? openProject.open_project.project.folder : openProject.kind === "unreadable" ? openProject.folder : null}
+            projectFolder={openProjectFolderOf(openProject)}
           />
         </>
       )}

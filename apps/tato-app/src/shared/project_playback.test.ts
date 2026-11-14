@@ -25,7 +25,8 @@ describe("a project's playback as the runtime lists its streams", () => {
     expect(playbackOf("closed", "closed")).toBe("closed");
     expect(playbackOf("stopped", "stopped")).toBe("stopped");
     expect(playbackOf("running", "stopped")).toBe("playing");
-    expect(playbackOf("running", "preparing")).toBe("starting");
+    expect(playbackOf("preparing", "stopped")).toBe("preparing");
+    expect(playbackOf("running", "preparing")).toBe("playing");
     expect(playbackOf("running", "stopping")).toBe("stopping");
     expect(playbackOf("paused", "running")).toBe("paused");
   });

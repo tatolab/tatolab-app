@@ -15,6 +15,16 @@ export const ICON_BUTTON_CLASS_NAMES = cn(
   FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
 );
 
+/** An icon button's ground: the window's own, or the brand's while what it controls is live, as the title row's player control while the project plays. */
+export type IconButtonGround = "window" | "brand";
+
+/** The brand's ground, its icon in the brand's foreground, kept through hover and an open menu. */
+export const ICON_BUTTON_BRAND_GROUND_CLASS_NAMES =
+  "bg-brand text-primary-foreground hover:bg-brand hover:text-primary-foreground dark:hover:bg-brand aria-expanded:bg-brand aria-expanded:text-primary-foreground data-popup-open:bg-brand data-popup-open:text-primary-foreground hover:data-popup-open:bg-brand hover:data-popup-open:text-primary-foreground";
+
+/** The dim look of an icon button that cannot act now. */
+const ICON_BUTTON_DISABLED_CLASS_NAMES = "text-fg-4 hover:bg-transparent hover:text-fg-4 hover:shadow-none dark:hover:bg-transparent hover:data-popup-open:bg-transparent hover:data-popup-open:text-fg-4";
+
 /** The stock icon size each of ours is. */
 export const STOCK_ICON_BUTTON_SIZE = { regular: "icon-sm", compact: "icon-xs" } as const;
 
@@ -26,6 +36,8 @@ export function IconButton({
   disabledReason = null,
   isIconFilled = false,
   size = "regular",
+  ground = "window",
+  isJoinedToAMenuOnItsRight = false,
   onPressed,
   ...controlDataAttributes
 }: {
@@ -39,6 +51,10 @@ export function IconButton({
   /** A play or stop square drawn filled and smaller, as media controls are. */
   isIconFilled?: boolean;
   size?: IconButtonSize;
+  /** A button on the brand's ground never reads dim, so it never takes a `disabledReason`. */
+  ground?: IconButtonGround;
+  /** Squares its right edge onto the chevron of a `StudioSplitMenuButton`. */
+  isJoinedToAMenuOnItsRight?: boolean;
   onPressed: () => void;
 } & ControlDataAttributes) {
   const isDisabled = disabledReason !== null;
@@ -55,7 +71,11 @@ export function IconButton({
           onClick={() => {
             if (!isDisabled) onPressed();
           }}
-          className={cn(ICON_BUTTON_CLASS_NAMES, isDisabled && "text-fg-4 hover:bg-transparent hover:text-fg-4 hover:shadow-none dark:hover:bg-transparent hover:data-popup-open:bg-transparent hover:data-popup-open:text-fg-4")}
+          className={cn(
+            ICON_BUTTON_CLASS_NAMES,
+            isJoinedToAMenuOnItsRight && "rounded-r-none",
+            ground === "brand" ? ICON_BUTTON_BRAND_GROUND_CLASS_NAMES : isDisabled && ICON_BUTTON_DISABLED_CLASS_NAMES,
+          )}
           {...controlDataAttributes}
         >
           <ButtonIcon className={isIconFilled ? "size-3 fill-current" : size === "compact" ? "size-3.5" : "size-4"} strokeWidth={1.75} aria-hidden />
