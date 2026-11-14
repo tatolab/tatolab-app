@@ -4,12 +4,15 @@ import {
   everyModuleCardRowOf,
   marketplaceRowsShownOf,
   moduleCardContentsWordsOf,
+  cardOffersAdd,
   moduleCardMarkOf,
   moduleCountsWordsOf,
   moduleContentsWordsOf,
   moduleCopyStateOf,
   moduleFolderNameOf,
   moduleRowAndItsNeighboursOf,
+  workByIdWithTheRowsMade,
+  workKeptForTheRow,
   moduleRowCountsOf,
   moduleSourceWordsOf,
   moduleViewsShownOf,
@@ -111,15 +114,47 @@ describe("what the Marketplace window lists", () => {
     expect(moduleRowAndItsNeighboursOf(rows, "gone")).toBeNull();
   });
 
+  it("keeps a module's work its own when the catalog is read after the project's modules, and a page open on it open", () => {
+    const [cameraBeforeTheCatalog] = everyModuleCardRowOf(null, MODULES);
+    const cameraOnceTheCatalogIsRead = everyModuleCardRowOf(CATALOG, MODULES).find((row) => row.row_id === "catalog:tatolab-camera");
+    if (cameraBeforeTheCatalog === undefined || cameraOnceTheCatalogIsRead === undefined) return expect.unreachable("no camera row");
+    expect(cameraBeforeTheCatalog.row_id).toBe("import:tatolab-camera");
+
+    const workById = workByIdWithTheRowsMade({}, cameraBeforeTheCatalog, "remove", "refused");
+    expect(workKeptForTheRow(workById, cameraOnceTheCatalogIsRead)).toBe("refused");
+    expect(workKeptForTheRow(workByIdWithTheRowsMade({}, cameraOnceTheCatalogIsRead, "update", "under way"), cameraBeforeTheCatalog)).toBe("under way");
+    expect(workByIdWithTheRowsMade<string>(workById, cameraOnceTheCatalogIsRead, "remove", null)).toEqual({});
+    expect(moduleRowAndItsNeighboursOf(everyModuleCardRowOf(CATALOG, MODULES), "import:tatolab-camera")?.row.row_id).toBe("catalog:tatolab-camera");
+  });
+
+  it("keeps one work for a row at a time, and the work of a module in a folder of a sample's name apart from the sample's", () => {
+    const rows = everyModuleCardRowOf(CATALOG, [aModule("camera-halftone", null), ...MODULES]);
+    const sample = rows.find((row) => row.row_id === "catalog:camera-halftone");
+    const moduleInAFolderOfItsName = rows.find((row) => row.row_id === "import:camera-halftone");
+    const camera = rows.find((row) => row.row_id === "catalog:tatolab-camera");
+    if (sample === undefined || moduleInAFolderOfItsName === undefined || camera === undefined) return expect.unreachable("a row is missing");
+
+    const removing = workByIdWithTheRowsMade({}, moduleInAFolderOfItsName, "remove", "removing");
+    expect(workKeptForTheRow(removing, sample)).toBeNull();
+    expect(workKeptForTheRow(workByIdWithTheRowsMade(removing, sample, "clone", "cloning"), moduleInAFolderOfItsName)).toBe("removing");
+
+    const addedThenUpdating = workByIdWithTheRowsMade(workByIdWithTheRowsMade({}, camera, "add", "just added"), camera, "update", "updating");
+    expect(Object.values(addedThenUpdating)).toEqual(["updating"]);
+    expect(workKeptForTheRow(workByIdWithTheRowsMade<string>(addedThenUpdating, camera, "update", null), camera)).toBeNull();
+  });
+
   it("marks a card whose module has an update as news, any other the project has as in the project, one it has not with nothing, and any card by the ask last refused of it", () => {
     const rowOf = (dependency: WorkspaceDependency) => everyModuleCardRowOf(null, [dependency])[0];
     const camera = aModule("tatolab-camera", null);
     const cardNotInTheProject = everyModuleCardRowOf(CATALOG, [])[0];
-    expect(moduleCardMarkOf(rowOf({ ...camera, newer_version_exists: true }), null)).toEqual({ words: "Update", tone: "news" });
-    expect(moduleCardMarkOf(rowOf({ ...camera, edited_files: ["nodes/x.py"] }), null)).toEqual({ words: "In project", tone: "quiet" });
-    expect(moduleCardMarkOf(cardNotInTheProject, null)).toBeNull();
-    expect(moduleCardMarkOf(cardNotInTheProject, "clone")).toEqual({ words: "Not cloned", tone: "refused" });
-    expect(moduleCardMarkOf(rowOf({ ...camera, newer_version_exists: true }), "remove")).toEqual({ words: "Not removed", tone: "refused" });
+    expect(moduleCardMarkOf(rowOf({ ...camera, newer_version_exists: true }), null, false)).toEqual({ words: "Update", tone: "news" });
+    expect(moduleCardMarkOf(rowOf({ ...camera, edited_files: ["nodes/x.py"] }), null, false)).toEqual({ words: "In project", tone: "quiet" });
+    expect(moduleCardMarkOf(cardNotInTheProject, null, false)).toBeNull();
+    expect(moduleCardMarkOf(cardNotInTheProject, null, true)).toEqual({ words: "In project", tone: "quiet" });
+    const [sampleCard, packageCard] = everyModuleCardRowOf(CATALOG, []);
+    expect([cardOffersAdd(packageCard, false), cardOffersAdd(packageCard, true), cardOffersAdd(sampleCard, false), cardOffersAdd(rowOf(camera), false)]).toEqual([true, false, false, false]);
+    expect(moduleCardMarkOf(cardNotInTheProject, "clone", false)).toEqual({ words: "Not cloned", tone: "refused" });
+    expect(moduleCardMarkOf(rowOf({ ...camera, newer_version_exists: true }), "remove", false)).toEqual({ words: "Not removed", tone: "refused" });
   });
 
   it("says what a Marketplace card holds, a sample's behind the words Sample project", () => {

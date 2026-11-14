@@ -30,6 +30,7 @@ import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_fie
 import { SegmentedChoiceControl } from "@tatolab/tato-app-view-sdk/design_system/segmented_choice_control";
 import { StatusChip } from "@tatolab/tato-app-view-sdk/design_system/status_chip";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
+import { isTheKeyboardsFocusOnNothing } from "@tatolab/tato-app-view-sdk/design_system/support/keyboards_focus";
 import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import {
@@ -39,6 +40,7 @@ import {
   MODULE_ASK_WORDS_ONCE_DONE,
   MODULE_ASK_WORDS_WHILE_UNDER_WAY,
   moduleCardContentsWordsOf,
+  cardOffersAdd,
   moduleCardMarkOf,
   moduleCountsWordsOf,
   type ModuleAsk,
@@ -47,6 +49,8 @@ import {
   moduleContentsWordsOf,
   moduleCopyStateOf,
   moduleRowAndItsNeighboursOf,
+  workByIdWithTheRowsMade,
+  workKeptForTheRow,
   moduleRowCountsOf,
   moduleSourceWordsOf,
   moduleViewsShownOf,
@@ -518,12 +522,6 @@ function isPressedOnTheModulePageOrNothing(keyTarget: EventTarget | null): boole
   return !(keyTarget instanceof HTMLElement) || keyTarget === document.body || keyTarget.closest(MODULE_PAGE_SELECTOR) !== null;
 }
 
-/** Whether no element the window shows holds the keyboard's focus, as after the focused one left the page. */
-function isTheKeyboardsFocusOnNothing(): boolean {
-  const focusedElement = document.activeElement;
-  return focusedElement === null || focusedElement === document.body || !focusedElement.isConnected;
-}
-
 const MODULE_PAGE_SELECTOR = "[data-module-manager-detail]";
 
 /**
@@ -598,22 +596,19 @@ export function ModuleManagerWindowView({
   const pageOpen = rowIdOfThePageOpen === null ? null : moduleRowAndItsNeighboursOf(rowsOfTheTabShown, rowIdOfThePageOpen);
   const projectName = workspace.kind === "read" ? workspace.open_project.project.name : workspace.kind === "unreadable" ? workspace.folder : "";
 
-  const setTheWorkOf = (rowId: string, work: ModuleWork | null) => {
-    if (!isTheWindowStillShown.current) return;
-    setModuleWorkByRowId((workByRowId) => {
-      const { [rowId]: _replaced, ...workOfEveryOtherRow } = workByRowId;
-      return work === null ? workOfEveryOtherRow : { ...workOfEveryOtherRow, [rowId]: work };
-    });
+  const setTheWorkOf = (row: ModuleCardRow, ask: ModuleAsk, work: ModuleWork | null) => {
+    if (isTheWindowStillShown.current) setModuleWorkByRowId((workByRowId) => workByIdWithTheRowsMade(workByRowId, row, ask, work));
   };
+  const workOf = (row: ModuleCardRow) => workKeptForTheRow(moduleWorkByRowId, row);
   const askOfTheModule = <Answer,>(row: ModuleCardRow, ask: ModuleAsk, wordsWhileItRuns: string, work: () => Promise<Answer>, workOnceAnswered: (answer: Answer) => ModuleWork | null) => {
-    if (moduleWorkByRowId[row.row_id]?.kind === "under_way") return;
-    setTheWorkOf(row.row_id, { kind: "under_way", ask, words: wordsWhileItRuns });
+    if (workOf(row)?.kind === "under_way") return;
+    setTheWorkOf(row, ask, { kind: "under_way", ask, words: wordsWhileItRuns });
     work().then(
       (answer) => {
-        setTheWorkOf(row.row_id, workOnceAnswered(answer));
+        setTheWorkOf(row, ask, workOnceAnswered(answer));
         void listTheModulesOfTheProject();
       },
-      (rejection: unknown) => setTheWorkOf(row.row_id, { kind: "refused", ask, because: sources.describeRejection(rejection) }),
+      (rejection: unknown) => setTheWorkOf(row, ask, { kind: "refused", ask, because: sources.describeRejection(rejection) }),
     );
   };
   const updateTheModule = (row: ModuleCardRow, overwriteEditedFiles: boolean) => {
@@ -637,7 +632,7 @@ export function ModuleManagerWindowView({
     update: (row) => updateTheModule(row, false),
     askBeforeRemoving: setRowWaitingOnItsRemoval,
     showTheClonedProject: (row, folder) => {
-      const showTheOutcome = (refusedBecause: string | null) => setTheWorkOf(row.row_id, { kind: "just_cloned", folder, showing_it_was_refused_because: refusedBecause });
+      const showTheOutcome = (refusedBecause: string | null) => setTheWorkOf(row, "clone", { kind: "just_cloned", folder, showing_it_was_refused_because: refusedBecause });
       sources.showTheClonedProject(folder).then(
         () => showTheOutcome(null),
         (rejection: unknown) => showTheOutcome(sources.describeRejection(rejection)),
@@ -724,8 +719,20 @@ export function ModuleManagerWindowView({
       windowElement.current?.querySelector<HTMLElement>(`[data-module-manager-row="${CSS.escape(rowIdOfThePageLeft)}"] :is([data-module-card-open], [data-module-list-row-open])`)?.focus();
     }
   }, [rowIdOfThePageShown]);
+  const kindOfTheWorkOnThePageShown = pageOpen === null ? null : (workOf(pageOpen.row)?.kind ?? "none");
+  useEffect(() => {
+    if (kindOfTheWorkOnThePageShown !== null && isTheKeyboardsFocusOnNothing()) windowElement.current?.querySelector<HTMLElement>("[data-module-manager-back]")?.focus();
+  }, [kindOfTheWorkOnThePageShown]);
 
   const isADialogOpen = updateWaitingOnTheOverwrite !== null || rowWaitingOnItsRemoval !== null;
+  const countOfTheProjectsModules = rowCounts.project.all;
+  const countOfTheProjectsModulesShownLast = useRef(countOfTheProjectsModules);
+  useEffect(() => {
+    const isAModuleGone = countOfTheProjectsModules < countOfTheProjectsModulesShownLast.current;
+    countOfTheProjectsModulesShownLast.current = countOfTheProjectsModules;
+    const isTheFocusOnNothingTheWindowKeeps = isTheKeyboardsFocusOnNothing() || windowElement.current?.contains(document.activeElement) === false;
+    if (isAModuleGone && !isADialogOpen && isTheFocusOnNothingTheWindowKeeps) windowElement.current?.querySelector<HTMLElement>(`[data-module-manager-show="${modulesShown}"]`)?.focus();
+  }, [countOfTheProjectsModules, modulesShown, isADialogOpen]);
   useEffect(() => {
     const onKeyDown = (keyEvent: KeyboardEvent) => {
       if (isADialogOpen || keyEvent.metaKey || keyEvent.ctrlKey || keyEvent.altKey) return;
@@ -759,19 +766,18 @@ export function ModuleManagerWindowView({
     return (
       <CardGrid size="page" label="Packages and samples" data-module-manager-cards="">
         {marketplaceRows.map((row) => {
-          const work = moduleWorkByRowId[row.row_id] ?? null;
-          const entry = row.catalog_entry;
-          const isAPackageToAdd = entry?.kind === "package" && entry.download !== null && row.module_of_the_project === null && work?.kind !== "just_added";
+          const work = workOf(row);
+          const wasJustAdded = work?.kind === "just_added";
           return (
             <ModuleCard
               key={row.row_id}
               title={row.title}
               summary={row.summary}
               contentsWords={moduleCardContentsWordsOf(row)}
-              mark={work?.kind === "just_added" ? { words: "In project", tone: "quiet" } : moduleCardMarkOf(row, work?.kind === "refused" ? work.ask : null)}
+              mark={moduleCardMarkOf(row, work?.kind === "refused" ? work.ask : null, wasJustAdded)}
               pendingWords={work?.kind === "under_way" ? MODULE_ASK_WORDS_WHILE_UNDER_WAY[work.ask] : null}
               hoverAction={
-                isAPackageToAdd ? (
+                cardOffersAdd(row, wasJustAdded) ? (
                   <ActionButton size="small" appearance="primary" icon={Download} label={`Add ${row.title} to ${projectName}`} onPressed={() => asks.add(row)} data-module-manager-add-from-card={row.row_id}>
                     Add
                   </ActionButton>
@@ -798,7 +804,7 @@ export function ModuleManagerWindowView({
       <ModuleList label={`Modules in ${projectName}`}>
         {projectRows.map((row) =>
           row.module_of_the_project === null ? null : (
-            <ProjectModuleListRow key={row.row_id} row={row} dependency={row.module_of_the_project} work={moduleWorkByRowId[row.row_id] ?? null} asks={asks} onOpened={() => setRowIdOfThePageOpen(row.row_id)} />
+            <ProjectModuleListRow key={row.row_id} row={row} dependency={row.module_of_the_project} work={workOf(row)} asks={asks} onOpened={() => setRowIdOfThePageOpen(row.row_id)} />
           ),
         )}
       </ModuleList>
@@ -806,7 +812,7 @@ export function ModuleManagerWindowView({
   })();
 
   const workUnderWay = everyRow.flatMap((row) => {
-    const work = moduleWorkByRowId[row.row_id];
+    const work = workOf(row);
     return work?.kind === "under_way" ? [work.words] : [];
   });
   const everyWorkUnderWay = [...workUnderWay, ...(sourceBeingAdded === null ? [] : [`Adding ${sourceBeingAdded} to ${projectName}…`]), ...(isCheckingForUpdates ? ["Checking where each module was copied from…"] : [])];
@@ -876,7 +882,7 @@ export function ModuleManagerWindowView({
           previousRowId={pageOpen.previousRowId}
           nextRowId={pageOpen.nextRowId}
           cameFromWords={modulesShown === "marketplace" ? "Marketplace" : projectName}
-          work={moduleWorkByRowId[pageOpen.row.row_id] ?? null}
+          work={workOf(pageOpen.row)}
           projectName={projectName}
           asks={asks}
           onBack={() => setRowIdOfThePageOpen(null)}

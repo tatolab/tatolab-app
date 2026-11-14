@@ -1,6 +1,7 @@
 // What the Marketplace window lists: the catalog's packages and samples in its order, each package saying
 // whether the project has it, then the project's modules the catalog does not list.
 
+import type { ModuleCardMark } from "@tatolab/tato-app-view-sdk/design_system/module_card";
 import { isAMarketplaceDownloadOf } from "../../shared/marketplace_module_download_file";
 import type { PackageCatalogEntry, PackageCatalogMember, PackageCatalogReading, ViewsOfAWorkspaceDependency, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
 import { manifestOfAListedView, titleTheManifestNames } from "../view_host/studio_view_type_registry";
@@ -132,9 +133,15 @@ export function moduleRowCountsOf(everyRow: readonly ModuleCardRow[]): { marketp
   };
 }
 
-/** The row `rowId` names among `rows`, where it stands among them counted from 1, and the rows before and after it; `null` when none of them is it. */
+/** Every id the row goes by, its own first: a module of the project the catalog lists also goes by its folder's, its id while the catalog is not read. */
+export function everyIdTheRowGoesBy(row: ModuleCardRow): string[] {
+  const idByItsFolder = row.module_of_the_project === null ? row.row_id : rowIdOfTheUnlistedModuleIn(row.module_of_the_project.folder);
+  return idByItsFolder === row.row_id ? [row.row_id] : [row.row_id, idByItsFolder];
+}
+
+/** The row `rowId` names among `rows` by any id it goes by, where it stands among them counted from 1, and the rows before and after it; `null` when none of them is it. */
 export function moduleRowAndItsNeighboursOf(rows: readonly ModuleCardRow[], rowId: string): { row: ModuleCardRow; position: number; previousRowId: string | null; nextRowId: string | null } | null {
-  const index = rows.findIndex((row) => row.row_id === rowId);
+  const index = rows.findIndex((row) => everyIdTheRowGoesBy(row).includes(rowId));
   const row = rows[index];
   if (row === undefined) return null;
   return { row, position: index + 1, previousRowId: rows[index - 1]?.row_id ?? null, nextRowId: rows[index + 1]?.row_id ?? null };
@@ -146,25 +153,47 @@ export const MODULE_ASKS = ["add", "clone", "update", "remove"] as const;
 /** One thing asked of a module. */
 export type ModuleAsk = (typeof MODULE_ASKS)[number];
 
+function idTheWorkOfTheAskIsKeptUnder(row: ModuleCardRow, ask: ModuleAsk): string {
+  const dependency = row.module_of_the_project;
+  return dependency !== null && (ask === "update" || ask === "remove") ? rowIdOfTheUnlistedModuleIn(dependency.folder) : row.row_id;
+}
+
+/**
+ * `workById` with the row's work made `work` for `ask`, or none for `null`. What is asked of the project's module is kept under its folder's id
+ * and what is asked of the catalog's entry under the entry's, so the work stays the row's when the catalog is read after the project's modules.
+ */
+export function workByIdWithTheRowsMade<Work>(workById: Readonly<Record<string, Work>>, row: ModuleCardRow, ask: ModuleAsk, work: Work | null): Record<string, Work> {
+  const idsOfTheRow = everyIdTheRowGoesBy(row);
+  const workOfEveryOtherRow = Object.fromEntries(Object.entries(workById).filter(([rowId]) => !idsOfTheRow.includes(rowId)));
+  return work === null ? workOfEveryOtherRow : { ...workOfEveryOtherRow, [idTheWorkOfTheAskIsKeptUnder(row, ask)]: work };
+}
+
+/** The work kept for the row under any id it goes by; `null` for none. */
+export function workKeptForTheRow<Work>(workById: Readonly<Record<string, Work>>, row: ModuleCardRow): Work | null {
+  for (const rowId of everyIdTheRowGoesBy(row)) {
+    const work = workById[rowId];
+    if (work !== undefined) return work;
+  }
+  return null;
+}
+
 /** Each ask as a refusal names what did not happen, as "Camera was not added". */
 export const MODULE_ASK_WORDS_ONCE_DONE: Record<ModuleAsk, string> = { add: "added", clone: "cloned", update: "updated", remove: "removed" };
 
 /** Each ask as a card says it while it runs. */
 export const MODULE_ASK_WORDS_WHILE_UNDER_WAY: Record<ModuleAsk, string> = { add: "Adding…", clone: "Cloning…", update: "Updating…", remove: "Removing…" };
 
-/** What a card or a list row says in its corner, and how loudly: news that asks for a look, a quiet fact, or something refused. */
-export interface ModuleRowMark {
-  words: string;
-  tone: "news" | "quiet" | "refused";
-}
-
-/** What a card says in its corner: the ask last refused of it, else an update at the source the project's module was copied from, else that the project has it; `null` for none of these. */
-export function moduleCardMarkOf(row: ModuleCardRow, askLastRefused: ModuleAsk | null): ModuleRowMark | null {
+/** What a card says in its corner: the ask last refused of it, else an update at the source the project's module was copied from, else that the project has it, as it does once an add of it ended; `null` for none of these. */
+export function moduleCardMarkOf(row: ModuleCardRow, askLastRefused: ModuleAsk | null, wasJustAdded: boolean): ModuleCardMark | null {
   if (askLastRefused !== null) return { words: `Not ${MODULE_ASK_WORDS_ONCE_DONE[askLastRefused]}`, tone: "refused" };
   const dependency = row.module_of_the_project;
-  if (dependency === null) return null;
-  if (dependency.newer_version_exists === true) return { words: "Update", tone: "news" };
-  return { words: "In project", tone: "quiet" };
+  if (dependency?.newer_version_exists === true) return { words: "Update", tone: "news" };
+  return dependency !== null || wasJustAdded ? { words: "In project", tone: "quiet" } : null;
+}
+
+/** Whether a card offers Add: a package the catalog gives a download for, which the project does not have and an add has not just brought. */
+export function cardOffersAdd(row: ModuleCardRow, wasJustAdded: boolean): boolean {
+  return row.catalog_entry?.kind === "package" && row.catalog_entry.download !== null && row.module_of_the_project === null && !wasJustAdded;
 }
 
 function countedWords(count: number, one: string): string {

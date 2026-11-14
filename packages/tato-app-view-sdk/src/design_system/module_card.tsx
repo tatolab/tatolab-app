@@ -1,16 +1,17 @@
 import { cn } from "cn";
 import { ArrowUp, Check, TriangleAlert } from "lucide-react";
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { IndeterminateProgressBar } from "./progress_meter";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
+import { isTheKeyboardsFocusOnNothing } from "./support/keyboards_focus";
 
 /** How big a module's cover is drawn: on a card of the storefront, across a module's own page, or as a list row's thumbnail. */
 export type ModuleCoverSize = "card" | "page" | "thumbnail";
 
 const MODULE_COVER_SIZE_CLASS_NAMES: Record<ModuleCoverSize, string> = {
   card: "h-36 w-full gap-3 rounded-t-xl p-4 text-3xl leading-8 bg-[size:24px_24px]",
-  page: "aspect-[11/5] w-full gap-5 rounded-xl border border-line p-10 text-[64px] leading-[64px] bg-[size:32px_32px]",
+  page: "aspect-[11/5] w-full gap-5 rounded-xl border border-line p-10 text-[64px] leading-16 bg-[size:32px_32px]",
   thumbnail: "h-11 w-20 shrink-0 gap-1 rounded-md border border-line p-1.5 text-2xs leading-3 bg-[size:10px_10px]",
 };
 
@@ -60,7 +61,8 @@ const MODULE_CARD_HOVER_ACTION_CLASS_NAMES = "absolute top-2.5 right-2.5 opacity
 /**
  * One module or sample in the storefront's grid: its cover, its name, a line on what it does, what it holds and a mark such as whether the project
  * has it. Pressing it opens it. `hoverAction`, such as Add, shows over the cover's corner while the pointer is over the card or the keyboard's focus
- * is in it, and takes no room, so the card never changes size; `pendingWords` takes its place while work on the module runs.
+ * is in it, and takes no room, so the card never changes size; `pendingWords` takes its place while work on the module runs, and the
+ * keyboard's focus moves from the action to the card.
  */
 export function ModuleCard({
   title,
@@ -83,13 +85,20 @@ export function ModuleCard({
   hoverAction: ReactNode | null;
   onOpened: () => void;
 } & ControlDataAttributes) {
+  const openButtonElement = useRef<HTMLButtonElement>(null);
+  const hasTheHoverActionHeldTheFocus = useRef(false);
+  const isPending = pendingWords !== null;
+  useLayoutEffect(() => {
+    if (isPending && hasTheHoverActionHeldTheFocus.current && isTheKeyboardsFocusOnNothing()) openButtonElement.current?.focus();
+    hasTheHoverActionHeldTheFocus.current = false;
+  }, [isPending]);
   return (
     <div
       className="group/module relative flex min-w-0 flex-col rounded-xl border border-line bg-raised hover:border-line-strong"
       aria-busy={pendingWords !== null}
       {...controlDataAttributes}
     >
-      <button type="button" onClick={onOpened} className={cn("flex min-w-0 flex-1 flex-col rounded-xl text-left outline-none", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)} data-module-card-open="">
+      <button ref={openButtonElement} type="button" onClick={onOpened} className={cn("flex min-w-0 flex-1 flex-col rounded-xl text-left outline-none", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)} data-module-card-open="">
         <span className="relative block">
           <ModuleCover title={title} size="card" />
           {pendingWords !== null && <IndeterminateProgressBar className="absolute right-0 bottom-0 left-0" />}
@@ -108,7 +117,19 @@ export function ModuleCard({
           {pendingWords}
         </span>
       ) : (
-        hoverAction !== null && <span className={MODULE_CARD_HOVER_ACTION_CLASS_NAMES}>{hoverAction}</span>
+        hoverAction !== null && (
+          <span
+            className={MODULE_CARD_HOVER_ACTION_CLASS_NAMES}
+            onFocus={() => {
+              hasTheHoverActionHeldTheFocus.current = true;
+            }}
+            onBlur={(blurEvent) => {
+              if (blurEvent.relatedTarget !== null) hasTheHoverActionHeldTheFocus.current = false;
+            }}
+          >
+            {hoverAction}
+          </span>
+        )
       )}
     </div>
   );

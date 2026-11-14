@@ -2248,6 +2248,27 @@ describe("Module manager", () => {
     expect(textOf('[data-module-manager-refusal="import:lobby-wall"]')).toContain("reference it; remove them first");
   });
 
+  it("keeps a module's refusal under its row when the catalog is read after the project's modules", async () => {
+    const backendOverTheMock = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&module_manager=open&module_remove=refused")));
+    let serveTheCatalog: () => void = () => undefined;
+    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project&module_remove=refused", {
+      listWorkspaceDependencies: async (checkForNewer) => (await backendOverTheMock.listWorkspaceDependencies(checkForNewer)).map((dependency) => ({ ...dependency, folder: "tatolab-camera", name: "Tatolab_Camera" })),
+      readPackageCatalog: () =>
+        new Promise((resolve) => {
+          serveTheCatalog = () => void backendOverTheMock.readPackageCatalog().then(resolve);
+        }),
+    });
+    await shown('[data-module-manager-row="import:tatolab-camera"]');
+    pressed('[data-module-manager-remove="tatolab-camera"]');
+    pressed(await waitFor(() => (document.querySelector("[data-module-manager-confirm-remove]") === null ? expect.unreachable("no Remove") : "[data-module-manager-confirm-remove]")));
+    await shown('[data-module-manager-refusal="import:tatolab-camera"]');
+
+    await act(async () => serveTheCatalog());
+
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+    expect(textOf('[data-module-manager-refusal="catalog:tatolab-camera"]')).toContain("remove_dependency failed: the project still uses the import");
+  });
+
   it("puts the keyboard's focus on Back when a module's page opens, and back on its card when the page closes", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open");
     await shown('[data-module-manager-row="catalog:tatolab-camera"]');
@@ -2259,6 +2280,32 @@ describe("Module manager", () => {
     fireEvent.keyDown(document.querySelector("[data-module-manager-back]") ?? expect.unreachable("no Back"), { key: "Escape" });
     await waitFor(() => expect(document.querySelector("[data-module-manager-detail]")).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(document.querySelector('[data-module-manager-row="catalog:tatolab-camera"] [data-module-card-open]')));
+  });
+
+  it("keeps the keyboard's focus in the window when the control it was on goes: on the card or Back after Add, on the tab after a removal", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open");
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+    const focusedAndPressed = (selector: string) => {
+      const control = document.querySelector<HTMLElement>(selector) ?? expect.unreachable(`no ${selector}`);
+      act(() => control.focus());
+      fireEvent.click(control);
+    };
+
+    focusedAndPressed('[data-module-manager-add-from-card="catalog:tatolab-camera"]');
+    await waitFor(() => expect(document.activeElement).toBe(document.querySelector('[data-module-manager-row="catalog:tatolab-camera"] [data-module-card-open]')));
+
+    openThePageOf("catalog:tatolab-microphone");
+    focusedAndPressed(await waitFor(() => (document.querySelector("[data-module-manager-import]") === null ? expect.unreachable("no Add") : "[data-module-manager-import]")));
+    await shown('[data-module-manager-added="catalog:tatolab-microphone"]');
+    expect(document.activeElement).toBe(document.querySelector("[data-module-manager-back]"));
+
+    pressed("[data-module-manager-back]");
+    pressed('[data-module-manager-show="added_to_this_project"]');
+    await shown('[data-module-manager-row="import:lobby-wall"]');
+    focusedAndPressed('[data-module-manager-remove="lobby-wall"]');
+    pressed(await waitFor(() => (document.querySelector("[data-module-manager-confirm-remove]") === null ? expect.unreachable("no Remove") : "[data-module-manager-confirm-remove]")));
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="import:lobby-wall"]')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(document.querySelector('[data-module-manager-show="added_to_this_project"]')));
   });
 
   it("leaves the tabs their own arrow keys while a module's page is open", async () => {
