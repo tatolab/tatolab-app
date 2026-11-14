@@ -1003,7 +1003,14 @@ export function ModuleManagerWindowView({
               <ActionButton className="ml-auto" hasFocusOnOpen onPressed={() => setUpdateWaitingOnTheOverwrite(null)} data-module-manager-keep-my-edits="">
                 Keep my edits
               </ActionButton>
-              <ActionButton appearance="destructive" onPressed={() => updateTheModule(updateWaitingOnTheOverwrite.row, true)} data-module-manager-overwrite="">
+              <ActionButton
+                appearance="destructive"
+                onPressed={() => {
+                  setUpdateWaitingOnTheOverwrite(null);
+                  updateTheModule(updateWaitingOnTheOverwrite.row, true);
+                }}
+                data-module-manager-overwrite=""
+              >
                 Overwrite
               </ActionButton>
             </FormDialogFooter>

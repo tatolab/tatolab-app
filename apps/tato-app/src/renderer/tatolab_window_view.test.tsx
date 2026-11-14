@@ -2029,6 +2029,23 @@ describe("Module manager", () => {
     await waitFor(async () => expect(await editedFilesOfTheModule()).toEqual([]));
   });
 
+  it("closes the overwrite question when the runtime refuses the Overwrite, and says the refusal in its own words under the row", async () => {
+    const backendOverTheMock = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&module_manager=edited_files&module_manager_section=added_to_this_project")));
+    await mountedWindowOverTheMock("state=running&module_manager=edited_files&module_manager_section=added_to_this_project", {
+      listWorkspaceDependencies: (checkForNewer) => backendOverTheMock.listWorkspaceDependencies(checkForNewer),
+      updateWorkspaceDependency: (project, overwriteEditedFiles) =>
+        overwriteEditedFiles ? Promise.reject("update_dependency failed: /Users/jonathanf/streams/lobby-wall could not be read") : backendOverTheMock.updateWorkspaceDependency(project, overwriteEditedFiles),
+    });
+    await shown('[data-module-manager-row="import:lobby-wall"]');
+    pressed("[data-module-manager-check-for-updates]");
+    await waitFor(() => expect(textOf('[data-module-manager-status="lobby-wall"]')).toContain("Update available"));
+
+    await chosenFromTheActionsOf("lobby-wall", "update");
+    pressed(await waitFor(() => (document.querySelector("[data-module-manager-overwrite]") === null ? expect.unreachable("no Overwrite") : "[data-module-manager-overwrite]")));
+    await waitFor(() => expect(textOf('[data-module-manager-refusal="import:lobby-wall"]')).toContain("update_dependency failed: /Users/jonathanf/streams/lobby-wall could not be read"));
+    expect(document.querySelector("[data-module-manager-overwrite-dialog]")).toBeNull();
+  });
+
   it("says Update available in a module's Status once checked, greys Update in its ⋯ menu until then with why, and Update takes it", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=newer&module_manager_section=added_to_this_project");
     await shown('[data-module-manager-row="import:lobby-wall"]');
