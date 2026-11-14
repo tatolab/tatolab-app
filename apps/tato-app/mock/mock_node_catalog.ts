@@ -125,7 +125,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "nodes.brightness_meter:BrightnessMeter",
     description: "Measures each frame's mean brightness",
-    category: "nodes.brightness_meter",
+    category: null,
     config_schema: THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG,
     inputs: [port("video_from_upstream", "", "image")],
     outputs: [port("brightness", "Each frame's mean brightness", "records"), port("luma_points", "A sample of the frame's pixels as points", "array")],
