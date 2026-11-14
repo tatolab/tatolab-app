@@ -69,10 +69,9 @@ only finds the newer version, and opens its download in the browser when the per
 since apt alone replaces it. The feed's manifests are
 `app/latest-mac.yml` and `app/latest-linux.yml`, which point at `app/releases/<version>/`.
 
-The runtime and the `tatolab` CLI come from [tatolab/streamlib](https://github.com/tatolab/streamlib)
-(GPL-3.0-only). This repository is AGPL-3.0-only, or under a commercial licence from the copyright holder (see
-`LICENSE`); contributors sign the [Tatolab Contributor License Agreement](https://github.com/tatolab/tatolab-cla/blob/main/CLA.md)
-once, when the CLA Assistant bot asks on their first pull request. It holds the app itself, the packaging
+The runtime and the `tatolab` CLI come from [tatolab/streamlib](https://github.com/tatolab/streamlib).
+Contributors sign the [Tatolab Contributor License Agreement](https://github.com/tatolab/tatolab-cla/blob/main/CLA.md)
+once, when the CLA Assistant bot asks on their first pull request. This repository holds the app itself, the packaging
 that wraps streamlib's runtime unit into a signed, notarized `.app` and `.dmg`, and into the Linux
 `.deb` and AppImage.
 
