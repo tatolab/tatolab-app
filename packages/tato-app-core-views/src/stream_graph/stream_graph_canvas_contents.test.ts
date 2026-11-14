@@ -7,6 +7,7 @@ function graphNode(name: string, inputs: string[], outputs: string[]): StreamGra
     id: name.toUpperCase(),
     name,
     type: `nodes.${name}:Effect`,
+    kind: "process",
     state: "Running",
     failed_because: null,
     process_raising_because: null,

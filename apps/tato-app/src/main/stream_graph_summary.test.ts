@@ -26,7 +26,7 @@ function node(
   nodeId = "",
   config: StreamGraphNode["config"] = {},
 ): StreamGraphNode {
-  return { id: nodeId, name, type: nodeType, state, failed_because: null, process_raising_because: null, config, ...ports, ...counters, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
+  return { id: nodeId, name, type: nodeType, kind: null, state, failed_because: null, process_raising_because: null, config, ...ports, ...counters, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
 }
 
 function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
@@ -95,6 +95,20 @@ test("a_port_the_runtime_lists_without_a_name_refuses_the_graph_and_a_catalog_en
   const withoutASection = graphWith([{ name: "out", catalog_entry: { entry: {} } }]);
   expect(withoutASection.ok && withoutASection.value.nodes[0]?.output_ports).toEqual(portsStatingNoStreamFacts("out"));
   expect(graphWith([{ description: "no name" }]).ok).toBe(false);
+});
+
+test("a_node_reads_how_its_code_runs_from_its_kind_and_null_where_the_runtime_renders_none_or_one_this_window_does_not_know", async () => {
+  const recorded = streamGraphSummaryFromTheGraphToolResult("s06-perform-main-0df4a7", await recordedGraphToolResultText("local-api-graph-tool-result-of-s06-perform-declaring-graph-inputs.json"));
+  expect(recorded.ok && recorded.value.nodes.map((graphNode) => [graphNode.name, graphNode.kind])).toEqual([
+    ["testpatternsource", "process"],
+    ["graphinput", null],
+    ["multiply", "function"],
+    ["graphinput-2", null],
+  ]);
+
+  const graph = { nodes: [{ name: "glow", kind: "shader" }, { name: "unregistered" }, { name: "from-later", kind: "agent" }] };
+  const summary = streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify(graph));
+  expect(summary.ok && summary.value.nodes.map((graphNode) => graphNode.kind)).toEqual(["shader", null, null]);
 });
 
 test("a_count_the_runtime_did_not_write_as_a_number_is_left_out", () => {

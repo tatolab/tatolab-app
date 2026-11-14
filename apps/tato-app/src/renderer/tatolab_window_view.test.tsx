@@ -202,9 +202,10 @@ describe("the studio", () => {
       `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" })}`,
     ]);
     expect(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).getAttribute("aria-level")).toBe("1");
-    expect(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).textContent).toBe("main");
+    expect(coreViewPage("outliner").querySelector("[data-outliner] [data-tree-column-headings]")?.textContent).toBe("LabelType");
+    expect(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).textContent).toBe("mainstream");
     expect(outlinerRow(mainNodeRowId("testpatternsource")).getAttribute("aria-level")).toBe("2");
-    expect(outlinerRow(mainNodeRowId("testpatternsource")).textContent).toBe("Test Pattern SourceTestPatternSource");
+    expect(outlinerRow(mainNodeRowId("testpatternsource")).textContent).toBe("Test Pattern Sourceprocess");
     expect(coreViewPage("outliner").body.textContent).not.toContain("pattern-two pattern");
 
     fireEvent.click(outlinerRow(mainNodeRowId("invertingeffect")));
@@ -645,7 +646,7 @@ describe("the studio", () => {
     fireEvent.keyDown(newStreamName, { key: "Enter" });
     await waitFor(() => expect(document.querySelector("[data-name-form-dialog]")).toBeNull());
     await waitFor(() => expect(streamTabNames()).toEqual(["main", "Lobby preview"]));
-    await waitFor(() => expect(coreViewPage("outliner").querySelector("[data-tree-row-current]")?.textContent).toBe("Lobby preview"));
+    await waitFor(() => expect(coreViewPage("outliner").querySelector("[data-tree-row-current]")?.textContent).toBe("Lobby previewstream"));
 
     await chooseFromTheMenuBar("Stream", /^Rename stream…/);
     const newName = await waitFor(() => document.querySelector<HTMLInputElement>("[data-name-form-dialog=\"rename_stream\"] [data-naming-dialog-name]") ?? expect.unreachable("no Rename stream dialog"));
@@ -1099,7 +1100,7 @@ describe("the studio", () => {
     await waitFor(() => expect(rowLabels().some((label) => label?.startsWith("Brightness Meter"))).toBe(true));
     const search = outliner().querySelector<HTMLInputElement>("[data-outliner-search]") ?? expect.unreachable("no search field in the Outliner's toolbar");
     fireEvent.change(search, { target: { value: "bright" } });
-    await waitFor(() => expect(rowLabels().slice(0, 2).map((label) => label?.replace(/BrightnessMeter$/, ""))).toEqual(["main", "Brightness Meter"]));
+    await waitFor(() => expect(rowLabels().slice(0, 2)).toEqual(["mainstream", "Brightness Meterprocess"]));
     expect(rowLabels().some((label) => label?.startsWith("Test Pattern Source"))).toBe(false);
     expect(outliner().querySelector("[data-matched-words]")?.textContent).toBe("Bright");
     fireEvent.change(search, { target: { value: "nothing-is-called-this" } });

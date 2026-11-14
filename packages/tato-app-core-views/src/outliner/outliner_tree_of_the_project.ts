@@ -3,9 +3,9 @@
 // them as their `studio.group`.
 
 import type { TreeRowPick, TreeViewRow } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
-import type { ListedStream, ListedStreamsReading, OpenProject, StreamGraphAction, StreamGraphNode, StreamGraphReading, StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { ListedStream, ListedStreamsReading, OpenProject, StreamGraphAction, StreamGraphNode, StreamGraphNodeKind, StreamGraphReading, StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { shownStudioTreeRows, studioTreeNodesMatching, type StudioTreeNode } from "../shared/node_type_listing_tree";
-import { nodeTitle, nodeTypeClassName } from "../shared/node_words";
+import { nodeTitle } from "../shared/node_words";
 import { editedStreamGraphOf, selectionFramedEdits } from "../shared/stream_graph_edits";
 import { streamPreparingWords } from "../shared/stream_preparing_words";
 import { nodesTheSelectionHolds, nodesTheSelectionHoldsInTheStream, selectionOfTheNodes } from "../shared/nodes_of_the_selection";
@@ -99,6 +99,19 @@ export function groupOfTheSelectedNodes(selection: StudioSelection | null, strea
   return actions.length === 0 ? { kind: "cannot_group", because: "The selected nodes aren't in the stream's graph." } : { kind: "groups", actions };
 }
 
+/** The outliner's Type column for a node of `kind`: how its code runs, a subgraph for a generator's stored output, and plain `node` where the runtime names no kind. */
+const OUTLINER_TYPE_OF_THE_NODE_KIND: Record<StreamGraphNodeKind, string> = {
+  shader: "shader",
+  function: "function",
+  process: "process",
+  fragment: "subgraph",
+};
+
+/** What the outliner's Type column says for `node`. */
+export function outlinerTypeOfTheNode(node: StreamGraphNode): string {
+  return node.kind === null ? "node" : OUTLINER_TYPE_OF_THE_NODE_KIND[node.kind];
+}
+
 function leafNode(row: OutlinerTreeNode["row"]): OutlinerTreeNode {
   return { row, meaning: { kind: "nothing_to_select" }, isOpenByDefault: false, children: [] };
 }
@@ -110,7 +123,7 @@ function graphNodeRow(stream: ListedStream, projectName: string, node: StreamGra
       label: nodeTitle(node.name, node.type),
       icon: node.failed_because === null && node.process_raising_because === null ? "graph_node" : "failed",
       tone: node.failed_because === null && node.process_raising_because === null ? undefined : "failed",
-      aside: nodeTypeClassName(node.type),
+      aside: outlinerTypeOfTheNode(node),
     },
     meaning: { kind: "node", stream: stream.stream, node: node.name, display_name: stream.display_name, project_name: projectName },
     isOpenByDefault: false,
@@ -176,6 +189,7 @@ function projectStreamNodes(project: OpenProject, listedStreams: ListedStreamsRe
             icon: stream.state === "failed" ? "failed" : "stream",
             tone: stream.state === "failed" ? "failed" : undefined,
             isCurrent: stream.stream === openStream,
+            aside: "stream",
           },
           meaning: { kind: "stream", stream: stream.stream, display_name: stream.display_name, project_name: openProject.name, project_folder: openProject.folder },
           isOpenByDefault: stream.stream === openStream,

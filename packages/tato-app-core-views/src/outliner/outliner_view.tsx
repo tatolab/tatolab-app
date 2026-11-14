@@ -25,6 +25,7 @@ import {
 } from "./outliner_tree_of_the_project";
 
 const NO_STREAMS_LISTED: readonly string[] = [];
+const OUTLINER_COLUMN_HEADINGS = { label: "Label", aside: "Type" };
 const NO_ROWS_SELECTED = { picked_last: null, all: new Set<string>() };
 
 /** The latest graph of each stream of `streams`, by stream id, watched for as long as the stream is among them. */
@@ -129,6 +130,7 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
         ) : (
           <TreeView
             label="Outliner"
+            columnHeadings={OUTLINER_COLUMN_HEADINGS}
             rows={outlinerRows.map((outlinerRow) => outlinerRow.row)}
             selectedRowId={rowsOfTheSelection.picked_last}
             alsoSelectedRowIds={rowsOfTheSelection.all}

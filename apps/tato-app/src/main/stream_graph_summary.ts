@@ -11,6 +11,7 @@ import type {
   StreamGraphFragmentKind,
   StreamGraphGroup,
   StreamGraphInterfacePort,
+  StreamGraphNodeKind,
   StreamGraphNodeStudioFields,
   StreamGraphNote,
   StudioCanvasPair,
@@ -18,6 +19,7 @@ import type {
   StreamGraphNode,
   StreamGraphSummary,
 } from "../shared/tatolab_backend_contract.js";
+import { streamGraphNodeKindSchema } from "../shared/tatolab_backend_contract.js";
 import {
   arrayOrEmpty,
   everyOneRead,
@@ -182,6 +184,12 @@ function exposedConfigFieldsOnTheWire(exposedConfigFields: unknown): string[] {
   return Array.isArray(exposedConfigFields) ? exposedConfigFields.filter((field): field is string => typeof field === "string") : [];
 }
 
+/** The node's `kind`, one the runtime renders on every node whose type it registers; `null` where it renders none or one this window does not know. */
+function streamGraphNodeKindOnTheWire(kindOnTheWire: unknown): StreamGraphNodeKind | null {
+  const kind = streamGraphNodeKindSchema.safeParse(kindOnTheWire);
+  return kind.success ? kind.data : null;
+}
+
 function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNode, string> {
   const node = jsonObject(nodeOnTheWire, "a node");
   if (!node.ok) return node;
@@ -213,6 +221,7 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
     id: nodeId.value,
     name: name.value,
     type: nodeType.value,
+    kind: streamGraphNodeKindOnTheWire(node.value["kind"]),
     state: typeof state === "string" ? state : null,
     failed_because: typeof failedBecause === "string" ? failedBecause : null,
     process_raising_because: typeof processRaisingBecause === "string" ? processRaisingBecause : null,
