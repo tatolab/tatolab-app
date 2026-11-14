@@ -1192,19 +1192,22 @@ test("a_real_node_type_listing_reads_the_projects_node_types_generator_unreadabl
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-node-types-tool-result-of-a-project-with-a-module-that-does-not-parse.json")),
   ]);
 
-  const listing = answerOf(await server.client().listProjectNodeTypes("/private/tmp/tatolab-proof-185/node-type-proof"));
+  const listing = answerOf(await server.client().listProjectNodeTypes("/private/tmp/tatolab-proof-projects/node-type-proof"));
 
   expect(listing.project_name).toBe("node-type-proof");
   expect(listing.sources.map((source) => source.origin)).toEqual([
     { source: "project" },
-    { source: "installed_distribution", distribution: "tatolab-testpattern", distribution_version: "0.68.41" },
+    { source: "dependency", project: "ba5fc2b1-df25-4e86-bec3-aba1564d6233", folder: "core-nodes", version: "0.68.82", project_name: "Core Nodes" },
+    { source: "installed_distribution", distribution: "tatolab-compositor", distribution_version: "0.68.82" },
+    { source: "installed_distribution", distribution: "tatolab-stream", distribution_version: "0.68.82" },
+    { source: "installed_distribution", distribution: "tatolab-testpattern", distribution_version: "0.68.82" },
   ]);
-  const [projectSource, testPatternSource] = listing.sources;
+  const [projectSource, , , , testPatternSource] = listing.sources;
   expect(projectSource?.node_types.map((nodeType) => [nodeType.type, nodeType.kind, nodeType.category])).toEqual([
-    ["nodes.brightness_meter:BrightnessMeter", "process", "nodes.brightness_meter"],
+    ["nodes.brightness_meter:BrightnessMeter", "process", null],
     ["nodes.edge_mask:EdgeMask", "process", "Masks"],
-    ["nodes.gain:scale_by_gain", "function", "nodes.gain"],
-    ["nodes.halftone_lens_effect:HalftoneLensEffect", "process", "nodes.halftone_lens_effect"],
+    ["nodes.gain:scale_by_gain", "function", null],
+    ["nodes.halftone_lens_effect:HalftoneLensEffect", "process", null],
   ]);
   expect(projectSource?.node_types[1]?.outputs).toEqual([{ name: "mask_out", family: "image", description: "The edge mask.", annotation: null }]);
   expect(projectSource?.node_types[2]?.inputs?.[1]).toEqual({ name: "gain", family: "channels", description: "", annotation: "float" });
@@ -1234,8 +1237,12 @@ test("a_real_node_type_listing_of_a_project_with_imports_lists_each_import_by_it
 
   expect(listing.sources.map((source) => [source.origin, source.node_types.length])).toEqual([
     [{ source: "project" }, 2],
-    [{ source: "dependency", project: "27f7b9b7-9a4d-463c-9b72-10bbf0c3c3e1", folder: "doorways", version: "a1202f3410913185a5866e8bbe3423c6b860f9c339164d8f3e78c267562f93c3" }, 2],
-    [{ source: "dependency", project: "dde5a62f-b0a8-45d2-a741-79140871f978", folder: "lobby-wall", version: "27ac758d40fe967b15e1f8c9722755d82d4e093ed69e4617e22c674fbb66dfff" }, 2],
+    [{ source: "dependency", project: "27f7b9b7-9a4d-463c-9b72-10bbf0c3c3e1", folder: "doorways", version: "4c3ae2870d8408c96345817f9dd86c190d3cc1f0313079d56915d54b59dd5223", project_name: "doorways" }, 2],
+    [{ source: "dependency", project: "dde5a62f-b0a8-45d2-a741-79140871f978", folder: "lobby-wall", version: "b542d38ff3bc8901f8495be6d5ca434a24bc93a7174837b5c0e0e22a7c81c9d0", project_name: "lobby-wall" }, 2],
+    [{ source: "dependency", project: "ba5fc2b1-df25-4e86-bec3-aba1564d6233", folder: "core-nodes", version: "0.68.82", project_name: "Core Nodes" }, 74],
+    [{ source: "installed_distribution", distribution: "tatolab-compositor", distribution_version: "0.68.82" }, 1],
+    [{ source: "installed_distribution", distribution: "tatolab-stream", distribution_version: "0.68.82" }, 1],
+    [{ source: "installed_distribution", distribution: "tatolab-testpattern", distribution_version: "0.68.82" }, 1],
   ]);
 });
 

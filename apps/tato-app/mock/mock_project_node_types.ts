@@ -82,7 +82,7 @@ function patternProjectSource(isEveryModuleUnreadable: boolean): ProjectNodeType
 }
 
 const LIGHTING_RIG_DEPENDENCY: ProjectNodeTypeSource = {
-  origin: { source: "dependency", project: "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11", folder: "hall-of-light", version: "9f2c4e1a7b3d5f60c8e2a4b6d8f0a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5" },
+  origin: { source: "dependency", project: "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11", folder: "hall-of-light", version: "9f2c4e1a7b3d5f60c8e2a4b6d8f0a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5", project_name: "Hall of Light" },
   node_types: [
     {
       type: "nodes.gripper:Gripper",
@@ -129,7 +129,7 @@ export const MOCK_LOBBY_RECORDER_IMPORT_PROJECT = "8e1f4c37-0d2a-4b96-b5c8-7f3e2
 export const MOCK_IMPORT_VERSION = "9f2c4e1a7b3d5f60c8e2a4b6d8f0a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5";
 
 const importedProjectSource = (project: string, folder: string, nodeTypes: ProjectNodeType[]): ProjectNodeTypeSource => ({
-  origin: { source: "dependency", project, folder, version: MOCK_IMPORT_VERSION },
+  origin: { source: "dependency", project, folder, version: MOCK_IMPORT_VERSION, project_name: folder },
   node_types: nodeTypes,
   graph_generators: [],
   unreadable_modules: [],
