@@ -5,8 +5,6 @@
       "Bash(gh pr *)",
       "Bash(gh run *)",
       "Bash(git fetch *)",
-      "Bash(git worktree add *)",
-      "Bash(git worktree list)",
       "Bash(npm test)",
       "Bash(npm run build)",
       "Bash(apps/tato-app/scripts/check-*)",
@@ -44,17 +42,6 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/machine-brake.sh"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/worktree-gc.sh"
           }
         ]
       }
