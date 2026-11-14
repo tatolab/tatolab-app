@@ -1,5 +1,5 @@
 // A project's imports as the runtime's dependency tools answer them: `add_dependency` the import it
-// copied, `update_dependency` the copy it committed or the files edited since the last one, and
+// copied, `remove_dependency` the import it took out, `update_dependency` the copy it committed or the files edited since the last one, and
 // `list_dependencies` each import with the files of its folder edited since its copy and, with
 // `check_for_newer`, whether its source holds another version. Every other key is ignored.
 
@@ -16,13 +16,22 @@ export interface ListedProjectDependency {
   check_refused_because: string | null;
 }
 
-/** The import `add_dependency` answered with `operationResult`, or why it could not be read. */
-export function projectDependencyFromTheAddDependencyToolResult(operationResult: unknown): Result<ProjectDependency, string> {
+function projectDependencyUnderTheToolResult(toolName: string, operationResult: unknown): Result<ProjectDependency, string> {
   const dependency = withTheToolResultObject(operationResult, (toolResult) => {
     const dependencyOnTheWire = jsonObject(toolResult["dependency"], "the dependency");
     return dependencyOnTheWire.ok ? projectDependencyOnTheWire(dependencyOnTheWire.value) : dependencyOnTheWire;
   });
-  return dependency.ok ? dependency : failedWith(`the runtime's add_dependency result could not be read: ${dependency.failure}`);
+  return dependency.ok ? dependency : failedWith(`the runtime's ${toolName} result could not be read: ${dependency.failure}`);
+}
+
+/** The import `add_dependency` answered with `operationResult`, or why it could not be read. */
+export function projectDependencyFromTheAddDependencyToolResult(operationResult: unknown): Result<ProjectDependency, string> {
+  return projectDependencyUnderTheToolResult("add_dependency", operationResult);
+}
+
+/** The import `remove_dependency` answered it took out with `operationResult`, or why it could not be read. */
+export function projectDependencyFromTheRemoveDependencyToolResult(operationResult: unknown): Result<ProjectDependency, string> {
+  return projectDependencyUnderTheToolResult("remove_dependency", operationResult);
 }
 
 /** What `update_dependency` answered with `operationResult`: the copy it committed, or the files it waits on the overwrite of; or why it could not be read. */

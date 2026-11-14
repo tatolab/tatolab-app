@@ -449,6 +449,11 @@ export class TatolabAppController {
     return this.localApiClient.updateDependency(projectDirectory, project, overwriteEditedFiles);
   }
 
+  /** Take the import `project` out of the project in `projectDirectory`. */
+  removeDependency(projectDirectory: string, project: string): Promise<Result<ProjectDependency, LocalApiRequestFailure>> {
+    return this.localApiClient.removeDependency(projectDirectory, project);
+  }
+
   /** Each import of the project in `projectDirectory`, each source read for a newer version with `checkForNewer`. */
   listDependencies(projectDirectory: string, checkForNewer: boolean): Promise<Result<ListedProjectDependency[], LocalApiRequestFailure>> {
     return this.localApiClient.listDependencies(projectDirectory, checkForNewer);

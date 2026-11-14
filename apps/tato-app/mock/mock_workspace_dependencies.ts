@@ -106,8 +106,12 @@ export class MockWorkspaceDependencies {
     return { kind: "updated", dependency: { project: dependency.project, folder: dependency.folder, source: dependency.source, version: dependency.version } };
   }
 
-  /** Whether `folder` holds one of the imports. */
-  holdsTheFolder(folder: string): boolean {
-    return this.dependencies.some((dependency) => dependency.folder === folder);
+  /** The import `project` taken out, refused in the runtime's words where the project imports none. */
+  remove(project: string): ProjectDependency {
+    const index = this.dependencies.findIndex((listed) => listed.project === project);
+    const dependency = this.dependencies[index];
+    if (dependency === undefined) throw `remove_dependency failed: the project imports no project ${project}`;
+    this.dependencies.splice(index, 1);
+    return { project: dependency.project, folder: dependency.folder, source: dependency.source, version: dependency.version };
   }
 }

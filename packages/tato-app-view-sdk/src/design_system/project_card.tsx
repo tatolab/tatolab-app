@@ -70,23 +70,6 @@ function ProjectCover({ coverNumber, coverInitial, coverImageUrl, size }: { cove
   );
 }
 
-/** How big a plain cover drawn outside the Projects window is: a module card's band, or a details panel's picture. */
-type PlainCoverSize = "band" | "picture";
-
-const PLAIN_COVER_SIZE_CLASS_NAMES: Record<PlainCoverSize, string> = {
-  band: "h-20 w-full shrink-0 rounded-lg text-2xl",
-  picture: "h-36 w-full shrink-0 rounded-xl text-4xl",
-};
-
-/** A plain cover: a ground in the colour picked from a name, with the name's initial on it. */
-export function PlainCover({ coverNumber, coverInitial, size }: { coverNumber: ProjectCoverNumber; coverInitial: string; size: PlainCoverSize }) {
-  return (
-    <span aria-hidden className={cn("flex items-center justify-center overflow-hidden border border-line font-semibold select-none", PROJECT_COVER_CLASS_NAMES[coverNumber], PLAIN_COVER_SIZE_CLASS_NAMES[size])}>
-      {coverInitial}
-    </span>
-  );
-}
-
 /** A project's name, marked when the runtime names no project in its folder now. */
 function ProjectName({ name, isUnreadable, className }: { name: string; isUnreadable: boolean; className: string }) {
   return (

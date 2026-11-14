@@ -2,19 +2,17 @@ import { describe, expect, it } from "vitest";
 import type { PackageCatalogReading, ViewOfAWorkspaceDependency, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
 import {
   everyModuleCardRowOf,
-  moduleCardCountsOf,
+  marketplaceRowsShownOf,
   moduleCardMarkOf,
-  moduleCardRowPickedBy,
-  moduleCardRowsShownOf,
+  moduleContentsWordsOf,
+  moduleCopyStateOf,
   moduleFolderNameOf,
+  moduleRowAndItsNeighboursOf,
+  moduleRowCountsOf,
+  moduleSourceWordsOf,
   moduleViewsShownOf,
-  shortVersionOf,
+  projectModuleRowsShownOf,
 } from "./module_manager_listing";
-import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
-
-function moduleCardRowsOf(catalog: PackageCatalogReading | null, dependencies: readonly WorkspaceDependency[], modulesShown: ModulesShown, searchText: string) {
-  return moduleCardRowsShownOf(everyModuleCardRowOf(catalog, dependencies), modulesShown, searchText);
-}
 
 const DOWNLOAD = { url: "https://get.tatolab.com/modules/x.zip", sha256: "4f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f70" };
 
@@ -45,61 +43,94 @@ function aModule(folder: string, name: string | null): WorkspaceDependency {
 
 const MODULES = [aModule("tatolab-camera", "Tatolab_Camera"), aModule("lobby-wall", null)];
 
-describe("what the Modules and Marketplace window lists", () => {
-  it("lists the catalog's entries in its order, each saying whether the project has added it, then the project's modules the catalog does not list", () => {
-    expect(everyModuleCardRowOf(CATALOG, MODULES).map((row) => [row.row_id, row.title, row.module_of_the_project?.folder ?? null])).toEqual([
-      ["camera-halftone", "Camera halftone", null],
-      ["tatolab-camera", "Camera", "tatolab-camera"],
-      ["tatolab-opus", "Opus", null],
-      ["lobby-wall", "lobby-wall", "lobby-wall"],
+describe("what the Marketplace window lists", () => {
+  const idsOf = (rows: readonly { row_id: string }[]) => rows.map((row) => row.row_id);
+
+  it("lists the catalog's entries in its order, each package saying whether the project has it, then the project's modules the catalog does not list", () => {
+    expect(everyModuleCardRowOf(CATALOG, MODULES).map((row) => [row.row_id, row.title, row.summary, row.module_of_the_project?.folder ?? null])).toEqual([
+      ["camera-halftone", "Camera halftone", "A halftone camera.", null],
+      ["tatolab-camera", "Camera", "Captures frames.", "tatolab-camera"],
+      ["tatolab-opus", "Opus", "Encodes audio.", null],
+      ["lobby-wall", "lobby-wall", "", "lobby-wall"],
     ]);
-    expect(everyModuleCardRowOf(CATALOG, MODULES).at(-1)?.summary).toBe("Copied from /shows/lobby-wall");
   });
 
-  it("shows the project's modules in Modules, the catalog's packages and samples in the Marketplace, and counts each", () => {
-    expect(moduleCardRowsOf(CATALOG, MODULES, "added_to_this_project", "").map((row) => row.row_id)).toEqual(["tatolab-camera", "lobby-wall"]);
-    expect(moduleCardRowsOf(CATALOG, MODULES, "marketplace", "").map((row) => row.row_id)).toEqual(["camera-halftone", "tatolab-camera", "tatolab-opus"]);
-    expect(moduleCardCountsOf(everyModuleCardRowOf(CATALOG, MODULES))).toEqual({ added_to_this_project: 2, marketplace: 3 });
+  it("shows the catalog's entries by kind in the Marketplace, the project's modules by filter in its tab, and counts each", () => {
+    const edited = { ...aModule("lobby-wall", null), edited_files: ["nodes/x.py"] };
+    const withAnUpdate = { ...aModule("tatolab-camera", "Tatolab_Camera"), newer_version_exists: true };
+    const everyRow = everyModuleCardRowOf(CATALOG, [withAnUpdate, edited]);
+    expect(idsOf(marketplaceRowsShownOf(everyRow, "all", ""))).toEqual(["camera-halftone", "tatolab-camera", "tatolab-opus"]);
+    expect(idsOf(marketplaceRowsShownOf(everyRow, "package", ""))).toEqual(["tatolab-camera", "tatolab-opus"]);
+    expect(idsOf(marketplaceRowsShownOf(everyRow, "sample", ""))).toEqual(["camera-halftone"]);
+    expect(idsOf(projectModuleRowsShownOf(everyRow, "all", ""))).toEqual(["tatolab-camera", "lobby-wall"]);
+    expect(idsOf(projectModuleRowsShownOf(everyRow, "updates", ""))).toEqual(["tatolab-camera"]);
+    expect(idsOf(projectModuleRowsShownOf(everyRow, "edited", ""))).toEqual(["lobby-wall"]);
+    expect(moduleRowCountsOf(everyRow)).toEqual({ marketplace: { all: 3, package: 2, sample: 1 }, project: { all: 2, updates: 1, edited: 1 } });
   });
 
   it("narrows to a search by a node's or stream's name, or a module's folder or source", () => {
-    expect(moduleCardRowsOf(CATALOG, [], "marketplace", "opusencoder").map((row) => row.row_id)).toEqual(["tatolab-opus"]);
-    expect(moduleCardRowsOf(CATALOG, [], "marketplace", "main").map((row) => row.row_id)).toEqual(["camera-halftone"]);
-    expect(moduleCardRowsOf(CATALOG, MODULES, "added_to_this_project", "LOBBY").map((row) => row.row_id)).toEqual(["lobby-wall"]);
+    expect(idsOf(marketplaceRowsShownOf(everyModuleCardRowOf(CATALOG, []), "all", "opusencoder"))).toEqual(["tatolab-opus"]);
+    expect(idsOf(marketplaceRowsShownOf(everyModuleCardRowOf(CATALOG, []), "all", "main"))).toEqual(["camera-halftone"]);
+    expect(idsOf(projectModuleRowsShownOf(everyModuleCardRowOf(CATALOG, MODULES), "all", "LOBBY"))).toEqual(["lobby-wall"]);
   });
 
   it("gives each of the project's modules to one catalog entry only, the first that names its folder", () => {
     const entryNamingTheSameFolder = { ...CATALOG.entries[1], name: "tatolab_camera", title: "Camera (again)" };
     const catalogNamingAFolderTwice: PackageCatalogReading = { ...CATALOG, entries: [...CATALOG.entries, entryNamingTheSameFolder] };
-    expect(moduleCardRowsOf(catalogNamingAFolderTwice, MODULES, "added_to_this_project", "").map((row) => row.row_id)).toEqual(["tatolab-camera", "lobby-wall"]);
-  });
-
-  it("does not match a module the catalog does not list by the words of its summary", () => {
-    expect(moduleCardRowsOf(CATALOG, MODULES, "added_to_this_project", "copied")).toEqual([]);
+    expect(idsOf(projectModuleRowsShownOf(everyModuleCardRowOf(catalogNamingAFolderTwice, MODULES), "all", ""))).toEqual(["tatolab-camera", "lobby-wall"]);
   });
 
   it("lists the project's modules alone from a catalog not read", () => {
-    expect(moduleCardRowsOf({ kind: "not_read", because: "HTTP 404" }, MODULES, "added_to_this_project", "").map((row) => [row.row_id, row.title])).toEqual([
+    expect(projectModuleRowsShownOf(everyModuleCardRowOf({ kind: "not_read", because: "HTTP 404" }, MODULES), "all", "").map((row) => [row.row_id, row.title])).toEqual([
       ["tatolab-camera", "Tatolab_Camera"],
       ["lobby-wall", "lobby-wall"],
     ]);
-    expect(moduleCardRowsOf(null, [], "marketplace", "")).toEqual([]);
+    expect(marketplaceRowsShownOf(everyModuleCardRowOf(null, []), "all", "")).toEqual([]);
   });
 
-  it("picks a card by its own id before another card's module folder of the same name", () => {
-    const rows = everyModuleCardRowOf(CATALOG, [aModule("camera-halftone-copy", "tatolab-camera"), aModule("tatolab-opus-2", null)]);
-    expect(moduleCardRowPickedBy(rows, "tatolab-camera")?.row_id).toBe("tatolab-camera");
-    expect(moduleCardRowPickedBy(rows, "camera-halftone-copy")?.row_id).toBe("tatolab-camera");
-    expect(moduleCardRowPickedBy(rows, "gone")).toBeNull();
+  it("never gives a module of the project to a sample, which is cloned into a project of its own", () => {
+    const downloadedFromTheSample = { ...aModule("camera-halftone", "Camera halftone"), source: "/home/jo/.config/Tato Studio/module-downloads/camera-halftone-0.68.29.zip" };
+    const rows = everyModuleCardRowOf(CATALOG, [downloadedFromTheSample]);
+    expect(rows.map((row) => [row.row_id, row.catalog_entry?.kind ?? null, row.module_of_the_project?.folder ?? null])).toEqual([
+      ["camera-halftone", "sample", null],
+      ["tatolab-camera", "package", null],
+      ["tatolab-opus", "package", null],
+      ["camera-halftone", null, "camera-halftone"],
+    ]);
   });
 
-  it("marks a card with a newer version as news, one with edited files as edited, and any other added one as added", () => {
+  it("finds a row among those shown with where it stands and the rows either side of it", () => {
+    const rows = marketplaceRowsShownOf(everyModuleCardRowOf(CATALOG, []), "all", "");
+    expect(moduleRowAndItsNeighboursOf(rows, "camera-halftone")).toMatchObject({ position: 1, previousRowId: null, nextRowId: "tatolab-camera" });
+    expect(moduleRowAndItsNeighboursOf(rows, "tatolab-opus")).toMatchObject({ position: 3, previousRowId: "tatolab-camera", nextRowId: null });
+    expect(moduleRowAndItsNeighboursOf(rows, "gone")).toBeNull();
+  });
+
+  it("marks a card whose module has an update as news, any other the project has as in the project, and one it has not with nothing", () => {
     const rowOf = (dependency: WorkspaceDependency) => everyModuleCardRowOf(null, [dependency])[0];
     const camera = aModule("tatolab-camera", null);
-    expect(moduleCardMarkOf(rowOf({ ...camera, newer_version_exists: true }))).toEqual({ words: "Update available", isNews: true });
-    expect(moduleCardMarkOf(rowOf({ ...camera, edited_files: ["nodes/x.py"] }))).toEqual({ words: "Added · edited", isNews: false });
-    expect(moduleCardMarkOf(rowOf(camera))).toEqual({ words: "Added", isNews: false });
+    expect(moduleCardMarkOf(rowOf({ ...camera, newer_version_exists: true }))).toEqual({ words: "Update", isNews: true });
+    expect(moduleCardMarkOf(rowOf({ ...camera, edited_files: ["nodes/x.py"] }))).toEqual({ words: "In project", isNews: false });
     expect(moduleCardMarkOf(everyModuleCardRowOf(CATALOG, [])[0])).toBeNull();
+  });
+
+  it("says what a row holds in words, counting its views once the project has it", () => {
+    const view: ViewOfAWorkspaceDependency = { view_type_id: "camera:preview", manifest_json: null, opens: true, not_opened_because: null };
+    const camera = { ...aModule("tatolab-camera", null), views: { kind: "listed" as const, views: [view] } };
+    const rows = everyModuleCardRowOf(CATALOG, [camera, aModule("lobby-wall", null)]);
+    expect(rows.map(moduleContentsWordsOf)).toEqual(["1 stream", "1 node · 1 view", "1 node", ""]);
+  });
+
+  it("says where a module was copied from, and how its copy stands against it", () => {
+    const fromTheMarketplace = { ...aModule("camera", "Camera"), source: "/home/jo/.config/Tato Studio/module-downloads/tatolab-camera-0.68.85.zip" };
+    const fromAZip = { ...aModule("doorways", null), source: "/shows/Doorways.ZIP" };
+    const rows = everyModuleCardRowOf(CATALOG, [fromTheMarketplace, fromAZip, aModule("lobby-wall", null)]);
+    expect(rows.map(moduleSourceWordsOf)).toEqual(["", "From the Marketplace", "", "From a .zip", "From a folder"]);
+    const camera = aModule("tatolab-camera", null);
+    expect(moduleCopyStateOf(camera)).toEqual({ kind: "not_checked" });
+    expect(moduleCopyStateOf({ ...camera, newer_version_exists: false })).toEqual({ kind: "up_to_date" });
+    expect(moduleCopyStateOf({ ...camera, newer_version_exists: true })).toEqual({ kind: "update_available" });
+    expect(moduleCopyStateOf({ ...camera, check_refused_because: "No such file or directory (os error 2)" })).toEqual({ kind: "check_refused", because: "No such file or directory (os error 2)" });
   });
 
   it("names a module's folder as the runtime does", () => {
@@ -117,22 +148,16 @@ describe("what the Modules and Marketplace window lists", () => {
       ["tatolab-camera", "camera"],
       ["tatolab-opus", null],
     ]);
-    expect(moduleCardMarkOf(rows[1])).toEqual({ words: "Added", isNews: false });
-    expect(moduleCardRowPickedBy(moduleCardRowsShownOf(rows, "marketplace", ""), "tatolab-camera")?.module_of_the_project?.folder).toBe("camera");
   });
 
   it("gives a Marketplace download to the entry it was downloaded for before one its project's name matches", () => {
-    const halftoneNamedCamera = { ...aModule("tatolab-camera", "tatolab-camera"), source: "/home/jo/.config/Tato Studio/module-downloads/camera-halftone-0.68.29.zip" };
-    const rows = everyModuleCardRowOf(CATALOG, [halftoneNamedCamera]);
+    const cameraNamedOpus = { ...aModule("tatolab-opus", "tatolab-opus"), source: "/home/jo/.config/Tato Studio/module-downloads/tatolab-camera-0.68.29.zip" };
+    const rows = everyModuleCardRowOf(CATALOG, [cameraNamedOpus]);
     expect(rows.map((row) => [row.row_id, row.module_of_the_project?.folder ?? null])).toEqual([
-      ["camera-halftone", "tatolab-camera"],
-      ["tatolab-camera", null],
+      ["camera-halftone", null],
+      ["tatolab-camera", "tatolab-opus"],
       ["tatolab-opus", null],
     ]);
-  });
-
-  it("shows a version by its first 12 characters", () => {
-    expect(shortVersionOf("9f2c4e1a7b3d5f60c8e2a4b6")).toBe("9f2c4e1a7b3d");
   });
 });
 

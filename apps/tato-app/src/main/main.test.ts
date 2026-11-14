@@ -1,4 +1,5 @@
-import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { TatolabStatus } from "../shared/tatolab_backend_contract.js";
@@ -61,7 +62,7 @@ function refusalOfAFolderHoldingNoProject(toolName: string, projectDirectory: st
 /** The `tatolab_view.json` of the one view, `views/meter`, the fake runtime lists in each import. */
 const FAKE_METER_VIEW_MANIFEST = { contract: "1.0", title: "Meter", entry: "index.html", placement: "node", inputs: [{ name: "level", family: "array" }] };
 
-/** A runtime that answers `list_assets`, `list_dependencies`, `add_dependency` and `list_project_views` from each project's `tatolab-project.json`, copying an import whole, listing a `meter` view in each import, and no other request. */
+/** A runtime that answers `list_assets`, `list_dependencies`, `add_dependency`, `remove_dependency` and `list_project_views` from each project's `tatolab-project.json`, copying an import whole and taking one out whole, listing a `meter` view in each import, making a project named for its folder on `import_project`, and no other request. */
 async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
   const fakeRuntime = await FakeLocalApiServer.answeringEachControlOperation(async (toolName, toolArguments) => {
     const projectDirectory = String(toolArguments["project_directory"]);
@@ -92,6 +93,24 @@ async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
         await cp(source, path.join(projectDirectory, "imports", folder), { recursive: true });
         await writeFile(path.join(projectDirectory, "tatolab-project.json"), JSON.stringify({ ...projectFile, dependencies: [...projectFile.dependencies, dependency] }));
         return controlOperationResultResponse({ dependency, transaction: "400abda2-8e24-4e95-bef0-7139fd68d853", commit: "7402198987b8ef4b1d2f370b8f090ccde0865a56" });
+      }
+      case "remove_dependency": {
+        if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
+        const dependency = projectFile.dependencies.find((dependencyHeld) => dependencyHeld.project === toolArguments["project"]);
+        if (dependency === undefined) return controlOperationFailedResponse(`remove_dependency failed: the project imports no project ${String(toolArguments["project"])}`);
+        await rm(path.join(projectDirectory, "imports", dependency.folder), { recursive: true });
+        await writeFile(
+          path.join(projectDirectory, "tatolab-project.json"),
+          JSON.stringify({ ...projectFile, dependencies: projectFile.dependencies.filter((dependencyHeld) => dependencyHeld !== dependency) }),
+        );
+        return controlOperationResultResponse({ dependency, transaction: "b0a9f2de-51f8-4f5c-8a3e-7d7f3b1f8c11", commit: "1c9f0b6f0f1f6c4a4f0b7a3f0a5d2e8b9c7d6e5f" });
+      }
+      case "import_project": {
+        const name = path.basename(projectDirectory);
+        const projectMade = { project: `uuid-of-${name}`, name, dependencies: [] } satisfies FakeProjectFile;
+        await mkdir(projectDirectory, { recursive: true });
+        await writeFile(path.join(projectDirectory, "tatolab-project.json"), JSON.stringify(projectMade));
+        return controlOperationResultResponse({ project_directory: projectDirectory, project: projectMade.project, name, commit: "6e9bf712f50159cf8b93aa40a7e366eab060e352" });
       }
       case "list_streams":
         return controlOperationResultResponse({ streams: [] });
@@ -683,7 +702,7 @@ describe("one window per project", () => {
         ["Modules and Marketplace · night-show", 3],
       ]);
       expect(fakeShell.records).toContainEqual(
-        expect.objectContaining({ asked: "create_main_window", windowContentsId: 3, mainWindowSpecification: expect.objectContaining({ width: 960, height: 660 }) }),
+        expect.objectContaining({ asked: "create_main_window", windowContentsId: 3, mainWindowSpecification: expect.objectContaining({ width: 1240, height: 800, minimumWidth: 880, minimumHeight: 580 }) }),
       );
       expect(await fakeShell.invokeTheCommand("read_module_manager_workspace", undefined, 3)).toMatchObject({ ok: true, value: { kind: "read", open_project: { project: { name: "night-show" } } } });
       expect(await fakeShell.invokeTheCommand("read_module_manager_workspace", undefined, 2)).toEqual({ ok: true, value: null });
@@ -787,12 +806,78 @@ describe("one window per project", () => {
       expect(listed.ok && Array.isArray(listed.value) && listed.value.map((dependency) => ("folder" in dependency ? dependency.folder : null))).toEqual(["lobby-wall", "doorways"]);
     });
 
-    test("opens an import to edit in its own studio window, and refuses a folder the runtime lists no import in", async () => {
-      const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+    test("removes an import through the runtime, which the project then no longer lists, says the runtime's refusal in its words, and only for a Module manager window", async () => {
+      const { fakeShell, lobbyWallFolder } = await aStudioWindowOfNightShowImportingLobbyWall();
 
-      expect(await fakeShell.invokeTheCommand("open_import_to_edit", { folder: "lobby-wall" }, 3)).toEqual({ ok: true, value: null });
-      expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "Modules and Marketplace · night-show", "lobby-wall"]);
-      expect(await fakeShell.invokeTheCommand("open_import_to_edit", { folder: "nothing-here" }, 3)).toEqual({ ok: false, refusal: "The project imports nothing in imports/nothing-here." });
+      expect(await fakeShell.invokeTheCommand("remove_workspace_dependency", { project: "uuid-of-lobby-wall" }, 2)).toEqual({ ok: false, refusal: "Only a Module manager window imports into a project." });
+      expect(await fakeShell.invokeTheCommand("remove_workspace_dependency", undefined, 3)).toEqual({ ok: false, refusal: "remove_workspace_dependency needs `project`, the UUID of one of the workspace's imports" });
+      expect(await fakeShell.invokeTheCommand("remove_workspace_dependency", { project: "uuid-of-lobby-wall" }, 3)).toEqual({
+        ok: true,
+        value: { project: "uuid-of-lobby-wall", folder: "lobby-wall", source: lobbyWallFolder, version: FAKE_IMPORT_VERSION },
+      });
+      expect(await fakeShell.invokeTheCommand("remove_workspace_dependency", { project: "uuid-of-lobby-wall" }, 3)).toEqual({
+        ok: false,
+        refusal: "remove_dependency failed: the project imports no project uuid-of-lobby-wall",
+      });
+      expect(await fakeShell.invokeTheCommand("list_workspace_dependencies", { check_for_newer: false }, 3)).toEqual({ ok: true, value: [] });
+    });
+
+    describe("a sample of the Marketplace", () => {
+      const HALFTONE_SAMPLE_ZIP_URL = "https://get.tatolab.com/samples/camera-halftone-0.68.29.zip";
+      const HALFTONE_SAMPLE_ZIP_BYTES = Buffer.from("the camera-halftone sample's zip");
+      const CAMERA_PACKAGE_ZIP_URL = "https://get.tatolab.com/modules/tatolab-camera-0.68.29.zip";
+
+      function serveACatalogOfTheHalftoneSampleAndTheCameraPackage(fakeShell: FakeTatolabElectronAppShell): void {
+        const entryNamed = (kind: "package" | "sample", name: string, title: string, downloadUrl: string) => ({
+          kind,
+          name,
+          title,
+          summary: "",
+          version: "0.68.29",
+          download_url: downloadUrl,
+          download_sha256: createHash("sha256").update(HALFTONE_SAMPLE_ZIP_BYTES).digest("hex"),
+          nodes: [],
+          streams: [],
+          homepage_url: null,
+        });
+        fakeShell.packageCatalogTextServed = JSON.stringify({
+          catalog_version: 1,
+          entries: [entryNamed("sample", "camera-halftone", "Camera halftone", HALFTONE_SAMPLE_ZIP_URL), entryNamed("package", "tatolab-camera", "Camera", CAMERA_PACKAGE_ZIP_URL)],
+        });
+        fakeShell.bytesServedByUrl.set(HALFTONE_SAMPLE_ZIP_URL, HALFTONE_SAMPLE_ZIP_BYTES);
+        fakeShell.bytesServedByUrl.set(CAMERA_PACKAGE_ZIP_URL, HALFTONE_SAMPLE_ZIP_BYTES);
+      }
+
+      test("is cloned into a project of its own in <Documents>/Tato Studio, opened in a studio window, and the project it was cloned from imports nothing more", async () => {
+        const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+        serveACatalogOfTheHalftoneSampleAndTheCameraPackage(fakeShell);
+        const folderOfTheClone = path.join(fakeShell.tatolabElectronAppShell.documentsDirectory, "Tato Studio", "Camera halftone");
+
+        expect(await fakeShell.invokeTheCommand("clone_marketplace_sample", { name: "camera-halftone" }, 3)).toEqual({ ok: true, value: { folder: folderOfTheClone, project_creation: null } });
+
+        expect(fakeShell.urlsFetched).toContain(HALFTONE_SAMPLE_ZIP_URL);
+        expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "Modules and Marketplace · night-show", "Camera halftone"]);
+        const listed = await fakeShell.invokeTheCommand("list_workspace_dependencies", { check_for_newer: false }, 3);
+        expect(listed.ok && Array.isArray(listed.value) && listed.value.map((dependency) => ("folder" in dependency ? dependency.folder : null))).toEqual(["lobby-wall"]);
+      });
+
+      test("is never added to a project, a package is never cloned, and neither is asked of any window but Module manager", async () => {
+        const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+        serveACatalogOfTheHalftoneSampleAndTheCameraPackage(fakeShell);
+
+        expect(await fakeShell.invokeTheCommand("import_from_the_marketplace", { name: "camera-halftone" }, 3)).toEqual({
+          ok: false,
+          refusal: "Camera halftone is a sample project; clone it into a project of its own instead.",
+        });
+        expect(await fakeShell.invokeTheCommand("clone_marketplace_sample", { name: "tatolab-camera" }, 3)).toEqual({
+          ok: false,
+          refusal: "Camera is not a sample project; add it to a project instead.",
+        });
+        expect(await fakeShell.invokeTheCommand("clone_marketplace_sample", { name: "camera-halftone" }, 2)).toEqual({ ok: false, refusal: "Only a Module manager window imports into a project." });
+        expect(await fakeShell.invokeTheCommand("clone_marketplace_sample", undefined, 3)).toEqual({ ok: false, refusal: "clone_marketplace_sample needs `name`, the name of a sample the catalog lists" });
+        expect(fakeShell.urlsFetched).not.toContain(HALFTONE_SAMPLE_ZIP_URL);
+        expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "Modules and Marketplace · night-show"]);
+      });
     });
   });
 

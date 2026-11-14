@@ -345,7 +345,9 @@ export function mountTatolabWindow(
     addDependencyToTheWorkspace: (source) => backend.addDependencyToTheWorkspace(source),
     updateWorkspaceDependency: (project, overwriteEditedFiles) => backend.updateWorkspaceDependency(project, overwriteEditedFiles),
     importFromTheMarketplace: (name) => backend.importFromTheMarketplace(name),
-    openImportToEdit: (folder) => backend.openImportToEdit(folder),
+    removeWorkspaceDependency: (project) => backend.removeWorkspaceDependency(project),
+    cloneMarketplaceSample: (name) => backend.cloneMarketplaceSample(name),
+    showTheClonedProject: (folder) => backend.openRecentProject(folder),
     pathOfADroppedFile: (droppedFile) => backend.pathOfADroppedFile(droppedFile),
     describeRejection: describeBackendRejection,
   };

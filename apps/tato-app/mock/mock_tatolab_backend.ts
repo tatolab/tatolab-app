@@ -41,7 +41,7 @@ import { mockDeleteTheAsset, mockImportTheFilesChosen, mockReadTheAssetPreview, 
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { isModulesShown, type ModulesShown } from "../src/shared/tatolab_electron_bridge_contract";
-import type { JsonValue, ProjectGraphTransaction, ProjectTransaction, StreamAssetCreated, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, PackageCatalogEntry, ProjectGraphTransaction, ProjectTransaction, StreamAssetCreated, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
 import { streamDocumentNameNumberedPast, streamDocumentNameOfTheDisplayName } from "../src/shared/stream_document_name";
 import { applyMockGraphTransaction, isAJsonObject, isAHistoryOperationTheMockMakesAgainFromTheEditInside, graphActionApplyingTheHistoryOperation, thePlacementsOfTheStream, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
@@ -287,6 +287,8 @@ export interface MockTatolabOptions {
   moduleManagerSectionOpenedOn: ModulesShown;
   /** `?catalog=unserved`: get.tatolab.com serves no catalog yet; the mock catalog by default. */
   isTheCatalogUnserved: boolean;
+  /** `?marketplace_add=refused|never_ends`: adding a Marketplace package, or cloning a sample, is refused with a download whose SHA-256 is not the catalog's, or never answers, so its progress stays; it succeeds by default. */
+  marketplaceAddScenario: "succeeds" | "refused" | "never_ends";
   /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node; its import brings one that does not open. */
   isTheFixtureViewListed: boolean;
   /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the effect's output. */
@@ -297,6 +299,15 @@ export interface MockTatolabOptions {
   doesTheMainStreamHoldAGeneratedSubgraph: boolean;
   /** `?node_states=stopped`: every node of `main` that has a state reads `Stopped` once the stream settles, so none of its ports writes. */
   areTheMainStreamsNodesStopped: boolean;
+}
+
+/** What downloading `entry`'s `.zip` comes to under `scenario`: nothing, a refusal in the main process's words, or no answer. */
+function mockMarketplaceDownloadOf(entry: PackageCatalogEntry, scenario: MockTatolabOptions["marketplaceAddScenario"]): Promise<void> {
+  if (scenario === "never_ends") return new Promise(() => undefined);
+  if (scenario === "refused" && entry.download !== null) {
+    return Promise.reject(`${entry.download.url} downloaded with the SHA-256 28f81bad7f6b5604175f7a68654b8bd984e7cae54433ccc891d2128094f1c97d, not the catalog's ${entry.download.sha256}; nothing was imported.`);
+  }
+  return Promise.resolve();
 }
 
 /** The query parameter a Module manager window's page is told by. */
@@ -442,6 +453,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     moduleManagerWorkspaceDependencies: mockWorkspaceDependenciesScenarioNamed(pageQuery.get(MODULE_MANAGER_QUERY_PARAMETER)),
     moduleManagerSectionOpenedOn: moduleManagerSectionNamed(pageQuery.get(MODULE_MANAGER_SECTION_QUERY_PARAMETER)),
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
+    marketplaceAddScenario: pageQuery.get("marketplace_add") === "refused" ? "refused" : pageQuery.get("marketplace_add") === "never_ends" ? "never_ends" : "succeeds",
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
     isTheCompositorInMain: pageQuery.get("compositor") === "layered",
     doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",
@@ -1746,15 +1758,22 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 6);
       const entry = MOCK_PACKAGE_CATALOG_ENTRIES.find((listed) => listed.name === name);
       if (entry === undefined) throw `The catalog lists nothing named ${name}.`;
+      if (entry.kind === "sample") throw `${entry.title} is a sample project; clone it into a project of its own instead.`;
+      await mockMarketplaceDownloadOf(entry, mockTatolabOptions.marketplaceAddScenario);
       const downloadsFolder = `${fixtures.machine.homeDirectory}/Library/Application Support/Tato Studio/${MODULE_DOWNLOADS_FOLDER_NAME}`;
       return workspaceDependencies.add(`${downloadsFolder}/${marketplaceDownloadFileNameOf(entry.name, entry.version)}`, entry.title);
     },
-    openImportToEdit: async (folder) => {
-      if (!workspaceDependencies.holdsTheFolder(folder)) throw `The project imports nothing in imports/${folder}.`;
-      const studioPageUrl = new URL(window.location.href);
-      studioPageUrl.searchParams.delete(MODULE_MANAGER_QUERY_PARAMETER);
-      studioPageUrl.searchParams.delete(MODULE_MANAGER_SECTION_QUERY_PARAMETER);
-      window.open(studioPageUrl.toString(), "_blank");
+    removeWorkspaceDependency: async (project) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 4);
+      return workspaceDependencies.remove(project);
+    },
+    cloneMarketplaceSample: async (name) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 6);
+      const entry = MOCK_PACKAGE_CATALOG_ENTRIES.find((listed) => listed.name === name);
+      if (entry === undefined) throw `The catalog lists nothing named ${name}.`;
+      if (entry.kind !== "sample") throw `${entry.title} is not a sample project; add it to a project instead.`;
+      await mockMarketplaceDownloadOf(entry, mockTatolabOptions.marketplaceAddScenario);
+      return { folder: `${fixtures.machine.homeDirectory}/Documents/Tato Studio/${entry.title}`, project_creation: null };
     },
     pathOfADroppedFile: (droppedFile) => `${fixtures.machine.homeDirectory}/streams/${droppedFile.name}`,
     readRecentProjects: async () => {

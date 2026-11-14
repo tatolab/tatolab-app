@@ -1032,6 +1032,28 @@ test("a_dependency_added_from_a_folder_or_a_zip_answers_the_import_the_runtime_c
   ]);
 });
 
+test("a_dependency_removed_answers_the_import_the_runtime_took_out_and_a_refused_removal_carries_its_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-remove-dependency-tool-result-of-night-show-removing-lobby-wall.json")),
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-remove-dependency-refusal-for-a-project-not-imported.json")),
+  ]);
+
+  expect(answerOf(await server.client().removeDependency("/tmp/tatolab-proof-projects/night-show", "92c01338-ae3e-400f-aef1-4e791b0150b8"))).toEqual({
+    project: "92c01338-ae3e-400f-aef1-4e791b0150b8",
+    folder: "lobby-wall",
+    source: "/tmp/tatolab-proof-projects/lobby-wall",
+    version: "a33a4a3c5ebb6cbc2d878536e95327f8135ab0a1938f096bcac4c0c30c9b70ad",
+  });
+  expect(failureOf(await server.client().removeDependency("/tmp/tatolab-proof-projects/night-show", "00000000-0000-4000-8000-000000000000"))).toEqual({
+    failureDescription: "remove_dependency failed: the project imports no project 00000000-0000-4000-8000-000000000000",
+    isTheRuntimesRefusal: true,
+  });
+  expect(controlOperationCallsReceivedBy(server)).toEqual([
+    ["remove_dependency", { project_directory: "/tmp/tatolab-proof-projects/night-show", project: "92c01338-ae3e-400f-aef1-4e791b0150b8" }],
+    ["remove_dependency", { project_directory: "/tmp/tatolab-proof-projects/night-show", project: "00000000-0000-4000-8000-000000000000" }],
+  ]);
+});
+
 test("a_dependency_the_runtime_refuses_to_add_carries_its_own_words", async () => {
   const server = await fakeLocalApiServerAnswering([
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-add-dependency-refusal-for-a-folder-that-is-not-a-project.json")),
