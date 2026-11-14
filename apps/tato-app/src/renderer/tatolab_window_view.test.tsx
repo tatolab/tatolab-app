@@ -926,6 +926,24 @@ describe("the studio", () => {
     expect(withoutOutput.textContent).toContain("Display Window");
   });
 
+  it("shows a node the runtime reports not ready in the runtime's own words in Properties, and draws the checker behind its picture only", async () => {
+    await mountedWindowOverTheMock("state=node-not-ready&outliner=open");
+    await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
+    fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
+    fireEvent.click(await waitFor(() => outlinerRow(`node:${PATTERN_MAIN_STREAM}/posterimage`)));
+
+    const notReadyBar = await waitFor(() => coreViewPage("properties").querySelector<HTMLElement>('[data-properties-not-ready-because="posterimage"]') ?? expect.unreachable("no not-ready bar in Properties"));
+    expect(notReadyBar.getAttribute("role")).toBe("status");
+    expect(notReadyBar.textContent).toBe("This node isn't ready: ImageFile names no image asset. To fix: set its `asset` config to the UUID of a PNG or JPEG imported into the project");
+    const playing = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-playing="posterimage/image"]') ?? expect.unreachable("the Node visualizer plays nothing"));
+    expect(playing.hasAttribute("data-viewer-node-not-ready")).toBe(true);
+
+    fireEvent.click(outlinerRow(`node:${PATTERN_MAIN_STREAM}/invertingeffect`));
+    const playingAReadyNode = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-playing="invertingeffect/video_to_downstream"]') ?? expect.unreachable("the Node visualizer plays nothing"));
+    expect(playingAReadyNode.hasAttribute("data-viewer-node-not-ready")).toBe(false);
+    await waitFor(() => expect(coreViewPage("properties").querySelector("[data-properties-not-ready-because]")).toBeNull());
+  });
+
   it("shows a stopped node's port as its family's placeholder in the Node visualizer, opening no read of it", async () => {
     await mountedWindowOverTheMock("state=running&node_states=stopped&outliner=open");
     await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));

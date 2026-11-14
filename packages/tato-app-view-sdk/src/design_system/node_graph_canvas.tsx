@@ -23,7 +23,7 @@ import {
 } from "@xyflow/react";
 import { cn } from "cn";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
-import { ChevronDown, ChevronRight, Combine, Crosshair, Frame, Palette, Pencil, Pipette, Plus, Scan, Search, SquareX, StickyNote, Text, Trash2, Ungroup, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronDown, ChevronRight, Combine, Crosshair, Frame, Palette, Pencil, Pipette, Plus, Scan, Search, SquareX, StickyNote, Text, Trash2, TriangleAlert, Ungroup, ZoomIn, ZoomOut } from "lucide-react";
 import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
 import { MenuItem, MenuOpenBesideItsParent, RightClickMenu, RightClickMenuItem, RightClickMenuSeparator, RightClickMenuSingleChoiceGroup, RightClickSubmenu } from "./menus";
 import {
@@ -90,10 +90,11 @@ function nodeGraphPinTooltip(pin: NodeGraphCanvasPin): string {
   return pin.description === null ? facts : `${facts}\n${pin.description}`;
 }
 
-/** How a card shows its node is doing: as every healthy card, restarting (a quiet tag), or failed (red, with why in the runtime's words when it gave them). */
+/** How a card shows its node is doing: as every healthy card, restarting (a quiet tag), not ready (amber, why in the runtime's words on the tag's tooltip), or failed (red, with why in the runtime's words when it gave them). */
 export type NodeGraphCardCondition =
   | { look: "healthy" }
   | { look: "restarting" }
+  | { look: "not_ready"; not_ready_because: string }
   | { look: "failed"; failed_because: string | null };
 
 /** One node a graph canvas draws: its name on the card's header, how it is doing, its pins (inputs on the left, outputs on the right), where it was left, and the frame it sits in. */
@@ -540,13 +541,24 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
   );
 }
 
-/** The tag at a card header's right saying its node failed or is restarting; a healthy card has none. */
+/** The tag at a card header's right saying its node failed, is not ready or is restarting; a healthy card has none. */
 function NodeGraphCardConditionTag({ condition }: { condition: NodeGraphCardCondition }) {
   if (condition.look === "healthy") return null;
   if (condition.look === "restarting")
     return (
       <span className="node-graph-card-condition-tag ml-auto shrink-0 rounded-sm bg-well px-1.5 text-[10px] leading-4 font-medium text-fg-3" data-node-graph-condition-tag="restarting">
         Restarting
+      </span>
+    );
+  if (condition.look === "not_ready")
+    return (
+      <span
+        className="node-graph-card-condition-tag ml-auto flex shrink-0 items-center gap-1 rounded-sm bg-well px-1.5 text-[10px] leading-4 font-medium text-warn-text"
+        title={condition.not_ready_because}
+        data-node-graph-condition-tag="not_ready"
+      >
+        <TriangleAlert className="size-3" strokeWidth={1.75} aria-hidden />
+        Not ready
       </span>
     );
   return (

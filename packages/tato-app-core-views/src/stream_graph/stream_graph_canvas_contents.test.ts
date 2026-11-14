@@ -11,6 +11,7 @@ function graphNode(name: string, inputs: string[], outputs: string[]): StreamGra
     state: "Running",
     failed_because: null,
     process_raising_because: null,
+    not_ready_because: null,
     config: {},
     input_ports: inputs.map((port) => ({ name: port, family: "image" as const, stream_facts: null, values_checked: null })),
     output_ports: outputs.map((port) => ({ name: port, family: null, stream_facts: null, values_checked: null })),
@@ -89,6 +90,26 @@ test("a_running_node_whose_process_keeps_raising_is_a_failed_card_carrying_what_
   };
 
   expect(streamGraphCanvasContents(graph, null).nodes.map((node) => [node.node_id, node.condition])).toEqual([
+    ["invert", { look: "failed", failed_because: raisedBecause }],
+    ["camera", { look: "healthy" }],
+  ]);
+});
+
+test("a_running_node_not_ready_is_a_not_ready_card_carrying_why_word_for_word_unless_its_process_keeps_raising", () => {
+  const notReadyBecause = "ImageFile names no image asset. To fix: set its `asset` config to the UUID of a PNG or JPEG imported into the project";
+  const raisedBecause = "process() raised RuntimeError: broke on purpose (nodes/invert.py, line 29)";
+  const graph: StreamGraphSummary = {
+    ...GRAPH,
+    nodes: [
+      { ...graphNode("poster", [], ["image"]), state: "Running", not_ready_because: notReadyBecause },
+      { ...graphNode("invert", ["video_in"], ["video_out"]), state: "Running", not_ready_because: notReadyBecause, process_raising_because: raisedBecause },
+      { ...graphNode("camera", [], ["video"]), state: "Running" },
+    ],
+    links: [],
+  };
+
+  expect(streamGraphCanvasContents(graph, null).nodes.map((node) => [node.node_id, node.condition])).toEqual([
+    ["poster", { look: "not_ready", not_ready_because: notReadyBecause }],
     ["invert", { look: "failed", failed_because: raisedBecause }],
     ["camera", { look: "healthy" }],
   ]);

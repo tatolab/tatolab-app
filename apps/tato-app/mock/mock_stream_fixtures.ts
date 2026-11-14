@@ -99,6 +99,8 @@ export interface MockGraphNode {
   failed_because?: string;
   /** What its `process()` raised, in the runtime's words, while it keeps raising and stays `Running`. */
   process_raising_because?: string;
+  /** Why it cannot do its work yet, in the runtime's words, while it keeps running. */
+  not_ready_because?: string;
   config: Record<string, JsonValue>;
   /** The value each unlinked input holds, by input name. */
   pins?: Record<string, JsonValue>;
@@ -347,6 +349,20 @@ const TEST_PATTERN_LINKS: StreamGraphLink[] = [
   },
 ];
 
+/** What Core Nodes' `ImageFile` reports while its `asset` config is unset, in the runtime's words. */
+const IMAGE_FILE_NOT_READY_BECAUSE = "ImageFile names no image asset. To fix: set its `asset` config to the UUID of a PNG or JPEG imported into the project";
+
+/** A Core Nodes `ImageFile` naming no asset, so it reports itself not ready and keeps running. */
+const IMAGE_FILE_NOT_READY_NODE: MockGraphNode = {
+  name: "posterimage",
+  type: "core_nodes.image_file:ImageFile",
+  state: "Running",
+  not_ready_because: IMAGE_FILE_NOT_READY_BECAUSE,
+  config: { asset: "" },
+  input_ports: [],
+  output_ports: portsStatingNoStreamFacts("image", "image"),
+};
+
 /** The fixture view's node, its picture wired from the effect, as a project's view stands in its stream's graph. */
 const PICTURE_AND_FADER_VIEW_NODE: MockGraphNode = {
   name: "pictureandfader",
@@ -429,10 +445,11 @@ function createTestPatternStream(
     withTheCompositorNode: boolean;
     withGraphInputs: boolean;
     withAGeneratedSubgraph: boolean;
+    withAnImageFileNotReady: boolean;
   },
 ): MockStreamFixture {
   const { projectDirectory, recordsTheStream } = options;
-  const nodeCount = 4 + (recordsTheStream === null ? 0 : 1) + (options.withTheFixtureViewsNode ? 1 : 0) + (options.withTheCompositorNode ? 1 : 0) + (options.withAGeneratedSubgraph ? 1 : 0);
+  const nodeCount = 4 + (recordsTheStream === null ? 0 : 1) + (options.withTheFixtureViewsNode ? 1 : 0) + (options.withTheCompositorNode ? 1 : 0) + (options.withAGeneratedSubgraph ? 1 : 0) + (options.withAnImageFileNotReady ? 1 : 0);
   const listing = runningListing({ project_directory: projectDirectory, stream_name: options.streamName }, options.displayName, nodeCount);
   const streamId = listing.stream;
   const brightness = (dueAt: number): MockLogRecordDraft => ({
@@ -454,6 +471,7 @@ function createTestPatternStream(
         ...(options.withTheCompositorNode ? [ALPHA_OVER_COMPOSITOR_NODE] : []),
         ...(options.withGraphInputs ? TEST_PATTERN_GRAPH_INPUTS : []),
         ...(options.withAGeneratedSubgraph ? [HALFTONE_LOOK_GENERATED_SUBGRAPH] : []),
+        ...(options.withAnImageFileNotReady ? [IMAGE_FILE_NOT_READY_NODE] : []),
       ],
       links: [
         ...TEST_PATTERN_LINKS.map((link) => (options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" } : link)),
@@ -663,6 +681,8 @@ export interface MockStreamFixtures {
   mainStreamDeclaringGraphInputs: MockStreamFixture;
   /** `main` with a graph generator's frozen output wired from the pattern. */
   mainStreamHoldingAGeneratedSubgraph: MockStreamFixture;
+  /** `main` with an `ImageFile` that names no asset, so it reports itself not ready. */
+  mainStreamWithAnImageFileNotReady: MockStreamFixture;
   cameraStream: MockStreamFixture;
   /** The camera stream as the runtime re-loads it at its start before anyone has asked for camera access. */
   cameraStreamWaitingForCameraAccess: MockStreamFixture;
@@ -695,6 +715,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     withTheCompositorNode: false,
     withGraphInputs: false,
     withAGeneratedSubgraph: false,
+    withAnImageFileNotReady: false,
   };
   const mainStream = createTestPatternStream(machine, mainStreamOptions);
   const cameraStream = createCameraStream(machine);
@@ -715,6 +736,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     mainStreamWithTheCompositorNode: createTestPatternStream(machine, { ...mainStreamOptions, withTheCompositorNode: true }),
     mainStreamDeclaringGraphInputs: createTestPatternStream(machine, { ...mainStreamOptions, withGraphInputs: true }),
     mainStreamHoldingAGeneratedSubgraph: createTestPatternStream(machine, { ...mainStreamOptions, withAGeneratedSubgraph: true }),
+    mainStreamWithAnImageFileNotReady: createTestPatternStream(machine, { ...mainStreamOptions, withAnImageFileNotReady: true }),
     cameraStream,
     cameraStreamWaitingForCameraAccess: { ...cameraStream, listing: { ...cameraStream.listing, capture_devices_whose_access_was_never_asked_for: ["camera"] } },
     recorderOfMainStream,
@@ -751,6 +773,7 @@ export function createMockStreamRunFromAProjectFolder(machine: MockMachine, proj
     withTheCompositorNode: false,
     withGraphInputs: false,
     withAGeneratedSubgraph: false,
+    withAnImageFileNotReady: false,
   });
   return { ...fixture, loadedForMillisecondsAtOpen: 0 };
 }

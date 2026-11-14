@@ -82,6 +82,7 @@ export type MockTatolabScenario =
   | "empty"
   | "loading"
   | "node-error"
+  | "node-not-ready"
   | "camera-access"
   | "dropping"
   | "not-listed"
@@ -93,6 +94,7 @@ const MOCK_TATOLAB_SCENARIOS: readonly MockTatolabScenario[] = [
   "empty",
   "loading",
   "node-error",
+  "node-not-ready",
   "camera-access",
   "dropping",
   "not-listed",
@@ -600,6 +602,7 @@ function initialMockStatus(
     case "empty":
     case "loading":
     case "node-error":
+    case "node-not-ready":
     case "camera-access":
     case "dropping":
     case "not-listed":
@@ -642,17 +645,19 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const mainStreamAsChosen =
     scenario === "node-error"
       ? fixtures.mainStreamWithDisplayWindowInError
-      : scenario === "dropping"
-        ? fixtures.mainStreamWithItsMeterFallingBehind
-        : mockTatolabOptions.isTheFixtureViewListed
-          ? fixtures.mainStreamWithTheFixtureViewsNode
-          : mockTatolabOptions.isTheCompositorInMain
-            ? fixtures.mainStreamWithTheCompositorNode
-            : mockTatolabOptions.doesTheMainStreamDeclareGraphInputs
-              ? fixtures.mainStreamDeclaringGraphInputs
-              : mockTatolabOptions.doesTheMainStreamHoldAGeneratedSubgraph
-                ? fixtures.mainStreamHoldingAGeneratedSubgraph
-                : fixtures.mainStream;
+      : scenario === "node-not-ready"
+        ? fixtures.mainStreamWithAnImageFileNotReady
+        : scenario === "dropping"
+          ? fixtures.mainStreamWithItsMeterFallingBehind
+          : mockTatolabOptions.isTheFixtureViewListed
+            ? fixtures.mainStreamWithTheFixtureViewsNode
+            : mockTatolabOptions.isTheCompositorInMain
+              ? fixtures.mainStreamWithTheCompositorNode
+              : mockTatolabOptions.doesTheMainStreamDeclareGraphInputs
+                ? fixtures.mainStreamDeclaringGraphInputs
+                : mockTatolabOptions.doesTheMainStreamHoldAGeneratedSubgraph
+                  ? fixtures.mainStreamHoldingAGeneratedSubgraph
+                  : fixtures.mainStream;
   const mainStream: MockStreamFixture = mockTatolabOptions.areTheMainStreamsNodesStopped
     ? { ...mainStreamAsChosen, graph: { ...mainStreamAsChosen.graph, nodes: mainStreamAsChosen.graph.nodes.map((node) => (node.state === null ? node : { ...node, state: "Stopped" })) } }
     : mainStreamAsChosen;
@@ -2029,7 +2034,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (node === undefined) throw `no node with the id \`${target.node_id}\` in stream \`${target.stream}\``;
       const outputPort = node.output_ports.find((port) => port.name === target.port);
       if (outputPort === undefined) throw `\`${node.name}\` has no output port named \`${target.port}\``;
-      return mockPortViewers.open(target, node.name, outputPort.family);
+      return mockPortViewers.open(target, node.name, outputPort.family, node.not_ready_because !== undefined);
     },
     closePortViewer: async (portViewer) => {
       mockPortViewers.close(portViewer);

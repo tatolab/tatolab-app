@@ -168,6 +168,8 @@ export const streamGraphNodeSchema = z.object({
   failed_because: z.string().nullable(),
   /** What its `process()` last raised, in the runtime's own words, while it keeps raising and stays `Running`; `null` once a call runs cleanly, and for a node that never raised. */
   process_raising_because: z.string().nullable(),
+  /** Why it cannot do its work yet, in the runtime's own words, such as an unset or missing file, while it keeps running; `null` while it is ready. */
+  not_ready_because: z.string().nullable(),
   /** Its config as the graph renders it; `{}` when it renders none. */
   config: z.record(z.string(), jsonValueSchema),
   /** The value set on each unlinked input, by input name, as the graph's `pins` renders it; an input left at its port's default is absent. */

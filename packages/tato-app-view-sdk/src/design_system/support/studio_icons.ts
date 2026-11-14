@@ -41,6 +41,7 @@ export type StudioIconName =
   | "graph_generator"
   | "waiting"
   | "unreadable"
+  | "not_ready"
   | "failed";
 
 const STUDIO_ICONS: Record<StudioIconName, LucideIcon> = {
@@ -64,6 +65,7 @@ const STUDIO_ICONS: Record<StudioIconName, LucideIcon> = {
   graph_generator: Network,
   waiting: Hourglass,
   unreadable: TriangleAlert,
+  not_ready: TriangleAlert,
   failed: TriangleAlert,
 };
 

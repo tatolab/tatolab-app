@@ -34,6 +34,7 @@ function aNode(name: string, inputs: StreamGraphDeclaredPort[], outputs: StreamG
     state: "Running",
     failed_because: null,
     process_raising_because: null,
+    not_ready_because: null,
     config: {},
     input_ports: inputs,
     output_ports: outputs,

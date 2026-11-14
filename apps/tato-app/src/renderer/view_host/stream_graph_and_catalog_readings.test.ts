@@ -11,7 +11,7 @@ afterEach(() => {
 function graphOfTheTypes(stream: string, nodeTypes: string[]): StreamGraphSummary {
   return {
     stream,
-    nodes: nodeTypes.map((type, index) => ({ id: `P${index}`, name: `n${index}`, type, kind: "process", state: null, failed_because: null, process_raising_because: null, config: {}, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null })),
+    nodes: nodeTypes.map((type, index) => ({ id: `P${index}`, name: `n${index}`, type, kind: "process", state: null, failed_because: null, process_raising_because: null, not_ready_because: null, config: {}, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null })),
     links: [],
     stream_asset: null,
     groups: [],
