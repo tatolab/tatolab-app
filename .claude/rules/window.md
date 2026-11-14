@@ -21,7 +21,7 @@ paths:
   selected and dimmed rows. Check it when you touch a colour or a state.
 - **Both platforms' chrome.** The window renders in Electron's Chromium on both platforms, under
   different chrome (`platform_presentation.ts`). A layout change is looked at for both.
-- **The window is a design system built on shadcn** (owner, #36, #51). It is a pyramid, used
+- **The window is a design system built on shadcn**. It is a pyramid, used
   from the bottom up, with less customisation at each step:
   1. **shadcn.** Stock shadcn components (base-ui, the `base-nova` style `components.json` names), added
      with the shadcn CLI into `packages/tato-app-view-sdk/src/design_system/ui/` and never edited. Their theme comes from
@@ -36,7 +36,7 @@ paths:
   controls. So a change to how something looks is made once, in the design system or the tokens,
   and applies everywhere.
 - **The window is React and Tailwind v4.** Views are React components in `apps/tato-app/src/renderer/views/`, beside the
-  DOM pages it still hosts until their tickets rebuild them; presentation is pure functions
+  DOM pages it still hosts until they are rebuilt; presentation is pure functions
   (`apps/tato-app/src/renderer/presentation/`) with vitest tests; and the backend is the `TatolabBackend` contract with an
   Electron and a mock implementation (`apps/tato-app/src/renderer/backend/`). Extend those layers; never add a parallel
   one. A package the window bundles follows `dependencies.md`.

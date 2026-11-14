@@ -1,51 +1,33 @@
 ---
 name: explore-idea
-description: Free-form what-if exploration of an app direction before it becomes work — a sandbox with zero commitments that ends with a concrete recommended starting shape (spike / prototype / MVP slice). Use when an idea is fuzzy, when unknowns are too many for an issue, when a set of issues has no clear shape behind it, or when the owner says "what if", "explore", or "I want to think through".
-disable-model-invocation: false
+description: Free-form what-if exploration of a direction before it becomes work, ending in a recommended smallest starting shape. Use when an idea is fuzzy, when it has too many unknowns for an issue, when a set of issues has no clear shape behind it, or when the owner says "what if", "explore", or "I want to think through".
 ---
 
 # Explore idea
 
-The pressure-release valve before work: ideas too fuzzy or too broad for an issue get explored
-here first. Nothing in this skill commits to work: **no work issues, no code.** Its only artefact is
-the exit below.
+A sandbox with no commitments: no work issues, and code only as a throwaway spike when that is the
+fastest way to answer a question. The owner brings a fuzzy want; give it a shape they can react to.
 
-This skill is proactive, not just inquisitive — the owner brings a fuzzy want; Claude's job is to
-give it a shape they can react to. Digging and questioning are means; the deliverable is a formed
-picture plus the smallest sensible way to start.
+1. **Situate.** Read the relevant code, what the repo's CLAUDE.md names as the record of what is
+   agreed, and the Linear issues around the idea. When the input is a messy set of issues, say
+   back what they collectively want first.
+2. **Sharpen it with `grilling`.**
+3. **Sketch two or three genuinely different shapes.** For each: its unknowns, its size (one
+   issue, a milestone, a project), what it needs from another repo, and what it would displace.
+4. **Recommend the lowest rung that teaches something real**:
+   - **Spike** — hours, throwaway, answers exactly one named question.
+   - **Prototype** — demoable, ugly, untested, clearly throwaway; exists to be reacted to.
+   - **MVP slice** — the smallest version someone can actually run; it survives and is iterated.
+   - **Full change** — only when the idea is already small and well understood.
 
-1. **Situate.** Read the local API it would read (streamlib's plan, §Control plane &
-   observability), the design system in code, the relevant code, and the open issues circling the idea. When the input is a
-   messy set of issues, reverse-engineer what they collectively want and present that back first.
-2. **Sharpen the fuzz with `grilling`.** One question at a time, each with a recommended answer.
-   Facts get looked up, never asked.
-3. **Sketch 2–3 genuinely different shapes** (a mock screenshot from the browser mock, or a
-   Mermaid sketch of the flow, welcome). For each: the unknowns it carries, what the runtime must
-   give it that it does not today (each one is streamlib work the app waits on), its cost class
-   (one issue / a few / a milestone), and what existing screens or code it would displace.
-4. **Shape the smallest start** on the build ladder, and recommend the lowest rung that teaches
-   something real:
-   - **Spike** — hours, throwaway, answers exactly ONE named question (can Electron's tray do X on GNOME? does
-     `SMAppService` report Y after Z?).
-   - **Prototype** — a mock-backend screen in the browser; ugly, no tests, clearly throwaway.
-     Exists to be reacted to.
-   - **MVP slice** — the smallest _showable_ version in the real app over the real local API.
-   - **Full change** — only when the idea is already well-understood and small.
+   Name the deferred list (what the full idea has that this start does not) and the path from the
+   start to the target. When the idea can be iterated, pick one rung lower than feels natural.
+5. **Say the idea and the recommended start back** and check the owner recognises both.
+6. **Exit one of three ways**:
+   - **Graduate** — `file-issue` for one piece of work, `plan-project` for more, scoped to the
+     recommended start.
+   - **Park** — a document on the Linear project it belongs to: the idea, the shapes, the
+     recommended start, and the unknown that must resolve before it revives.
+   - **Kill** — the same document, with the reason, so the idea is not explored again by accident.
 
-   State the smallest version worth building, the explicit **deferred list**, and the iteration
-   path. When the idea is iterable, bias one rung smaller than feels natural — iteration is cheap,
-   unbuilding is not.
-
-5. **Drive to identical understanding.** Say the idea AND the recommended start back in your own
-   words until the owner confirms it matches what is in their head. Unconfirmed = unexplored.
-6. **Exit explicitly**, one of three ways:
-   - **Graduate** → `/file-issue`; a design-language change → a stated question to the owner,
-     then `/file-issue`; a runtime contract the app needs → a streamlib issue the app issue waits
-     on.
-   - **Park** → an issue: the idea, the shapes considered, the recommended start, and what unknown
-     must resolve before it revives.
-   - **Kill** → the same issue, closed as not planned with the reason — so the idea is not
-     innocently re-explored in three months.
-
-If exploration reveals the idea is really N ideas, or more than one set of issues' worth of work,
-say so and split before graduating.
+If the idea turns out to be several ideas, split it before graduating.

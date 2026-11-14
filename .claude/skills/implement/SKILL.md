@@ -1,60 +1,35 @@
 ---
 name: implement
-description: Build one tatolab-app issue end-to-end — the only path by which the app's source changes.
-disable-model-invocation: false
+description: Build one Linear issue to an open pull request. Use when given a TAT id to implement.
 ---
 
 # Implement
 
-1. **Load**: the issue — body plus every comment oldest→newest (a comment IS specification and is
-   newer than the body; conflicts resolve toward the comment) — and, when it depends on what the
-   runtime serves, that contract from streamlib's plan at `main` as `CLAUDE.md` gives (never a
-   local checkout's branch).
-   When it touches the window, read the design system it builds on (`packages/tato-app-view-sdk/src/design_system/styles/tokens.css`,
-   `packages/tato-app-view-sdk/src/design_system/`).
-2. **Ultracode gate**: an issue whose body opens with **Run with ultracode** is built only in a run
-   that has ultracode on — a system-reminder confirms it when the owner's message carries the
-   keyword (`/implement <N> ultracode`) or the session has it on. Without it, **stop** before any
-   other step: one line saying the issue runs with ultracode and the exact command to re-run it.
-   Build without it only when the owner says so in this run, in their own words. Under ultracode,
-   every agent that edits files runs in its own worktree; the steps below hold.
-3. **Plan gate**: list every open item this work needs: a decision, a question you would ask the
-   owner, an assumption you would rather not make. Give each one its options, your pick and why.
-   Resolve whatever the issue, its comments, the tree or the runtime's contract answers; that is
-   discovery, not a question. A new module, interface or window IPC command the issue's Design section
-   does not settle goes through `/module-design`, and its recommendation is written into the
-   Design. Never infer a decision from existing code or git history. When items remain, spawn
-   `owner-attention-grader` with the issue and the items. On **PAUSE**, post one
-   `[NEEDS OWNER]` comment on the issue batching every OWNER item, each with its options and your
-   recommendation, and **stop**. On **PROCEED**, carry each assumption the grader cleared into the PR's notes for the
-   owner.
-4. **Waits-on check**: every streamlib issue under "Waits on" is closed and released in the
-   runtime the app is built against. One that is not → post a `[WAITS ON]` comment on the issue
-   naming it, and stop; the app never works around a missing runtime capability.
-5. **Staleness check**: verify the issue's load-bearing claims against the current tree; if
-   drifted, correct the body via `gh issue edit`, rewritten to current intent.
-6. **Announce** the refined plan as a comment on the issue: goal, files, the seams tests will
-   exercise, the `/verify-app` evidence it will carry, scope, and the assumptions the grader
-   cleared. Then continue; the owner reads it when they choose.
-7. Branch `<type>/<N>-<slug>` off fresh `origin/main`.
-8. **Build test-first at the seams the issue names** — the fake local API server, the injected
-   platform seams, presentation functions, the mock backend. Commit at logical checkpoints with
-   conventional-commit prefixes; every commit builds. A UI change adds a mock preset for any new
-   screen or state.
-9. Scope is the issue. Side findings go in the PR body as notes — a new issue only if the work
-   does not land without it. An open item that surfaces mid-build goes to
-   `owner-attention-grader` as in step 3; on **PAUSE**, push the branch, post the `[NEEDS OWNER]`
-   comment naming it, and stop.
-10. **Gates**: spawn `local-ci-runner`; fix what it reports.
-11. **Prove it**: run `/verify-app` for anything a person sees or the machine feels; its evidence
-    goes in the PR. Evidence that needs the owner present, such as a real administrator or privacy
-    prompt, is listed in the PR as pending the owner, and the build goes on.
-12. **Review**: spawn `review-pr`, plus `main-process-craftsmanship-reviewer` when `apps/tato-app/src/main/` or `apps/tato-app/src/preload/` changed and
-    `window-craftsmanship-reviewer` when `apps/tato-app/src/renderer/` or `apps/tato-app/src/shared/` changed, in parallel. Fix-loop capped at 3 rounds;
-    a 4th disagreement is posted on the issue as `[NEEDS OWNER]` DISCUSS, and the build stops.
-13. **PR**: run `printf '%s' "<title>" | npx commitlint`, push, `gh pr create` — title
-    `type(scope): summary`; body `## Summary`, `## Closes` (one `Closes #N` per line), `## Exit
-    criteria`, `## Test plan`, `## Evidence` (the `/verify-app` images and what each shows,
-    labelled Live / Linux / Mock), `## Notes for owner` (the batched findings).
-14. Report: PR URL, tests run, evidence, notes awaiting the owner. Merge is always the owner's
-    call.
+Input: a `TAT-n` id.
+
+1. **Load** the issue from Linear with its relations, every comment, its parent, and its project
+   and milestone descriptions. A comment is newer than the description and wins where they
+   conflict. If the issue is a parent, build the sub-issue whose prefix names this repo; if its
+   prefix names another repo, stop and say so.
+2. **Check what it waits on.** Every issue blocking this one must be Done, and where the blocker
+   is another repo's work, present in the version this repo builds against. If not, say which
+   one and stop; never work around a missing dependency.
+3. **Check it against the tree.** Where the issue's claims about the code have drifted, correct
+   the description and carry on with what it now means.
+4. **Branch.** Use the issue's `gitBranchName`. If the session was handed a branch, keep it and
+   put the id in the PR title instead: `fix(scope): summary (TAT-n)`. Either one links the PR;
+   never write `Closes #n`.
+5. **Build test-first at the real seams** the repo already tests through. Every commit builds.
+6. **Keep to the issue's scope.** A side finding is a note in the PR body, or a new Linear issue
+   in the same project only when this work cannot land without it. A scope note forbids
+   redesigning something; it does not forbid fixing a defect the issue's own fix also cures.
+7. **A decision the issue does not settle.** Read the issue, its comments and the tree first —
+   most questions are answered there. For what remains, build your recommendation and state the
+   assumption in the PR. Only when the choice is a real fork — materially different outcomes, a
+   wrong guess wastes the work, or it is expensive to undo — comment on the Linear issue with the
+   options and your recommendation, and keep building everything that does not depend on it.
+8. **Before you push**, run everything the repo's `CLAUDE.md` names under `## Before you push`:
+   the checks, the review agents, the proof. Fix what they find.
+9. **Open the PR**: what changed and why, how it was tested, the proof, and notes for the owner
+   (assumptions made, side findings, anything not proven). Do not move the issue's status or
+   close it — Linear does both from the PR. The owner merges.

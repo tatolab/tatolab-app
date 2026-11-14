@@ -14,9 +14,13 @@ paths:
   a tree it has just changed. An operating-model change no work in flight needs — a new rule, a
   reshaped skill — is its own `chore(claude)` PR with its rationale. Rules still change only
   through `/propose-rule`.
-- **Path guards ask; they never deny.** `permissions.deny` and a hook's `"deny"` decision are both
-  banned — use `ask` and let the owner resolve it at the prompt. A hard wall outlives its reason
-  and teaches the session to route around it.
+- **Path guards ask; they never deny.** A hook's `"deny"` decision is banned — use `ask` and let
+  the owner resolve it at the prompt. A hard wall outlives its reason and teaches the session to
+  route around it. The one `permissions.deny` is writing a GitHub issue: work is tracked in Linear,
+  and GitHub Issues is only the front door for outside reports.
+- **Shared skills are identical in every Tatolab repository.** They carry no repository paths; what
+  is specific to this one — the gates, the review agents, the proof — is `CLAUDE.md`'s
+  `## Before you push`. Change that section, never a shared skill, to change what a PR here needs.
 - **Guard only what a wrong edit makes expensive to undo** — here: the licence files, and what code
   signing and notarization read (the entitlements, `Info.plist`). Never
   guard prose. Judgement the session must exercise belongs in `CLAUDE.md`, not an `ask` entry.
@@ -27,8 +31,8 @@ paths:
   captures, why the existing agents don't already cover it, and its model tier.
 - **Model tiers:** implementation and reasoning agents run `opus`; mechanical / prescribed-steps
   agents run `sonnet`; nothing pins `fable`.
-- Labels are display output only — nothing reads a label as control flow. Every work item is
-  classified fresh from its content and from current code, never from its labels.
+- A Linear issue carries one label — `Bug`, `Feature` or `Improvement` — and nothing reads a label
+  as control flow.
 - PR titles are conventional-commit typed (`type(scope): summary`, scopes as the history uses them:
   `app`, `window`, `logs`, `platform`, `packaging`, …). Run
   `printf '%s' "<title>" | npx commitlint` before opening the PR.

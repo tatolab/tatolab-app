@@ -1,50 +1,45 @@
 ---
 name: file-issue
-description: File a well-shaped tatolab-app issue from a short intent — pick the right form (feature / bug / research), fill its sections, state the app's decision, link the runtime work it waits on, and set native dependency edges. Use when the owner says "file this", "open an issue for X", "log that bug", or when discussion surfaces a trackable task. Never files an umbrella issue — decomposes into self-contained issues with real blocked-by edges.
+description: File a piece of work in Linear — one issue, or a parent with one sub-issue per repo — in the right project and milestone. Use when the owner says "file this", "log that bug", or a discussion surfaces work worth tracking.
 ---
 
-# file-issue
+# File an issue
 
-Turn an intent into an issue a future session can pick up cold. The issue is the goal, not a spec
-— carry the design content but keep implementation mechanics out (they rot; the picker
-re-derives them).
+Issues live in Linear, team **Tatolab** (`TAT`), reached through the `mcp__Linear__*` tools.
+Never create, edit or comment on a GitHub issue.
 
-## 1. Pick the form and the repository
-Match the intent to one of `.github/ISSUE_TEMPLATE/` and fill **its** sections — don't invent a
-structure:
-- **feature** — a change to the window, the tray, setup, uninstall, the platform layer or
-  packaging: What & why · Design (what it reads from the local API, what it shows, on which
-  platform; the app's decision stated here; link streamlib's plan only for the runtime contract it
-  reads) · Done means (2–4 outcomes a
-  person could check in the running app) · Validation shape (hermetic tests + the `/verify-app`
-  rung) · Platforms · Waits on · Non-derivable notes (default "None").
-- **bug** — Symptom · Where it bit (platform, install kind, versions) · Expected · Repro ·
-  Platforms.
-- **research** — Question · Why now · Deliverable shape.
+1. **Look for it first.** Search Linear for an existing issue that covers the intent; extend or
+   comment on that one instead of filing a second.
+2. **Shape it.** Work that lands in one repo is one issue whose title starts with that repo's
+   prefix. Work that needs more than one repo is a parent issue with a plain title stating the
+   outcome, and one prefixed sub-issue per repo (`parentId`).
 
-**Runtime work is filed in `tatolab/streamlib`, not here.** When the intent needs the runtime to
-serve something it does not today, the runtime half is a streamlib issue (filed from a streamlib
-session, or with `gh issue create -R tatolab/streamlib` on its forms) and the app issue names it
-under **Waits on**.
+   | prefix | repo |
+   |---|---|
+   | `streamlib:` | tatolab/streamlib |
+   | `studio:` | tatolab/tatolab-app |
+   | `site:` | tatolab/main-website |
 
-## 2. Labels and milestone
-Labels are display output only. Assign a milestone only when this repository has one that names
-the capability; when none fits, say so rather than inventing one — milestone scoping is the
-owner's call.
+   The title states the outcome or the symptom as a person would see it, not the mechanism.
+3. **Place it.** Pick the existing project and milestone it advances; sub-issues take their
+   parent's. If nothing fits, file it without one and say so, or propose a milestone or project —
+   creating a project is the owner's call unless they asked for it.
+4. **Label it** exactly one of `Bug`, `Feature`, `Improvement`. A parent carries none.
+5. **Relate it.** Order between issues is a `blockedBy` / `blocks` relation, never a sentence in
+   the description. A sub-issue that needs another repo's sub-issue first is blocked by it.
+6. **Write the description for a person**: a few short sentences of what and why, then
+   **Done means** — two to four outcomes someone could check. For a bug: symptom with the exact
+   error text, what was expected, the smallest repro. Anything only an agent needs (where it
+   bit in the code, ruled-out approaches, constraints copied from a design) goes last in a
+   collapsible section, and only when it cannot be re-derived from the tree:
 
-## 3. Never file an umbrella issue
-An issue that says "do all of X" and lists sub-tasks is the failure mode. Decompose into
-**self-contained issues**, each with its own Done means and validation shape, connected by
-**native GitHub dependency edges** — not text like "depends on #N." Set the edges through whichever
-`gh` surface the repository actually exposes — **verify which exists before using it** (the
-issue-relationship API or sub-issues) with a probe, and use the one that works. When a streamlib
-issue is the blocker and no cross-repository edge is accepted, the "Waits on" line is the record.
+   ```
+   +++ Agent notes
 
-## 4. Phrase claims honestly
-Any specific claim about code or behaviour in the body is phrased "to the best of our current
-knowledge" so the picker verifies it. Keep file paths, exact test names and step-by-step ordering
-out of the body.
+   ...
 
-## 5. Confirm and report
-Show the drafted issue(s) and the edges before filing when the decomposition is non-trivial; file,
-then report the issue number(s) and the dependency graph you set.
+   +++
+   ```
+
+   Leave out file lists and step-by-step plans; they go stale before the issue is picked up.
+7. **Report** each ID with its project, milestone and relations, and anything you guessed.

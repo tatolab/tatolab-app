@@ -67,8 +67,7 @@ Evidence counts only when it was shot on what would ship now:
    unset), so a second proof on the same machine runs with its own root and port, and cleans up
    that root instead.
 
-   Without the packaged build — the unpackaged app over a runtime run by hand, as #37 and #38
-   did:
+   Without the packaged build — the unpackaged app over a runtime run by hand:
    - Fetch streamlib `main` and build its test-root unit with
      `apps/tato-app/scripts/fetch-streamlib-for-the-app-build.sh apps/tato-app/build/streamlib`, then
      `apps/tato-app/scripts/build-tatolab-runtime-unit.sh apps/tato-app/build/streamlib --local-proof-test-root`. The unit's
