@@ -133,7 +133,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "nodes.level_meter:LevelMeter",
     description: "Logs each audio block's peak level",
-    category: "nodes.level_meter",
+    category: null,
     config_schema: THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG,
     inputs: [port("audio_from_upstream", "", "channels")],
     outputs: [],
