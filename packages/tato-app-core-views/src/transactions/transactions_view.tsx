@@ -9,6 +9,7 @@ import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_fie
 import { SidePanel, WorkAreaWithSidePanel } from "@tatolab/tato-app-view-sdk/design_system/side_panel";
 import { StatusChip } from "@tatolab/tato-app-view-sdk/design_system/status_chip";
 import { writeTextToClipboard } from "@tatolab/tato-app-view-sdk/design_system/support/clipboard";
+import { downloadTextAsFile } from "@tatolab/tato-app-view-sdk/design_system/support/file_download";
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { useCallback, useMemo, useState } from "react";
@@ -23,7 +24,9 @@ import {
   transactionsFilterChoicesOf,
   transactionsFiltersOnCount,
   TRANSACTIONS_LOG_FOLLOWING_THE_FEED,
+  transactionsLogAsJson,
   transactionsLogCleared,
+  transactionsLogFileNameOf,
   transactionsLogPausedOrResumed,
   transactionsLogRowsShown,
   transactionsViewRowsAsJson,
@@ -238,8 +241,8 @@ function TransactionsTableAndDetail({ feed, rows, shownRows, wasCleared }: { fee
   );
 }
 
-/** The open project's change feed, its search and Filter ▾ in the header row. */
-function TransactionsOfTheProject({ connection, projectFolder }: { connection: TatoAppViewConnection; projectFolder: string }) {
+/** The open project's change feed, its search, Filter ▾ and log menu in the header row. */
+function TransactionsOfTheProject({ connection, projectFolder, projectName }: { connection: TatoAppViewConnection; projectFolder: string; projectName: string }) {
   const watchTheFeed = useCallback(
     (listener: (reading: ProjectTransactionsReading) => void): StopWatching => connection.watchProjectTransactions(projectFolder, listener),
     [connection, projectFolder],
@@ -273,6 +276,15 @@ function TransactionsOfTheProject({ connection, projectFolder }: { connection: T
             <SearchField label="Search transactions" placeholder="Search transactions" text={filter.search_words} onTextChanged={(searchWords) => setFilter({ ...filter, search_words: searchWords })} data-transactions-search="" />
             <TransactionsFilterMenu rows={rows} filter={filter} onFilterChanged={setFilter} />
             <MoreActionsMenu label="More for the transactions log" data-transactions-log-menu="">
+              <MenuItem
+                isDisabled={feed?.kind !== "read"}
+                onChosen={() => {
+                  if (feed?.kind === "read") downloadTextAsFile(transactionsLogFileNameOf(projectName), transactionsLogAsJson(feed.project_transactions), "application/json");
+                }}
+                data-transactions-download=""
+              >
+                Download transaction logs
+              </MenuItem>
               <MenuItem onChosen={() => setLogHolding((holding) => transactionsLogPausedOrResumed(holding, rowsOfTheFeed))} data-transactions-pause="">
                 {logHolding.rows_when_paused === null ? "Pause the log" : "Resume the log"}
               </MenuItem>
@@ -295,7 +307,7 @@ function TransactionsOfTheProject({ connection, projectFolder }: { connection: T
 /** The Transactions view's whole frame: every transaction the runtime recorded in the open project, under its header row. */
 export function TransactionsView({ connection }: { connection: TatoAppViewConnection }) {
   const openProject = useViewReading(useCallback((listener: (reading: OpenProjectReading) => void) => connection.watchOpenProject(listener), [connection]));
-  if (openProject?.kind === "read") return <TransactionsOfTheProject key={openProject.open_project.project.folder} connection={connection} projectFolder={openProject.open_project.project.folder} />;
+  if (openProject?.kind === "read") return <TransactionsOfTheProject key={openProject.open_project.project.folder} connection={connection} projectFolder={openProject.open_project.project.folder} projectName={openProject.open_project.project.name} />;
   return (
     <CoreViewFrame connection={connection} toolbarLabel="Transactions tools">
       {openProject === null ? null : openProject.kind === "none_open" ? (

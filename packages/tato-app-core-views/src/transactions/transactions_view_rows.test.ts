@@ -12,7 +12,9 @@ import {
   transactionsFiltersOnCount,
   transactionsViewRowOf,
   TRANSACTIONS_LOG_FOLLOWING_THE_FEED,
+  transactionsLogAsJson,
   transactionsLogCleared,
+  transactionsLogFileNameOf,
   transactionsLogPausedOrResumed,
   transactionsLogRowsShown,
   transactionsViewRowsAsJson,
@@ -277,5 +279,18 @@ describe("the log menu's rows", () => {
     const clearedWhilePaused = transactionsLogCleared(paused, feedOf(["t2", "t1"]));
     expect(transactionsLogRowsShown(feedOf(["t2", "t1"]), clearedWhilePaused)).toEqual([]);
     expect(idsOf(transactionsLogRowsShown(feedOf(["t2", "t1"]), transactionsLogPausedOrResumed(clearedWhilePaused, feedOf(["t2", "t1"]))))).toEqual(["t2"]);
+  });
+});
+
+describe("the downloaded transaction log", () => {
+  it("holds every applied transaction and refused action of the feed, whatever the view shows", () => {
+    const feed = { project: "p", project_directory: "/p", transactions: [transactionWith({ transaction: "t1" })], refused_actions: [refusedActionWith({})] };
+    expect(JSON.parse(transactionsLogAsJson(feed))).toEqual(feed);
+  });
+
+  it("is named after the project, with any character no file name holds, and a leading dot, made a dash", () => {
+    expect(transactionsLogFileNameOf("Lobby")).toBe("Lobby transactions.json");
+    expect(transactionsLogFileNameOf('Night: show/2 "B"')).toBe("Night- show-2 -B- transactions.json");
+    expect(transactionsLogFileNameOf(".hidden.show")).toBe("-hidden.show transactions.json");
   });
 });
