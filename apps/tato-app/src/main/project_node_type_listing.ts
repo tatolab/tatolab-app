@@ -80,7 +80,9 @@ function originOnTheWire(source: JsonObjectOnTheWire): Result<ProjectNodeTypeSou
       if (!folder.ok) return folder;
       const version = requiredText(source, "version");
       if (!version.ok) return version;
-      return succeeded({ source: "dependency", project: project.value, folder: folder.value, version: version.value });
+      const projectName = optionalText(source, "project_name");
+      if (!projectName.ok) return projectName;
+      return succeeded({ source: "dependency", project: project.value, folder: folder.value, version: version.value, project_name: projectName.value });
     }
     case "installed_distribution": {
       const distribution = requiredText(source, "distribution");

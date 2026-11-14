@@ -16,13 +16,13 @@ export const THIS_PROJECT_SEARCH_ENTRY = "This project";
 /** The heading the search lists the project's graph generators under. */
 export const GRAPH_GENERATORS_SEARCH_HEADING = "Subgraphs from code";
 
-/** The project or package a source's node code comes from, as the runtime names it: the open project, an import by the name `list_dependencies` gives it, or an installed distribution; `null` where the runtime names none, as for a kind of source this app does not know. */
+/** The project or package a source's node code comes from, as the runtime names it: the open project, an import by the name its origin carries, or an installed distribution; `null` where the runtime names none, as for an import whose project file does not read or a kind of source this app does not know. */
 function nodeTypeSourceOriginWords(origin: ProjectNodeTypeSourceOrigin, openProject: OpenProject | null): string | null {
   switch (origin.source) {
     case "project":
       return openProject?.project.name ?? null;
     case "dependency":
-      return openProject?.imports.find((imported) => imported.project === origin.project)?.name ?? null;
+      return origin.project_name;
     case "installed_distribution":
       return origin.distribution;
     case "newer_than_this_app":

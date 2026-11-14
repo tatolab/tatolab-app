@@ -26,7 +26,7 @@ const METER = catalogEntry("tatolab.stream.Meter", "Reads a level", null, [["lev
 
 const NIGHT_SHOW: OpenProject = {
   project: { folder: "/p", project: "p-uuid", name: "Night Show" },
-  imports: [{ project: "lights-uuid", name: "Stage Lights", folder: "lights", source: { kind: "folder", project: { folder: "/p/imports/lights", project: "lights-uuid", name: "Stage Lights" } } }],
+  imports: [],
   imports_not_listed_because: null,
 };
 
@@ -51,8 +51,8 @@ test("a_node_type_is_named_for_the_open_project_its_import_or_its_distribution_a
     project_name: "Night Show",
     sources: [
       { origin: { source: "project" }, node_types: [nodeTypeOf("nodes.invert:Invert")], graph_generators: [], unreadable_modules: [] },
-      { origin: { source: "dependency", project: "lights-uuid", folder: "lights", version: "1.0.0" }, node_types: [nodeTypeOf("imports/lights/nodes.dmx:Fixture")], graph_generators: [], unreadable_modules: [] },
-      { origin: { source: "dependency", project: "gone-uuid", folder: "gone", version: "1.0.0" }, node_types: [nodeTypeOf("imports/gone/nodes.x:X")], graph_generators: [], unreadable_modules: [] },
+      { origin: { source: "dependency", project: "lights-uuid", folder: "lights", version: "1.0.0", project_name: "Stage Lights" }, node_types: [nodeTypeOf("imports/lights/nodes.dmx:Fixture")], graph_generators: [], unreadable_modules: [] },
+      { origin: { source: "dependency", project: "gone-uuid", folder: "gone", version: "1.0.0", project_name: null }, node_types: [nodeTypeOf("imports/gone/nodes.x:X")], graph_generators: [], unreadable_modules: [] },
       { origin: { source: "installed_distribution", distribution: "tatolab-testpattern", distribution_version: "1.0.0" }, node_types: [nodeTypeOf("tatolab_testpattern:TestPatternSource")], graph_generators: [], unreadable_modules: [] },
       { origin: { source: "newer_than_this_app", source_name: "marketplace_module" }, node_types: [nodeTypeOf("lens:Lens")], graph_generators: [], unreadable_modules: [] },
     ],
@@ -62,7 +62,10 @@ test("a_node_type_is_named_for_the_open_project_its_import_or_its_distribution_a
     ["imports/lights/nodes.dmx:Fixture", "Stage Lights"],
     ["tatolab_testpattern:TestPatternSource", "tatolab-testpattern"],
   ]);
-  expect([...nodeTypeOriginWordsByType(listing, null)]).toEqual([["tatolab_testpattern:TestPatternSource", "tatolab-testpattern"]]);
+  expect([...nodeTypeOriginWordsByType(listing, null)]).toEqual([
+    ["imports/lights/nodes.dmx:Fixture", "Stage Lights"],
+    ["tatolab_testpattern:TestPatternSource", "tatolab-testpattern"],
+  ]);
   expect([...nodeTypeOriginWordsByType(null, NIGHT_SHOW)]).toEqual([]);
 });
 
@@ -114,7 +117,7 @@ test("each_graph_generator_of_the_projects_own_source_is_offered_under_this_proj
     project_name: "Night Show",
     sources: [
       { origin: { source: "project" }, node_types: [], graph_generators: [{ generator: "generators.mics:mic_levels", description: "A level meter per microphone", promoted_config: [], path: "generators/mics.py", line: 3 }], unreadable_modules: [] },
-      { origin: { source: "dependency", project: "lights-uuid", folder: "lights", version: "1.0.0" }, node_types: [], graph_generators: [{ generator: "generators.dmx:fixtures", description: "", promoted_config: [], path: "imports/lights/generators/dmx.py", line: 1 }], unreadable_modules: [] },
+      { origin: { source: "dependency", project: "lights-uuid", folder: "lights", version: "1.0.0", project_name: "Stage Lights" }, node_types: [], graph_generators: [{ generator: "generators.dmx:fixtures", description: "", promoted_config: [], path: "imports/lights/generators/dmx.py", line: 1 }], unreadable_modules: [] },
     ],
   };
   const offered = graphGeneratorSearchItems(listing, null, NIGHT_SHOW);

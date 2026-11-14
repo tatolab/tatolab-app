@@ -327,10 +327,10 @@ export const projectNodeModuleNotReadableSchema = z.object({
 /** A module of a source that does not parse. */
 export type ProjectNodeModuleNotReadable = z.infer<typeof projectNodeModuleNotReadableSchema>;
 
-/** Where a listed source's node code comes from: the project, an import by its UUID, folder under `imports/` and copied version, an installed distribution, or an origin newer than this app. */
+/** Where a listed source's node code comes from: the project, an import by its UUID, folder under `imports/`, copied version and the name its own project file holds (`null` when that file does not read), an installed distribution, or an origin newer than this app. */
 export const projectNodeTypeSourceOriginSchema = z.discriminatedUnion("source", [
   z.object({ source: z.literal("project") }),
-  z.object({ source: z.literal("dependency"), project: z.string(), folder: z.string(), version: z.string() }),
+  z.object({ source: z.literal("dependency"), project: z.string(), folder: z.string(), version: z.string(), project_name: z.string().nullable() }),
   z.object({ source: z.literal("installed_distribution"), distribution: z.string(), distribution_version: z.string() }),
   z.object({ source: z.literal("newer_than_this_app"), source_name: z.string() }),
 ]);

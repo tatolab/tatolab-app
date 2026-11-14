@@ -82,7 +82,7 @@ function patternProjectSource(isEveryModuleUnreadable: boolean): ProjectNodeType
 }
 
 const LIGHTING_RIG_DEPENDENCY: ProjectNodeTypeSource = {
-  origin: { source: "dependency", project: "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11", folder: "hall-of-light", version: "0.1.0" },
+  origin: { source: "dependency", project: "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11", folder: "hall-of-light", version: "0.1.0", project_name: "Hall of Light" },
   node_types: [
     {
       type: "nodes.gripper:Gripper",

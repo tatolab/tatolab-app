@@ -41,6 +41,7 @@ test("each_source_reads_with_its_origin_node_types_ports_generators_and_unreadab
         project: "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11",
         folder: "gripper",
         version: "ab".repeat(32),
+        project_name: "Gripper",
         node_types: [
           {
             type: "nodes.gripper:Gripper",
@@ -93,7 +94,7 @@ test("each_source_reads_with_its_origin_node_types_ports_generators_and_unreadab
           unreadable_modules: [{ module: "nodes.half_written", path: "nodes/half_written.py", line: 12, column: 5, why: "SyntaxError: expected ':'" }],
         },
         {
-          origin: { source: "dependency", project: "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11", folder: "gripper", version: "ab".repeat(32) },
+          origin: { source: "dependency", project: "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11", folder: "gripper", version: "ab".repeat(32), project_name: "Gripper" },
           node_types: [
             {
               type: "nodes.gripper:Gripper",
@@ -151,6 +152,22 @@ test("a_node_type_served_with_no_category_reads_with_none_and_one_that_is_not_te
   expect(categoryRead(undefined)).toBeNull();
   expect(categoryRead("Logic/Gates")).toBe("Logic/Gates");
   expect(categoryRead(7)).toContain("`category` is not a string");
+});
+
+test("an_import_served_with_no_project_name_reads_with_none_and_one_that_is_not_text_is_refused", () => {
+  const projectNameRead = (projectName: unknown) => {
+    const listing = projectNodeTypeListingFromTheToolResult(
+      JSON.parse(listingText([{ source: "dependency", project: "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11", folder: "gripper", version: "ab".repeat(32), ...(projectName === undefined ? {} : { project_name: projectName }), ...EMPTY_SOURCE_LISTS }])),
+    );
+    if (!listing.ok) return listing.failure;
+    const origin = listing.value.sources[0]?.origin;
+    return origin?.source === "dependency" ? origin.project_name : undefined;
+  };
+
+  expect(projectNameRead(null)).toBeNull();
+  expect(projectNameRead(undefined)).toBeNull();
+  expect(projectNameRead("Gripper")).toBe("Gripper");
+  expect(projectNameRead(7)).toContain("`project_name` is not a string");
 });
 
 test("a_source_of_an_origin_newer_than_this_app_still_lists_under_the_name_the_runtime_gives_it", () => {
