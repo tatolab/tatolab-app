@@ -1,9 +1,8 @@
-// What the studio's status bar along the window's foot says: the runtime and where it runs, and
-// the project's last edit and who made it.
+// What the studio's status bar along the window's foot says: the runtime, and the project's last
+// edit and who made it.
 
 import type { ProjectTransactionsReading } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { RuntimeState, TatolabPlatform } from "../../shared/tatolab_backend_contract";
-import { presentPlatform } from "./platform_presentation";
+import type { RuntimeState } from "../../shared/tatolab_backend_contract";
 import { presentTimeSince } from "./projects_presentation";
 import type { RuntimeDescriptionReading } from "./settings_presentation";
 
@@ -13,30 +12,24 @@ export type StudioStatusBarRuntimeTone = "running" | "starting" | "not_running";
 /** Each phrase of the status bar, or `null` for one with nothing to say. */
 export interface StudioStatusBarWords {
   runtime_tone: StudioStatusBarRuntimeTone;
-  /** As "tatolabd 0.68.55 · This Mac". */
+  /** As "tatolabd 0.68.55". */
   runtime: string;
   /** As "Last edit by Jonathan · 2 minutes ago"; `null` before the feed is read or while it holds no edit. */
   last_edit: string | null;
 }
 
-/** What the status bar reads from: the status, the runtime's description, the project's feed, the platform and the wall clock. */
+/** What the status bar reads from: the status, the runtime's description, the project's feed and the wall clock. */
 export interface StudioStatusBarSources {
   runtimeState: RuntimeState;
   runtimeDescription: RuntimeDescriptionReading;
   projectTransactions: ProjectTransactionsReading | null;
-  platform: TatolabPlatform;
   wallClockNowMs: number;
 }
 
-function capitalised(words: string): string {
-  return words.charAt(0).toLocaleUpperCase("en") + words.slice(1);
-}
-
-function runtimeWordsOf(runtimeState: RuntimeState, runtimeDescription: RuntimeDescriptionReading, platform: TatolabPlatform): string {
-  const thisMachine = capitalised(presentPlatform(platform).thisMachineMidSentence);
-  if (runtimeState === "not_running") return `Runtime not running · ${thisMachine}`;
-  if (runtimeState === "starting") return `Runtime starting · ${thisMachine}`;
-  return runtimeDescription.kind === "read" ? `tatolabd ${runtimeDescription.description.version} · ${thisMachine}` : `tatolabd · ${thisMachine}`;
+function runtimeWordsOf(runtimeState: RuntimeState, runtimeDescription: RuntimeDescriptionReading): string {
+  if (runtimeState === "not_running") return "Runtime not running";
+  if (runtimeState === "starting") return "Runtime starting";
+  return runtimeDescription.kind === "read" ? `tatolabd ${runtimeDescription.description.version}` : "tatolabd";
 }
 
 function lastEditWordsOf(projectTransactions: ProjectTransactionsReading | null, wallClockNowMs: number): string | null {
@@ -52,7 +45,7 @@ function lastEditWordsOf(projectTransactions: ProjectTransactionsReading | null,
 export function studioStatusBarWordsOf(sources: StudioStatusBarSources): StudioStatusBarWords {
   return {
     runtime_tone: sources.runtimeState,
-    runtime: runtimeWordsOf(sources.runtimeState, sources.runtimeDescription, sources.platform),
+    runtime: runtimeWordsOf(sources.runtimeState, sources.runtimeDescription),
     last_edit: lastEditWordsOf(sources.projectTransactions, sources.wallClockNowMs),
   };
 }
