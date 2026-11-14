@@ -518,9 +518,12 @@ describe("the studio", () => {
       const blob = blobsByUrl.get(this.href) ?? expect.unreachable("the download names no file made for it");
       downloadedFiles.push({ fileName: this.download, blob });
     });
-    pressAsAPointerDoes(coreViewPage("transactions").querySelector<HTMLElement>("[data-transactions-log-menu]") ?? expect.unreachable("no log menu"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Download transaction logs" }));
-    [madeFileUrl, revokedFileUrl, clickedLink].forEach((spy) => spy.mockRestore());
+    try {
+      pressAsAPointerDoes(coreViewPage("transactions").querySelector<HTMLElement>("[data-transactions-log-menu]") ?? expect.unreachable("no log menu"));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Download transaction logs" }));
+    } finally {
+      [madeFileUrl, revokedFileUrl, clickedLink].forEach((spy) => spy.mockRestore());
+    }
     expect(downloadedFiles.map((file) => file.fileName)).toEqual(["pattern transactions.json"]);
     const downloadedLog: unknown = JSON.parse(await (downloadedFiles[0]?.blob ?? expect.unreachable("nothing downloaded")).text());
     expect(downloadedLog).toMatchObject({ transactions: expect.arrayContaining([expect.objectContaining({ author_name: "claude-code" })]), refused_actions: [expect.objectContaining({ author_name: "claude-code" })] });

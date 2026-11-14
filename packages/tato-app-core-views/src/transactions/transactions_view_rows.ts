@@ -272,13 +272,13 @@ export function transactionsViewRowsAsJson(rows: readonly TransactionsViewRow[])
   );
 }
 
-/** Every applied transaction and refused action of the feed, as one JSON object, indented, exactly as the runtime sent it; what the view shows does not narrow it. */
+/** Every applied transaction and refused action the app read from the project's change feed, as one JSON object, indented; what the view shows does not narrow it. */
 export function transactionsLogAsJson(feed: ProjectTransactions): string {
   return JSON.stringify(feed, null, 2);
 }
 
-/** A character no file name may hold on macOS, Linux or Windows. */
-const CHARACTERS_NO_FILE_NAME_HOLDS = /[\\/:*?"<>|\u0000-\u001f]/g;
+/** A character no file name may hold on macOS, Linux or Windows, or a leading dot, which hides the file on macOS and Linux. */
+const CHARACTERS_NO_FILE_NAME_HOLDS = /[\\/:*?"<>|\u0000-\u001f]|^\./g;
 
 /** The file a project's transaction log downloads as: `<project name> transactions.json`. */
 export function transactionsLogFileNameOf(projectName: string): string {

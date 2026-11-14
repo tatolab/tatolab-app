@@ -283,13 +283,14 @@ describe("the log menu's rows", () => {
 });
 
 describe("the downloaded transaction log", () => {
-  it("holds every applied transaction and refused action exactly as the runtime sent them, whatever the view shows", () => {
+  it("holds every applied transaction and refused action of the feed, whatever the view shows", () => {
     const feed = { project: "p", project_directory: "/p", transactions: [transactionWith({ transaction: "t1" })], refused_actions: [refusedActionWith({})] };
     expect(JSON.parse(transactionsLogAsJson(feed))).toEqual(feed);
   });
 
-  it("is named after the project, with any character no file name holds made a dash", () => {
+  it("is named after the project, with any character no file name holds, and a leading dot, made a dash", () => {
     expect(transactionsLogFileNameOf("Lobby")).toBe("Lobby transactions.json");
     expect(transactionsLogFileNameOf('Night: show/2 "B"')).toBe("Night- show-2 -B- transactions.json");
+    expect(transactionsLogFileNameOf(".hidden.show")).toBe("-hidden.show transactions.json");
   });
 });
