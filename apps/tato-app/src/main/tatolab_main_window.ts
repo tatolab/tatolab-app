@@ -91,10 +91,10 @@ export interface MainWindowHostFactory {
 /** What a window is: the one Projects window, the studio window of one project, a view popped out of a studio window, or a studio window's Module manager window. */
 export type TatolabWindowRole = "projects" | "studio" | "popped_out_view" | "module_manager";
 
-/** A window's size when created, and the smallest it can be made: a popped-out view is small enough to sit on a second monitor's corner, Module manager sits beside the studio, every other window is the studio's size. */
+/** A window's size when created, and the smallest it can be made: a popped-out view is small enough to sit on a second monitor's corner, Module manager is wide enough for four of its Marketplace's cards in a row, every other window is the studio's size. */
 export function mainWindowSizesOf(windowRole: TatolabWindowRole): Pick<MainWindowSpecification, "width" | "height" | "minimumWidth" | "minimumHeight"> {
   if (windowRole === "popped_out_view") return { width: 720, height: 450, minimumWidth: 320, minimumHeight: 200 };
-  if (windowRole === "module_manager") return { width: 960, height: 660, minimumWidth: 680, minimumHeight: 480 };
+  if (windowRole === "module_manager") return { width: 1240, height: 800, minimumWidth: 880, minimumHeight: 580 };
   return { width: 1040, height: 700, minimumWidth: 860, minimumHeight: 580 };
 }
 

@@ -1,6 +1,6 @@
-// The mock's package catalog, as streamlib's release would serve it at get.tatolab.com: the
+// The mock's package catalog, as streamlib's release serves it at get.tatolab.com: the
 // packages a show reaches for and two sample projects. `?catalog=unserved` answers the refusal a
-// Tato Studio gets while the catalog is not served yet.
+// Tato Studio gets when the catalog's URL answers 404.
 
 import type { PackageCatalogDownload, PackageCatalogEntry, PackageCatalogReading } from "../src/shared/tatolab_backend_contract";
 

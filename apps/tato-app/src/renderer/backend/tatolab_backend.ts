@@ -179,8 +179,10 @@ export interface TatolabBackend {
   updateWorkspaceDependency(project: string, overwriteEditedFiles: boolean): Promise<WorkspaceDependencyUpdate>;
   /** Download the catalog entry `name`'s `.zip`, check it, and import it into the workspace; rejects in words. */
   importFromTheMarketplace(name: string): Promise<ProjectDependency>;
-  /** Open the workspace's `imports/<folder>/` in its own studio window; rejects in words for a folder it does not import. */
-  openImportToEdit(folder: string): Promise<void>;
+  /** Take the import `project` out of the workspace; rejects in the runtime's own words. */
+  removeWorkspaceDependency(project: string): Promise<ProjectDependency>;
+  /** Download the catalog's sample `name`, check it, and make a project of its own from it, opened in its studio window; the workspace is not changed. Rejects in words. */
+  cloneMarketplaceSample(name: string): Promise<ChosenProjectFolder>;
   /** The full path of a file dropped on the window, or `""` for one with none, as a dragged-in browser item. */
   pathOfADroppedFile(droppedFile: File): string;
   /** This window's project as the app last read it from disk; `none_open` in the Projects window. */
