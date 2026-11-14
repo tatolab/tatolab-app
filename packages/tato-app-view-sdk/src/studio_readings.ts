@@ -280,8 +280,8 @@ export const projectNodeTypeSchema = z.object({
   /** `process`, `function` or `shader`, or a kind newer than this app; `null` where source does not show it. */
   kind: z.string().nullable(),
   description: z.string(),
-  /** The category the runtime files it under, a path with `/` between its levels; the runtime serves the declaring module when the node type declares none. */
-  category: z.string(),
+  /** The category the runtime files it under, a path with `/` between its levels, as `Effects/Stylize`; `null` for a type served with none. */
+  category: z.string().nullable(),
   /** `null` where only the node's native half states its ports. */
   inputs: z.array(projectNodeTypePortSchema).nullable(),
   outputs: z.array(projectNodeTypePortSchema).nullable(),
