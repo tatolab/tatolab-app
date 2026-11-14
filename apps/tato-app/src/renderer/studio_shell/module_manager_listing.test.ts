@@ -14,6 +14,7 @@ import {
   moduleCoverNumberOf,
   moduleFolderNameOf,
   moduleRowAndItsNeighboursOf,
+  workByIdWithoutTheAddsNowListed,
   workByIdWithTheRowsMade,
   whyTheModuleHasNoUpdateToTake,
   workKeptForTheRow,
@@ -143,6 +144,17 @@ describe("what the Marketplace window lists", () => {
     const addedThenUpdating = workByIdWithTheRowsMade(workByIdWithTheRowsMade({}, camera, "add", "just added"), camera, "update", "updating");
     expect(Object.values(addedThenUpdating)).toEqual(["updating"]);
     expect(workKeptForTheRow(workByIdWithTheRowsMade<string>(addedThenUpdating, camera, "update", null), camera)).toBeNull();
+  });
+
+  it("forgets that an add just ended for each row the project's modules now list, and keeps every other work", () => {
+    const [sample, cameraNowListed, opusNotListedYet] = everyModuleCardRowOf(CATALOG, [aModule("tatolab-camera", "Tatolab_Camera")]);
+    const workById = { [sample.row_id]: "cloned", [cameraNowListed.row_id]: "just added", [opusNotListedYet.row_id]: "just added", "import:lobby-wall": "updating" };
+
+    expect(workByIdWithoutTheAddsNowListed(workById, [sample, cameraNowListed, opusNotListedYet], (work) => work === "just added")).toEqual({
+      [sample.row_id]: "cloned",
+      [opusNotListedYet.row_id]: "just added",
+      "import:lobby-wall": "updating",
+    });
   });
 
   it("gives a module the same plain cover every time, the one a project of its title wears, in the Marketplace and in the project alike", () => {

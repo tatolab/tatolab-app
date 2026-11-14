@@ -161,6 +161,17 @@ export function workByIdWithTheRowsMade<Work>(workById: Readonly<Record<string, 
   return work === null ? workOfEveryOtherRow : { ...workOfEveryOtherRow, [idTheWorkOfTheAskIsKeptUnder(row, ask)]: work };
 }
 
+/**
+ * `workById` without the work `saysAnAddJustEnded` holds for each row the project's modules now list. That an add just ended is said on the
+ * module's page until the page shown changes; from then on the row's module says the project has it.
+ */
+export function workByIdWithoutTheAddsNowListed<Work>(workById: Readonly<Record<string, Work>>, everyRow: readonly ModuleCardRow[], saysAnAddJustEnded: (work: Work) => boolean): Readonly<Record<string, Work>> {
+  return everyRow.reduce((workKept, row) => {
+    const work = workKeptForTheRow(workKept, row);
+    return row.module_of_the_project !== null && work !== null && saysAnAddJustEnded(work) ? workByIdWithTheRowsMade(workKept, row, "add", null) : workKept;
+  }, workById);
+}
+
 /** The work kept for the row under any id it goes by; `null` for none. */
 export function workKeptForTheRow<Work>(workById: Readonly<Record<string, Work>>, row: ModuleCardRow): Work | null {
   for (const rowId of everyIdTheRowGoesBy(row)) {

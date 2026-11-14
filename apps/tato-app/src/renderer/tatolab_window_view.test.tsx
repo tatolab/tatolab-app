@@ -2216,6 +2216,25 @@ describe("Module manager", () => {
     expect(document.querySelector('[data-module-manager-add-from-card="catalog:tatolab-camera"]')).toBeNull();
   });
 
+  it("says a package was just added only until its page is left: opened again, the page offers what a module of the project is offered", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open");
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+    openThePageOf("catalog:tatolab-camera");
+    pressed(await waitFor(() => (document.querySelector("[data-module-manager-import]") === null ? expect.unreachable("no Add") : "[data-module-manager-import]")));
+    await shown('[data-module-manager-added="catalog:tatolab-camera"]');
+    await waitFor(() => expect(textOf('[data-module-manager-show="added_to_this_project"]')).toBe("pattern2"));
+
+    pressed("[data-module-manager-back]");
+    pressed('[data-module-manager-show="added_to_this_project"]');
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+    openThePageOf("catalog:tatolab-camera");
+
+    await shown('[data-module-manager-in-project="catalog:tatolab-camera"]');
+    expect(document.querySelector("[data-module-manager-added]")).toBeNull();
+    expect(textOf("[data-module-manager-detail] [data-module-manager-remove]")).toBe("Uninstall…");
+    expect(document.querySelector("[data-module-manager-detail] [data-module-manager-update]")?.getAttribute("aria-disabled")).toBe("true");
+  });
+
   it("marks a card refused, not as news, when its Add is refused, and offers Add again", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open&marketplace_add=refused");
     await shown('[data-module-manager-row="catalog:tatolab-camera"]');

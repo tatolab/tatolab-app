@@ -51,6 +51,7 @@ import {
   moduleCoverNumberOf,
   whyTheModuleHasNoUpdateToTake,
   moduleRowAndItsNeighboursOf,
+  workByIdWithoutTheAddsNowListed,
   workByIdWithTheRowsMade,
   workKeptForTheRow,
   moduleRowCountsOf,
@@ -623,6 +624,10 @@ export function ModuleManagerWindowView({
     if (isTheWindowStillShown.current) setModuleWorkByRowId((workByRowId) => workByIdWithTheRowsMade(workByRowId, row, ask, work));
   };
   const workOf = (row: ModuleCardRow) => workKeptForTheRow(moduleWorkByRowId, row);
+  const showThePageOf = (rowId: string | null) => {
+    setRowIdOfThePageOpen(rowId);
+    setModuleWorkByRowId((workByRowId) => workByIdWithoutTheAddsNowListed(workByRowId, everyRow, (work) => work.kind === "just_added"));
+  };
   const askOfTheModule = <Answer,>(row: ModuleCardRow, ask: ModuleAsk, wordsWhileItRuns: string, work: () => Promise<Answer>, workOnceAnswered: (answer: Answer) => ModuleWork | null) => {
     if (workOf(row)?.kind === "under_way") return;
     setTheWorkOf(row, ask, { kind: "under_way", ask, words: wordsWhileItRuns });
@@ -665,7 +670,7 @@ export function ModuleManagerWindowView({
   const removeTheModule = (row: ModuleCardRow) => {
     const dependency = row.module_of_the_project;
     if (dependency === null) return;
-    setRowIdOfThePageOpen(null);
+    showThePageOf(null);
     askOfTheModule(row, "remove", `Uninstalling ${row.title}…`, () => sources.removeWorkspaceDependency(dependency.project), () => null);
   };
 
@@ -770,10 +775,10 @@ export function ModuleManagerWindowView({
         return;
       }
       if (pageOpen === null || keyEvent.defaultPrevented) return;
-      if (keyEvent.key === "Escape") setRowIdOfThePageOpen(null);
+      if (keyEvent.key === "Escape") showThePageOf(null);
       if (!isPressedOnTheModulePageOrNothing(keyEvent.target)) return;
-      if (keyEvent.key === "ArrowLeft" && pageOpen.previousRowId !== null) setRowIdOfThePageOpen(pageOpen.previousRowId);
-      else if (keyEvent.key === "ArrowRight" && pageOpen.nextRowId !== null) setRowIdOfThePageOpen(pageOpen.nextRowId);
+      if (keyEvent.key === "ArrowLeft" && pageOpen.previousRowId !== null) showThePageOf(pageOpen.previousRowId);
+      else if (keyEvent.key === "ArrowRight" && pageOpen.nextRowId !== null) showThePageOf(pageOpen.nextRowId);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -808,7 +813,7 @@ export function ModuleManagerWindowView({
                   </ActionButton>
                 ) : null
               }
-              onOpened={() => setRowIdOfThePageOpen(row.row_id)}
+              onOpened={() => showThePageOf(row.row_id)}
               data-module-manager-row={row.row_id}
             />
           );
@@ -828,7 +833,7 @@ export function ModuleManagerWindowView({
       <ModuleList label={`Modules in ${projectName}`}>
         {projectRows.map((row) =>
           row.module_of_the_project === null ? null : (
-            <ProjectModuleListRow key={row.row_id} row={row} dependency={row.module_of_the_project} work={workOf(row)} asks={asks} onOpened={() => setRowIdOfThePageOpen(row.row_id)} />
+            <ProjectModuleListRow key={row.row_id} row={row} dependency={row.module_of_the_project} work={workOf(row)} asks={asks} onOpened={() => showThePageOf(row.row_id)} />
           ),
         )}
       </ModuleList>
@@ -882,7 +887,7 @@ export function ModuleManagerWindowView({
             text={searchText}
             onTextChanged={(text) => {
               setSearchText(text);
-              setRowIdOfThePageOpen(null);
+              showThePageOf(null);
             }}
             shortcut={{ hint: "/", ariaKeyShortcuts: "/" }}
             inputRef={searchFieldElement}
@@ -909,8 +914,8 @@ export function ModuleManagerWindowView({
           work={workOf(pageOpen.row)}
           projectName={projectName}
           asks={asks}
-          onBack={() => setRowIdOfThePageOpen(null)}
-          onRowOpened={setRowIdOfThePageOpen}
+          onBack={() => showThePageOf(null)}
+          onRowOpened={showThePageOf}
           onViewInTheProject={() => showTheTab("added_to_this_project")}
         />
       )}
