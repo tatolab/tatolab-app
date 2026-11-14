@@ -73,6 +73,7 @@ function edited(graph: StreamGraphSummary = GRAPH): EditedStreamGraph {
 const catalogEntry = (type: string, inputs: [string, "image" | "array" | null][], outputs: [string, "image" | "array" | null][]): NodeCatalogEntry => ({
   type,
   description: "",
+  category: null,
   config_schema: null,
   inputs: inputs.map(([name, family]) => ({ name, description: "", family })),
   outputs: outputs.map(([name, family]) => ({ name, description: "", family })),

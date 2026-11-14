@@ -1,9 +1,11 @@
 // The rows the Library and the outliner show of a project's node types, derived from what
-// `list_project_node_types` lists: each source's node types by category, its graph generators, and
-// each module of it that does not parse, with why in the parser's own words.
+// `list_project_node_types` lists: each source's node types by category, a category inside another
+// under it, its graph generators, and each module of it that does not parse, with why in the parser's
+// own words.
 
 import type { TreeViewRow } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import { whereTheSearchMatches } from "@tatolab/tato-app-view-sdk/design_system/matched_words";
+import { NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS, nodeTypeCategoryPath } from "./node_type_category_path";
 import type { ProjectGraphGenerator, ProjectNodeModuleNotReadable, ProjectNodeType, ProjectNodeTypeSource, ProjectNodeTypeSourceOrigin } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** What a node type, graph generator or unreadable module row stands for, with its file as an absolute path when it is the project's own source. */
@@ -110,10 +112,16 @@ function compareByText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+/** The node types filed under one category, and the categories filed inside it by name. */
+interface NodeTypesOfOneCategory {
+  nodeTypes: ProjectNodeType[];
+  categoriesInside: Map<string, NodeTypesOfOneCategory>;
+}
+
 /** Which of a source's declarations its rows show: all of them; its node types and the modules that do not parse; or only its graph generators, with no heading over them. */
 export type SourceDeclarationsShown = "every_declaration" | "node_types" | "graph_generators";
 
-/** The rows under a source's row `sourceRowId`: each category with its node types, its graph generators, then each module that does not parse, as far as `declarationsShown` has them. */
+/** The rows under a source's row `sourceRowId`: each category with the categories inside it and its node types, the node types served with no category, its graph generators, then each module that does not parse, as far as `declarationsShown` has them. */
 export function nodeTypeSourceChildren(
   source: ProjectNodeTypeSource,
   sourceRowId: string,
@@ -121,26 +129,49 @@ export function nodeTypeSourceChildren(
   projectDirectory: string,
   declarationsShown: SourceDeclarationsShown = "every_declaration",
 ): StudioTreeNode<DeclarationRowMeaning | NothingToChooseRowMeaning>[] {
-  const nodeTypesByCategory = new Map<string, ProjectNodeType[]>();
+  const everyCategory: NodeTypesOfOneCategory = { nodeTypes: [], categoriesInside: new Map() };
   for (const nodeType of [...source.node_types].sort((left, right) => compareByText(left.type, right.type))) {
-    nodeTypesByCategory.set(nodeType.category, [...(nodeTypesByCategory.get(nodeType.category) ?? []), nodeType]);
+    let category = everyCategory;
+    for (const group of nodeTypeCategoryPath(nodeType.category)) {
+      const categoryInside = category.categoriesInside.get(group) ?? { nodeTypes: [], categoriesInside: new Map() };
+      category.categoriesInside.set(group, categoryInside);
+      category = categoryInside;
+    }
+    category.nodeTypes.push(nodeType);
   }
-  const categoryNodes = [...nodeTypesByCategory.entries()]
-    .sort(([leftCategory], [rightCategory]) => compareByText(leftCategory, rightCategory))
-    .map(([category, nodeTypes]): StudioTreeNode<DeclarationRowMeaning | NothingToChooseRowMeaning> => {
-      const categoryRowId = `${sourceRowId}/category:${category}`;
-      return {
-        row: { row_id: categoryRowId, label: category, icon: "node_category", isHeading: true },
-        meaning: { kind: "nothing_to_select" },
-        isOpenByDefault: true,
-        children: nodeTypes.map((nodeType) => ({
-          row: { row_id: `${categoryRowId}/node_type:${nodeType.type}`, label: nodeTypeShortName(nodeType.type), icon: "node_type", isMachineWords: true },
-          meaning: { kind: "node_type_declaration", node_type: nodeType, source_title: sourceTitle, file: declaringFileOf(source.origin, projectDirectory, nodeType.path) },
-          isOpenByDefault: false,
-          children: [],
-        })),
-      };
-    });
+  const nodeTypeLeaves = (nodeTypes: readonly ProjectNodeType[], categoryRowId: string): StudioTreeNode<DeclarationRowMeaning | NothingToChooseRowMeaning>[] =>
+    nodeTypes.map((nodeType) => ({
+      row: { row_id: `${categoryRowId}/node_type:${nodeType.type}`, label: nodeTypeShortName(nodeType.type), icon: "node_type", isMachineWords: true },
+      meaning: { kind: "node_type_declaration", node_type: nodeType, source_title: sourceTitle, file: declaringFileOf(source.origin, projectDirectory, nodeType.path) },
+      isOpenByDefault: false,
+      children: [],
+    }));
+  const categoryRows = (categoriesInside: NodeTypesOfOneCategory["categoriesInside"], rowIdTheyAreUnder: string): StudioTreeNode<DeclarationRowMeaning | NothingToChooseRowMeaning>[] =>
+    [...categoriesInside.entries()]
+      .sort(([leftGroup], [rightGroup]) => compareByText(leftGroup, rightGroup))
+      .map(([group, category]): StudioTreeNode<DeclarationRowMeaning | NothingToChooseRowMeaning> => {
+        const categoryRowId = `${rowIdTheyAreUnder}${group}`;
+        return {
+          row: { row_id: categoryRowId, label: group, icon: "node_category", isHeading: true },
+          meaning: { kind: "nothing_to_select" },
+          isOpenByDefault: true,
+          children: [...categoryRows(category.categoriesInside, `${categoryRowId}/`), ...nodeTypeLeaves(category.nodeTypes, categoryRowId)],
+        };
+      });
+  const rowIdOfNoCategory = `${sourceRowId}/no_category`;
+  const categoryNodes: StudioTreeNode<DeclarationRowMeaning | NothingToChooseRowMeaning>[] = [
+    ...categoryRows(everyCategory.categoriesInside, `${sourceRowId}/category:`),
+    ...(everyCategory.nodeTypes.length === 0
+      ? []
+      : [
+          {
+            row: { row_id: rowIdOfNoCategory, label: NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS, icon: "node_category" as const, isHeading: true },
+            meaning: { kind: "nothing_to_select" as const },
+            isOpenByDefault: true,
+            children: nodeTypeLeaves(everyCategory.nodeTypes, rowIdOfNoCategory),
+          },
+        ]),
+  ];
   const graphGeneratorsRowId = `${sourceRowId}/graph_generators`;
   const graphGeneratorLeaves = [...source.graph_generators]
     .sort((left, right) => compareByText(left.generator, right.generator))

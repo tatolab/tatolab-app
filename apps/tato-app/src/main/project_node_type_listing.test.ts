@@ -137,6 +137,22 @@ test("an_entry_point_whose_declaration_source_does_not_show_reads_with_no_kind_p
   });
 });
 
+test("a_node_type_served_with_no_category_reads_with_none_and_one_that_is_not_text_is_refused", () => {
+  const listingOfOneNodeType = (category: unknown) =>
+    projectNodeTypeListingFromTheToolResult(
+      JSON.parse(listingText([{ source: "project", ...EMPTY_SOURCE_LISTS, node_types: [{ type: "nodes.gate:Gate", kind: "function", description: "", ...(category === undefined ? {} : { category }), inputs: [], outputs: [], path: "nodes/gate.py", line: 4 }] }])),
+    );
+  const categoryRead = (category: unknown) => {
+    const listing = listingOfOneNodeType(category);
+    return listing.ok ? listing.value.sources[0]?.node_types[0]?.category : listing.failure;
+  };
+
+  expect(categoryRead(null)).toBeNull();
+  expect(categoryRead(undefined)).toBeNull();
+  expect(categoryRead("Logic/Gates")).toBe("Logic/Gates");
+  expect(categoryRead(7)).toContain("`category` is not a string");
+});
+
 test("a_source_of_an_origin_newer_than_this_app_still_lists_under_the_name_the_runtime_gives_it", () => {
   const listing = projectNodeTypeListingFromTheToolResult(JSON.parse(listingText([{ source: "workspace_member", member: "lights", ...EMPTY_SOURCE_LISTS }])));
 

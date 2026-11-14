@@ -1,7 +1,9 @@
-// The browser mock's node catalog: every node type its streams name, each with the config schema the
-// runtime would serve for it — Python's spelling (`anyOf` with null, no `title`) for a node written in
-// Python, Rust's (`"type": [T, "null"]`, a root `title`, an enum under `$defs`) for a native one — and
-// its ports by name and the family each carries, which the mock serves only when asked.
+// The browser mock's node catalog: every node type its streams name, each with the category the
+// runtime would serve for it (none for a built-in, the declaring module for a Python node that
+// declares none) and the config schema the runtime would serve for it — Python's spelling (`anyOf`
+// with null, no `title`) for a node written in Python, Rust's (`"type": [T, "null"]`, a root `title`,
+// an enum under `$defs`) for a native one — and its ports by name and the family each carries, which
+// the mock serves only when asked.
 
 import type { JsonValue, NodeCatalogEntry, PortFamily } from "../src/shared/tatolab_backend_contract";
 
@@ -15,6 +17,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "tatolab.stream:TestPatternSource",
     description: "Synthetic SMPTE-style color bars with a bouncing potato, rendered on the GPU",
+    category: null,
     config_schema: {
       type: "object",
       properties: {
@@ -30,6 +33,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "tatolab.stream:CameraSource",
     description: "Captures a camera and converts each frame on the GPU, with no CPU copy",
+    category: null,
     config_schema: {
       type: "object",
       properties: {
@@ -49,6 +53,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "tatolab.stream:MicrophoneSource",
     description: "Captures a microphone as audio blocks",
+    category: null,
     config_schema: {
       type: "object",
       properties: {
@@ -64,6 +69,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "tatolab.stream:DisplayWindow",
     description: "Shows video frames in a window on this machine",
+    category: null,
     config_schema: {
       title: "DisplayWindowConfig",
       type: "object",
@@ -80,6 +86,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "tatolab.stream:Mp4Writer",
     description: "Writes video frames to an MP4 file",
+    category: null,
     config_schema: {
       type: "object",
       properties: {
@@ -95,6 +102,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "nodes.inverting_effect:InvertingEffect",
     description: "Inverts each frame's colours",
+    category: "Effects",
     config_schema: {
       type: "object",
       properties: { strength: { type: "number", description: "How far each colour is inverted.", default: 1, minimum: 0, maximum: 1 } },
@@ -105,6 +113,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "tatolab.stream:GraphInput",
     description: "Declares one Input of the graph: every port `value` is linked to reads what enters it.",
+    category: null,
     config_schema: {
       title: "GraphInputConfig",
       type: "object",
@@ -116,6 +125,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "nodes.brightness_meter:BrightnessMeter",
     description: "Measures each frame's mean brightness",
+    category: "nodes.brightness_meter",
     config_schema: THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG,
     inputs: [port("video_from_upstream", "", "image")],
     outputs: [port("brightness", "Each frame's mean brightness", "records"), port("luma_points", "A sample of the frame's pixels as points", "array")],
@@ -123,6 +133,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "nodes.level_meter:LevelMeter",
     description: "Logs each audio block's peak level",
+    category: "nodes.level_meter",
     config_schema: THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG,
     inputs: [port("audio_from_upstream", "", "channels")],
     outputs: [],
@@ -130,6 +141,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "tatolab.h264:H264Encoder",
     description: "Encodes each frame as H.264 on the GPU",
+    category: null,
     config_schema: {
       type: "object",
       properties: {
@@ -144,6 +156,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "tatolab.ops:ImageFile",
     description: "Publishes the project image asset its config names, once at start and again on each config change.",
+    category: null,
     config_schema: {
       type: "object",
       properties: { asset: { type: "string", default: "", "x-tatolab-project-asset": { media: ["image"] } } },
@@ -155,6 +168,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
     type: "tatolab.compositor:AlphaOverCompositor",
     description: "Video layers stacked back to front, in premultiplied alpha, on the GPU",
+    category: null,
     config_schema: {
       type: "object",
       properties: {

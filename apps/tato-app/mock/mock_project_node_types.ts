@@ -33,7 +33,7 @@ const CAPTION_OVERLAY: ProjectNodeType = {
   type: "nodes.captions:caption_overlay",
   kind: "function",
   description: "Draws the latest caption over each frame.",
-  category: "Effects",
+  category: "Effects/Text",
   inputs: [
     { name: "video", description: "", family: "image", annotation: "ImageFrame" },
     { name: "caption", description: "", family: "records", annotation: "Caption | None" },

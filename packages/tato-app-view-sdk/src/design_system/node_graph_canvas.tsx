@@ -28,6 +28,7 @@ import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
 import { MenuItem, MenuOpenBesideItsParent, RightClickMenu, RightClickMenuItem, RightClickMenuSeparator, RightClickMenuSingleChoiceGroup, RightClickSubmenu } from "./menus";
 import {
   createContext,
+  Fragment,
   memo,
   useCallback,
   useContext,
@@ -353,6 +354,9 @@ const linkedPinKey = (
   pinName: string,
 ) => `${nodeId}\u0000${side}\u0000${pinName}`;
 
+/** The box every card is drawn in, in the canvas and in a preview outside it. */
+const NODE_GRAPH_CARD_CLASS_NAMES = "node-graph-card relative min-w-[180px] max-w-[360px]";
+
 /** A pin's mark at the card's edge, shaped and coloured by its family, or a plain bar while none is known. */
 function NodeGraphPinHandle({
   nodeId,
@@ -389,52 +393,30 @@ function NodeGraphPinHandle({
   );
 }
 
-function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
-  const selectedNodeIds = useContext(NodeGraphSelectionContext);
-  const cardAndFrameEditing = useContext(NodeGraphCardAndFrameEditingContext);
-  const portPicking = useContext(NodeGraphPortPickingContext);
-  const nodesFound = useContext(NodeGraphNodesFoundContext);
-  const { graphNode } = data;
-  const portsThatCanJoin = portPicking?.portsThatCanJoinByNodeId.get(graphNode.node_id) ?? null;
-  const isSelected = selectedNodeIds.has(graphNode.node_id);
-  const findLook = nodesFound.current_node_id === graphNode.node_id ? "current" : nodesFound.found_node_ids.has(graphNode.node_id) ? "found" : undefined;
-  const failureWords = failureWordsTheCardShows(graphNode);
-  const pinRowCount = Math.max(
-    graphNode.input_pins.length,
-    graphNode.output_pins.length,
-  );
+/** What a card's header and pin rows draw of a node. */
+type NodeGraphCardFaceNode = Pick<NodeGraphCanvasNode, "title" | "type_name" | "description" | "condition" | "input_pins" | "output_pins" | "is_collapsed" | "subgraph">;
+
+/** A card's header and its pin rows, which the canvas and a preview outside it both draw; `pinAtTheCardsEdge` draws each pin's socket. */
+function NodeGraphCardHeaderAndPinRows({
+  graphNode,
+  beforeTheTitle = null,
+  pinAtTheCardsEdge,
+}: {
+  graphNode: NodeGraphCardFaceNode;
+  /** What leads the header, as the canvas's button that collapses the card. */
+  beforeTheTitle?: ReactNode;
+  /** `takesNewWires` is false on a collapsed card, whose pins all meet at its header's edge. */
+  pinAtTheCardsEdge: (side: "input" | "output", pin: NodeGraphCanvasPin, takesNewWires: boolean) => ReactNode;
+}) {
+  const pinRowCount = Math.max(graphNode.input_pins.length, graphNode.output_pins.length);
   return (
-    <div
-      className={cn(
-        "node-graph-card relative min-w-[180px] max-w-[360px]",
-        isSelected && "node-graph-card-selected",
-        portPicking !== null && (portsThatCanJoin === null ? "node-graph-card-not-pickable" : "node-graph-card-pickable"),
-      )}
-      data-node-graph-card={graphNode.node_id}
-      data-port-pick={portPicking === null ? undefined : portsThatCanJoin === null ? "dim" : "lit"}
-      data-selected={isSelected || undefined}
-      data-found={findLook}
-      data-condition={graphNode.condition.look}
-      data-collapsed={graphNode.is_collapsed || undefined}
-      data-subgraph={graphNode.subgraph ?? undefined}
-    >
+    <>
       <div
         className="node-graph-card-header relative flex items-center gap-2 px-2"
         style={{ height: NODE_GRAPH_CARD_HEADER_HEIGHT }}
         title={graphNode.description ?? undefined}
       >
-        {cardAndFrameEditing !== null && (
-          <button
-            type="button"
-            className={cn("nodrag -mr-1 flex size-4 shrink-0 items-center justify-center rounded-sm text-fg-3 outline-none hover:bg-hover hover:text-fg", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
-            aria-label={`${graphNode.title} pins`}
-            aria-expanded={!graphNode.is_collapsed}
-            onClick={() => cardAndFrameEditing.onCardCollapsed(graphNode.node_id, !graphNode.is_collapsed)}
-            data-node-graph-card-collapse={graphNode.node_id}
-          >
-            {graphNode.is_collapsed ? <ChevronRight className="size-3" strokeWidth={2} aria-hidden /> : <ChevronDown className="size-3" strokeWidth={2} aria-hidden />}
-          </button>
-        )}
+        {beforeTheTitle}
         {graphNode.subgraph !== null && <Combine className="size-3 shrink-0 text-fg-2" strokeWidth={2} aria-label="Subgraph" data-node-graph-card-subgraph={graphNode.subgraph} />}
         <span className="truncate text-xs font-semibold text-fg">
           {graphNode.title}
@@ -448,10 +430,10 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
         {graphNode.is_collapsed && (
           <>
             {graphNode.input_pins.map((pin) => (
-              <NodeGraphPinHandle key={`input:${pin.name}`} nodeId={graphNode.node_id} side="input" pin={pin} takesNewWires={false} />
+              <Fragment key={`input:${pin.name}`}>{pinAtTheCardsEdge("input", pin, false)}</Fragment>
             ))}
             {graphNode.output_pins.map((pin) => (
-              <NodeGraphPinHandle key={`output:${pin.name}`} nodeId={graphNode.node_id} side="output" pin={pin} takesNewWires={false} />
+              <Fragment key={`output:${pin.name}`}>{pinAtTheCardsEdge("output", pin, false)}</Fragment>
             ))}
           </>
         )}
@@ -481,27 +463,60 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
               >
                 {outputPin?.name}
               </span>
-              {inputPin !== undefined && (
-                <NodeGraphPinHandle
-                  nodeId={graphNode.node_id}
-                  side="input"
-                  pin={inputPin}
-                  takesNewWires
-                />
-              )}
-              {outputPin !== undefined && (
-                <NodeGraphPinHandle
-                  nodeId={graphNode.node_id}
-                  side="output"
-                  pin={outputPin}
-                  takesNewWires
-                />
-              )}
+              {inputPin !== undefined && pinAtTheCardsEdge("input", inputPin, true)}
+              {outputPin !== undefined && pinAtTheCardsEdge("output", outputPin, true)}
             </div>
           );
         })}
         </div>
       )}
+    </>
+  );
+}
+
+function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
+  const selectedNodeIds = useContext(NodeGraphSelectionContext);
+  const cardAndFrameEditing = useContext(NodeGraphCardAndFrameEditingContext);
+  const portPicking = useContext(NodeGraphPortPickingContext);
+  const nodesFound = useContext(NodeGraphNodesFoundContext);
+  const { graphNode } = data;
+  const portsThatCanJoin = portPicking?.portsThatCanJoinByNodeId.get(graphNode.node_id) ?? null;
+  const isSelected = selectedNodeIds.has(graphNode.node_id);
+  const findLook = nodesFound.current_node_id === graphNode.node_id ? "current" : nodesFound.found_node_ids.has(graphNode.node_id) ? "found" : undefined;
+  const failureWords = failureWordsTheCardShows(graphNode);
+  return (
+    <div
+      className={cn(
+        NODE_GRAPH_CARD_CLASS_NAMES,
+        isSelected && "node-graph-card-selected",
+        portPicking !== null && (portsThatCanJoin === null ? "node-graph-card-not-pickable" : "node-graph-card-pickable"),
+      )}
+      data-node-graph-card={graphNode.node_id}
+      data-port-pick={portPicking === null ? undefined : portsThatCanJoin === null ? "dim" : "lit"}
+      data-selected={isSelected || undefined}
+      data-found={findLook}
+      data-condition={graphNode.condition.look}
+      data-collapsed={graphNode.is_collapsed || undefined}
+      data-subgraph={graphNode.subgraph ?? undefined}
+    >
+      <NodeGraphCardHeaderAndPinRows
+        graphNode={graphNode}
+        beforeTheTitle={
+          cardAndFrameEditing !== null && (
+            <button
+              type="button"
+              className={cn("nodrag -mr-1 flex size-4 shrink-0 items-center justify-center rounded-sm text-fg-3 outline-none hover:bg-hover hover:text-fg", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
+              aria-label={`${graphNode.title} pins`}
+              aria-expanded={!graphNode.is_collapsed}
+              onClick={() => cardAndFrameEditing.onCardCollapsed(graphNode.node_id, !graphNode.is_collapsed)}
+              data-node-graph-card-collapse={graphNode.node_id}
+            >
+              {graphNode.is_collapsed ? <ChevronRight className="size-3" strokeWidth={2} aria-hidden /> : <ChevronDown className="size-3" strokeWidth={2} aria-hidden />}
+            </button>
+          )
+        }
+        pinAtTheCardsEdge={(side, pin, takesNewWires) => <NodeGraphPinHandle nodeId={graphNode.node_id} side={side} pin={pin} takesNewWires={takesNewWires} />}
+      />
       {failureWords !== null && !graphNode.is_collapsed && (
         <p
           className="node-graph-card-failure-words w-0 min-w-full px-2.5 py-1.5 text-2xs leading-4 text-danger-text"
@@ -1921,6 +1936,30 @@ export function NodeGraphPinMark({
       className="node-graph-pin-mark"
       data-family={family ?? undefined}
     />
+  );
+}
+
+/** How much smaller than in the graph a card's preview is drawn. */
+const NODE_GRAPH_CARD_PREVIEW_SCALE = 0.85;
+
+/** A node's card as the graph would draw it once placed, smaller and outside any canvas: its name on the header and its pins at its edges, none linked. */
+export function NodeGraphCardPreview({
+  title,
+  inputPins,
+  outputPins,
+}: {
+  title: string;
+  inputPins: readonly Pick<NodeGraphCanvasPin, "name" | "family">[];
+  outputPins: readonly Pick<NodeGraphCanvasPin, "name" | "family">[];
+}) {
+  const pinsOfThePreview = (pins: readonly Pick<NodeGraphCanvasPin, "name" | "family">[]) => pins.map((pin): NodeGraphCanvasPin => ({ ...pin, description: null, stream_facts_words: [] }));
+  return (
+    <div className={cn(NODE_GRAPH_CARD_CLASS_NAMES, "w-max")} style={{ zoom: NODE_GRAPH_CARD_PREVIEW_SCALE }} data-condition="healthy" data-node-graph-card-preview={title}>
+      <NodeGraphCardHeaderAndPinRows
+        graphNode={{ title, type_name: null, description: null, condition: { look: "healthy" }, input_pins: pinsOfThePreview(inputPins), output_pins: pinsOfThePreview(outputPins), is_collapsed: false, subgraph: null }}
+        pinAtTheCardsEdge={(side, pin) => <span aria-hidden className="node-graph-pin node-graph-pin-of-a-preview" data-side={side} data-family={pin.family ?? undefined} />}
+      />
+    </div>
   );
 }
 

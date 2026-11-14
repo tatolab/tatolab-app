@@ -1,10 +1,11 @@
 // The node catalog as the window reads it, from `GET /api/registry?stream=<stream>`: each node type
-// the stream can add under the `type` a graph node carries, with its description, its config's JSON
-// Schema (`config_schema`, absent for a type described without one) and its ports by name and
-// description. Every other key the runtime renders is ignored.
+// the stream can add under the `type` a graph node carries, with its description, the category it is
+// filed under (`category`, absent for a type that declares none), its config's JSON Schema
+// (`config_schema`, absent for a type described without one) and its ports by name and description.
+// Every other key the runtime renders is ignored.
 
 import type { JsonValue, NodeCatalog, NodeCatalogEntry, NodeCatalogPort } from "../shared/tatolab_backend_contract.js";
-import { arrayOrEmpty, everyOneRead, isAJsonValue, jsonObject, type JsonObjectOnTheWire, parseJsonOnTheWire, requiredArray, requiredText, textOrDefault } from "./json_on_the_wire.js";
+import { arrayOrEmpty, everyOneRead, isAJsonValue, jsonObject, type JsonObjectOnTheWire, optionalText, parseJsonOnTheWire, requiredArray, requiredText, textOrDefault } from "./json_on_the_wire.js";
 import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
@@ -36,6 +37,8 @@ function nodeCatalogEntryOnTheWire(nodeTypeOnTheWire: unknown): Result<NodeCatal
   if (!typeName.ok) return typeName;
   const description = textOrDefault(nodeType.value, "description", "");
   if (!description.ok) return description;
+  const category = optionalText(nodeType.value, "category");
+  if (!category.ok) return category;
   const configSchema = nodeType.value["config_schema"];
   const inputs = catalogPortsUnder(nodeType.value, "inputs");
   if (!inputs.ok) return inputs;
@@ -44,6 +47,7 @@ function nodeCatalogEntryOnTheWire(nodeTypeOnTheWire: unknown): Result<NodeCatal
   return succeeded({
     type: typeName.value,
     description: description.value,
+    category: category.value,
     config_schema: configSchemaOnTheWire(configSchema),
     inputs: inputs.value,
     outputs: outputs.value,
