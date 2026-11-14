@@ -173,6 +173,11 @@ describe("the studio's Run menu", () => {
     expect(entryOf(menus, "Run", "Stop")).toMatchObject({ kind: "command" });
   });
 
+  it("lists only the playback entries", () => {
+    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commandsCounted());
+    expect(menus.find((menu) => menu.label === "Run")?.entries.map((entry) => (entry.kind === "separator" ? "separator" : entry.label))).toEqual(["Play", "Pause", "Stop"]);
+  });
+
   it("dims every playback entry while the project is stopping", () => {
     const menus = studioMenuBarMenus("macos", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, playbackOf("stopping"), UP_TO_DATE, commandsCounted());
     for (const entryLabel of ["Play", "Pause", "Stop"]) expect(entryOf(menus, "Run", entryLabel)).toMatchObject({ kind: "unavailable_command", unavailableBecause: STOPPING_REASON });

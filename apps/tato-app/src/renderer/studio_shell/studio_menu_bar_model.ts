@@ -217,7 +217,7 @@ function studioMenuParts(
     },
     runMenu: {
       label: "Run",
-      entries: [...projectPlaybackMenuEntries(playbackControls, commands), laterCommand("Render to file…")],
+      entries: projectPlaybackMenuEntries(playbackControls, commands),
     },
     windowEntries: [studioLayoutEntry, laterCommand("Maximise area"), laterCommand("New window")],
     aboutEntry: { kind: "command", label: "About Tato Studio", onChosen: commands.openAbout },
