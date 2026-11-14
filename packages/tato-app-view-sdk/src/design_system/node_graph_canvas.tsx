@@ -11,6 +11,7 @@ import {
   ReactFlowProvider,
   useReactFlow,
   useStore,
+  useStoreApi,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -33,6 +34,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -41,6 +43,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { IconButton } from "./icon_button";
@@ -57,6 +60,7 @@ import {
   type NodeGraphPosition,
 } from "./support/node_graph_layout";
 import { isPartOfTheGraphOutsideTheView } from "./support/node_graph_map_visibility";
+import { isAPinSocketOfTheCardUnmeasured } from "./support/node_graph_pin_socket_measurement";
 import { canPinsOfTheseFamiliesBeWired, frameACardIsLetGoIn, frameRectangleAroundCards, linkUnderACard, placeClearBelowTheCards, type NodeGraphLinkMidpoint } from "./support/node_graph_editing";
 
 /** The family a pin carries, which picks its shape and colour and its links' colour. */
@@ -478,7 +482,24 @@ function NodeGraphCardHeaderAndPinRows({
   );
 }
 
-function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
+/** Measures the card's pin sockets again whenever React Flow holds no place for one of them, which would leave its links undrawn and its pins unable to start a wire; React Flow measures a card only when its size changes. */
+function useEveryPinSocketOfTheCardMeasured(nodeId: string, graphNode: NodeGraphCardFaceNode): RefObject<HTMLDivElement | null> {
+  const reactFlowStore = useStoreApi<NodeGraphFlowNode, NodeGraphLinkFlowEdge>();
+  const cardElement = useRef<HTMLDivElement>(null);
+  const inputSocketIds = graphNode.input_pins.map((pin) => inputPinHandleId(pin.name));
+  const outputSocketIds = graphNode.output_pins.map((pin) => outputPinHandleId(pin.name));
+  const isAPinSocketUnmeasured = useStore((state) => isAPinSocketOfTheCardUnmeasured(state.nodeLookup.get(nodeId)?.internals.handleBounds, inputSocketIds, outputSocketIds));
+  useLayoutEffect(() => {
+    if (!isAPinSocketUnmeasured) return;
+    const flowNodeElement = cardElement.current?.closest<HTMLDivElement>(".react-flow__node");
+    if (flowNodeElement === null || flowNodeElement === undefined) return;
+    reactFlowStore.getState().updateNodeInternals(new Map([[nodeId, { id: nodeId, nodeElement: flowNodeElement, force: true }]]));
+  }, [isAPinSocketUnmeasured, nodeId, reactFlowStore]);
+  return cardElement;
+}
+
+function NodeGraphCardView({ id, data }: NodeProps<NodeGraphCardFlowNode>) {
+  const cardElement = useEveryPinSocketOfTheCardMeasured(id, data.graphNode);
   const selectedNodeIds = useContext(NodeGraphSelectionContext);
   const cardAndFrameEditing = useContext(NodeGraphCardAndFrameEditingContext);
   const portPicking = useContext(NodeGraphPortPickingContext);
@@ -490,6 +511,7 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
   const failureWords = failureWordsTheCardShows(graphNode);
   return (
     <div
+      ref={cardElement}
       className={cn(
         NODE_GRAPH_CARD_CLASS_NAMES,
         isSelected && "node-graph-card-selected",
