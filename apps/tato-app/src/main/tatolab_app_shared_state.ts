@@ -23,7 +23,7 @@ import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import type { ProjectAssetsImportedFromChosenFiles } from "./project_assets_imported_from_chosen_files.js";
 import type { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
-import type { ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
+import type { PackageCatalogMachine, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import type { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 
 /** The controller, the status publisher, the updater, what opens a stream's project, adding a project, the stream-failure notifications, Developer mode, opening projects, the app's windows, the language servers, the port viewers and the system menu bar, which the tray's choices and the window's commands reach. */
@@ -60,6 +60,8 @@ export interface TatolabAppSharedState {
   fetchTextOverHttps: FetchTextOverHttps;
   /** How the Marketplace downloads a module's `.zip`. */
   fetchBytesOverHttps: FetchBytesOverHttps;
+  /** This machine as the Marketplace catalog names one, which each entry is read against. */
+  machineModulesInstallOn: PackageCatalogMachine;
   /** Where each Marketplace download is kept, inside the app's config directory. */
   moduleDownloadsFolder: string;
   /** How Module manager asks for a project's folder or `.zip` to import. */

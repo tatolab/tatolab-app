@@ -210,6 +210,7 @@ async function sharedStateOverFakes(
     statusPublisher,
     tatolabAppUpdater,
     tatolabAppUpdateAnnouncements: new TatolabAppUpdateAnnouncements(() => {}),
+    machineModulesInstallOn: { sys_platform: "darwin", platform_machine: "arm64" },
     openAWebPageInTheBrowser: async (webPageUrl) => {
       webPagesOpenedInTheBrowser.push(webPageUrl);
       return succeeded(undefined);

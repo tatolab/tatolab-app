@@ -7,6 +7,8 @@ import {
   moduleCardContentsWordsOf,
   cardOffersAdd,
   moduleCardMarkOf,
+  moduleNotOnThisMachineMarkOf,
+  whyTheRowBringsNothingOnThisMachine,
   moduleCountsWordsOf,
   moduleContentsWordsOf,
   type ModuleCardRow,
@@ -32,9 +34,9 @@ const CATALOG: PackageCatalogReading = {
   kind: "read",
   unreadable_entry_count: 0,
   entries: [
-    { kind: "sample", name: "camera-halftone", title: "Camera halftone", summary: "A halftone camera.", version: "0.68.29", download: DOWNLOAD, nodes: [], streams: [{ name: "main", import_path: "camera_halftone.stream:main", summary: "" }], homepage_url: "https://x" },
-    { kind: "package", name: "tatolab-camera", title: "Camera", summary: "Captures frames.", version: "0.68.29", download: DOWNLOAD, nodes: [{ name: "CameraSource", import_path: "tatolab.camera:CameraSource", summary: "" }], streams: [], homepage_url: null },
-    { kind: "package", name: "tatolab-opus", title: "Opus", summary: "Encodes audio.", version: "0.68.29", download: null, nodes: [{ name: "OpusEncoder", import_path: "tatolab.opus:OpusEncoder", summary: "" }], streams: [], homepage_url: null },
+    { kind: "sample", name: "camera-halftone", title: "Camera halftone", summary: "A halftone camera.", version: "0.68.29", download: DOWNLOAD, nodes: [], streams: [{ name: "main", import_path: "camera_halftone.stream:main", summary: "" }], homepage_url: "https://x", platforms: null, runs_on_this_machine: true },
+    { kind: "package", name: "tatolab-camera", title: "Camera", summary: "Captures frames.", version: "0.68.29", download: DOWNLOAD, nodes: [{ name: "CameraSource", import_path: "tatolab.camera:CameraSource", summary: "" }], streams: [], homepage_url: null, platforms: null, runs_on_this_machine: true },
+    { kind: "package", name: "tatolab-opus", title: "Opus", summary: "Encodes audio.", version: "0.68.29", download: null, nodes: [{ name: "OpusEncoder", import_path: "tatolab.opus:OpusEncoder", summary: "" }], streams: [], homepage_url: null, platforms: null, runs_on_this_machine: true },
   ],
 };
 
@@ -179,6 +181,21 @@ describe("what the Marketplace window lists", () => {
     expect([cardOffersAdd(packageCard, false), cardOffersAdd(packageCard, true), cardOffersAdd(sampleCard, false), cardOffersAdd(rowOf(camera), false)]).toEqual([true, false, false, false]);
     expect(moduleCardMarkOf(cardNotInTheProject, "clone", false)).toEqual({ words: "Not cloned", tone: "refused" });
     expect(moduleCardMarkOf(rowOf({ ...camera, newer_version_exists: true }), "remove", false)).toEqual({ words: "Not uninstalled", tone: "refused" });
+  });
+
+  it("offers no Add for a package whose wheels leave this machine out, and marks it with the systems it runs on, in the Marketplace and in the project", () => {
+    const linuxOnly = [{ sys_platform: "linux", platform_machine: "x86_64" }];
+    const webPage = { ...CATALOG.entries[1], name: "tatolab-browser", title: "Web page", platforms: linuxOnly, runs_on_this_machine: false };
+    const catalogWithTheWebPage: PackageCatalogReading = { ...CATALOG, entries: [webPage] };
+    const [webPageCard] = everyModuleCardRowOf(catalogWithTheWebPage, []);
+    expect(cardOffersAdd(webPageCard, false)).toBe(false);
+    expect(moduleCardMarkOf(webPageCard, null, false)).toEqual({ words: "Linux only", tone: "refused" });
+    expect(whyTheRowBringsNothingOnThisMachine(webPageCard)).toBe("Web page is built for Linux (x86-64) only, so it brings no node on this computer.");
+    const [webPageInTheProject] = everyModuleCardRowOf(catalogWithTheWebPage, [{ ...aModule("web-page", "Web page"), source: "/config/module-downloads/tatolab-browser-0.69.1.zip" }]);
+    expect(webPageInTheProject.module_of_the_project?.folder).toBe("web-page");
+    expect(moduleNotOnThisMachineMarkOf(webPageInTheProject)).toEqual({ words: "Linux only", tone: "refused" });
+    const [cameraCard] = everyModuleCardRowOf({ ...CATALOG, entries: [CATALOG.entries[1]] }, []);
+    expect([moduleNotOnThisMachineMarkOf(cameraCard), whyTheRowBringsNothingOnThisMachine(cameraCard)]).toEqual([null, null]);
   });
 
   it("says what a Marketplace card holds, a sample's behind the words Sample project", () => {

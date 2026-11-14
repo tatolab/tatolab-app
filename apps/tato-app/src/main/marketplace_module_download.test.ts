@@ -22,6 +22,8 @@ function catalogEntryNaming(download: PackageCatalogEntry["download"], overrides
     nodes: [],
     streams: [],
     homepage_url: null,
+    platforms: null,
+    runs_on_this_machine: true,
     ...overrides,
   };
 }

@@ -45,6 +45,7 @@ import { graphEditModeSchema, streamGraphActionSchema } from "../shared/tatolab_
 import { isAModuleManagerSectionAsked, MODULES_SHOWN, type ProjectGraphTransactionSentByTheWindow, type TatolabCommandAnswerTo, type TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
 import { readThePackageCatalog } from "./package_catalog.js";
+import { whyTheModuleBringsNothingOnThisMachine } from "../shared/package_catalog_machine_words.js";
 import { workspaceDependenciesOf } from "./workspace_dependencies.js";
 import { downloadTheCatalogEntrysZip } from "./marketplace_module_download.js";
 import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
@@ -1003,6 +1004,7 @@ export function importFromTheMarketplace(sharedState: TatolabAppSharedState, nam
     const entry = await catalogEntryNamed(sharedState, name);
     if (!entry.ok) return entry;
     if (entry.value.kind === "sample") return failedWith(`${entry.value.title} is a sample project; clone it into a project of its own instead.`);
+    if (!entry.value.runs_on_this_machine && entry.value.platforms !== null) return failedWith(whyTheModuleBringsNothingOnThisMachine(entry.value.title, entry.value.platforms));
     const zipPath = await downloadTheCatalogEntrysZip(entry.value, sharedState.fetchBytesOverHttps, sharedState.moduleDownloadsFolder);
     if (!zipPath.ok) return zipPath;
     const added = await sharedState.controller.addDependency(workspaceFolder.value, zipPath.value);
@@ -1043,7 +1045,7 @@ export function cloneMarketplaceSample(sharedState: TatolabAppSharedState, name:
 }
 
 async function catalogEntryNamed(sharedState: TatolabAppSharedState, name: string): Promise<Result<PackageCatalogEntry, string>> {
-  const catalog = await readThePackageCatalog(sharedState.fetchTextOverHttps);
+  const catalog = await readThePackageCatalog(sharedState.fetchTextOverHttps, sharedState.machineModulesInstallOn);
   if (catalog.kind === "not_read") return failedWith(catalog.because);
   const entry = catalog.entries.find((listed) => listed.name === name);
   return entry === undefined ? failedWith(`The catalog lists nothing named ${name}.`) : succeeded(entry);
@@ -1356,7 +1358,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       ok: true,
       value: sharedState.appWindows.moduleManagerSectionLastAskedOfTheWindowWithContents(commandFromWindow.windowContentsId),
     }),
-    read_package_catalog: async () => ({ ok: true, value: await readThePackageCatalog(sharedState.fetchTextOverHttps) }),
+    read_package_catalog: async () => ({ ok: true, value: await readThePackageCatalog(sharedState.fetchTextOverHttps, sharedState.machineModulesInstallOn) }),
     list_workspace_dependencies: async (commandArguments, commandFromWindow) => {
       const checkForNewer = isAJsonObject(commandArguments) ? commandArguments["check_for_newer"] : undefined;
       if (typeof checkForNewer !== "boolean") return { ok: false, refusal: "list_workspace_dependencies needs `check_for_newer`, true to read each import's source for a newer version" };

@@ -2,7 +2,7 @@
 // release writes. An entry the app cannot read is left out and counted, so one bad entry never
 // hides the rest; a catalog of another version is refused whole.
 
-import type { PackageCatalogDownload, PackageCatalogEntry, PackageCatalogMember, PackageCatalogReading } from "../shared/tatolab_backend_contract.js";
+import type { PackageCatalogDownload, PackageCatalogEntry, PackageCatalogMachine, PackageCatalogMember, PackageCatalogReading } from "../shared/tatolab_backend_contract.js";
 import {
   arrayOrEmpty,
   everyOneRead,
@@ -57,8 +57,30 @@ function packageCatalogDownloadFrom(entry: JsonObjectOnTheWire): Result<PackageC
   return succeeded({ url: url.value, sha256: sha256.value });
 }
 
-/** One catalog entry as version 1 serves it, or why it does not read. */
-export function packageCatalogEntryFrom(value: unknown): Result<PackageCatalogEntry, string> {
+function packageCatalogMachineFrom(value: unknown): Result<PackageCatalogMachine, string> {
+  const machine = jsonObject(value, "a catalog entry's platform");
+  if (!machine.ok) return machine;
+  const sysPlatform = requiredText(machine.value, "sys_platform");
+  if (!sysPlatform.ok) return sysPlatform;
+  const platformMachine = requiredText(machine.value, "platform_machine");
+  if (!platformMachine.ok) return platformMachine;
+  return succeeded({ sys_platform: sysPlatform.value, platform_machine: platformMachine.value });
+}
+
+/** `platforms`, each machine the entry's wheels install on, `null` where the entry names none, or why it does not read. */
+function packageCatalogPlatformsFrom(entry: JsonObjectOnTheWire): Result<PackageCatalogMachine[] | null, string> {
+  if (entry["platforms"] === undefined || entry["platforms"] === null) return succeeded(null);
+  const platforms = arrayOrEmpty(entry, "platforms");
+  return platforms.ok ? everyOneRead(platforms.value, packageCatalogMachineFrom) : platforms;
+}
+
+/** Whether a module whose wheels install on `platforms` brings anything on `thisMachine`. */
+export function catalogPlatformsNameTheMachine(platforms: readonly PackageCatalogMachine[] | null, thisMachine: PackageCatalogMachine): boolean {
+  return platforms === null || platforms.some((machine) => machine.sys_platform === thisMachine.sys_platform && machine.platform_machine === thisMachine.platform_machine);
+}
+
+/** One catalog entry as version 1 serves it, read on `thisMachine`, or why it does not read. */
+export function packageCatalogEntryFrom(value: unknown, thisMachine: PackageCatalogMachine): Result<PackageCatalogEntry, string> {
   const entry = jsonObject(value, "a catalog entry");
   if (!entry.ok) return entry;
   const kind = requiredText(entry.value, "kind");
@@ -78,11 +100,22 @@ export function packageCatalogEntryFrom(value: unknown): Result<PackageCatalogEn
   if (!homepageUrl.ok) return homepageUrl;
   const download = packageCatalogDownloadFrom(entry.value);
   if (!download.ok) return download;
-  return succeeded({ kind: kind.value, ...texts, download: download.value, nodes: nodes.value, streams: streams.value, homepage_url: homepageUrl.value });
+  const platforms = packageCatalogPlatformsFrom(entry.value);
+  if (!platforms.ok) return platforms;
+  return succeeded({
+    kind: kind.value,
+    ...texts,
+    download: download.value,
+    nodes: nodes.value,
+    streams: streams.value,
+    homepage_url: homepageUrl.value,
+    platforms: platforms.value,
+    runs_on_this_machine: catalogPlatformsNameTheMachine(platforms.value, thisMachine),
+  });
 }
 
-/** The catalog `catalogText` holds, each entry that does not read left out and counted, or why the catalog as a whole does not read. */
-export function packageCatalogReadingFromTheCatalogText(catalogText: string): PackageCatalogReading {
+/** The catalog `catalogText` holds, read on `thisMachine`, each entry that does not read left out and counted, or why the catalog as a whole does not read. */
+export function packageCatalogReadingFromTheCatalogText(catalogText: string, thisMachine: PackageCatalogMachine): PackageCatalogReading {
   const parsed = parseJsonOnTheWire(catalogText);
   if (!parsed.ok) return { kind: "not_read", because: `The catalog at ${PACKAGE_CATALOG_URL} is not JSON: ${parsed.failure}` };
   if (!isAJsonObject(parsed.value)) return { kind: "not_read", because: `The catalog at ${PACKAGE_CATALOG_URL} is not a JSON object.` };
@@ -95,16 +128,16 @@ export function packageCatalogReadingFromTheCatalogText(catalogText: string): Pa
   const readEntries: PackageCatalogEntry[] = [];
   let unreadableEntryCount = 0;
   for (const entryValue of entries.value) {
-    const entry = packageCatalogEntryFrom(entryValue);
+    const entry = packageCatalogEntryFrom(entryValue, thisMachine);
     if (entry.ok) readEntries.push(entry.value);
     else unreadableEntryCount += 1;
   }
   return { kind: "read", entries: readEntries, unreadable_entry_count: unreadableEntryCount };
 }
 
-/** The catalog as get.tatolab.com serves it now, fetched afresh each time it is asked for, or why it was not read. */
-export async function readThePackageCatalog(fetchTextOverHttps: FetchTextOverHttps): Promise<PackageCatalogReading> {
+/** The catalog as get.tatolab.com serves it now, fetched afresh each time it is asked for and read on `thisMachine`, or why it was not read. */
+export async function readThePackageCatalog(fetchTextOverHttps: FetchTextOverHttps, thisMachine: PackageCatalogMachine): Promise<PackageCatalogReading> {
   const catalogText = await fetchTextOverHttps(PACKAGE_CATALOG_URL);
   if (!catalogText.ok) return { kind: "not_read", because: `The catalog at ${PACKAGE_CATALOG_URL} could not be fetched: ${catalogText.failure}` };
-  return packageCatalogReadingFromTheCatalogText(catalogText.value);
+  return packageCatalogReadingFromTheCatalogText(catalogText.value, thisMachine);
 }

@@ -42,6 +42,8 @@ import {
   moduleCardContentsWordsOf,
   cardOffersAdd,
   moduleCardMarkOf,
+  moduleNotOnThisMachineMarkOf,
+  whyTheRowBringsNothingOnThisMachine,
   moduleCountsWordsOf,
   type ModuleAsk,
   updatesCountWordsOf,
@@ -216,6 +218,7 @@ function ModulePageActions({
   onViewInTheProject: () => void;
 }) {
   const { catalog_entry: entry, module_of_the_project: dependency } = row;
+  const whyItBringsNothingHere = whyTheRowBringsNothingOnThisMachine(row);
   const retry = (ask: ModuleAsk) => ({ add: asks.add, clone: asks.clone, update: asks.update, remove: asks.askBeforeRemoving })[ask](row);
   const action = (() => {
     if (work?.kind === "under_way") {
@@ -270,6 +273,7 @@ function ModulePageActions({
     if (dependency === null) {
       if (entry === null) return null;
       if (entry.download === null) return <p className="text-xs text-fg-3">The catalog names no download for it yet.</p>;
+      if (whyItBringsNothingHere !== null) return <RefusalLine tone="warning" words={whyItBringsNothingHere} data-module-manager-not-on-this-machine={entry.name} />;
       return (
         <div className="flex flex-col gap-3">
           <PageAction appearance="primary" icon={Download} onPressed={() => asks.add(row)} data-module-manager-import={entry.name}>
@@ -286,6 +290,7 @@ function ModulePageActions({
           <Check className="size-3.5 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
           In {projectName}
         </p>
+        {whyItBringsNothingHere !== null && <RefusalLine tone="warning" words={whyItBringsNothingHere} data-module-manager-not-on-this-machine={dependency.folder} />}
         {copyState.kind === "update_available" && (
           <p className="text-xs font-medium text-brand-text" data-module-manager-update-available="">
             An update is available from where it was copied.
@@ -461,12 +466,14 @@ const MARKETPLACE_KIND_LABELS: Record<MarketplaceKindShown, string> = { all: "Al
 /** How the project's module of a row stands, in its list row: what is being done with it, else whether its source has an update, over where it was copied from. */
 function ModuleStatusWords({ row, dependency, work }: { row: ModuleCardRow; dependency: WorkspaceDependency; work: ModuleWork | null }) {
   const copyState = moduleCopyStateOf(dependency);
+  const notOnThisMachineMark = moduleNotOnThisMachineMarkOf(row);
   return (
     <span className="flex min-w-0 flex-col gap-0.5" data-module-manager-status={dependency.folder}>
       {work?.kind === "under_way" ? (
         <PendingActionWords words={MODULE_ASK_WORDS_WHILE_UNDER_WAY[work.ask]} />
       ) : (
         <>
+          {notOnThisMachineMark !== null && <ModuleMark mark={notOnThisMachineMark} />}
           {copyState.kind === "check_refused" && (
             <span className="flex items-center gap-1.5 text-xs text-warn-text">
               <TriangleAlert className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />

@@ -366,6 +366,12 @@ export interface PackageCatalogDownload {
   sha256: string;
 }
 
+/** A machine a module's wheels install on, named as PEP 508's `sys_platform` and `platform_machine` name it, as `{ sys_platform: "darwin", platform_machine: "arm64" }`. */
+export interface PackageCatalogMachine {
+  sys_platform: string;
+  platform_machine: string;
+}
+
 /** One package or sample project the catalog at get.tatolab.com lists, as its version 1 serves it. */
 export interface PackageCatalogEntry {
   kind: "package" | "sample";
@@ -379,6 +385,10 @@ export interface PackageCatalogEntry {
   nodes: PackageCatalogMember[];
   streams: PackageCatalogMember[];
   homepage_url: string | null;
+  /** Each machine the catalog's `platforms` says its wheels install on, or `null` where it names none, as for a pure-Python module that installs anywhere. */
+  platforms: PackageCatalogMachine[] | null;
+  /** Whether it brings anything on this machine: `platforms` is `null` or names this one. On any other the import succeeds and brings no node. */
+  runs_on_this_machine: boolean;
 }
 
 /** What `read_package_catalog` answers: the catalog's entries and how many it served that the app could not read, or why it was not read, in the words of what refused. */

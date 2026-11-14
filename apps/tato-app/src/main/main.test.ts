@@ -14,8 +14,8 @@ import { APP_UPDATE_CHECK_INTERVAL_MS, type TatolabAppUpdateFeedInstallingInPlac
 import { LAST_OPENED_APP_VERSION_FILE_NAME } from "./tatolab_app_update_announcements.js";
 import { tatolabAppCopyOnTheSingleInstanceLock } from "./tatolab_app_copy_handoff.js";
 
-const MACOS_PLATFORM_ITEMS = tatolabPlatformItemsFor("darwin");
-const LINUX_PLATFORM_ITEMS = tatolabPlatformItemsFor("linux");
+const MACOS_PLATFORM_ITEMS = tatolabPlatformItemsFor("darwin", "arm64");
+const LINUX_PLATFORM_ITEMS = tatolabPlatformItemsFor("linux", "x64");
 
 const startedFakeShells: FakeTatolabElectronAppShell[] = [];
 const fakeRuntimesStarted: FakeLocalApiServer[] = [];
@@ -409,7 +409,7 @@ describe("starting the app", () => {
   test("only macOS and Linux have platform items, with macOS's template tray mark and Linux's coloured one", () => {
     expect(MACOS_PLATFORM_ITEMS).toMatchObject({ platform: "macos", trayIconImage: { pngFileName: "tray-template.png", isATemplate: true } });
     expect(LINUX_PLATFORM_ITEMS).toMatchObject({ platform: "linux", trayIconImage: { pngFileName: "tray-coloured.png", isATemplate: false } });
-    expect(tatolabPlatformItemsFor("win32")).toBeNull();
+    expect(tatolabPlatformItemsFor("win32", "x64")).toBeNull();
   });
 
   test("a second launch hands itself to the running app and exits without a window or a tray icon", async () => {
@@ -877,6 +877,32 @@ describe("one window per project", () => {
         expect(await fakeShell.invokeTheCommand("clone_marketplace_sample", undefined, 3)).toEqual({ ok: false, refusal: "clone_marketplace_sample needs `name`, the name of a sample the catalog lists" });
         expect(fakeShell.urlsFetched).not.toContain(HALFTONE_SAMPLE_ZIP_URL);
         expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "Modules and Marketplace · night-show"]);
+      });
+
+      test("a package whose wheels leave this Mac out is refused before it is downloaded, naming the machines it is built for", async () => {
+        const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+        serveACatalogOfTheHalftoneSampleAndTheCameraPackage(fakeShell);
+        fakeShell.packageCatalogTextServed = JSON.stringify({
+          catalog_version: 1,
+          entries: [
+            {
+              kind: "package",
+              name: "tatolab-camera",
+              title: "Camera",
+              summary: "",
+              version: "0.68.29",
+              download_url: CAMERA_PACKAGE_ZIP_URL,
+              download_sha256: createHash("sha256").update(HALFTONE_SAMPLE_ZIP_BYTES).digest("hex"),
+              platforms: [{ sys_platform: "linux", platform_machine: "x86_64" }],
+            },
+          ],
+        });
+
+        expect(await fakeShell.invokeTheCommand("import_from_the_marketplace", { name: "tatolab-camera" }, 3)).toEqual({
+          ok: false,
+          refusal: "Camera is built for Linux (x86-64) only, so it brings no node on this computer.",
+        });
+        expect(fakeShell.urlsFetched).not.toContain(CAMERA_PACKAGE_ZIP_URL);
       });
     });
   });
