@@ -529,6 +529,25 @@ describe("the studio", () => {
     expect(downloadedLog).toMatchObject({ transactions: expect.arrayContaining([expect.objectContaining({ author_name: "claude-code" })]), refused_actions: [expect.objectContaining({ author_name: "claude-code" })] });
   });
 
+  it("offers no transaction log to download while the project's transactions aren't read", async () => {
+    await mountedWindowOverTheMock("state=not-running&developer_mode=on");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Transactions/ }));
+    await waitFor(() => expect(coreViewPage("transactions").querySelector('[data-transactions-state="not_read"]')).not.toBeNull());
+
+    const madeFileUrl = vi.spyOn(URL, "createObjectURL");
+    try {
+      pressAsAPointerDoes(coreViewPage("transactions").querySelector<HTMLElement>("[data-transactions-log-menu]") ?? expect.unreachable("no log menu"));
+      const downloadItem = await screen.findByRole("menuitem", { name: "Download transaction logs" });
+      expect(downloadItem.getAttribute("aria-disabled")).toBe("true");
+      fireEvent.click(downloadItem);
+      expect(madeFileUrl).not.toHaveBeenCalled();
+    } finally {
+      madeFileUrl.mockRestore();
+    }
+  });
+
   it("says an area left on Transactions shows it only in Developer mode once Developer mode is turned off", async () => {
     const { backend } = await mountedWindowOverTheMock("state=running&developer_mode=on");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
