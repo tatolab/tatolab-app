@@ -7,8 +7,9 @@
 # the Info.plist usage strings, the helper's runtime version at or below the app's and the streamlib
 # commit it was built from, the lend's CPython 3.10-3.14 bytecode, the first-party module wheels beside it, every
 # Mach-O inside the carried wheels and Python signed like the bundle's own, the
-# runtime's uv beside the helper's tatolabd and no Python of the app's own, the entitlements of the
-# helper's tatolabd, uv, tatolab-cli and tatolab-video-poster-frame, the app and Electron's helpers, Electron's
+# runtime's uv beside the helper's tatolabd and no Python of the app's own, the CEF browser host in the
+# helper's Frameworks, the entitlements of the helper's tatolabd, uv, tatolab-cli and
+# tatolab-video-poster-frame, the app, Electron's helpers, the browser host and CEF's helpers, Electron's
 # fuses, and the build features the app was built with and the tatolab-app commit they name.
 # Reading the fuses and the build features needs this checkout's node_modules (npm ci).
 # A stapled target must also pass Gatekeeper.
@@ -80,7 +81,8 @@ required_usage_description_keys=(
 )
 required_device_entitlements=(com.apple.security.device.camera com.apple.security.device.audio-input)
 # The only entitlements each piece of signed code may carry; allow-jit is V8's, in the main
-# process, Blink's renderer and the plain helper that hosts utility processes (packaging/entitlements/).
+# process, Blink's renderer and the plain helper that hosts utility processes, Electron's and CEF's
+# alike (packaging/entitlements/).
 allowed_app_entitlements="com.apple.security.cs.allow-jit com.apple.security.device.audio-input com.apple.security.device.camera"
 allowed_renderer_helper_entitlements="com.apple.security.cs.allow-jit"
 allowed_utility_helper_entitlements="com.apple.security.cs.allow-jit"
@@ -395,6 +397,27 @@ verify_app_bundle() {
       || fail "$(basename "$helper_app")'s entitlements are '$signed_code_entitlement_keys', not '${allowed_helper_entitlements}'"
   done < <(find "$contents/Frameworks" -maxdepth 1 -name '*.app' -print0)
   [ "$helper_app_count" -gt 0 ] || fail "Contents/Frameworks holds no Electron helper app"
+  local browser_host_app="$helper_contents/Frameworks/tatolab-browser-host.app"
+  [ -x "$browser_host_app/Contents/MacOS/tatolab-browser-host" ] \
+    && pass "Tatolab Runtime.app's Frameworks/tatolab-browser-host.app, which BrowserSource opens pages in, is present" \
+    || fail "Tatolab Runtime.app carries no Frameworks/tatolab-browser-host.app: no BrowserSource can open a page"
+  signed_code_entitlement_keys="$(entitlement_keys_of "$browser_host_app")"
+  [ -z "$signed_code_entitlement_keys" ] && pass "tatolab-browser-host.app carries no entitlements" \
+    || fail "tatolab-browser-host.app's entitlements are '$signed_code_entitlement_keys', not none"
+  local browser_host_helper_app browser_host_helper_app_count=0
+  while IFS= read -r -d '' browser_host_helper_app; do
+    browser_host_helper_app_count=$((browser_host_helper_app_count + 1))
+    case "$browser_host_helper_app" in
+      *"(Renderer).app") allowed_helper_entitlements="$allowed_renderer_helper_entitlements" ;;
+      *" Helper.app") allowed_helper_entitlements="$allowed_utility_helper_entitlements" ;;
+      *) allowed_helper_entitlements="" ;;
+    esac
+    signed_code_entitlement_keys="$(entitlement_keys_of "$browser_host_helper_app")"
+    [ "$signed_code_entitlement_keys" = "$allowed_helper_entitlements" ] \
+      && pass "$(basename "$browser_host_helper_app") carries exactly: ${allowed_helper_entitlements:-no entitlements}" \
+      || fail "$(basename "$browser_host_helper_app")'s entitlements are '$signed_code_entitlement_keys', not '${allowed_helper_entitlements}'"
+  done < <(find "$browser_host_app/Contents/Frameworks" -maxdepth 1 -name '*.app' -print0 2>/dev/null)
+  [ "$browser_host_helper_app_count" -gt 0 ] || fail "tatolab-browser-host.app's Frameworks holds no CEF helper app"
 
   local electron_fuse_states electron_fuse_state
   electron_fuse_states="$(cd "$tato_app_root" && npx --no-install @electron/fuses read --app "$app_bundle" 2>&1 || true)"

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Signs an assembled Tatolab.app inside-out with the Developer ID, the hardened runtime and a secure
 # timestamp. The runtime's helper, Contents/Helpers/Tatolab Runtime.app, first: every Mach-O in its
-# Frameworks (the runtime's dylibs), its tatolab-cli, uv and tatolab-video-poster-frame, then the helper itself, whose
+# Frameworks (the runtime's dylibs), the CEF browser host in its Frameworks inside-out (CEF's
+# libraries, its framework, its helper apps, the host app), its tatolab-cli, uv and
+# tatolab-video-poster-frame, then the helper itself, whose
 # main executable is tatolabd, with the device and keychain access group entitlements and the
 # provisioning profile that authorizes the latter. Then the app: every loose Mach-O
 # in Contents/Frameworks (Electron's libraries), each framework, each Electron helper app, then the
@@ -37,7 +39,8 @@ for required in "MacOS/Tato Studio" "Frameworks/Electron Framework.framework" \
   "Helpers/Tatolab Runtime.app/Contents/Info.plist" "Helpers/Tatolab Runtime.app/Contents/MacOS/tatolabd" \
   "Helpers/Tatolab Runtime.app/Contents/MacOS/tatolab-cli" \
   "Helpers/Tatolab Runtime.app/Contents/MacOS/uv" "Helpers/Tatolab Runtime.app/Contents/MacOS/tatolab-video-poster-frame" \
-  "Helpers/Tatolab Runtime.app/Contents/Frameworks/tatolab-runtime"; do
+  "Helpers/Tatolab Runtime.app/Contents/Frameworks/tatolab-runtime" \
+  "Helpers/Tatolab Runtime.app/Contents/Frameworks/tatolab-browser-host.app"; do
   [ -e "$contents/$required" ] || { echo "$app_bundle is not assembled: Contents/$required is missing" >&2; exit 1; }
 done
 
@@ -57,12 +60,43 @@ codesign_common_arguments=(--force --options runtime --timestamp --sign "$signin
 
 is_mach_o() { [[ "$(file -b "$1")" == Mach-O* ]]; }
 
+browser_host_app="$helper_contents/Frameworks/tatolab-browser-host.app"
 helper_mach_o_count=0
 while IFS= read -r -d '' helper_framework_file; do
   is_mach_o "$helper_framework_file" || continue
+  # The browser host is signed bundle by bundle below.
+  case "$helper_framework_file" in
+    "$browser_host_app"/*) continue ;;
+  esac
   codesign "${codesign_common_arguments[@]}" "$helper_framework_file"
   helper_mach_o_count=$((helper_mach_o_count + 1))
 done < <(find "$helper_contents/Frameworks" -type f -print0)
+
+browser_host_mach_o_count=0
+while IFS= read -r -d '' browser_host_framework_file; do
+  is_mach_o "$browser_host_framework_file" || continue
+  # A helper app's own executable is signed with its helper app below.
+  case "$browser_host_framework_file" in
+    *.app/Contents/MacOS/*) continue ;;
+  esac
+  codesign "${codesign_common_arguments[@]}" "$browser_host_framework_file"
+  browser_host_mach_o_count=$((browser_host_mach_o_count + 1))
+done < <(find "$browser_host_app/Contents/Frameworks" -type f -print0)
+while IFS= read -r -d '' browser_host_framework_bundle; do
+  codesign "${codesign_common_arguments[@]}" "$browser_host_framework_bundle"
+done < <(find "$browser_host_app/Contents/Frameworks" -maxdepth 1 -name '*.framework' -print0)
+browser_host_helper_app_count=0
+while IFS= read -r -d '' browser_host_helper_app; do
+  # CEF's helpers run the same Chromium processes as Electron's, so each takes its Electron twin's entitlements.
+  case "$browser_host_helper_app" in
+    *"(Renderer).app") codesign "${codesign_common_arguments[@]}" --entitlements "$renderer_helper_entitlements" "$browser_host_helper_app" ;;
+    *" Helper.app") codesign "${codesign_common_arguments[@]}" --entitlements "$utility_helper_entitlements" "$browser_host_helper_app" ;;
+    *) codesign "${codesign_common_arguments[@]}" "$browser_host_helper_app" ;;
+  esac
+  browser_host_helper_app_count=$((browser_host_helper_app_count + 1))
+done < <(find "$browser_host_app/Contents/Frameworks" -maxdepth 1 -name '*.app' -print0)
+codesign "${codesign_common_arguments[@]}" "$browser_host_app"
+
 codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.tatolab-cli "$helper_contents/MacOS/tatolab-cli"
 codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.runtime-uv "$helper_contents/MacOS/uv"
 codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.video-poster-frame "$helper_contents/MacOS/tatolab-video-poster-frame"
@@ -97,4 +131,4 @@ done < <(find "$contents/Frameworks" -maxdepth 1 -name '*.app' -print0)
 codesign "${codesign_common_arguments[@]}" --entitlements "$app_entitlements" "$app_bundle"
 
 codesign --verify --deep --strict "$app_bundle"
-echo "signed $app_bundle with the Developer ID: Tatolab Runtime.app ($helper_mach_o_count Mach-O in its Frameworks, tatolab-cli, uv, tatolab-video-poster-frame, tatolabd, the $runtime_application_identifier provisioning profile), $loose_framework_mach_o_count loose Mach-O in Frameworks, the frameworks, $helper_app_count Electron helper apps, the app"
+echo "signed $app_bundle with the Developer ID: Tatolab Runtime.app ($helper_mach_o_count Mach-O in its Frameworks, tatolab-browser-host.app with $browser_host_mach_o_count Mach-O in its Frameworks and $browser_host_helper_app_count CEF helper apps, tatolab-cli, uv, tatolab-video-poster-frame, tatolabd, the $runtime_application_identifier provisioning profile), $loose_framework_mach_o_count loose Mach-O in Frameworks, the frameworks, $helper_app_count Electron helper apps, the app"

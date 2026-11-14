@@ -2,8 +2,10 @@
 // succeeded from a clean checkout: a build that fails leaves no streamlib-commit vouching for a
 // unit it half rebuilt, nothing a previous build laid out outlives the next one, and a checkout with
 // uncommitted changes is refused before anything builds.
-// The Developer ID the build names reaches xtask, which signs the code inside the carried archives.
-// A stand-in `cargo` first on PATH plays streamlib's `cargo xtask build-runtime`.
+// The Developer ID the build names reaches xtask, which signs the code inside the carried archives,
+// and the CEF distribution the build fetches reaches it as CEF_PATH, so the unit carries the browser host.
+// A stand-in `cargo` first on PATH plays streamlib's `cargo xtask build-runtime`, and a stand-in `uv`
+// plays its CEF fetch.
 
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -22,7 +24,8 @@ const GIT_IDENTITY_ENVIRONMENT = {
 };
 // Plays `cargo xtask build-runtime`: lays a whole unit into $CARGO_TARGET_DIR/tatolab-runtime, or
 // with STAND_IN_CARGO_FAILS=1 replaces only part of it and fails, as a build cut off part-way does.
-// Like xtask, it stages the browser host only when CEF_PATH names a CEF distribution.
+// Like xtask, it stages the browser host only when CEF_PATH names a CEF distribution, and with
+// STAND_IN_CARGO_STAGES_NO_BROWSER_HOST=1 not even then.
 const STAND_IN_CARGO_SCRIPT = `#!/bin/sh
 touch "$STAND_IN_CARGO_RAN_SENTINEL"
 printf '%s\n' "$@" > "$STAND_IN_CARGO_RAN_SENTINEL"
@@ -35,8 +38,19 @@ mkdir -p "$unit/lib/tatolab/imports" "$unit/lib/tatolab/samples" "$unit/lib/tato
 echo '{}' > "$unit/lib/tatolab/python-downloads/uv-python-downloads.json"
 mkdir -p "$unit/lib/tatolab/core-projects/tatolab-core-nodes"
 echo '{}' > "$unit/lib/tatolab/core-projects/tatolab-core-nodes/tatolab-project.json"
-[ -n "$CEF_PATH" ] && mkdir -p "$unit/lib/tatolab/browser-host"
+[ -f "$CEF_PATH/archive.json" ] || exit 0
+[ "$STAND_IN_CARGO_STAGES_NO_BROWSER_HOST" = 1 ] && exit 0
+mkdir -p "$unit/lib/tatolab/browser-host/tatolab-browser-host.app/Contents/MacOS"
+echo built > "$unit/lib/tatolab/browser-host/tatolab-browser-host"
+echo built > "$unit/lib/tatolab/browser-host/tatolab-browser-host.app/Contents/MacOS/tatolab-browser-host"
 exit 0
+`;
+// Plays \`uv run … python -I scripts/fetch_cef_binary_distribution.py <directory>\`: lays a CEF
+// distribution, named by its archive.json, into the directory its last argument names.
+const STAND_IN_UV_SCRIPT = `#!/bin/sh
+for argument in "$@"; do cef_directory="$argument"; done
+mkdir -p "$cef_directory"
+echo '{"name": "cef_binary_stand_in_minimal"}' > "$cef_directory/archive.json"
 `;
 
 interface ProgramOutcome {
@@ -97,6 +111,8 @@ beforeEach(async () => {
   await mkdir(standInCargoDirectory, { recursive: true });
   await writeFile(path.join(standInCargoDirectory, "cargo"), STAND_IN_CARGO_SCRIPT);
   await chmod(path.join(standInCargoDirectory, "cargo"), 0o755);
+  await writeFile(path.join(standInCargoDirectory, "uv"), STAND_IN_UV_SCRIPT);
+  await chmod(path.join(standInCargoDirectory, "uv"), 0o755);
   await mkdir(path.join(plantedStreamlibCheckout, "xtask"), { recursive: true });
   await writeFile(path.join(plantedStreamlibCheckout, "xtask", "Cargo.toml"), "[package]\nname = \"xtask\"\n");
   await writeFile(path.join(plantedStreamlibCheckout, ".gitignore"), "/target\n");
@@ -141,11 +157,18 @@ test("a checkout with uncommitted changes is refused before anything builds", as
   expect(await standInCargoRan()).toBe(false);
 });
 
-test("the unit is built without the browser host even when CEF_PATH is set", async () => {
-  const buildOutcome = await buildTheRuntimeUnit({ CEF_PATH: path.join(scratchDirectory, "a-cef-distribution") });
+test("the unit is built against the CEF distribution the build fetches, whatever CEF_PATH the caller set, and carries the browser host", async () => {
+  const buildOutcome = await buildTheRuntimeUnit({ CEF_PATH: path.join(scratchDirectory, "a-cef-distribution-the-build-ignores") });
   expect(buildOutcome).toMatchObject({ exitCode: 0 });
-  await expect(stat(path.join(plantedStreamlibCheckout, "target", "tatolab-runtime", "lib", "tatolab", "imports"))).resolves.toBeTruthy();
-  await expect(stat(path.join(plantedStreamlibCheckout, "target", "tatolab-runtime", "lib", "tatolab", "browser-host"))).rejects.toThrow();
+  await expect(stat(path.join(plantedStreamlibCheckout, "target", "cef-binary-distribution", "archive.json"))).resolves.toBeTruthy();
+  await expect(stat(path.join(plantedStreamlibCheckout, "target", "tatolab-runtime", "lib", "tatolab", "browser-host"))).resolves.toBeTruthy();
+});
+
+test("a unit xtask built with no browser host is refused, naming what it lacks, and no streamlib-commit vouches for it", async () => {
+  const buildOutcome = await buildTheRuntimeUnit({ STAND_IN_CARGO_STAGES_NO_BROWSER_HOST: "1" });
+  expect(buildOutcome.exitCode).toBe(1);
+  expect(buildOutcome.stderr).toContain("runtime unit is missing lib/tatolab/browser-host/tatolab-browser-host");
+  await expect(readFile(unitStreamlibCommitFile(), "utf8")).rejects.toThrow();
 });
 
 test("the Developer ID the build names reaches xtask, which signs the code inside the carried archives", async () => {
