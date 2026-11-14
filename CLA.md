@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to Tatolab.app. This Contributor
 License Agreement ("Agreement") documents the rights granted by contributors
-to Jonathan Fontanez ("Project Owner").
+to Tatolab LLC ("Project Owner").
 
 This is a legally binding document, so please read it carefully before agreeing.
 
@@ -88,7 +88,7 @@ the terms of this Contributor License Agreement.
 
 ---
 
-**Questions?** Contact fontanezj1@gmail.com
+**Questions?** Contact legal@tatolab.com
 
 *This CLA is based on the Apache Software Foundation Individual Contributor
 License Agreement and HashiCorp's CLA.*
