@@ -18,9 +18,8 @@ cask "tato-studio" do
 
   app "Tato Studio.app"
 
-  uninstall launchctl: "com.tatolab.tatolabd",
-            quit:      "com.tatolab.tatolab",
-            delete:    [
+  uninstall quit:   "com.tatolab.tatolab",
+            delete: [
               "~/.local/bin/tatolab",
               "/usr/local/bin/tatolab",
             ]
