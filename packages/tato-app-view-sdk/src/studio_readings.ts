@@ -149,12 +149,19 @@ export const streamGraphInterfacePortSchema = z.object({
 /** The port a `GraphInput` or `GraphOutput` node declares for its stream. */
 export type StreamGraphInterfacePort = z.infer<typeof streamGraphInterfacePortSchema>;
 
+/** How a node's code runs, as the runtime spells its `kind`: a shader on the GPU, a function evaluated where its reader reads, a class in a process of its own, or a graph generator's stored output. */
+export const streamGraphNodeKindSchema = z.enum(["shader", "function", "process", "fragment"]);
+/** How a node's code runs. */
+export type StreamGraphNodeKind = z.infer<typeof streamGraphNodeKindSchema>;
+
 /** One node of a stream's graph, by the name a link end and a port address name it by. */
 export const streamGraphNodeSchema = z.object({
   /** The node's UUID, which a log record's `processor_id` and every graph edit name it by. */
   id: z.string(),
   name: z.string(),
   type: z.string(),
+  /** How its code runs, from its `kind` key; `null` on a node whose type nothing registers, which the runtime renders with no `kind`. */
+  kind: streamGraphNodeKindSchema.nullable(),
   /** The processor's state as the runtime names it, such as `Running`. */
   state: z.string().nullable(),
   /** Why it failed, in the runtime's own words: set while it reads `Error`, `null` otherwise. */

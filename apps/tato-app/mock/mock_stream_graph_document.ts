@@ -12,6 +12,7 @@ import type {
   StreamGraphInterfacePort,
   StreamGraphLink,
   StreamGraphNode,
+  StreamGraphNodeKind,
   StreamGraphNodeStudioFields,
   StreamGraphSummary,
 } from "../src/shared/tatolab_backend_contract";
@@ -105,6 +106,11 @@ function linkSourceAsTheRuntimeRendersIt(sourceNode: string, sourcePort: string)
   return { stream: sourceNode.slice(0, streamSeparator), node: sourceNode.slice(streamSeparator + 1), port: sourcePort };
 }
 
+/** How the mock node `node`'s code runs, as the runtime renders its `kind`. */
+function mockGraphNodeKindOf(node: MockGraphNode): StreamGraphNodeKind {
+  return node.kind ?? (node.fragment === undefined ? "process" : "fragment");
+}
+
 /** The `graph {stream}` document of `graph` for the stream `listing` lists, on `machineName` at `moment`, each top-level Input carrying what `valueWrittenToEachGraphInput` holds under its name, and the summary read from it; its ports name their families only when `arePortFamiliesServed`. */
 export function mockStreamGraphSummary(
   listing: ListedStream,
@@ -126,6 +132,7 @@ export function mockStreamGraphSummary(
       id: mockGraphNodeIdOf(streamId, node),
       name: node.name,
       type: node.type,
+      kind: mockGraphNodeKindOf(node),
       state: nodeState(node.state),
       failed_because: moment.hasSettled ? (node.failed_because ?? null) : null,
       process_raising_because: moment.hasSettled ? (node.process_raising_because ?? null) : null,
@@ -165,6 +172,7 @@ export function mockStreamGraphSummary(
       id: mockGraphNodeIdOf(streamId, node),
       type: node.type,
       name: node.name,
+      kind: mockGraphNodeKindOf(node),
       config: node.config,
       pins: node.pins ?? {},
       ...(node.exposed_config_fields === undefined || node.exposed_config_fields.length === 0 ? {} : { exposed_config_fields: node.exposed_config_fields }),
