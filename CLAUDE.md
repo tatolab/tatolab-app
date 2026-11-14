@@ -43,8 +43,8 @@ a parallel one. Search first.
   (`apps/tato-app/{src,native,scripts,packaging}/`) belong inside `/implement` against a TAT issue.
   `/whats-next` orients, `/plan-project` plans a goal, `/triage` works outside reports.
 - **Guardrails prompt; they never wall off**, but for writing a GitHub issue, which is denied.
-  `.claude/settings.json` asks on the licence and what code signing reads; dev-plugin's
-  `machine-brake` hook notes a command that touches the owner's real runtime and asks before one that publishes.
+  `.claude/settings.json` asks on the licence and what code signing reads; auto mode's policy
+  covers what a session may run.
 - Code is the authority on what IS; Linear on what we AGREED for the app, and streamlib's
   plan on what the runtime serves.
 
@@ -120,7 +120,7 @@ attention spent on settled things is unavailable for real forks.
 - **Platform code lives in `apps/tato-app/src/main/platform/`** (enforced); both platforms are checked
   on every change: `npm test` runs both platform modules on any OS, and Linux is proven on an
   x86_64 Linux machine or, from a Mac, in an `ubuntu:22.04` container — a Mac cannot exercise the
-  Linux module against a real systemd or desktop.
+  Linux module against a real Linux desktop.
 - A decision the issue doesn't state stops the work and goes to the owner;
   it is never inferred from existing code or git history.
 - The main process logs only through `tatolab_app_log.ts`; no `console.*` or `debugger` in
