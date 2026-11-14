@@ -505,6 +505,25 @@ describe("the studio", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Clear the view" }));
     await waitFor(() => expect(coreViewPage("transactions").querySelector('[data-transactions-state="cleared"]')).not.toBeNull());
     expect(transactionRows()).toEqual([]);
+
+    const downloadedFiles: { fileName: string; blob: Blob }[] = [];
+    const blobsByUrl = new Map<string, Blob>();
+    const madeFileUrl = vi.spyOn(URL, "createObjectURL").mockImplementation((blob) => {
+      const fileUrl = `blob:transactions-log-${blobsByUrl.size}`;
+      if (blob instanceof Blob) blobsByUrl.set(fileUrl, blob);
+      return fileUrl;
+    });
+    const revokedFileUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const clickedLink = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function recordTheDownload(this: HTMLAnchorElement) {
+      const blob = blobsByUrl.get(this.href) ?? expect.unreachable("the download names no file made for it");
+      downloadedFiles.push({ fileName: this.download, blob });
+    });
+    pressAsAPointerDoes(coreViewPage("transactions").querySelector<HTMLElement>("[data-transactions-log-menu]") ?? expect.unreachable("no log menu"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Download transaction logs" }));
+    [madeFileUrl, revokedFileUrl, clickedLink].forEach((spy) => spy.mockRestore());
+    expect(downloadedFiles.map((file) => file.fileName)).toEqual(["pattern transactions.json"]);
+    const downloadedLog: unknown = JSON.parse(await (downloadedFiles[0]?.blob ?? expect.unreachable("nothing downloaded")).text());
+    expect(downloadedLog).toMatchObject({ transactions: expect.arrayContaining([expect.objectContaining({ author_name: "claude-code" })]), refused_actions: [expect.objectContaining({ author_name: "claude-code" })] });
   });
 
   it("says an area left on Transactions shows it only in Developer mode once Developer mode is turned off", async () => {
