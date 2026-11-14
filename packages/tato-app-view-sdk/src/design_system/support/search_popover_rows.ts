@@ -201,6 +201,34 @@ export function searchPopoverItemAfterAnArrow(sections: readonly SearchPopoverSe
   return itemIds[(highlightedIndex + step + itemIds.length) % itemIds.length] ?? null;
 }
 
+/** How far a popover and its preview stay from the edges of the element they open over. */
+export const SEARCH_POPOVER_EDGE_GAP_PX = 8;
+
+/** Where a popover opened at `openedAtX` sits across the element it opens over and how wide it is: inside the element, and narrowed and moved the least it must for one side to keep its preview's room where the element holds both. */
+export function searchPopoverPlaceAcrossTheElement(
+  elementWidth: number,
+  openedAtX: number,
+  widestWidth: number,
+  previewBesideIt: { roomNeeded: number; narrowestWidth: number; drawnOnFirst: "left" | "right" } | null,
+): { left: number; width: number } {
+  const widthInsideTheElement = Math.max(0, elementWidth - 2 * SEARCH_POPOVER_EDGE_GAP_PX);
+  const leftInsideTheElement = (width: number) => Math.max(SEARCH_POPOVER_EDGE_GAP_PX, Math.min(openedAtX, elementWidth - width - SEARCH_POPOVER_EDGE_GAP_PX));
+  const widthWithNoPreview = Math.min(widestWidth, widthInsideTheElement);
+  const widthLeavingThePreviewRoom = previewBesideIt === null ? 0 : widthInsideTheElement - previewBesideIt.roomNeeded;
+  if (previewBesideIt === null || widthLeavingThePreviewRoom < Math.min(previewBesideIt.narrowestWidth, widthWithNoPreview)) {
+    return { left: leftInsideTheElement(widthWithNoPreview), width: widthWithNoPreview };
+  }
+  const width = Math.min(widthWithNoPreview, widthLeavingThePreviewRoom);
+  const left = leftInsideTheElement(width);
+  const leftKeepingRoomOnTheLeft = SEARCH_POPOVER_EDGE_GAP_PX + previewBesideIt.roomNeeded;
+  const leftKeepingRoomOnTheRight = elementWidth - width - SEARCH_POPOVER_EDGE_GAP_PX - previewBesideIt.roomNeeded;
+  if (left >= leftKeepingRoomOnTheLeft || left <= leftKeepingRoomOnTheRight) return { left, width };
+  const moveToKeepRoomOnTheLeft = leftKeepingRoomOnTheLeft - left;
+  const moveToKeepRoomOnTheRight = left - leftKeepingRoomOnTheRight;
+  const keepsRoomOnTheLeft = moveToKeepRoomOnTheLeft === moveToKeepRoomOnTheRight ? previewBesideIt.drawnOnFirst === "left" : moveToKeepRoomOnTheLeft < moveToKeepRoomOnTheRight;
+  return { left: keepsRoomOnTheLeft ? leftKeepingRoomOnTheLeft : leftKeepingRoomOnTheRight, width };
+}
+
 /** The side of the popover the highlighted item's preview sits on: `preferredSide` when it has `roomNeeded` there or the other side has no more, else the other side. */
 export function searchPopoverPreviewSide(preferredSide: "left" | "right", roomOnTheLeft: number, roomOnTheRight: number, roomNeeded: number): "left" | "right" {
   const roomOnThePreferredSide = preferredSide === "left" ? roomOnTheLeft : roomOnTheRight;

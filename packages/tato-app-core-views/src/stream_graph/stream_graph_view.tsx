@@ -1,7 +1,7 @@
 import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
-import { NodeGraphCanvas, NodeGraphCardPreview, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphPortPicking } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX, NodeGraphCanvas, NodeGraphCardPreview, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphPortPicking } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { SearchPopover } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import { Store } from "lucide-react";
@@ -455,6 +455,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
                 onClosed={closeTheNodeTypeSearch}
                 actionsBesideTheField={nodeTypeSearchActions}
                 previewOfTheItem={previewOfTheNodeTypeSearched}
+                previewNarrowestWidthPx={NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX}
                 data-stream-graph-node-type-search={streamTab.stream}
               />
             )}
