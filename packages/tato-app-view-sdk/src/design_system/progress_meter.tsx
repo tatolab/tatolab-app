@@ -12,6 +12,17 @@ export interface ProgressMeterPart {
 /** How a progress meter ended, or that it has not: under way, done, or failed. */
 export type ProgressMeterOutcome = "in_progress" | "done" | "failed";
 
+const INDETERMINATE_SWEEP_CLASS_NAMES = "w-1/3 animate-[progress-meter-sweep_1.4s_ease-in-out_infinite]";
+
+/** A thin bar that sweeps while work of unknown length runs, for a place that says the work in words of its own beside it; a screen reader hears nothing of it. */
+export function IndeterminateProgressBar({ className }: { className?: string }) {
+  return (
+    <span aria-hidden className={cn("block h-0.5 overflow-hidden bg-line-strong", className)}>
+      <span className={cn("block h-full bg-brand", INDETERMINATE_SWEEP_CLASS_NAMES)} />
+    </span>
+  );
+}
+
 /**
  * One piece of work with its name, a line of detail and a bar: filled to `percent` when its share is known, a sweep when
  * `percent` is `null`, and no bar once it has ended, its detail then saying how. A failure's detail is the refusal's own words.
@@ -34,7 +45,7 @@ export function ProgressMeter({
       {outcome === "in_progress" && (
         <Progress value={percent} aria-label={label} className="block">
           <ProgressTrack className="bg-line-strong">
-            <ProgressIndicator className={cn(percent === null && "w-1/3 animate-[progress-meter-sweep_1.4s_ease-in-out_infinite]")} />
+            <ProgressIndicator className={cn(percent === null && INDETERMINATE_SWEEP_CLASS_NAMES)} />
           </ProgressTrack>
         </Progress>
       )}

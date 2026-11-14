@@ -36,7 +36,14 @@ import {
   everyModuleCardRowOf,
   MARKETPLACE_KINDS_SHOWN,
   marketplaceRowsShownOf,
+  MODULE_ASK_WORDS_ONCE_DONE,
+  MODULE_ASK_WORDS_WHILE_UNDER_WAY,
+  moduleCardContentsWordsOf,
   moduleCardMarkOf,
+  moduleCountsWordsOf,
+  type ModuleAsk,
+  updatesCountWordsOf,
+  workInProgressWordsOf,
   moduleContentsWordsOf,
   moduleCopyStateOf,
   moduleRowAndItsNeighboursOf,
@@ -79,34 +86,37 @@ interface UpdateWaitingOnTheOverwrite {
   edited_files: string[];
 }
 
-/** What can be asked of one module, each as its refusal names it. */
-const MODULE_ASKS = { add: "added", update: "updated", remove: "removed", clone: "cloned" } as const;
-
-/** One thing asked of a module. */
-type ModuleAsk = keyof typeof MODULE_ASKS;
-
 /**
  * Where the last thing asked of one module stands: under way, refused in the words of what refused it, or done in a way its page tells of
- * (just added to the project, or a sample just cloned into the project in `folder`).
+ * (just added to the project, or a sample just cloned into the project in `folder`, whose window was then shown or refused in words).
  */
 type ModuleWork =
   | { kind: "under_way"; ask: ModuleAsk; words: string }
   | { kind: "refused"; ask: ModuleAsk; because: string }
   | { kind: "just_added" }
-  | { kind: "just_cloned"; folder: string };
+  | { kind: "just_cloned"; folder: string; showing_it_was_refused_because: string | null };
 
 /** The work last asked of each module, by its row. */
 type ModuleWorkByRowId = Readonly<Record<string, ModuleWork>>;
+
+/** A heading over one kind of thing a module holds, with how many of it there are. */
+function CountedHeading({ title, count }: { title: string; count: number }) {
+  return (
+    <h3 className="flex items-center gap-2 text-xs text-fg-2">
+      {title}
+      <span className="text-fg-3 tabular-nums">{count}</span>
+    </h3>
+  );
+}
+
+const MEMBER_LIST_CLASS_NAMES = "mt-1.5 rounded-lg border px-3 py-1";
 
 function MemberRows({ title, icon, members }: { title: string; icon: ReactNode; members: readonly PackageCatalogMember[] }) {
   if (members.length === 0) return null;
   return (
     <div>
-      <h3 className="flex items-center gap-2 text-xs text-fg-2">
-        {title}
-        <span className="text-fg-3 tabular-nums">{members.length}</span>
-      </h3>
-      <ul className="mt-1.5 rounded-lg border px-3 py-1">
+      <CountedHeading title={title} count={members.length} />
+      <ul className={MEMBER_LIST_CLASS_NAMES}>
         {members.map((member) => (
           <PanelListRow key={member.import_path} icon={icon} name={<span className="font-mono text-xs">{member.name}</span>} detail={member.summary === "" ? member.import_path : member.summary} detailWraps />
         ))}
@@ -123,11 +133,8 @@ function ViewsTheModuleBrings({ views }: { views: ViewsOfAWorkspaceDependency })
   if (shown.rows.length === 0) return null;
   return (
     <div>
-      <h3 className="flex items-center gap-2 text-xs text-fg-2">
-        Views
-        <span className="text-fg-3 tabular-nums">{shown.rows.length}</span>
-      </h3>
-      <ul className="mt-1.5 rounded-lg border px-3 py-1">
+      <CountedHeading title="Views" count={shown.rows.length} />
+      <ul className={MEMBER_LIST_CLASS_NAMES}>
         {shown.rows.map((viewRow) => (
           <PanelListRow
             key={viewRow.view_type_id}
@@ -158,13 +165,26 @@ function PageAction({ appearance, icon, onPressed, children, ...controlDataAttri
   );
 }
 
+/** How something asked of a module went, once done: a line saying so behind a check, what it means, and what to do next. */
+function PageOutcome({ title, children, ...controlDataAttributes }: { title: string; children: ReactNode; [dataAttributeName: `data-${string}`]: string | undefined }) {
+  return (
+    <div className="flex flex-col gap-3" {...controlDataAttributes}>
+      <h3 className="flex items-start gap-2 text-lg font-semibold text-fg">
+        <Check className="mt-0.5 size-4 shrink-0 text-status-positive-text" strokeWidth={2} aria-hidden />
+        {title}
+      </h3>
+      {children}
+    </div>
+  );
+}
+
 /** What a module's page is asked to do, each by the row it shows. */
 interface ModuleAsks {
   add: (row: ModuleCardRow) => void;
   clone: (row: ModuleCardRow) => void;
   update: (row: ModuleCardRow) => void;
   askBeforeRemoving: (row: ModuleCardRow) => void;
-  showTheClonedProject: (folder: string) => void;
+  showTheClonedProject: (row: ModuleCardRow, folder: string) => void;
 }
 
 /** The right column of a module's page: what it is, the one thing to do with it, and how that went. */
@@ -191,19 +211,34 @@ function ModulePageActions({
     }
     if (work?.kind === "just_cloned") {
       return (
-        <div className="flex flex-col gap-3" data-module-manager-cloned={row.row_id}>
-          <h3 className="flex items-start gap-2 text-lg font-semibold text-fg">
-            <Check className="mt-0.5 size-4 shrink-0 text-status-positive-text" strokeWidth={2} aria-hidden />
-            {row.title} was cloned into a new project
-          </h3>
+        <PageOutcome title={`${row.title} was cloned into a new project`} data-module-manager-cloned={row.row_id}>
           <p className="text-sm text-fg-2">
             It is a project of its own now, open in its own window. {projectName} was not changed.
           </p>
-          <PageAction appearance="primary" onPressed={() => asks.showTheClonedProject(work.folder)} data-module-manager-show-cloned-project="">
+          <PageAction appearance="primary" onPressed={() => asks.showTheClonedProject(row, work.folder)} data-module-manager-show-cloned-project="">
             Show the new project
           </PageAction>
+          {work.showing_it_was_refused_because !== null && (
+            <RefusalLine lead="The new project was not shown:" words={work.showing_it_was_refused_because} data-module-manager-show-cloned-project-refusal="" />
+          )}
           <PageAction onPressed={onKeepBrowsing}>Keep browsing</PageAction>
-        </div>
+        </PageOutcome>
+      );
+    }
+    if (work?.kind === "just_added") {
+      const nodeNames = entry === null ? [] : entry.nodes.map((node) => node.name);
+      return (
+        <PageOutcome title={`${row.title} is in ${projectName}`} data-module-manager-added={row.row_id}>
+          {nodeNames.length > 0 && (
+            <p className="text-sm text-fg-2">
+              <span className="font-mono text-xs">{nodeNames.join(", ")}</span> {nodeNames.length === 1 ? "is" : "are"} in {projectName}'s node list now, ready for any of its streams.
+            </p>
+          )}
+          <PageAction onPressed={onKeepBrowsing}>Keep browsing</PageAction>
+          <PageAction onPressed={onViewInTheProject} data-module-manager-view-in-project="">
+            View in {projectName}
+          </PageAction>
+        </PageOutcome>
       );
     }
     if (entry?.kind === "sample") {
@@ -229,26 +264,6 @@ function ModulePageActions({
             Add to {projectName}
           </PageAction>
           <p className="text-xs text-fg-3">Downloaded, checked against its SHA-256, then added to {projectName}.</p>
-        </div>
-      );
-    }
-    if (work?.kind === "just_added") {
-      const nodeNames = entry === null ? [] : entry.nodes.map((node) => node.name);
-      return (
-        <div className="flex flex-col gap-3" data-module-manager-added={row.row_id}>
-          <h3 className="flex items-start gap-2 text-lg font-semibold text-fg">
-            <Check className="mt-0.5 size-4 shrink-0 text-status-positive-text" strokeWidth={2} aria-hidden />
-            {row.title} is in {projectName}
-          </h3>
-          {nodeNames.length > 0 && (
-            <p className="text-sm text-fg-2">
-              <span className="font-mono text-xs">{nodeNames.join(", ")}</span> {nodeNames.length === 1 ? "is" : "are"} in {projectName}'s node list now, ready for any of its streams.
-            </p>
-          )}
-          <PageAction onPressed={onKeepBrowsing}>Keep browsing</PageAction>
-          <PageAction onPressed={onViewInTheProject} data-module-manager-view-in-project="">
-            View in {projectName}
-          </PageAction>
         </div>
       );
     }
@@ -285,7 +300,7 @@ function ModulePageActions({
         <div className="flex flex-col gap-2.5 rounded-lg border border-danger bg-danger-soft p-3.5" role="alert" data-module-manager-refusal={row.row_id}>
           <h3 className="flex items-center gap-2 text-sm font-semibold text-danger-text">
             <TriangleAlert className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
-            {row.title} was not {MODULE_ASKS[work.ask]}
+            {row.title} was not {MODULE_ASK_WORDS_ONCE_DONE[work.ask]}
           </h3>
           <p className="rounded-md bg-window p-2.5 font-mono text-xs break-words whitespace-pre-wrap text-fg select-text" data-module-manager-refusal-words="">
             {work.because}
@@ -427,21 +442,16 @@ function ModulePage({
 function ModuleCopyWords({ row, dependency }: { row: ModuleCardRow; dependency: WorkspaceDependency }) {
   const copyState = moduleCopyStateOf(dependency);
   const sourceWords = moduleSourceWordsOf(row);
-  if (copyState.kind === "check_refused") {
-    return (
-      <span className="flex min-w-0 flex-col gap-0.5" title={copyState.because}>
+  return (
+    <span className="flex min-w-0 flex-col gap-0.5">
+      {copyState.kind === "check_refused" && (
         <span className="flex items-center gap-1.5 text-xs text-warn-text">
           <TriangleAlert className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
           Its source could not be checked
         </span>
-        <span className="truncate font-mono text-2xs text-fg-3">{copyState.because}</span>
-      </span>
-    );
-  }
-  return (
-    <span className="flex min-w-0 flex-col gap-0.5">
-      {copyState.kind === "update_available" && <ModuleMark mark={{ words: "Update", isNews: true }} />}
-      {copyState.kind === "up_to_date" && <ModuleMark mark={{ words: "Up to date", isNews: false }} />}
+      )}
+      {copyState.kind === "update_available" && <ModuleMark mark={{ words: "Update", tone: "news" }} />}
+      {copyState.kind === "up_to_date" && <ModuleMark mark={{ words: "Up to date", tone: "quiet" }} />}
       {copyState.kind === "not_checked" && <span className="text-xs text-fg-3">Not checked for updates</span>}
       <span className="truncate text-2xs text-fg-3">{sourceWords}</span>
     </span>
@@ -478,7 +488,16 @@ function ProjectModuleListRow({ row, dependency, work, asks, onOpened }: { row: 
           </>
         )
       }
-      belowTheRow={work?.kind === "refused" ? <RefusalLine lead={`${row.title} was not ${MODULE_ASKS[work.ask]}:`} words={work.because} data-module-manager-refusal={row.row_id} /> : null}
+      belowTheRow={
+        work?.kind === "refused" || dependency.check_refused_because !== null ? (
+          <span className="flex flex-col gap-1">
+            {dependency.check_refused_because !== null && (
+              <RefusalLine tone="warning" lead="Where it was copied from could not be checked:" words={dependency.check_refused_because} data-module-manager-check-refusal={row.row_id} />
+            )}
+            {work?.kind === "refused" && <RefusalLine lead={`${row.title} was not ${MODULE_ASK_WORDS_ONCE_DONE[work.ask]}:`} words={work.because} data-module-manager-refusal={row.row_id} />}
+          </span>
+        ) : null
+      }
       onOpened={onOpened}
       data-module-manager-row={row.row_id}
     />
@@ -493,6 +512,19 @@ const PROJECT_MODULES_FILTER_LABELS: Record<ProjectModulesFilter, string> = { al
 function isTypedIntoAField(keyTarget: EventTarget | null): boolean {
   return keyTarget instanceof HTMLElement && (keyTarget.isContentEditable || keyTarget.tagName === "INPUT" || keyTarget.tagName === "TEXTAREA" || keyTarget.tagName === "SELECT");
 }
+
+/** Whether a key was pressed with the focus on a module's page or on nothing, and so not on a control outside the page that reads the arrow keys itself, as the tabs do. */
+function isPressedOnTheModulePageOrNothing(keyTarget: EventTarget | null): boolean {
+  return !(keyTarget instanceof HTMLElement) || keyTarget === document.body || keyTarget.closest(MODULE_PAGE_SELECTOR) !== null;
+}
+
+/** Whether no element the window shows holds the keyboard's focus, as after the focused one left the page. */
+function isTheKeyboardsFocusOnNothing(): boolean {
+  const focusedElement = document.activeElement;
+  return focusedElement === null || focusedElement === document.body || !focusedElement.isConnected;
+}
+
+const MODULE_PAGE_SELECTOR = "[data-module-manager-detail]";
 
 /**
  * The Marketplace window: the catalog's packages and samples as a storefront, and the open project's modules under the project's own name. A card
@@ -593,12 +625,23 @@ export function ModuleManagerWindowView({
     });
   };
   const asks: ModuleAsks = {
-    add: (row) => askOfTheModule(row, "add", `Adding ${row.title} to ${projectName}…`, () => sources.importFromTheMarketplace(row.row_id), () => ({ kind: "just_added" })),
-    clone: (row) => askOfTheModule(row, "clone", `Cloning ${row.title} into a new project…`, () => sources.cloneMarketplaceSample(row.row_id), (cloned) => ({ kind: "just_cloned", folder: cloned.folder })),
+    add: (row) => {
+      const entry = row.catalog_entry;
+      if (entry !== null) askOfTheModule(row, "add", `Adding ${row.title} to ${projectName}…`, () => sources.importFromTheMarketplace(entry.name), () => ({ kind: "just_added" }));
+    },
+    clone: (row) => {
+      const entry = row.catalog_entry;
+      if (entry === null) return;
+      askOfTheModule(row, "clone", `Cloning ${row.title} into a new project…`, () => sources.cloneMarketplaceSample(entry.name), (cloned) => ({ kind: "just_cloned", folder: cloned.folder, showing_it_was_refused_because: null }));
+    },
     update: (row) => updateTheModule(row, false),
     askBeforeRemoving: setRowWaitingOnItsRemoval,
-    showTheClonedProject: (folder) => {
-      sources.showTheClonedProject(folder).catch((rejection: unknown) => setProjectTabRefusal(sources.describeRejection(rejection)));
+    showTheClonedProject: (row, folder) => {
+      const showTheOutcome = (refusedBecause: string | null) => setTheWorkOf(row.row_id, { kind: "just_cloned", folder, showing_it_was_refused_because: refusedBecause });
+      sources.showTheClonedProject(folder).then(
+        () => showTheOutcome(null),
+        (rejection: unknown) => showTheOutcome(sources.describeRejection(rejection)),
+      );
     },
   };
   const removeTheModule = (row: ModuleCardRow) => {
@@ -666,6 +709,22 @@ export function ModuleManagerWindowView({
     else addFrom(droppedPath);
   };
 
+  const rowIdOfThePageShown = pageOpen?.row.row_id ?? null;
+  useEffect(() => {
+    if (rowIdOfThePageShown === null && rowIdOfThePageOpen !== null) setRowIdOfThePageOpen(null);
+  }, [rowIdOfThePageShown, rowIdOfThePageOpen]);
+  const windowElement = useRef<HTMLDivElement>(null);
+  const rowIdOfThePageShownLast = useRef<string | null>(null);
+  useEffect(() => {
+    const rowIdOfThePageLeft = rowIdOfThePageShownLast.current;
+    rowIdOfThePageShownLast.current = rowIdOfThePageShown;
+    if (rowIdOfThePageShown !== null && rowIdOfThePageLeft === null) {
+      windowElement.current?.querySelector<HTMLElement>("[data-module-manager-back]")?.focus();
+    } else if (rowIdOfThePageShown === null && rowIdOfThePageLeft !== null && isTheKeyboardsFocusOnNothing()) {
+      windowElement.current?.querySelector<HTMLElement>(`[data-module-manager-row="${CSS.escape(rowIdOfThePageLeft)}"] :is([data-module-card-open], [data-module-list-row-open])`)?.focus();
+    }
+  }, [rowIdOfThePageShown]);
+
   const isADialogOpen = updateWaitingOnTheOverwrite !== null || rowWaitingOnItsRemoval !== null;
   useEffect(() => {
     const onKeyDown = (keyEvent: KeyboardEvent) => {
@@ -679,9 +738,10 @@ export function ModuleManagerWindowView({
         searchFieldElement.current?.focus();
         return;
       }
-      if (pageOpen === null) return;
+      if (pageOpen === null || keyEvent.defaultPrevented) return;
       if (keyEvent.key === "Escape") setRowIdOfThePageOpen(null);
-      else if (keyEvent.key === "ArrowLeft" && pageOpen.previousRowId !== null) setRowIdOfThePageOpen(pageOpen.previousRowId);
+      if (!isPressedOnTheModulePageOrNothing(keyEvent.target)) return;
+      if (keyEvent.key === "ArrowLeft" && pageOpen.previousRowId !== null) setRowIdOfThePageOpen(pageOpen.previousRowId);
       else if (keyEvent.key === "ArrowRight" && pageOpen.nextRowId !== null) setRowIdOfThePageOpen(pageOpen.nextRowId);
     };
     document.addEventListener("keydown", onKeyDown);
@@ -701,15 +761,15 @@ export function ModuleManagerWindowView({
         {marketplaceRows.map((row) => {
           const work = moduleWorkByRowId[row.row_id] ?? null;
           const entry = row.catalog_entry;
-          const isAPackageToAdd = entry?.kind === "package" && entry.download !== null && row.module_of_the_project === null;
+          const isAPackageToAdd = entry?.kind === "package" && entry.download !== null && row.module_of_the_project === null && work?.kind !== "just_added";
           return (
             <ModuleCard
               key={row.row_id}
               title={row.title}
               summary={row.summary}
-              contentsWords={entry?.kind === "sample" ? ["Sample project", moduleContentsWordsOf(row)].filter((words) => words !== "").join(" · ") : moduleContentsWordsOf(row)}
-              mark={work?.kind === "refused" ? { words: `Not ${MODULE_ASKS[work.ask]}`, isNews: true } : moduleCardMarkOf(row)}
-              pendingWords={work?.kind === "under_way" ? (work.ask === "clone" ? "Cloning…" : work.ask === "add" ? "Adding…" : work.words) : null}
+              contentsWords={moduleCardContentsWordsOf(row)}
+              mark={work?.kind === "just_added" ? { words: "In project", tone: "quiet" } : moduleCardMarkOf(row, work?.kind === "refused" ? work.ask : null)}
+              pendingWords={work?.kind === "under_way" ? MODULE_ASK_WORDS_WHILE_UNDER_WAY[work.ask] : null}
               hoverAction={
                 isAPackageToAdd ? (
                   <ActionButton size="small" appearance="primary" icon={Download} label={`Add ${row.title} to ${projectName}`} onPressed={() => asks.add(row)} data-module-manager-add-from-card={row.row_id}>
@@ -753,6 +813,7 @@ export function ModuleManagerWindowView({
 
   return (
     <div
+      ref={windowElement}
       className="flex h-full flex-col bg-window text-fg"
       data-module-manager-window=""
       data-module-manager-drop-target={isAFileDraggedOver ? "over" : undefined}
@@ -781,7 +842,7 @@ export function ModuleManagerWindowView({
         />
         {rowCounts.project.updates > 0 && (
           <span className="shrink-0 text-xs font-medium text-brand-text" data-module-manager-updates-count="">
-            {rowCounts.project.updates} {rowCounts.project.updates === 1 ? "update" : "updates"}
+            {updatesCountWordsOf(rowCounts.project.updates)}
           </span>
         )}
         <div className="flex min-w-0 flex-1 justify-center">
@@ -895,11 +956,10 @@ export function ModuleManagerWindowView({
       </main>
       <footer className="flex h-7 shrink-0 items-center gap-4 border-t bg-chrome px-4 text-2xs text-fg-3">
         <span className="truncate" data-module-manager-counts="">
-          {rowCounts.project.all} in {projectName} · {rowCounts.marketplace.all} in the Marketplace
-          {rowCounts.project.updates > 0 && ` · ${rowCounts.project.updates} ${rowCounts.project.updates === 1 ? "update" : "updates"}`}
+          {moduleCountsWordsOf(projectName, rowCounts)}
         </span>
         <span className="ml-auto min-w-0 truncate" role="status" data-module-manager-in-progress="">
-          {everyWorkUnderWay.length === 0 ? "Nothing in progress" : everyWorkUnderWay.length === 1 ? everyWorkUnderWay[0] : `${everyWorkUnderWay.length} in progress: ${everyWorkUnderWay.join(" ")}`}
+          {workInProgressWordsOf(everyWorkUnderWay)}
         </span>
       </footer>
       <FormDialog

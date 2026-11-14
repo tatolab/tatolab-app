@@ -7,7 +7,7 @@ import { manifestOfAListedView, titleTheManifestNames } from "../view_host/studi
 
 /** One card or list row of the Marketplace window: a catalog entry, the project's module of it, or both. */
 export interface ModuleCardRow {
-  /** The catalog's name for it, or for a module the catalog does not list its folder under `imports/`. */
+  /** `catalog:<the catalog's name for it>`, or for a module the catalog does not list `import:<its folder under imports/>`; no two rows share one. */
   row_id: string;
   title: string;
   summary: string;
@@ -26,6 +26,16 @@ export function moduleFolderNameOf(name: string): string {
   }
   const trimmed = folder.replace(/^-+|-+$/g, "");
   return trimmed === "" ? "module" : trimmed;
+}
+
+/** The row id of the catalog's entry `name`. */
+export function rowIdOfTheCatalogEntryNamed(name: string): string {
+  return `catalog:${name}`;
+}
+
+/** The row id of a module of the project the catalog does not list, by its folder under `imports/`. */
+export function rowIdOfTheUnlistedModuleIn(folder: string): string {
+  return `import:${folder}`;
 }
 
 function textsMatchTheSearch(texts: readonly string[], searchText: string): boolean {
@@ -58,11 +68,11 @@ export function everyModuleCardRowOf(catalog: PackageCatalogReading | null, depe
   const catalogRows = catalogEntries.map((entry) => {
     const moduleOfTheProject = moduleOfTheProjectFor(entry, dependencies, foldersTheCatalogLists);
     if (moduleOfTheProject !== null) foldersTheCatalogLists.add(moduleOfTheProject.folder);
-    return { row_id: entry.name, title: entry.title, summary: entry.summary, catalog_entry: entry, module_of_the_project: moduleOfTheProject };
+    return { row_id: rowIdOfTheCatalogEntryNamed(entry.name), title: entry.title, summary: entry.summary, catalog_entry: entry, module_of_the_project: moduleOfTheProject };
   });
   const unlistedModuleRows = dependencies
     .filter((dependency) => !foldersTheCatalogLists.has(dependency.folder))
-    .map((dependency) => ({ row_id: dependency.folder, title: dependency.name ?? dependency.folder, summary: "", catalog_entry: null, module_of_the_project: dependency }));
+    .map((dependency) => ({ row_id: rowIdOfTheUnlistedModuleIn(dependency.folder), title: dependency.name ?? dependency.folder, summary: "", catalog_entry: null, module_of_the_project: dependency }));
   return [...catalogRows, ...unlistedModuleRows];
 }
 
@@ -130,16 +140,52 @@ export function moduleRowAndItsNeighboursOf(rows: readonly ModuleCardRow[], rowI
   return { row, position: index + 1, previousRowId: rows[index - 1]?.row_id ?? null, nextRowId: rows[index + 1]?.row_id ?? null };
 }
 
-/** What a card says in its corner about the project's module of it: an update at the source it was copied from, or that the project has it. */
-export function moduleCardMarkOf(row: ModuleCardRow): { words: string; isNews: boolean } | null {
+/** What can be asked of one module. */
+export const MODULE_ASKS = ["add", "clone", "update", "remove"] as const;
+
+/** One thing asked of a module. */
+export type ModuleAsk = (typeof MODULE_ASKS)[number];
+
+/** Each ask as a refusal names what did not happen, as "Camera was not added". */
+export const MODULE_ASK_WORDS_ONCE_DONE: Record<ModuleAsk, string> = { add: "added", clone: "cloned", update: "updated", remove: "removed" };
+
+/** Each ask as a card says it while it runs. */
+export const MODULE_ASK_WORDS_WHILE_UNDER_WAY: Record<ModuleAsk, string> = { add: "Adding…", clone: "Cloning…", update: "Updating…", remove: "Removing…" };
+
+/** What a card or a list row says in its corner, and how loudly: news that asks for a look, a quiet fact, or something refused. */
+export interface ModuleRowMark {
+  words: string;
+  tone: "news" | "quiet" | "refused";
+}
+
+/** What a card says in its corner: the ask last refused of it, else an update at the source the project's module was copied from, else that the project has it; `null` for none of these. */
+export function moduleCardMarkOf(row: ModuleCardRow, askLastRefused: ModuleAsk | null): ModuleRowMark | null {
+  if (askLastRefused !== null) return { words: `Not ${MODULE_ASK_WORDS_ONCE_DONE[askLastRefused]}`, tone: "refused" };
   const dependency = row.module_of_the_project;
   if (dependency === null) return null;
-  if (dependency.newer_version_exists === true) return { words: "Update", isNews: true };
-  return { words: "In project", isNews: false };
+  if (dependency.newer_version_exists === true) return { words: "Update", tone: "news" };
+  return { words: "In project", tone: "quiet" };
 }
 
 function countedWords(count: number, one: string): string {
   return `${count} ${one}${count === 1 ? "" : "s"}`;
+}
+
+/** How many of the project's modules have an update where they were copied from, in words, as "1 update". */
+export function updatesCountWordsOf(updatesCount: number): string {
+  return countedWords(updatesCount, "update");
+}
+
+/** What the window's footer counts: the project's modules, the Marketplace's entries, and the updates found when there are any. */
+export function moduleCountsWordsOf(projectName: string, rowCounts: ReturnType<typeof moduleRowCountsOf>): string {
+  return [`${rowCounts.project.all} in ${projectName}`, `${rowCounts.marketplace.all} in the Marketplace`, ...(rowCounts.project.updates > 0 ? [updatesCountWordsOf(rowCounts.project.updates)] : [])].join(" · ");
+}
+
+/** What the window's footer says is in progress: nothing, the one thing under way in its own words, or how many are and each one's words. */
+export function workInProgressWordsOf(wordsOfEachWorkUnderWay: readonly string[]): string {
+  const [firstWorkUnderWay] = wordsOfEachWorkUnderWay;
+  if (firstWorkUnderWay === undefined) return "Nothing in progress";
+  return wordsOfEachWorkUnderWay.length === 1 ? firstWorkUnderWay : `${wordsOfEachWorkUnderWay.length} in progress: ${wordsOfEachWorkUnderWay.join(" ")}`;
 }
 
 /** What a row holds, in words, as "2 nodes · 1 stream · 1 view": its nodes and streams as the catalog names them, and its views once the project has it; `""` where nothing says. */
@@ -151,6 +197,11 @@ export function moduleContentsWordsOf(row: ModuleCardRow): string {
     ...(entry !== null && entry.streams.length > 0 ? [countedWords(entry.streams.length, "stream")] : []),
     ...(viewCount > 0 ? [countedWords(viewCount, "view")] : []),
   ].join(" · ");
+}
+
+/** What a Marketplace card says its entry holds: `moduleContentsWordsOf`, behind "Sample project" for a sample. */
+export function moduleCardContentsWordsOf(row: ModuleCardRow): string {
+  return [...(row.catalog_entry?.kind === "sample" ? ["Sample project"] : []), moduleContentsWordsOf(row)].filter((words) => words !== "").join(" · ");
 }
 
 /** Where a module of the project was copied from, in words: the Marketplace, a `.zip`, or a folder. */

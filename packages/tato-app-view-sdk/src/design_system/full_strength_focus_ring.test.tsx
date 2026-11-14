@@ -7,6 +7,8 @@ import { CopyIconButton } from "./copy_icon_button";
 import { ExpandingSearchField } from "./expanding_search_field";
 import { IconButton } from "./icon_button";
 import { InlineLink } from "./inline_link";
+import { ModuleCard } from "./module_card";
+import { ModuleList, ModuleListRow } from "./module_list";
 import { ProjectCard, ProjectListRow } from "./project_card";
 import { FieldMenu, MenuItem, MoreActionsMenu } from "./menus";
 import { SearchField } from "./search_field";
@@ -73,11 +75,15 @@ describe("every design-system control", () => {
           moreActionsLabel="Actions for pattern"
           pendingWords={null}
         />
+        <ModuleCard title="Camera" summary="Reads a camera." contentsWords="1 node" mark={null} pendingWords={null} hoverAction={null} onOpened={() => {}} />
+        <ModuleList label="Modules in pattern">
+          <ModuleListRow title="Camera" summary="Reads a camera." titleBadge={null} contentsWords="1 node" copyWords="Up to date" actions={null} belowTheRow={null} onOpened={() => {}} />
+        </ModuleList>
       </>,
     );
     const focusableControls = [...container.querySelectorAll<HTMLElement>("button, a")];
 
-    expect(focusableControls.length).toBeGreaterThanOrEqual(16);
+    expect(focusableControls.length).toBeGreaterThanOrEqual(18);
     for (const control of focusableControls) {
       const focusRingColours = control.className.split(/\s+/).filter((className) => /(^|:)focus-visible:ring-(?!\d|\[)/.test(className));
       // Every theme's focus ring is the ring token at its own strength: no other colour, no opacity, light or dark.

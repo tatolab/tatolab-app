@@ -1,7 +1,8 @@
 // A project's imports as the runtime's dependency tools answer them: `add_dependency` the import it
-// copied, `remove_dependency` the import it took out, `update_dependency` the copy it committed or the files edited since the last one, and
-// `list_dependencies` each import with the files of its folder edited since its copy and, with
-// `check_for_newer`, whether its source holds another version. Every other key is ignored.
+// copied, `remove_dependency` the import it took out, `update_dependency` the copy it committed or
+// the files edited since the last one, and `list_dependencies` each import with the files of its
+// folder edited since its copy and, with `check_for_newer`, whether its source holds another
+// version. Every other key is ignored.
 
 import type { ProjectDependency, WorkspaceDependencyUpdate } from "../shared/tatolab_backend_contract.js";
 import { arrayOrEmpty, everyOneRead, jsonObject, type JsonObjectOnTheWire, optionalText, requiredArray, requiredText, requiredTrueOrFalse } from "./json_on_the_wire.js";

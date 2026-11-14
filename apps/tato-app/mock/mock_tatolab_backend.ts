@@ -21,6 +21,7 @@ import {
   mockFoldersInDocumentsTatoStudio,
   mockNewProjectDefaults,
   mockFirstNameNothingHolds,
+  mockNewProjectsFolder,
   mockNewProjectLocationTheDialogAnswers,
   mockProjectArchiveTheDialogAnswers,
   mockNewProjectReading,
@@ -289,6 +290,8 @@ export interface MockTatolabOptions {
   isTheCatalogUnserved: boolean;
   /** `?marketplace_add=refused|never_ends`: adding a Marketplace package, or cloning a sample, is refused with a download whose SHA-256 is not the catalog's, or never answers, so its progress stays; it succeeds by default. */
   marketplaceAddScenario: "succeeds" | "refused" | "never_ends";
+  /** `?module_remove=refused`: removing a module is refused as the runtime refuses one a stream's node still references; it succeeds by default. */
+  isRemovingAModuleRefused: boolean;
   /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node; its import brings one that does not open. */
   isTheFixtureViewListed: boolean;
   /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the effect's output. */
@@ -454,6 +457,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     moduleManagerSectionOpenedOn: moduleManagerSectionNamed(pageQuery.get(MODULE_MANAGER_SECTION_QUERY_PARAMETER)),
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
     marketplaceAddScenario: pageQuery.get("marketplace_add") === "refused" ? "refused" : pageQuery.get("marketplace_add") === "never_ends" ? "never_ends" : "succeeds",
+    isRemovingAModuleRefused: pageQuery.get("module_remove") === "refused",
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
     isTheCompositorInMain: pageQuery.get("compositor") === "layered",
     doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",
@@ -674,8 +678,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   let recentProjects = mockRecentProjects(recentProjectsInTheQuery, fixtures.machine.homeDirectory, Date.now());
   const coverImageUrlsByFolder = new Map<string, string>();
   const mockFoldersOnDisk = () => [...mockFoldersInDocumentsTatoStudio(fixtures.machine.homeDirectory), ...recentProjects.map((recent) => recent.folder)];
-  const openTheProjectInTheMock = (reading: OpenProjectReading, folder: string, projectName: string | null) => {
-    openProjectReading = reading;
+  const rememberTheProjectAsOpenedLast = (folder: string, projectName: string | null) => {
     const recentBefore = recentProjects.find((recent) => recent.folder === folder);
     recentProjects = [
       {
@@ -688,6 +691,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       },
       ...recentProjects.filter((recent) => recent.folder !== folder),
     ];
+  };
+  const openTheProjectInTheMock = (reading: OpenProjectReading, folder: string, projectName: string | null) => {
+    openProjectReading = reading;
+    rememberTheProjectAsOpenedLast(folder, projectName);
     for (const openProjectListener of openProjectListeners) openProjectListener(structuredClone(openProjectReading));
   };
   const mockProjectFiles = new MockProjectFiles(`${fixtures.machine.homeDirectory}/streams`);
@@ -1765,6 +1772,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     },
     removeWorkspaceDependency: async (project) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 4);
+      if (mockTatolabOptions.isRemovingAModuleRefused) throw `remove_dependency failed: the project still uses the import ${project}: ["wall_mapping"] reference it; remove them first`;
       return workspaceDependencies.remove(project);
     },
     cloneMarketplaceSample: async (name) => {
@@ -1773,7 +1781,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (entry === undefined) throw `The catalog lists nothing named ${name}.`;
       if (entry.kind !== "sample") throw `${entry.title} is not a sample project; add it to a project instead.`;
       await mockMarketplaceDownloadOf(entry, mockTatolabOptions.marketplaceAddScenario);
-      return { folder: `${fixtures.machine.homeDirectory}/Documents/Tato Studio/${entry.title}`, project_creation: null };
+      const location = mockNewProjectsFolder(fixtures.machine.homeDirectory);
+      const folder = `${location}/${mockFirstNameNothingHolds(location, entry.title, mockFoldersOnDisk())}`;
+      projectFolders.set(folder, { streamNames: ["main"], hasAPythonEnvironment: false });
+      rememberTheProjectAsOpenedLast(folder, entry.title);
+      return { folder, project_creation: null };
     },
     pathOfADroppedFile: (droppedFile) => `${fixtures.machine.homeDirectory}/streams/${droppedFile.name}`,
     readRecentProjects: async () => {
@@ -1784,6 +1796,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       const recentProject = recentProjects.find((recent) => recent.folder === folder);
       if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      // A Module manager window keeps its workspace: the project opens, or comes forward, in a studio window of its own, which this one page cannot show.
+      if (mockTatolabOptions.moduleManagerWorkspaceDependencies !== null) {
+        rememberTheProjectAsOpenedLast(folder, recentProject.project_name);
+        return;
+      }
       openTheProjectInTheMock(mockRecentProjectReading(recentProject, fixtures.machine.homeDirectory), folder, recentProject.project_name);
     },
     renameRecentProject: async (folder, name) => {

@@ -1882,23 +1882,23 @@ describe("Module manager", () => {
   it("names the project's tab and its page after the open project, and lists its modules as the runtime does with what each adds and where it was copied from", async () => {
     await mountedWindowOverTheMock("state=running&studio_views=fixture&module_manager=open&module_manager_section=added_to_this_project");
 
-    await shown('[data-module-manager-row="lobby-wall"]');
+    await shown('[data-module-manager-row="import:lobby-wall"]');
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
     expect(textOf('[data-module-manager-show="added_to_this_project"]')).toBe("pattern1");
     expect(textOf("[data-module-manager-project-name]")).toBe("pattern");
     expect(document.body.textContent).not.toContain("This project");
-    expect(moduleManagerRow("lobby-wall").textContent).toContain("1 view");
-    expect(moduleManagerRow("lobby-wall").textContent).toContain("From a folder");
-    expect(moduleManagerRow("lobby-wall").textContent).not.toContain("imports/");
+    expect(moduleManagerRow("import:lobby-wall").textContent).toContain("1 view");
+    expect(moduleManagerRow("import:lobby-wall").textContent).toContain("From a folder");
+    expect(moduleManagerRow("import:lobby-wall").textContent).not.toContain("imports/");
   });
 
   it("opens a module's own page from its row, with its folder under imports/ only in Technical details, and never offers to open it to edit or to place a node", async () => {
     await mountedWindowOverTheMock("state=running&studio_views=fixture&module_manager=open&module_manager_section=added_to_this_project");
-    await shown('[data-module-manager-row="lobby-wall"]');
+    await shown('[data-module-manager-row="import:lobby-wall"]');
 
-    openThePageOf("lobby-wall");
+    openThePageOf("import:lobby-wall");
 
-    await shown('[data-module-manager-detail="lobby-wall"]');
+    await shown('[data-module-manager-detail="import:lobby-wall"]');
     expect(textOf("[data-module-manager-technical-details]")).toContain("imports/lobby-wall");
     expect(textOf("[data-module-manager-technical-details]")).toContain("/Users/jonathanf/streams/lobby-wall");
     expect(textOf('[data-module-manager-view="lobby-wall:stage_rig"]')).toBe("Stage rigDoesn't open: `contract`: this runtime reads view contract 1.0.");
@@ -1906,7 +1906,7 @@ describe("Module manager", () => {
     expect(document.body.textContent).not.toContain("Open to edit");
     expect(document.body.textContent).not.toContain("Place node");
     pressed("[data-module-manager-back]");
-    await shown('[data-module-manager-row="lobby-wall"]');
+    await shown('[data-module-manager-row="import:lobby-wall"]');
     expect(document.querySelector("[data-module-manager-detail]")).toBeNull();
   });
 
@@ -1951,14 +1951,14 @@ describe("Module manager", () => {
 
   it("adds a project's folder chosen in the dialog, or one dropped on the project's tab, and lists it", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project");
-    await shown('[data-module-manager-row="lobby-wall"]');
+    await shown('[data-module-manager-row="import:lobby-wall"]');
 
     pressed('[data-module-manager-add="folder"]');
-    await shown('[data-module-manager-row="doorways"]');
+    await shown('[data-module-manager-row="import:doorways"]');
 
     const moduleManagerWindow = document.querySelector<HTMLElement>("[data-module-manager-window]") ?? expect.unreachable("no window");
     fireEvent.drop(moduleManagerWindow, { dataTransfer: { files: [new File(["zip"], "night-lights.zip")], types: ["Files"] } });
-    await shown('[data-module-manager-row="night-lights"]');
+    await shown('[data-module-manager-row="import:night-lights"]');
   });
 
   it("offers a folder or a .zip only on the project's tab: the Marketplace has no such button and takes no drop", async () => {
@@ -1969,7 +1969,7 @@ describe("Module manager", () => {
         return Promise.reject("not asked for");
       },
     });
-    await shown('[data-module-manager-row="tatolab-camera"]');
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
 
     expect(document.querySelector("[data-module-manager-add]")).toBeNull();
     expect(document.querySelector("[data-module-manager-drop-hint]")).toBeNull();
@@ -1982,7 +1982,7 @@ describe("Module manager", () => {
 
   it("opens nothing until a card is pressed, and keeps the search across the tabs", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=marketplace");
-    await shown('[data-module-manager-row="tatolab-camera"]');
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
     expect(document.querySelector("[data-module-manager-detail]")).toBeNull();
 
     fireEvent.change(searchField(), { target: { value: "wall" } });
@@ -1990,7 +1990,7 @@ describe("Module manager", () => {
     pressed('[data-module-manager-show="added_to_this_project"]');
 
     expect(searchField().value).toBe("wall");
-    await shown('[data-module-manager-row="lobby-wall"]');
+    await shown('[data-module-manager-row="import:lobby-wall"]');
     expect(document.querySelector("[data-module-manager-detail]")).toBeNull();
     pressed('[data-module-manager-show="marketplace"]');
     expect(searchField().value).toBe("wall");
@@ -1999,7 +1999,7 @@ describe("Module manager", () => {
 
   it("shows the runtime's refusal of a folder in its own words", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project", { addDependencyToTheWorkspace: () => Promise.reject("/Users/jonathanf/streams/doorways is not a project: it holds no tatolab-project.json") });
-    await shown('[data-module-manager-row="lobby-wall"]');
+    await shown('[data-module-manager-row="import:lobby-wall"]');
 
     pressed('[data-module-manager-add="folder"]');
     await waitFor(() => expect(textOf("[data-module-manager-project-refusal]")).toContain("/Users/jonathanf/streams/doorways is not a project: it holds no tatolab-project.json"));
@@ -2007,7 +2007,7 @@ describe("Module manager", () => {
 
   it("asks before an Update overwrites files edited since the copy, and Keep my edits leaves them", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=edited_files&module_manager_section=added_to_this_project");
-    await shown('[data-module-manager-row="lobby-wall"]');
+    await shown('[data-module-manager-row="import:lobby-wall"]');
     expect(textOf("[data-module-manager-edited-count]")).toBe("1 edited");
 
     pressed('[data-module-manager-update="lobby-wall"]');
@@ -2024,8 +2024,8 @@ describe("Module manager", () => {
 
   it("marks a module with an update where it was copied from once checked, counts it on the tab's filter, and Update takes it", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=newer&module_manager_section=added_to_this_project");
-    await shown('[data-module-manager-row="lobby-wall"]');
-    expect(moduleManagerRow("lobby-wall").textContent).toContain("Not checked for updates");
+    await shown('[data-module-manager-row="import:lobby-wall"]');
+    expect(moduleManagerRow("import:lobby-wall").textContent).toContain("Not checked for updates");
 
     pressed("[data-module-manager-check-for-updates]");
     await waitFor(() => expect(textOf('[data-module-manager-filter="updates"]')).toBe("Updates1"));
@@ -2041,30 +2041,30 @@ describe("Module manager", () => {
       listWorkspaceDependencies: (checkForNewer) => backendOverTheMock.listWorkspaceDependencies(checkForNewer),
       removeWorkspaceDependency: (project) => (refuseTheRemoval ? Promise.reject("remove_dependency failed: the stream main still uses a node of lobby-wall") : backendOverTheMock.removeWorkspaceDependency(project)),
     });
-    await shown('[data-module-manager-row="lobby-wall"]');
+    await shown('[data-module-manager-row="import:lobby-wall"]');
 
     pressed('[data-module-manager-remove="lobby-wall"]');
     await waitFor(() => expect(textOf("[data-module-manager-remove-dialog]")).toContain("Remove lobby-wall from pattern?"));
     pressed("[data-module-manager-confirm-remove]");
-    await waitFor(() => expect(textOf('[data-module-manager-refusal="lobby-wall"]')).toContain("remove_dependency failed: the stream main still uses a node of lobby-wall"));
-    expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull();
+    await waitFor(() => expect(textOf('[data-module-manager-refusal="import:lobby-wall"]')).toContain("remove_dependency failed: the stream main still uses a node of lobby-wall"));
+    expect(document.querySelector('[data-module-manager-row="import:lobby-wall"]')).not.toBeNull();
 
     refuseTheRemoval = false;
     pressed('[data-module-manager-remove="lobby-wall"]');
     pressed(await waitFor(() => (document.querySelector("[data-module-manager-confirm-remove]") === null ? expect.unreachable("no Remove") : "[data-module-manager-confirm-remove]")));
-    await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).toBeNull());
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="import:lobby-wall"]')).toBeNull());
   });
 
   it("lists the catalog's packages and samples in the Marketplace, not a module it does not list, and narrows them to a kind and to a search", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open");
 
-    await shown('[data-module-manager-row="tatolab-camera"]');
-    expect(moduleManagerRow("camera-halftone")).toBeTruthy();
-    expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).toBeNull();
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+    expect(moduleManagerRow("catalog:camera-halftone")).toBeTruthy();
+    expect(document.querySelector('[data-module-manager-row="import:lobby-wall"]')).toBeNull();
 
     pressed('[data-module-manager-kind="sample"]');
-    await waitFor(() => expect(document.querySelector('[data-module-manager-row="tatolab-camera"]')).toBeNull());
-    expect(moduleManagerRow("camera-halftone")).toBeTruthy();
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="catalog:tatolab-camera"]')).toBeNull());
+    expect(moduleManagerRow("catalog:camera-halftone")).toBeTruthy();
     pressed('[data-module-manager-kind="all"]');
 
     fireEvent.change(searchField(), { target: { value: "opusdecoder" } });
@@ -2081,41 +2081,41 @@ describe("Module manager", () => {
           finishTheAdd = () => backendOverTheMock.importFromTheMarketplace(name).then(resolve, reject);
         }),
     });
-    await shown('[data-module-manager-row="tatolab-camera"]');
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
 
-    pressed('[data-module-manager-add-from-card="tatolab-camera"]');
+    pressed('[data-module-manager-add-from-card="catalog:tatolab-camera"]');
 
-    await waitFor(() => expect(textOf('[data-module-manager-row="tatolab-camera"] [data-module-card-pending]')).toBe("Adding…"));
+    await waitFor(() => expect(textOf('[data-module-manager-row="catalog:tatolab-camera"] [data-module-card-pending]')).toBe("Adding…"));
     expect(textOf("[data-module-manager-in-progress]")).toBe("Adding Camera to pattern…");
     expect(document.querySelector("[data-module-manager-detail]")).toBeNull();
-    expect(document.querySelector('[data-module-manager-add-from-card="tatolab-opus"]')).not.toBeNull();
-    openThePageOf("tatolab-opus");
+    expect(document.querySelector('[data-module-manager-add-from-card="catalog:tatolab-opus"]')).not.toBeNull();
+    openThePageOf("catalog:tatolab-opus");
     await shown('[data-module-manager-import="tatolab-opus"]');
     pressed("[data-module-manager-back]");
 
     await act(async () => finishTheAdd());
-    await waitFor(() => expect(textOf('[data-module-manager-row="tatolab-camera"] [data-module-card-mark]')).toBe("In project"));
-    expect(document.querySelector('[data-module-manager-add-from-card="tatolab-camera"]')).toBeNull();
+    await waitFor(() => expect(textOf('[data-module-manager-row="catalog:tatolab-camera"] [data-module-card-mark]')).toBe("In project"));
+    expect(document.querySelector('[data-module-manager-add-from-card="catalog:tatolab-camera"]')).toBeNull();
     expect(textOf("[data-module-manager-in-progress]")).toBe("Nothing in progress");
   });
 
   it("adds a package from its page under the project's name, then says it is in the project and names the nodes it brought", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open");
-    await shown('[data-module-manager-row="tatolab-compositor"]');
+    await shown('[data-module-manager-row="catalog:tatolab-compositor"]');
 
-    openThePageOf("tatolab-compositor");
-    await shown('[data-module-manager-detail="tatolab-compositor"]');
+    openThePageOf("catalog:tatolab-compositor");
+    await shown('[data-module-manager-detail="catalog:tatolab-compositor"]');
     expect(textOf("[data-module-manager-whats-inside]")).toContain("LowerThird");
     expect(textOf('[data-module-manager-import="tatolab-compositor"]')).toBe("Add to pattern");
     pressed('[data-module-manager-import="tatolab-compositor"]');
 
-    await shown('[data-module-manager-added="tatolab-compositor"]');
-    expect(textOf('[data-module-manager-added="tatolab-compositor"]')).toContain("Compositor is in pattern");
-    expect(textOf('[data-module-manager-added="tatolab-compositor"]')).toContain("LowerThird");
+    await shown('[data-module-manager-added="catalog:tatolab-compositor"]');
+    expect(textOf('[data-module-manager-added="catalog:tatolab-compositor"]')).toContain("Compositor is in pattern");
+    expect(textOf('[data-module-manager-added="catalog:tatolab-compositor"]')).toContain("LowerThird");
     expect(document.querySelector('[data-module-manager-import="tatolab-compositor"]')).toBeNull();
     pressed("[data-module-manager-view-in-project]");
     await waitFor(() => expect(shownTab()).toBe("added_to_this_project"));
-    await shown('[data-module-manager-row="tatolab-compositor"]');
+    await shown('[data-module-manager-row="catalog:tatolab-compositor"]');
   });
 
   it("shows a refused add in its own words on the module's page, changes nothing, and Retry asks again", async () => {
@@ -2126,52 +2126,162 @@ describe("Module manager", () => {
         return Promise.reject("https://get.tatolab.com/modules/tatolab-camera-0.68.29.zip downloaded with the SHA-256 28f8, not the catalog's 4f7a; nothing was imported.");
       },
     });
-    await shown('[data-module-manager-row="tatolab-camera"]');
-    openThePageOf("tatolab-camera");
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+    openThePageOf("catalog:tatolab-camera");
     pressed(await waitFor(() => (document.querySelector("[data-module-manager-import]") === null ? expect.unreachable("no Add") : "[data-module-manager-import]")));
 
     await waitFor(() => expect(textOf("[data-module-manager-refusal-words]")).toBe("https://get.tatolab.com/modules/tatolab-camera-0.68.29.zip downloaded with the SHA-256 28f8, not the catalog's 4f7a; nothing was imported."));
-    expect(textOf('[data-module-manager-refusal="tatolab-camera"]')).toContain("Camera was not added");
-    expect(textOf('[data-module-manager-refusal="tatolab-camera"]')).toContain("Nothing in pattern changed.");
+    expect(textOf('[data-module-manager-refusal="catalog:tatolab-camera"]')).toContain("Camera was not added");
+    expect(textOf('[data-module-manager-refusal="catalog:tatolab-camera"]')).toContain("Nothing in pattern changed.");
     pressed("[data-module-manager-retry]");
     await waitFor(() => expect(timesAsked).toBe(2));
   });
 
   it("offers a sample only Clone sample, which makes a project of its own and leaves the open project's modules as they were", async () => {
     let foldersShown: string[] = [];
+    const backendOverTheMock = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&module_manager=open")));
     await mountedWindowOverTheMock("state=running&module_manager=open", {
+      cloneMarketplaceSample: (name) => backendOverTheMock.cloneMarketplaceSample(name),
       openRecentProject: async (folder) => {
+        await backendOverTheMock.openRecentProject(folder);
         foldersShown = [...foldersShown, folder];
       },
     });
-    await shown('[data-module-manager-row="camera-halftone"]');
-    expect(document.querySelector('[data-module-manager-add-from-card="camera-halftone"]')).toBeNull();
+    await shown('[data-module-manager-row="catalog:camera-halftone"]');
+    expect(document.querySelector('[data-module-manager-add-from-card="catalog:camera-halftone"]')).toBeNull();
 
-    openThePageOf("camera-halftone");
+    openThePageOf("catalog:camera-halftone");
     await shown('[data-module-manager-clone="camera-halftone"]');
     expect(document.querySelector("[data-module-manager-import]")).toBeNull();
     expect(document.body.textContent).not.toContain("Open sample");
     pressed('[data-module-manager-clone="camera-halftone"]');
 
-    await shown('[data-module-manager-cloned="camera-halftone"]');
-    expect(textOf('[data-module-manager-cloned="camera-halftone"]')).toContain("pattern was not changed.");
+    await shown('[data-module-manager-cloned="catalog:camera-halftone"]');
+    expect(textOf('[data-module-manager-cloned="catalog:camera-halftone"]')).toContain("pattern was not changed.");
     pressed("[data-module-manager-show-cloned-project]");
     await waitFor(() => expect(foldersShown).toEqual(["/Users/jonathanf/Documents/Tato Studio/Camera halftone"]));
+    expect(document.querySelector("[data-module-manager-show-cloned-project-refusal]")).toBeNull();
     pressed('[data-module-manager-show="added_to_this_project"]');
-    await shown('[data-module-manager-row="lobby-wall"]');
-    expect(document.querySelector('[data-module-manager-row="camera-halftone"]')).toBeNull();
+    await shown('[data-module-manager-row="import:lobby-wall"]');
+    expect(document.querySelector('[data-module-manager-row="catalog:camera-halftone"]')).toBeNull();
+  });
+
+  it("says on the sample's page why its new project was not shown", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open", { openRecentProject: () => Promise.reject("The project's folder is gone.") });
+    await shown('[data-module-manager-row="catalog:camera-halftone"]');
+    openThePageOf("catalog:camera-halftone");
+    pressed(await waitFor(() => (document.querySelector("[data-module-manager-clone]") === null ? expect.unreachable("no Clone sample") : "[data-module-manager-clone]")));
+    await shown("[data-module-manager-show-cloned-project]");
+
+    pressed("[data-module-manager-show-cloned-project]");
+
+    await waitFor(() => expect(textOf("[data-module-manager-show-cloned-project-refusal]")).toBe("The new project was not shown: The project's folder is gone."));
+    expect(document.querySelector('[data-module-manager-cloned="catalog:camera-halftone"]')).not.toBeNull();
+  });
+
+  it("offers no second Add of a package just added while the project's modules are read again, on its page or its card", async () => {
+    let timesListed = 0;
+    const backendOverTheMock = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&module_manager=open")));
+    await mountedWindowOverTheMock("state=running&module_manager=open", {
+      listWorkspaceDependencies: (checkForNewer) => {
+        timesListed += 1;
+        return timesListed === 1 ? backendOverTheMock.listWorkspaceDependencies(checkForNewer) : new Promise(() => undefined);
+      },
+      importFromTheMarketplace: (name) => backendOverTheMock.importFromTheMarketplace(name),
+    });
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+    openThePageOf("catalog:tatolab-camera");
+    pressed(await waitFor(() => (document.querySelector("[data-module-manager-import]") === null ? expect.unreachable("no Add") : "[data-module-manager-import]")));
+
+    await shown('[data-module-manager-added="catalog:tatolab-camera"]');
+    expect(timesListed).toBeGreaterThan(1);
+    expect(document.querySelector("[data-module-manager-import]")).toBeNull();
+    pressed("[data-module-manager-back]");
+    await shown('[data-module-manager-row="catalog:tatolab-camera"] [data-module-card-mark="quiet"]');
+    expect(document.querySelector('[data-module-manager-add-from-card="catalog:tatolab-camera"]')).toBeNull();
+  });
+
+  it("marks a card refused, not as news, when its Add is refused, and offers Add again", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open&marketplace_add=refused");
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+
+    pressed('[data-module-manager-add-from-card="catalog:tatolab-camera"]');
+
+    await waitFor(() => expect(textOf('[data-module-manager-row="catalog:tatolab-camera"] [data-module-card-mark="refused"]')).toBe("Not added"));
+    expect(document.querySelector('[data-module-manager-add-from-card="catalog:tatolab-camera"]')).not.toBeNull();
+  });
+
+  it("keeps a module in a folder of a sample's name apart from the sample: removing it leaves the sample's card as it was", async () => {
+    const backendOverTheMock = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&module_manager=open")));
+    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project", {
+      listWorkspaceDependencies: async (checkForNewer) => (await backendOverTheMock.listWorkspaceDependencies(checkForNewer)).map((dependency) => ({ ...dependency, folder: "camera-halftone", name: "Camera halftone" })),
+      removeWorkspaceDependency: () => new Promise(() => undefined),
+    });
+    await shown('[data-module-manager-row="import:camera-halftone"]');
+
+    pressed('[data-module-manager-remove="camera-halftone"]');
+    pressed(await waitFor(() => (document.querySelector("[data-module-manager-confirm-remove]") === null ? expect.unreachable("no Remove") : "[data-module-manager-confirm-remove]")));
+    await waitFor(() => expect(textOf("[data-module-manager-in-progress]")).toBe("Removing Camera halftone…"));
+    pressed('[data-module-manager-show="marketplace"]');
+
+    await shown('[data-module-manager-row="catalog:camera-halftone"]');
+    expect(document.querySelector('[data-module-manager-row="catalog:camera-halftone"] [data-module-card-pending]')).toBeNull();
+    expect(moduleManagerRow("catalog:camera-halftone").getAttribute("aria-busy")).toBe("false");
+  });
+
+  it("says a refused removal in the runtime's words, and under a module's row why its source could not be checked, in full", async () => {
+    const backendOverTheMock = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&module_manager=open")));
+    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project&module_remove=refused", {
+      listWorkspaceDependencies: async (checkForNewer) =>
+        (await backendOverTheMock.listWorkspaceDependencies(checkForNewer)).map((dependency) => ({ ...dependency, check_refused_because: checkForNewer ? "/Users/jonathanf/streams/lobby-wall could not be read: no folder or file is there" : null })),
+    });
+    await shown('[data-module-manager-row="import:lobby-wall"]');
+
+    pressed("[data-module-manager-check-for-updates]");
+    await waitFor(() =>
+      expect(textOf('[data-module-manager-check-refusal="import:lobby-wall"]')).toBe("Where it was copied from could not be checked: /Users/jonathanf/streams/lobby-wall could not be read: no folder or file is there"),
+    );
+    pressed('[data-module-manager-remove="lobby-wall"]');
+    pressed(await waitFor(() => (document.querySelector("[data-module-manager-confirm-remove]") === null ? expect.unreachable("no Remove") : "[data-module-manager-confirm-remove]")));
+
+    await waitFor(() => expect(textOf('[data-module-manager-refusal="import:lobby-wall"]')).toContain("remove_dependency failed: the project still uses the import"));
+    expect(textOf('[data-module-manager-refusal="import:lobby-wall"]')).toContain("reference it; remove them first");
+  });
+
+  it("puts the keyboard's focus on Back when a module's page opens, and back on its card when the page closes", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open");
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+
+    openThePageOf("catalog:tatolab-camera");
+    await shown('[data-module-manager-detail="catalog:tatolab-camera"]');
+    await waitFor(() => expect(document.activeElement).toBe(document.querySelector("[data-module-manager-back]")));
+
+    fireEvent.keyDown(document.querySelector("[data-module-manager-back]") ?? expect.unreachable("no Back"), { key: "Escape" });
+    await waitFor(() => expect(document.querySelector("[data-module-manager-detail]")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(document.querySelector('[data-module-manager-row="catalog:tatolab-camera"] [data-module-card-open]')));
+  });
+
+  it("leaves the tabs their own arrow keys while a module's page is open", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open");
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+    openThePageOf("catalog:tatolab-camera");
+    await shown('[data-module-manager-detail="catalog:tatolab-camera"]');
+
+    fireEvent.keyDown(document.querySelector('[data-module-manager-show="marketplace"]') ?? expect.unreachable("no tab"), { key: "ArrowRight" });
+
+    expect(document.querySelector('[data-module-manager-detail="catalog:tatolab-camera"]')).not.toBeNull();
   });
 
   it("goes back from a module's page on Escape, and to the next and previous module on the arrow keys", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open");
-    await shown('[data-module-manager-row="tatolab-camera"]');
-    openThePageOf("tatolab-camera");
-    await shown('[data-module-manager-detail="tatolab-camera"]');
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+    openThePageOf("catalog:tatolab-camera");
+    await shown('[data-module-manager-detail="catalog:tatolab-camera"]');
 
     fireEvent.keyDown(document.body, { key: "ArrowRight" });
-    await shown('[data-module-manager-detail="tatolab-microphone"]');
+    await shown('[data-module-manager-detail="catalog:tatolab-microphone"]');
     fireEvent.keyDown(document.body, { key: "ArrowLeft" });
-    await shown('[data-module-manager-detail="tatolab-camera"]');
+    await shown('[data-module-manager-detail="catalog:tatolab-camera"]');
     fireEvent.keyDown(document.body, { key: "Escape" });
 
     await waitFor(() => expect(document.querySelector("[data-module-manager-detail]")).toBeNull());
@@ -2184,7 +2294,7 @@ describe("Module manager", () => {
     await shown('[data-module-manager-state="not_read"]');
     expect(textOf('[data-module-manager-state="not_read"]')).toContain("HTTP 404 Not Found");
     pressed('[data-module-manager-show="added_to_this_project"]');
-    await shown('[data-module-manager-row="lobby-wall"]');
+    await shown('[data-module-manager-row="import:lobby-wall"]');
   });
 });
 
