@@ -49,7 +49,7 @@ function countingBackend() {
     describeNodeCatalog: (stream: string): Promise<NodeCatalog> => {
       reads.catalog += 1;
       if (served.catalogRefusal !== null) return Promise.reject(new Error(served.catalogRefusal));
-      return Promise.resolve({ stream, node_types: served.catalogTypes.map((type) => ({ type, description: "", config_schema: null, inputs: [], outputs: [] })) });
+      return Promise.resolve({ stream, node_types: served.catalogTypes.map((type) => ({ type, description: "", category: null, config_schema: null, inputs: [], outputs: [] })) });
     },
   };
   return { backend, served, reads, streamsFollowed, pushTheStreamGraphChanged };

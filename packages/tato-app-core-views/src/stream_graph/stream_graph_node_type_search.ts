@@ -1,32 +1,44 @@
 // What the Add node search offers over a stream's graph: each node type its stream's catalog lists and each its
-// project's sources declare, titled in words and listed under its module, then each graph generator the project's
-// own source declares, placed as a subgraph; for a wire dragged off a pin, only the node types that can take it.
+// project's sources declare, titled in words, filed under the category the runtime serves and named for the project or
+// package it comes from, then each graph generator the project's own source declares, placed as a subgraph; for a wire
+// dragged off a pin, only the node types that can take it.
 
 import type { SearchPopoverNarrowing } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import type { SearchPopoverItem } from "@tatolab/tato-app-view-sdk/design_system/support/search_popover_rows";
-import type { NodeCatalogEntry, ProjectNodeType, ProjectNodeTypeListing } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { NodeCatalogEntry, OpenProject, ProjectNodeType, ProjectNodeTypeListing, ProjectNodeTypeSourceOrigin } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { nodeTypeCategoryPath } from "../shared/node_type_category_path";
 import { nameInWords, nodeTypeClassName } from "../shared/node_words";
 import { portALooseWireLinksTo, type LooseWire } from "../shared/stream_graph_edits";
 
-/** The module a node type is declared in, the part before its class: `nodes.blur` of `nodes.blur:GaussianBlur`. */
-function moduleOfTheNodeType(nodeType: string): string {
-  const classStartsAfter = Math.max(nodeType.lastIndexOf(":"), nodeType.lastIndexOf("."));
-  return classStartsAfter <= 0 ? nodeType : nodeType.slice(0, classStartsAfter);
+/** The entry above the search's categories that lists what the project's own source declares. */
+export const THIS_PROJECT_SEARCH_ENTRY = "This project";
+
+/** The heading the search lists the project's graph generators under. */
+export const GRAPH_GENERATORS_SEARCH_HEADING = "Subgraphs from code";
+
+/** The project or package a source's node code comes from, as the runtime names it: the open project, an import by the name `list_dependencies` gives it, or an installed distribution; `null` where the runtime names none. */
+function nodeTypeSourceOriginWords(origin: ProjectNodeTypeSourceOrigin, openProject: OpenProject | null): string | null {
+  switch (origin.source) {
+    case "project":
+      return openProject?.project.name ?? null;
+    case "dependency":
+      return openProject?.imports.find((imported) => imported.project === origin.project)?.name ?? null;
+    case "installed_distribution":
+      return origin.distribution;
+    case "newer_than_this_app":
+      return origin.source_name;
+  }
 }
 
-/** A node type's ports as the search's details list them, as "in: frames, level · out: image"; `null` for one with none. */
-function portsInWords(nodeType: NodeCatalogEntry): string | null {
-  const sides = [
-    nodeType.inputs.length === 0 ? null : `in: ${nodeType.inputs.map((port) => port.name).join(", ")}`,
-    nodeType.outputs.length === 0 ? null : `out: ${nodeType.outputs.map((port) => port.name).join(", ")}`,
-  ].filter((side) => side !== null);
-  return sides.length === 0 ? null : sides.join(" · ");
-}
-
-/** The tag of a node type's row: for a loose wire, the port it links to; else whether the project's own source declares it. */
-function nodeTypeSearchTag(nodeType: NodeCatalogEntry, linkedPort: string | null, looseWire: Pick<LooseWire, "side" | "family"> | null, typesTheProjectDeclares: ReadonlySet<string>): string | null {
-  if (looseWire !== null && linkedPort !== null) return looseWire.side === "output" ? `→ ${linkedPort}` : `${linkedPort} →`;
-  return typesTheProjectDeclares.has(nodeType.type) ? "this project" : null;
+/** Where each node type the project's listing offers comes from, by its type, for those the runtime names an origin of. */
+export function nodeTypeOriginWordsByType(projectNodeTypes: ProjectNodeTypeListing | null, openProject: OpenProject | null): ReadonlyMap<string, string> {
+  const originWordsByType = new Map<string, string>();
+  for (const source of projectNodeTypes?.sources ?? []) {
+    const originWords = nodeTypeSourceOriginWords(source.origin, openProject);
+    if (originWords === null) continue;
+    for (const declared of source.node_types) originWordsByType.set(declared.type, originWords);
+  }
+  return originWordsByType;
 }
 
 /** Each node type of `catalog` the search offers, keyed by its type; with a loose wire, only those with a port of the wire's family on the other side. */
@@ -34,31 +46,31 @@ export function nodeTypeSearchItems(
   catalog: readonly NodeCatalogEntry[],
   looseWire: Pick<LooseWire, "side" | "family"> | null,
   typesTheProjectDeclares: ReadonlySet<string> = new Set(),
+  originWordsByType: ReadonlyMap<string, string> = new Map(),
 ): SearchPopoverItem[] {
   return catalog.flatMap((nodeType) => {
-    const linkedPort = looseWire === null ? null : portALooseWireLinksTo(nodeType, looseWire);
-    if (looseWire !== null && linkedPort === null) return [];
+    if (looseWire !== null && portALooseWireLinksTo(nodeType, looseWire) === null) return [];
     return [
       {
         item_id: nodeType.type,
         title: nameInWords(nodeTypeClassName(nodeType.type)),
         summary: nodeType.description,
-        category: moduleOfTheNodeType(nodeType.type),
-        details: portsInWords(nodeType),
-        tag: nodeTypeSearchTag(nodeType, linkedPort, looseWire, typesTheProjectDeclares),
+        origin_words: originWordsByType.get(nodeType.type) ?? null,
+        category_path: nodeTypeCategoryPath(nodeType.category),
+        listed_above_the_categories: typesTheProjectDeclares.has(nodeType.type) ? { entry: THIS_PROJECT_SEARCH_ENTRY, heading: THIS_PROJECT_SEARCH_ENTRY } : null,
       },
     ];
   });
 }
 
-/** The node types the open project's own source declares, as the search tags them. */
+/** The node types the open project's own source declares, which the search lists under This project. */
 export function nodeTypesTheProjectDeclares(projectNodeTypes: ProjectNodeTypeListing | null): ReadonlySet<string> {
   return new Set((projectNodeTypes?.sources ?? []).filter(({ origin }) => origin.source === "project").flatMap((source) => source.node_types.map((declared) => declared.type)));
 }
 
 function catalogEntryOfTheDeclaration(declared: ProjectNodeType): NodeCatalogEntry {
   const portsDeclared = (ports: ProjectNodeType["inputs"]) => (ports ?? []).map(({ name, description, family }) => ({ name, description, family }));
-  return { type: declared.type, description: declared.description, config_schema: null, inputs: portsDeclared(declared.inputs), outputs: portsDeclared(declared.outputs) };
+  return { type: declared.type, description: declared.description, category: declared.category, config_schema: null, inputs: portsDeclared(declared.inputs), outputs: portsDeclared(declared.outputs) };
 }
 
 /** The stream's catalog, then each node type the project's listing offers that the catalog does not list yet: the runtime lists the project's and its imports' types only once a node of them is in the graph, and a distribution installed after the stream loaded only once it loads again. */
@@ -72,11 +84,8 @@ export function nodeTypesTheSearchOffers(catalog: readonly NodeCatalogEntry[], p
 
 const GRAPH_GENERATOR_SEARCH_ITEM_PREFIX = "graph_generator:";
 
-/** The category the search lists graph generators under. */
-export const GRAPH_GENERATORS_SEARCH_CATEGORY = "Subgraphs from code";
-
-/** Each graph generator the project's own source declares, offered to place as a subgraph; none for a loose wire, since a generator's ports are known only once it runs. */
-export function graphGeneratorSearchItems(projectNodeTypes: ProjectNodeTypeListing | null, looseWire: Pick<LooseWire, "side" | "family"> | null): SearchPopoverItem[] {
+/** Each graph generator the project's own source declares, offered under This project to place as a subgraph; none for a loose wire, since a generator's ports are known only once it runs. */
+export function graphGeneratorSearchItems(projectNodeTypes: ProjectNodeTypeListing | null, looseWire: Pick<LooseWire, "side" | "family"> | null, openProject: OpenProject | null = null): SearchPopoverItem[] {
   if (looseWire !== null) return [];
   return (projectNodeTypes?.sources ?? [])
     .filter(({ origin }) => origin.source === "project")
@@ -85,9 +94,9 @@ export function graphGeneratorSearchItems(projectNodeTypes: ProjectNodeTypeListi
       item_id: `${GRAPH_GENERATOR_SEARCH_ITEM_PREFIX}${graphGenerator.generator}`,
       title: nameInWords(nodeTypeClassName(graphGenerator.generator)),
       summary: graphGenerator.description,
-      category: GRAPH_GENERATORS_SEARCH_CATEGORY,
-      details: "Placed as a subgraph",
-      tag: null,
+      origin_words: openProject?.project.name ?? null,
+      category_path: null,
+      listed_above_the_categories: { entry: THIS_PROJECT_SEARCH_ENTRY, heading: GRAPH_GENERATORS_SEARCH_HEADING },
     }));
 }
 

@@ -1,9 +1,10 @@
 import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
-import { NodeGraphCanvas, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphPortPicking } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { NodeGraphCanvas, NodeGraphCardPreview, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphPortPicking } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
-import { SearchPopover } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
+import { SearchPopover, type SearchPopoverAction } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
+import { Store } from "lucide-react";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
@@ -22,7 +23,7 @@ import type {
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { streamPreparingWords } from "../shared/stream_preparing_words";
-import { nodeTitle } from "../shared/node_words";
+import { nameInWords, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { portsThatCanJoinByNodeId } from "../shared/ports_that_can_join";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 import { useStreamGraphEditsSentToTheRuntime } from "../shared/stream_graph_edit_sending";
@@ -51,12 +52,16 @@ import {
 } from "../shared/stream_graph_edits";
 import { nodesTheSelectionHoldsInTheStream, selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 import { levelOfTheSubgraphsSteppedThrough, selectionOfTheSubgraphSteppedOutOf, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly } from "./stream_graph_levels";
-import { graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeSearchItems, nodeTypeSearchNarrowing, nodeTypesTheProjectDeclares, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
+import { graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeOriginWordsByType, nodeTypeSearchItems, nodeTypeSearchNarrowing, nodeTypesTheProjectDeclares, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
+import { NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS } from "../shared/node_type_category_path";
 import { StreamGraphSubgraphReadOnlyBanner, StreamGraphSubgraphTrail } from "./stream_graph_subgraph_strip";
 import { isTheSamePlaceLeft, settingsWithTheStreamLeft, whereTheStreamWasLeft, type WhereAStreamWasLeft } from "./stream_graph_where_left";
 
 /** How far each node placed with ⇧↵ lands from the one before, so a run of them can be told apart. */
 const NEXT_PLACED_NODE_OFFSET = 36;
+
+/** The search over a loose wire offers no way on beside its field. */
+const NO_NODE_TYPE_SEARCH_ACTIONS: readonly SearchPopoverAction[] = [];
 
 /** Where the Add node search was asked for, and the wire it was dragged off when it was. */
 interface NodeTypeSearchAsked {
@@ -288,12 +293,31 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
     [catalogReading, projectNodeTypeListing],
   );
   const looseWireOfTheSearch = nodeTypeSearchAsked?.looseWire ?? null;
+  const openProjectOfTheStream = openProject?.kind === "read" && openProject.open_project.project.folder === projectFolderOfTheStream ? openProject.open_project : null;
   const nodeTypeSearchItemsOffered = useMemo(
     () => [
-      ...nodeTypeSearchItems(catalog, looseWireOfTheSearch, nodeTypesTheProjectDeclares(projectNodeTypeListing)),
-      ...(subgraphDepth === 0 ? graphGeneratorSearchItems(projectNodeTypeListing, looseWireOfTheSearch) : []),
+      ...nodeTypeSearchItems(catalog, looseWireOfTheSearch, nodeTypesTheProjectDeclares(projectNodeTypeListing), nodeTypeOriginWordsByType(projectNodeTypeListing, openProjectOfTheStream)),
+      ...(subgraphDepth === 0 ? graphGeneratorSearchItems(projectNodeTypeListing, looseWireOfTheSearch, openProjectOfTheStream) : []),
     ],
-    [catalog, projectNodeTypeListing, looseWireOfTheSearch, subgraphDepth],
+    [catalog, projectNodeTypeListing, looseWireOfTheSearch, subgraphDepth, openProjectOfTheStream],
+  );
+  const previewOfTheNodeTypeSearched = useCallback(
+    (searchItemId: string) => {
+      const nodeTypeSearched = catalog.find((entry) => entry.type === searchItemId);
+      if (nodeTypeSearched === undefined) return null;
+      return <NodeGraphCardPreview title={nameInWords(nodeTypeClassName(nodeTypeSearched.type))} inputPins={nodeTypeSearched.inputs} outputPins={nodeTypeSearched.outputs} />;
+    },
+    [catalog],
+  );
+  const nodeTypeSearchActions = useMemo(
+    () => [
+      {
+        label: "Install modules from marketplace",
+        icon: Store,
+        onPressed: () => showTheRefusalOfOpeningTheMarketplace("Didn't open the Marketplace:", connection.openModulesAndMarketplace("marketplace")),
+      },
+    ],
+    [connection, showTheRefusalOfOpeningTheMarketplace],
   );
   const placeTheChosenNodeType = useCallback(
     (searchItemId: string, staysOpen: boolean) => {
@@ -426,12 +450,12 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
                 items={nodeTypeSearchItemsOffered}
                 narrowedTo={nodeTypeSearchAsked.looseWire === null ? null : nodeTypeSearchNarrowing(nodeTypeSearchAsked.looseWire)}
                 emptyWords={catalogReading?.kind === "not_listed" ? catalogReading.because : "No node type matches."}
-                chooseWords="place at cursor"
-                chooseAndStayWords="place and keep open"
+                uncategorisedWords={NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS}
                 at={nodeTypeSearchAsked.at.in_the_element}
                 onItemChosen={placeTheChosenNodeType}
                 onClosed={closeTheNodeTypeSearch}
-                footLink={{ words: "Install modules…", onPressed: () => showTheRefusalOfOpeningTheMarketplace("Didn't open the Marketplace:", connection.openModulesAndMarketplace("marketplace")) }}
+                actionsBesideTheField={nodeTypeSearchAsked.looseWire === null ? nodeTypeSearchActions : NO_NODE_TYPE_SEARCH_ACTIONS}
+                previewOfTheItem={previewOfTheNodeTypeSearched}
                 data-stream-graph-node-type-search={streamTab.stream}
               />
             )}

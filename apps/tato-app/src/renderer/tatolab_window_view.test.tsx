@@ -1247,7 +1247,7 @@ describe("the studio", () => {
     expect(properties().querySelector("[data-properties-expose-as-a-graph-input]")).toBeNull();
   });
 
-  it("opens the Marketplace from Install modules… at the foot of the node search, closing the search", async () => {
+  it("opens the Marketplace from the store button beside the node search's field, closing the search", async () => {
     const modulesAndMarketplaceSectionsOpened: string[] = [];
     await mountedWindowOverTheMock("state=running", {
       openModuleManagerWindow: async (shows) => {
@@ -1259,7 +1259,7 @@ describe("the studio", () => {
     fireEvent.click(addNodeInTheRibbon);
     const nodeSearch = await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Add a node" }));
 
-    fireEvent.click(within(nodeSearch).getByRole("button", { name: "Install modules…" }));
+    fireEvent.click(within(nodeSearch).getByRole("button", { name: "Install modules from marketplace" }));
     await waitFor(() => expect(modulesAndMarketplaceSectionsOpened).toEqual(["marketplace"]));
     expect(within(streamGraph.body).queryByRole("dialog", { name: "Add a node" })).toBeNull();
   });

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { NodeGraphCanvas, type NodeGraphCanvasEditing, type NodeGraphCanvasNode } from "./node_graph_canvas";
+import { NodeGraphCanvas, NodeGraphCardPreview, type NodeGraphCanvasEditing, type NodeGraphCanvasNode } from "./node_graph_canvas";
 
 afterEach(cleanup);
 
@@ -409,5 +409,21 @@ describe("the node graph canvas while a port is picked", () => {
 
     act(() => fireEvent.keyDown(document, { key: "Escape" }));
     expect(onEnded).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a node's card previewed outside a canvas", () => {
+  it("draws the card's own header and pin rows, with a socket per pin in its family", () => {
+    const { container } = render(<NodeGraphCardPreview title="Halftone" inputPins={[{ name: "frames", family: "image" }, { name: "level", family: null }]} outputPins={[{ name: "image", family: "image" }]} />);
+    const preview = container.querySelector<HTMLElement>('[data-node-graph-card-preview="Halftone"]') ?? expect.unreachable("no preview");
+    expect(preview.classList.contains("node-graph-card")).toBe(true);
+    expect(preview.querySelector(".node-graph-card-header")?.textContent).toBe("Halftone");
+    expect([...preview.querySelectorAll("[data-node-graph-input-pin]")].map((pin) => pin.textContent)).toEqual(["frames", "level"]);
+    expect([...preview.querySelectorAll("[data-node-graph-output-pin]")].map((pin) => pin.textContent)).toEqual(["image"]);
+    expect([...preview.querySelectorAll(".node-graph-pin")].map((socket) => [socket.getAttribute("data-side"), socket.getAttribute("data-family")])).toEqual([
+      ["input", "image"],
+      ["output", "image"],
+      ["input", null],
+    ]);
   });
 });

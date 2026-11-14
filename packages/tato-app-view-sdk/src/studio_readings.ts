@@ -246,6 +246,8 @@ export type NodeCatalogPort = z.infer<typeof nodeCatalogPortSchema>;
 export const nodeCatalogEntrySchema = z.object({
   type: z.string(),
   description: z.string(),
+  /** The category the runtime files it under, a path with `/` between its levels, as `Effects/Stylize`; `null` for a type served with none. */
+  category: z.string().nullable(),
   /** Its config's JSON Schema, draft 2020-12 with no `$schema` key; `null` for a type described without one. */
   config_schema: jsonValueSchema.nullable(),
   inputs: z.array(nodeCatalogPortSchema),
@@ -278,7 +280,7 @@ export const projectNodeTypeSchema = z.object({
   /** `process`, `function` or `shader`, or a kind newer than this app; `null` where source does not show it. */
   kind: z.string().nullable(),
   description: z.string(),
-  /** The Library category, the declaring module when none is declared. */
+  /** The category the runtime files it under, a path with `/` between its levels; the runtime serves the declaring module when the node type declares none. */
   category: z.string(),
   /** `null` where only the node's native half states its ports. */
   inputs: z.array(projectNodeTypePortSchema).nullable(),

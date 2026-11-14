@@ -32,8 +32,22 @@ test("a_node_type_described_without_a_config_schema_reads_as_none", () => {
 
   expect(nodeCatalogFromTheRegistryAnswer("main", registryAnswer)).toEqual({
     ok: true,
-    value: { stream: "main", node_types: [{ type: "nodes.x:X", description: "", config_schema: null, inputs: [{ name: "a", description: "", family: null }], outputs: [] }] },
+    value: { stream: "main", node_types: [{ type: "nodes.x:X", description: "", category: null, config_schema: null, inputs: [{ name: "a", description: "", family: null }], outputs: [] }] },
   });
+});
+
+test("a_node_type_reads_with_the_category_the_runtime_serves_and_with_none_where_it_serves_none", () => {
+  const registryAnswer = JSON.stringify({
+    nodes: [
+      { type: "core_nodes.color:Posterize", description: "", category: "Effects/Stylize", inputs: [], outputs: [] },
+      { type: "tatolab.stream:CameraSource", description: "", inputs: [], outputs: [] },
+      { type: "nodes.x:X", description: "", category: null, inputs: [], outputs: [] },
+    ],
+  });
+
+  const catalog = nodeCatalogFromTheRegistryAnswer("main", registryAnswer);
+  expect(catalog.ok && catalog.value.node_types.map((nodeType) => nodeType.category)).toEqual(["Effects/Stylize", null, null]);
+  expect(nodeCatalogFromTheRegistryAnswer("main", JSON.stringify({ nodes: [{ type: "nodes.x:X", category: 7 }] })).ok).toBe(false);
 });
 
 test("a_registry_answer_without_nodes_is_refused_naming_the_stream", () => {
