@@ -36,22 +36,25 @@ a parallel one. Search first.
 - **When the work depends on what the runtime serves, read streamlib's plan from its `main`**,
   never a local checkout's branch, and only the sections you need (the same for `GLOSSARY.md`):
   `gh api repos/tatolab/streamlib/contents/docs/plan/ARCHITECTURE.md -q .content | base64 -d`
+- Skills, agents, the repository rules and hooks come from `dev-plugin` in
+  [tatolab/tato-plugins-official](https://github.com/tatolab/tato-plugins-official), which
+  `.claude/settings.json` enables; change them there, never in this repository.
 - Lifecycle: `/file-issue` → `/implement` → `/verify-app`; source edits
   (`apps/tato-app/{src,native,scripts,packaging}/`) belong inside `/implement` against a TAT issue.
   `/whats-next` orients, `/plan-project` plans a goal, `/triage` works outside reports.
 - **Guardrails prompt; they never wall off**, but for writing a GitHub issue, which is denied.
-  `.claude/settings.json` asks on the licence and what code signing reads; the `machine-brake`
-  hook notes a command that touches the owner's real runtime and asks before one that publishes.
+  `.claude/settings.json` asks on the licence and what code signing reads; dev-plugin's
+  `machine-brake` hook notes a command that touches the owner's real runtime and asks before one that publishes.
 - Code is the authority on what IS; Linear on what we AGREED for the app, and streamlib's
   plan on what the runtime serves.
 
 ## Before you push
 
-- **Gates**: spawn `local-ci-runner` (`npm run lint`, `npm run build`, `npm test`, and the
-  machine-brake test when `.claude/hooks/` or `.claude/scripts/` changed); fix what it reports.
+- **Gates**: spawn `dev-plugin:studio-local-ci-runner` (`npm run lint`, `npm run build`, `npm test`); fix
+  what it reports.
   Then `/verify-app` for anything a person sees or the machine feels.
-- **Review**, in parallel: `review-pr` always; `main-process-craftsmanship-reviewer` when `apps/tato-app/src/{main,preload}/`
-  changed; `window-craftsmanship-reviewer` when `apps/tato-app/src/{renderer,shared}/` changed.
+- **Review**, in parallel: `dev-plugin:studio-review-pr` always; `dev-plugin:main-process-craftsmanship-reviewer` when `apps/tato-app/src/{main,preload}/`
+  changed; `dev-plugin:window-craftsmanship-reviewer` when `apps/tato-app/src/{renderer,shared}/` changed.
 - **The PR**: title `type(scope): summary`, checked with `printf '%s' "<title>" | npx commitlint`;
   its body carries `/verify-app`'s `## Evidence` section.
 

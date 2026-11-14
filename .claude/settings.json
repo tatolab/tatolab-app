@@ -9,7 +9,6 @@
       "Bash(npm run build)",
       "Bash(apps/tato-app/scripts/check-*)",
       "Bash(apps/tato-app/scripts/tests/*)",
-      "Bash(.claude/scripts/tests/*)",
       "Bash(gh pr merge *)",
       "Bash(gh api *dispatches*)"
     ],
@@ -34,17 +33,15 @@
       "mcp__github__sub_issue_write"
     ]
   },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/machine-brake.sh"
-          }
-        ]
+  "extraKnownMarketplaces": {
+    "tato-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "tatolab/tato-plugins-official"
       }
-    ]
+    }
+  },
+  "enabledPlugins": {
+    "dev-plugin@tato-plugins-official": true
   }
 }

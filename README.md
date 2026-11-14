@@ -329,7 +329,7 @@ out, and packaging refuses an `apps/tato-app/out/renderer/` that carries it.
 ## Checks
 
 No hosted CI runs on this repository; every gate runs on a developer's machine. Before a pull
-request: `npm run lint`, `npm run build` and `npm test`, which the `local-ci-runner` agent runs and reports.
+request: `npm run lint`, `npm run build` and `npm test`, which dev-plugin's `studio-local-ci-runner` agent runs and reports.
 `npm test` runs both platforms' modules on any OS. A packaging change also carries a signed
 `apps/tato-app/scripts/build-tatolab-app.sh` build of its branch, whose last step is
 `apps/tato-app/scripts/verify-tatolab-app-bundle.sh`, and a Linux packaging change a
