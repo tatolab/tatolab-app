@@ -18,39 +18,45 @@ a parallel one. Search first.
 
 ## The router — how work happens
 
+- **Work is tracked in Linear**: team Tatolab, issues `TAT-n`, this repository's titled
+  `studio:`. Never write a GitHub issue; GitHub Issues is only for outside reports.
 - **Three kinds of decision, three homes.**
   1. What the app *is* — its features, its framework, how it is packaged and updated — is the
-     owner's call, recorded in the tatolab-app issue that builds it. What it needs from the
-     runtime — a capability, a local API contract — is streamlib's: filed there, and the app waits
-     on it. This repository has no `docs/plan/`; never start one.
+     owner's call, recorded in the Linear issue or project that builds it. What it needs from the
+     runtime — a capability, a local API contract — is streamlib's: a `streamlib:` sub-issue under
+     the same parent, which the `studio:` issue is blocked by. This repository has no
+     `docs/plan/`; never start one.
   2. How the window looks, reads and flows is the design system in code — `packages/tato-app-view-sdk/src/design_system/styles/tokens.css`,
      then shadcn, then `packages/tato-app-view-sdk/src/design_system/` and its variants, then a rare call-site class —
      changed with the owner's say-so in the same PR.
   3. How the app's own code is shaped — modules, interfaces, platform items, the window's IPC
-     commands, the backend contract — goes in the issue's Design section, settled by `/module-design` before
-     `/implement`.
+     commands, the backend contract — goes in the issue's Design section, settled by `/module-design` before `/implement`.
 
   A shape that would need tier 1 is tier 1.
-- **When the work depends on what the runtime serves, read streamlib's plan from its `main`,
-  never a local checkout's branch**:
+- **When the work depends on what the runtime serves, read streamlib's plan from its `main`**,
+  never a local checkout's branch, and only the sections you need (the same for `GLOSSARY.md`):
   `gh api repos/tatolab/streamlib/contents/docs/plan/ARCHITECTURE.md -q .content | base64 -d`
-  (the same for `GLOSSARY.md`), and read only the sections you need — the file is large.
-- Source edits (`apps/tato-app/src/`, `apps/tato-app/native/`, `apps/tato-app/scripts/`, `apps/tato-app/packaging/`) belong inside `/implement`
-  against a tatolab-app issue. Nothing prompts on one — the distinction is the session's to apply.
-- Lifecycle here: `/file-issue` → `/implement` → `/verify-app` for anything a person sees or the
-  machine feels. `/diagnose` for bugs, `/research` for questions, `/explore-idea` for what-ifs,
-  `/module-design` before a new module, interface or command, `/hygiene` for rot,
-  `/propose-rule` is the only way rules change. Shared understanding: `/architecture-question`
-  (how does X work, with evidence), `/reconcile-understanding` (corrections that stick).
-- **Guardrails prompt; they never wall off.** The `ask` entries in `.claude/settings.json` cover
-  only what is expensive to undo — the licence, what code signing reads, and `gh pr merge`. The
-  `machine-brake` hook is advisory: it notes a command
-  that touches the owner's real runtime or publishes something, and prompts only where its config
-  sets a rule or a glob to `ask` — the checked-in config asks on `publish`
-  (`.claude/scripts/machine-brake` edits it). The doctrine still decides what is right — an
-  approved prompt means the owner judged this one case the exception, not that the rule bent.
-- Code is the authority on what IS; the issues on what we AGREED for the app, and streamlib's
+- Skills, agents, the repository rules and hooks come from `dev-plugin` in
+  [tatolab/tato-plugins-official](https://github.com/tatolab/tato-plugins-official), which
+  `.claude/settings.json` enables; change them there, never in this repository.
+- Lifecycle: `/file-issue` → `/implement` → `/verify-app`; source edits
+  (`apps/tato-app/{src,native,scripts,packaging}/`) belong inside `/implement` against a TAT issue.
+  `/whats-next` orients, `/plan-project` plans a goal, `/triage` works outside reports.
+- **Guardrails prompt; they never wall off**, but for writing a GitHub issue, which is denied.
+  `.claude/settings.json` asks on the licence and what code signing reads; dev-plugin's
+  `machine-brake` hook notes a command that touches the owner's real runtime and asks before one that publishes.
+- Code is the authority on what IS; Linear on what we AGREED for the app, and streamlib's
   plan on what the runtime serves.
+
+## Before you push
+
+- **Gates**: spawn `dev-plugin:studio-local-ci-runner` (`npm run lint`, `npm run build`, `npm test`); fix
+  what it reports.
+  Then `/verify-app` for anything a person sees or the machine feels.
+- **Review**, in parallel: `dev-plugin:studio-review-pr` always; `dev-plugin:main-process-craftsmanship-reviewer` when `apps/tato-app/src/{main,preload}/`
+  changed; `dev-plugin:window-craftsmanship-reviewer` when `apps/tato-app/src/{renderer,shared}/` changed.
+- **The PR**: title `type(scope): summary`, checked with `printf '%s' "<title>" | npx commitlint`;
+  its body carries `/verify-app`'s `## Evidence` section.
 
 ## Recording facts vs deciding
 
@@ -62,9 +68,7 @@ sharpen decisions, not to license prose.
   as the change, and say so in the PR body. Leaving the record wrong to avoid ceremony is the
   worse outcome, always.
 - **A decision goes to the owner** — changing what the app is, or settling a question the issue
-  leaves open by building one answer. Tier 1 is the owner's call, recorded in the issue,
-  and a runtime need is filed in streamlib; tier 2 is a stated question; tier 3 is the issue's
-  Design section.
+  leaves open by building one answer.
 - The test: **could a careful reader derive it from the diff and the tree?** Then it is a fact.
   Does it commit us to something we have not agreed? Then it is a decision — bring it.
 - Doc hygiene inside work you are already doing — fixing a claim your own change falsified — is
@@ -99,9 +103,8 @@ attention spent on settled things is unavailable for real forks.
   refresh one by recording it from a real runtime — never hand-edit one to make a test pass. A
   change to what the app reads also runs the skipped live contract test against a running runtime
   (in `apps/tato-app/`, `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src/main/local_api_client.test.ts`).
-- **A missing runtime capability is filed in streamlib and the app waits on it.** Never work
-  around it in the app (no scraping logs for state the API does not give, no second channel). An
-  app issue that needs one names the streamlib issue under "Waits on".
+- **A missing runtime capability is a `streamlib:` Linear issue the app's issue is blocked by.**
+  Never work around it in the app: no scraping logs for state the API lacks, no second channel.
 - **A runtime refusal is shown in its own words**, never rewritten or swallowed.
 - The app holds no copy of a secret the runtime takes — not on disk, not in memory past the
   request.

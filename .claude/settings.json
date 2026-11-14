@@ -3,16 +3,12 @@
     "allow": [
       "Bash(gh api *)",
       "Bash(gh pr *)",
-      "Bash(gh issue *)",
       "Bash(gh run *)",
       "Bash(git fetch *)",
-      "Bash(git worktree add *)",
-      "Bash(git worktree list)",
       "Bash(npm test)",
       "Bash(npm run build)",
       "Bash(apps/tato-app/scripts/check-*)",
       "Bash(apps/tato-app/scripts/tests/*)",
-      "Bash(.claude/scripts/tests/*)",
       "Bash(gh pr merge *)",
       "Bash(gh api *dispatches*)"
     ],
@@ -20,30 +16,32 @@
       "Edit(LICENSE)",
       "Edit(apps/tato-app/packaging/entitlements/**)",
       "Edit(apps/tato-app/packaging/macos/**)"
+    ],
+    "deny": [
+      "Bash(gh issue create*)",
+      "Bash(gh issue edit*)",
+      "Bash(gh issue comment*)",
+      "Bash(gh issue close*)",
+      "Bash(gh issue reopen*)",
+      "Bash(gh issue delete*)",
+      "Bash(gh issue transfer*)",
+      "Bash(gh issue pin*)",
+      "Bash(gh issue lock*)",
+      "mcp__github__issue_write",
+      "mcp__github__add_issue_comment",
+      "mcp__github__update_issue_comment",
+      "mcp__github__sub_issue_write"
     ]
   },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/machine-brake.sh"
-          }
-        ]
+  "extraKnownMarketplaces": {
+    "tato-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "tatolab/tato-plugins-official"
       }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/worktree-gc.sh"
-          }
-        ]
-      }
-    ]
+    }
+  },
+  "enabledPlugins": {
+    "dev-plugin@tato-plugins-official": true
   }
 }
