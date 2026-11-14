@@ -2,8 +2,10 @@
 // whether the project has it, then the project's modules the catalog does not list.
 
 import type { ModuleCardMark } from "@tatolab/tato-app-view-sdk/design_system/module_card";
+import type { ProjectCoverNumber } from "@tatolab/tato-app-view-sdk/design_system/project_card";
 import { isAMarketplaceDownloadOf } from "../../shared/marketplace_module_download_file";
 import type { PackageCatalogEntry, PackageCatalogMember, PackageCatalogReading, ViewsOfAWorkspaceDependency, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
+import { projectCoverNumberOfTheName } from "../presentation/projects_presentation";
 import { manifestOfAListedView, titleTheManifestNames } from "../view_host/studio_view_type_registry";
 
 /** One card or list row of the Marketplace window: a catalog entry, the project's module of it, or both. */
@@ -77,28 +79,19 @@ export function everyModuleCardRowOf(catalog: PackageCatalogReading | null, depe
   return [...catalogRows, ...unlistedModuleRows];
 }
 
+/** The plain cover a row's module wears while it has no picture: chosen from its title as a project's is from its name, so it is the same every time and the same in both tabs. */
+export function moduleCoverNumberOf(row: ModuleCardRow): ProjectCoverNumber {
+  return projectCoverNumberOfTheName(row.title);
+}
+
 /** Which of the catalog's entries the Marketplace shows: all of them, its packages, or its sample projects. */
 export const MARKETPLACE_KINDS_SHOWN = ["all", "package", "sample"] as const;
 
 /** One of the Marketplace's kind filters. */
 export type MarketplaceKindShown = (typeof MARKETPLACE_KINDS_SHOWN)[number];
 
-/** Which of the project's modules its tab shows: all of them, those with an update where they were copied from, or those with files edited since their copy. */
-export const PROJECT_MODULES_FILTERS = ["all", "updates", "edited"] as const;
-
-/** One of the project tab's filters. */
-export type ProjectModulesFilter = (typeof PROJECT_MODULES_FILTERS)[number];
-
 function rowIsOfTheKind(row: ModuleCardRow, kindShown: MarketplaceKindShown): boolean {
   return row.catalog_entry !== null && (kindShown === "all" || row.catalog_entry.kind === kindShown);
-}
-
-function rowPassesTheProjectFilter(row: ModuleCardRow, filter: ProjectModulesFilter): boolean {
-  const dependency = row.module_of_the_project;
-  if (dependency === null) return false;
-  if (filter === "updates") return dependency.newer_version_exists === true;
-  if (filter === "edited") return dependency.edited_files.length > 0;
-  return true;
 }
 
 function rowMatchesTheSearch(row: ModuleCardRow, searchText: string): boolean {
@@ -118,18 +111,18 @@ export function marketplaceRowsShownOf(everyRow: readonly ModuleCardRow[], kindS
   return everyRow.filter((row) => rowIsOfTheKind(row, kindShown) && rowMatchesTheSearch(row, searchText));
 }
 
-/** Of `everyRow`, the project's modules `filter` keeps, narrowed to `searchText` by name, folder, source, or what the catalog says of it. */
-export function projectModuleRowsShownOf(everyRow: readonly ModuleCardRow[], filter: ProjectModulesFilter, searchText: string): ModuleCardRow[] {
-  return everyRow.filter((row) => rowPassesTheProjectFilter(row, filter) && rowMatchesTheSearch(row, searchText));
+/** Of `everyRow`, the project's modules, narrowed to `searchText` by name, folder, source, or what the catalog says of it. */
+export function projectModuleRowsShownOf(everyRow: readonly ModuleCardRow[], searchText: string): ModuleCardRow[] {
+  return everyRow.filter((row) => row.module_of_the_project !== null && rowMatchesTheSearch(row, searchText));
 }
 
-/** How many of `everyRow` each Marketplace kind and each project filter holds, before the search narrows them. */
-export function moduleRowCountsOf(everyRow: readonly ModuleCardRow[]): { marketplace: Record<MarketplaceKindShown, number>; project: Record<ProjectModulesFilter, number> } {
+/** How many of `everyRow` each Marketplace kind holds, how many are the project's modules, and how many of those have an update where they were copied from, before the search narrows them. */
+export function moduleRowCountsOf(everyRow: readonly ModuleCardRow[]): { marketplace: Record<MarketplaceKindShown, number>; project: { all: number; updates: number } } {
   const ofTheKind = (kindShown: MarketplaceKindShown) => everyRow.filter((row) => rowIsOfTheKind(row, kindShown)).length;
-  const passingTheFilter = (filter: ProjectModulesFilter) => everyRow.filter((row) => rowPassesTheProjectFilter(row, filter)).length;
+  const modulesOfTheProject = everyRow.flatMap((row) => (row.module_of_the_project === null ? [] : [row.module_of_the_project]));
   return {
     marketplace: { all: ofTheKind("all"), package: ofTheKind("package"), sample: ofTheKind("sample") },
-    project: { all: passingTheFilter("all"), updates: passingTheFilter("updates"), edited: passingTheFilter("edited") },
+    project: { all: modulesOfTheProject.length, updates: modulesOfTheProject.filter((dependency) => dependency.newer_version_exists === true).length },
   };
 }
 
@@ -178,16 +171,16 @@ export function workKeptForTheRow<Work>(workById: Readonly<Record<string, Work>>
 }
 
 /** Each ask as a refusal names what did not happen, as "Camera was not added". */
-export const MODULE_ASK_WORDS_ONCE_DONE: Record<ModuleAsk, string> = { add: "added", clone: "cloned", update: "updated", remove: "removed" };
+export const MODULE_ASK_WORDS_ONCE_DONE: Record<ModuleAsk, string> = { add: "added", clone: "cloned", update: "updated", remove: "uninstalled" };
 
 /** Each ask as a card says it while it runs. */
-export const MODULE_ASK_WORDS_WHILE_UNDER_WAY: Record<ModuleAsk, string> = { add: "Adding…", clone: "Cloning…", update: "Updating…", remove: "Removing…" };
+export const MODULE_ASK_WORDS_WHILE_UNDER_WAY: Record<ModuleAsk, string> = { add: "Adding…", clone: "Cloning…", update: "Updating…", remove: "Uninstalling…" };
 
 /** What a card says in its corner: the ask last refused of it, else an update at the source the project's module was copied from, else that the project has it, as it does once an add of it ended; `null` for none of these. */
 export function moduleCardMarkOf(row: ModuleCardRow, askLastRefused: ModuleAsk | null, wasJustAdded: boolean): ModuleCardMark | null {
   if (askLastRefused !== null) return { words: `Not ${MODULE_ASK_WORDS_ONCE_DONE[askLastRefused]}`, tone: "refused" };
   const dependency = row.module_of_the_project;
-  if (dependency?.newer_version_exists === true) return { words: "Update", tone: "news" };
+  if (dependency?.newer_version_exists === true) return { words: "Update available", tone: "news" };
   return dependency !== null || wasJustAdded ? { words: "In project", tone: "quiet" } : null;
 }
 
@@ -249,6 +242,14 @@ export function moduleCopyStateOf(dependency: WorkspaceDependency): ModuleCopySt
   if (dependency.check_refused_because !== null) return { kind: "check_refused", because: dependency.check_refused_because };
   if (dependency.newer_version_exists === null) return { kind: "not_checked" };
   return dependency.newer_version_exists ? { kind: "update_available" } : { kind: "up_to_date" };
+}
+
+/** Why Update is not offered for a module, in words; `null` when its last listing found an update where it was copied from. */
+export function whyTheModuleHasNoUpdateToTake(dependency: WorkspaceDependency): string | null {
+  const copyState = moduleCopyStateOf(dependency);
+  if (copyState.kind === "update_available") return null;
+  if (copyState.kind === "up_to_date") return "It is up to date.";
+  return copyState.kind === "not_checked" ? "Check for updates first." : "Where it was copied from could not be checked.";
 }
 
 /** One row of a module's "Adds these views": its title, and its declared ports in words, or why it does not open in the runtime's or the schema's words. */

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { projectCoverNumberOfTheName } from "../presentation/projects_presentation";
 import type { PackageCatalogReading, ViewOfAWorkspaceDependency, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
 import {
   everyModuleCardRowOf,
@@ -8,10 +9,13 @@ import {
   moduleCardMarkOf,
   moduleCountsWordsOf,
   moduleContentsWordsOf,
+  type ModuleCardRow,
   moduleCopyStateOf,
+  moduleCoverNumberOf,
   moduleFolderNameOf,
   moduleRowAndItsNeighboursOf,
   workByIdWithTheRowsMade,
+  whyTheModuleHasNoUpdateToTake,
   workKeptForTheRow,
   moduleRowCountsOf,
   moduleSourceWordsOf,
@@ -62,33 +66,31 @@ describe("what the Marketplace window lists", () => {
     ]);
   });
 
-  it("shows the catalog's entries by kind in the Marketplace, the project's modules by filter in its tab, and counts each", () => {
+  it("shows the catalog's entries by kind in the Marketplace, the project's modules in its tab, and counts each and the updates found", () => {
     const edited = { ...aModule("lobby-wall", null), edited_files: ["nodes/x.py"] };
     const withAnUpdate = { ...aModule("tatolab-camera", "Tatolab_Camera"), newer_version_exists: true };
     const everyRow = everyModuleCardRowOf(CATALOG, [withAnUpdate, edited]);
     expect(idsOf(marketplaceRowsShownOf(everyRow, "all", ""))).toEqual(["catalog:camera-halftone", "catalog:tatolab-camera", "catalog:tatolab-opus"]);
     expect(idsOf(marketplaceRowsShownOf(everyRow, "package", ""))).toEqual(["catalog:tatolab-camera", "catalog:tatolab-opus"]);
     expect(idsOf(marketplaceRowsShownOf(everyRow, "sample", ""))).toEqual(["catalog:camera-halftone"]);
-    expect(idsOf(projectModuleRowsShownOf(everyRow, "all", ""))).toEqual(["catalog:tatolab-camera", "import:lobby-wall"]);
-    expect(idsOf(projectModuleRowsShownOf(everyRow, "updates", ""))).toEqual(["catalog:tatolab-camera"]);
-    expect(idsOf(projectModuleRowsShownOf(everyRow, "edited", ""))).toEqual(["import:lobby-wall"]);
-    expect(moduleRowCountsOf(everyRow)).toEqual({ marketplace: { all: 3, package: 2, sample: 1 }, project: { all: 2, updates: 1, edited: 1 } });
+    expect(idsOf(projectModuleRowsShownOf(everyRow, ""))).toEqual(["catalog:tatolab-camera", "import:lobby-wall"]);
+    expect(moduleRowCountsOf(everyRow)).toEqual({ marketplace: { all: 3, package: 2, sample: 1 }, project: { all: 2, updates: 1 } });
   });
 
   it("narrows to a search by a node's or stream's name, or a module's folder or source", () => {
     expect(idsOf(marketplaceRowsShownOf(everyModuleCardRowOf(CATALOG, []), "all", "opusencoder"))).toEqual(["catalog:tatolab-opus"]);
     expect(idsOf(marketplaceRowsShownOf(everyModuleCardRowOf(CATALOG, []), "all", "main"))).toEqual(["catalog:camera-halftone"]);
-    expect(idsOf(projectModuleRowsShownOf(everyModuleCardRowOf(CATALOG, MODULES), "all", "LOBBY"))).toEqual(["import:lobby-wall"]);
+    expect(idsOf(projectModuleRowsShownOf(everyModuleCardRowOf(CATALOG, MODULES), "LOBBY"))).toEqual(["import:lobby-wall"]);
   });
 
   it("gives each of the project's modules to one catalog entry only, the first that names its folder", () => {
     const entryNamingTheSameFolder = { ...CATALOG.entries[1], name: "tatolab_camera", title: "Camera (again)" };
     const catalogNamingAFolderTwice: PackageCatalogReading = { ...CATALOG, entries: [...CATALOG.entries, entryNamingTheSameFolder] };
-    expect(idsOf(projectModuleRowsShownOf(everyModuleCardRowOf(catalogNamingAFolderTwice, MODULES), "all", ""))).toEqual(["catalog:tatolab-camera", "import:lobby-wall"]);
+    expect(idsOf(projectModuleRowsShownOf(everyModuleCardRowOf(catalogNamingAFolderTwice, MODULES), ""))).toEqual(["catalog:tatolab-camera", "import:lobby-wall"]);
   });
 
   it("lists the project's modules alone from a catalog not read", () => {
-    expect(projectModuleRowsShownOf(everyModuleCardRowOf({ kind: "not_read", because: "HTTP 404" }, MODULES), "all", "").map((row) => [row.row_id, row.title])).toEqual([
+    expect(projectModuleRowsShownOf(everyModuleCardRowOf({ kind: "not_read", because: "HTTP 404" }, MODULES), "").map((row) => [row.row_id, row.title])).toEqual([
       ["import:tatolab-camera", "Tatolab_Camera"],
       ["import:lobby-wall", "lobby-wall"],
     ]);
@@ -143,18 +145,28 @@ describe("what the Marketplace window lists", () => {
     expect(workKeptForTheRow(workByIdWithTheRowsMade<string>(addedThenUpdating, camera, "update", null), camera)).toBeNull();
   });
 
+  it("gives a module the same plain cover every time, the one a project of its title wears, in the Marketplace and in the project alike", () => {
+    const coverNumbersOf = (rows: ModuleCardRow[]) => Object.fromEntries(rows.map((row) => [row.title, moduleCoverNumberOf(row)]));
+    const coversInTheMarketplace = coverNumbersOf(everyModuleCardRowOf(CATALOG, []));
+    expect(coversInTheMarketplace).toEqual({ "Camera halftone": projectCoverNumberOfTheName("Camera halftone"), Camera: projectCoverNumberOfTheName("Camera"), Opus: projectCoverNumberOfTheName("Opus") });
+    expect(new Set(Object.values(coversInTheMarketplace)).size).toBeGreaterThan(1);
+    expect(coverNumbersOf(everyModuleCardRowOf(CATALOG, []))).toEqual(coversInTheMarketplace);
+    expect(coverNumbersOf(everyModuleCardRowOf(CATALOG, MODULES)).Camera).toBe(coversInTheMarketplace.Camera);
+    expect(moduleCoverNumberOf(everyModuleCardRowOf(null, [aModule("opus", "Opus")])[0])).toBe(coversInTheMarketplace.Opus);
+  });
+
   it("marks a card whose module has an update as news, any other the project has as in the project, one it has not with nothing, and any card by the ask last refused of it", () => {
     const rowOf = (dependency: WorkspaceDependency) => everyModuleCardRowOf(null, [dependency])[0];
     const camera = aModule("tatolab-camera", null);
     const cardNotInTheProject = everyModuleCardRowOf(CATALOG, [])[0];
-    expect(moduleCardMarkOf(rowOf({ ...camera, newer_version_exists: true }), null, false)).toEqual({ words: "Update", tone: "news" });
+    expect(moduleCardMarkOf(rowOf({ ...camera, newer_version_exists: true }), null, false)).toEqual({ words: "Update available", tone: "news" });
     expect(moduleCardMarkOf(rowOf({ ...camera, edited_files: ["nodes/x.py"] }), null, false)).toEqual({ words: "In project", tone: "quiet" });
     expect(moduleCardMarkOf(cardNotInTheProject, null, false)).toBeNull();
     expect(moduleCardMarkOf(cardNotInTheProject, null, true)).toEqual({ words: "In project", tone: "quiet" });
     const [sampleCard, packageCard] = everyModuleCardRowOf(CATALOG, []);
     expect([cardOffersAdd(packageCard, false), cardOffersAdd(packageCard, true), cardOffersAdd(sampleCard, false), cardOffersAdd(rowOf(camera), false)]).toEqual([true, false, false, false]);
     expect(moduleCardMarkOf(cardNotInTheProject, "clone", false)).toEqual({ words: "Not cloned", tone: "refused" });
-    expect(moduleCardMarkOf(rowOf({ ...camera, newer_version_exists: true }), "remove", false)).toEqual({ words: "Not removed", tone: "refused" });
+    expect(moduleCardMarkOf(rowOf({ ...camera, newer_version_exists: true }), "remove", false)).toEqual({ words: "Not uninstalled", tone: "refused" });
   });
 
   it("says what a Marketplace card holds, a sample's behind the words Sample project", () => {
@@ -190,6 +202,12 @@ describe("what the Marketplace window lists", () => {
     expect(moduleCopyStateOf({ ...camera, newer_version_exists: false })).toEqual({ kind: "up_to_date" });
     expect(moduleCopyStateOf({ ...camera, newer_version_exists: true })).toEqual({ kind: "update_available" });
     expect(moduleCopyStateOf({ ...camera, check_refused_because: "No such file or directory (os error 2)" })).toEqual({ kind: "check_refused", because: "No such file or directory (os error 2)" });
+    expect([
+      whyTheModuleHasNoUpdateToTake(camera),
+      whyTheModuleHasNoUpdateToTake({ ...camera, newer_version_exists: false }),
+      whyTheModuleHasNoUpdateToTake({ ...camera, newer_version_exists: true }),
+      whyTheModuleHasNoUpdateToTake({ ...camera, check_refused_because: "No such file or directory (os error 2)" }),
+    ]).toEqual(["Check for updates first.", "It is up to date.", null, "Where it was copied from could not be checked."]);
   });
 
   it("names a module's folder as the runtime does", () => {

@@ -1,6 +1,6 @@
 // The mock's workspace imports, as the runtime's dependency tools would answer them: one project
-// copied from a folder beside the workspace. `?module_manager=edited_files` has a file of its copy edited
-// since, so Update waits on the overwrite; `?module_manager=newer` has its source hold a newer version.
+// copied from a folder beside the workspace. `?module_manager=newer` has its source hold a newer version;
+// `?module_manager=edited_files` has that and a file of its copy edited since, so Update waits on the overwrite.
 // Each import's views are those the mock's own project-views listing lists under its folder.
 
 import type { DependencySourceKind, ListedStudioView, ProjectDependency, ViewsOfAWorkspaceDependency, WorkspaceDependency, WorkspaceDependencyUpdate } from "../src/shared/tatolab_backend_contract";
@@ -44,7 +44,7 @@ export class MockWorkspaceDependencies {
         folder_path: `${workspaceFolder}/imports/lobby-wall`,
         name: "lobby-wall",
         edited_files: scenario === "edited_files" ? ["nodes/wall_mapping.py"] : [],
-        newer_version_exists: scenario === "newer" ? true : null,
+        newer_version_exists: scenario === "copied" ? null : true,
         check_refused_because: null,
         views: { kind: "listed", views: [] },
       },

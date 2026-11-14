@@ -1873,6 +1873,10 @@ describe("Module manager", () => {
   async function shown(selector: string): Promise<void> {
     await waitFor(() => expect(document.querySelector(selector)).not.toBeNull());
   }
+  async function chosenFromTheActionsOf(folder: string, choice: "update" | "remove"): Promise<void> {
+    pressAsAPointerDoes(document.querySelector<HTMLElement>(`[data-module-manager-actions="${folder}"]`) ?? expect.unreachable(`no ⋯ menu for ${folder}`));
+    fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>(`[data-module-manager-${choice}="${folder}"]`) ?? expect.unreachable(`no ${choice} in the ⋯ menu of ${folder}`)));
+  }
   function openThePageOf(rowId: string): void {
     pressed(`[data-module-manager-row="${rowId}"] :is([data-module-card-open], [data-module-list-row-open])`);
   }
@@ -2006,35 +2010,46 @@ describe("Module manager", () => {
   });
 
   it("asks before an Update overwrites files edited since the copy, and Keep my edits leaves them", async () => {
-    await mountedWindowOverTheMock("state=running&module_manager=edited_files&module_manager_section=added_to_this_project");
+    const { backend } = await mountedWindowOverTheMock("state=running&module_manager=edited_files&module_manager_section=added_to_this_project");
     await shown('[data-module-manager-row="import:lobby-wall"]');
-    expect(textOf("[data-module-manager-edited-count]")).toBe("1 edited");
+    expect(moduleManagerRow("import:lobby-wall").textContent).not.toContain("edited");
+    pressed("[data-module-manager-check-for-updates]");
+    await waitFor(() => expect(textOf('[data-module-manager-status="lobby-wall"]')).toContain("Update available"));
+    const editedFilesOfTheModule = async () => (await backend.listWorkspaceDependencies(false)).flatMap((dependency) => dependency.edited_files);
 
-    pressed('[data-module-manager-update="lobby-wall"]');
+    await chosenFromTheActionsOf("lobby-wall", "update");
     await waitFor(() => expect(document.querySelector("[data-module-manager-overwrite-dialog]")?.textContent).toContain("nodes/wall_mapping.py"));
     pressed("[data-module-manager-keep-my-edits]");
     await waitFor(() => expect(document.querySelector("[data-module-manager-overwrite-dialog]")).toBeNull());
-    expect(textOf("[data-module-manager-edited-count]")).toBe("1 edited");
+    expect(await editedFilesOfTheModule()).toEqual(["nodes/wall_mapping.py"]);
 
-    pressed('[data-module-manager-update="lobby-wall"]');
+    await chosenFromTheActionsOf("lobby-wall", "update");
     pressed(await waitFor(() => (document.querySelector("[data-module-manager-overwrite]") === null ? expect.unreachable("no Overwrite") : "[data-module-manager-overwrite]")));
     await waitFor(() => expect(document.querySelector("[data-module-manager-overwrite-dialog]")).toBeNull());
-    await waitFor(() => expect(document.querySelector("[data-module-manager-edited-count]")).toBeNull());
+    await waitFor(async () => expect(await editedFilesOfTheModule()).toEqual([]));
   });
 
-  it("marks a module with an update where it was copied from once checked, counts it on the tab's filter, and Update takes it", async () => {
+  it("says Update available in a module's Status once checked, greys Update in its ⋯ menu until then with why, and Update takes it", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=newer&module_manager_section=added_to_this_project");
     await shown('[data-module-manager-row="import:lobby-wall"]');
-    expect(moduleManagerRow("import:lobby-wall").textContent).toContain("Not checked for updates");
+    expect(textOf('[data-module-manager-status="lobby-wall"]')).toContain("Not checked for updates");
+    expect(document.querySelector("[data-module-manager-filter]")).toBeNull();
+    pressAsAPointerDoes(document.querySelector<HTMLElement>('[data-module-manager-actions="lobby-wall"]') ?? expect.unreachable("no ⋯ menu"));
+    const updateNotOffered = await waitFor(() => document.querySelector<HTMLElement>('[data-module-manager-update-not-offered="lobby-wall"]') ?? expect.unreachable("no greyed Update"));
+    expect(updateNotOffered.getAttribute("aria-disabled")).toBe("true");
+    expect(document.getElementById(updateNotOffered.getAttribute("aria-describedby") ?? "")?.textContent).toBe("Check for updates first.");
+    expect(document.querySelector('[data-module-manager-update="lobby-wall"]')).toBeNull();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
 
     pressed("[data-module-manager-check-for-updates]");
-    await waitFor(() => expect(textOf('[data-module-manager-filter="updates"]')).toBe("Updates1"));
+    await waitFor(() => expect(textOf('[data-module-manager-status="lobby-wall"] [data-module-card-mark="news"]')).toBe("Update available"));
     expect(textOf("[data-module-manager-updates-count]")).toBe("1 update");
-    pressed('[data-module-manager-update="lobby-wall"]');
-    await waitFor(() => expect(textOf('[data-module-manager-filter="updates"]')).toBe("Updates0"));
+    await chosenFromTheActionsOf("lobby-wall", "update");
+    await waitFor(() => expect(document.querySelector("[data-module-manager-updates-count]")).toBeNull());
+    expect(textOf('[data-module-manager-status="lobby-wall"]')).not.toContain("Update available");
   });
 
-  it("removes a module only once Remove… is confirmed, and says the runtime's refusal in its own words under its row", async () => {
+  it("uninstalls a module only once Uninstall… is confirmed, and says the runtime's refusal in its own words under its row", async () => {
     let refuseTheRemoval = true;
     const backendOverTheMock = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&module_manager=open&module_manager_section=added_to_this_project")));
     await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project", {
@@ -2043,14 +2058,14 @@ describe("Module manager", () => {
     });
     await shown('[data-module-manager-row="import:lobby-wall"]');
 
-    pressed('[data-module-manager-remove="lobby-wall"]');
-    await waitFor(() => expect(textOf("[data-module-manager-remove-dialog]")).toContain("Remove lobby-wall from pattern?"));
+    await chosenFromTheActionsOf("lobby-wall", "remove");
+    await waitFor(() => expect(textOf("[data-module-manager-remove-dialog]")).toContain("Uninstall lobby-wall from pattern?"));
     pressed("[data-module-manager-confirm-remove]");
     await waitFor(() => expect(textOf('[data-module-manager-refusal="import:lobby-wall"]')).toContain("remove_dependency failed: the stream main still uses a node of lobby-wall"));
     expect(document.querySelector('[data-module-manager-row="import:lobby-wall"]')).not.toBeNull();
 
     refuseTheRemoval = false;
-    pressed('[data-module-manager-remove="lobby-wall"]');
+    await chosenFromTheActionsOf("lobby-wall", "remove");
     pressed(await waitFor(() => (document.querySelector("[data-module-manager-confirm-remove]") === null ? expect.unreachable("no Remove") : "[data-module-manager-confirm-remove]")));
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="import:lobby-wall"]')).toBeNull());
   });
@@ -2219,9 +2234,9 @@ describe("Module manager", () => {
     });
     await shown('[data-module-manager-row="import:camera-halftone"]');
 
-    pressed('[data-module-manager-remove="camera-halftone"]');
+    await chosenFromTheActionsOf("camera-halftone", "remove");
     pressed(await waitFor(() => (document.querySelector("[data-module-manager-confirm-remove]") === null ? expect.unreachable("no Remove") : "[data-module-manager-confirm-remove]")));
-    await waitFor(() => expect(textOf("[data-module-manager-in-progress]")).toBe("Removing Camera halftone…"));
+    await waitFor(() => expect(textOf("[data-module-manager-in-progress]")).toBe("Uninstalling Camera halftone…"));
     pressed('[data-module-manager-show="marketplace"]');
 
     await shown('[data-module-manager-row="catalog:camera-halftone"]');
@@ -2241,7 +2256,7 @@ describe("Module manager", () => {
     await waitFor(() =>
       expect(textOf('[data-module-manager-check-refusal="import:lobby-wall"]')).toBe("Where it was copied from could not be checked: /Users/jonathanf/streams/lobby-wall could not be read: no folder or file is there"),
     );
-    pressed('[data-module-manager-remove="lobby-wall"]');
+    await chosenFromTheActionsOf("lobby-wall", "remove");
     pressed(await waitFor(() => (document.querySelector("[data-module-manager-confirm-remove]") === null ? expect.unreachable("no Remove") : "[data-module-manager-confirm-remove]")));
 
     await waitFor(() => expect(textOf('[data-module-manager-refusal="import:lobby-wall"]')).toContain("remove_dependency failed: the project still uses the import"));
@@ -2259,7 +2274,7 @@ describe("Module manager", () => {
         }),
     });
     await shown('[data-module-manager-row="import:tatolab-camera"]');
-    pressed('[data-module-manager-remove="tatolab-camera"]');
+    await chosenFromTheActionsOf("tatolab-camera", "remove");
     pressed(await waitFor(() => (document.querySelector("[data-module-manager-confirm-remove]") === null ? expect.unreachable("no Remove") : "[data-module-manager-confirm-remove]")));
     await shown('[data-module-manager-refusal="import:tatolab-camera"]');
 
@@ -2302,7 +2317,7 @@ describe("Module manager", () => {
     pressed("[data-module-manager-back]");
     pressed('[data-module-manager-show="added_to_this_project"]');
     await shown('[data-module-manager-row="import:lobby-wall"]');
-    focusedAndPressed('[data-module-manager-remove="lobby-wall"]');
+    await chosenFromTheActionsOf("lobby-wall", "remove");
     pressed(await waitFor(() => (document.querySelector("[data-module-manager-confirm-remove]") === null ? expect.unreachable("no Remove") : "[data-module-manager-confirm-remove]")));
     await waitFor(() => expect(document.querySelector('[data-module-manager-row="import:lobby-wall"]')).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(document.querySelector('[data-module-manager-show="added_to_this_project"]')));

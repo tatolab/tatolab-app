@@ -1,4 +1,4 @@
-import { ArrowLeft, Box, Check, ChevronLeft, ChevronRight, Copy, Download, FileArchive, FolderPlus, RefreshCw, TriangleAlert, Workflow } from "lucide-react";
+import { ArrowLeft, Box, Check, ChevronLeft, ChevronRight, Copy, Download, FileArchive, FolderPlus, RefreshCw, Trash2, TriangleAlert, Workflow } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import type {
   ChosenProjectFolder,
@@ -21,6 +21,7 @@ import { IconButton } from "@tatolab/tato-app-view-sdk/design_system/icon_button
 import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
 import { KeyboardKey } from "@tatolab/tato-app-view-sdk/design_system/keyboard_key";
 import { ModuleCard, ModuleCover, ModuleMark } from "@tatolab/tato-app-view-sdk/design_system/module_card";
+import { MenuItem, MenuItemThatCannotBeChosen, MoreActionsMenu } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { ModuleList, ModuleListRow } from "@tatolab/tato-app-view-sdk/design_system/module_list";
 import { PanelListRow } from "@tatolab/tato-app-view-sdk/design_system/panel_section";
 import { PendingActionWords } from "@tatolab/tato-app-view-sdk/design_system/pending_action_words";
@@ -28,7 +29,6 @@ import { ProgressMeter } from "@tatolab/tato-app-view-sdk/design_system/progress
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { SegmentedChoiceControl } from "@tatolab/tato-app-view-sdk/design_system/segmented_choice_control";
-import { StatusChip } from "@tatolab/tato-app-view-sdk/design_system/status_chip";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { isTheKeyboardsFocusOnNothing } from "@tatolab/tato-app-view-sdk/design_system/support/keyboards_focus";
 import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
@@ -48,17 +48,17 @@ import {
   workInProgressWordsOf,
   moduleContentsWordsOf,
   moduleCopyStateOf,
+  moduleCoverNumberOf,
+  whyTheModuleHasNoUpdateToTake,
   moduleRowAndItsNeighboursOf,
   workByIdWithTheRowsMade,
   workKeptForTheRow,
   moduleRowCountsOf,
   moduleSourceWordsOf,
   moduleViewsShownOf,
-  PROJECT_MODULES_FILTERS,
   projectModuleRowsShownOf,
   type MarketplaceKindShown,
   type ModuleCardRow,
-  type ProjectModulesFilter,
 } from "./module_manager_listing";
 import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { ModuleManagerSectionAskNumbered } from "./studio_window_model";
@@ -161,9 +161,16 @@ function ViewsTheModuleBrings({ views }: { views: ViewsOfAWorkspaceDependency })
 }
 
 /** A module page's action, drawn across its column. */
-function PageAction({ appearance, icon, onPressed, children, ...controlDataAttributes }: Pick<Parameters<typeof ActionButton>[0], "appearance" | "icon" | "onPressed" | "children"> & { [dataAttributeName: `data-${string}`]: string | undefined }) {
+function PageAction({
+  appearance,
+  icon,
+  disabledReason,
+  onPressed,
+  children,
+  ...controlDataAttributes
+}: Pick<Parameters<typeof ActionButton>[0], "appearance" | "icon" | "disabledReason" | "onPressed" | "children"> & { [dataAttributeName: `data-${string}`]: string | undefined }) {
   return (
-    <ActionButton appearance={appearance} icon={icon} onPressed={onPressed} className="h-10 w-full text-base" {...controlDataAttributes}>
+    <ActionButton appearance={appearance} icon={icon} disabledReason={disabledReason} onPressed={onPressed} className="h-10 w-full text-base" {...controlDataAttributes}>
       {children}
     </ActionButton>
   );
@@ -284,11 +291,17 @@ function ModulePageActions({
           </p>
         )}
         {copyState.kind === "check_refused" && <RefusalLine tone="warning" lead="Where it was copied from could not be checked:" words={copyState.because} />}
-        <PageAction appearance={copyState.kind === "update_available" ? "primary" : "secondary"} icon={RefreshCw} onPressed={() => asks.update(row)} data-module-manager-update={dependency.folder}>
+        <PageAction
+          appearance={copyState.kind === "update_available" ? "primary" : "secondary"}
+          icon={RefreshCw}
+          disabledReason={whyTheModuleHasNoUpdateToTake(dependency)}
+          onPressed={() => asks.update(row)}
+          data-module-manager-update={dependency.folder}
+        >
           {dependency.edited_files.length > 0 ? "Update…" : "Update"}
         </PageAction>
         <PageAction appearance="quiet" onPressed={() => asks.askBeforeRemoving(row)} data-module-manager-remove={dependency.folder}>
-          Remove…
+          Uninstall…
         </PageAction>
       </div>
     );
@@ -391,7 +404,7 @@ function ModulePage({
         </div>
         <div className="flex items-start gap-8">
           <div className="flex min-w-0 flex-1 flex-col gap-8">
-            <ModuleCover title={row.title} size="page" />
+            <ModuleCover title={row.title} coverNumber={moduleCoverNumberOf(row)} size="page" />
             {row.summary !== "" && (
               <section className="flex flex-col gap-2">
                 <h2 className="text-lg font-semibold text-fg">Description</h2>
@@ -442,55 +455,68 @@ function ModulePage({
   );
 }
 
-/** What the project's module of a row says of its copy, in its list row. */
-function ModuleCopyWords({ row, dependency }: { row: ModuleCardRow; dependency: WorkspaceDependency }) {
+const MARKETPLACE_KIND_LABELS: Record<MarketplaceKindShown, string> = { all: "All", package: "Packages", sample: "Samples" };
+
+/** How the project's module of a row stands, in its list row: what is being done with it, else whether its source has an update, over where it was copied from. */
+function ModuleStatusWords({ row, dependency, work }: { row: ModuleCardRow; dependency: WorkspaceDependency; work: ModuleWork | null }) {
   const copyState = moduleCopyStateOf(dependency);
-  const sourceWords = moduleSourceWordsOf(row);
   return (
-    <span className="flex min-w-0 flex-col gap-0.5">
-      {copyState.kind === "check_refused" && (
-        <span className="flex items-center gap-1.5 text-xs text-warn-text">
-          <TriangleAlert className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
-          Its source could not be checked
-        </span>
+    <span className="flex min-w-0 flex-col gap-0.5" data-module-manager-status={dependency.folder}>
+      {work?.kind === "under_way" ? (
+        <PendingActionWords words={MODULE_ASK_WORDS_WHILE_UNDER_WAY[work.ask]} />
+      ) : (
+        <>
+          {copyState.kind === "check_refused" && (
+            <span className="flex items-center gap-1.5 text-xs text-warn-text">
+              <TriangleAlert className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
+              Its source could not be checked
+            </span>
+          )}
+          {copyState.kind === "update_available" && <ModuleMark mark={{ words: "Update available", tone: "news" }} />}
+          {copyState.kind === "up_to_date" && <ModuleMark mark={{ words: "Up to date", tone: "quiet" }} />}
+          {copyState.kind === "not_checked" && <span className="text-xs text-fg-3">Not checked for updates</span>}
+        </>
       )}
-      {copyState.kind === "update_available" && <ModuleMark mark={{ words: "Update", tone: "news" }} />}
-      {copyState.kind === "up_to_date" && <ModuleMark mark={{ words: "Up to date", tone: "quiet" }} />}
-      {copyState.kind === "not_checked" && <span className="text-xs text-fg-3">Not checked for updates</span>}
-      <span className="truncate text-2xs text-fg-3">{sourceWords}</span>
+      <span className="truncate text-2xs text-fg-3">{moduleSourceWordsOf(row)}</span>
     </span>
   );
 }
 
-/** One of the project's modules in its list: what it adds, how its copy stands, and Update and Remove…; pressing its name opens its page. */
+/** Update and Uninstall… for one of the project's modules, as the choices of its ⋯ menu: Update is greyed, with why, unless its source has an update. */
+function ModuleActionsMenuChoices({ row, dependency, work, asks }: { row: ModuleCardRow; dependency: WorkspaceDependency; work: ModuleWork | null; asks: ModuleAsks }) {
+  const isWorkUnderWay = work?.kind === "under_way";
+  const whyUpdateIsNotOffered = isWorkUnderWay ? work.words : whyTheModuleHasNoUpdateToTake(dependency);
+  return (
+    <>
+      {whyUpdateIsNotOffered === null ? (
+        <MenuItem icon={RefreshCw} onChosen={() => asks.update(row)} data-module-manager-update={dependency.folder}>
+          {dependency.edited_files.length > 0 ? "Update…" : "Update"}
+        </MenuItem>
+      ) : (
+        <MenuItemThatCannotBeChosen whyItCannotBeChosen={whyUpdateIsNotOffered} data-module-manager-update-not-offered={dependency.folder}>
+          Update
+        </MenuItemThatCannotBeChosen>
+      )}
+      <MenuItem icon={Trash2} isDestructive isDisabled={isWorkUnderWay} onChosen={() => asks.askBeforeRemoving(row)} data-module-manager-remove={dependency.folder}>
+        Uninstall…
+      </MenuItem>
+    </>
+  );
+}
+
+/** One of the project's modules in its list: what it adds, how it stands, and a ⋯ menu of what can be done with it; pressing its name opens its page. */
 function ProjectModuleListRow({ row, dependency, work, asks, onOpened }: { row: ModuleCardRow; dependency: WorkspaceDependency; work: ModuleWork | null; asks: ModuleAsks; onOpened: () => void }) {
-  const hasAnUpdate = dependency.newer_version_exists === true;
   return (
     <ModuleListRow
       title={row.title}
+      coverNumber={moduleCoverNumberOf(row)}
       summary={row.summary}
-      titleBadge={
-        dependency.edited_files.length > 0 ? (
-          <StatusChip tone="caution" data-module-manager-edited-count="">
-            {dependency.edited_files.length} edited
-          </StatusChip>
-        ) : null
-      }
       contentsWords={moduleContentsWordsOf(row)}
-      copyWords={<ModuleCopyWords row={row} dependency={dependency} />}
+      statusWords={<ModuleStatusWords row={row} dependency={dependency} work={work} />}
       actions={
-        work?.kind === "under_way" ? (
-          <PendingActionWords words={work.words} />
-        ) : (
-          <>
-            <ActionButton size="small" appearance={hasAnUpdate ? "primary" : "secondary"} icon={RefreshCw} onPressed={() => asks.update(row)} data-module-manager-update={dependency.folder}>
-              {dependency.edited_files.length > 0 ? "Update…" : "Update"}
-            </ActionButton>
-            <ActionButton size="small" appearance="quiet" onPressed={() => asks.askBeforeRemoving(row)} data-module-manager-remove={dependency.folder}>
-              Remove…
-            </ActionButton>
-          </>
-        )
+        <MoreActionsMenu label={`Actions for ${row.title}`} data-module-manager-actions={dependency.folder}>
+          <ModuleActionsMenuChoices row={row} dependency={dependency} work={work} asks={asks} />
+        </MoreActionsMenu>
       }
       belowTheRow={
         work?.kind === "refused" || dependency.check_refused_because !== null ? (
@@ -508,9 +534,6 @@ function ProjectModuleListRow({ row, dependency, work, asks, onOpened }: { row: 
   );
 }
 
-const MARKETPLACE_KIND_LABELS: Record<MarketplaceKindShown, string> = { all: "All", package: "Packages", sample: "Samples" };
-
-const PROJECT_MODULES_FILTER_LABELS: Record<ProjectModulesFilter, string> = { all: "All", updates: "Updates", edited: "Edited" };
 
 /** Whether a key press belongs to a field the person is typing in. */
 function isTypedIntoAField(keyTarget: EventTarget | null): boolean {
@@ -543,7 +566,6 @@ export function ModuleManagerWindowView({
   const [modulesShown, setModulesShown] = useState<ModulesShown>(sectionAsked?.shows ?? "marketplace");
   const [searchText, setSearchText] = useState("");
   const [marketplaceKindShown, setMarketplaceKindShown] = useState<MarketplaceKindShown>("all");
-  const [projectModulesFilter, setProjectModulesFilter] = useState<ProjectModulesFilter>("all");
   const [rowIdOfThePageOpen, setRowIdOfThePageOpen] = useState<string | null>(null);
   const showTheTab = useCallback((tabToShow: ModulesShown) => {
     setModulesShown(tabToShow);
@@ -573,9 +595,10 @@ export function ModuleManagerWindowView({
   const showTheModulesOfTheProject = useCallback((dependencies: WorkspaceDependency[]) => {
     if (isTheWindowStillShown.current) setModulesOfTheProject({ kind: "listed", dependencies });
   }, []);
+  const wereUpdatesCheckedFor = useRef(false);
   const listTheModulesOfTheProject = useCallback(
     () =>
-      sources.listWorkspaceDependencies(false).then(showTheModulesOfTheProject, (rejection: unknown) => {
+      sources.listWorkspaceDependencies(wereUpdatesCheckedFor.current).then(showTheModulesOfTheProject, (rejection: unknown) => {
         if (isTheWindowStillShown.current) setModulesOfTheProject({ kind: "refused", because: sources.describeRejection(rejection) });
       }),
     [sources, showTheModulesOfTheProject],
@@ -590,7 +613,7 @@ export function ModuleManagerWindowView({
   const dependencies = useMemo(() => (modulesOfTheProject.kind === "listed" ? modulesOfTheProject.dependencies : []), [modulesOfTheProject]);
   const everyRow = useMemo(() => everyModuleCardRowOf(catalog, dependencies), [catalog, dependencies]);
   const marketplaceRows = useMemo(() => marketplaceRowsShownOf(everyRow, marketplaceKindShown, searchText), [everyRow, marketplaceKindShown, searchText]);
-  const projectRows = useMemo(() => projectModuleRowsShownOf(everyRow, projectModulesFilter, searchText), [everyRow, projectModulesFilter, searchText]);
+  const projectRows = useMemo(() => projectModuleRowsShownOf(everyRow, searchText), [everyRow, searchText]);
   const rowCounts = useMemo(() => moduleRowCountsOf(everyRow), [everyRow]);
   const rowsOfTheTabShown = modulesShown === "marketplace" ? marketplaceRows : projectRows;
   const pageOpen = rowIdOfThePageOpen === null ? null : moduleRowAndItsNeighboursOf(rowsOfTheTabShown, rowIdOfThePageOpen);
@@ -643,7 +666,7 @@ export function ModuleManagerWindowView({
     const dependency = row.module_of_the_project;
     if (dependency === null) return;
     setRowIdOfThePageOpen(null);
-    askOfTheModule(row, "remove", `Removing ${row.title}…`, () => sources.removeWorkspaceDependency(dependency.project), () => null);
+    askOfTheModule(row, "remove", `Uninstalling ${row.title}…`, () => sources.removeWorkspaceDependency(dependency.project), () => null);
   };
 
   const addFrom = (source: string) => {
@@ -675,6 +698,7 @@ export function ModuleManagerWindowView({
     setIsCheckingForUpdates(true);
     sources.listWorkspaceDependencies(true).then(
       (checked) => {
+        wereUpdatesCheckedFor.current = true;
         showTheModulesOfTheProject(checked);
         if (isTheWindowStillShown.current) setIsCheckingForUpdates(false);
       },
@@ -772,6 +796,7 @@ export function ModuleManagerWindowView({
             <ModuleCard
               key={row.row_id}
               title={row.title}
+              coverNumber={moduleCoverNumberOf(row)}
               summary={row.summary}
               contentsWords={moduleCardContentsWordsOf(row)}
               mark={moduleCardMarkOf(row, work?.kind === "refused" ? work.ask : null, wasJustAdded)}
@@ -797,7 +822,6 @@ export function ModuleManagerWindowView({
     if (modulesOfTheProject.kind === "refused") return <WaitingState title={`${projectName}'s modules could not be listed`} explanation="The runtime's words are above." />;
     if (projectRows.length === 0) {
       if (searchedFor !== "") return <WaitingState title={`No module in ${projectName} matches “${searchedFor}”`} data-module-manager-state="empty" />;
-      if (projectModulesFilter !== "all") return <WaitingState title={projectModulesFilter === "updates" ? "No module has an update" : "No module was edited since its copy"} data-module-manager-state="empty" />;
       return <WaitingState title={`${projectName} has no modules yet`} explanation="Add one from the Marketplace, or from a project's folder or .zip." data-module-manager-state="empty" />;
     }
     return (
@@ -918,13 +942,6 @@ export function ModuleManagerWindowView({
                   {projectName}
                 </h1>
               </div>
-              <SegmentedChoiceControl
-                label={`Which of ${projectName}'s modules to show`}
-                choices={PROJECT_MODULES_FILTERS.map((filter) => ({ choice: filter, label: PROJECT_MODULES_FILTER_LABELS[filter], count: rowCounts.project[filter] }))}
-                chosen={projectModulesFilter}
-                onChosen={setProjectModulesFilter}
-                dataAttributeOfEachSegment="data-module-manager-filter"
-              />
               <div className="ml-auto flex shrink-0 items-center gap-2">
                 {isCheckingForUpdates ? (
                   <PendingActionWords words="Checking…" />
@@ -1006,9 +1023,9 @@ export function ModuleManagerWindowView({
           rowWaitingOnItsRemoval === null
             ? null
             : {
-                title: `Remove ${rowWaitingOnItsRemoval.title} from ${projectName}?`,
+                title: `Uninstall ${rowWaitingOnItsRemoval.title} from ${projectName}?`,
                 explanation: `Its copy leaves ${projectName}, with the nodes and views it brought. The runtime refuses while a stream of ${projectName} still uses it.`,
-                confirmWords: "Remove",
+                confirmWords: "Uninstall",
               }
         }
         isDestructive

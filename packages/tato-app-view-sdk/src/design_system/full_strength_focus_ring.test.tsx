@@ -75,9 +75,9 @@ describe("every design-system control", () => {
           moreActionsLabel="Actions for pattern"
           pendingWords={null}
         />
-        <ModuleCard title="Camera" summary="Reads a camera." contentsWords="1 node" mark={null} pendingWords={null} hoverAction={null} onOpened={() => {}} />
+        <ModuleCard title="Camera" coverNumber={2} summary="Reads a camera." contentsWords="1 node" mark={null} pendingWords={null} hoverAction={null} onOpened={() => {}} />
         <ModuleList label="Modules in pattern">
-          <ModuleListRow title="Camera" summary="Reads a camera." titleBadge={null} contentsWords="1 node" copyWords="Up to date" actions={null} belowTheRow={null} onOpened={() => {}} />
+          <ModuleListRow title="Camera" coverNumber={2} summary="Reads a camera." contentsWords="1 node" statusWords="Up to date" actions={null} belowTheRow={null} onOpened={() => {}} />
         </ModuleList>
       </>,
     );

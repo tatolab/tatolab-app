@@ -2,6 +2,7 @@ import { cn } from "cn";
 import { ArrowUp, Check, TriangleAlert } from "lucide-react";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { IndeterminateProgressBar } from "./progress_meter";
+import { PROJECT_COVER_CLASS_NAMES, type ProjectCoverNumber } from "./project_card";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 import { isTheKeyboardsFocusOnNothing } from "./support/keyboards_focus";
@@ -15,19 +16,21 @@ const MODULE_COVER_SIZE_CLASS_NAMES: Record<ModuleCoverSize, string> = {
   thumbnail: "h-11 w-20 shrink-0 gap-1 rounded-md border border-line p-1.5 text-2xs leading-3 bg-[size:10px_10px]",
 };
 
-/** A module's cover: its name set large over fine linework, with a rule drawn under it. */
-export function ModuleCover({ title, size }: { title: string; size: ModuleCoverSize }) {
+/** A module's cover while it has no picture: its name set large over fine linework, with a rule drawn under it, in the colours of the plain cover `coverNumber`. */
+export function ModuleCover({ title, coverNumber, size }: { title: string; coverNumber: ProjectCoverNumber; size: ModuleCoverSize }) {
   return (
     <span
       aria-hidden
       className={cn(
-        "flex flex-col justify-end overflow-hidden bg-well bg-[image:linear-gradient(to_right,var(--line)_1px,transparent_1px),linear-gradient(to_bottom,var(--line)_1px,transparent_1px)] font-semibold tracking-tight text-fg-2 select-none",
+        "flex flex-col justify-end overflow-hidden bg-[image:linear-gradient(to_right,var(--line)_1px,transparent_1px),linear-gradient(to_bottom,var(--line)_1px,transparent_1px)] font-semibold tracking-tight select-none",
+        PROJECT_COVER_CLASS_NAMES[coverNumber],
         MODULE_COVER_SIZE_CLASS_NAMES[size],
       )}
       data-module-cover={size}
+      data-module-cover-number={coverNumber}
     >
       <span className={size === "thumbnail" ? "truncate" : "line-clamp-2 break-words"}>{title}</span>
-      <span className="h-px w-full shrink-0 bg-line-strong" />
+      <span className="h-px w-full shrink-0 bg-current opacity-40" />
     </span>
   );
 }
@@ -66,6 +69,7 @@ const MODULE_CARD_HOVER_ACTION_CLASS_NAMES = "absolute top-2.5 right-2.5 opacity
  */
 export function ModuleCard({
   title,
+  coverNumber,
   summary,
   contentsWords,
   mark,
@@ -75,6 +79,7 @@ export function ModuleCard({
   ...controlDataAttributes
 }: {
   title: string;
+  coverNumber: ProjectCoverNumber;
   summary: string;
   /** What it holds, as "2 nodes · 1 stream". */
   contentsWords: string;
@@ -100,7 +105,7 @@ export function ModuleCard({
     >
       <button ref={openButtonElement} type="button" onClick={onOpened} className={cn("flex min-w-0 flex-1 flex-col rounded-xl text-left outline-none", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)} data-module-card-open="">
         <span className="relative block">
-          <ModuleCover title={title} size="card" />
+          <ModuleCover title={title} coverNumber={coverNumber} size="card" />
           {pendingWords !== null && <IndeterminateProgressBar className="absolute right-0 bottom-0 left-0" />}
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1.5 p-3.5">

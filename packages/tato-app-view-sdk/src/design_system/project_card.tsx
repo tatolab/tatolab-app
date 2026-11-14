@@ -11,8 +11,8 @@ export const PROJECT_COVER_NUMBERS = [1, 2, 3, 4, 5, 6] as const;
 /** Which of the plain covers a project's card wears. */
 export type ProjectCoverNumber = (typeof PROJECT_COVER_NUMBERS)[number];
 
-/** Each plain cover's colour and the colour of the initial drawn on it. */
-const PROJECT_COVER_CLASS_NAMES: Record<ProjectCoverNumber, string> = {
+/** Each plain cover's colour and the colour of what is drawn on it, an initial or a name. */
+export const PROJECT_COVER_CLASS_NAMES: Record<ProjectCoverNumber, string> = {
   1: "bg-project-cover-1-ground text-project-cover-1-mark",
   2: "bg-project-cover-2-ground text-project-cover-2-mark",
   3: "bg-project-cover-3-ground text-project-cover-3-mark",
