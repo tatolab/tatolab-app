@@ -15,6 +15,8 @@ const aRealGraphOfAStreamWithANodeWhoseStartRaised = () =>
 const aRecordedGraphOfAStreamWithANodeWhoseProcessKeepsRaising = () =>
   recordedGraphToolResultText("local-api-graph-tool-result-of-a-stream-with-a-node-whose-process-keeps-raising.json");
 
+const aRecordedGraphOfAStreamWithANodeThatIsNotReady = () => recordedGraphToolResultText("local-api-graph-tool-result-of-a-stream-with-a-node-that-is-not-ready.json");
+
 const portsStatingNoStreamFacts = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, family: null, stream_facts: null, values_checked: null }));
 
 function node(
@@ -26,7 +28,7 @@ function node(
   nodeId = "",
   config: StreamGraphNode["config"] = {},
 ): StreamGraphNode {
-  return { id: nodeId, name, type: nodeType, kind: null, state, failed_because: null, process_raising_because: null, config, ...ports, ...counters, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
+  return { id: nodeId, name, type: nodeType, kind: null, state, failed_because: null, process_raising_because: null, not_ready_because: null, config, ...ports, ...counters, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
 }
 
 function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
@@ -467,12 +469,38 @@ test("a_running_node_reads_what_its_process_keeps_raising_word_for_word_and_null
   ]);
 });
 
+test("a_running_node_reads_why_it_is_not_ready_word_for_word_and_null_once_it_is_ready", () => {
+  const notReadyBecause = "`riv_path` is not set";
+  const graph = {
+    nodes: [
+      { name: "lowerthird", type: "tatolab.rive:RiveSource", components: { state: "Running", failed_because: null, process_raising_because: null, not_ready_because: notReadyBecause } },
+      { name: "display", type: "tatolab.stream:Display", components: { state: "Running", failed_because: null, process_raising_because: null, not_ready_because: null } },
+    ],
+  };
+
+  const summary = streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify(graph));
+
+  expect(summary.ok && summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.not_ready_because])).toEqual([
+    ["lowerthird", notReadyBecause],
+    ["display", null],
+  ]);
+});
+
 test("a_recorded_graph_reads_what_a_running_nodes_process_keeps_raising_word_for_word_and_null_for_every_other_node", async () => {
   const summary = streamGraphSummaryFromTheGraphToolResult("s08-raising-main-cfc4fd", await aRecordedGraphOfAStreamWithANodeWhoseProcessKeepsRaising());
 
   expect(summary.ok && summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.state, graphNode.process_raising_because])).toEqual([
     ["testpatternsource", "Running", null],
     ["breaker", "Running", "process() raised RuntimeError: broke on purpose (nodes/breaker.py, line 10)"],
+  ]);
+});
+
+test("a_recorded_graph_reads_why_a_running_node_is_not_ready_word_for_word_and_null_for_every_other_node", async () => {
+  const summary = streamGraphSummaryFromTheGraphToolResult("notready-main-a86c14", await aRecordedGraphOfAStreamWithANodeThatIsNotReady());
+
+  expect(summary.ok && summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.state, graphNode.not_ready_because])).toEqual([
+    ["testpatternsource", "Running", null],
+    ["posterimage", "Running", "ImageFile names no image asset. To fix: set its `asset` config to the UUID of a PNG or JPEG imported into the project"],
   ]);
 });
 

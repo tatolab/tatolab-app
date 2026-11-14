@@ -361,6 +361,7 @@ async function anOpenProject(options: {
     deleteRecentProject: (folder: string) => projectOpening.deleteRecentProject(folder),
     chooseProjectArchiveToImport: () => projectOpening.chooseProjectArchiveToImport(),
     importProjectArchive: (archive: string, name: string, location: string) => projectOpening.importProjectArchive(archive, name, location),
+    makeAProjectOfItsOwnFromTheArchive: (archive: string, name: string) => projectOpening.makeAProjectOfItsOwnFromTheArchive(archive, name),
     readRecentProjectCover: (folder: string) => projectOpening.readRecentProjectCover(folder),
     setRecentProjectDescription: (folder: string, description: string) => projectOpening.setRecentProjectDescription(folder, description),
     chooseProjectCoverImage: () => projectOpening.chooseProjectCoverImage(),
@@ -768,6 +769,18 @@ test("a project .zip is imported by the runtime into its location, which is made
   expect(rememberedFolder()).toBe(projectFolder);
   expect(projectsStarted).toEqual([projectFolder]);
   expect(openProject.readOpenProject()).toMatchObject({ kind: "read", open_project: { project: { folder: projectFolder, name: "Pattern" } } });
+});
+
+test("a project of its own is made from a .zip in <Documents>/Tato Studio under the first numbered name nothing there holds, and opened", async () => {
+  const archive = path.join(await aFolder(), "camera-halftone-0.68.29.zip");
+  await writeFile(archive, JSON.stringify({ name: "Camera halftone" }));
+  const { openProject, documentsDirectory, rememberedFolder, projectsStarted } = await anOpenProject({ dialogAnswers: null });
+  const location = path.join(documentsDirectory, "Tato Studio");
+
+  expect(await openProject.makeAProjectOfItsOwnFromTheArchive(archive, "Camera halftone")).toEqual(succeeded({ folder: path.join(location, "Camera halftone"), project_creation: null }));
+  expect(await openProject.makeAProjectOfItsOwnFromTheArchive(archive, "Camera halftone")).toEqual(succeeded({ folder: path.join(location, "Camera halftone 2"), project_creation: null }));
+  expect(rememberedFolder()).toBe(path.join(location, "Camera halftone 2"));
+  expect(projectsStarted).toEqual([path.join(location, "Camera halftone"), path.join(location, "Camera halftone 2")]);
 });
 
 test("a project .zip import is refused before the runtime is asked for a relative zip, a bad name or a folder already there, and in the runtime's words for a zip holding no project", async () => {

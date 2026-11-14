@@ -797,6 +797,11 @@ function PropertiesOfTheSelectedNode({
             </div>
           </div>
         )}
+        {node.not_ready_because !== null && (
+          <div data-properties-node-not-ready={node.name}>
+            <RefusalLine lead="This node isn't ready:" words={node.not_ready_because} tone="warning" layout="bar" data-properties-not-ready-because={node.name} />
+          </div>
+        )}
         {streamAsset === null && <p className="border-b px-3 py-1.5 text-xs text-fg-3">This runtime names no stream asset for {streamName}, so its nodes can't be edited from here.</p>}
         {matching.is_searching && (
           <p role="status" className="border-b px-3 py-1.5 text-xs text-fg-3" data-properties-listed-count="">

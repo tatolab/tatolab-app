@@ -136,6 +136,7 @@ export function mockStreamGraphSummary(
       state: nodeState(node.state),
       failed_because: moment.hasSettled ? (node.failed_because ?? null) : null,
       process_raising_because: moment.hasSettled ? (node.process_raising_because ?? null) : null,
+      not_ready_because: moment.hasSettled ? (node.not_ready_because ?? null) : null,
       config: node.config,
       pins: node.pins ?? {},
       exposed_config_fields: node.exposed_config_fields ?? [],
@@ -202,6 +203,7 @@ export function mockStreamGraphSummary(
           state: nodes[nodeIndex]?.state ?? null,
           failed_because: nodes[nodeIndex]?.failed_because ?? null,
           process_raising_because: nodes[nodeIndex]?.process_raising_because ?? null,
+          not_ready_because: nodes[nodeIndex]?.not_ready_because ?? null,
           paused: false,
           metrics: {
             frames_dropped: 0,

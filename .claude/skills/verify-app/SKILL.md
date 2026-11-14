@@ -38,8 +38,8 @@ Evidence counts only when it was shot on what would ship now:
    Start `node apps/tato-app/scripts/serve_the_mock_window_in_a_browser.mjs` in the background (stop it at the
    end), then drive the page with Playwright at the URL it prints with the presets
    `apps/tato-app/mock/mock_tatolab_backend.ts` and `apps/tato-app/mock/mock_window_preset.ts` read:
-   `?platform=linux`, `?state=` (running, empty, loading, node-error, camera-access, dropping,
-   not-listed, starting, not-running), `?project=none|unreadable`, `?cli_link=not_linked|taken`,
+   `?platform=linux`, `?state=` (running, empty, loading, node-error, node-not-ready, camera-access,
+   dropping, not-listed, starting, not-running), `?project=none|unreadable`, `?cli_link=not_linked|taken`,
    `?restart=refused`, and the screen keys
    `?layout_shape=<shape>`, `?outliner=open`, `?select=<row id>`,
    `?open_stream=<stream id>`, `?menu=<menu>` with `?submenu=<entry>`, `?area_menu=<area id>`,

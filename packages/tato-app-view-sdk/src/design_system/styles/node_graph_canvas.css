@@ -21,6 +21,7 @@
   background: var(--studio-graph-card-header);
 }
 .node-graph-card[data-condition="failed"] { border-color: var(--danger); }
+.node-graph-card[data-condition="not_ready"] { border-color: var(--warn); }
 .node-graph-card-failure-words { border-top: 1px solid var(--studio-graph-card-line); }
 .node-graph-card-selected {
   border-color: var(--studio-graph-card-selected);

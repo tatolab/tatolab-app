@@ -1,6 +1,6 @@
 // The mock's workspace imports, as the runtime's dependency tools would answer them: one project
-// copied from a folder beside the workspace. `?module_manager=edited_files` has a file of its copy edited
-// since, so Update waits on the overwrite; `?module_manager=newer` has its source hold a newer version.
+// copied from a folder beside the workspace. `?module_manager=newer` has its source hold a newer version;
+// `?module_manager=edited_files` has that and a file of its copy edited since, so Update waits on the overwrite.
 // Each import's views are those the mock's own project-views listing lists under its folder.
 
 import type { DependencySourceKind, ListedStudioView, ProjectDependency, ViewsOfAWorkspaceDependency, WorkspaceDependency, WorkspaceDependencyUpdate } from "../src/shared/tatolab_backend_contract";
@@ -44,7 +44,7 @@ export class MockWorkspaceDependencies {
         folder_path: `${workspaceFolder}/imports/lobby-wall`,
         name: "lobby-wall",
         edited_files: scenario === "edited_files" ? ["nodes/wall_mapping.py"] : [],
-        newer_version_exists: scenario === "newer" ? true : null,
+        newer_version_exists: scenario === "copied" ? null : true,
         check_refused_because: null,
         views: { kind: "listed", views: [] },
       },
@@ -106,8 +106,12 @@ export class MockWorkspaceDependencies {
     return { kind: "updated", dependency: { project: dependency.project, folder: dependency.folder, source: dependency.source, version: dependency.version } };
   }
 
-  /** Whether `folder` holds one of the imports. */
-  holdsTheFolder(folder: string): boolean {
-    return this.dependencies.some((dependency) => dependency.folder === folder);
+  /** The import `project` taken out, refused in the runtime's words where the project imports none. */
+  remove(project: string): ProjectDependency {
+    const index = this.dependencies.findIndex((listed) => listed.project === project);
+    const dependency = this.dependencies[index];
+    if (dependency === undefined) throw `remove_dependency failed: the project imports no project ${project}`;
+    this.dependencies.splice(index, 1);
+    return { project: dependency.project, folder: dependency.folder, source: dependency.source, version: dependency.version };
   }
 }

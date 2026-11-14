@@ -46,6 +46,7 @@ function graphNode(name: string, type: string, group: string | null, failedBecau
     state: failedBecause === null ? "Running" : "Error",
     failed_because: failedBecause,
     process_raising_because: null,
+    not_ready_because: null,
     config: {},
     pins: {},
     exposed_config_fields: [],
@@ -141,6 +142,20 @@ describe("the outliner's tree", () => {
     const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [listedStream("/w/studio", "lobby_wall")] }, { "lobby_wall-id": graph }, "lobby_wall-id", {});
     const halftone = rows.find(({ row }) => row.label === "Halftone");
     expect([halftone?.row.icon, halftone?.row.tone]).toEqual(["failed", "failed"]);
+  });
+
+  it("marks a running node that is not ready as not ready, and one whose process() also keeps raising as failed", () => {
+    const notReady = { ...graphNode("Poster", "core_nodes.image_file:ImageFile", null), not_ready_because: "ImageFile names no image asset" };
+    const notReadyAndRaising = { ...graphNode("Halftone", "tatolab.stream:HalftoneLensEffect", null), not_ready_because: "no lens yet", process_raising_because: "process() raised ValueError: no lens" };
+    if (LOBBY_WALL_GRAPH.kind !== "read") throw new Error("LOBBY_WALL_GRAPH is a read graph");
+    const graph: StreamGraphReading = { kind: "read", graph: { ...LOBBY_WALL_GRAPH.graph, nodes: [notReady, notReadyAndRaising] } };
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [listedStream("/w/studio", "lobby_wall")] }, { "lobby_wall-id": graph }, "lobby_wall-id", {});
+    const rowLook = (label: string) => {
+      const row = rows.find((treeNode) => treeNode.row.label === label)?.row;
+      return [row?.icon, row?.tone];
+    };
+    expect(rowLook("Poster")).toEqual(["not_ready", "not_ready"]);
+    expect(rowLook("Halftone")).toEqual(["failed", "failed"]);
   });
 
   it("marks a failed node and selects each node by its stream and name", () => {

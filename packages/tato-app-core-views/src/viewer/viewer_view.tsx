@@ -72,12 +72,15 @@ function PortViewerPicture({
   nodeName,
   portWords,
   streamFactsOfThePort,
+  isTheNodeNotReady,
 }: {
   connection: TatoAppViewConnection;
   target: PortViewerTarget;
   nodeName: string;
   portWords: string;
   streamFactsOfThePort: Pick<StreamGraphDeclaredPort, "family" | "stream_facts" | "values_checked">;
+  /** Draws the editor's checker behind the picture, which shows through the transparent frames the runtime sends while the node is not ready. */
+  isTheNodeNotReady: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [shown, setShown] = useState<PortViewerShown>({ kind: "waiting" });
@@ -102,6 +105,8 @@ function PortViewerPicture({
         if (canvas !== null && drawing !== null) {
           if (canvas.width !== event.video_frame.displayWidth) canvas.width = event.video_frame.displayWidth;
           if (canvas.height !== event.video_frame.displayHeight) canvas.height = event.video_frame.displayHeight;
+          // drawImage composites over what the canvas holds, so a transparent frame would leave the last picture showing.
+          drawing.clearRect(0, 0, canvas.width, canvas.height);
           drawing.drawImage(event.video_frame, 0, 0);
         }
         event.video_frame.close();
@@ -131,6 +136,7 @@ function PortViewerPicture({
       className="port-preview-surface relative flex min-h-0 flex-1 flex-col"
       data-viewer-playing={`${nodeName}/${port}`}
       data-viewer-port-state={shown.kind}
+      data-viewer-node-not-ready={isTheNodeNotReady || undefined}
     >
       <canvas ref={canvasRef} aria-label={`Live picture of ${portWords}`} className={isAPicture ? "block size-full object-contain" : "hidden"} data-viewer-picture="" />
       {isAPicture && streamFactsWords !== "" && (
@@ -234,6 +240,7 @@ function ViewerOfTheGraph({ connection, streamTab, graph, subject }: { connectio
       nodeName={playedPort.node_name}
       portWords={portWords}
       streamFactsOfThePort={declaredPort}
+      isTheNodeNotReady={(graph.nodes.find((node) => node.id === playedPort.node_id)?.not_ready_because ?? null) !== null}
     />
   );
 }

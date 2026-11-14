@@ -39,6 +39,7 @@ function graphNode(name: string, id: string, ports: { inputs?: [string, "image" 
     state: "Running",
     failed_because: null,
     process_raising_because: null,
+    not_ready_because: null,
     config: {},
     pins: {},
     exposed_config_fields: [],
