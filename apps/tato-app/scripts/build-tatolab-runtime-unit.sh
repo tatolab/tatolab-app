@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Builds streamlib's runtime unit (bin/tatolabd, bin/tatolab, bin/uv, bin/tatolab-video-poster-frame,
-# lib/tatolab/lend, its imports, sample projects, carried wheels and carried Python) in a streamlib checkout, writes
+# lib/tatolab/lend, its imports, sample projects, carried wheels, carried Python and the browser host) in a
+# streamlib checkout, against the CEF distribution its scripts/fetch_cef_binary_distribution.py fetches, writes
 # the checkout's commit into the unit's streamlib-commit, and prints the unit's directory. The checkout's own target directory is used.
 #
 # Usage: build-tatolab-runtime-unit.sh <streamlib checkout> [--developer-id-application-identity IDENTITY]
@@ -44,12 +45,22 @@ runtime_unit_directory="$streamlib_checkout/target/tatolab-runtime"
 # whatever that commit laid out and this one does not, and its commit would vouch for a half-replaced
 # unit if this build failed part-way.
 rm -rf "$runtime_unit_directory"
-# With CEF_PATH set xtask stages the browser host, a CEF app bundle the app bundle cannot place yet.
-(cd "$streamlib_checkout" && env -u CEF_PATH cargo xtask "${xtask_arguments[@]}") >&2
+# xtask stages the browser host a BrowserSource opens pages in only with CEF_PATH naming the CEF
+# distribution cef-dll-sys pins. The fetch reads that pin with tomllib, which needs a newer Python
+# than macOS's own, and is fetched afresh so a CEF bump never builds against the last one.
+cef_binary_distribution="$streamlib_checkout/target/cef-binary-distribution"
+rm -rf "$cef_binary_distribution"
+(cd "$streamlib_checkout" && uv run --no-project --python 3.12 -- python -I scripts/fetch_cef_binary_distribution.py "$cef_binary_distribution") >&2
+(cd "$streamlib_checkout" && CEF_PATH="$cef_binary_distribution" cargo xtask "${xtask_arguments[@]}") >&2
 
+case "$(uname -s)" in
+  # CEF finds its framework and helper apps only inside the host's own app bundle on macOS.
+  Darwin) browser_host_executable_in_the_unit=lib/tatolab/browser-host/tatolab-browser-host.app/Contents/MacOS/tatolab-browser-host ;;
+  *) browser_host_executable_in_the_unit=lib/tatolab/browser-host/tatolab-browser-host ;;
+esac
 for required in bin/tatolabd bin/tatolab bin/uv bin/tatolab-video-poster-frame lib/tatolab/lend/tatolab/runtime lib/tatolab/imports \
   lib/tatolab/samples lib/tatolab/core-projects/tatolab-core-nodes/tatolab-project.json lib/tatolab/carried-wheels \
-  lib/tatolab/python-downloads/uv-python-downloads.json; do
+  lib/tatolab/python-downloads/uv-python-downloads.json "$browser_host_executable_in_the_unit"; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit is missing $required" >&2; exit 1; }
 done
 echo "$streamlib_commit" >"$runtime_unit_directory/streamlib-commit"

@@ -1,7 +1,7 @@
 // scripts/assemble-tatolab-app-bundle.sh places everything the runtime unit ships: it refuses a
 // unit without uv or the video poster frame helper, which tatolabd runs from beside itself, a unit
 // without the carried wheels and the uv metadata naming its carried Python, a unit whose bin/ or
-// lib/tatolab/ holds something it does not place, a unit whose lib/tatolab/imports/ holds anything
+// lib/tatolab/ holds something it does not place, a unit without the browser host's app bundle, a unit whose lib/tatolab/imports/ holds anything
 // but pure-Python wheels, a unit whose lib/tatolab/samples/ holds no sample project, a unit without the Core Nodes project, and a unit
 // built from any streamlib commit but the one the build resolved. Every refusal comes before it touches the bundle.
 
@@ -16,7 +16,8 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 const TATO_APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const ASSEMBLE_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "assemble-tatolab-app-bundle.sh");
 const PLACED_RUNTIME_UNIT_BINARIES = ["tatolab", "tatolabd", "uv", "tatolab-video-poster-frame"];
-const PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES = ["lend", "imports", "samples", "core-projects", "carried-wheels", "python-downloads"];
+const PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES = ["lend", "imports", "samples", "core-projects", "carried-wheels", "python-downloads", "browser-host"];
+const BROWSER_HOST_EXECUTABLE_IN_THE_UNIT = ["lib", "tatolab", "browser-host", "tatolab-browser-host.app", "Contents", "MacOS", "tatolab-browser-host"];
 const PURE_PYTHON_TESTPATTERN_WHEEL = "tatolab_testpattern-0.68.54-py3-none-any.whl";
 const RESOLVED_STREAMLIB_COMMIT = "ef5c8b22995a90b1f7ae671e214c96480615c911";
 const AN_OLDER_STREAMLIB_COMMIT = "f2ec4338a0d1c2b3e4f5a6b7c8d9e0f1a2b3c4d5";
@@ -77,6 +78,10 @@ async function runtimeUnitPlantedWith(
   if (libraryDirectoryNames.includes("core-projects")) {
     await mkdir(path.join(runtimeUnitDirectory, "lib", "tatolab", "core-projects", "tatolab-core-nodes"), { recursive: true });
     await writeFile(path.join(runtimeUnitDirectory, "lib", "tatolab", "core-projects", "tatolab-core-nodes", "tatolab-project.json"), "{}");
+  }
+  if (libraryDirectoryNames.includes("browser-host")) {
+    await mkdir(path.join(runtimeUnitDirectory, ...BROWSER_HOST_EXECUTABLE_IN_THE_UNIT.slice(0, -1)), { recursive: true });
+    await writeFile(path.join(runtimeUnitDirectory, ...BROWSER_HOST_EXECUTABLE_IN_THE_UNIT), "");
   }
   if (libraryDirectoryNames.includes("imports")) {
     await plantAWheelInTheUnitsImports(runtimeUnitDirectory, PURE_PYTHON_TESTPATTERN_WHEEL, [PURE_PYTHON_WHEEL_MEMBER]);
@@ -242,7 +247,7 @@ test("a unit with no lib/tatolab/imports is refused and the bundle is untouched"
 });
 
 test("a unit whose lib/tatolab/imports holds no wheel is refused and the bundle is untouched", async () => {
-  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, ["lend", "samples", "core-projects", "carried-wheels", "python-downloads"]);
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, ["lend", "samples", "core-projects", "carried-wheels", "python-downloads", "browser-host"]);
   await mkdir(path.join(runtimeUnitDirectory, "lib", "tatolab", "imports"));
   const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
   expect(assembleOutcome.exitCode).toBe(1);
@@ -251,7 +256,7 @@ test("a unit whose lib/tatolab/imports holds no wheel is refused and the bundle 
 });
 
 test("a unit whose lib/tatolab/samples holds no sample project is refused and the bundle is untouched", async () => {
-  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, ["lend", "imports", "core-projects", "carried-wheels", "python-downloads"]);
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, ["lend", "imports", "core-projects", "carried-wheels", "python-downloads", "browser-host"]);
   await mkdir(path.join(runtimeUnitDirectory, "lib", "tatolab", "samples"));
   const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
   expect(assembleOutcome.exitCode).toBe(1);
@@ -301,11 +306,22 @@ test("a hidden entry in lib/tatolab/imports is refused, since the copy would car
   expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
 });
 
-test("a unit that carries the browser host is refused, naming it, and the bundle is untouched", async () => {
-  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, [...PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES, "browser-host"]);
+test("a unit without the browser host is refused, naming it, and the bundle is untouched", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(
+    PLACED_RUNTIME_UNIT_BINARIES,
+    PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES.filter((libraryDirectoryName) => libraryDirectoryName !== "browser-host"),
+  );
   const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
   expect(assembleOutcome.exitCode).toBe(1);
-  expect(assembleOutcome.stderr).toContain("lib/tatolab/browser-host");
-  expect(assembleOutcome.stderr).toContain("without CEF_PATH");
+  expect(assembleOutcome.stderr).toContain("is missing lib/tatolab/browser-host/tatolab-browser-host.app/Contents/MacOS/tatolab-browser-host");
+  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+});
+
+test("a browser host directory holding anything but the host's app bundle is refused, naming it, and the bundle is untouched", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
+  await writeFile(path.join(runtimeUnitDirectory, "lib", "tatolab", "browser-host", "libcef.so"), "");
+  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+  expect(assembleOutcome.exitCode).toBe(1);
+  expect(assembleOutcome.stderr).toContain("ships lib/tatolab/browser-host/libcef.so, which this script does not place in the bundle");
   expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
 });
