@@ -12,11 +12,12 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import type { LucideIcon } from "lucide-react";
+import { ChevronDown, type LucideIcon } from "lucide-react";
 import { Button } from "./ui/button";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 import { ICON_BUTTON_CLASS_NAMES, STOCK_ICON_BUTTON_SIZE } from "./icon_button";
+import { WithControlTooltip } from "./control_tooltip";
 
 /** One rectangle of a menu entry's picture, in percent of the picture's width and height; the emphasised one is drawn in the brand colour. */
 export interface StudioMenuEntryPictureArea {
@@ -161,5 +162,84 @@ export function StudioMenuButton({
         <StudioMenuEntries entries={entries} />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** The brand's ground a split menu button stands on while what it controls is live, hover and an open menu included. */
+const SPLIT_MENU_BUTTON_LIVE_CLASS_NAMES =
+  "bg-brand text-primary-foreground hover:bg-brand hover:text-primary-foreground dark:hover:bg-brand aria-expanded:bg-brand aria-expanded:text-primary-foreground data-popup-open:bg-brand data-popup-open:text-primary-foreground hover:data-popup-open:bg-brand hover:data-popup-open:text-primary-foreground";
+
+/** A split menu button's half that cannot act now: dim, and still on the brand's ground while what it controls is live. */
+const SPLIT_MENU_BUTTON_UNAVAILABLE_CLASS_NAMES = "text-fg-4 hover:bg-transparent hover:text-fg-4 hover:shadow-none dark:hover:bg-transparent";
+
+/**
+ * An icon button that runs one command, joined to a chevron that opens the entries of one of the menu bar's menus, as the title row's player control leads
+ * with the playback's next step beside Run's entries. While what it controls is live, both halves stand on the brand's ground and the icon is drawn filled.
+ */
+export function StudioSplitMenuButton({
+  icon: ButtonIcon,
+  label,
+  unavailableBecause,
+  isLive,
+  onPressed,
+  menuLabel,
+  entries,
+  menuDataAttributes = {},
+  ...controlDataAttributes
+}: {
+  icon: LucideIcon;
+  /** The button's accessible name and its tooltip, as "Pause the project". */
+  label: string;
+  /** Why the button cannot act now, which its tooltip says instead; `null` while it can. */
+  unavailableBecause: string | null;
+  isLive: boolean;
+  onPressed: () => void;
+  /** The chevron's accessible name, as "Playback choices". */
+  menuLabel: string;
+  entries: readonly StudioMenuEntry[];
+  /** The `data-*` attributes of the chevron, as the button's own go on the button. */
+  menuDataAttributes?: ControlDataAttributes;
+} & ControlDataAttributes) {
+  const isUnavailable = unavailableBecause !== null;
+  return (
+    <span className="flex shrink-0" data-studio-split-menu-button="" data-live={isLive || undefined}>
+      <WithControlTooltip
+        tooltip={unavailableBecause ?? label}
+        isWide
+        control={
+          <Button
+            variant="ghost"
+            size={STOCK_ICON_BUTTON_SIZE.regular}
+            aria-label={isUnavailable ? `${label}: ${unavailableBecause}` : label}
+            aria-disabled={isUnavailable || undefined}
+            onClick={() => {
+              if (!isUnavailable) onPressed();
+            }}
+            className={cn(ICON_BUTTON_CLASS_NAMES, "rounded-r-none", isLive && SPLIT_MENU_BUTTON_LIVE_CLASS_NAMES, isUnavailable && !isLive && SPLIT_MENU_BUTTON_UNAVAILABLE_CLASS_NAMES)}
+            {...controlDataAttributes}
+          >
+            <ButtonIcon className={isLive ? "size-3.5 fill-current" : "size-4"} strokeWidth={1.75} aria-hidden />
+          </Button>
+        }
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              className={cn(ICON_BUTTON_CLASS_NAMES, "h-7 w-4 min-w-4 rounded-l-none px-0", isLive && cn(SPLIT_MENU_BUTTON_LIVE_CLASS_NAMES, "border-l border-l-primary-foreground/25"))}
+            />
+          }
+          aria-label={menuLabel}
+          title={menuLabel}
+          {...menuDataAttributes}
+        >
+          <ChevronDown className="size-3" strokeWidth={2} aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-max min-w-[230px]">
+          <StudioMenuEntries entries={entries} />
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
   );
 }

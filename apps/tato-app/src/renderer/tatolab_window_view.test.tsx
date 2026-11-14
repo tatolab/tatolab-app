@@ -840,6 +840,22 @@ describe("the studio", () => {
     await theAreasShownAre(["stream-graph"]);
   });
 
+  it("pauses, resumes and stops the project from the title row's player control, which follows the playback the runtime lists", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const playerControl = () => document.querySelector<HTMLElement>("[data-studio-player-control]") ?? expect.unreachable("no player control");
+    await waitFor(() => expect(playerControl().dataset.studioPlayerControl).toBe("pause"));
+    expect(playerControl().getAttribute("aria-label")).toBe("Pause the project");
+
+    fireEvent.click(playerControl());
+    await waitFor(() => expect(playerControl().getAttribute("aria-label")).toBe("Resume the project"));
+
+    pressAsAPointerDoes(document.querySelector<HTMLElement>("[data-studio-player-control-menu]") ?? expect.unreachable("no player control menu"));
+    expect((await screen.findByRole("menuitem", { name: /^Pause/ })).getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Stop/ }));
+    await waitFor(() => expect(playerControl().getAttribute("aria-label")).toBe("Play the project"));
+    expect(playerControl().closest("[data-studio-split-menu-button]")?.hasAttribute("data-live")).toBe(false);
+  });
+
   it("hides the layout's left and right areas from the title row's buttons, reshapes it from the layout menu, and saves it as a preset", async () => {
     await mountedWindowOverTheMock("state=running");
     const edgeButton = (edge: string) => document.querySelector<HTMLElement>(`[data-studio-layout-edge="${edge}"]`) ?? expect.unreachable(`no ${edge} edge button`);

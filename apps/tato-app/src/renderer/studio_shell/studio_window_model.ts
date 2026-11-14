@@ -4,6 +4,8 @@
 import type { FailedProjectStreamAction, ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutView, ProjectArchiveChosenToImport, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { RecentProjectChangeRefusal } from "../presentation/projects_presentation";
+import { projectPlaybackAsListed } from "../../shared/project_playback";
+import type { ProjectPlaybackAskedFor, ProjectPlaybackReading } from "../presentation/project_playback_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import type { StudioWindowValuesServedToViews } from "../view_host/studio_view_host_services";
@@ -37,6 +39,12 @@ export function listedStreamsReadingOf(status: TatolabStatus): ListedStreamsRead
   return { kind: "not_listed", because: runtimeStatus.banner?.title ?? runtimeStatus.shortLabel };
 }
 
+/** The playback of the project in `projectFolder` as the runtime lists its streams in `status`, or why it lists none now. */
+export function projectPlaybackReadingOf(status: TatolabStatus, projectFolder: string): ProjectPlaybackReading {
+  const listedStreamsReading = listedStreamsReadingOf(status);
+  return listedStreamsReading.kind === "listed" ? { kind: "listed", listed: projectPlaybackAsListed(listedStreamsReading.streams, projectFolder) } : { kind: "not_listed", because: listedStreamsReading.because };
+}
+
 /** A stream of the open project the runtime lists failed, and why in its own words; `null` when it gives no reason. */
 export interface OpenProjectStreamFailure {
   stream: string;
@@ -58,7 +66,7 @@ export interface OpenStreamTabs {
 }
 
 /** The open project's folder, when one is read or unreadable; `null` while none is open. */
-function openProjectFolderOf(reading: OpenProjectReading): string | null {
+export function openProjectFolderOf(reading: OpenProjectReading): string | null {
   switch (reading.kind) {
     case "none_open":
       return null;
@@ -74,9 +82,6 @@ export type NewProjectSheetOpening = { kind: "new_project"; defaults: NewProject
 
 /** What the Stream menu asks the person while its dialog shows: a new stream's name, the shown stream's new name, or whether to delete it. */
 export type StreamMenuQuestion = { kind: "name_a_new_stream" } | { kind: "rename_stream"; stream: string; display_name: string } | { kind: "delete_stream"; stream: string; display_name: string };
-
-/** What the person asked of the open project's playback through the Run menu or its keys. */
-export type ProjectPlaybackAskedFor = "run" | "pause" | "stop";
 
 /** The studio window's state, each part watched by the shell and served to the views through their bridges. */
 export class StudioWindowModel {

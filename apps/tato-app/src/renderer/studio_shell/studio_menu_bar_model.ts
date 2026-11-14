@@ -6,6 +6,7 @@ import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract
 import type { SystemMenuBarEntry, SystemMenuBarItems, SystemMenuBarMenu, SystemMenuOfTheDesktop, TatolabAppUpdateState, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import type { StudioMenu, StudioMenuEntry } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
 import { presentTatolabAppUpdateMenuEntry } from "../presentation/app_update_presentation";
+import type { ProjectPlaybackAskedFor, ProjectPlaybackChoice, ProjectPlaybackControls } from "../presentation/project_playback_presentation";
 import { controlShortcutHint, shiftedShortcutHint, shortcutHint } from "../presentation/platform_presentation";
 import { STUDIO_LAYOUT_PRESETS_ON_A_DIGIT } from "./studio_layout";
 import { STUDIO_LAYOUT_SHAPES, studioLayoutShapePicture, type StudioLayoutShape } from "./studio_layout_shapes";
@@ -33,7 +34,7 @@ export interface StudioMenuBarCommands {
   applyTheSavedLayoutPreset(presetIndex: number): void;
   /** Window › Layout › Save layout as preset…: ask for the preset's name. */
   askToSaveTheLayoutAsAPreset(): void;
-  /** Run › Live: play the open project, resuming it while it is paused. */
+  /** Run › Play, or Resume while it is paused: play the open project. */
   runTheProjectLive(): void;
   /** Run › Pause: pause the open project's playback, every stream of it held where it stands. */
   pauseTheProject(): void;
@@ -83,7 +84,7 @@ export const NO_CLOSED_STREAM_TAB_REASON = "No tab has been closed";
 /** Why an entry that acts on the open project cannot run while none is open. */
 export const NO_PROJECT_OPEN_REASON = "Open a project first";
 
-/** The keys that run the project live, and stop it. */
+/** The keys that play the project, and stop it. */
 export const RUN_LIVE_KEY = "F5";
 export const STOP_KEY_HINT = "Shift F5";
 
@@ -104,6 +105,33 @@ function appUpdateMenuEntry(appUpdate: TatolabAppUpdateState, commands: StudioMe
   }
   if (!menuEntry.isEnabled) return { kind: "unavailable_command", label: menuEntry.label, unavailableBecause: APP_UPDATE_UNDER_WAY_REASON };
   return { kind: "command", label: menuEntry.label, onChosen: menuEntry.command === "check_for_updates" ? commands.checkForAppUpdates : commands.takeTheNewerAppVersion };
+}
+
+/** The command each playback choice runs. */
+export function projectPlaybackCommandOf(askedFor: ProjectPlaybackAskedFor, commands: StudioMenuBarCommands): () => void {
+  switch (askedFor) {
+    case "run":
+      return commands.runTheProjectLive;
+    case "pause":
+      return commands.pauseTheProject;
+    case "stop":
+      return commands.stopTheProject;
+  }
+}
+
+const PROJECT_PLAYBACK_SHORTCUT_HINTS: Readonly<Record<ProjectPlaybackAskedFor, string | undefined>> = { run: RUN_LIVE_KEY, pause: undefined, stop: STOP_KEY_HINT };
+
+/** Run's playback entries, the same in the Run menu and behind the title row's player control: each choice `playbackControls` offers, the rest dim with why, or all of them waiting while no project is open. */
+export function projectPlaybackMenuEntries(playbackControls: ProjectPlaybackControls, isAProjectOpen: boolean, commands: StudioMenuBarCommands): StudioMenuEntry[] {
+  return playbackControls.choices.map((choice: ProjectPlaybackChoice): StudioMenuEntry => {
+    const shortcutHint = PROJECT_PLAYBACK_SHORTCUT_HINTS[choice.asked_for];
+    const unavailableBecause = isAProjectOpen ? choice.unavailable_because : NO_PROJECT_OPEN_REASON;
+    if (unavailableBecause !== null) {
+      return shortcutHint === undefined ? { kind: "unavailable_command", label: choice.label, unavailableBecause } : { kind: "unavailable_command", label: choice.label, shortcutHint, unavailableBecause };
+    }
+    const onChosen = projectPlaybackCommandOf(choice.asked_for, commands);
+    return shortcutHint === undefined ? { kind: "command", label: choice.label, onChosen } : { kind: "command", label: choice.label, shortcutHint, onChosen };
+  });
 }
 
 /** The studio's own menus, each listed once for both platforms' bars to arrange. */
@@ -141,6 +169,7 @@ function studioMenuParts(
   platform: TatolabPlatform,
   layout: StudioLayoutInTheMenus | null,
   streamTabs: StreamTabsInTheMenus,
+  playbackControls: ProjectPlaybackControls,
   appUpdate: TatolabAppUpdateState,
   commands: StudioMenuBarCommands,
   settingsLabel: string,
@@ -188,7 +217,7 @@ function studioMenuParts(
     },
     runMenu: {
       label: "Run",
-      entries: [projectCommand("Live", commands.runTheProjectLive, RUN_LIVE_KEY), projectCommand("Pause", commands.pauseTheProject), projectCommand("Stop", commands.stopTheProject, STOP_KEY_HINT), laterCommand("Render to file…")],
+      entries: [...projectPlaybackMenuEntries(playbackControls, layout !== null, commands), laterCommand("Render to file…")],
     },
     windowEntries: [studioLayoutEntry, laterCommand("Maximise area"), laterCommand("New window")],
     aboutEntry: { kind: "command", label: "About Tato Studio", onChosen: commands.openAbout },
@@ -197,9 +226,16 @@ function studioMenuParts(
   };
 }
 
-/** The studio's menus along the top of its window, as Linux shows them, Window › Layout offering the shapes and the presets `layout` saved, or naming why it waits while no project is open, and Help's updates entry following `appUpdate`. */
-export function studioMenuBarMenus(platform: TatolabPlatform, layout: StudioLayoutInTheMenus | null, streamTabs: StreamTabsInTheMenus, appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenu[] {
-  const parts = studioMenuParts(platform, layout, streamTabs, appUpdate, commands, "Settings…");
+/** The studio's menus along the top of its window, as Linux shows them, Window › Layout offering the shapes and the presets `layout` saved, or naming why it waits while no project is open, Run's playback entries following `playbackControls`, and Help's updates entry following `appUpdate`. */
+export function studioMenuBarMenus(
+  platform: TatolabPlatform,
+  layout: StudioLayoutInTheMenus | null,
+  streamTabs: StreamTabsInTheMenus,
+  playbackControls: ProjectPlaybackControls,
+  appUpdate: TatolabAppUpdateState,
+  commands: StudioMenuBarCommands,
+): StudioMenu[] {
+  const parts = studioMenuParts(platform, layout, streamTabs, playbackControls, appUpdate, commands, "Settings…");
   return [
     { label: "File", entries: parts.fileEntries },
     { label: "Edit", entries: [...parts.undoAndRedoEntries, { kind: "separator" }, parts.settingsEntry] },
@@ -221,9 +257,15 @@ export interface StudioMenuInTheSystemMenuBar {
   entries: readonly StudioMenuEntryInTheSystemMenuBar[];
 }
 
-/** The studio's menus as macOS's one menu bar shows them, in the places a Mac app keeps them: About, the updates entry following `appUpdate`, and Settings in the app menu, the desktop's text editing in Edit, its window controls in Window. */
-export function studioMenusInTheSystemMenuBar(layout: StudioLayoutInTheMenus | null, streamTabs: StreamTabsInTheMenus, appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenuInTheSystemMenuBar[] {
-  const parts = studioMenuParts("macos", layout, streamTabs, appUpdate, commands, "Settings…");
+/** The studio's menus as macOS's one menu bar shows them, Run's playback entries following `playbackControls`, in the places a Mac app keeps them: About, the updates entry following `appUpdate`, and Settings in the app menu, the desktop's text editing in Edit, its window controls in Window. */
+export function studioMenusInTheSystemMenuBar(
+  layout: StudioLayoutInTheMenus | null,
+  streamTabs: StreamTabsInTheMenus,
+  playbackControls: ProjectPlaybackControls,
+  appUpdate: TatolabAppUpdateState,
+  commands: StudioMenuBarCommands,
+): StudioMenuInTheSystemMenuBar[] {
+  const parts = studioMenuParts("macos", layout, streamTabs, playbackControls, appUpdate, commands, "Settings…");
   return [
     {
       label: "Tato Studio",

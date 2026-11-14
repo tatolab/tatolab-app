@@ -80,7 +80,8 @@ async function openEveryOutlinerRow(): Promise<void> {
 
 /**
  * Drives the mock window to the screen the page's query names, as a person would get there, once the window has
- * mounted. In the studio: `?layout_shape=<shape>` (that shape chosen from the title row's layout menu, as `grid`), `?outliner=open`
+ * mounted. In the studio: `?player_control=<step>` (the title row's player control pressed while it leads with that step, `pause`, `run` or `stop`, each
+ * repeat waiting for it), `?player_control_menu=open` (its chevron's menu opened, left open unless `?menu_entry=<entry>` chooses one, as `Stop`), `?layout_shape=<shape>` (that shape chosen from the title row's layout menu, as `grid`), `?outliner=open`
  * (every row opened), `?select=<row id>` (that outliner row clicked, as `stream:<stream id>`), `?open_stream=<stream id>`
  * (its row double-clicked, opening its tab), `?add_node=<words>` (those words typed in the stream graph's Add node search and Enter pressed, as `Image File`), `?node_search=open` (the Add node search opened and left open, with `?node_search_entry=<entry id>` each such entry of its left-hand list clicked in turn, as `category:Effects` then `category:Effects/Text`, `?node_search_words=<words>` those words typed, and `?node_search_item=<item id>` the pointer rested on that row, as `nodes.captions:caption_overlay`), `?select_node=<node name>` (that node's card clicked in the stream graph, as `imagefile` once added), `?asset_picker=open` (the selected node's asset field's Choose an asset… pressed, opening the asset picker), `?code_file=<file>` (that file of the open project, as `nodes/inverting_effect.py`, opened from the code area's + menu, with `?area_menu=…&area_view=code` showing one), `?run=live` (F5 pressed), `?menu=<menu>` (that menu of the bar opened, as `Window`) with
  * `?submenu=<entry>` (that entry's submenu opened, as `Layout`) or `?menu_entry=<entry>` (that entry chosen, as `New stream…`; on macOS the backend's `?system_menu_entry=Stream › New stream…` chooses it), `?stream_name=<name>` (that name typed in New stream's or Rename stream's dialog), and `?area_menu=<area id>` (that area's
@@ -125,6 +126,11 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   if (selectedNode !== null) await clickWhenShown(`[data-stream-graph] .react-flow__node:has([data-node-graph-card="${CSS.escape(selectedNode)}"])`);
   if (pageQuery.get("asset_picker") === "open") await clickWhenShown(`[data-property-asset-choose]`, 6000);
   if (pageQuery.get("run") === "live" && (await waitForElement("[data-studio-title-row]")) !== null) document.dispatchEvent(new KeyboardEvent("keydown", { key: "F5", bubbles: true }));
+  for (const playerControlStepPressed of pageQuery.getAll("player_control")) {
+    const playerControl = await waitForElement<HTMLElement>(`[data-studio-player-control="${CSS.escape(playerControlStepPressed)}"]`);
+    playerControl?.click();
+  }
+  if (pageQuery.get("player_control_menu") === "open") await pressWhenShown("[data-studio-player-control-menu]");
   const areaMenu = pageQuery.get("area_menu");
   if (areaMenu !== null) await pressWhenShown(`[data-area-view-type-menu="${CSS.escape(areaMenu)}"]`);
   const areaView = pageQuery.get("area_view");
@@ -177,7 +183,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     if (submenuTrigger?.textContent?.includes(submenu) === true) submenuTrigger.click();
   }
   const menuEntry = pageQuery.get("menu_entry");
-  if (menu !== null && menuEntry !== null && (await waitForElement(`[role="menuitem"]`)) !== null) {
+  if ((menu !== null || pageQuery.get("player_control_menu") === "open") && menuEntry !== null && (await waitForElement(`[role="menuitem"]`)) !== null) {
     [...document.querySelectorAll<HTMLElement>(`[role="menuitem"]`)].find((menuItem) => menuItem.textContent?.trim().startsWith(menuEntry) === true)?.click();
   }
   const streamName = pageQuery.get("stream_name");
