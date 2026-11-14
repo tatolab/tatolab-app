@@ -1,5 +1,6 @@
 // What the Transactions view shows of a project's change feed: one row per transaction applied or
-// action refused, the choices its Filter popover offers, and what a row copies as JSON.
+// action refused, the choices its Filter popover offers, what a row copies as JSON, and the file the
+// whole log downloads as.
 
 import type { JsonValue, ListedStream, ProjectTransaction, ProjectTransactions, RefusedProjectAction } from "@tatolab/tato-app-view-sdk";
 import type { StatusChipTone } from "@tatolab/tato-app-view-sdk/design_system/status_chip";
@@ -269,6 +270,19 @@ export function transactionsViewRowsAsJson(rows: readonly TransactionsViewRow[])
     null,
     2,
   );
+}
+
+/** Every applied transaction and refused action the app read from the project's change feed, as one JSON object, indented; what the view shows does not narrow it. */
+export function transactionsLogAsJson(feed: ProjectTransactions): string {
+  return JSON.stringify(feed, null, 2);
+}
+
+/** A character no file name may hold on macOS, Linux or Windows, or a leading dot, which hides the file on macOS and Linux. */
+const CHARACTERS_NO_FILE_NAME_HOLDS = /[\\/:*?"<>|\u0000-\u001f]|^\./g;
+
+/** The file a project's transaction log downloads as: `<project name> transactions.json`. */
+export function transactionsLogFileNameOf(projectName: string): string {
+  return `${projectName.replace(CHARACTERS_NO_FILE_NAME_HOLDS, "-")} transactions.json`;
 }
 
 /** What the log menu holds the view to: the rows it froze when paused, `null` while it follows the feed, and the rows cleared from it. */
