@@ -1,6 +1,7 @@
 import { jsonValueSchema } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { MOCK_NODE_CATALOG_ENTRIES } from "./mock_node_catalog";
-import { MOCK_PACKAGE_CATALOG_ENTRIES, mockPackageCatalogReading } from "./mock_package_catalog";
+import { mockPackageCatalogEntryNamed, mockPackageCatalogReading } from "./mock_package_catalog";
+import { whyTheModuleBringsNothingOnThisMachine } from "../src/shared/package_catalog_machine_words";
 import { marketplaceDownloadFileNameOf, MODULE_DOWNLOADS_FOLDER_NAME } from "../src/shared/marketplace_module_download_file";
 import { MockWorkspaceDependencies, mockWorkspaceDependenciesScenarioNamed, type MockWorkspaceDependenciesScenario } from "./mock_workspace_dependencies";
 import {
@@ -1751,7 +1752,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     onModuleManagerSectionAsked: () => () => undefined,
     readPackageCatalog: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      return mockPackageCatalogReading(mockTatolabOptions.isTheCatalogUnserved);
+      return mockPackageCatalogReading(mockTatolabOptions.isTheCatalogUnserved, mockTatolabOptions.platform);
     },
     listWorkspaceDependencies: async (checkForNewer) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * (checkForNewer ? 4 : 1));
@@ -1768,9 +1769,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     },
     importFromTheMarketplace: async (name) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 6);
-      const entry = MOCK_PACKAGE_CATALOG_ENTRIES.find((listed) => listed.name === name);
+      const entry = mockPackageCatalogEntryNamed(name, mockTatolabOptions.platform);
       if (entry === undefined) throw `The catalog lists nothing named ${name}.`;
       if (entry.kind === "sample") throw `${entry.title} is a sample project; clone it into a project of its own instead.`;
+      if (!entry.runs_on_this_machine && entry.platforms !== null) throw whyTheModuleBringsNothingOnThisMachine(entry.title, entry.platforms);
       await mockMarketplaceDownloadOf(entry, mockTatolabOptions.marketplaceAddScenario);
       const downloadsFolder = `${fixtures.machine.homeDirectory}/Library/Application Support/Tato Studio/${MODULE_DOWNLOADS_FOLDER_NAME}`;
       return workspaceDependencies.add(`${downloadsFolder}/${marketplaceDownloadFileNameOf(entry.name, entry.version)}`, entry.title);
@@ -1782,7 +1784,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     },
     cloneMarketplaceSample: async (name) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 6);
-      const entry = MOCK_PACKAGE_CATALOG_ENTRIES.find((listed) => listed.name === name);
+      const entry = mockPackageCatalogEntryNamed(name, mockTatolabOptions.platform);
       if (entry === undefined) throw `The catalog lists nothing named ${name}.`;
       if (entry.kind !== "sample") throw `${entry.title} is not a sample project; add it to a project instead.`;
       await mockMarketplaceDownloadOf(entry, mockTatolabOptions.marketplaceAddScenario);

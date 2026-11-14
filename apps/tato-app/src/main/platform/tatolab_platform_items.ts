@@ -3,7 +3,7 @@
 // module exposes the same items, picked here, so the rest of the app never asks which platform it
 // runs on; where a platform has nothing to do for one — Linux has no Dock icon — that item says so.
 
-import type { TatolabPlatform } from "../../shared/tatolab_backend_contract.js";
+import type { PackageCatalogMachine, TatolabPlatform } from "../../shared/tatolab_backend_contract.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
 import type { ApplicationMenu } from "./application_menu.js";
 import type { DockIconHost, MainWindowChrome } from "./main_window_chrome.js";
@@ -21,6 +21,8 @@ import { LINUX_TRAY_ICON_IMAGE } from "./linux/tray_icon_image.js";
 /** The platform items the app's lifecycle, window and tray use. */
 export interface TatolabPlatformItems {
   platform: TatolabPlatform;
+  /** This machine as the Marketplace catalog's `platforms` names one, so a module whose wheels leave it out is not offered. */
+  machineModulesInstallOn: PackageCatalogMachine;
   trayIconImage: TrayIconImage;
   mainWindowChrome: MainWindowChrome;
   applicationMenu: ApplicationMenu;
@@ -35,15 +37,21 @@ export interface TatolabPlatformItems {
 
 /** This build's platform items, or `null` on an OS Tato Studio does not run on: macOS and Linux only. */
 export function tatolabPlatformItemsForThisBuild(): TatolabPlatformItems | null {
-  return tatolabPlatformItemsFor(process.platform);
+  return tatolabPlatformItemsFor(process.platform, process.arch);
 }
 
-/** The platform items for Node's name of an OS, or `null` for one Tatolab does not run on. */
-export function tatolabPlatformItemsFor(nodePlatformName: string): TatolabPlatformItems | null {
+// Node names the CPU `x64` and `arm64`; a wheel's platform tag, and PEP 508's `platform_machine`
+// with it, says `x86_64` on both OSes and `aarch64` for 64-bit ARM on Linux, `arm64` on macOS.
+const PEP_508_LINUX_MACHINE_OF_NODES_ARCHITECTURE: Readonly<Record<string, string>> = { x64: "x86_64", arm64: "aarch64" };
+const PEP_508_MACOS_MACHINE_OF_NODES_ARCHITECTURE: Readonly<Record<string, string>> = { x64: "x86_64", arm64: "arm64" };
+
+/** The platform items for Node's name of an OS and of a CPU, or `null` for an OS Tatolab does not run on. */
+export function tatolabPlatformItemsFor(nodePlatformName: string, nodeArchitectureName: string): TatolabPlatformItems | null {
   switch (nodePlatformName) {
     case "darwin":
       return {
         platform: "macos",
+        machineModulesInstallOn: { sys_platform: "darwin", platform_machine: PEP_508_MACOS_MACHINE_OF_NODES_ARCHITECTURE[nodeArchitectureName] ?? nodeArchitectureName },
         trayIconImage: MACOS_TRAY_ICON_IMAGE,
         mainWindowChrome: MACOS_MAIN_WINDOW_CHROME,
         applicationMenu: "macos_menu_bar",
@@ -55,6 +63,7 @@ export function tatolabPlatformItemsFor(nodePlatformName: string): TatolabPlatfo
     case "linux":
       return {
         platform: "linux",
+        machineModulesInstallOn: { sys_platform: "linux", platform_machine: PEP_508_LINUX_MACHINE_OF_NODES_ARCHITECTURE[nodeArchitectureName] ?? nodeArchitectureName },
         trayIconImage: LINUX_TRAY_ICON_IMAGE,
         mainWindowChrome: LINUX_MAIN_WINDOW_CHROME,
         applicationMenu: "none",

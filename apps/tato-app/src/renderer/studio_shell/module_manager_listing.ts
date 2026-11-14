@@ -4,6 +4,7 @@
 import type { ModuleCardMark } from "@tatolab/tato-app-view-sdk/design_system/module_card";
 import type { ProjectCoverNumber } from "@tatolab/tato-app-view-sdk/design_system/project_card";
 import { isAMarketplaceDownloadOf } from "../../shared/marketplace_module_download_file";
+import { catalogOperatingSystemsOnlyWords, whyTheModuleBringsNothingOnThisMachine } from "../../shared/package_catalog_machine_words";
 import type { PackageCatalogEntry, PackageCatalogMember, PackageCatalogReading, ViewsOfAWorkspaceDependency, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
 import { projectCoverNumberOfTheName } from "../presentation/projects_presentation";
 import { manifestOfAListedView, titleTheManifestNames } from "../view_host/studio_view_type_registry";
@@ -187,17 +188,31 @@ export const MODULE_ASK_WORDS_ONCE_DONE: Record<ModuleAsk, string> = { add: "add
 /** Each ask as a card says it while it runs. */
 export const MODULE_ASK_WORDS_WHILE_UNDER_WAY: Record<ModuleAsk, string> = { add: "Adding…", clone: "Cloning…", update: "Updating…", remove: "Uninstalling…" };
 
-/** What a card says in its corner: the ask last refused of it, else an update at the source the project's module was copied from, else that the project has it, as it does once an add of it ended; `null` for none of these. */
+/** Why the row's module brings no node on this machine, in words; `null` where the catalog does not say its wheels leave this machine out. */
+export function whyTheRowBringsNothingOnThisMachine(row: ModuleCardRow): string | null {
+  const entry = row.catalog_entry;
+  return entry === null || entry.runs_on_this_machine || entry.platforms === null ? null : whyTheModuleBringsNothingOnThisMachine(row.title, entry.platforms);
+}
+
+/** The marks a module that brings nothing on this machine wears, as "Linux only"; `null` where the catalog does not say its wheels leave this machine out. */
+export function moduleNotOnThisMachineMarkOf(row: ModuleCardRow): ModuleCardMark | null {
+  const entry = row.catalog_entry;
+  return entry === null || entry.runs_on_this_machine || entry.platforms === null ? null : { words: catalogOperatingSystemsOnlyWords(entry.platforms), tone: "refused" };
+}
+
+/** What a card says in its corner: the ask last refused of it, else that it brings nothing on this machine, else an update at the source the project's module was copied from, else that the project has it, as it does once an add of it ended; `null` for none of these. */
 export function moduleCardMarkOf(row: ModuleCardRow, askLastRefused: ModuleAsk | null, wasJustAdded: boolean): ModuleCardMark | null {
   if (askLastRefused !== null) return { words: `Not ${MODULE_ASK_WORDS_ONCE_DONE[askLastRefused]}`, tone: "refused" };
+  const notOnThisMachineMark = moduleNotOnThisMachineMarkOf(row);
+  if (notOnThisMachineMark !== null) return notOnThisMachineMark;
   const dependency = row.module_of_the_project;
   if (dependency?.newer_version_exists === true) return { words: "Update available", tone: "news" };
   return dependency !== null || wasJustAdded ? { words: "In project", tone: "quiet" } : null;
 }
 
-/** Whether a card offers Add: a package the catalog gives a download for, which the project does not have and an add has not just brought. */
+/** Whether a card offers Add: a package the catalog gives a download for, which brings nodes on this machine, the project does not have and an add has not just brought. */
 export function cardOffersAdd(row: ModuleCardRow, wasJustAdded: boolean): boolean {
-  return row.catalog_entry?.kind === "package" && row.catalog_entry.download !== null && row.module_of_the_project === null && !wasJustAdded;
+  return row.catalog_entry?.kind === "package" && row.catalog_entry.download !== null && row.catalog_entry.runs_on_this_machine && row.module_of_the_project === null && !wasJustAdded;
 }
 
 function countedWords(count: number, one: string): string {
