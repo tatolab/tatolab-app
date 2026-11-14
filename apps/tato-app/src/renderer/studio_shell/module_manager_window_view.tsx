@@ -21,7 +21,7 @@ import { IconButton } from "@tatolab/tato-app-view-sdk/design_system/icon_button
 import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
 import { KeyboardKey } from "@tatolab/tato-app-view-sdk/design_system/keyboard_key";
 import { ModuleCard, ModuleCover, ModuleMark } from "@tatolab/tato-app-view-sdk/design_system/module_card";
-import { MenuItem, MenuItemThatCannotBeChosen, MoreActionsMenu } from "@tatolab/tato-app-view-sdk/design_system/menus";
+import { MenuItem, MoreActionsMenu } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { ModuleList, ModuleListRow } from "@tatolab/tato-app-view-sdk/design_system/module_list";
 import { PanelListRow } from "@tatolab/tato-app-view-sdk/design_system/panel_section";
 import { PendingActionWords } from "@tatolab/tato-app-view-sdk/design_system/pending_action_words";
@@ -483,21 +483,14 @@ function ModuleStatusWords({ row, dependency, work }: { row: ModuleCardRow; depe
   );
 }
 
-/** Update and Uninstall… for one of the project's modules, as the choices of its ⋯ menu: Update is greyed, with why, unless its source has an update. */
+/** Update and Uninstall… for one of the project's modules, as the choices of its ⋯ menu: Update is greyed unless its source has an update. */
 function ModuleActionsMenuChoices({ row, dependency, work, asks }: { row: ModuleCardRow; dependency: WorkspaceDependency; work: ModuleWork | null; asks: ModuleAsks }) {
   const isWorkUnderWay = work?.kind === "under_way";
-  const whyUpdateIsNotOffered = isWorkUnderWay ? work.words : whyTheModuleHasNoUpdateToTake(dependency);
   return (
     <>
-      {whyUpdateIsNotOffered === null ? (
-        <MenuItem icon={RefreshCw} onChosen={() => asks.update(row)} data-module-manager-update={dependency.folder}>
-          {dependency.edited_files.length > 0 ? "Update…" : "Update"}
-        </MenuItem>
-      ) : (
-        <MenuItemThatCannotBeChosen whyItCannotBeChosen={whyUpdateIsNotOffered} data-module-manager-update-not-offered={dependency.folder}>
-          Update
-        </MenuItemThatCannotBeChosen>
-      )}
+      <MenuItem icon={RefreshCw} isDisabled={isWorkUnderWay || whyTheModuleHasNoUpdateToTake(dependency) !== null} onChosen={() => asks.update(row)} data-module-manager-update={dependency.folder}>
+        {dependency.edited_files.length > 0 ? "Update…" : "Update"}
+      </MenuItem>
       <MenuItem icon={Trash2} isDestructive isDisabled={isWorkUnderWay} onChosen={() => asks.askBeforeRemoving(row)} data-module-manager-remove={dependency.folder}>
         Uninstall…
       </MenuItem>

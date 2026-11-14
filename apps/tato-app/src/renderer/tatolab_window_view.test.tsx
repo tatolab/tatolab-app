@@ -2046,16 +2046,15 @@ describe("Module manager", () => {
     expect(document.querySelector("[data-module-manager-overwrite-dialog]")).toBeNull();
   });
 
-  it("says Update available in a module's Status once checked, greys Update in its ⋯ menu until then with why, and Update takes it", async () => {
+  it("says Update available in a module's Status once checked, greys Update in its ⋯ menu until then, and Update takes it", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=newer&module_manager_section=added_to_this_project");
     await shown('[data-module-manager-row="import:lobby-wall"]');
     expect(textOf('[data-module-manager-status="lobby-wall"]')).toContain("Not checked for updates");
     expect(document.querySelector("[data-module-manager-filter]")).toBeNull();
     pressAsAPointerDoes(document.querySelector<HTMLElement>('[data-module-manager-actions="lobby-wall"]') ?? expect.unreachable("no ⋯ menu"));
-    const updateNotOffered = await waitFor(() => document.querySelector<HTMLElement>('[data-module-manager-update-not-offered="lobby-wall"]') ?? expect.unreachable("no greyed Update"));
-    expect(updateNotOffered.getAttribute("aria-disabled")).toBe("true");
-    expect(document.getElementById(updateNotOffered.getAttribute("aria-describedby") ?? "")?.textContent).toBe("Check for updates first.");
-    expect(document.querySelector('[data-module-manager-update="lobby-wall"]')).toBeNull();
+    const greyedUpdate = await waitFor(() => document.querySelector<HTMLElement>('[data-module-manager-update="lobby-wall"]') ?? expect.unreachable("no Update in the ⋯ menu"));
+    expect(greyedUpdate.getAttribute("aria-disabled")).toBe("true");
+    expect(greyedUpdate.closest('[role="menu"]')?.textContent).toBe("UpdateUninstall…");
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
 
     pressed("[data-module-manager-check-for-updates]");
