@@ -24,8 +24,7 @@ a parallel one. Search first.
   1. What the app *is* — its features, its framework, how it is packaged and updated — is the
      owner's call, recorded in the Linear issue or project that builds it. What it needs from the
      runtime — a capability, a local API contract — is streamlib's: a `streamlib:` sub-issue under
-     the same parent, which the `studio:` issue is blocked by. This repository has no
-     `docs/plan/`; never start one.
+     the same parent, which the `studio:` issue is blocked by.
   2. How the window looks, reads and flows is the design system in code — `packages/tato-app-view-sdk/src/design_system/styles/tokens.css`,
      then shadcn, then `packages/tato-app-view-sdk/src/design_system/` and its variants, then a rare call-site class —
      changed with the owner's say-so in the same PR.
@@ -33,9 +32,8 @@ a parallel one. Search first.
      commands, the backend contract — goes in the issue's Design section, settled by `/module-design` before `/implement`.
 
   A shape that would need tier 1 is tier 1.
-- **When the work depends on what the runtime serves, read streamlib's plan from its `main`**,
-  never a local checkout's branch, and only the sections you need (the same for `GLOSSARY.md`):
-  `gh api repos/tatolab/streamlib/contents/docs/plan/ARCHITECTURE.md -q .content | base64 -d`
+- **When the work depends on what the runtime serves, read streamlib's code on its `main`**, never a
+  local checkout's branch: its generated control contract and the recorded fixtures here are the contract.
 - Skills, agents, the repository rules and hooks come from `dev-plugin` in
   [tatolab/tato-plugins-official](https://github.com/tatolab/tato-plugins-official), which
   `.claude/settings.json` enables; change them there, never in this repository.
@@ -45,8 +43,8 @@ a parallel one. Search first.
 - **Guardrails prompt; they never wall off**, but for writing a GitHub issue, which is denied.
   `.claude/settings.json` asks on the licence and what code signing reads; auto mode's policy
   covers what a session may run.
-- Code is the authority on what IS; Linear on what we AGREED for the app, and streamlib's
-  plan on what the runtime serves.
+- Never write documentation, plans or ADRs, and never create Linear projects or milestones; planning happens in Linear, in separate sessions.
+- Code is the only source of truth.
 
 ## Before you push
 
@@ -57,22 +55,6 @@ a parallel one. Search first.
   changed; `dev-plugin:window-craftsmanship-reviewer` when `apps/tato-app/src/{renderer,shared}/` changed.
 - **The PR**: title `type(scope): summary`, checked with `printf '%s' "<title>" | npx commitlint`;
   its body carries `/verify-app`'s `## Evidence` section.
-
-## Recording facts vs deciding
-
-Writing down what is true is ordinary work. Deciding what we build is not. The skills exist to
-sharpen decisions, not to license prose.
-
-- **A factual record needs no skill, no prompt, and no approval.** A README claim your change
-  falsified, a stale path, a comment that no longer matches the code — fix it in the same PR
-  as the change, and say so in the PR body. Leaving the record wrong to avoid ceremony is the
-  worse outcome, always.
-- **A decision goes to the owner** — changing what the app is, or settling a question the issue
-  leaves open by building one answer.
-- The test: **could a careful reader derive it from the diff and the tree?** Then it is a fact.
-  Does it commit us to something we have not agreed? Then it is a decision — bring it.
-- Doc hygiene inside work you are already doing — fixing a claim your own change falsified — is
-  never a separate issue and never a question.
 
 ## Asking the owner
 
@@ -115,8 +97,7 @@ attention spent on settled things is unavailable for real forks.
   drives live projection, so frame performance is load-bearing. There is no sandbox mode and no
   `ImageBitmap` or other copy on a frame's path; a view's `capabilities` declare what it uses and
   never take full access away. The owner settled this; never add isolation, never convert frames,
-  never ask again:
-  @docs/views-run-with-full-access.md
+  never ask again (enforced).
 - **Platform code lives in `apps/tato-app/src/main/platform/`** (enforced); both platforms are checked
   on every change: `npm test` runs both platform modules on any OS, and Linux is proven on an
   x86_64 Linux machine or, from a Mac, in an `ubuntu:22.04` container — a Mac cannot exercise the

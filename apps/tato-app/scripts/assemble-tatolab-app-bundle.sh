@@ -10,6 +10,8 @@
 #   <helper>/Contents/MacOS/tatolab-video-poster-frame    the poster frame helper tatolabd runs from
 #                                                         beside itself
 #   <helper>/Contents/Frameworks/tatolab-runtime/<path>   every Mach-O of lend/tatolab/runtime
+#   <helper>/Contents/Frameworks/tatolab-browser-host.app the CEF browser host BrowserSource opens
+#                                                         pages in, where tatolabd finds it from the lend
 #   <helper>/Contents/Resources/lend/                     the lend, each Mach-O a relative symlink
 #                                                         into Frameworks/tatolab-runtime, precompiled
 #                                                         for CPython 3.10-3.14
@@ -68,6 +70,7 @@ carried_wheels_source="$runtime_unit_directory/lib/tatolab/carried-wheels"
 sample_projects_source="$runtime_unit_directory/lib/tatolab/samples"
 core_projects_source="$runtime_unit_directory/lib/tatolab/core-projects"
 carried_python_downloads_source="$runtime_unit_directory/lib/tatolab/python-downloads"
+browser_host_app_bundle_relative_to_the_unit="lib/tatolab/browser-host/tatolab-browser-host.app"
 lent_runtime_package_relative_to_the_lend="tatolab/runtime"
 processor_interpreter_python_versions=(3.10 3.11 3.12 3.13 3.14)
 
@@ -75,7 +78,7 @@ contents="$app_bundle/Contents"
 [ -x "$contents/MacOS/Tato Studio" ] || { echo "$app_bundle has no Contents/MacOS/Tato Studio: not a packaged Tato Studio.app" >&2; exit 1; }
 for required in bin/tatolabd bin/tatolab bin/uv bin/tatolab-video-poster-frame "lib/tatolab/lend/$lent_runtime_package_relative_to_the_lend" lib/tatolab/imports \
   lib/tatolab/samples lib/tatolab/core-projects/tatolab-core-nodes/tatolab-project.json lib/tatolab/carried-wheels \
-  lib/tatolab/python-downloads/uv-python-downloads.json; do
+  lib/tatolab/python-downloads/uv-python-downloads.json "$browser_host_app_bundle_relative_to_the_unit/Contents/MacOS/tatolab-browser-host"; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit $runtime_unit_directory is missing $required" >&2; exit 1; }
 done
 # Anything streamlib adds to the unit would otherwise be left out of the bundle without a word.
@@ -84,10 +87,14 @@ for runtime_unit_entry in "$runtime_unit_directory"/bin/* "$runtime_unit_directo
     bin/tatolabd|bin/tatolab|bin/uv|bin/tatolab-video-poster-frame|lib/tatolab/lend|lib/tatolab/imports|lib/tatolab/samples|lib/tatolab/core-projects|lib/tatolab/carried-wheels|lib/tatolab/python-downloads) ;;
     # The TypeScript control client is what Studio is built against; nothing in the bundle runs it.
     lib/tatolab/runtime-client) ;;
-    # The browser host is a CEF app bundle: code, which signing takes only under MacOS/ or Frameworks/.
-    lib/tatolab/browser-host) echo "runtime unit $runtime_unit_directory ships lib/tatolab/browser-host, which this script does not place in the bundle: build the unit without CEF_PATH" >&2; exit 1 ;;
+    lib/tatolab/browser-host) ;;
     *) echo "runtime unit $runtime_unit_directory ships ${runtime_unit_entry#"$runtime_unit_directory/"}, which this script does not place in the bundle" >&2; exit 1 ;;
   esac
+done
+for browser_host_entry in "$runtime_unit_directory"/lib/tatolab/browser-host/* "$runtime_unit_directory"/lib/tatolab/browser-host/.[!.]*; do
+  [ -e "$browser_host_entry" ] || continue
+  [ "${browser_host_entry#"$runtime_unit_directory/"}" = "$browser_host_app_bundle_relative_to_the_unit" ] \
+    || { echo "runtime unit $runtime_unit_directory ships ${browser_host_entry#"$runtime_unit_directory/"}, which this script does not place in the bundle" >&2; exit 1; }
 done
 is_mach_o() { [[ "$(file -b "$1")" == Mach-O* ]]; }
 
@@ -196,6 +203,8 @@ ditto "$sample_projects_source" "$helper_contents/Resources/samples"
 ditto "$core_projects_source" "$helper_contents/Resources/core-projects"
 ditto "$carried_wheels_source" "$helper_contents/Resources/carried-wheels"
 ditto "$carried_python_downloads_source" "$helper_contents/Resources/python-downloads"
+# A CEF app bundle is code, which signing takes only under MacOS/ or Frameworks/.
+ditto "$runtime_unit_directory/$browser_host_app_bundle_relative_to_the_unit" "$helper_contents/Frameworks/tatolab-browser-host.app"
 carried_wheel_count="$(find "$helper_contents/Resources/carried-wheels" -name '*.whl' -type f | wc -l | tr -d ' ')"
 cp "$runtime_unit_directory/$streamlib_commit_file_name" "$helper_contents/Resources/$streamlib_commit_file_name"
 find "$helper_contents/Resources/lend" -name __pycache__ -type d -prune -exec rm -rf {} +

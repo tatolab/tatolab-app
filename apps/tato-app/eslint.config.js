@@ -17,6 +17,11 @@ const SHADCN_IMPORT_PATTERNS = [
   },
 ];
 
+const VIEW_FULL_ACCESS_SELECTORS = [
+  { selector: "Identifier[name=/^(createImageBitmap|ImageBitmap)$/]", message: "A view's frames are transferred VideoFrames, never copied into an ImageBitmap." },
+  { selector: "JSXAttribute[name.name='sandbox']", message: "Every view runs with full access on Studio's origin: no sandbox on a view's frame." },
+];
+
 const ELECTRON_IMPORT_PATHS = [{ name: "electron", message: "Only src/main/electron_adapters/ and src/preload/ import electron, so everything else runs in plain Node." }];
 const ELECTRON_REQUIRE_SELECTORS = [
   { selector: "CallExpression[callee.name='require'][arguments.0.value='electron']", message: ELECTRON_IMPORT_PATHS[0].message },
@@ -114,7 +119,7 @@ function windowRestrictions({ isScreen, mayDrawCircles }) {
   return {
     "no-console": "error",
     "no-debugger": "error",
-    "no-restricted-syntax": ["error", ...DOT_INDICATOR_SELECTORS, ...(mayDrawCircles ? [] : SVG_CIRCLE_SELECTORS), ...(isScreen ? HAND_BUILT_CONTROL_SELECTORS : [])],
+    "no-restricted-syntax": ["error", ...VIEW_FULL_ACCESS_SELECTORS, ...DOT_INDICATOR_SELECTORS, ...(mayDrawCircles ? [] : SVG_CIRCLE_SELECTORS), ...(isScreen ? HAND_BUILT_CONTROL_SELECTORS : [])],
     "no-restricted-imports": ["error", { paths: ROUND_STATUS_ICON_IMPORTS, patterns: isScreen ? SHADCN_IMPORT_PATTERNS : [] }],
   };
 }

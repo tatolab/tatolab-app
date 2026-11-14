@@ -257,7 +257,11 @@ for carried_runtime_member in bin/tatolabd bin/tatolab bin/uv bin/tatolab-video-
   grep -qE "^-rwxr-xr-x .*[[:space:]]\./usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member\$" <<<"$deb_contents" \
     || { echo "the .deb carries no runnable usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member" >&2; exit 1; }
 done
-for carried_runtime_member in streamlib-commit; do
+for carried_runtime_member in lib/tatolab/browser-host/tatolab-browser-host lib/tatolab/browser-host/tatolab-browser-subprocess; do
+  grep -qE "^-rwxr-xr-x .*[[:space:]]\./usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member\$" <<<"$deb_contents" \
+    || { echo "the .deb carries no runnable usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member: no BrowserSource can open a page" >&2; exit 1; }
+done
+for carried_runtime_member in streamlib-commit lib/tatolab/browser-host/libcef.so lib/tatolab/browser-host/LICENSE.txt; do
   grep -qF "./usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member" <<<"$deb_contents" \
     || { echo "the .deb carries no usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member" >&2; exit 1; }
 done
