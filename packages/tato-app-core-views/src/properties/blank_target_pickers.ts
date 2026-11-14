@@ -14,6 +14,11 @@ export function blankTargetPickerKeysOfThePort(blankPickers: BlankTargetPickersO
   return blankPickers.nodeId === nodeId ? (blankPickers.keysByPort.get(port) ?? []) : [];
 }
 
+/** The blank pickers a port shows: an input takes one link, so once the graph links it, a picker left blank by an edit that did not apply is gone. */
+export function blankTargetPickerKeysShownOnThePort(direction: "input" | "output", linkedEndCount: number, blankPickerKeys: readonly string[]): readonly string[] {
+  return direction === "input" && linkedEndCount > 0 ? [] : blankPickerKeys;
+}
+
 /** `blankPickers` with a blank picker `key` added to `nodeId`'s `port`, the pickers of any other node dropped. */
 export function withABlankTargetPickerAdded(blankPickers: BlankTargetPickersOfTheNode, nodeId: string, port: string, key: string): BlankTargetPickersOfTheNode {
   const keysByPort = new Map(blankPickers.nodeId === nodeId ? blankPickers.keysByPort : []);

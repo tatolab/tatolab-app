@@ -46,7 +46,7 @@ import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
 import { chosenProjectAssetOf, chosenProjectAssetWords, projectAssetsForTheAssetFieldsOf } from "./project_asset_choices";
 import { previewPictureUrlOf } from "../library/library_asset_preview_pictures";
 import { useAssetPreviewPicturesOfTheProject } from "../library/use_asset_preview_pictures_of_the_project";
-import { blankTargetPickerKeysOfThePort, NO_BLANK_TARGET_PICKERS, withABlankTargetPickerAdded, withoutTheBlankTargetPicker, type BlankTargetPickersOfTheNode } from "./blank_target_pickers";
+import { blankTargetPickerKeysOfThePort, blankTargetPickerKeysShownOnThePort, NO_BLANK_TARGET_PICKERS, withABlankTargetPickerAdded, withoutTheBlankTargetPicker, type BlankTargetPickersOfTheNode } from "./blank_target_pickers";
 import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
 import { streamGraphLevelAtTheSubgraphIds } from "../stream_graph/stream_graph_levels";
 
@@ -467,7 +467,7 @@ function PortRowsOfOneDirection({
     const facts = direction === "input" ? streamFactsAnInputReceives(graph, node.name, port) : port;
     const familyWords = port.family === null ? "Unknown" : nodeGraphPinFamilyWords(port.family);
     const pinValue = node.pins[port.name];
-    const blankPickerKeys = blankTargetPickerKeysOfThePort(blankTargetPickers, node.id, port.name);
+    const blankPickerKeys = blankTargetPickerKeysShownOnThePort(direction, linkedEnds.length, blankTargetPickerKeysOfThePort(blankTargetPickers, node.id, port.name));
     const note = portsToConnectNote(direction, streamName, familyWords);
     const choicesOfAPicker = (stream: string, replacing: LinkedEndOfAPort | null, whenConnected: () => void) => () =>
       portsToConnect(stream, graph, node, direction, port, replacing).map((portToConnect) => ({
