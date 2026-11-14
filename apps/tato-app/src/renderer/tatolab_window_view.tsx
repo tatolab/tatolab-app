@@ -11,13 +11,14 @@ import {
   TatolabWindowStatusStore,
   type TatolabWindowEnvironment,
 } from "./setup_and_settings/tatolab_window_context";
-import { RUN_LIVE_KEY, studioMenusSentToTheSystemMenuBar, type StudioMenuBarCommands } from "./studio_shell/studio_menu_bar_model";
+import { projectPlaybackCommandOf, RUN_LIVE_KEY, studioMenusSentToTheSystemMenuBar, type StudioMenuBarCommands } from "./studio_shell/studio_menu_bar_model";
+import { presentProjectPlaybackControls } from "./presentation/project_playback_presentation";
 import { ModuleManagerWindowView, type ModuleManagerSources } from "./studio_shell/module_manager_window_view";
 import { PoppedOutViewWindowView } from "./studio_shell/popped_out_view_window_view";
 import { THE_ASSET_PICKER_CLOSED } from "./studio_shell/project_asset_picker_dialog_view";
 import { poppedOutViewOfTheArea } from "./studio_shell/popped_out_view_pin";
 import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_window";
-import { StudioWindowModel } from "./studio_shell/studio_window_model";
+import { projectPlaybackReadingOf, StudioWindowModel } from "./studio_shell/studio_window_model";
 import { STUDIO_LAYOUT_PRESETS_ON_A_DIGIT, StudioLayoutKeptInStorage } from "./studio_shell/studio_layout";
 
 import { studioViewHostServicesOf } from "./view_host/studio_view_host_services";
@@ -411,8 +412,10 @@ export function mountTatolabWindow(
     if (keyboardEvent.key === RUN_LIVE_KEY && !keyboardEvent.metaKey && !keyboardEvent.ctrlKey && !keyboardEvent.altKey) {
       if (studioWindowModel.studioLayout.readLatest() === null) return;
       keyboardEvent.preventDefault();
-      if (keyboardEvent.shiftKey) studioMenuBarCommands.stopTheProject();
-      else studioMenuBarCommands.runTheProjectLive();
+      const askedFor = keyboardEvent.shiftKey ? "stop" : "run";
+      const playbackControls = presentProjectPlaybackControls(projectPlaybackReadingOf(statusStore.readLatestStatus(), studioWindowModel.openProject.readLatest()));
+      const choiceOfTheKey = playbackControls.choices.find((choice) => choice.asked_for === askedFor);
+      if (choiceOfTheKey?.unavailable_because === null) projectPlaybackCommandOf(askedFor, studioMenuBarCommands)();
       return;
     }
     if (keyboardEvent.key === "Tab" && keyboardEvent.ctrlKey && !keyboardEvent.metaKey && !keyboardEvent.altKey) {

@@ -12,11 +12,12 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import type { LucideIcon } from "lucide-react";
+import { ChevronDown, type LucideIcon } from "lucide-react";
 import { Button } from "./ui/button";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
-import { ICON_BUTTON_CLASS_NAMES, STOCK_ICON_BUTTON_SIZE } from "./icon_button";
+import { ICON_BUTTON_BRAND_GROUND_CLASS_NAMES, ICON_BUTTON_CLASS_NAMES, IconButton, STOCK_ICON_BUTTON_SIZE } from "./icon_button";
+import { WithControlTooltip } from "./control_tooltip";
 
 /** One rectangle of a menu entry's picture, in percent of the picture's width and height; the emphasised one is drawn in the brand colour. */
 export interface StudioMenuEntryPictureArea {
@@ -161,5 +162,71 @@ export function StudioMenuButton({
         <StudioMenuEntries entries={entries} />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * An icon button that runs one command, joined to a chevron that opens the entries of one of the menu bar's menus, as the title row's player control leads
+ * with the playback's next step beside Run's entries. While what it controls is live, both halves stand on the brand's ground and the icon is drawn filled.
+ */
+export function StudioSplitMenuButton({
+  icon,
+  label,
+  unavailableBecause,
+  isLive,
+  onPressed,
+  menuLabel,
+  entries,
+  menuDataAttributes = {},
+  ...controlDataAttributes
+}: {
+  icon: LucideIcon;
+  /** The button's accessible name and its tooltip, as "Pause the project". */
+  label: string;
+  /** Why the button cannot act now, which its tooltip says instead; never set while it is live. */
+  unavailableBecause: string | null;
+  isLive: boolean;
+  onPressed: () => void;
+  /** The chevron's accessible name and its tooltip, as "Playback choices". */
+  menuLabel: string;
+  entries: readonly StudioMenuEntry[];
+  /** The `data-*` attributes of the chevron, as the button's own go on the button. */
+  menuDataAttributes?: ControlDataAttributes;
+} & ControlDataAttributes) {
+  return (
+    <span className="flex shrink-0" data-studio-split-menu-button="" data-live={isLive || undefined}>
+      <IconButton
+        icon={icon}
+        label={label}
+        disabledReason={isLive ? null : unavailableBecause}
+        isIconFilled={isLive}
+        ground={isLive ? "brand" : "window"}
+        isJoinedToAMenuOnItsRight
+        onPressed={onPressed}
+        {...controlDataAttributes}
+      />
+      <DropdownMenu>
+        <WithControlTooltip
+          tooltip={menuLabel}
+          control={
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  className={cn(ICON_BUTTON_CLASS_NAMES, "h-7 w-5 min-w-5 rounded-l-none px-0", isLive && cn(ICON_BUTTON_BRAND_GROUND_CLASS_NAMES, "border-l border-l-primary-foreground/25"))}
+                />
+              }
+              aria-label={menuLabel}
+              {...menuDataAttributes}
+            >
+              <ChevronDown className="size-3" strokeWidth={2} aria-hidden />
+            </DropdownMenuTrigger>
+          }
+        />
+        <DropdownMenuContent align="end" className="w-max min-w-[230px]">
+          <StudioMenuEntries entries={entries} />
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
   );
 }

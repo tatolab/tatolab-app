@@ -728,6 +728,16 @@ test("Live opens then plays a closed project, reloads then plays a stopped one w
     queued: [["reload_project", projectFolder]],
   });
   expect((await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, "stopped")])).queued).toEqual([["start_playback", projectFolder]]);
+  for (const streamStateMidAction of ["preparing", "stopping"]) {
+    expect((await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, streamStateMidAction)])).queued).toEqual([["start_playback", projectFolder]]);
+    expect((await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, streamStateMidAction), listedStreamOfTheProject(projectFolder, "failed", "lobby")])).queued).toEqual([
+      ["reload_project", projectFolder],
+      ["start_playback", projectFolder],
+    ]);
+    expect(
+      (await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, "running"), listedStreamOfTheProject(projectFolder, streamStateMidAction, "camera"), listedStreamOfTheProject(projectFolder, "failed", "lobby")])).queued,
+    ).toEqual([["reload_project", projectFolder]]);
+  }
   expect(await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, "paused")])).toEqual({ answer: { ok: true, value: null }, queued: [["resume_playback", projectFolder]] });
   expect((await runTheProjectLiveListing([listedStreamOfTheProject(projectFolder, "paused"), listedStreamOfTheProject(projectFolder, "failed", "lobby")])).queued).toEqual([
     ["reload_project", projectFolder],

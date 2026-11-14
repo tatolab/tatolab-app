@@ -9,8 +9,10 @@ import { StudioMenuBar } from "@tatolab/tato-app-view-sdk/design_system/menu_bar
 import { MenuGroup, MenuItem, MenuItemThatCannotBeChosen, MenuNote, MenuSeparator, MenuSingleChoiceGroup } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { StudioAreaFrame, StudioAreaHeaderMenu, StudioAreaOverAViewsOwnFrame, StudioViewIconMark, type StudioAreaHeaderMenuIcon } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
+import { ToolbarDivider } from "@tatolab/tato-app-view-sdk/design_system/toolbar";
 import { WindowNotice } from "@tatolab/tato-app-view-sdk/design_system/window_notice";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
+import { presentProjectPlaybackControls, type ProjectPlaybackAskedFor, type ProjectPlaybackControls } from "../presentation/project_playback_presentation";
 import { streamTabsDrawnInTheTitleRow } from "../presentation/stream_tabs_presentation";
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { presentProjectStreamActionFailureTitle, presentRecentProjectChangeRefusalTitle } from "../presentation/projects_presentation";
@@ -32,8 +34,9 @@ import { NameFormDialog } from "./name_form_dialog_view";
 import { ProjectAssetPickerDialogView } from "./project_asset_picker_dialog_view";
 import { studioLayoutWithEdgesHidden } from "./studio_layout_shapes";
 import { StudioTitleRowLayoutButtons } from "./studio_title_row_layout_buttons";
+import { StudioTitleRowPlayerControl } from "./studio_title_row_player_control";
 import { StreamMenuDialogsView, type StreamEditsOfTheStreamMenu } from "./stream_menu_dialogs_view";
-import type { ProjectPlaybackAskedFor, StudioWindowModel } from "./studio_window_model";
+import { openProjectFolderOf, projectPlaybackReadingOf, type StudioWindowModel } from "./studio_window_model";
 
 /** Who the view-type menu says brings the views the app ships with itself. */
 const TATO_STUDIO_AS_A_VIEW_SOURCE = "Tato Studio";
@@ -278,16 +281,27 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
     () => ({ shown_stream_display_name: shownStreamDisplayName, open_tab_count: openStreamTabCount, has_a_closed_tab_to_reopen: hasAClosedStreamTabToReopen }),
     [shownStreamDisplayName, openStreamTabCount, hasAClosedStreamTabToReopen],
   );
+  const playbackReading = projectPlaybackReadingOf(status, openProject);
+  const playbackListed = playbackReading.kind === "listed" ? playbackReading.listed.playback : null;
+  const aStreamOfThePlaybackHasFailed = playbackReading.kind === "listed" && playbackReading.listed.a_stream_has_failed;
+  const playbackNotListedBecause = playbackReading.kind === "not_listed" ? playbackReading.because : "";
+  const playbackControls = useMemo<ProjectPlaybackControls>(
+    () =>
+      presentProjectPlaybackControls(
+        playbackListed === null ? { kind: "not_listed", because: playbackNotListedBecause } : { kind: "listed", listed: { playback: playbackListed, a_stream_has_failed: aStreamOfThePlaybackHasFailed } },
+      ),
+    [playbackListed, aStreamOfThePlaybackHasFailed, playbackNotListedBecause],
+  );
   useEffect(() => {
-    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(layoutInTheMenus, streamTabsInTheMenus, status.app_update, commands));
-  }, [menusLiveInTheSystemMenuBar, systemMenuBar, layoutInTheMenus, streamTabsInTheMenus, status.app_update, commands]);
+    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(layoutInTheMenus, streamTabsInTheMenus, playbackControls, status.app_update, commands));
+  }, [menusLiveInTheSystemMenuBar, systemMenuBar, layoutInTheMenus, streamTabsInTheMenus, playbackControls, status.app_update, commands]);
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       {isAProjectShown ? (
         <header className="flex shrink-0 flex-col bg-studio-menu-bar">
           {!menusLiveInTheSystemMenuBar && (
             <div className="flex h-8 items-center pr-2.5 pl-(--studio-menu-bar-leading-inset)" data-studio-menu-row="">
-              <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, layoutInTheMenus, streamTabsInTheMenus, status.app_update, commands)} />
+              <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, layoutInTheMenus, streamTabsInTheMenus, playbackControls, status.app_update, commands)} />
             </div>
           )}
           <div
@@ -311,6 +325,8 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               whenNoneIsOpen="Open a stream from the outliner to see it here."
             />
             <div className="min-w-6 flex-1" />
+            <StudioTitleRowPlayerControl playbackControls={playbackControls} commands={commands} />
+            <ToolbarDivider />
             <StudioTitleRowLayoutButtons model={model} studioLayout={studioLayout} commands={commands} platform={platform} />
           </div>
         </header>
@@ -333,7 +349,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
           </main>
           <StudioStatusBar
             viewHostServices={sources.viewHostServices}
-            projectFolder={openProject.kind === "read" ? openProject.open_project.project.folder : openProject.kind === "unreadable" ? openProject.folder : null}
+            projectFolder={openProjectFolderOf(openProject)}
           />
         </>
       )}
