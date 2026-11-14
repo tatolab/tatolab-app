@@ -27,14 +27,12 @@ docker run --rm \
   cd /work/apps/tato-app
   npm run build >/dev/null
   echo "main entry: $(node -p "require(\"./package.json\").main")"; ls out
-  export XDG_RUNTIME_DIR=/tmp/xdg-runtime SYSTEMCTL_STAND_IN_STATE=/tmp/systemctl-stand-in
-  mkdir -p -m 0700 $XDG_RUNTIME_DIR && mkdir -p $SYSTEMCTL_STAND_IN_STATE
-  touch $SYSTEMCTL_STAND_IN_STATE/tatolabd.service $SYSTEMCTL_STAND_IN_STATE/enabled
-  export PATH=/work/apps/tato-app/scripts/verify/linux-stand-ins:$PATH
-  systemctl --user start tatolabd.service
+  export XDG_RUNTIME_DIR=/tmp/xdg-runtime
+  mkdir -p -m 0700 $XDG_RUNTIME_DIR/streamlib
+  node /work/apps/tato-app/scripts/verify/linux-stand-ins/tatolabd-local-api-stand-in.mjs \
+    $XDG_RUNTIME_DIR/streamlib/local-api.sock >/tmp/local-api-stand-in.log 2>&1 &
   Xvfb :99 -screen 0 1440x900x24 >/dev/null 2>&1 & export DISPLAY=:99
   dbus-launch --exit-with-session npx electron . --no-sandbox --remote-debugging-port=9333 >/tmp/electron.log 2>&1 &
   sleep 12
   node /work/apps/tato-app/scripts/verify/shoot-the-streams-list-over-devtools.mjs /verify-output
-  echo "systemctl stand-in received:"; cat $SYSTEMCTL_STAND_IN_STATE/commands
 '
