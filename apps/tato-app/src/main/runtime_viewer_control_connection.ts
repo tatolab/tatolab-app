@@ -22,8 +22,17 @@ export interface OpenedRuntimeViewer {
   channel: string;
   /** The iceoryx2 event service the port's node notifies on each write to `channel`. */
   wake_service: string;
+  /** Which of the port's messages the viewer reads: `every_message` for a Channels port, in order as far back as the channel holds them, `latest_message` for every other family. */
+  viewer_reads: RuntimeViewerReads;
   /** The surface-sharing socket's path on Linux, its Mach service's name on macOS; `null` on macOS when the open named no `viewer_process_id`. */
   surface_share_address: string | null;
+}
+
+/** Which of a port's messages a viewer reads, as `open_viewer` answers it. */
+export type RuntimeViewerReads = "latest_message" | "every_message";
+
+function isARuntimeViewerReads(wireValue: string): wireValue is RuntimeViewerReads {
+  return wireValue === "latest_message" || wireValue === "every_message";
 }
 
 /** The output port of a running node a viewer reads, and the process that imports its Image frames. */
@@ -60,6 +69,9 @@ function openedRuntimeViewerOnTheWire(toolResult: JsonObjectOnTheWire): Result<O
   if (!channel.ok) return channel;
   const wakeService = requiredText(toolResult, "wake_service");
   if (!wakeService.ok) return wakeService;
+  const viewerReads = requiredText(toolResult, "viewer_reads");
+  if (!viewerReads.ok) return viewerReads;
+  if (!isARuntimeViewerReads(viewerReads.value)) return failedWith(`its viewer_reads is ${JSON.stringify(viewerReads.value)}, not latest_message or every_message`);
   const surfaceShareAddress = optionalText(toolResult, "surface_share_address");
   if (!surfaceShareAddress.ok) return surfaceShareAddress;
   return succeeded({
@@ -71,6 +83,7 @@ function openedRuntimeViewerOnTheWire(toolResult: JsonObjectOnTheWire): Result<O
     iceoryx2_domain_root: iceoryx2DomainRoot.value,
     channel: channel.value,
     wake_service: wakeService.value,
+    viewer_reads: viewerReads.value,
     surface_share_address: surfaceShareAddress.value,
   });
 }

@@ -201,7 +201,7 @@ export class RuntimePortViewers {
     this.targetKeysBeingOpened.delete(targetKey);
     if (!opened.ok) return opened;
     this.runtimeViewersByTargetKey.set(targetKey, opened.value);
-    this.readTheLatestMessage(targetKey, opened.value);
+    this.readWhatTheViewerReads(targetKey, opened.value);
     return opened;
   }
 
@@ -289,25 +289,34 @@ export class RuntimePortViewers {
       this.endEveryPortViewerOf(targetKey, `The viewer stopped reading ${heldOpen.openedViewer.node_name} › ${heldOpen.openedViewer.port}: ${failure.message}`);
       return;
     }
-    this.readTheLatestMessage(targetKey, heldOpen);
+    this.readWhatTheViewerReads(targetKey, heldOpen);
   }
 
-  private readTheLatestMessage(targetKey: string, heldOpen: RuntimeViewerHeldOpen): void {
+  private readWhatTheViewerReads(targetKey: string, heldOpen: RuntimeViewerHeldOpen): void {
     if (heldOpen.aReadIsUnderWay) {
       heldOpen.aWriteCameDuringTheRead = true;
       return;
     }
     heldOpen.aReadIsUnderWay = true;
     heldOpen.aWriteCameDuringTheRead = false;
-    heldOpen.channelReader.readLatestMessage().then(
-      (messageRead) => {
+    const messagesRead =
+      heldOpen.openedViewer.viewer_reads === "every_message"
+        ? heldOpen.channelReader.readEveryMessage()
+        : heldOpen.channelReader.readLatestMessage().then((messageRead) => (messageRead === null ? [] : [messageRead]));
+    messagesRead.then(
+      (messagesReadNow) => {
         heldOpen.aReadIsUnderWay = false;
         if (this.runtimeViewersByTargetKey.get(targetKey) !== heldOpen) {
-          if (messageRead?.imageFrame) heldOpen.channelReader.releaseHeldImageFrame(messageRead.imageFrame.heldFrameId);
+          for (const messageRead of messagesReadNow) {
+            if (messageRead.imageFrame) heldOpen.channelReader.releaseHeldImageFrame(messageRead.imageFrame.heldFrameId);
+          }
           return;
         }
-        if (messageRead !== null) this.handTheMessageToItsWindows(targetKey, heldOpen, messageRead);
-        if (heldOpen.aWriteCameDuringTheRead && this.runtimeViewersByTargetKey.get(targetKey) === heldOpen) this.readTheLatestMessage(targetKey, heldOpen);
+        for (const messageRead of messagesReadNow) {
+          if (this.runtimeViewersByTargetKey.get(targetKey) === heldOpen) this.handTheMessageToItsWindows(targetKey, heldOpen, messageRead);
+          else if (messageRead.imageFrame) heldOpen.channelReader.releaseHeldImageFrame(messageRead.imageFrame.heldFrameId);
+        }
+        if (heldOpen.aWriteCameDuringTheRead && this.runtimeViewersByTargetKey.get(targetKey) === heldOpen) this.readWhatTheViewerReads(targetKey, heldOpen);
       },
       (readRefusal: unknown) => {
         heldOpen.aReadIsUnderWay = false;

@@ -55,12 +55,12 @@ export interface RuntimeViewerArrayAttribute {
   byteLen: number | null;
 }
 
-/** The latest message a viewer read from its port. */
+/** A message a viewer read from its port. */
 export interface RuntimeViewerMessageRead {
   /** `image`, `channels`, `packets`, `records`, `array`, or `bytes` for a payload no family describes. */
   portFamily: string;
   timestampNs: number;
-  /** Messages skipped since the previous read, because a viewer reads only the latest. */
+  /** Messages lost ahead of this one: passed over by a viewer reading the latest, or overwritten on a ring it fell behind on. */
   skippedSinceLastRead: number;
   imageFrame: RuntimeViewerImageFrame | null;
   /** The payload as the node wrote it, for every family but Image. */
@@ -80,6 +80,8 @@ export interface RuntimeViewerMessageRead {
 /** The addon's reader of one viewer's channel, opened from what `open_viewer` answered. */
 export interface RuntimeViewerChannelReaderOfTheAddon {
   readLatestMessage(): Promise<RuntimeViewerMessageRead | null>;
+  /** Every message the port's node wrote since the previous read, oldest first; for a viewer `open_viewer` said reads every message. */
+  readEveryMessage(): Promise<RuntimeViewerMessageRead[]>;
   /** Call `tellAWriteCame` with `null` after each write the port's node makes, until `close`, and once with the failure when the reader stops hearing writes; refused by throwing on a second call. */
   followWrites(tellAWriteCame: (failure: Error | null) => void): void;
   releaseHeldImageFrame(heldFrameId: number): void;

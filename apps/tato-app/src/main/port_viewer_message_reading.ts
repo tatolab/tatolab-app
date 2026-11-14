@@ -1,5 +1,5 @@
 // What a port viewer reads of one message of a family other than Image, from what the viewer addon
-// handed over: a Channels block as one waveform per channel, an Array frame's attributes with the
+// handed over: a Channels block as one waveform per channel beside its samples, an Array frame's attributes with the
 // statistics of their numeric data, a Packets unit's codec, size and keyframe flag, and a Records
 // message's keyed map.
 
@@ -70,6 +70,10 @@ function channelsReadingOf(block: RuntimeViewerChannelsBlock, payload: Uint8Arra
     samples_per_channel: block.samplesPerChannel,
     sample_type: sampleType,
     channel_waveforms: channelWaveforms,
+    channel_samples: Array.from({ length: block.channelCount }, (_, channel) => {
+      const firstSample = channel * block.samplesPerChannel;
+      return Float32Array.from(samples.subarray(firstSample, firstSample + block.samplesPerChannel));
+    }),
   };
 }
 

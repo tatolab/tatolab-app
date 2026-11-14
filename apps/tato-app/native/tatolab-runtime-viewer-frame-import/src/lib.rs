@@ -1,5 +1,6 @@
 //! Tato Studio's reader of one runtime viewer: it takes the reserved subscriber slot of the channel
-//! `open_viewer` answered, reads the latest message the port's node wrote, and for an Image message
+//! `open_viewer` answered, reads the latest message the port's node wrote, or every one for a viewer
+//! `open_viewer` said reads every message, and for an Image message
 //! claims and imports the pooled frame it names, handing Electron's `sharedTexture` what it imports
 //! from (DMA-BUF planes on Linux, an IOSurface on macOS). A frame stays claimed against the runtime's
 //! reuse until `releaseHeldImageFrame` names it. Every other family's message comes with what its
@@ -20,7 +21,7 @@ use streamlib_gpu_frame_import_client::{GpuPoolFrameHeldByAViewer, GpuPoolFrameI
 use streamlib_ipc_types::{
     ArrayFrameAttributeResidency, ArrayFrameDescriptorBody, ChannelsBlockDescriptorBody,
     ChannelsBlockSampleType, DataChannelPayloadDescriptorKind, ImageFrameDescriptorBody,
-    MessageGroupBoundary, MessageReadFromAReservedSlot, OutputPortViewerReader, OutputPortViewerWake,
+    MessageGroupBoundary, MessageReadFromAReservedSlot, OutputPortViewerReader, OutputPortViewerReads, OutputPortViewerWake,
     PacketsUnitDescriptorBody, array_frame_attribute_table_of,
 };
 
@@ -89,7 +90,7 @@ pub struct RuntimeViewerArrayAttribute {
     pub byte_len: Option<f64>,
 }
 
-/// The latest message a viewer read from the port.
+/// A message a viewer read from the port.
 #[napi(object, use_nullable = true)]
 pub struct RuntimeViewerMessageRead {
     /// The port family the message's descriptor names: `image`, `channels`, `packets`, `records`,
@@ -97,7 +98,8 @@ pub struct RuntimeViewerMessageRead {
     pub port_family: String,
     /// The node's publish stamp, in nanoseconds of its stream's clock.
     pub timestamp_ns: i64,
-    /// Messages the viewer skipped since its previous read, because it reads only the latest.
+    /// Messages lost ahead of this one: passed over by a viewer reading the latest, or overwritten on
+    /// a ring the viewer fell behind on.
     pub skipped_since_last_read: f64,
     /// The Image frame, for an Image message.
     pub image_frame: Option<RuntimeViewerImageFrame>,
@@ -144,7 +146,8 @@ type TellTheWindowAWriteCame = ThreadsafeFunction<(), (), (), Status, true, true
 #[napi]
 impl RuntimeViewerChannelReader {
     /// Subscribe to `channel` in the iceoryx2 domain at `iceoryx2DomainRoot` as `viewerNodeName`,
-    /// woken through the event service `wakeService`, importing Image frames from `surfaceShareAddress` (`null` reads every family but Image). On
+    /// reading the messages `viewerReads` names (`latest_message` or `every_message`, as `open_viewer`
+    /// answered), woken through the event service `wakeService`, importing Image frames from `surfaceShareAddress` (`null` reads every family but Image). On
     /// Linux `viewedFrameReadBy` asks the runtime for each frame as DMA-BUF planes the display imports
     /// (`display_import`) or as rows the CPU reads (`cpu_read`); macOS always hands an IOSurface.
     #[napi(constructor)]
@@ -152,16 +155,23 @@ impl RuntimeViewerChannelReader {
         iceoryx2_domain_root: String,
         channel: String,
         wake_service: String,
+        viewer_reads: String,
         surface_share_address: Option<String>,
         viewer_node_name: String,
         viewed_frame_read_by: String,
     ) -> Result<Self> {
+        let viewer_reads = match viewer_reads.as_str() {
+            "latest_message" => OutputPortViewerReads::LatestMessage,
+            "every_message" => OutputPortViewerReads::EveryMessage,
+            other => return Err(Error::from_reason(format!("a viewer reads latest_message or every_message, not {other:?}"))),
+        };
         let gpu_pool_frame_importer_for = gpu_pool_frame_importer_reading_by(&viewed_frame_read_by)?;
         let output_port_viewer_reader = OutputPortViewerReader::subscribe(
             std::path::Path::new(&iceoryx2_domain_root),
             &channel,
             &wake_service,
             &viewer_node_name,
+            viewer_reads,
         )
         .map_err(|refusal| Error::from_reason(format!("the viewer could not subscribe to {channel}: {refusal:?}")))?;
         let output_port_viewer_wake = output_port_viewer_reader.wake();
@@ -185,6 +195,14 @@ impl RuntimeViewerChannelReader {
     #[napi(ts_return_type = "Promise<RuntimeViewerMessageRead | null>")]
     pub fn read_latest_message(&self) -> AsyncTask<ReadTheLatestViewerMessage> {
         AsyncTask::new(ReadTheLatestViewerMessage { reader_state: Arc::clone(&self.reader_state) })
+    }
+
+    /// Every message the port's node wrote since the previous read, oldest first, each counting the
+    /// messages lost ahead of it; empty when none came. For a viewer opened to read every message: a
+    /// Channels port, whose messages name no Image frame to hold.
+    #[napi(ts_return_type = "Promise<RuntimeViewerMessageRead[]>")]
+    pub fn read_every_message(&self) -> AsyncTask<ReadEveryViewerMessage> {
+        AsyncTask::new(ReadEveryViewerMessage { reader_state: Arc::clone(&self.reader_state) })
     }
 
     /// Release the frame `heldFrameId` so the runtime may reuse its pool slot; a frame already
@@ -322,32 +340,60 @@ impl Task for ReadTheLatestViewerMessage {
     }
 
     fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
-        Ok(output.map(|message| RuntimeViewerMessageRead {
-            port_family: message.port_family.to_owned(),
-            timestamp_ns: message.timestamp_ns,
-            skipped_since_last_read: message.skipped_since_last_read as f64,
-            payload: message.payload.map(Buffer::from),
-            starts_group: message.starts_group,
-            channels_block: message.family_reading.channels_block,
-            packets_codec: message.family_reading.packets_codec,
-            array_attributes: message.family_reading.array_attributes,
-            records_json: message.family_reading.records_json,
-            unreadable_because: message.family_reading.unreadable_because,
-            image_frame: message.image_frame.map(|image_frame| RuntimeViewerImageFrame {
-                held_frame_id: image_frame.held_frame_id,
-                width: image_frame.width,
-                height: image_frame.height,
-                electron_pixel_format: electron_pixel_format_of(&image_frame.format_wire_name).map(str::to_owned),
-                format_wire_name: image_frame.format_wire_name,
-                bytes_per_row: saturating_u32(image_frame.bytes_per_row),
-                dma_buf_modifier: image_frame.dma_buf_drm_format_modifier.map(|modifier| modifier.to_string()),
-                dma_buf_planes: image_frame.dma_buf_planes,
-                cpu_read_bytes: image_frame.cpu_read_bytes.map(Buffer::from),
-                io_surface: image_frame
-                    .io_surface_pointer
-                    .map(|pointer| Buffer::from(pointer.to_ne_bytes().to_vec())),
-            }),
-        }))
+        Ok(output.map(runtime_viewer_message_read_of))
+    }
+}
+
+/// One `readEveryMessage`, run on libuv's thread pool.
+pub struct ReadEveryViewerMessage {
+    reader_state: Arc<Mutex<Option<RuntimeViewerReaderState>>>,
+}
+
+impl Task for ReadEveryViewerMessage {
+    type Output = Vec<ViewerMessageReadOffTheEventLoop>;
+    type JsValue = Vec<RuntimeViewerMessageRead>;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        let mut reader_state_guard = self.reader_state.lock();
+        let Some(reader_state) = reader_state_guard.as_mut() else {
+            return Err(Error::from_reason("the viewer's channel reader is closed"));
+        };
+        let messages = reader_state.output_port_viewer_reader.read_every_message().map_err(Error::from_reason)?;
+        messages.into_iter().map(|message| read_the_message(reader_state, message)).collect()
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(output.into_iter().map(runtime_viewer_message_read_of).collect())
+    }
+}
+
+/// `message` as the JavaScript object a read resolves with.
+fn runtime_viewer_message_read_of(message: ViewerMessageReadOffTheEventLoop) -> RuntimeViewerMessageRead {
+    RuntimeViewerMessageRead {
+        port_family: message.port_family.to_owned(),
+        timestamp_ns: message.timestamp_ns,
+        skipped_since_last_read: message.skipped_since_last_read as f64,
+        payload: message.payload.map(Buffer::from),
+        starts_group: message.starts_group,
+        channels_block: message.family_reading.channels_block,
+        packets_codec: message.family_reading.packets_codec,
+        array_attributes: message.family_reading.array_attributes,
+        records_json: message.family_reading.records_json,
+        unreadable_because: message.family_reading.unreadable_because,
+        image_frame: message.image_frame.map(|image_frame| RuntimeViewerImageFrame {
+            held_frame_id: image_frame.held_frame_id,
+            width: image_frame.width,
+            height: image_frame.height,
+            electron_pixel_format: electron_pixel_format_of(&image_frame.format_wire_name).map(str::to_owned),
+            format_wire_name: image_frame.format_wire_name,
+            bytes_per_row: saturating_u32(image_frame.bytes_per_row),
+            dma_buf_modifier: image_frame.dma_buf_drm_format_modifier.map(|modifier| modifier.to_string()),
+            dma_buf_planes: image_frame.dma_buf_planes,
+            cpu_read_bytes: image_frame.cpu_read_bytes.map(Buffer::from),
+            io_surface: image_frame
+                .io_surface_pointer
+                .map(|pointer| Buffer::from(pointer.to_ne_bytes().to_vec())),
+        }),
     }
 }
 

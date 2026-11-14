@@ -556,6 +556,8 @@ export const portViewerMessageReadingSchema = z.discriminatedUnion("family", [
     samples_per_channel: z.number(),
     sample_type: z.string(),
     channel_waveforms: z.array(portViewerChannelWaveformSchema),
+    /** The block's samples, one array per channel, each `samples_per_channel` long. */
+    channel_samples: z.array(z.custom<Float32Array>((value) => value instanceof Float32Array, "a channel's samples are a Float32Array")),
   }),
   z.object({ family: z.literal("array"), attributes: z.array(portViewerArrayAttributeReadingSchema) }),
   z.object({ family: z.literal("packets"), codec: z.string(), byte_length: z.number(), starts_group: z.boolean(), timestamp_ns: z.number() }),
