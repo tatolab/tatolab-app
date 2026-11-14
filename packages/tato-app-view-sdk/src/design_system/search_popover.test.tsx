@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Store } from "lucide-react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SearchPopover } from "./search_popover";
@@ -129,6 +129,111 @@ describe("the search popover", () => {
     Object.defineProperty(screen.getByRole("dialog"), "offsetHeight", { value: 460 });
     fireEvent.scroll(screen.getByRole("listbox"));
     expect(preview.style.top).toBe("64px");
+  });
+
+  describe("over an element whose width it can measure", () => {
+    const LAYOUT_PROPERTIES_THE_TEST_DOM_LEAVES_OUT = ["offsetParent", "offsetLeft", "offsetWidth"] as const;
+    const layoutPropertiesBeforeTheTest = LAYOUT_PROPERTIES_THE_TEST_DOM_LEAVES_OUT.map((property) => [property, Object.getOwnPropertyDescriptor(HTMLElement.prototype, property)] as const);
+    afterEach(() => {
+      for (const [property, descriptorBeforeTheTest] of layoutPropertiesBeforeTheTest) {
+        if (descriptorBeforeTheTest === undefined) Reflect.deleteProperty(HTMLElement.prototype, property);
+        else Object.defineProperty(HTMLElement.prototype, property, descriptorBeforeTheTest);
+      }
+      vi.unstubAllGlobals();
+    });
+
+    function openedOverAnElementThisWide(elementWidth: number, popoverProps: Partial<Parameters<typeof SearchPopover>[0]> = {}) {
+      const elementItOpensOver = document.createElement("div");
+      let elementWidthNow = elementWidth;
+      Object.defineProperty(elementItOpensOver, "clientWidth", { get: () => elementWidthNow });
+      let tellTheElementWasResized = () => {};
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          constructor(whenResized: () => void) {
+            tellTheElementWasResized = whenResized;
+          }
+          observe() {}
+          disconnect() {}
+        },
+      );
+      Object.defineProperty(HTMLElement.prototype, "offsetParent", { configurable: true, get: () => elementItOpensOver });
+      Object.defineProperty(HTMLElement.prototype, "offsetLeft", {
+        configurable: true,
+        get(this: HTMLElement) {
+          return Number.parseFloat(this.style.left) || 0;
+        },
+      });
+      Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+        configurable: true,
+        get(this: HTMLElement) {
+          return Number.parseFloat(this.style.width) || 0;
+        },
+      });
+      openedPopover({ previewOfTheItem: (itemId) => <span>{itemId}</span>, previewNarrowestWidthPx: 153, ...popoverProps });
+      return {
+        popover: screen.getByRole("dialog"),
+        preview: document.querySelector<HTMLElement>("[data-search-popover-preview]") ?? expect.unreachable("no preview"),
+        resizeTheElementTo: (widthAfterTheResize: number) => {
+          elementWidthNow = widthAfterTheResize;
+          act(tellTheElementWasResized);
+        },
+      };
+    }
+
+    it("narrows to keep its preview's room, and holds the preview to that room", () => {
+      const { popover, preview } = openedOverAnElementThisWide(612);
+      expect([popover.style.left, popover.style.width]).toEqual(["8px", "431px"]);
+      expect(preview.getAttribute("data-search-popover-preview-side")).toBe("right");
+      expect(preview.style.maxWidth).toBe("153px");
+      expect(preview.getAttribute("data-search-popover-preview-drawn")).toBe("true");
+    });
+
+    it("stays at its widest where the element holds it and its preview", () => {
+      const { popover, preview } = openedOverAnElementThisWide(948);
+      expect([popover.style.left, popover.style.width]).toEqual(["10px", "560px"]);
+      expect(preview.style.maxWidth).toBe("358px");
+      expect(preview.getAttribute("data-search-popover-preview-drawn")).toBe("true");
+    });
+
+    it("holds the preview to the room it has after the element is resized, with the popover where it was", () => {
+      const { popover, preview, resizeTheElementTo } = openedOverAnElementThisWide(948);
+      resizeTheElementTo(800);
+      expect([popover.style.left, popover.style.width]).toEqual(["10px", "560px"]);
+      expect(preview.style.maxWidth).toBe("210px");
+      resizeTheElementTo(612);
+      expect([popover.style.left, popover.style.width]).toEqual(["8px", "431px"]);
+      expect(preview.style.maxWidth).toBe("153px");
+    });
+
+    it("narrowed in a wide element, previews on the left wherever the left has the narrowest's room", () => {
+      const narrowed = { narrowedTo: { heading: "Takes Image", footnote: "Placing one links video to it." } };
+      const { popover, preview } = openedOverAnElementThisWide(1200, { ...narrowed, at: { x: 200, y: 10 } });
+      expect([popover.style.left, popover.style.width]).toEqual(["200px", "420px"]);
+      expect(preview.getAttribute("data-search-popover-preview-side")).toBe("left");
+      expect(preview.style.maxWidth).toBe("180px");
+    });
+
+    it("narrowed, previews on the right where only the right has the room", () => {
+      const narrowed = { narrowedTo: { heading: "Takes Image", footnote: "Placing one links video to it." } };
+      const { popover, preview } = openedOverAnElementThisWide(1200, { ...narrowed, at: { x: 40, y: 10 } });
+      expect([popover.style.left, popover.style.width]).toEqual(["40px", "420px"]);
+      expect(preview.getAttribute("data-search-popover-preview-side")).toBe("right");
+    });
+
+    it("narrowed, moves to keep its preview's room on the left", () => {
+      const { popover, preview } = openedOverAnElementThisWide(612, { narrowedTo: { heading: "Takes Image", footnote: "Placing one links video to it." }, at: { x: 100, y: 10 } });
+      expect([popover.style.left, popover.style.width]).toEqual(["173px", "420px"]);
+      expect(preview.getAttribute("data-search-popover-preview-side")).toBe("left");
+      expect(preview.style.maxWidth).toBe("153px");
+    });
+
+    it("draws no preview where the element is too narrow for both, and keeps the width it has with none", () => {
+      const { popover, preview } = openedOverAnElementThisWide(528);
+      expect([popover.style.left, popover.style.width]).toEqual(["8px", "512px"]);
+      expect(preview.getAttribute("data-search-popover-preview-drawn")).toBe("false");
+      expect(preview.style.visibility).toBe("hidden");
+    });
   });
 
   it("names its left-hand list and each opener in the words it is given", () => {

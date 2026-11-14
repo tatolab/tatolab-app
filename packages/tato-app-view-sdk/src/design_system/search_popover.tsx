@@ -4,11 +4,13 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type Reac
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { IconButton } from "./icon_button";
 import {
+  SEARCH_POPOVER_EDGE_GAP_PX,
   searchPopoverEntries,
   searchPopoverEntriesShown,
   searchPopoverEntryItOpensOn,
   searchPopoverItemAfterAnArrow,
   searchPopoverItemsMatching,
+  searchPopoverPlaceAcrossTheElement,
   searchPopoverPreviewSide,
   searchPopoverSectionsShown,
   type SearchPopoverEntry,
@@ -16,10 +18,10 @@ import {
   type SearchPopoverSection,
 } from "./support/search_popover_rows";
 
-/** How big the popover is at most in each layout, so it stays inside the element it opens over. */
+/** How big the popover is at most in each layout, so it stays inside the element it opens over, and how narrow it goes to keep a preview's room beside it. */
 const SEARCH_POPOVER_SIZE_PX = {
-  browsing_every_category: { width: 560, tallest: 460 },
-  narrowed: { width: 420, tallest: 420 },
+  browsing_every_category: { width: 560, narrowest_beside_a_preview: 400, tallest: 460 },
+  narrowed: { width: 420, narrowest_beside_a_preview: 320, tallest: 420 },
 } as const;
 
 /** The gap between the popover and the highlighted item's preview. */
@@ -67,6 +69,7 @@ export function SearchPopover({
   onClosed,
   actionsBesideTheField = [],
   previewOfTheItem,
+  previewNarrowestWidthPx,
   ...controlDataAttributes
 }: {
   /** The search's accessible name, as "Add a node". */
@@ -89,6 +92,8 @@ export function SearchPopover({
   actionsBesideTheField?: readonly SearchPopoverAction[];
   /** What the highlighted item looks like once chosen, drawn beside the popover; `null` for an item with nothing to show. */
   previewOfTheItem?: (itemId: string) => ReactNode;
+  /** The narrowest a preview is drawn. Given it, the popover keeps that room on one side, the preview is no wider than the room it has, and one with less is not drawn. */
+  previewNarrowestWidthPx?: number;
 } & ControlDataAttributes) {
   const [searchText, setSearchText] = useState("");
   const [entryChoice, setEntryChoice] = useState<SearchPopoverEntryChoice>({ kind: "the_entry_it_opens_on" });
@@ -132,7 +137,34 @@ export function SearchPopover({
   const preview = highlightedId === null || previewOfTheItem === undefined ? null : previewOfTheItem(highlightedId);
   const hasAPreview = preview !== null && preview !== undefined && preview !== false;
   const sideThePreviewIsDrawnOnFirst = narrowedTo === null ? "right" : "left";
-  const [previewPlace, setPreviewPlace] = useState<{ side: "left" | "right"; top: number }>({ side: sideThePreviewIsDrawnOnFirst, top: 0 });
+  const previewNarrowestWidth = previewOfTheItem === undefined ? null : (previewNarrowestWidthPx ?? null);
+  const [sizeOfTheElementItOpensOver, setSizeOfTheElementItOpensOver] = useState<{ width: number; height: number } | null>(null);
+  useLayoutEffect(() => {
+    const elementItOpensOver = popoverElement.current?.offsetParent;
+    if (!(elementItOpensOver instanceof HTMLElement)) return;
+    const measureTheElement = () => {
+      const sizeNow = { width: elementItOpensOver.clientWidth, height: elementItOpensOver.clientHeight };
+      setSizeOfTheElementItOpensOver((sizeMeasured) => (sizeMeasured?.width === sizeNow.width && sizeMeasured.height === sizeNow.height ? sizeMeasured : sizeNow));
+    };
+    measureTheElement();
+    if (typeof ResizeObserver === "undefined") return;
+    const elementResizeObserver = new ResizeObserver(measureTheElement);
+    elementResizeObserver.observe(elementItOpensOver);
+    return () => elementResizeObserver.disconnect();
+  }, []);
+  const placeAcrossTheElement = useMemo(
+    () =>
+      sizeOfTheElementItOpensOver === null
+        ? null
+        : searchPopoverPlaceAcrossTheElement(
+            sizeOfTheElementItOpensOver.width,
+            at.x,
+            size.width,
+            previewNarrowestWidth === null ? null : { roomNeeded: previewNarrowestWidth + SEARCH_POPOVER_PREVIEW_GAP_PX, narrowestWidth: size.narrowest_beside_a_preview, drawnOnFirst: sideThePreviewIsDrawnOnFirst },
+          ),
+    [sizeOfTheElementItOpensOver, at.x, size.width, size.narrowest_beside_a_preview, previewNarrowestWidth, sideThePreviewIsDrawnOnFirst],
+  );
+  const [previewPlace, setPreviewPlace] = useState<{ side: "left" | "right"; top: number; widest: number | null; hasItsRoom: boolean }>({ side: sideThePreviewIsDrawnOnFirst, top: 0, widest: null, hasItsRoom: true });
   useLayoutEffect(() => {
     const popover = popoverElement.current;
     const list = listElement.current;
@@ -145,16 +177,19 @@ export function SearchPopover({
       const previewSize = { width: previewElement.current?.offsetWidth ?? 0, height: previewElement.current?.offsetHeight ?? 0 };
       const roomOnTheLeft = popover.offsetLeft;
       const roomOnTheRight = (elementItOpensOver?.clientWidth ?? 0) - popover.offsetLeft - popover.offsetWidth;
-      const side = searchPopoverPreviewSide(sideThePreviewIsDrawnOnFirst, roomOnTheLeft, roomOnTheRight, previewSize.width + SEARCH_POPOVER_PREVIEW_GAP_PX);
+      const roomThePreviewNeeds = previewNarrowestWidth === null ? previewSize.width + SEARCH_POPOVER_PREVIEW_GAP_PX : previewNarrowestWidth + SEARCH_POPOVER_PREVIEW_GAP_PX + SEARCH_POPOVER_EDGE_GAP_PX;
+      const side = searchPopoverPreviewSide(sideThePreviewIsDrawnOnFirst, roomOnTheLeft, roomOnTheRight, roomThePreviewNeeds);
+      const widest = previewNarrowestWidth === null || elementItOpensOver === null ? null : (side === "left" ? roomOnTheLeft : roomOnTheRight) - SEARCH_POPOVER_PREVIEW_GAP_PX - SEARCH_POPOVER_EDGE_GAP_PX;
+      const hasItsRoom = widest === null || previewNarrowestWidth === null || widest >= previewNarrowestWidth;
       const topBesideTheRow = highlightedRow === null ? 0 : highlightedRow.getBoundingClientRect().top - popover.getBoundingClientRect().top;
       const lowestTopInsideTheElement = elementItOpensOver === null ? popover.offsetHeight : elementItOpensOver.clientHeight - popover.offsetTop - previewSize.height;
       const top = Math.max(0, Math.min(topBesideTheRow, popover.offsetHeight, lowestTopInsideTheElement));
-      setPreviewPlace((place) => (place.side === side && place.top === top ? place : { side, top }));
+      setPreviewPlace((place) => (place.side === side && place.top === top && place.widest === widest && place.hasItsRoom === hasItsRoom ? place : { side, top, widest, hasItsRoom }));
     };
     placeThePreviewBesideTheHighlightedRow();
     list.addEventListener("scroll", placeThePreviewBesideTheHighlightedRow);
     return () => list.removeEventListener("scroll", placeThePreviewBesideTheHighlightedRow);
-  }, [highlightedId, hasAPreview, sideThePreviewIsDrawnOnFirst, sectionsShown, at.x, at.y]);
+  }, [highlightedId, hasAPreview, sideThePreviewIsDrawnOnFirst, sectionsShown, at.x, at.y, sizeOfTheElementItOpensOver, placeAcrossTheElement, previewNarrowestWidth]);
 
   const entriesShown = searchPopoverEntriesShown(entries, isOpenByEntryId);
   const isAnyEntryHoldingCategories = entries.some((entry) => entry.holds_categories);
@@ -172,9 +207,9 @@ export function SearchPopover({
       aria-label={label}
       className="absolute z-20"
       style={{
-        left: `max(8px, min(${at.x}px, calc(100% - ${size.width + 8}px)))`,
+        left: placeAcrossTheElement?.left ?? `max(${SEARCH_POPOVER_EDGE_GAP_PX}px, min(${at.x}px, calc(100% - ${size.width + SEARCH_POPOVER_EDGE_GAP_PX}px)))`,
         top: `max(8px, min(${at.y}px, calc(100% - ${size.tallest + 8}px)))`,
-        width: `min(${size.width}px, calc(100% - 16px))`,
+        width: placeAcrossTheElement?.width ?? `min(${size.width}px, calc(100% - ${2 * SEARCH_POPOVER_EDGE_GAP_PX}px))`,
         height: narrowedTo === null ? `min(${size.tallest}px, calc(100% - 16px))` : undefined,
         maxHeight: `min(${size.tallest}px, calc(100% - 16px))`,
       }}
@@ -269,9 +304,15 @@ export function SearchPopover({
           ref={previewElement}
           aria-hidden
           className="pointer-events-none absolute w-max"
-          style={{ top: previewPlace.top, [previewPlace.side === "right" ? "left" : "right"]: `calc(100% + ${SEARCH_POPOVER_PREVIEW_GAP_PX}px)` }}
+          style={{
+            top: previewPlace.top,
+            [previewPlace.side === "right" ? "left" : "right"]: `calc(100% + ${SEARCH_POPOVER_PREVIEW_GAP_PX}px)`,
+            maxWidth: previewPlace.widest ?? undefined,
+            visibility: previewPlace.hasItsRoom ? undefined : "hidden",
+          }}
           data-search-popover-preview={highlightedId}
           data-search-popover-preview-side={previewPlace.side}
+          data-search-popover-preview-drawn={previewPlace.hasItsRoom}
         >
           {preview}
         </div>

@@ -6,6 +6,7 @@ import {
   searchPopoverEntryItOpensOn,
   searchPopoverItemAfterAnArrow,
   searchPopoverItemsMatching,
+  searchPopoverPlaceAcrossTheElement,
   searchPopoverPreviewSide,
   searchPopoverSectionsShown,
   type SearchPopoverItem,
@@ -124,4 +125,34 @@ test("the_preview_sits_on_its_first_side_unless_only_the_other_has_the_room", ()
   expect(searchPopoverPreviewSide("left", 300, 400, 260)).toBe("left");
   expect(searchPopoverPreviewSide("right", 50, 100, 260)).toBe("right");
   expect(searchPopoverPreviewSide("right", 0, 0, 260)).toBe("right");
+});
+
+test("a_popover_with_no_preview_opens_where_asked_at_its_widest_and_stays_inside_the_element", () => {
+  expect(searchPopoverPlaceAcrossTheElement(1200, 300, 560, null)).toEqual({ left: 300, width: 560 });
+  expect(searchPopoverPlaceAcrossTheElement(1200, 900, 560, null)).toEqual({ left: 632, width: 560 });
+  expect(searchPopoverPlaceAcrossTheElement(1200, -40, 560, null)).toEqual({ left: 8, width: 560 });
+  expect(searchPopoverPlaceAcrossTheElement(400, 120, 560, null)).toEqual({ left: 8, width: 384 });
+});
+
+test("a_popover_narrows_until_the_element_holds_it_and_its_preview", () => {
+  const previewOnTheRight = { roomNeeded: 165, narrowestWidth: 400, drawnOnFirst: "right" } as const;
+  expect(searchPopoverPlaceAcrossTheElement(612, 8, 560, previewOnTheRight)).toEqual({ left: 8, width: 431 });
+  expect(searchPopoverPlaceAcrossTheElement(756, 8, 560, previewOnTheRight)).toEqual({ left: 8, width: 560 });
+  expect(searchPopoverPlaceAcrossTheElement(581, 8, 560, previewOnTheRight)).toEqual({ left: 8, width: 400 });
+});
+
+test("an_element_too_narrow_for_a_popover_and_its_preview_leaves_the_popover_as_one_with_none", () => {
+  const previewOnTheRight = { roomNeeded: 165, narrowestWidth: 400, drawnOnFirst: "right" } as const;
+  expect(searchPopoverPlaceAcrossTheElement(580, 60, 560, previewOnTheRight)).toEqual(searchPopoverPlaceAcrossTheElement(580, 60, 560, null));
+  expect(searchPopoverPlaceAcrossTheElement(300, 60, 560, previewOnTheRight)).toEqual({ left: 8, width: 284 });
+});
+
+test("a_popover_moves_the_least_it_must_for_one_side_to_keep_its_previews_room", () => {
+  const previewOnTheLeft = { roomNeeded: 165, narrowestWidth: 320, drawnOnFirst: "left" } as const;
+  expect(searchPopoverPlaceAcrossTheElement(1200, 400, 420, previewOnTheLeft)).toEqual({ left: 400, width: 420 });
+  expect(searchPopoverPlaceAcrossTheElement(1200, 40, 420, previewOnTheLeft)).toEqual({ left: 40, width: 420 });
+  expect(searchPopoverPlaceAcrossTheElement(612, 100, 420, previewOnTheLeft)).toEqual({ left: 173, width: 420 });
+  expect(searchPopoverPlaceAcrossTheElement(612, 60, 420, previewOnTheLeft)).toEqual({ left: 19, width: 420 });
+  expect(searchPopoverPlaceAcrossTheElement(612, 96, 420, previewOnTheLeft)).toEqual({ left: 173, width: 420 });
+  expect(searchPopoverPlaceAcrossTheElement(612, 96, 420, { ...previewOnTheLeft, drawnOnFirst: "right" })).toEqual({ left: 19, width: 420 });
 });

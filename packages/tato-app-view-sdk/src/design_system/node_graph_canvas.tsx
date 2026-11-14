@@ -355,8 +355,11 @@ const linkedPinKey = (
   pinName: string,
 ) => `${nodeId}\u0000${side}\u0000${pinName}`;
 
+/** The narrowest and the widest a card is drawn, in the canvas and in a preview outside it. */
+const NODE_GRAPH_CARD_WIDTHS_PX = { narrowest: 180, widest: 360 } as const;
+
 /** The box every card is drawn in, in the canvas and in a preview outside it. */
-const NODE_GRAPH_CARD_CLASS_NAMES = "node-graph-card relative min-w-[180px] max-w-[360px]";
+const NODE_GRAPH_CARD_CLASS_NAMES = "node-graph-card relative";
 
 /** A pin's mark at the card's edge, shaped and coloured by its family, or a plain bar while none is known. */
 function NodeGraphPinHandle({
@@ -492,6 +495,7 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
         isSelected && "node-graph-card-selected",
         portPicking !== null && (portsThatCanJoin === null ? "node-graph-card-not-pickable" : "node-graph-card-pickable"),
       )}
+      style={{ minWidth: NODE_GRAPH_CARD_WIDTHS_PX.narrowest, maxWidth: NODE_GRAPH_CARD_WIDTHS_PX.widest }}
       data-node-graph-card={graphNode.node_id}
       data-port-pick={portPicking === null ? undefined : portsThatCanJoin === null ? "dim" : "lit"}
       data-selected={isSelected || undefined}
@@ -1954,6 +1958,9 @@ export function NodeGraphPinMark({
 /** How much smaller than in the graph a card's preview is drawn. */
 const NODE_GRAPH_CARD_PREVIEW_SCALE = 0.85;
 
+/** The narrowest a card's preview is drawn, which a popover drawing one beside itself keeps room for. */
+export const NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX = Math.ceil(NODE_GRAPH_CARD_WIDTHS_PX.narrowest * NODE_GRAPH_CARD_PREVIEW_SCALE);
+
 /** A node's card as the graph would draw it once placed, smaller and outside any canvas: its name on the header and its pins at its edges, none linked. */
 export function NodeGraphCardPreview({
   title,
@@ -1966,7 +1973,12 @@ export function NodeGraphCardPreview({
 }) {
   const pinsOfThePreview = (pins: readonly Pick<NodeGraphCanvasPin, "name" | "family">[]) => pins.map((pin): NodeGraphCanvasPin => ({ ...pin, description: null, stream_facts_words: [] }));
   return (
-    <div className={cn(NODE_GRAPH_CARD_CLASS_NAMES, "w-max")} style={{ zoom: NODE_GRAPH_CARD_PREVIEW_SCALE }} data-condition="healthy" data-node-graph-card-preview={title}>
+    <div
+      className={cn(NODE_GRAPH_CARD_CLASS_NAMES, "w-max")}
+      style={{ zoom: NODE_GRAPH_CARD_PREVIEW_SCALE, minWidth: NODE_GRAPH_CARD_WIDTHS_PX.narrowest, maxWidth: `min(${NODE_GRAPH_CARD_WIDTHS_PX.widest}px, 100%)` }}
+      data-condition="healthy"
+      data-node-graph-card-preview={title}
+    >
       <NodeGraphCardHeaderAndPinRows
         graphNode={{ title, type_name: null, description: null, condition: { look: "healthy" }, input_pins: pinsOfThePreview(inputPins), output_pins: pinsOfThePreview(outputPins), is_collapsed: false, subgraph: null }}
         pinAtTheCardsEdge={(side, pin) => <span aria-hidden className="node-graph-pin node-graph-pin-of-a-preview" data-side={side} data-family={pin.family ?? undefined} />}
