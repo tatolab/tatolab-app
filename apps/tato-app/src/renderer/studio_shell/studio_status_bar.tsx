@@ -5,7 +5,7 @@ import { ProgressMeter } from "@tatolab/tato-app-view-sdk/design_system/progress
 import { StatusBarPanelButton } from "@tatolab/tato-app-view-sdk/design_system/status_bar_panel_button";
 import { TriangleAlert } from "lucide-react";
 import type { ProjectTransactionsReading } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { TatolabPlatform, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { TatolabStatus } from "../../shared/tatolab_backend_contract";
 import {
   EMPTY_STUDIO_ACTIVITY_LOG,
   nextStudioActivityLog,
@@ -170,11 +170,9 @@ function StudioWarningsPanelButton({ status }: { status: TatolabStatus }) {
 export function StudioStatusBar({
   viewHostServices,
   projectFolder,
-  platform,
 }: {
   viewHostServices: StudioViewHostServices;
   projectFolder: string | null;
-  platform: TatolabPlatform;
 }) {
   const status = useTatolabStatus();
   const runtimeDescription = useRuntimeDescriptionReading();
@@ -184,7 +182,6 @@ export function StudioStatusBar({
     runtimeState: status.runtime_state,
     runtimeDescription,
     projectTransactions,
-    platform,
     wallClockNowMs,
   });
   return (

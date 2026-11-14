@@ -18,33 +18,36 @@ const AN_AGENTS_EDIT: ProjectTransaction = {
   applied_at: "2026-11-10T19:00:00Z",
 };
 
-const RUNNING_ON_A_MAC: StudioStatusBarSources = {
+const RUNNING_WITH_AN_EDIT: StudioStatusBarSources = {
   runtimeState: "running",
   runtimeDescription: { kind: "read", description: { version: "0.68.55", build_id: "0.68.55+3e1a48c.1", up_for_ms: 1_000, runtime_log_directory: "/tmp/logs" } },
   projectTransactions: {
     kind: "read",
     project_transactions: { project: "ab4b415c-debc-454f-8514-c9b6993459d7", project_directory: "/Users/jonathanf/streams/pattern", transactions: [AN_AGENTS_EDIT], refused_actions: [] },
   },
-  platform: "macos",
   wallClockNowMs: Date.parse("2026-11-10T19:02:00Z"),
 };
 
 describe("the studio's status bar", () => {
-  it("names the runtime's version and this Mac, and the newest edit's author and when", () => {
-    expect(studioStatusBarWordsOf(RUNNING_ON_A_MAC)).toEqual({
+  it("names the runtime's version without the machine, and the newest edit's author and when", () => {
+    expect(studioStatusBarWordsOf(RUNNING_WITH_AN_EDIT)).toEqual({
       runtime_tone: "running",
-      runtime: "tatolabd 0.68.55 · This Mac",
+      runtime: "tatolabd 0.68.55",
       last_edit: "Last edit by claude-code · 2 minutes ago",
     });
   });
 
-  it("says the runtime is not running, on Linux as this computer, and leaves out a feed with no edit", () => {
-    const words = studioStatusBarWordsOf({ ...RUNNING_ON_A_MAC, runtimeState: "not_running", projectTransactions: { kind: "not_read", because: "no runtime answers" }, platform: "linux" });
-    expect(words.runtime).toBe("Runtime not running · This computer");
+  it("says the runtime is not running, and leaves out a feed with no edit", () => {
+    const words = studioStatusBarWordsOf({ ...RUNNING_WITH_AN_EDIT, runtimeState: "not_running", projectTransactions: { kind: "not_read", because: "no runtime answers" } });
+    expect(words.runtime).toBe("Runtime not running");
     expect(words.last_edit).toBeNull();
   });
 
+  it("says the runtime is starting without naming the machine", () => {
+    expect(studioStatusBarWordsOf({ ...RUNNING_WITH_AN_EDIT, runtimeState: "starting" }).runtime).toBe("Runtime starting");
+  });
+
   it("names the runtime without a version until its description is read", () => {
-    expect(studioStatusBarWordsOf({ ...RUNNING_ON_A_MAC, runtimeDescription: { kind: "not_read" } }).runtime).toBe("tatolabd · This Mac");
+    expect(studioStatusBarWordsOf({ ...RUNNING_WITH_AN_EDIT, runtimeDescription: { kind: "not_read" } }).runtime).toBe("tatolabd");
   });
 });
