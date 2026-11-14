@@ -42,7 +42,7 @@ export function settingsSectionLabel(section: SettingsSection): string {
 export const DEVELOPER_MODE_DESCRIPTION = "Adds the Transactions view, which lists every change the runtime recorded in the open project, exactly as it sent it. Find it in each area's view menu.";
 
 /** The licence the runtime the app runs is under, as streamlib states it. */
-export const RUNTIME_LICENCE = "BUSL-1.1";
+export const RUNTIME_LICENCE = "GPL-3.0-only";
 
 /** The command a coding agent runs to reach this machine's runtime over MCP. */
 export const TATOLAB_MCP_COMMAND = "tatolab mcp";

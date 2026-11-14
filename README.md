@@ -70,7 +70,7 @@ since apt alone replaces it. The feed's manifests are
 `app/latest-mac.yml` and `app/latest-linux.yml`, which point at `app/releases/<version>/`.
 
 The runtime and the `tatolab` CLI come from [tatolab/streamlib](https://github.com/tatolab/streamlib)
-(BUSL-1.1). This repository is AGPL-3.0-only, or under a commercial licence from the copyright holder (see
+(GPL-3.0-only). This repository is AGPL-3.0-only, or under a commercial licence from the copyright holder (see
 `LICENSE`). It holds the app itself, the packaging
 that wraps streamlib's runtime unit into a signed, notarized `.app` and `.dmg`, and into the Linux
 `.deb` and AppImage.

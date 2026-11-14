@@ -6,7 +6,7 @@ Tatolab.app is dual-licensed (`LICENSE`): AGPL-3.0-only, or a commercial licence
 copyright holder. `LICENSE` covers every file in the repository, so a source file carries no
 licence header of its own. Never suggest another licence for it or drop the commercial option.
 shadcn's generated components (`packages/tato-app-view-sdk/src/design_system/ui/`) keep their MIT form.
-The runtime the app bundles is streamlib's, BUSL-1.1, and keeps its own licence. Do not modify
+The runtime the app bundles is streamlib's, GPL-3.0-only, and keeps its own licence. Do not modify
 `LICENSE` without explicit approval.
 
 ---

@@ -2690,7 +2690,7 @@ describe("Settings", () => {
     await openSettingsOn("about");
 
     await waitFor(() => expect(within(document.querySelector<HTMLElement>("[data-settings-about]") ?? document.body).getByText("Version 0.45.0 · tatolabd 0.55.2")).toBeTruthy());
-    expect(screen.getByText(/Runtime licensed BUSL-1\.1\./)).toBeTruthy();
+    expect(screen.getByText(/Runtime licensed GPL-3\.0-only\./)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Check for Updates…" })).toBeTruthy();
   });
 });
