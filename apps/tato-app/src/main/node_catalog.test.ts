@@ -45,9 +45,18 @@ test("a_node_type_reads_with_the_category_the_runtime_serves_and_with_none_where
     ],
   });
 
-  const catalog = nodeCatalogFromTheRegistryAnswer("main", registryAnswer);
-  expect(catalog.ok && catalog.value.node_types.map((nodeType) => nodeType.category)).toEqual(["Effects/Stylize", null, null]);
-  expect(nodeCatalogFromTheRegistryAnswer("main", JSON.stringify({ nodes: [{ type: "nodes.x:X", category: 7 }] })).ok).toBe(false);
+  const nodeCatalog = nodeCatalogFromTheRegistryAnswer("main", registryAnswer);
+
+  expect(nodeCatalog.ok).toBe(true);
+  if (!nodeCatalog.ok) return;
+  expect(nodeCatalog.value.node_types.map((nodeType) => nodeType.category)).toEqual(["Effects/Stylize", null, null]);
+});
+
+test("a_node_type_whose_category_is_not_text_is_refused_naming_the_field", () => {
+  const nodeCatalog = nodeCatalogFromTheRegistryAnswer("main", JSON.stringify({ nodes: [{ type: "nodes.x:X", category: 7 }] }));
+
+  expect(nodeCatalog.ok).toBe(false);
+  if (!nodeCatalog.ok) expect(nodeCatalog.failure).toContain("`category` is not a string");
 });
 
 test("a_registry_answer_without_nodes_is_refused_naming_the_stream", () => {

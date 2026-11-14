@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { NodeGraphCanvas, NodeGraphCardPreview, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphPortPicking } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
-import { SearchPopover, type SearchPopoverAction } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
+import { SearchPopover } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import { Store } from "lucide-react";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
@@ -23,7 +23,7 @@ import type {
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { streamPreparingWords } from "../shared/stream_preparing_words";
-import { nameInWords, nodeTitle, nodeTypeClassName } from "../shared/node_words";
+import { nodeTitle } from "../shared/node_words";
 import { portsThatCanJoinByNodeId } from "../shared/ports_that_can_join";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 import { useStreamGraphEditsSentToTheRuntime } from "../shared/stream_graph_edit_sending";
@@ -52,8 +52,8 @@ import {
 } from "../shared/stream_graph_edits";
 import { nodesTheSelectionHoldsInTheStream, selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 import { levelOfTheSubgraphsSteppedThrough, selectionOfTheSubgraphSteppedOutOf, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly } from "./stream_graph_levels";
-import { graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeOriginWordsByType, nodeTypeSearchItems, nodeTypeSearchNarrowing, nodeTypesTheProjectDeclares, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
-import { NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS } from "../shared/node_type_category_path";
+import { graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeOriginWordsByType, nodeTypeSearchItems, nodeTypeSearchNarrowing, nodeTypeSearchPreviewCard, nodeTypesTheProjectDeclares, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
+import { NODE_TYPE_CATEGORIES_WORDS, NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS } from "../shared/node_type_category_path";
 import { StreamGraphSubgraphReadOnlyBanner, StreamGraphSubgraphTrail } from "./stream_graph_subgraph_strip";
 import { isTheSamePlaceLeft, settingsWithTheStreamLeft, whereTheStreamWasLeft, type WhereAStreamWasLeft } from "./stream_graph_where_left";
 
@@ -61,7 +61,6 @@ import { isTheSamePlaceLeft, settingsWithTheStreamLeft, whereTheStreamWasLeft, t
 const NEXT_PLACED_NODE_OFFSET = 36;
 
 /** The search over a loose wire offers no way on beside its field. */
-const NO_NODE_TYPE_SEARCH_ACTIONS: readonly SearchPopoverAction[] = [];
 
 /** Where the Add node search was asked for, and the wire it was dragged off when it was. */
 interface NodeTypeSearchAsked {
@@ -303,9 +302,8 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   );
   const previewOfTheNodeTypeSearched = useCallback(
     (searchItemId: string) => {
-      const nodeTypeSearched = catalog.find((entry) => entry.type === searchItemId);
-      if (nodeTypeSearched === undefined) return null;
-      return <NodeGraphCardPreview title={nameInWords(nodeTypeClassName(nodeTypeSearched.type))} inputPins={nodeTypeSearched.inputs} outputPins={nodeTypeSearched.outputs} />;
+      const previewCard = nodeTypeSearchPreviewCard(catalog, searchItemId);
+      return previewCard === null ? null : <NodeGraphCardPreview {...previewCard} />;
     },
     [catalog],
   );
@@ -451,10 +449,11 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
                 narrowedTo={nodeTypeSearchAsked.looseWire === null ? null : nodeTypeSearchNarrowing(nodeTypeSearchAsked.looseWire)}
                 emptyWords={catalogReading?.kind === "not_listed" ? catalogReading.because : "No node type matches."}
                 uncategorisedWords={NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS}
+                categoriesWords={NODE_TYPE_CATEGORIES_WORDS}
                 at={nodeTypeSearchAsked.at.in_the_element}
                 onItemChosen={placeTheChosenNodeType}
                 onClosed={closeTheNodeTypeSearch}
-                actionsBesideTheField={nodeTypeSearchAsked.looseWire === null ? nodeTypeSearchActions : NO_NODE_TYPE_SEARCH_ACTIONS}
+                actionsBesideTheField={nodeTypeSearchActions}
                 previewOfTheItem={previewOfTheNodeTypeSearched}
                 data-stream-graph-node-type-search={streamTab.stream}
               />

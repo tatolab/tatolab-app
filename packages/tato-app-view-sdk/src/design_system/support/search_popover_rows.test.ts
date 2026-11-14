@@ -74,28 +74,36 @@ test("it_opens_on_the_first_entry_above_that_lists_anything_else_on_the_first_ca
 
 test("an_entry_above_the_categories_lists_its_items_under_their_headings_there", () => {
   expect(searchPopoverSectionsShown(ITEMS, "above:This project", "Ungrouped")).toEqual([
-    { heading: "This project", items: [HALFTONE] },
-    { heading: "Subgraphs from code", items: [MIC_LEVELS] },
+    { section_id: "above:This project", heading: "This project", items: [HALFTONE] },
+    { section_id: "above:Subgraphs from code", heading: "Subgraphs from code", items: [MIC_LEVELS] },
   ]);
 });
 
 test("a_category_lists_everything_filed_inside_it_each_under_its_path", () => {
   expect(searchPopoverSectionsShown(ITEMS, searchPopoverCategoryEntryId(["Effects"]), "Ungrouped")).toEqual([
-    { heading: "Effects / Blur", items: [GAUSSIAN_BLUR] },
-    { heading: "Effects / Stylize", items: [POSTERIZE, HALFTONE] },
+    { section_id: "category:Effects/Blur", heading: "Effects / Blur", items: [GAUSSIAN_BLUR] },
+    { section_id: "category:Effects/Stylize", heading: "Effects / Stylize", items: [POSTERIZE, HALFTONE] },
   ]);
-  expect(searchPopoverSectionsShown(ITEMS, searchPopoverCategoryEntryId(["Effects", "Stylize"]), "Ungrouped")).toEqual([{ heading: "Effects / Stylize", items: [POSTERIZE, HALFTONE] }]);
-  expect(searchPopoverSectionsShown(ITEMS, "uncategorised", "Ungrouped")).toEqual([{ heading: "Ungrouped", items: [CAMERA] }]);
+  expect(searchPopoverSectionsShown(ITEMS, searchPopoverCategoryEntryId(["Effects", "Stylize"]), "Ungrouped")).toEqual([{ section_id: "category:Effects/Stylize", heading: "Effects / Stylize", items: [POSTERIZE, HALFTONE] }]);
+  expect(searchPopoverSectionsShown(ITEMS, "uncategorised", "Ungrouped")).toEqual([{ section_id: "uncategorised", heading: "Ungrouped", items: [CAMERA] }]);
   expect(searchPopoverSectionsShown(ITEMS, searchPopoverCategoryEntryId(["Lighting"]), "Ungrouped")).toEqual([]);
 });
 
 test("no_entry_chosen_lists_every_item_once_the_uncategorised_last", () => {
   expect(searchPopoverSectionsShown(ITEMS, null, "Ungrouped")).toEqual([
-    { heading: "Subgraphs from code", items: [MIC_LEVELS] },
-    { heading: "Effects / Blur", items: [GAUSSIAN_BLUR] },
-    { heading: "Effects / Stylize", items: [POSTERIZE, HALFTONE] },
-    { heading: "Math", items: [ADD] },
-    { heading: "Ungrouped", items: [CAMERA] },
+    { section_id: "above:Subgraphs from code", heading: "Subgraphs from code", items: [MIC_LEVELS] },
+    { section_id: "category:Effects/Blur", heading: "Effects / Blur", items: [GAUSSIAN_BLUR] },
+    { section_id: "category:Effects/Stylize", heading: "Effects / Stylize", items: [POSTERIZE, HALFTONE] },
+    { section_id: "category:Math", heading: "Math", items: [ADD] },
+    { section_id: "uncategorised", heading: "Ungrouped", items: [CAMERA] },
+  ]);
+});
+
+test("a_category_named_as_the_uncategorised_are_keeps_a_section_of_its_own", () => {
+  const filedUnderACategoryNamedUngrouped = item("ops:Stray", "Stray", ["Ungrouped"]);
+  expect(searchPopoverSectionsShown([CAMERA, filedUnderACategoryNamedUngrouped], null, "Ungrouped")).toEqual([
+    { section_id: "category:Ungrouped", heading: "Ungrouped", items: [filedUnderACategoryNamedUngrouped] },
+    { section_id: "uncategorised", heading: "Ungrouped", items: [CAMERA] },
   ]);
 });
 

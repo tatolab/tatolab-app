@@ -121,6 +121,22 @@ describe("the search popover", () => {
     expect(preview()).toBeNull();
   });
 
+  it("keeps the preview beside its row as the list scrolls", () => {
+    openedPopover({ previewOfTheItem: (itemId) => <span>{itemId}</span> });
+    const preview = document.querySelector<HTMLElement>("[data-search-popover-preview]") ?? expect.unreachable("no preview");
+    const highlightedRow = screen.getByRole("option", { name: /Halftone/ });
+    highlightedRow.getBoundingClientRect = () => new DOMRect(0, 64, 100, 40);
+    Object.defineProperty(screen.getByRole("dialog"), "offsetHeight", { value: 460 });
+    fireEvent.scroll(screen.getByRole("listbox"));
+    expect(preview.style.top).toBe("64px");
+  });
+
+  it("names its left-hand list and each opener in the words it is given", () => {
+    openedPopover({ categoriesWords: "Groups" });
+    expect(screen.getByRole("navigation", { name: "Groups" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Groups in Effects" }).getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("narrowed, drops the left-hand list, lists its matches flat under their count, says what choosing one does and previews on the left", () => {
     openedPopover({ narrowedTo: { heading: "Takes Image", footnote: "Placing one links video to it." }, previewOfTheItem: (itemId) => <span>{itemId}</span> });
     expect(document.querySelector("[data-search-popover-entry]")).toBeNull();

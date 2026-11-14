@@ -8,6 +8,7 @@ import {
   nodeTypeOriginWordsByType,
   nodeTypeSearchItems,
   nodeTypeSearchNarrowing,
+  nodeTypeSearchPreviewCard,
   nodeTypesTheProjectDeclares,
   nodeTypesTheSearchOffers,
 } from "./stream_graph_node_type_search";
@@ -53,6 +54,7 @@ test("a_node_type_is_named_for_the_open_project_its_import_or_its_distribution_a
       { origin: { source: "dependency", project: "lights-uuid", folder: "lights", version: "1.0.0" }, node_types: [nodeTypeOf("imports/lights/nodes.dmx:Fixture")], graph_generators: [], unreadable_modules: [] },
       { origin: { source: "dependency", project: "gone-uuid", folder: "gone", version: "1.0.0" }, node_types: [nodeTypeOf("imports/gone/nodes.x:X")], graph_generators: [], unreadable_modules: [] },
       { origin: { source: "installed_distribution", distribution: "tatolab-testpattern", distribution_version: "1.0.0" }, node_types: [nodeTypeOf("tatolab_testpattern:TestPatternSource")], graph_generators: [], unreadable_modules: [] },
+      { origin: { source: "newer_than_this_app", source_name: "marketplace_module" }, node_types: [nodeTypeOf("lens:Lens")], graph_generators: [], unreadable_modules: [] },
     ],
   };
   expect([...nodeTypeOriginWordsByType(listing, NIGHT_SHOW)]).toEqual([
@@ -130,4 +132,9 @@ test("each_graph_generator_of_the_projects_own_source_is_offered_under_this_proj
   expect(graphGeneratorOfTheSearchItem("nodes.blur:GaussianBlur")).toBeNull();
   expect(graphGeneratorSearchItems(listing, { side: "output", family: "image" })).toEqual([]);
   expect(graphGeneratorSearchItems(null, null)).toEqual([]);
+});
+
+test("a_node_type_is_previewed_as_its_card_titled_in_words_with_its_pins_and_a_graph_generator_as_nothing", () => {
+  expect(nodeTypeSearchPreviewCard([BLUR, METER], "nodes.blur:GaussianBlur")).toEqual({ title: "Gaussian Blur", inputPins: BLUR.inputs, outputPins: BLUR.outputs });
+  expect(nodeTypeSearchPreviewCard([BLUR, METER], "graph_generator:generators.mics:mic_levels")).toBeNull();
 });

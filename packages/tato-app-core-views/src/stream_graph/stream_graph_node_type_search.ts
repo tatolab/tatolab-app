@@ -16,7 +16,7 @@ export const THIS_PROJECT_SEARCH_ENTRY = "This project";
 /** The heading the search lists the project's graph generators under. */
 export const GRAPH_GENERATORS_SEARCH_HEADING = "Subgraphs from code";
 
-/** The project or package a source's node code comes from, as the runtime names it: the open project, an import by the name `list_dependencies` gives it, or an installed distribution; `null` where the runtime names none. */
+/** The project or package a source's node code comes from, as the runtime names it: the open project, an import by the name `list_dependencies` gives it, or an installed distribution; `null` where the runtime names none, as for a kind of source this app does not know. */
 function nodeTypeSourceOriginWords(origin: ProjectNodeTypeSourceOrigin, openProject: OpenProject | null): string | null {
   switch (origin.source) {
     case "project":
@@ -26,7 +26,7 @@ function nodeTypeSourceOriginWords(origin: ProjectNodeTypeSourceOrigin, openProj
     case "installed_distribution":
       return origin.distribution;
     case "newer_than_this_app":
-      return origin.source_name;
+      return null;
   }
 }
 
@@ -118,4 +118,11 @@ export function nodeTypeSearchNarrowing(looseWire: LooseWire): SearchPopoverNarr
     heading: familyWords === null ? `Can feed ${looseWire.pin}` : `Gives ${familyWords}`,
     footnote: `Placing one adds it and links its first ${familyWords ?? "matching"} output to ${looseWire.pin}, in one edit. One undo takes both back.`,
   };
+}
+
+/** The card the search previews for the node type `searchItemId` names, as the graph draws that node once placed; `null` for an item that is no node type of `catalog`, as a graph generator. */
+export function nodeTypeSearchPreviewCard(catalog: readonly NodeCatalogEntry[], searchItemId: string): { title: string; inputPins: NodeCatalogEntry["inputs"]; outputPins: NodeCatalogEntry["outputs"] } | null {
+  const nodeTypeSearched = catalog.find((entry) => entry.type === searchItemId);
+  if (nodeTypeSearched === undefined) return null;
+  return { title: nameInWords(nodeTypeClassName(nodeTypeSearched.type)), inputPins: nodeTypeSearched.inputs, outputPins: nodeTypeSearched.outputs };
 }

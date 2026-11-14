@@ -27,6 +27,8 @@ export interface SearchPopoverEntry {
 
 /** A run of the items the list shows under one heading; `null` for a run with no heading over it. */
 export interface SearchPopoverSection {
+  /** Told apart from every other section's, as a category's from a heading above the categories that reads the same. */
+  section_id: string;
   heading: string | null;
   items: SearchPopoverItem[];
 }
@@ -130,17 +132,31 @@ export function searchPopoverEntryItOpensOn(entries: readonly SearchPopoverEntry
   return (entries.find((entry) => entry.kind === "above_the_categories" && entry.match_count > 0) ?? entries.find((entry) => entry.kind !== "above_the_categories") ?? entries[0])?.entry_id ?? null;
 }
 
-function sectionsByHeading(headedItems: readonly { heading: string; item: SearchPopoverItem }[]): SearchPopoverSection[] {
-  const itemsByHeading = new Map<string, SearchPopoverItem[]>();
-  for (const { heading, item } of headedItems) itemsByHeading.set(heading, [...(itemsByHeading.get(heading) ?? []), item]);
-  return [...itemsByHeading].map(([heading, items]) => ({ heading, items }));
+type SearchPopoverItemUnderASection = { section_id: string; heading: string | null; item: SearchPopoverItem };
+
+function sectionsInTheOrderFirstNamed(itemsUnderSections: readonly SearchPopoverItemUnderASection[]): SearchPopoverSection[] {
+  const sectionsById = new Map<string, SearchPopoverSection>();
+  for (const { section_id, heading, item } of itemsUnderSections) {
+    const section = sectionsById.get(section_id) ?? { section_id, heading, items: [] };
+    sectionsById.set(section_id, { ...section, items: [...section.items, item] });
+  }
+  return [...sectionsById.values()];
+}
+
+function itemUnderItsHeadingAboveTheCategories(item: SearchPopoverItem): SearchPopoverItemUnderASection {
+  const heading = item.listed_above_the_categories?.heading ?? null;
+  return { section_id: `above:${heading ?? ""}`, heading, item };
 }
 
 function sectionsByCategory(categorisedItems: readonly SearchPopoverItem[], uncategorisedWords: string): SearchPopoverSection[] {
   const inCategoryOrder = categorisedItems
     .map((item, index) => ({ item, index, categoryPath: item.category_path ?? [] }))
     .sort((left, right) => Number(left.categoryPath.length === 0) - Number(right.categoryPath.length === 0) || compareCategoryPaths(left.categoryPath, right.categoryPath) || left.index - right.index);
-  return sectionsByHeading(inCategoryOrder.map(({ item, categoryPath }) => ({ heading: categoryPath.length === 0 ? uncategorisedWords : categoryPath.join(" / "), item })));
+  return sectionsInTheOrderFirstNamed(
+    inCategoryOrder.map(({ item, categoryPath }) =>
+      categoryPath.length === 0 ? { section_id: UNCATEGORISED_ENTRY_ID, heading: uncategorisedWords, item } : { section_id: searchPopoverCategoryEntryId(categoryPath), heading: categoryPath.join(" / "), item },
+    ),
+  );
 }
 
 /**
@@ -151,7 +167,7 @@ function sectionsByCategory(categorisedItems: readonly SearchPopoverItem[], unca
 export function searchPopoverSectionsShown(matchingItems: readonly SearchPopoverItem[], chosenEntryId: string | null, uncategorisedWords: string): SearchPopoverSection[] {
   if (chosenEntryId === null) {
     return [
-      ...sectionsByHeading(matchingItems.flatMap((item) => (item.category_path === null ? [{ heading: item.listed_above_the_categories?.heading ?? "", item }] : []))),
+      ...sectionsInTheOrderFirstNamed(matchingItems.filter((item) => item.category_path === null).map(itemUnderItsHeadingAboveTheCategories)),
       ...sectionsByCategory(
         matchingItems.filter((item) => item.category_path !== null),
         uncategorisedWords,
@@ -164,10 +180,8 @@ export function searchPopoverSectionsShown(matchingItems: readonly SearchPopover
       uncategorisedWords,
     );
   }
-  const itemsListedAbove = matchingItems.flatMap((item) =>
-    item.listed_above_the_categories !== null && entryIdAboveTheCategories(item.listed_above_the_categories.entry) === chosenEntryId ? [{ heading: item.listed_above_the_categories.heading, item }] : [],
-  );
-  if (itemsListedAbove.length > 0) return sectionsByHeading(itemsListedAbove);
+  const itemsListedAbove = matchingItems.filter((item) => item.listed_above_the_categories !== null && entryIdAboveTheCategories(item.listed_above_the_categories.entry) === chosenEntryId);
+  if (itemsListedAbove.length > 0) return sectionsInTheOrderFirstNamed(itemsListedAbove.map(itemUnderItsHeadingAboveTheCategories));
   return sectionsByCategory(
     matchingItems.filter((item) => {
       const categoryPath = item.category_path ?? [];
