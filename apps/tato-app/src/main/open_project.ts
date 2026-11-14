@@ -271,6 +271,12 @@ export class ProjectOpening {
     return opened.ok ? succeeded({ folder, project_creation: null }) : opened;
   }
 
+  /** Make a new project from the `.zip` `archive` in `<Documents>/Tato Studio`, under the first of `name`, `name 2`, … that nothing there holds, and open it, as `importProjectArchive` does. */
+  async makeAProjectOfItsOwnFromTheArchive(archive: string, name: string): Promise<Result<ChosenProjectFolder, string>> {
+    const location = this.defaultNewProjectLocation();
+    return this.importProjectArchive(archive, await firstNumberedNameNothingHoldsIn(location, name), location);
+  }
+
   /** Name the project in `folder`, one of the recent projects, `name` through the runtime; its folder keeps its name. Refused for a blank name or any other folder, and in the runtime's own words. */
   async renameRecentProject(folder: string, name: string): Promise<Result<void, string>> {
     const recentFolder = await this.oneOfTheRecentFolders(folder);

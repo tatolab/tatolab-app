@@ -35,6 +35,7 @@ function graphNode(name: string, id: string, ports: { inputs?: [string, "image" 
     id,
     name,
     type: `nodes.${name}:Node`,
+    kind: "process",
     state: "Running",
     failed_because: null,
     process_raising_because: null,
@@ -74,6 +75,7 @@ function edited(graph: StreamGraphSummary = GRAPH): EditedStreamGraph {
 const catalogEntry = (type: string, inputs: [string, "image" | "array" | null][], outputs: [string, "image" | "array" | null][]): NodeCatalogEntry => ({
   type,
   description: "",
+  category: null,
   config_schema: null,
   inputs: inputs.map(([name, family]) => ({ name, description: "", family })),
   outputs: outputs.map(([name, family]) => ({ name, description: "", family })),

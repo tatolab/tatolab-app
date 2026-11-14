@@ -19,12 +19,14 @@ with the project's name, or brings forward the window it already has; the Projec
 aside once it opens one, and File › Projects or the tray brings it back. Pop out into a window,
 in any area's view-type menu, opens that area's view in a small window of its own, for a second monitor,
 pinned to the stream shown and the selection, on the project of the window it came from; it closes with
-its project's window. File › Module manager… opens a window with two tabs. In
-this project lists the projects the runtime's `list_dependencies` says the project imports, adds one
-from a folder or a `.zip` with `add_dependency`, copies a newer version in with `update_dependency`,
-asking before it overwrites a file edited since the copy, and opens an import to edit in its own window.
-Marketplace lists the projects in the catalog at `get.tatolab.com/catalog/v1.json`; Import downloads an
-entry's `.zip`, checks its SHA-256, and adds it as any other. Every window shares the one runtime. It reads
+its project's window. File › Marketplace… and File › Modules… open a window with two tabs.
+Marketplace lists the packages and samples in the catalog at `get.tatolab.com/catalog/v1.json` as cards,
+and a card opens that module's own page. Add downloads a package's `.zip`, checks its SHA-256, and adds
+it with `add_dependency`; Clone sample downloads a sample the same way and makes it a project of its own
+with `import_project`, leaving the open project as it was. The tab named for the open project lists the
+projects the runtime's `list_dependencies` says it imports, adds one from a folder or a `.zip` with
+`add_dependency`, copies a newer version in with `update_dependency`, asking before it overwrites a file
+edited since the copy, and takes one out with `remove_dependency`. Every window shares the one runtime. It reads
 everything from the runtime's local API: each project's name from `list_assets`, `list_streams`, `logs` and `graph` over `POST /control`, with changes pushed over `/control/ws`, and
 `GET /api/graph` for the machine's name. A project is open or closed, and an open one plays or
 stops as a whole. Opening a project's window opens it with `open_project` when the runtime holds it

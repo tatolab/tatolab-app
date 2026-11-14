@@ -120,7 +120,7 @@ export function mockRecentProjectReading(recentProject: RecentProject, homeDirec
 }
 
 /** The mock's `Documents/Tato Studio` under `homeDirectory`, where New project suggests a project goes. */
-function mockNewProjectsFolder(homeDirectory: string): string {
+export function mockNewProjectsFolder(homeDirectory: string): string {
   return `${homeDirectory}/Documents/Tato Studio`;
 }
 

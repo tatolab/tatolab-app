@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NODE_STUDIO_FIELDS_NONE_SET, type ListedStream, type OpenProject, type StreamGraphNode, type StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { NODE_STUDIO_FIELDS_NONE_SET, type ListedStream, type OpenProject, type StreamGraphNode, type StreamGraphNodeKind, type StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { groupOfTheSelectedNodes, outlinerRowIdsOfTheSelection, outlinerTreeOfTheProject, selectionAfterTheOutlinerPick, streamsTheOutlinerShows } from "./outliner_tree_of_the_project";
 
 const HALL_OF_LIGHT_PROJECT = "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11";
@@ -37,11 +37,12 @@ function listedStream(projectFolder: string, displayName: string): ListedStream 
   };
 }
 
-function graphNode(name: string, type: string, group: string | null, failedBecause: string | null = null): StreamGraphNode {
+function graphNode(name: string, type: string, group: string | null, failedBecause: string | null = null, kind: StreamGraphNodeKind | null = "process"): StreamGraphNode {
   return {
     id: `${name}-uuid`,
     name,
     type,
+    kind,
     state: failedBecause === null ? "Running" : "Error",
     failed_because: failedBecause,
     process_raising_because: null,
@@ -73,9 +74,9 @@ const LOBBY_WALL_GRAPH: StreamGraphReading = {
     notes: [],
     nodes: [
       graphNode("camerasource", "tatolab.stream:CameraSource", INPUTS_GROUP),
-      graphNode("Halftone", "lens.nodes:HalftoneLensEffect", LOOK_GROUP, "the shader did not compile"),
-      graphNode("display", "tatolab.stream:Display", null),
-      graphNode("stray", "tatolab.stream:Display", "a-group-the-graph-no-longer-has"),
+      graphNode("Halftone", "lens.nodes:HalftoneLensEffect", LOOK_GROUP, "the shader did not compile", "shader"),
+      graphNode("display", "tatolab.stream:Display", null, null, "function"),
+      graphNode("stray", "tatolab.stream:Display", "a-group-the-graph-no-longer-has", null, null),
     ],
     links: [],
     graph_document_text: "{}",
@@ -92,14 +93,15 @@ describe("searching the outliner", () => {
   const streams = [listedStream("/w/studio", "lobby_wall"), listedStream("/w/studio", "door")];
 
   it("keeps the rows whose name or type matches, ignoring case, with the rows above them open, marked with the search", () => {
-    expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, null, { "lobby_wall-id": false }, "HALF")).toEqual(["lobby_wall expanded", "  The look · group expanded", "    Halftone · HalftoneLensEffect leaf"]);
-    expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, null, {}, "display")).toEqual(["lobby_wall expanded", "  Display · Display leaf", "  stray · Display leaf"]);
+    expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, null, { "lobby_wall-id": false }, "HALF")).toEqual(["lobby_wall · stream expanded", "  The look · group expanded", "    Halftone · shader leaf"]);
+    expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, null, {}, "display")).toEqual(["lobby_wall · stream expanded", "  Display · function leaf"]);
+    expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, null, {}, "Shader")).toEqual(["lobby_wall · stream expanded", "  The look · group expanded", "    Halftone · shader leaf"]);
     const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams }, { "lobby_wall-id": LOBBY_WALL_GRAPH }, null, {}, "half");
     expect(rows.every(({ row }) => row.searchWords === "half")).toBe(true);
   });
 
   it("keeps a stream whose name matches, and nothing when no row does", () => {
-    expect(tree(streams, {}, null, {}, "door")).toEqual(["door leaf"]);
+    expect(tree(streams, {}, null, {}, "door")).toEqual(["door · stream leaf"]);
     expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, null, {}, "zzz")).toEqual([]);
   });
 
@@ -112,14 +114,14 @@ describe("the outliner's tree", () => {
   it("lists only the open project's streams at its top, the active tab's stream open on its groups, their nodes, then the nodes in no group", () => {
     const streams = [listedStream("/w/studio", "lobby_wall"), listedStream("/w/studio", "door"), listedStream("/elsewhere", "other")];
     expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, "lobby_wall-id")).toEqual([
-      "lobby_wall expanded",
+      "lobby_wall · stream expanded",
       "  Inputs · group expanded",
-      "    Camera Source · CameraSource leaf",
+      "    Camera Source · process leaf",
       "  The look · group expanded",
-      "    Halftone · HalftoneLensEffect leaf",
-      "  Display · Display leaf",
-      "  stray · Display leaf",
-      "door collapsed",
+      "    Halftone · shader leaf",
+      "  Display · function leaf",
+      "  stray · node leaf",
+      "door · stream collapsed",
     ]);
   });
 
@@ -175,9 +177,9 @@ describe("the outliner's tree", () => {
 
   it("keeps the rows the person opened or closed over the active tab's default", () => {
     const streams = [listedStream("/w/studio", "lobby_wall")];
-    expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, "lobby_wall-id", { "stream:lobby_wall-id": false })).toEqual(["lobby_wall collapsed"]);
+    expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, "lobby_wall-id", { "stream:lobby_wall-id": false })).toEqual(["lobby_wall · stream collapsed"]);
     expect(tree(streams, { "lobby_wall-id": LOBBY_WALL_GRAPH }, null, { "stream:lobby_wall-id": true, [`group:lobby_wall-id/${INPUTS_GROUP}`]: false }).slice(0, 3)).toEqual([
-      "lobby_wall expanded",
+      "lobby_wall · stream expanded",
       "  Inputs · group collapsed",
       "  The look · group expanded",
     ]);
@@ -236,7 +238,7 @@ describe("the outliner's tree", () => {
       kind: "read",
       graph: { stream: "lobby_wall-id", stream_asset: null, groups: [{ id: INPUTS_GROUP, title: "Inputs", description: null, colour: null }], notes: [], nodes: [], links: [], graph_document_text: "{}" },
     };
-    expect(tree([listedStream("/w/studio", "lobby_wall")], { "lobby_wall-id": emptyGroupGraph }, "lobby_wall-id")).toEqual(["lobby_wall expanded", "  Inputs · group expanded", "    No nodes leaf"]);
+    expect(tree([listedStream("/w/studio", "lobby_wall")], { "lobby_wall-id": emptyGroupGraph }, "lobby_wall-id")).toEqual(["lobby_wall · stream expanded", "  Inputs · group expanded", "    No nodes leaf"]);
   });
 
   it("reads the graphs of the open project's streams only", () => {

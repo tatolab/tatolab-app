@@ -95,6 +95,7 @@ import {
   dependencyUpdateFromTheUpdateDependencyToolResult,
   type ListedProjectDependency,
   projectDependencyFromTheAddDependencyToolResult,
+  projectDependencyFromTheRemoveDependencyToolResult,
   workspaceDependenciesFromTheListDependenciesToolResult,
 } from "./project_dependencies_on_the_wire.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
@@ -602,6 +603,14 @@ export class LocalApiClient {
     if (!operationResult.ok) return operationResult;
     const update = dependencyUpdateFromTheUpdateDependencyToolResult(operationResult.value);
     return update.ok ? update : localApiRequestFailure(update.failure);
+  }
+
+  /** Take the import `project` out of the project in `projectDirectory` through the runtime's `remove_dependency`, answering the import it removed; refused in the runtime's own words. */
+  async removeDependency(projectDirectory: string, project: string): Promise<Result<ProjectDependency, LocalApiRequestFailure>> {
+    const operationResult = await this.callControlOperation("remove_dependency", { project_directory: projectDirectory, project }, PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS);
+    if (!operationResult.ok) return operationResult;
+    const dependency = projectDependencyFromTheRemoveDependencyToolResult(operationResult.value);
+    return dependency.ok ? dependency : localApiRequestFailure(dependency.failure);
   }
 
   /** Each import of the project in `projectDirectory` from the runtime's `list_dependencies`, each source read for a newer version with `checkForNewer`; refused in the runtime's own words. */

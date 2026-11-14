@@ -50,7 +50,8 @@
 [data-family="packets"] { --node-graph-family: var(--studio-family-packets); }
 [data-family="records"] { --node-graph-family: var(--studio-family-records); }
 
-.node-graph-canvas .react-flow__handle.node-graph-pin {
+.node-graph-canvas .react-flow__handle.node-graph-pin,
+.node-graph-pin-of-a-preview {
   width: 10px;
   min-width: 0;
   height: 10px;
@@ -60,6 +61,12 @@
   background: var(--studio-graph-card);
 }
 .node-graph-canvas .react-flow__handle.node-graph-pin[data-linked] { background: var(--node-graph-family, var(--studio-graph-pin)); }
+/* React Flow places a canvas pin on its card's edge; a preview's pin sits there by these rules. */
+.node-graph-pin-of-a-preview { position: absolute; top: 50%; box-sizing: border-box; transform: translate(-50%, -50%); }
+.node-graph-pin-of-a-preview[data-side="input"] { left: 0; }
+.node-graph-pin-of-a-preview[data-side="output"] { left: 100%; }
+/* A preview floats over the canvas beside a popover, so it lifts as the popover does. */
+.node-graph-card[data-node-graph-card-preview] { box-shadow: var(--shadow-pop); }
 .node-graph-pin-mark {
   display: inline-block;
   flex: none;

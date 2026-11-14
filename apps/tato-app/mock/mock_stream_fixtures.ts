@@ -1,5 +1,5 @@
 import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
-import type { JsonValue, ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphFragmentKind, StreamGraphGroup, StreamGraphLink, StreamGraphNodeStudioFields, StreamGraphNote, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphFragmentKind, StreamGraphGroup, StreamGraphLink, StreamGraphNodeKind, StreamGraphNodeStudioFields, StreamGraphNote, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
 
 function fnv1aHashOf(text: string): number {
   let hash = 2166136261;
@@ -91,6 +91,8 @@ export interface MockGraphNode {
   /** The id it had before a rename, which it keeps as the runtime keeps a node's UUID. */
   id_kept_through_renames?: string;
   type: string;
+  /** How its code runs; a subgraph is a `fragment` and every other node a `process` when absent. */
+  kind?: StreamGraphNodeKind;
   /** `null` for an interface node, which runs nothing and so reads no state. */
   state: string | null;
   /** Why it failed, in the runtime's words, while `state` reads `Error`. */

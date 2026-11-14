@@ -30,6 +30,7 @@ function aNode(name: string, inputs: StreamGraphDeclaredPort[], outputs: StreamG
     id: `id-${name}`,
     name,
     type: `tatolab.ops:${name}`,
+    kind: "function",
     state: "Running",
     failed_because: null,
     process_raising_because: null,

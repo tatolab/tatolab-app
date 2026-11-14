@@ -43,6 +43,7 @@ test("a_channels_block_reads_as_one_waveform_per_channel_with_its_peak_and_rms",
       { column_minimums: [0, 0.5, -0.5, 1], column_maximums: [0, 0.5, -0.5, 1], peak: 1, rms: Math.sqrt((0.25 + 0.25 + 1) / 4) },
       { column_minimums: [0.25, 0.25, 0.25, 0.25], column_maximums: [0.25, 0.25, 0.25, 0.25], peak: 0.25, rms: 0.25 },
     ],
+    channel_samples: [new Float32Array([0, 0.5, -0.5, 1]), new Float32Array([0.25, 0.25, 0.25, 0.25])],
   });
 });
 

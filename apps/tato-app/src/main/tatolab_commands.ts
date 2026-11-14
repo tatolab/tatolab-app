@@ -9,6 +9,7 @@ import type {
   ChosenProjectFolder,
   JsonValue,
   DependencySourceKind,
+  PackageCatalogEntry,
   ProjectDependency,
   WorkspaceDependency,
   WorkspaceDependencyUpdate,
@@ -44,7 +45,7 @@ import { graphEditModeSchema, streamGraphActionSchema } from "../shared/tatolab_
 import { isAModuleManagerSectionAsked, MODULES_SHOWN, type ProjectGraphTransactionSentByTheWindow, type TatolabCommandAnswerTo, type TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
 import { readThePackageCatalog } from "./package_catalog.js";
-import { importFolderInsideTheWorkspace, workspaceDependenciesOf } from "./workspace_dependencies.js";
+import { workspaceDependenciesOf } from "./workspace_dependencies.js";
 import { downloadTheCatalogEntrysZip } from "./marketplace_module_download.js";
 import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
@@ -999,31 +1000,53 @@ export function importFromTheMarketplace(sharedState: TatolabAppSharedState, nam
   return answerTheWindow("import_from_the_marketplace", async () => {
     const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!workspaceFolder.ok) return workspaceFolder;
-    const catalog = await readThePackageCatalog(sharedState.fetchTextOverHttps);
-    if (catalog.kind === "not_read") return failedWith(catalog.because);
-    const entry = catalog.entries.find((listed) => listed.name === name);
-    if (entry === undefined) return failedWith(`The catalog lists nothing named ${name}.`);
-    const zipPath = await downloadTheCatalogEntrysZip(entry, sharedState.fetchBytesOverHttps, sharedState.moduleDownloadsFolder);
+    const entry = await catalogEntryNamed(sharedState, name);
+    if (!entry.ok) return entry;
+    if (entry.value.kind === "sample") return failedWith(`${entry.value.title} is a sample project; clone it into a project of its own instead.`);
+    const zipPath = await downloadTheCatalogEntrysZip(entry.value, sharedState.fetchBytesOverHttps, sharedState.moduleDownloadsFolder);
     if (!zipPath.ok) return zipPath;
     const added = await sharedState.controller.addDependency(workspaceFolder.value, zipPath.value);
     if (!added.ok) return failedWith(added.failure.failureDescription);
-    sharedState.tatolabAppLog.info("imported a Marketplace module into the workspace", { name, version: entry.version, folder: added.value.folder, project_folder: workspaceFolder.value });
+    sharedState.tatolabAppLog.info("imported a Marketplace module into the workspace", { name, version: entry.value.version, folder: added.value.folder, project_folder: workspaceFolder.value });
     return added;
   });
 }
 
-/** `open_import_to_edit`: the workspace's `imports/<folder>/` opened in its own studio window; refused for a folder the runtime does not list among the workspace's imports. */
-export function openImportToEdit(sharedState: TatolabAppSharedState, folder: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
-  return answerTheWindow("open_import_to_edit", async () => {
+/** `remove_workspace_dependency`: the runtime's `remove_dependency` takes the import `project` out of the asking Module manager window's workspace; refused in the runtime's own words. */
+export function removeWorkspaceDependency(sharedState: TatolabAppSharedState, project: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectDependency, string>> {
+  return answerTheWindow("remove_workspace_dependency", async () => {
     const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!workspaceFolder.ok) return workspaceFolder;
-    const importFolder = importFolderInsideTheWorkspace(workspaceFolder.value, folder);
-    const listed = await sharedState.controller.listDependencies(workspaceFolder.value, false);
-    if (!listed.ok) return failedWith(listed.failure.failureDescription);
-    if (importFolder === null || !listed.value.some((imported) => imported.dependency.folder === folder)) return failedWith(`The project imports nothing in imports/${folder}.`);
-    await sharedState.appWindows.openTheProjectInItsStudioWindow(importFolder);
-    return succeeded(undefined);
+    const removed = await sharedState.controller.removeDependency(workspaceFolder.value, project);
+    if (!removed.ok) return failedWith(removed.failure.failureDescription);
+    sharedState.tatolabAppLog.info("removed an import from the workspace", { project, folder: removed.value.folder, project_folder: workspaceFolder.value });
+    return removed;
   });
+}
+
+/** `clone_marketplace_sample`: the catalog's sample `name`, read afresh, downloaded and checked as an import's `.zip` is, then made into a project of its own by the runtime's `import_project` and opened in its studio window; the asking Module manager window's workspace is not changed. Refused in words. */
+export function cloneMarketplaceSample(sharedState: TatolabAppSharedState, name: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ChosenProjectFolder, string>> {
+  return answerTheWindow("clone_marketplace_sample", async () => {
+    const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!workspaceFolder.ok) return workspaceFolder;
+    const entry = await catalogEntryNamed(sharedState, name);
+    if (!entry.ok) return entry;
+    if (entry.value.kind !== "sample") return failedWith(`${entry.value.title} is not a sample project; add it to a project instead.`);
+    const zipPath = await downloadTheCatalogEntrysZip(entry.value, sharedState.fetchBytesOverHttps, sharedState.moduleDownloadsFolder);
+    if (!zipPath.ok) return zipPath;
+    const cloned = await sharedState.projectOpening.makeAProjectOfItsOwnFromTheArchive(zipPath.value, entry.value.title);
+    if (!cloned.ok) return cloned;
+    sharedState.statusPublisher.requestRefresh();
+    sharedState.tatolabAppLog.info("cloned a Marketplace sample into a project of its own", { name, version: entry.value.version, project_folder: cloned.value.folder });
+    return cloned;
+  });
+}
+
+async function catalogEntryNamed(sharedState: TatolabAppSharedState, name: string): Promise<Result<PackageCatalogEntry, string>> {
+  const catalog = await readThePackageCatalog(sharedState.fetchTextOverHttps);
+  if (catalog.kind === "not_read") return failedWith(catalog.because);
+  const entry = catalog.entries.find((listed) => listed.name === name);
+  return entry === undefined ? failedWith(`The catalog lists nothing named ${name}.`) : succeeded(entry);
 }
 
 /** `save_project_file`'s arguments as the window sends them, or why they are not. */
@@ -1361,10 +1384,15 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!name.ok) return { ok: false, refusal: name.failure };
       return commandAnswerFrom(await importFromTheMarketplace(sharedState, name.value, commandFromWindow));
     },
-    open_import_to_edit: async (commandArguments, commandFromWindow) => {
-      const folder = oneTextArgumentFrom("open_import_to_edit", commandArguments, "folder", "the folder under imports/ of one of the workspace's imports");
-      if (!folder.ok) return { ok: false, refusal: folder.failure };
-      return commandAnswerOfNothingFrom(await openImportToEdit(sharedState, folder.value, commandFromWindow));
+    remove_workspace_dependency: async (commandArguments, commandFromWindow) => {
+      const project = oneTextArgumentFrom("remove_workspace_dependency", commandArguments, "project", "the UUID of one of the workspace's imports");
+      if (!project.ok) return { ok: false, refusal: project.failure };
+      return commandAnswerFrom(await removeWorkspaceDependency(sharedState, project.value, commandFromWindow));
+    },
+    clone_marketplace_sample: async (commandArguments, commandFromWindow) => {
+      const name = oneTextArgumentFrom("clone_marketplace_sample", commandArguments, "name", "the name of a sample the catalog lists");
+      if (!name.ok) return { ok: false, refusal: name.failure };
+      return commandAnswerFrom(await cloneMarketplaceSample(sharedState, name.value, commandFromWindow));
     },
     read_project_file: async (commandArguments, commandFromWindow) => {
       const file = oneTextArgumentFrom("read_project_file", commandArguments, "file", "an absolute path in the open project");

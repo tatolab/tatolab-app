@@ -21,6 +21,7 @@ import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/suppor
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
+import { NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS, nodeTypeCategoryPath } from "../shared/node_type_category_path";
 import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../shared/node_type_listing_tree";
 import { LibraryAssetChangeForm, type LibraryAssetChange } from "./library_asset_change_form";
 import { previewPictureNotReadBecauseOf, previewPictureUrlOf } from "./library_asset_preview_pictures";
@@ -83,7 +84,7 @@ function DetailsOfTheDeclaration({ declaration }: { declaration: DeclarationRowM
       const facts: KeyValueRow[] = [
         ["Type", <span className="font-mono">{nodeType.type}</span>],
         ["Kind", nodeType.kind ?? "Not stated"],
-        ["Category", nodeType.category],
+        ["Group", nodeTypeCategoryPath(nodeType.category).join(" / ") || NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS],
         ["From", declaration.source_title],
         ["Declared", <span className="font-mono">{placeInWords(nodeType.path, nodeType.line)}</span>],
       ];

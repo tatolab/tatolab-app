@@ -4,7 +4,7 @@ import { nodesOfTheStudioViewType, studioViewInputWiring } from "./studio_view_n
 import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 function graphNode(name: string, type: string, config: StreamGraphNode["config"], outputs: StreamGraphNode["output_ports"]): StreamGraphNode {
-  return { id: `id-${name}`, name, type, state: "Running", failed_because: null, process_raising_because: null, not_ready_because: null, config, input_ports: [], output_ports: outputs, dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
+  return { id: `id-${name}`, name, type, kind: "process", state: "Running", failed_because: null, process_raising_because: null, not_ready_because: null, config, input_ports: [], output_ports: outputs, dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
 }
 
 const DECK = graphNode("djdeck", "acme-dj:deck", { level: 0.5 }, []);

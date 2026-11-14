@@ -2,7 +2,7 @@
 // `out/native/` beside the app, and opening a runtime viewer's channel reader on it.
 
 import { createRequire } from "node:module";
-import type { OpenedRuntimeViewer } from "./runtime_viewer_control_connection.js";
+import type { OpenedRuntimeViewer, RuntimeViewerReads } from "./runtime_viewer_control_connection.js";
 import type { ViewerImageFrameReading } from "./platform/viewer_image_frame_reading.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import type { RuntimeViewerChannelReaderOfTheAddon } from "./runtime_viewer_image_frame_import.js";
@@ -16,6 +16,7 @@ interface RuntimeViewerFrameImportAddon {
     iceoryx2DomainRoot: string,
     channel: string,
     wakeService: string,
+    viewerReads: RuntimeViewerReads,
     surfaceShareAddress: string | null,
     viewerNodeName: string,
     viewedFrameReadBy: ViewerImageFrameReading,
@@ -51,6 +52,7 @@ export function runtimeViewerChannelReaderOpenerOver(
           openedViewer.iceoryx2_domain_root,
           openedViewer.channel,
           openedViewer.wake_service,
+          openedViewer.viewer_reads,
           openedViewer.surface_share_address,
           viewerNodeName,
           viewerImageFrameReading,

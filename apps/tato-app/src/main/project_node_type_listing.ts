@@ -103,7 +103,7 @@ function nodeTypeOnTheWire(nodeTypeValue: unknown): Result<ProjectNodeType, stri
   if (!kind.ok) return kind;
   const description = textOrDefault(nodeType.value, "description", "");
   if (!description.ok) return description;
-  const category = requiredText(nodeType.value, "category");
+  const category = optionalText(nodeType.value, "category");
   if (!category.ok) return category;
   const inputs = portsOrNullUnder(nodeType.value, "inputs");
   if (!inputs.ok) return inputs;

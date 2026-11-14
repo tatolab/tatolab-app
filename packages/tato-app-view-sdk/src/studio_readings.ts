@@ -149,12 +149,19 @@ export const streamGraphInterfacePortSchema = z.object({
 /** The port a `GraphInput` or `GraphOutput` node declares for its stream. */
 export type StreamGraphInterfacePort = z.infer<typeof streamGraphInterfacePortSchema>;
 
+/** How a node's code runs, as the runtime spells its `kind`: a shader on the GPU, a function evaluated where its reader reads, a class in a process of its own, or a graph generator's stored output. */
+export const streamGraphNodeKindSchema = z.enum(["shader", "function", "process", "fragment"]);
+/** How a node's code runs. */
+export type StreamGraphNodeKind = z.infer<typeof streamGraphNodeKindSchema>;
+
 /** One node of a stream's graph, by the name a link end and a port address name it by. */
 export const streamGraphNodeSchema = z.object({
   /** The node's UUID, which a log record's `processor_id` and every graph edit name it by. */
   id: z.string(),
   name: z.string(),
   type: z.string(),
+  /** How its code runs, from its `kind` key; `null` on a node whose type nothing registers, which the runtime renders with no `kind`. */
+  kind: streamGraphNodeKindSchema.nullable(),
   /** The processor's state as the runtime names it, such as `Running`. */
   state: z.string().nullable(),
   /** Why it failed, in the runtime's own words: set while it reads `Error`, `null` otherwise. */
@@ -248,6 +255,8 @@ export type NodeCatalogPort = z.infer<typeof nodeCatalogPortSchema>;
 export const nodeCatalogEntrySchema = z.object({
   type: z.string(),
   description: z.string(),
+  /** The category the runtime files it under, a path with `/` between its levels, as `Effects/Stylize`; `null` for a type served with none. */
+  category: z.string().nullable(),
   /** Its config's JSON Schema, draft 2020-12 with no `$schema` key; `null` for a type described without one. */
   config_schema: jsonValueSchema.nullable(),
   inputs: z.array(nodeCatalogPortSchema),
@@ -280,8 +289,8 @@ export const projectNodeTypeSchema = z.object({
   /** `process`, `function` or `shader`, or a kind newer than this app; `null` where source does not show it. */
   kind: z.string().nullable(),
   description: z.string(),
-  /** The Library category, the declaring module when none is declared. */
-  category: z.string(),
+  /** The category the runtime files it under, a path with `/` between its levels, as `Effects/Stylize`; `null` for a type served with none. */
+  category: z.string().nullable(),
   /** `null` where only the node's native half states its ports. */
   inputs: z.array(projectNodeTypePortSchema).nullable(),
   outputs: z.array(projectNodeTypePortSchema).nullable(),
@@ -558,6 +567,8 @@ export const portViewerMessageReadingSchema = z.discriminatedUnion("family", [
     samples_per_channel: z.number(),
     sample_type: z.string(),
     channel_waveforms: z.array(portViewerChannelWaveformSchema),
+    /** The block's samples, one array per channel, each `samples_per_channel` long. */
+    channel_samples: z.array(z.custom<Float32Array>((value) => value instanceof Float32Array, "a channel's samples are a Float32Array")),
   }),
   z.object({ family: z.literal("array"), attributes: z.array(portViewerArrayAttributeReadingSchema) }),
   z.object({ family: z.literal("packets"), codec: z.string(), byte_length: z.number(), starts_group: z.boolean(), timestamp_ns: z.number() }),

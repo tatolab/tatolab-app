@@ -334,7 +334,6 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
           <StudioStatusBar
             viewHostServices={sources.viewHostServices}
             projectFolder={openProject.kind === "read" ? openProject.open_project.project.folder : openProject.kind === "unreadable" ? openProject.folder : null}
-            platform={platform}
           />
         </>
       )}

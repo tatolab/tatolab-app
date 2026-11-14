@@ -22,7 +22,7 @@ export interface TreeViewRow {
   isReadOnly?: boolean;
   /** How the row reads: plainly, as the project's imports, or as something unreadable, failed or waiting. */
   tone?: "plain" | "imports" | "unreadable" | "not_ready" | "failed" | "waiting";
-  /** Quiet words at the row's end that say what kind of thing it is, as a node's type or `group`. */
+  /** Quiet words in the row's second column that say what kind of thing it is, as a node's type or `group`. */
   aside?: string;
   /** The row the window works in now, as the stream of the shown tab: a grey fill, its icon in the brand colour and its name stronger; a selected row keeps the selection's fill. */
   isCurrent?: boolean;
@@ -40,9 +40,17 @@ const TREE_ROW_TONE_CLASS_NAMES: Record<NonNullable<TreeViewRow["tone"]>, string
   waiting: "text-fg-3 italic",
 };
 
+/** The aside column, a fixed width so every row's aside starts at one edge under its heading; hidden where the tree is too narrow for two columns. */
+const TREE_ASIDE_COLUMN_CLASS_NAMES = "hidden w-16 shrink-0 truncate text-left text-2xs @min-[12rem]:block";
+
 /** Pixels from a row's start to the middle of its depth's chevron, where that depth's guide line runs. */
 function guideLineOffset(guideDepth: number): number {
   return 4 + (guideDepth - 1) * 14 + 7;
+}
+
+/** Pixels from a nested row's start to where its connector from its parent's guide line stops: short of its chevron, or into the empty chevron slot of a leaf. */
+function guideConnectorEnd(row: TreeViewRow): number {
+  return 4 + row.depth * 14 + (row.expansion === "leaf" ? 11 : 1);
 }
 
 /** The row a key moves to from `focusedIndex`, with what pressing it opens or closes; `null` for a key the tree does not answer. */
@@ -79,11 +87,17 @@ function treeKeyOutcome(
   }
 }
 
+/** The words over a tree's two columns: its rows' labels, and the kind of thing each is. */
+export interface TreeViewColumnHeadings {
+  label: string;
+  aside: string;
+}
+
 /** How a row was picked: on its own, toggled in or out of the rows selected with ⌘ or Ctrl, or extended to with ⇧. */
 export type TreeRowPick = "alone" | "toggled" | "extended";
 
 /**
- * A tree of rows, each at its depth with guide lines down its parents' depths: a click selects a row, ⌘ or ⇧ with it
+ * A tree of rows, each at its depth with guide lines down its parents' depths and a connector from its parent's line: a click selects a row, ⌘ or ⇧ with it
  * adds rows where the tree selects several, and its chevron opens or closes it; from the keyboard the arrows, Home and
  * End move the selection, Right and Left open and close a row or move to its first child or its parent, and Enter
  * activates it; where the tree selects several, ⇧ with Up or Down extends the selection and Space toggles the focused row.
@@ -96,6 +110,7 @@ export function TreeView({
   onRowSelected,
   onRowActivated,
   onExpansionToggled,
+  columnHeadings,
 }: {
   label: string;
   /** The rows that show, in order: a collapsed row's rows are left out. */
@@ -107,6 +122,8 @@ export function TreeView({
   onRowSelected: (rowId: string, pick: TreeRowPick) => void;
   onRowActivated: (rowId: string) => void;
   onExpansionToggled: (rowId: string, expand: boolean) => void;
+  /** Headings over the label and aside columns, held at the top as the tree scrolls; left out, the tree shows none. */
+  columnHeadings?: TreeViewColumnHeadings;
 }) {
   const treeElement = useRef<HTMLDivElement>(null);
   const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
@@ -147,6 +164,16 @@ export function TreeView({
 
   return (
     <div ref={treeElement} role="tree" aria-label={label} aria-multiselectable={selectsSeveralRows ? true : undefined} onKeyDown={answerKey} className="@container flex flex-col p-1 text-xs">
+      {columnHeadings !== undefined && (
+        <div aria-hidden data-tree-column-headings="" className="sticky top-0 z-10 -mx-1 -mt-1 mb-0.5 flex h-(--studio-tree-row-height) shrink-0 items-center border-b border-studio-area-outline bg-studio-area px-1 text-2xs font-medium text-fg-3 select-none">
+          <span className="shrink-0" style={{ width: 4 + 14 }} />
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 px-1">
+            <span className="min-w-0 flex-1 truncate">{columnHeadings.label}</span>
+            <span className={TREE_ASIDE_COLUMN_CLASS_NAMES}>{columnHeadings.aside}</span>
+          </span>
+          <span className="w-5 shrink-0" />
+        </div>
+      )}
       {rows.map((row) => {
         const RowIcon = studioIconNamed(row.icon);
         const isSelected = row.row_id === selectedRowId || alsoSelectedRowIds?.has(row.row_id) === true;
@@ -175,8 +202,16 @@ export function TreeView({
             )}
           >
             {Array.from({ length: row.depth }, (_, guideIndex) => (
-              <span key={guideIndex} aria-hidden className="absolute inset-y-0 w-px bg-studio-tree-guide" style={{ left: guideLineOffset(guideIndex + 1) }} />
+              <span key={guideIndex} aria-hidden data-tree-row-guide-line="" className="absolute inset-y-0 w-px bg-studio-tree-guide" style={{ left: guideLineOffset(guideIndex + 1) }} />
             ))}
+            {row.depth > 0 && (
+              <span
+                aria-hidden
+                data-tree-row-guide-connector=""
+                className="absolute top-1/2 h-px bg-studio-tree-guide"
+                style={{ left: guideLineOffset(row.depth), width: guideConnectorEnd(row) - guideLineOffset(row.depth) }}
+              />
+            )}
             <span aria-hidden className="shrink-0" style={{ width: 4 + row.depth * 14 }} />
             <span
               aria-hidden
@@ -196,7 +231,7 @@ export function TreeView({
                 <MatchedWords words={row.label} searchWords={row.searchWords ?? ""} />
               </span>
               {row.aside !== undefined && (
-                <span className={cn("hidden max-w-[40%] shrink-0 truncate text-2xs @3xs:block", isSelected ? "text-fg-2" : "text-fg-3")}>
+                <span className={cn(TREE_ASIDE_COLUMN_CLASS_NAMES, isSelected ? "text-fg-2" : "text-fg-3")}>
                   <MatchedWords words={row.aside} searchWords={row.searchWords ?? ""} />
                 </span>
               )}

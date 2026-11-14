@@ -7,6 +7,7 @@ function graphNode(name: string, inputs: string[], outputs: string[]): StreamGra
     id: name.toUpperCase(),
     name,
     type: `nodes.${name}:Effect`,
+    kind: "process",
     state: "Running",
     failed_because: null,
     process_raising_because: null,
@@ -164,6 +165,7 @@ test("a card and its pins carry their node type's descriptions from the stream's
       {
         type: "nodes.invert:Effect",
         description: "Inverts each frame's colours.",
+        category: null,
         config_schema: null,
         inputs: [{ name: "video_in", description: "The frames to invert.", family: "image" }],
         outputs: [{ name: "video_out", description: "  ", family: "image" }],
