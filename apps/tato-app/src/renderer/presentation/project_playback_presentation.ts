@@ -21,7 +21,7 @@ export interface ProjectPlaybackControls {
 }
 
 /** The open project's playback as the runtime lists its streams, or why it lists none now. */
-export type ProjectPlaybackReading = { kind: "listed"; listed: ProjectPlaybackAsListed } | { kind: "not_listed"; because: string };
+export type ProjectPlaybackReading = { kind: "listed"; listed: Pick<ProjectPlaybackAsListed, "playback" | "a_stream_has_failed"> } | { kind: "not_listed"; because: string };
 
 /** Why Play waits while the project already plays. */
 export const ALREADY_PLAYING_REASON = "Already playing";

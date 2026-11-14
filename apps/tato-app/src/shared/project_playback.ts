@@ -9,10 +9,11 @@ const STREAM_STATE_OF_A_CLOSED_PROJECT = "closed";
  */
 export type ProjectPlayback = "closed" | "stopped" | "starting" | "playing" | "paused" | "stopping";
 
-/** A project's playback as the runtime lists its streams, and whether one of them failed. */
+/** A project's playback as the runtime lists its streams, whether one of them failed, and whether one of them runs. */
 export interface ProjectPlaybackAsListed {
-  playback: ProjectPlayback;
-  a_stream_has_failed: boolean;
+  readonly playback: ProjectPlayback;
+  readonly a_stream_has_failed: boolean;
+  readonly a_stream_is_running: boolean;
 }
 
 /** The streams of `listedStreams` whose project lives in `projectDirectory`. */
@@ -25,15 +26,25 @@ export function theStreamsListTheProjectOpen(streamsOfTheProject: readonly Liste
   return streamsOfTheProject.some((listedStream) => listedStream.state !== STREAM_STATE_OF_A_CLOSED_PROJECT);
 }
 
+function aStreamOfTheProjectIs(streamsOfTheProject: readonly ListedStream[], state: string): boolean {
+  return streamsOfTheProject.some((listedStream) => listedStream.state === state);
+}
+
+function projectPlaybackOfTheStreams(streamsOfTheProject: readonly ListedStream[]): ProjectPlayback {
+  if (!theStreamsListTheProjectOpen(streamsOfTheProject)) return "closed";
+  if (aStreamOfTheProjectIs(streamsOfTheProject, "paused")) return "paused";
+  if (aStreamOfTheProjectIs(streamsOfTheProject, "stopping")) return "stopping";
+  if (aStreamOfTheProjectIs(streamsOfTheProject, "preparing")) return "starting";
+  if (aStreamOfTheProjectIs(streamsOfTheProject, "running")) return "playing";
+  return "stopped";
+}
+
 /** The playback of the project in `projectDirectory` as `listedStreams` list it. */
 export function projectPlaybackAsListed(listedStreams: readonly ListedStream[], projectDirectory: string): ProjectPlaybackAsListed {
   const streamsOfTheProject = streamsOfTheProjectIn(listedStreams, projectDirectory);
-  const aStreamIs = (state: string) => streamsOfTheProject.some((listedStream) => listedStream.state === state);
-  const aStreamHasFailed = aStreamIs("failed");
-  if (!theStreamsListTheProjectOpen(streamsOfTheProject)) return { playback: "closed", a_stream_has_failed: aStreamHasFailed };
-  if (aStreamIs("paused")) return { playback: "paused", a_stream_has_failed: aStreamHasFailed };
-  if (aStreamIs("stopping")) return { playback: "stopping", a_stream_has_failed: aStreamHasFailed };
-  if (aStreamIs("preparing")) return { playback: "starting", a_stream_has_failed: aStreamHasFailed };
-  if (aStreamIs("running")) return { playback: "playing", a_stream_has_failed: aStreamHasFailed };
-  return { playback: "stopped", a_stream_has_failed: aStreamHasFailed };
+  return {
+    playback: projectPlaybackOfTheStreams(streamsOfTheProject),
+    a_stream_has_failed: aStreamOfTheProjectIs(streamsOfTheProject, "failed"),
+    a_stream_is_running: aStreamOfTheProjectIs(streamsOfTheProject, "running"),
+  };
 }

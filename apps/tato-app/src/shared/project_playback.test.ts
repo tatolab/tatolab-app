@@ -32,6 +32,6 @@ describe("a project's playback as the runtime lists its streams", () => {
 
   it("reads only the streams of the project in the folder, and says when one of them failed", () => {
     const listedStreams = [listedStreamOf("/elsewhere", "running"), listedStreamOf(PROJECT_FOLDER, "stopped"), listedStreamOf(PROJECT_FOLDER, "failed", "broken")];
-    expect(projectPlaybackAsListed(listedStreams, PROJECT_FOLDER)).toEqual({ playback: "stopped", a_stream_has_failed: true });
+    expect(projectPlaybackAsListed(listedStreams, PROJECT_FOLDER)).toEqual({ playback: "stopped", a_stream_has_failed: true, a_stream_is_running: false });
   });
 });
