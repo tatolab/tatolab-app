@@ -61,3 +61,23 @@ describe("a tree that selects one row", () => {
     ]);
   });
 });
+
+describe("a tree's guide lines", () => {
+  it("connects each nested row to its parent's guide line, and leaves a row at the top unconnected", () => {
+    const rows: TreeViewRow[] = [
+      { row_id: "stream", depth: 0, label: "stream", icon: "graph_node", expansion: "expanded" },
+      { row_id: "group", depth: 1, label: "group", icon: "graph_group", expansion: "expanded" },
+      { row_id: "camera", depth: 2, label: "camera", icon: "graph_node", expansion: "leaf" },
+      { row_id: "display", depth: 1, label: "display", icon: "graph_node", expansion: "leaf" },
+    ];
+    render(<TreeView label="Outliner" rows={rows} selectedRowId={null} onRowSelected={vi.fn()} onRowActivated={vi.fn()} onExpansionToggled={vi.fn()} />);
+    const connectorOf = (rowId: string) => screen.getByRole("treeitem", { name: rowId }).querySelector<HTMLElement>("[data-tree-row-guide-connector]");
+    const guideLinesOf = (rowId: string) => [...screen.getByRole("treeitem", { name: rowId }).querySelectorAll<HTMLElement>("[data-tree-row-guide-line]")].map((guideLine) => guideLine.style.left);
+
+    expect(connectorOf("stream")).toBeNull();
+    for (const rowId of ["group", "camera", "display"]) {
+      expect(connectorOf(rowId)?.style.left).toBe(guideLinesOf(rowId).at(-1));
+    }
+    expect(Number.parseFloat(connectorOf("display")?.style.width ?? "0")).toBeGreaterThan(Number.parseFloat(connectorOf("group")?.style.width ?? "0"));
+  });
+});

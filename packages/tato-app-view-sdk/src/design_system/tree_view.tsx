@@ -44,6 +44,11 @@ function guideLineOffset(guideDepth: number): number {
   return 4 + (guideDepth - 1) * 14 + 7;
 }
 
+/** Pixels from a nested row's start to where its connector from its parent's guide line stops: short of its chevron, or into the empty chevron slot of a leaf. */
+function guideConnectorEnd(row: TreeViewRow): number {
+  return 4 + row.depth * 14 + (row.expansion === "leaf" ? 11 : 1);
+}
+
 /** The row a key moves to from `focusedIndex`, with what pressing it opens or closes; `null` for a key the tree does not answer. */
 function treeKeyOutcome(
   key: string,
@@ -82,7 +87,7 @@ function treeKeyOutcome(
 export type TreeRowPick = "alone" | "toggled" | "extended";
 
 /**
- * A tree of rows, each at its depth with guide lines down its parents' depths: a click selects a row, ⌘ or ⇧ with it
+ * A tree of rows, each at its depth with guide lines down its parents' depths and a connector from its parent's line: a click selects a row, ⌘ or ⇧ with it
  * adds rows where the tree selects several, and its chevron opens or closes it; from the keyboard the arrows, Home and
  * End move the selection, Right and Left open and close a row or move to its first child or its parent, and Enter
  * activates it; where the tree selects several, ⇧ with Up or Down extends the selection and Space toggles the focused row.
@@ -174,8 +179,16 @@ export function TreeView({
             )}
           >
             {Array.from({ length: row.depth }, (_, guideIndex) => (
-              <span key={guideIndex} aria-hidden className="absolute inset-y-0 w-px bg-studio-tree-guide" style={{ left: guideLineOffset(guideIndex + 1) }} />
+              <span key={guideIndex} aria-hidden data-tree-row-guide-line="" className="absolute inset-y-0 w-px bg-studio-tree-guide" style={{ left: guideLineOffset(guideIndex + 1) }} />
             ))}
+            {row.depth > 0 && (
+              <span
+                aria-hidden
+                data-tree-row-guide-connector=""
+                className="absolute top-1/2 h-px bg-studio-tree-guide"
+                style={{ left: guideLineOffset(row.depth), width: guideConnectorEnd(row) - guideLineOffset(row.depth) }}
+              />
+            )}
             <span aria-hidden className="shrink-0" style={{ width: 4 + row.depth * 14 }} />
             <span
               aria-hidden
