@@ -2178,12 +2178,11 @@ describe("Module manager", () => {
     expect(shownTab()).toBe("marketplace");
   });
 
-  it("says the catalog didn't load and what it waits on, and still lists the project's modules", async () => {
+  it("says why the catalog didn't load, and still lists the project's modules", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open&catalog=unserved");
 
     await shown('[data-module-manager-state="not_read"]');
     expect(textOf('[data-module-manager-state="not_read"]')).toContain("HTTP 404 Not Found");
-    expect(textOf('[data-module-manager-state="not_read"]')).toContain("tatolab/streamlib#3216");
     pressed('[data-module-manager-show="added_to_this_project"]');
     await shown('[data-module-manager-row="lobby-wall"]');
   });

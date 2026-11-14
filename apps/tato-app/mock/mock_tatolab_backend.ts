@@ -285,7 +285,7 @@ export interface MockTatolabOptions {
   moduleManagerWorkspaceDependencies: MockWorkspaceDependenciesScenario | null;
   /** `?module_manager_section=added_to_this_project|marketplace`: the section a Modules and Marketplace window's page opens on, Marketplace when the query names none. */
   moduleManagerSectionOpenedOn: ModulesShown;
-  /** `?catalog=unserved`: get.tatolab.com serves no catalog yet; the mock catalog by default. */
+  /** `?catalog=unserved`: get.tatolab.com answers the catalog with a 404; the mock catalog by default. */
   isTheCatalogUnserved: boolean;
   /** `?marketplace_add=refused|never_ends`: adding a Marketplace package, or cloning a sample, is refused with a download whose SHA-256 is not the catalog's, or never answers, so its progress stays; it succeeds by default. */
   marketplaceAddScenario: "succeeds" | "refused" | "never_ends";

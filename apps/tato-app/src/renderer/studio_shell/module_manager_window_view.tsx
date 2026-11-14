@@ -52,9 +52,6 @@ import {
 import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { ModuleManagerSectionAskNumbered } from "./studio_window_model";
 
-/** The streamlib issue that serves the catalog. */
-const THE_CATALOG_IS_SERVED_WITH = "tatolab/streamlib#3216";
-
 /** What the Marketplace window reads and asks through. */
 export interface ModuleManagerSources {
   readPackageCatalog(): Promise<PackageCatalogReading>;
@@ -839,7 +836,7 @@ export function ModuleManagerWindowView({
                 dataAttributeOfEachSegment="data-module-manager-kind"
               />
             </div>
-            {catalog?.kind === "not_read" && <RefusalLine layout="bar" lead={`The catalog didn't load (it waits on ${THE_CATALOG_IS_SERVED_WITH}):`} words={catalog.because} data-module-manager-state="not_read" />}
+            {catalog?.kind === "not_read" && <RefusalLine layout="bar" lead="The catalog didn't load:" words={catalog.because} data-module-manager-state="not_read" />}
             {catalog?.kind === "read" && catalog.unreadable_entry_count > 0 && (
               <RefusalLine tone="warning" layout="bar" words={`The catalog lists ${catalog.unreadable_entry_count} more this Tato Studio cannot read. A newer Tato Studio may list them.`} />
             )}
