@@ -2,7 +2,8 @@ import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_re
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
-import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { NodeGraphPinMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph_card_view";
+import { nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_banner";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
