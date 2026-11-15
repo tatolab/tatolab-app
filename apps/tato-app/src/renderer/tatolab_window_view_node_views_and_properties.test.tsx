@@ -2,7 +2,8 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { JsonValue, PoppedOutView } from "../shared/tatolab_backend_contract";
-import { createMockTatolabBackend, readMockTatolabOptions } from "../../mock/mock_tatolab_backend";
+import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
+import { readMockTatolabOptions } from "../../mock/mock_tatolab_options";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import { studioLayoutStorageKey } from "./studio_shell/studio_layout";
 import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, PATTERN_PROJECT, PATTERN_MAIN_STREAM, coreViewPage, inTheCoreView, libraryRow, showTheLibraryInTheViewerArea, outlinerRow, outlinerRowIds, AREAS_OF_THE_DEFAULT_LAYOUT, theAreasShownAre, keepThePatternProjectsLayout, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";

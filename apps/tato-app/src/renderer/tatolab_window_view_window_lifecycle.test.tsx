@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMockTatolabBackend, readMockTatolabOptions } from "../../mock/mock_tatolab_backend";
+import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
+import { readMockTatolabOptions } from "../../mock/mock_tatolab_options";
 import { mountedWindowOverTheMock, textOf, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
 
 // Monaco left in the page listens on the document's body and rejects on events of every later test, so

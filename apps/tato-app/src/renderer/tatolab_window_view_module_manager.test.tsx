@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMockTatolabBackend, readMockTatolabOptions } from "../../mock/mock_tatolab_backend";
+import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
+import { readMockTatolabOptions } from "../../mock/mock_tatolab_options";
 import type { ModulesShown } from "../shared/tatolab_electron_bridge_contract";
 import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
 

@@ -1,7 +1,8 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { expect, vi } from "vitest";
 import type { SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
-import { createMockTatolabBackend, readMockTatolabOptions } from "../../mock/mock_tatolab_backend";
+import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
+import { readMockTatolabOptions } from "../../mock/mock_tatolab_options";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
 import { studioLayoutStorageKey } from "./studio_shell/studio_layout";

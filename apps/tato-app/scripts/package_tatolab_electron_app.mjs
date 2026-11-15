@@ -40,7 +40,7 @@ await writeFile(
   `${JSON.stringify({ name: "tatolab", productName: "Tato Studio", version: appVersion, private: true, type: "module", main: tatoAppPackageJson.main }, null, 2)}\n`,
 );
 // The mock backend and its presets are the dev server's alone; a window built with them could show made-up streams.
-const mockWindowModuleNames = ["mock_tatolab_backend", "mock_window_preset"];
+const mockWindowModuleNames = ["mock_tatolab_backend", "mock_tatolab_options", "mock_window_preset"];
 for (const builtWindowFileName of await readdir(path.join(tatoAppRoot, "out", "renderer", "assets"))) {
   const mockWindowModuleName = mockWindowModuleNames.find((moduleName) => builtWindowFileName.startsWith(`${moduleName}-`));
   if (mockWindowModuleName !== undefined) {
