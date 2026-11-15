@@ -9,7 +9,7 @@ import { mountTatolabWindow } from "./tatolab_window_view";
 const FIRST_STATUS_RETRY_MILLISECONDS = 1000;
 
 async function createBrowserMockBackend(pageQuery: URLSearchParams): Promise<TatolabBackend> {
-  const { createMockTatolabBackend, readMockTatolabOptions } = await import("../../mock/mock_tatolab_backend");
+  const [{ createMockTatolabBackend }, { readMockTatolabOptions }] = await Promise.all([import("../../mock/mock_tatolab_backend"), import("../../mock/mock_tatolab_options")]);
   return createMockTatolabBackend(readMockTatolabOptions(pageQuery));
 }
 

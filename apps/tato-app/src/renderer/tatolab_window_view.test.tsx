@@ -2,7 +2,8 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { JsonValue, OpenProjectReading, PoppedOutView, ProjectTransaction, RecentProject, SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
-import { createMockTatolabBackend, readMockTatolabOptions } from "../../mock/mock_tatolab_backend";
+import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
+import { readMockTatolabOptions } from "../../mock/mock_tatolab_options";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
 import type { ModulesShown } from "../shared/tatolab_electron_bridge_contract";

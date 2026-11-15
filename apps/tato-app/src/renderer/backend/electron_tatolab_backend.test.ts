@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import { createElectronTatolabBackend } from "./electron_tatolab_backend";
-import { createMockTatolabBackend, readMockTatolabOptions } from "../../../mock/mock_tatolab_backend";
+import { createMockTatolabBackend } from "../../../mock/mock_tatolab_backend";
+import { readMockTatolabOptions } from "../../../mock/mock_tatolab_options";
 import { describeBackendRejection } from "./tatolab_backend";
 import type { OpenProjectReading, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import type {
