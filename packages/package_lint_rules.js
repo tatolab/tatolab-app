@@ -73,7 +73,6 @@ export function packageLintConfig(packageFolder) {
     ...tatolabTypeScriptLintConfig({ files: PACKAGE_LINTED_FILES, testFiles: ["src/**/*.test.ts", "src/**/*.test.tsx"] }),
     {
       files: PACKAGE_LINTED_FILES,
-      extends: [tseslint.configs.base],
       plugins: { tatolab_package: { rules: { imports_stay_inside_the_package: importsStayInsideThePackageRule(packageFolder) } } },
       rules: {
         "tatolab_package/imports_stay_inside_the_package": "error",

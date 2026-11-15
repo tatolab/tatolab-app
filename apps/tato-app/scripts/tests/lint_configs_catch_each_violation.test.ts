@@ -65,8 +65,14 @@ const reportedCases: [string, string, string, string][] = [
   ["Date.now() in shipped main-process code", "src/main/zz_planted.ts", "export const planted = Date.now();\n", "no-restricted-properties"],
   ["new Date() in shipped main-process code", "src/main/platform/zz_planted.ts", "export const planted = new Date();\n", "no-restricted-syntax"],
   ["a throw in the window preload", "src/preload/zz_planted.ts", 'export function planted(): void {\n  throw new Error("planted");\n}\n', "no-restricted-syntax"],
-  ["a focused main-process test", "src/main/zz_planted.test.ts", 'import { test } from "vitest";\ntest.only("planted", () => {});\n', "no-restricted-syntax"],
-  ["a skipped main-process test", "src/main/platform/zz_planted.test.ts", 'import { test } from "vitest";\ntest.skip("planted", () => {});\n', "no-restricted-syntax"],
+  ["a focused main-process test", "src/main/zz_planted.test.ts", 'import { test } from "vitest";\ntest.only("planted", () => {});\n', "tatolab/no-focused-or-skipped-test"],
+  ["a skipped main-process test", "src/main/platform/zz_planted.test.ts", 'import { test } from "vitest";\ntest.skip("planted", () => {});\n', "tatolab/no-focused-or-skipped-test"],
+  ["a focused window test", "src/renderer/zz_planted.test.ts", 'import { it } from "vitest";\nit.only("planted", () => {});\n', "tatolab/no-focused-or-skipped-test"],
+  ["an as cast in the window", "src/renderer/zz_planted.ts", 'export const planted = JSON.parse("1") as number;\n', "@typescript-eslint/consistent-type-assertions"],
+  ["an as cast in the mock window", "mock/zz_planted.ts", 'export const planted = JSON.parse("1") as number;\n', "@typescript-eslint/consistent-type-assertions"],
+  ["an as cast in a main-process test", "src/main/zz_planted.test.ts", 'export const planted = JSON.parse("1") as number;\n', "@typescript-eslint/consistent-type-assertions"],
+  ["an as cast in a fake", "src/main/fake_zz_planted.ts", 'export const planted = JSON.parse("1") as number;\n', "@typescript-eslint/consistent-type-assertions"],
+  ["a ts-ignore comment in the window", "src/renderer/zz_planted.ts", "// @ts-ignore\nexport const planted = 1;\n", "@typescript-eslint/ban-ts-comment"],
 ];
 
 test.each(reportedCases)("reports %s", async (_caseDescription, filePath, plantedSource, expectedRuleId) => {
@@ -86,10 +92,10 @@ const quietCases: [string, string, string][] = [
   ["electron imported by an adapter", "src/main/electron_adapters/zz_planted.ts", 'import { app } from "electron";\nexport const plantedApp = app;\n'],
   ["electron imported by the preload", "src/preload/zz_planted.ts", 'import { ipcRenderer } from "electron";\nexport const plantedBridge = ipcRenderer;\n'],
   ["process.stdout written by tatolab_app_log.ts", "src/main/tatolab_app_log.ts", 'process.stdout.write("planted");\n'],
-  ["a cast, a throw and a Sync call in a main-process test", "src/main/zz_planted.test.ts", 'import { readFileSync } from "node:fs";\nexport const planted = readFileSync("/dev/null") as Buffer;\nexport function failing(): void {\n  throw new Error("planted");\n}\n'],
+  ["a throw and a Sync call in a main-process test", "src/main/zz_planted.test.ts", 'import { readFileSync } from "node:fs";\nexport const planted = readFileSync("/dev/null");\nexport function failing(): void {\n  throw new Error("planted");\n}\n'],
   ["a process.platform read in a fake under platform/", "src/main/platform/fake_zz_planted.ts", "export const plantedPlatform = process.platform;\n"],
   ["electron imported by a fake under electron_adapters/", "src/main/electron_adapters/fake_zz_planted.ts", 'import { app } from "electron";\nexport const plantedApp = app;\n'],
-  ["a cast and a throw in a fake", "src/main/fake_zz_planted.ts", 'export const planted = JSON.parse("1") as number;\nexport function failing(): void {\n  throw new Error("planted");\n}\n'],
+  ["a throw in a fake", "src/main/fake_zz_planted.ts", 'export function failing(): void {\n  throw new Error("planted");\n}\n'],
   ["as const in shipped main-process code", "src/main/zz_planted.ts", 'export const planted = ["as a string", "throw it"] as const;\n'],
   ["the forms named only in a comment and a string", "src/main/zz_planted.ts", '// planted: as Error, throw, Date.now() and electron in a comment\nexport const planted = "throw it and Date.now()";\n'],
 ];
