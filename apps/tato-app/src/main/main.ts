@@ -27,7 +27,9 @@ import {
   runInTheBackgroundWithTheController,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
-import { openTheProjectWhenTheRuntimeHoldsItClosed, tatolabWindowCommandHandlers, type TatolabWindowCommandHandlers } from "./tatolab_commands.js";
+import type { TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
+import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
+import { openTheProjectWhenTheRuntimeHoldsItClosed } from "./tatolab_stream_and_runtime_project_commands.js";
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
