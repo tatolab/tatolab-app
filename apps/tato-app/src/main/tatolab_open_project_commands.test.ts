@@ -9,9 +9,9 @@ import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.j
 import { failedWith, succeeded } from "./result.js";
 import { reloadTheOpenProjectAfterASaveOfItsPythonFile, whatASavedNodeFileAsksOfTheRuntime } from "./tatolab_open_project_commands.js";
 import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import { cleanUpTheFakesOfEarlierTests, FROM_THE_PROJECTS_WINDOW, cleanUps, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS, recordedResponseBody, sharedStateOverFakes, listedStreamOfTheProject, statusLastPublishedListing, projectActionsQueuedOn } from "./tatolab_commands_test_support.js";
+import { cleanUpTheFakesTheLastTestMade, FROM_THE_PROJECTS_WINDOW, cleanUps, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS, recordedResponseBody, sharedStateOverFakes, listedStreamOfTheProject, statusLastPublishedListing, projectActionsQueuedOn } from "./tatolab_commands_test_support.js";
 
-afterEach(cleanUpTheFakesOfEarlierTests);
+afterEach(cleanUpTheFakesTheLastTestMade);
 
 test("a saved Python file of a project the runtime lists open queues reload_project, as tatolab dev does; another file, or a closed project, is left as it is", async () => {
   const sharedState = await sharedStateOverFakes([httpResponse("200 OK", "text/plain", "ok")], "linux");

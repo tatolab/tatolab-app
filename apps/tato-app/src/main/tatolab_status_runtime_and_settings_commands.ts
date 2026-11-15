@@ -24,7 +24,7 @@ export function linkCommandLineTool(sharedState: TatolabAppSharedState): Promise
 }
 
 /** `describe_runtime`: the running runtime's version, build, uptime and own log folder; refused in the runtime's own words. */
-export function describeRuntime(sharedState: TatolabAppSharedState): Promise<Result<RuntimeDescription, string>> {
+function describeRuntime(sharedState: TatolabAppSharedState): Promise<Result<RuntimeDescription, string>> {
   return answerTheWindow("describe_runtime", async () => {
     const runtimeDescription = await sharedState.controller.describeRuntime();
     return runtimeDescription.ok ? runtimeDescription : failedWith(runtimeDescription.failure.failureDescription);
@@ -32,7 +32,7 @@ export function describeRuntime(sharedState: TatolabAppSharedState): Promise<Res
 }
 
 /** `restart_runtime`: stop the app's runtime and start it again, then a status round whether it restarted or was refused; refused for a runtime the app did not start. */
-export function restartRuntime(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
+function restartRuntime(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
   return answerTheWindow("restart_runtime", async () => {
     const restarted = await sharedState.controller.restartTheRuntimeOnRequest();
     sharedState.statusPublisher.requestRefresh();
@@ -41,14 +41,14 @@ export function restartRuntime(sharedState: TatolabAppSharedState): Promise<Resu
 }
 
 /** `open_runtime_log_folder`: the folder the runtime names for its own log when asked now, in the file manager; refused naming why. */
-export function openRuntimeLogFolder(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
+function openRuntimeLogFolder(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
   return answerTheWindow("open_runtime_log_folder", async () =>
     openTheRuntimesLogFolder(await sharedState.controller.describeRuntime(), sharedState.streamProjectFolderOpeners),
   );
 }
 
 /** `set_stream_failure_notifications { enabled }`: turn the stream-failure notifications on or off, then a status round; refused when the choice could not be remembered. */
-export function setStreamFailureNotifications(sharedState: TatolabAppSharedState, enabled: boolean): Promise<Result<void, string>> {
+function setStreamFailureNotifications(sharedState: TatolabAppSharedState, enabled: boolean): Promise<Result<void, string>> {
   return answerTheWindow("set_stream_failure_notifications", async () => {
     const set = await sharedState.streamFailureNotifications.setNotifyWhenAStreamFails(enabled);
     sharedState.statusPublisher.requestRefresh();
@@ -57,7 +57,7 @@ export function setStreamFailureNotifications(sharedState: TatolabAppSharedState
 }
 
 /** `set_developer_mode { enabled }`: turn Developer mode on or off, then a status round; refused when the choice could not be remembered. */
-export function setDeveloperMode(sharedState: TatolabAppSharedState, enabled: boolean): Promise<Result<void, string>> {
+function setDeveloperMode(sharedState: TatolabAppSharedState, enabled: boolean): Promise<Result<void, string>> {
   return answerTheWindow("set_developer_mode", async () => {
     const set = await sharedState.developerModeSwitch.setAndRemember(enabled);
     sharedState.statusPublisher.requestRefresh();
@@ -66,7 +66,7 @@ export function setDeveloperMode(sharedState: TatolabAppSharedState, enabled: bo
 }
 
 /** `dismiss_the_studio_warning_dialog { kind }`: remember that the warning's dialog was shown, then a status round, so no window shows it again; refused when that could not be remembered. */
-export function dismissTheStudioWarningDialog(sharedState: TatolabAppSharedState, kind: StudioWarningKind): Promise<Result<void, string>> {
+function dismissTheStudioWarningDialog(sharedState: TatolabAppSharedState, kind: StudioWarningKind): Promise<Result<void, string>> {
   return answerTheWindow("dismiss_the_studio_warning_dialog", async () => {
     const remembered = await sharedState.studioWarnings.rememberTheDialogWasShown(kind);
     sharedState.statusPublisher.requestRefresh();
@@ -75,7 +75,7 @@ export function dismissTheStudioWarningDialog(sharedState: TatolabAppSharedState
 }
 
 /** `dismiss_the_studio_warning_dialog`'s arguments as the window sends them, or why they are not. */
-export function dismissTheStudioWarningDialogArgumentsFrom(commandArguments: unknown): Result<{ kind: StudioWarningKind }, string> {
+function dismissTheStudioWarningDialogArgumentsFrom(commandArguments: unknown): Result<{ kind: StudioWarningKind }, string> {
   const kind = oneTextArgumentFrom("dismiss_the_studio_warning_dialog", commandArguments, "kind", "the warning's kind");
   if (!kind.ok) return kind;
   if (kind.value !== "viewer_frames_copied_on_x11") return failedWith(`dismiss_the_studio_warning_dialog takes \`kind\` viewer_frames_copied_on_x11, not ${kind.value}`);
@@ -83,7 +83,7 @@ export function dismissTheStudioWarningDialogArgumentsFrom(commandArguments: unk
 }
 
 /** `set_open_tatolab_at_login { enabled }`: have the desktop open the app at login, or stop, then a status round; refused in the desktop's words. */
-export function setOpenTatolabAtLogin(sharedState: TatolabAppSharedState, enabled: boolean): Promise<Result<void, string>> {
+function setOpenTatolabAtLogin(sharedState: TatolabAppSharedState, enabled: boolean): Promise<Result<void, string>> {
   return answerTheWindow("set_open_tatolab_at_login", async () => {
     const set = await sharedState.controller.setOpenTatolabAtLogin(enabled);
     sharedState.statusPublisher.requestRefresh();
@@ -100,7 +100,7 @@ export function enabledArgumentsFrom(commandName: TatolabCommandName, commandArg
 }
 
 /** `answer_the_app_update_announcement`'s arguments as the window sends them, or why they are not. */
-export function appUpdateAnnouncementAnswerArgumentsFrom(
+function appUpdateAnnouncementAnswerArgumentsFrom(
   commandArguments: unknown,
 ): Result<{ kind: TatolabAppUpdateAnnouncementKind; version: string; answer: TatolabAppUpdateAnnouncementAnswer }, string> {
   const kind = oneTextArgumentFrom("answer_the_app_update_announcement", commandArguments, "kind", "the announcement's kind");

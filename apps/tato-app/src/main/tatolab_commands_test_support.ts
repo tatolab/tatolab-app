@@ -38,16 +38,16 @@ export const FROM_THE_PROJECTS_WINDOW = { windowContentsId: PROJECTS_WINDOW_CONT
 /** The clean-ups of the fakes the running test made, run after it. */
 export const cleanUps: (() => Promise<void>)[] = [];
 
-/** Runs and forgets the clean-ups of the fakes the tests so far made. */
-export async function cleanUpTheFakesOfEarlierTests(): Promise<void> {
+/** Runs and forgets the clean-ups of the fakes the test that just ended made. */
+export async function cleanUpTheFakesTheLastTestMade(): Promise<void> {
   await Promise.all(cleanUps.splice(0).map((cleanUp) => cleanUp()));
 }
 
 /** The app's log, keeping only errors and writing them nowhere. */
-export const quietTatolabAppLog = createTatolabAppLog("error", () => {});
+const quietTatolabAppLog = createTatolabAppLog("error", () => {});
 
 /** Project readings of a runtime that answers none of them. */
-export const NO_RUNTIME_READS_THE_PROJECTS: ProjectReadingsOfTheRuntime = {
+const NO_RUNTIME_READS_THE_PROJECTS: ProjectReadingsOfTheRuntime = {
   nameTheProject: async () => failedWith("no runtime answers"),
   listTheDependencies: async () => failedWith("no runtime answers"),
 };
@@ -62,7 +62,7 @@ export const THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS: ProjectReadingsOfTheRun
 export const recordedResponseBody = (fixtureFileName: string) => readFile(new URL(`./test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
 
 /** The control operation a request to the fake local API called and its params, or none for a request that calls no operation. */
-export function controlOperationCallOfTheRequest(request: string): [string, unknown][] {
+function controlOperationCallOfTheRequest(request: string): [string, unknown][] {
   if (!request.startsWith("POST /control ")) return [];
   const requestBody: { method: string; params: unknown } = JSON.parse(request.slice(request.indexOf("\r\n\r\n") + 4));
   return [[requestBody.method, requestBody.params]];

@@ -17,7 +17,7 @@ function stepTheProjectsWindowAsideOnceItOpenedAProject(
 }
 
 /** `choose_project_folder { chosen_for }`: the app's folder dialog, opened beside the asking window's project, the chosen folder opened in its own studio window; `null` when the person cancels. */
-export async function chooseProjectFolder(
+async function chooseProjectFolder(
   sharedState: TatolabAppSharedState,
   chosenFor: ProjectFolderChosenFor,
   commandFromWindow: TatolabCommandFromWindow,
@@ -29,14 +29,14 @@ export async function chooseProjectFolder(
 }
 
 /** `choose_project_folder`'s arguments as the window sends them, or why they are not. */
-export function chooseProjectFolderArgumentsFrom(commandArguments: unknown): Result<{ chosen_for: ProjectFolderChosenFor }, string> {
+function chooseProjectFolderArgumentsFrom(commandArguments: unknown): Result<{ chosen_for: ProjectFolderChosenFor }, string> {
   const chosenFor = isAJsonObject(commandArguments) ? commandArguments["chosen_for"] : undefined;
   if (chosenFor !== "project_to_open") return failedWith("choose_project_folder needs `chosen_for`, project_to_open");
   return succeeded({ chosen_for: chosenFor });
 }
 
 /** `create_new_project { name, location }`: the runtime's `create_project` at `<location>/<name>`, opened in its own studio window, then a status round; refused in the app's words or the runtime's own. */
-export async function createNewProject(
+async function createNewProject(
   sharedState: TatolabAppSharedState,
   name: string,
   location: string,
@@ -52,14 +52,14 @@ export async function createNewProject(
 }
 
 /** `open_recent_project { folder }`: one of the recent projects opened in its own studio window, or that window brought forward. */
-export async function openRecentProject(sharedState: TatolabAppSharedState, folder: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+async function openRecentProject(sharedState: TatolabAppSharedState, folder: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
   const opened = await answerTheWindow("open_recent_project", () => sharedState.projectOpening.openRecentProject(folder));
   stepTheProjectsWindowAsideOnceItOpenedAProject(sharedState, commandFromWindow, opened.ok ? succeeded(folder) : opened);
   return opened;
 }
 
 /** `import_project_archive { archive, name, location }`: the runtime's `import_project` of `archive` into `<location>/<name>`, opened in its own studio window, then a status round; refused in the app's words or the runtime's own. */
-export async function importProjectArchive(
+async function importProjectArchive(
   sharedState: TatolabAppSharedState,
   importArguments: { archive: string; name: string; location: string },
   commandFromWindow: TatolabCommandFromWindow,
@@ -74,7 +74,7 @@ export async function importProjectArchive(
 }
 
 /** `import_project_archive`'s arguments as the window sends them, or why they are not. */
-export function importProjectArchiveArgumentsFrom(commandArguments: unknown): Result<{ archive: string; name: string; location: string }, string> {
+function importProjectArchiveArgumentsFrom(commandArguments: unknown): Result<{ archive: string; name: string; location: string }, string> {
   const archive = oneTextArgumentFrom("import_project_archive", commandArguments, "archive", "the project .zip chosen in the dialog");
   if (!archive.ok) return archive;
   const name = oneTextArgumentFrom("import_project_archive", commandArguments, "name", "the imported project's name");
@@ -85,7 +85,7 @@ export function importProjectArchiveArgumentsFrom(commandArguments: unknown): Re
 }
 
 /** `rename_recent_project`'s arguments as the window sends them, or why they are not. */
-export function renameRecentProjectArgumentsFrom(commandArguments: unknown): Result<{ folder: string; name: string }, string> {
+function renameRecentProjectArgumentsFrom(commandArguments: unknown): Result<{ folder: string; name: string }, string> {
   const folder = oneTextArgumentFrom("rename_recent_project", commandArguments, "folder", "one of the recent projects' folders");
   if (!folder.ok) return folder;
   const name = oneTextArgumentFrom("rename_recent_project", commandArguments, "name", "the project's new name");
@@ -94,7 +94,7 @@ export function renameRecentProjectArgumentsFrom(commandArguments: unknown): Res
 }
 
 /** `set_recent_project_description`'s arguments as the window sends them, or why they are not. */
-export function setRecentProjectDescriptionArgumentsFrom(commandArguments: unknown): Result<{ folder: string; description: string }, string> {
+function setRecentProjectDescriptionArgumentsFrom(commandArguments: unknown): Result<{ folder: string; description: string }, string> {
   const folder = oneTextArgumentFrom("set_recent_project_description", commandArguments, "folder", "one of the recent projects' folders");
   if (!folder.ok) return folder;
   const description = oneTextArgumentFrom("set_recent_project_description", commandArguments, "description", "what the project is, blank to clear it");
@@ -103,7 +103,7 @@ export function setRecentProjectDescriptionArgumentsFrom(commandArguments: unkno
 }
 
 /** `set_recent_project_cover`'s arguments as the window sends them, or why they are not. */
-export function setRecentProjectCoverArgumentsFrom(commandArguments: unknown): Result<{ folder: string; image: string | null }, string> {
+function setRecentProjectCoverArgumentsFrom(commandArguments: unknown): Result<{ folder: string; image: string | null }, string> {
   const folder = oneTextArgumentFrom("set_recent_project_cover", commandArguments, "folder", "one of the recent projects' folders");
   if (!folder.ok) return folder;
   const image = isAJsonObject(commandArguments) ? commandArguments["image"] : undefined;
@@ -112,7 +112,7 @@ export function setRecentProjectCoverArgumentsFrom(commandArguments: unknown): R
 }
 
 /** `create_new_project`'s arguments as the window sends them, or why they are not. */
-export function createNewProjectArgumentsFrom(commandArguments: unknown): Result<{ name: string; location: string }, string> {
+function createNewProjectArgumentsFrom(commandArguments: unknown): Result<{ name: string; location: string }, string> {
   const name = oneTextArgumentFrom("create_new_project", commandArguments, "name", "the new project's name");
   if (!name.ok) return name;
   const location = oneTextArgumentFrom("create_new_project", commandArguments, "location", "the full path of the folder it goes in");

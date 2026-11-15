@@ -1,9 +1,9 @@
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
 import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import { cleanUpTheFakesOfEarlierTests, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
+import { cleanUpTheFakesTheLastTestMade, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
 
-afterEach(cleanUpTheFakesOfEarlierTests);
+afterEach(cleanUpTheFakesTheLastTestMade);
 
 test("The Projects window's commands list no recent project on a fresh install, and open only a recent one", async () => {
   const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});

@@ -7,9 +7,9 @@ import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.j
 import { failedWith, succeeded } from "./result.js";
 import { removeProject, openTheProjectWhenTheRuntimeHoldsItClosed } from "./tatolab_stream_and_runtime_project_commands.js";
 import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import { cleanUpTheFakesOfEarlierTests, FROM_THE_PROJECTS_WINDOW, cleanUps, recordedResponseBody, sharedStateOverFakes, RECORDED_PATTERN_PROJECT, RECORDED_PATTERN_RELOAD_ACTION, RECORDED_LOBBY_PROJECT, RECORDED_LOBBY_OPEN_ACTION, RECORDED_UNLISTED_PROJECT_THE_RUNTIME_HOLDS_OPEN } from "./tatolab_commands_test_support.js";
+import { cleanUpTheFakesTheLastTestMade, FROM_THE_PROJECTS_WINDOW, cleanUps, recordedResponseBody, sharedStateOverFakes, RECORDED_PATTERN_PROJECT, RECORDED_PATTERN_RELOAD_ACTION, RECORDED_LOBBY_PROJECT, RECORDED_LOBBY_OPEN_ACTION, RECORDED_UNLISTED_PROJECT_THE_RUNTIME_HOLDS_OPEN } from "./tatolab_commands_test_support.js";
 
-afterEach(cleanUpTheFakesOfEarlierTests);
+afterEach(cleanUpTheFakesTheLastTestMade);
 
 test("removing a project queues on the runtime, then observes again whether it queued or was refused", async () => {
   const sharedState = await sharedStateOverFakes(

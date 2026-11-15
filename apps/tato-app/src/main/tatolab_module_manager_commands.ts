@@ -24,7 +24,7 @@ function workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState: 
 }
 
 /** `list_workspace_dependencies`: the asking Module manager window's workspace's imports, each source read for a newer version with `checkForNewer`; refused in the runtime's own words. */
-export function listWorkspaceDependencies(sharedState: TatolabAppSharedState, checkForNewer: boolean, commandFromWindow: TatolabCommandFromWindow): Promise<Result<WorkspaceDependency[], string>> {
+function listWorkspaceDependencies(sharedState: TatolabAppSharedState, checkForNewer: boolean, commandFromWindow: TatolabCommandFromWindow): Promise<Result<WorkspaceDependency[], string>> {
   return answerTheWindow("list_workspace_dependencies", async () => {
     const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!workspaceFolder.ok) return workspaceFolder;
@@ -45,7 +45,7 @@ export function listWorkspaceDependencies(sharedState: TatolabAppSharedState, ch
 }
 
 /** `choose_dependency_source`: the desktop's open dialog for a project's folder or `.zip`, opened beside the workspace; `null` when the person cancels. */
-export function chooseDependencySource(sharedState: TatolabAppSharedState, sourceKind: DependencySourceKind, commandFromWindow: TatolabCommandFromWindow): Promise<Result<string | null, string>> {
+function chooseDependencySource(sharedState: TatolabAppSharedState, sourceKind: DependencySourceKind, commandFromWindow: TatolabCommandFromWindow): Promise<Result<string | null, string>> {
   return answerTheWindow("choose_dependency_source", async () => {
     const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!workspaceFolder.ok) return workspaceFolder;
@@ -54,7 +54,7 @@ export function chooseDependencySource(sharedState: TatolabAppSharedState, sourc
 }
 
 /** `add_dependency_to_the_workspace`: the runtime's `add_dependency` copies `source` into the asking Module manager window's workspace; refused in the runtime's own words. */
-export function addDependencyToTheWorkspace(sharedState: TatolabAppSharedState, source: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectDependency, string>> {
+function addDependencyToTheWorkspace(sharedState: TatolabAppSharedState, source: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectDependency, string>> {
   return answerTheWindow("add_dependency_to_the_workspace", async () => {
     const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!workspaceFolder.ok) return workspaceFolder;
@@ -67,7 +67,7 @@ export function addDependencyToTheWorkspace(sharedState: TatolabAppSharedState, 
 }
 
 /** `update_workspace_dependency`: the runtime's `update_dependency` copies the import `project` again, overwriting files edited since its copy only with `overwriteEditedFiles`; refused in the runtime's own words. */
-export function updateWorkspaceDependency(
+function updateWorkspaceDependency(
   sharedState: TatolabAppSharedState,
   project: string,
   overwriteEditedFiles: boolean,
@@ -84,7 +84,7 @@ export function updateWorkspaceDependency(
 }
 
 /** `import_from_the_marketplace`: the catalog entry `name`, read afresh, downloaded as its `.zip` into the app's downloads folder and checked, then copied into the asking Module manager window's workspace by the runtime's `add_dependency`; refused in words. */
-export function importFromTheMarketplace(sharedState: TatolabAppSharedState, name: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectDependency, string>> {
+function importFromTheMarketplace(sharedState: TatolabAppSharedState, name: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectDependency, string>> {
   return answerTheWindow("import_from_the_marketplace", async () => {
     const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!workspaceFolder.ok) return workspaceFolder;
@@ -102,7 +102,7 @@ export function importFromTheMarketplace(sharedState: TatolabAppSharedState, nam
 }
 
 /** `remove_workspace_dependency`: the runtime's `remove_dependency` takes the import `project` out of the asking Module manager window's workspace; refused in the runtime's own words. */
-export function removeWorkspaceDependency(sharedState: TatolabAppSharedState, project: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectDependency, string>> {
+function removeWorkspaceDependency(sharedState: TatolabAppSharedState, project: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectDependency, string>> {
   return answerTheWindow("remove_workspace_dependency", async () => {
     const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!workspaceFolder.ok) return workspaceFolder;
@@ -114,7 +114,7 @@ export function removeWorkspaceDependency(sharedState: TatolabAppSharedState, pr
 }
 
 /** `clone_marketplace_sample`: the catalog's sample `name`, read afresh, downloaded and checked as an import's `.zip` is, then made into a project of its own by the runtime's `import_project` and opened in its studio window; the asking Module manager window's workspace is not changed. Refused in words. */
-export function cloneMarketplaceSample(sharedState: TatolabAppSharedState, name: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ChosenProjectFolder, string>> {
+function cloneMarketplaceSample(sharedState: TatolabAppSharedState, name: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ChosenProjectFolder, string>> {
   return answerTheWindow("clone_marketplace_sample", async () => {
     const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!workspaceFolder.ok) return workspaceFolder;

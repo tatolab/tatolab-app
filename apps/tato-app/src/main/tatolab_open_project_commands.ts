@@ -64,7 +64,7 @@ export async function reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState:
 }
 
 /** `run_open_project`: the playback of the asking window's project started, opening it first while it is closed, reloading it first while a stream of it has failed and resuming it while it is paused, then a status round; refused in the Projects window, or in the runtime's own words. */
-export function runOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+function runOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
   return answerTheWindow("run_open_project", async () => {
     const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!studioWindow.ok) return studioWindow;
@@ -77,21 +77,21 @@ export function runOpenProject(sharedState: TatolabAppSharedState, commandFromWi
 }
 
 /** `pause_open_project`: the runtime's `pause_playback` of the asking window's project's folder, which holds every stream of it loaded and `paused` at once, then a status round; refused in the Projects window, or in the runtime's own words. */
-export async function pauseOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+async function pauseOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
   const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
   if (!studioWindow.ok) return studioWindow;
   return answerTheWindowOnceTheRuntimeAnswered(sharedState, "pause_open_project", () => sharedState.controller.pausePlayback(studioWindow.value.openProject.projectFolder));
 }
 
 /** `stop_open_project`: the runtime's `stop_playback` queued on the asking window's project's folder, which keeps its graphs loaded, so the listing shows its streams `stopping`; refused in the Projects window, or in the runtime's own words. */
-export async function stopOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+async function stopOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
   const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
   if (!studioWindow.ok) return studioWindow;
   return answerTheWindowOnceTheRuntimeAnswered(sharedState, "stop_open_project", () => sharedState.controller.stopPlayback(studioWindow.value.openProject.projectFolder));
 }
 
 /** `transact_in_the_open_project`'s arguments as the window sends them, each operation held to the runtime's own shape, or why they are not. */
-export function transactArgumentsFrom(commandArguments: unknown): Result<ProjectGraphTransactionSentByTheWindow, string> {
+function transactArgumentsFrom(commandArguments: unknown): Result<ProjectGraphTransactionSentByTheWindow, string> {
   if (!isAJsonObject(commandArguments)) return failedWith("transact_in_the_open_project needs `operations`, `mode` and `idempotency_key`");
   const operationsOnTheWire = commandArguments["operations"];
   if (!Array.isArray(operationsOnTheWire) || operationsOnTheWire.length === 0) return failedWith("transact_in_the_open_project needs `operations`, at least one graph action");
@@ -119,7 +119,7 @@ function streamAssetOutsideTheProject(sharedState: TatolabAppSharedState, projec
 }
 
 /** `transact_in_the_open_project`: the runtime's `transact` of the window's graph actions by the person editing in Studio; a stream asset that is not the window's project's is refused in Studio's words, anything else the runtime refuses in its own. */
-export function transactInTheOpenProject(
+function transactInTheOpenProject(
   sharedState: TatolabAppSharedState,
   transacting: ProjectGraphTransactionSentByTheWindow,
   commandFromWindow: TatolabCommandFromWindow,
@@ -136,7 +136,7 @@ export function transactInTheOpenProject(
 }
 
 /** `write_studio_view_output`'s `{ stream, node, port, value }` as the window sends it, or why it is not. */
-export function studioViewOutputArgumentsFrom(commandArguments: unknown): Result<{ stream: string; node: string; port: string; value: JsonValue }, string> {
+function studioViewOutputArgumentsFrom(commandArguments: unknown): Result<{ stream: string; node: string; port: string; value: JsonValue }, string> {
   if (!isAJsonObject(commandArguments)) return failedWith("write_studio_view_output needs `stream`, `node`, `port` and `value`");
   const { stream, node, port, value } = commandArguments;
   if (typeof stream !== "string" || typeof node !== "string" || typeof port !== "string") return failedWith("write_studio_view_output needs `stream`, `node` and `port` as text");
@@ -154,7 +154,7 @@ function graphInputArgumentsFrom(commandArguments: unknown): Result<{ stream: st
 }
 
 /** `undo_in_the_open_project`'s and `redo_in_the_open_project`'s `{ author }` as the window sends it, or why it is not. */
-export function undoOrRedoArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<ProjectTransactionAuthor, string> {
+function undoOrRedoArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<ProjectTransactionAuthor, string> {
   const author = isAJsonObject(commandArguments) ? commandArguments["author"] : undefined;
   if (!isAJsonObject(author) || (author["kind"] !== "person" && author["kind"] !== "agent") || typeof author["name"] !== "string") {
     return failedWith(`${commandName} needs \`author\`, a person or an agent by the name history shows`);
@@ -163,7 +163,7 @@ export function undoOrRedoArgumentsFrom(commandName: TatolabCommandName, command
 }
 
 /** The runtime's `undo` or `redo` by `author` on the asking window's project, as the feed names its folder; refused in the Projects window, or in the runtime's own words. */
-export function undoOrRedoInTheOpenProject(
+function undoOrRedoInTheOpenProject(
   sharedState: TatolabAppSharedState,
   undoOrRedo: "undo" | "redo",
   author: ProjectTransactionAuthor,
@@ -181,7 +181,7 @@ export function undoOrRedoInTheOpenProject(
 }
 
 /** `import_assets_into_the_open_project`'s `{ media }` as the window sends it: the `media_facts` members the dialog offers files of, `null` for any; or why it is not. */
-export function importAssetsArgumentsFrom(commandArguments: unknown): Result<{ media: readonly string[] | null }, string> {
+function importAssetsArgumentsFrom(commandArguments: unknown): Result<{ media: readonly string[] | null }, string> {
   const media = isAJsonObject(commandArguments) ? commandArguments["media"] : undefined;
   if (media === null) return succeeded({ media: null });
   if (Array.isArray(media) && media.every((medium: unknown): medium is string => typeof medium === "string")) return succeeded({ media });
@@ -189,7 +189,7 @@ export function importAssetsArgumentsFrom(commandArguments: unknown): Result<{ m
 }
 
 /** `import_assets_into_the_open_project`: the files the person chooses, the dialog offering those of `media` first, imported into the asking window's project by the person editing; `null` when they choose nothing, refused in the Projects window. */
-export function importAssetsIntoTheOpenProject(sharedState: TatolabAppSharedState, media: readonly string[] | null, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectAssetsImported | null, string>> {
+function importAssetsIntoTheOpenProject(sharedState: TatolabAppSharedState, media: readonly string[] | null, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectAssetsImported | null, string>> {
   return answerTheWindow("import_assets_into_the_open_project", async () => {
     const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!studioWindow.ok) return studioWindow;
@@ -200,7 +200,7 @@ export function importAssetsIntoTheOpenProject(sharedState: TatolabAppSharedStat
 const AN_ASSET_OF_THE_OPEN_PROJECT_IN_WORDS = "the UUID of an asset of the open project";
 
 /** `relocate_asset_in_the_open_project`'s `{ asset, to_path }` as the window sends it, or why it is not. */
-export function relocateAssetArgumentsFrom(commandArguments: unknown): Result<{ asset: string; to_path: string }, string> {
+function relocateAssetArgumentsFrom(commandArguments: unknown): Result<{ asset: string; to_path: string }, string> {
   const asset = oneTextArgumentFrom("relocate_asset_in_the_open_project", commandArguments, "asset", AN_ASSET_OF_THE_OPEN_PROJECT_IN_WORDS);
   if (!asset.ok) return asset;
   const toPath = oneTextArgumentFrom("relocate_asset_in_the_open_project", commandArguments, "to_path", "the asset's new path in the project");
@@ -208,7 +208,7 @@ export function relocateAssetArgumentsFrom(commandArguments: unknown): Result<{ 
 }
 
 /** `relocate_asset_in_the_open_project`: `asset` of the asking window's project put at `toPath` by the person editing; refused in the Projects window, or in the runtime's own words. */
-export function relocateAssetInTheOpenProject(sharedState: TatolabAppSharedState, asset: string, toPath: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+function relocateAssetInTheOpenProject(sharedState: TatolabAppSharedState, asset: string, toPath: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
   return answerTheWindow("relocate_asset_in_the_open_project", async () => {
     const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!studioWindow.ok) return studioWindow;
@@ -218,7 +218,7 @@ export function relocateAssetInTheOpenProject(sharedState: TatolabAppSharedState
 }
 
 /** `read_asset_preview_of_the_open_project`: the preview picture of `asset` of the asking window's project as a `data:` URL; refused in the Projects window, or in the runtime's own words, as for an asset with none. */
-export function readAssetPreviewOfTheOpenProject(sharedState: TatolabAppSharedState, asset: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<AssetPreviewPicture, string>> {
+function readAssetPreviewOfTheOpenProject(sharedState: TatolabAppSharedState, asset: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<AssetPreviewPicture, string>> {
   return answerTheWindow("read_asset_preview_of_the_open_project", async () => {
     const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!studioWindow.ok) return studioWindow;
@@ -230,7 +230,7 @@ export function readAssetPreviewOfTheOpenProject(sharedState: TatolabAppSharedSt
 }
 
 /** `delete_asset_from_the_open_project`: `asset` of the asking window's project no longer tracked, by the person editing; refused in the Projects window, or in the runtime's own words. */
-export function deleteAssetFromTheOpenProject(sharedState: TatolabAppSharedState, asset: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+function deleteAssetFromTheOpenProject(sharedState: TatolabAppSharedState, asset: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
   return answerTheWindow("delete_asset_from_the_open_project", async () => {
     const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!studioWindow.ok) return studioWindow;
@@ -240,7 +240,7 @@ export function deleteAssetFromTheOpenProject(sharedState: TatolabAppSharedState
 }
 
 /** `pop_out_view`'s arguments as the window sends them, or why they are not. */
-export function popOutViewArgumentsFrom(commandArguments: unknown): Result<PoppedOutView, string> {
+function popOutViewArgumentsFrom(commandArguments: unknown): Result<PoppedOutView, string> {
   const pinnedTo = isAJsonObject(commandArguments) ? commandArguments["pinned_to"] : undefined;
   if (
     !isAJsonObject(commandArguments) ||
@@ -255,7 +255,7 @@ export function popOutViewArgumentsFrom(commandArguments: unknown): Result<Poppe
 }
 
 /** `pop_out_view`: a view pinned to `target` popped out of the asking studio window; refused from any other window. */
-export function popOutView(sharedState: TatolabAppSharedState, target: PoppedOutView, commandFromWindow: TatolabCommandFromWindow): Result<void, string> {
+function popOutView(sharedState: TatolabAppSharedState, target: PoppedOutView, commandFromWindow: TatolabCommandFromWindow): Result<void, string> {
   const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
   if (studioWindow === null) return failedWith("Only a project's studio window can pop out one of its views.");
   sharedState.appWindows.popOutTheViewOf(studioWindow, target);
@@ -263,7 +263,7 @@ export function popOutView(sharedState: TatolabAppSharedState, target: PoppedOut
 }
 
 /** `save_project_file`'s arguments as the window sends them, or why they are not. */
-export function saveProjectFileArgumentsFrom(commandArguments: unknown): Result<{ file: string; text: string; based_on_version: string | null }, string> {
+function saveProjectFileArgumentsFrom(commandArguments: unknown): Result<{ file: string; text: string; based_on_version: string | null }, string> {
   if (
     !isAJsonObject(commandArguments) ||
     typeof commandArguments["file"] !== "string" ||
@@ -276,7 +276,7 @@ export function saveProjectFileArgumentsFrom(commandArguments: unknown): Result<
 }
 
 /** `send_to_python_language_server`'s arguments as the window sends them, or why they are not. */
-export function sendToPythonLanguageServerArgumentsFrom(commandArguments: unknown): Result<{ session: string; message: JsonValue }, string> {
+function sendToPythonLanguageServerArgumentsFrom(commandArguments: unknown): Result<{ session: string; message: JsonValue }, string> {
   const message = isAJsonObject(commandArguments) ? commandArguments["message"] : undefined;
   const session = isAJsonObject(commandArguments) ? commandArguments["session"] : undefined;
   if (typeof session !== "string" || !isAJsonObject(message) || !isAJsonValue(message)) {
@@ -286,7 +286,7 @@ export function sendToPythonLanguageServerArgumentsFrom(commandArguments: unknow
 }
 
 /** `open_port_viewer`'s arguments as the window sends them, or why they are not. */
-export function openPortViewerArgumentsFrom(commandArguments: unknown): Result<PortViewerTarget, string> {
+function openPortViewerArgumentsFrom(commandArguments: unknown): Result<PortViewerTarget, string> {
   if (
     !isAJsonObject(commandArguments) ||
     typeof commandArguments["stream"] !== "string" ||

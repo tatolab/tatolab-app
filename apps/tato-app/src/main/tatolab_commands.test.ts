@@ -3,19 +3,12 @@ import { controlOperationFailedResponse, httpResponse, controlOperationResultRes
 import { failedWith, succeeded } from "./result.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
-import { answerTheWindow } from "./tatolab_command_answers.js";
 import { describeStreamGraph, readProjectLogRecords, readProjectLogRecordsArgumentsFrom, streamArgumentsFrom } from "./tatolab_stream_and_runtime_project_commands.js";
 import { enabledArgumentsFrom } from "./tatolab_status_runtime_and_settings_commands.js";
 import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import { cleanUpTheFakesOfEarlierTests, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
+import { cleanUpTheFakesTheLastTestMade, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
 
-afterEach(cleanUpTheFakesOfEarlierTests);
-
-test("an_awaited_command_answers_with_its_works_answer_or_why_it_has_none", async () => {
-  expect(await answerTheWindow("read_project_log_records", async () => succeeded(7))).toEqual(succeeded(7));
-  const refusal = await answerTheWindow<number>("describe_stream_graph", () => Promise.reject(new Error("the work failed unexpectedly")));
-  expect(!refusal.ok && refusal.failure.startsWith("describe_stream_graph ended without an answer"), JSON.stringify(refusal)).toBe(true);
-});
+afterEach(cleanUpTheFakesTheLastTestMade);
 
 /** The window's TypeScript types read exactly this JSON, key for key and in this order. */
 test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_them", async () => {

@@ -5,9 +5,9 @@ import { RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL } from "./carried_runtime_run_as
 import { RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL } from "./runtime_log_folder_opening.js";
 import { getTatolabStatus, linkCommandLineTool } from "./tatolab_status_runtime_and_settings_commands.js";
 import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import { cleanUpTheFakesOfEarlierTests, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
+import { cleanUpTheFakesTheLastTestMade, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
 
-afterEach(cleanUpTheFakesOfEarlierTests);
+afterEach(cleanUpTheFakesTheLastTestMade);
 
 test("the window asking for the status before the first round waits for it", async () => {
   const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "linux");

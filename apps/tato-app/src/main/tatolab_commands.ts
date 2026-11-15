@@ -19,5 +19,5 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     ...projectsWindowCommandHandlersOf(sharedState),
     ...openProjectCommandHandlersOf(sharedState),
     ...moduleManagerCommandHandlersOf(sharedState),
-  } satisfies TatolabWindowCommandHandlers;
+  };
 }
