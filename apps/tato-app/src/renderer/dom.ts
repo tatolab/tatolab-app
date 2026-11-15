@@ -45,13 +45,6 @@ export function createSvgElement<TagName extends keyof SVGElementTagNameMap>(
   return element;
 }
 
-/** Parses trusted, app-authored SVG markup into a node. */
-export function createSvgFromMarkup(svgMarkup: string): SVGElement {
-  const template = document.createElement("template");
-  template.innerHTML = svgMarkup.trim();
-  return template.content.firstElementChild as SVGElement;
-}
-
 /** Sets `textContent` only when it differs, so unchanged text keeps its selection. */
 export function setTextIfChanged(element: Element, text: string): void {
   if (element.textContent !== text) element.textContent = text;

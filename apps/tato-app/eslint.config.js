@@ -1,5 +1,5 @@
 import { defineConfig } from "eslint/config";
-import tseslint from "typescript-eslint";
+import { tatolabTypeScriptLintConfig } from "@tatolab/lint-config/eslint";
 import { DOT_INDICATOR_SELECTORS, ROUND_STATUS_ICON_IMPORTS, SVG_CIRCLE_SELECTORS } from "../../packages/package_lint_rules.js";
 
 // ESLint applies one list per rule to a file, so each group of files below gets the whole list of
@@ -45,9 +45,6 @@ const WALL_CLOCK_PROPERTIES = [{ object: "Date", property: "now", message: "Time
 const STANDARD_STREAM_WRITE_SELECTORS = [
   { selector: "MemberExpression[object.object.name='process'][object.property.name=/^std(out|err)$/][property.name='write']", message: "The main process logs through tatolab_app_log.ts." },
 ];
-const FOCUSED_OR_SKIPPED_TEST_SELECTORS = [
-  { selector: "MemberExpression[object.name=/^(test|it|describe)$/][property.name=/^(only|skip|todo)$/]", message: "No focused, skipped or todo test." },
-];
 
 const MAIN_PROCESS_FILES = ["src/main/**/*.{ts,cts}", "src/preload/**/*.{ts,cts}"];
 const TEST_FILES = ["src/**/*.test.{ts,tsx}", "mock/**/*.test.{ts,tsx}"];
@@ -58,7 +55,6 @@ function mainProcessRestrictions({ mayImportElectron, mayReadPlatform, isShipped
     ...(mayImportElectron ? [] : ELECTRON_REQUIRE_SELECTORS),
     ...(isShipped ? SHIPPED_MAIN_PROCESS_SELECTORS : []),
     ...(isTest || mayWriteStandardStreams ? [] : STANDARD_STREAM_WRITE_SELECTORS),
-    ...(isTest ? FOCUSED_OR_SKIPPED_TEST_SELECTORS : []),
   ];
   const restrictedImports = [...(mayImportElectron ? [] : ELECTRON_IMPORT_PATHS), ...(mayReadPlatform ? [] : PLATFORM_READ_IMPORTS)];
   const restrictedProperties = [...(mayReadPlatform ? [] : PLATFORM_READ_PROPERTIES), ...(isShipped ? WALL_CLOCK_PROPERTIES : [])];
@@ -66,14 +62,6 @@ function mainProcessRestrictions({ mayImportElectron, mayReadPlatform, isShipped
     "no-restricted-syntax": ["error", ...restrictedSyntax],
     "no-restricted-imports": ["error", { paths: restrictedImports }],
     "no-restricted-properties": ["error", ...restrictedProperties],
-    ...(isShipped
-      ? {
-          "@typescript-eslint/no-explicit-any": "error",
-          "@typescript-eslint/consistent-type-assertions": ["error", { assertionStyle: "never" }],
-          "@typescript-eslint/no-non-null-assertion": "error",
-        }
-      : {}),
-    ...(isTest ? {} : { "no-console": "error", "no-debugger": "error" }),
   };
 }
 
@@ -117,8 +105,6 @@ const ICON_GEOMETRY_FILES = ["src/renderer/icons.ts"];
 /** The restrictions that hold for one group of the window's shipped files. */
 function windowRestrictions({ isScreen, mayDrawCircles }) {
   return {
-    "no-console": "error",
-    "no-debugger": "error",
     "no-restricted-syntax": ["error", ...VIEW_FULL_ACCESS_SELECTORS, ...DOT_INDICATOR_SELECTORS, ...(mayDrawCircles ? [] : SVG_CIRCLE_SELECTORS), ...(isScreen ? HAND_BUILT_CONTROL_SELECTORS : [])],
     "no-restricted-imports": ["error", { paths: ROUND_STATUS_ICON_IMPORTS, patterns: isScreen ? SHADCN_IMPORT_PATTERNS : [] }],
   };
@@ -126,12 +112,7 @@ function windowRestrictions({ isScreen, mayDrawCircles }) {
 
 export default defineConfig(
   { ignores: ["out/**", "build/**", "node_modules/**"] },
-  {
-    files: ["src/**/*.{ts,tsx,cts}", "mock/**/*.{ts,tsx}"],
-    languageOptions: { parser: tseslint.parser },
-    plugins: { "@typescript-eslint": tseslint.plugin },
-    linterOptions: { reportUnusedDisableDirectives: "error" },
-  },
+  ...tatolabTypeScriptLintConfig({ files: ["src/**/*.{ts,tsx,cts}", "mock/**/*.{ts,tsx}"], testFiles: TEST_FILES }),
   ...mainProcessConfigs(),
   { files: WINDOW_FILES, ignores: [...TEST_FILES, ...SCREEN_FILES, ...ICON_GEOMETRY_FILES], rules: windowRestrictions({}) },
   { files: ICON_GEOMETRY_FILES, rules: windowRestrictions({ mayDrawCircles: true }) },
