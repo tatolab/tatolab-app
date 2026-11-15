@@ -2,7 +2,7 @@
 // or Studio said refusing the latest one.
 
 import { newGestureIdempotencyKey, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import type { NodeGraphCanvasEditAnswer } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import type { NodeGraphCanvasEditAnswer } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
 import type { ProjectGraphTransactionApplying, StreamGraphAction } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { useCallback, useRef, useState } from "react";
 import { streamGraphActionsAtTheLevel } from "./stream_graph_edits";

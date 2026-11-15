@@ -2,7 +2,7 @@
 // a node's whole config, so every config edit sends the whole config with the one field changed or removed.
 
 import type { JsonValue, StreamGraphAction, StreamGraphDeclaredPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
 import { nodeTitle } from "../shared/node_words";
 import { portsThatCouldJoin } from "../shared/ports_that_can_join";
 import { GRAPH_INPUT_NODE_TYPE } from "../controls/graph_inputs_of_the_stream";

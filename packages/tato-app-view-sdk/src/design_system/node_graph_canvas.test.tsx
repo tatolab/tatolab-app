@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { NodeGraphCanvas, NodeGraphCardPreview, type NodeGraphCanvasEditing, type NodeGraphCanvasNode } from "./node_graph_canvas";
+import { NodeGraphCanvas } from "./node_graph_canvas";
+import { NodeGraphCardPreview } from "./node_graph_card_view";
+import type { NodeGraphCanvasEditing, NodeGraphCanvasNode } from "./support/node_graph_canvas_contract";
 
 afterEach(cleanup);
 

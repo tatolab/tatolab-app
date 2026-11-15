@@ -1,0 +1,184 @@
+import type { NodeGraphPosition } from "./node_graph_layout";
+
+/** The family a pin carries, which picks its shape and colour and its links' colour. */
+export type NodeGraphPinFamily =
+  | "image"
+  | "array"
+  | "channels"
+  | "packets"
+  | "records";
+
+/** The words for each pin family, as a pin's tooltip and the library name it. */
+export const NODE_GRAPH_PIN_FAMILY_WORDS: Record<NodeGraphPinFamily, string> = {
+  image: "Image",
+  array: "Array",
+  channels: "Channels",
+  packets: "Packets",
+  records: "Records",
+};
+
+/** One pin of a card: its name, its family, `null` drawn as a plain bar while none is known, what its node type says of it, and what it states about its stream, shown while the pointer rests on it. */
+export interface NodeGraphCanvasPin {
+  name: string;
+  family: NodeGraphPinFamily | null;
+  /** The port's description as its node type declares it; `null` for none. */
+  description: string | null;
+  stream_facts_words: readonly string[];
+}
+
+/** How a card shows its node is doing: as every healthy card, restarting (a quiet tag), not ready (amber, why in the runtime's words on the tag's tooltip), or failed (red, with why in the runtime's words when it gave them). */
+export type NodeGraphCardCondition =
+  | { look: "healthy" }
+  | { look: "restarting" }
+  | { look: "not_ready"; not_ready_because: string }
+  | { look: "failed"; failed_because: string | null };
+
+/** One node a graph canvas draws: its name on the card's header, how it is doing, its pins (inputs on the left, outputs on the right), where it was left, and the frame it sits in. */
+export interface NodeGraphCanvasNode {
+  node_id: string;
+  title: string;
+  /** Its type's short name, quiet beside the title; `null` when the title already says it. */
+  type_name: string | null;
+  /** Its node type's description, shown while the pointer rests on the card's header; `null` for none. */
+  description: string | null;
+  condition: NodeGraphCardCondition;
+  input_pins: readonly NodeGraphCanvasPin[];
+  output_pins: readonly NodeGraphCanvasPin[];
+  /** Where its card was left; `null` lays it out with the other cards that have none. */
+  saved_position: NodeGraphPosition | null;
+  /** The frame drawn around it, by `frame_id`; `null` for none. */
+  frame_id: string | null;
+  /** Drawn as its header alone, its wires meeting the header's edges. */
+  is_collapsed: boolean;
+  /** How the subgraph it holds came to be, which a double-click steps inside; `null` for a node that holds none. */
+  subgraph: NodeGraphSubgraphKind | null;
+}
+
+/** How a subgraph came to be: a graph generator's read-only output, a collapsed selection, or another stream placed by reference. */
+export type NodeGraphSubgraphKind = "generated" | "placed_stream";
+
+/** A pick of a port the canvas shows: what its banner says, which ports of which nodes can join, and what picking one or ending the pick does. */
+export interface NodeGraphPortPicking {
+  /** The banner's words, as "Pick the other end of image". */
+  words: string;
+  /** The ports of each node that can join, by node id; a node not listed reads dim. */
+  portsThatCanJoinByNodeId: ReadonlyMap<string, readonly string[]>;
+  onPicked: (nodeId: string, port: string) => void;
+  onEnded: () => void;
+}
+
+/** A labelled frame drawn around the cards that name it, with its title on a tab, its description under it, and a tint of its colour. */
+export interface NodeGraphCanvasFrame {
+  frame_id: string;
+  title: string;
+  description: string | null;
+  /** A CSS colour the frame is tinted with; `null` for the canvas's own. */
+  colour: string | null;
+}
+
+/** What an edit of a frame changes: its title, its description or its colour, each one given. */
+export interface NodeGraphCanvasFrameChange {
+  title?: string;
+  description?: string;
+  colour?: string;
+}
+
+/** The colours a frame's right-click menu offers before Custom color…, each a hex colour as the runtime stores a group's. */
+export const NODE_GRAPH_FRAME_COLOURS: readonly { name: string; colour: string }[] = [
+  { name: "Red", colour: "#c46a6a" },
+  { name: "Yellow", colour: "#c9b45a" },
+  { name: "Green", colour: "#6f9e6a" },
+  { name: "Blue", colour: "#5f86b8" },
+  { name: "Purple", colour: "#8f72b5" },
+];
+
+/** A note on the canvas beside the cards: its text, where its top-left corner sits and its size. */
+export interface NodeGraphCanvasNote {
+  note_id: string;
+  text: string;
+  position: NodeGraphPosition;
+  size: { width: number; height: number };
+}
+
+/** How a link is drawn: carrying, not carrying yet (dashed), failed (red), or going away (dashed and faint). */
+export type NodeGraphLinkLook = "carrying" | "waiting" | "failed" | "ending";
+
+/** One link a graph canvas draws, from an output pin to an input pin. */
+export interface NodeGraphCanvasLink {
+  link_id: string;
+  source_node_id: string;
+  source_pin: string;
+  target_node_id: string;
+  target_pin: string;
+  look: NodeGraphLinkLook;
+  /** What a pointer resting on the link reads, such as its state in words. */
+  description: string;
+}
+
+/** One end of a wire a person drew: a card's pin. */
+export interface NodeGraphCanvasPinEnd {
+  node_id: string;
+  pin: string;
+}
+
+/** A pin a person dragged a wire off and let go of over empty canvas: which side of its card, and its family. */
+export interface NodeGraphCanvasLooseWire extends NodeGraphCanvasPinEnd {
+  side: "input" | "output";
+  family: NodeGraphPinFamily | null;
+}
+
+/** A point a person pointed at: on the canvas, where a card placed there sits, and in the canvas element's own pixels, where a menu opened there shows. */
+export interface NodeGraphCanvasPoint {
+  on_the_canvas: NodeGraphPosition;
+  in_the_element: { x: number; y: number };
+}
+
+/** The canvas's pan and zoom, as React Flow keeps its viewport. */
+export interface NodeGraphCanvasViewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+/** A card's new top-left corner and the frame it belongs to there, by `frame_id`; `null` for none. */
+export interface NodeGraphCanvasCardMove {
+  node_id: string;
+  position: NodeGraphPosition;
+  frame_id: string | null;
+}
+
+/** Whether an edit the canvas asked for was applied; a refused one puts what it moved back. */
+export type NodeGraphCanvasEditAnswer = "applied" | "refused";
+
+/** What a person's edits on the canvas ask for; each call is one gesture. */
+export interface NodeGraphCanvasEditing {
+  /** Cards dragged and let go, each at its new top-left corner and in the frame it now belongs to, together with every card that had no saved place, so the layout stays as seen; a lone card with no links let go of over a link is spliced into it in the same gesture. */
+  onCardsMoved(moves: readonly NodeGraphCanvasCardMove[], cardLetGoOverALink: { node_id: string; link_id: string } | null): Promise<NodeGraphCanvasEditAnswer>;
+  /** A wire drawn from an output pin to an input pin of a family it can carry. */
+  onPinsWired(source: NodeGraphCanvasPinEnd, target: NodeGraphCanvasPinEnd): void;
+  /** A wire dragged off a pin and let go of over empty canvas, to place a node there that it feeds or reads. */
+  onWireLetGoOverTheCanvas(looseWire: NodeGraphCanvasLooseWire, at: NodeGraphCanvasPoint): void;
+  /** Tab pressed over the canvas, to place a node where the pointer rests, or Add node pressed, to place one in the middle of the view. */
+  onNodeAskedFor(at: NodeGraphCanvasPoint): void;
+  /** Note pressed, to place a note in the middle of the view. */
+  onNoteAskedFor(at: NodeGraphCanvasPoint): void;
+  /** The selected cards, links and notes, deleted with Backspace or Delete. */
+  onDeleted(deleted: { node_ids: readonly string[]; link_ids: readonly string[]; note_ids: readonly string[] }): void;
+  /** F, ⌘G or Frame pressed with cards selected, to frame them. */
+  onFrameAskedFor(nodeIds: readonly string[]): Promise<NodeGraphCanvasEditAnswer>;
+  /** ⌘⇧G or Subgraph pressed with cards selected, to collapse them into one subgraph. */
+  onSubgraphAskedFor(nodeIds: readonly string[]): void;
+  /** A frame's title or description edited on its tab, or a colour chosen from its right-click menu; a field not given is kept. */
+  onFrameChanged(frameId: string, change: NodeGraphCanvasFrameChange): void;
+  /** Remove frame chosen from a frame's right-click menu: the frame goes and its cards stay. */
+  onFrameRemoved(frameId: string): void;
+  /** A card's chevron pressed, to collapse it to its header or open it again. */
+  onCardCollapsed(nodeId: string, collapsed: boolean): void;
+  /** A note's text edited, or the note moved or resized. */
+  onNoteChanged(noteId: string, change: { text?: string; position?: NodeGraphPosition; size?: { width: number; height: number } }): Promise<NodeGraphCanvasEditAnswer>;
+}
+
+/** A family's name as a socket's tooltip and Properties write it. */
+export function nodeGraphPinFamilyWords(family: NodeGraphPinFamily): string {
+  return NODE_GRAPH_PIN_FAMILY_WORDS[family];
+}

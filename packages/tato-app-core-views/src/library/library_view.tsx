@@ -8,7 +8,8 @@ import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_fie
 import { SectionNavigationList } from "@tatolab/tato-app-view-sdk/design_system/section_navigation_list";
 import { StudioAreaHeaderChoiceMenu } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
-import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { NodeGraphPinMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph_card_view";
+import { nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
 import { PropertySection } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
