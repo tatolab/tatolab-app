@@ -55,7 +55,7 @@ import {
 } from "./module_manager_listing";
 import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { ModuleManagerSectionAskNumbered } from "./studio_window_model";
-import { type ModuleAsks, ModulePage, type ModuleWork } from "./module_manager_module_page";
+import { type ModuleAsks, ModulePage, type ModuleWork } from "./module_manager_module_page_view";
 
 /** What the Marketplace window reads and asks through. */
 export interface ModuleManagerSources {
