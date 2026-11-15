@@ -321,6 +321,7 @@ function initialMockAppUpdateAnnouncement(appUpdateScenario: MockTatolabAppUpdat
   return null;
 }
 
+/** The status the mock window opens on, for the scenario and the options the page's query picked. */
 export function initialMockStatus(
   scenario: MockTatolabScenario,
   platform: TatolabPlatform,

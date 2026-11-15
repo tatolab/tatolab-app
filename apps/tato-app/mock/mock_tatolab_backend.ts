@@ -67,25 +67,18 @@ import {
 import { MOCK_NEWER_TATOLAB_VERSION, MOCK_RUNTIME_VERSION, MODULE_MANAGER_QUERY_PARAMETER, MODULE_MANAGER_SECTION_QUERY_PARAMETER, type MockTatolabOptions, POPPED_OUT_VIEW_QUERY_PARAMETER, initialMockStatus } from "./mock_tatolab_options";
 
 const MOCK_COMMAND_LATENCY_MILLISECONDS = 30;
-
 const MOCK_RUNTIME_STARTUP_MILLISECONDS = 2400;
-
 /** How long the mock takes to link the `tatolab` command. */
 const MOCK_COMMAND_LINE_TOOL_LINK_MILLISECONDS = 400;
-
 const MOCK_LIVE_TICK_MILLISECONDS = 700;
-
 const MOCK_STREAM_SETTLE_MILLISECONDS = 1600;
-
 /** The runtime's words for an `open_project` it fails while a record an earlier runtime wrote from another folder holds the project's stream id. */
 const mockOpenRefusedForAnEarlierRuntimesRecord = (projectDirectory: string): string =>
   `Stream graph error: the stream id \`pattern-main\` of the stream asset 7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68 of the project 0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55 in ${projectDirectory} is held by a record an earlier runtime wrote from ${projectDirectory}-copy; two streams cannot share one id, so \`rm\` the stream that holds it, or give a second copy of a project its own project UUID`;
 
 /** How long `main` stays listed but not loaded in the `loading` scenario. */
 const MOCK_MAIN_LOADING_MILLISECONDS = 9000;
-
 const MOCK_RECORDS_PAGE_SIZE = 500;
-
 /** How long each step of a queued stream action takes in the mock. */
 const MOCK_STREAM_ACTION_STEP_MILLISECONDS = 700;
 
@@ -96,9 +89,7 @@ type MockProjectLoadKind = "open" | "start_playback" | "load";
 type MockProjectPlaybackAfterItsLoad = "playing" | "held_stopped";
 
 const MOCK_UPDATE_CHECK_MILLISECONDS = 900;
-
 const MOCK_UPDATE_DOWNLOAD_STEP_MILLISECONDS = 250;
-
 const MOCK_UPDATE_DOWNLOAD_STEP_PERCENT = 7;
 
 const MOCK_RUNTIME_BUILD_ID = "0.55.2+ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a.eecdc9dbaa1025c25565ca507699ed60";
@@ -152,10 +143,8 @@ const MOCK_VENV_SYNC_STAGES: readonly StreamActionVenvSync[] = [
     ],
   },
 ];
-
 /** The folders the mock runtime draws a new project in under `~/streams`, the first one free. */
 const MOCK_NEW_PROJECT_FOLDER_NAMES = ["kind-butte", "quiet-harbor", "amber-delta"];
-
 /** The stream asset of the mock's doorways project that fails to load, as a stream whose camera is missing does. */
 const MOCK_FAILING_STREAM_NAME = "back_door";
 
