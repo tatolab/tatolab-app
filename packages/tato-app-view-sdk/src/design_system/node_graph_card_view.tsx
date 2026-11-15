@@ -7,12 +7,12 @@ import { Fragment, useContext, useLayoutEffect, useRef, type ReactNode, type Ref
 import { NodeGraphNodesFoundContext } from "./node_graph_find_bar";
 import { NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT, NODE_GRAPH_CARD_HEADER_HEIGHT, NODE_GRAPH_CARD_PIN_ROWS_PADDING, NODE_GRAPH_PIN_ROW_HEIGHT } from "./support/node_graph_layout";
 import { isAPinSocketOfTheCardUnmeasured } from "./support/node_graph_pin_socket_measurement";
-import { type NodeGraphPinFamily, NODE_GRAPH_PIN_FAMILY_WORDS, type NodeGraphCanvasPin, type NodeGraphCardCondition, type NodeGraphCanvasNode } from "./support/node_graph_canvas_contract";
+import { type NodeGraphPinFamily, nodeGraphPinFamilyWords, type NodeGraphCanvasPin, type NodeGraphCardCondition, type NodeGraphCanvasNode } from "./support/node_graph_canvas_contract";
 import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphSelectionContext, NodeGraphPortPickingContext, NodeGraphEditableContext, NodeGraphCardAndFrameEditingContext, NodeGraphLinkedPinsContext, linkedPinKey } from "./support/node_graph_flow_elements";
 
 /** What a pin shows while the pointer rests on it: its name, its family and the facts of its stream, then its description. */
 function nodeGraphPinTooltip(pin: NodeGraphCanvasPin): string {
-  const facts = [pin.name, ...(pin.family === null ? [] : [NODE_GRAPH_PIN_FAMILY_WORDS[pin.family]]), ...pin.stream_facts_words].join(" · ");
+  const facts = [pin.name, ...(pin.family === null ? [] : [nodeGraphPinFamilyWords(pin.family)]), ...pin.stream_facts_words].join(" · ");
   return pin.description === null ? facts : `${facts}\n${pin.description}`;
 }
 

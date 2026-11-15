@@ -71,3 +71,19 @@ export const linkedPinKey = (
   side: "input" | "output",
   pinName: string,
 ) => `${nodeId}\u0000${side}\u0000${pinName}`;
+
+/** Which of a frame's words is typed on its tab: its title or its description. */
+export type NodeGraphFrameWordsFieldName = "title" | "description";
+
+/** A frame's title or description being edited, with what was typed for it before its field opened. */
+export interface NodeGraphFrameWordsBeingEdited {
+  frame_id: string;
+  field: NodeGraphFrameWordsFieldName;
+  typed_ahead?: string;
+}
+
+/** The frame whose title or description is being edited, and how a frame starts or stops having one edited; `null` outside a canvas. */
+export const NodeGraphFrameWordsEditingContext = createContext<{
+  frameWordsBeingEdited: NodeGraphFrameWordsBeingEdited | null;
+  editTheFrameWords: (edited: NodeGraphFrameWordsBeingEdited | null) => void;
+} | null>(null);

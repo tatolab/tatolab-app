@@ -8,8 +8,7 @@ export type NodeGraphPinFamily =
   | "packets"
   | "records";
 
-/** The words for each pin family, as a pin's tooltip and the library name it. */
-export const NODE_GRAPH_PIN_FAMILY_WORDS: Record<NodeGraphPinFamily, string> = {
+const NODE_GRAPH_PIN_FAMILY_WORDS: Record<NodeGraphPinFamily, string> = {
   image: "Image",
   array: "Array",
   channels: "Channels",

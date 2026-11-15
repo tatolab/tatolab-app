@@ -14,9 +14,9 @@ import { isPartOfTheGraphOutsideTheView } from "./support/node_graph_map_visibil
 import { canPinsOfTheseFamiliesBeWired, frameACardIsLetGoIn, frameRectangleAroundCards, linkUnderACard, placeClearBelowTheCards, type NodeGraphLinkMidpoint } from "./support/node_graph_editing";
 import { type NodeGraphPinFamily, type NodeGraphCanvasNode, type NodeGraphPortPicking, type NodeGraphCanvasFrame, NODE_GRAPH_FRAME_COLOURS, type NodeGraphCanvasNote, type NodeGraphCanvasLink, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphCanvasCardMove, type NodeGraphCanvasEditing } from "./support/node_graph_canvas_contract";
 import { failureWordsTheCardShows, NodeGraphCardView } from "./node_graph_card_view";
-import { type NodeGraphCardFlowNode, type NodeGraphNoteFlowNode, type NodeGraphFrameFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphSelectionContext, NodeGraphPortPickingContext, NodeGraphEditableContext, NodeGraphNoteEditingContext, NodeGraphNoteResizingContext, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColoursUsedContext, NodeGraphFrameColourPickingContext, NodeGraphLinkedPinsContext, linkedPinKey } from "./support/node_graph_flow_elements";
+import { type NodeGraphCardFlowNode, type NodeGraphNoteFlowNode, type NodeGraphFrameFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphSelectionContext, NodeGraphPortPickingContext, NodeGraphEditableContext, NodeGraphNoteEditingContext, NodeGraphNoteResizingContext, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColoursUsedContext, NodeGraphFrameColourPickingContext, NodeGraphLinkedPinsContext, linkedPinKey, type NodeGraphFrameWordsBeingEdited, NodeGraphFrameWordsEditingContext } from "./support/node_graph_flow_elements";
 import { type NodeGraphRightClicked, NodeGraphRightClickChoices } from "./node_graph_right_click_choices";
-import { type NodeGraphFrameWordsBeingEdited, NodeGraphFrameWordsEditingContext, NodeGraphFrameView } from "./node_graph_frame_view";
+import { NodeGraphFrameView } from "./node_graph_frame_view";
 import { NodeGraphNoteView } from "./node_graph_note_view";
 import { NodeGraphLinkView } from "./node_graph_link_view";
 

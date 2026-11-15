@@ -1,26 +1,10 @@
 import type { NodeProps } from "@xyflow/react";
 import { cn } from "cn";
 import { RightClickMenu } from "./menus";
-import { createContext, useContext, type CSSProperties } from "react";
+import { useContext, type CSSProperties } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
-import { type NodeGraphFrameFlowNode, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColourPickingContext } from "./support/node_graph_flow_elements";
+import { type NodeGraphFrameFlowNode, type NodeGraphFrameWordsFieldName, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColourPickingContext, NodeGraphFrameWordsEditingContext } from "./support/node_graph_flow_elements";
 import { NodeGraphFrameRightClickChoices } from "./node_graph_right_click_choices";
-
-/** Which of a frame's words is typed on its tab: its title or its description. */
-export type NodeGraphFrameWordsField = "title" | "description";
-
-/** A frame's title or description being edited, with what was typed for it before its field opened. */
-export interface NodeGraphFrameWordsBeingEdited {
-  frame_id: string;
-  field: NodeGraphFrameWordsField;
-  typed_ahead?: string;
-}
-
-/** The frame whose title or description is being edited, and how a frame starts or stops having one edited; `null` outside a canvas. */
-export const NodeGraphFrameWordsEditingContext = createContext<{
-  frameWordsBeingEdited: NodeGraphFrameWordsBeingEdited | null;
-  editTheFrameWords: (edited: NodeGraphFrameWordsBeingEdited | null) => void;
-} | null>(null);
 
 /** A frame's title or description typed in place: Enter or leaving the field keeps it, Escape puts the words back. */
 export function NodeGraphFrameWordsField({
@@ -79,8 +63,8 @@ export function NodeGraphFrameView({ data }: NodeProps<NodeGraphFrameFlowNode>) 
     if (trimmedDescription !== description) cardAndFrameEditing?.onFrameChanged(graphFrame.frame_id, { description: trimmedDescription });
     frameWordsEditing?.editTheFrameWords(null);
   };
-  const editTheWords = (field: NodeGraphFrameWordsField) => frameWordsEditing?.editTheFrameWords({ frame_id: graphFrame.frame_id, field });
-  const editTheWordsOnADoubleClick = (field: NodeGraphFrameWordsField) => (cardAndFrameEditing === null ? undefined : () => editTheWords(field));
+  const editTheWords = (field: NodeGraphFrameWordsFieldName) => frameWordsEditing?.editTheFrameWords({ frame_id: graphFrame.frame_id, field });
+  const editTheWordsOnADoubleClick = (field: NodeGraphFrameWordsFieldName) => (cardAndFrameEditing === null ? undefined : () => editTheWords(field));
   const pickTheFramesColour = useContext(NodeGraphFrameColourPickingContext);
   const titleTabStyle = graphFrame.colour === null ? undefined : { backgroundColor: `color-mix(in srgb, ${graphFrame.colour} 30%, var(--studio-area))` };
   const titleTab = (

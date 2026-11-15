@@ -2,8 +2,7 @@ import { ChevronDown, ChevronRight, Combine, Frame, Palette, Pencil, Pipette, Pl
 import { RightClickMenuItem, RightClickMenuSeparator, RightClickMenuSingleChoiceGroup, RightClickSubmenu } from "./menus";
 import { useContext } from "react";
 import { type NodeGraphCanvasNode, type NodeGraphCanvasFrame, NODE_GRAPH_FRAME_COLOURS, type NodeGraphCanvasPoint, type NodeGraphCanvasEditing } from "./support/node_graph_canvas_contract";
-import { NodeGraphFrameColoursUsedContext } from "./support/node_graph_flow_elements";
-import type { NodeGraphFrameWordsField } from "./node_graph_frame_view";
+import { type NodeGraphFrameWordsFieldName, NodeGraphFrameColoursUsedContext } from "./support/node_graph_flow_elements";
 
 /** What a right-click on the canvas landed on: the canvas itself at a point, a card, a link or a note. */
 export type NodeGraphRightClicked =
@@ -21,7 +20,7 @@ export function NodeGraphFrameRightClickChoices({
 }: {
   graphFrame: NodeGraphCanvasFrame;
   frameEditing: Pick<NodeGraphCanvasEditing, "onFrameChanged" | "onFrameRemoved">;
-  editTheFrameWords: (field: NodeGraphFrameWordsField) => void;
+  editTheFrameWords: (field: NodeGraphFrameWordsFieldName) => void;
   openTheColourPicker: () => void;
 }) {
   const hasADescription = graphFrame.description !== null && graphFrame.description !== "";
