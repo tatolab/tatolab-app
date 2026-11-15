@@ -30,6 +30,7 @@ tato_app_root="$(cd "$(dirname "$0")/.." && pwd)"
 app_entitlements="$tato_app_root/packaging/entitlements/tatolab-app.entitlements"
 renderer_helper_entitlements="$tato_app_root/packaging/entitlements/tatolab-renderer-helper.entitlements"
 utility_helper_entitlements="$tato_app_root/packaging/entitlements/tatolab-utility-helper.entitlements"
+browser_host_entitlements="$tato_app_root/packaging/entitlements/tatolab-browser-host.entitlements"
 tatolabd_entitlements="$tato_app_root/packaging/entitlements/tatolabd.entitlements"
 runtime_application_identifier="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.application-identifier' "$tatolabd_entitlements")"
 
@@ -95,7 +96,7 @@ while IFS= read -r -d '' browser_host_helper_app; do
   esac
   browser_host_helper_app_count=$((browser_host_helper_app_count + 1))
 done < <(find "$browser_host_app/Contents/Frameworks" -maxdepth 1 -name '*.app' -print0)
-codesign "${codesign_common_arguments[@]}" "$browser_host_app"
+codesign "${codesign_common_arguments[@]}" --entitlements "$browser_host_entitlements" "$browser_host_app"
 
 codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.tatolab-cli "$helper_contents/MacOS/tatolab-cli"
 codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.runtime-uv "$helper_contents/MacOS/uv"

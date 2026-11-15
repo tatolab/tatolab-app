@@ -81,11 +81,12 @@ required_usage_description_keys=(
 )
 required_device_entitlements=(com.apple.security.device.camera com.apple.security.device.audio-input)
 # The only entitlements each piece of signed code may carry; allow-jit is V8's, in the main
-# process, Blink's renderer and the plain helper that hosts utility processes, Electron's and CEF's
-# alike (packaging/entitlements/).
+# process, CEF's browser process, Blink's renderer and the plain helper that hosts utility processes,
+# Electron's and CEF's alike (packaging/entitlements/).
 allowed_app_entitlements="com.apple.security.cs.allow-jit com.apple.security.device.audio-input com.apple.security.device.camera"
 allowed_renderer_helper_entitlements="com.apple.security.cs.allow-jit"
 allowed_utility_helper_entitlements="com.apple.security.cs.allow-jit"
+allowed_browser_host_entitlements="com.apple.security.cs.allow-jit"
 # The carried Python loads extension modules a person installs from PyPI, which are not signed by
 # Tatolab's team, and llvmlite and numba compile code into memory and run it.
 allowed_carried_python_entitlements="com.apple.security.cs.allow-jit com.apple.security.cs.allow-unsigned-executable-memory com.apple.security.cs.disable-library-validation"
@@ -402,8 +403,9 @@ verify_app_bundle() {
     && pass "Tatolab Runtime.app's Frameworks/tatolab-browser-host.app, which BrowserSource opens pages in, is present" \
     || fail "Tatolab Runtime.app carries no Frameworks/tatolab-browser-host.app: no BrowserSource can open a page"
   signed_code_entitlement_keys="$(entitlement_keys_of "$browser_host_app")"
-  [ -z "$signed_code_entitlement_keys" ] && pass "tatolab-browser-host.app carries no entitlements" \
-    || fail "tatolab-browser-host.app's entitlements are '$signed_code_entitlement_keys', not none"
+  [ "$signed_code_entitlement_keys" = "$allowed_browser_host_entitlements" ] \
+    && pass "tatolab-browser-host.app carries exactly: $allowed_browser_host_entitlements" \
+    || fail "tatolab-browser-host.app's entitlements are '$signed_code_entitlement_keys', not '$allowed_browser_host_entitlements'"
   local browser_host_helper_app browser_host_helper_app_count=0
   while IFS= read -r -d '' browser_host_helper_app; do
     browser_host_helper_app_count=$((browser_host_helper_app_count + 1))
