@@ -12,8 +12,9 @@ import { drawTheCoreViewsInTheirFrames } from "./view_host/fake_core_view_frames
 let stopDrawingTheCoreViews: () => void = () => undefined;
 
 /** The keydown listeners, and the load listeners that hand a view's frame one, each mounted window added to the document, removed after each test so a window from an earlier test never answers a shortcut. */
-export const documentShortcutListenersAdded: { eventName: string; listener: EventListenerOrEventListenerObject; options?: boolean | AddEventListenerOptions }[] = [];
+const documentShortcutListenersAdded: { eventName: string; listener: EventListenerOrEventListenerObject; options?: boolean | AddEventListenerOptions }[] = [];
 
+/** Removes the keydown and load listeners every window mounted so far added to the document, and restores the spies on it. */
 export function removeTheKeydownListenersOfEarlierWindows(): void {
   vi.restoreAllMocks();
   for (const { eventName, listener, options } of documentShortcutListenersAdded.splice(0)) document.removeEventListener(eventName, listener, options);
@@ -60,6 +61,7 @@ export async function mountedWindowOverTheMock(pageQuery: string, backendChanges
   return { backend, windowContent: within(rootElement), showStatusAsTheBackendWould };
 }
 
+/** The text of the first element `selector` matches, or empty when none does. */
 export function textOf(selector: string): string {
   return document.querySelector(selector)?.textContent ?? "";
 }
@@ -100,6 +102,7 @@ export async function chooseFromTheMenuBar(menuLabel: string, entryLabel: RegExp
   fireEvent.click(await screen.findByRole("menuitem", { name: entryLabel }));
 }
 
+/** Opens Settings from its shortcut on the section `section`, and waits for its page. */
 export async function openSettingsOn(section: string): Promise<void> {
   await waitFor(() => expect(document.querySelector("[data-studio-window]")).not.toBeNull());
   fireEvent.keyDown(document, { key: ",", metaKey: true });
@@ -109,12 +112,16 @@ export async function openSettingsOn(section: string): Promise<void> {
   await waitFor(() => expect(document.querySelector(`[data-settings-page="${section}"]`)).not.toBeNull());
 }
 
+/** Settings' row named `rowName`. */
 export function settingsRow(rowName: string): HTMLElement {
   return document.querySelector<HTMLElement>(`[data-settings-row="${rowName}"]`) ?? expect.unreachable(`no ${rowName} row`);
 }
 
+/** The mock's pattern project's folder, open by default. */
 export const PATTERN_PROJECT = "/Users/jonathanf/streams/pattern";
+/** The mock's camera project's folder. */
 export const CAMERA_PROJECT = "/Users/jonathanf/streams/camera";
+/** The id of the pattern project's `main` stream. */
 export const PATTERN_MAIN_STREAM = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "main" });
 
 /** The page of the core view `viewTypeId` drawn in its frame, in the area `areaId` when one is named. */
@@ -124,6 +131,7 @@ export function coreViewPage(viewTypeId: string, areaId?: string): Document {
   return frame.contentDocument ?? expect.unreachable(`the ${viewTypeId} frame has no page`);
 }
 
+/** Queries scoped to the page of the core view `viewTypeId`. */
 export function inTheCoreView(viewTypeId: string) {
   return within(coreViewPage(viewTypeId).body);
 }
@@ -137,6 +145,7 @@ export async function showInTheLibrary(shown: string): Promise<void> {
   fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>(shownChoice) ?? expect.unreachable(`no Show choice ${shown}`)));
 }
 
+/** The Library's row `rowId`. */
 export function libraryRow(rowId: string): HTMLElement {
   return coreViewPage("library").querySelector<HTMLElement>(`[data-library-declarations] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no Library row ${rowId}`);
 }
@@ -154,16 +163,20 @@ export async function projectsWindowNewProjectButton(): Promise<HTMLElement> {
   return waitFor(() => document.querySelector<HTMLElement>('[data-projects-action="new"]') ?? expect.unreachable("no New project button"));
 }
 
+/** The Outliner's row `rowId`. */
 export function outlinerRow(rowId: string): HTMLElement {
   return coreViewPage("outliner").querySelector<HTMLElement>(`[data-outliner] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no outliner row ${rowId}`);
 }
 
+/** The ids of the Outliner's rows, in their order. */
 export function outlinerRowIds(): string[] {
   return [...coreViewPage("outliner").querySelectorAll<HTMLElement>("[data-outliner] [data-tree-row-id]")].map((row) => row.dataset.treeRowId ?? "");
 }
 
+/** The areas of the studio's default layout, in their order. */
 export const AREAS_OF_THE_DEFAULT_LAYOUT = ["outliner", "stream-graph", "viewer", "properties"];
 
+/** The ids of the studio layout's areas shown, in their order. */
 export function areaIdsShown(): (string | null)[] {
   return [...document.querySelectorAll<HTMLElement>("[data-studio-layout] [data-studio-area]")].map((area) => area.getAttribute("data-studio-area"));
 }
