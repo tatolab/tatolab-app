@@ -14,7 +14,7 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "lint": "eslint ."
+    "lint": "python3 ../../node_modules/@tatolab/lint-config/file-size/check_file_sizes.py --exceptions file_size_exceptions.txt && eslint ."
   },
   "dependencies": {
     "@tatolab/tato-app-view-sdk": "*",

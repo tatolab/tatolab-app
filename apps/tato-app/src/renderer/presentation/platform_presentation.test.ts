@@ -11,11 +11,11 @@ import {
   windowDragRegionAttribute,
 } from "./platform_presentation";
 
-function statusOn(platform: unknown): TatolabStatus {
+function statusOn(platform: TatolabPlatform): TatolabStatus {
   return {
     app_version: "0.45.0",
     app_build: null,
-    platform: platform as TatolabPlatform,
+    platform,
     runtime_state: "running",
     runtime_not_running_because: null,
     machine_name: "ada-workstation",
@@ -36,6 +36,13 @@ function statusOn(platform: unknown): TatolabStatus {
   };
 }
 
+/** A status whose platform field holds what a runtime outside this window's contract might send. */
+function statusNamingAPlatformOutsideTheContract(platform: unknown): TatolabStatus {
+  const status = statusOn("macos");
+  Reflect.set(status, "platform", platform);
+  return status;
+}
+
 const NO_MODIFIERS = { metaKey: false, ctrlKey: false, altKey: false };
 
 describe("platformOf", () => {
@@ -45,8 +52,8 @@ describe("platformOf", () => {
   });
 
   it("reads a status that names no platform, or one newer than this window, as macOS", () => {
-    expect(platformOf(statusOn(undefined))).toBe("macos");
-    expect(platformOf(statusOn("windows"))).toBe("macos");
+    expect(platformOf(statusNamingAPlatformOutsideTheContract(undefined))).toBe("macos");
+    expect(platformOf(statusNamingAPlatformOutsideTheContract("windows"))).toBe("macos");
   });
 });
 

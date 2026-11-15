@@ -2,6 +2,7 @@
 // Studio only through the view SDK, so no package imports the app or another package's source.
 
 import path from "node:path";
+import { tatolabTypeScriptLintConfig } from "@tatolab/lint-config/eslint";
 import tseslint from "typescript-eslint";
 
 // What the design system draws, Studio's window draws too, so the window's lint takes these from here.
@@ -63,23 +64,20 @@ const IMPORTS_OUTSIDE_THE_PACKAGE = [
   { regex: String.raw`^@/`, message: "`@/` is the app's own alias; a package never imports the app." },
 ];
 
+const PACKAGE_LINTED_FILES = ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.mjs"];
+
 /** The lint config of the package in `packageFolder`, whose sources and tests live in `src/`. */
 export function packageLintConfig(packageFolder) {
   return tseslint.config(
     { ignores: ["node_modules/**", "dist/**"] },
+    ...tatolabTypeScriptLintConfig({ files: PACKAGE_LINTED_FILES, testFiles: ["src/**/*.test.ts", "src/**/*.test.tsx"] }),
     {
-      files: ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.mjs"],
+      files: PACKAGE_LINTED_FILES,
       extends: [tseslint.configs.base],
       plugins: { tatolab_package: { rules: { imports_stay_inside_the_package: importsStayInsideThePackageRule(packageFolder) } } },
       rules: {
         "tatolab_package/imports_stay_inside_the_package": "error",
-        "no-console": "error",
-        "no-debugger": "error",
         "no-restricted-imports": ["error", { patterns: IMPORTS_OUTSIDE_THE_PACKAGE }],
-        "@typescript-eslint/no-explicit-any": "error",
-        "@typescript-eslint/consistent-type-assertions": ["error", { assertionStyle: "never" }],
-        "@typescript-eslint/no-non-null-assertion": "error",
-        "@typescript-eslint/ban-ts-comment": "error",
       },
     },
     {
@@ -93,15 +91,6 @@ export function packageLintConfig(packageFolder) {
     {
       files: ["src/design_system/ui/**"],
       rules: { "@typescript-eslint/consistent-type-assertions": "off", "@typescript-eslint/no-non-null-assertion": "off", "@typescript-eslint/no-explicit-any": "off" },
-    },
-    {
-      files: ["src/**/*.test.ts", "src/**/*.test.tsx"],
-      rules: {
-        "no-restricted-syntax": [
-          "error",
-          { selector: "MemberExpression[object.name=/^(test|it|describe)$/][property.name=/^(only|skip|todo)$/]", message: "No focused, skipped or todo test." },
-        ],
-      },
     },
   );
 }

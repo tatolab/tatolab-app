@@ -16,7 +16,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.design_system.json",
     "test": "vitest run",
-    "lint": "eslint . && stylelint \"src/design_system/styles/**/*.css\""
+    "lint": "python3 ../../node_modules/@tatolab/lint-config/file-size/check_file_sizes.py --exceptions file_size_exceptions.txt && eslint . && stylelint \"src/design_system/styles/**/*.css\""
   },
   "dependencies": {
     "react-colorful": "^5.8.1",

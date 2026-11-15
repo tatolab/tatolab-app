@@ -10,7 +10,7 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint . && stylelint \"src/renderer/**/*.css\""
+    "lint": "python3 ../../node_modules/@tatolab/lint-config/file-size/check_file_sizes.py --exceptions file_size_exceptions.txt && eslint . && stylelint \"src/renderer/**/*.css\""
   },
   "dependencies": {
     "electron-updater": "6.8.9",
