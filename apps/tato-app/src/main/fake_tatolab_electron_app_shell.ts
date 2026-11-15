@@ -19,7 +19,7 @@ import { createTatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabElectronAppShell } from "./main.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
 import type { MacosActivationPolicy } from "./platform/main_window_chrome.js";
-import type { TatolabWindowCommandHandlers } from "./tatolab_commands.js";
+import type { TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 import type { MainWindowCloseRequestAnswer, MainWindowSpecification, QuestionOverTheWindow } from "./tatolab_main_window.js";
 import type { TrayMenuItemDescription, TrayMenuItemId } from "./tatolab_tray_menu.js";
 import type { TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";

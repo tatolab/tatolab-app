@@ -1,7 +1,7 @@
 import { ipcMain } from "electron";
 import { TATOLAB_COMMAND_NAMES } from "../../shared/tatolab_electron_bridge_contract.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
-import type { TatolabWindowCommandHandlers } from "../tatolab_commands.js";
+import type { TatolabWindowCommandHandlers } from "../tatolab_command_answers.js";
 import { isACommandFromTheWindowsOwnPage } from "../tatolab_window_page_source.js";
 
 /** Answer each command on the IPC channel of its name, for the window's own page at `windowPageUrl` only. A handler resolves its answer rather than rejecting: Electron rewrites a rejection's message, and a refusal reaches the window in its own words. */
