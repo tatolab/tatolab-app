@@ -1,0 +1,11 @@
+// The oxlint rules every package under packages/ shares. shadcn's generated components in
+// src/design_system/ui/ keep their casts, non-null `!` and `any`.
+{
+  "extends": ["../node_modules/@tatolab/lint-config/oxlint/oxlintrc.json"],
+  "overrides": [
+    {
+      "files": ["src/design_system/ui/**"],
+      "rules": { "typescript/consistent-type-assertions": "off", "typescript/no-non-null-assertion": "off", "typescript/no-explicit-any": "off" }
+    }
+  ]
+}

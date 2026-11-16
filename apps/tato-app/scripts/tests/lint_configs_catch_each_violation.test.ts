@@ -1,12 +1,15 @@
-// Each rule in eslint.config.js, stylelint.config.js and the monorepo's commitlint.config.js reports a planted
-// violation where it governs and stays quiet where it does not apply: a rule never seen firing locks
+// Each rule in eslint.config.js, .oxlintrc.json, stylelint.config.js and the monorepo's commitlint.config.js reports a
+// planted violation where it governs and stays quiet where it does not apply: a rule never seen firing locks
 // nothing.
 
-import { execFile } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { promisify } from "node:util";
 import { ESLint } from "eslint";
 import stylelint from "stylelint";
-import { describe, expect, test } from "vitest";
+import { afterAll, describe, expect, test } from "vitest";
 
 const TATO_APP_ROOT = new URL("../..", import.meta.url).pathname;
 const MONOREPO_ROOT = new URL("../../../..", import.meta.url).pathname;
@@ -14,28 +17,74 @@ const VIEW_SDK_ROOT = `${MONOREPO_ROOT}packages/tato-app-view-sdk/`;
 const eslint = new ESLint({ cwd: TATO_APP_ROOT });
 const viewSdkEslint = new ESLint({ cwd: VIEW_SDK_ROOT });
 
-/** The rules reported for `plantedSource` at `filePath`: a path under `view-sdk:` is in the view SDK's package, linted by its config, and any other is in the app. */
-async function ruleIdsReportedFor(filePath: string, plantedSource: string): Promise<string[]> {
-  const isInTheViewSdk = filePath.startsWith("view-sdk:");
-  const [lintResult] = isInTheViewSdk
-    ? await viewSdkEslint.lintText(plantedSource, { filePath: `${VIEW_SDK_ROOT}${filePath.slice("view-sdk:".length)}` })
-    : await eslint.lintText(plantedSource, { filePath });
+// Oxlint reads only files on disk, so a planted file goes into a copy of the oxlint configs beside the monorepo's
+// node_modules, where the typecheck and lint running alongside the tests never see it.
+const OXLINT = `${MONOREPO_ROOT}node_modules/.bin/oxlint`;
+const OXLINT_CONFIGS = ["apps/tato-app/.oxlintrc.json", "packages/package_oxlint_config.json", "packages/tato-app-view-sdk/.oxlintrc.json"];
+const oxlintMirrorRoot = mkdtempSync(path.join(tmpdir(), "tato-app-oxlint-"));
+symlinkSync(`${MONOREPO_ROOT}node_modules`, path.join(oxlintMirrorRoot, "node_modules"));
+for (const configPath of OXLINT_CONFIGS) {
+  mkdirSync(path.dirname(path.join(oxlintMirrorRoot, configPath)), { recursive: true });
+  copyFileSync(`${MONOREPO_ROOT}${configPath}`, path.join(oxlintMirrorRoot, configPath));
+}
+afterAll(() => rmSync(oxlintMirrorRoot, { recursive: true, force: true }));
+
+/** The package a planted `filePath` is in, from the monorepo's root, and the path inside it: a path under `view-sdk:` is in the view SDK's package, and any other is in the app. */
+function plantedLocation(filePath: string): { packageFolder: string; pathInPackage: string } {
+  return filePath.startsWith("view-sdk:")
+    ? { packageFolder: "packages/tato-app-view-sdk/", pathInPackage: filePath.slice("view-sdk:".length) }
+    : { packageFolder: "apps/tato-app/", pathInPackage: filePath };
+}
+
+/** The rules ESLint reports for `plantedSource` at `filePath`, under the config of the package it is in. */
+async function eslintRuleIdsReportedFor(filePath: string, plantedSource: string): Promise<string[]> {
+  const { packageFolder, pathInPackage } = plantedLocation(filePath);
+  const [lintResult] =
+    packageFolder === "apps/tato-app/" ? await eslint.lintText(plantedSource, { filePath: pathInPackage }) : await viewSdkEslint.lintText(plantedSource, { filePath: `${VIEW_SDK_ROOT}${pathInPackage}` });
   return (lintResult?.messages ?? []).map((lintMessage) => lintMessage.ruleId ?? lintMessage.message);
 }
 
+/** The rule codes in oxlint's JSON report, such as `typescript(no-explicit-any)`. */
+function oxlintRuleCodes(report: unknown): string[] {
+  if (typeof report !== "object" || report === null || !("diagnostics" in report) || !Array.isArray(report.diagnostics)) return ["oxlint printed no report"];
+  return report.diagnostics.map((diagnostic: unknown) =>
+    typeof diagnostic === "object" && diagnostic !== null && "code" in diagnostic && typeof diagnostic.code === "string" ? diagnostic.code : "oxlint reported a diagnostic with no code",
+  );
+}
+
+/** The rules oxlint reports for `plantedSource` at `filePath`, under the config of the package it is in. */
+function oxlintRuleCodesReportedFor(filePath: string, plantedSource: string): string[] {
+  const { packageFolder, pathInPackage } = plantedLocation(filePath);
+  const packageMirror = path.join(oxlintMirrorRoot, packageFolder);
+  const plantedPath = path.join(packageMirror, pathInPackage);
+  mkdirSync(path.dirname(plantedPath), { recursive: true });
+  writeFileSync(plantedPath, plantedSource);
+  try {
+    const oxlintRun = spawnSync(OXLINT, ["--format", "json", pathInPackage], { cwd: packageMirror, encoding: "utf8" });
+    return oxlintRuleCodes(JSON.parse(oxlintRun.stdout || "null"));
+  } finally {
+    rmSync(plantedPath);
+  }
+}
+
+/** The rules ESLint and oxlint together report for `plantedSource` at `filePath`. */
+async function ruleIdsReportedFor(filePath: string, plantedSource: string): Promise<string[]> {
+  return [...(await eslintRuleIdsReportedFor(filePath, plantedSource)), ...oxlintRuleCodesReportedFor(filePath, plantedSource)];
+}
+
 const reportedCases: [string, string, string, string][] = [
-  ["a console.log in the window", "src/renderer/zz_planted.ts", 'console.log("planted");\n', "no-console"],
-  ["a console.table in the window", "src/renderer/zz_planted.ts", "console.table([1]);\n", "no-console"],
-  ["a debugger statement in the window", "src/renderer/zz_planted.ts", "export function planted(): void {\n  debugger;\n}\n", "no-debugger"],
-  ["a console call in a screen", "src/renderer/studio_shell/zz_planted.tsx", 'export const plantedLog = () => console.log("planted");\n', "no-console"],
-  ["a console.error in the main process", "src/main/zz_planted.ts", 'console.error("planted");\n', "no-console"],
+  ["a console.log in the window", "src/renderer/zz_planted.ts", 'console.log("planted");\n', "eslint(no-console)"],
+  ["a console.table in the window", "src/renderer/zz_planted.ts", "console.table([1]);\n", "eslint(no-console)"],
+  ["a debugger statement in the window", "src/renderer/zz_planted.ts", "export function planted(): void {\n  debugger;\n}\n", "eslint(no-debugger)"],
+  ["a console call in a screen", "src/renderer/studio_shell/zz_planted.tsx", 'export const plantedLog = () => console.log("planted");\n', "eslint(no-console)"],
+  ["a console.error in the main process", "src/main/zz_planted.ts", 'console.error("planted");\n', "eslint(no-console)"],
   ["process.stderr written outside tatolab_app_log.ts", "src/main/zz_planted.ts", 'process.stderr.write("planted");\n', "no-restricted-syntax"],
   ["a small rounded-full element", "src/renderer/studio_shell/zz_planted.tsx", 'export const plantedDot = () => <span className="size-2 rounded-full bg-danger" />;\n', "no-restricted-syntax"],
   ["a rounded-full element sized by width and height", "src/renderer/studio_shell/zz_planted.tsx", 'export const plantedDot = () => <span className="h-1.5 w-1.5 rounded-full" />;\n', "no-restricted-syntax"],
   ["a dot class in a template literal", "view-sdk:src/design_system/zz_planted.tsx", "export const plantedDot = (tone: string) => <span className={`rounded-full size-1.5 ${tone}`} />;\n", "no-restricted-syntax"],
   ["a dot whose classes are split across cn()'s arguments", "view-sdk:src/design_system/zz_planted.tsx", 'import { cn } from "cn";\nexport const plantedDot = () => <span className={cn("rounded-full", "size-2")} />;\n', "no-restricted-syntax"],
   ["a bullet glyph as JSX text", "src/renderer/studio_shell/zz_planted.tsx", "export const plantedBullet = () => <span>• planted</span>;\n", "no-restricted-syntax"],
-  ["a console.log in a shadcn component", "view-sdk:src/design_system/ui/zz-planted.tsx", 'export const plantedLog = () => console.log("planted");\n', "no-console"],
+  ["a console.log in a shadcn component", "view-sdk:src/design_system/ui/zz-planted.tsx", 'export const plantedLog = () => console.log("planted");\n', "eslint(no-console)"],
   ["a pulsing indicator", "src/renderer/studio_shell/zz_planted.tsx", 'export const plantedPulse = () => <span className="animate-pulse" />;\n', "no-restricted-syntax"],
   ["an SVG circle in a screen", "src/renderer/studio_shell/zz_planted.tsx", 'export const plantedCircle = () => <svg><circle r="3" /></svg>;\n', "no-restricted-syntax"],
   ["an SVG circle in a DOM page's markup", "src/renderer/studio_shell/zz_planted.ts", 'export const PLANTED_SVG = \'<svg><circle r="3" /></svg>\';\n', "no-restricted-syntax"],
@@ -56,9 +105,9 @@ const reportedCases: [string, string, string, string][] = [
   ["electron imported outside the adapters", "src/main/zz_planted.ts", 'import { app } from "electron";\nexport const plantedApp = app;\n', "no-restricted-imports"],
   ["electron imported in a main-process test", "src/main/zz_planted.test.ts", "import { app } from 'electron';\nexport const plantedApp = app;\n", "no-restricted-imports"],
   ["electron required outside the adapters", "src/main/platform/zz_planted.ts", 'export const plantedElectron = require("electron");\n', "no-restricted-syntax"],
-  ["an as cast in shipped main-process code", "src/main/zz_planted.ts", 'export const planted = JSON.parse("1") as number;\n', "@typescript-eslint/consistent-type-assertions"],
-  ["an any type in shipped main-process code", "src/main/zz_planted.ts", "export const planted: any = 1;\n", "@typescript-eslint/no-explicit-any"],
-  ["a non-null assertion in shipped main-process code", "src/main/zz_planted.ts", "export const planted = [1].find(Boolean)!.toFixed();\n", "@typescript-eslint/no-non-null-assertion"],
+  ["an as cast in shipped main-process code", "src/main/zz_planted.ts", 'export const planted = JSON.parse("1") as number;\n', "typescript(consistent-type-assertions)"],
+  ["an any type in shipped main-process code", "src/main/zz_planted.ts", "export const planted: any = 1;\n", "typescript(no-explicit-any)"],
+  ["a non-null assertion in shipped main-process code", "src/main/zz_planted.ts", "export const planted = [1].find(Boolean)!.toFixed();\n", "typescript(no-non-null-assertion)"],
   ["a throw in shipped main-process code", "src/main/zz_planted.ts", 'export function planted(): void {\n  throw new Error("planted");\n}\n', "no-restricted-syntax"],
   ["a *Sync( call in shipped main-process code", "src/main/zz_planted.ts", 'import { readFileSync } from "node:fs";\nexport const planted = readFileSync("/dev/null");\n', "no-restricted-syntax"],
   ["a namespaced *Sync( call in shipped main-process code", "src/main/electron_adapters/zz_planted.ts", 'import fs from "node:fs";\nexport const planted = fs.existsSync("/dev/null");\n', "no-restricted-syntax"],
@@ -68,11 +117,12 @@ const reportedCases: [string, string, string, string][] = [
   ["a focused main-process test", "src/main/zz_planted.test.ts", 'import { test } from "vitest";\ntest.only("planted", () => {});\n', "tatolab/no-focused-or-skipped-test"],
   ["a skipped main-process test", "src/main/platform/zz_planted.test.ts", 'import { test } from "vitest";\ntest.skip("planted", () => {});\n', "tatolab/no-focused-or-skipped-test"],
   ["a focused window test", "src/renderer/zz_planted.test.ts", 'import { it } from "vitest";\nit.only("planted", () => {});\n', "tatolab/no-focused-or-skipped-test"],
-  ["an as cast in the window", "src/renderer/zz_planted.ts", 'export const planted = JSON.parse("1") as number;\n', "@typescript-eslint/consistent-type-assertions"],
-  ["an as cast in the mock window", "mock/zz_planted.ts", 'export const planted = JSON.parse("1") as number;\n', "@typescript-eslint/consistent-type-assertions"],
-  ["an as cast in a main-process test", "src/main/zz_planted.test.ts", 'export const planted = JSON.parse("1") as number;\n', "@typescript-eslint/consistent-type-assertions"],
-  ["an as cast in a fake", "src/main/fake_zz_planted.ts", 'export const planted = JSON.parse("1") as number;\n', "@typescript-eslint/consistent-type-assertions"],
-  ["a ts-ignore comment in the window", "src/renderer/zz_planted.ts", "// @ts-ignore\nexport const planted = 1;\n", "@typescript-eslint/ban-ts-comment"],
+  ["an as cast in the window", "src/renderer/zz_planted.ts", 'export const planted = JSON.parse("1") as number;\n', "typescript(consistent-type-assertions)"],
+  ["an as cast in the mock window", "mock/zz_planted.ts", 'export const planted = JSON.parse("1") as number;\n', "typescript(consistent-type-assertions)"],
+  ["an as cast in a main-process test", "src/main/zz_planted.test.ts", 'export const planted = JSON.parse("1") as number;\n', "typescript(consistent-type-assertions)"],
+  ["an as cast in a fake", "src/main/fake_zz_planted.ts", 'export const planted = JSON.parse("1") as number;\n', "typescript(consistent-type-assertions)"],
+  ["a ts-ignore comment in the window", "src/renderer/zz_planted.ts", "// @ts-ignore\nexport const planted = 1;\n", "typescript(ban-ts-comment)"],
+  ["an any type in the design system outside its shadcn components", "view-sdk:src/design_system/zz_planted.tsx", "export const planted: any = 1;\n", "typescript(no-explicit-any)"],
 ];
 
 test.each(reportedCases)("reports %s", async (_caseDescription, filePath, plantedSource, expectedRuleId) => {
@@ -85,6 +135,7 @@ const quietCases: [string, string, string][] = [
   ["a screen composed from the design system", "src/renderer/studio_shell/zz_planted.tsx", 'import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";\nexport const PlantedScreen = () => <ActionButton onPressed={() => {}}>Planted</ActionButton>;\n'],
   ["a raw button in a window test", "src/renderer/studio_shell/zz_planted.test.tsx", 'export const plantedTestMarkup = () => <button type="button">Planted</button>;\n'],
   ["the design system built on a shadcn component", "view-sdk:src/design_system/zz_planted.tsx", 'import { Button } from "./ui/button";\nexport const PlantedControl = () => <Button>Planted</Button>;\n'],
+  ["a cast, a non-null assertion and an any type inside a shadcn component", "view-sdk:src/design_system/ui/zz-planted.tsx", 'export const planted: any = (JSON.parse("[1]") as number[]).find(Boolean)!;\n'],
   ["a round shape inside a shadcn component", "view-sdk:src/design_system/ui/zz-planted.tsx", 'export const PlantedDot = () => <span className="size-2 rounded-full bg-border" />;\n'],
   ["an icon's circle in icons.ts", "src/renderer/icons.ts", 'export const PLANTED_ICON = \'<svg><circle r="3" /></svg>\';\n'],
   ["a process.platform read inside platform/", "src/main/platform/zz_planted.ts", "export const plantedPlatform = process.platform;\n"],
@@ -99,6 +150,15 @@ const quietCases: [string, string, string][] = [
   ["as const in shipped main-process code", "src/main/zz_planted.ts", 'export const planted = ["as a string", "throw it"] as const;\n'],
   ["the forms named only in a comment and a string", "src/main/zz_planted.ts", '// planted: as Error, throw, Date.now() and electron in a comment\nexport const planted = "throw it and Date.now()";\n'],
 ];
+
+const SIX_OXLINT_RULES = ["no-console", "no-debugger", "@typescript-eslint/no-explicit-any", "@typescript-eslint/consistent-type-assertions", "@typescript-eslint/no-non-null-assertion", "@typescript-eslint/ban-ts-comment"];
+
+test("ESLint leaves no explicit any, type assertions, non-null assertions, ts-comments, console and debugger to oxlint", async () => {
+  const plantedSource = '// @ts-ignore\nexport function planted(value: any): number {\n  debugger;\n  console.log(value);\n  return (value as number[]).find(Boolean)!;\n}\n';
+  for (const filePath of ["src/renderer/zz_planted.ts", "src/main/zz_planted.ts", "view-sdk:src/design_system/zz_planted.tsx"]) {
+    expect((await eslintRuleIdsReportedFor(filePath, plantedSource)).filter((ruleId) => SIX_OXLINT_RULES.includes(ruleId))).toEqual([]);
+  }
+});
 
 test.each(quietCases)("stays quiet on %s", async (_caseDescription, filePath, plantedSource) => {
   expect(await ruleIdsReportedFor(filePath, plantedSource)).toEqual([]);
