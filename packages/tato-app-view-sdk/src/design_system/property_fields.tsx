@@ -446,10 +446,13 @@ export interface PropertyPortLinkedEnd {
   linkKey: string;
 }
 
+/** The row under a port's name that holds a link's other end or the value an unjoined input holds, indented to sit under the name. */
+const PORT_BAND_DETAIL_ROW_CLASS_NAME = "flex min-h-6 min-w-0 items-center pr-1 pl-[17px]";
+
 /** One link of a port, named by the node and port at its other end; links are made and removed on the canvas. */
 function PropertyPortLinkedEndLine({ linkedEnd }: { linkedEnd: PropertyPortLinkedEnd }) {
   return (
-    <div className="flex min-h-6 min-w-0 items-center gap-1.5 pr-1 pl-[17px]" title={`${linkedEnd.nodeTitle} › ${linkedEnd.port}`} data-property-port-linked-end={`${linkedEnd.nodeTitle} › ${linkedEnd.port}`}>
+    <div className={cn(PORT_BAND_DETAIL_ROW_CLASS_NAME, "gap-1.5")} title={`${linkedEnd.nodeTitle} › ${linkedEnd.port}`} data-property-port-linked-end={`${linkedEnd.nodeTitle} › ${linkedEnd.port}`}>
       <Box className="size-[13px] shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
       <b className="min-w-0 truncate font-semibold">{linkedEnd.nodeTitle}</b>
       <span className="min-w-[3ch] shrink-[3] truncate text-fg-3">{linkedEnd.port}</span>
@@ -512,7 +515,7 @@ export function PropertyPortRow({
         {linkedEnds.length > 0 ? (
           linkedEnds.map((linkedEnd) => <PropertyPortLinkedEndLine key={linkedEnd.linkKey} linkedEnd={linkedEnd} />)
         ) : (
-          <div className="flex min-h-6 min-w-0 items-center truncate pr-1 pl-[17px] text-fg-2">{unlinkedValue ?? <span className="text-fg-3">Not connected</span>}</div>
+          <div className={cn(PORT_BAND_DETAIL_ROW_CLASS_NAME, "truncate text-fg-2")}>{unlinkedValue ?? <span className="text-fg-3">Not connected</span>}</div>
         )}
       </div>
       {refusal !== null && (

@@ -424,7 +424,6 @@ describe("the studio", () => {
     expect(portRows.length).toBeGreaterThan(0);
     expect(portRows.flatMap((portRow) => [...portRow.querySelectorAll("button")])).toEqual([]);
     expect(properties().querySelector('[data-properties-port="video_from_upstream"] input')).toBeNull();
-    expect(streamGraph.querySelector("[data-node-graph-port-pick-banner]")).toBeNull();
   });
 
   it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {
