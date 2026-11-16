@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { PropertyPortRow, PropertySliderField, PropertyTextField, type PropertyPortTarget } from "./property_fields";
+import { PropertyPortRow, PropertySliderField, PropertyTextField } from "./property_fields";
 
 afterEach(cleanup);
 
@@ -123,16 +123,7 @@ describe("a property slider", () => {
 });
 
 describe("a property port row", () => {
-  const aTarget = (key: string, linkedWith: PropertyPortTarget["linkedWith"], onRemoved: () => void): PropertyPortTarget => ({
-    linkedWith,
-    targetKey: key,
-    note: "Inputs in Main that take Image",
-    choicesWhenOpened: () => [],
-    onRemoved,
-  });
-
-  it("draws a target picker for each link an output has, each with its own remove", () => {
-    const removed: string[] = [];
+  it("names the other end of each link an output has, and offers no way to change a link", () => {
     render(
       <PropertyPortRow
         direction="output"
@@ -140,36 +131,24 @@ describe("a property port row", () => {
         familyWords="Image"
         pinMark={null}
         bandShade="first"
-        targets={[aTarget("id-1:frames", { nodeTitle: "Camera", port: "frames" }, () => removed.push("id-1")), aTarget("id-2:frames", { nodeTitle: "Camera", port: "frames" }, () => removed.push("id-2"))]}
+        linkedEnds={[
+          { nodeTitle: "Mixer", port: "frames", linkKey: "id-mixer:frames" },
+          { nodeTitle: "Meter", port: "frames", linkKey: "id-meter:frames" },
+        ]}
       />,
     );
-    expect(screen.getAllByRole("button", { name: "Target of video: Camera frames" })).toHaveLength(2);
-    const removeButtons = screen.getAllByRole("button", { name: "Remove the link of video with Camera frames" });
-    fireEvent.click(removeButtons[1] ?? document.body);
-    expect(removed).toEqual(["id-2"]);
+    expect([...document.querySelectorAll("[data-property-port-linked-end]")].map((line) => line.getAttribute("data-property-port-linked-end"))).toEqual(["Mixer › frames", "Meter › frames"]);
+    expect(screen.queryAllByRole("button")).toEqual([]);
   });
 
-  it("reads None on a blank picker and says why + cannot add another where the port takes no more", () => {
-    const added: string[] = [];
-    render(
-      <PropertyPortRow
-        direction="input"
-        portName="level"
-        familyWords="Channels"
-        pinMark={null}
-        bandShade="second"
-        targets={[aTarget("blank-1", null, () => undefined)]}
-        addition={{ disabledReason: "An input takes one link. Choose another output in its picker.", onAdded: () => added.push("added") }}
-      />,
-    );
-    expect(screen.getByRole("button", { name: "Target of level: none" }).textContent).toContain("None");
-    fireEvent.click(screen.getByRole("button", { name: "Add a target for level: An input takes one link. Choose another output in its picker." }));
-    expect(added).toEqual([]);
-  });
-
-  it("shows an unjoined input's value where it has no target picker", () => {
-    render(<PropertyPortRow direction="input" portName="tint" familyWords="Array" pinMark={null} bandShade="first" targets={[]} unlinkedValue={<span>0.5, 0.7</span>} addition={{ disabledReason: null, onAdded: () => undefined }} />);
+  it("shows an unjoined input's value where it has no link", () => {
+    render(<PropertyPortRow direction="input" portName="tint" familyWords="Array" pinMark={null} bandShade="first" linkedEnds={[]} unlinkedValue={<span>0.5, 0.7</span>} />);
     expect(screen.getByText("0.5, 0.7")).toBeDefined();
-    expect(screen.getByRole("button", { name: "Add a target for tint" })).toBeDefined();
+    expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+
+  it("says Not connected for an output with no link", () => {
+    render(<PropertyPortRow direction="output" portName="level" familyWords="Channels" pinMark={null} bandShade="second" linkedEnds={[]} />);
+    expect(screen.getByText("Not connected")).toBeDefined();
   });
 });
