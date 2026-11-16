@@ -373,7 +373,7 @@ describe("the studio", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Strength" }));
 
     const strengthInput = await waitFor(() => properties().querySelector<HTMLElement>('[data-properties-section="inputs"] [data-properties-port="strength"]') ?? expect.unreachable("no strength input"), { timeout: 5000 });
-    await waitFor(() => expect([...strengthInput.querySelectorAll("[data-property-port-target]")].map((target) => target.getAttribute("data-property-port-target"))).toEqual(["invertingeffect_strength › value"]));
+    await waitFor(() => expect([...strengthInput.querySelectorAll("[data-property-port-linked-end]")].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"))).toEqual(["invertingeffect_strength › value"]));
     await waitFor(() => expect(streamGraph.querySelector('[data-node-graph-card="invertingeffect_strength"]')).not.toBeNull());
     expect(properties().querySelector("[data-properties-expose-as-a-graph-input]")).toBeNull();
   });
@@ -412,58 +412,18 @@ describe("the studio", () => {
     await waitFor(() => expect(shownInWords()).toBe("1 area"));
   });
 
-  it("moves an input's link to another output from its target picker, and adds and removes a blank picker on an output", { timeout: 20_000 }, async () => {
+  it("names each port's linked ends in Properties with no way to wire there, and keeps an unlinked input's value field", { timeout: 20_000 }, async () => {
     await mountedWindowOverTheMock("state=running");
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
     fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="brightnessmeter"]') ?? expect.unreachable("no Brightness Meter card")));
     const properties = () => coreViewPage("properties");
-    const targetsOf = (port: string) => [...properties().querySelectorAll(`[data-properties-port="${port}"] [data-property-port-target]`)].map((target) => target.getAttribute("data-property-port-target"));
-    await waitFor(() => expect(targetsOf("video_from_upstream")).toEqual(["Inverting Effect › video_to_downstream"]));
+    const linkedEndsOf = (port: string) => [...properties().querySelectorAll(`[data-properties-port="${port}"] [data-property-port-linked-end]`)].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"));
+    await waitFor(() => expect(linkedEndsOf("video_from_upstream")).toEqual(["Inverting Effect › video_to_downstream"]));
 
-    pressAsAPointerDoes(properties().querySelector<HTMLElement>('[data-properties-port="video_from_upstream"] [data-property-port-target-picker]') ?? expect.unreachable("no target picker"));
-    expect(screen.queryByRole("menuitem", { name: /^Inverting Effect/ })).toBeNull();
-    fireEvent.click(await screen.findByRole("menuitem", { name: /^Test Pattern Source/ }));
-    await waitFor(() => expect(targetsOf("video_from_upstream")).toEqual(["Test Pattern Source › video"]), { timeout: 5000 });
-    expect(properties().querySelector('[data-properties-port="video_from_upstream"] [data-property-port-add-target]')?.getAttribute("aria-disabled")).toBe("true");
-
-    fireEvent.click(properties().querySelector<HTMLElement>('[data-properties-port="brightness"] [data-property-port-add-target]') ?? expect.unreachable("no + on brightness"));
-    await waitFor(() => expect(targetsOf("brightness")).toEqual([""]));
-    expect(await screen.findByText("Inputs in main that take Records")).toBeTruthy();
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
-    fireEvent.click(properties().querySelector<HTMLElement>('[data-properties-port="brightness"] [data-property-port-target-remove]') ?? expect.unreachable("no ✕ on the blank picker"));
-    await waitFor(() => expect(targetsOf("brightness")).toEqual([]));
-  });
-
-  it("picks an input's other end in the Stream graph from Properties' crosshair, the fitting nodes lit, and Esc or choosing another node ends a pick", { timeout: 20_000 }, async () => {
-    await mountedWindowOverTheMock("state=running");
-    const streamGraphPage = () => coreViewPage("stream_graph", "stream-graph");
-    const card = (name: string) => streamGraphPage().querySelector<HTMLElement>(`[data-node-graph-card="${name}"]`) ?? expect.unreachable(`no ${name} card`);
-    fireEvent.click(await waitFor(() => card("brightnessmeter")));
-    const properties = () => coreViewPage("properties");
-    const targetsOf = (port: string) => [...properties().querySelectorAll(`[data-properties-port="${port}"] [data-property-port-target]`)].map((target) => target.getAttribute("data-property-port-target"));
-    await waitFor(() => expect(targetsOf("video_from_upstream")).toEqual(["Inverting Effect › video_to_downstream"]));
-    const crosshair = () => properties().querySelector<HTMLElement>('[data-properties-port="video_from_upstream"] [data-property-port-target-pick]') ?? expect.unreachable("no crosshair");
-
-    fireEvent.click(crosshair());
-    await waitFor(() => expect(streamGraphPage().querySelector("[data-node-graph-port-pick-banner]")?.textContent).toContain("Pick the other end of Brightness Meter › video_from_upstream"));
-    expect(card("testpatternsource").getAttribute("data-port-pick")).toBe("lit");
-    expect(card("displaywindow").getAttribute("data-port-pick")).toBe("dim");
-    expect(crosshair().getAttribute("aria-pressed")).toBe("true");
-    fireEvent.click(card("testpatternsource"));
-    await waitFor(() => expect(targetsOf("video_from_upstream")).toEqual(["Test Pattern Source › video"]), { timeout: 5000 });
-    expect(streamGraphPage().querySelector("[data-node-graph-port-pick-banner]")).toBeNull();
-
-    fireEvent.click(crosshair());
-    await waitFor(() => expect(streamGraphPage().querySelector("[data-node-graph-port-pick-banner]")).not.toBeNull());
-    fireEvent.keyDown(streamGraphPage(), { key: "Escape" });
-    await waitFor(() => expect(streamGraphPage().querySelector("[data-node-graph-port-pick-banner]")).toBeNull());
-    await waitFor(() => expect(crosshair().getAttribute("aria-pressed")).toBe("false"));
-    expect(card("displaywindow").getAttribute("data-port-pick")).toBeNull();
-
-    fireEvent.click(crosshair());
-    await waitFor(() => expect(streamGraphPage().querySelector("[data-node-graph-port-pick-banner]")).not.toBeNull());
-    fireEvent.click(await waitFor(() => outlinerRow(`node:${PATTERN_MAIN_STREAM}/invertingeffect`)));
-    await waitFor(() => expect(streamGraphPage().querySelector("[data-node-graph-port-pick-banner]")).toBeNull());
+    const portRows = [...properties().querySelectorAll<HTMLElement>("[data-properties-port]")];
+    expect(portRows.length).toBeGreaterThan(0);
+    expect(portRows.flatMap((portRow) => [...portRow.querySelectorAll("button")])).toEqual([]);
+    expect(properties().querySelector('[data-properties-port="video_from_upstream"] input')).toBeNull();
   });
 
   it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {

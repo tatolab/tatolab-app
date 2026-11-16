@@ -1,10 +1,7 @@
 // What Properties sends the runtime for each edit, and what it shows of a node's links. `set_node_config` replaces
 // a node's whole config, so every config edit sends the whole config with the one field changed or removed.
 
-import type { JsonValue, StreamGraphAction, StreamGraphDeclaredPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
-import { nodeTitle } from "../shared/node_words";
-import { portsThatCouldJoin } from "../shared/ports_that_can_join";
+import type { JsonValue, StreamGraphAction, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { GRAPH_INPUT_NODE_TYPE } from "../controls/graph_inputs_of_the_stream";
 import { recordsOfAListField, type ConfigFormField, type JsonObject } from "./config_form_fields";
 
@@ -69,11 +66,6 @@ export function nodeIdInShort(nodeId: string): string {
   return nodeId.length > 10 ? `${nodeId.slice(0, 4)}…${nodeId.slice(-4)}` : nodeId;
 }
 
-/** What a port's Connect menu lists, as "Outputs in Main that carry Image". */
-export function portsToConnectNote(direction: "input" | "output", streamName: string, familyWords: string): string {
-  return direction === "input" ? `Outputs in ${streamName} that carry ${familyWords}` : `Inputs in ${streamName} that take ${familyWords}`;
-}
-
 /** One end of a link of the node's port, at the node on its other side. */
 export interface LinkedEndOfAPort {
   link: StreamGraphLink;
@@ -90,78 +82,6 @@ export function linkedEndsOfThePort(graph: Pick<StreamGraphSummary, "nodes" | "l
     const otherNode = graph.nodes.find((candidate) => candidate.name === otherName);
     return otherNode === undefined ? [] : [{ link, node: otherNode, port: direction === "input" ? link.source_port : link.target_port }];
   });
-}
-
-/** The graph action that removes `linkedEnd`'s link from or to the node's `portName`. */
-export function disconnectTheLink(stream: string, node: StreamGraphNode, direction: "input" | "output", portName: string, linkedEnd: LinkedEndOfAPort): StreamGraphAction {
-  const thisEnd = { node: node.id, port: portName };
-  const otherEnd = { node: linkedEnd.node.id, port: linkedEnd.port };
-  return direction === "input" ? { operation: "disconnect", stream, source: otherEnd, target: thisEnd } : { operation: "disconnect", stream, source: thisEnd, target: otherEnd };
-}
-
-/** A port of another node of the stream that a target picker offers, the graph actions that join it, or why it cannot be joined. */
-export interface PortToConnect {
-  nodeTitle: string;
-  port: string;
-  cannotBecause: string | null;
-  /** The other node's id and port, which name the choice apart where two nodes' titles read the same. */
-  choiceKey: string;
-  /** One transaction: the link it replaces disconnected first, where the picker had one. */
-  connecting: StreamGraphAction[];
-}
-
-/**
- * Each port of the stream's other nodes the node's `port` could join, those of its family first: an input lists the
- * outputs, an output the inputs not linked yet. One of another family is listed with why it cannot be joined. A picker
- * `replacing` a link lists every port but the one it is linked with, and choosing one moves the link there.
- */
-export function portsToConnect(
-  stream: string,
-  graph: Pick<StreamGraphSummary, "nodes" | "links">,
-  node: StreamGraphNode,
-  direction: "input" | "output",
-  port: StreamGraphDeclaredPort,
-  replacing: LinkedEndOfAPort | null,
-): PortToConnect[] {
-  const disconnecting = replacing === null ? [] : [disconnectTheLink(stream, node, direction, port.name, replacing)];
-  const candidates = portsThatCouldJoin(graph, node, direction, port).flatMap(({ node: otherNode, port: otherPort, isOfTheFamily }): (PortToConnect & { isOfTheFamily: boolean })[] => {
-    const thisEnd = { node: node.id, port: port.name };
-    const otherEnd = { node: otherNode.id, port: otherPort.name };
-    const connecting: StreamGraphAction = direction === "input" ? { operation: "connect", stream, source: otherEnd, target: thisEnd } : { operation: "connect", stream, source: thisEnd, target: otherEnd };
-    return [
-      {
-        nodeTitle: nodeTitle(otherNode.name, otherNode.type),
-        port: otherPort.name,
-        cannotBecause: isOfTheFamily ? null : `${otherPort.family === null ? "Unknown" : nodeGraphPinFamilyWords(otherPort.family)}, can't connect`,
-        choiceKey: `${otherNode.id}:${otherPort.name}`,
-        connecting: [...disconnecting, connecting],
-        isOfTheFamily,
-      },
-    ];
-  });
-  return [...candidates.filter((candidate) => candidate.isOfTheFamily), ...candidates.filter((candidate) => !candidate.isOfTheFamily)].map(({ isOfTheFamily: _isOfTheFamily, ...portToConnect }) => portToConnect);
-}
-
-/** The transaction that joins the node's `port` to the port the person picked in the Stream graph, replacing the picker's link where it had one, or why it cannot join. */
-export function connectingThePortPicked(
-  stream: string,
-  graph: Pick<StreamGraphSummary, "nodes" | "links">,
-  node: StreamGraphNode,
-  direction: "input" | "output",
-  port: StreamGraphDeclaredPort,
-  replacing: LinkedEndOfAPort | null,
-  picked: { node: string; port: string },
-): { kind: "connecting"; connecting: StreamGraphAction[] } | { kind: "cannot_join"; because: string } {
-  const choice = portsToConnect(stream, graph, node, direction, port, replacing).find((portToConnect) => portToConnect.choiceKey === `${picked.node}:${picked.port}`);
-  if (choice === undefined) return { kind: "cannot_join", because: `The port picked can't join ${port.name}: it is this link's own end, already linked, or no longer in the stream.` };
-  if (choice.cannotBecause !== null) return { kind: "cannot_join", because: `${choice.nodeTitle} › ${choice.port} can't join ${port.name}: ${choice.cannotBecause}.` };
-  return { kind: "connecting", connecting: choice.connecting };
-}
-
-/** Why the port cannot take another target picker: an input takes one link, so a linked one moves its link in its picker instead; `null` where it can. */
-export function whyThePortTakesNoOtherTarget(direction: "input" | "output", linkedEndCount: number, blankPickerCount: number): string | null {
-  if (direction === "input" && linkedEndCount + blankPickerCount > 0) return "An input takes one link. Choose another output in its picker.";
-  return null;
 }
 
 /** Whether two JSON values hold the same values, whatever order an object's keys come in. */
