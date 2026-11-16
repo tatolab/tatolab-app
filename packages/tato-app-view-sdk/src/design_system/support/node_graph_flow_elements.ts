@@ -42,7 +42,6 @@ export const connectionLookupKeyOfTheHandle = (nodeId: string, handleType: "sour
 /** The attribute every inline control on a card carries, which the canvas hides by while zoomed out past reading it. */
 export const NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE = "data-node-graph-inline-control";
 
-
 /** Whether the canvas takes edits, which lets its pins start wires and its notes be edited. */
 export const NodeGraphEditableContext = createContext<boolean>(false);
 
