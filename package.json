@@ -18,7 +18,7 @@
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",
     "@commitlint/config-conventional": "^21.2.4",
-    "@tatolab/lint-config": "github:tatolab/lint-config#6ab4ab16800b98502a223e753ba1b4a3c0fdb2d5",
+    "@tatolab/lint-config": "github:tatolab/lint-config#bcf3c37551002474b0ee18803763fef0f85d50d8",
     "turbo": "2.11.10"
   }
 }
