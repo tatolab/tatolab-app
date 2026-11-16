@@ -285,7 +285,7 @@ verify_app_bundle() {
       *) fail "lend link points outside the helper's Frameworks/tatolab-runtime: ${lend_link#"$helper_contents/"}" ;;
     esac
   done < <(find "$helper_contents/Resources/lend" -type l -print0 2>/dev/null)
-  [ -f "$helper_contents/Resources/lend/tatolab/runtime/_processor_interpreter_bootstrap.py" ] \
+  [ -f "$helper_contents/Resources/lend/tatolab/runtime/_node_interpreter_bootstrap.py" ] \
     && pass "the helper's Resources/lend carries the runtime package" || fail "the helper's Resources/lend has no tatolab/runtime package"
 
   local core_first_party_module missing_core_first_party_modules=""
