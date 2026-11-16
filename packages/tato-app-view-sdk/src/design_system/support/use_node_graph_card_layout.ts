@@ -34,6 +34,9 @@ function nodeGraphShapeKey(
   ]);
 }
 
+/** The shape key while every card has a saved place, when no card is laid out and so no shape decides anything. */
+const EVERY_CARD_PLACED_SHAPE_KEY = "every card placed";
+
 /** The cards' widths as drawn, read once React Flow has measured them for one shape of the graph. */
 interface MeasuredCardWidths {
   shapeKey: string;
@@ -48,7 +51,8 @@ export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], li
   const areCardsMeasured = nodes.every((node) =>
     node.saved_position !== null || cardSizeByNode.has(node.node_id),
   );
-  const shapeKey = nodeGraphShapeKey(nodes, links);
+  const isEveryCardPlaced = nodes.every((node) => node.saved_position !== null);
+  const shapeKey = isEveryCardPlaced ? EVERY_CARD_PLACED_SHAPE_KEY : nodeGraphShapeKey(nodes, links);
   const [measuredCardWidths, setMeasuredCardWidths] =
     useState<MeasuredCardWidths | null>(null);
   const isLaidOutOnMeasuredWidths = measuredCardWidths?.shapeKey === shapeKey;
@@ -74,21 +78,23 @@ export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], li
 
   const laidOutPositionByNode: Map<string, NodeGraphPosition> = useMemo(
     () =>
-      layOutNodeGraph(
-        nodes.map((node) => ({
-          node_id: node.node_id,
-          input_pin_names: node.input_pins.map((pin) => pin.name),
-          output_pin_names: node.output_pins.map((pin) => pin.name),
-          shows_failure_words: failureWordsTheCardShows(node) !== null,
-          is_collapsed: node.is_collapsed,
-          card_width:
-            (isLaidOutOnMeasuredWidths
-              ? measuredCardWidths.widthByNode.get(node.node_id)
-              : undefined) ?? NODE_GRAPH_CARD_SMALLEST_WIDTH,
-        })),
-        links,
-      ),
-    [nodes, links, isLaidOutOnMeasuredWidths, measuredCardWidths],
+      isEveryCardPlaced
+        ? new Map()
+        : layOutNodeGraph(
+            nodes.map((node) => ({
+              node_id: node.node_id,
+              input_pin_names: node.input_pins.map((pin) => pin.name),
+              output_pin_names: node.output_pins.map((pin) => pin.name),
+              shows_failure_words: failureWordsTheCardShows(node) !== null,
+              is_collapsed: node.is_collapsed,
+              card_width:
+                (isLaidOutOnMeasuredWidths
+                  ? measuredCardWidths.widthByNode.get(node.node_id)
+                  : undefined) ?? NODE_GRAPH_CARD_SMALLEST_WIDTH,
+            })),
+            links,
+          ),
+    [isEveryCardPlaced, nodes, links, isLaidOutOnMeasuredWidths, measuredCardWidths],
   );
   const positionOfTheCard = useCallback(
     (node: NodeGraphCanvasNode): NodeGraphPosition =>

@@ -190,3 +190,15 @@ test("a_subgraph_card_carries_its_kind_and_names_it_beside_its_title", () => {
     ["levels", "generated", "mic_levels"],
   ]);
 });
+
+test("a_node_a_new_reading_leaves_as_it_was_is_drawn_by_the_object_the_reading_before_drew_it_with_and_a_changed_node_by_a_new_one", () => {
+  const before = streamGraphCanvasContents(GRAPH, null);
+  const reread = streamGraphCanvasContents(structuredClone(GRAPH), null, before);
+  expect(reread.nodes).toHaveLength(2);
+  reread.nodes.forEach((node, index) => expect(node).toBe(before.nodes[index]));
+
+  const invertFailed = streamGraphCanvasContents({ ...GRAPH, nodes: GRAPH.nodes.map((node) => (node.name === "invert" ? { ...node, state: "Error", failed_because: "it fell over" } : node)) }, null, reread);
+  expect(invertFailed.nodes[0]).toBe(before.nodes[0]);
+  expect(invertFailed.nodes[1]).not.toBe(before.nodes[1]);
+  expect(invertFailed.nodes[1]?.condition).toEqual({ look: "failed", failed_because: "it fell over" });
+});

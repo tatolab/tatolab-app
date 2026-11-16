@@ -8,7 +8,7 @@ import { NodeGraphNodesFoundContext } from "./node_graph_find_bar";
 import { NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT, NODE_GRAPH_CARD_HEADER_HEIGHT, NODE_GRAPH_CARD_PIN_ROWS_PADDING, NODE_GRAPH_PIN_ROW_HEIGHT } from "./support/node_graph_layout";
 import { isAPinSocketOfTheCardUnmeasured } from "./support/node_graph_pin_socket_measurement";
 import { type NodeGraphPinFamily, nodeGraphPinFamilyWords, type NodeGraphCanvasPin, type NodeGraphCardCondition, type NodeGraphCanvasNode } from "./support/node_graph_canvas_contract";
-import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphSelectionContext, NodeGraphPortPickingContext, NodeGraphEditableContext, NodeGraphCardAndFrameEditingContext, NodeGraphLinkedPinsContext, linkedPinKey } from "./support/node_graph_flow_elements";
+import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphPortPickingContext, NodeGraphEditableContext, NodeGraphCardAndFrameEditingContext } from "./support/node_graph_flow_elements";
 
 /** What a pin shows while the pointer rests on it: its name, its family and the facts of its stream, then its description. */
 function nodeGraphPinTooltip(pin: NodeGraphCanvasPin): string {
@@ -40,25 +40,23 @@ function NodeGraphPinHandle({
   /** False on a collapsed card, whose pins all meet at its header's edge, so no one pin can be told apart to wire. */
   takesNewWires: boolean;
 }) {
-  const linkedPins = useContext(NodeGraphLinkedPinsContext);
   const isEditable = useContext(NodeGraphEditableContext);
+  const handleType = side === "input" ? "target" : "source";
+  const handleId = side === "input" ? inputPinHandleId(pin.name) : outputPinHandleId(pin.name);
+  // React Flow keeps each socket's links as it is handed them, so a socket is drawn again only when it gains or loses its
+  // last link, not whenever any link of the graph changes.
+  const isLinked = useStore((state) => state.connectionLookup.has(`${nodeId}-${handleType}-${handleId}`));
   return (
     <Handle
-      type={side === "input" ? "target" : "source"}
+      type={handleType}
       position={side === "input" ? Position.Left : Position.Right}
-      id={
-        side === "input"
-          ? inputPinHandleId(pin.name)
-          : outputPinHandleId(pin.name)
-      }
+      id={handleId}
       isConnectable={isEditable && takesNewWires}
       className="node-graph-pin"
       data-family={pin.family ?? undefined}
       title={nodeGraphPinTooltip(pin)}
       data-stream-facts={pin.stream_facts_words.length === 0 ? undefined : pin.stream_facts_words.join(" · ")}
-      data-linked={
-        linkedPins.has(linkedPinKey(nodeId, side, pin.name)) || undefined
-      }
+      data-linked={isLinked || undefined}
     />
   );
 }
@@ -160,16 +158,14 @@ function useEveryPinSocketOfTheCardMeasured(nodeId: string, graphNode: NodeGraph
   return cardElement;
 }
 
-/** A card on the canvas: its header, its pins and what it says of its condition. */
-export function NodeGraphCardView({ id, data }: NodeProps<NodeGraphCardFlowNode>) {
+/** A card on the canvas: its header, its pins and what it says of its condition; it is drawn again only when its node, its selection or what the canvas around it shares changes. */
+export function NodeGraphCardView({ id, data, selected: isSelected }: NodeProps<NodeGraphCardFlowNode>) {
   const cardElement = useEveryPinSocketOfTheCardMeasured(id, data.graphNode);
-  const selectedNodeIds = useContext(NodeGraphSelectionContext);
   const cardAndFrameEditing = useContext(NodeGraphCardAndFrameEditingContext);
   const portPicking = useContext(NodeGraphPortPickingContext);
   const nodesFound = useContext(NodeGraphNodesFoundContext);
   const { graphNode } = data;
   const portsThatCanJoin = portPicking?.portsThatCanJoinByNodeId.get(graphNode.node_id) ?? null;
-  const isSelected = selectedNodeIds.has(graphNode.node_id);
   const findLook = nodesFound.current_node_id === graphNode.node_id ? "current" : nodesFound.found_node_ids.has(graphNode.node_id) ? "found" : undefined;
   const failureWords = failureWordsTheCardShows(graphNode);
   return (

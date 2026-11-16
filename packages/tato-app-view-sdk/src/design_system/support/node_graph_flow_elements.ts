@@ -9,6 +9,17 @@ export type NodeGraphCardFlowNode = Node<
   "node_graph_card"
 >;
 
+const CARD_FLOW_DATA_BY_NODE = new WeakMap<NodeGraphCanvasNode, NodeGraphCardFlowNode["data"]>();
+
+/** What React Flow holds as the data of `graphNode`'s card: the same object for as long as the caller hands the same node, so the card of a node that did not change is not drawn again. */
+export function cardFlowDataOf(graphNode: NodeGraphCanvasNode): NodeGraphCardFlowNode["data"] {
+  const kept = CARD_FLOW_DATA_BY_NODE.get(graphNode);
+  if (kept !== undefined) return kept;
+  const data = { graphNode };
+  CARD_FLOW_DATA_BY_NODE.set(graphNode, data);
+  return data;
+}
+
 /** A note as React Flow holds it. */
 export type NodeGraphNoteFlowNode = Node<
   { graphNote: NodeGraphCanvasNote },
@@ -36,9 +47,6 @@ export const inputPinHandleId = (pinName: string) => `input:${pinName}`;
 /** The React Flow handle id of a card's output pin `pinName`. */
 export const outputPinHandleId = (pinName: string) => `output:${pinName}`;
 
-/** The cards drawn selected, which every card reads so a selection redraws cards without rebuilding the graph. */
-export const NodeGraphSelectionContext = createContext<ReadonlySet<string>>(new Set());
-
 /** The pick a card is drawn for while the canvas picks a port: the ports of each node that can join, the node asking which of its ports, and what choosing one does; `null` while nothing is picked. */
 export const NodeGraphPortPickingContext = createContext<{ portsThatCanJoinByNodeId: ReadonlyMap<string, readonly string[]>; nodeAskingWhichPort: string | null; onPortChosen: (nodeId: string, port: string) => void; onAskWhichClosed: () => void } | null>(null);
 
@@ -59,18 +67,6 @@ export const NodeGraphFrameColoursUsedContext = createContext<readonly string[]>
 
 /** Opens the colour picker for the frame it names. */
 export const NodeGraphFrameColourPickingContext = createContext<(frameId: string) => void>(() => undefined);
-
-/** Every pin a link joins, by `linkedPinKey`, which a card draws filled. */
-export const NodeGraphLinkedPinsContext = createContext<ReadonlySet<string>>(
-  new Set(),
-);
-
-/** The key of a card's pin in `NodeGraphLinkedPinsContext`. */
-export const linkedPinKey = (
-  nodeId: string,
-  side: "input" | "output",
-  pinName: string,
-) => `${nodeId}\u0000${side}\u0000${pinName}`;
 
 /** Which of a frame's words is typed on its tab: its title or its description. */
 export type NodeGraphFrameWordsFieldName = "title" | "description";

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { NODE_GRAPH_FRAME_COLOURS, type NodeGraphCanvasEditing, type NodeGraphCanvasFrame } from "./node_graph_canvas_contract";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { NODE_GRAPH_FRAME_COLOURS, type NodeGraphCanvasEditing, type NodeGraphCanvasFrame, type NodeGraphCanvasFrameChange } from "./node_graph_canvas_contract";
 import type { NodeGraphFrameWordsBeingEdited } from "./node_graph_flow_elements";
 
 /** How many colours other frames use beyond the presets a frame's menu offers again. */
@@ -58,9 +58,23 @@ export function useNodeGraphFrameEditing(editing: NodeGraphCanvasEditing | null,
   const [frameIdWhoseColourIsPicked, setFrameIdWhoseColourIsPicked] = useState<string | null>(null);
   const frameWhoseColourIsPicked = frames.find((frame) => frame.frame_id === frameIdWhoseColourIsPicked) ?? null;
   const frameColoursUsed = useMemo(() => frameColoursUsedBeyondThePresets(frames), [frames]);
+  // A caller hands new editing on every reading of its graph; the cards and frames are handed calls that reach the newest
+  // one, so a reading does not draw every card again.
+  const newestEditing = useRef(editing);
+  useLayoutEffect(() => {
+    newestEditing.current = editing;
+  }, [editing]);
+  const isEditable = editing !== null;
   const cardAndFrameEditing = useMemo(
-    () => (editing === null ? null : { onFrameChanged: editing.onFrameChanged, onFrameRemoved: editing.onFrameRemoved, onCardCollapsed: editing.onCardCollapsed }),
-    [editing],
+    () =>
+      isEditable
+        ? {
+            onFrameChanged: (frameId: string, change: NodeGraphCanvasFrameChange) => newestEditing.current?.onFrameChanged(frameId, change),
+            onFrameRemoved: (frameId: string) => newestEditing.current?.onFrameRemoved(frameId),
+            onCardCollapsed: (nodeId: string, collapsed: boolean) => newestEditing.current?.onCardCollapsed(nodeId, collapsed),
+          }
+        : null,
+    [isEditable],
   );
   return { takeAKeyTypedWhileTheFrameIsMade, frameTheSelection, frameWordsEditing, setFrameIdWhoseColourIsPicked, frameWhoseColourIsPicked, frameColoursUsed, cardAndFrameEditing };
 }

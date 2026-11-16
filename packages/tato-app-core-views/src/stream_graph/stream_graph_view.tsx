@@ -27,7 +27,7 @@ import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/re
 import { streamPreparingWords } from "../shared/stream_preparing_words";
 import { nodeTitle } from "../shared/node_words";
 import { portsThatCanJoinByNodeId } from "../shared/ports_that_can_join";
-import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
+import { streamGraphCanvasContents, type StreamGraphCanvasContents } from "./stream_graph_canvas_contents";
 import { useStreamGraphEditsSentToTheRuntime } from "../shared/stream_graph_edit_sending";
 import {
   cardCollapsedEdits,
@@ -133,10 +133,14 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   const subgraphKeepingTheLevelReadOnly = theSubgraphKeepingTheLevelReadOnly(subgraphsSteppedThrough);
   const levelOfTheEdits = useMemo(() => levelOfTheSubgraphsSteppedThrough(subgraphsSteppedThrough), [subgraphsSteppedThrough]);
   const nodesSelectedAtTheLevelShown = useMemo(() => nodesTheSelectionHoldsInTheStream(selection, streamTab.stream, levelOfTheEdits), [selection, streamTab.stream, levelOfTheEdits]);
-  const canvasContents = useMemo(
-    () => (levelShown === null ? null : streamGraphCanvasContents(levelShown.graph, catalogReading?.kind === "listed" ? catalogReading.catalog : null)),
-    [levelShown, catalogReading],
-  );
+  // Each reading is drawn from the one before, so the cards of the nodes it left as they were are not drawn again.
+  const canvasContentsBefore = useRef<StreamGraphCanvasContents | null>(null);
+  const canvasContents = useMemo(() => {
+    if (levelShown === null) return null;
+    const contents = streamGraphCanvasContents(levelShown.graph, catalogReading?.kind === "listed" ? catalogReading.catalog : null, canvasContentsBefore.current);
+    canvasContentsBefore.current = contents;
+    return contents;
+  }, [levelShown, catalogReading]);
   const subgraphNamesReached = subgraphsSteppedThrough.map((subgraph) => subgraph.name).join("/");
   useEffect(() => {
     if (levelShown !== null && levelShown.subgraphs_stepped_through.length < subgraphNamesSteppedThrough.length) {

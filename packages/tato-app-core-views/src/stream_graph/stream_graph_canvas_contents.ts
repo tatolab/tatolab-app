@@ -69,12 +69,30 @@ const descriptionWords = (description: string | undefined): string | null => (de
 
 const portDescription = (ports: readonly NodeCatalogPort[] | undefined, portName: string): string | null => descriptionWords(ports?.find((port) => port.name === portName)?.description);
 
-/** `graph` as the canvas draws it, each node keyed by its name, as a link's ends name it, with each node type's and port's description as `catalog` gives it. */
-export function streamGraphCanvasContents(graph: StreamGraphSummary, catalog: NodeCatalog | null): StreamGraphCanvasContents {
+/** Whether `a` and `b` hold the same values, as plain data of objects, arrays and primitives compares. */
+function holdTheSameValues(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null || Array.isArray(a) !== Array.isArray(b)) return false;
+  const aEntries = Object.entries(a);
+  const bValues = new Map(Object.entries(b));
+  return aEntries.length === bValues.size && aEntries.every(([key, value]) => bValues.has(key) && holdTheSameValues(value, bValues.get(key)));
+}
+
+/**
+ * `graph` as the canvas draws it, each node keyed by its name, as a link's ends name it, with each node type's and port's
+ * description as `catalog` gives it. A node that `previous` draws the same is drawn by the very object `previous` holds,
+ * so its card is not drawn again.
+ */
+export function streamGraphCanvasContents(graph: StreamGraphSummary, catalog: NodeCatalog | null, previous: StreamGraphCanvasContents | null = null): StreamGraphCanvasContents {
   const groupIds = new Set(graph.groups.map((group) => group.id));
   const catalogEntryByType = new Map((catalog?.node_types ?? []).map((entry) => [entry.type, entry]));
+  const previousNodeById = new Map((previous?.nodes ?? []).map((node) => [node.node_id, node]));
+  const keptWhereTheSame = (node: NodeGraphCanvasNode): NodeGraphCanvasNode => {
+    const previousNode = previousNodeById.get(node.node_id);
+    return previousNode !== undefined && holdTheSameValues(previousNode, node) ? previousNode : node;
+  };
   return {
-    nodes: graph.nodes.map((node) => ({
+    nodes: graph.nodes.map((node) => keptWhereTheSame({
       node_id: node.name,
       title: nodeTitle(node.name, node.type),
       type_name: typeNameOnTheCard(node),
