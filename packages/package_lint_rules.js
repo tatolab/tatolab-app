@@ -87,9 +87,5 @@ export function packageLintConfig(packageFolder) {
         "no-restricted-imports": ["error", { paths: ROUND_STATUS_ICON_IMPORTS, patterns: IMPORTS_OUTSIDE_THE_PACKAGE }],
       },
     },
-    {
-      files: ["src/design_system/ui/**"],
-      rules: { "@typescript-eslint/consistent-type-assertions": "off", "@typescript-eslint/no-non-null-assertion": "off", "@typescript-eslint/no-explicit-any": "off" },
-    },
   );
 }

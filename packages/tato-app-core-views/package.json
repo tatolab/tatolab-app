@@ -14,7 +14,7 @@
     "build": "vite build",
     "typecheck": "node ../../node_modules/typescript-7/bin/tsc --noEmit",
     "test": "vitest run",
-    "lint": "eslint ."
+    "lint": "eslint . && oxlint src"
   },
   "dependencies": {
     "@tatolab/tato-app-view-sdk": "*",

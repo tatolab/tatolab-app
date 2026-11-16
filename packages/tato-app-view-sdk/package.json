@@ -16,7 +16,7 @@
   "scripts": {
     "typecheck": "node ../../node_modules/typescript-7/bin/tsc --noEmit && node ../../node_modules/typescript-7/bin/tsc --noEmit -p tsconfig.design_system.json",
     "test": "vitest run",
-    "lint": "eslint . && stylelint \"src/design_system/styles/**/*.css\""
+    "lint": "eslint . && oxlint src scripts && stylelint \"src/design_system/styles/**/*.css\""
   },
   "dependencies": {
     "react-colorful": "^5.8.1",

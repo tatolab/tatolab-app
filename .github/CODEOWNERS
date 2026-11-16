@@ -4,8 +4,11 @@
 /file_size_exceptions.txt                @tato123
 /apps/tato-app/package.json              @tato123
 /apps/tato-app/eslint.config.js          @tato123
+/apps/tato-app/.oxlintrc.json            @tato123
 /apps/tato-app/stylelint.config.js       @tato123
 /packages/package_lint_rules.js          @tato123
+/packages/package_oxlint_config.json     @tato123
 /packages/package_stylelint_config.js    @tato123
 /packages/*/eslint.config.js             @tato123
+/packages/*/.oxlintrc.json               @tato123
 /packages/*/stylelint.config.js          @tato123
