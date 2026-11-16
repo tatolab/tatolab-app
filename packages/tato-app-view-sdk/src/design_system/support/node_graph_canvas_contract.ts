@@ -56,16 +56,6 @@ export interface NodeGraphCanvasNode {
 /** How a subgraph came to be: a graph generator's read-only output, a collapsed selection, or another stream placed by reference. */
 export type NodeGraphSubgraphKind = "generated" | "placed_stream";
 
-/** A pick of a port the canvas shows: what its banner says, which ports of which nodes can join, and what picking one or ending the pick does. */
-export interface NodeGraphPortPicking {
-  /** The banner's words, as "Pick the other end of image". */
-  words: string;
-  /** The ports of each node that can join, by node id; a node not listed reads dim. */
-  portsThatCanJoinByNodeId: ReadonlyMap<string, readonly string[]>;
-  onPicked: (nodeId: string, port: string) => void;
-  onEnded: () => void;
-}
-
 /** A labelled frame drawn around the cards that name it, with its title on a tab, its description under it, and a tint of its colour. */
 export interface NodeGraphCanvasFrame {
   frame_id: string;

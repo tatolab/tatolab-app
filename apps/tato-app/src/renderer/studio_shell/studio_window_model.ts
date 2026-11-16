@@ -11,7 +11,6 @@ import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import type { StudioWindowValuesServedToViews } from "../view_host/studio_view_host_services";
 import { WatchedStudioValue } from "../view_host/watched_studio_value";
-import { PortPickHeldInTheWindow } from "../view_host/port_pick_held_in_the_window";
 import { ProjectAssetPickHeldInTheWindow } from "../view_host/project_asset_pick_held_in_the_window";
 import type { JsonValue, ListedStreamsReading, StopWatching, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
 import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, type StudioAreaLayoutNode } from "./studio_area_layout";
@@ -152,17 +151,10 @@ export class StudioWindowModel {
   private readonly projectStreamActionFailuresDismissed = new Set<string>();
 
 
-  /** The one port whose other end the person is picking in the Stream graph, ended when its stream's tab stops being the one shown. */
-  readonly portPickHeld = new PortPickHeldInTheWindow();
-
   /** The one asset pick the window's asset picker shows, ended when the window's project stops being the one read. */
   readonly projectAssetPickHeld = new ProjectAssetPickHeldInTheWindow();
 
   constructor(private readonly layoutKept: StudioLayoutKeptInStorage) {
-    this.openStreamTabs.watch((openStreamTabs) => {
-      const pick = this.portPickHeld.portPick.readLatest();
-      if (pick !== null && openStreamTabs.active_stream !== pick.stream) this.portPickHeld.end("The stream's tab is no longer the one shown.");
-    });
     this.openProject.watch((openProject) => {
       if (openProject.kind !== "read") this.projectAssetPickHeld.end("The project closed.");
     });
@@ -182,24 +174,10 @@ export class StudioWindowModel {
       openStreamTab: (streamTab) => this.openStreamTab(streamTab),
       viewsOpenedOn: this.viewsOpenedOn,
       openView: (viewTypeId, on) => this.openView(viewTypeId, on),
-      portPick: this.portPickHeld.portPick,
-      pickAPortInTheStreamGraph: (pick) => this.portPickHeld.start(pick, this.whyNoPortCanBePickedInTheStreamGraphOf(pick.stream)),
-      answerThePortPick: (node, port) => this.portPickHeld.answer(node, port),
-      endThePortPick: (because) => this.portPickHeld.end(because),
       pickAProjectAsset: (pick) => this.projectAssetPickHeld.start(pick, this.openProject.readLatest().kind === "read" ? null : "No project is open to choose an asset of."),
       answerTheProjectAssetPick: (asset) => this.projectAssetPickHeld.answer(asset),
       endTheProjectAssetPick: (because) => this.projectAssetPickHeld.end(because),
     };
-  }
-
-  /** Why the window cannot show a pick in `stream`'s graph: its tab not the one shown, or no area of its layout showing the Stream graph; `null` when it can. */
-  private whyNoPortCanBePickedInTheStreamGraphOf(stream: string): string | null {
-    if (this.openStreamTabs.readLatest().active_stream !== stream) return "Open the stream's tab to pick its port in the Stream graph.";
-    const studioLayout = this.studioLayout.readLatest();
-    if (this.poppedOutView.readLatest() !== null || studioLayout === null || !layoutShowsTheViewType(studioLayoutWithEdgesHidden(studioLayout.layout, studioLayout.edges_hidden), "stream_graph")) {
-      return "No area of this window shows the Stream graph. Show it in an area to pick there.";
-    }
-    return null;
   }
 
   private viewTypeAreaSources(viewTypeTitles: StudioViewTypeTitles): StudioViewTypeAreaSources {

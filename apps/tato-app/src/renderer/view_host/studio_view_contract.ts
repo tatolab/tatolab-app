@@ -27,8 +27,7 @@ import type {
   StreamGraphAction,
   ThePersonEditingReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { AreaForAViewType, ModulesAndMarketplaceSection, PortPickEnding, PortPickInTheStreamGraph, PortViewerEvent, ProjectAssetPick, ProjectAssetPickEnding, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
-import type { PortPickAnswering } from "./port_pick_held_in_the_window";
+import type { AreaForAViewType, ModulesAndMarketplaceSection, PortViewerEvent, ProjectAssetPick, ProjectAssetPickEnding, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
 import type { ProjectAssetPickAnswering } from "./project_asset_pick_held_in_the_window";
 
 export type {
@@ -173,14 +172,6 @@ export interface StudioViewHostServices {
   writeStudioViewOutput(viewNode: StudioViewNodeAddress, port: string, value: JsonValue): Promise<LiveValueWriting>;
   /** Hand `value` to the Input `input` of the running stream `stream`, answering once the runtime took it or why it did not. */
   writeGraphInput(stream: string, input: string, value: JsonValue): Promise<LiveValueWriting>;
-  /** The port whose other end the person is picking in the Stream graph, at once and on each change; `null` while none is. */
-  watchPortPick(listener: (pick: PortPickInTheStreamGraph | null) => void): StopWatching;
-  /** Hold `pick` in the window, ending any pick held, until the person picks the other end or the pick ends; ended at once when no area of the window shows its stream's graph. */
-  pickAPortInTheStreamGraph(pick: PortPickInTheStreamGraph): Promise<PortPickEnding>;
-  /** End the pick held with `node`'s `port` picked. */
-  answerThePortPick(node: string, port: string): PortPickAnswering;
-  /** End the pick held, if any, with nothing picked. */
-  endThePortPick(because: string): void;
   /** Hold `pick` in the window's asset picker, ending any asset pick held, until the person chooses an asset or closes the picker. */
   pickAProjectAsset(pick: ProjectAssetPick): Promise<ProjectAssetPickEnding>;
   /** The asset pick a view is shown in the asset picker to answer, at once and on each change; always `null` for a view shown anywhere else. */

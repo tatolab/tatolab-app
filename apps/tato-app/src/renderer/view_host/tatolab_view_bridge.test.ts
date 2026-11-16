@@ -8,7 +8,6 @@ import {
   type ViewSettings,
 } from "@tatolab/tato-app-view-sdk";
 import { afterEach, describe, expect, it } from "vitest";
-import { PortPickHeldInTheWindow } from "./port_pick_held_in_the_window";
 import { ProjectAssetPickHeldInTheWindow } from "./project_asset_pick_held_in_the_window";
 import { WatchedStudioValue } from "./watched_studio_value";
 import type {
@@ -104,7 +103,6 @@ function recordingHostServices() {
   const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
   const outputsWritten: { viewNode: StudioViewNodeAddress; port: string; value: JsonValue }[] = [];
   const graphInputsWritten: { stream: string; input: string; value: JsonValue }[] = [];
-  const portPickHeld = new PortPickHeldInTheWindow();
   const projectAssetPickHeld = new ProjectAssetPickHeldInTheWindow();
   const hostServices: StudioViewHostServices = {
     watchOpenProject: (listener) => {
@@ -225,10 +223,6 @@ function recordingHostServices() {
         ? { kind: "not_written", because: "write_graph_input failed: Processor not found: no `GraphInput` on the top level of the stream `s06-perform-main-0df4a7` declares the Input `contrast` and runs" }
         : { kind: "written" };
     },
-    watchPortPick: portPickHeld.portPick.watch,
-    pickAPortInTheStreamGraph: (pick) => portPickHeld.start(pick, null),
-    answerThePortPick: (node, port) => portPickHeld.answer(node, port),
-    endThePortPick: (because) => portPickHeld.end(because),
     pickAProjectAsset: (pick) => projectAssetPickHeld.start(pick, null),
     watchProjectAssetPickShownHere: projectAssetPickHeld.projectAssetPick.watch,
     answerTheProjectAssetPick: (asset) => projectAssetPickHeld.answer(asset),
@@ -243,7 +237,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, portPickHeld, projectAssetPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten, graphInputsWritten };
+  return { hostServices, projectAssetPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten, graphInputsWritten };
 }
 
 /** An area that keeps the settings it is asked to remember, says where the view's header row lies, and expands while a layout holds it. */
@@ -305,42 +299,6 @@ describe("a view's connection to Studio, through the one bridge every view is se
     });
     expect(await connection.transactInTheProject("/set", [{ operation: "remove_node", stream: "s-uuid", node: "n-uuid" }], { mode: "live", idempotencyKey: null })).toEqual({ kind: "not_sent", because: "No runtime answers." });
     expect(graphTransactionsAsked[0]).toEqual({ projectFolder: "/set", operations: [addHoldFrame], mode: "commit", idempotencyKey: "gesture-1" });
-  });
-
-  it("carries a pick in the Stream graph from the view asking to the view answering, and its end in words", async () => {
-    const { connection, portPickHeld } = await connectedView(DJ_DECK_MANIFEST, {});
-    const picksShown: unknown[] = [];
-    connection.watchPortPick((pick) => picksShown.push(pick));
-    const pick = { stream: "set", node: "id-deck-a", port: "audio", direction: "output" } as const;
-    const picking = connection.pickAPortInTheStreamGraph(pick);
-    await messagesDelivered();
-    expect(picksShown).toEqual([null, pick]);
-    expect(await connection.answerThePortPick("id-mixer", "channel_1")).toEqual({ kind: "done" });
-    expect(await picking).toEqual({ kind: "picked", node: "id-mixer", port: "channel_1" });
-    expect(await connection.answerThePortPick("id-mixer", "channel_1")).toEqual({ kind: "refused", because: "No port is being picked in the Stream graph." });
-
-    const pickingAgain = connection.pickAPortInTheStreamGraph(pick);
-    await messagesDelivered();
-    expect(await connection.endThePortPick()).toEqual({ kind: "done" });
-    expect(await pickingAgain).toEqual({ kind: "ended", because: "DJ Deck ended the pick." });
-    expect(portPickHeld.portPick.readLatest()).toBeNull();
-  });
-
-  it("ends the pick a view still holds when the view closes, and leaves another view's pick alone", async () => {
-    const { connection, portPickHeld, bridge } = await connectedView(DJ_DECK_MANIFEST, {});
-    const pick = { stream: "set", node: "id-deck-a", port: "audio", direction: "output" } as const;
-    void connection.pickAPortInTheStreamGraph(pick);
-    await messagesDelivered();
-    expect(portPickHeld.portPick.readLatest()).toEqual(pick);
-    bridge.close();
-    expect(portPickHeld.portPick.readLatest()).toBeNull();
-
-    const another = await connectedView(DJ_DECK_MANIFEST, {});
-    const othersPick = another.portPickHeld.start({ ...pick, port: "cue" }, null);
-    another.bridge.close();
-    expect(another.portPickHeld.portPick.readLatest()).toEqual({ ...pick, port: "cue" });
-    another.portPickHeld.end("done");
-    expect(await othersPick).toEqual({ kind: "ended", because: "done" });
   });
 
   it("carries an asset pick from the view asking to the asset picker answering it, and its end in words", async () => {
