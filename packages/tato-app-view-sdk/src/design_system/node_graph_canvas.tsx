@@ -1,9 +1,9 @@
 import { Background, BackgroundVariant, MiniMap, ReactFlow, ReactFlowProvider, useReactFlow, useStore, type NodeChange, type ReactFlowState } from "@xyflow/react";
 import { cn } from "cn";
-import { Combine, Crosshair, Frame, Plus, Scan, Search, StickyNote, ZoomIn, ZoomOut } from "lucide-react";
+import { Combine, Frame, Plus, Scan, Search, StickyNote, ZoomIn, ZoomOut } from "lucide-react";
 import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
 import { RightClickMenu } from "./menus";
-import { memo, useCallback, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { IconButton } from "./icon_button";
 import { ToolbarDivider, ToolbarGroup } from "./toolbar";
@@ -11,14 +11,13 @@ import { StudioViewToolbarTools } from "./studio_area_frame";
 import { NodeGraphFindBar, NodeGraphNodesFoundContext } from "./node_graph_find_bar";
 import { isPartOfTheGraphOutsideTheView } from "./support/node_graph_map_visibility";
 import { frameACardIsLetGoIn, frameRectangleAroundCards, linkUnderACard, placeClearBelowTheCards, type NodeGraphLinkMidpoint } from "./support/node_graph_editing";
-import { type NodeGraphCanvasNode, type NodeGraphPortPicking, type NodeGraphCanvasFrame, NODE_GRAPH_FRAME_COLOURS, type NodeGraphCanvasNote, type NodeGraphCanvasLink, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphCanvasCardMove, type NodeGraphCanvasEditing } from "./support/node_graph_canvas_contract";
+import { type NodeGraphCanvasNode, type NodeGraphCanvasFrame, NODE_GRAPH_FRAME_COLOURS, type NodeGraphCanvasNote, type NodeGraphCanvasLink, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphCanvasCardMove, type NodeGraphCanvasEditing } from "./support/node_graph_canvas_contract";
 import { NodeGraphCardView } from "./node_graph_card_view";
-import { type NodeGraphCardFlowNode, type NodeGraphNoteFlowNode, type NodeGraphFrameFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, cardFlowDataOf, NodeGraphPortPickingContext, NodeGraphEditableContext, NodeGraphNoteEditingContext, NodeGraphNoteResizingContext, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColoursUsedContext, NodeGraphFrameColourPickingContext, NodeGraphFrameWordsEditingContext } from "./support/node_graph_flow_elements";
+import { type NodeGraphCardFlowNode, type NodeGraphNoteFlowNode, type NodeGraphFrameFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphEditableContext, NodeGraphNoteEditingContext, NodeGraphNoteResizingContext, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColoursUsedContext, NodeGraphFrameColourPickingContext, NodeGraphFrameWordsEditingContext } from "./support/node_graph_flow_elements";
 import { type NodeGraphRightClicked, NodeGraphRightClickChoices } from "./node_graph_right_click_choices";
 import { NodeGraphFrameView } from "./node_graph_frame_view";
 import { NodeGraphNoteView } from "./node_graph_note_view";
 import { NodeGraphLinkView } from "./node_graph_link_view";
-import { useNodeGraphPortPicking } from "./support/use_node_graph_port_picking";
 import { useNodeGraphWiring } from "./support/use_node_graph_wiring";
 import { useNodeGraphFrameEditing } from "./support/use_node_graph_frame_editing";
 import { useNodeGraphNodeFind } from "./support/use_node_graph_node_find";
@@ -79,7 +78,6 @@ function NodeGraphFlow({
   viewportWhereItWasLeft,
   onViewportLeft,
   onSubgraphOpened,
-  portPicking,
   overlay,
 }: {
   label: string;
@@ -95,12 +93,10 @@ function NodeGraphFlow({
   viewportWhereItWasLeft: NodeGraphCanvasViewport | null;
   onViewportLeft: ((viewport: NodeGraphCanvasViewport) => void) | null;
   onSubgraphOpened: ((nodeId: string) => void) | null;
-  portPicking: NodeGraphPortPicking | null;
   overlay?: ReactNode;
 }) {
   const reactFlow = useReactFlow();
   const canvasElement = useRef<HTMLDivElement>(null);
-  const { portPickingOfTheCards, closeTheAskWhichPort, pickTheCard } = useNodeGraphPortPicking(portPicking, canvasElement);
   const isTheMapShown = useStore(isPartOfTheGraphOutsideTheView);
   const areTheInlineControlsHidden = useStore(isZoomedOutPastTheInlineControls);
   const pointerRestsAt = useRef<NodeGraphCanvasPoint | null>(null);
@@ -111,8 +107,8 @@ function NodeGraphFlow({
   const { selectedIds, selectedNoteIds, selectedLinkIds, followTheSelectionChanges, followTheLinkChanges, selectNothing, clearTheSelectionAfterADelete, selectTheRightClickedCard, selectTheRightClickedNote, selectTheRightClickedLink } = useNodeGraphSelection(selectedNodeIds, nodeById, onNodesSelected);
   const { cardSizeByNode, isLaidOutOnMeasuredWidths, hasBeenFramed, positionOfTheCard, frameOfTheCard, sizeOfTheCard, positionOfTheNote, sizeOfTheNote, followTheLayoutChanges, holdTheCardMoves, releaseTheHeldCards, releaseTheHeldNotePosition, keepTheResizedNote } = useNodeGraphCardLayout(nodes, links, notes, nodeById, editing, reactFlow, viewportWhereItWasLeft);
 
-  // React Flow takes up again only the cards handed as new objects, so a card whose place, size, selection and node are
-  // as before is handed as the object it was.
+  // React Flow takes up again only the cards handed as new objects, and a card draws again for new data, so a card is
+  // handed its object from before, or else its data from before, wherever they are unchanged.
   const cardFlowNodesBefore = useRef<ReadonlyMap<string, NodeGraphCardFlowNode>>(new Map());
   const flowNodes: NodeGraphFlowNode[] = useMemo(() => {
     const frameNodes: NodeGraphFrameFlowNode[] = frames.flatMap((graphFrame) => {
@@ -154,23 +150,25 @@ function NodeGraphFlow({
       };
     });
     const cardNodes: NodeGraphCardFlowNode[] = nodes.map((graphNode) => {
+      const cardNodeBefore = cardFlowNodesBefore.current.get(graphNode.node_id);
       const cardNode: NodeGraphCardFlowNode = {
         id: graphNode.node_id,
         type: "node_graph_card",
         position: positionOfTheCard(graphNode),
         measured: cardSizeByNode.get(graphNode.node_id),
         selected: selectedIds.has(graphNode.node_id),
-        data: cardFlowDataOf(graphNode),
+        data: cardNodeBefore?.data.graphNode === graphNode ? cardNodeBefore.data : { graphNode },
         draggable: editing !== null,
         connectable: editing !== null,
         ariaLabel: `Node ${graphNode.title}`,
       };
-      const cardNodeBefore = cardFlowNodesBefore.current.get(graphNode.node_id);
       return cardNodeBefore !== undefined && isTheSameCardFlowNode(cardNodeBefore, cardNode) ? cardNodeBefore : cardNode;
     });
-    cardFlowNodesBefore.current = new Map(cardNodes.map((cardNode) => [cardNode.id, cardNode]));
     return [...frameNodes, ...noteNodes, ...cardNodes];
   }, [frames, notes, nodes, editing, positionOfTheCard, frameOfTheCard, sizeOfTheCard, cardSizeByNode, positionOfTheNote, sizeOfTheNote, selectedIds, selectedNoteIds]);
+  useLayoutEffect(() => {
+    cardFlowNodesBefore.current = new Map(flowNodes.flatMap((flowNode): [string, NodeGraphCardFlowNode][] => (flowNode.type === "node_graph_card" ? [[flowNode.id, flowNode]] : [])));
+  }, [flowNodes]);
   const flowEdges: NodeGraphLinkFlowEdge[] = useMemo(
     () =>
       flowEdgesJoining(links, nodeById).map((graphLink) => ({
@@ -388,7 +386,6 @@ function NodeGraphFlow({
   );
 
   return (
-    <NodeGraphPortPickingContext value={portPickingOfTheCards}>
       <NodeGraphEditableContext value={editing !== null}>
         <NodeGraphNoteEditingContext value={editing?.onNoteChanged ?? null}>
         <NodeGraphNoteResizingContext value={editing === null ? null : keepTheResizedNote}>
@@ -473,12 +470,6 @@ function NodeGraphFlow({
               }}
               data-node-graph-editable={editing !== null || undefined}
             >
-              {portPicking !== null && (
-                <div className="pointer-events-none absolute top-2 left-1/2 z-10 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-1.5 rounded-full bg-brand px-2.5 py-0.5 text-2xs whitespace-nowrap text-on-brand" role="status" data-node-graph-port-pick-banner="">
-                  <Crosshair className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
-                  <span className="min-w-0 truncate">{portPicking.words} · Esc ends the pick</span>
-                </div>
-              )}
               {nodeFind !== null && (
                 <NodeGraphFindBar
                   findWords={nodeFind.find_words}
@@ -506,26 +497,16 @@ function NodeGraphFlow({
                 onMoveEnd={(event, viewport) => {
                   if (event !== null && hasBeenFramed) onViewportLeft?.({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
                 }}
-                onNodeClick={(_event, flowNode) => {
-                  if (portPicking !== null && flowNode.type === "node_graph_card") pickTheCard(flowNode.id);
-                }}
                 onNodeDoubleClick={(_event, flowNode) => {
                   if (flowNode.type === "node_graph_card" && (nodeById.get(flowNode.id)?.subgraph ?? null) !== null) onSubgraphOpened?.(flowNode.id);
                 }}
                 onConnect={wireThePins}
                 onConnectEnd={followTheWireLetGo}
                 isValidConnection={canTheConnectionBeWired}
-                onPaneClick={() => {
-                  if (portPicking !== null) {
-                    closeTheAskWhichPort();
-                    return;
-                  }
-                  selectNothing();
-                }}
+                onPaneClick={selectNothing}
                 nodesDraggable={editing !== null}
                 nodesConnectable={editing !== null}
                 edgesFocusable={editing !== null}
-                elementsSelectable={portPicking === null}
                 deleteKeyCode={null}
                 selectionKeyCode={editing === null ? null : "Shift"}
                 multiSelectionKeyCode={editing === null ? null : ["Meta", "Control"]}
@@ -581,7 +562,6 @@ function NodeGraphFlow({
         </NodeGraphNoteResizingContext>
         </NodeGraphNoteEditingContext>
       </NodeGraphEditableContext>
-    </NodeGraphPortPickingContext>
   );
 }
 
@@ -604,7 +584,6 @@ export function NodeGraphCanvas({
   viewportWhereItWasLeft = null,
   onViewportLeft = null,
   onSubgraphOpened = null,
-  portPicking = null,
   overlay,
   ...controlDataAttributes
 }: {
@@ -625,8 +604,6 @@ export function NodeGraphCanvas({
   onViewportLeft?: ((viewport: NodeGraphCanvasViewport) => void) | null;
   /** Told when a person double-clicks a card that holds a subgraph, to step inside it; `null` steps nowhere. */
   onSubgraphOpened?: ((nodeId: string) => void) | null;
-  /** The port being picked, which lights the nodes that can join and dims the rest; `null` while none is. */
-  portPicking?: NodeGraphPortPicking | null;
   overlay?: ReactNode;
 } & ControlDataAttributes) {
   return (
@@ -644,7 +621,6 @@ export function NodeGraphCanvas({
           viewportWhereItWasLeft={viewportWhereItWasLeft}
           onViewportLeft={onViewportLeft}
           onSubgraphOpened={onSubgraphOpened}
-          portPicking={portPicking}
           overlay={overlay}
         />
       </ReactFlowProvider>

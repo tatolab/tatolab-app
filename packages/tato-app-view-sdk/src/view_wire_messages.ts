@@ -87,17 +87,6 @@ export const areasForAViewTypeReadingSchema = z.discriminatedUnion("kind", [
 /** The areas of the layout for a view type. */
 export type AreasForAViewTypeReading = z.infer<typeof areasForAViewTypeReadingSchema>;
 
-/** A port of a stream's node whose other end the person is picking in the Stream graph: an input picks an output, an output an input. */
-export const portPickInTheStreamGraphSchema = z.object({
-  stream: z.string(),
-  /** The id of the node the picking port is on. */
-  node: z.string(),
-  port: z.string(),
-  direction: z.enum(["input", "output"]),
-});
-/** A port whose other end is being picked in the Stream graph. */
-export type PortPickInTheStreamGraph = z.infer<typeof portPickInTheStreamGraphSchema>;
-
 /** A project asset the person is choosing in Studio's asset picker, as for a config field naming one. */
 export const projectAssetPickSchema = z.object({
   /** The `media_facts` members of which a chosen asset's bytes hold one, as `["image"]`; `null` takes any asset of the project. */
@@ -137,8 +126,6 @@ export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("area_expansion") }),
   /** The layout's areas for the view type `view_type_id`, read again as the layout or the view types change. */
   z.object({ kind: z.literal("areas_for_the_view_type"), view_type_id: z.string() }),
-  /** The port whose other end the person is picking in the Stream graph, `null` while none is. */
-  z.object({ kind: z.literal("port_pick") }),
   /** The asset pick the view is shown in Studio's asset picker to answer; `null` for a view shown anywhere else. */
   z.object({ kind: z.literal("project_asset_pick") }),
 ]);
@@ -198,12 +185,6 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("show_view_type_in_area"), view_type_id: z.string(), area_id: z.string() }),
   /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
   z.object({ kind: z.literal("open_modules_and_marketplace"), shows: modulesAndMarketplaceSectionSchema }),
-  /** Have the person pick the other end of `pick`'s port in the Stream graph, ending any pick held; answered once the pick ends. */
-  z.object({ kind: z.literal("pick_a_port_in_the_stream_graph"), pick: portPickInTheStreamGraphSchema }),
-  /** End the pick held with the other end the person picked: `node`'s id and its `port`. */
-  z.object({ kind: z.literal("answer_the_port_pick"), node: z.string(), port: z.string() }),
-  /** End the pick held with nothing picked. */
-  z.object({ kind: z.literal("end_the_port_pick") }),
   /** Have the person choose a project asset in Studio's asset picker over the window, ending any asset pick held; answered once the picker closes. */
   z.object({ kind: z.literal("pick_a_project_asset"), pick: projectAssetPickSchema }),
   /** End the asset pick held with the asset `asset` chosen, by its UUID. */
@@ -250,7 +231,6 @@ export const viewWatchedReadingSchema = z.discriminatedUnion("subject", [
   z.object({ subject: z.literal("header_row"), reading: viewHeaderRowSchema }),
   z.object({ subject: z.literal("area_expansion"), reading: z.object({ is_expanded: z.boolean() }) }),
   z.object({ subject: z.literal("areas_for_the_view_type"), reading: areasForAViewTypeReadingSchema }),
-  z.object({ subject: z.literal("port_pick"), reading: portPickInTheStreamGraphSchema.nullable() }),
   z.object({ subject: z.literal("project_asset_pick"), reading: projectAssetPickSchema.nullable() }),
 ]);
 /** One reading of a watched subject. */
@@ -273,10 +253,6 @@ export const viewAskAnswerSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("asset_preview_read"), picture: assetPreviewPictureSchema }),
   /** The person closed the open dialog choosing no file. */
   z.object({ kind: z.literal("nothing_chosen") }),
-  /** The other end the person picked in the Stream graph: a node's id and its port. */
-  z.object({ kind: z.literal("port_picked"), node: z.string(), port: z.string() }),
-  /** The pick ended with nothing picked, and why: Esc, the pick asked again, another pick, or the stream's tab closing. */
-  z.object({ kind: z.literal("port_pick_ended"), because: z.string() }),
   /** The asset the person chose in the asset picker, by its UUID. */
   z.object({ kind: z.literal("project_asset_chosen"), asset: z.string() }),
   /** The asset picker closed with nothing chosen, and why: closed by the person, or another pick. */

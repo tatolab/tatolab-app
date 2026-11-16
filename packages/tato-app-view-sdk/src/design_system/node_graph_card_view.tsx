@@ -2,13 +2,12 @@ import { Handle, Position, useStore, useStoreApi, type NodeProps } from "@xyflow
 import { cn } from "cn";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 import { ChevronDown, ChevronRight, Combine, SquareX, TriangleAlert } from "lucide-react";
-import { MenuItem, MenuOpenBesideItsParent } from "./menus";
 import { Fragment, useContext, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import { NodeGraphNodesFoundContext } from "./node_graph_find_bar";
 import { NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT, NODE_GRAPH_CARD_HEADER_HEIGHT, NODE_GRAPH_CARD_PIN_ROWS_PADDING, NODE_GRAPH_PIN_ROW_HEIGHT } from "./support/node_graph_layout";
 import { isAPinSocketOfTheCardUnmeasured } from "./support/node_graph_pin_socket_measurement";
 import { type NodeGraphPinFamily, nodeGraphPinFamilyWords, type NodeGraphCanvasPin, type NodeGraphCardCondition, type NodeGraphCanvasNode } from "./support/node_graph_canvas_contract";
-import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphPortPickingContext, NodeGraphEditableContext, NodeGraphCardAndFrameEditingContext } from "./support/node_graph_flow_elements";
+import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, connectionLookupKeyOfTheHandle, NodeGraphEditableContext, NodeGraphCardAndFrameEditingContext } from "./support/node_graph_flow_elements";
 
 /** What a pin shows while the pointer rests on it: its name, its family and the facts of its stream, then its description. */
 function nodeGraphPinTooltip(pin: NodeGraphCanvasPin): string {
@@ -43,9 +42,9 @@ function NodeGraphPinHandle({
   const isEditable = useContext(NodeGraphEditableContext);
   const handleType = side === "input" ? "target" : "source";
   const handleId = side === "input" ? inputPinHandleId(pin.name) : outputPinHandleId(pin.name);
-  // React Flow keeps each socket's links as it is handed them, so a socket is drawn again only when it gains or loses its
-  // last link, not whenever any link of the graph changes.
-  const isLinked = useStore((state) => state.connectionLookup.has(`${nodeId}-${handleType}-${handleId}`));
+  // A socket is drawn again only when it gains its first link or loses its last; `useNodeConnections` would draw it
+  // again for every link it gains or loses.
+  const isLinked = useStore((state) => state.connectionLookup.has(connectionLookupKeyOfTheHandle(nodeId, handleType, handleId)));
   return (
     <Handle
       type={handleType}
@@ -162,23 +161,16 @@ function useEveryPinSocketOfTheCardMeasured(nodeId: string, graphNode: NodeGraph
 export function NodeGraphCardView({ id, data, selected: isSelected }: NodeProps<NodeGraphCardFlowNode>) {
   const cardElement = useEveryPinSocketOfTheCardMeasured(id, data.graphNode);
   const cardAndFrameEditing = useContext(NodeGraphCardAndFrameEditingContext);
-  const portPicking = useContext(NodeGraphPortPickingContext);
   const nodesFound = useContext(NodeGraphNodesFoundContext);
   const { graphNode } = data;
-  const portsThatCanJoin = portPicking?.portsThatCanJoinByNodeId.get(graphNode.node_id) ?? null;
   const findLook = nodesFound.current_node_id === graphNode.node_id ? "current" : nodesFound.found_node_ids.has(graphNode.node_id) ? "found" : undefined;
   const failureWords = failureWordsTheCardShows(graphNode);
   return (
     <div
       ref={cardElement}
-      className={cn(
-        NODE_GRAPH_CARD_CLASS_NAMES,
-        isSelected && "node-graph-card-selected",
-        portPicking !== null && (portsThatCanJoin === null ? "node-graph-card-not-pickable" : "node-graph-card-pickable"),
-      )}
+      className={cn(NODE_GRAPH_CARD_CLASS_NAMES, isSelected && "node-graph-card-selected")}
       style={{ minWidth: NODE_GRAPH_CARD_WIDTHS_PX.narrowest, maxWidth: NODE_GRAPH_CARD_WIDTHS_PX.widest }}
       data-node-graph-card={graphNode.node_id}
-      data-port-pick={portPicking === null ? undefined : portsThatCanJoin === null ? "dim" : "lit"}
       data-selected={isSelected || undefined}
       data-found={findLook}
       data-condition={graphNode.condition.look}
@@ -212,15 +204,6 @@ export function NodeGraphCardView({ id, data, selected: isSelected }: NodeProps<
         >
           <span className="line-clamp-2 break-words">{failureWords}</span>
         </p>
-      )}
-      {portPicking !== null && portPicking.nodeAskingWhichPort === graphNode.node_id && portsThatCanJoin !== null && (
-        <MenuOpenBesideItsParent label={`Which port of ${graphNode.title}`} onClosed={portPicking.onAskWhichClosed} data-node-graph-port-pick-which={graphNode.node_id}>
-          {portsThatCanJoin.map((port) => (
-            <MenuItem key={port} onChosen={() => portPicking.onPortChosen(graphNode.node_id, port)} data-node-graph-port-pick-choice={port}>
-              {port}
-            </MenuItem>
-          ))}
-        </MenuOpenBesideItsParent>
       )}
     </div>
   );

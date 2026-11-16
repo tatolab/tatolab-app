@@ -69,7 +69,7 @@ const descriptionWords = (description: string | undefined): string | null => (de
 
 const portDescription = (ports: readonly NodeCatalogPort[] | undefined, portName: string): string | null => descriptionWords(ports?.find((port) => port.name === portName)?.description);
 
-/** Whether `a` and `b` hold the same values, as plain data of objects, arrays and primitives compares. */
+/** Whether `a` and `b` hold the same values; it compares JSON-shaped data only (plain objects, arrays and primitives), as a `NodeGraphCanvasNode` is. */
 function holdTheSameValues(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (typeof a !== "object" || typeof b !== "object" || a === null || b === null || Array.isArray(a) !== Array.isArray(b)) return false;

@@ -4,6 +4,7 @@
 // commits through the DevTools hook (a function component's fiber that ran carries React's PerformedWork flag). The
 // window serves the core views as built for production, so the frame times are a production build's.
 // Usage: [CHROMIUM_EXECUTABLE=<path>] node measure-the-canvas-frame-times.mjs <the mock window's URL, as serve_the_mock_window_in_a_browser.mjs prints it>
+import { NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_flow_elements";
 import { chromium } from "playwright";
 
 const [, , mockWindowUrl = "http://localhost:5173/"] = process.argv;
@@ -49,7 +50,7 @@ function countTheCardRenders() {
 }
 
 /** Runs in the canvas's frame: adds a stand-in control to every input row and starts the feed. */
-function addTheStandInsAndTheFeed(valuesPerFrame) {
+function addTheStandInsAndTheFeed({ valuesPerFrame, inlineControlAttribute }) {
   const standIns = [];
   for (const inputName of document.querySelectorAll("[data-node-graph-input-pin]")) {
     if (inputName.getAttribute("data-node-graph-input-pin") === "") continue;
@@ -59,7 +60,7 @@ function addTheStandInsAndTheFeed(valuesPerFrame) {
     standIn.max = "1";
     standIn.step = "0.001";
     standIn.className = "nodrag";
-    standIn.setAttribute("data-node-graph-inline-control", "");
+    standIn.setAttribute(inlineControlAttribute, "");
     standIn.style.width = "64px";
     standIn.style.height = "12px";
     inputName.after(standIn);
@@ -136,7 +137,7 @@ const canvasFrame = await (async () => {
 await page.waitForTimeout(3000);
 const results = [];
 results.push(await measured("idle, zoomed out, no stand-ins", () => page.waitForTimeout(STEP_MILLISECONDS)));
-const standInCount = await canvasFrame.evaluate(addTheStandInsAndTheFeed, FEED_VALUES_PER_FRAME);
+const standInCount = await canvasFrame.evaluate(addTheStandInsAndTheFeed, { valuesPerFrame: FEED_VALUES_PER_FRAME, inlineControlAttribute: NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE });
 const pane = await canvasFrame.locator(".react-flow__pane").boundingBox();
 const viewportOfTheCanvas = await canvasFrame.locator(".react-flow__viewport").evaluate((element) => element.style.transform);
 console.log(`cards: 300, stand-in controls: ${standInCount}, viewport after framing: ${viewportOfTheCanvas}`);

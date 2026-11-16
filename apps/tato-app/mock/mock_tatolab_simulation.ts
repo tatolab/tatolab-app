@@ -88,24 +88,23 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const assetsChangedWhileTheMockRuns = mockProjectAssetsUnchanged();
-  const mainStreamAsChosen =
-    scenario === "node-error"
+  const mainStreamAsChosen = mockTatolabOptions.isTheMainStreamLarge
+    ? fixtures.mainStreamOfTheLargeGraph
+    : scenario === "node-error"
       ? fixtures.mainStreamWithDisplayWindowInError
       : scenario === "node-not-ready"
         ? fixtures.mainStreamWithAnImageFileNotReady
         : scenario === "dropping"
           ? fixtures.mainStreamWithItsMeterFallingBehind
-          : mockTatolabOptions.isTheMainStreamLarge
-            ? fixtures.mainStreamOfTheLargeGraph
-            : mockTatolabOptions.isTheFixtureViewListed
-              ? fixtures.mainStreamWithTheFixtureViewsNode
-              : mockTatolabOptions.isTheCompositorInMain
-                ? fixtures.mainStreamWithTheCompositorNode
-                : mockTatolabOptions.doesTheMainStreamDeclareGraphInputs
-                  ? fixtures.mainStreamDeclaringGraphInputs
-                  : mockTatolabOptions.doesTheMainStreamHoldAGeneratedSubgraph
-                    ? fixtures.mainStreamHoldingAGeneratedSubgraph
-                    : fixtures.mainStream;
+          : mockTatolabOptions.isTheFixtureViewListed
+            ? fixtures.mainStreamWithTheFixtureViewsNode
+            : mockTatolabOptions.isTheCompositorInMain
+              ? fixtures.mainStreamWithTheCompositorNode
+              : mockTatolabOptions.doesTheMainStreamDeclareGraphInputs
+                ? fixtures.mainStreamDeclaringGraphInputs
+                : mockTatolabOptions.doesTheMainStreamHoldAGeneratedSubgraph
+                  ? fixtures.mainStreamHoldingAGeneratedSubgraph
+                  : fixtures.mainStream;
   const mainStream: MockStreamFixture = mockTatolabOptions.areTheMainStreamsNodesStopped
     ? { ...mainStreamAsChosen, graph: { ...mainStreamAsChosen.graph, nodes: mainStreamAsChosen.graph.nodes.map((node) => (node.state === null ? node : { ...node, state: "Stopped" })) } }
     : mainStreamAsChosen;

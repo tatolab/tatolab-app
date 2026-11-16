@@ -9,17 +9,6 @@ export type NodeGraphCardFlowNode = Node<
   "node_graph_card"
 >;
 
-const CARD_FLOW_DATA_BY_NODE = new WeakMap<NodeGraphCanvasNode, NodeGraphCardFlowNode["data"]>();
-
-/** What React Flow holds as the data of `graphNode`'s card: the same object for as long as the caller hands the same node, so the card of a node that did not change is not drawn again. */
-export function cardFlowDataOf(graphNode: NodeGraphCanvasNode): NodeGraphCardFlowNode["data"] {
-  const kept = CARD_FLOW_DATA_BY_NODE.get(graphNode);
-  if (kept !== undefined) return kept;
-  const data = { graphNode };
-  CARD_FLOW_DATA_BY_NODE.set(graphNode, data);
-  return data;
-}
-
 /** A note as React Flow holds it. */
 export type NodeGraphNoteFlowNode = Node<
   { graphNote: NodeGraphCanvasNote },
@@ -47,8 +36,12 @@ export const inputPinHandleId = (pinName: string) => `input:${pinName}`;
 /** The React Flow handle id of a card's output pin `pinName`. */
 export const outputPinHandleId = (pinName: string) => `output:${pinName}`;
 
-/** The pick a card is drawn for while the canvas picks a port: the ports of each node that can join, the node asking which of its ports, and what choosing one does; `null` while nothing is picked. */
-export const NodeGraphPortPickingContext = createContext<{ portsThatCanJoinByNodeId: ReadonlyMap<string, readonly string[]>; nodeAskingWhichPort: string | null; onPortChosen: (nodeId: string, port: string) => void; onAskWhichClosed: () => void } | null>(null);
+/** The key React Flow 12 keeps a handle's links under in its store's `connectionLookup`, as its `useNodeConnections` spells it. */
+export const connectionLookupKeyOfTheHandle = (nodeId: string, handleType: "source" | "target", handleId: string) => `${nodeId}-${handleType}-${handleId}`;
+
+/** The attribute every inline control on a card carries, which the canvas hides by while zoomed out past reading it. */
+export const NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE = "data-node-graph-inline-control";
+
 
 /** Whether the canvas takes edits, which lets its pins start wires and its notes be edited. */
 export const NodeGraphEditableContext = createContext<boolean>(false);
