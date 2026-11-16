@@ -36,8 +36,11 @@ export const inputPinHandleId = (pinName: string) => `input:${pinName}`;
 /** The React Flow handle id of a card's output pin `pinName`. */
 export const outputPinHandleId = (pinName: string) => `output:${pinName}`;
 
-/** The cards drawn selected, which every card reads so a selection redraws cards without rebuilding the graph. */
-export const NodeGraphSelectionContext = createContext<ReadonlySet<string>>(new Set());
+/** The key React Flow 12 keeps a handle's links under in its store's `connectionLookup`, as its `useNodeConnections` spells it. */
+export const connectionLookupKeyOfTheHandle = (nodeId: string, handleType: "source" | "target", handleId: string) => `${nodeId}-${handleType}-${handleId}`;
+
+/** The attribute every inline control on a card carries, which the canvas hides by while zoomed out past reading it. */
+export const NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE = "data-node-graph-inline-control";
 
 /** Whether the canvas takes edits, which lets its pins start wires and its notes be edited. */
 export const NodeGraphEditableContext = createContext<boolean>(false);
@@ -56,18 +59,6 @@ export const NodeGraphFrameColoursUsedContext = createContext<readonly string[]>
 
 /** Opens the colour picker for the frame it names. */
 export const NodeGraphFrameColourPickingContext = createContext<(frameId: string) => void>(() => undefined);
-
-/** Every pin a link joins, by `linkedPinKey`, which a card draws filled. */
-export const NodeGraphLinkedPinsContext = createContext<ReadonlySet<string>>(
-  new Set(),
-);
-
-/** The key of a card's pin in `NodeGraphLinkedPinsContext`. */
-export const linkedPinKey = (
-  nodeId: string,
-  side: "input" | "output",
-  pinName: string,
-) => `${nodeId}\u0000${side}\u0000${pinName}`;
 
 /** Which of a frame's words is typed on its tab: its title or its description. */
 export type NodeGraphFrameWordsFieldName = "title" | "description";

@@ -158,6 +158,8 @@ export interface MockTatolabOptions {
   doesTheMainStreamHoldAGeneratedSubgraph: boolean;
   /** `?node_states=stopped`: every node of `main` that has a state reads `Stopped` once the stream settles, so none of its ports writes. */
   areTheMainStreamsNodesStopped: boolean;
+  /** `?main_graph=large`: `main` holds 300 nodes of four inputs each and 450 links, for the canvas measurements; it takes precedence over every other choice of `main`. */
+  isTheMainStreamLarge: boolean;
 }
 
 /** The query parameter a Module manager window's page is told by. */
@@ -283,6 +285,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isTheCompositorInMain: pageQuery.get("compositor") === "layered",
     doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",
     doesTheMainStreamHoldAGeneratedSubgraph: pageQuery.get("subgraphs") === "generated",
+    isTheMainStreamLarge: pageQuery.get("main_graph") === "large",
     areTheMainStreamsNodesStopped: pageQuery.get("node_states") === "stopped",
   };
 }

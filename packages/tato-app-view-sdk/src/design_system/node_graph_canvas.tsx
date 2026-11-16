@@ -1,9 +1,9 @@
-import { Background, BackgroundVariant, MiniMap, ReactFlow, ReactFlowProvider, useReactFlow, useStore, type NodeChange } from "@xyflow/react";
+import { Background, BackgroundVariant, MiniMap, ReactFlow, ReactFlowProvider, useReactFlow, useStore, type NodeChange, type ReactFlowState } from "@xyflow/react";
 import { cn } from "cn";
 import { Combine, Frame, Plus, Scan, Search, StickyNote, ZoomIn, ZoomOut } from "lucide-react";
 import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
 import { RightClickMenu } from "./menus";
-import { memo, useCallback, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { IconButton } from "./icon_button";
 import { ToolbarDivider, ToolbarGroup } from "./toolbar";
@@ -13,7 +13,7 @@ import { isPartOfTheGraphOutsideTheView } from "./support/node_graph_map_visibil
 import { frameACardIsLetGoIn, frameRectangleAroundCards, linkUnderACard, placeClearBelowTheCards, type NodeGraphLinkMidpoint } from "./support/node_graph_editing";
 import { type NodeGraphCanvasNode, type NodeGraphCanvasFrame, NODE_GRAPH_FRAME_COLOURS, type NodeGraphCanvasNote, type NodeGraphCanvasLink, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphCanvasCardMove, type NodeGraphCanvasEditing } from "./support/node_graph_canvas_contract";
 import { NodeGraphCardView } from "./node_graph_card_view";
-import { type NodeGraphCardFlowNode, type NodeGraphNoteFlowNode, type NodeGraphFrameFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphSelectionContext, NodeGraphEditableContext, NodeGraphNoteEditingContext, NodeGraphNoteResizingContext, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColoursUsedContext, NodeGraphFrameColourPickingContext, NodeGraphLinkedPinsContext, linkedPinKey, NodeGraphFrameWordsEditingContext } from "./support/node_graph_flow_elements";
+import { type NodeGraphCardFlowNode, type NodeGraphNoteFlowNode, type NodeGraphFrameFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphEditableContext, NodeGraphNoteEditingContext, NodeGraphNoteResizingContext, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColoursUsedContext, NodeGraphFrameColourPickingContext, NodeGraphFrameWordsEditingContext } from "./support/node_graph_flow_elements";
 import { type NodeGraphRightClicked, NodeGraphRightClickChoices } from "./node_graph_right_click_choices";
 import { NodeGraphFrameView } from "./node_graph_frame_view";
 import { NodeGraphNoteView } from "./node_graph_note_view";
@@ -35,6 +35,24 @@ const frameFlowNodeId = (frameId: string) => `frame:${frameId}`;
 const NODE_GRAPH_NODE_TYPES = { node_graph_card: memo(NodeGraphCardView), node_graph_note: memo(NodeGraphNoteView), node_graph_frame: memo(NodeGraphFrameView) };
 
 const NODE_GRAPH_EDGE_TYPES = { node_graph_link: memo(NodeGraphLinkView) };
+
+/** The zoom below which the cards' inline controls are too small to read or use, so the canvas hides them; their rows keep their height. */
+const NODE_GRAPH_INLINE_CONTROLS_SHOWN_FROM_ZOOM = 0.5;
+
+const isZoomedOutPastTheInlineControls = (state: ReactFlowState) => state.transform[2] < NODE_GRAPH_INLINE_CONTROLS_SHOWN_FROM_ZOOM;
+
+/** Whether React Flow would draw `before` and `after` the same: the same node, place, size and selection, and the same edits allowed. */
+function isTheSameCardFlowNode(before: NodeGraphCardFlowNode, after: NodeGraphCardFlowNode): boolean {
+  return (
+    before.data === after.data &&
+    before.position.x === after.position.x &&
+    before.position.y === after.position.y &&
+    before.measured === after.measured &&
+    before.selected === after.selected &&
+    before.draggable === after.draggable &&
+    before.connectable === after.connectable
+  );
+}
 
 /** The links whose both ends are cards drawn here. */
 function flowEdgesJoining(
@@ -80,6 +98,7 @@ function NodeGraphFlow({
   const reactFlow = useReactFlow();
   const canvasElement = useRef<HTMLDivElement>(null);
   const isTheMapShown = useStore(isPartOfTheGraphOutsideTheView);
+  const areTheInlineControlsHidden = useStore(isZoomedOutPastTheInlineControls);
   const pointerRestsAt = useRef<NodeGraphCanvasPoint | null>(null);
   const nodeById = useMemo(
     () => new Map(nodes.map((node) => [node.node_id, node])),
@@ -88,6 +107,9 @@ function NodeGraphFlow({
   const { selectedIds, selectedNoteIds, selectedLinkIds, followTheSelectionChanges, followTheLinkChanges, selectNothing, clearTheSelectionAfterADelete, selectTheRightClickedCard, selectTheRightClickedNote, selectTheRightClickedLink } = useNodeGraphSelection(selectedNodeIds, nodeById, onNodesSelected);
   const { cardSizeByNode, isLaidOutOnMeasuredWidths, hasBeenFramed, positionOfTheCard, frameOfTheCard, sizeOfTheCard, positionOfTheNote, sizeOfTheNote, followTheLayoutChanges, holdTheCardMoves, releaseTheHeldCards, releaseTheHeldNotePosition, keepTheResizedNote } = useNodeGraphCardLayout(nodes, links, notes, nodeById, editing, reactFlow, viewportWhereItWasLeft);
 
+  // React Flow takes up again only the cards handed as new objects, and a card draws again for new data, so a card is
+  // handed its object from before, or else its data from before, wherever they are unchanged.
+  const cardFlowNodesBefore = useRef<ReadonlyMap<string, NodeGraphCardFlowNode>>(new Map());
   const flowNodes: NodeGraphFlowNode[] = useMemo(() => {
     const frameNodes: NodeGraphFrameFlowNode[] = frames.flatMap((graphFrame) => {
       const rectangle = frameRectangleAroundCards(
@@ -127,33 +149,26 @@ function NodeGraphFlow({
         ariaLabel: `Note ${graphNote.text}`,
       };
     });
-    const cardNodes: NodeGraphCardFlowNode[] = nodes.map((graphNode) => ({
-      id: graphNode.node_id,
-      type: "node_graph_card",
-      position: positionOfTheCard(graphNode),
-      measured: cardSizeByNode.get(graphNode.node_id),
-      selected: selectedIds.has(graphNode.node_id),
-      data: { graphNode },
-      draggable: editing !== null,
-      connectable: editing !== null,
-      ariaLabel: `Node ${graphNode.title}`,
-    }));
+    const cardNodes: NodeGraphCardFlowNode[] = nodes.map((graphNode) => {
+      const cardNodeBefore = cardFlowNodesBefore.current.get(graphNode.node_id);
+      const cardNode: NodeGraphCardFlowNode = {
+        id: graphNode.node_id,
+        type: "node_graph_card",
+        position: positionOfTheCard(graphNode),
+        measured: cardSizeByNode.get(graphNode.node_id),
+        selected: selectedIds.has(graphNode.node_id),
+        data: cardNodeBefore?.data.graphNode === graphNode ? cardNodeBefore.data : { graphNode },
+        draggable: editing !== null,
+        connectable: editing !== null,
+        ariaLabel: `Node ${graphNode.title}`,
+      };
+      return cardNodeBefore !== undefined && isTheSameCardFlowNode(cardNodeBefore, cardNode) ? cardNodeBefore : cardNode;
+    });
     return [...frameNodes, ...noteNodes, ...cardNodes];
   }, [frames, notes, nodes, editing, positionOfTheCard, frameOfTheCard, sizeOfTheCard, cardSizeByNode, positionOfTheNote, sizeOfTheNote, selectedIds, selectedNoteIds]);
-  const linkedPins = useMemo(
-    () =>
-      new Set(
-        flowEdgesJoining(links, nodeById).flatMap((graphLink) => [
-          linkedPinKey(
-            graphLink.source_node_id,
-            "output",
-            graphLink.source_pin,
-          ),
-          linkedPinKey(graphLink.target_node_id, "input", graphLink.target_pin),
-        ]),
-      ),
-    [links, nodeById],
-  );
+  useLayoutEffect(() => {
+    cardFlowNodesBefore.current = new Map(flowNodes.flatMap((flowNode): [string, NodeGraphCardFlowNode][] => (flowNode.type === "node_graph_card" ? [[flowNode.id, flowNode]] : [])));
+  }, [flowNodes]);
   const flowEdges: NodeGraphLinkFlowEdge[] = useMemo(
     () =>
       flowEdgesJoining(links, nodeById).map((graphLink) => ({
@@ -371,7 +386,6 @@ function NodeGraphFlow({
   );
 
   return (
-    <NodeGraphSelectionContext value={selectedIds}>
       <NodeGraphEditableContext value={editing !== null}>
         <NodeGraphNoteEditingContext value={editing?.onNoteChanged ?? null}>
         <NodeGraphNoteResizingContext value={editing === null ? null : keepTheResizedNote}>
@@ -379,7 +393,6 @@ function NodeGraphFlow({
             <NodeGraphFrameWordsEditingContext value={frameWordsEditing}>
             <NodeGraphFrameColoursUsedContext value={frameColoursUsed}>
             <NodeGraphFrameColourPickingContext value={setFrameIdWhoseColourIsPicked}>
-          <NodeGraphLinkedPinsContext value={linkedPins}>
           <NodeGraphNodesFoundContext value={nodesFound}>
             <div className="flex size-full flex-col">
             <StudioViewToolbarTools label={`${label} tools`}>
@@ -471,6 +484,7 @@ function NodeGraphFlow({
                 aria-label={label}
                 className={cn(
                   "node-graph-canvas",
+                  areTheInlineControlsHidden && "node-graph-canvas-zoomed-out",
                   !isLaidOutOnMeasuredWidths && !hasBeenFramed && "opacity-0",
                 )}
                 nodes={flowNodes}
@@ -526,7 +540,6 @@ function NodeGraphFlow({
             </RightClickMenu>
             </div>
           </NodeGraphNodesFoundContext>
-          </NodeGraphLinkedPinsContext>
             {cardAndFrameEditing !== null && (
               <ColourPickerDialog
                 isOpen={frameWhoseColourIsPicked !== null}
@@ -549,7 +562,6 @@ function NodeGraphFlow({
         </NodeGraphNoteResizingContext>
         </NodeGraphNoteEditingContext>
       </NodeGraphEditableContext>
-    </NodeGraphSelectionContext>
   );
 }
 

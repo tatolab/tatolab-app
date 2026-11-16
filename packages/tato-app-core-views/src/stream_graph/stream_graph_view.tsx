@@ -1,5 +1,5 @@
 import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX, NodeGraphCardPreview } from "@tatolab/tato-app-view-sdk/design_system/node_graph_card_view";
 import { NodeGraphCanvas } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
@@ -25,7 +25,7 @@ import type {
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { streamPreparingWords } from "../shared/stream_preparing_words";
-import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
+import { streamGraphCanvasContents, type StreamGraphCanvasContents } from "./stream_graph_canvas_contents";
 import { useStreamGraphEditsSentToTheRuntime } from "../shared/stream_graph_edit_sending";
 import {
   cardCollapsedEdits,
@@ -107,10 +107,15 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   const subgraphKeepingTheLevelReadOnly = theSubgraphKeepingTheLevelReadOnly(subgraphsSteppedThrough);
   const levelOfTheEdits = useMemo(() => levelOfTheSubgraphsSteppedThrough(subgraphsSteppedThrough), [subgraphsSteppedThrough]);
   const nodesSelectedAtTheLevelShown = useMemo(() => nodesTheSelectionHoldsInTheStream(selection, streamTab.stream, levelOfTheEdits), [selection, streamTab.stream, levelOfTheEdits]);
+  // Each reading is drawn from the one before, so the cards of the nodes it left as they were are not drawn again.
+  const canvasContentsBefore = useRef<StreamGraphCanvasContents | null>(null);
   const canvasContents = useMemo(
-    () => (levelShown === null ? null : streamGraphCanvasContents(levelShown.graph, catalogReading?.kind === "listed" ? catalogReading.catalog : null)),
+    () => (levelShown === null ? null : streamGraphCanvasContents(levelShown.graph, catalogReading?.kind === "listed" ? catalogReading.catalog : null, canvasContentsBefore.current)),
     [levelShown, catalogReading],
   );
+  useLayoutEffect(() => {
+    canvasContentsBefore.current = canvasContents;
+  }, [canvasContents]);
   const subgraphNamesReached = subgraphsSteppedThrough.map((subgraph) => subgraph.name).join("/");
   useEffect(() => {
     if (levelShown !== null && levelShown.subgraphs_stepped_through.length < subgraphNamesSteppedThrough.length) {

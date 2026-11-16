@@ -1,3 +1,4 @@
+import { largeMockStreamGraph } from "./mock_large_stream_graph";
 import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
 import type { JsonValue, ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphFragmentKind, StreamGraphGroup, StreamGraphLink, StreamGraphNodeKind, StreamGraphNodeStudioFields, StreamGraphNote, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
 
@@ -683,6 +684,8 @@ export interface MockStreamFixtures {
   mainStreamHoldingAGeneratedSubgraph: MockStreamFixture;
   /** `main` with an `ImageFile` that names no asset, so it reports itself not ready. */
   mainStreamWithAnImageFileNotReady: MockStreamFixture;
+  /** `main` holding the large graph of the canvas measurements. */
+  mainStreamOfTheLargeGraph: MockStreamFixture;
   cameraStream: MockStreamFixture;
   /** The camera stream as the runtime re-loads it at its start before anyone has asked for camera access. */
   cameraStreamWaitingForCameraAccess: MockStreamFixture;
@@ -718,6 +721,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     withAnImageFileNotReady: false,
   };
   const mainStream = createTestPatternStream(machine, mainStreamOptions);
+  const largeGraph = largeMockStreamGraph();
   const cameraStream = createCameraStream(machine);
   const recorderOfMainStream = createTestPatternStream(machine, {
     ...mainStreamOptions,
@@ -737,6 +741,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     mainStreamDeclaringGraphInputs: createTestPatternStream(machine, { ...mainStreamOptions, withGraphInputs: true }),
     mainStreamHoldingAGeneratedSubgraph: createTestPatternStream(machine, { ...mainStreamOptions, withAGeneratedSubgraph: true }),
     mainStreamWithAnImageFileNotReady: createTestPatternStream(machine, { ...mainStreamOptions, withAnImageFileNotReady: true }),
+    mainStreamOfTheLargeGraph: { ...mainStream, listing: { ...mainStream.listing, node_count: largeGraph.nodes.length }, graph: largeGraph },
     cameraStream,
     cameraStreamWaitingForCameraAccess: { ...cameraStream, listing: { ...cameraStream.listing, capture_devices_whose_access_was_never_asked_for: ["camera"] } },
     recorderOfMainStream,

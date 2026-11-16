@@ -88,8 +88,9 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const assetsChangedWhileTheMockRuns = mockProjectAssetsUnchanged();
-  const mainStreamAsChosen =
-    scenario === "node-error"
+  const mainStreamAsChosen = mockTatolabOptions.isTheMainStreamLarge
+    ? fixtures.mainStreamOfTheLargeGraph
+    : scenario === "node-error"
       ? fixtures.mainStreamWithDisplayWindowInError
       : scenario === "node-not-ready"
         ? fixtures.mainStreamWithAnImageFileNotReady
