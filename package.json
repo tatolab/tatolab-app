@@ -18,7 +18,7 @@
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",
     "@commitlint/config-conventional": "^21.2.4",
-    "@tatolab/lint-config": "github:tatolab/lint-config#266d8817c0fd108697fc7aa150616ed3068ee354",
+    "@tatolab/lint-config": "github:tatolab/lint-config#83756269e1842c237318fc09f6824543478faea0",
     "oxlint": "1.91.0",
     "turbo": "2.11.10"
   }
