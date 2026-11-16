@@ -17,14 +17,13 @@ import {
   PropertyListEntryCount,
   PropertyNumberField,
   PropertyPortRow,
-  type PropertyPortTarget,
   PropertyRow,
   PropertySection,
   PropertySliderField,
   PropertyTextField,
 } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import { newGestureIdempotencyKey, type AreasForAViewTypeReading, type PortPickInTheStreamGraph, type StopWatching, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import { newGestureIdempotencyKey, type AreasForAViewTypeReading, type StopWatching, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import { FieldMenu, MenuItem, MenuNote } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import type {
   JsonValue,
@@ -47,7 +46,6 @@ import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
 import { chosenProjectAssetOf, chosenProjectAssetWords, projectAssetsForTheAssetFieldsOf } from "./project_asset_choices";
 import { previewPictureUrlOf } from "../library/library_asset_preview_pictures";
 import { useAssetPreviewPicturesOfTheProject } from "../library/use_asset_preview_pictures_of_the_project";
-import { blankTargetPickerKeysOfThePort, blankTargetPickerKeysShownOnThePort, NO_BLANK_TARGET_PICKERS, withABlankTargetPickerAdded, withoutTheBlankTargetPicker, type BlankTargetPickersOfTheNode } from "./blank_target_pickers";
 import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
 import { streamGraphLevelAtTheSubgraphIds } from "../stream_graph/stream_graph_levels";
 
@@ -56,7 +54,6 @@ const NO_LEVEL: readonly string[] = [];
 import {
   configFieldsToExposeAsGraphInputs,
   configValueFromTheWordsTyped,
-  disconnectTheLink,
   exposeTheConfigFieldAsAGraphInput,
   LIST_ENTRY_MOVED_ON_REFUSAL,
   linkedEndsOfThePort,
@@ -65,11 +62,6 @@ import {
   listWithTheRecordFieldSet,
   nodeIdInShort,
   pinValueFromTheWordsTyped,
-  portsToConnect,
-  connectingThePortPicked,
-  whyThePortTakesNoOtherTarget,
-  type LinkedEndOfAPort,
-  portsToConnectNote,
   resetTheConfigField,
   setTheConfigField,
   type SetNodeConfigAction,
@@ -428,14 +420,9 @@ function PortRowsOfOneDirection({
   firstBandIndex,
   graph,
   node,
-  streamName,
   streamAsset,
   catalogPorts,
   graphEdits,
-  blankTargetPickers,
-  onBlankTargetPickersChanged,
-  targetPickingInTheStreamGraph,
-  pickInTheStreamGraph,
   portNamesListed,
   searchWords,
 }: {
@@ -444,16 +431,9 @@ function PortRowsOfOneDirection({
   firstBandIndex: number;
   graph: StreamGraphSummary;
   node: StreamGraphNode;
-  streamName: string;
   streamAsset: string | null;
   catalogPorts: NodeCatalogPort[];
   graphEdits: GraphEditsOfTheNode;
-  blankTargetPickers: BlankTargetPickersOfTheNode;
-  onBlankTargetPickersChanged: (changeTheBlankTargetPickers: (blankTargetPickers: BlankTargetPickersOfTheNode) => BlankTargetPickersOfTheNode) => void;
-  /** The picker whose port is being picked in the Stream graph, as `<place>/<target key>`; `null` while none is. */
-  targetPickingInTheStreamGraph: string | null;
-  /** Picks a port in the Stream graph for a target; `null` where the Stream graph picks none, inside a subgraph. */
-  pickInTheStreamGraph: PickInTheStreamGraphForATarget | null;
   /** The ports a search over the properties keeps, by name. */
   portNamesListed: ReadonlySet<string>;
   searchWords: string;
@@ -466,89 +446,19 @@ function PortRowsOfOneDirection({
     const place: PlaceOfAnEdit = `${direction}:${port.name}`;
     const linkedEnds = linkedEndsOfThePort(graph, node, direction, port.name);
     const facts = direction === "input" ? streamFactsAnInputReceives(graph, node.name, port) : port;
-    const familyWords = port.family === null ? "Unknown" : nodeGraphPinFamilyWords(port.family);
     const pinValue = node.pins[port.name];
-    const blankPickerKeys = blankTargetPickerKeysShownOnThePort(direction, linkedEnds.length, blankTargetPickerKeysOfThePort(blankTargetPickers, node.id, port.name));
-    const note = portsToConnectNote(direction, streamName, familyWords);
-    const choicesOfAPicker = (stream: string, replacing: LinkedEndOfAPort | null, whenConnected: () => void) => () =>
-      portsToConnect(stream, graph, node, direction, port, replacing).map((portToConnect) => ({
-        nodeTitle: portToConnect.nodeTitle,
-        port: portToConnect.port,
-        cannotBecause: portToConnect.cannotBecause,
-        choiceKey: portToConnect.choiceKey,
-        onChosen: () =>
-          void graphEdits.commit(place, portToConnect.connecting).then((isApplied) => {
-            if (isApplied) whenConnected();
-          }),
-      }));
-    const pickingOfATarget = (stream: string, targetKey: string, replacing: LinkedEndOfAPort | null, whenConnected: () => void): PropertyPortTarget["pickInTheStreamGraph"] => {
-      if (pickInTheStreamGraph === null) return undefined;
-      const targetId = `${node.id}/${place}/${targetKey}`;
-      return {
-        isPicking: targetPickingInTheStreamGraph === targetId,
-        onToggled: (isPicking) =>
-          pickInTheStreamGraph(targetId, isPicking, { node: node.id, port: port.name, direction }, place, (picked, graphWhenPicked) => {
-            const nodeWhenPicked = graphWhenPicked.nodes.find((graphNode) => graphNode.id === node.id) ?? node;
-            const joining = connectingThePortPicked(stream, graphWhenPicked, nodeWhenPicked, direction, port, replacing, picked);
-            if (joining.kind === "cannot_join") {
-              graphEdits.keepTheRefusal(place, joining.because);
-              return;
-            }
-            void graphEdits.commit(place, joining.connecting).then((isApplied) => {
-              if (isApplied) whenConnected();
-            });
-          }),
-      };
-    };
-    const linkedTargets: PropertyPortTarget[] =
-      streamAsset === null
-        ? []
-        : linkedEnds.map((linkedEnd) => {
-            const targetKey = `${linkedEnd.node.id}:${linkedEnd.port}`;
-            return {
-              linkedWith: { nodeTitle: nodeTitle(linkedEnd.node.name, linkedEnd.node.type), port: linkedEnd.port },
-              targetKey,
-              note,
-              choicesWhenOpened: choicesOfAPicker(streamAsset, linkedEnd, () => undefined),
-              onRemoved: () => void graphEdits.commit(place, [disconnectTheLink(streamAsset, node, direction, port.name, linkedEnd)]),
-              pickInTheStreamGraph: pickingOfATarget(streamAsset, targetKey, linkedEnd, () => undefined),
-            };
-          });
-    const blankTargets: PropertyPortTarget[] =
-      streamAsset === null
-        ? []
-        : blankPickerKeys.map((blankPickerKey) => {
-            const removeThisBlankPicker = () => onBlankTargetPickersChanged((pickers) => withoutTheBlankTargetPicker(pickers, node.id, port.name, blankPickerKey));
-            return {
-              linkedWith: null,
-              targetKey: blankPickerKey,
-              note,
-              isOpenAtFirst: blankTargetPickers.justAddedKey === blankPickerKey,
-              choicesWhenOpened: choicesOfAPicker(streamAsset, null, removeThisBlankPicker),
-              onRemoved: removeThisBlankPicker,
-              pickInTheStreamGraph: pickingOfATarget(streamAsset, blankPickerKey, null, removeThisBlankPicker),
-            };
-          });
     return (
       <PropertyPortRow
         key={place}
         direction={direction}
         portName={port.name}
         searchWords={searchWords}
-        familyWords={familyWords}
+        familyWords={port.family === null ? "Unknown" : nodeGraphPinFamilyWords(port.family)}
         pinMark={<NodeGraphPinMark family={port.family} />}
         meaning={meaningOfAPort(port, catalogPorts, facts)}
         bandShade={(firstBandIndex + portIndex) % 2 === 0 ? "first" : "second"}
         refusal={graphEdits.refusalsByPlace.get(place) ?? null}
-        targets={[...linkedTargets, ...blankTargets]}
-        addition={
-          streamAsset === null
-            ? undefined
-            : {
-                disabledReason: whyThePortTakesNoOtherTarget(direction, linkedEnds.length, blankPickerKeys.length),
-                onAdded: () => onBlankTargetPickersChanged((pickers) => withABlankTargetPickerAdded(pickers, node.id, port.name, crypto.randomUUID())),
-              }
-        }
+        linkedEnds={linkedEnds.map((linkedEnd) => ({ nodeTitle: nodeTitle(linkedEnd.node.name, linkedEnd.node.type), port: linkedEnd.port, linkKey: `${linkedEnd.node.id}:${linkedEnd.port}` }))}
         unlinkedValue={
           direction === "input" && streamAsset !== null ? (
             <PropertyTextField
@@ -574,15 +484,6 @@ function PortRowsOfOneDirection({
     );
   });
 }
-
-/** Start picking the port of the picker `targetId` in the Stream graph, or end that pick; `whenPicked` takes the other end the person picked. */
-type PickInTheStreamGraphForATarget = (
-  targetId: string,
-  isPicking: boolean,
-  pick: Omit<PortPickInTheStreamGraph, "stream">,
-  place: PlaceOfAnEdit,
-  whenPicked: (picked: { node: string; port: string }, graphWhenPicked: StreamGraphSummary) => void,
-) => void;
 
 /** The place an edit of a config field, or exposing it as a Graph Input, shows its refusal under. */
 function placeOfTheConfigField(fieldKey: string): PlaceOfAnEdit {
@@ -671,18 +572,6 @@ function PropertiesOfTheSelectedNode({
   const catalogReading = useViewReading(watchTheStreamsCatalog);
   const listedStreams = useViewReading(connection.watchListedStreams);
   const nodeShownWhileItWasSelectedByName = useRef<{ nodeName: string; nodeId: string } | null>(null);
-  const [blankTargetPickers, setBlankTargetPickers] = useState<BlankTargetPickersOfTheNode>(NO_BLANK_TARGET_PICKERS);
-  const [targetPickingInTheStreamGraph, setTargetPickingInTheStreamGraph] = useState<string | null>(null);
-  const isPickingInTheStreamGraph = useRef(false);
-  useEffect(() => {
-    isPickingInTheStreamGraph.current = targetPickingInTheStreamGraph !== null;
-    if (targetPickingInTheStreamGraph === null) return;
-    const endThePickOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) void connection.endThePortPick();
-    };
-    document.addEventListener("keydown", endThePickOnEscape);
-    return () => document.removeEventListener("keydown", endThePickOnEscape);
-  }, [targetPickingInTheStreamGraph, connection]);
   const streamGraph = graphReading?.kind === "read" ? graphReading.graph : null;
   const graph = useMemo(() => (streamGraph === null ? null : (streamGraphLevelAtTheSubgraphIds(streamGraph, level)?.graph ?? null)), [streamGraph, level]);
   const nodeSelectedByName = graph?.nodes.find((graphNode) => graphNode.name === nodeName);
@@ -693,30 +582,6 @@ function PropertiesOfTheSelectedNode({
   const node = nodeSelectedByName ?? nodeRenamedSinceItWasSelected;
   if (nodeSelectedByName !== undefined) nodeShownWhileItWasSelectedByName.current = { nodeName, nodeId: nodeSelectedByName.id };
   const graphEdits = graphEditsInTheProject.ofTheNode(node?.id ?? "", level);
-  const latestGraph = useRef(graph);
-  useEffect(() => {
-    latestGraph.current = graph;
-  }, [graph]);
-  const nodeIdShown = node?.id;
-  useEffect(
-    () => () => {
-      if (isPickingInTheStreamGraph.current) void connection.endThePortPick();
-    },
-    [nodeIdShown, connection],
-  );
-  const pickInTheStreamGraph: PickInTheStreamGraphForATarget = (targetId, isPicking, pick, place, whenPicked) => {
-    if (!isPicking) {
-      void connection.endThePortPick();
-      return;
-    }
-    setTargetPickingInTheStreamGraph(targetId);
-    void connection.pickAPortInTheStreamGraph({ ...pick, stream }).then((ending) => {
-      setTargetPickingInTheStreamGraph((picking) => (picking === targetId ? null : picking));
-      const graphWhenPicked = latestGraph.current;
-      if (ending.kind === "picked" && graphWhenPicked !== null) whenPicked(ending, graphWhenPicked);
-      else if (ending.kind === "not_started") graphEdits.keepTheRefusal(place, ending.because);
-    });
-  };
   const catalogEntry: NodeCatalogEntry | undefined = catalogReading?.kind === "listed" && node !== undefined ? catalogReading.catalog.node_types.find((entry) => entry.type === node.type) : undefined;
   const configForm = useMemo(() => (node === undefined ? null : configFormOf(catalogEntry?.config_schema ?? null, node.config)), [node, catalogEntry]);
   const nameTheNodeGoesByNow = node?.name;
@@ -835,14 +700,9 @@ function PropertiesOfTheSelectedNode({
               firstBandIndex={0}
               graph={graph}
               node={node}
-              streamName={streamName}
               streamAsset={streamAsset}
               catalogPorts={catalogEntry?.inputs ?? []}
               graphEdits={graphEdits}
-              blankTargetPickers={blankTargetPickers}
-              onBlankTargetPickersChanged={setBlankTargetPickers}
-              targetPickingInTheStreamGraph={targetPickingInTheStreamGraph}
-              pickInTheStreamGraph={level.length === 0 ? pickInTheStreamGraph : null}
               portNamesListed={matching.input_ports_listed}
               searchWords={searchWords}
             />
@@ -855,14 +715,9 @@ function PropertiesOfTheSelectedNode({
               firstBandIndex={node.input_ports.filter((port) => matching.input_ports_listed.has(port.name)).length}
               graph={graph}
               node={node}
-              streamName={streamName}
               streamAsset={streamAsset}
               catalogPorts={catalogEntry?.outputs ?? []}
               graphEdits={graphEdits}
-              blankTargetPickers={blankTargetPickers}
-              onBlankTargetPickersChanged={setBlankTargetPickers}
-              targetPickingInTheStreamGraph={targetPickingInTheStreamGraph}
-              pickInTheStreamGraph={level.length === 0 ? pickInTheStreamGraph : null}
               portNamesListed={matching.output_ports_listed}
               searchWords={searchWords}
             />

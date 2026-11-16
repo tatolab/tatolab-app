@@ -39,9 +39,6 @@ export const outputPinHandleId = (pinName: string) => `output:${pinName}`;
 /** The cards drawn selected, which every card reads so a selection redraws cards without rebuilding the graph. */
 export const NodeGraphSelectionContext = createContext<ReadonlySet<string>>(new Set());
 
-/** The pick a card is drawn for while the canvas picks a port: the ports of each node that can join, the node asking which of its ports, and what choosing one does; `null` while nothing is picked. */
-export const NodeGraphPortPickingContext = createContext<{ portsThatCanJoinByNodeId: ReadonlyMap<string, readonly string[]>; nodeAskingWhichPort: string | null; onPortChosen: (nodeId: string, port: string) => void; onAskWhichClosed: () => void } | null>(null);
-
 /** Whether the canvas takes edits, which lets its pins start wires and its notes be edited. */
 export const NodeGraphEditableContext = createContext<boolean>(false);
 
