@@ -40,8 +40,7 @@ export interface InputControlBinding {
 
 /**
  * A surface's own field for one input, where the table has no control for it: the store's value for that input, a gesture
- * that sends through the input's one sender and ends as the binding was asked to release, and the input's own value taken
- * off the same way.
+ * that sends through the input's one sender and ends in one commit, and the input's saved value taken off as one commit.
  */
 export interface OwnFieldBinding {
   shownValue(): ShownValue;
@@ -54,8 +53,8 @@ export interface OwnFieldBinding {
 export interface InputControlBinder {
   /** Draws the control for `input` inside `host`, telling `whenShown` what the slot shows each time it changes. */
   bindInputControl(host: HTMLElement, input: ControlledInput, place: InputControlPlace, whenShown?: (shown: InputControlShown) => void): InputControlBinding;
-  /** Binds a surface's own field to the input at `address`, each gesture on it released with `release`. */
-  bindOwnField(address: InputAddress, release: "commit" | "live"): OwnFieldBinding;
+  /** Binds a surface's own field to the input at `address`. */
+  bindOwnField(address: InputAddress): OwnFieldBinding;
 }
 
 /** What a binder reads and writes through: the frame's element listing and its store, and, for tests, how an element loads and when a flush runs. */
@@ -392,11 +391,11 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       binding.refresh();
       return binding;
     },
-    bindOwnField: (address, release) => ({
+    bindOwnField: (address) => ({
       shownValue: () => inputValues.shownValue(address),
       watchValue: (listener) => inputValues.watchValue(address, listener),
-      beginGesture: () => inputValues.beginGesture(address, release),
-      clear: () => inputValues.clear(address, release),
+      beginGesture: () => inputValues.beginGesture(address, "commit"),
+      clear: () => inputValues.clear(address),
     }),
   };
 }

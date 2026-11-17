@@ -284,7 +284,7 @@ test("a_surfaces_own_field_shows_the_stores_value_and_writes_a_whole_gesture_and
   });
   inputValues.takeTheGraphReading(PROJECT, graphReading(0.5));
   const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues });
-  const field = binder.bindOwnField(GAIN, "commit");
+  const field = binder.bindOwnField(GAIN);
   const valuesShown: JsonValue[] = [];
   field.watchValue((shown) => valuesShown.push(shown.value));
   expect(field.shownValue()).toEqual({ value: 0.5, comes_from: "saved" });
@@ -297,5 +297,5 @@ test("a_surfaces_own_field_shows_the_stores_value_and_writes_a_whole_gesture_and
     { value: { gain: [1, 2] }, mode: "commit" },
     { value: null, mode: "commit" },
   ]);
-  expect(valuesShown).toEqual([0.5, { gain: [1, 2] }, 0.5]);
+  expect(valuesShown).toEqual([0.5, { gain: [1, 2] }, null]);
 });

@@ -93,7 +93,7 @@ function graphReading(count: StreamGraphInputValueRead): StreamGraphSummary {
 }
 
 function OwnFieldOfTheCount() {
-  const ownField = useOwnFieldOfTheInput(COUNT.address, "commit");
+  const ownField = useOwnFieldOfTheInput(COUNT.address);
   if (ownField === null) return <span data-testid="own-field">only shown</span>;
   return (
     <button type="button" data-testid="own-field" onClick={() => ownField.releaseTheValue({ every: 2 })}>
@@ -101,6 +101,29 @@ function OwnFieldOfTheCount() {
     </button>
   );
 }
+
+function SlotOfTheCountWithItsOwnField({ binder }: { binder: InputControlBinder }) {
+  return (
+    <InputControlBinderContext value={binder}>
+      <InputControlMount input={COUNT} surface="properties" readOnly={false} fallback={<span data-testid="words">3</span>} noControl={<input aria-label="Value of count" />} />
+    </InputControlBinderContext>
+  );
+}
+
+test("the slot draws its fallback while the control is pending and its own field only where the table has no control", () => {
+  const { binder, show } = binderUnderTest();
+  render(<SlotOfTheCountWithItsOwnField binder={binder} />);
+  expect(screen.getByTestId("words").textContent).toBe("3");
+  expect(screen.queryByRole("textbox", { name: "Value of count" })).toBeNull();
+
+  show("no_control");
+  expect(screen.queryByTestId("words")).toBeNull();
+  expect(screen.getByRole("textbox", { name: "Value of count" })).toBeDefined();
+
+  show("element");
+  expect(screen.queryByTestId("words")).toBeNull();
+  expect(screen.queryByRole("textbox", { name: "Value of count" })).toBeNull();
+});
 
 test("a surface's own field shows the store's value as each reading changes it, and sends an edit as one commit", async () => {
   const sent: { value: JsonValue | null; mode: GraphEditMode }[] = [];

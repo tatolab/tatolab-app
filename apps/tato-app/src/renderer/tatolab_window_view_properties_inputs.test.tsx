@@ -153,6 +153,14 @@ describe("Properties' Inputs", () => {
     await waitFor(() => controlOnTheRow("amount") ?? expect.unreachable("no control on Properties' amount row once undone"), AS_LONG_AS_A_FRAME_BINDS);
   });
 
+  it("while the control table's listing loads, draws an input's value in words and no field that would write it", { timeout: 20_000 }, async () => {
+    await mountedWindowOverTheMock("state=running", { listNodeUiElements: () => new Promise(() => undefined) });
+    await selectInTheStreamGraph("invertingeffect");
+    await waitFor(() => expect(inputRow("amount").querySelector("[data-properties-input-value-words]")?.textContent).toBe("1.0"), AS_LONG_AS_A_FRAME_BINDS);
+    expect(inputRow("amount").querySelector('input[aria-label="Value of amount"]')).toBeNull();
+    expect(controlOnTheRow("amount")).toBeNull();
+  });
+
   it("draws its own field where the table has no control for an input, and the field sets the input's value, not its old pin value", { timeout: 20_000 }, async () => {
     const { backend } = await mountedWindowOverTheMock("state=running&node_ui=refused");
     await selectInTheStreamGraph("invertingeffect");

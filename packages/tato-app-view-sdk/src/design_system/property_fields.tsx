@@ -456,10 +456,12 @@ const PORT_BAND_DETAIL_ROW_CLASS_NAME = "flex min-h-6 min-w-0 items-center pr-1 
 /** One link of a port, named by the node and port at its other end, with a way to that node and a way to take the link out where each is given; links are made on the canvas. */
 function PropertyPortLinkedEndLine({ linkedEnd }: { linkedEnd: PropertyPortLinkedEnd }) {
   return (
-    <div className={cn(PORT_BAND_DETAIL_ROW_CLASS_NAME, "gap-1.5")} title={`${linkedEnd.nodeTitle} › ${linkedEnd.port}`} data-property-port-linked-end={`${linkedEnd.nodeTitle} › ${linkedEnd.port}`}>
+    <div className={cn(PORT_BAND_DETAIL_ROW_CLASS_NAME, "gap-1.5")} data-property-port-linked-end={`${linkedEnd.nodeTitle} › ${linkedEnd.port}`}>
       <Box className="size-[13px] shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
-      <b className="min-w-0 truncate font-semibold">{linkedEnd.nodeTitle}</b>
-      <span className="min-w-[3ch] shrink-[3] truncate text-fg-3">{linkedEnd.port}</span>
+      <span className="flex min-w-0 items-center gap-1.5" title={`${linkedEnd.nodeTitle} › ${linkedEnd.port}`}>
+        <b className="min-w-0 truncate font-semibold">{linkedEnd.nodeTitle}</b>
+        <span className="min-w-[3ch] shrink-[3] truncate text-fg-3">{linkedEnd.port}</span>
+      </span>
       <span className="ml-auto flex shrink-0 items-center">
         {linkedEnd.jump !== undefined && <IconButton icon={LocateFixed} label={linkedEnd.jump.label} size="compact" onPressed={linkedEnd.jump.onJumped} data-property-port-linked-end-jump />}
         {linkedEnd.disconnection !== undefined && <IconButton icon={Unlink} label={linkedEnd.disconnection.label} size="compact" onPressed={linkedEnd.disconnection.onDisconnected} data-property-port-linked-end-disconnect />}
