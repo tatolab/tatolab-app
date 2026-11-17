@@ -5,8 +5,8 @@
   "type": "module",
   "main": "out/main/electron_app_entry.js",
   "scripts": {
-    "dev": "npm run build --workspace @tatolab/tato-app-core-views && electron-vite dev --watch",
-    "build": "npm run typecheck && npm run build --workspace @tatolab/tato-app-core-views && electron-vite build && node scripts/tatolab_app_build_features.mjs write out/main/tatolab_app_build_features.json",
+    "dev": "npm run build --workspace @tatolab/tato-app-view-sdk && npm run build --workspace @tatolab/tato-app-core-views && electron-vite dev --watch",
+    "build": "npm run typecheck && npm run build --workspace @tatolab/tato-app-view-sdk && npm run build --workspace @tatolab/tato-app-core-views && electron-vite build && node scripts/tatolab_app_build_features.mjs write out/main/tatolab_app_build_features.json",
     "typecheck": "node ../../node_modules/@typescript/native/bin/tsc -b",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

@@ -9,12 +9,15 @@
     "./studio_readings": "./src/studio_readings.ts",
     "./port_families": "./src/port_families.ts",
     "./pin_type_readings": "./src/pin_type_readings.ts",
+    "./supplied_modules": "./src/supplied_modules.ts",
+    "./supplied_modules.json": "./supplied_modules.json",
     "./tatolab_view.schema.json": "./tatolab_view.schema.json",
     "./design_system/*": "./src/design_system/*.tsx",
     "./design_system/support/*": "./src/design_system/support/*.ts",
     "./design_system/styles/*": "./src/design_system/styles/*"
   },
   "scripts": {
+    "build": "vite build --config vite.studio_sdk.config.ts",
     "typecheck": "node ../../node_modules/@typescript/native/bin/tsc --noEmit && node ../../node_modules/@typescript/native/bin/tsc --noEmit -p tsconfig.design_system.json",
     "test": "vitest run",
     "lint": "eslint . && oxlint src scripts && stylelint \"src/design_system/styles/**/*.css\""

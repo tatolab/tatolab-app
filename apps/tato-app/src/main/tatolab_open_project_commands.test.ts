@@ -1,5 +1,5 @@
 import { mkdtemp, realpath, rm } from "node:fs/promises";
-import { projectViewFolderUrl } from "./project_view_files.js";
+import { projectViewFolderUrl } from "./extension_files_served_with_types_removed.js";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";

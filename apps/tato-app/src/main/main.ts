@@ -51,7 +51,7 @@ import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import { ProjectAssetsImportedFromChosenFiles, type ProjectAssetFilesDialog } from "./project_assets_imported_from_chosen_files.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { localApiRequestFailure } from "./local_api_request_failure.js";
-import { answerAProjectViewFileRequest, ProjectViewsListedToTheWindows, type AnswerAProjectViewFileRequest } from "./project_view_files.js";
+import { projectViewFileRequestsAnsweredOn, ProjectViewsListedToTheWindows, type AnswerAProjectViewFileRequest } from "./extension_files_served_with_types_removed.js";
 import { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 import { RuntimeViewerControlConnection } from "./runtime_viewer_control_connection.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
@@ -396,13 +396,6 @@ export async function startTatolabApp(
     return aRuntimeTheAppStartedIsRunning ? Promise.all([runtimeStopped, studioRuntimeDisposed]).then(() => undefined) : null;
   });
   const projectViewsListed = new ProjectViewsListedToTheWindows();
-  tatolabElectronAppShell.answerProjectViewFileRequestsWith((requestUrl) =>
-    answerAProjectViewFileRequest(requestUrl, {
-      aStudioWindowHoldsTheProjectIn: (projectFolder) => tatolabAppWindows.aStudioWindowHoldsTheProjectIn(projectFolder),
-      projectViewsListed,
-      readProjectFile: projectFilesOfTheRuntime.readProjectFile,
-    }),
-  );
   const projectOpening = new ProjectOpening({
     homeDirectory: tatolabElectronAppShell.homeDirectory,
     documentsDirectory: tatolabElectronAppShell.documentsDirectory,
@@ -527,6 +520,7 @@ export async function startTatolabApp(
   const studioRuntime = ManagedRuntime.make(studioRuntimeLayer(sharedState, platformForThisBuild.localApiSocket));
   studioRuntimeOnceBuilt = studioRuntime;
   tatolabElectronAppShell.answerTheWindowsCommands(tatolabWindowCommandHandlers(sharedState, studioRuntime, quitTheApp));
+  tatolabElectronAppShell.answerProjectViewFileRequestsWith(projectViewFileRequestsAnsweredOn(studioRuntime));
   sharedStateOnceBuilt = sharedState;
   const onTrayMenuChoice = (trayMenuChoice: TrayMenuChoice) => {
     switch (trayMenuChoice) {

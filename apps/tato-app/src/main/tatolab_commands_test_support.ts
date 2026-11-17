@@ -1,5 +1,5 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { ProjectViewsListedToTheWindows } from "./project_view_files.js";
+import { ProjectViewsListedToTheWindows } from "./extension_files_served_with_types_removed.js";
 import { streamGraphChangesFollowedForTheWindows } from "./stream_graph_changes_followed_for_the_windows.js";
 import { projectLogRecordsFollowedForTheWindows } from "./project_log_records_followed_for_the_windows.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";

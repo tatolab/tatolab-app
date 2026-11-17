@@ -4,8 +4,9 @@
 
 import { createHash } from "node:crypto";
 import path from "node:path";
+import { SUPPLIED_MODULES_IMPORT_MAP_TEXT, SUPPLIED_MODULES_PATH } from "@tatolab/tato-app-view-sdk/supplied_modules";
 import { TATOLAB_WINDOW_PAGE_HOST, TATOLAB_WINDOW_PAGE_SCHEME } from "../shared/tatolab_electron_bridge_contract.js";
-import { isAProjectViewFileUrl, PROJECT_VIEW_FILES_PATH } from "./project_view_files.js";
+import { isAProjectViewFileUrl, PROJECT_VIEW_FILES_PATH } from "./extension_files_served_with_types_removed.js";
 
 
 /** The shipped window's page. */
@@ -33,6 +34,13 @@ export function builtWindowFileForRequest(builtWindowDirectory: string, requestU
   const relativeToTheBuiltWindow = path.relative(builtWindowDirectory, builtWindowFile);
   if (relativeToTheBuiltWindow === "" || relativeToTheBuiltWindow.startsWith("..") || path.isAbsolute(relativeToTheBuiltWindow)) return null;
   return builtWindowFile;
+}
+
+/** Whether `requestUrl` asks for one of the modules the Studio supplies to views, at `/studio_sdk/` on the window page's scheme. */
+export function isASuppliedModuleUrl(requestUrl: string): boolean {
+  if (!URL.canParse(requestUrl)) return false;
+  const parsedRequestUrl = new URL(requestUrl);
+  return parsedRequestUrl.protocol === `${TATOLAB_WINDOW_PAGE_SCHEME}:` && parsedRequestUrl.host === TATOLAB_WINDOW_PAGE_HOST && parsedRequestUrl.pathname.startsWith(SUPPLIED_MODULES_PATH);
 }
 
 /** Whether `navigationUrl` stays on the window page's own scheme and host. A custom scheme's URL origin is the opaque "null", which every file:, data: and custom-scheme URL shares, so origins cannot be compared. */
@@ -76,21 +84,25 @@ export function isACommandFromTheWindowsOwnPage(windowPageUrl: string, senderFra
   return senderFrameUrl !== null && senderIsTheTopFrame && isOnTheWindowPagesOwnLocation(windowPageUrl, senderFrameUrl);
 }
 
+/** The `'sha256-…'` source that admits the inline script `inlineScriptText`. */
+function scriptHashSource(inlineScriptText: string): string {
+  return `'sha256-${createHash("sha256").update(inlineScriptText).digest("base64")}'`;
+}
+
 /** The `'sha256-…'` source of every inline script in `windowPageHtml`: the theme script that runs before the page paints. */
 export function inlineScriptHashSources(windowPageHtml: string): string[] {
-  return [...windowPageHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(
-    ([, inlineScriptText]) => `'sha256-${createHash("sha256").update(inlineScriptText ?? "").digest("base64")}'`,
-  );
+  return [...windowPageHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(([, inlineScriptText]) => scriptHashSource(inlineScriptText ?? ""));
 }
 
 /**
- * The window page's content security policy: only its own origin, its inline theme script, inline styles, data: fonts
- * and images, and frames only of its core views' pages and its project views' files.
+ * The window page's content security policy: only its own origin, its inline theme script, the supplied modules' import
+ * map each core view's page holds, inline styles, data: fonts and images, and frames only of its core views' pages and
+ * its project views' files. The window serves every page of its own under this one policy, its core views' among them.
  */
 export function windowPageContentSecurityPolicy(windowPageHtml: string): string {
   return [
     "default-src 'self'",
-    `script-src 'self' ${inlineScriptHashSources(windowPageHtml).join(" ")}`.trimEnd(),
+    ["script-src 'self'", ...inlineScriptHashSources(windowPageHtml), scriptHashSource(SUPPLIED_MODULES_IMPORT_MAP_TEXT)].join(" "),
     "connect-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",

@@ -3,7 +3,7 @@
 // bytes `read_project_file` answers.
 
 import type { ListedStudioView, OpenProjectReading } from "../shared/tatolab_backend_contract.js";
-import { projectViewFolderUrl, type ProjectViewsListedToTheWindows } from "./project_view_files.js";
+import { projectViewFolderUrl, type ProjectViewsListedToTheWindows } from "./extension_files_served_with_types_removed.js";
 import { studioViewOpeningOf, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 

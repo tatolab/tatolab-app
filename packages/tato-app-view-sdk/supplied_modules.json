@@ -1,0 +1,6 @@
+[
+  { "name": "@tatolab/tato-app-view-sdk", "served_file": "index.js" },
+  { "name": "@tatolab/tato-app-view-sdk/studio_readings", "served_file": "studio_readings.js" },
+  { "name": "@tatolab/tato-app-view-sdk/port_families", "served_file": "port_families.js" },
+  { "name": "@tatolab/tato-app-view-sdk/pin_type_readings", "served_file": "pin_type_readings.js" }
+]
