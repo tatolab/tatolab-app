@@ -122,8 +122,7 @@ describe("connectToTatoAppOverPort", () => {
     });
     const readings: unknown[] = [];
     connection.watchProjectTransactions("/p", (reading) => readings.push(reading));
-    await nextTurns();
-    expect(readings).toEqual([{ kind: "not_read", because: "No runtime answers." }]);
+    await vi.waitFor(() => expect(readings).toEqual([{ kind: "not_read", because: "No runtime answers." }]));
     const author = { kind: "agent", name: "claude-code" } as const;
     expect(await connection.undoInTheProject("/p", author)).toEqual({ kind: "applied", transaction: undo });
     expect(messagesFromTheView.at(-1)).toMatchObject({ kind: "ask", ask: { kind: "undo_in_the_project", project_folder: "/p", author } });
