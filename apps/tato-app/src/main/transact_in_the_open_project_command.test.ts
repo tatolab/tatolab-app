@@ -131,7 +131,7 @@ test("a graph transaction in the open project reaches the runtime's transact hel
   });
   expect(await commandHandlers.transact_in_the_open_project({ operations: [{ ...setTheSize, force: true }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: false,
-    refusal: 'transact_in_the_open_project: Expected StreamGraphAction\n  at ["operations"][0]',
+    refusal: 'transact_in_the_open_project: not a graph action the runtime takes: Unrecognized key: "force"\n  at ["operations"][0]',
   });
   expect(await commandHandlers.transact_in_the_open_project({ operations: [], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: false,
@@ -139,11 +139,10 @@ test("a graph transaction in the open project reaches the runtime's transact hel
   });
   expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "kept", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: false,
-    refusal: 'transact_in_the_open_project: Expected GraphEditMode\n  at ["mode"]',
+    refusal: 'transact_in_the_open_project: not a graph edit mode, commit or live: Invalid option: expected one of "commit"|"live"\n  at ["mode"]',
   });
   expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "commit", idempotency_key: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
-
 
 test("adding a node wired to the test pattern is sent as the runtime's transact by the person editing and answers what it applied, a retry under its key answering the first", async () => {
   const server = await serverReplaying(

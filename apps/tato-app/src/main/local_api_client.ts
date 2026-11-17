@@ -47,6 +47,7 @@ import {
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import {
+  authorOnTheWire,
   callOneControlOperationOverAPost,
   controlOperationTimeLimitMs,
   durationAsTheTimeoutFailureSpellsIt,
@@ -106,7 +107,6 @@ import {
 
 /** The most bytes one plain HTTP answer of the local API may carry before the client gives up on it. */
 const LARGEST_LOCAL_API_RESPONSE_BYTES = 8 * 1024 * 1024;
-
 
 /** A stream's `location` on the wire: `project_directory`, its project's UUID as `project` and its stream asset's UUID as `stream_asset`. */
 function streamLocationOnTheWire(location: JsonObjectOnTheWire): Result<StreamLocation, string> {
@@ -702,7 +702,6 @@ export class LocalApiClient {
     return transaction.ok ? transaction : localApiRequestFailure(transaction.failure);
   }
 
-
   /** `GET requestTarget`, answering the body of a `200`; any other answer is refused in the runtime's own words when its body carries them. */
   private async getBodyOfAnOkAnswer(requestTarget: string): Promise<Result<Buffer, LocalApiRequestFailure>> {
     const response = await this.sendOneHttpRequestAndReadItsResponse("GET", requestTarget, [], null);
@@ -853,9 +852,4 @@ function dechunkedBody(chunkedBody: Buffer): Result<Buffer, string> {
     if (remaining.length < chunkSize + 2) return failedWith("the body ended after a chunk");
     remaining = remaining.subarray(chunkSize + 2);
   }
-}
-
-/** `author` as the runtime's tools take it: its kind and name, nothing else. */
-function authorOnTheWire(author: ProjectTransactionAuthor): { kind: ProjectTransactionAuthor["kind"]; name: string } {
-  return { kind: author.kind, name: author.name };
 }

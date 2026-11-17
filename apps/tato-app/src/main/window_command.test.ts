@@ -2,7 +2,7 @@ import { Effect, ManagedRuntime } from "effect";
 import { afterEach, expect, test } from "vitest";
 import { tatolabAppLogAsEffectsLogger } from "./studio_runtime.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
-import { TransactInTheOpenProjectArguments } from "./transact_in_the_open_project_arguments.js";
+import { TransactInTheOpenProjectArguments } from "../shared/transact_in_the_open_project_arguments.js";
 import { CommandRefused, windowCommand } from "./window_command.js";
 
 const runtimesToDispose: ManagedRuntime.ManagedRuntime<never, never>[] = [];

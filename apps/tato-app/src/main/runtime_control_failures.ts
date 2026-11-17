@@ -4,10 +4,14 @@
 import { Data } from "effect";
 import type { ProjectActionRefusalOnTheWire } from "@tatolab/runtime-client";
 
-/** The runtime answered `operation` and said no; `refusal` is the contract's structured refusal when the runtime gave one. */
+/**
+ * The runtime answered `operation` and said no: `byTheOperation` when the operation itself refused or failed, otherwise its
+ * control API refused the call; `refusal` is the contract's structured refusal when the operation gave one.
+ */
 export class RuntimeRefused extends Data.TaggedError("RuntimeRefused")<{
   readonly operation: string;
   readonly words: string;
+  readonly byTheOperation: boolean;
   readonly refusal: ProjectActionRefusalOnTheWire | undefined;
 }> {}
 

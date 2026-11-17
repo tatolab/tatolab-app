@@ -12,12 +12,12 @@ import { fromResult } from "./result_as_effect.js";
 import { ContractMismatch } from "./runtime_control_failures.js";
 import { ListedStreams, PersonEditingInStudio, StudioWindows, type StudioServices } from "./studio_runtime.js";
 import type { TatolabCommandFromWindow } from "./tatolab_command_answers.js";
-import { RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
-import { TransactInTheOpenProjectArguments, type ProjectGraphTransactionSentByTheWindow } from "./transact_in_the_open_project_arguments.js";
+import { authorOnTheWire, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
+import { TransactInTheOpenProjectArguments, type ProjectGraphTransactionSentByTheWindow } from "../shared/transact_in_the_open_project_arguments.js";
 import { CommandRefused, windowCommand } from "./window_command.js";
 
 /** The transaction `transact` answered, as the window reads it: each absent key the contract allows as `null` or empty; or why its mode or an operation is not one the window reads. */
-export function transactionTheWindowReads(answered: GraphTransactionToolResult): Result<ProjectGraphTransaction, string> {
+function transactionTheWindowReads(answered: GraphTransactionToolResult): Result<ProjectGraphTransaction, string> {
   const { mode, operations } = answered;
   if (mode !== "commit" && mode !== "live") return failedWith(`the runtime's transact answered the mode \`${mode}\`, neither commit nor live`);
   if (!operations.every(isAJsonValue)) return failedWith("the runtime's transact answered an applied operation that is not JSON");
@@ -40,7 +40,7 @@ export function transactionTheWindowReads(answered: GraphTransactionToolResult):
 }
 
 /** The runtime's structured refusal as the window reads it: each absent key the contract allows as `null`. */
-export function refusalTheWindowReads(refusal: ProjectActionRefusalOnTheWire): ProjectActionRefusal {
+function refusalTheWindowReads(refusal: ProjectActionRefusalOnTheWire): ProjectActionRefusal {
   return {
     action: refusal.action,
     refused_operation_index: refusal.refused_operation_index ?? null,
@@ -74,7 +74,7 @@ export const transactInTheOpenProject = Effect.fn("transact_in_the_open_project"
     .call("transact", {
       operations: [...transacting.operations],
       mode: transacting.mode,
-      author: { kind: author.kind, name: author.name },
+      author: authorOnTheWire(author),
       ...(transacting.idempotency_key === null ? {} : { idempotency_key: transacting.idempotency_key }),
     })
     .pipe(

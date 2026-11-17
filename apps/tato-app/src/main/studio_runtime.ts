@@ -5,12 +5,12 @@
 
 import { Cause, Context, Effect, Layer, Logger, type LogLevel } from "effect";
 import type { ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
+import { streamsOfTheProjectIn } from "../shared/project_playback.js";
 import { fromResult } from "./result_as_effect.js";
-import { LOCAL_API_REQUEST_TIMEOUT_MS } from "./tatolab_app_controller.js";
 import type { TatolabAppLog, TatolabAppLogFields, TatolabAppLogLevel } from "./tatolab_app_log.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { studioWindowTheCommandCameFrom, type TatolabCommandFromWindow } from "./tatolab_command_answers.js";
-import { RuntimeControl, runtimeControlLayer } from "./tatolab_runtime_control_operation_call.js";
+import { LOCAL_API_REQUEST_TIMEOUT_MS, RuntimeControl, runtimeControlLayer } from "./tatolab_runtime_control_operation_call.js";
 import { CommandRefused } from "./window_command.js";
 
 /** The studio windows, each with its project. */
@@ -83,11 +83,7 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
     }),
     Layer.succeed(ListedStreams, {
       streamAssetsOfTheProject: (projectFolder) =>
-        new Set(
-          (sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? []).flatMap((listedStream) =>
-            listedStream.location?.project_directory === projectFolder ? [listedStream.location.stream_asset] : [],
-          ),
-        ),
+        new Set(streamsOfTheProjectIn(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectFolder).flatMap((listedStream) => listedStream.location?.stream_asset ?? [])),
     }),
     Layer.succeed(PersonEditingInStudio, { author: sharedState.thePersonEditingInStudio }),
     tatolabAppLogAsEffectsLogger(sharedState.tatolabAppLog),

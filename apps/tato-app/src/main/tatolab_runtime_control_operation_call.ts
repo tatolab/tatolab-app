@@ -22,7 +22,7 @@ import {
   type ControlOperations,
 } from "@tatolab/runtime-client";
 import { Context, Duration, Effect, Layer } from "effect";
-import { TATO_STUDIO_MCP_CLIENT_NAME } from "../shared/tatolab_backend_contract.js";
+import { TATO_STUDIO_MCP_CLIENT_NAME, type ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { describeCaughtFailure, succeeded, type Result } from "./result.js";
 import { ContractMismatch, RuntimeRefused, RuntimeTimedOut, RuntimeUnreachable, type RuntimeControlFailure } from "./runtime_control_failures.js";
@@ -36,6 +36,9 @@ export type ControlOperationParams<Method extends ControlOperationMethodName> = 
 export type ControlOperationAnswer =
   | { kind: "answered"; result: unknown }
   | { kind: "refused_by_the_operation"; words: string; refusal: unknown };
+
+/** How long one local API request may go without its answer before the runtime reads as not answering, unless its operation has a limit of its own. */
+export const LOCAL_API_REQUEST_TIMEOUT_MS = 3_000;
 
 /**
  * The time limit of each operation that takes longer than a call's default: `list_project_node_types` runs the project's
@@ -71,6 +74,41 @@ function isNoRuntimeListening(callFailure: unknown): boolean {
   return callFailure instanceof Error && "code" in callFailure && typeof callFailure.code === "string" && NO_RUNTIME_LISTENING_ERROR_CODES.includes(callFailure.code);
 }
 
+/** `author` as the runtime's tools take it: its kind and name, nothing else. */
+export function authorOnTheWire(author: ProjectTransactionAuthor): { kind: ProjectTransactionAuthor["kind"]; name: string } {
+  return { kind: author.kind, name: author.name };
+}
+
+/** A client of the local API at `localApiSocketPath` whose calls each go in one `POST /control`. */
+function controlClientOfOnePost(localApiSocketPath: string): TatolabRuntimeClient {
+  return new TatolabRuntimeClient(new ControlPostTransport({ socketPath: localApiSocketPath, clientName: TATO_STUDIO_MCP_CLIENT_NAME }));
+}
+
+/** That `method` to `localApiSocketPath` did not answer within `timeLimitMs`. */
+function runtimeTimedOut(method: ControlOperationMethodName, localApiSocketPath: string, timeLimitMs: number): RuntimeTimedOut {
+  return new RuntimeTimedOut({ operation: method, words: `\`${method}\` to ${localApiSocketPath} did not answer within ${durationAsTheTimeoutFailureSpellsIt(timeLimitMs)}` });
+}
+
+/** The failure `callFailure`, thrown by the client calling `method` on the local API at `localApiSocketPath`, stands for; the one reading of a failed call, for every path that calls. */
+function runtimeControlFailureOfTheCall(method: ControlOperationMethodName, localApiSocketPath: string, callFailure: unknown): RuntimeControlFailure {
+  if (callFailure instanceof ControlOperationError) {
+    const byTheOperation = callFailure.code === CONTROL_OPERATION_REFUSED_ERROR_CODE || callFailure.code === CONTROL_OPERATION_FAILED_ERROR_CODE;
+    return new RuntimeRefused({
+      operation: method,
+      words: byTheOperation ? callFailure.message : `the runtime refused \`${method}\`: ${callFailure.message}`,
+      byTheOperation,
+      refusal: byTheOperation ? callFailure.refusal : undefined,
+    });
+  }
+  if (callFailure instanceof ControlRequestInvalid) return new ContractMismatch({ operation: method, words: callFailure.message, direction: "request" });
+  if (callFailure instanceof ControlAnswerInvalid) return new ContractMismatch({ operation: method, words: callFailure.message, direction: "answer" });
+  const failureText = describeCaughtFailure(callFailure);
+  return new RuntimeUnreachable({
+    operation: method,
+    words: isNoRuntimeListening(callFailure) ? `no runtime answers at ${localApiSocketPath}: ${failureText}` : `\`${method}\` to ${localApiSocketPath} got no answer: ${failureText}`,
+  });
+}
+
 /** How the call to `method` that `sendTheCall` made settled, given up after `responseTimeoutMs`. */
 async function controlOperationAnswerOfTheCall(
   method: ControlOperationMethodName,
@@ -83,22 +121,16 @@ async function controlOperationAnswerOfTheCall(
     const result = await sendTheCall({ signal: responseTimeout });
     return succeeded({ kind: "answered", result });
   } catch (callFailure) {
-    if (callFailure instanceof ControlOperationError) {
-      if (callFailure.code === CONTROL_OPERATION_REFUSED_ERROR_CODE || callFailure.code === CONTROL_OPERATION_FAILED_ERROR_CODE) {
-        return succeeded({ kind: "refused_by_the_operation", words: callFailure.message, refusal: callFailure.refusal ?? null });
-      }
-      return theRuntimesRefusal(`the runtime refused \`${method}\`: ${callFailure.message}`);
+    const failure = runtimeControlFailureOfTheCall(method, localApiSocketPath, callFailure);
+    switch (failure._tag) {
+      case "RuntimeRefused":
+        return failure.byTheOperation ? succeeded({ kind: "refused_by_the_operation", words: failure.words, refusal: failure.refusal ?? null }) : theRuntimesRefusal(failure.words);
+      case "RuntimeUnreachable":
+        return localApiRequestFailure(responseTimeout.aborted ? runtimeTimedOut(method, localApiSocketPath, responseTimeoutMs).words : failure.words);
+      case "RuntimeTimedOut":
+      case "ContractMismatch":
+        return localApiRequestFailure(failure.words);
     }
-    if (callFailure instanceof ControlRequestInvalid || callFailure instanceof ControlAnswerInvalid) {
-      return localApiRequestFailure(callFailure.message);
-    }
-    if (responseTimeout.aborted) {
-      return localApiRequestFailure(`\`${method}\` to ${localApiSocketPath} did not answer within ${durationAsTheTimeoutFailureSpellsIt(responseTimeoutMs)}`);
-    }
-    const failureText = describeCaughtFailure(callFailure);
-    return localApiRequestFailure(
-      isNoRuntimeListening(callFailure) ? `no runtime answers at ${localApiSocketPath}: ${failureText}` : `\`${method}\` to ${localApiSocketPath} got no answer: ${failureText}`,
-    );
   }
 }
 
@@ -109,27 +141,8 @@ export function callOneControlOperationOverAPost<Method extends ControlOperation
   params: ControlOperationParams<Method>,
   responseTimeoutMs: number,
 ): Promise<Result<ControlOperationAnswer, LocalApiRequestFailure>> {
-  const controlClientOfOnePost = new TatolabRuntimeClient(new ControlPostTransport({ socketPath: localApiSocketPath, clientName: TATO_STUDIO_MCP_CLIENT_NAME }));
-  return controlOperationAnswerOfTheCall(method, localApiSocketPath, responseTimeoutMs, (callOptions) => controlClientOfOnePost.call(method, params, callOptions));
-}
-
-/** The failure `callFailure`, thrown by the client calling `method` on the local API at `localApiSocketPath`, stands for. */
-function runtimeControlFailureOfTheCall(method: ControlOperationMethodName, localApiSocketPath: string, callFailure: unknown): RuntimeControlFailure {
-  if (callFailure instanceof ControlOperationError) {
-    const refusedByTheOperation = callFailure.code === CONTROL_OPERATION_REFUSED_ERROR_CODE || callFailure.code === CONTROL_OPERATION_FAILED_ERROR_CODE;
-    return new RuntimeRefused({
-      operation: method,
-      words: refusedByTheOperation ? callFailure.message : `the runtime refused \`${method}\`: ${callFailure.message}`,
-      refusal: refusedByTheOperation ? callFailure.refusal : undefined,
-    });
-  }
-  if (callFailure instanceof ControlRequestInvalid) return new ContractMismatch({ operation: method, words: callFailure.message, direction: "request" });
-  if (callFailure instanceof ControlAnswerInvalid) return new ContractMismatch({ operation: method, words: callFailure.message, direction: "answer" });
-  const failureText = describeCaughtFailure(callFailure);
-  return new RuntimeUnreachable({
-    operation: method,
-    words: isNoRuntimeListening(callFailure) ? `no runtime answers at ${localApiSocketPath}: ${failureText}` : `\`${method}\` to ${localApiSocketPath} got no answer: ${failureText}`,
-  });
+  const controlClient = controlClientOfOnePost(localApiSocketPath);
+  return controlOperationAnswerOfTheCall(method, localApiSocketPath, responseTimeoutMs, (callOptions) => controlClient.call(method, params, callOptions));
 }
 
 /** The one service that calls the runtime: each control operation by its method, typed by the contract both ways, within the operation's time limit. */
@@ -149,16 +162,12 @@ export function runtimeControlLayer(localApiSocketPath: string, defaultTimeLimit
     call: <Method extends ControlOperationMethodName>(method: Method, params: ControlOperationParams<Method>) => {
       const timeLimitMs = controlOperationTimeLimitMs(method, defaultTimeLimitMs);
       return Effect.tryPromise({
-        try: (signal) =>
-          new TatolabRuntimeClient(new ControlPostTransport({ socketPath: localApiSocketPath, clientName: TATO_STUDIO_MCP_CLIENT_NAME })).call(method, params, { signal }),
+        try: (signal) => controlClientOfOnePost(localApiSocketPath).call(method, params, { signal }),
         catch: (callFailure) => runtimeControlFailureOfTheCall(method, localApiSocketPath, callFailure),
       }).pipe(
         Effect.timeoutOrElse({
           duration: Duration.millis(timeLimitMs),
-          orElse: () =>
-            Effect.fail(
-              new RuntimeTimedOut({ operation: method, words: `\`${method}\` to ${localApiSocketPath} did not answer within ${durationAsTheTimeoutFailureSpellsIt(timeLimitMs)}` }),
-            ),
+          orElse: () => Effect.fail(runtimeTimedOut(method, localApiSocketPath, timeLimitMs)),
         }),
       );
     },
