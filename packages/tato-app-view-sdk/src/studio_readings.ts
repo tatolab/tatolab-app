@@ -1,7 +1,6 @@
 // Everything a view reads from Tato Studio, as Zod schemas: what crosses a view's MessagePort is
 // parsed against these on both ends, and Studio's own code takes its types from them.
 
-import type { ControlOperationRefusalCode, ProjectFilePlaceOnTheWire, SuggestedOperationCall } from "@tatolab/runtime-client";
 import { z } from "zod";
 import { PORT_FAMILIES } from "./port_families.js";
 
@@ -710,19 +709,16 @@ export type ProjectTransaction = z.infer<typeof projectTransactionSchema>;
 /** One end of the link a refused operation names: a node by UUID or `as` label, and one of its ports. */
 export const refusedGraphLinkEndSchema = z.object({ node: z.string(), port: z.string() });
 
-/** A refusal's code as Studio's main process read it through the generated runtime client, which reads a code it does not know as `refused`; Studio keeps no list of codes of its own. */
-const refusalCodeSchema = z.custom<ControlOperationRefusalCode>((value) => typeof value === "string", "a refusal's code is text");
+/** The place in a project file a refusal is about: its path in the project, and a line and column, each from 1, when the place is narrower. */
+const refusedFileSchema = z.object({ path: z.string(), line: z.number().int().positive().nullish(), column: z.number().int().positive().nullish() });
 
-/** The place in a project file a refusal is about: its path in the project, and a line and column when the place is narrower. */
-const refusedFileSchema: z.ZodType<ProjectFilePlaceOnTheWire> = z.object({ path: z.string(), line: z.number().int().nullish(), column: z.number().int().nullish() });
-
-/** A call a refusal suggests, exactly as the runtime's `call_operation` takes it. */
-const suggestedCallSchema: z.ZodType<SuggestedOperationCall> = z.object({ operation: z.string(), params: z.record(z.string(), jsonValueSchema) });
+/** A call a refusal suggests: the operation by name and its params, exactly as the runtime's `call_operation` takes them. */
+const suggestedCallSchema = z.object({ operation: z.string(), params: z.record(z.string(), jsonValueSchema) });
 
 /** What the runtime refused of an action, and why in its own words. */
 export const projectActionRefusalSchema = z.object({
-  /** What kind of refusal it is, for the surface that made the edit to branch on; never turned into words. */
-  refusal_code: refusalCodeSchema,
+  /** What kind of refusal it is, for the surface that made the edit to branch on, never turned into words. The set is the runtime's and grows, so it is open here; Studio's main process reads it through the generated runtime client, which reads a code it does not know as `refused`. */
+  refusal_code: z.string(),
   /** The action refused, by the name of the tool it was sent to. */
   action: z.string(),
   /** The position, from 0, of the operation refused among those the action sent; `null` when none was. */

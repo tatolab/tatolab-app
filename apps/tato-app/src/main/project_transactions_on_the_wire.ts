@@ -8,7 +8,7 @@
 // every other key a newer runtime adds is ignored. A refusal is read against the contract's own
 // refusal through the generated client, so a refusal code this app does not know reads as `refused`.
 
-import type { ProjectActionRefusalOnTheWire } from "@tatolab/runtime-client";
+import type { ProjectActionRefusalOnTheWire, SuggestedOperationCall } from "@tatolab/runtime-client";
 import type { JsonValue, ProjectActionRefusal, ProjectTransaction, ProjectTransactions, RefusedProjectAction } from "../shared/tatolab_backend_contract.js";
 import {
   everyOneRead,
@@ -76,7 +76,21 @@ function projectTransactionFromItsFields(fields: JsonObjectOnTheWire): Result<Pr
   });
 }
 
-/** `refusal`, the contract's refusal as the generated runtime client read it, in Studio's shape: each place it names, and `null` for each it leaves out. */
+/** `call`'s params as JSON, or `null` when one of them is not JSON: the client reads an integer past `Number.MAX_SAFE_INTEGER` as a `bigint`. */
+function suggestedCallOfTheContract(call: SuggestedOperationCall): ProjectActionRefusal["suggested_call"] {
+  const params: Record<string, JsonValue> = {};
+  for (const [key, value] of Object.entries(call.params)) {
+    if (!isAJsonValue(value)) return null;
+    params[key] = value;
+  }
+  return { operation: call.operation, params };
+}
+
+/**
+ * `refusal`, the contract's refusal as the generated runtime client read it, in Studio's shape: its code, its words and each place
+ * Studio reads, `null` for each it leaves out. Each field is assigned from the contract's own type, so a Studio shape the contract's
+ * values do not fit does not compile. `not_running_because` is not read yet.
+ */
 export function projectActionRefusalOfTheContract(refusal: ProjectActionRefusalOnTheWire): ProjectActionRefusal {
   return {
     refusal_code: refusal.refusal_code,
@@ -87,7 +101,7 @@ export function projectActionRefusalOfTheContract(refusal: ProjectActionRefusalO
     refused_field: refusal.refused_field ?? null,
     refused_params_pointer: refusal.refused_params_pointer ?? null,
     refused_file: refusal.refused_file ?? null,
-    suggested_call: refusal.suggested_call ?? null,
+    suggested_call: refusal.suggested_call === undefined || refusal.suggested_call === null ? null : suggestedCallOfTheContract(refusal.suggested_call),
     runtime_words: refusal.runtime_words,
   };
 }
@@ -95,7 +109,7 @@ export function projectActionRefusalOfTheContract(refusal: ProjectActionRefusalO
 /** The structured refusal `fields` carries under `refusal`, as the feed's refused actions do, read against the contract's refusal; or why it cannot be read. */
 export function projectActionRefusalAt(fields: JsonObjectOnTheWire): Result<ProjectActionRefusal, string> {
   const refusal = controlContractRefusalOf(fields["refusal"]);
-  return refusal === null ? failedWith("a refused action's refusal is not the contract's refusal") : succeeded(projectActionRefusalOfTheContract(refusal));
+  return refusal.ok ? succeeded(projectActionRefusalOfTheContract(refusal.value)) : failedWith(`a refused action's refusal is not the contract's refusal: ${refusal.failure}`);
 }
 
 function refusedProjectActionFromItsFields(fields: JsonObjectOnTheWire): Result<RefusedProjectAction, string> {

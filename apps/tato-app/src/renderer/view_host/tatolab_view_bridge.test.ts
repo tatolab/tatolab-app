@@ -1,4 +1,4 @@
-import type { StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { ProjectActionRefusal, StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
 import {
   connectToTatoAppOverPort,
   readTatolabViewManifest,
@@ -81,7 +81,7 @@ const GRAPH_TRANSACTION_APPLIED = {
   added_notes: [],
 };
 
-const GRAPH_TRANSACTION_REFUSAL = {
+const GRAPH_TRANSACTION_REFUSAL: ProjectActionRefusal = {
   refusal_code: "params_do_not_match_schema",
   action: "transact",
   refused_operation_index: 0,
@@ -90,9 +90,9 @@ const GRAPH_TRANSACTION_REFUSAL = {
   refused_field: null,
   refused_params_pointer: "/operations/0/name",
   refused_file: { path: "streams/main.graph.json", line: 12, column: 5 },
-  suggested_call: { operation: "describe_operations", params: { methods: ["transact"] } },
+  suggested_call: { operation: "describe_operations", params: { operations: ["transact"] } },
   runtime_words: "a node of that name exists",
-} as const;
+};
 
 const DECK_A_TARGET: PortViewerTarget = { stream: "set", node_id: "id-deck-a", port: "audio" };
 const DECK_B_TARGET: PortViewerTarget = { stream: "set", node_id: "id-deck-b", port: "audio" };

@@ -143,7 +143,7 @@ describe("connectToTatoAppOverPort", () => {
       refused_field: "width",
       refused_params_pointer: "/operations/0/config/width",
       refused_file: { path: "streams/main.graph.json", line: 7, column: 3 },
-      suggested_call: { operation: "describe_operations", params: { methods: ["transact"] } },
+      suggested_call: { operation: "describe_operations", params: { operations: ["transact"] } },
       runtime_words: "width is not an integer",
     };
     let asksAnswered = 0;

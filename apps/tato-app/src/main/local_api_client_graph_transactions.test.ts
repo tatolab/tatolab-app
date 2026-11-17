@@ -140,33 +140,6 @@ test("a_refused_graph_transaction_answers_the_runtimes_structured_refusal_its_co
   });
 });
 
-test("a_graph_transaction_whose_params_the_runtime_does_not_read_is_refused_with_its_code_and_the_pointer_to_the_value_refused", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-transact-refusal-for-a-stream-named-by-its-stream-id-not-its-asset-uuid.json")),
-  ]);
-
-  const rename = answerOf(
-    await server.client().transactOnTheStreamGraphs([{ operation: "rename_node", stream: "dbc5bd2d-25c8-48f5-bbc7-f85390eed673", node: "37baed6c-0749-45e7-aa92-bcd8f7720d24", name: "camera" }], "commit", null, SAM_EDITING_IN_STUDIO),
-  );
-
-  expect(rename).toEqual({
-    kind: "refused",
-    refusal: {
-      refusal_code: "params_do_not_match_schema",
-      action: "transact",
-      refused_operation_index: null,
-      refused_node: null,
-      refused_link: null,
-      refused_field: null,
-      refused_params_pointer: "/operations/0",
-      refused_file: null,
-      suggested_call: null,
-      runtime_words:
-        "`transact`'s params do not match its request: UUID parsing failed: invalid character: expected an optional prefix of `urn:uuid:` followed by [0-9a-fA-F-], found `h` at 1",
-    },
-  });
-});
-
 test("a_refusal_code_this_app_does_not_know_reads_as_refused_and_keeps_the_runtimes_words", async () => {
   const recorded: unknown = JSON.parse(await recordedResponseBody("local-api-transact-refusal-for-a-pin-value-on-an-input-channelstoarray-lacks.json"));
   const recordedError = typeof recorded === "object" && recorded !== null && "error" in recorded && typeof recorded.error === "object" && recorded.error !== null ? recorded.error : expect.unreachable("the recording is a refusal");

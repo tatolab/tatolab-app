@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
 import { projectActionRefusalAt, projectTransactionFromTheUndoOrRedoToolResult, projectTransactionsFromTheChangeFeed } from "./project_transactions_on_the_wire.js";
+import { recordedResponseBody } from "./local_api_client_test_support.js";
 import type { Result } from "./result.js";
 
 /** The first text block of a recorded JSON-RPC answer: a tool result's `content[0].text` or a resource read's `contents[0].text`. */
@@ -12,14 +13,9 @@ async function recordedAnswerText(fixtureFileName: string): Promise<string> {
   return typeof firstBlock === "object" && firstBlock !== null && "text" in firstBlock && typeof firstBlock.text === "string" ? firstBlock.text : expect.unreachable(`${fixtureFileName} holds no text block`);
 }
 
-/** The text of the recorded answer `fixtureFileName`. */
-function recordedResponseText(fixtureFileName: string): Promise<string> {
-  return readFile(new URL(`./test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
-}
-
 /** The `result` of a recorded JSON-RPC answer. */
 async function recordedControlResult(fixtureFileName: string): Promise<unknown> {
-  const answer: unknown = JSON.parse(await recordedResponseText(fixtureFileName));
+  const answer: unknown = JSON.parse(await recordedResponseBody(fixtureFileName));
   return typeof answer === "object" && answer !== null && "result" in answer ? answer.result : expect.unreachable(`${fixtureFileName} holds no result`);
 }
 
@@ -169,7 +165,7 @@ test("a refusal naming a place in a project file reads it, and a code this app d
     ok: true,
     value: { ...A_REFUSAL_FROM_A_RUNTIME_THAT_SENDS_NO_CODE, action: "check_project_code", refused_file: { path: "nodes/invert.py", line: 12 }, runtime_words: "the check ran out of time" },
   });
-  expect(projectActionRefusalAt({ refusal: { action: "transact" } })).toEqual({ ok: false, failure: "a refused action's refusal is not the contract's refusal" });
+  expect(projectActionRefusalAt({ refusal: { action: "transact" } })).toEqual({ ok: false, failure: expect.stringMatching(/^a refused action's refusal is not the contract's refusal: runtime_words: /) });
 });
 
 test("an edit whose author edited again after undoing it reads as no longer redoable, with every redo of it", async () => {
