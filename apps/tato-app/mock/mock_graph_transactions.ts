@@ -11,6 +11,7 @@
 
 import { mockGraphNodeIdOf, mockUuidOf, type MockGraphNode, type MockStreamGraph } from "./mock_stream_fixtures";
 import { studioAsTheRuntimeRendersIt } from "./mock_stream_graph_document";
+import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { MOCK_NODE_CATALOG_ENTRIES } from "./mock_node_catalog";
 import type { JsonValue, PortFamily, ProjectActionRefusal, ProjectGraphTransaction, StreamGraphAction, StreamGraphActionLinkEnd, StreamGraphGroup, StreamGraphLink, StreamGraphNodeStudioFields, StreamGraphNote } from "../src/shared/tatolab_backend_contract";
@@ -431,7 +432,7 @@ export function applyMockGraphTransaction(
           let name = shortName;
           for (let suffix = 2; operation.name === undefined && takenNames.has(name); suffix += 1) name = `${shortName}-${suffix}`;
           if (takenNames.has(name)) throw refusedNaming(`node \`${name}\` in this graph already has that name`, { refused_node: operation.as ?? name });
-          const portsOf = (ports: typeof catalogEntry.inputs) => ports.map((port) => ({ name: port.name, family: port.family, stream_facts: null, values_checked: port.family === "records" ? false : null, pin: null }));
+          const portsOf = (ports: typeof catalogEntry.inputs) => ports.map((port) => ({ name: port.name, family: port.family, stream_facts: null, values_checked: port.family === "records" ? false : null, pin: exactPinOfTheDeclaredPort(port.pin) }));
           const config = configHoldingTheDefaultNameOfAGraphPortOrVariable(operation.type, structuredClone(operation.config ?? {}), graph.nodes);
           const pins = structuredClone(operation.pins ?? {});
           const isAGraphInput = operation.type === GRAPH_INPUT_NODE_TYPE;

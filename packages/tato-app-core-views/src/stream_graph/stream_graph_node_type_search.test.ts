@@ -137,7 +137,22 @@ test("each_graph_generator_of_the_projects_own_source_is_offered_under_this_proj
   expect(graphGeneratorSearchItems(null, null)).toEqual([]);
 });
 
+test("a_previewed_pin_shows_the_type_its_node_type_states_exactly_and_none_where_another_pin_decides_it", () => {
+  const typed: NodeCatalogEntry = {
+    ...BLUR,
+    inputs: [{ name: "video_in", description: "Frames", family: "image", pin: { pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" } }],
+    outputs: [{ name: "video_out", description: "", family: "image", pin: { pin_type: { kind: "same_as_input", input_port_name: "video_in" }, flow: "stream" } }],
+  };
+  const previewCard = nodeTypeSearchPreviewCard([typed], typed.type);
+  expect(previewCard?.inputs.map((pin) => [pin.pin, pin.description])).toEqual([[{ pin_type: { type: "texture" }, flow: "stream" }, "Frames"]]);
+  expect(previewCard?.outputs.map((pin) => pin.pin)).toEqual([null]);
+});
+
 test("a_node_type_is_previewed_as_its_card_titled_in_words_with_its_pins_and_a_graph_generator_as_nothing", () => {
-  expect(nodeTypeSearchPreviewCard([BLUR, METER], "nodes.blur:GaussianBlur")).toEqual({ title: "Gaussian Blur", inputPins: BLUR.inputs, outputPins: BLUR.outputs });
+  expect(nodeTypeSearchPreviewCard([BLUR, METER], "nodes.blur:GaussianBlur")).toEqual({
+    title: "Gaussian Blur",
+    inputs: [{ name: "video_in", pin: null, family: "image", description: null, stream_facts_words: [] }],
+    outputs: [{ name: "video_out", pin: null, family: "image", description: null, stream_facts_words: [] }],
+  });
   expect(nodeTypeSearchPreviewCard([BLUR, METER], "graph_generator:generators.mics:mic_levels")).toBeNull();
 });

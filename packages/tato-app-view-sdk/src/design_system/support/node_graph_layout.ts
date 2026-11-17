@@ -2,10 +2,12 @@
 // columns, each node one column past the furthest node feeding it, each column ordered to untangle
 // crossings and packed so a node's first input lines up with the outputs that feed it.
 
+import { nodePinRows } from "../../pin_model/node_pins";
+
 /** A node card's header, over its pin rows. */
 export const NODE_GRAPH_CARD_HEADER_HEIGHT = 26;
-/** One row of pins: an input on the left and an output on the right. */
-export const NODE_GRAPH_PIN_ROW_HEIGHT = 20;
+/** One pin's row, the card's full width: an output's socket at the right edge, an input's at the left. */
+export const NODE_GRAPH_PIN_ROW_HEIGHT = 24;
 /** The space above the first pin row and below the last. */
 export const NODE_GRAPH_CARD_PIN_ROWS_PADDING = 6;
 /** The band under a failed card's pin rows that holds why it failed, two lines at most. */
@@ -38,10 +40,10 @@ export interface NodeGraphPosition {
   y: number;
 }
 
-/** A card's height: its header, then a row per pin on its busier side, then why it failed when it shows that; a collapsed card is its header alone. */
+/** A card's height: its header, then a row per pin, then why it failed when it shows that; a collapsed card is its header alone. */
 export function nodeGraphCardHeight(node: Pick<NodeGraphLayoutNode, "input_pin_names" | "output_pin_names" | "shows_failure_words" | "is_collapsed">): number {
   if (node.is_collapsed) return NODE_GRAPH_CARD_HEADER_HEIGHT;
-  const pinRowCount = Math.max(node.input_pin_names.length, node.output_pin_names.length);
+  const pinRowCount = node.input_pin_names.length + node.output_pin_names.length;
   return (
     NODE_GRAPH_CARD_HEADER_HEIGHT +
     NODE_GRAPH_CARD_PIN_ROWS_PADDING * 2 +
@@ -51,8 +53,13 @@ export function nodeGraphCardHeight(node: Pick<NodeGraphLayoutNode, "input_pin_n
 }
 
 /** How far below a card's top the centre of its pin row `rowIndex` sits. */
-export function nodeGraphPinRowCentreOffset(rowIndex: number): number {
+function nodeGraphPinRowCentreOffset(rowIndex: number): number {
   return NODE_GRAPH_CARD_HEADER_HEIGHT + NODE_GRAPH_CARD_PIN_ROWS_PADDING + rowIndex * NODE_GRAPH_PIN_ROW_HEIGHT + NODE_GRAPH_PIN_ROW_HEIGHT / 2;
+}
+
+/** The row a card draws its pin `pinName` of `side` on, in the card's own row order; -1 for a pin it has none of. */
+export function nodeGraphPinRowIndex(node: Pick<NodeGraphLayoutNode, "input_pin_names" | "output_pin_names">, side: "input" | "output", pinName: string): number {
+  return nodePinRows(node.input_pin_names, node.output_pin_names).findIndex((row) => row.side === side && row.node_pin === pinName);
 }
 
 /** Each node's column: one past its furthest upstream node, so every link runs left to right. */
@@ -177,10 +184,10 @@ export function layOutNodeGraph(nodes: readonly NodeGraphLayoutNode[], links: re
     const node = nodeById.get(nodeId);
     const position = positionByNode.get(nodeId);
     if (node === undefined || position === undefined) return null;
-    const outputIndex = node.output_pin_names.indexOf(pinName);
-    return outputIndex === -1 ? null : position.y + nodeGraphPinRowCentreOffset(outputIndex);
+    const outputRow = nodeGraphPinRowIndex(node, "output", pinName);
+    return outputRow === -1 ? null : position.y + nodeGraphPinRowCentreOffset(outputRow);
   };
-  const inputPinOffset = (node: NodeGraphLayoutNode, pinName: string): number => nodeGraphPinRowCentreOffset(Math.max(0, node.input_pin_names.indexOf(pinName)));
+  const inputPinOffset = (node: NodeGraphLayoutNode, pinName: string): number => nodeGraphPinRowCentreOffset(Math.max(0, nodeGraphPinRowIndex(node, "input", pinName)));
   let columnLeft = 0;
   columns.forEach((column, columnIndex) => {
     const columnNodes = column.flatMap((nodeId) => nodeById.get(nodeId) ?? []);

@@ -9,6 +9,7 @@
     "./studio_readings": "./src/studio_readings.ts",
     "./port_families": "./src/port_families.ts",
     "./pin_type_readings": "./src/pin_type_readings.ts",
+    "./pin_model/*": "./src/pin_model/*.ts",
     "./supplied_modules": "./src/supplied_modules.ts",
     "./supplied_modules.json": "./supplied_modules.json",
     "./tatolab_view.schema.json": "./tatolab_view.schema.json",

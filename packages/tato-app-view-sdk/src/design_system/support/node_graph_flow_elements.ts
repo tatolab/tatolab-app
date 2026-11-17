@@ -1,7 +1,8 @@
 import type { Edge, Node } from "@xyflow/react";
 import { createContext } from "react";
 import type { NodeGraphPosition } from "./node_graph_layout";
-import type { NodeGraphPinFamily, NodeGraphCanvasNode, NodeGraphCanvasFrame, NodeGraphCanvasNote, NodeGraphCanvasLink, NodeGraphCanvasEditing } from "./node_graph_canvas_contract";
+import type { PinTypeKey } from "../../pin_model/pin_type_words";
+import type { NodeGraphCanvasNode, NodeGraphCanvasFrame, NodeGraphCanvasNote, NodeGraphCanvasLink, NodeGraphCanvasEditing } from "./node_graph_canvas_contract";
 
 /** A card as React Flow holds it. */
 export type NodeGraphCardFlowNode = Node<
@@ -24,9 +25,9 @@ export type NodeGraphFrameFlowNode = Node<
 /** Any node React Flow holds for the canvas: a card, a note or a frame. */
 export type NodeGraphFlowNode = NodeGraphCardFlowNode | NodeGraphNoteFlowNode | NodeGraphFrameFlowNode;
 
-/** A link as React Flow holds it, with the family of the pins it joins. */
+/** A link as React Flow holds it, with the type key of the pin it starts from, which colours it. */
 export type NodeGraphLinkFlowEdge = Edge<
-  { graphLink: NodeGraphCanvasLink; family: NodeGraphPinFamily | null },
+  { graphLink: NodeGraphCanvasLink; pin_type_key: PinTypeKey },
   "node_graph_link"
 >;
 

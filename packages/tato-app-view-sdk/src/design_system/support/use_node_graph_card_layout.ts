@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { NodeChange, ReactFlowInstance } from "@xyflow/react";
-import { failureWordsTheCardShows } from "../node_graph_card_view";
+import { failureWordsTheCardShows } from "../node_graph/node_card";
 import { layOutNodeGraph, nodeGraphCardHeight, type NodeGraphPosition } from "./node_graph_layout";
 import type { NodeGraphCanvasCardMove, NodeGraphCanvasEditing, NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCanvasNote, NodeGraphCanvasViewport } from "./node_graph_canvas_contract";
 import type { NodeGraphFlowNode } from "./node_graph_flow_elements";
@@ -21,8 +21,8 @@ function nodeGraphShapeKey(
     nodes.map((node) => [
       node.node_id,
       node.title,
-      node.input_pins,
-      node.output_pins,
+      node.inputs.map((pin) => pin.name),
+      node.outputs.map((pin) => pin.name),
       failureWordsTheCardShows(node) !== null,
     ]),
     links.map((link) => [
@@ -83,8 +83,8 @@ export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], li
         : layOutNodeGraph(
             nodes.map((node) => ({
               node_id: node.node_id,
-              input_pin_names: node.input_pins.map((pin) => pin.name),
-              output_pin_names: node.output_pins.map((pin) => pin.name),
+              input_pin_names: node.inputs.map((pin) => pin.name),
+              output_pin_names: node.outputs.map((pin) => pin.name),
               shows_failure_words: failureWordsTheCardShows(node) !== null,
               is_collapsed: node.is_collapsed,
               card_width:
@@ -106,7 +106,7 @@ export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], li
     (node: NodeGraphCanvasNode) =>
       cardSizeByNode.get(node.node_id) ?? {
         width: NODE_GRAPH_CARD_SMALLEST_WIDTH,
-        height: nodeGraphCardHeight({ input_pin_names: node.input_pins.map((pin) => pin.name), output_pin_names: node.output_pins.map((pin) => pin.name), shows_failure_words: failureWordsTheCardShows(node) !== null, is_collapsed: node.is_collapsed }),
+        height: nodeGraphCardHeight({ input_pin_names: node.inputs.map((pin) => pin.name), output_pin_names: node.outputs.map((pin) => pin.name), shows_failure_words: failureWordsTheCardShows(node) !== null, is_collapsed: node.is_collapsed }),
       },
     [cardSizeByNode],
   );

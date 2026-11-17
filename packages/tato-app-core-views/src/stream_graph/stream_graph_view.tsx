@@ -1,7 +1,7 @@
 import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
-import { NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX, NodeGraphCardPreview } from "@tatolab/tato-app-view-sdk/design_system/node_graph_card_view";
+import { NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX, NodeGraphCardPreview } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
 import { NodeGraphCanvas } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import type { NodeGraphCanvasEditing, NodeGraphCanvasPoint, NodeGraphCanvasViewport } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";

@@ -5,7 +5,8 @@
 
 import type { SearchPopoverNarrowing } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import type { SearchPopoverItem } from "@tatolab/tato-app-view-sdk/design_system/support/search_popover_rows";
-import type { NodeCatalogEntry, OpenProject, ProjectNodeType, ProjectNodeTypeListing, ProjectNodeTypeSourceOrigin } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { exactPinOfTheDeclaredPort, type NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
+import type { NodeCatalogEntry, NodeCatalogPort, OpenProject, ProjectNodeType, ProjectNodeTypeListing, ProjectNodeTypeSourceOrigin } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nodeTypeCategoryPath } from "../shared/node_type_category_path";
 import { nameInWords, nodeTypeClassName } from "../shared/node_words";
 import { portALooseWireLinksTo, type LooseWire } from "../shared/stream_graph_edits";
@@ -120,9 +121,15 @@ export function nodeTypeSearchNarrowing(looseWire: LooseWire): SearchPopoverNarr
   };
 }
 
+/** A node type's port as a card placed now draws its pin: the type it states exactly, or none, and no stream yet. */
+function nodePinOfTheCatalogPort(port: NodeCatalogPort): NodePin {
+  const description = port.description.trim();
+  return { name: port.name, pin: exactPinOfTheDeclaredPort(port.pin), family: port.family, description: description === "" ? null : description, stream_facts_words: [] };
+}
+
 /** The card the search previews for the node type `searchItemId` names, as the graph draws that node once placed; `null` for an item that is no node type of `catalog`, as a graph generator. */
-export function nodeTypeSearchPreviewCard(catalog: readonly NodeCatalogEntry[], searchItemId: string): { title: string; inputPins: NodeCatalogEntry["inputs"]; outputPins: NodeCatalogEntry["outputs"] } | null {
+export function nodeTypeSearchPreviewCard(catalog: readonly NodeCatalogEntry[], searchItemId: string): { title: string; inputs: NodePin[]; outputs: NodePin[] } | null {
   const nodeTypeSearched = catalog.find((entry) => entry.type === searchItemId);
   if (nodeTypeSearched === undefined) return null;
-  return { title: nameInWords(nodeTypeClassName(nodeTypeSearched.type)), inputPins: nodeTypeSearched.inputs, outputPins: nodeTypeSearched.outputs };
+  return { title: nameInWords(nodeTypeClassName(nodeTypeSearched.type)), inputs: nodeTypeSearched.inputs.map(nodePinOfTheCatalogPort), outputs: nodeTypeSearched.outputs.map(nodePinOfTheCatalogPort) };
 }

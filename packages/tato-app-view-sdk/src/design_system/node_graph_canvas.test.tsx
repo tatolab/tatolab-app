@@ -1,8 +1,11 @@
 // @vitest-environment happy-dom
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { Position } from "@xyflow/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { NodeGraphCanvas } from "./node_graph_canvas";
-import { NodeGraphCardPreview } from "./node_graph_card_view";
+import { NodeGraphCardPreview, NodeGraphPinMark } from "./node_graph/node_card";
+import { NodeGraphLinkView } from "./node_graph_link_view";
+import type { NodePin } from "../pin_model/node_pins";
 import type { NodeGraphCanvasEditing, NodeGraphCanvasNode } from "./support/node_graph_canvas_contract";
 
 afterEach(cleanup);
@@ -24,8 +27,13 @@ function card(nodeId: string, isCollapsed: boolean): NodeGraphCanvasNode {
     type_name: null,
     description: "Passes each frame through.",
     condition: { look: "healthy" },
-    input_pins: [{ name: "video_in", family: "image", description: "The frames to pass.", stream_facts_words: [] }],
-    output_pins: [{ name: "video_out", family: "image", description: null, stream_facts_words: [] }],
+    inputs: [
+      { name: "video_in", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: "The frames to pass.", stream_facts_words: [] },
+      { name: "gain", pin: { pin_type: { type: "float" }, flow: "value" }, family: "channels", description: null, stream_facts_words: [] },
+      { name: "boxes", pin: { pin_type: { type: "list_of", element_type: { type: "rectangle" } }, flow: "value" }, family: "array", description: null, stream_facts_words: [] },
+      { name: "reset", pin: { pin_type: { type: "trigger" }, flow: "trigger" }, family: "records", description: null, stream_facts_words: [] },
+    ],
+    outputs: [{ name: "video_out", pin: null, family: "image", description: null, stream_facts_words: [] }],
     saved_position: { x: 0, y: 0 },
     frame_id: FRAME_ID,
     is_collapsed: isCollapsed,
@@ -70,12 +78,28 @@ function drawnCanvas(editing: NodeGraphCanvasEditing | null, isCollapsed = false
 }
 
 describe("the node graph canvas", () => {
-  it("shows a node type's description on its card's header, and a pin's family and description on its name and its handle", async () => {
+  it("shows a node type's description on its card's header, and a pin's type in plain words and its description on its name and its socket", async () => {
     const { container } = drawnCanvas(editingRecorded().editing);
     const header = await vi.waitFor(() => container.querySelector<HTMLElement>('[data-node-graph-card="pattern"] .node-graph-card-header') ?? expect.unreachable("no card header"));
     expect(header.getAttribute("title")).toBe("Passes each frame through.");
-    expect(container.querySelector('[data-node-graph-input-pin="video_in"]')?.getAttribute("title")).toBe("video_in · Image\nThe frames to pass.");
-    expect(container.querySelector('[data-node-graph-output-pin="video_out"]')?.getAttribute("title")).toBe("video_out · Image");
+    expect(container.querySelector('[data-node-graph-input-pin="video_in"]')?.getAttribute("title")).toBe("video_in · Texture, a stream\nThe frames to pass.");
+    expect(container.querySelector('[data-node-graph-input-pin="boxes"]')?.getAttribute("title")).toBe("boxes · List of Rectangle, one value at a time");
+    expect(container.querySelector('[data-node-graph-output-pin="video_out"]')?.getAttribute("title")).toBe("video_out · No exact type");
+    expect(container.querySelector('.node-graph-pin[data-handleid="input:gain"]')?.getAttribute("title")).toBe("gain · Float, one value at a time");
+  });
+
+  it("draws one full-width row per pin, outputs first, each socket coloured by its type and shaped by its flow, an untyped one round and neutral", async () => {
+    const { container } = drawnCanvas(editingRecorded().editing);
+    const card = await vi.waitFor(() => container.querySelector<HTMLElement>('[data-node-graph-card="pattern"]') ?? expect.unreachable("no card"));
+    expect([...card.querySelectorAll("[data-node-graph-pin-row]")].map((row) => `${row.getAttribute("data-node-graph-pin-row")}:${row.textContent}`)).toEqual(["output:video_out", "input:video_in", "input:gain", "input:boxes", "input:reset"]);
+    expect([...card.querySelectorAll(".node-graph-pin")].map((socket) => [socket.getAttribute("data-handleid"), socket.getAttribute("data-pin-type"), socket.getAttribute("data-pin-flow")])).toEqual([
+      ["output:video_out", "untyped", null],
+      ["input:video_in", "texture", "stream"],
+      ["input:gain", "float", "value"],
+      ["input:boxes", "rectangle", "value"],
+      ["input:reset", "trigger", "trigger"],
+    ]);
+    expect(card.querySelector("[data-family]")).toBeNull();
   });
 });
 
@@ -365,17 +389,54 @@ describe("finding nodes in the graph", () => {
 });
 
 describe("a node's card previewed outside a canvas", () => {
-  it("draws the card's own header and pin rows, with a socket per pin in its family", () => {
-    const { container } = render(<NodeGraphCardPreview title="Halftone" inputPins={[{ name: "frames", family: "image" }, { name: "level", family: null }]} outputPins={[{ name: "image", family: "image" }]} />);
+  it("draws the card's own header and pin rows, outputs first, with a socket per pin in its type's look", () => {
+    const previewPin = (name: string, pin: NodePin["pin"]): NodePin => ({ name, pin, family: null, description: null, stream_facts_words: [] });
+    const texture = { pin_type: { type: "texture" }, flow: "stream" } as const;
+    const { container } = render(<NodeGraphCardPreview title="Halftone" inputs={[previewPin("frames", texture), previewPin("level", null)]} outputs={[previewPin("image", texture)]} />);
     const preview = container.querySelector<HTMLElement>('[data-node-graph-card-preview="Halftone"]') ?? expect.unreachable("no preview");
     expect(preview.classList.contains("node-graph-card")).toBe(true);
     expect(preview.querySelector(".node-graph-card-header")?.textContent).toBe("Halftone");
     expect([...preview.querySelectorAll("[data-node-graph-input-pin]")].map((pin) => pin.textContent)).toEqual(["frames", "level"]);
     expect([...preview.querySelectorAll("[data-node-graph-output-pin]")].map((pin) => pin.textContent)).toEqual(["image"]);
-    expect([...preview.querySelectorAll(".node-graph-pin")].map((socket) => [socket.getAttribute("data-side"), socket.getAttribute("data-family")])).toEqual([
-      ["input", "image"],
-      ["output", "image"],
-      ["input", null],
+    expect([...preview.querySelectorAll(".node-graph-pin")].map((socket) => [socket.getAttribute("data-side"), socket.getAttribute("data-pin-type"), socket.getAttribute("data-pin-flow")])).toEqual([
+      ["output", "texture", "stream"],
+      ["input", "texture", "stream"],
+      ["input", "untyped", null],
     ]);
+  });
+});
+
+describe("a pin's mark and a link outside a card", () => {
+  it("marks a port with its socket's look, and an untyped one with the neutral one", () => {
+    const { container } = render(
+      <>
+        <NodeGraphPinMark pin={{ pin_type: { type: "float" }, flow: "value" }} />
+        <NodeGraphPinMark pin={null} />
+      </>,
+    );
+    expect([...container.querySelectorAll(".node-graph-pin-mark")].map((mark) => [mark.getAttribute("data-pin-type"), mark.getAttribute("data-pin-flow")])).toEqual([
+      ["float", "value"],
+      ["untyped", null],
+    ]);
+  });
+
+  it("colours a link by the type key of the pin it starts from", () => {
+    const { container } = render(
+      <svg>
+        <NodeGraphLinkView
+          id="L1"
+          source="a"
+          target="b"
+          sourceX={0}
+          sourceY={0}
+          targetX={100}
+          targetY={0}
+          sourcePosition={Position.Right}
+          targetPosition={Position.Left}
+          data={{ graphLink: { link_id: "L1", source_node_id: "a", source_pin: "out", target_node_id: "b", target_pin: "in", look: "carrying", description: "wired" }, pin_type_key: "float" }}
+        />
+      </svg>,
+    );
+    expect(container.querySelector('[data-node-graph-link="L1"]')?.getAttribute("data-pin-type")).toBe("float");
   });
 });

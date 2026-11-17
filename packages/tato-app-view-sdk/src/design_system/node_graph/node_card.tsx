@@ -1,22 +1,31 @@
 import { Handle, Position, useStore, useStoreApi, type NodeProps } from "@xyflow/react";
 import { cn } from "cn";
-import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 import { ChevronDown, ChevronRight, Combine, SquareX, TriangleAlert } from "lucide-react";
 import { Fragment, useContext, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
-import { NodeGraphNodesFoundContext } from "./node_graph_find_bar";
-import { NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT, NODE_GRAPH_CARD_HEADER_HEIGHT, NODE_GRAPH_CARD_PIN_ROWS_PADDING, NODE_GRAPH_PIN_ROW_HEIGHT } from "./support/node_graph_layout";
-import { isAPinSocketOfTheCardUnmeasured } from "./support/node_graph_pin_socket_measurement";
-import { type NodeGraphPinFamily, nodeGraphPinFamilyWords, type NodeGraphCanvasPin, type NodeGraphCardCondition, type NodeGraphCanvasNode } from "./support/node_graph_canvas_contract";
-import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, connectionLookupKeyOfTheHandle, NodeGraphEditableContext, NodeGraphCardAndFrameEditingContext } from "./support/node_graph_flow_elements";
+import { nodePinRows, type NodePin } from "../../pin_model/node_pins";
+import type { PinFlow } from "../../pin_type_readings";
+import { pinTypeKey, pinWords, type PinTypeKey } from "../../pin_model/pin_type_words";
+import type { StreamGraphPortPin } from "../../studio_readings";
+import { NodeGraphNodesFoundContext } from "../node_graph_find_bar";
+import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "../support/full_strength_focus_ring";
+import type { NodeGraphCardCondition, NodeGraphCanvasNode } from "../support/node_graph_canvas_contract";
+import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, connectionLookupKeyOfTheHandle, NodeGraphEditableContext, NodeGraphCardAndFrameEditingContext } from "../support/node_graph_flow_elements";
+import { NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT, NODE_GRAPH_CARD_HEADER_HEIGHT, NODE_GRAPH_CARD_PIN_ROWS_PADDING, NODE_GRAPH_PIN_ROW_HEIGHT } from "../support/node_graph_layout";
+import { isAPinSocketOfTheCardUnmeasured } from "../support/node_graph_pin_socket_measurement";
 
-/** What a pin shows while the pointer rests on it: its name, its family and the facts of its stream, then its description. */
-function nodeGraphPinTooltip(pin: NodeGraphCanvasPin): string {
-  const facts = [pin.name, ...(pin.family === null ? [] : [nodeGraphPinFamilyWords(pin.family)]), ...pin.stream_facts_words].join(" · ");
+/** What a pin shows while the pointer rests on it: its name, its type and flow in words and the facts of its stream, then its description. */
+function nodeGraphPinTooltip(pin: NodePin): string {
+  const facts = [pin.name, pinWords(pin.pin), ...pin.stream_facts_words].join(" · ");
   return pin.description === null ? facts : `${facts}\n${pin.description}`;
 }
 
+/** The attributes a socket's shape and colour are picked by: its flow (round while it has none) and its type's key. */
+function socketLookAttributes(pin: StreamGraphPortPin | null): { "data-pin-type": PinTypeKey; "data-pin-flow": PinFlow | undefined } {
+  return { "data-pin-type": pinTypeKey(pin), "data-pin-flow": pin?.flow };
+}
+
 /** Why a card's node failed, when the card shows it under its pins. */
-export function failureWordsTheCardShows(graphNode: NodeGraphCanvasNode): string | null {
+export function failureWordsTheCardShows(graphNode: Pick<NodeGraphCanvasNode, "condition">): string | null {
   return graphNode.condition.look === "failed" ? graphNode.condition.failed_because : null;
 }
 
@@ -26,8 +35,8 @@ const NODE_GRAPH_CARD_WIDTHS_PX = { narrowest: 180, widest: 360 } as const;
 /** The box every card is drawn in, in the canvas and in a preview outside it. */
 const NODE_GRAPH_CARD_CLASS_NAMES = "node-graph-card relative";
 
-/** A pin's mark at the card's edge, shaped and coloured by its family, or a plain bar while none is known. */
-function NodeGraphPinHandle({
+/** A pin's socket at the card's edge, shaped by its flow and coloured by its type, filled while a link joins it. */
+function NodeGraphPinSocket({
   nodeId,
   side,
   pin,
@@ -35,7 +44,7 @@ function NodeGraphPinHandle({
 }: {
   nodeId: string;
   side: "input" | "output";
-  pin: NodeGraphCanvasPin;
+  pin: NodePin;
   /** False on a collapsed card, whose pins all meet at its header's edge, so no one pin can be told apart to wire. */
   takesNewWires: boolean;
 }) {
@@ -52,7 +61,7 @@ function NodeGraphPinHandle({
       id={handleId}
       isConnectable={isEditable && takesNewWires}
       className="node-graph-pin"
-      data-family={pin.family ?? undefined}
+      {...socketLookAttributes(pin.pin)}
       title={nodeGraphPinTooltip(pin)}
       data-stream-facts={pin.stream_facts_words.length === 0 ? undefined : pin.stream_facts_words.join(" · ")}
       data-linked={isLinked || undefined}
@@ -61,21 +70,21 @@ function NodeGraphPinHandle({
 }
 
 /** What a card's header and pin rows draw of a node. */
-type NodeGraphCardFaceNode = Pick<NodeGraphCanvasNode, "title" | "type_name" | "description" | "condition" | "input_pins" | "output_pins" | "is_collapsed" | "subgraph">;
+type NodeGraphCardFaceNode = Pick<NodeGraphCanvasNode, "title" | "type_name" | "description" | "condition" | "inputs" | "outputs" | "is_collapsed" | "subgraph">;
 
-/** A card's header and its pin rows, which the canvas and a preview outside it both draw; `pinAtTheCardsEdge` draws each pin's socket. */
+/** A card's header and its rows, one full-width row per pin, outputs first; the canvas and a preview outside it both draw it, and `socketOfThePin` draws each pin's socket. */
 function NodeGraphCardHeaderAndPinRows({
   graphNode,
   beforeTheTitle = null,
-  pinAtTheCardsEdge,
+  socketOfThePin,
 }: {
   graphNode: NodeGraphCardFaceNode;
   /** What leads the header, as the canvas's button that collapses the card. */
   beforeTheTitle?: ReactNode;
   /** `takesNewWires` is false on a collapsed card, whose pins all meet at its header's edge. */
-  pinAtTheCardsEdge: (side: "input" | "output", pin: NodeGraphCanvasPin, takesNewWires: boolean) => ReactNode;
+  socketOfThePin: (side: "input" | "output", pin: NodePin, takesNewWires: boolean) => ReactNode;
 }) {
-  const pinRowCount = Math.max(graphNode.input_pins.length, graphNode.output_pins.length);
+  const rows = nodePinRows(graphNode.inputs, graphNode.outputs);
   return (
     <>
       <div
@@ -94,47 +103,27 @@ function NodeGraphCardHeaderAndPinRows({
           </span>
         )}
         <NodeGraphCardConditionTag condition={graphNode.condition} />
-        {graphNode.is_collapsed && (
-          <>
-            {graphNode.input_pins.map((pin) => (
-              <Fragment key={`input:${pin.name}`}>{pinAtTheCardsEdge("input", pin, false)}</Fragment>
-            ))}
-            {graphNode.output_pins.map((pin) => (
-              <Fragment key={`output:${pin.name}`}>{pinAtTheCardsEdge("output", pin, false)}</Fragment>
-            ))}
-          </>
-        )}
+        {graphNode.is_collapsed && rows.map((row) => <Fragment key={`${row.side}:${row.node_pin.name}`}>{socketOfThePin(row.side, row.node_pin, false)}</Fragment>)}
       </div>
-      {!graphNode.is_collapsed && (
+      {!graphNode.is_collapsed && rows.length > 0 && (
         <div style={{ paddingBlock: NODE_GRAPH_CARD_PIN_ROWS_PADDING }}>
-        {Array.from({ length: pinRowCount }, (_, rowIndex) => {
-          const inputPin = graphNode.input_pins[rowIndex];
-          const outputPin = graphNode.output_pins[rowIndex];
-          return (
+          {rows.map((row) => (
             <div
-              key={rowIndex}
-              className="relative flex items-center justify-between gap-4 px-3 text-2xs text-fg-2"
+              key={`${row.side}:${row.node_pin.name}`}
+              className={cn("relative flex items-center px-3 text-2xs text-fg-2", row.side === "output" && "justify-end")}
               style={{ height: NODE_GRAPH_PIN_ROW_HEIGHT }}
+              data-node-graph-pin-row={row.side}
             >
               <span
-                className="truncate"
-                data-node-graph-input-pin={inputPin?.name}
-                title={inputPin === undefined ? undefined : nodeGraphPinTooltip(inputPin)}
+                className={cn("truncate", row.side === "output" && "text-right")}
+                {...(row.side === "input" ? { "data-node-graph-input-pin": row.node_pin.name } : { "data-node-graph-output-pin": row.node_pin.name })}
+                title={nodeGraphPinTooltip(row.node_pin)}
               >
-                {inputPin?.name}
+                {row.node_pin.name}
               </span>
-              <span
-                className="truncate text-right"
-                data-node-graph-output-pin={outputPin?.name}
-                title={outputPin === undefined ? undefined : nodeGraphPinTooltip(outputPin)}
-              >
-                {outputPin?.name}
-              </span>
-              {inputPin !== undefined && pinAtTheCardsEdge("input", inputPin, true)}
-              {outputPin !== undefined && pinAtTheCardsEdge("output", outputPin, true)}
+              {socketOfThePin(row.side, row.node_pin, true)}
             </div>
-          );
-        })}
+          ))}
         </div>
       )}
     </>
@@ -145,8 +134,8 @@ function NodeGraphCardHeaderAndPinRows({
 function useEveryPinSocketOfTheCardMeasured(nodeId: string, graphNode: NodeGraphCardFaceNode): RefObject<HTMLDivElement | null> {
   const reactFlowStore = useStoreApi<NodeGraphFlowNode, NodeGraphLinkFlowEdge>();
   const cardElement = useRef<HTMLDivElement>(null);
-  const inputSocketIds = graphNode.input_pins.map((pin) => inputPinHandleId(pin.name));
-  const outputSocketIds = graphNode.output_pins.map((pin) => outputPinHandleId(pin.name));
+  const inputSocketIds = graphNode.inputs.map((pin) => inputPinHandleId(pin.name));
+  const outputSocketIds = graphNode.outputs.map((pin) => outputPinHandleId(pin.name));
   const isAPinSocketUnmeasured = useStore((state) => isAPinSocketOfTheCardUnmeasured(state.nodeLookup.get(nodeId)?.internals.handleBounds, inputSocketIds, outputSocketIds));
   useLayoutEffect(() => {
     if (!isAPinSocketUnmeasured) return;
@@ -157,7 +146,7 @@ function useEveryPinSocketOfTheCardMeasured(nodeId: string, graphNode: NodeGraph
   return cardElement;
 }
 
-/** A card on the canvas: its header, its pins and what it says of its condition; it is drawn again only when its node, its selection or what the canvas around it shares changes. */
+/** A card on the canvas: its header, a row per pin and what it says of its condition; it is drawn again only when its node, its selection or what the canvas around it shares changes. */
 export function NodeGraphCardView({ id, data, selected: isSelected }: NodeProps<NodeGraphCardFlowNode>) {
   const cardElement = useEveryPinSocketOfTheCardMeasured(id, data.graphNode);
   const cardAndFrameEditing = useContext(NodeGraphCardAndFrameEditingContext);
@@ -193,7 +182,7 @@ export function NodeGraphCardView({ id, data, selected: isSelected }: NodeProps<
             </button>
           )
         }
-        pinAtTheCardsEdge={(side, pin, takesNewWires) => <NodeGraphPinHandle nodeId={graphNode.node_id} side={side} pin={pin} takesNewWires={takesNewWires} />}
+        socketOfThePin={(side, pin, takesNewWires) => <NodeGraphPinSocket nodeId={graphNode.node_id} side={side} pin={pin} takesNewWires={takesNewWires} />}
       />
       {failureWords !== null && !graphNode.is_collapsed && (
         <p
@@ -237,19 +226,9 @@ function NodeGraphCardConditionTag({ condition }: { condition: NodeGraphCardCond
   );
 }
 
-/** A port's mark beside its name outside the canvas, as Properties lists ports: the same mark a card's pin is drawn with. */
-export function NodeGraphPinMark({
-  family,
-}: {
-  family: NodeGraphPinFamily | null;
-}) {
-  return (
-    <span
-      aria-hidden
-      className="node-graph-pin-mark"
-      data-family={family ?? undefined}
-    />
-  );
+/** A port's mark beside its name outside the canvas, as Properties and the Library list ports: the socket a card draws for it, filled. */
+export function NodeGraphPinMark({ pin }: { pin: StreamGraphPortPin | null }) {
+  return <span aria-hidden className="node-graph-pin-mark" {...socketLookAttributes(pin)} />;
 }
 
 /** How much smaller than in the graph a card's preview is drawn. */
@@ -258,17 +237,8 @@ const NODE_GRAPH_CARD_PREVIEW_SCALE = 0.85;
 /** The narrowest a card's preview is drawn, which a popover drawing one beside itself keeps room for. */
 export const NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX = Math.ceil(NODE_GRAPH_CARD_WIDTHS_PX.narrowest * NODE_GRAPH_CARD_PREVIEW_SCALE);
 
-/** A node's card as the graph would draw it once placed, smaller and outside any canvas: its name on the header and its pins at its edges, none linked. */
-export function NodeGraphCardPreview({
-  title,
-  inputPins,
-  outputPins,
-}: {
-  title: string;
-  inputPins: readonly Pick<NodeGraphCanvasPin, "name" | "family">[];
-  outputPins: readonly Pick<NodeGraphCanvasPin, "name" | "family">[];
-}) {
-  const pinsOfThePreview = (pins: readonly Pick<NodeGraphCanvasPin, "name" | "family">[]) => pins.map((pin): NodeGraphCanvasPin => ({ ...pin, description: null, stream_facts_words: [] }));
+/** A node's card as the graph would draw it once placed, smaller and outside any canvas: its name on the header and a row per pin, none linked. */
+export function NodeGraphCardPreview({ title, inputs, outputs }: { title: string; inputs: readonly NodePin[]; outputs: readonly NodePin[] }) {
   return (
     <div
       className={cn(NODE_GRAPH_CARD_CLASS_NAMES, "w-max")}
@@ -277,8 +247,8 @@ export function NodeGraphCardPreview({
       data-node-graph-card-preview={title}
     >
       <NodeGraphCardHeaderAndPinRows
-        graphNode={{ title, type_name: null, description: null, condition: { look: "healthy" }, input_pins: pinsOfThePreview(inputPins), output_pins: pinsOfThePreview(outputPins), is_collapsed: false, subgraph: null }}
-        pinAtTheCardsEdge={(side, pin) => <span aria-hidden className="node-graph-pin node-graph-pin-of-a-preview" data-side={side} data-family={pin.family ?? undefined} />}
+        graphNode={{ title, type_name: null, description: null, condition: { look: "healthy" }, inputs, outputs, is_collapsed: false, subgraph: null }}
+        socketOfThePin={(side, pin) => <span aria-hidden className="node-graph-pin node-graph-pin-of-a-preview" data-side={side} {...socketLookAttributes(pin.pin)} />}
       />
     </div>
   );

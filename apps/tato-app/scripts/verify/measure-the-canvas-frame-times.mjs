@@ -22,7 +22,7 @@ function countTheCardRenders() {
     if (previous !== null && next.child === previous.child) return;
     for (let child = next.child; child !== null; child = child.sibling) {
       // The core views are a production build, whose names are minified, so a card is told by its props: React
-      // Flow's for a node of type node_graph_card, and a pin socket by the props NodeGraphPinHandle takes.
+      // Flow's for a node of type node_graph_card, and a pin socket by the props NodeGraphPinSocket takes.
       const props = typeof child.type === "function" && child.memoizedProps !== null && typeof child.memoizedProps === "object" ? child.memoizedProps : null;
       const didRender = props !== null && (child.flags & PERFORMED_WORK) !== 0;
       if (didRender && props.type === "node_graph_card" && "positionAbsoluteX" in props) {
