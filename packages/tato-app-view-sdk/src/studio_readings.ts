@@ -89,6 +89,16 @@ export const streamGraphPortPinSchema = z.object({ pin_type: pinTypeSchema, flow
 /** The pin type a port of a running graph carries, and its flow. */
 export type StreamGraphPortPin = z.infer<typeof streamGraphPortPinSchema>;
 
+/** Where the value an input reads comes from, as the runtime spells its `value_comes_from`: set live, saved in the graph document, its port's declared default, or a link that feeds it. */
+export const inputValueComesFromSchema = z.enum(["live", "saved", "default", "wire"]);
+/** Where the value an input reads comes from. */
+export type InputValueComesFrom = z.infer<typeof inputValueComesFromSchema>;
+
+/** The value an input reads while unlinked, `null` while a link feeds it or it reads none, and where it comes from, `null` while it reads none. */
+export const streamGraphInputValueReadSchema = z.object({ value: jsonValueSchema.nullable(), comes_from: inputValueComesFromSchema.nullable() });
+/** The value an input reads while unlinked, and where it comes from. */
+export type StreamGraphInputValueRead = z.infer<typeof streamGraphInputValueReadSchema>;
+
 /** A port a node declares under the graph's `ports.inputs` or `ports.outputs`. */
 export const streamGraphDeclaredPortSchema = z.object({
   name: z.string(),
@@ -100,6 +110,8 @@ export const streamGraphDeclaredPortSchema = z.object({
   values_checked: z.boolean().nullable(),
   /** Its pin type and flow; `null` on a port the runtime serves neither for, because its code does not state its type exactly, which links by its family alone. */
   pin: streamGraphPortPinSchema.nullable(),
+  /** On an input, the value it reads while unlinked and where that value comes from, from its `value` and `value_comes_from` keys; `null` on an input that takes no stored value, and on every output. */
+  value_read: streamGraphInputValueReadSchema.nullable(),
 });
 /** A port a node declares. */
 export type StreamGraphDeclaredPort = z.infer<typeof streamGraphDeclaredPortSchema>;
@@ -835,6 +847,8 @@ export const streamGraphActionSchema = z.discriminatedUnion("operation", [
   z.strictObject({ operation: z.literal("disconnect"), stream: z.string(), level: streamGraphActionLevelSchema, source: streamGraphActionLinkEndSchema, target: streamGraphActionLinkEndSchema }),
   /** Replaces the node's config whole. */
   z.strictObject({ operation: z.literal("set_node_config"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), config: jsonObjectSchema }),
+  /** Sets the value an input holds while unlinked, saved or live as the transaction's mode says; an absent or `null` value takes it off, so the input reads its declared default. */
+  z.strictObject({ operation: z.literal("set_node_input_value"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), input: z.string(), value: jsonValueSchema.optional() }),
   /** An absent or `null` value takes the input's value off. */
   z.strictObject({ operation: z.literal("set_pin_value"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), input: z.string(), value: jsonValueSchema.optional() }),
   z.strictObject({ operation: z.literal("rename_node"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), name: z.string() }),

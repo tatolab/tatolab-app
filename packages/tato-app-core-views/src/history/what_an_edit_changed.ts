@@ -104,11 +104,12 @@ function whatOneOperationChanged(operation: OperationFields, nodeNames: NodeName
         line: `set_node_config ${changeWords}`.trimEnd(),
       };
     }
+    case "set_node_input_value":
     case "set_pin_value": {
       const input = textOf(operation["input"]) ?? "an input";
       return {
         sentence: { lead: "Set", subject: `${nodeName()}.${input}`, rest: `to ${wordsOfAValue(operation["to"])}` },
-        line: `set_pin_value ${input} ${wordsOfAValue(operation["from"])} → ${wordsOfAValue(operation["to"])}`,
+        line: `${operationName} ${input} ${wordsOfAValue(operation["from"])} → ${wordsOfAValue(operation["to"])}`,
       };
     }
     case "set_studio_fields":

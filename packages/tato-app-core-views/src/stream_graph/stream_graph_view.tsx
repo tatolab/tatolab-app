@@ -1,7 +1,7 @@
 import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
-import { NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX, NodeGraphCardPreview } from "@tatolab/tato-app-view-sdk/design_system/node_graph_card_view";
+import { NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX, NodeGraphCardPreview } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
 import { NodeGraphCanvas } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import type { NodeGraphCanvasEditing, NodeGraphCanvasPoint, NodeGraphCanvasViewport } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
@@ -10,7 +10,9 @@ import { Store } from "lucide-react";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings } from "@tatolab/tato-app-view-sdk";
+import { newGestureIdempotencyKey, type StopWatching, type StudioSelection, type TatoAppViewConnection, type ViewSettings } from "@tatolab/tato-app-view-sdk";
+import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import { createInputValues, type InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
 import type {
   ListedStreamsReading,
   NodeCatalogReading,
@@ -86,7 +88,17 @@ function importedProjectNameOfTheStream(stream: string, openProject: OpenProject
 const NO_PROJECT_FOLDER_TO_LIST: StopWatching = () => undefined;
 
 /** The graph of the stream tab shown, read while the view is drawn. */
-function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: TatoAppViewConnection; streamTab: StreamTabAddress; select: (selection: StudioSelection) => void }) {
+function StreamGraphOfTheTab({
+  connection,
+  inputValues,
+  streamTab,
+  select,
+}: {
+  connection: TatoAppViewConnection;
+  inputValues: InputValues;
+  streamTab: StreamTabAddress;
+  select: (selection: StudioSelection) => void;
+}) {
   const watchTheTabsGraph = useCallback(
     (listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(streamTab.stream, listener),
     [connection, streamTab.stream],
@@ -107,11 +119,24 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   const subgraphKeepingTheLevelReadOnly = theSubgraphKeepingTheLevelReadOnly(subgraphsSteppedThrough);
   const levelOfTheEdits = useMemo(() => levelOfTheSubgraphsSteppedThrough(subgraphsSteppedThrough), [subgraphsSteppedThrough]);
   const nodesSelectedAtTheLevelShown = useMemo(() => nodesTheSelectionHoldsInTheStream(selection, streamTab.stream, levelOfTheEdits), [selection, streamTab.stream, levelOfTheEdits]);
+  const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
+  const projectFolder = listedStream?.location?.project_directory ?? null;
+  useLayoutEffect(() => {
+    if (graphReading?.kind === "read" && projectFolder !== null) inputValues.takeTheGraphReading(projectFolder, graphReading.graph);
+  }, [graphReading, projectFolder, inputValues]);
+  const streamAsset = graphReading?.kind === "read" ? graphReading.graph.stream_asset : null;
+  const valuesOfTheLevelShown = useMemo(
+    (): GraphAddress | null => (projectFolder === null || streamAsset === null ? null : { project_folder: projectFolder, stream_asset: streamAsset, level: levelOfTheEdits }),
+    [projectFolder, streamAsset, levelOfTheEdits],
+  );
   // Each reading is drawn from the one before, so the cards of the nodes it left as they were are not drawn again.
   const canvasContentsBefore = useRef<StreamGraphCanvasContents | null>(null);
   const canvasContents = useMemo(
-    () => (levelShown === null ? null : streamGraphCanvasContents(levelShown.graph, catalogReading?.kind === "listed" ? catalogReading.catalog : null, canvasContentsBefore.current)),
-    [levelShown, catalogReading],
+    () =>
+      levelShown === null
+        ? null
+        : streamGraphCanvasContents(levelShown.graph, catalogReading?.kind === "listed" ? catalogReading.catalog : null, canvasContentsBefore.current, valuesOfTheLevelShown),
+    [levelShown, catalogReading, valuesOfTheLevelShown],
   );
   useLayoutEffect(() => {
     canvasContentsBefore.current = canvasContents;
@@ -149,7 +174,6 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
     window.addEventListener("keydown", stepUpOnU);
     return () => window.removeEventListener("keydown", stepUpOnU);
   }, [subgraphDepth, stepToTheLevel]);
-  const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
   const importedProjectName = importedProjectNameOfTheStream(streamTab.stream, openProject, listedStreams);
   const areaSettings = useViewReadingSoFar(connection.watchSettings);
   const areaSettingsRead = areaSettings.kind === "read" ? areaSettings.reading : null;
@@ -184,7 +208,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
     if (selectedNodeLeft === null || !isNothingElseSelected || !canvasContents.nodes.some((node) => node.node_id === selectedNodeLeft)) return;
     select({ kind: "node", stream: streamTab.stream, node: selectedNodeLeft });
   }, [areaSettingsRead, selection, select, streamTab.stream, canvasContents]);
-  const { sendTheGesture, refusalOfTheLatestEdit } = useStreamGraphEditsSentToTheRuntime(connection, listedStream?.location?.project_directory ?? null);
+  const { sendTheGesture, refusalOfTheLatestEdit } = useStreamGraphEditsSentToTheRuntime(connection, projectFolder);
   const [studioSentAheadByNodeId, setStudioSentAheadByNodeId] = useState<ReadonlyMap<string, StreamGraphNodeStudioFields>>(new Map());
   useEffect(() => {
     if (graphReading?.kind !== "read") return;
@@ -260,11 +284,10 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
     [graphReading, subgraphsSteppedThrough, sendTheGesture, stepToTheLevel, select],
   );
   const whyNoEditCanBeSent = importedProjectName !== null ? `${importedProjectName} is an import` : editedGraph === null ? "The graph isn't read yet" : "because" in editedGraph ? editedGraph.because : null;
-  const projectFolderOfTheStream = listedStream?.location?.project_directory ?? null;
   const watchTheProjectsNodeTypes = useCallback(
     (listener: (reading: ProjectNodeTypesReading) => void): StopWatching =>
-      projectFolderOfTheStream === null ? NO_PROJECT_FOLDER_TO_LIST : connection.watchProjectNodeTypes(projectFolderOfTheStream, listener),
-    [connection, projectFolderOfTheStream],
+      projectFolder === null ? NO_PROJECT_FOLDER_TO_LIST : connection.watchProjectNodeTypes(projectFolder, listener),
+    [connection, projectFolder],
   );
   const projectNodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
   const projectNodeTypeListing = projectNodeTypesReading?.kind === "listed" ? projectNodeTypesReading.listing : null;
@@ -273,7 +296,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
     [catalogReading, projectNodeTypeListing],
   );
   const looseWireOfTheSearch = nodeTypeSearchAsked?.looseWire ?? null;
-  const openProjectOfTheStream = openProject?.kind === "read" && openProject.open_project.project.folder === projectFolderOfTheStream ? openProject.open_project : null;
+  const openProjectOfTheStream = openProject?.kind === "read" && openProject.open_project.project.folder === projectFolder ? openProject.open_project : null;
   const nodeTypeSearchItemsOffered = useMemo(
     () => [
       ...nodeTypeSearchItems(catalog, looseWireOfTheSearch, nodeTypesTheProjectDeclares(projectNodeTypeListing), nodeTypeOriginWordsByType(projectNodeTypeListing, openProjectOfTheStream)),
@@ -332,11 +355,10 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
   );
   const onNodesSelected = useCallback(
     (nodeNames: readonly string[]) => {
-      const projectFolder = listedStreams?.kind === "listed" ? listedStreams.streams.find((listedStream) => listedStream.stream === streamTab.stream)?.location?.project_directory : undefined;
       if (levelOfTheEdits.length === 0) keepWhereTheStreamWasLeft({ selected_node: nodeNames.at(-1) ?? null });
       const selectionOfTheNodesPicked = selectionOfTheNodes(streamTab.stream, nodeNames, levelOfTheEdits);
       if (selectionOfTheNodesPicked !== null) select(selectionOfTheNodesPicked);
-      else if (projectFolder !== undefined)
+      else if (projectFolder !== null)
         select({
           kind: "stream",
           stream: streamTab.stream,
@@ -344,7 +366,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
         });
       else select({ kind: "nothing" });
     },
-    [select, listedStreams, streamTab.stream, keepWhereTheStreamWasLeft, levelOfTheEdits],
+    [select, projectFolder, streamTab.stream, keepWhereTheStreamWasLeft, levelOfTheEdits],
   );
   const onViewportLeft = useCallback((viewport: NodeGraphCanvasViewport) => keepWhereTheStreamWasLeft({ viewport }), [keepWhereTheStreamWasLeft]);
 
@@ -414,6 +436,7 @@ function StreamGraphOfTheTab({ connection, streamTab, select }: { connection: Ta
         viewportWhereItWasLeft={innermostSubgraph === null ? viewportWhereTheStreamWasLeft : null}
         onViewportLeft={innermostSubgraph === null ? onViewportLeft : null}
         onSubgraphOpened={stepInsideTheSubgraph}
+        inputValues={inputValues}
         overlay={
           <>
             {canvasContents.nodes.length === 0 && nodeTypeSearchAsked === null && innermostSubgraph === null && (
@@ -485,12 +508,16 @@ function StreamGraphBody({ connection }: { connection: TatoAppViewConnection }) 
   const activeStreamTab = useViewReadingSoFar(connection.watchActiveStreamTab);
   const [selectionRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
   const select = useCallback((selection: StudioSelection) => showTheRefusalOf("Didn't select:", connection.select(selection)), [connection, showTheRefusalOf]);
+  const inputValues = useMemo(
+    () => createInputValues({ transactInTheProject: (projectFolder, operations, sending) => connection.transactInTheProject(projectFolder, operations, sending), newGestureIdempotencyKey }),
+    [connection],
+  );
   if (activeStreamTab.kind === "not_read_yet") return null;
   if (activeStreamTab.reading === null) return <WaitingState title="No stream is open" explanation="Double-click a stream in the outliner to open its tab." data-stream-graph-state="no_tab" />;
   return (
     <>
       <RefusalOfTheLatestAskBar refusal={selectionRefusal} />
-      <StreamGraphOfTheTab key={activeStreamTab.reading.stream} connection={connection} streamTab={activeStreamTab.reading} select={select} />
+      <StreamGraphOfTheTab key={activeStreamTab.reading.stream} connection={connection} inputValues={inputValues} streamTab={activeStreamTab.reading} select={select} />
     </>
   );
 }

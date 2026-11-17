@@ -17,7 +17,7 @@ const aRecordedGraphOfAStreamWithANodeWhoseProcessKeepsRaising = () =>
 
 const aRecordedGraphOfAStreamWithANodeThatIsNotReady = () => recordedGraphToolResultText("local-api-graph-tool-result-of-a-stream-with-a-node-that-is-not-ready.json");
 
-const portsStatingNoStreamFacts = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, family: null, stream_facts: null, values_checked: null, pin: null }));
+const portsStatingNoStreamFacts = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, family: null, stream_facts: null, values_checked: null, pin: null, value_read: null }));
 
 function node(
   name: string,
@@ -195,7 +195,7 @@ test("a_port_the_graph_names_a_family_of_reads_as_that_family", () => {
     links: [],
   });
   const graph = streamGraphSummaryFromTheGraphToolResult("main", graphText);
-  expect(graph.ok && graph.value.nodes[0]?.output_ports).toEqual([{ name: "video", family: "image", stream_facts: null, values_checked: null, pin: null }]);
+  expect(graph.ok && graph.value.nodes[0]?.output_ports).toEqual([{ name: "video", family: "image", stream_facts: null, values_checked: null, pin: null, value_read: null }]);
 });
 
 test("a_port_reads_as_the_family_its_family_declaration_names_as_the_runtime_renders_it", () => {
@@ -249,16 +249,18 @@ test("an_output_reads_the_stream_facts_and_the_unchecked_mark_the_runtime_render
       stream_facts: { family: "image", frame_rate: { numerator: 30000, denominator: 1001 }, content_light_level: null, mastering_display_colour_volume: null },
       values_checked: null,
       pin: null,
+      value_read: null,
     },
-    { name: "records", family: "records", stream_facts: null, values_checked: false, pin: null },
+    { name: "records", family: "records", stream_facts: null, values_checked: false, pin: null, value_read: null },
     {
       name: "encoded",
       family: "packets",
       stream_facts: { family: "packets", rfc6381_codec: "opus", coded_width: null, coded_height: null, sample_rate: 48000, channel_count: 2, codec_configuration_byte_length: 12 },
       values_checked: null,
       pin: null,
+      value_read: null,
     },
-    { name: "odd", family: "image", stream_facts: null, values_checked: null, pin: null },
+    { name: "odd", family: "image", stream_facts: null, values_checked: null, pin: null, value_read: null },
   ]);
 });
 
@@ -597,4 +599,42 @@ test("a_port_reads_untyped_unless_it_serves_both_a_pin_type_and_a_flow_the_contr
     ["flow_without_a_type", "image", null],
     ["type_this_contract_cannot_read", "image", null],
   ]);
+});
+
+test("an_input_reads_the_value_it_holds_while_unlinked_and_where_it_comes_from", () => {
+  const input = (name: string, rendered: Record<string, unknown>) => ({ name, family: { family: "channels" }, pin_type: { type: "float" }, flow: "value", ...rendered });
+  const graphText = JSON.stringify({
+    stream: "main",
+    nodes: [
+      {
+        id: "P1",
+        name: "mix",
+        type: "nodes.mix:Mix",
+        ports: {
+          inputs: [
+            input("saved", { value: 0.5, value_comes_from: "saved" }),
+            input("live", { value: 0.75, value_comes_from: "live" }),
+            input("default", { value: 1, value_comes_from: "default" }),
+            input("wired", { value_comes_from: "wire" }),
+            input("reads_nothing", { value: null }),
+            input("takes_none", {}),
+            input("newer", { value: 2, value_comes_from: "from_the_future" }),
+          ],
+          outputs: [{ name: "out", family: { family: "channels" }, value: 3, value_comes_from: "saved" }],
+        },
+      },
+    ],
+    links: [],
+  });
+  const graph = streamGraphSummaryFromTheGraphToolResult("main", graphText);
+  expect(graph.ok && graph.value.nodes[0]?.input_ports.map((port) => [port.name, port.value_read])).toEqual([
+    ["saved", { value: 0.5, comes_from: "saved" }],
+    ["live", { value: 0.75, comes_from: "live" }],
+    ["default", { value: 1, comes_from: "default" }],
+    ["wired", { value: null, comes_from: "wire" }],
+    ["reads_nothing", { value: null, comes_from: null }],
+    ["takes_none", null],
+    ["newer", null],
+  ]);
+  expect(graph.ok && graph.value.nodes[0]?.output_ports.map((port) => port.value_read)).toEqual([null]);
 });

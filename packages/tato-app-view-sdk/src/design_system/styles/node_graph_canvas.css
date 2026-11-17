@@ -33,43 +33,86 @@
 .node-graph-card[data-found="found"] { border-color: var(--brand-text); box-shadow: 0 0 0 3px var(--brand-soft), var(--studio-graph-card-shadow); }
 .node-graph-card[data-found="current"] { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand), 0 0 0 6px var(--brand-soft), var(--studio-graph-card-shadow); }
 
-/* A pin is a round socket on the card's edge, as Blender and Unreal draw one: its family's colour, filled while a link
-   joins it and hollow while none does; grey while the runtime says no family. */
-[data-family="image"] { --node-graph-family: var(--studio-family-image); }
-[data-family="array"] { --node-graph-family: var(--studio-family-array); }
-[data-family="channels"] { --node-graph-family: var(--studio-family-channels); }
-[data-family="packets"] { --node-graph-family: var(--studio-family-packets); }
-[data-family="records"] { --node-graph-family: var(--studio-family-records); }
+/* A pin's socket sits on the card's edge, as Blender and Unreal draw one, filled while a link joins it and hollow while
+   none does. Its colour is its type's (a List takes its element's, an untyped pin one neutral colour), and its shape is
+   its flow's: a value round, a stream square, a trigger an arrow. The keys are pinTypeKey's, in pin_model/pin_type_words.ts. */
+[data-pin-type="boolean"] { --node-graph-pin-colour: var(--studio-pin-type-boolean); }
+[data-pin-type="integer"] { --node-graph-pin-colour: var(--studio-pin-type-integer); }
+[data-pin-type="float"] { --node-graph-pin-colour: var(--studio-pin-type-float); }
+[data-pin-type="string"] { --node-graph-pin-colour: var(--studio-pin-type-string); }
+[data-pin-type="menu"] { --node-graph-pin-colour: var(--studio-pin-type-menu); }
+[data-pin-type="color"] { --node-graph-pin-colour: var(--studio-pin-type-color); }
+[data-pin-type="vector"] { --node-graph-pin-colour: var(--studio-pin-type-vector); }
+[data-pin-type="rectangle"] { --node-graph-pin-colour: var(--studio-pin-type-rectangle); }
+[data-pin-type="transform"] { --node-graph-pin-colour: var(--studio-pin-type-transform); }
+[data-pin-type="texture"] { --node-graph-pin-colour: var(--studio-pin-type-texture); }
+[data-pin-type="audio"] { --node-graph-pin-colour: var(--studio-pin-type-audio); }
+[data-pin-type="encoded_video"] { --node-graph-pin-colour: var(--studio-pin-type-encoded-video); }
+[data-pin-type="encoded_audio"] { --node-graph-pin-colour: var(--studio-pin-type-encoded-audio); }
+[data-pin-type="tensor"] { --node-graph-pin-colour: var(--studio-pin-type-tensor); }
+[data-pin-type="asset"] { --node-graph-pin-colour: var(--studio-pin-type-asset); }
+[data-pin-type="trigger"] { --node-graph-pin-colour: var(--studio-pin-type-trigger); }
+[data-pin-type="bundle"] { --node-graph-pin-colour: var(--studio-pin-type-bundle); }
+[data-pin-type="named"] { --node-graph-pin-colour: var(--studio-pin-type-named); }
+[data-pin-type="node_reference"] { --node-graph-pin-colour: var(--studio-pin-type-node-reference); }
+[data-pin-type="pin_type_choice"] { --node-graph-pin-colour: var(--studio-pin-type-pin-type-choice); }
+[data-pin-type="untyped"] { --node-graph-pin-colour: var(--studio-pin-type-untyped); }
+/* A link from an untyped pin keeps the canvas's own link colour. */
+g[data-pin-type="untyped"] { --node-graph-pin-colour: var(--studio-graph-link); }
 
 .node-graph-canvas .react-flow__handle.node-graph-pin,
-.node-graph-pin-of-a-preview {
+.node-graph-pin-of-a-preview,
+.node-graph-pin-mark {
   width: 10px;
   min-width: 0;
   height: 10px;
   min-height: 0;
-  border: 2px solid var(--node-graph-family, var(--studio-graph-pin));
+  box-sizing: border-box;
+  border: 2px solid var(--node-graph-pin-colour, var(--studio-graph-pin));
   border-radius: 50%;
   background: var(--studio-graph-card);
 }
-.node-graph-canvas .react-flow__handle.node-graph-pin[data-linked] { background: var(--node-graph-family, var(--studio-graph-pin)); }
+.node-graph-canvas .react-flow__handle.node-graph-pin[data-linked],
+.node-graph-pin-mark { background: var(--node-graph-pin-colour, var(--studio-graph-pin)); }
+.node-graph-canvas .react-flow__handle.node-graph-pin[data-pin-flow="stream"],
+.node-graph-pin-of-a-preview[data-pin-flow="stream"],
+.node-graph-pin-mark[data-pin-flow="stream"] { border-radius: 2px; }
+/* A trigger is an arrow pointing the way its messages go, drawn on the socket's pseudo-elements so the socket keeps its
+   square hit box; unlinked, a smaller arrow in the card's colour, set in by the same width all round, hollows it. */
+.node-graph-canvas .react-flow__handle.node-graph-pin[data-pin-flow="trigger"],
+.node-graph-pin-of-a-preview[data-pin-flow="trigger"],
+.node-graph-pin-mark[data-pin-flow="trigger"] {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+.node-graph-pin-mark[data-pin-flow="trigger"] { position: relative; }
+.node-graph-canvas .react-flow__handle.node-graph-pin[data-pin-flow="trigger"]::before,
+.node-graph-pin-of-a-preview[data-pin-flow="trigger"]::before,
+.node-graph-pin-mark[data-pin-flow="trigger"]::before {
+  position: absolute;
+  inset: 0;
+  background: var(--node-graph-pin-colour, var(--studio-graph-pin));
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  content: "";
+}
+.node-graph-canvas .react-flow__handle.node-graph-pin[data-pin-flow="trigger"]:not([data-linked])::after,
+.node-graph-pin-of-a-preview[data-pin-flow="trigger"]::after {
+  position: absolute;
+  inset: 0;
+  background: var(--studio-graph-card);
+  clip-path: polygon(17.5% 28.3%, 60.9% 50%, 17.5% 71.7%);
+  content: "";
+}
 /* React Flow places a canvas pin on its card's edge; a preview's pin sits there by these rules. */
-.node-graph-pin-of-a-preview { position: absolute; top: 50%; box-sizing: border-box; transform: translate(-50%, -50%); }
+.node-graph-pin-of-a-preview { position: absolute; top: 50%; transform: translate(-50%, -50%); }
 .node-graph-pin-of-a-preview[data-side="input"] { left: 0; }
 .node-graph-pin-of-a-preview[data-side="output"] { left: 100%; }
 /* A preview floats over the canvas beside a popover, so it lifts as the popover does. */
 .node-graph-card[data-node-graph-card-preview] { box-shadow: var(--shadow-pop); }
-.node-graph-pin-mark {
-  display: inline-block;
-  flex: none;
-  box-sizing: border-box;
-  width: 10px;
-  height: 10px;
-  border: 2px solid var(--node-graph-family, var(--studio-graph-pin));
-  border-radius: 50%;
-  background: var(--node-graph-family, var(--studio-graph-pin));
-}
+.node-graph-pin-mark { display: inline-block; flex: none; }
 
-.node-graph-link { stroke: var(--node-graph-family, var(--studio-graph-link)); stroke-width: 2.2; }
+.node-graph-link { stroke: var(--node-graph-pin-colour, var(--studio-graph-link)); stroke-width: 2.2; }
 .node-graph-link-waiting { stroke-dasharray: 6 5; }
 .node-graph-link-ending { stroke-dasharray: 6 5; opacity: 0.5; }
 .node-graph-link-failed { stroke: var(--danger); stroke-width: 2.5; }

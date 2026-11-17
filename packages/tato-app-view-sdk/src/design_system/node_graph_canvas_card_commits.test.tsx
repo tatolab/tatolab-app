@@ -6,12 +6,14 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { NodeGraphCanvas } from "./node_graph_canvas";
 import type { NodeGraphCanvasEditing, NodeGraphCanvasLink, NodeGraphCanvasNode } from "./support/node_graph_canvas_contract";
 import type { NodeGraphCardFlowNode } from "./support/node_graph_flow_elements";
+import type { InputAddress } from "../pin_model/node_inputs";
+import { createInputValues } from "../pin_services/input_values";
 
 /** The node id of each card commit, as React's Profiler reports a commit of the card or of anything inside it. */
 const { cardCommits } = vi.hoisted((): { cardCommits: string[] } => ({ cardCommits: [] }));
 
-vi.mock("./node_graph_card_view", async (importOriginal) => {
-  const original = await importOriginal<typeof import("./node_graph_card_view")>();
+vi.mock("./node_graph/node_card", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./node_graph/node_card")>();
   const OriginalCardView = original.NodeGraphCardView;
   return {
     ...original,
@@ -46,8 +48,8 @@ function card(nodeId: string, index: number): NodeGraphCanvasNode {
     type_name: null,
     description: null,
     condition: { look: "healthy" },
-    input_pins: ["gain", "offset", "mix", "threshold"].map((name) => ({ name, family: "channels", description: null, stream_facts_words: [] })),
-    output_pins: [{ name: "out", family: "channels", description: null, stream_facts_words: [] }],
+    inputs: ["gain", "offset", "mix", "threshold"].map((name) => ({ name, pin: { pin_type: { type: "float" }, flow: "value" }, family: "channels", description: null, stream_facts_words: [], value_address: null })),
+    outputs: [{ name: "out", pin: { pin_type: { type: "float" }, flow: "value" }, family: "channels", description: null, stream_facts_words: [], value_address: null }],
     saved_position: { x: index * 300, y: 0 },
     frame_id: null,
     is_collapsed: false,
@@ -126,6 +128,31 @@ describe("the cards of the node graph canvas", () => {
     drawn.rerender(canvasOf({ nodes: renamedNodes, links: [...links, link("source", "meter", "gain")], selectedNodeIds: [] }));
     await vi.waitFor(() => expect(drawn.container.querySelector('[data-node-graph-card="meter"] [data-handleid="input:gain"]')?.hasAttribute("data-linked")).toBe(true));
     expect(new Set(cardCommits)).toEqual(new Set(["sink", "meter"]));
+  });
+});
+
+describe("the values on the cards of the node graph canvas", () => {
+  const OFFSET: InputAddress = { graph: { project_folder: "/projects/demo", stream_asset: "stream-asset", level: [] }, node_id: "EFFECT-ID", input: "offset" };
+  const effectWithItsOffsetAddressed: NodeGraphCanvasNode = {
+    ...card("effect", 0),
+    inputs: card("effect", 0).inputs.map((input) => (input.name === "offset" ? { ...input, value_address: OFFSET } : input)),
+  };
+
+  it("writes each value an unwired input takes on its row and commits no card for 200 of them", async () => {
+    const inputValues = createInputValues({ transactInTheProject: () => new Promise(() => undefined), newGestureIdempotencyKey: () => "gesture" });
+    const drawn = render(<NodeGraphCanvas label="Stream graph" nodes={[effectWithItsOffsetAddressed]} links={[]} selectedNodeIds={[]} onNodesSelected={vi.fn()} inputValues={inputValues} />);
+    await vi.waitFor(() => expect(drawn.container.querySelectorAll("[data-node-graph-card]")).toHaveLength(1));
+    await act(async () => {
+      await new Promise((settled) => setTimeout(settled, 50));
+    });
+    cardCommits.length = 0;
+    const offsetWords = drawn.container.querySelector('[data-node-graph-input-value="offset"]');
+    expect(offsetWords?.textContent).toBe("");
+    const drag = inputValues.beginGesture(OFFSET, "commit");
+    for (let move = 1; move <= 200; move += 1) act(() => drag.move(move / 8));
+    expect(offsetWords?.textContent).toBe("25.0");
+    expect(cardCommits).toEqual([]);
+    expect(drawn.container.querySelectorAll("[data-node-graph-input-value]")).toHaveLength(1);
   });
 });
 

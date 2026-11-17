@@ -43,6 +43,14 @@ function valuesCheckedAsTheRuntimeRendersIt(port: StreamGraphDeclaredPort): { va
   return port.values_checked === null ? {} : { values_checked: port.values_checked };
 }
 
+/** An input's value as the runtime renders it beside its pin type: `value` and `value_comes_from`, only `value_comes_from` while a link feeds it, a `null` value alone while it reads none, and neither on an input that takes no stored value. */
+function inputValueAsTheRuntimeRendersIt(port: StreamGraphDeclaredPort): { value?: JsonValue; value_comes_from?: string } {
+  if (port.value_read === null) return {};
+  if (port.value_read.comes_from === null) return { value: null };
+  if (port.value_read.comes_from === "wire") return { value_comes_from: "wire" };
+  return { value: port.value_read.value, value_comes_from: port.value_read.comes_from };
+}
+
 /** A port's pin type and flow as the runtime renders them: both beside its family on a typed port, neither on an untyped one. */
 function pinAsTheRuntimeRendersIt(port: StreamGraphDeclaredPort): Partial<StreamGraphPortPin> {
   return port.pin === null ? {} : { pin_type: port.pin.pin_type, flow: port.pin.flow };
@@ -146,7 +154,10 @@ export function mockStreamGraphSummary(
       config: node.config,
       pins: node.pins ?? {},
       exposed_config_fields: node.exposed_config_fields ?? [],
-      input_ports: servedPorts(node.input_ports),
+      // As the runtime renders it, a link reads `wire` on every input it feeds, one that takes no stored value too.
+      input_ports: servedPorts(node.input_ports).map((port) =>
+        levelLinks.some((link) => link.target_node === node.name && link.target_port === port.name) ? { ...port, value_read: { value: null, comes_from: "wire" } } : port,
+      ),
       output_ports: servedPorts(node.output_ports),
       dropped_bags_by_link: Object.fromEntries(
         levelLinks.filter((link) => link.target_node === node.name).map((link) => [link.id, climbed(graph.counterRates.droppedPerSecondByLinkId[link.id] ?? 0)]),
@@ -185,7 +196,7 @@ export function mockStreamGraphSummary(
       ...(node.exposed_config_fields === undefined || node.exposed_config_fields.length === 0 ? {} : { exposed_config_fields: node.exposed_config_fields }),
       ...(node.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(node.studio) }),
       ports: {
-        inputs: node.input_ports.map((port) => ({
+        inputs: node.input_ports.map((port, portIndex) => ({
           name: port.name,
           description: "",
           port_kind: "data",
@@ -193,6 +204,7 @@ export function mockStreamGraphSummary(
           ...valuesCheckedAsTheRuntimeRendersIt(port),
           ...familyAsTheRuntimeRendersIt(port),
           ...pinAsTheRuntimeRendersIt(port),
+          ...inputValueAsTheRuntimeRendersIt(nodes[nodeIndex]?.input_ports[portIndex] ?? port),
         })),
         outputs: node.output_ports.map((port) => ({
           name: port.name,

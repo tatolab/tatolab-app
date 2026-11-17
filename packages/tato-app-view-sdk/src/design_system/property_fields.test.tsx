@@ -128,7 +128,7 @@ describe("a property port row", () => {
       <PropertyPortRow
         direction="output"
         portName="video"
-        familyWords="Image"
+        typeWords="Image"
         pinMark={null}
         bandShade="first"
         linkedEnds={[
@@ -142,13 +142,13 @@ describe("a property port row", () => {
   });
 
   it("shows an unjoined input's value where it has no link", () => {
-    render(<PropertyPortRow direction="input" portName="tint" familyWords="Array" pinMark={null} bandShade="first" linkedEnds={[]} unlinkedValue={<span>0.5, 0.7</span>} />);
+    render(<PropertyPortRow direction="input" portName="tint" typeWords="Array" pinMark={null} bandShade="first" linkedEnds={[]} unlinkedValue={<span>0.5, 0.7</span>} />);
     expect(screen.getByText("0.5, 0.7")).toBeDefined();
     expect(screen.queryAllByRole("button")).toEqual([]);
   });
 
   it("says Not connected for an output with no link", () => {
-    render(<PropertyPortRow direction="output" portName="level" familyWords="Channels" pinMark={null} bandShade="second" linkedEnds={[]} />);
+    render(<PropertyPortRow direction="output" portName="level" typeWords="Channels" pinMark={null} bandShade="second" linkedEnds={[]} />);
     expect(screen.getByText("Not connected")).toBeDefined();
   });
 });

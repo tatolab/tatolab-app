@@ -348,7 +348,7 @@ export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulatio
         const refusal = { ...MOCK_REFUSAL_NAMING_NOTHING, action: "transact", refused_operation_index: operationInsideAPlacedStream };
         return { kind: "refused", refusal: { ...refusal, runtime_words: "an edit inside a placed stream is refused live: it is made on the project's graph documents, with `mode` `commit`" } };
       }
-      const outcome = mode === "commit" ? commitGraphActions(operations, "a_transaction") : applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations);
+      const outcome = mode === "commit" ? commitGraphActions(operations, "a_transaction") : applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations, "a_live_transaction");
       if (outcome.kind === "refused") return outcome;
       pushEveryFollowedStreamGraphChanged();
       const recorded = mode === "commit" ? mockProjectTransactions.record(MOCK_PERSON_EDITING_IN_STUDIO, outcome.history_operations, outcome.inverse_operations) : null;

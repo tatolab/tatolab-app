@@ -35,6 +35,7 @@ import {
   textOrDefault,
 } from "./json_on_the_wire.js";
 import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
+import { inputValueReadOnTheWire } from "./input_value_read_on_the_wire.js";
 import { streamGraphPortPinOnTheWire } from "./port_pin_on_the_wire.js";
 import { portStreamFactsOnTheWire, portValuesCheckedOnTheWire } from "./port_stream_facts_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
@@ -280,7 +281,7 @@ function streamGraphFragmentOnTheWire(node: JsonObjectOnTheWire, nodeType: strin
   return succeeded({ kind: streamGraphFragmentKindOfTheNodeType(nodeType), nodes: nodes.value, links: links.value, groups: groups.value });
 }
 
-/** The ports a node's `ports.<direction>` lists, each by name with its family, its stream facts, its `values_checked` mark and its pin type and flow when it carries them. */
+/** The ports a node's `ports.<direction>` lists, each by name with its family, its stream facts, its `values_checked` mark, its pin type and flow when it carries them, and on an input the value it reads while unlinked. */
 function declaredPortsUnder(ports: JsonObjectOnTheWire, direction: "inputs" | "outputs"): Result<StreamGraphDeclaredPort[], string> {
   const portsOnTheWire = arrayOrEmpty(ports, direction);
   if (!portsOnTheWire.ok) return portsOnTheWire;
@@ -295,6 +296,7 @@ function declaredPortsUnder(ports: JsonObjectOnTheWire, direction: "inputs" | "o
       stream_facts: portStreamFactsOnTheWire(port.value),
       values_checked: portValuesCheckedOnTheWire(port.value),
       pin: streamGraphPortPinOnTheWire(port.value),
+      value_read: direction === "inputs" ? inputValueReadOnTheWire(port.value) : null,
     });
   });
 }

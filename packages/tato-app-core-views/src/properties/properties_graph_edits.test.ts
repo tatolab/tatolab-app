@@ -16,7 +16,7 @@ import {
 } from "./properties_graph_edits";
 
 function aPort(name: string, family: StreamGraphDeclaredPort["family"]): StreamGraphDeclaredPort {
-  return { name, family, stream_facts: null, values_checked: null, pin: null };
+  return { name, family, stream_facts: null, values_checked: null, pin: null, value_read: null };
 }
 
 function aNode(name: string, inputs: StreamGraphDeclaredPort[], outputs: StreamGraphDeclaredPort[]): StreamGraphNode {

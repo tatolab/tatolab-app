@@ -2,7 +2,7 @@ import { BaseEdge, getBezierPath, type EdgeProps } from "@xyflow/react";
 import { cn } from "cn";
 import type { NodeGraphLinkFlowEdge } from "./support/node_graph_flow_elements";
 
-/** A link on the canvas, drawn in its pins' family colour and in its look. */
+/** A link on the canvas, drawn in the colour of the pin it starts from and in its look. */
 export function NodeGraphLinkView({
   id,
   data,
@@ -29,7 +29,7 @@ export function NodeGraphLinkView({
     <g
       data-node-graph-link={data.graphLink.link_id}
       data-look={look}
-      data-family={data.family ?? undefined}
+      data-pin-type={data.pin_type_key}
       data-selected={selected || undefined}
     >
       <title>{description}</title>

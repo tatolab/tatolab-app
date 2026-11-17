@@ -34,7 +34,7 @@ test("a_flow_the_contract_does_not_name_is_refused", () => {
 });
 
 test("a_port_crossing_to_a_view_with_a_pin_the_contract_does_not_name_is_refused", () => {
-  const graphPort = { name: "video", family: "image", stream_facts: null, values_checked: null };
+  const graphPort = { name: "video", family: "image", stream_facts: null, values_checked: null, value_read: null };
   const catalogPort = { name: "video", description: "", family: "image" };
 
   expect(streamGraphDeclaredPortSchema.safeParse({ ...graphPort, pin: { pin_type: { type: "texture" }, flow: "stream" } }).success).toBe(true);
