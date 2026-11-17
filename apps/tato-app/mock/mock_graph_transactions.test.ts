@@ -14,7 +14,7 @@ function aTestPatternAlone(): MockStreamGraph {
         state: "Running",
         config: {},
         input_ports: [],
-        output_ports: [{ name: "video", family: "image", stream_facts: null, values_checked: null, pin: null }],
+        output_ports: [{ name: "video", family: "image", stream_facts: null, values_checked: null, pin: null, value_read: null }],
       },
     ],
     links: [],
@@ -179,7 +179,7 @@ test("a collapsed node is saved as a stream the subgraph places, wired through i
 
 test("a Python node takes a number config field as a Channels input fed by a Graph Input, its undo puts it back, and a native node is refused", () => {
   const graph = aTestPatternAlone();
-  graph.nodes.push({ name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {}, input_ports: [{ name: "video_from_upstream", family: "image", stream_facts: null, values_checked: null, pin: null }], output_ports: [] });
+  graph.nodes.push({ name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {}, input_ports: [{ name: "video_from_upstream", family: "image", stream_facts: null, values_checked: null, pin: null, value_read: null }], output_ports: [] });
   const inverter = mockNodeIdOf(STREAM_ID, "invertingeffect");
   const exposed = applyMockGraphTransaction(targetsOf(graph), [
     { operation: "set_exposed_config_fields", stream: STREAM_ASSET, node: inverter, exposed_config_fields: ["strength"] },
@@ -225,7 +225,7 @@ test("a Graph Input, Graph Output or Set Variable added with no name takes the n
 
 test("a Graph Input added with no family carries none until a link gives it the family of the port it feeds, and loses it again when unlinked", () => {
   const graph = aTestPatternAlone();
-  graph.nodes.push({ name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {}, input_ports: [{ name: "strength", family: "channels", stream_facts: null, values_checked: null, pin: null }], output_ports: [] });
+  graph.nodes.push({ name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {}, input_ports: [{ name: "strength", family: "channels", stream_facts: null, values_checked: null, pin: null, value_read: null }], output_ports: [] });
   const added = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", as: "graph_input" }]);
   if (added.kind !== "applied") return expect.unreachable(added.refusal.runtime_words);
   const graphInput = () => graph.nodes.find((node) => node.type === "tatolab.stream:GraphInput") ?? expect.unreachable("no Graph Input");
@@ -260,7 +260,7 @@ function aLookPlacedTwice(): { graph: MockStreamGraph; placedStream: string; loo
   if (collapsed.kind !== "applied") return expect.unreachable(collapsed.refusal.runtime_words);
   const look = graph.nodes.find((node) => node.name === "look") ?? expect.unreachable("no look");
   graph.nodes.push({ ...structuredClone(look), name: "look-again" });
-  graph.nodes.push({ name: "displaywindow-2", type: "tatolab.stream:DisplayWindow", state: "Running", config: {}, input_ports: [{ name: "video", family: "image", stream_facts: null, values_checked: null, pin: null }], output_ports: [] });
+  graph.nodes.push({ name: "displaywindow-2", type: "tatolab.stream:DisplayWindow", state: "Running", config: {}, input_ports: [{ name: "video", family: "image", stream_facts: null, values_checked: null, pin: null, value_read: null }], output_ports: [] });
   graph.links.push({ id: "Lagain", source_node: "look-again", source_port: "testpatternsource-video", target_node: "displaywindow-2", target_port: "video", state: "wired" });
   return { graph, placedStream: assetPlacedBy(look), look: mockNodeIdOf(STREAM_ID, "look") };
 }
@@ -315,4 +315,26 @@ test("an edit at the level of a generated subgraph, or of an import's placed str
   expect(refused.refusal.runtime_words).toContain("unlock it with unlock_subgraph");
   const refusedInTheImport = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:DisplayWindow", level: [mockNodeIdOf(STREAM_ID, "grain")] }]);
   expect(refusedInTheImport.kind === "refused" && refusedInTheImport.refusal.runtime_words).toContain("places a stream of the import");
+});
+
+test("a value set by either operation is the value its input reads, live on the running node alone, saved on its pins too, and taken off back to its default", () => {
+  const graph = aTestPatternAlone();
+  graph.nodes[0] = {
+    ...graph.nodes[0],
+    input_defaults: { level: 1 },
+    input_ports: [{ name: "level", family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: { type: "float" }, flow: "value" }, value_read: { value: 1, comes_from: "default" } }],
+  };
+  const level = () => graph.nodes[0]?.input_ports[0]?.value_read;
+  const pins = () => graph.nodes[0]?.pins;
+  const apply = (action: "set_pin_value" | "set_node_input_value", value: number | null, applying: "a_transaction" | "a_live_transaction" = "a_transaction") =>
+    expect(applyMockGraphTransaction(targetsOf(graph), [{ operation: action, stream: STREAM_ASSET, node: TEST_PATTERN, input: "level", value }], applying).kind).toBe("applied");
+
+  apply("set_pin_value", 0.5);
+  expect([level(), pins()]).toEqual([{ value: 0.5, comes_from: "saved" }, { level: 0.5 }]);
+  apply("set_node_input_value", 0.25, "a_live_transaction");
+  expect([level(), pins()]).toEqual([{ value: 0.25, comes_from: "live" }, { level: 0.5 }]);
+  apply("set_node_input_value", 0.75);
+  expect([level(), pins()]).toEqual([{ value: 0.75, comes_from: "saved" }, { level: 0.75 }]);
+  apply("set_pin_value", null);
+  expect([level(), pins()]).toEqual([{ value: 1, comes_from: "default" }, {}]);
 });

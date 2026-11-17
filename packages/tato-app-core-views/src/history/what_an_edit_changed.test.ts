@@ -73,3 +73,10 @@ test("an added node that carries its own links, or links to itself, reads with a
   expect(sentence([added([]), selfLink])).toBe("Added echo and 1 more change");
   expect(sentence([added([selfLink["link"]]), selfLink])).toBe("Added echo and its link, and 1 more change");
 });
+
+test("an input's value set reads as the value it was set to", () => {
+  expect(sentenceAndLinesOf([{ stream: STREAM, operation: "set_node_input_value", node: INVERT, input: "amount", from: 1, to: 0.5 }])).toEqual([
+    "Set invertingeffect.amount to 0.5",
+    ["set_node_input_value amount 1 → 0.5"],
+  ]);
+});

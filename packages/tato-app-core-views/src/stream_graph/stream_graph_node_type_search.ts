@@ -124,7 +124,7 @@ export function nodeTypeSearchNarrowing(looseWire: LooseWire): SearchPopoverNarr
 /** A node type's port as a card placed now draws its pin: the type it states exactly, or none, and no stream yet. */
 function nodePinOfTheCatalogPort(port: NodeCatalogPort): NodePin {
   const description = port.description.trim();
-  return { name: port.name, pin: exactPinOfTheDeclaredPort(port.pin), family: port.family, description: description === "" ? null : description, stream_facts_words: [] };
+  return { name: port.name, pin: exactPinOfTheDeclaredPort(port.pin), family: port.family, description: description === "" ? null : description, stream_facts_words: [], value_address: null };
 }
 
 /** The card the search previews for the node type `searchItemId` names, as the graph draws that node once placed; `null` for an item that is no node type of `catalog`, as a graph generator. */

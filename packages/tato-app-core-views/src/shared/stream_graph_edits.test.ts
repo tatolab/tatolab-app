@@ -30,7 +30,7 @@ import {
 const STREAM_ASSET = "7194d1f9-721a-41e5-9cc9-7db50336a1ed";
 
 function graphNode(name: string, id: string, ports: { inputs?: [string, "image" | "array" | null][]; outputs?: [string, "image" | "array" | null][] }, studio = NODE_STUDIO_FIELDS_NONE_SET): StreamGraphNode {
-  const declared = (portsOfOneSide: [string, "image" | "array" | null][] = []) => portsOfOneSide.map(([name, family]) => ({ name, family, stream_facts: null, values_checked: null, pin: null }));
+  const declared = (portsOfOneSide: [string, "image" | "array" | null][] = []) => portsOfOneSide.map(([name, family]) => ({ name, family, stream_facts: null, values_checked: null, pin: null, value_read: null }));
   return {
     id,
     name,

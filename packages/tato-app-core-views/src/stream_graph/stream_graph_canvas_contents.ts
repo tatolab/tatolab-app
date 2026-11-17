@@ -3,6 +3,7 @@
 // a link per link of the graph drawn by its state, a frame per labelled group and the graph's canvas notes.
 
 import type { NodeGraphCanvasFrame, NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCanvasNote, NodeGraphCardCondition, NodeGraphLinkLook } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
+import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { NodeCatalog, NodeCatalogPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { isANameTheCodeGave, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { portStreamFactsWords, streamFactsAnInputReceives } from "../shared/port_stream_facts_words";
@@ -80,10 +81,17 @@ function holdTheSameValues(a: unknown, b: unknown): boolean {
 
 /**
  * `graph` as the canvas draws it, each node keyed by its name, as a link's ends name it, with each node type's and port's
- * description as `catalog` gives it. A node that `previous` draws the same is drawn by the very object `previous` holds,
- * so its card is not drawn again.
+ * description as `catalog` gives it, and each unlinked input that holds a value addressed at `valuesAt`, the level of the
+ * graph it is; `null` addresses none. A link renders on every input it feeds, one that takes no stored value too, so a
+ * linked input is addressed by none. A node that `previous` draws the same is drawn by the very object `previous` holds, so its
+ * card is not drawn again; a value is not part of it.
  */
-export function streamGraphCanvasContents(graph: StreamGraphSummary, catalog: NodeCatalog | null, previous: StreamGraphCanvasContents | null = null): StreamGraphCanvasContents {
+export function streamGraphCanvasContents(
+  graph: StreamGraphSummary,
+  catalog: NodeCatalog | null,
+  previous: StreamGraphCanvasContents | null = null,
+  valuesAt: GraphAddress | null = null,
+): StreamGraphCanvasContents {
   const groupIds = new Set(graph.groups.map((group) => group.id));
   const catalogEntryByType = new Map((catalog?.node_types ?? []).map((entry) => [entry.type, entry]));
   const previousNodeById = new Map((previous?.nodes ?? []).map((node) => [node.node_id, node]));
@@ -104,8 +112,16 @@ export function streamGraphCanvasContents(graph: StreamGraphSummary, catalog: No
         family: port.family,
         description: portDescription(catalogEntryByType.get(node.type)?.inputs, port.name),
         stream_facts_words: portStreamFactsWords(streamFactsAnInputReceives(graph, node.name, port)),
+        value_address: valuesAt === null || port.value_read === null || port.value_read.comes_from === "wire" ? null : { graph: valuesAt, node_id: node.id, input: port.name },
       })),
-      outputs: node.output_ports.map((port) => ({ name: port.name, pin: port.pin, family: port.family, description: portDescription(catalogEntryByType.get(node.type)?.outputs, port.name), stream_facts_words: portStreamFactsWords(port) })),
+      outputs: node.output_ports.map((port) => ({
+        name: port.name,
+        pin: port.pin,
+        family: port.family,
+        description: portDescription(catalogEntryByType.get(node.type)?.outputs, port.name),
+        stream_facts_words: portStreamFactsWords(port),
+        value_address: null,
+      })),
       saved_position: node.studio.position === null ? null : { x: node.studio.position[0], y: node.studio.position[1] },
       frame_id: node.studio.group !== null && groupIds.has(node.studio.group) ? node.studio.group : null,
       is_collapsed: node.studio.collapsed === true,

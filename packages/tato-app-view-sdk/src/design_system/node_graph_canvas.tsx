@@ -14,7 +14,8 @@ import { frameACardIsLetGoIn, frameRectangleAroundCards, linkUnderACard, placeCl
 import { type NodeGraphCanvasNode, type NodeGraphCanvasFrame, NODE_GRAPH_FRAME_COLOURS, type NodeGraphCanvasNote, type NodeGraphCanvasLink, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphCanvasCardMove, type NodeGraphCanvasEditing } from "./support/node_graph_canvas_contract";
 import { NodeGraphCardView } from "./node_graph/node_card";
 import { pinTypeKeyOfTheLink } from "./support/node_graph_link_colour";
-import { type NodeGraphCardFlowNode, type NodeGraphNoteFlowNode, type NodeGraphFrameFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphEditableContext, NodeGraphNoteEditingContext, NodeGraphNoteResizingContext, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColoursUsedContext, NodeGraphFrameColourPickingContext, NodeGraphFrameWordsEditingContext } from "./support/node_graph_flow_elements";
+import { type NodeGraphCardFlowNode, type NodeGraphNoteFlowNode, type NodeGraphFrameFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphEditableContext, NodeGraphNoteEditingContext, NodeGraphNoteResizingContext, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColoursUsedContext, NodeGraphFrameColourPickingContext, NodeGraphFrameWordsEditingContext, NodeGraphInputValuesContext } from "./support/node_graph_flow_elements";
+import type { InputValues } from "../pin_services/input_values";
 import { type NodeGraphRightClicked, NodeGraphRightClickChoices } from "./node_graph_right_click_choices";
 import { NodeGraphFrameView } from "./node_graph_frame_view";
 import { NodeGraphNoteView } from "./node_graph_note_view";
@@ -581,6 +582,7 @@ export function NodeGraphCanvas({
   viewportWhereItWasLeft = null,
   onViewportLeft = null,
   onSubgraphOpened = null,
+  inputValues = null,
   overlay,
   ...controlDataAttributes
 }: {
@@ -601,10 +603,13 @@ export function NodeGraphCanvas({
   onViewportLeft?: ((viewport: NodeGraphCanvasViewport) => void) | null;
   /** Told when a person double-clicks a card that holds a subgraph, to step inside it; `null` steps nowhere. */
   onSubgraphOpened?: ((nodeId: string) => void) | null;
+  /** The frame's store of input values, which each unwired input's row shows its value from; `null` shows none. */
+  inputValues?: InputValues | null;
   overlay?: ReactNode;
 } & ControlDataAttributes) {
   return (
     <div className="relative min-h-0 flex-1" {...controlDataAttributes}>
+      <NodeGraphInputValuesContext value={inputValues}>
       <ReactFlowProvider>
         <NodeGraphFlow
           label={label}
@@ -621,6 +626,7 @@ export function NodeGraphCanvas({
           overlay={overlay}
         />
       </ReactFlowProvider>
+      </NodeGraphInputValuesContext>
     </div>
   );
 }
