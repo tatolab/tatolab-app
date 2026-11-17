@@ -1,4 +1,5 @@
 {
+  "extends": "./tsconfig.effect_diagnostics.json",
   "compilerOptions": {
     "target": "ES2022",
     "strict": true,
