@@ -28,9 +28,10 @@ export class RuntimeTimedOut extends Data.TaggedError("RuntimeTimedOut")<{
   readonly words: string;
 }> {}
 
-/** The params sent to `operation` (`request`) or the answer to it (`answer`) do not match the control contract. */
+/** The params sent to `operation` (`request`) or the answer to it (`answer`) are not `contractType`, the control contract's type for them. */
 export class ContractMismatch extends Data.TaggedError("ContractMismatch")<{
   readonly operation: string;
+  readonly contractType: string;
   readonly words: string;
   readonly direction: "request" | "answer";
 }> {}

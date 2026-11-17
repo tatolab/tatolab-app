@@ -1,9 +1,8 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { BUILT_IN_PIN_TYPES, ControlSchemas, type NodeUiManifest } from "@tatolab/runtime-client";
+import { BUILT_IN_PIN_TYPES, readControlContractValue, type NodeUiManifest } from "@tatolab/runtime-client";
 import { Effect } from "effect";
-import { expect, expectTypeOf, test } from "vitest";
-import type { z } from "zod";
+import { expect, test } from "vitest";
 import { createTatolabAppLog, type TatolabAppLog } from "./tatolab_app_log.js";
 import { isAMissingFileFailure } from "./file_system_entries_on_this_machine.js";
 import { answerAStudioNodeUiFileRequest, studioNodeUiElementsListed, studioNodeUiFileOfTheRequest, studioNodeUiFileUrl, theStudiosOwnNodeUiElements } from "./studio_node_ui_module.js";
@@ -28,13 +27,11 @@ function keptLog(): { log: TatolabAppLog; lines: string[] } {
   return { log: createTatolabAppLog("debug", (logLine) => lines.push(logLine)), lines };
 }
 
-test("the schema the Studio reads its own manifest with is the contract's generated node UI manifest type", () => {
-  expectTypeOf<z.output<typeof ControlSchemas.components.NodeUiManifest>>().toEqualTypeOf<NodeUiManifest>();
-});
-
 test("the Studio's own manifest reads as the contract's node UI manifest, each control naming a built-in pin type and a script the module holds", async () => {
   const manifestJson: unknown = JSON.parse(await theModulesFile("tatolab_node_ui.json").then((bytes) => Buffer.from(bytes).toString("utf8")));
-  const manifest = ControlSchemas.components.NodeUiManifest.parse(manifestJson);
+  const manifestReading = readControlContractValue("NodeUiManifest", manifestJson);
+  if (!manifestReading.read) return expect.unreachable(JSON.stringify(manifestReading.issues));
+  const manifest = manifestReading.value;
   const moduleFiles = await readdir(STUDIO_NODE_UI_FOLDER);
   expect(manifest.controls).not.toHaveLength(0);
   for (const control of manifest.controls ?? []) {

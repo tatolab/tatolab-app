@@ -54,6 +54,7 @@ import {
   type ControlOperationAnswer,
   type ControlOperationMethodName,
   type ControlOperationParams,
+  type ControlOperationResult,
 } from "./tatolab_runtime_control_operation_call.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
@@ -716,7 +717,7 @@ export class LocalApiClient {
   }
 
   /** Call `method` with `params` in one `POST /control`, giving up after its time limit; the operation's own refusal is the runtime's, in its words. */
-  private async callControlOperation<Method extends ControlOperationMethodName>(method: Method, params: ControlOperationParams<Method>): Promise<Result<unknown, LocalApiRequestFailure>> {
+  private async callControlOperation<Method extends ControlOperationMethodName>(method: Method, params: ControlOperationParams<Method>): Promise<Result<ControlOperationResult<Method>, LocalApiRequestFailure>> {
     const answer = await this.callControlOperationKeepingItsRefusal(method, params);
     if (!answer.ok) return answer;
     return answer.value.kind === "answered" ? succeeded(answer.value.result) : theRuntimesRefusal(answer.value.words);
@@ -726,7 +727,7 @@ export class LocalApiClient {
   private callControlOperationKeepingItsRefusal<Method extends ControlOperationMethodName>(
     method: Method,
     params: ControlOperationParams<Method>,
-  ): Promise<Result<ControlOperationAnswer, LocalApiRequestFailure>> {
+  ): Promise<Result<ControlOperationAnswer<Method>, LocalApiRequestFailure>> {
     return callOneControlOperationOverAPost(this.localApiSocketPath, method, params, controlOperationTimeLimitMs(method, this.requestTimeoutMs));
   }
 

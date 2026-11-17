@@ -1,11 +1,11 @@
-// The Studio's own node UI module, `packages/tato-app-core-node-ui/`. Its manifest is read with the
-// schema the runtime's contract generates, and its elements are listed as a project's are, brought
+// The Studio's own node UI module, `packages/tato-app-core-node-ui/`. Its manifest is read by the
+// runtime client's checker against the contract's node UI manifest, and its elements are listed as a project's are, brought
 // by the Studio, whose control names are bare. Its files are copied as source beside the built
 // window, at `core_node_ui/`, and a page is served each the way a project's extension file is: a
 // `.ts` with its types removed. The files sit inside the signed app and cannot change, so they are
 // served without asking the runtime.
 
-import { ControlSchemas, type NodeUiManifest } from "@tatolab/runtime-client";
+import { readControlContractValue, type ControlContractIssue, type NodeUiManifest } from "@tatolab/runtime-client";
 import studioNodeUiManifestJson from "@tatolab/tato-app-core-node-ui/node_ui/tatolab_node_ui.json" with { type: "json" };
 import type { ListedNodeUiElement, NodeUiElementRegistration } from "@tatolab/tato-app-view-sdk/node_ui_host";
 import { Data, Effect } from "effect";
@@ -50,13 +50,18 @@ function elementsTheStudiosManifestRegisters(manifest: NodeUiManifest, folderVer
   ];
 }
 
-/** The elements the node UI manifest `manifestJson` registers, read with the contract's generated schema, as the Studio's own. */
+/** Each of `issues` as where in the manifest it is and what is wrong there. */
+function describeTheManifestIssues(issues: readonly ControlContractIssue[]): string {
+  return issues.map((issue) => `${issue.path.length === 0 ? "the manifest" : issue.path.map(String).join(".")}: ${issue.message}`).join("; ");
+}
+
+/** The elements the node UI manifest `manifestJson` registers, read against the contract's node UI manifest, as the Studio's own. */
 export function studioNodeUiElementsListed(manifestJson: unknown, folderVersion: string): Effect.Effect<readonly ListedNodeUiElement[], StudioNodeUiManifestUnreadable> {
-  const manifestReading = ControlSchemas.components.NodeUiManifest.safeParse(manifestJson);
-  if (!manifestReading.success) {
-    return Effect.fail(new StudioNodeUiManifestUnreadable({ words: `The Studio's own node_ui/tatolab_node_ui.json is not a node UI manifest: ${manifestReading.error.message}` }));
+  const manifestReading = readControlContractValue("NodeUiManifest", manifestJson);
+  if (!manifestReading.read) {
+    return Effect.fail(new StudioNodeUiManifestUnreadable({ words: `The Studio's own node_ui/tatolab_node_ui.json is not a node UI manifest: ${describeTheManifestIssues(manifestReading.issues)}` }));
   }
-  return Effect.succeed(elementsTheStudiosManifestRegisters(manifestReading.data, folderVersion));
+  return Effect.succeed(elementsTheStudiosManifestRegisters(manifestReading.value, folderVersion));
 }
 
 /** Every element the Studio's own node UI module registers; `studioVersion` names its contents, which only a new Studio changes. */

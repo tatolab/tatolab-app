@@ -4,7 +4,7 @@
 // reads nothing renders a `null` value and no `value_comes_from`. A shape this app's contract cannot
 // read is read as no value, as the input read before the runtime served one.
 
-import { ControlSchemas } from "@tatolab/runtime-client";
+import { readControlContractValue } from "@tatolab/runtime-client";
 import type { StreamGraphInputValueRead } from "../shared/tatolab_backend_contract.js";
 import { isAJsonValue, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
 
@@ -13,8 +13,8 @@ export function inputValueReadOnTheWire(port: JsonObjectOnTheWire): StreamGraphI
   const value = port["value"];
   const valueComesFrom = port["value_comes_from"];
   if (valueComesFrom === undefined) return value === null ? { value: null, comes_from: null } : null;
-  const comesFrom = ControlSchemas.components.InputValueComesFromOnTheWire.safeParse(valueComesFrom);
-  if (!comesFrom.success) return null;
-  if (comesFrom.data === "wire") return { value: null, comes_from: "wire" };
-  return isAJsonValue(value) ? { value, comes_from: comesFrom.data } : null;
+  const comesFrom = readControlContractValue("InputValueComesFromOnTheWire", valueComesFrom);
+  if (!comesFrom.read) return null;
+  if (comesFrom.value === "wire") return { value: null, comes_from: "wire" };
+  return isAJsonValue(value) ? { value, comes_from: comesFrom.value } : null;
 }

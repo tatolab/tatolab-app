@@ -322,7 +322,7 @@ test("a refusal with no structure answers the runtime's own words, and a runtime
   expect(await answeredLate.transact(removeANode, FROM_HALLWAYS_STUDIO_WINDOW)).toEqual({ ok: false, refusal: `\`transact\` to ${late.localApiSocketPath} did not answer within 100ms` });
 
   const offTheContract = await transactCommandOver(await FakeLocalApiServer.answering([controlOperationResultResponse({ mode: "commit" })]));
-  expect(await offTheContract.transact(removeANode, FROM_HALLWAYS_STUDIO_WINDOW)).toEqual({ ok: false, refusal: expect.stringMatching(/^the runtime's answer to `transact` does not match the control contract: operations: /) });
+  expect(await offTheContract.transact(removeANode, FROM_HALLWAYS_STUDIO_WINDOW)).toEqual({ ok: false, refusal: expect.stringMatching(/^the runtime's answer to `transact` is not the contract's `GraphTransactionToolResult`: operations: required, and absent; /) });
   expect(offTheContract.loggedLines).toEqual([]);
 });
 
