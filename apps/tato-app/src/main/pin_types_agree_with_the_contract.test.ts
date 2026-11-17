@@ -1,6 +1,7 @@
-// The view SDK states a pin's type and flow in schemas of its own. Each of its types and the
-// control contract's is assignable to the other, so a contract that changes one fails Studio's
-// type check, and with it the build, until the SDK follows.
+// The view SDK decodes a pin's type and flow with schemas of its own, typed by the generated pin
+// types. Each of those types and what the control contract's schemas decode is assignable to the
+// other, so a contract whose schemas and declarations part fails Studio's type check, and with it
+// the build.
 
 import type { ControlSchemas } from "@tatolab/runtime-client";
 import type { DeclaredPinType, PinFlow, PinType } from "@tatolab/tato-app-view-sdk/pin_type_readings";

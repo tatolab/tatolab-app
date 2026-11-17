@@ -58,6 +58,27 @@ function importsStayInsideThePackageRule(packageFolder) {
   };
 }
 
+/**
+ * A rule refusing any import but a relative one or one of `allowedImports`: a file of an entry that
+ * imports no library pulls in no library's code or types.
+ */
+const importsNoLibraryRule = {
+  meta: { type: "problem", schema: [{ type: "object", properties: { allowedImports: { type: "array", items: { type: "string" } } }, additionalProperties: false }] },
+  create(context) {
+    const allowedImports = new Set(context.options[0]?.allowedImports ?? []);
+    const refuseALibrary = (node, importedFrom) => {
+      if (typeof importedFrom !== "string" || importedFrom.startsWith(".") || allowedImports.has(importedFrom)) return;
+      context.report({ node, message: `${importedFrom} is a library, and this entry imports none: an author would receive its code and its types.` });
+    };
+    return {
+      ImportDeclaration: (node) => refuseALibrary(node.source, node.source.value),
+      ExportNamedDeclaration: (node) => node.source && refuseALibrary(node.source, node.source.value),
+      ExportAllDeclaration: (node) => refuseALibrary(node.source, node.source.value),
+      ImportExpression: (node) => node.source.type === "Literal" && refuseALibrary(node.source, node.source.value),
+    };
+  },
+};
+
 /** Imports no package makes: the app, by name or by path, or another package's files by path rather than by its name. */
 const IMPORTS_OUTSIDE_THE_PACKAGE = [
   { group: ["tato-app", "tato-app/*"], message: "A package never imports the app; a view reaches Studio only through @tatolab/tato-app-view-sdk." },
@@ -66,14 +87,18 @@ const IMPORTS_OUTSIDE_THE_PACKAGE = [
 
 const PACKAGE_LINTED_FILES = ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.mjs"];
 
-/** The lint config of the package in `packageFolder`, whose sources and tests live in `src/`. */
-export function packageLintConfig(packageFolder) {
+/**
+ * The lint config of the package in `packageFolder`, whose sources and tests live in `src/`.
+ * `filesThatImportNoLibrary` are the sources of entries that import no library, which may import
+ * only each other and `allowedLibraryImports`.
+ */
+export function packageLintConfig(packageFolder, { filesThatImportNoLibrary = [], allowedLibraryImports = [] } = {}) {
   return tseslint.config(
     { ignores: ["node_modules/**", "dist/**"] },
     ...tatolabTypeScriptLintConfig({ files: PACKAGE_LINTED_FILES, testFiles: ["src/**/*.test.ts", "src/**/*.test.tsx"] }),
     {
       files: PACKAGE_LINTED_FILES,
-      plugins: { tatolab_package: { rules: { imports_stay_inside_the_package: importsStayInsideThePackageRule(packageFolder) } } },
+      plugins: { tatolab_package: { rules: { imports_stay_inside_the_package: importsStayInsideThePackageRule(packageFolder), imports_no_library: importsNoLibraryRule } } },
       rules: {
         "tatolab_package/imports_stay_inside_the_package": "error",
         "no-restricted-imports": ["error", { patterns: IMPORTS_OUTSIDE_THE_PACKAGE }],
@@ -87,5 +112,8 @@ export function packageLintConfig(packageFolder) {
         "no-restricted-imports": ["error", { paths: ROUND_STATUS_ICON_IMPORTS, patterns: IMPORTS_OUTSIDE_THE_PACKAGE }],
       },
     },
+    ...(filesThatImportNoLibrary.length === 0
+      ? []
+      : [{ files: filesThatImportNoLibrary, ignores: ["**/*.test.ts"], rules: { "tatolab_package/imports_no_library": ["error", { allowedImports: allowedLibraryImports }] } }]),
   );
 }
