@@ -2,7 +2,7 @@
 // parsed against these on both ends, and Studio's own code takes its types from them.
 
 import { z } from "zod";
-import { declaredPinTypeSchema, pinFlowSchema, pinTypeSchema } from "./pin_type_readings.js";
+import { declaredPinTypeSchema, nodeInputModeSchema, pinFlowSchema, pinTypeSchema } from "./pin_type_readings.js";
 import { PORT_FAMILIES } from "./port_families.js";
 
 /** A value as JSON carries it. */
@@ -266,15 +266,6 @@ export type StreamGraphSummary = z.infer<typeof streamGraphSummarySchema>;
 export const nodeCatalogPortPinSchema = z.object({ pin_type: declaredPinTypeSchema, flow: pinFlowSchema });
 /** The pin type a node type's port declares, and its flow. */
 export type NodeCatalogPortPin = z.infer<typeof nodeCatalogPortPinSchema>;
-
-/** Whether an input takes a wire, a stored value, or both, as the catalog input's `input_mode` tags it by `mode`; a setting takes no wire, and is read once as its node is set up or on each run. */
-export const nodeInputModeSchema = z.discriminatedUnion("mode", [
-  z.strictObject({ mode: z.literal("wire_or_value") }),
-  z.strictObject({ mode: z.literal("wire_only") }),
-  z.strictObject({ mode: z.literal("setting_only"), read: z.enum(["at_setup", "each_run"]).optional() }),
-]);
-/** Whether an input takes a wire, a stored value, or both. */
-export type NodeInputMode = z.infer<typeof nodeInputModeSchema>;
 
 /** One port a node type declares, as the node catalog lists it. */
 export const nodeCatalogPortSchema = z.object({

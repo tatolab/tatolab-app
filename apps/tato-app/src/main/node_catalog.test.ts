@@ -1,7 +1,5 @@
 import { readFile } from "node:fs/promises";
-import type { NodeInputMode } from "@tatolab/runtime-client";
-import { expect, expectTypeOf, test } from "vitest";
-import type { NodeCatalogPort } from "../shared/tatolab_backend_contract.js";
+import { expect, test } from "vitest";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 
 /**
@@ -155,7 +153,6 @@ test("a_setting_listed_among_a_node_types_inputs_reads_with_its_input_mode_and_a
 });
 
 test("an_input_mode_the_contract_does_not_name_reads_as_none", () => {
-  expectTypeOf<NonNullable<NodeCatalogPort["input_mode"]>>().toEqualTypeOf<NodeInputMode>();
   const registryAnswer = JSON.stringify({
     nodes: [{ type: "nodes.x:X", description: "", inputs: [{ name: "a", description: "", input_mode: { mode: "sometimes" } }, { name: "b", description: "", input_mode: "setting_only" }], outputs: [] }],
   });

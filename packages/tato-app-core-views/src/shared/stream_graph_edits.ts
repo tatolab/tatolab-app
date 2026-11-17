@@ -131,7 +131,7 @@ function firstPortOfTheFamily(ports: readonly Pick<NodeCatalogPort, "name" | "fa
 }
 
 /** The inputs of `nodeType` a wire can end at: every input but a setting, which takes a stored value and no wire. */
-export function inputsAWireReaches(nodeType: Pick<NodeCatalogEntry, "inputs">): NodeCatalogPort[] {
+export function inputsAWireReaches(nodeType: Pick<NodeCatalogEntry, "inputs">): readonly NodeCatalogPort[] {
   return nodeType.inputs.filter((input) => input.input_mode?.mode !== "setting_only");
 }
 

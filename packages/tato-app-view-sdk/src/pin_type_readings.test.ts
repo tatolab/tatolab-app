@@ -1,6 +1,7 @@
 import { expect, expectTypeOf, test } from "vitest";
+import type { NodeInputMode as TheContractsNodeInputMode } from "@tatolab/runtime-client";
 import type { z } from "zod";
-import { builtInPinTypeNameSchema, declaredPinTypeSchema, pinFlowSchema, pinTypeSchema, type BuiltInPinTypeName, type PinType } from "./pin_type_readings.js";
+import { builtInPinTypeNameSchema, declaredPinTypeSchema, nodeInputModeSchema, pinFlowSchema, pinTypeSchema, type BuiltInPinTypeName, type PinType } from "./pin_type_readings.js";
 import { nodeCatalogPortSchema, streamGraphDeclaredPortSchema } from "./studio_readings.js";
 
 test("a_pin_type_reads_in_each_form_the_contract_gives_and_nested_types_are_checked_too", () => {
@@ -47,6 +48,7 @@ test("a_port_crossing_to_a_view_with_a_pin_the_contract_does_not_name_is_refused
 
 test("a_catalog_input_crosses_to_a_view_with_each_input_mode_the_contract_names_and_with_no_other", () => {
   const catalogInput = { name: "gain", description: "", family: null, pin: null };
+  expectTypeOf<z.infer<typeof nodeInputModeSchema>>().toEqualTypeOf<TheContractsNodeInputMode>();
 
   expect(["wire_or_value", "wire_only"].map((mode) => nodeCatalogPortSchema.safeParse({ ...catalogInput, input_mode: { mode } }).success)).toEqual([true, true]);
   expect(nodeCatalogPortSchema.safeParse({ ...catalogInput, input_mode: { mode: "setting_only", read: "at_setup" } }).success).toBe(true);
