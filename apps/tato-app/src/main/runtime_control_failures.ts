@@ -6,7 +6,8 @@ import type { ProjectActionRefusalOnTheWire } from "@tatolab/runtime-client";
 
 /**
  * The runtime answered `operation` and said no: `byTheOperation` when the operation itself refused or failed, otherwise its
- * control API refused the call; `refusal` is the contract's structured refusal when the operation gave one.
+ * control API refused the call; `refusal` is the contract's whole structured refusal when the runtime sent one, under
+ * whatever JSON-RPC code, so a refusal of the params (`-32602`) or of the operation (`-32601`) keeps its code and place too.
  */
 export class RuntimeRefused extends Data.TaggedError("RuntimeRefused")<{
   readonly operation: string;

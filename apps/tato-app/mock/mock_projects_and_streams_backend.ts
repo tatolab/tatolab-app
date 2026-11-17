@@ -16,7 +16,7 @@ import { mockDeleteTheAsset, mockImportTheFilesChosen, mockReadTheAssetPreview, 
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import type { JsonValue, ProjectGraphTransaction } from "../src/shared/tatolab_backend_contract";
-import { applyMockGraphTransaction, isAJsonObject } from "./mock_graph_transactions";
+import { applyMockGraphTransaction, isAJsonObject, MOCK_REFUSAL_NAMING_NOTHING } from "./mock_graph_transactions";
 import { PROJECT_LOG_FOLDER_IN_THE_PROJECT, type StreamActionCancelAnswer, type StreamActionFollowed } from "../src/shared/tatolab_backend_contract";
 import { MOCK_COMMAND_LATENCY_MILLISECONDS, type MockLoadedStream } from "./mock_tatolab_simulation_constants";
 import { sleep, type MockTatolabSimulation } from "./mock_tatolab_simulation";
@@ -345,7 +345,7 @@ export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulatio
       savedGraphTargetsOfTheOpenProject();
       const operationInsideAPlacedStream = operations.findIndex((operation) => "level" in operation && (operation.level ?? []).length > 0);
       if (mode === "live" && operationInsideAPlacedStream !== -1) {
-        const refusal = { action: "transact", refused_operation_index: operationInsideAPlacedStream, refused_node: null, refused_link: null, refused_field: null };
+        const refusal = { ...MOCK_REFUSAL_NAMING_NOTHING, action: "transact", refused_operation_index: operationInsideAPlacedStream };
         return { kind: "refused", refusal: { ...refusal, runtime_words: "an edit inside a placed stream is refused live: it is made on the project's graph documents, with `mode` `commit`" } };
       }
       const outcome = mode === "commit" ? commitGraphActions(operations, "a_transaction") : applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations);

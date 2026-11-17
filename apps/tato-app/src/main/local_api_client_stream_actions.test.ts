@@ -438,3 +438,15 @@ test("an_open_a_start_playback_and_a_close_are_described_under_their_own_kinds_w
   expect(await kindAndStreamStatesOf("Rhrb4oumhnnzujbb137ivd7ah-4")).toEqual(["start_playback", "done", ["running"]]);
   expect(await kindAndStreamStatesOf("Rhrb4oumhnnzujbb137ivd7ah-5")).toEqual(["close", "done", ["closed"]]);
 });
+
+test("a_stream_action_whose_params_the_runtime_does_not_read_is_a_failure_in_its_words_never_an_action_not_held", async () => {
+  const runtimeWords = "`describe_stream_action`'s params do not match its request: missing field `action`";
+  const paramsRefused = {
+    jsonrpc: "2.0",
+    id: 1,
+    error: { code: -32602, message: runtimeWords, data: { refusal_code: "params_do_not_match_schema", action: "describe_stream_action", runtime_words: runtimeWords } },
+  };
+  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", JSON.stringify(paramsRefused))]);
+
+  expect(failureOf(await server.client().describeStreamAction("Rgw2h0t6a3cjv8y1-4"))).toEqual({ isTheRuntimesRefusal: true, failureDescription: `the runtime refused \`describe_stream_action\`: ${runtimeWords}` });
+});

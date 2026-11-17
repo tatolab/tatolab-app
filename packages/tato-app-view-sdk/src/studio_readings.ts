@@ -724,8 +724,16 @@ export type ProjectTransaction = z.infer<typeof projectTransactionSchema>;
 /** One end of the link a refused operation names: a node by UUID or `as` label, and one of its ports. */
 export const refusedGraphLinkEndSchema = z.object({ node: z.string(), port: z.string() });
 
+/** The place in a project file a refusal is about: its path in the project, and a line and column, each from 1, when the place is narrower. */
+const refusedFileSchema = z.object({ path: z.string(), line: z.number().int().positive().nullish(), column: z.number().int().positive().nullish() });
+
+/** A call a refusal suggests: the operation by name and its params, exactly as the runtime's `call_operation` takes them. */
+const suggestedCallSchema = z.object({ operation: z.string(), params: z.record(z.string(), jsonValueSchema) });
+
 /** What the runtime refused of an action, and why in its own words. */
 export const projectActionRefusalSchema = z.object({
+  /** What kind of refusal it is, for the surface that made the edit to branch on, never turned into words. The set is the runtime's and grows, so it is open here; Studio's main process reads it through the generated runtime client, which reads a code it does not know as `refused`. */
+  refusal_code: z.string(),
   /** The action refused, by the name of the tool it was sent to. */
   action: z.string(),
   /** The position, from 0, of the operation refused among those the action sent; `null` when none was. */
@@ -736,6 +744,12 @@ export const projectActionRefusalSchema = z.object({
   refused_link: z.object({ source: refusedGraphLinkEndSchema, target: refusedGraphLinkEndSchema }).nullable(),
   /** The node's input or config field the refused operation names. */
   refused_field: z.string().nullable(),
+  /** The JSON pointer, into the params the action sent, of the value refused; `null` when no one value inside them is. */
+  refused_params_pointer: z.string().nullable(),
+  /** The place in a project file the refusal is about. */
+  refused_file: refusedFileSchema.nullable(),
+  /** A call that would help, when the runtime knows one. */
+  suggested_call: suggestedCallSchema.nullable(),
   /** Why, in the runtime's own words, never rewritten. */
   runtime_words: z.string(),
 });

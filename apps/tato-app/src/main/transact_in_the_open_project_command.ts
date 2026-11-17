@@ -3,10 +3,11 @@
 // runtime's answer and its refusal are the contract's types from the socket on.
 
 import { Effect, type ManagedRuntime } from "effect";
-import type { GraphTransactionToolResult, ProjectActionRefusalOnTheWire } from "@tatolab/runtime-client";
-import type { ProjectActionRefusal, ProjectGraphTransaction, ProjectGraphTransactionTheRuntimeAnswered } from "../shared/tatolab_backend_contract.js";
+import type { GraphTransactionToolResult } from "@tatolab/runtime-client";
+import type { ProjectGraphTransaction, ProjectGraphTransactionTheRuntimeAnswered } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonValue } from "./json_on_the_wire.js";
+import { projectActionRefusalOfTheContract } from "./project_transactions_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
 import { ContractMismatch } from "./runtime_control_failures.js";
@@ -39,22 +40,10 @@ function transactionTheWindowReads(answered: GraphTransactionToolResult): Result
   });
 }
 
-/** The runtime's structured refusal as the window reads it: each absent key the contract allows as `null`. */
-function refusalTheWindowReads(refusal: ProjectActionRefusalOnTheWire): ProjectActionRefusal {
-  return {
-    action: refusal.action,
-    refused_operation_index: refusal.refused_operation_index ?? null,
-    refused_node: refusal.refused_node ?? null,
-    refused_link: refusal.refused_link === undefined || refusal.refused_link === null ? null : { source: refusal.refused_link.source, target: refusal.refused_link.target },
-    refused_field: refusal.refused_field ?? null,
-    runtime_words: refusal.runtime_words,
-  };
-}
-
 /**
  * The runtime's `transact` of the window's graph actions by the person editing in Studio, answering what it applied or its
- * structured refusal; a stream asset that is not one of the window's project's is refused in Studio's words, and a refusal
- * the runtime gave no structure for in the runtime's own.
+ * structured refusal, whatever JSON-RPC code carried it; a stream asset that is not one of the window's project's is refused
+ * in Studio's words, and a refusal the runtime gave no structure for in the runtime's own.
  */
 export const transactInTheOpenProject = Effect.fn("transact_in_the_open_project")(function* (
   transacting: ProjectGraphTransactionSentByTheWindow,
@@ -81,7 +70,7 @@ export const transactInTheOpenProject = Effect.fn("transact_in_the_open_project"
       Effect.flatMap((answered) => fromResult(transactionTheWindowReads(answered), (words) => new ContractMismatch({ operation: "transact", words, direction: "answer" }))),
       Effect.map((transaction): ProjectGraphTransactionTheRuntimeAnswered => ({ kind: "applied", transaction })),
       Effect.catchTag("RuntimeRefused", (refused) =>
-        refused.refusal === undefined ? Effect.fail(refused) : Effect.succeed<ProjectGraphTransactionTheRuntimeAnswered>({ kind: "refused", refusal: refusalTheWindowReads(refused.refusal) }),
+        refused.refusal === undefined ? Effect.fail(refused) : Effect.succeed<ProjectGraphTransactionTheRuntimeAnswered>({ kind: "refused", refusal: projectActionRefusalOfTheContract(refused.refusal) }),
       ),
     );
 });

@@ -38,8 +38,19 @@ class MockGraphActionRefused {
   constructor(readonly refusal: Omit<ProjectActionRefusal, "action" | "refused_operation_index">) {}
 }
 
+/** What a mock refusal names beside its action and words when it names nothing more: the general code `refused`, and no place or suggested call. */
+export const MOCK_REFUSAL_NAMING_NOTHING: Omit<ProjectActionRefusal, "action" | "refused_operation_index" | "runtime_words"> = {
+  refusal_code: "refused",
+  refused_node: null,
+  refused_link: null,
+  refused_field: null,
+  refused_params_pointer: null,
+  refused_file: null,
+  suggested_call: null,
+};
+
 function refusedNaming(words: string, named: Partial<Omit<ProjectActionRefusal, "action" | "refused_operation_index" | "runtime_words">> = {}): MockGraphActionRefused {
-  return new MockGraphActionRefused({ refused_node: null, refused_link: null, refused_field: null, ...named, runtime_words: words });
+  return new MockGraphActionRefused({ ...MOCK_REFUSAL_NAMING_NOTHING, ...named, runtime_words: words });
 }
 
 /** The studio fields of a `studio` object an action gives, as the runtime keeps them: a key of the wrong shape refused, every key it does not know under `metadata`. */
@@ -330,7 +341,7 @@ export function applyMockGraphTransaction(
     const target = targetsByStreamAsset.get(streamAsset);
     const streamGraph = workingGraphs.get(streamAsset);
     if (target === undefined || streamGraph === undefined) {
-      return { kind: "refused", refusal: { action: "transact", refused_operation_index: operationIndex, refused_node: null, refused_link: null, refused_field: null, runtime_words: `no loaded stream is the stream asset ${operation.stream}` } };
+      return { kind: "refused", refusal: { ...MOCK_REFUSAL_NAMING_NOTHING, action: "transact", refused_operation_index: operationIndex, runtime_words: `no loaded stream is the stream asset ${operation.stream}` } };
     }
     const nodeIdOf = (graphNode: MockGraphNode) => mockGraphNodeIdOf(target.stream_id, graphNode);
     const level = [...(placementNamed?.level ?? []), ...("level" in operation ? (operation.level ?? []) : [])];
@@ -341,7 +352,7 @@ export function applyMockGraphTransaction(
       const whyNoInside = whyTheNodeHasNoInsideToEdit(subgraph, subgraphId);
       const placedStream = subgraph === undefined ? null : ownStreamTheNodePlaces(subgraph);
       if (whyNoInside !== null || subgraph?.fragment === undefined || placedStream === null) {
-        return { kind: "refused", refusal: { action: "transact", refused_operation_index: operationIndex, refused_node: subgraphId, refused_link: null, refused_field: null, runtime_words: whyNoInside ?? `node ${subgraphId} names no stream` } };
+        return { kind: "refused", refusal: { ...MOCK_REFUSAL_NAMING_NOTHING, action: "transact", refused_operation_index: operationIndex, refused_node: subgraphId, runtime_words: whyNoInside ?? `node ${subgraphId} names no stream` } };
       }
       graph = subgraph.fragment;
       streamOfTheLevel = placedStream;
