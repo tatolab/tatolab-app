@@ -61,7 +61,7 @@ describe("connectToTatoAppOverPort", () => {
     expect(events[0]).toBe(frame);
   });
 
-  it("takes only messages in the contract's shape from Studio, which the type check holds", () => {
+  it("records the contract: MessageFromStudio admits no shape outside it", () => {
     expectTypeOf<{ kind: "watched"; watch_id: number; watched: { subject: "selection"; reading: { kind: "everything" } } }>().not.toExtend<MessageFromStudio>();
     expectTypeOf<{ kind: "answered"; ask_id: number; answer: { kind: "project_file_saved" } }>().not.toExtend<MessageFromStudio>();
     expectTypeOf<{ kind: "watched"; watch_id: number; watched: { subject: "selection"; reading: { kind: "node"; stream: string; node: string } } }>().toExtend<MessageFromStudio>();

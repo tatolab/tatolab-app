@@ -1,33 +1,26 @@
-// The view SDK decodes a pin's type and flow with schemas of its own, whose outputs are inferred
-// from the schemas. What each decodes, the generated type the SDK names it by, and what the control
-// contract's own schema decodes are each assignable to the others, so a contract that adds a kind
-// or a flow, or a decoder that decodes less, fails Studio's type check and with it the build.
+// The view SDK names a pin's type and flow by the generated types it takes from the runtime client,
+// and main decodes them with the control contract's own schemas from the same client. Each is
+// assignable to the other, so a contract whose schema and generated type part fails Studio's type
+// check and with it the build.
 
 import type { ControlSchemas } from "@tatolab/runtime-client";
 import type { DeclaredPinType, PinFlow, PinType } from "@tatolab/tato-app-view-sdk/pin_types";
-import type { declaredPinTypeSchema, pinFlowSchema, pinTypeSchema } from "@tatolab/tato-app-view-sdk/pin_type_readings";
 import { expectTypeOf, test } from "vitest";
 import type { z } from "zod";
 
 type TheContracts<Component extends "PinType" | "DeclaredPinType" | "PinFlow"> = z.infer<(typeof ControlSchemas)["components"][Component]>;
 
-test("the_sdks_pin_type_decoder_decodes_the_contracts_pin_type", () => {
-  expectTypeOf<z.output<typeof pinTypeSchema>>().toExtend<PinType>();
-  expectTypeOf<PinType>().toExtend<z.output<typeof pinTypeSchema>>();
-  expectTypeOf<z.output<typeof pinTypeSchema>>().toExtend<TheContracts<"PinType">>();
-  expectTypeOf<TheContracts<"PinType">>().toExtend<z.output<typeof pinTypeSchema>>();
+test("the_sdks_pin_type_is_the_contracts_pin_type", () => {
+  expectTypeOf<PinType>().toExtend<TheContracts<"PinType">>();
+  expectTypeOf<TheContracts<"PinType">>().toExtend<PinType>();
 });
 
-test("the_sdks_declared_pin_type_decoder_decodes_the_contracts_declared_pin_type", () => {
-  expectTypeOf<z.output<typeof declaredPinTypeSchema>>().toExtend<DeclaredPinType>();
-  expectTypeOf<DeclaredPinType>().toExtend<z.output<typeof declaredPinTypeSchema>>();
-  expectTypeOf<z.output<typeof declaredPinTypeSchema>>().toExtend<TheContracts<"DeclaredPinType">>();
-  expectTypeOf<TheContracts<"DeclaredPinType">>().toExtend<z.output<typeof declaredPinTypeSchema>>();
+test("the_sdks_declared_pin_type_is_the_contracts_declared_pin_type", () => {
+  expectTypeOf<DeclaredPinType>().toExtend<TheContracts<"DeclaredPinType">>();
+  expectTypeOf<TheContracts<"DeclaredPinType">>().toExtend<DeclaredPinType>();
 });
 
-test("the_sdks_pin_flow_decoder_decodes_the_contracts_pin_flow", () => {
-  expectTypeOf<z.output<typeof pinFlowSchema>>().toExtend<PinFlow>();
-  expectTypeOf<PinFlow>().toExtend<z.output<typeof pinFlowSchema>>();
-  expectTypeOf<z.output<typeof pinFlowSchema>>().toExtend<TheContracts<"PinFlow">>();
-  expectTypeOf<TheContracts<"PinFlow">>().toExtend<z.output<typeof pinFlowSchema>>();
+test("the_sdks_pin_flow_is_the_contracts_pin_flow", () => {
+  expectTypeOf<PinFlow>().toExtend<TheContracts<"PinFlow">>();
+  expectTypeOf<TheContracts<"PinFlow">>().toExtend<PinFlow>();
 });

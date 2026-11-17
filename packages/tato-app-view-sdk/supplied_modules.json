@@ -2,7 +2,7 @@
   { "name": "@tatolab/tato-app-view-sdk", "served_file": "index.js", "imports_no_library": false },
   { "name": "@tatolab/tato-app-view-sdk/studio_readings", "served_file": "studio_readings.js", "imports_no_library": false },
   { "name": "@tatolab/tato-app-view-sdk/port_families", "served_file": "port_families.js", "imports_no_library": false },
-  { "name": "@tatolab/tato-app-view-sdk/pin_type_readings", "served_file": "pin_type_readings.js", "imports_no_library": false },
+  { "name": "@tatolab/tato-app-view-sdk/pin_type_readings", "served_file": "pin_type_readings.js", "imports_no_library": true },
   { "name": "@tatolab/tato-app-view-sdk/pin_types", "served_file": "pin_types.js", "imports_no_library": true },
   { "name": "@tatolab/tato-app-view-sdk/node_ui", "served_file": "node_ui.js", "imports_no_library": true },
   { "name": "@tatolab/tato-app-view-sdk/node_ui/input_control.css", "served_file": "input_control.css", "imports_no_library": true }

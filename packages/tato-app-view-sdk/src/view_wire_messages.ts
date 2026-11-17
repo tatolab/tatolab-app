@@ -39,7 +39,7 @@ import {
   type ViewOpenedOn,
 } from "./studio_readings.js";
 import type { NodeUiElementsReading } from "./node_ui/node_ui_elements_listing.js";
-import type { ViewCapability, ViewDeclaredPort } from "./tatolab_view_manifest.js";
+import type { TatolabViewManifest } from "./tatolab_view_manifest.js";
 
 /** What a port viewer delivers: an Image frame as a `VideoFrame` the view closes once drawn, or as its pixels; another family's message, read by its family; or the viewer reopening or ending, with why. */
 export type PortViewerEvent =
@@ -251,14 +251,7 @@ export type ViewAskAnswer =
   | { kind: "project_asset_pick_ended"; because: string };
 
 /** What Studio granted the view, as it reads it on connecting: its id, the contract served, its placement, declared ports and the capabilities its manifest declares. */
-export type ViewGrant = {
-  view_type_id: string;
-  contract: string;
-  placement: "area" | "node";
-  inputs: ViewDeclaredPort[];
-  outputs: ViewDeclaredPort[];
-  capabilities: ViewCapability[];
-};
+export type ViewGrant = { view_type_id: string; contract: string } & Pick<TatolabViewManifest, "placement" | "inputs" | "outputs" | "capabilities">;
 
 /** One message Studio sends a view. */
 export type MessageFromStudio =

@@ -249,7 +249,7 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       });
     };
 
-    // Studio's own build sent it, so it reaches the switch as typed; a kind or subject this SDK does not know falls through.
+    // Studio's own build sent it, so it reaches the switch as typed: a kind this SDK does not know falls through, and a watched reading goes to the watch that asked for its subject.
     const onPortMessage = ({ data: message }: MessageEvent<MessageFromStudio>) => {
       switch (message.kind) {
         case "hello":
