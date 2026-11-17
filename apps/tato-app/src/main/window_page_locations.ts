@@ -14,3 +14,25 @@ export function isOnTheLocationUnderThePath(locationUrl: string, url: string, pa
   const parsedUrl = new URL(url);
   return parsedUrl.protocol === location.protocol && parsedUrl.host === location.host && parsedUrl.pathname.startsWith(pathPrefix);
 }
+
+/** The window page's URL of `pathUnderThePrefix`, a `/`-separated path under `pathPrefix`, each segment encoded as a URL writes it. */
+export function windowPageUrlUnderThePath(pathPrefix: string, pathUnderThePrefix: string): string {
+  return new URL(`${pathPrefix}${pathUnderThePrefix.split("/").map(encodeURIComponent).join("/")}`, TATOLAB_WINDOW_PAGE_ROOT_URL).href;
+}
+
+/**
+ * The decoded `/`-separated path under `pathPrefix` that `requestUrl` names on the window page's scheme and host, or
+ * `null` when it names none, cannot be decoded, or holds a segment that is empty, `.`, `..` or has a backslash, any of
+ * which could climb out of the folder served there.
+ */
+export function windowPagePathUnderThePrefix(requestUrl: string, pathPrefix: string): string | null {
+  if (!isOnTheLocationUnderThePath(TATOLAB_WINDOW_PAGE_ROOT_URL, requestUrl, pathPrefix)) return null;
+  let pathUnderThePrefix: string;
+  try {
+    pathUnderThePrefix = decodeURIComponent(new URL(requestUrl).pathname.slice(pathPrefix.length));
+  } catch {
+    return null;
+  }
+  const climbsOrIsUnclear = pathUnderThePrefix.split("/").some((pathSegment) => pathSegment === "" || pathSegment === "." || pathSegment === ".." || pathSegment.includes("\\"));
+  return climbsOrIsUnclear ? null : pathUnderThePrefix;
+}

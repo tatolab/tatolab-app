@@ -8,7 +8,7 @@ import {
   projectViewFileRequestsAnsweredOn,
   projectViewFolderUrl,
   ProjectViewsListedToTheWindows,
-  type ProjectViewFileAnswer,
+  type ExtensionFileAnswer,
 } from "./extension_files_served_with_types_removed.js";
 import { controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
 import { controlOperationCallsReceivedBy } from "./local_api_client_test_support.js";
@@ -151,7 +151,7 @@ function projectViewFilesServedAt(localApiSocketPath: string) {
 }
 
 /** `answer` with the bytes it serves read as text. */
-function withItsBytesAsText(answer: ProjectViewFileAnswer) {
+function withItsBytesAsText(answer: ExtensionFileAnswer) {
   return answer.kind === "served" ? { kind: answer.kind, content_type: answer.content_type, file_text: answer.file_bytes.toString("utf8") } : answer;
 }
 

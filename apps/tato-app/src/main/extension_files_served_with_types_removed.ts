@@ -17,7 +17,7 @@ import { ProjectViewsListed, StudioWindows } from "./studio_runtime.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import { RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import { typeScriptWithItsTypesRemoved, type TypeScriptTypesNotRemoved } from "./typescript_types_removed.js";
-import { isOnTheLocationUnderThePath, TATOLAB_WINDOW_PAGE_ROOT_URL } from "./window_page_locations.js";
+import { isOnTheLocationUnderThePath, TATOLAB_WINDOW_PAGE_ROOT_URL, windowPagePathUnderThePrefix, windowPageUrlUnderThePath } from "./window_page_locations.js";
 
 /** Where the window serves project views' files. */
 export const PROJECT_VIEW_FILES_PATH = "/project_views/";
@@ -69,8 +69,7 @@ const HOW_EACH_FILE_IS_SERVED_BY_EXTENSION: ReadonlyMap<string, ProjectViewFileS
 
 /** The URL the view folder `viewFolderInTheProject` of the project in `openProjectFolder` is served under, which its entry and every file it loads resolve against. */
 export function projectViewFolderUrl(openProjectFolder: string, viewFolderInTheProject: string): string {
-  const encodedPath = viewFolderInTheProject.split("/").map(encodeURIComponent).join("/");
-  return new URL(`${PROJECT_VIEW_FILES_PATH}${Buffer.from(openProjectFolder, "utf8").toString("base64url")}/${encodedPath}/`, TATOLAB_WINDOW_PAGE_ROOT_URL).href;
+  return `${windowPageUrlUnderThePath(PROJECT_VIEW_FILES_PATH, `${Buffer.from(openProjectFolder, "utf8").toString("base64url")}/${viewFolderInTheProject}`)}/`;
 }
 
 /** Whether `url` is served from a project's view folder. */
@@ -87,19 +86,13 @@ export interface ProjectViewFileAsked {
 
 /** The project view file `requestUrl` asks for, or `null` when it names none: another path, a project folder that is not absolute, or a file outside a view folder. */
 export function projectViewFileOfTheRequest(requestUrl: string): ProjectViewFileAsked | null {
-  if (!isAProjectViewFileUrl(requestUrl)) return null;
-  let requestedPath: string;
-  try {
-    requestedPath = decodeURIComponent(new URL(requestUrl).pathname.slice(PROJECT_VIEW_FILES_PATH.length));
-  } catch {
-    return null;
-  }
+  const requestedPath = windowPagePathUnderThePrefix(requestUrl, PROJECT_VIEW_FILES_PATH);
+  if (requestedPath === null) return null;
   const folderEnd = requestedPath.indexOf("/");
   if (folderEnd <= 0) return null;
   const openProjectFolder = Buffer.from(requestedPath.slice(0, folderEnd), "base64url").toString("utf8");
   const pathInTheProject = requestedPath.slice(folderEnd + 1);
   if (!path.isAbsolute(openProjectFolder) || path.normalize(openProjectFolder) !== openProjectFolder) return null;
-  if (pathInTheProject.split("/").some((pathSegment) => pathSegment === ".." || pathSegment === "." || pathSegment === "")) return null;
   const viewFolderInTheProject = VIEW_FOLDER_IN_A_PROJECT.exec(pathInTheProject)?.[0];
   if (viewFolderInTheProject === undefined) return null;
   return { open_project_folder: openProjectFolder, view_folder_in_the_project: viewFolderInTheProject, path_in_the_project: pathInTheProject };
@@ -110,14 +103,14 @@ export function howAProjectViewFileIsServed(pathInTheProject: string): ProjectVi
   return HOW_EACH_FILE_IS_SERVED_BY_EXTENSION.get(path.posix.extname(pathInTheProject).toLowerCase()) ?? servedAsRead("application/octet-stream");
 }
 
-/** How a request for a project view's file is answered: its bytes, or a status with why. */
-export type ProjectViewFileAnswer = { kind: "served"; content_type: string; file_bytes: Buffer } | { kind: "not_served"; status: ProjectViewFileNotServedStatus | 500; because: string };
+/** How a request for an extension's file, a project view's or the Studio's own node UI module's, is answered: its bytes, or a status with why. */
+export type ExtensionFileAnswer = { kind: "served"; content_type: string; file_bytes: Buffer } | { kind: "not_served"; status: ProjectViewFileNotServedStatus | 500; because: string };
 
 /** The status of a request a known failure left unserved: refused (403), not found (404), not servable as written (422), a runtime answer that breaks its contract (502), or no runtime answer (503). */
 type ProjectViewFileNotServedStatus = 403 | 404 | 422 | 502 | 503;
 
 /** How the running app answers a request for a project view's file. */
-export type AnswerAProjectViewFileRequest = (requestUrl: string) => Promise<ProjectViewFileAnswer>;
+export type AnswerAProjectViewFileRequest = (requestUrl: string) => Promise<ExtensionFileAnswer>;
 
 /** The views each studio window's view-type menu last listed as ones that open, by project: the only view folders served. */
 export class ProjectViewsListedToTheWindows {
@@ -155,6 +148,9 @@ class ProjectFileBytesUnreadable extends Data.TaggedError("ProjectFileBytesUnrea
 
 /** A view's page is not UTF-8 text, so the supplied modules' import map cannot be written into it. */
 class ProjectViewPageNotUtf8Text extends Data.TaggedError("ProjectViewPageNotUtf8Text")<{ readonly words: string }> {}
+
+/** Every way a file read whole is not servable as it is written. */
+export type ExtensionFileNotServableAsWritten = TypeScriptTypesNotRemoved | ProjectViewPageNotUtf8Text;
 
 /** Every way a request for a project view's file goes unserved. */
 type ProjectViewFileNotServed = NotAProjectViewFile | ProjectViewNotOpenInAStudioWindow | ProjectFileBytesUnreadable | TypeScriptTypesNotRemoved | ProjectViewPageNotUtf8Text | RuntimeControlFailure;
@@ -194,7 +190,7 @@ export function projectViewFileAsServed(
   pathInTheProject: string,
   fileBytes: Buffer,
   servedAs: ProjectViewFileServedAs,
-): Effect.Effect<Buffer, TypeScriptTypesNotRemoved | ProjectViewPageNotUtf8Text> {
+): Effect.Effect<Buffer, ExtensionFileNotServableAsWritten> {
   switch (servedAs) {
     case "types_removed":
       return typeScriptWithItsTypesRemoved(pathInTheProject, fileBytes).pipe(Effect.map((javaScriptText) => Buffer.from(javaScriptText, "utf8")));
@@ -222,19 +218,19 @@ const projectViewFileServed = Effect.fn("project_view_file_served")(function* (r
   const fileBytes = yield* fromResult(bytesOfTheBase64ContentOfTheContract(fileRead), (failure) => new ProjectFileBytesUnreadable({ words: `the runtime's read_project_file result could not be read: ${failure}` }));
   const serving = howAProjectViewFileIsServed(fileAsked.path_in_the_project);
   const servedBytes = yield* projectViewFileAsServed(fileAsked.path_in_the_project, fileBytes, serving.served_as);
-  return { kind: "served", content_type: serving.content_type, file_bytes: servedBytes } satisfies ProjectViewFileAnswer;
+  return { kind: "served", content_type: serving.content_type, file_bytes: servedBytes } satisfies ExtensionFileAnswer;
 });
 
 /** The answer to `requestUrl`: the file served, or the status and words of what stopped it; a file not servable as its author wrote it is logged with its words. */
-function answerAProjectViewFileRequest(requestUrl: string): Effect.Effect<ProjectViewFileAnswer, never, StudioWindows | ProjectViewsListed | RuntimeControl> {
+function answerAProjectViewFileRequest(requestUrl: string): Effect.Effect<ExtensionFileAnswer, never, StudioWindows | ProjectViewsListed | RuntimeControl> {
   return projectViewFileServed(requestUrl).pipe(
     Effect.tapError((notServed) => (statusOfAFileNotServed(notServed) === 422 ? Effect.logWarning("a project view's file was not served as its author wrote it", notServed.words) : Effect.void)),
-    Effect.catch((notServed) => Effect.succeed<ProjectViewFileAnswer>({ kind: "not_served", status: statusOfAFileNotServed(notServed), because: notServed.words })),
+    Effect.catch((notServed) => Effect.succeed<ExtensionFileAnswer>({ kind: "not_served", status: statusOfAFileNotServed(notServed), because: notServed.words })),
   );
 }
 
 /** How a request for `requestUrl` answers when serving it ended without an answer: `cause` was a defect, or the runtime that ran it was disposed. */
-function answerOfARequestThatEndedWithoutAnAnswer(requestUrl: string, cause: Cause.Cause<unknown>): ProjectViewFileAnswer {
+function answerOfARequestThatEndedWithoutAnAnswer(requestUrl: string, cause: Cause.Cause<unknown>): ExtensionFileAnswer {
   return { kind: "not_served", status: 500, because: `serving ${requestUrl} ended without an answer: ${describeCaughtFailure(Cause.squash(cause))}` };
 }
 

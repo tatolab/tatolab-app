@@ -9,9 +9,11 @@ import { ControlSchemas, type NodeUiManifest } from "@tatolab/runtime-client";
 import studioNodeUiManifestJson from "@tatolab/tato-app-core-node-ui/node_ui/tatolab_node_ui.json" with { type: "json" };
 import type { ListedNodeUiElement, NodeUiElementRegistration } from "@tatolab/tato-app-view-sdk/node_ui_host";
 import { Data, Effect } from "effect";
-import { howAProjectViewFileIsServed, projectViewFileAsServed, type ProjectViewFileAnswer } from "./extension_files_served_with_types_removed.js";
+import { howAProjectViewFileIsServed, projectViewFileAsServed, type ExtensionFileAnswer, type ExtensionFileNotServableAsWritten } from "./extension_files_served_with_types_removed.js";
 import { describeCaughtFailure } from "./result.js";
-import { isOnTheLocationUnderThePath, TATOLAB_WINDOW_PAGE_ROOT_URL } from "./window_page_locations.js";
+import { tatolabAppLogAsEffectsLogger } from "./studio_runtime.js";
+import type { TatolabAppLog } from "./tatolab_app_log.js";
+import { isOnTheLocationUnderThePath, TATOLAB_WINDOW_PAGE_ROOT_URL, windowPagePathUnderThePrefix, windowPageUrlUnderThePath } from "./window_page_locations.js";
 
 /** Where the window serves the Studio's own node UI module, beside the built window. */
 export const STUDIO_NODE_UI_FILES_PATH = "/core_node_ui/";
@@ -24,7 +26,7 @@ export class StudioNodeUiManifestUnreadable extends Data.TaggedError("StudioNode
 
 /** The URL a page imports the file at `pathInTheModule` of the Studio's own node UI module from. */
 export function studioNodeUiFileUrl(pathInTheModule: string): string {
-  return new URL(`${STUDIO_NODE_UI_FILES_PATH}${pathInTheModule.split("/").map(encodeURIComponent).join("/")}`, TATOLAB_WINDOW_PAGE_ROOT_URL).href;
+  return windowPageUrlUnderThePath(STUDIO_NODE_UI_FILES_PATH, pathInTheModule);
 }
 
 /** What one entry of a node UI manifest registers. */
@@ -69,32 +71,58 @@ export function isAStudioNodeUiFileUrl(requestUrl: string): boolean {
 
 /** The `/`-separated path inside the Studio's own node UI module that `requestUrl` asks for, or `null` when it names none or leaves the module. */
 export function studioNodeUiFileOfTheRequest(requestUrl: string): string | null {
-  if (!isAStudioNodeUiFileUrl(requestUrl)) return null;
-  let pathInTheModule: string;
-  try {
-    pathInTheModule = decodeURIComponent(new URL(requestUrl).pathname.slice(STUDIO_NODE_UI_FILES_PATH.length));
-  } catch {
-    return null;
-  }
-  if (pathInTheModule.split("/").some((pathSegment) => pathSegment === "" || pathSegment === "." || pathSegment === ".." || pathSegment.includes("\\"))) return null;
-  return pathInTheModule;
+  return windowPagePathUnderThePrefix(requestUrl, STUDIO_NODE_UI_FILES_PATH);
 }
 
-/** Reads the file at a `/`-separated path inside the Studio's own node UI module, from the built window or the dev server. */
-export type ReadAStudioNodeUiFile = (pathInTheModule: string) => Promise<Uint8Array>;
+/** Reads the file at a `/`-separated path inside the Studio's own node UI module, from the built window or the dev server: its bytes, or `null` when it is not there; it rejects when the file could not be read. */
+export type ReadAStudioNodeUiFile = (pathInTheModule: string) => Promise<Uint8Array | null>;
 
-/** The answer to `requestUrl`, a file of the Studio's own node UI module read with `readTheFile`, as a page is served a project's extension file; never rejected. */
-export function answerAStudioNodeUiFileRequest(requestUrl: string, readTheFile: ReadAStudioNodeUiFile): Promise<ProjectViewFileAnswer> {
+/** The request names no file the Studio's own node UI module holds. */
+class StudioNodeUiFileNotFound extends Data.TaggedError("StudioNodeUiFileNotFound")<{ readonly words: string }> {}
+
+/** A file of the Studio's own node UI module is there, but could not be read. */
+class StudioNodeUiFileUnreadable extends Data.TaggedError("StudioNodeUiFileUnreadable")<{ readonly words: string }> {}
+
+/** Every way a request for a file of the Studio's own node UI module goes unserved. */
+type StudioNodeUiFileNotServed = StudioNodeUiFileNotFound | StudioNodeUiFileUnreadable | ExtensionFileNotServableAsWritten;
+
+/** The status a request answers with when `notServed` stopped it: not found (404), not servable as written (422), or not read (500). */
+function statusOfAStudioNodeUiFileNotServed(notServed: StudioNodeUiFileNotServed): 404 | 422 | 500 {
+  switch (notServed._tag) {
+    case "StudioNodeUiFileNotFound":
+      return 404;
+    case "TypeScriptTypesNotRemoved":
+    case "ProjectViewPageNotUtf8Text":
+      return 422;
+    case "StudioNodeUiFileUnreadable":
+      return 500;
+  }
+}
+
+/** The file `requestUrl` asks for, read with `readTheFile` and served as a project's extension file is. */
+const studioNodeUiFileServed = Effect.fn("studio_node_ui_file_served")(function* (requestUrl: string, readTheFile: ReadAStudioNodeUiFile) {
   const pathInTheModule = studioNodeUiFileOfTheRequest(requestUrl);
-  if (pathInTheModule === null) return Promise.resolve({ kind: "not_served", status: 404, because: `${requestUrl} names no file of the Studio's own node UI module.` });
+  if (pathInTheModule === null) return yield* new StudioNodeUiFileNotFound({ words: `${requestUrl} names no file of the Studio's own node UI module.` });
+  const fileBytes = yield* Effect.tryPromise({
+    try: () => readTheFile(pathInTheModule),
+    catch: (readFailure) => new StudioNodeUiFileUnreadable({ words: `the Studio's own node_ui/${pathInTheModule} could not be read: ${describeCaughtFailure(readFailure)}` }),
+  });
+  if (fileBytes === null) return yield* new StudioNodeUiFileNotFound({ words: `the Studio's own node UI module holds no ${pathInTheModule}.` });
   const serving = howAProjectViewFileIsServed(pathInTheModule);
+  const servedBytes = yield* projectViewFileAsServed(pathInTheModule, Buffer.from(fileBytes), serving.served_as);
+  return { kind: "served", content_type: serving.content_type, file_bytes: servedBytes } satisfies ExtensionFileAnswer;
+});
+
+/**
+ * The answer to `requestUrl`, a file of the Studio's own node UI module read with `readTheFile`, as a page is served a
+ * project's extension file; never rejected. A file not servable as written is logged to `tatolabAppLog` as a warning.
+ */
+export function answerAStudioNodeUiFileRequest(requestUrl: string, readTheFile: ReadAStudioNodeUiFile, tatolabAppLog: TatolabAppLog): Promise<ExtensionFileAnswer> {
   return Effect.runPromise(
-    Effect.tryPromise({ try: () => readTheFile(pathInTheModule), catch: (readFailure) => ({ status: 404 as const, words: `${pathInTheModule}: ${describeCaughtFailure(readFailure)}` }) }).pipe(
-      Effect.flatMap((fileBytes) => projectViewFileAsServed(pathInTheModule, Buffer.from(fileBytes), serving.served_as).pipe(Effect.mapError((notServed) => ({ status: 422 as const, words: notServed.words })))),
-      Effect.match({
-        onSuccess: (servedBytes): ProjectViewFileAnswer => ({ kind: "served", content_type: serving.content_type, file_bytes: servedBytes }),
-        onFailure: (notServed): ProjectViewFileAnswer => ({ kind: "not_served", status: notServed.status, because: notServed.words }),
-      }),
+    studioNodeUiFileServed(requestUrl, readTheFile).pipe(
+      Effect.tapError((notServed) => (statusOfAStudioNodeUiFileNotServed(notServed) === 422 ? Effect.logWarning("a file of the Studio's own node UI module was not served as it is written", notServed.words) : Effect.void)),
+      Effect.catch((notServed) => Effect.succeed<ExtensionFileAnswer>({ kind: "not_served", status: statusOfAStudioNodeUiFileNotServed(notServed), because: notServed.words })),
+      Effect.provide(tatolabAppLogAsEffectsLogger(tatolabAppLog)),
     ),
   );
 }

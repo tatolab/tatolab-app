@@ -1,7 +1,11 @@
 // The default control of a Float input: its number in a field, centred as Blender draws one. Dragged
 // sideways, the number follows the pointer, firing `input` at each move and `change` once on
-// release, so one drag is one undo step. Pressed without a drag, the field takes typed words, which
-// Enter or leaving the field commits as one `change` and Escape puts back.
+// release, so one drag is one undo step. A drag the host interrupts, by making the control read
+// only or taking it off the page, puts the number back: it fires `input` with the value the drag
+// began at and no `change`. Pressed without a drag, the field takes typed words, which Enter or
+// leaving the field commits as one `change` and Escape puts back; ArrowUp and ArrowDown move the
+// number one step, Shift a finer one, each as one `change`. A dragged, typed or stepped number is
+// put on the input's step, then inside its range.
 
 import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState } from "@tatolab/tato-app-view-sdk/node_ui";
 import controlStyles from "@tatolab/tato-app-view-sdk/node_ui/input_control.css" with { type: "css" };
@@ -15,8 +19,11 @@ const MOVE_PER_PIXEL_WITH_NO_STEP = 0.01;
 /** How many pixels of drag cross the whole range of an input that states one and no step. */
 const PIXELS_ACROSS_A_RANGE = 200;
 
-/** How much finer a drag moves while Shift is held. */
-const FINE_DRAG_SCALE = 0.1;
+/** How many pixels of drag one arrow key moves a number whose input states no step. */
+const PIXELS_IN_AN_ARROW_KEY = 10;
+
+/** How much finer a drag or an arrow key moves while Shift is held; a stated step stays the finest move. */
+const FINE_MOVE_SCALE = 0.1;
 
 /** The most decimals a number is shown or rounded to. */
 const MOST_DECIMALS = 6;
@@ -27,7 +34,7 @@ function decimalsOf(number: number): number {
   return fraction.length;
 }
 
-/** A press of the field that has not been released: where it began, and whether it has moved the number. */
+/** A press of the field that has not ended: where it began, and whether it has moved the number. */
 interface PressOfTheField {
   readonly pointer_id: number;
   readonly started_at_x: number;
@@ -36,7 +43,10 @@ interface PressOfTheField {
   moved_the_number: boolean;
 }
 
-/** A number field for a Float input, which a drag or typed words change. */
+/** How a press ends: released by the person, or interrupted by the host. */
+type PressEnding = "released" | "interrupted";
+
+/** A number field for a Float input, which a drag, typed words or the arrow keys change. */
 export default class FloatNumber extends HTMLElement implements InputControlElement<"float"> {
   readonly #field = document.createElement("div");
   readonly #words = document.createElement("input");
@@ -62,9 +72,11 @@ export default class FloatNumber extends HTMLElement implements InputControlElem
     shadow.append(this.#field);
     this.#field.addEventListener("pointerdown", (pointerEvent) => this.#pressed(pointerEvent));
     this.#field.addEventListener("pointermove", (pointerEvent) => this.#pointerMoved(pointerEvent));
-    this.#field.addEventListener("pointerup", (pointerEvent) => this.#released(pointerEvent, true));
-    this.#field.addEventListener("pointercancel", (pointerEvent) => this.#released(pointerEvent, false));
-    this.#words.addEventListener("keydown", (keyEvent) => this.#keyPressedWhileTyping(keyEvent));
+    this.#field.addEventListener("pointerup", (pointerEvent) => this.#released(pointerEvent));
+    this.#field.addEventListener("pointercancel", (pointerEvent) => {
+      if (pointerEvent.pointerId === this.#press?.pointer_id) this.#endThePress("interrupted");
+    });
+    this.#words.addEventListener("keydown", (keyEvent) => this.#keyPressedInTheField(keyEvent));
     this.#words.addEventListener("blur", () => this.#typingEnded());
   }
 
@@ -87,11 +99,11 @@ export default class FloatNumber extends HTMLElement implements InputControlElem
   set state(state: InputControlState) {
     this.#editable = state === "editable";
     this.#words.readOnly = !this.#editable;
-    if (!this.#editable) this.#press = null;
+    if (!this.#editable) this.#endThePress("interrupted");
   }
 
   disconnectedCallback(): void {
-    this.#press = null;
+    this.#endThePress("interrupted");
   }
 
   /** A press begins a drag, unless the field already takes typed words, where it places the caret. */
@@ -111,8 +123,8 @@ export default class FloatNumber extends HTMLElement implements InputControlElem
       press.dragging = true;
       this.#field.toggleAttribute("data-dragging", true);
     }
-    const movePerPixel = this.#movePerPixel() * (pointerEvent.shiftKey ? FINE_DRAG_SCALE : 1);
-    const dragged = this.#withinTheRange(this.#rounded(press.value_at_the_start + pixelsMoved * movePerPixel, movePerPixel));
+    const movePerPixel = this.#movePerPixel() * (pointerEvent.shiftKey ? FINE_MOVE_SCALE : 1);
+    const dragged = this.#settled(press.value_at_the_start + pixelsMoved * movePerPixel, movePerPixel);
     if (dragged === this.#value) return;
     press.moved_the_number = true;
     this.#value = dragged;
@@ -120,44 +132,85 @@ export default class FloatNumber extends HTMLElement implements InputControlElem
     fireInputControlEvent(this, "input", dragged);
   }
 
-  /** A drag that moved the number ends with one `change`; a press that never dragged gives the field to typed words. */
-  #released(pointerEvent: PointerEvent, releasedInPlace: boolean): void {
+  /** A press released without a drag gives the field to typed words; one that dragged ends as `#endThePress` says. */
+  #released(pointerEvent: PointerEvent): void {
     const press = this.#press;
     if (press === null || pointerEvent.pointerId !== press.pointer_id) return;
-    this.#press = null;
-    this.#field.toggleAttribute("data-dragging", false);
-    if (press.moved_the_number) {
-      fireInputControlEvent(this, "change", this.#value);
-      return;
-    }
-    if (!press.dragging && releasedInPlace) {
+    this.#endThePress("released");
+    if (!press.dragging) {
       this.#words.focus();
       this.#words.select();
     }
   }
 
-  #keyPressedWhileTyping(keyEvent: KeyboardEvent): void {
-    if (keyEvent.key === "Enter") this.#words.blur();
-    if (keyEvent.key === "Escape") {
-      this.#puttingTheWordsBack = true;
-      this.#words.blur();
+  /** Ends the open press, if any: released, a drag that moved the number fires one `change`; interrupted, it puts the number back and fires `input` with it, and no `change`. */
+  #endThePress(ending: PressEnding): void {
+    const press = this.#press;
+    if (press === null) return;
+    this.#press = null;
+    this.#field.toggleAttribute("data-dragging", false);
+    if (this.#field.hasPointerCapture(press.pointer_id)) this.#field.releasePointerCapture(press.pointer_id);
+    if (!press.moved_the_number) return;
+    if (ending === "released") {
+      fireInputControlEvent(this, "change", this.#value);
+      return;
+    }
+    this.#value = press.value_at_the_start;
+    this.#showTheValue();
+    fireInputControlEvent(this, "input", press.value_at_the_start);
+  }
+
+  #keyPressedInTheField(keyEvent: KeyboardEvent): void {
+    switch (keyEvent.key) {
+      case "Enter":
+        this.#keptByTheField(keyEvent);
+        this.#words.blur();
+        return;
+      case "Escape":
+        this.#keptByTheField(keyEvent);
+        this.#puttingTheWordsBack = true;
+        this.#words.blur();
+        return;
+      case "ArrowUp":
+      case "ArrowDown":
+        this.#keptByTheField(keyEvent);
+        this.#steppedByAnArrowKey(keyEvent.key === "ArrowUp" ? 1 : -1, keyEvent.shiftKey);
+        return;
+      default:
     }
   }
 
-  /** Commits the typed words as one `change` when they read as a number that differs from the value, and shows the value again. */
+  /** Keeps a key the field acts on from the page and from whatever holds the control. */
+  #keptByTheField(keyEvent: KeyboardEvent): void {
+    keyEvent.preventDefault();
+    keyEvent.stopPropagation();
+  }
+
+  /** Moves the number one step in `direction` as one `change`, a finer one with `fine`. */
+  #steppedByAnArrowKey(direction: 1 | -1, fine: boolean): void {
+    if (!this.#editable || this.#press !== null) return;
+    const move = (this.#step ?? this.#movePerPixel() * PIXELS_IN_AN_ARROW_KEY) * (fine ? FINE_MOVE_SCALE : 1);
+    const stepped = this.#settled(this.#value + direction * move, move);
+    if (stepped === this.#value) return;
+    this.#value = stepped;
+    this.#writeTheValue();
+    fireInputControlEvent(this, "change", stepped);
+  }
+
+  /** Commits the typed words as one `change` when they read as a number that settles on another value, and shows the value again. */
   #typingEnded(): void {
     const puttingTheWordsBack = this.#puttingTheWordsBack;
     this.#puttingTheWordsBack = false;
     const typedWords = this.#words.value.trim();
     const typed = typedWords === "" ? Number.NaN : Number(typedWords);
     if (!puttingTheWordsBack && this.#editable && Number.isFinite(typed)) {
-      const committed = this.#withinTheRange(typed);
+      const committed = this.#settled(typed, null);
       if (committed !== this.#value) {
         this.#value = committed;
         fireInputControlEvent(this, "change", committed);
       }
     }
-    this.#showTheValue();
+    this.#writeTheValue();
   }
 
   #isTyping(): boolean {
@@ -171,19 +224,23 @@ export default class FloatNumber extends HTMLElement implements InputControlElem
     return MOVE_PER_PIXEL_WITH_NO_STEP;
   }
 
-  /** `number` on the input's step when it states one, otherwise to the decimals of `movePerPixel`, so a drag never shows float noise. */
-  #rounded(number: number, movePerPixel: number): number {
-    if (this.#step === null) return Number(number.toFixed(decimalsOf(movePerPixel)));
-    const onTheStep = Math.round(number / this.#step) * this.#step;
-    return Number(onTheStep.toFixed(decimalsOf(this.#step)));
-  }
-
-  #withinTheRange(number: number): number {
-    const atLeastTheMinimum = this.#minimum === null ? number : Math.max(this.#minimum, number);
+  /**
+   * The one rule every new number follows: on the input's step when it states one, otherwise to the
+   * decimals of `finestMove` when a gesture moved it, then inside the input's range.
+   */
+  #settled(number: number, finestMove: number | null): number {
+    const rounded =
+      this.#step !== null ? Number((Math.round(number / this.#step) * this.#step).toFixed(decimalsOf(this.#step))) : finestMove === null ? number : Number(number.toFixed(decimalsOf(finestMove)));
+    const atLeastTheMinimum = this.#minimum === null ? rounded : Math.max(this.#minimum, rounded);
     return this.#maximum === null ? atLeastTheMinimum : Math.min(this.#maximum, atLeastTheMinimum);
   }
 
+  /** Shows the value, unless the field holds words being typed, which a value the host sets never overwrites. */
   #showTheValue(): void {
+    if (!this.#isTyping()) this.#writeTheValue();
+  }
+
+  #writeTheValue(): void {
     this.#words.value = this.#step === null ? String(Number(this.#value.toFixed(MOST_DECIMALS))) : this.#value.toFixed(decimalsOf(this.#step));
   }
 }
