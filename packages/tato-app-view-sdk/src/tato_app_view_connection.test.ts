@@ -29,10 +29,6 @@ async function connectionToAStandInStudio(answer: (message: MessageFromTheView) 
   return { connection: await connecting, messagesFromTheView, viewsEnd: channel.port2 };
 }
 
-function nextTurns(count = 5): Promise<void> {
-  return new Promise((resolveTurns) => setTimeout(resolveTurns, count));
-}
-
 describe("connectToTatoAppOverPort", () => {
   it("resolves with what Studio granted once it says hello", async () => {
     const { connection } = await connectionToAStandInStudio(() => []);
