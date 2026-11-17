@@ -2,7 +2,7 @@
 // command to the runtime's `transact` and back. Its arguments are decoded once, at the edge; the
 // runtime's answer and its refusal are the contract's types from the socket on.
 
-import { Effect, type ManagedRuntime } from "effect";
+import { Data, Effect, type ManagedRuntime } from "effect";
 import type { ProjectGraphTransaction, ProjectGraphTransactionTheRuntimeAnswered } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonValue } from "./json_on_the_wire.js";
@@ -11,15 +11,18 @@ import { failedWith, succeeded, type Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
 import { ListedStreams, PersonEditingInStudio, StudioWindows, type StudioServices } from "./studio_runtime.js";
 import type { TatolabCommandFromWindow } from "./tatolab_command_answers.js";
-import { answerContractMismatch, authorOnTheWire, RuntimeControl, type GraphTransactionToolResult } from "./tatolab_runtime_control_operation_call.js";
+import { authorOnTheWire, RuntimeControl, type GraphTransactionToolResult } from "./tatolab_runtime_control_operation_call.js";
 import { TransactInTheOpenProjectArguments, type ProjectGraphTransactionSentByTheWindow } from "../shared/transact_in_the_open_project_arguments.js";
 import { CommandRefused, windowCommand } from "./window_command.js";
+
+/** `transact` answered on the contract, with a transaction the window does not read, as one in a mode it has no view of. */
+export class TransactAnswerTheWindowDoesNotRead extends Data.TaggedError("TransactAnswerTheWindowDoesNotRead")<{ readonly words: string }> {}
 
 /** The transaction `transact` answered, as the window reads it: each absent key the contract allows as `null` or empty; or why its mode or an operation is not one the window reads. */
 function transactionTheWindowReads(answered: GraphTransactionToolResult): Result<ProjectGraphTransaction, string> {
   const { mode, operations } = answered;
-  if (mode !== "commit" && mode !== "live") return failedWith(`the runtime's transact answered the mode \`${mode}\`, neither commit nor live`);
-  if (!operations.every(isAJsonValue)) return failedWith("the runtime's transact answered an applied operation that is not JSON");
+  if (mode !== "commit" && mode !== "live") return failedWith(`the runtime's transact answered on the contract in the mode \`${mode}\`, but the window reads only commit or live`);
+  if (!operations.every(isAJsonValue)) return failedWith("the runtime's transact answered on the contract with an applied operation that is not JSON, which the window cannot read");
   return succeeded({
     mode,
     transaction: answered.transaction ?? null,
@@ -65,7 +68,7 @@ export const transactInTheOpenProject = Effect.fn("transact_in_the_open_project"
       ...(transacting.idempotency_key === null ? {} : { idempotency_key: transacting.idempotency_key }),
     })
     .pipe(
-      Effect.flatMap((answered) => fromResult(transactionTheWindowReads(answered), (why) => answerContractMismatch("transact", why))),
+      Effect.flatMap((answered) => fromResult(transactionTheWindowReads(answered), (words) => new TransactAnswerTheWindowDoesNotRead({ words }))),
       Effect.map((transaction): ProjectGraphTransactionTheRuntimeAnswered => ({ kind: "applied", transaction })),
       Effect.catchTag("RuntimeRefused", (refused) =>
         refused.refusal === undefined ? Effect.fail(refused) : Effect.succeed<ProjectGraphTransactionTheRuntimeAnswered>({ kind: "refused", refusal: projectActionRefusalOfTheContract(refused.refusal) }),

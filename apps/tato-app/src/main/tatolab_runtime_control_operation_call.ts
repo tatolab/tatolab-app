@@ -1,14 +1,14 @@
 // The main process's one importer of streamlib's generated `@tatolab/runtime-client`, and the one
-// module that calls the runtime through it: it calls a control operation over the runtime's JSON-RPC adapter, in one `POST /control` or on the
-// WebSocket at `/control/ws`. `RuntimeControl` makes the call as an Effect failing with a
-// `RuntimeControlFailure`; the calls not yet converted settle every outcome as a `Result`. The
-// client checks each call and answer against the control contract: it rejects params that do not
-// match with `ControlRequestInvalid` before sending them, an answer that does not match with
-// `ControlAnswerInvalid`, the runtime's JSON-RPC error with `ControlOperationError`, and with any
-// other error when nothing answered. An answer is checked once, by the client, and handed on as the
-// contract's type for its operation; a hand-written reader still walks it, typed, until its
-// operation is next touched. The contract types and the checker the rest of the main process reads
-// with are re-exported from here.
+// module that calls the runtime through it: it calls a control operation over the runtime's
+// JSON-RPC adapter, in one `POST /control` or on the WebSocket at `/control/ws`. `RuntimeControl`
+// makes the call as an Effect failing with a `RuntimeControlFailure`; the calls not yet converted
+// settle every outcome as a `Result`. The client checks each call and answer against the control
+// contract: it rejects params that do not match with `ControlRequestInvalid` before sending them,
+// an answer that does not match with `ControlAnswerInvalid`, the runtime's JSON-RPC error with
+// `ControlOperationError`, and with any other error when nothing answered. An answer is checked
+// once, by the client, and handed on as the contract's type for its operation; a hand-written
+// reader still walks it, typed, until its operation is next touched. The contract types and the
+// checker the rest of the main process reads with are re-exported from here.
 
 import {
   CONTROL_OPERATION_FAILED_ERROR_CODE,
@@ -28,6 +28,13 @@ import {
   type ControlOperations,
   type ProjectActionRefusalOnTheWire,
 } from "@tatolab/runtime-client";
+import { Context, Duration, Effect, Layer } from "effect";
+import { TATO_STUDIO_MCP_CLIENT_NAME, type ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
+import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
+import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
+import { ContractMismatch, RuntimeRefused, RuntimeTimedOut, RuntimeUnreachable, type RuntimeControlFailure } from "./runtime_control_failures.js";
+
+export type { ControlNotifications, ControlOperationMethodName, ControlOperations };
 export type {
   ControlContractComponents,
   ControlContractIssue,
@@ -38,13 +45,6 @@ export type {
   SuggestedOperationCall,
 } from "@tatolab/runtime-client";
 export { readControlContractValue } from "@tatolab/runtime-client";
-import { Context, Duration, Effect, Layer } from "effect";
-import { TATO_STUDIO_MCP_CLIENT_NAME, type ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
-import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
-import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
-import { ContractMismatch, RuntimeRefused, RuntimeTimedOut, RuntimeUnreachable, type RuntimeControlFailure } from "./runtime_control_failures.js";
-
-export type { ControlNotifications, ControlOperationMethodName, ControlOperations };
 
 /** The params `method` takes, as the control contract declares them. */
 export type ControlOperationParams<Method extends ControlOperationMethodName> = ControlOperations[Method]["params"];
@@ -83,7 +83,7 @@ export function controlContractTypeOf(method: ControlOperationMethodName, part: 
 }
 
 /** That the answer to `method` does not read as the contract's type for it, for `why`. */
-export function answerContractMismatch(method: ControlOperationMethodName, why: string): ContractMismatch {
+function answerContractMismatch(method: ControlOperationMethodName, why: string): ContractMismatch {
   const contractType = controlContractTypeOf(method, "result");
   return new ContractMismatch({ operation: method, contractType, direction: "answer", words: `the runtime's answer to \`${method}\` is not the contract's \`${contractType}\`: ${why}` });
 }

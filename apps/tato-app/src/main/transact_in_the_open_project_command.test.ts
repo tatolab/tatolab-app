@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { ManagedRuntime } from "effect";
+import { Effect, ManagedRuntime } from "effect";
 import { afterEach, expect, test, vi } from "vitest";
 import type { ListedStream } from "../shared/tatolab_backend_contract.js";
 import { controlOperationFailedResponse, controlOperationRefusedResponse, controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
@@ -9,7 +9,7 @@ import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.j
 import { controlOperationCallsReceivedBy } from "./local_api_client_test_support.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import { cleanUpTheFakesTheLastTestMade, cleanUps, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, recordedResponseBody, sharedStateOverFakes, studioServicesLayerForTest } from "./tatolab_commands_test_support.js";
-import { transactInTheOpenProjectCommand } from "./transact_in_the_open_project_command.js";
+import { transactInTheOpenProject, transactInTheOpenProjectCommand } from "./transact_in_the_open_project_command.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
@@ -49,7 +49,7 @@ async function transactCommandAt(localApiSocketPath: string, streamAsset: string
     }),
   );
   cleanUps.push(() => studioRuntime.dispose());
-  return { transact: transactInTheOpenProjectCommand(studioRuntime), loggedLines };
+  return { transact: transactInTheOpenProjectCommand(studioRuntime), studioRuntime, loggedLines };
 }
 
 /** A server replaying the recorded `transact` answers `fixtureFileNames`, in order. */
@@ -324,6 +324,20 @@ test("a refusal with no structure answers the runtime's own words, and a runtime
   const offTheContract = await transactCommandOver(await FakeLocalApiServer.answering([controlOperationResultResponse({ mode: "commit" })]));
   expect(await offTheContract.transact(removeANode, FROM_HALLWAYS_STUDIO_WINDOW)).toEqual({ ok: false, refusal: expect.stringMatching(/^the runtime's answer to `transact` is not the contract's `GraphTransactionToolResult`: operations: required, and absent; /) });
   expect(offTheContract.loggedLines).toEqual([]);
+});
+
+test("an answer on the contract in a mode the window does not read is refused as the window's reading, not as a contract mismatch", async () => {
+  const dryRunAnswer = { mode: "dry_run", transaction: null, commit: null, operations: [], added_nodes: [], connected_links: [] };
+  const removeANode = { operations: [{ operation: "remove_node" as const, stream: STREAM_ASSET, node: "n" }], mode: "commit" as const, idempotency_key: null };
+  const { studioRuntime } = await transactCommandOver(await FakeLocalApiServer.answering([controlOperationResultResponse(dryRunAnswer)]));
+
+  const settled = await studioRuntime.runPromise(Effect.result(transactInTheOpenProject(removeANode, FROM_HALLWAYS_STUDIO_WINDOW)));
+
+  expect(settled._tag).toBe("Failure");
+  if (settled._tag !== "Failure") return;
+  expect(settled.failure).toEqual(
+    expect.objectContaining({ _tag: "TransactAnswerTheWindowDoesNotRead", words: "the runtime's transact answered on the contract in the mode `dry_run`, but the window reads only commit or live" }),
+  );
 });
 
 test("an edit naming another project's stream asset, or sent from the Projects window, is refused in Studio's words before it reaches the runtime", async () => {

@@ -1,9 +1,9 @@
 // The Studio's own node UI module, `packages/tato-app-core-node-ui/`. Its manifest is read by the
 // runtime client's checker against the contract's node UI manifest, and its elements are listed as
-// a project's are, brought by the Studio, whose control names are bare. Its files are copied as source beside the built
-// window, at `core_node_ui/`, and a page is served each the way a project's extension file is: a
-// `.ts` with its types removed. The files sit inside the signed app and cannot change, so they are
-// served without asking the runtime.
+// a project's are, brought by the Studio, whose control names are bare. Its files are copied as
+// source beside the built window, at `core_node_ui/`, and a page is served each the way a project's
+// extension file is: a `.ts` with its types removed. The files sit inside the signed app and cannot
+// change, so they are served without asking the runtime.
 
 import studioNodeUiManifestJson from "@tatolab/tato-app-core-node-ui/node_ui/tatolab_node_ui.json" with { type: "json" };
 import type { ListedNodeUiElement, NodeUiElementRegistration } from "@tatolab/tato-app-view-sdk/node_ui_host";
