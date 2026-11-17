@@ -9,7 +9,7 @@ import { exactPinOfTheDeclaredPort, type NodePin } from "@tatolab/tato-app-view-
 import type { NodeCatalogEntry, NodeCatalogPort, OpenProject, ProjectNodeType, ProjectNodeTypeListing, ProjectNodeTypeSourceOrigin } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nodeTypeCategoryPath } from "../shared/node_type_category_path";
 import { nameInWords, nodeTypeClassName } from "../shared/node_words";
-import { portALooseWireLinksTo, type LooseWire } from "../shared/stream_graph_edits";
+import { inputsAWireReaches, portALooseWireLinksTo, type LooseWire } from "../shared/stream_graph_edits";
 
 /** The entry above the search's categories that lists what the project's own source declares. */
 export const THIS_PROJECT_SEARCH_ENTRY = "This project";
@@ -70,7 +70,7 @@ export function nodeTypesTheProjectDeclares(projectNodeTypes: ProjectNodeTypeLis
 }
 
 function catalogEntryOfTheDeclaration(declared: ProjectNodeType): NodeCatalogEntry {
-  const portsDeclared = (ports: ProjectNodeType["inputs"]) => (ports ?? []).map(({ name, description, family }) => ({ name, description, family, pin: null }));
+  const portsDeclared = (ports: ProjectNodeType["inputs"]) => (ports ?? []).map(({ name, description, family }) => ({ name, description, family, pin: null, input_mode: null }));
   return { type: declared.type, description: declared.description, category: declared.category, config_schema: null, inputs: portsDeclared(declared.inputs), outputs: portsDeclared(declared.outputs) };
 }
 
@@ -127,9 +127,9 @@ function nodePinOfTheCatalogPort(port: NodeCatalogPort): NodePin {
   return { name: port.name, pin: exactPinOfTheDeclaredPort(port.pin), family: port.family, description: description === "" ? null : description, stream_facts_words: [], value_address: null };
 }
 
-/** The card the search previews for the node type `searchItemId` names, as the graph draws that node once placed; `null` for an item that is no node type of `catalog`, as a graph generator. */
+/** The card the search previews for the node type `searchItemId` names, as the graph draws that node once placed, with a pin for each input a wire reaches and no setting; `null` for an item that is no node type of `catalog`, as a graph generator. */
 export function nodeTypeSearchPreviewCard(catalog: readonly NodeCatalogEntry[], searchItemId: string): { title: string; inputs: NodePin[]; outputs: NodePin[] } | null {
   const nodeTypeSearched = catalog.find((entry) => entry.type === searchItemId);
   if (nodeTypeSearched === undefined) return null;
-  return { title: nameInWords(nodeTypeClassName(nodeTypeSearched.type)), inputs: nodeTypeSearched.inputs.map(nodePinOfTheCatalogPort), outputs: nodeTypeSearched.outputs.map(nodePinOfTheCatalogPort) };
+  return { title: nameInWords(nodeTypeClassName(nodeTypeSearched.type)), inputs: inputsAWireReaches(nodeTypeSearched).map(nodePinOfTheCatalogPort), outputs: nodeTypeSearched.outputs.map(nodePinOfTheCatalogPort) };
 }

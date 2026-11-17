@@ -4,7 +4,7 @@
 // node's `kind` as the runtime spells it, and a node's `studio` fields a view edits.
 
 import { z } from "zod";
-import type { DeclaredPinType, PinFlow, PinType } from "./pin_type_readings.js";
+import type { DeclaredPinType, NodeInputMode, PinFlow, PinType } from "./pin_type_readings.js";
 import type { PortFamily } from "./port_families.js";
 
 /** A value as JSON carries it. */
@@ -228,6 +228,8 @@ export type NodeCatalogPort = {
   family: PortFamily | null;
   /** Its declared pin type and flow; `null` on a port the catalog serves neither for, because its code does not state its type exactly. */
   pin: NodeCatalogPortPin | null;
+  /** On an input, whether it takes a wire, a stored value, or both, from its `input_mode` key; `null` on an input the catalog serves none for, which takes a wire, and on every output. */
+  input_mode: NodeInputMode | null;
 };
 
 /** One node type a stream can add, as the node catalog lists it under the `type` a graph node carries. */

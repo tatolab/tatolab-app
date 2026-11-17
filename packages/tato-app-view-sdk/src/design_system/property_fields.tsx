@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Box, Check, ChevronDown, ChevronRight, FolderOpen, Minus, Plus, RotateCcw, X } from "lucide-react";
+import { Box, Check, ChevronDown, ChevronRight, FolderOpen, LocateFixed, LogIn, Minus, Plus, RotateCcw, Unlink, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { WithControlTooltip } from "./control_tooltip";
@@ -438,24 +438,34 @@ export function PropertyCheckbox({ fieldId, isOn, isTheTypesDefault = false, onT
   );
 }
 
-/** The node and port at a link's other end: the node's title in bold and, quieter, its port. */
+/** The node and port at a link's other end: the node's title in bold and, quieter, its port, with what can be done to the link from here. */
 export interface PropertyPortLinkedEnd {
   nodeTitle: string;
   port: string;
   /** Names the link apart from the port's others, where two nodes' titles read the same. */
   linkKey: string;
+  /** Selects the node at the other end; absent where the row offers no way there. */
+  jump?: { label: string; onJumped: () => void };
+  /** Takes the link out; absent where the graph can't be edited. */
+  disconnection?: { label: string; onDisconnected: () => void };
 }
 
-/** The row under a port's name that holds a link's other end or the value an unjoined input holds, indented to sit under the name. */
+/** The row under a port's name that holds a link's other end, an input's description or the value an unjoined input holds, indented to sit under the name. */
 const PORT_BAND_DETAIL_ROW_CLASS_NAME = "flex min-h-6 min-w-0 items-center pr-1 pl-[17px]";
 
-/** One link of a port, named by the node and port at its other end; links are made and removed on the canvas. */
+/** One link of a port, named by the node and port at its other end, with a way to that node and a way to take the link out where each is given; links are made on the canvas. */
 function PropertyPortLinkedEndLine({ linkedEnd }: { linkedEnd: PropertyPortLinkedEnd }) {
   return (
-    <div className={cn(PORT_BAND_DETAIL_ROW_CLASS_NAME, "gap-1.5")} title={`${linkedEnd.nodeTitle} › ${linkedEnd.port}`} data-property-port-linked-end={`${linkedEnd.nodeTitle} › ${linkedEnd.port}`}>
+    <div className={cn(PORT_BAND_DETAIL_ROW_CLASS_NAME, "gap-1.5")} data-property-port-linked-end={`${linkedEnd.nodeTitle} › ${linkedEnd.port}`}>
       <Box className="size-[13px] shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
-      <b className="min-w-0 truncate font-semibold">{linkedEnd.nodeTitle}</b>
-      <span className="min-w-[3ch] shrink-[3] truncate text-fg-3">{linkedEnd.port}</span>
+      <span className="flex min-w-0 items-center gap-1.5" title={`${linkedEnd.nodeTitle} › ${linkedEnd.port}`}>
+        <b className="min-w-0 truncate font-semibold">{linkedEnd.nodeTitle}</b>
+        <span className="min-w-[3ch] shrink-[3] truncate text-fg-3">{linkedEnd.port}</span>
+      </span>
+      <span className="ml-auto flex shrink-0 items-center">
+        {linkedEnd.jump !== undefined && <IconButton icon={LocateFixed} label={linkedEnd.jump.label} size="compact" onPressed={linkedEnd.jump.onJumped} data-property-port-linked-end-jump />}
+        {linkedEnd.disconnection !== undefined && <IconButton icon={Unlink} label={linkedEnd.disconnection.label} size="compact" onPressed={linkedEnd.disconnection.onDisconnected} data-property-port-linked-end-disconnect />}
+      </span>
     </div>
   );
 }
@@ -468,7 +478,10 @@ const PORT_BAND_SHADE_CLASS_NAMES: Record<PropertyPortBandShade, string> = {
   second: "border-studio-port-band-second-line bg-studio-port-band-second",
 };
 
-/** A port of the node in a band of its own: its pin, name and type, then the other end of each of its links, or the value an unjoined input holds. */
+/**
+ * A port of the node in a band of its own: its pin, name and type, where an input's value comes from and what can be done
+ * to it, then its description, and the other end of each of its links or the value an unjoined input holds.
+ */
 export function PropertyPortRow({
   direction,
   portName,
@@ -477,7 +490,11 @@ export function PropertyPortRow({
   meaning,
   bandShade,
   linkedEnds,
+  description,
+  comesFromWords,
   unlinkedValue,
+  reset,
+  promotion,
   refusal = null,
   searchWords = "",
 }: {
@@ -491,8 +508,16 @@ export function PropertyPortRow({
   meaning?: string;
   bandShade: PropertyPortBandShade;
   linkedEnds: readonly PropertyPortLinkedEnd[];
+  /** What its node type says it means; absent where it says nothing. */
+  description?: string;
+  /** Where the value an unjoined input shows comes from, in a word; absent where it reads none. */
+  comesFromWords?: string;
   /** The field of the value an unjoined input holds; absent where it takes none. */
   unlinkedValue?: ReactNode;
+  /** Takes the input's own value off, so it reads its default; absent while it holds none or can't be edited. */
+  reset?: { label: string; onReset: () => void };
+  /** Feeds the input from a new Graph Input of the stream; absent where it can't be. */
+  promotion?: { label: string; onPromoted: () => void };
   refusal?: string | null;
 }) {
   return (
@@ -511,8 +536,24 @@ export function PropertyPortRow({
               </span>
             }
           />
+          {comesFromWords !== undefined && (
+            <span className="shrink-0 text-2xs text-fg-3" data-properties-input-comes-from>
+              {comesFromWords}
+            </span>
+          )}
           <span className="shrink-0 text-2xs text-fg-3" data-properties-port-type-words>{typeWords}</span>
+          {(reset !== undefined || promotion !== undefined) && (
+            <span className="flex shrink-0 items-center">
+              {reset !== undefined && <IconButton icon={RotateCcw} label={reset.label} size="compact" onPressed={reset.onReset} data-properties-input-reset />}
+              {promotion !== undefined && <IconButton icon={LogIn} label={promotion.label} size="compact" onPressed={promotion.onPromoted} data-properties-input-promote />}
+            </span>
+          )}
         </div>
+        {description !== undefined && (
+          <p className={cn(PORT_BAND_DETAIL_ROW_CLASS_NAME, "m-0 text-2xs text-fg-3")} data-properties-input-description>
+            {description}
+          </p>
+        )}
         {linkedEnds.length > 0 ? (
           linkedEnds.map((linkedEnd) => <PropertyPortLinkedEndLine key={linkedEnd.linkKey} linkedEnd={linkedEnd} />)
         ) : (

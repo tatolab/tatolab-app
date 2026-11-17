@@ -3,3 +3,6 @@
 // build of the SDK.
 
 export type * from "@tatolab/runtime-client/pin_types";
+
+/** Whether an input takes a wire, a stored value, or both; a setting takes no wire. */
+export type { NodeInputMode } from "@tatolab/runtime-client";

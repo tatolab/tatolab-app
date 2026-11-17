@@ -18,11 +18,23 @@ const catalogEntry = (type: string, description: string, category: string | null
   description,
   category,
   config_schema: null,
-  inputs: inputs.map(([name, family]) => ({ name, description: "", family, pin: null })),
-  outputs: outputs.map(([name, family]) => ({ name, description: "", family, pin: null })),
+  inputs: inputs.map(([name, family]) => ({ name, description: "", family, pin: null, input_mode: null })),
+  outputs: outputs.map(([name, family]) => ({ name, description: "", family, pin: null, input_mode: null })),
 });
 const BLUR = catalogEntry("nodes.blur:GaussianBlur", "Softens an image", "Effects/Blur", [["video_in", "image"]], [["video_out", "image"]]);
 const METER = catalogEntry("tatolab.stream.Meter", "Reads a level", null, [["level", "array"]], []);
+
+/** A node type as the catalog lists it once each setting is an input: its port `video_in`, then its settings, each with no family and taking no wire. */
+const A_SETTING = { mode: "setting_only", read: "at_setup" } as const;
+const BLUR_LISTING_ITS_SETTINGS: NodeCatalogEntry = {
+  ...BLUR,
+  inputs: [
+    { name: "video_in", description: "", family: "image", pin: null, input_mode: null },
+    { name: "gain", description: "How loud.", family: null, pin: { pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value" }, input_mode: A_SETTING },
+    { name: "layers", description: "", family: null, pin: null, input_mode: A_SETTING },
+  ],
+};
+const TONE_OF_SETTINGS_ONLY: NodeCatalogEntry = { ...catalogEntry("nodes.tone:Tone", "Makes a tone", null, [], [["tone", "array"]]), inputs: BLUR_LISTING_ITS_SETTINGS.inputs.slice(1) };
 
 const NIGHT_SHOW: OpenProject = {
   project: { folder: "/p", project: "p-uuid", name: "Night Show" },
@@ -41,6 +53,18 @@ test("a_loose_wire_offers_only_the_node_types_with_a_port_of_its_family_on_the_o
   expect(nodeTypeSearchItems([BLUR, METER], { side: "output", family: "image" }).map((item) => item.item_id)).toEqual(["nodes.blur:GaussianBlur"]);
   expect(nodeTypeSearchItems([BLUR, METER], { side: "input", family: "image" }).map((item) => item.item_id)).toEqual(["nodes.blur:GaussianBlur"]);
   expect(nodeTypeSearchItems([BLUR, METER], { side: "input", family: "array" })).toEqual([]);
+});
+
+test("a_loose_wire_offers_no_node_type_for_a_setting_it_lists_among_its_inputs", () => {
+  expect(nodeTypeSearchItems([BLUR_LISTING_ITS_SETTINGS, TONE_OF_SETTINGS_ONLY], { side: "output", family: "image" }).map((item) => item.item_id)).toEqual(["nodes.blur:GaussianBlur"]);
+  expect(nodeTypeSearchItems([BLUR_LISTING_ITS_SETTINGS, TONE_OF_SETTINGS_ONLY], { side: "output", family: "array" })).toEqual([]);
+  expect(nodeTypeSearchItems([TONE_OF_SETTINGS_ONLY], { side: "output", family: null })).toEqual([]);
+  expect(nodeTypeSearchItems([TONE_OF_SETTINGS_ONLY], { side: "input", family: "array" }).map((item) => item.item_id)).toEqual(["nodes.tone:Tone"]);
+});
+
+test("a_previewed_card_draws_no_setting_as_an_input_pin", () => {
+  expect(nodeTypeSearchPreviewCard([BLUR_LISTING_ITS_SETTINGS], BLUR_LISTING_ITS_SETTINGS.type)?.inputs.map((pin) => pin.name)).toEqual(["video_in"]);
+  expect(nodeTypeSearchPreviewCard([TONE_OF_SETTINGS_ONLY], TONE_OF_SETTINGS_ONLY.type)?.inputs).toEqual([]);
 });
 
 test("a_node_type_is_named_for_the_open_project_its_import_or_its_distribution_and_for_nothing_the_runtime_does_not_name", () => {
@@ -104,7 +128,7 @@ test("offers each node type the project, its imports and its installed distribut
   const offered = nodeTypesTheSearchOffers([BLUR], listing);
   expect(offered.map((entry) => entry.type)).toEqual(["nodes.blur:GaussianBlur", "nodes.invert:Invert", "nodes.native:Half", "tatolab_testpattern:TestPatternSource"]);
   expect(offered[0]).toBe(BLUR);
-  expect(offered[1]).toEqual({ type: "nodes.invert:Invert", description: "Inverts each frame", category: "Effects", config_schema: null, inputs: [{ name: "video_in", description: "", family: "image", pin: null }], outputs: [{ name: "video_out", description: "", family: "image", pin: null }] });
+  expect(offered[1]).toEqual({ type: "nodes.invert:Invert", description: "Inverts each frame", category: "Effects", config_schema: null, inputs: [{ name: "video_in", description: "", family: "image", pin: null, input_mode: null }], outputs: [{ name: "video_out", description: "", family: "image", pin: null, input_mode: null }] });
   expect(offered[2]?.inputs).toEqual([]);
   expect(nodeTypesTheSearchOffers([BLUR], null)).toEqual([BLUR]);
   expect([...nodeTypesTheProjectDeclares(listing)]).toEqual(["nodes.invert:Invert", "nodes.blur:GaussianBlur", "nodes.native:Half"]);
@@ -140,8 +164,8 @@ test("each_graph_generator_of_the_projects_own_source_is_offered_under_this_proj
 test("a_previewed_pin_shows_the_type_its_node_type_states_exactly_and_none_where_another_pin_decides_it", () => {
   const typed: NodeCatalogEntry = {
     ...BLUR,
-    inputs: [{ name: "video_in", description: "Frames", family: "image", pin: { pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" } }],
-    outputs: [{ name: "video_out", description: "", family: "image", pin: { pin_type: { kind: "same_as_input", input_port_name: "video_in" }, flow: "stream" } }],
+    inputs: [{ name: "video_in", description: "Frames", family: "image", pin: { pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" }, input_mode: null }],
+    outputs: [{ name: "video_out", description: "", family: "image", pin: { pin_type: { kind: "same_as_input", input_port_name: "video_in" }, flow: "stream" }, input_mode: null }],
   };
   const previewCard = nodeTypeSearchPreviewCard([typed], typed.type);
   expect(previewCard?.inputs.map((pin) => [pin.pin, pin.description])).toEqual([[{ pin_type: { type: "texture" }, flow: "stream" }, "Frames"]]);
