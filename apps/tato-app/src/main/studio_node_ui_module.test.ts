@@ -91,6 +91,7 @@ test("a page is served a control's script with its types removed, where the auth
 test("a request that leaves the module, or names a file it does not hold, is not served", async () => {
   expect(studioNodeUiFileOfTheRequest("tatolab-app://app/core_node_ui/../index.html")).toBeNull();
   expect(studioNodeUiFileOfTheRequest("tatolab-app://app/core_node_ui/%2E%2E/index.html")).toBeNull();
+  expect(studioNodeUiFileOfTheRequest("tatolab-app://app/core_node_ui/a%5C..%5Cb.ts")).toBeNull();
   expect(studioNodeUiFileOfTheRequest("tatolab-app://app/core_views/float_number.ts")).toBeNull();
   expect(await answerAStudioNodeUiFileRequest("tatolab-app://app/core_node_ui/%2E%2E/index.html", readTheModulesFile, keptLog().log)).toMatchObject({ kind: "not_served", status: 404 });
   expect(await answerAStudioNodeUiFileRequest(studioNodeUiFileUrl("float_dial.ts"), readTheModulesFile, keptLog().log)).toMatchObject({ kind: "not_served", status: 404 });

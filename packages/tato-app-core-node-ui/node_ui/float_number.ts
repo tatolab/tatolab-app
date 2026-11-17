@@ -186,10 +186,10 @@ export default class FloatNumber extends HTMLElement implements InputControlElem
     keyEvent.stopPropagation();
   }
 
-  /** Moves the number one step in `direction` as one `change`, a finer one with `fine`. */
+  /** Moves the number one step in `direction` as one `change`; with no stated step, `fine` moves a finer one. A stated step is always the move, since a finer one would settle back onto it. */
   #steppedByAnArrowKey(direction: 1 | -1, fine: boolean): void {
     if (!this.#editable || this.#press !== null) return;
-    const move = (this.#step ?? this.#movePerPixel() * PIXELS_IN_AN_ARROW_KEY) * (fine ? FINE_MOVE_SCALE : 1);
+    const move = this.#step ?? this.#movePerPixel() * PIXELS_IN_AN_ARROW_KEY * (fine ? FINE_MOVE_SCALE : 1);
     const stepped = this.#settled(this.#value + direction * move, move);
     if (stepped === this.#value) return;
     this.#value = stepped;

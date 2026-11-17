@@ -113,7 +113,7 @@ describe("the Float number control", () => {
     const words = wordsOf(control);
     words.focus();
     words.value = "7";
-    const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true, composed: true });
     words.dispatchEvent(escape);
     expect(fired).toEqual([]);
     expect(words.value).toBe("0.25");
@@ -164,7 +164,7 @@ describe("the Float number control", () => {
     const fired = eventsFiredBy(control);
     const words = wordsOf(control);
     const arrow = (key: string, shiftKey = false) => {
-      const keyEvent = new KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true });
+      const keyEvent = new KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true, composed: true });
       words.dispatchEvent(keyEvent);
       return keyEvent;
     };

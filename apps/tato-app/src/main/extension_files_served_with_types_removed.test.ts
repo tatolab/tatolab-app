@@ -44,6 +44,7 @@ test("a request outside a view folder, climbing out of one, or naming a project 
     `tatolab-app://app/project_views/${encodedNightShow}/views/deck`,
     `tatolab-app://app/project_views/${encodedNightShow}/views/deck/%2E%2E/%2E%2E/nodes/camera.py`,
     `tatolab-app://app/project_views/${encodedNightShow}/views/deck%2F..%2F..%2Fnodes/camera.py`,
+    `tatolab-app://app/project_views/${encodedNightShow}/views/deck/..%5C..%5Cnodes%5Ccamera.py`,
     `tatolab-app://app/project_views/${Buffer.from("streams/night-show").toString("base64url")}/views/deck/index.html`,
     `tatolab-app://app/project_views/${encodedNightShow}`,
     `tatolab-app://app/core_views/outliner/index.html`,
