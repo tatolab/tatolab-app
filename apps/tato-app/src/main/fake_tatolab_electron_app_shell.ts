@@ -297,6 +297,11 @@ export class FakeTatolabElectronAppShell {
     for (const appOpenedAgainListener of this.appOpenedAgainListeners) appOpenedAgainListener(openedCopy);
   }
 
+  /** How many holds the app put on a quit: Electron runs each as its own before-quit listener, so a second one fires the quit again. */
+  quitHoldsRegistered(): number {
+    return this.quitHoldingWork.length;
+  }
+
   beginQuitting(): void {
     for (const appQuittingListener of this.appQuittingListeners) appQuittingListener();
     const workHoldingTheQuit = this.quitHoldingWork.map((work) => work()).filter((work) => work !== null);

@@ -6,6 +6,7 @@ import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { localApiRequestFailure } from "./local_api_request_failure.js";
 import os from "node:os";
 import path from "node:path";
+import { ManagedRuntime } from "effect";
 import { assert, vi } from "vitest";
 import type { ListedStream, SystemMenuBarMenu, TatolabPlatform } from "../shared/tatolab_backend_contract.js";
 import { FakeLocalApiServer } from "./fake_local_api_server.js";
@@ -24,6 +25,9 @@ import { StreamFailureNotifications } from "./stream_failure_notifications.js";
 import { TatolabAppController } from "./tatolab_app_controller.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
+import type { TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
+import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
+import { studioRuntimeLayer } from "./studio_runtime.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { StreamProjectAdding } from "./stream_project_adding.js";
@@ -66,6 +70,13 @@ function controlOperationCallOfTheRequest(request: string): [string, unknown][] 
   if (!request.startsWith("POST /control ")) return [];
   const requestBody: { method: string; params: unknown } = JSON.parse(request.slice(request.indexOf("\r\n\r\n") + 4));
   return [[requestBody.method, requestBody.params]];
+}
+
+/** The handler of every command the window invokes over `sharedState`, the converted ones run on the app's live layers over it and its fake local API, disposed after the test; `quit_tatolab_app` quits through `quitTheApp`. */
+export function commandHandlersOver(sharedState: TatolabAppSharedState & { localApiSocketPath: string }, quitTheApp: () => void = () => {}): TatolabWindowCommandHandlers {
+  const studioRuntime = ManagedRuntime.make(studioRuntimeLayer(sharedState, sharedState.localApiSocketPath));
+  cleanUps.push(() => studioRuntime.dispose());
+  return tatolabWindowCommandHandlers(sharedState, studioRuntime, quitTheApp);
 }
 
 /** The app's shared state over a fake local API answering `scriptedLocalApiResponses` and fakes of everything else it drives, with the fakes exposed to check. */

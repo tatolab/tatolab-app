@@ -104,6 +104,10 @@ const reportedCases: [string, string, string, string][] = [
   ["a process.platform read in a main-process test", "src/main/zz_planted.test.ts", "export const plantedPlatform = process.platform;\n", "no-restricted-properties"],
   ["electron imported outside the adapters", "src/main/zz_planted.ts", 'import { app } from "electron";\nexport const plantedApp = app;\n', "no-restricted-imports"],
   ["electron imported in a main-process test", "src/main/zz_planted.test.ts", "import { app } from 'electron';\nexport const plantedApp = app;\n", "no-restricted-imports"],
+  ["effect imported in preload", "src/preload/zz_planted.ts", 'import { Effect } from "effect";\nexport const plantedEffect = Effect.void;\n', "@typescript-eslint/no-restricted-imports"],
+  ["effect imported by the port viewers", "src/main/runtime_port_viewers.ts", 'import { Schema } from "effect";\nexport const plantedSchema = Schema.String;\n', "@typescript-eslint/no-restricted-imports"],
+  ["an Effect package imported by a viewer's frame reading", "src/main/platform/linux/viewer_image_frame_reading_on_linux.ts", 'import { it } from "@effect/vitest";\nexport const plantedTest = it;\n', "@typescript-eslint/no-restricted-imports"],
+  ["effect imported by the window's port viewer connections", "src/renderer/view_host/port_viewer_connections.ts", 'import { Effect } from "effect";\nexport const plantedEffect = Effect.void;\n', "@typescript-eslint/no-restricted-imports"],
   ["electron required outside the adapters", "src/main/platform/zz_planted.ts", 'export const plantedElectron = require("electron");\n', "no-restricted-syntax"],
   ["an as cast in shipped main-process code", "src/main/zz_planted.ts", 'export const planted = JSON.parse("1") as number;\n', "typescript(consistent-type-assertions)"],
   ["an any type in shipped main-process code", "src/main/zz_planted.ts", "export const planted: any = 1;\n", "typescript(no-explicit-any)"],
@@ -130,6 +134,7 @@ test.each(reportedCases)("reports %s", async (_caseDescription, filePath, plante
 });
 
 const quietCases: [string, string, string][] = [
+  ["effect imported in the main process outside the frame lane", "src/main/zz_planted.ts", 'import { Effect } from "effect";\nexport const plantedEffect = Effect.void;\n'],
   ["a console.log in a window test", "src/renderer/zz_planted.test.ts", 'console.log("planted");\n'],
   ["a spinner, which is not a dot", "src/renderer/studio_shell/zz_planted.tsx", 'export const plantedSpinner = () => <span className="size-3.5 animate-spin" />;\n'],
   ["a screen composed from the design system", "src/renderer/studio_shell/zz_planted.tsx", 'import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";\nexport const PlantedScreen = () => <ActionButton onPressed={() => {}}>Planted</ActionButton>;\n'],

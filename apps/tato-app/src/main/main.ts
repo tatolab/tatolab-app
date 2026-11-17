@@ -8,6 +8,7 @@
 
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { ManagedRuntime } from "effect";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
 import { MODULE_DOWNLOADS_FOLDER_NAME } from "../shared/marketplace_module_download_file.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
@@ -29,6 +30,7 @@ import {
 } from "./tatolab_app_shared_state.js";
 import type { TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
+import { studioRuntimeLayer, type StudioServices } from "./studio_runtime.js";
 import { openTheProjectWhenTheRuntimeHoldsItClosed } from "./tatolab_stream_and_runtime_project_commands.js";
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
@@ -234,6 +236,7 @@ export async function startTatolabApp(
     },
   };
   let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
+  let studioRuntimeOnceBuilt: ManagedRuntime.ManagedRuntime<StudioServices, never> | null = null;
   let localApiSocketOnceKnown: string | null = null;
   const tatolabAppWindows = new TatolabAppWindows({
     mainWindowHostFactory: tatolabElectronAppShell.mainWindowHostFactory,
@@ -384,10 +387,13 @@ export async function startTatolabApp(
   statusPublisherOnceBuilt = statusPublisher;
   statusPublisher.attachStreamFailureNotifications(streamFailureNotifications);
   tatolabElectronAppShell.onTheAppQuitting(() => statusPublisher.stopPolling());
+  // The one quit hold: Electron runs each hold as its own before-quit listener, and a second one fires the quit again.
+  // The Effect runtime is disposed on every quit, and waited for while a held quit waits on the runtime the app started.
   tatolabElectronAppShell.holdTheQuitUntil(() => {
     const aRuntimeTheAppStartedIsRunning = controller.aRuntimeTheAppStartedIsRunning();
     const runtimeStopped = stopTheRuntimeWithinTheQuitWaitLimit(() => controller.stopTheRuntimeAsTheAppQuits(), tatolabAppLog);
-    return aRuntimeTheAppStartedIsRunning ? runtimeStopped : null;
+    const studioRuntimeDisposed = studioRuntimeOnceBuilt?.dispose() ?? Promise.resolve();
+    return aRuntimeTheAppStartedIsRunning ? Promise.all([runtimeStopped, studioRuntimeDisposed]).then(() => undefined) : null;
   });
   const projectViewsListed = new ProjectViewsListedToTheWindows();
   tatolabElectronAppShell.answerProjectViewFileRequestsWith((requestUrl) =>
@@ -518,7 +524,9 @@ export async function startTatolabApp(
     tatolabAppWindows.showTheProjectsWindow();
     statusPublisher.sendTheLastPublishedStatusToTheWindow();
   };
-  tatolabElectronAppShell.answerTheWindowsCommands(tatolabWindowCommandHandlers(sharedState, quitTheApp));
+  const studioRuntime = ManagedRuntime.make(studioRuntimeLayer(sharedState, platformForThisBuild.localApiSocket));
+  studioRuntimeOnceBuilt = studioRuntime;
+  tatolabElectronAppShell.answerTheWindowsCommands(tatolabWindowCommandHandlers(sharedState, studioRuntime, quitTheApp));
   sharedStateOnceBuilt = sharedState;
   const onTrayMenuChoice = (trayMenuChoice: TrayMenuChoice) => {
     switch (trayMenuChoice) {

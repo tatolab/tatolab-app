@@ -1,19 +1,18 @@
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
-import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import { cleanUpTheFakesTheLastTestMade, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
+import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
 test("The Projects window's commands list no recent project on a fresh install, and open only a recent one", async () => {
-  const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
+  const commandHandlers = commandHandlersOver(await sharedStateOverFakes([], "linux"));
   expect(await commandHandlers.read_recent_projects(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: [] });
   expect(await commandHandlers.open_recent_project({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "open_recent_project needs `folder`, one of the recent projects' folders" });
   expect(await commandHandlers.open_recent_project({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "/etc is not one of the recent projects." });
 });
 
 test("A recent project's ⋯ commands and Import project .zip… read their arguments as the window sends them, and change only a recent project", async () => {
-  const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
+  const commandHandlers = commandHandlersOver(await sharedStateOverFakes([], "linux"));
   expect(await commandHandlers.rename_recent_project({ name: "Show" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "rename_recent_project needs `folder`, one of the recent projects' folders" });
   expect(await commandHandlers.rename_recent_project({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "rename_recent_project needs `name`, the project's new name" });
   expect(await commandHandlers.rename_recent_project({ folder: "/etc", name: "Show" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "/etc is not one of the recent projects." });
@@ -29,7 +28,7 @@ test("A recent project's ⋯ commands and Import project .zip… read their argu
 });
 
 test("The Project details panel's commands read their arguments as the window sends them, and change only a recent project", async () => {
-  const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
+  const commandHandlers = commandHandlersOver(await sharedStateOverFakes([], "linux"));
   expect(await commandHandlers.read_recent_project_cover({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "read_recent_project_cover needs `folder`, one of the recent projects' folders" });
   expect(await commandHandlers.read_recent_project_cover({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "/etc is not one of the recent projects." });
   expect(await commandHandlers.set_recent_project_description({ description: "A show" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "set_recent_project_description needs `folder`, one of the recent projects' folders" });
@@ -45,7 +44,7 @@ test("The Project details panel's commands read their arguments as the window se
 test("New project's commands suggest an untitled project in Documents/Tato Studio and read their arguments as the window sends them", async () => {
   const sharedState = await sharedStateOverFakes([], "linux");
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   const readDefaults = await commandHandlers.read_new_project_defaults(undefined, FROM_THE_PROJECTS_WINDOW);
   expect(readDefaults).toMatchObject({ ok: true, value: { name: "Untitled project" } });
   expect(readDefaults.ok && readDefaults.value.location.endsWith(path.join("Documents", "Tato Studio"))).toBe(true);

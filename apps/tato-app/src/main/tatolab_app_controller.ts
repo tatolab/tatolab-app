@@ -9,9 +9,6 @@ import type {
   ProjectStreamActionQueued,
   ProjectTransaction,
   ProjectTransactionAuthor,
-  GraphEditMode,
-  ProjectGraphTransactionTheRuntimeAnswered,
-  StreamGraphAction,
   RuntimeDescription,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
@@ -49,10 +46,8 @@ import type { TatolabCommandLineToolLink } from "./platform/command_line_tool_li
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
 import { failedWith, type Result } from "./result.js";
+import { LOCAL_API_REQUEST_TIMEOUT_MS } from "./tatolab_runtime_control_operation_call.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-
-/** How long one local API request may go without a byte before the runtime reads as not answering. */
-const LOCAL_API_REQUEST_TIMEOUT_MS = 3_000;
 
 /** How many log records one page the window reads holds. */
 const PROJECT_LOG_RECORDS_PER_PAGE = 500;
@@ -327,16 +322,6 @@ export class TatolabAppController {
   /** Undo `author`'s latest transaction in the project in `projectDirectory` not undone yet, answering the undo the runtime applied. */
   undoInTheProject(projectDirectory: string, author: ProjectTransactionAuthor): Promise<Result<ProjectTransaction, LocalApiRequestFailure>> {
     return this.localApiClient.undoInTheProject(projectDirectory, author);
-  }
-
-  /** Apply `operations` on the graphs of the streams they name as one transaction through the runtime's `transact`, by `author`. */
-  transactOnTheStreamGraphs(
-    operations: readonly StreamGraphAction[],
-    mode: GraphEditMode,
-    idempotencyKey: string | null,
-    author: ProjectTransactionAuthor,
-  ): Promise<Result<ProjectGraphTransactionTheRuntimeAnswered, LocalApiRequestFailure>> {
-    return this.localApiClient.transactOnTheStreamGraphs(operations, mode, idempotencyKey, author);
   }
 
   /** Redo what `author`'s latest undo in the project in `projectDirectory` reversed, answering the redo the runtime applied. */
