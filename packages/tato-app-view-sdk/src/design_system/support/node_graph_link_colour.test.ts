@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { NodePin } from "../../pin_model/node_pins";
-import { pinTypeKeyOfTheLink } from "./node_graph_flow_elements";
+import { pinTypeKeyOfTheLink } from "./node_graph_link_colour";
 
 const pin = (name: string, typed: NodePin["pin"]): NodePin => ({ name, pin: typed, family: null, description: null, stream_facts_words: [] });
 
