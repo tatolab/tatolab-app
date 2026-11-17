@@ -72,9 +72,12 @@ function controlOperationCallOfTheRequest(request: string): [string, unknown][] 
   return [[requestBody.method, requestBody.params]];
 }
 
+/** The version of the Studio the command handlers in a test run as. */
+export const STUDIO_APP_VERSION_UNDER_TEST = "0.45.0";
+
 /** The handler of every command the window invokes over `sharedState`, the converted ones run on the app's live layers over it and its fake local API, disposed after the test; `quit_tatolab_app` quits through `quitTheApp`. */
 export function commandHandlersOver(sharedState: TatolabAppSharedState & { localApiSocketPath: string }, quitTheApp: () => void = () => {}): TatolabWindowCommandHandlers {
-  const studioRuntime = ManagedRuntime.make(studioRuntimeLayer(sharedState, sharedState.localApiSocketPath));
+  const studioRuntime = ManagedRuntime.make(studioRuntimeLayer(sharedState, sharedState.localApiSocketPath, STUDIO_APP_VERSION_UNDER_TEST));
   cleanUps.push(() => studioRuntime.dispose());
   return tatolabWindowCommandHandlers(sharedState, studioRuntime, quitTheApp);
 }

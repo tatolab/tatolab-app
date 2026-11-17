@@ -188,6 +188,9 @@ export class TatolabViewBridge {
       case "studio_views":
         keep(this.hostServices.watchStudioViews((reading) => sendReading({ subject: "studio_views", reading })));
         return;
+      case "node_ui_elements":
+        keep(this.hostServices.watchNodeUiElements((reading) => sendReading({ subject: "node_ui_elements", reading })));
+        return;
       case "project_transactions":
         keep(this.hostServices.watchProjectTransactions(subject.project_folder, (reading) => sendReading({ subject: "project_transactions", reading })));
         return;

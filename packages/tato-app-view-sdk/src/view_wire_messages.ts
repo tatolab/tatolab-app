@@ -32,6 +32,7 @@ import {
   viewHeaderRowSchema,
   viewOpenedOnSchema,
 } from "./studio_readings.js";
+import { nodeUiElementsReadingSchema } from "./node_ui_readings.js";
 import { VIEW_CAPABILITIES, viewDeclaredPortSchema } from "./tatolab_view_manifest.js";
 
 const videoFrameSchema = z.custom<VideoFrame>((value) => typeof VideoFrame !== "undefined" && value instanceof VideoFrame, "an Image frame is a VideoFrame");
@@ -113,6 +114,8 @@ export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("project_transactions"), project_folder: z.string() }),
   /** The views Studio ships with and those the open project and its imports bring, listed again with the project's. */
   z.object({ kind: z.literal("studio_views") }),
+  /** The node UI elements the Studio and the open project bring, each panel's control table read from them. */
+  z.object({ kind: z.literal("node_ui_elements") }),
   /** A running node's output port, read until the watch stops. */
   z.object({ kind: z.literal("port_viewer"), target: portViewerTargetSchema }),
   /** What is wired into one of a `node` view's own inputs. */
@@ -223,6 +226,7 @@ export const viewWatchedReadingSchema = z.discriminatedUnion("subject", [
   z.object({ subject: z.literal("project_assets"), reading: projectAssetsReadingSchema }),
   z.object({ subject: z.literal("project_transactions"), reading: projectTransactionsReadingSchema }),
   z.object({ subject: z.literal("studio_views"), reading: studioViewsReadingSchema }),
+  z.object({ subject: z.literal("node_ui_elements"), reading: nodeUiElementsReadingSchema }),
   z.object({ subject: z.literal("port_viewer"), reading: portViewerEventSchema }),
   z.object({ subject: z.literal("input"), reading: viewInputEventSchema }),
   z.object({ subject: z.literal("python_language_server"), reading: pythonLanguageServerConnectionEventSchema }),

@@ -49,6 +49,7 @@ import type {
   NewProjectDefaults,
   SystemMenuBarMenu,
 } from "../../shared/tatolab_backend_contract";
+import type { ListedNodeUiElement } from "@tatolab/tato-app-view-sdk/node_ui_host";
 import { TATOLAB_WINDOW_PAGE_SCHEME, type ModulesShown, type TatolabElectronBridge } from "../../shared/tatolab_electron_bridge_contract";
 
 declare global {
@@ -250,6 +251,8 @@ export interface TatolabBackend {
   onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
   /** The views the open project and its imports bring, as the runtime's `list_project_views` lists them, rejecting in words where none can be listed. */
   listStudioViewsOfTheOpenProject(): Promise<ListedStudioView[]>;
+  /** Every node UI element the window's views pick their controls from, the Studio's own module's among them; rejecting in words where none can be listed. */
+  listNodeUiElements(): Promise<readonly ListedNodeUiElement[]>;
   /** Publish `value` on the output `port` of the view node `node` (its UUID) in `stream`, as the port's family takes it; recorded nowhere; rejecting in the runtime's own words. */
   writeStudioViewOutput(stream: string, node: string, port: string, value: JsonValue): Promise<void>;
   /** Hand `value` to the Input `input` of the running stream `stream`, as its family takes it; recorded nowhere; rejecting in the runtime's own words. */

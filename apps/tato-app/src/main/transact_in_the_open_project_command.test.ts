@@ -7,7 +7,7 @@ import type { ListedStream } from "../shared/tatolab_backend_contract.js";
 import { controlOperationFailedResponse, controlOperationRefusedResponse, controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
 import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { controlOperationCallsReceivedBy } from "./local_api_client_test_support.js";
-import { ListedStreams, PersonEditingInStudio, ProjectViewsListed, StudioWindows, tatolabAppLogAsEffectsLogger } from "./studio_runtime.js";
+import { ListedStreams, PersonEditingInStudio, ProjectViewsListed, StudioAppVersion, StudioWindows, tatolabAppLogAsEffectsLogger } from "./studio_runtime.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import { cleanUpTheFakesTheLastTestMade, cleanUps, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, recordedResponseBody, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
 import { runtimeControlLayer } from "./tatolab_runtime_control_operation_call.js";
@@ -52,6 +52,7 @@ async function transactCommandAt(localApiSocketPath: string, streamAsset: string
       Layer.succeed(ProjectViewsListed, { isListedAsOpening: () => false }),
       Layer.succeed(ListedStreams, { streamAssetsOfTheProject: (projectFolder) => new Set(projectFolder === HALLWAYS ? [streamAsset] : []) }),
       Layer.succeed(PersonEditingInStudio, { author: SAM_EDITING_IN_STUDIO }),
+      Layer.succeed(StudioAppVersion, { version: "0.45.0" }),
       tatolabAppLogAsEffectsLogger(createTatolabAppLog("debug", (logLine) => loggedLines.push(logLine))),
     ),
   );

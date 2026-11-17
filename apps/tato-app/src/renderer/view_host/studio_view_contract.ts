@@ -29,6 +29,7 @@ import type {
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { AreaForAViewType, ModulesAndMarketplaceSection, PortViewerEvent, ProjectAssetPick, ProjectAssetPickEnding, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
 import type { ProjectAssetPickAnswering } from "./project_asset_pick_held_in_the_window";
+import type { NodeUiElementsReading } from "@tatolab/tato-app-view-sdk/node_ui_host";
 
 export type {
   JsonValue,
@@ -156,6 +157,8 @@ export interface StudioViewHostServices {
   deleteAssetFromTheProject(projectFolder: string, asset: string): Promise<ProjectAssetChanging>;
   /** The views an area can show, at once and again each time the open project's are listed. */
   watchStudioViews(listener: (reading: StudioViewsReading) => void): StopWatching;
+  /** The node UI elements every view's control table picks from; the first reading arrives once listed. */
+  watchNodeUiElements(listener: (reading: NodeUiElementsReading) => void): StopWatching;
   /** The open project's change feed, when `projectFolder` is its folder: read once, then again each time the runtime applies a transaction. */
   watchProjectTransactions(projectFolder: string, listener: (reading: ProjectTransactionsReading) => void): StopWatching;
   /** The runtime's `undo` by `author` on the open project, answering the undo it applied or its refusal. */

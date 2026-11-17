@@ -29,6 +29,7 @@ import { tatolabFrameViewType } from "./view_host/tatolab_frame_view_type";
 import { coreViewTypesOf, servedCoreViewFolderUrl } from "./view_host/core_view_types";
 import { CORE_VIEWS } from "@tatolab/tato-app-core-views";
 import { watchTheStudioViewsOfTheRegistry } from "./view_host/studio_views_listed_for_views";
+import { NodeUiElementsListedForViews } from "./view_host/node_ui_elements_listed_for_views";
 import { ProjectLogReadings } from "./view_host/project_log_readings";
 import { ProjectTransactionsReadings } from "./view_host/project_transactions_readings";
 import { ProjectListingReadingsWhileWatched } from "./view_host/project_listing_readings_while_watched";
@@ -255,6 +256,8 @@ export function mountTatolabWindow(
   backend.onSystemMenuBarEntryChosen((entryId) => onChosenByEntryIdOfTheMenusSent.get(entryId)?.());
   const viewTypeRegistry = studioViewTypeRegistry();
   listTheOpenProjectsStudioViews(backend, studioWindowModel, viewTypeRegistry);
+  const nodeUiElementsListed = new NodeUiElementsListedForViews();
+  nodeUiElementsListed.listForEachOpenProject(backend, studioWindowModel.openProject.watch);
   const studioWindowSources: StudioWindowSources = {
     model: studioWindowModel,
     viewTypeRegistry,
@@ -267,6 +270,7 @@ export function mountTatolabWindow(
       pythonLanguageServerConnections,
       portViewerConnections,
       watchStudioViews: (listener) => watchTheStudioViewsOfTheRegistry(viewTypeRegistry, listener),
+      watchNodeUiElements: nodeUiElementsListed.watch,
     }),
     commands: studioMenuBarCommands,
     streamEdits: {

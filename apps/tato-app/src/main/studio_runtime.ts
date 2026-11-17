@@ -45,8 +45,11 @@ export class ListedStreams extends Context.Service<
 /** The person signed in to this computer, the author Studio's graph edits are recorded under. */
 export class PersonEditingInStudio extends Context.Service<PersonEditingInStudio, { readonly author: ProjectTransactionAuthor }>()("tatolab-app/PersonEditingInStudio") {}
 
+/** This copy of the Studio's version, which names the contents of its own node UI module. */
+export class StudioAppVersion extends Context.Service<StudioAppVersion, { readonly version: string }>()("tatolab-app/StudioAppVersion") {}
+
 /** Every service the main process's Effect code runs on. */
-export type StudioServices = RuntimeControl | StudioWindows | ProjectViewsListed | ListedStreams | PersonEditingInStudio;
+export type StudioServices = RuntimeControl | StudioWindows | ProjectViewsListed | ListedStreams | PersonEditingInStudio | StudioAppVersion;
 
 /** The app's log level each of Effect's log levels writes at; `None` writes nothing. */
 function tatolabAppLogLevelOf(logLevel: LogLevel.LogLevel): TatolabAppLogLevel | null {
@@ -82,8 +85,8 @@ export function tatolabAppLogAsEffectsLogger(tatolabAppLog: TatolabAppLog): Laye
   ]);
 }
 
-/** Every service the main process's Effect code runs on, over `sharedState` and the local API at `localApiSocketPath`. */
-export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiSocketPath: string): Layer.Layer<StudioServices> {
+/** Every service the main process's Effect code runs on, over `sharedState`, the local API at `localApiSocketPath` and this copy's `appVersion`. */
+export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiSocketPath: string, appVersion: string): Layer.Layer<StudioServices> {
   return Layer.mergeAll(
     runtimeControlLayer(localApiSocketPath, LOCAL_API_REQUEST_TIMEOUT_MS),
     Layer.succeed(StudioWindows, {
@@ -101,6 +104,7 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
         new Set(streamsOfTheProjectIn(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectFolder).flatMap((listedStream) => listedStream.location?.stream_asset ?? [])),
     }),
     Layer.succeed(PersonEditingInStudio, { author: sharedState.thePersonEditingInStudio }),
+    Layer.succeed(StudioAppVersion, { version: appVersion }),
     tatolabAppLogAsEffectsLogger(sharedState.tatolabAppLog),
   );
 }

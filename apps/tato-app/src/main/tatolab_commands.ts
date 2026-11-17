@@ -13,6 +13,7 @@ import { projectsWindowCommandHandlersOf } from "./tatolab_projects_window_comma
 import { openProjectCommandHandlersOf } from "./tatolab_open_project_commands.js";
 import { moduleManagerCommandHandlersOf } from "./tatolab_module_manager_commands.js";
 import { transactInTheOpenProjectCommand } from "./transact_in_the_open_project_command.js";
+import { listNodeUiElementsCommand } from "./list_node_ui_elements_command.js";
 
 /** The handler of every command the window invokes, over `sharedState`, a converted one run on `studioRuntime`; `quit_tatolab_app` quits through `quitTheApp`. */
 export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState, studioRuntime: ManagedRuntime.ManagedRuntime<StudioServices, never>, quitTheApp: () => void): TatolabWindowCommandHandlers {
@@ -23,5 +24,6 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     ...openProjectCommandHandlersOf(sharedState),
     ...moduleManagerCommandHandlersOf(sharedState),
     transact_in_the_open_project: transactInTheOpenProjectCommand(studioRuntime),
+    list_node_ui_elements: listNodeUiElementsCommand(studioRuntime),
   };
 }

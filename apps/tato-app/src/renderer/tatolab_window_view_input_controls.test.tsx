@@ -1,0 +1,110 @@
+// @vitest-environment happy-dom
+import { fireEvent, waitFor } from "@testing-library/react";
+import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState } from "@tatolab/tato-app-view-sdk/node_ui";
+import { nodeUiElementTag } from "@tatolab/tato-app-view-sdk/node_ui_host";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { mockStudioNodeUiElements } from "../../mock/mock_node_ui_elements";
+import { mountedWindowOverTheMock, coreViewPage, cleanUpTheWindowsOfEarlierTests, PATTERN_MAIN_STREAM } from "./tatolab_window_view_test_support";
+import type { TatolabBackend } from "./backend/tatolab_backend";
+
+vi.mock("@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_monaco", () => {
+  throw new Error("Monaco is not loaded in the window's tests.");
+});
+
+/** A Float control as a person drives one, standing in for the Studio's own, which its package's tests bind and drag. */
+class StandInFloatControl extends HTMLElement implements InputControlElement<"float"> {
+  #value = 0;
+  set pin(_pin: ControlledPin<"float">) {}
+  set value(value: number) {
+    this.#value = value;
+    this.textContent = String(value);
+  }
+  set state(state: InputControlState) {
+    this.setAttribute("data-control-state", state);
+  }
+  dragTo(value: number): void {
+    this.#value = value;
+    this.textContent = String(value);
+    fireInputControlEvent(this, "input", value);
+  }
+  release(): void {
+    fireInputControlEvent(this, "change", this.#value);
+  }
+}
+
+// A frame imports each listed script from the dev server, which no test serves, so the stand-in is defined under the tag
+// the mock's listing mints, as loading the Studio's own control in a frame defines it.
+const [MOCK_FLOAT_CONTROL_LISTED] = mockStudioNodeUiElements(window.location.origin, false);
+const FLOAT_CONTROL_TAG = nodeUiElementTag(MOCK_FLOAT_CONTROL_LISTED ?? expect.unreachable("the mock lists the Studio's Float control"));
+customElements.define(FLOAT_CONTROL_TAG, StandInFloatControl);
+
+afterEach(cleanUpTheWindowsOfEarlierTests);
+
+/** The value a Float control shows. */
+function wordsOfTheControl(control: Element): string | null {
+  return control.textContent;
+}
+
+/** The control in the stream graph's card `nodeName`, on its input `input`. */
+function controlOnTheCard(nodeName: string, input: string): StandInFloatControl | null {
+  return floatControlIn(coreViewPage("stream_graph", "stream-graph").querySelector(`[data-node-graph-card="${nodeName}"] [data-input-control="${input}"]`));
+}
+
+/** The Float control `slot` holds, or `null` while it holds none. */
+function floatControlIn(slot: Element | null): StandInFloatControl | null {
+  const control = slot?.firstElementChild ?? null;
+  return control instanceof StandInFloatControl ? control : null;
+}
+
+/** Waits as long as a frame takes to list, load and bind its controls over the mock. */
+const AS_LONG_AS_A_FRAME_BINDS = { timeout: 5_000 };
+
+/** How many entries the open project's history holds. */
+async function historyLength(backend: TatolabBackend): Promise<number> {
+  const reading = await backend.readOpenProjectTransactions();
+  return reading.kind === "read" ? reading.project_transactions.transactions.length : -1;
+}
+
+/** What the main stream's Inverting Effect reads on its `amount`, as the mock's graph renders it. */
+async function amountTheGraphReads(backend: TatolabBackend): Promise<unknown> {
+  const graph = await backend.describeStreamGraph(PATTERN_MAIN_STREAM);
+  return graph.nodes.find((node) => node.name === "invertingeffect")?.input_ports.find((port) => port.name === "amount")?.value_read;
+}
+
+describe("a Float input's control", () => {
+  it("draws on the node's unwired Float input with its value, and the same element draws for that input in Properties", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const onTheCard = await waitFor(() => controlOnTheCard("invertingeffect", "amount") ?? expect.unreachable("no control on the card's amount row"), AS_LONG_AS_A_FRAME_BINDS);
+    expect(wordsOfTheControl(onTheCard)).toBe("1");
+    expect([onTheCard.getAttribute("data-surface"), onTheCard.getAttribute("data-state")]).toEqual(["node", "editable"]);
+    expect(onTheCard.parentElement?.classList.contains("nodrag")).toBe(true);
+    expect(onTheCard.parentElement?.classList.contains("nopan")).toBe(true);
+    expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-node-graph-card="invertingeffect"] [data-input-control="video_from_upstream"]')).toBeNull();
+
+    fireEvent.click(coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card"));
+    const inProperties = await waitFor(() => floatControlIn(coreViewPage("properties").querySelector('[data-properties-port="amount"] [data-input-control="amount"]')) ?? expect.unreachable("no control on Properties' amount row"), AS_LONG_AS_A_FRAME_BINDS);
+    expect(inProperties.tagName).toBe(onTheCard.tagName);
+    expect(inProperties.getAttribute("data-surface")).toBe("properties");
+    expect(wordsOfTheControl(inProperties)).toBe("1");
+  });
+
+  it("sends a drag on the node live, with no history entry for a move, and its release is one Undo step", async () => {
+    const { backend } = await mountedWindowOverTheMock("state=running");
+    const onTheCard = await waitFor(() => controlOnTheCard("invertingeffect", "amount") ?? expect.unreachable("no control on the card's amount row"), AS_LONG_AS_A_FRAME_BINDS);
+    const entriesBefore = await historyLength(backend);
+
+    onTheCard.dragTo(1.1);
+    onTheCard.dragTo(1.3);
+    await waitFor(async () => expect(await amountTheGraphReads(backend)).toEqual({ value: 1.3, comes_from: "live" }));
+    expect(await historyLength(backend)).toBe(entriesBefore);
+    expect(wordsOfTheControl(onTheCard)).toBe("1.3");
+
+    onTheCard.release();
+    await waitFor(async () => expect(await amountTheGraphReads(backend)).toEqual({ value: 1.3, comes_from: "saved" }));
+    expect(await historyLength(backend)).toBe(entriesBefore + 1);
+
+    await backend.undoInTheOpenProject({ kind: "person", name: "Sam" });
+    await waitFor(async () => expect(await amountTheGraphReads(backend)).toEqual({ value: 1, comes_from: "default" }));
+    await waitFor(() => expect(wordsOfTheControl(onTheCard)).toBe("1"));
+  });
+});

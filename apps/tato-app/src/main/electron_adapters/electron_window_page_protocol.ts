@@ -17,11 +17,23 @@ export function answerProjectViewFileRequestsWith(answerAProjectViewFileRequest:
   answerAProjectViewFileRequestOnceServed = answerAProjectViewFileRequest;
 }
 
-/** Makes the window page's scheme a secure, standard origin; Electron takes this only before the app is ready. */
-export function registerTheWindowPageSchemeBeforeReady(): void {
+/**
+ * Makes the window page's scheme a secure, standard origin; Electron takes this only before the app is ready. While the
+ * window comes from the dev server, its core views' frames are on the dev server's origin and import a node UI element's
+ * script from this scheme, which a module script does only through CORS, so the scheme takes cross-origin requests then;
+ * a built window's frames share the scheme's origin and never need it.
+ */
+export function registerTheWindowPageSchemeBeforeReady(isTheWindowFromTheDevServer: boolean): void {
   protocol.registerSchemesAsPrivileged([
-    { scheme: TATOLAB_WINDOW_PAGE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+    { scheme: TATOLAB_WINDOW_PAGE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: isTheWindowFromTheDevServer } },
   ]);
+}
+
+/** `response` readable by a page on the dev server's origin, which a core view's frame is on while the window comes from it; the Studio's own node UI files alone are served so. */
+function readableFromTheDevServer(response: Response, windowDevServerUrl: string): Response {
+  const headers = new Headers(response.headers);
+  headers.set("Access-Control-Allow-Origin", new URL(windowDevServerUrl).origin);
+  return new Response(response.body, { status: response.status, headers });
 }
 
 /** The response to a request for a project view's file; its pages carry no content security policy, since a project's view runs with full access. */
@@ -92,7 +104,8 @@ export async function serveTheWindowPageScheme(windowPageFilesSource: WindowPage
   protocol.handle(TATOLAB_WINDOW_PAGE_SCHEME, async (windowPageRequest) => {
     if (isAProjectViewFileUrl(windowPageRequest.url)) return projectViewFileResponse(windowPageRequest.url, tatolabAppLog);
     if (isAStudioNodeUiFileUrl(windowPageRequest.url)) {
-      return responseOfTheExtensionFileAnswer(windowPageRequest.url, await answerAStudioNodeUiFileRequest(windowPageRequest.url, readAStudioNodeUiFile, tatolabAppLog), tatolabAppLog);
+      const studioNodeUiFileResponse = responseOfTheExtensionFileAnswer(windowPageRequest.url, await answerAStudioNodeUiFileRequest(windowPageRequest.url, readAStudioNodeUiFile, tatolabAppLog), tatolabAppLog);
+      return windowPageFilesSource.kind === "dev_server" ? readableFromTheDevServer(studioNodeUiFileResponse, windowPageFilesSource.windowDevServerUrl) : studioNodeUiFileResponse;
     }
     if (windowPageFilesSource.kind === "dev_server") {
       return isASuppliedModuleUrl(windowPageRequest.url) ? suppliedModuleFromTheDevServer(windowPageFilesSource.windowDevServerUrl, windowPageRequest.url, tatolabAppLog) : new Response(null, { status: 404 });

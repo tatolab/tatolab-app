@@ -13,6 +13,8 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import { newGestureIdempotencyKey, type StopWatching, type StudioSelection, type TatoAppViewConnection, type ViewSettings } from "@tatolab/tato-app-view-sdk";
 import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import { createInputValues, type InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
+import { createInputControlBinder } from "@tatolab/tato-app-view-sdk/pin_services/input_control_binding";
+import { InputControlBinderContext } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import type {
   ListedStreamsReading,
   NodeCatalogReading,
@@ -512,13 +514,14 @@ function StreamGraphBody({ connection }: { connection: TatoAppViewConnection }) 
     () => createInputValues({ transactInTheProject: (projectFolder, operations, sending) => connection.transactInTheProject(projectFolder, operations, sending), newGestureIdempotencyKey }),
     [connection],
   );
+  const inputControls = useMemo(() => createInputControlBinder({ watchNodeUiElements: (listener) => connection.watchNodeUiElements(listener), inputValues }), [connection, inputValues]);
   if (activeStreamTab.kind === "not_read_yet") return null;
   if (activeStreamTab.reading === null) return <WaitingState title="No stream is open" explanation="Double-click a stream in the outliner to open its tab." data-stream-graph-state="no_tab" />;
   return (
-    <>
+    <InputControlBinderContext value={inputControls}>
       <RefusalOfTheLatestAskBar refusal={selectionRefusal} />
       <StreamGraphOfTheTab key={activeStreamTab.reading.stream} connection={connection} inputValues={inputValues} streamTab={activeStreamTab.reading} select={select} />
-    </>
+    </InputControlBinderContext>
   );
 }
 

@@ -1,9 +1,14 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { NodeGraphPinMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
 import { pinWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
+import { takesAControl, type ControlledInput } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
+import { valueAddressOfTheInput, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import { createInputValues, type InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
+import { createInputControlBinder } from "@tatolab/tato-app-view-sdk/pin_services/input_control_binding";
+import { InputControlBinderContext, InputControlMount } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import { portFamilyWords } from "@tatolab/tato-app-view-sdk/port_families";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_banner";
@@ -422,6 +427,7 @@ function PortRowsOfOneDirection({
   graph,
   node,
   streamAsset,
+  valuesAt,
   catalogPorts,
   graphEdits,
   portNamesListed,
@@ -433,6 +439,8 @@ function PortRowsOfOneDirection({
   graph: StreamGraphSummary;
   node: StreamGraphNode;
   streamAsset: string | null;
+  /** The level of the stream's graph the node is at, where its inputs' values are kept; `null` where no stream's graph is known. */
+  valuesAt: GraphAddress | null;
   catalogPorts: NodeCatalogPort[];
   graphEdits: GraphEditsOfTheNode;
   /** The ports a search over the properties keeps, by name. */
@@ -462,28 +470,39 @@ function PortRowsOfOneDirection({
         linkedEnds={linkedEnds.map((linkedEnd) => ({ nodeTitle: nodeTitle(linkedEnd.node.name, linkedEnd.node.type), port: linkedEnd.port, linkKey: `${linkedEnd.node.id}:${linkedEnd.port}` }))}
         unlinkedValue={
           direction === "input" && streamAsset !== null ? (
-            <PropertyTextField
-              fieldId={pinValueFieldId(node.id, port.name)}
-              words={pinValue === undefined ? "" : configFormFieldValueWords(pinValue)}
-              isTheTypesDefault={pinValue === undefined}
-              label={`Value of ${port.name}`}
-              onCommitted={(words) =>
-                void graphEdits.commit(place, [
-                  {
-                    operation: "set_pin_value",
-                    stream: streamAsset,
-                    node: node.id,
-                    input: port.name,
-                    value: words.trim() === "" ? null : pinValueFromTheWordsTyped(words),
-                  },
-                ])
-              }
-            />
+            <UnlinkedValueOfTheInput controlled={takesAControl({ name: port.name, pin: port.pin, value_address: valueAddressOfTheInput(valuesAt, node.id, port) })}>
+              <PropertyTextField
+                fieldId={pinValueFieldId(node.id, port.name)}
+                words={pinValue === undefined ? "" : configFormFieldValueWords(pinValue)}
+                isTheTypesDefault={pinValue === undefined}
+                label={`Value of ${port.name}`}
+                onCommitted={(words) =>
+                  void graphEdits.commit(place, [
+                    {
+                      operation: "set_pin_value",
+                      stream: streamAsset,
+                      node: node.id,
+                      input: port.name,
+                      value: words.trim() === "" ? null : pinValueFromTheWordsTyped(words),
+                    },
+                  ])
+                }
+              />
+            </UnlinkedValueOfTheInput>
           ) : undefined
         }
       />
     );
   });
+}
+
+/**
+ * An unlinked input's value in its row: the control the node draws for it, written through the frame's store, where
+ * `takesAControl` gives it one and the table has a control for its type; otherwise `children`, the row's own field.
+ */
+function UnlinkedValueOfTheInput({ controlled, children }: { controlled: ControlledInput | null; children: ReactNode }) {
+  if (controlled === null) return children;
+  return <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={children} className="w-full" />;
 }
 
 /** The place an edit of a config field, or exposing it as a Graph Input, shows its refusal under. */
@@ -558,6 +577,8 @@ function PropertiesOfTheSelectedNode({
   level,
   nodeName,
   graphEditsInTheProject,
+  projectFolder,
+  inputValues,
   searchWords,
 }: {
   connection: TatoAppViewConnection;
@@ -565,6 +586,9 @@ function PropertiesOfTheSelectedNode({
   level: readonly string[];
   nodeName: string;
   graphEditsInTheProject: GraphEditsInTheOpenProject;
+  /** The open project's folder, where the frame's store sends each input's value; `null` while none is open. */
+  projectFolder: string | null;
+  inputValues: InputValues;
   searchWords: string;
 }) {
   const watchTheStreamsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(stream, listener), [connection, stream]);
@@ -585,6 +609,14 @@ function PropertiesOfTheSelectedNode({
   const graphEdits = graphEditsInTheProject.ofTheNode(node?.id ?? "", level);
   const catalogEntry: NodeCatalogEntry | undefined = catalogReading?.kind === "listed" && node !== undefined ? catalogReading.catalog.node_types.find((entry) => entry.type === node.type) : undefined;
   const configForm = useMemo(() => (node === undefined ? null : configFormOf(catalogEntry?.config_schema ?? null, node.config)), [node, catalogEntry]);
+  useLayoutEffect(() => {
+    if (streamGraph !== null && projectFolder !== null) inputValues.takeTheGraphReading(projectFolder, streamGraph);
+  }, [streamGraph, projectFolder, inputValues]);
+  const streamAssetOfTheGraph = streamGraph?.stream_asset ?? null;
+  const valuesAt = useMemo(
+    (): GraphAddress | null => (projectFolder === null || streamAssetOfTheGraph === null ? null : { project_folder: projectFolder, stream_asset: streamAssetOfTheGraph, level }),
+    [projectFolder, streamAssetOfTheGraph, level],
+  );
   const nameTheNodeGoesByNow = node?.name;
   useEffect(() => {
     if (nameTheNodeGoesByNow !== undefined && nameTheNodeGoesByNow !== nodeName)
@@ -702,6 +734,7 @@ function PropertiesOfTheSelectedNode({
               graph={graph}
               node={node}
               streamAsset={streamAsset}
+              valuesAt={valuesAt}
               catalogPorts={catalogEntry?.inputs ?? []}
               graphEdits={graphEdits}
               portNamesListed={matching.input_ports_listed}
@@ -717,6 +750,7 @@ function PropertiesOfTheSelectedNode({
               graph={graph}
               node={node}
               streamAsset={streamAsset}
+              valuesAt={null}
               catalogPorts={catalogEntry?.outputs ?? []}
               graphEdits={graphEdits}
               portNamesListed={matching.output_ports_listed}
@@ -764,6 +798,11 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
   const graphEditsInTheProject = useGraphEditsInTheOpenProject(connection, projectFolder);
   const openProjectOfTheAssetFields = useMemo(() => (projectFolder === null ? null : { connection, projectFolder }), [connection, projectFolder]);
   const [searchWords, setSearchWords] = useState("");
+  const inputValues = useMemo(
+    () => createInputValues({ transactInTheProject: (folder, operations, sending) => connection.transactInTheProject(folder, operations, sending), newGestureIdempotencyKey }),
+    [connection],
+  );
+  const inputControls = useMemo(() => createInputControlBinder({ watchNodeUiElements: (listener) => connection.watchNodeUiElements(listener), inputValues }), [connection, inputValues]);
   if (selection?.kind === "nodes" && activeStreamTab?.stream === selection.stream) {
     return <SummaryOfTheSeveralSelectedNodes connection={connection} stream={selection.stream} level={selection.level ?? NO_LEVEL} nodeNames={selection.nodes} />;
   }
@@ -776,15 +815,19 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
         <SearchField label="Search properties" placeholder="Search properties" text={searchWords} onTextChanged={setSearchWords} width="fills_the_row" data-properties-search="" />
       </StudioViewToolbarTools>
       <OpenProjectOfTheAssetFieldsContext.Provider value={openProjectOfTheAssetFields}>
-        <PropertiesOfTheSelectedNode
-          key={`${selection.stream}/${(selection.level ?? []).join("/")}`}
-          connection={connection}
-          stream={selection.stream}
-          level={selection.level ?? NO_LEVEL}
-          nodeName={selection.node}
-          graphEditsInTheProject={graphEditsInTheProject}
-          searchWords={searchWords}
-        />
+        <InputControlBinderContext value={inputControls}>
+          <PropertiesOfTheSelectedNode
+            key={`${selection.stream}/${(selection.level ?? []).join("/")}`}
+            connection={connection}
+            stream={selection.stream}
+            level={selection.level ?? NO_LEVEL}
+            nodeName={selection.node}
+            graphEditsInTheProject={graphEditsInTheProject}
+            projectFolder={projectFolder}
+            inputValues={inputValues}
+            searchWords={searchWords}
+          />
+        </InputControlBinderContext>
       </OpenProjectOfTheAssetFieldsContext.Provider>
     </>
   );

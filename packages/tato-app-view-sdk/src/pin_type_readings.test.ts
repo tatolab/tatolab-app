@@ -1,5 +1,6 @@
-import { expect, test } from "vitest";
-import { declaredPinTypeSchema, pinFlowSchema, pinTypeSchema } from "./pin_type_readings.js";
+import { expect, expectTypeOf, test } from "vitest";
+import type { z } from "zod";
+import { builtInPinTypeNameSchema, declaredPinTypeSchema, pinFlowSchema, pinTypeSchema, type BuiltInPinTypeName, type PinType } from "./pin_type_readings.js";
 import { nodeCatalogPortSchema, streamGraphDeclaredPortSchema } from "./studio_readings.js";
 
 test("a_pin_type_reads_in_each_form_the_contract_gives_and_nested_types_are_checked_too", () => {
@@ -42,4 +43,11 @@ test("a_port_crossing_to_a_view_with_a_pin_the_contract_does_not_name_is_refused
   expect(streamGraphDeclaredPortSchema.safeParse({ ...graphPort, pin: { pin_type: { type: "texture" }, flow: "burst" } }).success).toBe(false);
   expect(nodeCatalogPortSchema.safeParse({ ...catalogPort, pin: { pin_type: { kind: "any" }, flow: "value" } }).success).toBe(true);
   expect(nodeCatalogPortSchema.safeParse({ ...catalogPort, pin: { pin_type: { type: "texture" }, flow: "stream" } }).success).toBe(false);
+});
+
+test("a_built_in_pin_type_name_reads_as_each_name_the_contract_gives_and_as_no_other", () => {
+  expectTypeOf<z.infer<typeof builtInPinTypeNameSchema>>().toEqualTypeOf<BuiltInPinTypeName>();
+  expectTypeOf<PinType["type"]>().toEqualTypeOf<BuiltInPinTypeName>();
+  expect(builtInPinTypeNameSchema.safeParse("encoded_video").success).toBe(true);
+  expect(builtInPinTypeNameSchema.safeParse("light_field").success).toBe(false);
 });

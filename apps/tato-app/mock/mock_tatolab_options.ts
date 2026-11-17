@@ -150,6 +150,8 @@ export interface MockTatolabOptions {
   isRemovingAModuleRefused: boolean;
   /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node; its import brings one that does not open. */
   isTheFixtureViewListed: boolean;
+  /** `?node_ui=unserved`: the Studio's own controls are listed with scripts nothing serves, so each ends at the read-only line with why. */
+  areTheNodeUiElementsUnserved: boolean;
   /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the effect's output. */
   isTheCompositorInMain: boolean;
   /** Whether the open project's main stream declares Graph Inputs, which the Controls view shows. */
@@ -283,6 +285,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isRemovingAModuleRefused: pageQuery.get("module_remove") === "refused",
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
     isTheCompositorInMain: pageQuery.get("compositor") === "layered",
+    areTheNodeUiElementsUnserved: pageQuery.get("node_ui") === "unserved",
     doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",
     doesTheMainStreamHoldAGeneratedSubgraph: pageQuery.get("subgraphs") === "generated",
     isTheMainStreamLarge: pageQuery.get("main_graph") === "large",

@@ -5,6 +5,7 @@
 // Usage: node scripts/serve_the_mock_window_in_a_browser.mjs
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { stripTypeScriptTypes } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfigFromFile } from "electron-vite";
@@ -33,11 +34,36 @@ const mockStudioViewPagesTransformedByVite = {
     });
   },
 };
+// The app's page protocol serves the Studio's own node UI module with its types removed; the dev server serves it as
+// written, for that protocol to read. The mock window has no such protocol, so each `.ts` is served here as the
+// protocol serves it, ahead of the dev server's own answer.
+const studioNodeUiModuleFolder = path.resolve(tatoAppRoot, "../../packages/tato-app-core-node-ui/node_ui");
+const studioNodeUiModuleServedWithItsTypesRemoved = {
+  name: "studio-node-ui-module-served-with-its-types-removed",
+  configureServer(viteDevServer) {
+    viteDevServer.middlewares.use(async (request, response, next) => {
+      const requestPath = decodeURIComponent(request.url?.split("?")[0] ?? "");
+      const moduleFile = requestPath.startsWith("/core_node_ui/") ? path.resolve(studioNodeUiModuleFolder, `.${requestPath.slice("/core_node_ui".length)}`) : "";
+      if (!moduleFile.endsWith(".ts") || !moduleFile.startsWith(`${studioNodeUiModuleFolder}${path.sep}`)) {
+        next();
+        return;
+      }
+      try {
+        const pathInTheModule = path.relative(studioNodeUiModuleFolder, moduleFile);
+        response.setHeader("Content-Type", "text/javascript; charset=utf-8");
+        response.end(stripTypeScriptTypes(await readFile(moduleFile, "utf8"), { mode: "strip", sourceUrl: pathInTheModule }));
+      } catch (failure) {
+        response.statusCode = 404;
+        response.end(`${requestPath} is not served: ${failure instanceof Error ? failure.message : String(failure)}`);
+      }
+    });
+  },
+};
 const mockWindowServer = await createServer({
   ...electronViteConfig.renderer,
   root: path.resolve(tatoAppRoot, electronViteConfig.renderer.root),
   configFile: false,
-  plugins: [...(electronViteConfig.renderer.plugins ?? []), mockStudioViewPagesTransformedByVite],
+  plugins: [studioNodeUiModuleServedWithItsTypesRemoved, ...(electronViteConfig.renderer.plugins ?? []), mockStudioViewPagesTransformedByVite],
   server: electronViteConfig.renderer.server,
 });
 await mockWindowServer.listen();
