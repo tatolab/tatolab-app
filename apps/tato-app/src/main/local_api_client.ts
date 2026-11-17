@@ -20,9 +20,6 @@ import type {
   ProjectTheRuntimeNames,
   ProjectTransaction,
   ProjectTransactionAuthor,
-  GraphEditMode,
-  ProjectGraphTransactionTheRuntimeAnswered,
-  StreamGraphAction,
   RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
@@ -51,6 +48,7 @@ import { describeCaughtFailure, failedWith, succeeded, type Result } from "./res
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import {
   callOneControlOperationOverAPost,
+  controlOperationTimeLimitMs,
   durationAsTheTimeoutFailureSpellsIt,
   type ControlOperationAnswer,
   type ControlOperationMethodName,
@@ -71,10 +69,8 @@ import {
 } from "./project_changes_on_the_wire.js";
 import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTheListAssetsToolResult, type ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import {
-  projectActionRefusalOnTheWire,
   projectTransactionFromTheUndoOrRedoToolResult,
 } from "./project_transactions_on_the_wire.js";
-import { projectGraphTransactionFromTheTransactToolResult } from "./project_graph_transaction_on_the_wire.js";
 import {
   projectFileBytesFromTheReadProjectFileToolResult,
   projectFilesFromTheListProjectFilesToolResult,
@@ -111,14 +107,6 @@ import {
 /** The most bytes one plain HTTP answer of the local API may carry before the client gives up on it. */
 const LARGEST_LOCAL_API_RESPONSE_BYTES = 8 * 1024 * 1024;
 
-/** How long `list_project_node_types` may go without a byte: the runtime bounds the project's interpreter reading its source at 60 seconds, and answers its refusal soon after. */
-const PROJECT_NODE_TYPE_LISTING_RESPONSE_TIMEOUT_MS = 65_000;
-
-/** How long a dependency tool may go without a byte: an add or an update locks the project's Python requirements with uv, which may resolve them over the network, and a check for newer versions reads every source. */
-const PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS = 180_000;
-
-/** How long a tool that copies a whole project may go without a byte: a duplicate copies its files and history, an import unpacks a `.zip`. */
-const FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS = 120_000;
 
 /** A stream's `location` on the wire: `project_directory`, its project's UUID as `project` and its stream asset's UUID as `stream_asset`. */
 function streamLocationOnTheWire(location: JsonObjectOnTheWire): Result<StreamLocation, string> {
@@ -393,7 +381,6 @@ export class LocalApiClient {
     const operationResult = await this.callControlOperation(
       "import_asset",
       { project_directory: projectDirectory, source, ...(assetPath === null ? {} : { asset_path: assetPath }), ...(author === null ? {} : { author: authorOnTheWire(author) }) },
-      FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS,
     );
     if (!operationResult.ok) return operationResult;
     const imported = assetAtItsPathFromTheToolResult("import_asset", operationResult.value);
@@ -418,7 +405,7 @@ export class LocalApiClient {
 
   /** Copy the project in `projectDirectory` with its history into `into`, a folder that does not exist yet, as a project of its own; refused in the runtime's own words. */
   async duplicateProject(projectDirectory: string, into: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("duplicate_project", { project_directory: projectDirectory, into }, FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS);
+    const operationResult = await this.callControlOperation("duplicate_project", { project_directory: projectDirectory, into });
     if (!operationResult.ok) return operationResult;
     const duplicate = duplicateFromTheDuplicateProjectToolResult(operationResult.value);
     return duplicate.ok ? duplicate : localApiRequestFailure(duplicate.failure);
@@ -426,7 +413,7 @@ export class LocalApiClient {
 
   /** Make a project in `projectDirectory`, a folder that does not exist yet, from `source`, an absolute `.zip` of one, through the runtime's `import_project`; runs nothing, refused in the runtime's own words. */
   async importProject(source: string, projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("import_project", { source, project_directory: projectDirectory }, FILE_COPYING_TOOL_RESPONSE_TIMEOUT_MS);
+    const operationResult = await this.callControlOperation("import_project", { source, project_directory: projectDirectory });
     if (!operationResult.ok) return operationResult;
     const imported = projectFromTheImportProjectToolResult(operationResult.value);
     return imported.ok ? imported : localApiRequestFailure(imported.failure);
@@ -547,7 +534,7 @@ export class LocalApiClient {
 
   /** What the project in `projectDirectory`, each import and each installed distribution declare, from the runtime's `list_project_node_types`, read from source without running it; refused in the runtime's own words. */
   async listProjectNodeTypes(projectDirectory: string): Promise<Result<ProjectNodeTypeListing, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("list_project_node_types", { project_directory: projectDirectory }, PROJECT_NODE_TYPE_LISTING_RESPONSE_TIMEOUT_MS);
+    const operationResult = await this.callControlOperation("list_project_node_types", { project_directory: projectDirectory });
     if (!operationResult.ok) return operationResult;
     const listing = projectNodeTypeListingFromTheToolResult(operationResult.value);
     return listing.ok ? listing : localApiRequestFailure(listing.failure);
@@ -587,7 +574,7 @@ export class LocalApiClient {
 
   /** Copy the project in `source`, an absolute folder or `.zip`, into `imports/` of the project in `projectDirectory` through the runtime's `add_dependency`; refused in the runtime's own words. */
   async addDependency(projectDirectory: string, source: string): Promise<Result<ProjectDependency, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("add_dependency", { project_directory: projectDirectory, source }, PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS);
+    const operationResult = await this.callControlOperation("add_dependency", { project_directory: projectDirectory, source });
     if (!operationResult.ok) return operationResult;
     const dependency = projectDependencyFromTheAddDependencyToolResult(operationResult.value);
     return dependency.ok ? dependency : localApiRequestFailure(dependency.failure);
@@ -598,7 +585,6 @@ export class LocalApiClient {
     const operationResult = await this.callControlOperation(
       "update_dependency",
       { project_directory: projectDirectory, project, overwrite_edited_files: overwriteEditedFiles },
-      PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS,
     );
     if (!operationResult.ok) return operationResult;
     const update = dependencyUpdateFromTheUpdateDependencyToolResult(operationResult.value);
@@ -607,7 +593,7 @@ export class LocalApiClient {
 
   /** Take the import `project` out of the project in `projectDirectory` through the runtime's `remove_dependency`, answering the import it removed; refused in the runtime's own words. */
   async removeDependency(projectDirectory: string, project: string): Promise<Result<ProjectDependency, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("remove_dependency", { project_directory: projectDirectory, project }, PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS);
+    const operationResult = await this.callControlOperation("remove_dependency", { project_directory: projectDirectory, project });
     if (!operationResult.ok) return operationResult;
     const dependency = projectDependencyFromTheRemoveDependencyToolResult(operationResult.value);
     return dependency.ok ? dependency : localApiRequestFailure(dependency.failure);
@@ -615,7 +601,7 @@ export class LocalApiClient {
 
   /** Each import of the project in `projectDirectory` from the runtime's `list_dependencies`, each source read for a newer version with `checkForNewer`; refused in the runtime's own words. */
   async listDependencies(projectDirectory: string, checkForNewer: boolean): Promise<Result<ListedProjectDependency[], LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("list_dependencies", { project_directory: projectDirectory, check_for_newer: checkForNewer }, PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS);
+    const operationResult = await this.callControlOperation("list_dependencies", { project_directory: projectDirectory, check_for_newer: checkForNewer });
     if (!operationResult.ok) return operationResult;
     const dependencies = workspaceDependenciesFromTheListDependenciesToolResult(operationResult.value);
     return dependencies.ok ? dependencies : localApiRequestFailure(dependencies.failure);
@@ -716,27 +702,6 @@ export class LocalApiClient {
     return transaction.ok ? transaction : localApiRequestFailure(transaction.failure);
   }
 
-  /** Apply `operations` on the graphs of the streams they name as one transaction through the runtime's `transact`, by `author`, under `idempotencyKey` when one is given; a refusal the runtime structures is answered as `refused`, every other failure as a failure. */
-  async transactOnTheStreamGraphs(
-    operations: readonly StreamGraphAction[],
-    mode: GraphEditMode,
-    idempotencyKey: string | null,
-    author: ProjectTransactionAuthor,
-  ): Promise<Result<ProjectGraphTransactionTheRuntimeAnswered, LocalApiRequestFailure>> {
-    const operationAnswer = await this.callControlOperationKeepingItsRefusal("transact", {
-      operations: [...operations],
-      mode,
-      author: authorOnTheWire(author),
-      ...(idempotencyKey === null ? {} : { idempotency_key: idempotencyKey }),
-    });
-    if (!operationAnswer.ok) return operationAnswer;
-    if (operationAnswer.value.kind === "refused_by_the_operation") {
-      const refusal = projectActionRefusalOnTheWire(operationAnswer.value.refusal);
-      return refusal.ok ? succeeded({ kind: "refused", refusal: refusal.value }) : theRuntimesRefusal(operationAnswer.value.words);
-    }
-    const transaction = projectGraphTransactionFromTheTransactToolResult(operationAnswer.value.result);
-    return transaction.ok ? succeeded({ kind: "applied", transaction: transaction.value }) : localApiRequestFailure(transaction.failure);
-  }
 
   /** `GET requestTarget`, answering the body of a `200`; any other answer is refused in the runtime's own words when its body carries them. */
   private async getBodyOfAnOkAnswer(requestTarget: string): Promise<Result<Buffer, LocalApiRequestFailure>> {
@@ -751,13 +716,9 @@ export class LocalApiClient {
     );
   }
 
-  /** Call `method` with `params` in one `POST /control`, giving up after `responseTimeoutMs`; the operation's own refusal is the runtime's, in its words. */
-  private async callControlOperation<Method extends ControlOperationMethodName>(
-    method: Method,
-    params: ControlOperationParams<Method>,
-    responseTimeoutMs: number = this.requestTimeoutMs,
-  ): Promise<Result<unknown, LocalApiRequestFailure>> {
-    const answer = await this.callControlOperationKeepingItsRefusal(method, params, responseTimeoutMs);
+  /** Call `method` with `params` in one `POST /control`, giving up after its time limit; the operation's own refusal is the runtime's, in its words. */
+  private async callControlOperation<Method extends ControlOperationMethodName>(method: Method, params: ControlOperationParams<Method>): Promise<Result<unknown, LocalApiRequestFailure>> {
+    const answer = await this.callControlOperationKeepingItsRefusal(method, params);
     if (!answer.ok) return answer;
     return answer.value.kind === "answered" ? succeeded(answer.value.result) : theRuntimesRefusal(answer.value.words);
   }
@@ -766,9 +727,8 @@ export class LocalApiClient {
   private callControlOperationKeepingItsRefusal<Method extends ControlOperationMethodName>(
     method: Method,
     params: ControlOperationParams<Method>,
-    responseTimeoutMs: number = this.requestTimeoutMs,
   ): Promise<Result<ControlOperationAnswer, LocalApiRequestFailure>> {
-    return callOneControlOperationOverAPost(this.localApiSocketPath, method, params, responseTimeoutMs);
+    return callOneControlOperationOverAPost(this.localApiSocketPath, method, params, controlOperationTimeLimitMs(method, this.requestTimeoutMs));
   }
 
   private sendOneHttpRequestAndReadItsResponse(

@@ -8,6 +8,7 @@
 
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { ManagedRuntime } from "effect";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
 import { MODULE_DOWNLOADS_FOLDER_NAME } from "../shared/marketplace_module_download_file.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
@@ -29,6 +30,7 @@ import {
 } from "./tatolab_app_shared_state.js";
 import type { TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
+import { studioRuntimeLayer } from "./studio_runtime.js";
 import { openTheProjectWhenTheRuntimeHoldsItClosed } from "./tatolab_stream_and_runtime_project_commands.js";
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
@@ -518,7 +520,9 @@ export async function startTatolabApp(
     tatolabAppWindows.showTheProjectsWindow();
     statusPublisher.sendTheLastPublishedStatusToTheWindow();
   };
-  tatolabElectronAppShell.answerTheWindowsCommands(tatolabWindowCommandHandlers(sharedState, quitTheApp));
+  const studioRuntime = ManagedRuntime.make(studioRuntimeLayer(sharedState, platformForThisBuild.localApiSocket));
+  tatolabElectronAppShell.holdTheQuitUntil(() => studioRuntime.dispose());
+  tatolabElectronAppShell.answerTheWindowsCommands(tatolabWindowCommandHandlers(sharedState, studioRuntime, quitTheApp));
   sharedStateOnceBuilt = sharedState;
   const onTrayMenuChoice = (trayMenuChoice: TrayMenuChoice) => {
     switch (trayMenuChoice) {

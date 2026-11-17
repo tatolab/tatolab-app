@@ -30,9 +30,7 @@ import type {
   ProjectLogRecordsPushed,
   ProjectStreamActionQueued,
   ProjectTransaction,
-  GraphEditMode,
   ProjectGraphTransactionTheRuntimeAnswered,
-  StreamGraphAction,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
   RuntimeDescription,
@@ -53,6 +51,7 @@ import type {
   ProjectFiles,
   SystemMenuBarMenu,
 } from "./tatolab_backend_contract.js";
+import type { ProjectGraphTransactionSentByTheWindow } from "../main/transact_in_the_open_project_arguments.js";
 
 /** The scheme the Electron app serves its window's page under: a page on it with no bridge is the app's window whose preload did not load. */
 export const TATOLAB_WINDOW_PAGE_SCHEME = "tatolab-app";
@@ -201,12 +200,6 @@ export const TATOLAB_PROJECT_LOG_RECORDS_WRITTEN_EVENT = "tatolab-project-log-re
 /** The event the system menu bar sends the window an entry the person chose on, from the menus that window last showed there; it carries a `SystemMenuBarEntryChosen`. */
 export const TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT = "tatolab-system-menu-bar-entry-chosen";
 
-/** The graph actions a studio window sends as one transaction, under its gesture's idempotency key or none. */
-export interface ProjectGraphTransactionSentByTheWindow {
-  operations: readonly StreamGraphAction[];
-  mode: GraphEditMode;
-  idempotency_key: string | null;
-}
 
 /** What `tatolab-system-menu-bar-entry-chosen` carries: the `entry_id` of the entry chosen. */
 export interface SystemMenuBarEntryChosen {

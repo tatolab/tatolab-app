@@ -4,8 +4,7 @@ import { failedWith, succeeded } from "./result.js";
 import { RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL } from "./carried_runtime_run_as_the_apps_child.js";
 import { RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL } from "./runtime_log_folder_opening.js";
 import { getTatolabStatus, linkCommandLineTool } from "./tatolab_status_runtime_and_settings_commands.js";
-import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import { cleanUpTheFakesTheLastTestMade, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
+import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
@@ -42,7 +41,7 @@ test("describing_the_runtime_answers_the_window_in_the_contracts_shape_and_a_run
     ],
     "macos"
   );
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
 
   expect(JSON.stringify(await commandHandlers.describe_runtime(undefined, FROM_THE_PROJECTS_WINDOW))).toBe(
     '{"ok":true,"value":{"version":"0.55.2","build_id":"0.55.2+ec6adf522.7f3a91","up_for_ms":4000,"runtime_log_directory":null}}',
@@ -58,7 +57,7 @@ test("restarting_the_runtime_stops_the_apps_runtime_to_start_it_again_then_obser
     [httpResponse("503 Service Unavailable", "text/plain", ""), httpResponse("503 Service Unavailable", "text/plain", "")],
     "linux",
   );
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   await sharedState.controller.composeStatus(0);
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
 
@@ -67,7 +66,7 @@ test("restarting_the_runtime_stops_the_apps_runtime_to_start_it_again_then_obser
   expect(refreshRequests).toHaveBeenCalledTimes(1);
 
   const runtimeTheCommandLineStarted = await sharedStateOverFakes([httpResponse("200 OK", "text/plain", "ok")], "linux");
-  expect(await tatolabWindowCommandHandlers(runtimeTheCommandLineStarted, () => {}).restart_runtime(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({
+  expect(await commandHandlersOver(runtimeTheCommandLineStarted).restart_runtime(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL,
   });
@@ -84,7 +83,7 @@ test("opening_the_runtimes_log_folder_opens_the_folder_the_runtime_names_and_nev
     "macos",
     [runtimeLogFolder],
   );
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
 
   expect(await commandHandlers.open_runtime_log_folder({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(await commandHandlers.open_runtime_log_folder(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL });
@@ -94,7 +93,7 @@ test("opening_the_runtimes_log_folder_opens_the_folder_the_runtime_names_and_nev
 test("turning_stream_failure_notifications_off_is_remembered_shown_in_the_next_status_and_refuses_anything_but_true_or_false", async () => {
   const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "macos");
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
 
   expect(await commandHandlers.set_stream_failure_notifications({ enabled: false }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(refreshRequests).toHaveBeenCalledTimes(1);
@@ -107,7 +106,7 @@ test("turning_stream_failure_notifications_off_is_remembered_shown_in_the_next_s
 
 test("answering_the_update_dialog_takes_its_announcement_away_and_release_notes_opens_the_announced_page_never_one_from_the_window", async () => {
   const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "macos");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   sharedState.tatolabAppUpdateAnnouncements.announceTheUpdateLanded("0.69.0");
 
   expect(
@@ -128,7 +127,7 @@ test("answering_the_update_dialog_takes_its_announcement_away_and_release_notes_
 
 test("answering_the_update_dialog_refuses_a_kind_or_an_answer_it_does_not_know", async () => {
   const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "macos");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
 
   expect(await commandHandlers.answer_the_app_update_announcement({ kind: "update_gone", version: "0.69.0", answer: "dismiss" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
@@ -143,7 +142,7 @@ test("answering_the_update_dialog_refuses_a_kind_or_an_answer_it_does_not_know",
 test("dismissing_the_x11_warning_dialog_is_remembered_shown_in_the_next_status_and_refuses_a_kind_it_does_not_know", async () => {
   const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "linux");
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   expect(sharedState.studioWarnings.warningsNow()).toEqual([{ kind: "viewer_frames_copied_on_x11", first_open_dialog_due: true }]);
 
   expect(await commandHandlers.dismiss_the_studio_warning_dialog({ kind: "viewer_frames_copied_on_x11" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
@@ -158,7 +157,7 @@ test("dismissing_the_x11_warning_dialog_is_remembered_shown_in_the_next_status_a
 test("turning_developer_mode_on_is_remembered_shown_in_the_next_status_and_refuses_anything_but_true_or_false", async () => {
   const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "macos");
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   expect(sharedState.developerModeSwitch.isOnNow()).toBe(false);
 
   expect(await commandHandlers.set_developer_mode({ enabled: true }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
@@ -173,7 +172,7 @@ test("turning_developer_mode_on_is_remembered_shown_in_the_next_status_and_refus
 test("opening_tatolab_at_login_asks_the_desktop_then_observes_again_and_is_refused_in_its_words", async () => {
   const sharedState = await sharedStateOverFakes([], "linux");
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
 
   expect(await commandHandlers.set_open_tatolab_at_login({ enabled: true }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(sharedState.tatolabAppOpenedAtLogin.setsAsked).toEqual([true]);
@@ -189,7 +188,7 @@ test("opening_tatolab_at_login_asks_the_desktop_then_observes_again_and_is_refus
 
 test("a window's menus are kept for the system menu bar on macOS, shown while it is in focus, and menus out of shape are refused", async () => {
   const sharedState = await sharedStateOverFakes([], "macos");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   const fileMenu = {
     label: "File",
     system_menu: null,

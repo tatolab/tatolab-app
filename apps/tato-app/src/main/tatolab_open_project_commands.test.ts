@@ -8,8 +8,7 @@ import { controlOperationResponseOfTheRecordedToolResponse, httpResponse } from 
 import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { failedWith, succeeded } from "./result.js";
 import { reloadTheOpenProjectAfterASaveOfItsPythonFile, whatASavedNodeFileAsksOfTheRuntime } from "./tatolab_open_project_commands.js";
-import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import { cleanUpTheFakesTheLastTestMade, FROM_THE_PROJECTS_WINDOW, cleanUps, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS, recordedResponseBody, sharedStateOverFakes, listedStreamOfTheProject, statusLastPublishedListing, projectActionsQueuedOn } from "./tatolab_commands_test_support.js";
+import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, cleanUps, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS, recordedResponseBody, sharedStateOverFakes, listedStreamOfTheProject, statusLastPublishedListing, projectActionsQueuedOn } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
@@ -53,7 +52,7 @@ test("Live opens then plays a closed project, reloads then plays a stopped one w
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
   const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   const projectActionsQueued = projectActionsQueuedOn(sharedState);
   const runTheProjectLiveListing = async (streams: ListedStream[]) => {
     statusLastPublishedListing(sharedState, streams);
@@ -120,7 +119,7 @@ test("Live answers the runtime's refusal of an open it would play after, in its 
   const playbackStarts = vi.spyOn(sharedState.controller, "startPlayback");
   statusLastPublishedListing(sharedState, []);
 
-  expect(await tatolabWindowCommandHandlers(sharedState, () => {}).run_open_project(undefined, { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 })).toEqual({ ok: false, refusal });
+  expect(await commandHandlersOver(sharedState).run_open_project(undefined, { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 })).toEqual({ ok: false, refusal });
   expect(playbackStarts).not.toHaveBeenCalled();
 });
 
@@ -137,7 +136,7 @@ test("undo and redo in the open project ask the runtime by the window's author a
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
   const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   const sam = { kind: "person", name: "Sam" };
 
   expect(await commandHandlers.read_open_project_transactions(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: { kind: "not_read", because: expect.any(String) } });
@@ -164,7 +163,7 @@ test("importing assets into the open project copies each file the person chooses
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
   const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
 
   expect(await commandHandlers.import_assets_into_the_open_project({ media: null }, fromTheStudioWindow)).toEqual({ ok: true, value: null });
   sharedState.assetFilesTheDialogAnswers.files = ["/home/sam/poster.png", "/home/sam/main.graph.json"];
@@ -193,7 +192,7 @@ test("renaming, moving and deleting an asset of the open project reach the runti
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
   const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   const poster = "7fc01c14-399c-4749-a45b-2c99a77ce0a6";
 
   expect(await commandHandlers.relocate_asset_in_the_open_project({ asset: poster, to_path: "media/harbour-poster.png" }, fromTheStudioWindow)).toEqual({ ok: true, value: null });
@@ -227,7 +226,7 @@ test("an asset's preview picture of the open project reaches the window as a dat
   const fromTheStudioWindow = {
     windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1,
   };
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
 
   expect(await commandHandlers.read_asset_preview_of_the_open_project({ asset: "38ab4435-5f49-4cd1-b60e-f03acf54db34" }, fromTheStudioWindow)).toEqual({
     ok: true,
@@ -251,99 +250,6 @@ test("an asset's preview picture of the open project reaches the window as a dat
   });
 });
 
-/** The window's `ProjectGraphTransactionTheRuntimeAnswered` reads exactly this JSON. */
-test("a graph transaction in the open project reaches the runtime's transact held to its shape and to the project's streams, by the person editing, answering what it applied or the runtime's structured refusal", async () => {
-  const sharedState = await sharedStateOverFakes(
-    [
-      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-transact-tool-result-of-setting-the-test-pattern-to-640-by-360.json")),
-      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-transact-refusal-for-an-image-output-into-a-channels-input.json")),
-    ],
-    "linux",
-  );
-  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "hallways-"));
-  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
-  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
-  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
-  const stream = "ab38b36d-ea2a-4948-bc01-f231ca4fa043";
-  const testPattern = "ea646832-0f5f-45f4-bd5c-6b5b50a0b70a";
-  const setTheSize = { operation: "set_node_config", stream, node: testPattern, config: { width: 640, height: 360 } };
-  const hallwaysMainListed: ListedStream = {
-    stream: "hallways-main-3990b7",
-    display_name: "main",
-    location: { project_directory: projectFolder, project: "6f1d0b7e-hallways", stream_asset: stream },
-    state: "running",
-    node_count: 3,
-    failed_because: null,
-    capture_devices_whose_access_was_never_asked_for: [],
-    action: null,
-    step: null,
-  };
-  vi.spyOn(sharedState.statusPublisher, "lastPublishedStatusNow").mockReturnValue({
-    app_version: "0.68.55",
-    app_build: null,
-    platform: "linux",
-    runtime_state: "running",
-    runtime_not_running_because: null,
-    machine_name: "hallways-box",
-    streams: [hallwaysMainListed],
-    streams_not_listed_because: null,
-    command_line_tool_link: { kind: "not_linked", path: "/home/sam/.local/bin/tatolab" },
-    project_venv_syncs_under_way: [],
-    project_venv_syncs_just_ended: [],
-    project_stream_action_failures: [],
-    app_update: { kind: "not_offered", reason: "a test updates nothing" },
-    app_update_announcement: null,
-    local_api_socket: sharedState.localApiSocketPath,
-    stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
-    developer_mode: false,
-    open_at_login: { kind: "off" },
-    command_line_tool_version: { kind: "reading" },
-    studio_warnings: [],
-  });
-
-  expect(await commandHandlers.read_the_person_editing_in_studio(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: { kind: "person", name: "sam" } });
-  const anotherProjectsStream = "0c4e2f9a-7b13-4d58-a6e1-3f9b2c7d8e10";
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize, { ...setTheSize, stream: anotherProjectsStream }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
-    ok: false,
-    refusal: `The stream asset ${anotherProjectsStream} is not one of the streams the runtime lists in ${projectFolder}.`,
-  });
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "commit", idempotency_key: "5a8e1c3f-2d47-4b6a-9f01-8c7d6e5b4a32" }, fromTheStudioWindow)).toEqual({
-    ok: true,
-    value: {
-      kind: "applied",
-      transaction: {
-        mode: "commit",
-        transaction: "0e29a20a-60d9-4cf1-9fdc-6c66a4b5136d",
-        commit: "5e2cdcdc1f1b5e5cfde4d4c870c83197dcc29b7c",
-        operations: [{ operation: "set_node_config", node: testPattern, from: {}, to: { width: 640, height: 360 }, stream: "hallways-main-3990b7" }],
-        added_nodes: [],
-        connected_links: [],
-        added_groups: [],
-        added_notes: [],
-      },
-    },
-  });
-  const link = { source: { node: testPattern, port: "video" }, target: { node: "d28273fd-8094-41f7-b832-a55f58d60f37", port: "refresh" } };
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [{ operation: "connect", stream, ...link }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toMatchObject({
-    ok: true,
-    value: { kind: "refused", refusal: { action: "transact", refused_operation_index: 0, refused_link: link, refused_node: null, refused_field: null } },
-  });
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [{ ...setTheSize, force: true }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toMatchObject({
-    ok: false,
-    refusal: expect.stringMatching(/^transact_in_the_open_project's operation 0 is not a graph action the runtime takes: /),
-  });
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
-    ok: false,
-    refusal: "transact_in_the_open_project needs `operations`, at least one graph action",
-  });
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "kept", idempotency_key: null }, fromTheStudioWindow)).toEqual({
-    ok: false,
-    refusal: "transact_in_the_open_project needs `mode`, `commit` or `live`",
-  });
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "commit", idempotency_key: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
-});
-
 test("listing the open project's views asks the system ahead for the camera and the microphone a view declares, once however often it is listed", async () => {
   const nightShow = "/private/tmp/tl-rec-cam/projects/night-show";
   const listingDeclaringTheCamera = await recordedResponseBody("local-api-list-project-views-tool-result-of-night-show-with-a-view-declaring-the-camera-and-microphone.json");
@@ -361,7 +267,7 @@ test("listing the open project's views asks the system ahead for the camera and 
   const projectFolder = await mkdtemp(path.join(os.tmpdir(), "night-show-"));
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
 
   expect((await commandHandlers.list_studio_views_of_the_open_project(undefined, fromTheStudioWindow)).ok).toBe(true);
@@ -394,7 +300,7 @@ test("the open project's views are the runtime's list_project_views of its folde
   const projectFolder = await mkdtemp(path.join(os.tmpdir(), "night-show-"));
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   const recordedNightShowFolder = "/private/tmp/tl-rec053/projects/night-show";
 
   const listed = await commandHandlers.list_studio_views_of_the_open_project(undefined, { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 });
@@ -437,7 +343,7 @@ test("a Graph Input's value reaches the runtime's write_graph_input from a studi
   const projectFolder = await mkdtemp(path.join(os.tmpdir(), "s06-perform-"));
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
   const brightness = { stream: "s06-perform-main-0df4a7", input: "brightness", value: 0.8 };
 
@@ -465,7 +371,7 @@ test("a view's output value reaches the runtime's write_studio_view_output from 
   const projectFolder = await mkdtemp(path.join(os.tmpdir(), "night-show-"));
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
   const cue = { stream: "night-show-main-aa298d", node: "fdca90ae-f25d-4551-86e2-11f5cdb65d16", port: "cue", value: { track: "Opening" } };
 
