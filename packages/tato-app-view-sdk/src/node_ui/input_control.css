@@ -1,0 +1,68 @@
+/* The look of a control drawn in a shadow root, which adopts this sheet as a CSS module script. The panel's tokens are
+   custom properties, which inherit into the shadow root, so a control reads the same colours as the panel around it.
+   The host writes `data-surface` and `data-state` on the control, so a rule here adapts it with no code. */
+
+:host {
+  display: block;
+  min-width: 0;
+  color: var(--fg);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+:host([hidden]) {
+  display: none;
+}
+
+.field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 24px;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--studio-control);
+}
+
+.field:has(:focus-visible) {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.field input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+}
+
+.field[data-dragging] {
+  cursor: ew-resize;
+}
+
+.field[data-dragging] input {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.unit {
+  padding-right: 8px;
+  color: var(--fg-3);
+}
+
+:host([data-surface="node"]) .field {
+  height: 20px;
+}
+
+:host([data-state="read_only"]) input,
+:host([data-state="driven_by_wire"]) input {
+  color: var(--fg-3);
+}

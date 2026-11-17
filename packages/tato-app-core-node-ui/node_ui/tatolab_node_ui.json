@@ -1,0 +1,4 @@
+{
+  "contract": "1.1",
+  "controls": [{ "type": "float", "script": "float_number.ts" }]
+}

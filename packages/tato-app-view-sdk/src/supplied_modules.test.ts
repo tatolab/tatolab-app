@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
 import studioSdkBuildConfig from "../vite.studio_sdk.config.ts";
-import { SUPPLIED_MODULES, SUPPLIED_MODULES_IMPORT_MAP_TEXT, withTheSuppliedModulesImportMap } from "./supplied_modules.js";
+import { isASuppliedStylesheet, SUPPLIED_MODULES, SUPPLIED_MODULES_IMPORT_MAP_TEXT, withTheSuppliedModulesImportMap } from "./supplied_modules.js";
 
 const IMPORT_MAP_SCRIPT = `<script type="importmap">${SUPPLIED_MODULES_IMPORT_MAP_TEXT}</script>`;
 
@@ -14,6 +14,7 @@ test("the import map resolves every supplied module by its name to its file unde
       "@tatolab/tato-app-view-sdk/pin_type_readings": "/studio_sdk/pin_type_readings.js",
       "@tatolab/tato-app-view-sdk/pin_types": "/studio_sdk/pin_types.js",
       "@tatolab/tato-app-view-sdk/node_ui": "/studio_sdk/node_ui.js",
+      "@tatolab/tato-app-view-sdk/node_ui/input_control.css": "/studio_sdk/input_control.css",
     },
   });
 });
@@ -23,17 +24,21 @@ test("every supplied module of the SDK is one of the package's own entries, so a
   for (const suppliedModule of SUPPLIED_MODULES) {
     const entry = `.${suppliedModule.name.slice(packageManifest.name.length)}`;
     expect(suppliedModule.name.startsWith(packageManifest.name)).toBe(true);
-    expect(packageManifest.exports[entry], `${suppliedModule.name} is not an entry of the package`).toMatch(/^\.\/src\/[a-z_]+\.ts$/);
+    expect(packageManifest.exports[entry], `${suppliedModule.name} is not an entry of the package`).toMatch(isASuppliedStylesheet(suppliedModule) ? /^\.\/src\/[a-z_/]+\.css$/ : /^\.\/src\/[a-z_]+\.ts$/);
   }
 });
 
-test("the SDK's build writes each supplied module at the file the import map resolves its name to", () => {
+test("the SDK's build writes each supplied JavaScript module at the file the import map resolves its name to", () => {
   const library = studioSdkBuildConfig.build?.lib;
   if (library === undefined || library === false || typeof library.fileName !== "function" || typeof library.entry !== "object" || Array.isArray(library.entry)) {
     throw new Error("the SDK's build is not a library build with named entries and a fileName function");
   }
   const writeFileName = library.fileName;
-  expect(Object.keys(library.entry).map((entryName) => writeFileName("es", entryName)).sort()).toEqual(SUPPLIED_MODULES.map((suppliedModule) => suppliedModule.served_file).sort());
+  expect(Object.keys(library.entry).map((entryName) => writeFileName("es", entryName)).sort()).toEqual(
+    SUPPLIED_MODULES.filter((suppliedModule) => !isASuppliedStylesheet(suppliedModule))
+      .map((suppliedModule) => suppliedModule.served_file)
+      .sort(),
+  );
 });
 
 test("a page holds the import map straight after its doctype, whatever its case and whatever comment comes before it, or first when it has none", () => {

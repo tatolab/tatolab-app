@@ -189,8 +189,8 @@ function pageWithTheSuppliedModulesImportMap(pathInTheProject: string, pageBytes
   });
 }
 
-/** The file at `pathInTheProject`, whose bytes the runtime read as `fileBytes`, as `servedAs` says a page is served it. */
-function projectViewFileAsServed(
+/** The file at `pathInTheProject`, whose bytes were read as `fileBytes`, as `servedAs` says a page is served it. */
+export function projectViewFileAsServed(
   pathInTheProject: string,
   fileBytes: Buffer,
   servedAs: ProjectViewFileServedAs,

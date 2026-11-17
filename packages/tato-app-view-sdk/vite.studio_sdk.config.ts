@@ -1,13 +1,15 @@
 // Builds the modules the Studio supplies to a view, each listed in `supplied_modules.json`, into
 // `dist/studio_sdk/`: one ES module per name, at the file the import map resolves it to, beside the
-// chunks they share, so a page that imports several holds one copy of what they have in common.
+// chunks they share, so a page that imports several holds one copy of what they have in common. A
+// supplied stylesheet is copied there as it is written.
 // A supplied module listed as importing no library fails the build when its file, or a chunk it
 // imports, holds code from any package.
 
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { defineConfig, type Plugin, type Rolldown } from "vite";
 import packageManifest from "./package.json" with { type: "json" };
-import { SUPPLIED_MODULES } from "./src/supplied_modules.ts";
+import { isASuppliedStylesheet, SUPPLIED_MODULES } from "./src/supplied_modules.ts";
 
 /** Each entry of the package, by the name a view imports it with, to its source file. */
 const SOURCE_OF_EACH_PACKAGE_ENTRY: ReadonlyMap<string, string> = new Map(
@@ -47,13 +49,25 @@ function suppliedModulesThatImportNoLibraryHoldNone(): Plugin {
   };
 }
 
+/** Writes each supplied stylesheet at its served file as it is written, since a CSS module script is served as plain CSS. */
+function suppliedStylesheetsCopiedAsWritten(): Plugin {
+  return {
+    name: "supplied_stylesheets_copied_as_written",
+    async generateBundle() {
+      for (const suppliedStylesheet of SUPPLIED_MODULES.filter(isASuppliedStylesheet)) {
+        this.emitFile({ type: "asset", fileName: suppliedStylesheet.served_file, source: await readFile(sourceOfThePackageEntry(suppliedStylesheet.name), "utf8") });
+      }
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [suppliedModulesThatImportNoLibraryHoldNone()],
+  plugins: [suppliedModulesThatImportNoLibraryHoldNone(), suppliedStylesheetsCopiedAsWritten()],
   build: {
     outDir: path.join(import.meta.dirname, "dist", "studio_sdk"),
     emptyOutDir: true,
     lib: {
-      entry: Object.fromEntries(SUPPLIED_MODULES.map((suppliedModule) => [buildEntryNameOf(suppliedModule.served_file), sourceOfThePackageEntry(suppliedModule.name)])),
+      entry: Object.fromEntries(SUPPLIED_MODULES.filter((suppliedModule) => !isASuppliedStylesheet(suppliedModule)).map((suppliedModule) => [buildEntryNameOf(suppliedModule.served_file), sourceOfThePackageEntry(suppliedModule.name)])),
       formats: ["es"],
       fileName: (_format, entryName) => `${entryName}.js`,
     },
