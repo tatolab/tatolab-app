@@ -3,7 +3,7 @@
 // a link per link of the graph drawn by its state, a frame per labelled group and the graph's canvas notes.
 
 import type { NodeGraphCanvasFrame, NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCanvasNote, NodeGraphCardCondition, NodeGraphLinkLook } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
-import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import { valueAddressOfTheInput, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { NodeCatalog, NodeCatalogPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { isANameTheCodeGave, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { portStreamFactsWords, streamFactsAnInputReceives } from "../shared/port_stream_facts_words";
@@ -112,7 +112,7 @@ export function streamGraphCanvasContents(
         family: port.family,
         description: portDescription(catalogEntryByType.get(node.type)?.inputs, port.name),
         stream_facts_words: portStreamFactsWords(streamFactsAnInputReceives(graph, node.name, port)),
-        value_address: valuesAt === null || port.value_read === null || port.value_read.comes_from === "wire" ? null : { graph: valuesAt, node_id: node.id, input: port.name },
+        value_address: valueAddressOfTheInput(valuesAt, node.id, port),
       })),
       outputs: node.output_ports.map((port) => ({
         name: port.name,

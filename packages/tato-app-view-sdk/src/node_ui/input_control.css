@@ -60,6 +60,12 @@
 
 :host([data-surface="node"]) .field {
   height: 20px;
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--studio-graph-card-line);
+}
+
+:host([data-surface="node"]) .field:has(:focus-visible) {
+  box-shadow: 0 0 0 2px var(--ring);
 }
 
 :host([data-state="read_only"]) input,

@@ -79,6 +79,14 @@ export const MOCK_RUNTIME_VERSION = "0.55.2";
 /** Why the app could not list the streams in the mock's `?state=not-listed`, as the app words a `list_streams` result it cannot read. */
 const MOCK_STREAMS_NOT_LISTED_BECAUSE = "the runtime's list_streams result could not be read: missing field `stream_asset`";
 
+/** How the mock lists the Studio's own elements: served, listed with scripts nothing serves, or refused. */
+export type MockNodeUiElementsListing = "served" | "unserved" | "refused";
+
+/** The listing `?node_ui=` asks for, served by default. */
+export function mockNodeUiElementsListingOf(asked: string | null): MockNodeUiElementsListing {
+  return asked === "unserved" || asked === "refused" ? asked : "served";
+}
+
 /** What the page's query asks of the mock. */
 export interface MockTatolabOptions {
   scenario: MockTatolabScenario;
@@ -150,6 +158,10 @@ export interface MockTatolabOptions {
   isRemovingAModuleRefused: boolean;
   /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node; its import brings one that does not open. */
   isTheFixtureViewListed: boolean;
+  /** `?node_ui=unserved`: the Studio's own controls are listed with scripts nothing serves, so each ends at the read-only line with why; `?node_ui=refused`: listing them is refused, so each input draws its own field. They are listed and served by default. */
+  nodeUiElementsListing: MockNodeUiElementsListing;
+  /** `?input_values=refuse_negative`: an input's value below zero is refused, as the runtime refuses one outside its input's range. */
+  areNegativeInputValuesRefused: boolean;
   /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the effect's output. */
   isTheCompositorInMain: boolean;
   /** Whether the open project's main stream declares Graph Inputs, which the Controls view shows. */
@@ -283,6 +295,8 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isRemovingAModuleRefused: pageQuery.get("module_remove") === "refused",
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
     isTheCompositorInMain: pageQuery.get("compositor") === "layered",
+    nodeUiElementsListing: mockNodeUiElementsListingOf(pageQuery.get("node_ui")),
+    areNegativeInputValuesRefused: pageQuery.get("input_values") === "refuse_negative",
     doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",
     doesTheMainStreamHoldAGeneratedSubgraph: pageQuery.get("subgraphs") === "generated",
     isTheMainStreamLarge: pageQuery.get("main_graph") === "large",

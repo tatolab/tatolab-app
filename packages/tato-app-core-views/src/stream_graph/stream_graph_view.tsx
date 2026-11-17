@@ -10,9 +10,10 @@ import { Store } from "lucide-react";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import { newGestureIdempotencyKey, type StopWatching, type StudioSelection, type TatoAppViewConnection, type ViewSettings } from "@tatolab/tato-app-view-sdk";
+import type { StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings } from "@tatolab/tato-app-view-sdk";
 import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import { createInputValues, type InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
+import type { InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
+import { InputControlBinderContext, useInputControlsOfTheFrame } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import type {
   ListedStreamsReading,
   NodeCatalogReading,
@@ -508,17 +509,14 @@ function StreamGraphBody({ connection }: { connection: TatoAppViewConnection }) 
   const activeStreamTab = useViewReadingSoFar(connection.watchActiveStreamTab);
   const [selectionRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
   const select = useCallback((selection: StudioSelection) => showTheRefusalOf("Didn't select:", connection.select(selection)), [connection, showTheRefusalOf]);
-  const inputValues = useMemo(
-    () => createInputValues({ transactInTheProject: (projectFolder, operations, sending) => connection.transactInTheProject(projectFolder, operations, sending), newGestureIdempotencyKey }),
-    [connection],
-  );
+  const { inputValues, inputControls } = useInputControlsOfTheFrame(connection);
   if (activeStreamTab.kind === "not_read_yet") return null;
   if (activeStreamTab.reading === null) return <WaitingState title="No stream is open" explanation="Double-click a stream in the outliner to open its tab." data-stream-graph-state="no_tab" />;
   return (
-    <>
+    <InputControlBinderContext value={inputControls}>
       <RefusalOfTheLatestAskBar refusal={selectionRefusal} />
       <StreamGraphOfTheTab key={activeStreamTab.reading.stream} connection={connection} inputValues={inputValues} streamTab={activeStreamTab.reading} select={select} />
-    </>
+    </InputControlBinderContext>
   );
 }
 

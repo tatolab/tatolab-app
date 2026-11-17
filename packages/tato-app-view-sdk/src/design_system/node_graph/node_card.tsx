@@ -3,15 +3,17 @@ import { cn } from "cn";
 import { ChevronDown, ChevronRight, Combine, SquareX, TriangleAlert } from "lucide-react";
 import { Fragment, memo, useContext, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import { inputAddressKey, type InputAddress } from "../../pin_model/node_inputs";
+import { takesAControl } from "../../pin_model/controlled_inputs";
 import { nodePinRows, type NodePin } from "../../pin_model/node_pins";
 import { valueWords } from "../../pin_model/value_words";
 import type { PinFlow, PinType } from "../../pin_type_readings";
 import { pinTypeKey, pinWords, type PinTypeKey } from "../../pin_model/pin_type_words";
 import type { StreamGraphPortPin } from "../../studio_readings";
+import { InputControlMount } from "../input_control_mount";
 import { NodeGraphNodesFoundContext } from "../node_graph_find_bar";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "../support/full_strength_focus_ring";
 import type { NodeGraphCardCondition, NodeGraphCanvasNode } from "../support/node_graph_canvas_contract";
-import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, connectionLookupKeyOfTheHandle, NodeGraphEditableContext, NodeGraphCardAndFrameEditingContext, NodeGraphInputValuesContext } from "../support/node_graph_flow_elements";
+import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, connectionLookupKeyOfTheHandle, NodeGraphEditableContext, NodeGraphCardAndFrameEditingContext, NodeGraphInputValuesContext, NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE } from "../support/node_graph_flow_elements";
 import { NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT, NODE_GRAPH_CARD_HEADER_HEIGHT, NODE_GRAPH_CARD_PIN_ROWS_PADDING, NODE_GRAPH_PIN_ROW_HEIGHT } from "../support/node_graph_layout";
 import { isAPinSocketOfTheCardUnmeasured } from "../support/node_graph_pin_socket_measurement";
 
@@ -92,6 +94,19 @@ function haveTheSameInputAndType(before: { address: InputAddress; pinType: PinTy
   return inputAddressKey(before.address) === inputAddressKey(after.address) && (before.pinType === after.pinType || JSON.stringify(before.pinType) === JSON.stringify(after.pinType));
 }
 
+/** The mark a card's control carries, so the canvas hides it while zoomed out past reading it. */
+const INLINE_CONTROL_HOST_ATTRIBUTES = { [NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE]: "" } as const;
+
+/** What an input's row shows of its value at its end: the control `takesAControl` gives it, or its value in words where the table has none; nothing for an input that holds no value of its own. */
+function NodeGraphInputValueOfTheRow({ pin }: { pin: NodePin }) {
+  const isEditable = useContext(NodeGraphEditableContext);
+  if (pin.value_address === null) return null;
+  const wordsOfTheValue = <NodeGraphInputValueWords address={pin.value_address} pinType={pin.pin?.pin_type ?? null} />;
+  const controlled = takesAControl(pin);
+  if (controlled === null) return wordsOfTheValue;
+  return <InputControlMount input={controlled} surface="node" readOnly={!isEditable} fallback={wordsOfTheValue} className="ml-auto w-24 shrink-0 pl-2" hostAttributes={INLINE_CONTROL_HOST_ATTRIBUTES} />;
+}
+
 /** What a card's header and pin rows draw of a node. */
 type NodeGraphCardFaceNode = Pick<NodeGraphCanvasNode, "title" | "type_name" | "description" | "condition" | "inputs" | "outputs" | "is_collapsed" | "subgraph">;
 
@@ -144,7 +159,7 @@ function NodeGraphCardHeaderAndPinRows({
               >
                 {row.node_pin.name}
               </span>
-              {row.side === "input" && row.node_pin.value_address !== null && <NodeGraphInputValueWords address={row.node_pin.value_address} pinType={row.node_pin.pin?.pin_type ?? null} />}
+              {row.side === "input" && <NodeGraphInputValueOfTheRow pin={row.node_pin} />}
               {socketOfThePin(row.side, row.node_pin, true)}
             </div>
           ))}

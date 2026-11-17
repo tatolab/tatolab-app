@@ -43,6 +43,7 @@ export interface ControlledPin<TypeName extends string> {
 export interface InputControlElement<TypeName extends string> extends HTMLElement {
   pin: ControlledPin<TypeName>;
   value: StoredPinValue<TypeName>;
+  /** Moving it away from `editable` ends any press the control has open: the control puts its value back and fires no `change`. */
   state: InputControlState;
 }
 

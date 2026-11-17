@@ -517,7 +517,7 @@ export async function startTatolabApp(
     tatolabAppWindows.showTheProjectsWindow();
     statusPublisher.sendTheLastPublishedStatusToTheWindow();
   };
-  const studioRuntime = ManagedRuntime.make(studioRuntimeLayer(sharedState, platformForThisBuild.localApiSocket));
+  const studioRuntime = ManagedRuntime.make(studioRuntimeLayer(sharedState, platformForThisBuild.localApiSocket, thisCopyOfTatolab.appVersion));
   studioRuntimeOnceBuilt = studioRuntime;
   tatolabElectronAppShell.answerTheWindowsCommands(tatolabWindowCommandHandlers(sharedState, studioRuntime, quitTheApp));
   // Both answer on the studio runtime, and both are in place before the first window shows below.

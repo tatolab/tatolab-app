@@ -348,6 +348,11 @@ export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulatio
         const refusal = { ...MOCK_REFUSAL_NAMING_NOTHING, action: "transact", refused_operation_index: operationInsideAPlacedStream };
         return { kind: "refused", refusal: { ...refusal, runtime_words: "an edit inside a placed stream is refused live: it is made on the project's graph documents, with `mode` `commit`" } };
       }
+      const negativeInputValue = mockTatolabOptions.areNegativeInputValuesRefused ? operations.findIndex((operation) => operation.operation === "set_node_input_value" && typeof operation.value === "number" && operation.value < 0) : -1;
+      if (negativeInputValue !== -1) {
+        const refusal = { ...MOCK_REFUSAL_NAMING_NOTHING, action: "transact", refused_operation_index: negativeInputValue };
+        return { kind: "refused", refusal: { ...refusal, runtime_words: "the value is below the input's range, which starts at 0" } };
+      }
       const outcome = mode === "commit" ? commitGraphActions(operations, "a_transaction") : applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations, "a_live_transaction");
       if (outcome.kind === "refused") return outcome;
       pushEveryFollowedStreamGraphChanged();

@@ -29,6 +29,8 @@ import { tatolabFrameViewType } from "./view_host/tatolab_frame_view_type";
 import { coreViewTypesOf, servedCoreViewFolderUrl } from "./view_host/core_view_types";
 import { CORE_VIEWS } from "@tatolab/tato-app-core-views";
 import { watchTheStudioViewsOfTheRegistry } from "./view_host/studio_views_listed_for_views";
+import { NodeUiElementsListedForViews } from "./view_host/node_ui_elements_listed_for_views";
+import { listForEachOpenProject } from "./view_host/list_for_each_open_project";
 import { ProjectLogReadings } from "./view_host/project_log_readings";
 import { ProjectTransactionsReadings } from "./view_host/project_transactions_readings";
 import { ProjectListingReadingsWhileWatched } from "./view_host/project_listing_readings_while_watched";
@@ -76,22 +78,11 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
 
 /** Keeps `viewTypeRegistry` listing the views of the project `studioWindowModel` has open, listed again each time another is read. */
 function listTheOpenProjectsStudioViews(backend: TatolabBackend, studioWindowModel: StudioWindowModel, viewTypeRegistry: StudioViewTypeRegistry): void {
-  let listingsAsked = 0;
-  studioWindowModel.openProject.watch((openProjectReading) => {
-    listingsAsked += 1;
-    const thisListing = listingsAsked;
-    if (openProjectReading.kind !== "read") {
-      viewTypeRegistry.projectStudioViews.publish({ kind: "none_open" });
-      return;
-    }
-    backend.listStudioViewsOfTheOpenProject().then(
-      (studioViews) => {
-        if (thisListing === listingsAsked) viewTypeRegistry.projectStudioViews.publish({ kind: "listed", studio_views: studioViews });
-      },
-      (rejection: unknown) => {
-        if (thisListing === listingsAsked) viewTypeRegistry.projectStudioViews.publish({ kind: "not_listed", because: describeBackendRejection(rejection) });
-      },
-    );
+  listForEachOpenProject(studioWindowModel.openProject.watch, {
+    list: () => backend.listStudioViewsOfTheOpenProject(),
+    listed: (studioViews) => viewTypeRegistry.projectStudioViews.publish({ kind: "listed", studio_views: studioViews }),
+    notListed: (rejection) => viewTypeRegistry.projectStudioViews.publish({ kind: "not_listed", because: describeBackendRejection(rejection) }),
+    noneOpen: () => viewTypeRegistry.projectStudioViews.publish({ kind: "none_open" }),
   });
 }
 
@@ -255,6 +246,8 @@ export function mountTatolabWindow(
   backend.onSystemMenuBarEntryChosen((entryId) => onChosenByEntryIdOfTheMenusSent.get(entryId)?.());
   const viewTypeRegistry = studioViewTypeRegistry();
   listTheOpenProjectsStudioViews(backend, studioWindowModel, viewTypeRegistry);
+  const nodeUiElementsListed = new NodeUiElementsListedForViews();
+  nodeUiElementsListed.listForEachOpenProject(backend, studioWindowModel.openProject.watch);
   const studioWindowSources: StudioWindowSources = {
     model: studioWindowModel,
     viewTypeRegistry,
@@ -267,6 +260,7 @@ export function mountTatolabWindow(
       pythonLanguageServerConnections,
       portViewerConnections,
       watchStudioViews: (listener) => watchTheStudioViewsOfTheRegistry(viewTypeRegistry, listener),
+      watchNodeUiElements: nodeUiElementsListed.watch,
     }),
     commands: studioMenuBarCommands,
     streamEdits: {

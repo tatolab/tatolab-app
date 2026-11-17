@@ -4,9 +4,9 @@
 // decodes and the generated type are each assignable to the other.
 
 import { z } from "zod";
-import type { BundleMember, DeclaredPinType, PinFlow, PinType } from "./pin_types.js";
+import type { BuiltInPinTypeName, BundleMember, DeclaredPinType, PinFlow, PinType } from "./pin_types.js";
 
-export type { BundleMember, DeclaredPinType, PinFlow, PinType };
+export type { BuiltInPinTypeName, BundleMember, DeclaredPinType, PinFlow, PinType };
 
 /** An Integer's exact size. */
 export const integerSizeSchema = z.enum(["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"]);
@@ -18,6 +18,31 @@ export const vectorComponentCountSchema = z.enum(["two", "three", "four"]);
 export const texturePixelFormatSchema = z.enum(["rgba8_unorm", "rgba8_unorm_srgb", "bgra8_unorm", "bgra8_unorm_srgb", "rgba16_float", "rgba32_float", "nv12"]);
 /** A kind of asset an Asset pin may name. */
 export const projectAssetMediaSchema = z.enum(["image", "video", "audio", "lut", "scene", "stream"]);
+
+/** The name of a built-in pin type, its `type` tag in a pin type. */
+export const builtInPinTypeNameSchema = z.enum([
+  "boolean",
+  "integer",
+  "float",
+  "string",
+  "menu",
+  "color",
+  "vector",
+  "rectangle",
+  "transform",
+  "texture",
+  "audio",
+  "encoded_video",
+  "encoded_audio",
+  "tensor",
+  "asset",
+  "trigger",
+  "list_of",
+  "bundle",
+  "named",
+  "node_reference",
+  "pin_type_choice",
+]) satisfies z.ZodType<BuiltInPinTypeName>;
 
 /** One member of a bundle. */
 export const bundleMemberSchema: z.ZodType<BundleMember> = z.strictObject({

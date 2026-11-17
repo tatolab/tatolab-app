@@ -10,6 +10,7 @@ import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_r
 import type { WatchedStudioValue } from "./watched_studio_value";
 import type { ProjectAssetPick, ProjectAssetPickEnding } from "@tatolab/tato-app-view-sdk";
 import type { ProjectAssetPickAnswering } from "./project_asset_pick_held_in_the_window";
+import type { NodeUiElementsReading } from "@tatolab/tato-app-view-sdk/node_ui_host";
 
 /** What the studio publishes to its views, and what it does when a view opens a stream's tab. */
 export interface StudioWindowValuesServedToViews {
@@ -39,6 +40,8 @@ export interface StudioViewHostProjectServices {
   portViewerConnections: PortViewerConnections;
   /** The views an area can show, at once and again each time the open project's are listed. */
   watchStudioViews(listener: (reading: StudioViewsReading) => void): StopWatching;
+  /** The node UI elements every view's control table picks from, once listed and again on each change. */
+  watchNodeUiElements(listener: (reading: NodeUiElementsReading) => void): StopWatching;
 }
 
 /** Why a view naming a folder other than the window's open project imports nothing into it. */
@@ -177,6 +180,7 @@ export function studioViewHostServicesOf(
         listTheProjectAgainNow: (folder) => projectServices.projectAssetReadings.listTheProjectAgainNow(folder),
       }),
     watchStudioViews: projectServices.watchStudioViews,
+    watchNodeUiElements: projectServices.watchNodeUiElements,
     relocateAssetInTheProject: (projectFolder, asset, toPath) =>
       changeAnAssetOfTheOpenProjectForAView(projectFolder, assetChangeSources, () => backend.relocateAssetInTheOpenProject(asset, toPath)),
     readAssetPreviewInTheProject: (projectFolder, asset) => readAnAssetPreviewOfTheOpenProjectForAView(projectFolder, sources.openProject.readLatest, () => backend.readAssetPreviewOfTheOpenProject(asset)),

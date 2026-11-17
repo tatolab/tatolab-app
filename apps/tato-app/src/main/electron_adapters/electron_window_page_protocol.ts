@@ -9,6 +9,7 @@ import { TATOLAB_WINDOW_PAGE_SCHEME } from "../../shared/tatolab_electron_bridge
 import { isAProjectViewFileUrl, type AnswerAProjectViewFileRequest, type ExtensionFileAnswer } from "../extension_files_served_with_types_removed.js";
 import { answerAStudioNodeUiFileRequest, isAStudioNodeUiFileUrl, STUDIO_NODE_UI_FILES_PATH, type ReadAStudioNodeUiFile } from "../studio_node_ui_module.js";
 import { builtWindowFileForRequest, isASuppliedModuleUrl, windowPageContentSecurityPolicy } from "../tatolab_window_page_source.js";
+import { originReadingTheStudioNodeUiFiles, readableWhereAllowed, windowPageSchemePrivileges, withHeader } from "../window_page_cross_origin_reads.js";
 
 let answerAProjectViewFileRequestOnceServed: AnswerAProjectViewFileRequest | null = null;
 
@@ -17,11 +18,9 @@ export function answerProjectViewFileRequestsWith(answerAProjectViewFileRequest:
   answerAProjectViewFileRequestOnceServed = answerAProjectViewFileRequest;
 }
 
-/** Makes the window page's scheme a secure, standard origin; Electron takes this only before the app is ready. */
-export function registerTheWindowPageSchemeBeforeReady(): void {
-  protocol.registerSchemesAsPrivileged([
-    { scheme: TATOLAB_WINDOW_PAGE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
-  ]);
+/** Makes the window page's scheme a secure, standard origin, as `windowPageSchemePrivileges` gives for the dev server at `windowDevServerUrl`, `null` for none; Electron takes this only before the app is ready. */
+export function registerTheWindowPageSchemeBeforeReady(windowDevServerUrl: string | null): void {
+  protocol.registerSchemesAsPrivileged([{ scheme: TATOLAB_WINDOW_PAGE_SCHEME, privileges: windowPageSchemePrivileges(windowDevServerUrl) }]);
 }
 
 /** The response to a request for a project view's file; its pages carry no content security policy, since a project's view runs with full access. */
@@ -89,10 +88,12 @@ export async function serveTheWindowPageScheme(windowPageFilesSource: WindowPage
     }
   }
   const readAStudioNodeUiFile = studioNodeUiFileReader(windowPageFilesSource);
+  const allowedOrigin = originReadingTheStudioNodeUiFiles(windowPageFilesSource.kind === "dev_server" ? windowPageFilesSource.windowDevServerUrl : null);
   protocol.handle(TATOLAB_WINDOW_PAGE_SCHEME, async (windowPageRequest) => {
     if (isAProjectViewFileUrl(windowPageRequest.url)) return projectViewFileResponse(windowPageRequest.url, tatolabAppLog);
     if (isAStudioNodeUiFileUrl(windowPageRequest.url)) {
-      return responseOfTheExtensionFileAnswer(windowPageRequest.url, await answerAStudioNodeUiFileRequest(windowPageRequest.url, readAStudioNodeUiFile, tatolabAppLog), tatolabAppLog);
+      const studioNodeUiFileResponse = responseOfTheExtensionFileAnswer(windowPageRequest.url, await answerAStudioNodeUiFileRequest(windowPageRequest.url, readAStudioNodeUiFile, tatolabAppLog), tatolabAppLog);
+      return readableWhereAllowed(windowPageRequest.url, studioNodeUiFileResponse, allowedOrigin);
     }
     if (windowPageFilesSource.kind === "dev_server") {
       return isASuppliedModuleUrl(windowPageRequest.url) ? suppliedModuleFromTheDevServer(windowPageFilesSource.windowDevServerUrl, windowPageRequest.url, tatolabAppLog) : new Response(null, { status: 404 });
@@ -109,8 +110,6 @@ export async function serveTheWindowPageScheme(windowPageFilesSource: WindowPage
       });
       return new Response(null, { status: 404 });
     }
-    const responseHeaders = new Headers(builtWindowFileResponse.headers);
-    responseHeaders.set("Content-Security-Policy", windowPageContentSecurityPolicyHeader);
-    return new Response(builtWindowFileResponse.body, { status: builtWindowFileResponse.status, headers: responseHeaders });
+    return withHeader(builtWindowFileResponse, "Content-Security-Policy", windowPageContentSecurityPolicyHeader);
   });
 }

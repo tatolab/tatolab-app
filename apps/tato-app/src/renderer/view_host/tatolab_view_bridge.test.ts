@@ -1,3 +1,4 @@
+import type { ListedNodeUiElement, NodeUiElementsReading } from "@tatolab/tato-app-view-sdk/node_ui_host";
 import type { ProjectActionRefusal, StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
 import {
   connectToTatoAppOverPort,
@@ -38,6 +39,15 @@ function manifestOf(manifestJson: unknown): TatolabViewManifest {
   if (reading.kind === "not_read") return expect.unreachable(reading.because);
   return reading.manifest;
 }
+
+const STUDIOS_FLOAT_CONTROL_LISTED: ListedNodeUiElement = {
+  module: "studio",
+  brought_by: "studio",
+  script: "float_number.ts",
+  folder_version: "0.45.0",
+  registration: { kind: "control", type: "float", control: null },
+  script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/float_number.ts" },
+};
 
 const DJ_DECK_MANIFEST = manifestOf({
   contract: "1.0",
@@ -151,6 +161,10 @@ function recordingHostServices() {
     },
     watchStudioViews: (listener) => {
       listener({ kind: "listed", studio_views: [STUDIO_VIEW_LISTED_DJ_DECK] });
+      return () => undefined;
+    },
+    watchNodeUiElements: (listener) => {
+      listener({ elements: [STUDIOS_FLOAT_CONTROL_LISTED] });
       return () => undefined;
     },
     importAssetsIntoTheProject: async (projectFolder, media) => {
@@ -362,6 +376,14 @@ describe("a view's connection to Studio, through the one bridge every view is se
     connection.watchStudioViews((reading) => readings.push(reading));
     await messagesDelivered();
     expect(readings).toEqual([{ kind: "listed", studio_views: [STUDIO_VIEW_LISTED_DJ_DECK] }]);
+  });
+
+  it("lists the node UI elements a control table picks from", async () => {
+    const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
+    const readings: NodeUiElementsReading[] = [];
+    connection.watchNodeUiElements((reading) => readings.push(reading));
+    await messagesDelivered();
+    expect(readings).toEqual([{ elements: [STUDIOS_FLOAT_CONTROL_LISTED] }]);
   });
 
   it("imports the files the person chooses, each refusal in the runtime's words", async () => {
