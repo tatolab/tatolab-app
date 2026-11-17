@@ -2,7 +2,7 @@
 // parsed against these on both ends, and Studio's own code takes its types from them.
 
 import { z } from "zod";
-import { declaredPinTypeSchema, pinFlowSchema, pinTypeSchema } from "./pin_type_readings.js";
+import { declaredPinTypeSchema, nodeInputModeSchema, pinFlowSchema, pinTypeSchema } from "./pin_type_readings.js";
 import { PORT_FAMILIES } from "./port_families.js";
 
 /** A value as JSON carries it. */
@@ -274,6 +274,8 @@ export const nodeCatalogPortSchema = z.object({
   family: portFamilySchema.nullable(),
   /** Its declared pin type and flow; `null` on a port the catalog serves neither for, because its code does not state its type exactly. */
   pin: nodeCatalogPortPinSchema.nullable(),
+  /** On an input, whether it takes a wire, a stored value, or both, from its `input_mode` key; `null` on an input the catalog serves none for, which takes a wire, and on every output. */
+  input_mode: nodeInputModeSchema.nullable(),
 });
 /** One port a node type declares. */
 export type NodeCatalogPort = z.infer<typeof nodeCatalogPortSchema>;

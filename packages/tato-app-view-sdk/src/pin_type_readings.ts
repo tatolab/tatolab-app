@@ -98,5 +98,17 @@ export const declaredPinTypeSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("set_by_input"), input_name: z.string() }),
 ]);
 
+/** When a node reads a setting: once as it is set up, or on each run. */
+export const settingReadTimeSchema = z.enum(["at_setup", "each_run"]);
+
+/** Whether an input takes a wire, a stored value, or both, tagged by `mode`; a setting takes no wire. */
+export const nodeInputModeSchema = z.discriminatedUnion("mode", [
+  z.strictObject({ mode: z.literal("wire_or_value") }),
+  z.strictObject({ mode: z.literal("wire_only") }),
+  z.strictObject({ mode: z.literal("setting_only"), read: settingReadTimeSchema.optional() }),
+]);
+/** Whether an input takes a wire, a stored value, or both. */
+export type NodeInputMode = z.infer<typeof nodeInputModeSchema>;
+
 /** How a pin's messages are read: one value at a time, as a stream, or as events. */
 export const pinFlowSchema = z.enum(["value", "stream", "trigger"]);

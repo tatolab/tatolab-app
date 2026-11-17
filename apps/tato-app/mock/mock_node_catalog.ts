@@ -10,13 +10,13 @@ import type { JsonValue, NodeCatalogEntry, PortFamily } from "../src/shared/tato
 /** What the runtime's Python deriver writes for a node that declares no config. */
 const THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG: JsonValue = { type: "object", description: "This node declares no configuration.", additionalProperties: false };
 
-const port = (name: string, description: string, family: PortFamily) => ({ name, description, family, pin: null });
+const port = (name: string, description: string, family: PortFamily) => ({ name, description, family, pin: null, input_mode: null });
 
 /** An Image port a built-in's code states exactly, which the catalog declares a Texture read as a stream. */
-const texturePort = (name: string, description: string) => ({ name, description, family: "image" as const, pin: { pin_type: { kind: "is" as const, pin_type: { type: "texture" as const } }, flow: "stream" as const } });
+const texturePort = (name: string, description: string) => ({ name, description, family: "image" as const, pin: { pin_type: { kind: "is" as const, pin_type: { type: "texture" as const } }, flow: "stream" as const }, input_mode: null });
 
 /** A Float port read one value at a time, as the catalog declares a node's `float` parameter. */
-const floatValuePort = (name: string, description: string) => ({ name, description, family: "channels" as const, pin: { pin_type: { kind: "is" as const, pin_type: { type: "float" as const } }, flow: "value" as const } });
+const floatValuePort = (name: string, description: string) => ({ name, description, family: "channels" as const, pin: { pin_type: { kind: "is" as const, pin_type: { type: "float" as const } }, flow: "value" as const }, input_mode: null });
 
 /** Every node type the mock runtime's streams can add, in the order its catalog lists them. */
 export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
