@@ -38,7 +38,7 @@ const GRAPH: StreamGraphSummary = {
           family: "image",
           stream_facts: { family: "image", frame_rate: { numerator: 30000, denominator: 1001 }, content_light_level: null, mastering_display_colour_volume: null },
           values_checked: null,
-          pin: null,
+          pin: { pin_type: { type: "texture" }, flow: "stream" },
         },
       ],
     },
@@ -52,17 +52,17 @@ const GRAPH: StreamGraphSummary = {
   graph_document_text: "{}",
 };
 
-test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_and_an_input_shows_the_facts_its_one_link_carries", () => {
+test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_of_their_types_and_an_input_shows_the_facts_its_one_link_carries", () => {
   expect(streamGraphCanvasContents(GRAPH, null).nodes).toEqual([
-    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, input_pins: [], output_pins: [{ name: "video", family: "image", description: null, stream_facts_words: ["29.97 fps"] }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null },
+    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, stream_facts_words: ["29.97 fps"] }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null },
     {
       node_id: "invert",
       title: "invert",
       type_name: "Effect",
       description: null,
       condition: { look: "healthy" },
-      input_pins: [{ name: "video_in", family: "image", description: null, stream_facts_words: ["29.97 fps"] }],
-      output_pins: [{ name: "video_out", family: null, description: null, stream_facts_words: [] }],
+      inputs: [{ name: "video_in", pin: null, family: "image", description: null, stream_facts_words: ["29.97 fps"] }],
+      outputs: [{ name: "video_out", pin: null, family: null, description: null, stream_facts_words: [] }],
       saved_position: null,
       frame_id: null,
       is_collapsed: false,
@@ -175,8 +175,8 @@ test("a card and its pins carry their node type's descriptions from the stream's
   };
   const invert = streamGraphCanvasContents(GRAPH, catalog).nodes.find((node) => node.node_id === "invert");
   expect(invert?.description).toBe("Inverts each frame's colours.");
-  expect(invert?.input_pins.map((pin) => pin.description)).toEqual(["The frames to invert."]);
-  expect(invert?.output_pins.map((pin) => pin.description)).toEqual([null]);
+  expect(invert?.inputs.map((pin) => pin.description)).toEqual(["The frames to invert."]);
+  expect(invert?.outputs.map((pin) => pin.description)).toEqual([null]);
   expect(streamGraphCanvasContents(GRAPH, catalog).nodes.find((node) => node.node_id === "camera")?.description).toBeNull();
 });
 

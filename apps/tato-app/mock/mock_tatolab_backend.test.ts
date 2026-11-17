@@ -495,7 +495,7 @@ describe("the mock backend's port families", () => {
     expect(new Set([...unservedWhenAsked.graph, ...unservedWhenAsked.catalog])).toEqual(new Set([null]));
     const servedByDefault = await familiesOfMain("");
     expect(servedByDefault.graph).not.toContain(null);
-    expect(new Set(servedByDefault.graph)).toEqual(new Set(["image", "records", "array"]));
+    expect(new Set(servedByDefault.graph)).toEqual(new Set(["image", "channels", "records", "array"]));
     expect(servedByDefault.catalog).not.toContain(null);
   });
 });

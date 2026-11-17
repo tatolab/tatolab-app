@@ -12,7 +12,8 @@ import { NodeGraphFindBar, NodeGraphNodesFoundContext } from "./node_graph_find_
 import { isPartOfTheGraphOutsideTheView } from "./support/node_graph_map_visibility";
 import { frameACardIsLetGoIn, frameRectangleAroundCards, linkUnderACard, placeClearBelowTheCards, type NodeGraphLinkMidpoint } from "./support/node_graph_editing";
 import { type NodeGraphCanvasNode, type NodeGraphCanvasFrame, NODE_GRAPH_FRAME_COLOURS, type NodeGraphCanvasNote, type NodeGraphCanvasLink, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphCanvasCardMove, type NodeGraphCanvasEditing } from "./support/node_graph_canvas_contract";
-import { NodeGraphCardView } from "./node_graph_card_view";
+import { NodeGraphCardView } from "./node_graph/node_card";
+import { pinTypeKey } from "../pin_model/pin_types";
 import { type NodeGraphCardFlowNode, type NodeGraphNoteFlowNode, type NodeGraphFrameFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphEditableContext, NodeGraphNoteEditingContext, NodeGraphNoteResizingContext, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColoursUsedContext, NodeGraphFrameColourPickingContext, NodeGraphFrameWordsEditingContext } from "./support/node_graph_flow_elements";
 import { type NodeGraphRightClicked, NodeGraphRightClickChoices } from "./node_graph_right_click_choices";
 import { NodeGraphFrameView } from "./node_graph_frame_view";
@@ -180,11 +181,7 @@ function NodeGraphFlow({
         targetHandle: inputPinHandleId(graphLink.target_pin),
         data: {
           graphLink,
-          family:
-            nodeById
-              .get(graphLink.source_node_id)
-              ?.output_pins.find((pin) => pin.name === graphLink.source_pin)
-              ?.family ?? null,
+          pin_type_key: pinTypeKey(nodeById.get(graphLink.source_node_id)?.outputs.find((pin) => pin.name === graphLink.source_pin)?.pin ?? null),
         },
         focusable: editing !== null,
         selectable: editing !== null,

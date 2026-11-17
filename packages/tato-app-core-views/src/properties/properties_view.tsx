@@ -2,8 +2,9 @@ import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_re
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
-import { NodeGraphPinMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph_card_view";
-import { nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
+import { NodeGraphPinMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
+import { pinTypeWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_types";
+import { portFamilyWords } from "@tatolab/tato-app-view-sdk/port_families";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_banner";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
@@ -453,8 +454,8 @@ function PortRowsOfOneDirection({
         direction={direction}
         portName={port.name}
         searchWords={searchWords}
-        familyWords={port.family === null ? "Unknown" : nodeGraphPinFamilyWords(port.family)}
-        pinMark={<NodeGraphPinMark family={port.family} />}
+        typeWords={port.pin !== null ? pinTypeWords(port.pin.pin_type) : port.family !== null ? portFamilyWords(port.family) : "Unknown"}
+        pinMark={<NodeGraphPinMark pin={port.pin} />}
         meaning={meaningOfAPort(port, catalogPorts, facts)}
         bandShade={(firstBandIndex + portIndex) % 2 === 0 ? "first" : "second"}
         refusal={graphEdits.refusalsByPlace.get(place) ?? null}

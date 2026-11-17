@@ -1,6 +1,6 @@
 import { largeMockStreamGraph } from "./mock_large_stream_graph";
 import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
-import type { JsonValue, ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphFragmentKind, StreamGraphGroup, StreamGraphLink, StreamGraphNodeKind, StreamGraphNodeStudioFields, StreamGraphNote, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphFragmentKind, StreamGraphGroup, StreamGraphLink, StreamGraphNodeKind, StreamGraphNodeStudioFields, StreamGraphNote, StreamGraphPortPin, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
 
 function fnv1aHashOf(text: string): number {
   let hash = 2166136261;
@@ -127,14 +127,23 @@ export interface MockGraphFragment {
 const portsStatingNoStreamFacts = (family: PortFamily, ...portNames: string[]): StreamGraphDeclaredPort[] =>
   portNames.map((name) => ({ name, family, stream_facts: null, values_checked: family === "records" ? false : null, pin: null }));
 
-/** An Image output stating its frame rate, as a source declaring `rate=` does. */
+/** The pin type and flow the runtime serves on a built-in's Image port, whose code states its type exactly. */
+const TEXTURE_STREAM: StreamGraphPortPin = { pin_type: { type: "texture" }, flow: "stream" };
+
+/** An Image output stating its frame rate, as a built-in source declaring `rate=` does, typed as a built-in's Image port is. */
 const imageOutputAtFramesPerSecond = (name: string, framesPerSecond: number): StreamGraphDeclaredPort => ({
   name,
   family: "image",
   stream_facts: { family: "image", frame_rate: { numerator: framesPerSecond, denominator: 1 }, content_light_level: null, mastering_display_colour_volume: null },
   values_checked: null,
-  pin: null,
+  pin: TEXTURE_STREAM,
 });
+
+/** A built-in's Image input, typed as its code states it. */
+const textureInput = (name: string): StreamGraphDeclaredPort => ({ name, family: "image", stream_facts: null, values_checked: null, pin: TEXTURE_STREAM });
+
+/** A Float input read one value at a time, as the runtime types a node's `float` parameter. */
+const floatValueInput = (name: string): StreamGraphDeclaredPort => ({ name, family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: { type: "float" }, flow: "value" } });
 
 /** How fast a mock stream's counters climb while it runs: messages a link's target drops, and messages an output refuses, each second. */
 export interface MockCounterRates {
@@ -275,7 +284,7 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
     type: "nodes.inverting_effect:InvertingEffect",
     state: "Running",
     config: {},
-    input_ports: portsStatingNoStreamFacts("image", "video_from_upstream"),
+    input_ports: [...portsStatingNoStreamFacts("image", "video_from_upstream"), floatValueInput("amount")],
     output_ports: portsStatingNoStreamFacts("image", "video_to_downstream"),
   },
   {
@@ -283,7 +292,7 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
     type: "tatolab.stream:DisplayWindow",
     state: "Running",
     config: { title: "Tatolab", scaling: "fit" },
-    input_ports: portsStatingNoStreamFacts("image", "video"),
+    input_ports: [textureInput("video")],
     output_ports: [],
   },
   {
@@ -568,7 +577,7 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
           type: "tatolab.stream:DisplayWindow",
           state: "Running",
           config: { title: "Camera", scaling: "fit" },
-          input_ports: portsStatingNoStreamFacts("image", "video"),
+          input_ports: [textureInput("video")],
           output_ports: [],
         },
         {

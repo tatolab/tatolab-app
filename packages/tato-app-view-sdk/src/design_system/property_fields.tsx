@@ -468,11 +468,11 @@ const PORT_BAND_SHADE_CLASS_NAMES: Record<PropertyPortBandShade, string> = {
   second: "border-studio-port-band-second-line bg-studio-port-band-second",
 };
 
-/** A port of the node in a band of its own: its pin, name and family, then the other end of each of its links, or the value an unjoined input holds. */
+/** A port of the node in a band of its own: its pin, name and type, then the other end of each of its links, or the value an unjoined input holds. */
 export function PropertyPortRow({
   direction,
   portName,
-  familyWords,
+  typeWords,
   pinMark,
   meaning,
   bandShade,
@@ -485,7 +485,8 @@ export function PropertyPortRow({
   portName: string;
   /** What a search field over the properties holds: the part of the port's name it matches is marked. */
   searchWords?: string;
-  familyWords: string;
+  /** Its type in words, or its family while it has no exact type. */
+  typeWords: string;
   pinMark: ReactNode;
   meaning?: string;
   bandShade: PropertyPortBandShade;
@@ -510,7 +511,7 @@ export function PropertyPortRow({
               </span>
             }
           />
-          <span className="shrink-0 text-2xs text-fg-3">{familyWords}</span>
+          <span className="shrink-0 text-2xs text-fg-3">{typeWords}</span>
         </div>
         {linkedEnds.length > 0 ? (
           linkedEnds.map((linkedEnd) => <PropertyPortLinkedEndLine key={linkedEnd.linkKey} linkedEnd={linkedEnd} />)

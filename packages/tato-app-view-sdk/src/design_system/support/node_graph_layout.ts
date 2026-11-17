@@ -4,8 +4,8 @@
 
 /** A node card's header, over its pin rows. */
 export const NODE_GRAPH_CARD_HEADER_HEIGHT = 26;
-/** One row of pins: an input on the left and an output on the right. */
-export const NODE_GRAPH_PIN_ROW_HEIGHT = 20;
+/** One pin's row, the card's full width: an output's socket at the right edge, an input's at the left. */
+export const NODE_GRAPH_PIN_ROW_HEIGHT = 24;
 /** The space above the first pin row and below the last. */
 export const NODE_GRAPH_CARD_PIN_ROWS_PADDING = 6;
 /** The band under a failed card's pin rows that holds why it failed, two lines at most. */
@@ -38,10 +38,10 @@ export interface NodeGraphPosition {
   y: number;
 }
 
-/** A card's height: its header, then a row per pin on its busier side, then why it failed when it shows that; a collapsed card is its header alone. */
+/** A card's height: its header, then a row per pin, then why it failed when it shows that; a collapsed card is its header alone. */
 export function nodeGraphCardHeight(node: Pick<NodeGraphLayoutNode, "input_pin_names" | "output_pin_names" | "shows_failure_words" | "is_collapsed">): number {
   if (node.is_collapsed) return NODE_GRAPH_CARD_HEADER_HEIGHT;
-  const pinRowCount = Math.max(node.input_pin_names.length, node.output_pin_names.length);
+  const pinRowCount = node.input_pin_names.length + node.output_pin_names.length;
   return (
     NODE_GRAPH_CARD_HEADER_HEIGHT +
     NODE_GRAPH_CARD_PIN_ROWS_PADDING * 2 +
@@ -50,8 +50,8 @@ export function nodeGraphCardHeight(node: Pick<NodeGraphLayoutNode, "input_pin_n
   );
 }
 
-/** How far below a card's top the centre of its pin row `rowIndex` sits. */
-export function nodeGraphPinRowCentreOffset(rowIndex: number): number {
+/** How far below a card's top the centre of its pin row `rowIndex` sits, its outputs' rows first and then its inputs'. */
+function nodeGraphPinRowCentreOffset(rowIndex: number): number {
   return NODE_GRAPH_CARD_HEADER_HEIGHT + NODE_GRAPH_CARD_PIN_ROWS_PADDING + rowIndex * NODE_GRAPH_PIN_ROW_HEIGHT + NODE_GRAPH_PIN_ROW_HEIGHT / 2;
 }
 
@@ -180,7 +180,7 @@ export function layOutNodeGraph(nodes: readonly NodeGraphLayoutNode[], links: re
     const outputIndex = node.output_pin_names.indexOf(pinName);
     return outputIndex === -1 ? null : position.y + nodeGraphPinRowCentreOffset(outputIndex);
   };
-  const inputPinOffset = (node: NodeGraphLayoutNode, pinName: string): number => nodeGraphPinRowCentreOffset(Math.max(0, node.input_pin_names.indexOf(pinName)));
+  const inputPinOffset = (node: NodeGraphLayoutNode, pinName: string): number => nodeGraphPinRowCentreOffset(node.output_pin_names.length + Math.max(0, node.input_pin_names.indexOf(pinName)));
   let columnLeft = 0;
   columns.forEach((column, columnIndex) => {
     const columnNodes = column.flatMap((nodeId) => nodeById.get(nodeId) ?? []);

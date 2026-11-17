@@ -8,8 +8,8 @@ import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_fie
 import { SectionNavigationList } from "@tatolab/tato-app-view-sdk/design_system/section_navigation_list";
 import { StudioAreaHeaderChoiceMenu } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
-import { NodeGraphPinMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph_card_view";
-import { nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
+import { NodeGraphPinMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
+import { portFamilyWords } from "@tatolab/tato-app-view-sdk/port_families";
 import { PropertySection } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
@@ -45,12 +45,12 @@ import {
 } from "./library_assets_of_the_listing";
 import { libraryViewGroupsOf, libraryViewRowIdOf, studioViewPortsWords, studioViewShownWhereWords } from "./library_views_of_the_listing";
 
-/** One declared port's row: which way it faces, its family's pin, its name, and its family in words. */
-function LibraryPortRow({ direction, portName, family, familyWords, portTitle, dataAttribute }: { direction: "In" | "Out"; portName: string; family: ProjectNodeTypePort["family"]; familyWords: string; portTitle: string | undefined; dataAttribute: "data-library-port" | "data-library-view-port" }) {
+/** One declared port's row: which way it faces, its pin's mark, its name, and its family in words; the listing it reads names no pin type, so every mark is an untyped pin's. */
+function LibraryPortRow({ direction, portName, familyWords, portTitle, dataAttribute }: { direction: "In" | "Out"; portName: string; familyWords: string; portTitle: string | undefined; dataAttribute: "data-library-port" | "data-library-view-port" }) {
   return (
     <div className="flex h-6 min-w-0 items-center gap-2 text-xs" title={portTitle} {...{ [dataAttribute]: portName }}>
       <span className="w-6 shrink-0 text-right text-2xs text-fg-3">{direction}</span>
-      <NodeGraphPinMark family={family} />
+      <NodeGraphPinMark pin={null} />
       <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-fg">{portName}</span>
       <span className="shrink-0 text-fg-3">{familyWords}</span>
     </div>
@@ -64,8 +64,7 @@ function PortsOfTheDeclaration({ direction, ports }: { direction: "In" | "Out"; 
       key={`${direction}:${port.name}`}
       direction={direction}
       portName={port.name}
-      family={port.family}
-      familyWords={port.family === null ? (port.annotation ?? "Family not stated") : nodeGraphPinFamilyWords(port.family)}
+      familyWords={port.family === null ? (port.annotation ?? "Family not stated") : portFamilyWords(port.family)}
       portTitle={port.description === "" ? (port.annotation ?? undefined) : port.description}
       dataAttribute="data-library-port"
     />
@@ -168,8 +167,7 @@ function PortsOfTheView({ direction, ports }: { direction: "In" | "Out"; ports: 
       key={`${direction}:${port.name}`}
       direction={direction}
       portName={port.name}
-      family={port.family}
-      familyWords={nodeGraphPinFamilyWords(port.family)}
+      familyWords={portFamilyWords(port.family)}
       portTitle={port.description === "" ? undefined : port.description}
       dataAttribute="data-library-view-port"
     />

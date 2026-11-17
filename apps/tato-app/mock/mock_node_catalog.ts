@@ -12,6 +12,12 @@ const THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG: JsonValue = { type: "object", de
 
 const port = (name: string, description: string, family: PortFamily) => ({ name, description, family, pin: null });
 
+/** An Image port a built-in's code states exactly, which the catalog declares a Texture read as a stream. */
+const texturePort = (name: string, description: string) => ({ name, description, family: "image" as const, pin: { pin_type: { kind: "is" as const, pin_type: { type: "texture" as const } }, flow: "stream" as const } });
+
+/** A Float port read one value at a time, as the catalog declares a node's `float` parameter. */
+const floatValuePort = (name: string, description: string) => ({ name, description, family: "channels" as const, pin: { pin_type: { kind: "is" as const, pin_type: { type: "float" as const } }, flow: "value" as const } });
+
 /** Every node type the mock runtime's streams can add, in the order its catalog lists them. */
 export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   {
@@ -28,7 +34,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
       additionalProperties: false,
     },
     inputs: [],
-    outputs: [port("video", "Test-pattern video frames", "image")],
+    outputs: [texturePort("video", "Test-pattern video frames")],
   },
   {
     type: "tatolab.stream:CameraSource",
@@ -48,7 +54,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
       additionalProperties: false,
     },
     inputs: [],
-    outputs: [port("video", "Camera frames", "image")],
+    outputs: [texturePort("video", "Camera frames")],
   },
   {
     type: "tatolab.stream:MicrophoneSource",
@@ -80,7 +86,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
       },
       $defs: { DisplayWindowScaling: { type: "string", enum: ["fit", "fill", "stretch"] } },
     },
-    inputs: [port("video", "Frames to show", "image")],
+    inputs: [texturePort("video", "Frames to show")],
     outputs: [],
   },
   {
@@ -107,7 +113,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
       type: "object",
       properties: { strength: { type: "number", description: "How far each colour is inverted.", default: 1, minimum: 0, maximum: 1 } },
     },
-    inputs: [port("video_from_upstream", "", "image")],
+    inputs: [port("video_from_upstream", "", "image"), floatValuePort("amount", "How far each colour is inverted")],
     outputs: [port("video_to_downstream", "", "image")],
   },
   {

@@ -10,8 +10,8 @@ import type { NodeGraphCardFlowNode } from "./support/node_graph_flow_elements";
 /** The node id of each card commit, as React's Profiler reports a commit of the card or of anything inside it. */
 const { cardCommits } = vi.hoisted((): { cardCommits: string[] } => ({ cardCommits: [] }));
 
-vi.mock("./node_graph_card_view", async (importOriginal) => {
-  const original = await importOriginal<typeof import("./node_graph_card_view")>();
+vi.mock("./node_graph/node_card", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./node_graph/node_card")>();
   const OriginalCardView = original.NodeGraphCardView;
   return {
     ...original,
@@ -46,8 +46,8 @@ function card(nodeId: string, index: number): NodeGraphCanvasNode {
     type_name: null,
     description: null,
     condition: { look: "healthy" },
-    input_pins: ["gain", "offset", "mix", "threshold"].map((name) => ({ name, family: "channels", description: null, stream_facts_words: [] })),
-    output_pins: [{ name: "out", family: "channels", description: null, stream_facts_words: [] }],
+    inputs: ["gain", "offset", "mix", "threshold"].map((name) => ({ name, pin: { pin_type: { type: "float" }, flow: "value" }, family: "channels", description: null, stream_facts_words: [] })),
+    outputs: [{ name: "out", pin: { pin_type: { type: "float" }, flow: "value" }, family: "channels", description: null, stream_facts_words: [] }],
     saved_position: { x: index * 300, y: 0 },
     frame_id: null,
     is_collapsed: false,

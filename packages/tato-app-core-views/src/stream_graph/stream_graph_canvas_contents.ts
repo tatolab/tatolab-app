@@ -1,5 +1,5 @@
 // A stream's graph as the node graph canvas draws it: a card per node keyed by its name and titled as the
-// studio writes it, where it was left and the frame it sits in, its declared ports as pins of their families,
+// studio writes it, where it was left and the frame it sits in, its declared ports as pins of their types,
 // a link per link of the graph drawn by its state, a frame per labelled group and the graph's canvas notes.
 
 import type { NodeGraphCanvasFrame, NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCanvasNote, NodeGraphCardCondition, NodeGraphLinkLook } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
@@ -98,13 +98,14 @@ export function streamGraphCanvasContents(graph: StreamGraphSummary, catalog: No
       type_name: typeNameOnTheCard(node),
       description: descriptionWords(catalogEntryByType.get(node.type)?.description),
       condition: cardConditionOf(node),
-      input_pins: node.input_ports.map((port) => ({
+      inputs: node.input_ports.map((port) => ({
         name: port.name,
+        pin: port.pin,
         family: port.family,
         description: portDescription(catalogEntryByType.get(node.type)?.inputs, port.name),
         stream_facts_words: portStreamFactsWords(streamFactsAnInputReceives(graph, node.name, port)),
       })),
-      output_pins: node.output_ports.map((port) => ({ name: port.name, family: port.family, description: portDescription(catalogEntryByType.get(node.type)?.outputs, port.name), stream_facts_words: portStreamFactsWords(port) })),
+      outputs: node.output_ports.map((port) => ({ name: port.name, pin: port.pin, family: port.family, description: portDescription(catalogEntryByType.get(node.type)?.outputs, port.name), stream_facts_words: portStreamFactsWords(port) })),
       saved_position: node.studio.position === null ? null : { x: node.studio.position[0], y: node.studio.position[1] },
       frame_id: node.studio.group !== null && groupIds.has(node.studio.group) ? node.studio.group : null,
       is_collapsed: node.studio.collapsed === true,

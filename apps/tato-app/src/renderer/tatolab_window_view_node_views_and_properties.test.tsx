@@ -202,13 +202,23 @@ describe("the studio", () => {
     await waitFor(() => expect(inTheCoreView("properties").getByRole("textbox", { name: "Node name" })).toHaveProperty("value", "Inverting Effect"));
   });
 
+  it("draws a Float pin, a Texture pin and an untyped pin each in its own look, and names each type on its tooltip", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    const socket = (nodeId: string, handleId: string) => streamGraph.querySelector<HTMLElement>(`[data-node-graph-card="${nodeId}"] .node-graph-pin[data-handleid="${handleId}"]`) ?? expect.unreachable(`no socket ${handleId} on ${nodeId}`);
+    const look = (element: HTMLElement) => [element.getAttribute("data-pin-type"), element.getAttribute("data-pin-flow"), element.getAttribute("title")];
+    await waitFor(() => expect(look(socket("invertingeffect", "input:amount"))).toEqual(["float", "value", "amount · Float, one value at a time\nHow far each colour is inverted"]));
+    expect(look(socket("displaywindow", "input:video"))).toEqual(["texture", "stream", "video · Texture, a stream\nFrames to show"]);
+    expect(look(socket("invertingeffect", "input:video_from_upstream"))).toEqual(["untyped", null, "video_from_upstream · No exact type · 30 fps"]);
+  });
+
   it("narrows Properties to the matching properties from its toolbar's search field, and shows them all again once cleared", async () => {
     await mountedWindowOverTheMock("state=running");
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
     fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card")));
     const properties = () => coreViewPage("properties");
     const portsListed = () => [...properties().querySelectorAll("[data-properties-port]")].map((port) => port.getAttribute("data-properties-port"));
-    await waitFor(() => expect(portsListed()).toEqual(["video_from_upstream", "video_to_downstream"]));
+    await waitFor(() => expect(portsListed()).toEqual(["video_from_upstream", "amount", "video_to_downstream"]));
     const search = properties().querySelector<HTMLInputElement>("[data-properties-search]") ?? expect.unreachable("no search field in Properties' toolbar");
     expect(search.closest('[role="toolbar"]')?.getAttribute("aria-label")).toBe("Properties tools");
 
@@ -219,7 +229,7 @@ describe("the studio", () => {
     expect(properties().querySelector('[data-properties-section="outputs"]')).toBeNull();
 
     fireEvent.keyDown(search, { key: "Escape" });
-    await waitFor(() => expect(portsListed()).toEqual(["video_from_upstream", "video_to_downstream"]));
+    await waitFor(() => expect(portsListed()).toEqual(["video_from_upstream", "amount", "video_to_downstream"]));
     expect(properties().querySelector("[data-properties-listed-count]")).toBeNull();
   });
 

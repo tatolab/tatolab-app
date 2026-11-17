@@ -1,7 +1,8 @@
 import { useCallback } from "react";
 import type { Connection, FinalConnectionState } from "@xyflow/react";
 import { canPinsOfTheseFamiliesBeWired } from "./node_graph_editing";
-import type { NodeGraphCanvasEditing, NodeGraphCanvasNode, NodeGraphCanvasPoint, NodeGraphPinFamily } from "./node_graph_canvas_contract";
+import type { PortFamily } from "../../port_families";
+import type { NodeGraphCanvasEditing, NodeGraphCanvasNode, NodeGraphCanvasPoint } from "./node_graph_canvas_contract";
 import type { NodeGraphLinkFlowEdge } from "./node_graph_flow_elements";
 
 /** A pin's name and side from the handle id React Flow reports. */
@@ -15,9 +16,9 @@ function pinOfAHandleId(handleId: string | null | undefined): { side: "input" | 
 /** The wiring of a card's pins by a drag on the canvas: whether a connection can be wired, its wiring, and a wire let go over the canvas. */
 export function useNodeGraphWiring(nodeById: ReadonlyMap<string, NodeGraphCanvasNode>, editing: NodeGraphCanvasEditing | null, canvasPointOf: (clientPoint: { x: number; y: number }) => NodeGraphCanvasPoint) {
   const pinFamilyOf = useCallback(
-    (nodeId: string, side: "input" | "output", pinName: string): NodeGraphPinFamily | null => {
+    (nodeId: string, side: "input" | "output", pinName: string): PortFamily | null => {
       const graphNode = nodeById.get(nodeId);
-      return (side === "input" ? graphNode?.input_pins : graphNode?.output_pins)?.find((pin) => pin.name === pinName)?.family ?? null;
+      return (side === "input" ? graphNode?.inputs : graphNode?.outputs)?.find((pin) => pin.name === pinName)?.family ?? null;
     },
     [nodeById],
   );

@@ -1,29 +1,6 @@
+import type { NodePin } from "../../pin_model/node_pins";
+import type { PortFamily } from "../../port_families";
 import type { NodeGraphPosition } from "./node_graph_layout";
-
-/** The family a pin carries, which picks its shape and colour and its links' colour. */
-export type NodeGraphPinFamily =
-  | "image"
-  | "array"
-  | "channels"
-  | "packets"
-  | "records";
-
-const NODE_GRAPH_PIN_FAMILY_WORDS: Record<NodeGraphPinFamily, string> = {
-  image: "Image",
-  array: "Array",
-  channels: "Channels",
-  packets: "Packets",
-  records: "Records",
-};
-
-/** One pin of a card: its name, its family, `null` drawn as a plain bar while none is known, what its node type says of it, and what it states about its stream, shown while the pointer rests on it. */
-export interface NodeGraphCanvasPin {
-  name: string;
-  family: NodeGraphPinFamily | null;
-  /** The port's description as its node type declares it; `null` for none. */
-  description: string | null;
-  stream_facts_words: readonly string[];
-}
 
 /** How a card shows its node is doing: as every healthy card, restarting (a quiet tag), not ready (amber, why in the runtime's words on the tag's tooltip), or failed (red, with why in the runtime's words when it gave them). */
 export type NodeGraphCardCondition =
@@ -41,8 +18,8 @@ export interface NodeGraphCanvasNode {
   /** Its node type's description, shown while the pointer rests on the card's header; `null` for none. */
   description: string | null;
   condition: NodeGraphCardCondition;
-  input_pins: readonly NodeGraphCanvasPin[];
-  output_pins: readonly NodeGraphCanvasPin[];
+  inputs: readonly NodePin[];
+  outputs: readonly NodePin[];
   /** Where its card was left; `null` lays it out with the other cards that have none. */
   saved_position: NodeGraphPosition | null;
   /** The frame drawn around it, by `frame_id`; `null` for none. */
@@ -113,7 +90,7 @@ export interface NodeGraphCanvasPinEnd {
 /** A pin a person dragged a wire off and let go of over empty canvas: which side of its card, and its family. */
 export interface NodeGraphCanvasLooseWire extends NodeGraphCanvasPinEnd {
   side: "input" | "output";
-  family: NodeGraphPinFamily | null;
+  family: PortFamily | null;
 }
 
 /** A point a person pointed at: on the canvas, where a card placed there sits, and in the canvas element's own pixels, where a menu opened there shows. */
@@ -165,9 +142,4 @@ export interface NodeGraphCanvasEditing {
   onCardCollapsed(nodeId: string, collapsed: boolean): void;
   /** A note's text edited, or the note moved or resized. */
   onNoteChanged(noteId: string, change: { text?: string; position?: NodeGraphPosition; size?: { width: number; height: number } }): Promise<NodeGraphCanvasEditAnswer>;
-}
-
-/** A family's name as a socket's tooltip and Properties write it. */
-export function nodeGraphPinFamilyWords(family: NodeGraphPinFamily): string {
-  return NODE_GRAPH_PIN_FAMILY_WORDS[family];
 }

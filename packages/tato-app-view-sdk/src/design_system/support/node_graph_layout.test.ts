@@ -3,12 +3,12 @@ import { layOutNodeGraph, nodeGraphCardHeight } from "./node_graph_layout";
 
 const card = (node_id: string, input_pin_names: string[], output_pin_names: string[]) => ({ node_id, input_pin_names, output_pin_names, shows_failure_words: false, is_collapsed: false, card_width: 180 });
 
-test("a_card_is_as_tall_as_its_busier_side", () => {
-  expect(nodeGraphCardHeight({ input_pin_names: ["a"], output_pin_names: ["b", "c"], shows_failure_words: false, is_collapsed: false })).toBe(26 + 12 + 40);
+test("a_card_is_as_tall_as_a_row_per_pin", () => {
+  expect(nodeGraphCardHeight({ input_pin_names: ["a"], output_pin_names: ["b", "c"], shows_failure_words: false, is_collapsed: false })).toBe(26 + 12 + 3 * 24);
 });
 
 test("a_card_showing_why_it_failed_is_taller_by_the_band_that_holds_the_words", () => {
-  expect(nodeGraphCardHeight({ input_pin_names: ["a"], output_pin_names: [], shows_failure_words: true, is_collapsed: false })).toBe(26 + 12 + 20 + 44);
+  expect(nodeGraphCardHeight({ input_pin_names: ["a"], output_pin_names: [], shows_failure_words: true, is_collapsed: false })).toBe(26 + 12 + 24 + 44);
 });
 
 test("each_node_sits_one_column_past_the_furthest_node_feeding_it", () => {
