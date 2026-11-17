@@ -1,14 +1,13 @@
 // The view SDK names a pin's type and flow by the generated types it takes from the runtime client,
-// and main decodes them with the control contract's own schemas from the same client. Each is
-// assignable to the other, so a contract whose schema and generated type part fails Studio's type
-// check and with it the build.
+// and the control contract names its own component types in the same client. Each is assignable to
+// the other, so a contract whose component and generated type part fails Studio's type check and
+// with it the build.
 
-import type { ControlSchemas } from "@tatolab/runtime-client";
+import type { ControlContractComponents } from "@tatolab/runtime-client";
 import type { DeclaredPinType, PinFlow, PinType } from "@tatolab/tato-app-view-sdk/pin_types";
 import { expectTypeOf, test } from "vitest";
-import type { z } from "zod";
 
-type TheContracts<Component extends "PinType" | "DeclaredPinType" | "PinFlow"> = z.infer<(typeof ControlSchemas)["components"][Component]>;
+type TheContracts<Component extends "PinType" | "DeclaredPinType" | "PinFlow"> = ControlContractComponents[Component];
 
 test("the_sdks_pin_type_is_the_contracts_pin_type", () => {
   expectTypeOf<PinType>().toExtend<TheContracts<"PinType">>();

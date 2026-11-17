@@ -1,11 +1,14 @@
-// The one module that calls the runtime through streamlib's generated `@tatolab/runtime-client`: it
-// calls a control operation over the runtime's JSON-RPC adapter, in one `POST /control` or on the
-// WebSocket at `/control/ws`. `RuntimeControl` makes the call as an Effect failing with a
-// `RuntimeControlFailure`; the calls not yet converted settle every outcome as a `Result`. The
-// client checks each call and answer against the control contract: it rejects params that do not
-// match with `ControlRequestInvalid` before sending them, an answer that does not match with
-// `ControlAnswerInvalid`, the runtime's JSON-RPC error with `ControlOperationError`, and with any
-// other error when nothing answered.
+// The main process's one importer of streamlib's generated `@tatolab/runtime-client`, and the one
+// module that calls the runtime through it: it calls a control operation over the runtime's
+// JSON-RPC adapter, in one `POST /control` or on the WebSocket at `/control/ws`. `RuntimeControl`
+// makes the call as an Effect failing with a `RuntimeControlFailure`; the calls not yet converted
+// settle every outcome as a `Result`. The client checks each call and answer against the control
+// contract: it rejects params that do not match with `ControlRequestInvalid` before sending them,
+// an answer that does not match with `ControlAnswerInvalid`, the runtime's JSON-RPC error with
+// `ControlOperationError`, and with any other error when nothing answered. An answer is checked
+// once, by the client, and handed on as the contract's type for its operation; a hand-written
+// reader still walks it, typed, until its operation is next touched. The contract types and the
+// checker the rest of the main process reads with are re-exported from here.
 
 import {
   CONTROL_OPERATION_FAILED_ERROR_CODE,
@@ -14,9 +17,11 @@ import {
   ControlOperationError,
   ControlPostTransport,
   ControlRequestInvalid,
-  ControlSchemas,
+  CONTROL_CONTRACT_SCHEMAS,
+  readControlContractValue,
   TatolabRuntimeClient,
   type ControlCallOptions,
+  type ControlContractIssue,
   type ControlNotificationMethodName,
   type ControlNotifications,
   type ControlOperationMethodName,
@@ -30,20 +35,63 @@ import { describeCaughtFailure, failedWith, succeeded, type Result } from "./res
 import { ContractMismatch, RuntimeRefused, RuntimeTimedOut, RuntimeUnreachable, type RuntimeControlFailure } from "./runtime_control_failures.js";
 
 export type { ControlNotifications, ControlOperationMethodName, ControlOperations };
+export type {
+  ControlContractComponents,
+  ControlContractIssue,
+  GraphTransactionToolResult,
+  NodeUiManifest,
+  PinFlow,
+  ProjectActionRefusalOnTheWire,
+  SuggestedOperationCall,
+} from "@tatolab/runtime-client";
+export { readControlContractValue } from "@tatolab/runtime-client";
 
 /** The params `method` takes, as the control contract declares them. */
 export type ControlOperationParams<Method extends ControlOperationMethodName> = ControlOperations[Method]["params"];
 
-/** What one control operation answered: its result, or the operation's own refusal in the runtime's words. */
-export type ControlOperationAnswer =
-  | { kind: "answered"; result: unknown }
+/** What `method` answers, as the control contract declares it. */
+export type ControlOperationResult<Method extends ControlOperationMethodName> = ControlOperations[Method]["result"];
+
+/** What one call to `method` answered: its result in the contract's type, or the operation's own refusal in the runtime's words. */
+export type ControlOperationAnswer<Method extends ControlOperationMethodName> =
+  | { kind: "answered"; result: ControlOperationResult<Method> }
   | { kind: "refused_by_the_operation"; words: string };
+
+/** How an issue at the root of a call's params or answer names where it is. */
+const THE_WHOLE_VALUE = "(the whole value)";
+
+/** Each of `issues` as where in the value it is, `whole` for the value itself, and what is wrong there. */
+export function describeTheContractIssues(issues: readonly ControlContractIssue[], whole: string): string {
+  return issues.map((issue) => `${issue.path.length === 0 ? whole : issue.path.map(String).join(".")}: ${issue.message}`).join("; ");
+}
 
 /** `sent` read as the contract's refusal by the generated client, a refusal code it does not know read as `refused`; or where and why it is not one. */
 export function controlContractRefusalOf(sent: unknown): Result<ProjectActionRefusalOnTheWire, string> {
-  const refusal = ControlSchemas.components.ProjectActionRefusalOnTheWire.safeParse(sent);
-  if (refusal.success) return succeeded(refusal.data);
-  return failedWith(refusal.error.issues.map((issue) => `${issue.path.length === 0 ? "the refusal" : issue.path.join(".")}: ${issue.message}`).join("; "));
+  const refusal = readControlContractValue("ProjectActionRefusalOnTheWire", sent);
+  return refusal.read ? succeeded(refusal.value) : failedWith(describeTheContractIssues(refusal.issues, "the refusal"));
+}
+
+/**
+ * The contract type of `method`'s params or result, by the name the contract gives it, as `GraphTransactionToolResult`;
+ * one the contract writes out in place, with no name, as `ControlOperations["<method>"]["<part>"]`.
+ */
+export function controlContractTypeOf(method: ControlOperationMethodName, part: "params" | "result"): string {
+  const schema = CONTROL_CONTRACT_SCHEMAS.operations[method][part];
+  const reference = typeof schema === "object" ? schema["$ref"] : undefined;
+  const componentName = typeof reference === "string" ? /^#\/components\/schemas\/(.+)$/.exec(reference)?.[1] : undefined;
+  return componentName ?? `ControlOperations["${method}"]["${part}"]`;
+}
+
+/** That the answer to `method` does not read as the contract's type for it, for `why`. */
+function answerContractMismatch(method: ControlOperationMethodName, why: string): ContractMismatch {
+  const contractType = controlContractTypeOf(method, "result");
+  return new ContractMismatch({ operation: method, contractType, direction: "answer", words: `the runtime's answer to \`${method}\` is not the contract's \`${contractType}\`: ${why}` });
+}
+
+/** That the params for `method` are not the contract's type for them, for `why`, so they were not sent. */
+function requestContractMismatch(method: ControlOperationMethodName, why: string): ContractMismatch {
+  const contractType = controlContractTypeOf(method, "params");
+  return new ContractMismatch({ operation: method, contractType, direction: "request", words: `\`${method}\` was not sent: its params are not the contract's \`${contractType}\`: ${why}` });
 }
 
 /** How long one local API request may go without its answer before the runtime reads as not answering, unless its operation has a limit of its own. */
@@ -109,8 +157,8 @@ function runtimeControlFailureOfTheCall(method: ControlOperationMethodName, loca
       refusal: callFailure.refusal,
     });
   }
-  if (callFailure instanceof ControlRequestInvalid) return new ContractMismatch({ operation: method, words: callFailure.message, direction: "request" });
-  if (callFailure instanceof ControlAnswerInvalid) return new ContractMismatch({ operation: method, words: callFailure.message, direction: "answer" });
+  if (callFailure instanceof ControlRequestInvalid) return requestContractMismatch(method, describeTheContractIssues(callFailure.issues, THE_WHOLE_VALUE));
+  if (callFailure instanceof ControlAnswerInvalid) return answerContractMismatch(method, describeTheContractIssues(callFailure.issues, THE_WHOLE_VALUE));
   const failureText = describeCaughtFailure(callFailure);
   return new RuntimeUnreachable({
     operation: method,
@@ -119,12 +167,12 @@ function runtimeControlFailureOfTheCall(method: ControlOperationMethodName, loca
 }
 
 /** How the call to `method` that `sendTheCall` made settled, given up after `responseTimeoutMs`. */
-async function controlOperationAnswerOfTheCall(
-  method: ControlOperationMethodName,
+async function controlOperationAnswerOfTheCall<Method extends ControlOperationMethodName>(
+  method: Method,
   localApiSocketPath: string,
   responseTimeoutMs: number,
-  sendTheCall: (callOptions: ControlCallOptions) => Promise<unknown>,
-): Promise<Result<ControlOperationAnswer, LocalApiRequestFailure>> {
+  sendTheCall: (callOptions: ControlCallOptions) => Promise<ControlOperationResult<Method>>,
+): Promise<Result<ControlOperationAnswer<Method>, LocalApiRequestFailure>> {
   const responseTimeout = AbortSignal.timeout(responseTimeoutMs);
   try {
     const result = await sendTheCall({ signal: responseTimeout });
@@ -149,7 +197,7 @@ export function callOneControlOperationOverAPost<Method extends ControlOperation
   method: Method,
   params: ControlOperationParams<Method>,
   responseTimeoutMs: number,
-): Promise<Result<ControlOperationAnswer, LocalApiRequestFailure>> {
+): Promise<Result<ControlOperationAnswer<Method>, LocalApiRequestFailure>> {
   const controlClient = controlClientOfOnePost(localApiSocketPath);
   return controlOperationAnswerOfTheCall(method, localApiSocketPath, responseTimeoutMs, (callOptions) => controlClient.call(method, params, callOptions));
 }
@@ -161,7 +209,7 @@ export class RuntimeControl extends Context.Service<
     readonly call: <Method extends ControlOperationMethodName>(
       method: Method,
       params: ControlOperationParams<Method>,
-    ) => Effect.Effect<ControlOperations[Method]["result"], RuntimeControlFailure>;
+    ) => Effect.Effect<ControlOperationResult<Method>, RuntimeControlFailure>;
   }
 >()("tatolab-app/RuntimeControl") {}
 
@@ -219,7 +267,7 @@ export class TatolabRuntimeControlWebSocketConnection {
   }
 
   /** Call `method` with `params` on this connection, giving up after the request timeout; a call on a closed connection is not sent. */
-  async callControlOperation<Method extends ControlOperationMethodName>(method: Method, params: ControlOperationParams<Method>): Promise<Result<ControlOperationAnswer, LocalApiRequestFailure>> {
+  async callControlOperation<Method extends ControlOperationMethodName>(method: Method, params: ControlOperationParams<Method>): Promise<Result<ControlOperationAnswer<Method>, LocalApiRequestFailure>> {
     if (this.whyTheConnectionClosed !== null) return localApiRequestFailure(`\`${method}\` was not sent: ${this.whyTheConnectionClosed}`);
     return controlOperationAnswerOfTheCall(method, this.localApiSocketPath, this.requestTimeoutMs, (callOptions) => this.controlClient.call(method, params, callOptions));
   }

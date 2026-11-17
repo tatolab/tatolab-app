@@ -149,7 +149,7 @@ test("a healthy runtime whose streams cannot be read lists none, and says why in
   const status = await controller.composeStatus(0);
   expect(status.streams).toBeNull();
   expect(status.streams_not_listed_because).toBe(
-    "the runtime's answer to `list_streams` does not match the control contract: streams.0.location.project: Invalid input: expected string, received undefined; streams.0.location.stream_asset: Invalid input: expected string, received undefined",
+    "the runtime's answer to `list_streams` is not the contract's `ListStreamsToolResult`: streams.0.location: matches none of the 2 alternatives the contract allows here",
   );
 });
 

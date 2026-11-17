@@ -8,7 +8,6 @@
 // every other key a newer runtime adds is ignored. A refusal is read against the contract's own
 // refusal through the generated client, so a refusal code this app does not know reads as `refused`.
 
-import type { ProjectActionRefusalOnTheWire, SuggestedOperationCall } from "@tatolab/runtime-client";
 import type { JsonValue, ProjectActionRefusal, ProjectTransaction, ProjectTransactions, RefusedProjectAction } from "../shared/tatolab_backend_contract.js";
 import {
   everyOneRead,
@@ -21,7 +20,12 @@ import {
   type JsonObjectOnTheWire,
 } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
-import { controlContractRefusalOf } from "./tatolab_runtime_control_operation_call.js";
+import {
+  controlContractRefusalOf,
+  type ControlOperationResult,
+  type ProjectActionRefusalOnTheWire,
+  type SuggestedOperationCall,
+} from "./tatolab_runtime_control_operation_call.js";
 
 function jsonValuesOf(values: readonly unknown[], key: string): Result<JsonValue[], string> {
   return everyOneRead(values, (value) => (isAJsonValue(value) ? succeeded(value) : failedWith(`an entry of ${key} is not JSON`)));
@@ -178,7 +182,7 @@ export function projectTransactionsFromTheChangeFeed(changeFeed: unknown): Resul
 }
 
 /** The transaction an `undo` or `redo` tool answered with `operationResult`, or why it could not be read. */
-export function projectTransactionFromTheUndoOrRedoToolResult(toolName: "undo" | "redo", operationResult: unknown): Result<ProjectTransaction, string> {
+export function projectTransactionFromTheUndoOrRedoToolResult(toolName: "undo" | "redo", operationResult: ControlOperationResult<"undo" | "redo">): Result<ProjectTransaction, string> {
   const fields = jsonObject(operationResult, `the ${toolName} result`);
   const transaction = fields.ok ? projectTransactionFromItsFields(fields.value) : fields;
   return transaction.ok ? transaction : failedWith(`the runtime's ${toolName} result could not be read: ${transaction.failure}`);

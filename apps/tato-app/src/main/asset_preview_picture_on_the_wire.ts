@@ -2,6 +2,7 @@
 // pixel_height, media_type }`, `null` for none; `read_asset_preview` answers the asset's UUID, the same three keys and the
 // picture's bytes as `content_base64`, standard base64 with padding, of `byte_len` bytes.
 
+import type { ControlOperationResult } from "./tatolab_runtime_control_operation_call.js";
 import type { ProjectAssetPreview } from "../shared/tatolab_backend_contract.js";
 import { requiredText, requiredUnsignedInteger, toolResultReadWith, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
 import { bytesOfTheBase64Content } from "./project_files_on_the_wire.js";
@@ -29,7 +30,7 @@ export function previewPictureSizeIn(previewObject: JsonObjectOnTheWire): Result
 }
 
 /** The picture `read_asset_preview` answered with `operationResult` for `asset`, or why it could not be read. */
-export function assetPreviewPictureFromTheReadAssetPreviewToolResult(asset: string, operationResult: unknown): Result<AssetPreviewPictureTheRuntimeRead, string> {
+export function assetPreviewPictureFromTheReadAssetPreviewToolResult(asset: string, operationResult: ControlOperationResult<"read_asset_preview">): Result<AssetPreviewPictureTheRuntimeRead, string> {
   return toolResultReadWith("read_asset_preview", operationResult, (toolResult) => assetPreviewPictureIn(asset, toolResult));
 }
 

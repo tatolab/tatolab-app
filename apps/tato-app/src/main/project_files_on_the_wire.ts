@@ -3,6 +3,7 @@
 // standard base64 with padding, and `write_project_file` and `create_node_file` name the transaction that recorded
 // it, `create_node_file` with the node type, `<module>:<class>`, the new file declares.
 
+import type { ControlOperationResult } from "./tatolab_runtime_control_operation_call.js";
 import { everyOneRead, jsonObject, type JsonObjectOnTheWire, requiredArray, requiredText, requiredUnsignedInteger } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
@@ -20,7 +21,7 @@ export interface ProjectFileWriteRecorded {
 }
 
 /** The files `list_project_files` answered with `operationResult`, or why it could not be read. */
-export function projectFilesFromTheListProjectFilesToolResult(operationResult: unknown): Result<ProjectFileTheRuntimeListed[], string> {
+export function projectFilesFromTheListProjectFilesToolResult(operationResult: ControlOperationResult<"list_project_files">): Result<ProjectFileTheRuntimeListed[], string> {
   const listed = filesFromTheParsedToolResult(operationResult);
   return listed.ok ? listed : failedWith(`the runtime's list_project_files result could not be read: ${listed.failure}`);
 }
@@ -77,7 +78,7 @@ export function bytesOfTheBase64ContentOfTheContract(fileRead: { readonly conten
 }
 
 /** The transaction `write_project_file` answered with `operationResult`, or why it could not be read. */
-export function projectFileWriteFromTheWriteProjectFileToolResult(operationResult: unknown): Result<ProjectFileWriteRecorded, string> {
+export function projectFileWriteFromTheWriteProjectFileToolResult(operationResult: ControlOperationResult<"write_project_file">): Result<ProjectFileWriteRecorded, string> {
   const written = writeFromTheParsedToolResult(operationResult);
   return written.ok ? written : failedWith(`the runtime's write_project_file result could not be read: ${written.failure}`);
 }
@@ -103,7 +104,7 @@ export interface NodeFileCreationRecorded extends ProjectFileWriteRecorded {
 }
 
 /** The node file `create_node_file` answered with `operationResult`, or why it could not be read. */
-export function nodeFileCreationFromTheCreateNodeFileToolResult(operationResult: unknown): Result<NodeFileCreationRecorded, string> {
+export function nodeFileCreationFromTheCreateNodeFileToolResult(operationResult: ControlOperationResult<"create_node_file">): Result<NodeFileCreationRecorded, string> {
   const created = nodeFileCreationFromTheParsedToolResult(operationResult);
   return created.ok ? created : failedWith(`the runtime's create_node_file result could not be read: ${created.failure}`);
 }

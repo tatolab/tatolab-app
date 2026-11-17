@@ -46,11 +46,18 @@ const STANDARD_STREAM_WRITE_SELECTORS = [
   { selector: "MemberExpression[object.object.name='process'][object.property.name=/^std(out|err)$/][property.name='write']", message: "The main process logs through tatolab_app_log.ts." },
 ];
 
+const RUNTIME_CLIENT_IMPORT_PATTERNS = [
+  {
+    group: ["@tatolab/runtime-client", "@tatolab/runtime-client/*"],
+    message: "Only src/main/tatolab_runtime_control_operation_call.ts imports @tatolab/runtime-client; import what it re-exports instead.",
+  },
+];
+
 const MAIN_PROCESS_FILES = ["src/main/**/*.{ts,cts}", "src/preload/**/*.{ts,cts}"];
 const TEST_FILES = ["src/**/*.test.{ts,tsx}", "mock/**/*.test.{ts,tsx}"];
 
 /** The restrictions that hold for one group of main-process files. */
-function mainProcessRestrictions({ mayImportElectron, mayReadPlatform, isShipped, isTest, mayWriteStandardStreams }) {
+function mainProcessRestrictions({ mayImportElectron, mayReadPlatform, mayImportTheRuntimeClient, isShipped, isTest, mayWriteStandardStreams }) {
   const restrictedSyntax = [
     ...(mayImportElectron ? [] : ELECTRON_REQUIRE_SELECTORS),
     ...(isShipped ? SHIPPED_MAIN_PROCESS_SELECTORS : []),
@@ -60,7 +67,7 @@ function mainProcessRestrictions({ mayImportElectron, mayReadPlatform, isShipped
   const restrictedProperties = [...(mayReadPlatform ? [] : PLATFORM_READ_PROPERTIES), ...(isShipped ? WALL_CLOCK_PROPERTIES : [])];
   return {
     "no-restricted-syntax": ["error", ...restrictedSyntax],
-    "no-restricted-imports": ["error", { paths: restrictedImports }],
+    "no-restricted-imports": ["error", { paths: restrictedImports, patterns: isShipped && !mayImportTheRuntimeClient ? RUNTIME_CLIENT_IMPORT_PATTERNS : [] }],
     "no-restricted-properties": ["error", ...restrictedProperties],
   };
 }
@@ -70,6 +77,7 @@ const MAIN_PROCESS_GROUPS = [
   { files: ["src/preload/**/*.{ts,cts}"], mayImportElectron: true },
   { files: ["src/main/platform/**/*.{ts,cts}"], mayReadPlatform: true },
   { files: ["src/main/tatolab_app_log.ts"], mayWriteStandardStreams: true },
+  { files: ["src/main/tatolab_runtime_control_operation_call.ts"], mayImportTheRuntimeClient: true },
 ];
 const FAKE_FILES = ["src/**/fake_*.ts"];
 
