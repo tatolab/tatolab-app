@@ -1,9 +1,9 @@
-// The one module that imports streamlib's generated `@tatolab/runtime-client`: it calls a control
-// operation over the runtime's JSON-RPC adapter, in one `POST /control` or on the WebSocket at
-// `/control/ws`. `RuntimeControl` makes the call as an Effect failing with a `RuntimeControlFailure`;
-// the calls not yet converted settle every outcome as a `Result`. The client checks each call and
-// answer against the control contract: it rejects params that do not match with
-// `ControlRequestInvalid` before sending them, an answer that does not match with
+// The one module that calls the runtime through streamlib's generated `@tatolab/runtime-client`: it
+// calls a control operation over the runtime's JSON-RPC adapter, in one `POST /control` or on the
+// WebSocket at `/control/ws`. `RuntimeControl` makes the call as an Effect failing with a
+// `RuntimeControlFailure`; the calls not yet converted settle every outcome as a `Result`. The
+// client checks each call and answer against the control contract: it rejects params that do not
+// match with `ControlRequestInvalid` before sending them, an answer that does not match with
 // `ControlAnswerInvalid`, the runtime's JSON-RPC error with `ControlOperationError`, and with any
 // other error when nothing answered.
 

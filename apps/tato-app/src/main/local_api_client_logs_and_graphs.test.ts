@@ -84,10 +84,10 @@ test("a_real_graph_tool_result_reads_with_its_counters_and_verbatim_text", async
     ["h264encoder", "tatolab.stream:H264Encoder", "Running"],
   ]);
   expect(summary.nodes.map((node) => [node.name, node.input_ports, node.output_ports])).toEqual([
-    ["testpatternsource", [], [{ name: "video", family: null, stream_facts: null, values_checked: null }]],
-    ["halftonelenseffect", [{ name: "video_from_upstream", family: null, stream_facts: null, values_checked: null }], [{ name: "video_to_downstream", family: null, stream_facts: null, values_checked: null }]],
-    ["brightnessmeter", [{ name: "video_from_upstream", family: null, stream_facts: null, values_checked: null }], []],
-    ["h264encoder", [{ name: "video", family: null, stream_facts: null, values_checked: null }], [{ name: "encoded_video", family: null, stream_facts: null, values_checked: null }]],
+    ["testpatternsource", [], [{ name: "video", family: null, stream_facts: null, values_checked: null, pin: null }]],
+    ["halftonelenseffect", [{ name: "video_from_upstream", family: null, stream_facts: null, values_checked: null, pin: null }], [{ name: "video_to_downstream", family: null, stream_facts: null, values_checked: null, pin: null }]],
+    ["brightnessmeter", [{ name: "video_from_upstream", family: null, stream_facts: null, values_checked: null, pin: null }], []],
+    ["h264encoder", [{ name: "video", family: null, stream_facts: null, values_checked: null, pin: null }], [{ name: "encoded_video", family: null, stream_facts: null, values_checked: null, pin: null }]],
   ]);
   expect(summary.nodes[1]?.dropped_bags_by_link).toEqual({ Lt12wev5nhhd2ankv0rrz1w3v: 0 });
   expect(summary.nodes[3]?.refused_bags_by_output_port).toEqual({ encoded_video: 0 });
@@ -113,8 +113,9 @@ test("a_real_graph_tool_result_reads_each_outputs_stream_facts_and_the_records_u
           family: "image",
           stream_facts: { family: "image", frame_rate: { numerator: 30, denominator: 1 }, content_light_level: null, mastering_display_colour_volume: null },
           values_checked: null,
+          pin: null,
         },
-        { name: "records", family: "records", stream_facts: null, values_checked: false },
+        { name: "records", family: "records", stream_facts: null, values_checked: false, pin: null },
       ],
     ],
     [
@@ -126,11 +127,27 @@ test("a_real_graph_tool_result_reads_each_outputs_stream_facts_and_the_records_u
           family: "packets",
           stream_facts: { family: "packets", rfc6381_codec: "avc1.64001f", coded_width: 1280, coded_height: 720, sample_rate: null, channel_count: null, codec_configuration_byte_length: null },
           values_checked: null,
+          pin: null,
         },
       ],
     ],
-    ["reportsitsupstreamsstreamfacts", [{ name: "encoded_from_upstream", family: "packets", stream_facts: null, values_checked: null }], []],
+    ["reportsitsupstreamsstreamfacts", [{ name: "encoded_from_upstream", family: "packets", stream_facts: null, values_checked: null, pin: null }], []],
   ]);
+});
+
+test("a_real_graph_reads_the_pin_type_and_flow_each_typed_port_carries_and_an_untyped_port_as_before", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-graph-result-of-pins-linking-a-texture-output-to-a-texture-input.json")),
+  ]);
+
+  const summary = answerOf(await server.client().describeStreamGraph("pins-main-cbc98f"));
+
+  const aTexture = { pin_type: { type: "texture" }, flow: "stream" };
+  expect(summary.nodes.map((node) => [node.name, node.input_ports, node.output_ports])).toEqual([
+    ["arraytoimage", [{ name: "array", family: "array", stream_facts: null, values_checked: null, pin: null }], [{ name: "image", family: "image", stream_facts: null, values_checked: null, pin: aTexture }]],
+    ["imagetoarray", [{ name: "image", family: "image", stream_facts: null, values_checked: null, pin: aTexture }], [{ name: "array", family: "array", stream_facts: null, values_checked: null, pin: null }]],
+  ]);
+  expect(summary.links.map((link) => [link.source_node, link.source_port, link.target_node, link.target_port])).toEqual([["arraytoimage", "image", "imagetoarray", "image"]]);
 });
 
 test("a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words", async () => {

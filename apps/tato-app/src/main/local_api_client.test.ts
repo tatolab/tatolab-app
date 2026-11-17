@@ -159,7 +159,7 @@ test("a_chunked_response_is_dechunked", async () => {
   answerOf(await server.client().checkHealth());
 });
 
-test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_description_its_streams_their_graphs_logs_node_types_assets_and_dependencies_and_its_machine_name", async () => {
+test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_description_its_streams_their_graphs_and_node_catalogs_logs_node_types_assets_and_dependencies_and_its_machine_name", async () => {
   const client = new LocalApiClient(process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"] ?? "", 5_000);
 
   answerOf(await client.checkHealth());
@@ -172,6 +172,8 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
     const graph = answerOf(await client.describeStreamGraph(loadedStream.stream));
     expect(graph.stream).toBe(loadedStream.stream);
     expect(graph.graph_document_text.startsWith("{\n")).toBe(true);
+    const nodeCatalog = answerOf(await client.describeNodeCatalog(loadedStream.stream));
+    expect(nodeCatalog.node_types.length).toBeGreaterThan(0);
   }
   for (const projectDirectory of new Set(streams.flatMap((listedStream) => (listedStream.location === null ? [] : [listedStream.location.project_directory])))) {
     const projectStreams = streams.filter((listedStream) => listedStream.location?.project_directory === projectDirectory);

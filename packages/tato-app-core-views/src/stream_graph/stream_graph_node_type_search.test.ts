@@ -18,8 +18,8 @@ const catalogEntry = (type: string, description: string, category: string | null
   description,
   category,
   config_schema: null,
-  inputs: inputs.map(([name, family]) => ({ name, description: "", family })),
-  outputs: outputs.map(([name, family]) => ({ name, description: "", family })),
+  inputs: inputs.map(([name, family]) => ({ name, description: "", family, pin: null })),
+  outputs: outputs.map(([name, family]) => ({ name, description: "", family, pin: null })),
 });
 const BLUR = catalogEntry("nodes.blur:GaussianBlur", "Softens an image", "Effects/Blur", [["video_in", "image"]], [["video_out", "image"]]);
 const METER = catalogEntry("tatolab.stream.Meter", "Reads a level", null, [["level", "array"]], []);
@@ -104,7 +104,7 @@ test("offers each node type the project, its imports and its installed distribut
   const offered = nodeTypesTheSearchOffers([BLUR], listing);
   expect(offered.map((entry) => entry.type)).toEqual(["nodes.blur:GaussianBlur", "nodes.invert:Invert", "nodes.native:Half", "tatolab_testpattern:TestPatternSource"]);
   expect(offered[0]).toBe(BLUR);
-  expect(offered[1]).toEqual({ type: "nodes.invert:Invert", description: "Inverts each frame", category: "Effects", config_schema: null, inputs: [{ name: "video_in", description: "", family: "image" }], outputs: [{ name: "video_out", description: "", family: "image" }] });
+  expect(offered[1]).toEqual({ type: "nodes.invert:Invert", description: "Inverts each frame", category: "Effects", config_schema: null, inputs: [{ name: "video_in", description: "", family: "image", pin: null }], outputs: [{ name: "video_out", description: "", family: "image", pin: null }] });
   expect(offered[2]?.inputs).toEqual([]);
   expect(nodeTypesTheSearchOffers([BLUR], null)).toEqual([BLUR]);
   expect([...nodeTypesTheProjectDeclares(listing)]).toEqual(["nodes.invert:Invert", "nodes.blur:GaussianBlur", "nodes.native:Half"]);

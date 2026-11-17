@@ -10,7 +10,7 @@ import type { JsonValue, NodeCatalogEntry, PortFamily } from "../src/shared/tato
 /** What the runtime's Python deriver writes for a node that declares no config. */
 const THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG: JsonValue = { type: "object", description: "This node declares no configuration.", additionalProperties: false };
 
-const port = (name: string, description: string, family: PortFamily) => ({ name, description, family });
+const port = (name: string, description: string, family: PortFamily) => ({ name, description, family, pin: null });
 
 /** Every node type the mock runtime's streams can add, in the order its catalog lists them. */
 export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [

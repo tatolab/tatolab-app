@@ -420,7 +420,7 @@ export function applyMockGraphTransaction(
           let name = shortName;
           for (let suffix = 2; operation.name === undefined && takenNames.has(name); suffix += 1) name = `${shortName}-${suffix}`;
           if (takenNames.has(name)) throw refusedNaming(`node \`${name}\` in this graph already has that name`, { refused_node: operation.as ?? name });
-          const portsOf = (ports: typeof catalogEntry.inputs) => ports.map((port) => ({ name: port.name, family: port.family, stream_facts: null, values_checked: port.family === "records" ? false : null }));
+          const portsOf = (ports: typeof catalogEntry.inputs) => ports.map((port) => ({ name: port.name, family: port.family, stream_facts: null, values_checked: port.family === "records" ? false : null, pin: null }));
           const config = configHoldingTheDefaultNameOfAGraphPortOrVariable(operation.type, structuredClone(operation.config ?? {}), graph.nodes);
           const pins = structuredClone(operation.pins ?? {});
           const isAGraphInput = operation.type === GRAPH_INPUT_NODE_TYPE;
@@ -433,7 +433,7 @@ export function applyMockGraphTransaction(
             );
           }
           const outputPorts = isAGraphInput
-            ? [{ name: "value", family: isAPortFamilyAsTheRuntimeSpellsIt(familyTheGraphInputDeclares) ? familyTheGraphInputDeclares : null, stream_facts: null, values_checked: null }]
+            ? [{ name: "value", family: isAPortFamilyAsTheRuntimeSpellsIt(familyTheGraphInputDeclares) ? familyTheGraphInputDeclares : null, stream_facts: null, values_checked: null, pin: null }]
             : portsOf(catalogEntry.outputs);
           const addedNode: MockGraphNode = { name, type: operation.type, state: isAGraphInput ? null : "Running", config, pins, input_ports: portsOf(catalogEntry.inputs), output_ports: outputPorts };
           if (operation.studio !== undefined) addedNode.studio = studioFieldsOfTheAction(operation.studio, operation.as ?? name);
@@ -467,7 +467,7 @@ export function applyMockGraphTransaction(
           if (fieldStillLinked !== undefined) throw refusedNaming(`node \`${node.name}\` cannot stop taking \`${fieldStillLinked}\` as an input while a link feeds it`, { refused_node: operation.node, refused_field: fieldStillLinked });
           node.input_ports = [
             ...node.input_ports.filter((port) => !from.includes(port.name)),
-            ...operation.exposed_config_fields.map((field) => ({ name: field, family: "channels" as const, stream_facts: null, values_checked: null })),
+            ...operation.exposed_config_fields.map((field) => ({ name: field, family: "channels" as const, stream_facts: null, values_checked: null, pin: null })),
           ];
           node.exposed_config_fields = [...operation.exposed_config_fields];
           recordInHistory(
@@ -620,8 +620,8 @@ export function applyMockGraphTransaction(
             type,
             state: null,
             config: family === null ? { port: interfaceName } : { port: interfaceName, family },
-            input_ports: type === "tatolab.stream:GraphOutput" ? [{ name: "value", family, stream_facts: null, values_checked: null }] : [],
-            output_ports: type === "tatolab.stream:GraphInput" ? [{ name: "value", family, stream_facts: null, values_checked: null }] : [],
+            input_ports: type === "tatolab.stream:GraphOutput" ? [{ name: "value", family, stream_facts: null, values_checked: null, pin: null }] : [],
+            output_ports: type === "tatolab.stream:GraphInput" ? [{ name: "value", family, stream_facts: null, values_checked: null, pin: null }] : [],
           });
           const insideNodes: MockGraphNode[] = members.map((member) => (member.studio === undefined ? member : { ...member, studio: { ...member.studio, group: null } }));
           const insideLinks: typeof graph.links = [];
@@ -638,7 +638,7 @@ export function applyMockGraphTransaction(
               const family = familyOfTheOutput(link.source_node, link.source_port);
               if (!insideNodes.some((node) => node.name === interfaceName)) {
                 insideNodes.push(interfaceNode(interfaceName, "tatolab.stream:GraphInput", family));
-                subgraph.input_ports.push({ name: interfaceName, family, stream_facts: null, values_checked: null });
+                subgraph.input_ports.push({ name: interfaceName, family, stream_facts: null, values_checked: null, pin: null });
               }
               insideLinks.push({ ...link, id: `${link.id}-in`, source_node: interfaceName, source_port: "value" });
               outsideLinks.push({ ...link, target_node: name, target_port: interfaceName });
@@ -647,7 +647,7 @@ export function applyMockGraphTransaction(
               const family = familyOfTheOutput(link.source_node, link.source_port);
               if (!insideNodes.some((node) => node.name === interfaceName)) {
                 insideNodes.push(interfaceNode(interfaceName, "tatolab.stream:GraphOutput", family));
-                subgraph.output_ports.push({ name: interfaceName, family, stream_facts: null, values_checked: null });
+                subgraph.output_ports.push({ name: interfaceName, family, stream_facts: null, values_checked: null, pin: null });
                 insideLinks.push({ ...link, id: `${link.id}-out`, target_node: interfaceName, target_port: "value" });
               }
               outsideLinks.push({ ...link, source_node: name, source_port: interfaceName });
@@ -716,7 +716,7 @@ export function applyMockGraphTransaction(
           return interfaceNode === undefined ? portBefore : (portsOfTheLevelAfterTheEdit.get(interfaceNode)?.port ?? null);
         };
         const portsOf = (direction: "input" | "output") =>
-          [...portsOfTheLevelAfterTheEdit.values()].filter((stoodFor) => stoodFor.direction === direction).map((stoodFor) => ({ name: stoodFor.port, family: stoodFor.family, stream_facts: null, values_checked: null }));
+          [...portsOfTheLevelAfterTheEdit.values()].filter((stoodFor) => stoodFor.direction === direction).map((stoodFor) => ({ name: stoodFor.port, family: stoodFor.family, stream_facts: null, values_checked: null, pin: null }));
         const carriedByHoldingStream = new Map<string, { port_links_taken_out: JsonValue[]; port_links_put_back: JsonValue[] }>();
         for (const [workingStreamAsset, workingGraph] of workingGraphs) {
           for (const { placing, holdingLevel, holdingStream } of eachPlacementOf(streamOfTheLevel, workingGraph, workingStreamAsset)) {

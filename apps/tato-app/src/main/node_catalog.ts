@@ -1,12 +1,14 @@
 // The node catalog as the window reads it, from `GET /api/registry?stream=<stream>`: each node type
 // the stream can add under the `type` a graph node carries, with its description, the category it is
 // filed under (`category`, absent for a type that declares none), its config's JSON Schema
-// (`config_schema`, absent for a type described without one) and its ports by name and description.
-// Every other key the runtime renders is ignored.
+// (`config_schema`, absent for a type described without one) and its ports by name and description,
+// each typed one with the pin type and flow it declares. Every other key the runtime renders is
+// ignored.
 
 import type { JsonValue, NodeCatalog, NodeCatalogEntry, NodeCatalogPort } from "../shared/tatolab_backend_contract.js";
 import { arrayOrEmpty, everyOneRead, isAJsonValue, jsonObject, type JsonObjectOnTheWire, optionalText, parseJsonOnTheWire, requiredArray, requiredText, textOrDefault } from "./json_on_the_wire.js";
 import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
+import { nodeCatalogPortPinOnTheWire } from "./port_pin_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** The request target of the node catalog of the loaded stream `stream`. */
@@ -70,6 +72,6 @@ function catalogPortsUnder(nodeType: JsonObjectOnTheWire, direction: "inputs" | 
     if (!name.ok) return name;
     const description = textOrDefault(port.value, "description", "");
     if (!description.ok) return description;
-    return succeeded({ name: name.value, description: description.value, family: portFamilyOnTheWire(port.value) });
+    return succeeded({ name: name.value, description: description.value, family: portFamilyOnTheWire(port.value), pin: nodeCatalogPortPinOnTheWire(port.value) });
   });
 }

@@ -15,7 +15,7 @@ const LARGE_GRAPH_LINK_COUNT = 450;
 const LARGE_GRAPH_COLUMN_STEP = 300;
 const LARGE_GRAPH_ROW_STEP = 170;
 
-const channelsPort = (name: string): StreamGraphDeclaredPort => ({ name, family: "channels", stream_facts: null, values_checked: null });
+const channelsPort = (name: string): StreamGraphDeclaredPort => ({ name, family: "channels", stream_facts: null, values_checked: null, pin: null });
 
 const largeGraphNodeName = (index: number) => `stage-${String(index + 1).padStart(3, "0")}`;
 

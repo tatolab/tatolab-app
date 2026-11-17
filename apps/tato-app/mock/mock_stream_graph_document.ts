@@ -9,6 +9,7 @@ import type {
   ListedStream,
   PortStreamFacts,
   StreamGraphDeclaredPort,
+  StreamGraphPortPin,
   StreamGraphInterfacePort,
   StreamGraphLink,
   StreamGraphNode,
@@ -40,6 +41,11 @@ function streamFactsAsTheRuntimeRendersThem(facts: PortStreamFacts): Record<stri
 /** `values_checked` as the runtime renders it: only on a port that carries the mark. */
 function valuesCheckedAsTheRuntimeRendersIt(port: StreamGraphDeclaredPort): { values_checked?: boolean } {
   return port.values_checked === null ? {} : { values_checked: port.values_checked };
+}
+
+/** A port's pin type and flow as the runtime renders them: both beside its family on a typed port, neither on an untyped one. */
+function pinAsTheRuntimeRendersIt(port: StreamGraphDeclaredPort): Partial<StreamGraphPortPin> {
+  return port.pin === null ? {} : { pin_type: port.pin.pin_type, flow: port.pin.flow };
 }
 
 /** The runtime's capitalised link state in `components`: `awaiting_remote` reads `AwaitingRemote`. */
@@ -186,6 +192,7 @@ export function mockStreamGraphSummary(
           delivery_profile: "newest",
           ...valuesCheckedAsTheRuntimeRendersIt(port),
           ...familyAsTheRuntimeRendersIt(port),
+          ...pinAsTheRuntimeRendersIt(port),
         })),
         outputs: node.output_ports.map((port) => ({
           name: port.name,
@@ -195,6 +202,7 @@ export function mockStreamGraphSummary(
           ...(port.stream_facts === null ? {} : { stream_facts: streamFactsAsTheRuntimeRendersThem(port.stream_facts) }),
           ...valuesCheckedAsTheRuntimeRendersIt(port),
           ...familyAsTheRuntimeRendersIt(port),
+          ...pinAsTheRuntimeRendersIt(port),
         })),
       },
       components: {

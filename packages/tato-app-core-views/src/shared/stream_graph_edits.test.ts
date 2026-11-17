@@ -30,7 +30,7 @@ import {
 const STREAM_ASSET = "7194d1f9-721a-41e5-9cc9-7db50336a1ed";
 
 function graphNode(name: string, id: string, ports: { inputs?: [string, "image" | "array" | null][]; outputs?: [string, "image" | "array" | null][] }, studio = NODE_STUDIO_FIELDS_NONE_SET): StreamGraphNode {
-  const declared = (portsOfOneSide: [string, "image" | "array" | null][] = []) => portsOfOneSide.map(([name, family]) => ({ name, family, stream_facts: null, values_checked: null }));
+  const declared = (portsOfOneSide: [string, "image" | "array" | null][] = []) => portsOfOneSide.map(([name, family]) => ({ name, family, stream_facts: null, values_checked: null, pin: null }));
   return {
     id,
     name,
@@ -77,8 +77,8 @@ const catalogEntry = (type: string, inputs: [string, "image" | "array" | null][]
   description: "",
   category: null,
   config_schema: null,
-  inputs: inputs.map(([name, family]) => ({ name, description: "", family })),
-  outputs: outputs.map(([name, family]) => ({ name, description: "", family })),
+  inputs: inputs.map(([name, family]) => ({ name, description: "", family, pin: null })),
+  outputs: outputs.map(([name, family]) => ({ name, description: "", family, pin: null })),
 });
 const BLUR = catalogEntry("nodes.blur:GaussianBlur", [["strength", "array"], ["video_in", "image"]], [["video_out", "image"]]);
 

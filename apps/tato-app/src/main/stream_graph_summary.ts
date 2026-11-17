@@ -1,7 +1,8 @@
 // A stream's graph as the window draws it, read from the runtime's `graph {stream}` tool: its stream
-// asset, its nodes by name with their type, state, config, declared ports, drop counters, studio
-// fields and the port a GraphInput or GraphOutput declares, its links by id, node and port, its
-// labelled groups and canvas notes, and the tool's text itself. Every other key the runtime renders
+// asset, its nodes by name with their type, state, config, declared ports with the pin type and
+// flow each typed one carries, drop counters, studio fields and the port a GraphInput or
+// GraphOutput declares, its links by id, node and port, its labelled groups and canvas notes, and
+// the tool's text itself. Every other key the runtime renders
 // stays only in that text.
 
 import type {
@@ -34,6 +35,7 @@ import {
   textOrDefault,
 } from "./json_on_the_wire.js";
 import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
+import { streamGraphPortPinOnTheWire } from "./port_pin_on_the_wire.js";
 import { portStreamFactsOnTheWire, portValuesCheckedOnTheWire } from "./port_stream_facts_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
@@ -278,7 +280,7 @@ function streamGraphFragmentOnTheWire(node: JsonObjectOnTheWire, nodeType: strin
   return succeeded({ kind: streamGraphFragmentKindOfTheNodeType(nodeType), nodes: nodes.value, links: links.value, groups: groups.value });
 }
 
-/** The ports a node's `ports.<direction>` lists, each by name with its family, its stream facts and its `values_checked` mark when it carries them. */
+/** The ports a node's `ports.<direction>` lists, each by name with its family, its stream facts, its `values_checked` mark and its pin type and flow when it carries them. */
 function declaredPortsUnder(ports: JsonObjectOnTheWire, direction: "inputs" | "outputs"): Result<StreamGraphDeclaredPort[], string> {
   const portsOnTheWire = arrayOrEmpty(ports, direction);
   if (!portsOnTheWire.ok) return portsOnTheWire;
@@ -292,6 +294,7 @@ function declaredPortsUnder(ports: JsonObjectOnTheWire, direction: "inputs" | "o
       family: portFamilyOnTheWire(port.value),
       stream_facts: portStreamFactsOnTheWire(port.value),
       values_checked: portValuesCheckedOnTheWire(port.value),
+      pin: streamGraphPortPinOnTheWire(port.value),
     });
   });
 }
