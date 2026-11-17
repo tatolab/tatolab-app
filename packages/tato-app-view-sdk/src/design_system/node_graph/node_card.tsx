@@ -1,15 +1,17 @@
 import { Handle, Position, useStore, useStoreApi, type NodeProps } from "@xyflow/react";
 import { cn } from "cn";
 import { ChevronDown, ChevronRight, Combine, SquareX, TriangleAlert } from "lucide-react";
-import { Fragment, useContext, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
+import { Fragment, memo, useContext, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
+import type { InputAddress } from "../../pin_model/node_inputs";
 import { nodePinRows, type NodePin } from "../../pin_model/node_pins";
-import type { PinFlow } from "../../pin_type_readings";
+import { valueWords } from "../../pin_model/value_words";
+import type { PinFlow, PinType } from "../../pin_type_readings";
 import { pinTypeKey, pinWords, type PinTypeKey } from "../../pin_model/pin_type_words";
 import type { StreamGraphPortPin } from "../../studio_readings";
 import { NodeGraphNodesFoundContext } from "../node_graph_find_bar";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "../support/full_strength_focus_ring";
 import type { NodeGraphCardCondition, NodeGraphCanvasNode } from "../support/node_graph_canvas_contract";
-import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, connectionLookupKeyOfTheHandle, NodeGraphEditableContext, NodeGraphCardAndFrameEditingContext } from "../support/node_graph_flow_elements";
+import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, connectionLookupKeyOfTheHandle, NodeGraphEditableContext, NodeGraphCardAndFrameEditingContext, NodeGraphInputValuesContext } from "../support/node_graph_flow_elements";
 import { NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT, NODE_GRAPH_CARD_HEADER_HEIGHT, NODE_GRAPH_CARD_PIN_ROWS_PADDING, NODE_GRAPH_PIN_ROW_HEIGHT } from "../support/node_graph_layout";
 import { isAPinSocketOfTheCardUnmeasured } from "../support/node_graph_pin_socket_measurement";
 
@@ -69,6 +71,22 @@ function NodeGraphPinSocket({
   );
 }
 
+/** The words of the value an unwired input holds, at its row's end. They are written from the store as each value arrives, so a value that changes draws no card again. */
+const NodeGraphInputValueWords = memo(function NodeGraphInputValueWords({ address, pinType }: { address: InputAddress; pinType: PinType | null }) {
+  const inputValues = useContext(NodeGraphInputValuesContext);
+  const wordsElement = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const element = wordsElement.current;
+    if (inputValues === null || element === null) return;
+    return inputValues.watchValue(address, (shown) => {
+      const words = valueWords(pinType, shown.value) ?? "";
+      element.textContent = words;
+      element.title = words;
+    });
+  }, [inputValues, address, pinType]);
+  return <span ref={wordsElement} className="ml-auto max-w-1/2 min-w-0 truncate pl-2 text-fg-3 tabular-nums empty:hidden" data-node-graph-input-value={address.input} />;
+});
+
 /** What a card's header and pin rows draw of a node. */
 type NodeGraphCardFaceNode = Pick<NodeGraphCanvasNode, "title" | "type_name" | "description" | "condition" | "inputs" | "outputs" | "is_collapsed" | "subgraph">;
 
@@ -121,6 +139,7 @@ function NodeGraphCardHeaderAndPinRows({
               >
                 {row.node_pin.name}
               </span>
+              {row.side === "input" && row.node_pin.value_address !== null && <NodeGraphInputValueWords address={row.node_pin.value_address} pinType={row.node_pin.pin?.pin_type ?? null} />}
               {socketOfThePin(row.side, row.node_pin, true)}
             </div>
           ))}

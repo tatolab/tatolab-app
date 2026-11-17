@@ -127,6 +127,12 @@ const reportedCases: [string, string, string, string][] = [
   ["an as cast in a fake", "src/main/fake_zz_planted.ts", 'export const planted = JSON.parse("1") as number;\n', "typescript(consistent-type-assertions)"],
   ["a ts-ignore comment in the window", "src/renderer/zz_planted.ts", "// @ts-ignore\nexport const planted = 1;\n", "typescript(ban-ts-comment)"],
   ["an any type in the design system outside its shadcn components", "view-sdk:src/design_system/zz_planted.tsx", "export const planted: any = 1;\n", "typescript(no-explicit-any)"],
+  ["React imported by the pin model", "view-sdk:src/pin_model/zz_planted.ts", 'import { useState } from "react";\nexport const planted = useState;\n', "@typescript-eslint/no-restricted-imports"],
+  ["the design system's DOM imported by the pin model", "view-sdk:src/pin_model/zz_planted.ts", 'import { RefusalLine } from "../design_system/refusal_line";\nexport const planted = RefusalLine;\n', "@typescript-eslint/no-restricted-imports"],
+  ["the view connection imported by the pin model", "view-sdk:src/pin_model/zz_planted.ts", 'import type { TatoAppViewConnection } from "../tato_app_view_connection.js";\nexport type Planted = TatoAppViewConnection;\n', "@typescript-eslint/no-restricted-imports"],
+  ["effect imported by the pin model", "view-sdk:src/pin_model/zz_planted.ts", 'import { Schema } from "effect";\nexport const planted = Schema.String;\n', "@typescript-eslint/no-restricted-imports"],
+  ["React imported by the pin services", "view-sdk:src/pin_services/zz_planted.ts", 'import { useSyncExternalStore } from "react";\nexport const planted = useSyncExternalStore;\n', "@typescript-eslint/no-restricted-imports"],
+  ["effect imported by the pin services", "view-sdk:src/pin_services/zz_planted.ts", 'import { Effect } from "effect";\nexport const planted = Effect.void;\n', "@typescript-eslint/no-restricted-imports"],
 ];
 
 test.each(reportedCases)("reports %s", async (_caseDescription, filePath, plantedSource, expectedRuleId) => {
@@ -153,6 +159,8 @@ const quietCases: [string, string, string][] = [
   ["electron imported by a fake under electron_adapters/", "src/main/electron_adapters/fake_zz_planted.ts", 'import { app } from "electron";\nexport const plantedApp = app;\n'],
   ["a throw in a fake", "src/main/fake_zz_planted.ts", 'export function failing(): void {\n  throw new Error("planted");\n}\n'],
   ["as const in shipped main-process code", "src/main/zz_planted.ts", 'export const planted = ["as a string", "throw it"] as const;\n'],
+  ["the pin services building on the pin model and the view connection's types", "view-sdk:src/pin_services/zz_planted.ts", 'import type { InputAddress } from "../pin_model/node_inputs.js";\nimport type { TatoAppViewConnection } from "../tato_app_view_connection.js";\nexport type Planted = [InputAddress, TatoAppViewConnection];\n'],
+  ["the pin model building on the readings", "view-sdk:src/pin_model/zz_planted.ts", 'import type { JsonValue } from "../studio_readings.js";\nexport type Planted = JsonValue;\n'],
   ["the forms named only in a comment and a string", "src/main/zz_planted.ts", '// planted: as Error, throw, Date.now() and electron in a comment\nexport const planted = "throw it and Date.now()";\n'],
 ];
 

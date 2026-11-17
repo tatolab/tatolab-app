@@ -13,8 +13,8 @@ function graphNode(name: string, inputs: string[], outputs: string[]): StreamGra
     process_raising_because: null,
     not_ready_because: null,
     config: {},
-    input_ports: inputs.map((port) => ({ name: port, family: "image" as const, stream_facts: null, values_checked: null, pin: null })),
-    output_ports: outputs.map((port) => ({ name: port, family: null, stream_facts: null, values_checked: null, pin: null })),
+    input_ports: inputs.map((port) => ({ name: port, family: "image" as const, stream_facts: null, values_checked: null, pin: null, value_read: null })),
+    output_ports: outputs.map((port) => ({ name: port, family: null, stream_facts: null, values_checked: null, pin: null, value_read: null })),
     dropped_bags_by_link: {},
     refused_bags_by_output_port: {},
     pins: {},
@@ -39,6 +39,7 @@ const GRAPH: StreamGraphSummary = {
           stream_facts: { family: "image", frame_rate: { numerator: 30000, denominator: 1001 }, content_light_level: null, mastering_display_colour_volume: null },
           values_checked: null,
           pin: { pin_type: { type: "texture" }, flow: "stream" },
+          value_read: null,
         },
       ],
     },
@@ -54,15 +55,15 @@ const GRAPH: StreamGraphSummary = {
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_of_their_types_and_an_input_shows_the_facts_its_one_link_carries", () => {
   expect(streamGraphCanvasContents(GRAPH, null).nodes).toEqual([
-    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, stream_facts_words: ["29.97 fps"] }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null },
+    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, stream_facts_words: ["29.97 fps"], value_address: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null },
     {
       node_id: "invert",
       title: "invert",
       type_name: "Effect",
       description: null,
       condition: { look: "healthy" },
-      inputs: [{ name: "video_in", pin: null, family: "image", description: null, stream_facts_words: ["29.97 fps"] }],
-      outputs: [{ name: "video_out", pin: null, family: null, description: null, stream_facts_words: [] }],
+      inputs: [{ name: "video_in", pin: null, family: "image", description: null, stream_facts_words: ["29.97 fps"], value_address: null }],
+      outputs: [{ name: "video_out", pin: null, family: null, description: null, stream_facts_words: [], value_address: null }],
       saved_position: null,
       frame_id: null,
       is_collapsed: false,
@@ -202,4 +203,22 @@ test("a_node_a_new_reading_leaves_as_it_was_is_drawn_by_the_object_the_reading_b
   expect(invertFailed.nodes[0]).toBe(before.nodes[0]);
   expect(invertFailed.nodes[1]).not.toBe(before.nodes[1]);
   expect(invertFailed.nodes[1]?.condition).toEqual({ look: "failed", failed_because: "it fell over" });
+});
+
+test("an_input_that_holds_a_value_is_addressed_by_its_nodes_id_at_the_level_drawn_and_a_new_value_draws_its_card_by_the_same_object", () => {
+  const withGain = (gain: number): StreamGraphSummary => ({
+    ...GRAPH,
+    nodes: GRAPH.nodes.map((node) =>
+      node.name === "invert" ? { ...node, input_ports: [...node.input_ports, { name: "gain", family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: { type: "float" }, flow: "value" }, value_read: { value: gain, comes_from: "saved" } }] } : node,
+    ),
+  });
+  const level = { project_folder: "/projects/demo", stream_asset: "stream-asset", level: ["SUB"] };
+  const before = streamGraphCanvasContents(withGain(0.5), null, null, level);
+  const invert = before.nodes.find((node) => node.node_id === "invert");
+  expect(invert?.inputs.map((input) => [input.name, input.value_address])).toEqual([
+    ["video_in", null],
+    ["gain", { graph: level, node_id: "INVERT", input: "gain" }],
+  ]);
+  expect(streamGraphCanvasContents(withGain(0.75), null, before, { ...level }).nodes.find((node) => node.node_id === "invert")).toBe(invert);
+  expect(streamGraphCanvasContents(withGain(0.5), null).nodes.find((node) => node.node_id === "invert")?.inputs.map((input) => input.value_address)).toEqual([null, null]);
 });

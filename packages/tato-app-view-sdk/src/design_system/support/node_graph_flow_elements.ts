@@ -2,6 +2,7 @@ import type { Edge, Node } from "@xyflow/react";
 import { createContext } from "react";
 import type { NodeGraphPosition } from "./node_graph_layout";
 import type { PinTypeKey } from "../../pin_model/pin_type_words";
+import type { InputValues } from "../../pin_services/input_values";
 import type { NodeGraphCanvasNode, NodeGraphCanvasFrame, NodeGraphCanvasNote, NodeGraphCanvasLink, NodeGraphCanvasEditing } from "./node_graph_canvas_contract";
 
 /** A card as React Flow holds it. */
@@ -42,6 +43,9 @@ export const connectionLookupKeyOfTheHandle = (nodeId: string, handleType: "sour
 
 /** The attribute every inline control on a card carries, which the canvas hides by while zoomed out past reading it. */
 export const NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE = "data-node-graph-inline-control";
+
+/** The store a card's rows read each input's value from; `null` shows no value. */
+export const NodeGraphInputValuesContext = createContext<InputValues | null>(null);
 
 /** Whether the canvas takes edits, which lets its pins start wires and its notes be edited. */
 export const NodeGraphEditableContext = createContext<boolean>(false);

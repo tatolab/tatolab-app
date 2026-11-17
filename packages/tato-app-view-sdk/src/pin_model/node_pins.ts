@@ -3,6 +3,7 @@
 
 import type { NodeCatalogPortPin, StreamGraphPortPin } from "../studio_readings.js";
 import type { PortFamily } from "../port_families.js";
+import type { InputAddress } from "./node_inputs.js";
 
 /** One pin of a node: its name, its exact type and flow (`null` for a pin with none), what its node type says of it, and what it states about its stream. */
 export interface NodePin {
@@ -13,6 +14,8 @@ export interface NodePin {
   /** The port's description as its node type declares it; `null` for none. */
   readonly description: string | null;
   readonly stream_facts_words: readonly string[];
+  /** Where the value an input holds while unwired is kept, the key its row reads the value by; `null` on an output, on an input that takes no stored value, and outside a stream's graph. */
+  readonly value_address: InputAddress | null;
 }
 
 /** One row of a node's card: the side of the card its socket sits on, and its pin, or what stands for it, as its name in the layout. */

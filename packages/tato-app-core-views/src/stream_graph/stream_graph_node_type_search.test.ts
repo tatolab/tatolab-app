@@ -151,8 +151,8 @@ test("a_previewed_pin_shows_the_type_its_node_type_states_exactly_and_none_where
 test("a_node_type_is_previewed_as_its_card_titled_in_words_with_its_pins_and_a_graph_generator_as_nothing", () => {
   expect(nodeTypeSearchPreviewCard([BLUR, METER], "nodes.blur:GaussianBlur")).toEqual({
     title: "Gaussian Blur",
-    inputs: [{ name: "video_in", pin: null, family: "image", description: null, stream_facts_words: [] }],
-    outputs: [{ name: "video_out", pin: null, family: "image", description: null, stream_facts_words: [] }],
+    inputs: [{ name: "video_in", pin: null, family: "image", description: null, stream_facts_words: [], value_address: null }],
+    outputs: [{ name: "video_out", pin: null, family: "image", description: null, stream_facts_words: [], value_address: null }],
   });
   expect(nodeTypeSearchPreviewCard([BLUR, METER], "graph_generator:generators.mics:mic_levels")).toBeNull();
 });
