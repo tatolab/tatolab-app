@@ -44,7 +44,8 @@ function buildFeaturesBesideTheMainBundle(): Plugin {
 const CORE_VIEWS_PACKAGE_FOLDER = path.resolve(import.meta.dirname, "../../packages/tato-app-core-views");
 const BUILT_CORE_VIEWS_FOLDER = path.join(CORE_VIEWS_PACKAGE_FOLDER, "dist");
 const SERVED_CORE_VIEWS_PATH = "/core_views/";
-const BUILT_SUPPLIED_MODULES_FOLDER = path.resolve(import.meta.dirname, "../../packages/tato-app-view-sdk/dist/studio_sdk");
+const VIEW_SDK_PACKAGE_FOLDER = path.resolve(import.meta.dirname, "../../packages/tato-app-view-sdk");
+const BUILT_SUPPLIED_MODULES_FOLDER = path.join(VIEW_SDK_PACKAGE_FOLDER, "dist", "studio_sdk");
 const CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -98,13 +99,15 @@ function builtCoreViewsBesideTheWindow(): Plugin {
 
 /**
  * Serves the modules the Studio supplies to views, `packages/tato-app-view-sdk/dist/studio_sdk/`, at `studio_sdk/`
- * beside the window: from the dev server, and copied into `out/renderer/studio_sdk/` by a build, where the window's
+ * beside the window: from the dev server, which rebuilds them as the SDK's source changes, and copied into `out/renderer/studio_sdk/` by a build, where the window's
  * page protocol serves them on the window's origin, the one a view's import map resolves them against.
  */
 function suppliedModulesBesideTheWindow(): Plugin {
   return {
     name: "tatolab-supplied-modules-beside-the-window",
-    configureServer(devServer) {
+    async configureServer(devServer) {
+      const suppliedModulesRebuiltOnChange = await build({ configFile: path.join(VIEW_SDK_PACKAGE_FOLDER, "vite.studio_sdk.config.ts"), logLevel: "warn", build: { watch: {} } });
+      if (isARolldownWatcher(suppliedModulesRebuiltOnChange)) devServer.httpServer?.once("close", () => void suppliedModulesRebuiltOnChange.close());
       serveABuiltFolderFromTheDevServer(devServer, SUPPLIED_MODULES_PATH, BUILT_SUPPLIED_MODULES_FOLDER, "the modules the Studio supplies");
     },
     async writeBundle(outputOptions) {

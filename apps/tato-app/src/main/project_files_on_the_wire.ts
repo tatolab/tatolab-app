@@ -72,7 +72,7 @@ export function bytesOfTheBase64Content(toolResult: JsonObjectOnTheWire): Result
 export function bytesOfTheBase64ContentOfTheContract(fileRead: { readonly content_base64: string; readonly byte_len: number | bigint }): Result<Buffer, string> {
   if (!isStandardBase64WithPadding(fileRead.content_base64)) return failedWith("`content_base64` is not standard base64 with padding");
   const fileBytes = Buffer.from(fileRead.content_base64, "base64");
-  if (BigInt(fileBytes.length) !== BigInt(fileRead.byte_len)) return failedWith(`\`content_base64\` holds ${fileBytes.length} bytes where \`byte_len\` says ${fileRead.byte_len}`);
+  if (fileBytes.length !== Number(fileRead.byte_len)) return failedWith(`\`content_base64\` holds ${fileBytes.length} bytes where \`byte_len\` says ${fileRead.byte_len}`);
   return succeeded(fileBytes);
 }
 

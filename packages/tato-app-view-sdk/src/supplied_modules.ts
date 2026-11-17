@@ -22,8 +22,8 @@ export const SUPPLIED_MODULES_IMPORT_MAP_TEXT = JSON.stringify({
   imports: Object.fromEntries(SUPPLIED_MODULES.map((suppliedModule) => [suppliedModule.name, `${SUPPLIED_MODULES_PATH}${suppliedModule.served_file}`])),
 });
 
-/** A page's doctype, after a byte order mark and white space. */
-const DOCTYPE_AT_THE_START_OF_A_PAGE = /^﻿?\s*<!doctype[^>]*>/i;
+/** A page's doctype, after a byte order mark, white space and comments. */
+const DOCTYPE_AT_THE_START_OF_A_PAGE = /^\uFEFF?(?:\s|<!--[\s\S]*?-->)*<!doctype[^>]*>/i;
 
 /** `pageHtml` with the supplied modules' import map straight after its doctype, or first when it has none, so the map comes before any module script. */
 export function withTheSuppliedModulesImportMap(pageHtml: string): string {

@@ -24,10 +24,11 @@ test("every supplied module of the SDK is one of the package's own entries, so a
   }
 });
 
-test("a page holds the import map straight after its doctype, whatever its case, or first when it has none", () => {
+test("a page holds the import map straight after its doctype, whatever its case and whatever comment comes before it, or first when it has none", () => {
   expect(withTheSuppliedModulesImportMap('<!doctype html>\n<html><script type="module" src="./main.ts"></script></html>')).toBe(
     `<!doctype html>${IMPORT_MAP_SCRIPT}\n<html><script type="module" src="./main.ts"></script></html>`,
   );
-  expect(withTheSuppliedModulesImportMap("﻿  <!DOCTYPE HTML>\n<html></html>")).toBe(`﻿  <!DOCTYPE HTML>${IMPORT_MAP_SCRIPT}\n<html></html>`);
+  expect(withTheSuppliedModulesImportMap("\uFEFF  <!DOCTYPE HTML>\n<html></html>")).toBe(`\uFEFF  <!DOCTYPE HTML>${IMPORT_MAP_SCRIPT}\n<html></html>`);
+  expect(withTheSuppliedModulesImportMap("<!-- deck -->\n<!doctype html><html></html>")).toBe(`<!-- deck -->\n<!doctype html>${IMPORT_MAP_SCRIPT}<html></html>`);
   expect(withTheSuppliedModulesImportMap("<html><head></head></html>")).toBe(`${IMPORT_MAP_SCRIPT}<html><head></head></html>`);
 });
