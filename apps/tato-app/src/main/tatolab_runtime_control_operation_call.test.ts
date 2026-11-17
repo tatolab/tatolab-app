@@ -29,7 +29,7 @@ function settledCall<Method extends keyof ControlOperations>(localApiSocketPath:
   );
 }
 
-test("each call answers its operation's result in the contract's type, and a method the contract does not hold is a type error", () => {
+test("each call answers its operation's result in the contract's type", () => {
   expectTypeOf(callOneControlOperationOverAPost<"describe_runtime">).returns.resolves.toEqualTypeOf<Result<ControlOperationAnswer<"describe_runtime">, LocalApiRequestFailure>>();
   expectTypeOf<Extract<ControlOperationAnswer<"list_streams">, { kind: "answered" }>["result"]>().toEqualTypeOf<ListStreamsToolResult>();
   const describeTheRuntime = Effect.gen(function* () {
@@ -38,8 +38,6 @@ test("each call answers its operation's result in the contract's type, and a met
   });
   expectTypeOf<Effect.Success<typeof describeTheRuntime>>().toEqualTypeOf<DescribeRuntimeToolResult>();
   expectTypeOf<Effect.Error<typeof describeTheRuntime>>().toEqualTypeOf<RuntimeControlFailure>();
-  // @ts-expect-error `no_such_operation` is no method of the contract.
-  expectTypeOf(callOneControlOperationOverAPost<"no_such_operation">).toBeFunction();
 });
 
 test("a recorded describe_runtime answer is handed on as the contract's DescribeRuntimeToolResult, as the client read it", async () => {

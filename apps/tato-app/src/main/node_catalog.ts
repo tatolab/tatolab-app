@@ -6,12 +6,12 @@
 // wire, a stored value, or both (`input_mode`, a setting taking no wire). Every other key the
 // runtime renders is ignored.
 
-import { readControlContractValue } from "@tatolab/runtime-client";
 import type { JsonValue, NodeCatalog, NodeCatalogEntry, NodeCatalogPort } from "../shared/tatolab_backend_contract.js";
 import { arrayOrEmpty, everyOneRead, isAJsonValue, jsonObject, type JsonObjectOnTheWire, optionalText, parseJsonOnTheWire, requiredArray, requiredText, textOrDefault } from "./json_on_the_wire.js";
 import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
 import { nodeCatalogPortPinOnTheWire } from "./port_pin_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
+import { readControlContractValue } from "./tatolab_runtime_control_operation_call.js";
 
 /** The request target of the node catalog of the loaded stream `stream`. */
 export function nodeCatalogRequestTarget(stream: string): string {

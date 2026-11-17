@@ -2,7 +2,7 @@
 // `words` a person is shown. A refusal's words are the runtime's own, never rewritten.
 
 import { Data } from "effect";
-import type { ProjectActionRefusalOnTheWire } from "@tatolab/runtime-client";
+import type { ProjectActionRefusalOnTheWire } from "./tatolab_runtime_control_operation_call.js";
 
 /**
  * The runtime answered `operation` and said no: `byTheOperation` when the operation itself refused or failed, otherwise its

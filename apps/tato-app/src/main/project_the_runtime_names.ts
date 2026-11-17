@@ -2,6 +2,7 @@
 // `tatolab-project.json`, and, from `list_assets`, for its card its description and when its
 // history last changed. Its assets and every other key are ignored.
 
+import type { ControlOperationResult } from "./tatolab_runtime_control_operation_call.js";
 import type { ProjectTheRuntimeNames } from "../shared/tatolab_backend_contract.js";
 import { arrayOrEmpty, isAJsonObject, optionalText, optionalUnsignedInteger, requiredText, toolResultReadWith, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
 import { succeeded, type Result } from "./result.js";
@@ -17,12 +18,12 @@ export interface ProjectSummaryTheRuntimeServes extends ProjectTheRuntimeNames {
 }
 
 /** The project `list_assets` answered with `operationResult`, or why it could not be read. */
-export function projectTheRuntimeNamesFromTheListAssetsToolResult(operationResult: unknown): Result<ProjectTheRuntimeNames, string> {
+export function projectTheRuntimeNamesFromTheListAssetsToolResult(operationResult: ControlOperationResult<"list_assets">): Result<ProjectTheRuntimeNames, string> {
   return toolResultReadWith("list_assets", operationResult, (toolResult) => projectNamedIn(toolResult, "project_name"));
 }
 
 /** The project `list_assets` answered with `operationResult`, with its description and last edit, or why it could not be read. */
-export function projectSummaryFromTheListAssetsToolResult(operationResult: unknown): Result<ProjectSummaryTheRuntimeServes, string> {
+export function projectSummaryFromTheListAssetsToolResult(operationResult: ControlOperationResult<"list_assets">): Result<ProjectSummaryTheRuntimeServes, string> {
   return toolResultReadWith("list_assets", operationResult, projectSummaryIn);
 }
 

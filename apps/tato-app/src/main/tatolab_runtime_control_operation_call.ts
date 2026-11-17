@@ -1,12 +1,14 @@
-// The one module that calls the runtime through streamlib's generated `@tatolab/runtime-client`: it
-// calls a control operation over the runtime's JSON-RPC adapter, in one `POST /control` or on the
+// The main process's one importer of streamlib's generated `@tatolab/runtime-client`, and the one
+// module that calls the runtime through it: it calls a control operation over the runtime's JSON-RPC adapter, in one `POST /control` or on the
 // WebSocket at `/control/ws`. `RuntimeControl` makes the call as an Effect failing with a
 // `RuntimeControlFailure`; the calls not yet converted settle every outcome as a `Result`. The
 // client checks each call and answer against the control contract: it rejects params that do not
 // match with `ControlRequestInvalid` before sending them, an answer that does not match with
 // `ControlAnswerInvalid`, the runtime's JSON-RPC error with `ControlOperationError`, and with any
 // other error when nothing answered. An answer is checked once, by the client, and handed on as the
-// contract's type for its operation; nothing here reads it again.
+// contract's type for its operation; a hand-written reader still walks it, typed, until its
+// operation is next touched. The contract types and the checker the rest of the main process reads
+// with are re-exported from here.
 
 import {
   CONTROL_OPERATION_FAILED_ERROR_CODE,
@@ -26,6 +28,16 @@ import {
   type ControlOperations,
   type ProjectActionRefusalOnTheWire,
 } from "@tatolab/runtime-client";
+export type {
+  ControlContractComponents,
+  ControlContractIssue,
+  GraphTransactionToolResult,
+  NodeUiManifest,
+  PinFlow,
+  ProjectActionRefusalOnTheWire,
+  SuggestedOperationCall,
+} from "@tatolab/runtime-client";
+export { readControlContractValue } from "@tatolab/runtime-client";
 import { Context, Duration, Effect, Layer } from "effect";
 import { TATO_STUDIO_MCP_CLIENT_NAME, type ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
@@ -45,8 +57,11 @@ export type ControlOperationAnswer<Method extends ControlOperationMethodName> =
   | { kind: "answered"; result: ControlOperationResult<Method> }
   | { kind: "refused_by_the_operation"; words: string };
 
+/** How an issue at the root of a call's params or answer names where it is. */
+const THE_WHOLE_VALUE = "(the whole value)";
+
 /** Each of `issues` as where in the value it is, `whole` for the value itself, and what is wrong there. */
-function describeTheContractIssues(issues: readonly ControlContractIssue[], whole: string): string {
+export function describeTheContractIssues(issues: readonly ControlContractIssue[], whole: string): string {
   return issues.map((issue) => `${issue.path.length === 0 ? whole : issue.path.map(String).join(".")}: ${issue.message}`).join("; ");
 }
 
@@ -67,10 +82,16 @@ export function controlContractTypeOf(method: ControlOperationMethodName, part: 
   return componentName ?? `ControlOperations["${method}"]["${part}"]`;
 }
 
-/** That the answer to `method` does not read as the contract's type for it, for each of `issues`. */
-function answerContractMismatch(method: ControlOperationMethodName, issues: string): ContractMismatch {
+/** That the answer to `method` does not read as the contract's type for it, for `why`. */
+export function answerContractMismatch(method: ControlOperationMethodName, why: string): ContractMismatch {
   const contractType = controlContractTypeOf(method, "result");
-  return new ContractMismatch({ operation: method, contractType, direction: "answer", words: `the runtime's answer to \`${method}\` is not the contract's \`${contractType}\`: ${issues}` });
+  return new ContractMismatch({ operation: method, contractType, direction: "answer", words: `the runtime's answer to \`${method}\` is not the contract's \`${contractType}\`: ${why}` });
+}
+
+/** That the params for `method` are not the contract's type for them, for `why`, so they were not sent. */
+function requestContractMismatch(method: ControlOperationMethodName, why: string): ContractMismatch {
+  const contractType = controlContractTypeOf(method, "params");
+  return new ContractMismatch({ operation: method, contractType, direction: "request", words: `\`${method}\` was not sent: its params are not the contract's \`${contractType}\`: ${why}` });
 }
 
 /** How long one local API request may go without its answer before the runtime reads as not answering, unless its operation has a limit of its own. */
@@ -136,16 +157,8 @@ function runtimeControlFailureOfTheCall(method: ControlOperationMethodName, loca
       refusal: callFailure.refusal,
     });
   }
-  if (callFailure instanceof ControlRequestInvalid) {
-    const contractType = controlContractTypeOf(method, "params");
-    return new ContractMismatch({
-      operation: method,
-      contractType,
-      direction: "request",
-      words: `\`${method}\` was not sent: its params are not the contract's \`${contractType}\`: ${describeTheContractIssues(callFailure.issues, "(the whole value)")}`,
-    });
-  }
-  if (callFailure instanceof ControlAnswerInvalid) return answerContractMismatch(method, describeTheContractIssues(callFailure.issues, "(the whole value)"));
+  if (callFailure instanceof ControlRequestInvalid) return requestContractMismatch(method, describeTheContractIssues(callFailure.issues, THE_WHOLE_VALUE));
+  if (callFailure instanceof ControlAnswerInvalid) return answerContractMismatch(method, describeTheContractIssues(callFailure.issues, THE_WHOLE_VALUE));
   const failureText = describeCaughtFailure(callFailure);
   return new RuntimeUnreachable({
     operation: method,

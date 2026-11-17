@@ -4,6 +4,7 @@
 // `media_facts` (`duration_ms` aside, each an object or `null`) the runtime read. Every other key
 // is ignored.
 
+import type { ControlOperationResult } from "./tatolab_runtime_control_operation_call.js";
 import type { JsonValue, ProjectAsset, ProjectAssetListing, ProjectAssetPreview } from "../shared/tatolab_backend_contract.js";
 import { everyOneRead, isAJsonObject, isAJsonValue, jsonObject, objectOrEmpty, optionalObject, requiredArray, requiredText, requiredUnsignedInteger, toolResultReadWith, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
 import { previewPictureSizeIn } from "./asset_preview_picture_on_the_wire.js";
@@ -11,7 +12,7 @@ import { projectNamedIn } from "./project_the_runtime_names.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** The assets `list_assets` answered with `operationResult`, or why they could not be read. */
-export function projectAssetListingFromTheListAssetsToolResult(operationResult: unknown): Result<ProjectAssetListing, string> {
+export function projectAssetListingFromTheListAssetsToolResult(operationResult: ControlOperationResult<"list_assets">): Result<ProjectAssetListing, string> {
   return toolResultReadWith("list_assets", operationResult, projectAssetListingIn);
 }
 

@@ -1,17 +1,17 @@
 // The Studio's own node UI module, `packages/tato-app-core-node-ui/`. Its manifest is read by the
-// runtime client's checker against the contract's node UI manifest, and its elements are listed as a project's are, brought
-// by the Studio, whose control names are bare. Its files are copied as source beside the built
+// runtime client's checker against the contract's node UI manifest, and its elements are listed as
+// a project's are, brought by the Studio, whose control names are bare. Its files are copied as source beside the built
 // window, at `core_node_ui/`, and a page is served each the way a project's extension file is: a
 // `.ts` with its types removed. The files sit inside the signed app and cannot change, so they are
 // served without asking the runtime.
 
-import { readControlContractValue, type ControlContractIssue, type NodeUiManifest } from "@tatolab/runtime-client";
 import studioNodeUiManifestJson from "@tatolab/tato-app-core-node-ui/node_ui/tatolab_node_ui.json" with { type: "json" };
 import type { ListedNodeUiElement, NodeUiElementRegistration } from "@tatolab/tato-app-view-sdk/node_ui_host";
 import { Data, Effect } from "effect";
 import { howAProjectViewFileIsServed, projectViewFileAsServed, type ExtensionFileAnswer, type ExtensionFileNotServableAsWritten } from "./extension_files_served_with_types_removed.js";
 import { describeCaughtFailure } from "./result.js";
 import { tatolabAppLogAsEffectsLogger } from "./studio_runtime.js";
+import { describeTheContractIssues, readControlContractValue, type NodeUiManifest } from "./tatolab_runtime_control_operation_call.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import { isOnTheLocationUnderThePath, TATOLAB_WINDOW_PAGE_ROOT_URL, windowPagePathUnderThePrefix, windowPageUrlUnderThePath } from "./window_page_locations.js";
 
@@ -50,16 +50,11 @@ function elementsTheStudiosManifestRegisters(manifest: NodeUiManifest, folderVer
   ];
 }
 
-/** Each of `issues` as where in the manifest it is and what is wrong there. */
-function describeTheManifestIssues(issues: readonly ControlContractIssue[]): string {
-  return issues.map((issue) => `${issue.path.length === 0 ? "the manifest" : issue.path.map(String).join(".")}: ${issue.message}`).join("; ");
-}
-
 /** The elements the node UI manifest `manifestJson` registers, read against the contract's node UI manifest, as the Studio's own. */
 export function studioNodeUiElementsListed(manifestJson: unknown, folderVersion: string): Effect.Effect<readonly ListedNodeUiElement[], StudioNodeUiManifestUnreadable> {
   const manifestReading = readControlContractValue("NodeUiManifest", manifestJson);
   if (!manifestReading.read) {
-    return Effect.fail(new StudioNodeUiManifestUnreadable({ words: `The Studio's own node_ui/tatolab_node_ui.json is not a node UI manifest: ${describeTheManifestIssues(manifestReading.issues)}` }));
+    return Effect.fail(new StudioNodeUiManifestUnreadable({ words: `The Studio's own node_ui/tatolab_node_ui.json is not a node UI manifest: ${describeTheContractIssues(manifestReading.issues, "the manifest")}` }));
   }
   return Effect.succeed(elementsTheStudiosManifestRegisters(manifestReading.value, folderVersion));
 }

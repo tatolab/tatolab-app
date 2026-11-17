@@ -5,9 +5,9 @@
 // contract's; a port that serves neither, only one, or one this app's contract cannot read is read
 // as untyped, as it read before the runtime served them.
 
-import { readControlContractValue, type ControlContractComponents, type PinFlow } from "@tatolab/runtime-client";
 import type { NodeCatalogPortPin, StreamGraphPortPin } from "../shared/tatolab_backend_contract.js";
 import type { JsonObjectOnTheWire } from "./json_on_the_wire.js";
+import { readControlContractValue, type ControlContractComponents, type PinFlow } from "./tatolab_runtime_control_operation_call.js";
 
 /** The contract's pin type `pinTypeComponent` read under the port's `pin_type`, with its flow; `null` unless both read. */
 function pinOnTheWire<PinTypeComponent extends "PinType" | "DeclaredPinType">(
