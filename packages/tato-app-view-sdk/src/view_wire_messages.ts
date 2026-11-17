@@ -1,62 +1,63 @@
-// The view contract as it crosses the MessagePort between a view's frame and Studio. Every message
-// is structured-cloned and parsed against these schemas by whichever end receives it. Every view's
-// frame shares Studio's origin, so an Image frame crosses as the transferred `VideoFrame`, with no copy.
+// The view contract as it crosses the MessagePort between a view's frame and Studio. Studio's own
+// build writes every message it sends a view, so a view takes it as the type below and parses none
+// of it; a message a view sends is an author's code, so Studio parses it against the schemas here.
+// Every view's frame shares Studio's origin, so an Image frame crosses as the transferred
+// `VideoFrame`, with no copy.
 
 import { z } from "zod";
 import {
   jsonValueSchema,
-  listedStreamsReadingSchema,
-  nodeCatalogReadingSchema,
-  openProjectReadingSchema,
-  portViewerMessageReadingSchema,
-  portViewerTargetSchema,
-  projectFileReadSchema,
-  projectFilesSchema,
-  projectLogReadingSchema,
-  projectNodeTypesReadingSchema,
-  projectAssetsImportedSchema,
-  assetPreviewPictureSchema,
-  projectAssetsReadingSchema,
-  projectTransactionAuthorSchema,
-  projectTransactionSchema,
-  projectTransactionsReadingSchema,
-  studioViewsReadingSchema,
-  pythonLanguageServerConnectionEventSchema,
   graphEditModeSchema,
-  projectActionRefusalSchema,
-  projectGraphTransactionSchema,
+  portViewerTargetSchema,
+  projectTransactionAuthorSchema,
   streamGraphActionSchema,
-  streamGraphReadingSchema,
   streamTabAddressSchema,
   studioSelectionSchema,
-  viewHeaderRowSchema,
-  viewOpenedOnSchema,
+  type AssetPreviewPicture,
+  type JsonValue,
+  type ListedStreamsReading,
+  type NodeCatalogReading,
+  type OpenProjectReading,
+  type PortViewerMessageReading,
+  type ProjectActionRefusal,
+  type ProjectAssetsImported,
+  type ProjectAssetsReading,
+  type ProjectFileRead,
+  type ProjectFiles,
+  type ProjectGraphTransaction,
+  type ProjectLogReading,
+  type ProjectNodeTypesReading,
+  type ProjectTransaction,
+  type ProjectTransactionAuthor,
+  type ProjectTransactionsReading,
+  type PythonLanguageServerConnectionEvent,
+  type StreamGraphReading,
+  type StreamTabAddress,
+  type StudioSelection,
+  type StudioViewsReading,
+  type ViewHeaderRow,
+  type ViewOpenedOn,
 } from "./studio_readings.js";
-import { nodeUiElementsReadingSchema } from "./node_ui_readings.js";
-import { VIEW_CAPABILITIES, viewDeclaredPortSchema } from "./tatolab_view_manifest.js";
-
-const videoFrameSchema = z.custom<VideoFrame>((value) => typeof VideoFrame !== "undefined" && value instanceof VideoFrame, "an Image frame is a VideoFrame");
+import type { NodeUiElementsReading } from "./node_ui/node_ui_elements_listing.js";
+import type { TatolabViewManifest } from "./tatolab_view_manifest.js";
 
 /** What a port viewer delivers: an Image frame as a `VideoFrame` the view closes once drawn, or as its pixels; another family's message, read by its family; or the viewer reopening or ending, with why. */
-export const portViewerEventSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("image_frame"), video_frame: videoFrameSchema, format_wire_name: z.string(), skipped_since_last_read: z.number() }),
-  z.object({
-    kind: z.literal("image_pixels"),
-    width: z.number(),
-    height: z.number(),
-    /** The runtime's wire name of the frame's pixel format (`bgra32`, `rgba32`, `nv12`, …). */
-    format_wire_name: z.string(),
-    bytes_per_row: z.number(),
-    pixels: z.custom<Uint8Array>((value) => value instanceof Uint8Array, "pixels are a Uint8Array"),
-    /** Messages the viewer skipped before this one, because a viewer reads only the latest. */
-    skipped_since_last_read: z.number(),
-  }),
-  z.object({ kind: z.literal("message"), reading: portViewerMessageReadingSchema, skipped_since_last_read: z.number() }),
-  z.object({ kind: z.literal("reopening"), because: z.string() }),
-  z.object({ kind: z.literal("ended"), because: z.string() }),
-]);
-/** What a port viewer delivers. */
-export type PortViewerEvent = z.infer<typeof portViewerEventSchema>;
+export type PortViewerEvent =
+  | { kind: "image_frame"; video_frame: VideoFrame; format_wire_name: string; skipped_since_last_read: number }
+  | {
+      kind: "image_pixels";
+      width: number;
+      height: number;
+      /** The runtime's wire name of the frame's pixel format (`bgra32`, `rgba32`, `nv12`, …). */
+      format_wire_name: string;
+      bytes_per_row: number;
+      pixels: Uint8Array;
+      /** Messages the viewer skipped before this one, because a viewer reads only the latest. */
+      skipped_since_last_read: number;
+    }
+  | { kind: "message"; reading: PortViewerMessageReading; skipped_since_last_read: number }
+  | { kind: "reopening"; because: string }
+  | { kind: "ended"; because: string };
 
 /** The type of the message Studio posts into a view's frame, carrying the view's end of its MessagePort as its one transferred port. */
 export const VIEW_PORT_HANDOVER = "tatolab_view_port";
@@ -69,24 +70,16 @@ export const modulesAndMarketplaceSectionSchema = z.enum(["added_to_this_project
 export type ModulesAndMarketplaceSection = z.infer<typeof modulesAndMarketplaceSectionSchema>;
 
 /** One area of the studio window's layout, as a view of some type could be shown in it: what it shows now, by its view's title, and whether that is the view type itself or the area of the view asking. */
-export const areaForAViewTypeSchema = z.object({
-  area_id: z.string(),
+export type AreaForAViewType = {
+  area_id: string;
   /** The title of the view the area shows, `null` while it shows none. */
-  shows_view_title: z.string().nullable(),
-  shows_the_view_type: z.boolean(),
-  is_the_asking_views_area: z.boolean(),
-});
-/** One area a view of some type could be shown in. */
-export type AreaForAViewType = z.infer<typeof areaForAViewTypeSchema>;
+  shows_view_title: string | null;
+  shows_the_view_type: boolean;
+  is_the_asking_views_area: boolean;
+};
 
 /** The areas of the layout for a view type, as its node's Show in an area lists them: none when no view type has that id, or why the window has no areas. */
-export const areasForAViewTypeReadingSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("not_a_view_type") }),
-  z.object({ kind: z.literal("areas_listed"), view_title: z.string(), areas: z.array(areaForAViewTypeSchema) }),
-  z.object({ kind: z.literal("no_areas"), because: z.string() }),
-]);
-/** The areas of the layout for a view type. */
-export type AreasForAViewTypeReading = z.infer<typeof areasForAViewTypeReadingSchema>;
+export type AreasForAViewTypeReading = { kind: "not_a_view_type" } | { kind: "areas_listed"; view_title: string; areas: AreaForAViewType[] } | { kind: "no_areas"; because: string };
 
 /** A project asset the person is choosing in Studio's asset picker, as for a config field naming one. */
 export const projectAssetPickSchema = z.object({
@@ -209,81 +202,60 @@ export const messageFromTheViewSchema = z.discriminatedUnion("kind", [
 export type MessageFromTheView = z.infer<typeof messageFromTheViewSchema>;
 
 /** What an input delivers: its port viewer's events, or why nothing is wired into it. */
-export const viewInputEventSchema = z.union([portViewerEventSchema, z.object({ kind: z.literal("unwired"), because: z.string() })]);
-/** What an input delivers. */
-export type ViewInputEvent = z.infer<typeof viewInputEventSchema>;
+export type ViewInputEvent = PortViewerEvent | { kind: "unwired"; because: string };
 
 /** One reading of a watched subject, tagged with the subject's kind. */
-export const viewWatchedReadingSchema = z.discriminatedUnion("subject", [
-  z.object({ subject: z.literal("open_project"), reading: openProjectReadingSchema }),
-  z.object({ subject: z.literal("listed_streams"), reading: listedStreamsReadingSchema }),
-  z.object({ subject: z.literal("active_stream_tab"), reading: streamTabAddressSchema.nullable() }),
-  z.object({ subject: z.literal("selection"), reading: studioSelectionSchema }),
-  z.object({ subject: z.literal("stream_graph"), reading: streamGraphReadingSchema }),
-  z.object({ subject: z.literal("node_catalog"), reading: nodeCatalogReadingSchema }),
-  z.object({ subject: z.literal("project_log"), reading: projectLogReadingSchema }),
-  z.object({ subject: z.literal("project_node_types"), reading: projectNodeTypesReadingSchema }),
-  z.object({ subject: z.literal("project_assets"), reading: projectAssetsReadingSchema }),
-  z.object({ subject: z.literal("project_transactions"), reading: projectTransactionsReadingSchema }),
-  z.object({ subject: z.literal("studio_views"), reading: studioViewsReadingSchema }),
-  z.object({ subject: z.literal("node_ui_elements"), reading: nodeUiElementsReadingSchema }),
-  z.object({ subject: z.literal("port_viewer"), reading: portViewerEventSchema }),
-  z.object({ subject: z.literal("input"), reading: viewInputEventSchema }),
-  z.object({ subject: z.literal("python_language_server"), reading: pythonLanguageServerConnectionEventSchema }),
-  z.object({ subject: z.literal("settings"), reading: jsonValueSchema }),
-  z.object({ subject: z.literal("opened_on"), reading: viewOpenedOnSchema }),
-  z.object({ subject: z.literal("header_row"), reading: viewHeaderRowSchema }),
-  z.object({ subject: z.literal("area_expansion"), reading: z.object({ is_expanded: z.boolean() }) }),
-  z.object({ subject: z.literal("areas_for_the_view_type"), reading: areasForAViewTypeReadingSchema }),
-  z.object({ subject: z.literal("project_asset_pick"), reading: projectAssetPickSchema.nullable() }),
-]);
-/** One reading of a watched subject. */
-export type ViewWatchedReading = z.infer<typeof viewWatchedReadingSchema>;
+export type ViewWatchedReading =
+  | { subject: "open_project"; reading: OpenProjectReading }
+  | { subject: "listed_streams"; reading: ListedStreamsReading }
+  | { subject: "active_stream_tab"; reading: StreamTabAddress | null }
+  | { subject: "selection"; reading: StudioSelection }
+  | { subject: "stream_graph"; reading: StreamGraphReading }
+  | { subject: "node_catalog"; reading: NodeCatalogReading }
+  | { subject: "project_log"; reading: ProjectLogReading }
+  | { subject: "project_node_types"; reading: ProjectNodeTypesReading }
+  | { subject: "project_assets"; reading: ProjectAssetsReading }
+  | { subject: "project_transactions"; reading: ProjectTransactionsReading }
+  | { subject: "studio_views"; reading: StudioViewsReading }
+  | { subject: "node_ui_elements"; reading: NodeUiElementsReading }
+  | { subject: "port_viewer"; reading: PortViewerEvent }
+  | { subject: "input"; reading: ViewInputEvent }
+  | { subject: "python_language_server"; reading: PythonLanguageServerConnectionEvent }
+  | { subject: "settings"; reading: JsonValue }
+  | { subject: "opened_on"; reading: ViewOpenedOn }
+  | { subject: "header_row"; reading: ViewHeaderRow }
+  | { subject: "area_expansion"; reading: { is_expanded: boolean } }
+  | { subject: "areas_for_the_view_type"; reading: AreasForAViewTypeReading }
+  | { subject: "project_asset_pick"; reading: ProjectAssetPick | null };
 
 /** What Studio answers an ask with: done, refused in words, or what was read, saved or listed. */
-export const viewAskAnswerSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("done") }),
-  z.object({ kind: z.literal("refused"), because: z.string() }),
-  z.object({ kind: z.literal("project_file_read"), file_read: projectFileReadSchema }),
-  z.object({ kind: z.literal("project_file_saved"), version: z.string() }),
-  z.object({ kind: z.literal("node_file_created"), file: z.string(), node_type: z.string() }),
-  z.object({ kind: z.literal("project_files_listed"), project_files: projectFilesSchema }),
-  z.object({ kind: z.literal("project_transaction_applied"), transaction: projectTransactionSchema }),
-  z.object({ kind: z.literal("project_graph_transaction_applied"), transaction: projectGraphTransactionSchema }),
+export type ViewAskAnswer =
+  | { kind: "done" }
+  | { kind: "refused"; because: string }
+  | { kind: "project_file_read"; file_read: ProjectFileRead }
+  | { kind: "project_file_saved"; version: string }
+  | { kind: "node_file_created"; file: string; node_type: string }
+  | { kind: "project_files_listed"; project_files: ProjectFiles }
+  | { kind: "project_transaction_applied"; transaction: ProjectTransaction }
+  | { kind: "project_graph_transaction_applied"; transaction: ProjectGraphTransaction }
   /** The runtime refused the action, structured; a refusal before it reached the runtime is `refused`. */
-  z.object({ kind: z.literal("project_action_refused"), refusal: projectActionRefusalSchema }),
-  z.object({ kind: z.literal("the_person_editing"), author: projectTransactionAuthorSchema }),
-  z.object({ kind: z.literal("project_assets_imported"), assets_imported: projectAssetsImportedSchema }),
-  z.object({ kind: z.literal("asset_preview_read"), picture: assetPreviewPictureSchema }),
+  | { kind: "project_action_refused"; refusal: ProjectActionRefusal }
+  | { kind: "the_person_editing"; author: ProjectTransactionAuthor }
+  | { kind: "project_assets_imported"; assets_imported: ProjectAssetsImported }
+  | { kind: "asset_preview_read"; picture: AssetPreviewPicture }
   /** The person closed the open dialog choosing no file. */
-  z.object({ kind: z.literal("nothing_chosen") }),
+  | { kind: "nothing_chosen" }
   /** The asset the person chose in the asset picker, by its UUID. */
-  z.object({ kind: z.literal("project_asset_chosen"), asset: z.string() }),
+  | { kind: "project_asset_chosen"; asset: string }
   /** The asset picker closed with nothing chosen, and why: closed by the person, or another pick. */
-  z.object({ kind: z.literal("project_asset_pick_ended"), because: z.string() }),
-]);
-/** What Studio answers an ask with. */
-export type ViewAskAnswer = z.infer<typeof viewAskAnswerSchema>;
+  | { kind: "project_asset_pick_ended"; because: string };
 
 /** What Studio granted the view, as it reads it on connecting: its id, the contract served, its placement, declared ports and the capabilities its manifest declares. */
-export const viewGrantSchema = z.object({
-  view_type_id: z.string(),
-  contract: z.string(),
-  placement: z.enum(["area", "node"]),
-  inputs: z.array(viewDeclaredPortSchema),
-  outputs: z.array(viewDeclaredPortSchema),
-  capabilities: z.array(z.enum(VIEW_CAPABILITIES)),
-});
-/** What Studio granted the view. */
-export type ViewGrant = z.infer<typeof viewGrantSchema>;
+export type ViewGrant = { view_type_id: string; contract: string } & Pick<TatolabViewManifest, "placement" | "inputs" | "outputs" | "capabilities">;
 
 /** One message Studio sends a view. */
-export const messageFromStudioSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("hello"), grant: viewGrantSchema }),
-  z.object({ kind: z.literal("watched"), watch_id: watchOrAskIdSchema, watched: viewWatchedReadingSchema }),
-  z.object({ kind: z.literal("watch_refused"), watch_id: watchOrAskIdSchema, because: z.string() }),
-  z.object({ kind: z.literal("answered"), ask_id: watchOrAskIdSchema, answer: viewAskAnswerSchema }),
-]);
-/** One message Studio sends a view. */
-export type MessageFromStudio = z.infer<typeof messageFromStudioSchema>;
-
+export type MessageFromStudio =
+  | { kind: "hello"; grant: ViewGrant }
+  | { kind: "watched"; watch_id: number; watched: ViewWatchedReading }
+  | { kind: "watch_refused"; watch_id: number; because: string }
+  | { kind: "answered"; ask_id: number; answer: ViewAskAnswer };

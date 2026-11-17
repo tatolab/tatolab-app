@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { connectToTatoAppOverPort, newGestureIdempotencyKey, type TatoAppViewConnection } from "./tato_app_view_connection.js";
-import { messageFromTheViewSchema, type MessageFromStudio, type MessageFromTheView, type ViewGrant } from "./view_wire_messages.js";
-import type { ProjectTransaction } from "./studio_readings.js";
+import { messageFromTheViewSchema, type MessageFromStudio, type MessageFromTheView, type PortViewerEvent, type ViewGrant } from "./view_wire_messages.js";
+import type { ProjectActionRefusal, ProjectGraphTransaction, ProjectTransaction } from "./studio_readings.js";
 
 const GRANT: ViewGrant = { view_type_id: "notes", contract: "1.0", placement: "area", inputs: [], outputs: [], capabilities: [] };
 
@@ -13,8 +13,8 @@ afterEach(() => {
   }
 });
 
-/** A stand-in for Studio's end: it says hello with `GRANT`, and answers each message the view sends with what `answer` gives, in the contract's shape or not. */
-async function connectionToAStandInStudio(answer: (message: MessageFromTheView) => unknown[]): Promise<{ connection: TatoAppViewConnection; messagesFromTheView: MessageFromTheView[] }> {
+/** A stand-in for Studio's end: it says hello with `GRANT`, and answers each message the view sends with what `answer` gives, typed as Studio's own messages are. */
+async function connectionToAStandInStudio(answer: (message: MessageFromTheView) => MessageFromStudio[]): Promise<{ connection: TatoAppViewConnection; messagesFromTheView: MessageFromTheView[]; viewsEnd: MessagePort }> {
   const channel = new MessageChannel();
   channelsOpened.push(channel);
   const messagesFromTheView: MessageFromTheView[] = [];
@@ -26,11 +26,7 @@ async function connectionToAStandInStudio(answer: (message: MessageFromTheView) 
   channel.port1.start();
   const connecting = connectToTatoAppOverPort(channel.port2);
   channel.port1.postMessage({ kind: "hello", grant: GRANT } satisfies MessageFromStudio);
-  return { connection: await connecting, messagesFromTheView };
-}
-
-function nextTurns(count = 5): Promise<void> {
-  return new Promise((resolveTurns) => setTimeout(resolveTurns, count));
+  return { connection: await connecting, messagesFromTheView, viewsEnd: channel.port2 };
 }
 
 describe("connectToTatoAppOverPort", () => {
@@ -50,14 +46,21 @@ describe("connectToTatoAppOverPort", () => {
     await vi.waitFor(() => expect(messagesFromTheView.at(-1)).toEqual({ kind: "stop_watching", watch_id: 1 }));
   });
 
-  it("ignores a message from Studio out of the contract's shape", async () => {
-    const { connection } = await connectionToAStandInStudio((message) =>
-      message.kind === "watch" ? [{ kind: "watched", watch_id: message.watch_id, watched: { subject: "selection", reading: { kind: "everything" } } }] : [],
-    );
-    const selections: unknown[] = [];
-    connection.watchSelection((selection) => selections.push(selection));
-    await nextTurns();
-    expect(selections).toEqual([]);
+  it("hands a watched reading to its listener as the very object that arrived, a frame's pixels among them, with no copy", async () => {
+    const { connection, viewsEnd } = await connectionToAStandInStudio(() => []);
+    const events: unknown[] = [];
+    connection.watchPortViewer({ stream: "s", node_id: "camera", port: "video" }, (event) => events.push(event));
+    const frame: PortViewerEvent = { kind: "image_pixels", width: 1, height: 1, format_wire_name: "rgba32", bytes_per_row: 4, pixels: new Uint8Array([1, 2, 3, 4]), skipped_since_last_read: 0 };
+    const arrived: MessageFromStudio = { kind: "watched", watch_id: 1, watched: { subject: "port_viewer", reading: frame } };
+    viewsEnd.dispatchEvent(new MessageEvent("message", { data: arrived }));
+    expect(events).toHaveLength(1);
+    expect(events[0]).toBe(frame);
+  });
+
+  it("records the contract: MessageFromStudio admits no shape outside it", () => {
+    expectTypeOf<{ kind: "watched"; watch_id: number; watched: { subject: "selection"; reading: { kind: "everything" } } }>().not.toExtend<MessageFromStudio>();
+    expectTypeOf<{ kind: "answered"; ask_id: number; answer: { kind: "project_file_saved" } }>().not.toExtend<MessageFromStudio>();
+    expectTypeOf<{ kind: "watched"; watch_id: number; watched: { subject: "selection"; reading: { kind: "node"; stream: string; node: string } } }>().toExtend<MessageFromStudio>();
   });
 
   it("reads a project file through an ask, and turns a refusal into why it was not read", async () => {
@@ -115,8 +118,7 @@ describe("connectToTatoAppOverPort", () => {
     });
     const readings: unknown[] = [];
     connection.watchProjectTransactions("/p", (reading) => readings.push(reading));
-    await nextTurns();
-    expect(readings).toEqual([{ kind: "not_read", because: "No runtime answers." }]);
+    await vi.waitFor(() => expect(readings).toEqual([{ kind: "not_read", because: "No runtime answers." }]));
     const author = { kind: "agent", name: "claude-code" } as const;
     expect(await connection.undoInTheProject("/p", author)).toEqual({ kind: "applied", transaction: undo });
     expect(messagesFromTheView.at(-1)).toMatchObject({ kind: "ask", ask: { kind: "undo_in_the_project", project_folder: "/p", author } });
@@ -124,7 +126,7 @@ describe("connectToTatoAppOverPort", () => {
   });
 
   it("sends a graph transaction under its gesture's key, answering what the runtime applied, its structured refusal with its code, place and suggested call, or Studio's own refusal", async () => {
-    const applied = {
+    const applied: ProjectGraphTransaction = {
       mode: "commit",
       transaction: "t1",
       commit: "c1",
@@ -134,7 +136,7 @@ describe("connectToTatoAppOverPort", () => {
       added_groups: [],
       added_notes: [],
     };
-    const refusal = {
+    const refusal: ProjectActionRefusal = {
       refusal_code: "params_do_not_match_schema",
       action: "transact",
       refused_operation_index: 0,
