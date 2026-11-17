@@ -59,22 +59,33 @@ function importsStayInsideThePackageRule(packageFolder) {
 }
 
 /**
- * A rule refusing any import but a relative one or one of `allowedImports`: a file of an entry that
- * imports no library pulls in no library's code or types.
+ * A rule refusing any import but a relative one: a file of an entry that imports no library pulls in
+ * no library's code or types. With `libraryTypesOnly`, a type-only import of a library is taken, so
+ * the file names a library's types and no code of it reaches a build.
  */
 const importsNoLibraryRule = {
-  meta: { type: "problem", schema: [{ type: "object", properties: { allowedImports: { type: "array", items: { type: "string" } } }, additionalProperties: false }] },
+  meta: { type: "problem", schema: [{ type: "object", properties: { libraryTypesOnly: { type: "boolean" } }, additionalProperties: false }] },
   create(context) {
-    const allowedImports = new Set(context.options[0]?.allowedImports ?? []);
-    const refuseALibrary = (node, importedFrom) => {
-      if (typeof importedFrom !== "string" || importedFrom.startsWith(".") || allowedImports.has(importedFrom)) return;
-      context.report({ node, message: `${importedFrom} is a library, and this entry imports none: an author would receive its code and its types.` });
+    const libraryTypesOnly = context.options[0]?.libraryTypesOnly === true;
+    const refuseALibrary = (node, importedFrom, typeOnly) => {
+      if (typeof importedFrom !== "string" || importedFrom.startsWith(".") || (libraryTypesOnly && typeOnly)) return;
+      context.report({
+        node,
+        message: libraryTypesOnly
+          ? `${importedFrom} is a library, and this entry takes only its types: import it with \`import type\` or \`export type\`.`
+          : `${importedFrom} is a library, and this entry imports none: an author would receive its code and its types.`,
+      });
     };
+    const everySpecifierIsAType = (node) => node.specifiers.length > 0 && node.specifiers.every((specifier) => specifier.importKind === "type" || specifier.exportKind === "type");
     return {
-      ImportDeclaration: (node) => refuseALibrary(node.source, node.source.value),
-      ExportNamedDeclaration: (node) => node.source && refuseALibrary(node.source, node.source.value),
-      ExportAllDeclaration: (node) => refuseALibrary(node.source, node.source.value),
-      ImportExpression: (node) => node.source.type === "Literal" && refuseALibrary(node.source, node.source.value),
+      ImportDeclaration: (node) => refuseALibrary(node.source, node.source.value, node.importKind === "type" || everySpecifierIsAType(node)),
+      ExportNamedDeclaration: (node) => node.source && refuseALibrary(node.source, node.source.value, node.exportKind === "type" || everySpecifierIsAType(node)),
+      ExportAllDeclaration: (node) => refuseALibrary(node.source, node.source.value, node.exportKind === "type"),
+      ImportExpression: (node) => node.source.type === "Literal" && refuseALibrary(node.source, node.source.value, false),
+      TSImportType: (node) => {
+        const importedFrom = node.source ?? node.argument?.literal ?? node.argument;
+        if (importedFrom?.type === "Literal") refuseALibrary(importedFrom, importedFrom.value, true);
+      },
     };
   },
 };
@@ -89,10 +100,10 @@ const PACKAGE_LINTED_FILES = ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.mjs"]
 
 /**
  * The lint config of the package in `packageFolder`, whose sources and tests live in `src/`.
- * `filesThatImportNoLibrary` are the sources of entries that import no library, which may import
- * only each other and `allowedLibraryImports`.
+ * `filesThatImportNoLibrary` import only each other; `filesThatImportOnlyLibraryTypes` may also
+ * take a library's types, and none of its code.
  */
-export function packageLintConfig(packageFolder, { filesThatImportNoLibrary = [], allowedLibraryImports = [] } = {}) {
+export function packageLintConfig(packageFolder, { filesThatImportNoLibrary = [], filesThatImportOnlyLibraryTypes = [] } = {}) {
   return tseslint.config(
     { ignores: ["node_modules/**", "dist/**"] },
     ...tatolabTypeScriptLintConfig({ files: PACKAGE_LINTED_FILES, testFiles: ["src/**/*.test.ts", "src/**/*.test.tsx"] }),
@@ -112,8 +123,9 @@ export function packageLintConfig(packageFolder, { filesThatImportNoLibrary = []
         "no-restricted-imports": ["error", { paths: ROUND_STATUS_ICON_IMPORTS, patterns: IMPORTS_OUTSIDE_THE_PACKAGE }],
       },
     },
-    ...(filesThatImportNoLibrary.length === 0
+    ...(filesThatImportNoLibrary.length === 0 ? [] : [{ files: filesThatImportNoLibrary, ignores: ["**/*.test.ts"], rules: { "tatolab_package/imports_no_library": "error" } }]),
+    ...(filesThatImportOnlyLibraryTypes.length === 0
       ? []
-      : [{ files: filesThatImportNoLibrary, ignores: ["**/*.test.ts"], rules: { "tatolab_package/imports_no_library": ["error", { allowedImports: allowedLibraryImports }] } }]),
+      : [{ files: filesThatImportOnlyLibraryTypes, ignores: ["**/*.test.ts"], rules: { "tatolab_package/imports_no_library": ["error", { libraryTypesOnly: true }] } }]),
   );
 }

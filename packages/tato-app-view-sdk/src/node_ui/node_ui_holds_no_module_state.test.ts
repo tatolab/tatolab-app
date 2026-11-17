@@ -1,4 +1,4 @@
-// `./node_ui` and `./pin_types` hold no module-level state: a panel bundles one copy of the SDK
+// `./node_ui`, `./node_ui_host` and `./pin_types` hold no module-level state: a panel bundles one copy of the SDK
 // and an element imports the Studio's served copy, so two copies must behave as one.
 
 import { readFile } from "node:fs/promises";
@@ -7,7 +7,7 @@ import ts from "typescript";
 import { expect, test } from "vitest";
 
 const SDK_SOURCE_FOLDER = path.join(import.meta.dirname, "..");
-const ENTRIES_THAT_HOLD_NO_STATE = ["node_ui.ts", "pin_types.ts"];
+const ENTRIES_THAT_HOLD_NO_STATE = ["node_ui.ts", "node_ui_host.ts", "pin_types.ts"];
 
 /** Each source file the entries reach through relative imports and re-exports, parsed. */
 async function sourcesTheEntriesReach(): Promise<ts.SourceFile[]> {

@@ -2,7 +2,7 @@
 // `dist/studio_sdk/`: one ES module per name, at the file the import map resolves it to, beside the
 // chunks they share, so a page that imports several holds one copy of what they have in common.
 // A supplied module listed as importing no library fails the build when its file, or a chunk it
-// imports, holds code from any package but the generated pin types.
+// imports, holds code from any package.
 
 import path from "node:path";
 import { defineConfig, type Plugin, type Rolldown } from "vite";
@@ -26,9 +26,6 @@ function buildEntryNameOf(servedFile: string): string {
   return servedFile.replace(/\.js$/, "");
 }
 
-/** The one package file a module that imports no library may hold: the generated pin types, which import nothing. */
-const GENERATED_PIN_TYPES_FILE = path.join("node_modules", "@tatolab", "runtime-client", "pin_types.js");
-
 /** Each module the chunk `fileName` of `bundle` holds, with every module of the chunks it imports. */
 function modulesOfTheChunkAndWhatItImports(bundle: Rolldown.OutputBundle, fileName: string, visitedFileNames = new Set<string>()): string[] {
   const chunk = bundle[fileName];
@@ -43,9 +40,7 @@ function suppliedModulesThatImportNoLibraryHoldNone(): Plugin {
     name: "supplied_modules_that_import_no_library_hold_none",
     generateBundle(_options, bundle) {
       for (const suppliedModule of SUPPLIED_MODULES.filter((listed) => listed.imports_no_library)) {
-        const libraryModules = modulesOfTheChunkAndWhatItImports(bundle, suppliedModule.served_file).filter(
-          (moduleId) => moduleId.includes(`${path.sep}node_modules${path.sep}`) && !moduleId.endsWith(`${path.sep}${GENERATED_PIN_TYPES_FILE}`),
-        );
+        const libraryModules = modulesOfTheChunkAndWhatItImports(bundle, suppliedModule.served_file).filter((moduleId) => moduleId.includes(`${path.sep}node_modules${path.sep}`));
         if (libraryModules.length > 0) this.error(`${suppliedModule.name} imports no library, but its built file holds ${libraryModules.join(", ")}`);
       }
     },

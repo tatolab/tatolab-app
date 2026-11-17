@@ -1,8 +1,8 @@
-// Pin types, declarations and listed elements the node UI tests build their cases from.
+// Test fixtures: pin types, declarations and listed elements the node UI tests build their cases from.
 
-import type { BuiltInPinTypeName, PinAnnotations, PinType } from "../pin_types.js";
-import type { InputPinDeclaration } from "./input_control_element.js";
-import type { ListedNodeUiElement, NodeUiElementRegistration, NodeUiElementScriptServing } from "./node_ui_elements_listing.js";
+import type { BuiltInPinTypeName, PinAnnotations, PinType } from "../../pin_types.js";
+import type { InputPinDeclaration } from "../input_control_element.js";
+import type { ListedNodeUiElement, NodeUiElementRegistration, NodeUiElementScriptServing } from "../node_ui_elements_listing.js";
 
 /** One pin type of each built-in name, so a test that walks the names misses none. */
 export const ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME: { readonly [Name in BuiltInPinTypeName]: Extract<PinType, { type: Name }> } = {

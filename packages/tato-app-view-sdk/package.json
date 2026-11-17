@@ -11,6 +11,7 @@
     "./pin_type_readings": "./src/pin_type_readings.ts",
     "./pin_types": "./src/pin_types.ts",
     "./node_ui": "./src/node_ui.ts",
+    "./node_ui_host": "./src/node_ui_host.ts",
     "./supplied_modules": "./src/supplied_modules.ts",
     "./supplied_modules.json": "./supplied_modules.json",
     "./tatolab_view.schema.json": "./tatolab_view.schema.json",

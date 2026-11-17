@@ -62,14 +62,3 @@ export function fireInputControlEvent<TypeName extends string>(control: InputCon
   const detail: InputControlEventDetail<TypeName> = { value };
   control.dispatchEvent(new CustomEvent(eventName, { detail, bubbles: false, composed: false }));
 }
-
-/**
- * The value an `input` or `change` heard on a control carries, or `null` for an event that carries
- * none: a native event from a field inside the control reaches the host as well, and the host acts
- * only on what the control fired.
- */
-export function valueTheInputControlEventCarries(event: Event): { readonly value: unknown } | null {
-  if (event.type !== "input" && event.type !== "change") return null;
-  const detail: unknown = "detail" in event ? event.detail : undefined;
-  return typeof detail === "object" && detail !== null && "value" in detail ? { value: detail.value } : null;
-}

@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
-import { loadNodeUiElement, nodeUiElementTag } from "./load_node_ui_element.js";
-import { listedElementOf } from "./node_ui_test_listing.js";
+import { loadNodeUiElement } from "./load_node_ui_element.js";
+import { nodeUiElementTag } from "./node_ui_element_tag.js";
+import { listedElementOf } from "./test_fixtures/node_ui_listing_fixtures.js";
 
 const FLOAT_DEFAULT = listedElementOf("studio", { kind: "control", type: "float", control: null }, { script: "float_number.ts", folder_version: "7" });
 

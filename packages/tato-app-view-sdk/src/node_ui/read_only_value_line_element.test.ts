@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { BuiltInPinTypeName } from "../pin_types.js";
 import type { StoredPinValue } from "./input_control_element.js";
 import type { NodeUiElementHost } from "./node_ui_element_host.js";
-import { ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME, inputDeclarationOf } from "./node_ui_test_listing.js";
+import { ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME, inputDeclarationOf } from "./test_fixtures/node_ui_listing_fixtures.js";
 import { ReadOnlyValueLineElement } from "./read_only_value_line_element.js";
 
 customElements.define("read-only-value-line-under-test", ReadOnlyValueLineElement);
@@ -21,7 +21,7 @@ test("the read-only line shows the stored value in words, and why no control dra
   line.value = { red: 1, green: 0.5, blue: 0, alpha: 1 };
   line.because = "No control is registered for an input of type Color.";
   expect(wordsOnTheLine(line)).toEqual({ value: '{"red":1,"green":0.5,"blue":0,"alpha":1}', because: "No control is registered for an input of type Color." });
-  expect(line.getAttribute("aria-label")).toBe("Level");
+  expect([line.getAttribute("role"), line.getAttribute("aria-label")]).toEqual(["group", "Level"]);
 });
 
 test("the read-only line words each stored form, a value only a wire carries, and an input a wire feeds", () => {

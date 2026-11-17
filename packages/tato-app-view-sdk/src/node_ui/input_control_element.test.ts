@@ -1,6 +1,7 @@
 import { expect, expectTypeOf, test } from "vitest";
 import type { ColorPinValue } from "../pin_types.js";
-import { fireInputControlEvent, valueTheInputControlEventCarries, type ControlledPin, type InputControlElement, type InputControlState, type StoredPinValue } from "./input_control_element.js";
+import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState, type StoredPinValue } from "./input_control_element.js";
+import { valueTheInputControlEventCarries } from "./input_control_event_reading.js";
 
 class FloatControlWithSettersAlone extends HTMLElement implements InputControlElement<"float"> {
   shownValue = 0;

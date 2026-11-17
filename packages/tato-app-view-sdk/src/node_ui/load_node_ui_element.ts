@@ -1,8 +1,7 @@
 // Loads a listed node UI element into the page that shows it: imports its script, checks that the
-// default export is a custom element class, and defines it under a tag the Studio mints. A page
-// holds one definition per tag, for good, so the tag names the module, the script and the folder
-// version: two modules never collide, and an edited element gets a new tag.
+// default export is a custom element class, and defines it under the tag the Studio mints for it.
 
+import { nodeUiElementTag } from "./node_ui_element_tag.js";
 import type { ListedNodeUiElement } from "./node_ui_elements_listing.js";
 
 /** What loading an element came to: defined under `tag`, blocked by the findings its listing carries, or not loaded and why. */
@@ -13,16 +12,6 @@ export type NodeUiElementLoading =
 
 /** How an element's script is imported: the page's own `import()` unless a caller names another. */
 export type NodeUiElementScriptImport = (scriptUrl: string) => Promise<unknown>;
-
-/** A name part spelled with only what a custom element name allows, each other character written `.<hex>.`, so two parts never spell alike. */
-function customElementNamePart(namePart: string): string {
-  return Array.from(namePart, (character) => (/^[a-z0-9_]$/.test(character) ? character : `.${(character.codePointAt(0) ?? 0).toString(16)}.`)).join("");
-}
-
-/** The tag the Studio defines `listed` under: `tato-<module>-<script>-<folder version>`. */
-export function nodeUiElementTag(listed: ListedNodeUiElement): string {
-  return `tato-${customElementNamePart(listed.module)}-${customElementNamePart(listed.script)}-${customElementNamePart(listed.folder_version)}`;
-}
 
 /** Imports the module at `scriptUrl` with the page's own loader. */
 function importScriptIntoThePage(scriptUrl: string): Promise<unknown> {

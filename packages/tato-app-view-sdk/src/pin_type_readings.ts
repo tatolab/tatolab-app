@@ -1,7 +1,7 @@
 // A pin's type and flow as a view reads them, checked against the forms the runtime's control
-// contract gives them. The types are the generated ones `./pin_types` re-exports; these schemas
-// decode an untrusted reading into them, and Studio's main process checks that the decoded forms
-// and the contract's own are each assignable to the other.
+// contract gives them. The types are the generated ones `./pin_types` re-exports. Each schema's
+// output is inferred from the schema itself, so Studio's main process can check that what it
+// decodes and the generated type are each assignable to the other.
 
 import { z } from "zod";
 import type { BundleMember, DeclaredPinType, PinFlow, PinType } from "./pin_types.js";
@@ -22,7 +22,7 @@ export const projectAssetMediaSchema = z.enum(["image", "video", "audio", "lut",
 /** One member of a bundle. */
 export const bundleMemberSchema: z.ZodType<BundleMember> = z.strictObject({
   name: z.string(),
-  get member_type() {
+  get member_type(): z.ZodType<PinType> {
     return pinTypeSchema;
   },
   meaning: z.string().nullable().optional(),
@@ -30,7 +30,7 @@ export const bundleMemberSchema: z.ZodType<BundleMember> = z.strictObject({
 });
 
 /** What a port carries, tagged by `type`; a key the contract does not name is refused. */
-export const pinTypeSchema: z.ZodType<PinType> = z.discriminatedUnion("type", [
+export const pinTypeSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("boolean") }),
   z.strictObject({ type: z.literal("integer"), exact_size: integerSizeSchema.nullable().optional() }),
   z.strictObject({ type: z.literal("float"), exact_size: floatSizeSchema.nullable().optional() }),
@@ -49,7 +49,7 @@ export const pinTypeSchema: z.ZodType<PinType> = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("trigger") }),
   z.strictObject({
     type: z.literal("list_of"),
-    get element_type() {
+    get element_type(): z.ZodType<PinType> {
       return pinTypeSchema;
     },
   }),
@@ -58,14 +58,14 @@ export const pinTypeSchema: z.ZodType<PinType> = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("node_reference"), referenced_node_type: z.string().nullable().optional(), one_referrer_per_referenced_node: z.boolean().optional() }),
   z.strictObject({
     type: z.literal("pin_type_choice"),
-    get among() {
+    get among(): z.ZodOptional<z.ZodArray<z.ZodType<PinType>>> {
       return z.array(pinTypeSchema).optional();
     },
   }),
 ]);
 
 /** How a node type declares a port's type: a type, one of several, any, the type of another input port, or one a setting chooses. */
-export const declaredPinTypeSchema: z.ZodType<DeclaredPinType> = z.discriminatedUnion("kind", [
+export const declaredPinTypeSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("is"), pin_type: pinTypeSchema }),
   z.strictObject({ kind: z.literal("one_of"), pin_types: z.array(pinTypeSchema) }),
   z.strictObject({ kind: z.literal("any") }),
@@ -74,4 +74,4 @@ export const declaredPinTypeSchema: z.ZodType<DeclaredPinType> = z.discriminated
 ]);
 
 /** How a pin's messages are read: one value at a time, as a stream, or as events. */
-export const pinFlowSchema: z.ZodType<PinFlow> = z.enum(["value", "stream", "trigger"]);
+export const pinFlowSchema = z.enum(["value", "stream", "trigger"]);

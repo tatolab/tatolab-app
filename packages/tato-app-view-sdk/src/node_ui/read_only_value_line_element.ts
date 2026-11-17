@@ -27,7 +27,9 @@ export class ReadOnlyValueLineElement extends HTMLElement implements InputContro
     this.attachShadow({ mode: "open" }).append(this.#valueWords, this.#becauseWords);
   }
 
+  /** Names the line after its input; a `group` role is what makes a screen reader read that name. */
   set pin(pin: ControlledPin<BuiltInPinTypeName>) {
+    this.setAttribute("role", "group");
     this.setAttribute("aria-label", pin.declaration.label);
   }
 
