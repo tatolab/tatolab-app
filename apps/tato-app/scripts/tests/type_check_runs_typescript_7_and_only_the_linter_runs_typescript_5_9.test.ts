@@ -12,7 +12,7 @@ import { promisify } from "node:util";
 import { describe, expect, test } from "vitest";
 
 const MONOREPO_ROOT = fileURLToPath(new URL("../../../..", import.meta.url));
-const TYPESCRIPT_7_COMPILER = "node ../../node_modules/typescript-7/bin/tsc";
+const TYPESCRIPT_7_COMPILER = "node ../../node_modules/@typescript/native/bin/tsc";
 const WORKSPACES_TYPE_CHECKED = ["apps/tato-app", "packages/tato-app-core-views", "packages/tato-app-view-sdk"];
 
 async function scriptsOf(workspace: string): Promise<Record<string, string>> {
