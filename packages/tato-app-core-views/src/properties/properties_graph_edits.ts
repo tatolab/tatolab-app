@@ -1,7 +1,7 @@
 // What Properties sends the runtime for each edit, and what it shows of a node's links. `set_node_config` replaces
 // a node's whole config, so every config edit sends the whole config with the one field changed or removed.
 
-import type { JsonValue, StreamGraphAction, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { JsonValue, StreamGraphAction, StreamGraphDeclaredPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { GRAPH_INPUT_NODE_TYPE } from "../controls/graph_inputs_of_the_stream";
 import { recordsOfAListField, type ConfigFormField, type JsonObject } from "./config_form_fields";
 
@@ -157,4 +157,39 @@ export function exposeTheConfigFieldAsAGraphInput(stream: string, node: Pick<Str
     { operation: "add_node", stream, type: GRAPH_INPUT_NODE_TYPE, name: graphInputName, config: graphInputConfig, as: "graph_input" },
     { operation: "connect", stream, source: { node: "graph_input", port: "value" }, target: { node: node.id, port: field.key } },
   ];
+}
+
+/** What a promotion reads of the input it promotes, and of the level of the graph it is at. */
+export interface InputToPromote {
+  node: Pick<StreamGraphNode, "id" | "name">;
+  input: Pick<StreamGraphDeclaredPort, "name" | "family" | "value_read">;
+  /** Whether the node is on the stream's own level, where a Graph Input is written by a client and carries a default. */
+  isOnTheStreamsOwnLevel: boolean;
+  /** The names the nodes of that level go by, which the Graph Input's name is kept apart from. */
+  nodeNamesTaken: ReadonlySet<string>;
+}
+
+/**
+ * One transaction that feeds an input from a new Graph Input of its level, named `<node>_<input>`, or with the first
+ * free number after it, so a promotion never takes a name a node already goes by. The Graph Input declares the input's
+ * family where it names one, otherwise the link gives it its own; on a stream's own level, a Channels input's number
+ * value becomes the Graph Input's default, so promoting it changes nothing the node reads.
+ */
+export function promoteToGraphInput(stream: string, { node, input, isOnTheStreamsOwnLevel, nodeNamesTaken }: InputToPromote): StreamGraphAction[] {
+  const nameWanted = `${node.name}_${input.name}`;
+  let graphInputName = nameWanted;
+  for (let number = 2; nodeNamesTaken.has(graphInputName); number += 1) graphInputName = `${nameWanted}_${number}`;
+  const graphInputConfig: JsonObject = { port: graphInputName };
+  if (input.family !== null) graphInputConfig["family"] = input.family;
+  const valueRead = input.value_read?.value ?? null;
+  if (isOnTheStreamsOwnLevel && input.family === "channels" && typeof valueRead === "number") graphInputConfig["default"] = valueRead;
+  return [
+    { operation: "add_node", stream, type: GRAPH_INPUT_NODE_TYPE, name: graphInputName, config: graphInputConfig, as: "graph_input" },
+    { operation: "connect", stream, source: { node: "graph_input", port: "value" }, target: { node: node.id, port: input.name } },
+  ];
+}
+
+/** The edit that takes out the link from `drivenBy`, a node's output, into `node`'s input `input`. */
+export function linkDrivingTheInputTakenOut(stream: string, drivenBy: { node: Pick<StreamGraphNode, "id">; port: string }, node: Pick<StreamGraphNode, "id">, input: string): StreamGraphAction[] {
+  return [{ operation: "disconnect", stream, source: { node: drivenBy.node.id, port: drivenBy.port }, target: { node: node.id, port: input } }];
 }

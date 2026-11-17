@@ -10,6 +10,11 @@ export const GRAPH_INPUT_NODE_TYPE = "tatolab.stream:GraphInput";
 /** The families of the Inputs a client writes; an Image or Packets Input carries only what the graph wires into it. */
 const FAMILIES_A_CLIENT_WRITES: readonly string[] = ["array", "channels", "records"];
 
+/** Whether a Graph Input of `family` is one a client writes; one of no family yet is not known to be. */
+export function isAFamilyAClientWrites(family: string | null): boolean {
+  return family !== null && FAMILIES_A_CLIENT_WRITES.includes(family);
+}
+
 /** `[lowest, highest]` from a `GraphInput`'s `range` config: the span a control moves its number in. */
 export interface GraphInputRange {
   readonly lowest: number;
@@ -64,7 +69,7 @@ function graphInputRangeFrom(range: JsonValue | undefined): GraphInputRange | nu
 
 /** The control that writes an Input of `family` as its config declares it, by its `default` and its `range`, whatever value was written to it since. */
 function controlForTheInput(family: string | null, declaredDefault: JsonValue | null, range: GraphInputRange | null): GraphInputControlKind {
-  if (family === null || !FAMILIES_A_CLIENT_WRITES.includes(family)) return "not_written";
+  if (!isAFamilyAClientWrites(family)) return "not_written";
   if (family === "records") return "json";
   if (family === "channels" && typeof declaredDefault === "boolean") return "toggle";
   if (declaredDefault !== null && typeof declaredDefault !== "number") return "json";

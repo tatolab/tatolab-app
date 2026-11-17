@@ -3,10 +3,10 @@
 // a link per link of the graph drawn by its state, a frame per labelled group and the graph's canvas notes.
 
 import type { NodeGraphCanvasFrame, NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCanvasNote, NodeGraphCardCondition, NodeGraphLinkLook } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
-import { valueAddressOfTheInput, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import type { NodeCatalog, NodeCatalogPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import type { NodeCatalog, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { descriptionWords, nodeInputs, nodeOutputs } from "../shared/node_pins_of_the_graph";
 import { isANameTheCodeGave, nodeTitle, nodeTypeClassName } from "../shared/node_words";
-import { portStreamFactsWords, streamFactsAnInputReceives } from "../shared/port_stream_facts_words";
 import { linkIdAsTheCanvasKeysIt } from "../shared/stream_graph_edits";
 
 /** What the canvas draws of one stream's graph. */
@@ -66,10 +66,6 @@ function typeNameOnTheCard(node: StreamGraphNode): string | null {
   return isANameTheCodeGave(node.name, node.type) ? nodeTypeClassName(node.type) : null;
 }
 
-const descriptionWords = (description: string | undefined): string | null => (description === undefined || description.trim() === "" ? null : description.trim());
-
-const portDescription = (ports: readonly NodeCatalogPort[] | undefined, portName: string): string | null => descriptionWords(ports?.find((port) => port.name === portName)?.description);
-
 /** Whether `a` and `b` hold the same values; it compares JSON-shaped data only (plain objects, arrays and primitives), as a `NodeGraphCanvasNode` is. */
 function holdTheSameValues(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -106,22 +102,8 @@ export function streamGraphCanvasContents(
       type_name: typeNameOnTheCard(node),
       description: descriptionWords(catalogEntryByType.get(node.type)?.description),
       condition: cardConditionOf(node),
-      inputs: node.input_ports.map((port) => ({
-        name: port.name,
-        pin: port.pin,
-        family: port.family,
-        description: portDescription(catalogEntryByType.get(node.type)?.inputs, port.name),
-        stream_facts_words: portStreamFactsWords(streamFactsAnInputReceives(graph, node.name, port)),
-        value_address: valueAddressOfTheInput(valuesAt, node.id, port),
-      })),
-      outputs: node.output_ports.map((port) => ({
-        name: port.name,
-        pin: port.pin,
-        family: port.family,
-        description: portDescription(catalogEntryByType.get(node.type)?.outputs, port.name),
-        stream_facts_words: portStreamFactsWords(port),
-        value_address: null,
-      })),
+      inputs: nodeInputs(graph, node, catalogEntryByType.get(node.type), valuesAt),
+      outputs: nodeOutputs(node, catalogEntryByType.get(node.type)),
       saved_position: node.studio.position === null ? null : { x: node.studio.position[0], y: node.studio.position[1] },
       frame_id: node.studio.group !== null && groupIds.has(node.studio.group) ? node.studio.group : null,
       is_collapsed: node.studio.collapsed === true,

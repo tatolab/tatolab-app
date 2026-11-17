@@ -272,3 +272,30 @@ test("unbinding the last slot takes its element off and stops watching the listi
   expect(slot.host.childElementCount).toBe(0);
   expect(slot.listingListeners.size).toBe(0);
 });
+
+test("a_surfaces_own_field_shows_the_stores_value_and_writes_a_whole_gesture_and_a_clear_each_as_one_commit_through_the_one_sender", async () => {
+  const sent: { value: JsonValue | null; mode: GraphEditMode }[] = [];
+  const inputValues = createInputValues({
+    transactInTheProject: (_projectFolder, operations, sending) => {
+      for (const operation of operations) if (operation.operation === "set_node_input_value") sent.push({ value: operation.value ?? null, mode: sending.mode });
+      return Promise.resolve({ kind: "applied", transaction: { mode: sending.mode, transaction: null, commit: null, operations: [], added_nodes: [], connected_links: [], added_groups: [], added_notes: [] } });
+    },
+    newGestureIdempotencyKey: () => "gesture",
+  });
+  inputValues.takeTheGraphReading(PROJECT, graphReading(0.5));
+  const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues });
+  const field = binder.bindOwnField(GAIN);
+  const valuesShown: JsonValue[] = [];
+  field.watchValue((shown) => valuesShown.push(shown.value));
+  expect(field.shownValue()).toEqual({ value: 0.5, comes_from: "saved" });
+
+  field.beginGesture().release({ gain: [1, 2] });
+  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+  field.clear();
+  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+  expect(sent).toEqual([
+    { value: { gain: [1, 2] }, mode: "commit" },
+    { value: null, mode: "commit" },
+  ]);
+  expect(valuesShown).toEqual([0.5, { gain: [1, 2] }, null]);
+});

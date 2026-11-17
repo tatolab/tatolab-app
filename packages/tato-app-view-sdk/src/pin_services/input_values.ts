@@ -33,6 +33,8 @@ export interface InputValues {
   watchRefusal(address: InputAddress, listener: (refusal: string | null) => void): StopWatching;
   /** Open a gesture on `address`, ended by one commit or by its last live value; it takes the place of a gesture still open there. */
   beginGesture(address: InputAddress, release: "commit" | "live"): InputValueGesture;
+  /** Take the input's saved value off as one commit, ending a gesture open on it, so it reads its declared default; an input that already reads its default sends nothing. */
+  clear(address: InputAddress): void;
   /** Take what each input of `graph`, a stream of the project in `projectFolder`, reads in its latest reading, at every level, forgetting an input of that stream it no longer holds that nothing watches or sends. */
   takeTheGraphReading(projectFolder: string, graph: StreamGraphSummary): void;
 }
@@ -77,6 +79,13 @@ interface InputValueState {
 const holdTheSameValue = (a: JsonValue | null, b: JsonValue | null): boolean => a === b || JSON.stringify(a) === JSON.stringify(b);
 
 const showTheSame = (a: ShownValue, b: ShownValue): boolean => a.comes_from === b.comes_from && holdTheSameValue(a.value, b.value);
+
+/** The value a cleared input shows until a reading gives the default it reads. */
+const CLEARED: ShownValue = Object.freeze({ value: null, comes_from: "default" });
+
+/** Whether `read` shows what was sent ahead: the same value, or for a clear, any default. */
+const doesTheReadShowTheValueSentAhead = (sentAhead: ShownValue, read: ShownValue): boolean =>
+  sentAhead === CLEARED ? read.comes_from === "default" : holdTheSameValue(sentAhead.value, read.value);
 
 const shownBy = (state: InputValueState): ShownValue => state.gesture?.shown ?? state.sent_ahead?.shown ?? state.read;
 
@@ -123,7 +132,7 @@ export function createInputValues(sending: InputValuesSending): InputValues {
       onSettled: () => {
         if (state.sent_ahead === null) return;
         state.sent_ahead.readings_since_settled = 0;
-        if (holdTheSameValue(state.sent_ahead.shown.value, state.read.value)) {
+        if (doesTheReadShowTheValueSentAhead(state.sent_ahead.shown, state.read)) {
           state.sent_ahead = null;
           publishTheValue(state);
         }
@@ -137,7 +146,7 @@ export function createInputValues(sending: InputValuesSending): InputValues {
     const sentAhead = state.sent_ahead;
     if (sentAhead !== null && (state.sender === null || state.sender.isSettled())) {
       sentAhead.readings_since_settled += 1;
-      if (holdTheSameValue(sentAhead.shown.value, read.value) || sentAhead.readings_since_settled >= READINGS_A_VALUE_SENT_AHEAD_WAITS_FOR) state.sent_ahead = null;
+      if (doesTheReadShowTheValueSentAhead(sentAhead.shown, read) || sentAhead.readings_since_settled >= READINGS_A_VALUE_SENT_AHEAD_WAITS_FOR) state.sent_ahead = null;
     }
     publishTheValue(state);
   };
@@ -222,6 +231,18 @@ export function createInputValues(sending: InputValuesSending): InputValues {
           endWithTheValueSentAhead(gesture.began_at);
         },
       };
+    },
+    clear: (address) => {
+      const state = stateOf(address);
+      state.gesture = null;
+      const shown = shownBy(state);
+      if (shown.comes_from === "default" || shown.comes_from === null) {
+        publishTheValue(state);
+        return;
+      }
+      senderOf(state).sendCommit(null, sending.newGestureIdempotencyKey());
+      state.sent_ahead = { shown: CLEARED, readings_since_settled: 0 };
+      publishTheValue(state);
     },
     takeTheGraphReading: (projectFolder, graph) => {
       const streamAsset = graph.stream_asset;
