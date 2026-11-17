@@ -464,7 +464,7 @@ function InputRowOfTheNode({ port, bandShade, rows }: { port: StreamGraphDeclare
   const { connection, stream, level, graph, node, streamAsset, valuesAt, inputValues, catalogPorts, graphEdits, searchWords } = rows;
   const place = placeOfTheInput(port.name);
   const drivenBy = linkedEndsOfThePort(graph, node, "input", port.name);
-  const isWired = drivenBy.length > 0;
+  const isWired = drivenBy.length > 0 || port.value_read?.comes_from === "wire";
   const valueAddress = isWired || streamAsset === null ? null : valueAddressOfTheInput(valuesAt, node.id, port);
   const comesFrom = isWired ? null : (port.value_read?.comes_from ?? null);
   // A live value holds over the saved one until it is taken off live, so a reset is offered only on a saved value.
@@ -485,7 +485,13 @@ function InputRowOfTheNode({ port, bandShade, rows }: { port: StreamGraphDeclare
       promotion={
         isWired || streamAsset === null
           ? undefined
-          : { label: `Promote ${port.name} to a Graph Input`, onPromoted: () => void graphEdits.commit(place, promoteToGraphInput(streamAsset, node, port)) }
+          : {
+              label: `Promote ${port.name} to a Graph Input`,
+              onPromoted: () => {
+                const nodeNamesTaken = new Set(graph.nodes.map((graphNode) => graphNode.name));
+                void graphEdits.commit(place, promoteToGraphInput(streamAsset, { node, input: port, isOnTheStreamsOwnLevel: level.length === 0, nodeNamesTaken }));
+              },
+            }
       }
       linkedEnds={drivenBy.map((linkedEnd) => {
         const driverTitle = nodeTitle(linkedEnd.node.name, linkedEnd.node.type);
@@ -532,7 +538,7 @@ function OwnFieldOfTheInput({ fieldId, address }: { fieldId: string; address: In
       words={shown !== null && holdsItsOwnValue ? configFormFieldValueWords(shown.value) : ""}
       isTheTypesDefault={!holdsItsOwnValue}
       label={`Value of ${address.input}`}
-      onCommitted={ownField === null ? undefined : (words) => ownField.releaseTheValue(words.trim() === "" ? null : pinValueFromTheWordsTyped(words))}
+      onCommitted={ownField === null ? undefined : (words) => (words.trim() === "" ? ownField.clearTheValue() : ownField.releaseTheValue(pinValueFromTheWordsTyped(words)))}
     />
   );
 }
@@ -551,7 +557,21 @@ function RefusalOfTheInputsValue({ inputValues, address }: { inputValues: InputV
 }
 
 /** One output of the node: its type, and each input it feeds. */
-function OutputRowOfTheNode({ port, bandShade, graph, node, searchWords }: { port: StreamGraphDeclaredPort; bandShade: PropertyPortBandShade; graph: StreamGraphSummary; node: StreamGraphNode; searchWords: string }) {
+function OutputRowOfTheNode({
+  port,
+  bandShade,
+  graph,
+  node,
+  catalogPorts,
+  searchWords,
+}: {
+  port: StreamGraphDeclaredPort;
+  bandShade: PropertyPortBandShade;
+  graph: StreamGraphSummary;
+  node: StreamGraphNode;
+  catalogPorts: readonly NodeCatalogPort[];
+  searchWords: string;
+}) {
   return (
     <PropertyPortRow
       direction="output"
@@ -560,6 +580,7 @@ function OutputRowOfTheNode({ port, bandShade, graph, node, searchWords }: { por
       typeWords={typeWordsOfThePort(port)}
       pinMark={<NodeGraphPinMark pin={port.pin} />}
       meaning={meaningOfAPort(port)}
+      description={descriptionOfThePort(port, catalogPorts)}
       bandShade={bandShade}
       linkedEnds={linkedEndsOfThePort(graph, node, "output", port.name).map((reader) => ({ nodeTitle: nodeTitle(reader.node.name, reader.node.type), port: reader.port, linkKey: `${reader.node.id}:${reader.port}` }))}
     />
@@ -822,7 +843,7 @@ function PropertiesOfTheSelectedNode({
             ) : (
               node.output_ports
                 .filter((port) => matching.output_ports_listed.has(port.name))
-                .map((port, portIndex) => <OutputRowOfTheNode key={port.name} port={port} bandShade={bandShadeAt(inputPortsListed.length + portIndex)} graph={graph} node={node} searchWords={searchWords} />)
+                .map((port, portIndex) => <OutputRowOfTheNode key={port.name} port={port} bandShade={bandShadeAt(inputPortsListed.length + portIndex)} graph={graph} node={node} catalogPorts={catalogEntry?.outputs ?? []} searchWords={searchWords} />)
             )}
             {imageOutputs
               .filter((port) => matching.output_ports_listed.has(port.name))

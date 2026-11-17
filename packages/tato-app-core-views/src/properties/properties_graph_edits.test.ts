@@ -146,14 +146,23 @@ test("exposing a config field is one transaction: the node takes it as an input,
   expect(exposeTheConfigFieldAsAGraphInput("asset", glow, aConfigFormField("gain", { kind: "number", is_whole_number: false, minimum: null, maximum: 4 }))[1]).not.toHaveProperty("config.range");
 });
 
-test("promoting an input is one transaction: a new Graph Input named for the node and input, of the input's family where it names one, wired into it", () => {
+test("promoting an input is one transaction: a new Graph Input named for the node and input, of the input's family, carrying its number value as its default, wired into it", () => {
   const glow = { id: "id-glow", name: "glow" };
-  expect(promoteToGraphInput("asset", glow, aPort("amount", "channels"))).toEqual([
-    { operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: "glow_amount", config: { port: "glow_amount", family: "channels" }, as: "graph_input" },
+  const amount = { ...aPort("amount", "channels"), value_read: { value: 0.7, comes_from: "saved" as const } };
+  expect(promoteToGraphInput("asset", { node: glow, input: amount, isOnTheStreamsOwnLevel: true, nodeNamesTaken: new Set(["glow"]) })).toEqual([
+    { operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: "glow_amount", config: { port: "glow_amount", family: "channels", default: 0.7 }, as: "graph_input" },
     { operation: "connect", stream: "asset", source: { node: "graph_input", port: "value" }, target: { node: "id-glow", port: "amount" } },
   ]);
-  expect(promoteToGraphInput("asset", glow, aPort("tint", null))[0]).toMatchObject({ config: { port: "glow_tint" } });
-  expect(promoteToGraphInput("asset", glow, aPort("tint", null))[0]).not.toHaveProperty("config.family");
+});
+
+test("a promotion takes the first free name, names no family where the input names none, and carries no default below a stream's own level", () => {
+  const glow = { id: "id-glow", name: "glow" };
+  const amount = { ...aPort("amount", "channels"), value_read: { value: 0.7, comes_from: "saved" as const } };
+  expect(promoteToGraphInput("asset", { node: glow, input: amount, isOnTheStreamsOwnLevel: false, nodeNamesTaken: new Set(["glow", "glow_amount", "glow_amount_2"]) })[0]).toEqual(
+    { operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: "glow_amount_3", config: { port: "glow_amount_3", family: "channels" }, as: "graph_input" },
+  );
+  expect(promoteToGraphInput("asset", { node: glow, input: aPort("tint", null), isOnTheStreamsOwnLevel: true, nodeNamesTaken: new Set() })[0]).toMatchObject({ config: { port: "glow_tint" } });
+  expect(promoteToGraphInput("asset", { node: glow, input: aPort("tint", null), isOnTheStreamsOwnLevel: true, nodeNamesTaken: new Set() })[0]).not.toHaveProperty("config.family");
 });
 
 test("taking out the link that drives an input disconnects it by both nodes' UUIDs", () => {

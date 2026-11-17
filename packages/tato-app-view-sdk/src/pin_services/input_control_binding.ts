@@ -39,14 +39,15 @@ export interface InputControlBinding {
 }
 
 /**
- * A surface's own field for one input, where the table has no control for it: the store's value and refusal for that input,
- * and a gesture that sends through the input's one sender and ends as the binding was asked to release.
+ * A surface's own field for one input, where the table has no control for it: the store's value for that input, a gesture
+ * that sends through the input's one sender and ends as the binding was asked to release, and the input's own value taken
+ * off the same way.
  */
 export interface OwnFieldBinding {
   shownValue(): ShownValue;
   watchValue(listener: (shown: ShownValue) => void): StopWatching;
-  watchRefusal(listener: (refusal: string | null) => void): StopWatching;
   beginGesture(): InputValueGesture;
+  clear(): void;
 }
 
 /** A frame's one binder. */
@@ -394,8 +395,8 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
     bindOwnField: (address, release) => ({
       shownValue: () => inputValues.shownValue(address),
       watchValue: (listener) => inputValues.watchValue(address, listener),
-      watchRefusal: (listener) => inputValues.watchRefusal(address, listener),
       beginGesture: () => inputValues.beginGesture(address, release),
+      clear: () => inputValues.clear(address, release),
     }),
   };
 }

@@ -120,7 +120,9 @@ export interface OwnFieldOfTheInput {
   /** The value the store shows for the input, and where it comes from. */
   readonly shown: ShownValue;
   /** Sends `value` as one whole gesture, released as the field was bound to release. */
-  readonly releaseTheValue: (value: JsonValue | null) => void;
+  readonly releaseTheValue: (value: JsonValue) => void;
+  /** Takes the input's own value off, as the field was bound to release. */
+  readonly clearTheValue: () => void;
 }
 
 const SHOWS_NOTHING: ShownValue = Object.freeze({ value: null, comes_from: null });
@@ -149,5 +151,5 @@ export function useOwnFieldOfTheInput(address: InputAddress, release: "commit" |
   const watchTheValue = useCallback((onChanged: () => void) => binding?.watchValue(onChanged) ?? watchesNothing(), [binding]);
   const readTheValue = useCallback(() => binding?.shownValue() ?? SHOWS_NOTHING, [binding]);
   const shown = useSyncExternalStore(watchTheValue, readTheValue);
-  return useMemo(() => (binding === null ? null : { shown, releaseTheValue: (value) => binding.beginGesture().release(value) }), [binding, shown]);
+  return useMemo(() => (binding === null ? null : { shown, releaseTheValue: (value) => binding.beginGesture().release(value), clearTheValue: () => binding.clear() }), [binding, shown]);
 }

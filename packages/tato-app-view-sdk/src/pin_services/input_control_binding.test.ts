@@ -273,12 +273,12 @@ test("unbinding the last slot takes its element off and stops watching the listi
   expect(slot.listingListeners.size).toBe(0);
 });
 
-test("a_surfaces_own_field_shows_the_stores_value_writes_a_whole_gesture_as_one_commit_through_the_one_sender_and_shows_its_refusal", async () => {
+test("a_surfaces_own_field_shows_the_stores_value_and_writes_a_whole_gesture_and_a_clear_each_as_one_commit_through_the_one_sender", async () => {
   const sent: { value: JsonValue | null; mode: GraphEditMode }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: (_projectFolder, operations, sending) => {
       for (const operation of operations) if (operation.operation === "set_node_input_value") sent.push({ value: operation.value ?? null, mode: sending.mode });
-      return Promise.resolve({ kind: "not_sent", because: "no project is open" });
+      return Promise.resolve({ kind: "applied", transaction: { mode: sending.mode, transaction: null, commit: null, operations: [], added_nodes: [], connected_links: [], added_groups: [], added_notes: [] } });
     },
     newGestureIdempotencyKey: () => "gesture",
   });
@@ -286,14 +286,16 @@ test("a_surfaces_own_field_shows_the_stores_value_writes_a_whole_gesture_as_one_
   const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues });
   const field = binder.bindOwnField(GAIN, "commit");
   const valuesShown: JsonValue[] = [];
-  const refusals: (string | null)[] = [];
   field.watchValue((shown) => valuesShown.push(shown.value));
-  field.watchRefusal((refusal) => refusals.push(refusal));
   expect(field.shownValue()).toEqual({ value: 0.5, comes_from: "saved" });
 
   field.beginGesture().release({ gain: [1, 2] });
   for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
-  expect(sent).toEqual([{ value: { gain: [1, 2] }, mode: "commit" }]);
+  field.clear();
+  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+  expect(sent).toEqual([
+    { value: { gain: [1, 2] }, mode: "commit" },
+    { value: null, mode: "commit" },
+  ]);
   expect(valuesShown).toEqual([0.5, { gain: [1, 2] }, 0.5]);
-  expect(refusals).toEqual([null, "no project is open"]);
 });
