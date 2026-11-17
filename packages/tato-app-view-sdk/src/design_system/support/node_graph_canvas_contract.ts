@@ -9,7 +9,7 @@ export type NodeGraphCardCondition =
   | { look: "not_ready"; not_ready_because: string }
   | { look: "failed"; failed_because: string | null };
 
-/** One node a graph canvas draws: its name on the card's header, how it is doing, its pins (inputs on the left, outputs on the right), where it was left, and the frame it sits in. */
+/** One node a graph canvas draws: its name on the card's header, how it is doing, its pins as the pin model's rows (an input's socket on the left, an output's on the right), where it was left, and the frame it sits in. */
 export interface NodeGraphCanvasNode {
   node_id: string;
   title: string;

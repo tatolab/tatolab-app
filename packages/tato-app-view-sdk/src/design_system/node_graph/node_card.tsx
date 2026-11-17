@@ -3,7 +3,8 @@ import { cn } from "cn";
 import { ChevronDown, ChevronRight, Combine, SquareX, TriangleAlert } from "lucide-react";
 import { Fragment, useContext, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import { nodePinRows, type NodePin } from "../../pin_model/node_pins";
-import { pinTypeKey, pinWords, type PinOfAPort } from "../../pin_model/pin_types";
+import type { PinFlow } from "../../pin_type_readings";
+import { pinTypeKey, pinWords, type PinOfAPort, type PinTypeKey } from "../../pin_model/pin_types";
 import { NodeGraphNodesFoundContext } from "../node_graph_find_bar";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "../support/full_strength_focus_ring";
 import type { NodeGraphCardCondition, NodeGraphCanvasNode } from "../support/node_graph_canvas_contract";
@@ -18,7 +19,7 @@ function nodeGraphPinTooltip(pin: NodePin): string {
 }
 
 /** The attributes a socket's shape and colour are picked by: its flow (round while it has none) and its type's key. */
-function socketLookAttributes(pin: PinOfAPort | null): { "data-pin-type": string; "data-pin-flow": string | undefined } {
+function socketLookAttributes(pin: PinOfAPort | null): { "data-pin-type": PinTypeKey; "data-pin-flow": PinFlow | undefined } {
   return { "data-pin-type": pinTypeKey(pin), "data-pin-flow": pin?.flow };
 }
 
