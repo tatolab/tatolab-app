@@ -1,6 +1,7 @@
 // Everything a view reads from Tato Studio, as Zod schemas: what crosses a view's MessagePort is
 // parsed against these on both ends, and Studio's own code takes its types from them.
 
+import type { ControlOperationRefusalCode, ProjectFilePlaceOnTheWire, SuggestedOperationCall } from "@tatolab/runtime-client";
 import { z } from "zod";
 import { PORT_FAMILIES } from "./port_families.js";
 
@@ -709,8 +710,19 @@ export type ProjectTransaction = z.infer<typeof projectTransactionSchema>;
 /** One end of the link a refused operation names: a node by UUID or `as` label, and one of its ports. */
 export const refusedGraphLinkEndSchema = z.object({ node: z.string(), port: z.string() });
 
+/** A refusal's code as Studio's main process read it through the generated runtime client, which reads a code it does not know as `refused`; Studio keeps no list of codes of its own. */
+const refusalCodeSchema = z.custom<ControlOperationRefusalCode>((value) => typeof value === "string", "a refusal's code is text");
+
+/** The place in a project file a refusal is about: its path in the project, and a line and column when the place is narrower. */
+const refusedFileSchema: z.ZodType<ProjectFilePlaceOnTheWire> = z.object({ path: z.string(), line: z.number().int().nullish(), column: z.number().int().nullish() });
+
+/** A call a refusal suggests, exactly as the runtime's `call_operation` takes it. */
+const suggestedCallSchema: z.ZodType<SuggestedOperationCall> = z.object({ operation: z.string(), params: z.record(z.string(), jsonValueSchema) });
+
 /** What the runtime refused of an action, and why in its own words. */
 export const projectActionRefusalSchema = z.object({
+  /** What kind of refusal it is, for the surface that made the edit to branch on; never turned into words. */
+  refusal_code: refusalCodeSchema,
   /** The action refused, by the name of the tool it was sent to. */
   action: z.string(),
   /** The position, from 0, of the operation refused among those the action sent; `null` when none was. */
@@ -721,6 +733,12 @@ export const projectActionRefusalSchema = z.object({
   refused_link: z.object({ source: refusedGraphLinkEndSchema, target: refusedGraphLinkEndSchema }).nullable(),
   /** The node's input or config field the refused operation names. */
   refused_field: z.string().nullable(),
+  /** The JSON pointer, into the params the action sent, of the value refused; `null` when no one value inside them is. */
+  refused_params_pointer: z.string().nullable(),
+  /** The place in a project file the refusal is about. */
+  refused_file: refusedFileSchema.nullable(),
+  /** A call that would help, when the runtime knows one. */
+  suggested_call: suggestedCallSchema.nullable(),
   /** Why, in the runtime's own words, never rewritten. */
   runtime_words: z.string(),
 });

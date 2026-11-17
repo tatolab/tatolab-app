@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
-import { projectTransactionFromTheUndoOrRedoToolResult, projectTransactionsFromTheChangeFeed } from "./project_transactions_on_the_wire.js";
+import { projectActionRefusalAt, projectTransactionFromTheUndoOrRedoToolResult, projectTransactionsFromTheChangeFeed } from "./project_transactions_on_the_wire.js";
 import type { Result } from "./result.js";
 
 /** The first text block of a recorded JSON-RPC answer: a tool result's `content[0].text` or a resource read's `contents[0].text`. */
@@ -10,6 +10,17 @@ async function recordedAnswerText(fixtureFileName: string): Promise<string> {
   const blocks = typeof result === "object" && result !== null ? ("contents" in result ? result.contents : "content" in result ? result.content : null) : null;
   const firstBlock: unknown = Array.isArray(blocks) ? blocks[0] : null;
   return typeof firstBlock === "object" && firstBlock !== null && "text" in firstBlock && typeof firstBlock.text === "string" ? firstBlock.text : expect.unreachable(`${fixtureFileName} holds no text block`);
+}
+
+/** The text of the recorded answer `fixtureFileName`. */
+function recordedResponseText(fixtureFileName: string): Promise<string> {
+  return readFile(new URL(`./test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
+}
+
+/** The `result` of a recorded JSON-RPC answer. */
+async function recordedControlResult(fixtureFileName: string): Promise<unknown> {
+  const answer: unknown = JSON.parse(await recordedResponseText(fixtureFileName));
+  return typeof answer === "object" && answer !== null && "result" in answer ? answer.result : expect.unreachable(`${fixtureFileName} holds no result`);
 }
 
 /** A recorded read of a project's change feed, which `read_project_changes` answers in the same shape. */
@@ -48,7 +59,19 @@ test("a recorded change feed reads its applied transactions newest first, each n
   expect(feed.transactions.find((transaction) => transaction.transaction === CLAUDES_IMPORT)?.idempotency_key).toBeNull();
 });
 
-test("the refusals a recorded feed holds read apart from its transactions, newest first, each in the runtime's own words", async () => {
+/** What a refusal recorded from a runtime that sent no code and named no place reads as beside its action and words. */
+const A_REFUSAL_FROM_A_RUNTIME_THAT_SENDS_NO_CODE = {
+  refusal_code: "refused",
+  refused_operation_index: null,
+  refused_node: null,
+  refused_link: null,
+  refused_field: null,
+  refused_params_pointer: null,
+  refused_file: null,
+  suggested_call: null,
+};
+
+test("the refusals a recorded feed holds read apart from its transactions, newest first, each in the runtime's own words, a refusal sent with no code read as refused", async () => {
   const feed = answerOf(projectTransactionsFromTheChangeFeed(await recordedChangeFeed("local-api-transactions-resource-of-lobby-after-sam-redid-and-claude-code-undid.json")));
 
   expect(feed.refused_actions).toEqual([
@@ -58,7 +81,7 @@ test("the refusals a recorded feed holds read apart from its transactions, newes
       mode: "commit",
       operations: [],
       idempotency_key: null,
-      refusal: { action: "redo", refused_operation_index: null, refused_node: null, refused_link: null, refused_field: null, runtime_words: "Sam has undone nothing that is left to redo" },
+      refusal: { ...A_REFUSAL_FROM_A_RUNTIME_THAT_SENDS_NO_CODE, action: "redo", runtime_words: "Sam has undone nothing that is left to redo" },
       refused_at: "2026-11-10T18:17:13Z",
     },
     {
@@ -67,10 +90,86 @@ test("the refusals a recorded feed holds read apart from its transactions, newes
       mode: "commit",
       operations: [],
       idempotency_key: null,
-      refusal: { action: "undo", refused_operation_index: null, refused_node: null, refused_link: null, refused_field: null, runtime_words: "Sam has no transaction left to undo" },
+      refusal: { ...A_REFUSAL_FROM_A_RUNTIME_THAT_SENDS_NO_CODE, action: "undo", runtime_words: "Sam has no transaction left to undo" },
       refused_at: "2026-11-10T18:17:12Z",
     },
   ]);
+});
+
+test("the refused edits a recorded feed holds read with each code and place the runtime sent and its words unchanged", async () => {
+  const feed = answerOf(projectTransactionsFromTheChangeFeed(await recordedControlResult("local-api-read-project-changes-of-harbour-after-three-refused-edits.json")));
+  const channelsToArray = "37baed6c-0749-45e7-aa92-bcd8f7720d24";
+
+  expect(feed.refused_actions.map((refused) => refused.refusal)).toEqual([
+    {
+      refusal_code: "refused",
+      action: "transact",
+      refused_operation_index: 0,
+      refused_node: channelsToArray,
+      refused_link: null,
+      refused_field: null,
+      refused_params_pointer: null,
+      refused_file: null,
+      suggested_call: null,
+      runtime_words: expect.stringMatching(/^the node name `imagetoarray` casts to `imagetoarray`, which node `imagetoarray` in this graph already has/),
+    },
+    {
+      refusal_code: "refused",
+      action: "transact",
+      refused_operation_index: 0,
+      refused_node: channelsToArray,
+      refused_link: null,
+      refused_field: "no_such_input",
+      refused_params_pointer: null,
+      refused_file: null,
+      suggested_call: null,
+      runtime_words: "Node 'channelstoarray' has no input port named 'no_such_input'",
+    },
+    {
+      refusal_code: "refused",
+      action: "transact",
+      refused_operation_index: 0,
+      refused_node: null,
+      refused_link: { source: { node: "7fc1b632-c0db-4d98-be98-70f6af6b0abc", port: "array" }, target: { node: channelsToArray, port: "channels" } },
+      refused_field: null,
+      refused_params_pointer: null,
+      refused_file: null,
+      suggested_call: null,
+      runtime_words: "Invalid link: cannot link imagetoarray.array (Array) to channelstoarray.channels (Channels): a link joins two ports of one family; place an ArrayToChannels node between them",
+    },
+  ]);
+});
+
+test("a recorded refusal that suggests a call reads its code, the pointer into the params and the call exactly as the runtime sent them", async () => {
+  const toolResult = await recordedControlResult("local-api-transact-tool-refusal-for-a-stream-named-by-its-stream-id-suggesting-describe-operations.json");
+  const structuredContent = typeof toolResult === "object" && toolResult !== null && "structuredContent" in toolResult ? toolResult.structuredContent : null;
+  const refusal = typeof structuredContent === "object" && structuredContent !== null && "refusal" in structuredContent ? structuredContent.refusal : expect.unreachable("the tool result carries its refusal");
+
+  expect(projectActionRefusalAt({ refusal })).toEqual({
+    ok: true,
+    value: {
+      refusal_code: "params_do_not_match_schema",
+      action: "transact",
+      refused_operation_index: null,
+      refused_node: null,
+      refused_link: null,
+      refused_field: null,
+      refused_params_pointer: "/operations/0",
+      refused_file: null,
+      suggested_call: { operation: "describe_operations", params: { operations: ["transact"] } },
+      runtime_words: "`transact`'s params do not match its request: UUID parsing failed: invalid character: expected an optional prefix of `urn:uuid:` followed by [0-9a-fA-F-], found `h` at 1",
+    },
+  });
+});
+
+test("a refusal naming a place in a project file reads it, and a code this app does not know reads as refused", () => {
+  const refusal = { refusal_code: "check_ran_out_of_time", action: "check_project_code", refused_file: { path: "nodes/invert.py", line: 12 }, runtime_words: "the check ran out of time" };
+
+  expect(projectActionRefusalAt({ refusal })).toEqual({
+    ok: true,
+    value: { ...A_REFUSAL_FROM_A_RUNTIME_THAT_SENDS_NO_CODE, action: "check_project_code", refused_file: { path: "nodes/invert.py", line: 12 }, runtime_words: "the check ran out of time" },
+  });
+  expect(projectActionRefusalAt({ refusal: { action: "transact" } })).toEqual({ ok: false, failure: "a refused action's refusal is not the contract's refusal" });
 });
 
 test("an edit whose author edited again after undoing it reads as no longer redoable, with every redo of it", async () => {

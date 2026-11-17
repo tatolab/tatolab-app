@@ -1,4 +1,4 @@
-// The one module that imports streamlib's generated `@tatolab/runtime-client`: it calls a control
+// The one module that calls through streamlib's generated `@tatolab/runtime-client`: it calls a control
 // operation over the runtime's JSON-RPC adapter, in one `POST /control` or on the WebSocket at
 // `/control/ws`, and settles every outcome as a `Result`. The client checks each call and answer
 // against the control contract: it rejects params that do not match with `ControlRequestInvalid`
@@ -12,12 +12,15 @@ import {
   ControlOperationError,
   ControlPostTransport,
   ControlRequestInvalid,
+  ControlSchemas,
+  JSON_RPC_INVALID_PARAMS_ERROR_CODE,
   TatolabRuntimeClient,
   type ControlCallOptions,
   type ControlNotificationMethodName,
   type ControlNotifications,
   type ControlOperationMethodName,
   type ControlOperations,
+  type ProjectActionRefusalOnTheWire,
 } from "@tatolab/runtime-client";
 import { TATO_STUDIO_MCP_CLIENT_NAME } from "../shared/tatolab_backend_contract.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
@@ -28,10 +31,19 @@ export type { ControlNotifications, ControlOperationMethodName };
 /** The params `method` takes, as the control contract declares them. */
 export type ControlOperationParams<Method extends ControlOperationMethodName> = ControlOperations[Method]["params"];
 
-/** What one control operation answered: its result, or the operation's own refusal in the runtime's words, with the structured refusal when the runtime gave one. */
+/** What one control operation answered: its result, or the operation's own refusal in the runtime's words, with the contract's refusal when the runtime gave one. */
 export type ControlOperationAnswer =
   | { kind: "answered"; result: unknown }
-  | { kind: "refused_by_the_operation"; words: string; refusal: unknown };
+  | { kind: "refused_by_the_operation"; words: string; refusal: ProjectActionRefusalOnTheWire | null };
+
+/** `sent` read as the contract's refusal by the generated client, a refusal code it does not know read as `refused`; `null` when it is not one. */
+export function controlContractRefusalOf(sent: unknown): ProjectActionRefusalOnTheWire | null {
+  const refusal = ControlSchemas.components.ProjectActionRefusalOnTheWire.safeParse(sent);
+  return refusal.success ? refusal.data : null;
+}
+
+/** JSON-RPC error codes by which the operation itself refused a call it was sent: refused, failed, or params its request does not read. */
+const OPERATION_REFUSAL_ERROR_CODES: readonly number[] = [CONTROL_OPERATION_REFUSED_ERROR_CODE, CONTROL_OPERATION_FAILED_ERROR_CODE, JSON_RPC_INVALID_PARAMS_ERROR_CODE];
 
 /** Socket error codes that mean no runtime listens on the local API socket. */
 const NO_RUNTIME_LISTENING_ERROR_CODES: readonly string[] = ["ENOENT", "ECONNREFUSED"];
@@ -58,7 +70,7 @@ async function controlOperationAnswerOfTheCall(
     return succeeded({ kind: "answered", result });
   } catch (callFailure) {
     if (callFailure instanceof ControlOperationError) {
-      if (callFailure.code === CONTROL_OPERATION_REFUSED_ERROR_CODE || callFailure.code === CONTROL_OPERATION_FAILED_ERROR_CODE) {
+      if (OPERATION_REFUSAL_ERROR_CODES.includes(callFailure.code)) {
         return succeeded({ kind: "refused_by_the_operation", words: callFailure.message, refusal: callFailure.refusal ?? null });
       }
       return theRuntimesRefusal(`the runtime refused \`${method}\`: ${callFailure.message}`);

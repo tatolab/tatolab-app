@@ -60,7 +60,7 @@ function anApplied(mode: GraphEditMode): ProjectGraphTransactionApplying {
 }
 
 function aRefusalInTheRuntimesWords(runtimeWords: string): ProjectGraphTransactionApplying {
-  return { kind: "refused", refusal: { action: "transact", refused_operation_index: 0, refused_node: "node-id", refused_link: null, refused_field: "fps", runtime_words: runtimeWords } };
+  return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: "node-id", refused_link: null, refused_field: "fps", refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: runtimeWords } };
 }
 
 async function letTheQueuedSendsRun() {

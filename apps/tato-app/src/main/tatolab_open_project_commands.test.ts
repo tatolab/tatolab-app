@@ -252,11 +252,11 @@ test("an asset's preview picture of the open project reaches the window as a dat
 });
 
 /** The window's `ProjectGraphTransactionTheRuntimeAnswered` reads exactly this JSON. */
-test("a graph transaction in the open project reaches the runtime's transact held to its shape and to the project's streams, by the person editing, answering what it applied or the runtime's structured refusal", async () => {
+test("a graph transaction in the open project reaches the runtime's transact held to its shape and to the project's streams, by the person editing, answering what it applied or the runtime's structured refusal, its code and its words unchanged", async () => {
   const sharedState = await sharedStateOverFakes(
     [
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-transact-tool-result-of-setting-the-test-pattern-to-640-by-360.json")),
-      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-transact-refusal-for-an-image-output-into-a-channels-input.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-transact-refusal-for-an-array-output-into-a-channels-input.json")),
     ],
     "linux",
   );
@@ -324,10 +324,24 @@ test("a graph transaction in the open project reaches the runtime's transact hel
       },
     },
   });
-  const link = { source: { node: testPattern, port: "video" }, target: { node: "d28273fd-8094-41f7-b832-a55f58d60f37", port: "refresh" } };
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [{ operation: "connect", stream, ...link }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toMatchObject({
+  const link = { source: { node: "7fc1b632-c0db-4d98-be98-70f6af6b0abc", port: "array" }, target: { node: "37baed6c-0749-45e7-aa92-bcd8f7720d24", port: "channels" } };
+  expect(await commandHandlers.transact_in_the_open_project({ operations: [{ operation: "connect", stream, ...link }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: true,
-    value: { kind: "refused", refusal: { action: "transact", refused_operation_index: 0, refused_link: link, refused_node: null, refused_field: null } },
+    value: {
+      kind: "refused",
+      refusal: {
+        refusal_code: "refused",
+        action: "transact",
+        refused_operation_index: 0,
+        refused_node: null,
+        refused_link: link,
+        refused_field: null,
+        refused_params_pointer: null,
+        refused_file: null,
+        suggested_call: null,
+        runtime_words: "Invalid link: cannot link imagetoarray.array (Array) to channelstoarray.channels (Channels): a link joins two ports of one family; place an ArrayToChannels node between them",
+      },
+    },
   });
   expect(await commandHandlers.transact_in_the_open_project({ operations: [{ ...setTheSize, force: true }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toMatchObject({
     ok: false,

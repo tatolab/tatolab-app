@@ -71,7 +71,7 @@ import {
 } from "./project_changes_on_the_wire.js";
 import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTheListAssetsToolResult, type ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import {
-  projectActionRefusalOnTheWire,
+  projectActionRefusalOfTheContract,
   projectTransactionFromTheUndoOrRedoToolResult,
 } from "./project_transactions_on_the_wire.js";
 import { projectGraphTransactionFromTheTransactToolResult } from "./project_graph_transaction_on_the_wire.js";
@@ -731,8 +731,8 @@ export class LocalApiClient {
     });
     if (!operationAnswer.ok) return operationAnswer;
     if (operationAnswer.value.kind === "refused_by_the_operation") {
-      const refusal = projectActionRefusalOnTheWire(operationAnswer.value.refusal);
-      return refusal.ok ? succeeded({ kind: "refused", refusal: refusal.value }) : theRuntimesRefusal(operationAnswer.value.words);
+      const { refusal, words } = operationAnswer.value;
+      return refusal === null ? theRuntimesRefusal(words) : succeeded({ kind: "refused", refusal: projectActionRefusalOfTheContract(refusal) });
     }
     const transaction = projectGraphTransactionFromTheTransactToolResult(operationAnswer.value.result);
     return transaction.ok ? succeeded({ kind: "applied", transaction: transaction.value }) : localApiRequestFailure(transaction.failure);
