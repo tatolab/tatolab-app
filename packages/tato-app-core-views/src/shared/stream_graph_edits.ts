@@ -7,6 +7,7 @@ import {
   streamGraphNodeStudioFieldsSchema,
   type JsonValue,
   type NodeCatalogEntry,
+  type NodeCatalogPort,
   type StreamGraphAction,
   type StreamGraphNode,
   type StreamGraphNodeStudioFields,
@@ -125,7 +126,7 @@ export function pinsWiredEdits(edited: EditedStreamGraph, source: { node_id: str
 }
 
 /** The first port of `ports` that can take or give `family`; any port when the family is unknown. */
-function firstPortOfTheFamily(ports: NodeCatalogEntry["inputs"], family: string | null): string | null {
+function firstPortOfTheFamily(ports: readonly Pick<NodeCatalogPort, "name" | "family">[], family: string | null): string | null {
   return (family === null ? ports[0] : (ports.find((port) => port.family === family || port.family === null) ?? null))?.name ?? null;
 }
 
@@ -194,8 +195,8 @@ export function cardLetGoOverALinkEdits(edited: EditedStreamGraph, nodeName: str
   const link = edited.graph.links.find((graphLink) => linkIdAsTheCanvasKeysIt(graphLink) === linkId);
   if (node === undefined || link === undefined) return [];
   const family = edited.graph.nodes.find((graphNode) => graphNode.name === link.source_node)?.output_ports.find((port) => port.name === link.source_port)?.family ?? null;
-  const input = firstPortOfTheFamily(node.input_ports.map((port) => ({ name: port.name, description: "", family: port.family })), family);
-  const output = firstPortOfTheFamily(node.output_ports.map((port) => ({ name: port.name, description: "", family: port.family })), family);
+  const input = firstPortOfTheFamily(node.input_ports, family);
+  const output = firstPortOfTheFamily(node.output_ports, family);
   const linkSourceNode = nodeIdOf(edited, link.source_node);
   const linkTargetNode = nodeIdOf(edited, link.target_node);
   if (input === null || output === null || linkSourceNode === null || linkTargetNode === null) return [];

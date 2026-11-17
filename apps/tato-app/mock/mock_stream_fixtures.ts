@@ -125,7 +125,7 @@ export interface MockGraphFragment {
 
 /** Ports of `family` stating no stream facts, as every input and most outputs do; a Records port carries the runtime's unchecked mark. */
 const portsStatingNoStreamFacts = (family: PortFamily, ...portNames: string[]): StreamGraphDeclaredPort[] =>
-  portNames.map((name) => ({ name, family, stream_facts: null, values_checked: family === "records" ? false : null }));
+  portNames.map((name) => ({ name, family, stream_facts: null, values_checked: family === "records" ? false : null, pin: null }));
 
 /** An Image output stating its frame rate, as a source declaring `rate=` does. */
 const imageOutputAtFramesPerSecond = (name: string, framesPerSecond: number): StreamGraphDeclaredPort => ({
@@ -133,6 +133,7 @@ const imageOutputAtFramesPerSecond = (name: string, framesPerSecond: number): St
   family: "image",
   stream_facts: { family: "image", frame_rate: { numerator: framesPerSecond, denominator: 1 }, content_light_level: null, mastering_display_colour_volume: null },
   values_checked: null,
+  pin: null,
 });
 
 /** How fast a mock stream's counters climb while it runs: messages a link's target drops, and messages an output refuses, each second. */
@@ -598,6 +599,7 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
                 codec_configuration_byte_length: null,
               },
               values_checked: null,
+              pin: null,
             },
           ],
         },

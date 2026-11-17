@@ -8,12 +8,12 @@ function nodeWithOutputs(name: string, outputPorts: StreamGraphNode["output_port
   return { id: `id-${name}`, name, type: "Processor", kind: "process", state: "Running", failed_because: null, process_raising_because: null, not_ready_because: null, config: {}, input_ports: [], output_ports: outputPorts, dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
 }
 
-const CAMERA = nodeWithOutputs("camera", [{ name: "video", family: "image", stream_facts: null, values_checked: null }]);
+const CAMERA = nodeWithOutputs("camera", [{ name: "video", family: "image", stream_facts: null, values_checked: null, pin: null }]);
 const METER = nodeWithOutputs("brightnessmeter", [
-  { name: "readings", family: "records", stream_facts: null, values_checked: false },
-  { name: "preview", family: "image", stream_facts: null, values_checked: null },
+  { name: "readings", family: "records", stream_facts: null, values_checked: false, pin: null },
+  { name: "preview", family: "image", stream_facts: null, values_checked: null, pin: null },
 ]);
-const LFO = nodeWithOutputs("lfo", [{ name: "result", family: "array", stream_facts: null, values_checked: null }]);
+const LFO = nodeWithOutputs("lfo", [{ name: "result", family: "array", stream_facts: null, values_checked: null, pin: null }]);
 const DISPLAY = nodeWithOutputs("displaywindow", []);
 
 const GRAPH: StreamGraphSummary = {

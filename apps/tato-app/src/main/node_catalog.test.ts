@@ -17,7 +17,7 @@ test("a_real_registry_answer_reads_as_each_node_types_description_config_schema_
   expect(relayTrackSource?.type).toBe("tatolab.stream:RelayTrackSource");
   expect(relayTrackSource?.description.startsWith("Reads one track at a MoQ relay into the graph")).toBe(true);
   expect(relayTrackSource?.inputs).toEqual([]);
-  expect(relayTrackSource?.outputs).toEqual([{ name: "track", description: "Each object of the track, as the relay delivered it", family: null }]);
+  expect(relayTrackSource?.outputs).toEqual([{ name: "track", description: "Each object of the track, as the relay delivered it", family: null, pin: null }]);
   expect(relayTrackSource?.config_schema).toMatchObject({
     title: "RelayTrackSourceConfig",
     type: "object",
@@ -32,7 +32,7 @@ test("a_node_type_described_without_a_config_schema_reads_as_none", () => {
 
   expect(nodeCatalogFromTheRegistryAnswer("main", registryAnswer)).toEqual({
     ok: true,
-    value: { stream: "main", node_types: [{ type: "nodes.x:X", description: "", category: null, config_schema: null, inputs: [{ name: "a", description: "", family: null }], outputs: [] }] },
+    value: { stream: "main", node_types: [{ type: "nodes.x:X", description: "", category: null, config_schema: null, inputs: [{ name: "a", description: "", family: null, pin: null }], outputs: [] }] },
   });
 });
 
@@ -87,4 +87,29 @@ test("a_port_naming_one_of_the_five_families_reads_as_it_in_any_case_and_any_oth
   const catalog = nodeCatalogFromTheRegistryAnswer("main", registryAnswer);
   expect(catalog.ok && catalog.value.node_types[0]?.inputs.map((port) => port.family)).toEqual(["image", "channels"]);
   expect(catalog.ok && catalog.value.node_types[0]?.outputs.map((port) => port.family)).toEqual([null]);
+});
+
+test("a_catalog_port_reads_the_declared_pin_type_and_flow_it_serves_and_untyped_when_it_serves_neither", () => {
+  const registryAnswer = JSON.stringify({
+    nodes: [
+      {
+        type: "nodes.x:X",
+        description: "",
+        inputs: [
+          { name: "gain", description: "", family: { family: "array" }, pin_type: { kind: "is", pin_type: { type: "float", exact_size: "float32" } }, flow: "value" },
+          { name: "anything", description: "", family: { family: "array" }, pin_type: { kind: "any" }, flow: "value" },
+          { name: "untyped", description: "", family: { family: "array" } },
+        ],
+        outputs: [],
+      },
+    ],
+  });
+
+  const nodeCatalog = nodeCatalogFromTheRegistryAnswer("main", registryAnswer);
+
+  expect(nodeCatalog.ok && nodeCatalog.value.node_types[0]?.inputs.map((port) => [port.name, port.pin])).toEqual([
+    ["gain", { pin_type: { kind: "is", pin_type: { type: "float", exact_size: "float32" } }, flow: "value" }],
+    ["anything", { pin_type: { kind: "any" }, flow: "value" }],
+    ["untyped", null],
+  ]);
 });

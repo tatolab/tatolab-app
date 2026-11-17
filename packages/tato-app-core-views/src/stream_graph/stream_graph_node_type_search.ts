@@ -69,7 +69,7 @@ export function nodeTypesTheProjectDeclares(projectNodeTypes: ProjectNodeTypeLis
 }
 
 function catalogEntryOfTheDeclaration(declared: ProjectNodeType): NodeCatalogEntry {
-  const portsDeclared = (ports: ProjectNodeType["inputs"]) => (ports ?? []).map(({ name, description, family }) => ({ name, description, family }));
+  const portsDeclared = (ports: ProjectNodeType["inputs"]) => (ports ?? []).map(({ name, description, family }) => ({ name, description, family, pin: null }));
   return { type: declared.type, description: declared.description, category: declared.category, config_schema: null, inputs: portsDeclared(declared.inputs), outputs: portsDeclared(declared.outputs) };
 }
 

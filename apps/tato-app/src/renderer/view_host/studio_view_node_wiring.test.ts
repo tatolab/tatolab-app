@@ -11,8 +11,8 @@ const DECK = graphNode("djdeck", "acme-dj:deck", { level: 0.5 }, []);
 const GRAPH: StreamGraphSummary = {
   stream: "set",
   nodes: [
-    graphNode("player", "acme_dj:Player", {}, [{ name: "audio", family: "channels", stream_facts: null, values_checked: null }]),
-    graphNode("camera", "tatolab.stream:Camera", {}, [{ name: "video", family: "image", stream_facts: null, values_checked: null }]),
+    graphNode("player", "acme_dj:Player", {}, [{ name: "audio", family: "channels", stream_facts: null, values_checked: null, pin: null }]),
+    graphNode("camera", "tatolab.stream:Camera", {}, [{ name: "video", family: "image", stream_facts: null, values_checked: null, pin: null }]),
     DECK,
     graphNode("otherview", "acme-stage:rig", {}, []),
   ],

@@ -14,7 +14,7 @@ function aTestPatternAlone(): MockStreamGraph {
         state: "Running",
         config: {},
         input_ports: [],
-        output_ports: [{ name: "video", family: "image", stream_facts: null, values_checked: null }],
+        output_ports: [{ name: "video", family: "image", stream_facts: null, values_checked: null, pin: null }],
       },
     ],
     links: [],
@@ -179,7 +179,7 @@ test("a collapsed node is saved as a stream the subgraph places, wired through i
 
 test("a Python node takes a number config field as a Channels input fed by a Graph Input, its undo puts it back, and a native node is refused", () => {
   const graph = aTestPatternAlone();
-  graph.nodes.push({ name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {}, input_ports: [{ name: "video_from_upstream", family: "image", stream_facts: null, values_checked: null }], output_ports: [] });
+  graph.nodes.push({ name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {}, input_ports: [{ name: "video_from_upstream", family: "image", stream_facts: null, values_checked: null, pin: null }], output_ports: [] });
   const inverter = mockNodeIdOf(STREAM_ID, "invertingeffect");
   const exposed = applyMockGraphTransaction(targetsOf(graph), [
     { operation: "set_exposed_config_fields", stream: STREAM_ASSET, node: inverter, exposed_config_fields: ["strength"] },
@@ -225,7 +225,7 @@ test("a Graph Input, Graph Output or Set Variable added with no name takes the n
 
 test("a Graph Input added with no family carries none until a link gives it the family of the port it feeds, and loses it again when unlinked", () => {
   const graph = aTestPatternAlone();
-  graph.nodes.push({ name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {}, input_ports: [{ name: "strength", family: "channels", stream_facts: null, values_checked: null }], output_ports: [] });
+  graph.nodes.push({ name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {}, input_ports: [{ name: "strength", family: "channels", stream_facts: null, values_checked: null, pin: null }], output_ports: [] });
   const added = applyMockGraphTransaction(targetsOf(graph), [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", as: "graph_input" }]);
   if (added.kind !== "applied") return expect.unreachable(added.refusal.runtime_words);
   const graphInput = () => graph.nodes.find((node) => node.type === "tatolab.stream:GraphInput") ?? expect.unreachable("no Graph Input");
@@ -260,7 +260,7 @@ function aLookPlacedTwice(): { graph: MockStreamGraph; placedStream: string; loo
   if (collapsed.kind !== "applied") return expect.unreachable(collapsed.refusal.runtime_words);
   const look = graph.nodes.find((node) => node.name === "look") ?? expect.unreachable("no look");
   graph.nodes.push({ ...structuredClone(look), name: "look-again" });
-  graph.nodes.push({ name: "displaywindow-2", type: "tatolab.stream:DisplayWindow", state: "Running", config: {}, input_ports: [{ name: "video", family: "image", stream_facts: null, values_checked: null }], output_ports: [] });
+  graph.nodes.push({ name: "displaywindow-2", type: "tatolab.stream:DisplayWindow", state: "Running", config: {}, input_ports: [{ name: "video", family: "image", stream_facts: null, values_checked: null, pin: null }], output_ports: [] });
   graph.links.push({ id: "Lagain", source_node: "look-again", source_port: "testpatternsource-video", target_node: "displaywindow-2", target_port: "video", state: "wired" });
   return { graph, placedStream: assetPlacedBy(look), look: mockNodeIdOf(STREAM_ID, "look") };
 }

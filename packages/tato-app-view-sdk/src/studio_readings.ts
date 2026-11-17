@@ -2,6 +2,7 @@
 // parsed against these on both ends, and Studio's own code takes its types from them.
 
 import { z } from "zod";
+import { declaredPinTypeSchema, pinFlowSchema, pinTypeSchema } from "./pin_type_readings.js";
 import { PORT_FAMILIES } from "./port_families.js";
 
 /** A value as JSON carries it. */
@@ -83,6 +84,11 @@ export const portStreamFactsSchema = z.discriminatedUnion("family", [
 /** An output port's stream facts. */
 export type PortStreamFacts = z.infer<typeof portStreamFactsSchema>;
 
+/** The pin type a port of a running graph carries, resolved, and its flow, from its `pin_type` and `flow` keys. */
+export const streamGraphPortPinSchema = z.object({ pin_type: pinTypeSchema, flow: pinFlowSchema });
+/** The pin type a port of a running graph carries, and its flow. */
+export type StreamGraphPortPin = z.infer<typeof streamGraphPortPinSchema>;
+
 /** A port a node declares under the graph's `ports.inputs` or `ports.outputs`. */
 export const streamGraphDeclaredPortSchema = z.object({
   name: z.string(),
@@ -92,6 +98,8 @@ export const streamGraphDeclaredPortSchema = z.object({
   stream_facts: portStreamFactsSchema.nullable(),
   /** `false` on a Records port, whose values no type checks, from its `values_checked` key; `null` on every other family. */
   values_checked: z.boolean().nullable(),
+  /** Its pin type and flow; `null` on a port the runtime serves neither for, because its code does not state its type exactly, which links by its family alone. */
+  pin: streamGraphPortPinSchema.nullable(),
 });
 /** A port a node declares. */
 export type StreamGraphDeclaredPort = z.infer<typeof streamGraphDeclaredPortSchema>;
@@ -242,11 +250,18 @@ export const streamGraphSummarySchema = z.object({
 /** One loaded stream's nodes and links. */
 export type StreamGraphSummary = z.infer<typeof streamGraphSummarySchema>;
 
+/** The pin type a node type's port declares, or how it is found, and its flow, from the catalog port's `pin_type` and `flow` keys. */
+export const nodeCatalogPortPinSchema = z.object({ pin_type: declaredPinTypeSchema, flow: pinFlowSchema });
+/** The pin type a node type's port declares, and its flow. */
+export type NodeCatalogPortPin = z.infer<typeof nodeCatalogPortPinSchema>;
+
 /** One port a node type declares, as the node catalog lists it. */
 export const nodeCatalogPortSchema = z.object({
   name: z.string(),
   description: z.string(),
   family: portFamilySchema.nullable(),
+  /** Its declared pin type and flow; `null` on a port the catalog serves neither for, because its code does not state its type exactly. */
+  pin: nodeCatalogPortPinSchema.nullable(),
 });
 /** One port a node type declares. */
 export type NodeCatalogPort = z.infer<typeof nodeCatalogPortSchema>;

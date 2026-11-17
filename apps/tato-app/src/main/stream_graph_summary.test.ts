@@ -17,7 +17,7 @@ const aRecordedGraphOfAStreamWithANodeWhoseProcessKeepsRaising = () =>
 
 const aRecordedGraphOfAStreamWithANodeThatIsNotReady = () => recordedGraphToolResultText("local-api-graph-tool-result-of-a-stream-with-a-node-that-is-not-ready.json");
 
-const portsStatingNoStreamFacts = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, family: null, stream_facts: null, values_checked: null }));
+const portsStatingNoStreamFacts = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, family: null, stream_facts: null, values_checked: null, pin: null }));
 
 function node(
   name: string,
@@ -195,7 +195,7 @@ test("a_port_the_graph_names_a_family_of_reads_as_that_family", () => {
     links: [],
   });
   const graph = streamGraphSummaryFromTheGraphToolResult("main", graphText);
-  expect(graph.ok && graph.value.nodes[0]?.output_ports).toEqual([{ name: "video", family: "image", stream_facts: null, values_checked: null }]);
+  expect(graph.ok && graph.value.nodes[0]?.output_ports).toEqual([{ name: "video", family: "image", stream_facts: null, values_checked: null, pin: null }]);
 });
 
 test("a_port_reads_as_the_family_its_family_declaration_names_as_the_runtime_renders_it", () => {
@@ -248,15 +248,17 @@ test("an_output_reads_the_stream_facts_and_the_unchecked_mark_the_runtime_render
       family: "image",
       stream_facts: { family: "image", frame_rate: { numerator: 30000, denominator: 1001 }, content_light_level: null, mastering_display_colour_volume: null },
       values_checked: null,
+      pin: null,
     },
-    { name: "records", family: "records", stream_facts: null, values_checked: false },
+    { name: "records", family: "records", stream_facts: null, values_checked: false, pin: null },
     {
       name: "encoded",
       family: "packets",
       stream_facts: { family: "packets", rfc6381_codec: "opus", coded_width: null, coded_height: null, sample_rate: 48000, channel_count: 2, codec_configuration_byte_length: 12 },
       values_checked: null,
+      pin: null,
     },
-    { name: "odd", family: "image", stream_facts: null, values_checked: null },
+    { name: "odd", family: "image", stream_facts: null, values_checked: null, pin: null },
   ]);
 });
 
@@ -562,4 +564,37 @@ test("a_recorded_graph_reads_the_config_fields_a_node_takes_as_inputs_and_the_gr
   const graphInput = summary.value.nodes.find((graphNode) => graphNode.name === "glow_strength") ?? expect.unreachable("no Graph Input");
   expect([graphInput.type, graphInput.config]).toEqual(["tatolab.stream:GraphInput", { family: "channels", port: "glow_strength", range: [0, 1] }]);
   expect(summary.value.links.find((link) => link.target_node === "glow")).toMatchObject({ source_node: "glow_strength", source_port: "value", target_port: "strength", state: "wired" });
+});
+
+test("a_port_reads_untyped_unless_it_serves_both_a_pin_type_and_a_flow_the_contract_reads", () => {
+  const portServing = (name: string, pin: Record<string, unknown>) => ({ name, family: { family: "image" }, ...pin });
+  const graphText = JSON.stringify({
+    stream: "main",
+    nodes: [
+      {
+        id: "P1",
+        name: "pins",
+        type: "stream:Pins",
+        ports: {
+          inputs: [
+            portServing("typed", { pin_type: { type: "texture", pixel_formats: ["rgba8_unorm"] }, flow: "stream" }),
+            portServing("type_without_a_flow", { pin_type: { type: "texture" } }),
+            portServing("flow_without_a_type", { flow: "stream" }),
+            portServing("type_this_contract_cannot_read", { pin_type: { type: "light_field" }, flow: "stream" }),
+          ],
+          outputs: [],
+        },
+      },
+    ],
+    links: [],
+  });
+
+  const graph = streamGraphSummaryFromTheGraphToolResult("main", graphText);
+
+  expect(graph.ok && graph.value.nodes[0]?.input_ports.map((port) => [port.name, port.family, port.pin])).toEqual([
+    ["typed", "image", { pin_type: { type: "texture", pixel_formats: ["rgba8_unorm"] }, flow: "stream" }],
+    ["type_without_a_flow", "image", null],
+    ["flow_without_a_type", "image", null],
+    ["type_this_contract_cannot_read", "image", null],
+  ]);
 });

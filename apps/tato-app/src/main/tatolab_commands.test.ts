@@ -120,7 +120,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
   expect(graph.ok && JSON.stringify(graph.value)).toBe(
     '{"stream":"main","stream_asset":null,"nodes":[' +
       '{"id":"P1","name":"testpatternsource","type":"tatolab.stream:TestPatternSource","kind":null,"state":"Running","failed_because":null,"process_raising_because":null,"not_ready_because":null,"config":{},"pins":{},"exposed_config_fields":[],' +
-      '"input_ports":[],"output_ports":[{"name":"video","family":null,"stream_facts":null,"values_checked":null}],' +
+      '"input_ports":[],"output_ports":[{"name":"video","family":null,"stream_facts":null,"values_checked":null,"pin":null}],' +
       '"dropped_bags_by_link":{},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}},"fragment":null,"graph_interface":null},' +
       '{"id":"","name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","kind":null,"state":null,"failed_because":null,"process_raising_because":null,"not_ready_because":null,"config":{},"pins":{},"exposed_config_fields":[],' +
       '"input_ports":[],"output_ports":[],' +

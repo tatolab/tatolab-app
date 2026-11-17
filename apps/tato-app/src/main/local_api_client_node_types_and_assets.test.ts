@@ -23,6 +23,23 @@ test("the_node_catalog_is_read_from_the_registry_of_the_stream_asked_for", async
   expect(nodeCatalog.node_types.map((nodeType) => nodeType.type)).toEqual(["tatolab.stream:RelayTrackSource"]);
 });
 
+test("a_real_node_catalog_reads_the_pin_type_and_flow_a_typed_port_declares_and_an_untyped_port_by_its_family_alone", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-registry-answer-of-pins-naming-the-texture-ports-of-two-built-ins.json")),
+  ]);
+
+  const nodeCatalog = answerOf(await server.client().describeNodeCatalog("pins-main-cbc98f"));
+
+  const portsOf = (type: string) => {
+    const nodeType = nodeCatalog.node_types.find((listed) => listed.type === type);
+    return [nodeType?.inputs.map(({ name, family, pin }) => ({ name, family, pin })), nodeType?.outputs.map(({ name, family, pin }) => ({ name, family, pin }))];
+  };
+  const aDeclaredTexture = { pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" };
+  expect(portsOf("tatolab.stream:ArrayToImage")).toEqual([[{ name: "array", family: "array", pin: null }], [{ name: "image", family: "image", pin: aDeclaredTexture }]]);
+  expect(portsOf("tatolab.stream:ImageToArray")).toEqual([[{ name: "image", family: "image", pin: aDeclaredTexture }], [{ name: "array", family: "array", pin: null }]]);
+  expect(portsOf("tatolab.stream:ChannelsToRecords")).toEqual([[{ name: "channels", family: "channels", pin: null }], [{ name: "records", family: "records", pin: null }]]);
+});
+
 test("a_node_catalog_of_a_stream_not_loaded_is_refused_in_the_runtimes_own_words", async () => {
   const server = await fakeLocalApiServerAnswering([
     httpResponse("404 Not Found", "application/json", await recordedResponseBody("local-api-registry-refusal-for-the-stream-front-door-not-loaded.json")),
