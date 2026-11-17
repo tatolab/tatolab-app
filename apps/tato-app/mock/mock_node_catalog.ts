@@ -113,7 +113,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
       type: "object",
       properties: { strength: { type: "number", description: "How far each colour is inverted.", default: 1, minimum: 0, maximum: 1 } },
     },
-    inputs: [port("video_from_upstream", "", "image"), floatValuePort("amount", "How far each colour is inverted")],
+    inputs: [port("video_from_upstream", "", "image"), floatValuePort("amount", "Brightness added to each frame after it is inverted")],
     outputs: [port("video_to_downstream", "", "image")],
   },
   {

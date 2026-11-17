@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { NodeGraphPinMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
-import { pinTypeWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_types";
+import { pinWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
 import { portFamilyWords } from "@tatolab/tato-app-view-sdk/port_families";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_banner";
@@ -454,7 +454,7 @@ function PortRowsOfOneDirection({
         direction={direction}
         portName={port.name}
         searchWords={searchWords}
-        typeWords={port.pin !== null ? pinTypeWords(port.pin.pin_type) : port.family !== null ? portFamilyWords(port.family) : "Unknown"}
+        typeWords={port.pin === null && port.family !== null ? `${pinWords(null)} · ${portFamilyWords(port.family)}` : pinWords(port.pin)}
         pinMark={<NodeGraphPinMark pin={port.pin} />}
         meaning={meaningOfAPort(port, catalogPorts, facts)}
         bandShade={(firstBandIndex + portIndex) % 2 === 0 ? "first" : "second"}

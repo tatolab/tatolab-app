@@ -4,7 +4,8 @@ import { ChevronDown, ChevronRight, Combine, SquareX, TriangleAlert } from "luci
 import { Fragment, useContext, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import { nodePinRows, type NodePin } from "../../pin_model/node_pins";
 import type { PinFlow } from "../../pin_type_readings";
-import { pinTypeKey, pinWords, type PinOfAPort, type PinTypeKey } from "../../pin_model/pin_types";
+import { pinTypeKey, pinWords, type PinTypeKey } from "../../pin_model/pin_type_words";
+import type { StreamGraphPortPin } from "../../studio_readings";
 import { NodeGraphNodesFoundContext } from "../node_graph_find_bar";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "../support/full_strength_focus_ring";
 import type { NodeGraphCardCondition, NodeGraphCanvasNode } from "../support/node_graph_canvas_contract";
@@ -19,7 +20,7 @@ function nodeGraphPinTooltip(pin: NodePin): string {
 }
 
 /** The attributes a socket's shape and colour are picked by: its flow (round while it has none) and its type's key. */
-function socketLookAttributes(pin: PinOfAPort | null): { "data-pin-type": PinTypeKey; "data-pin-flow": PinFlow | undefined } {
+function socketLookAttributes(pin: StreamGraphPortPin | null): { "data-pin-type": PinTypeKey; "data-pin-flow": PinFlow | undefined } {
   return { "data-pin-type": pinTypeKey(pin), "data-pin-flow": pin?.flow };
 }
 
@@ -102,25 +103,25 @@ function NodeGraphCardHeaderAndPinRows({
           </span>
         )}
         <NodeGraphCardConditionTag condition={graphNode.condition} />
-        {graphNode.is_collapsed && rows.map((row) => <Fragment key={`${row.side}:${row.pin.name}`}>{socketOfThePin(row.side, row.pin, false)}</Fragment>)}
+        {graphNode.is_collapsed && rows.map((row) => <Fragment key={`${row.side}:${row.node_pin.name}`}>{socketOfThePin(row.side, row.node_pin, false)}</Fragment>)}
       </div>
       {!graphNode.is_collapsed && rows.length > 0 && (
         <div style={{ paddingBlock: NODE_GRAPH_CARD_PIN_ROWS_PADDING }}>
           {rows.map((row) => (
             <div
-              key={`${row.side}:${row.pin.name}`}
+              key={`${row.side}:${row.node_pin.name}`}
               className={cn("relative flex items-center px-3 text-2xs text-fg-2", row.side === "output" && "justify-end")}
-              style={{ minHeight: NODE_GRAPH_PIN_ROW_HEIGHT }}
+              style={{ height: NODE_GRAPH_PIN_ROW_HEIGHT }}
               data-node-graph-pin-row={row.side}
             >
               <span
                 className={cn("truncate", row.side === "output" && "text-right")}
-                {...(row.side === "input" ? { "data-node-graph-input-pin": row.pin.name } : { "data-node-graph-output-pin": row.pin.name })}
-                title={nodeGraphPinTooltip(row.pin)}
+                {...(row.side === "input" ? { "data-node-graph-input-pin": row.node_pin.name } : { "data-node-graph-output-pin": row.node_pin.name })}
+                title={nodeGraphPinTooltip(row.node_pin)}
               >
-                {row.pin.name}
+                {row.node_pin.name}
               </span>
-              {socketOfThePin(row.side, row.pin, true)}
+              {socketOfThePin(row.side, row.node_pin, true)}
             </div>
           ))}
         </div>
@@ -226,7 +227,7 @@ function NodeGraphCardConditionTag({ condition }: { condition: NodeGraphCardCond
 }
 
 /** A port's mark beside its name outside the canvas, as Properties and the Library list ports: the socket a card draws for it, filled. */
-export function NodeGraphPinMark({ pin }: { pin: PinOfAPort | null }) {
+export function NodeGraphPinMark({ pin }: { pin: StreamGraphPortPin | null }) {
   return <span aria-hidden className="node-graph-pin-mark" {...socketLookAttributes(pin)} />;
 }
 

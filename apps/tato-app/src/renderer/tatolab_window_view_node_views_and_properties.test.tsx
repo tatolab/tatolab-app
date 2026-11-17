@@ -207,9 +207,23 @@ describe("the studio", () => {
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
     const socket = (nodeId: string, handleId: string) => streamGraph.querySelector<HTMLElement>(`[data-node-graph-card="${nodeId}"] .node-graph-pin[data-handleid="${handleId}"]`) ?? expect.unreachable(`no socket ${handleId} on ${nodeId}`);
     const look = (element: HTMLElement) => [element.getAttribute("data-pin-type"), element.getAttribute("data-pin-flow"), element.getAttribute("title")];
-    await waitFor(() => expect(look(socket("invertingeffect", "input:amount"))).toEqual(["float", "value", "amount · Float, one value at a time\nHow far each colour is inverted"]));
+    await waitFor(() => expect(look(socket("invertingeffect", "input:amount"))).toEqual(["float", "value", "amount · Float, one value at a time\nBrightness added to each frame after it is inverted"]));
     expect(look(socket("displaywindow", "input:video"))).toEqual(["texture", "stream", "video · Texture, a stream\nFrames to show"]);
     expect(look(socket("invertingeffect", "input:video_from_upstream"))).toEqual(["untyped", null, "video_from_upstream · No exact type · 30 fps"]);
+  });
+
+  it("names each port's type and flow in Properties beside a mark in its type's look, and an untyped port's family as a family", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card")));
+    const portRow = (portName: string) => coreViewPage("properties").querySelector<HTMLElement>(`[data-properties-port="${portName}"]`);
+    const wordsAndMark = (portName: string) => {
+      const row = portRow(portName) ?? expect.unreachable(`no ${portName} row in Properties`);
+      return [row.querySelector("[data-properties-port-type-words]")?.textContent, row.querySelector(".node-graph-pin-mark")?.getAttribute("data-pin-type")];
+    };
+    await waitFor(() => expect(portRow("amount")).not.toBeNull());
+    expect(wordsAndMark("amount")).toEqual(["Float, one value at a time", "float"]);
+    expect(wordsAndMark("video_from_upstream")).toEqual(["No exact type · Image", "untyped"]);
   });
 
   it("narrows Properties to the matching properties from its toolbar's search field, and shows them all again once cleared", async () => {

@@ -485,7 +485,7 @@ export function PropertyPortRow({
   portName: string;
   /** What a search field over the properties holds: the part of the port's name it matches is marked. */
   searchWords?: string;
-  /** Its type in words, or its family while it has no exact type. */
+  /** Its type and flow in words; a port with no exact type says so, with its family. */
   typeWords: string;
   pinMark: ReactNode;
   meaning?: string;
@@ -511,7 +511,7 @@ export function PropertyPortRow({
               </span>
             }
           />
-          <span className="shrink-0 text-2xs text-fg-3">{typeWords}</span>
+          <span className="shrink-0 text-2xs text-fg-3" data-properties-port-type-words>{typeWords}</span>
         </div>
         {linkedEnds.length > 0 ? (
           linkedEnds.map((linkedEnd) => <PropertyPortLinkedEndLine key={linkedEnd.linkKey} linkedEnd={linkedEnd} />)

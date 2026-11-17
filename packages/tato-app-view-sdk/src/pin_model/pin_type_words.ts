@@ -2,12 +2,7 @@
 // colour, the plain words its tooltip names it by, and the words for how its messages are read.
 
 import type { PinFlow, PinType } from "../pin_type_readings.js";
-
-/** A pin's exact type and its flow, where the runtime serves them; a pin with no exact type has none. */
-export interface PinOfAPort {
-  readonly pin_type: PinType;
-  readonly flow: PinFlow;
-}
+import type { StreamGraphPortPin } from "../studio_readings.js";
 
 /** Every key a socket's colour is picked by, `untyped` for a pin with no exact type. */
 export const PIN_TYPE_KEYS = [
@@ -43,7 +38,7 @@ function keyOfThePinType(pinType: PinType): Exclude<PinTypeKey, "untyped"> {
 }
 
 /** The key that picks the colour of the socket of `pin`; `untyped` for a pin with no exact type. */
-export function pinTypeKey(pin: PinOfAPort | null): PinTypeKey {
+export function pinTypeKey(pin: StreamGraphPortPin | null): PinTypeKey {
   return pin === null ? "untyped" : keyOfThePinType(pin.pin_type);
 }
 
@@ -63,7 +58,7 @@ const FLOAT_SIZE_WORDS: Record<NonNullable<Extract<PinType, { type: "float" }>["
 const VECTOR_COMPONENT_WORDS: Record<Extract<PinType, { type: "vector" }>["component_count"], string> = { two: "2 components", three: "3 components", four: "4 components" };
 
 /** A codec as people write it, for the spellings the runtime is known to use; any other as it is spelled. */
-const CODEC_WORDS: Readonly<Record<string, string>> = { h264: "H.264", h265: "H.265", hevc: "H.265", av1: "AV1", vp8: "VP8", vp9: "VP9", opus: "Opus", aac: "AAC" };
+const CODEC_WORDS: Readonly<Record<string, string>> = { h264: "H.264", h265: "H.265", hevc: "H.265", av1: "AV1", vp8: "VP8", vp9: "VP9", opus: "Opus", aac: "AAC", flac: "FLAC" };
 
 /** `words`, then `qualifier` after a middle dot when there is one. */
 const qualified = (words: string, qualifier: string | null): string => (qualifier === null || qualifier === "" ? words : `${words} · ${qualifier}`);
@@ -125,7 +120,7 @@ export function pinTypeWords(pinType: PinType): string {
 const PIN_FLOW_WORDS: Record<PinFlow, string> = { value: "one value at a time", stream: "a stream", trigger: "fires" };
 
 /** What a pin is in words: its type and how its messages are read, as "Float, one value at a time"; "No exact type" for a pin with none. */
-export function pinWords(pin: PinOfAPort | null): string {
+export function pinWords(pin: StreamGraphPortPin | null): string {
   if (pin === null) return "No exact type";
   if (pin.flow === "trigger" && pin.pin_type.type === "trigger") return pinTypeWords(pin.pin_type);
   return `${pinTypeWords(pin.pin_type)}, ${PIN_FLOW_WORDS[pin.flow]}`;

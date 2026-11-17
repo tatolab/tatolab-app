@@ -35,7 +35,7 @@
 
 /* A pin's socket sits on the card's edge, as Blender and Unreal draw one, filled while a link joins it and hollow while
    none does. Its colour is its type's (a List takes its element's, an untyped pin one neutral colour), and its shape is
-   its flow's: a value round, a stream square, a trigger an arrow. The keys are pinTypeKey's, in pin_model/pin_types.ts. */
+   its flow's: a value round, a stream square, a trigger an arrow. The keys are pinTypeKey's, in pin_model/pin_type_words.ts. */
 [data-pin-type="boolean"] { --node-graph-pin-colour: var(--studio-pin-type-boolean); }
 [data-pin-type="integer"] { --node-graph-pin-colour: var(--studio-pin-type-integer); }
 [data-pin-type="float"] { --node-graph-pin-colour: var(--studio-pin-type-float); }
@@ -57,6 +57,8 @@
 [data-pin-type="node_reference"] { --node-graph-pin-colour: var(--studio-pin-type-node-reference); }
 [data-pin-type="pin_type_choice"] { --node-graph-pin-colour: var(--studio-pin-type-pin-type-choice); }
 [data-pin-type="untyped"] { --node-graph-pin-colour: var(--studio-pin-type-untyped); }
+/* A link from an untyped pin keeps the canvas's own link colour. */
+g[data-pin-type="untyped"] { --node-graph-pin-colour: var(--studio-graph-link); }
 
 .node-graph-canvas .react-flow__handle.node-graph-pin,
 .node-graph-pin-of-a-preview,
@@ -75,22 +77,31 @@
 .node-graph-canvas .react-flow__handle.node-graph-pin[data-pin-flow="stream"],
 .node-graph-pin-of-a-preview[data-pin-flow="stream"],
 .node-graph-pin-mark[data-pin-flow="stream"] { border-radius: 2px; }
-/* An arrow pointing the way its messages go, cut from the socket's square; unlinked, a smaller arrow in the card's colour
-   hollows it. */
+/* A trigger is an arrow pointing the way its messages go, drawn on the socket's pseudo-elements so the socket keeps its
+   square hit box; unlinked, a smaller arrow in the card's colour, set in by the same width all round, hollows it. */
 .node-graph-canvas .react-flow__handle.node-graph-pin[data-pin-flow="trigger"],
 .node-graph-pin-of-a-preview[data-pin-flow="trigger"],
 .node-graph-pin-mark[data-pin-flow="trigger"] {
   border: none;
   border-radius: 0;
+  background: transparent;
+}
+.node-graph-pin-mark[data-pin-flow="trigger"] { position: relative; }
+.node-graph-canvas .react-flow__handle.node-graph-pin[data-pin-flow="trigger"]::before,
+.node-graph-pin-of-a-preview[data-pin-flow="trigger"]::before,
+.node-graph-pin-mark[data-pin-flow="trigger"]::before {
+  position: absolute;
+  inset: 0;
   background: var(--node-graph-pin-colour, var(--studio-graph-pin));
   clip-path: polygon(0 0, 100% 50%, 0 100%);
+  content: "";
 }
 .node-graph-canvas .react-flow__handle.node-graph-pin[data-pin-flow="trigger"]:not([data-linked])::after,
 .node-graph-pin-of-a-preview[data-pin-flow="trigger"]::after {
   position: absolute;
-  inset: 3px 3px 3px 1.5px;
+  inset: 0;
   background: var(--studio-graph-card);
-  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  clip-path: polygon(17.5% 28.3%, 60.9% 50%, 17.5% 71.7%);
   content: "";
 }
 /* React Flow places a canvas pin on its card's edge; a preview's pin sits there by these rules. */

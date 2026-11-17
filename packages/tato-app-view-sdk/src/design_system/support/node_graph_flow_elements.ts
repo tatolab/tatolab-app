@@ -1,7 +1,7 @@
 import type { Edge, Node } from "@xyflow/react";
 import { createContext } from "react";
 import type { NodeGraphPosition } from "./node_graph_layout";
-import type { PinTypeKey } from "../../pin_model/pin_types";
+import { pinTypeKey, type PinTypeKey } from "../../pin_model/pin_type_words";
 import type { NodeGraphCanvasNode, NodeGraphCanvasFrame, NodeGraphCanvasNote, NodeGraphCanvasLink, NodeGraphCanvasEditing } from "./node_graph_canvas_contract";
 
 /** A card as React Flow holds it. */
@@ -30,6 +30,11 @@ export type NodeGraphLinkFlowEdge = Edge<
   { graphLink: NodeGraphCanvasLink; pin_type_key: PinTypeKey },
   "node_graph_link"
 >;
+
+/** The type key a link is coloured by: its source output pin's, `untyped` where that pin has no exact type or is not drawn. */
+export function pinTypeKeyOfTheLink(graphLink: Pick<NodeGraphCanvasLink, "source_node_id" | "source_pin">, nodeById: ReadonlyMap<string, Pick<NodeGraphCanvasNode, "outputs">>): PinTypeKey {
+  return pinTypeKey(nodeById.get(graphLink.source_node_id)?.outputs.find((pin) => pin.name === graphLink.source_pin)?.pin ?? null);
+}
 
 /** The React Flow handle id of a card's input pin `pinName`. */
 export const inputPinHandleId = (pinName: string) => `input:${pinName}`;
