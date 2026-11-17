@@ -3,6 +3,7 @@
 // whether it opens and, when not, why in the runtime's own words. Every key the window does not
 // draw from is ignored.
 
+import type { ControlOperationResult } from "./tatolab_runtime_control_operation_call.js";
 import type { JsonValue, StudioViewOpening } from "../shared/tatolab_backend_contract.js";
 import { everyOneRead, isAJsonValue, jsonObject, optionalText, requiredArray, requiredText, requiredTrueOrFalse } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
@@ -82,7 +83,7 @@ export interface StudioViewOutputWritten {
 }
 
 /** The output `write_studio_view_output` answered with `operationResult`, or why it could not be read. */
-export function studioViewOutputFromTheWriteStudioViewOutputToolResult(operationResult: unknown): Result<StudioViewOutputWritten, string> {
+export function studioViewOutputFromTheWriteStudioViewOutputToolResult(operationResult: ControlOperationResult<"write_studio_view_output">): Result<StudioViewOutputWritten, string> {
   const written = outputFromTheParsedToolResult(operationResult);
   return written.ok ? written : failedWith(`the runtime's write_studio_view_output result could not be read: ${written.failure}`);
 }

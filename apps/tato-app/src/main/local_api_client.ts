@@ -54,6 +54,7 @@ import {
   type ControlOperationAnswer,
   type ControlOperationMethodName,
   type ControlOperationParams,
+  type ControlOperationResult,
 } from "./tatolab_runtime_control_operation_call.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
@@ -130,7 +131,7 @@ export interface StreamAssetChange {
 }
 
 /** A stream-asset tool's result read field for field; unknown fields, the rest of the asset and a `create_stream`'s load `action` among them, are ignored. */
-export function streamAssetChangeFromTheToolResult(toolName: StreamAssetChangeToolName, operationResult: unknown): Result<StreamAssetChange, string> {
+export function streamAssetChangeFromTheToolResult(toolName: StreamAssetChangeToolName, operationResult: ControlOperationResult<StreamAssetChangeToolName>): Result<StreamAssetChange, string> {
   const toolResult = jsonObject(operationResult, `the ${toolName} result`);
   const streamAssetChange = toolResult.ok ? streamAssetChangeOnTheWire(toolResult.value) : toolResult;
   return streamAssetChange.ok ? streamAssetChange : failedWith(`the runtime's ${toolName} result could not be read: ${streamAssetChange.failure}`);
@@ -149,7 +150,7 @@ function streamAssetChangeOnTheWire(toolResult: JsonObjectOnTheWire): Result<Str
 }
 
 /** A `describe_runtime` tool result read field for field; unknown fields are ignored. */
-export function runtimeDescriptionFromTheDescribeRuntimeToolResult(operationResult: unknown): Result<RuntimeDescription, string> {
+export function runtimeDescriptionFromTheDescribeRuntimeToolResult(operationResult: ControlOperationResult<"describe_runtime">): Result<RuntimeDescription, string> {
   const toolResult = jsonObject(operationResult, "the describe_runtime result");
   const runtimeDescription = toolResult.ok ? runtimeDescriptionOnTheWire(toolResult.value) : toolResult;
   return runtimeDescription.ok ? runtimeDescription : failedWith(`the runtime's describe_runtime result could not be read: ${runtimeDescription.failure}`);
@@ -236,7 +237,7 @@ function captureDevicesWhoseAccessWasNeverAskedForOnTheWire(listedStream: JsonOb
 }
 
 /** The action id a tool result that queued a stream action names, read from the result of `toolName`. */
-export function queuedStreamActionFromTheToolResult(toolName: ProjectActionToolName, operationResult: unknown): Result<string, string> {
+export function queuedStreamActionFromTheToolResult(toolName: ProjectActionToolName, operationResult: ControlOperationResult<ProjectActionToolName>): Result<string, string> {
   const toolResult = jsonObject(operationResult, `the ${toolName} result`);
   const action = toolResult.ok ? requiredText(toolResult.value, "action") : toolResult;
   return action.ok ? action : failedWith(`the runtime's ${toolName} result could not be read: ${action.failure}`);
@@ -246,7 +247,7 @@ export function queuedStreamActionFromTheToolResult(toolName: ProjectActionToolN
 type ProjectPlaybackPauseOrResumeToolName = "pause_playback" | "resume_playback";
 
 /** The id of each stream a `pause_playback` or `resume_playback` result names under `streams`, read from the result of `toolName`. */
-export function streamsThePauseOrResumeReachedFromTheToolResult(toolName: ProjectPlaybackPauseOrResumeToolName, operationResult: unknown): Result<string[], string> {
+export function streamsThePauseOrResumeReachedFromTheToolResult(toolName: ProjectPlaybackPauseOrResumeToolName, operationResult: ControlOperationResult<ProjectPlaybackPauseOrResumeToolName>): Result<string[], string> {
   return toolResultReadWith(toolName, operationResult, (toolResult) => {
     const streams = requiredArray(toolResult, "streams");
     if (!streams.ok) return streams;
@@ -716,7 +717,7 @@ export class LocalApiClient {
   }
 
   /** Call `method` with `params` in one `POST /control`, giving up after its time limit; the operation's own refusal is the runtime's, in its words. */
-  private async callControlOperation<Method extends ControlOperationMethodName>(method: Method, params: ControlOperationParams<Method>): Promise<Result<unknown, LocalApiRequestFailure>> {
+  private async callControlOperation<Method extends ControlOperationMethodName>(method: Method, params: ControlOperationParams<Method>): Promise<Result<ControlOperationResult<Method>, LocalApiRequestFailure>> {
     const answer = await this.callControlOperationKeepingItsRefusal(method, params);
     if (!answer.ok) return answer;
     return answer.value.kind === "answered" ? succeeded(answer.value.result) : theRuntimesRefusal(answer.value.words);
@@ -726,7 +727,7 @@ export class LocalApiClient {
   private callControlOperationKeepingItsRefusal<Method extends ControlOperationMethodName>(
     method: Method,
     params: ControlOperationParams<Method>,
-  ): Promise<Result<ControlOperationAnswer, LocalApiRequestFailure>> {
+  ): Promise<Result<ControlOperationAnswer<Method>, LocalApiRequestFailure>> {
     return callOneControlOperationOverAPost(this.localApiSocketPath, method, params, controlOperationTimeLimitMs(method, this.requestTimeoutMs));
   }
 

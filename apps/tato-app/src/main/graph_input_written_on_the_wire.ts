@@ -2,6 +2,7 @@
 // `{ stream, input, family }`, the family as the runtime spells it (`array`, `channels` or `records`).
 // Every other key is ignored.
 
+import type { ControlOperationResult } from "./tatolab_runtime_control_operation_call.js";
 import { jsonObject, requiredText } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
@@ -13,7 +14,7 @@ export interface GraphInputWritten {
 }
 
 /** The Input `write_graph_input` answered with `operationResult`, or why it could not be read. */
-export function graphInputWrittenFromTheWriteGraphInputToolResult(operationResult: unknown): Result<GraphInputWritten, string> {
+export function graphInputWrittenFromTheWriteGraphInputToolResult(operationResult: ControlOperationResult<"write_graph_input">): Result<GraphInputWritten, string> {
   const written = graphInputWrittenFromTheParsedToolResult(operationResult);
   return written.ok ? written : failedWith(`the runtime's write_graph_input result could not be read: ${written.failure}`);
 }

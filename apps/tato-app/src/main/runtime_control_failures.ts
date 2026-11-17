@@ -2,7 +2,7 @@
 // `words` a person is shown. A refusal's words are the runtime's own, never rewritten.
 
 import { Data } from "effect";
-import type { ProjectActionRefusalOnTheWire } from "@tatolab/runtime-client";
+import type { ProjectActionRefusalOnTheWire } from "./tatolab_runtime_control_operation_call.js";
 
 /**
  * The runtime answered `operation` and said no: `byTheOperation` when the operation itself refused or failed, otherwise its
@@ -28,9 +28,10 @@ export class RuntimeTimedOut extends Data.TaggedError("RuntimeTimedOut")<{
   readonly words: string;
 }> {}
 
-/** The params sent to `operation` (`request`) or the answer to it (`answer`) do not match the control contract. */
+/** The params sent to `operation` (`request`) or the answer to it (`answer`) are not `contractType`, the control contract's type for them. */
 export class ContractMismatch extends Data.TaggedError("ContractMismatch")<{
   readonly operation: string;
+  readonly contractType: string;
   readonly words: string;
   readonly direction: "request" | "answer";
 }> {}

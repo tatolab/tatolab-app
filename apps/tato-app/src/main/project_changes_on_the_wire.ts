@@ -3,6 +3,7 @@
 // `delete_asset` the asset each changed, `duplicate_project` the duplicate, a project of its own under a
 // new UUID, and `import_project` the project it unpacked from a `.zip` of one.
 
+import type { ControlOperationResult } from "./tatolab_runtime_control_operation_call.js";
 import type { ProjectTheRuntimeNames } from "../shared/tatolab_backend_contract.js";
 import { optionalText, requiredObject, requiredText, toolResultReadWith, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
 import { projectNamedIn } from "./project_the_runtime_names.js";
@@ -36,7 +37,7 @@ function projectSettingsIn(toolResult: JsonObjectOnTheWire): Result<ProjectSetti
 export type ProjectSettingsTool = "rename_project" | "set_project_description" | "set_project_cover";
 
 /** How people see the project after `toolName`, one of the tools that change its settings, answered `operationResult`. */
-export function projectSettingsFromTheToolResult(toolName: ProjectSettingsTool, operationResult: unknown): Result<ProjectSettingsAfterTheTransaction, string> {
+export function projectSettingsFromTheToolResult(toolName: ProjectSettingsTool, operationResult: ControlOperationResult<ProjectSettingsTool>): Result<ProjectSettingsAfterTheTransaction, string> {
   return toolResultReadWith(toolName, operationResult, projectSettingsIn);
 }
 
@@ -44,7 +45,7 @@ export function projectSettingsFromTheToolResult(toolName: ProjectSettingsTool, 
 export type ProjectAssetTool = "import_asset" | "relocate_asset" | "delete_asset";
 
 /** The asset `toolName` answered, from its `asset`'s `asset` and `path`. */
-export function assetAtItsPathFromTheToolResult(toolName: ProjectAssetTool, operationResult: unknown): Result<ProjectAssetAtItsPath, string> {
+export function assetAtItsPathFromTheToolResult(toolName: ProjectAssetTool, operationResult: ControlOperationResult<ProjectAssetTool>): Result<ProjectAssetAtItsPath, string> {
   return toolResultReadWith(toolName, operationResult, (toolResult) => {
     const assetTheToolAnswered = requiredObject(toolResult, "asset");
     if (!assetTheToolAnswered.ok) return assetTheToolAnswered;
@@ -57,7 +58,7 @@ export function assetAtItsPathFromTheToolResult(toolName: ProjectAssetTool, oper
 }
 
 /** The duplicate `duplicate_project` made: its `project_directory`, `project` and `project_name`. */
-export function duplicateFromTheDuplicateProjectToolResult(operationResult: unknown): Result<ProjectTheRuntimeNames, string> {
+export function duplicateFromTheDuplicateProjectToolResult(operationResult: ControlOperationResult<"duplicate_project">): Result<ProjectTheRuntimeNames, string> {
   return toolResultReadWith("duplicate_project", operationResult, (toolResult) => projectNamedIn(toolResult, "project_name"));
 }
 

@@ -4,6 +4,7 @@
 // folder edited since its copy and, with `check_for_newer`, whether its source holds another
 // version. Every other key is ignored.
 
+import type { ControlOperationResult } from "./tatolab_runtime_control_operation_call.js";
 import type { ProjectDependency, WorkspaceDependencyUpdate } from "../shared/tatolab_backend_contract.js";
 import { arrayOrEmpty, everyOneRead, jsonObject, type JsonObjectOnTheWire, optionalText, requiredArray, requiredText, requiredTrueOrFalse } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
@@ -26,17 +27,17 @@ function projectDependencyUnderTheToolResult(toolName: string, operationResult: 
 }
 
 /** The import `add_dependency` answered with `operationResult`, or why it could not be read. */
-export function projectDependencyFromTheAddDependencyToolResult(operationResult: unknown): Result<ProjectDependency, string> {
+export function projectDependencyFromTheAddDependencyToolResult(operationResult: ControlOperationResult<"add_dependency">): Result<ProjectDependency, string> {
   return projectDependencyUnderTheToolResult("add_dependency", operationResult);
 }
 
 /** The import `remove_dependency` answered it took out with `operationResult`, or why it could not be read. */
-export function projectDependencyFromTheRemoveDependencyToolResult(operationResult: unknown): Result<ProjectDependency, string> {
+export function projectDependencyFromTheRemoveDependencyToolResult(operationResult: ControlOperationResult<"remove_dependency">): Result<ProjectDependency, string> {
   return projectDependencyUnderTheToolResult("remove_dependency", operationResult);
 }
 
 /** What `update_dependency` answered with `operationResult`: the copy it committed, or the files it waits on the overwrite of; or why it could not be read. */
-export function dependencyUpdateFromTheUpdateDependencyToolResult(operationResult: unknown): Result<WorkspaceDependencyUpdate, string> {
+export function dependencyUpdateFromTheUpdateDependencyToolResult(operationResult: ControlOperationResult<"update_dependency">): Result<WorkspaceDependencyUpdate, string> {
   const update = withTheToolResultObject(operationResult, (toolResult): Result<WorkspaceDependencyUpdate, string> => {
     const overwriteConfirmationNeeded = requiredTrueOrFalse(toolResult, "overwrite_confirmation_needed");
     if (!overwriteConfirmationNeeded.ok) return overwriteConfirmationNeeded;
@@ -53,7 +54,7 @@ export function dependencyUpdateFromTheUpdateDependencyToolResult(operationResul
 }
 
 /** Each import `list_dependencies` answered with `operationResult`, in the order `tatolab-project.json` lists them, or why they could not be read. */
-export function workspaceDependenciesFromTheListDependenciesToolResult(operationResult: unknown): Result<ListedProjectDependency[], string> {
+export function workspaceDependenciesFromTheListDependenciesToolResult(operationResult: ControlOperationResult<"list_dependencies">): Result<ListedProjectDependency[], string> {
   const listed = withTheToolResultObject(operationResult, (toolResult) => {
     const dependencies = requiredArray(toolResult, "dependencies");
     return dependencies.ok ? everyOneRead(dependencies.value, listedProjectDependencyOnTheWire) : dependencies;

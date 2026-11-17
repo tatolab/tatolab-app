@@ -2,6 +2,7 @@
 // at once with the action they queued, `describe_stream_action`, which follows it to its end, and
 // `cancel_stream_action`, which ends it early.
 
+import type { ControlOperationResult } from "./tatolab_runtime_control_operation_call.js";
 import type {
   ProjectCreationQueued,
   ProjectStreamActionQueued,
@@ -33,7 +34,7 @@ function readOrSayWhy<ReadValue>(answerName: string, read: Result<ReadValue, str
 }
 
 /** A `create_project` tool result read field for field; unknown fields are ignored. */
-export function projectCreationQueuedFromTheCreateProjectToolResult(operationResult: unknown): Result<ProjectCreationQueued, string> {
+export function projectCreationQueuedFromTheCreateProjectToolResult(operationResult: ControlOperationResult<"create_project">): Result<ProjectCreationQueued, string> {
   const toolResult = jsonObjectOfTheRuntimesAnswer("create_project", operationResult);
   if (!toolResult.ok) return readOrSayWhy("create_project", toolResult);
   const action = requiredText(toolResult.value, "action");
@@ -108,7 +109,7 @@ function streamActionDescriptionOnTheWireRead(descriptionOnTheWire: JsonObjectOn
 }
 
 /** A `describe_stream_action` tool result read field for field; unknown fields are ignored. */
-export function streamActionDescriptionFromTheDescribeStreamActionToolResult(operationResult: unknown): Result<StreamActionDescription, string> {
+export function streamActionDescriptionFromTheDescribeStreamActionToolResult(operationResult: ControlOperationResult<"describe_stream_action">): Result<StreamActionDescription, string> {
   const toolResult = jsonObjectOfTheRuntimesAnswer("describe_stream_action", operationResult);
   if (!toolResult.ok) return readOrSayWhy("describe_stream_action", toolResult);
   return readOrSayWhy("describe_stream_action", streamActionDescriptionOnTheWireRead(toolResult.value));
@@ -159,7 +160,7 @@ function venvSyncOnTheWireRead(venvSyncOnTheWire: JsonObjectOnTheWire): Result<S
 }
 
 /** A `cancel_stream_action` tool result read field for field; unknown fields are ignored. */
-export function streamActionCancelAnswerFromTheCancelStreamActionToolResult(operationResult: unknown): Result<StreamActionCancelAnswer, string> {
+export function streamActionCancelAnswerFromTheCancelStreamActionToolResult(operationResult: ControlOperationResult<"cancel_stream_action">): Result<StreamActionCancelAnswer, string> {
   const toolResult = jsonObjectOfTheRuntimesAnswer("cancel_stream_action", operationResult);
   if (!toolResult.ok) return readOrSayWhy("cancel_stream_action", toolResult);
   const action = requiredText(toolResult.value, "action");
