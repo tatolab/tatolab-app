@@ -1,6 +1,6 @@
 // A view's side of the view contract: the one way any panel, Tato Studio's own or brought by a project,
 // reads from and asks of Tato Studio. It runs inside the view's own frame, depends on no UI
-// framework, and parses everything Studio sends against the contract's schemas.
+// framework, and takes what Studio sends as the contract's types, since Studio's own build wrote it.
 
 import type {
   GraphEditMode,
@@ -36,7 +36,6 @@ import type { NodeUiElementsReading } from "./node_ui/node_ui_elements_listing.j
 import type { ViewSettings } from "./view_settings.js";
 import {
   VIEW_PORT_HANDOVER,
-  messageFromStudioSchema,
   type MessageFromStudio,
   type AreasForAViewTypeReading,
   type MessageFromTheView,
@@ -250,7 +249,8 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       });
     };
 
-    const onMessageFromStudio = (message: MessageFromStudio) => {
+    // Studio's own build sent it, so it reaches the switch as typed; a kind or subject this SDK does not know falls through.
+    const onPortMessage = ({ data: message }: MessageEvent<MessageFromStudio>) => {
       switch (message.kind) {
         case "hello":
           resolveConnection(connectionGranted(message.grant));
@@ -269,10 +269,6 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
           answerWaitersByAskId.delete(message.ask_id);
           return;
       }
-    };
-    const onPortMessage = (event: MessageEvent<unknown>) => {
-      const parsed = messageFromStudioSchema.safeParse(event.data);
-      if (parsed.success) onMessageFromStudio(parsed.data);
     };
     port.addEventListener("message", onPortMessage);
     port.start();
