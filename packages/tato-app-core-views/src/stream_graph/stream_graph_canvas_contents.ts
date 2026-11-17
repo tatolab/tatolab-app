@@ -81,8 +81,9 @@ function holdTheSameValues(a: unknown, b: unknown): boolean {
 
 /**
  * `graph` as the canvas draws it, each node keyed by its name, as a link's ends name it, with each node type's and port's
- * description as `catalog` gives it, and each input that holds a value addressed at `valuesAt`, the level of the graph it
- * is; `null` addresses none. A node that `previous` draws the same is drawn by the very object `previous` holds, so its
+ * description as `catalog` gives it, and each unlinked input that holds a value addressed at `valuesAt`, the level of the
+ * graph it is; `null` addresses none. A link renders on every input it feeds, one that takes no stored value too, so a
+ * linked input is addressed by none. A node that `previous` draws the same is drawn by the very object `previous` holds, so its
  * card is not drawn again; a value is not part of it.
  */
 export function streamGraphCanvasContents(
@@ -111,7 +112,7 @@ export function streamGraphCanvasContents(
         family: port.family,
         description: portDescription(catalogEntryByType.get(node.type)?.inputs, port.name),
         stream_facts_words: portStreamFactsWords(streamFactsAnInputReceives(graph, node.name, port)),
-        value_address: valuesAt === null || port.value_read === null ? null : { graph: valuesAt, node_id: node.id, input: port.name },
+        value_address: valuesAt === null || port.value_read === null || port.value_read.comes_from === "wire" ? null : { graph: valuesAt, node_id: node.id, input: port.name },
       })),
       outputs: node.output_ports.map((port) => ({
         name: port.name,

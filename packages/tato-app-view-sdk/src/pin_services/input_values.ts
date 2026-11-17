@@ -20,7 +20,7 @@ export interface InputValueGesture {
   move(value: JsonValue | null): void;
   /** End the gesture at `value`: one commit under the gesture's key, or for a gesture released live, the last live value, which below a stream's own level is not sent. */
   release(value: JsonValue | null): void;
-  /** End the gesture where it began: a value sent live goes back live, and nothing is recorded. */
+  /** End the gesture where it began: a live value it sent is taken off, or set back to the live value it began at, and nothing is recorded. */
   cancel(): void;
 }
 
@@ -33,7 +33,7 @@ export interface InputValues {
   watchRefusal(address: InputAddress, listener: (refusal: string | null) => void): StopWatching;
   /** Open a gesture on `address`, ended by one commit or by its last live value; it takes the place of a gesture still open there. */
   beginGesture(address: InputAddress, release: "commit" | "live"): InputValueGesture;
-  /** Take what each input of `graph`, a stream of the project in `projectFolder`, reads in its latest reading, at every level. */
+  /** Take what each input of `graph`, a stream of the project in `projectFolder`, reads in its latest reading, at every level, forgetting an input of that stream it no longer holds that nothing watches or sends. */
   takeTheGraphReading(projectFolder: string, graph: StreamGraphSummary): void;
 }
 
@@ -114,7 +114,8 @@ export function createInputValues(sending: InputValuesSending): InputValues {
     const sender = createInputValueSender((write) => sendTheWrite(state.address, write), {
       onWriteAnswered: (_write, answer) => {
         keepTheRefusal(state, answer.kind === "refused" ? answer.because : null);
-        if (answer.kind === "refused" && state.sent_ahead !== null) {
+        // A refused write a later one overtook leaves the value sent ahead for that later one.
+        if (answer.kind === "refused" && state.sent_ahead !== null && sender.isSettled()) {
           state.sent_ahead = null;
           publishTheValue(state);
         }
@@ -140,14 +141,23 @@ export function createInputValues(sending: InputValuesSending): InputValues {
     }
     publishTheValue(state);
   };
-  const takeTheLevel = (graph: GraphAddress, nodes: readonly StreamGraphNode[]): void => {
+  /** Takes each read of `nodes` at `graph`, keying each input it holds in `keysRead`. A link renders on every input it feeds, one that takes no stored value too, so a wired input is taken only where the store already holds it. */
+  const takeTheLevel = (graph: GraphAddress, nodes: readonly StreamGraphNode[], keysRead: Set<string>): void => {
     for (const node of nodes) {
       for (const port of node.input_ports) {
-        if (port.value_read !== null) takeTheRead(stateOf({ graph, node_id: node.id, input: port.name }), port.value_read);
+        if (port.value_read === null) continue;
+        const address: InputAddress = { graph, node_id: node.id, input: port.name };
+        const key = inputAddressKey(address);
+        const known = statesByKey.get(key);
+        if (port.value_read.comes_from === "wire" && known === undefined) continue;
+        keysRead.add(key);
+        takeTheRead(known ?? stateOf(address), port.value_read);
       }
-      if (node.fragment !== null) takeTheLevel({ ...graph, level: [...graph.level, node.id] }, node.fragment.nodes);
+      if (node.fragment !== null) takeTheLevel({ ...graph, level: [...graph.level, node.id] }, node.fragment.nodes, keysRead);
     }
   };
+  const isForgettable = (state: InputValueState): boolean =>
+    state.value_listeners.size === 0 && state.refusal_listeners.size === 0 && state.gesture === null && (state.sender === null || state.sender.isSettled());
   return {
     shownValue: (address) => shownBy(stateOf(address)),
     watchValue: (address, listener) => {
@@ -206,14 +216,22 @@ export function createInputValues(sending: InputValuesSending): InputValues {
             endWithTheValueSentAhead(null);
             return;
           }
-          senderOf(state).sendLive(gesture.began_at.value);
+          // A live value holds over the saved one until a live `null` takes it off, so a gesture that began on a saved or
+          // default value goes back by taking its live value off.
+          senderOf(state).sendLive(gesture.began_at.comes_from === "live" ? gesture.began_at.value : null);
           endWithTheValueSentAhead(gesture.began_at);
         },
       };
     },
     takeTheGraphReading: (projectFolder, graph) => {
-      if (graph.stream_asset === null) return;
-      takeTheLevel({ project_folder: projectFolder, stream_asset: graph.stream_asset, level: [] }, graph.nodes);
+      const streamAsset = graph.stream_asset;
+      if (streamAsset === null) return;
+      const keysRead = new Set<string>();
+      takeTheLevel({ project_folder: projectFolder, stream_asset: streamAsset, level: [] }, graph.nodes, keysRead);
+      for (const [key, state] of statesByKey) {
+        const isOfTheStream = state.address.graph.project_folder === projectFolder && state.address.graph.stream_asset === streamAsset;
+        if (isOfTheStream && !keysRead.has(key) && isForgettable(state)) statesByKey.delete(key);
+      }
     },
   };
 }

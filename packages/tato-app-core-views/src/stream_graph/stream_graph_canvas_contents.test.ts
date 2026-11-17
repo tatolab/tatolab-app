@@ -221,4 +221,9 @@ test("an_input_that_holds_a_value_is_addressed_by_its_nodes_id_at_the_level_draw
   ]);
   expect(streamGraphCanvasContents(withGain(0.75), null, before, { ...level }).nodes.find((node) => node.node_id === "invert")).toBe(invert);
   expect(streamGraphCanvasContents(withGain(0.5), null).nodes.find((node) => node.node_id === "invert")?.inputs.map((input) => input.value_address)).toEqual([null, null]);
+  const linked: StreamGraphSummary = {
+    ...GRAPH,
+    nodes: GRAPH.nodes.map((node) => (node.name === "invert" ? { ...node, input_ports: node.input_ports.map((port) => ({ ...port, value_read: { value: null, comes_from: "wire" as const } })) } : node)),
+  };
+  expect(streamGraphCanvasContents(linked, null, null, level).nodes.find((node) => node.node_id === "invert")?.inputs.map((input) => input.value_address)).toEqual([null]);
 });

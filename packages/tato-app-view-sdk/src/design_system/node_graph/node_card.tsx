@@ -2,7 +2,7 @@ import { Handle, Position, useStore, useStoreApi, type NodeProps } from "@xyflow
 import { cn } from "cn";
 import { ChevronDown, ChevronRight, Combine, SquareX, TriangleAlert } from "lucide-react";
 import { Fragment, memo, useContext, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
-import type { InputAddress } from "../../pin_model/node_inputs";
+import { inputAddressKey, type InputAddress } from "../../pin_model/node_inputs";
 import { nodePinRows, type NodePin } from "../../pin_model/node_pins";
 import { valueWords } from "../../pin_model/value_words";
 import type { PinFlow, PinType } from "../../pin_type_readings";
@@ -85,7 +85,12 @@ const NodeGraphInputValueWords = memo(function NodeGraphInputValueWords({ addres
     });
   }, [inputValues, address, pinType]);
   return <span ref={wordsElement} className="ml-auto max-w-1/2 min-w-0 truncate pl-2 text-fg-3 tabular-nums empty:hidden" data-node-graph-input-value={address.input} />;
-});
+}, haveTheSameInputAndType);
+
+/** Whether a row's value words name the same input of the same type, so a new reading's equal address keeps the words' watch. */
+function haveTheSameInputAndType(before: { address: InputAddress; pinType: PinType | null }, after: { address: InputAddress; pinType: PinType | null }): boolean {
+  return inputAddressKey(before.address) === inputAddressKey(after.address) && (before.pinType === after.pinType || JSON.stringify(before.pinType) === JSON.stringify(after.pinType));
+}
 
 /** What a card's header and pin rows draw of a node. */
 type NodeGraphCardFaceNode = Pick<NodeGraphCanvasNode, "title" | "type_name" | "description" | "condition" | "inputs" | "outputs" | "is_collapsed" | "subgraph">;

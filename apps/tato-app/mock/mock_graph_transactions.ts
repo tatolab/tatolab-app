@@ -235,6 +235,24 @@ let mockGroupsAndNotesMade = 0;
 /** How many streams a collapse has saved, so each one's asset UUID is new. */
 let mockPlacedStreamsSaved = 0;
 
+/**
+ * Sets `node`'s input `input` to `to`, `null` taking it off: live, on the value it reads alone, or saved, on its pins too.
+ * Answers the value its pins held before.
+ */
+function setTheInputValue(node: MockGraphNode, input: string, to: JsonValue | null, applying: "a_transaction" | "a_live_transaction" | "undo_or_redo"): JsonValue | null {
+  const declaredDefault = node.input_defaults?.[input] ?? null;
+  const valueRead: StreamGraphInputValueRead =
+    to !== null ? { value: to, comes_from: applying === "a_live_transaction" ? "live" : "saved" } : declaredDefault !== null ? { value: declaredDefault, comes_from: "default" } : { value: null, comes_from: null };
+  node.input_ports = node.input_ports.map((port) => (port.name === input && port.value_read !== null ? { ...port, value_read: valueRead } : port));
+  const from = node.pins?.[input] ?? null;
+  if (applying === "a_live_transaction") return from;
+  const pins = { ...node.pins };
+  if (to === null) delete pins[input];
+  else pins[input] = to;
+  node.pins = pins;
+  return from;
+}
+
 /** Whether `value` is a JSON object, not a list or `null`. */
 export const isAJsonObject = (value: JsonValue | undefined): value is { [key: string]: JsonValue } => typeof value === "object" && value !== null && !Array.isArray(value);
 const isACanvasPair = (value: JsonValue | undefined): value is [number, number] => Array.isArray(value) && value.length === 2 && value.every((part) => typeof part === "number");
@@ -399,12 +417,8 @@ export function applyMockGraphTransaction(
           if (!node.input_ports.some((port) => port.name === operation.input)) {
             throw refusedNaming(`Processor '${node.name}' has no input port named '${operation.input}'`, { refused_node: operation.node, refused_field: operation.input });
           }
-          const pins = { ...node.pins };
-          const from = pins[operation.input] ?? null;
           const to = operation.value ?? null;
-          if (to === null) delete pins[operation.input];
-          else pins[operation.input] = to;
-          node.pins = pins;
+          const from = setTheInputValue(node, operation.input, to, applying);
           recordInHistory({ operation: "set_pin_value", node: nodeIdOf(node), input: operation.input, from, to }, { operation: "set_pin_value", node: nodeIdOf(node), input: operation.input, from: to, to: from });
           break;
         }
@@ -415,16 +429,8 @@ export function applyMockGraphTransaction(
             throw refusedNaming(`node ${operation.node} has no input \`${operation.input}\` that holds a value`, { refused_node: operation.node, refused_field: operation.input });
           }
           const to = operation.value ?? null;
-          const declaredDefault = node.input_defaults?.[operation.input] ?? null;
-          const valueRead: StreamGraphInputValueRead =
-            to !== null ? { value: to, comes_from: applying === "a_live_transaction" ? "live" : "saved" } : declaredDefault !== null ? { value: declaredDefault, comes_from: "default" } : { value: null, comes_from: null };
-          node.input_ports = node.input_ports.map((candidate) => (candidate === port ? { ...port, value_read: valueRead } : candidate));
+          const from = setTheInputValue(node, operation.input, to, applying);
           if (applying === "a_live_transaction") break;
-          const pins = { ...node.pins };
-          const from = pins[operation.input] ?? null;
-          if (to === null) delete pins[operation.input];
-          else pins[operation.input] = to;
-          node.pins = pins;
           recordInHistory({ operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from, to }, { operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from: to, to: from });
           break;
         }

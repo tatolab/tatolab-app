@@ -14,7 +14,7 @@ export interface NodePin {
   /** The port's description as its node type declares it; `null` for none. */
   readonly description: string | null;
   readonly stream_facts_words: readonly string[];
-  /** Where the value an input holds while unwired is kept, the key its row reads the value by; `null` on an output, on an input that takes no stored value, and outside a stream's graph. */
+  /** Where the value an input holds while unwired is kept, the key its row reads the value by; `null` on an output, on an input that takes no stored value or that a link feeds, and outside a stream's graph. */
   readonly value_address: InputAddress | null;
 }
 

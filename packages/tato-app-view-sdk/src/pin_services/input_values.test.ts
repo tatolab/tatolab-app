@@ -173,7 +173,10 @@ test("below_a_streams_own_level_a_drag_sends_only_its_commit_with_the_level", as
   ]);
 });
 
-test("a_cancelled_drag_goes_back_live_to_where_it_began_and_commits_nothing", async () => {
+/** The mode and value of each `set_node_input_value` sent, in order. */
+const valuesSent = (sent: readonly TransactionSent[]) => sent.map(({ operations, mode }) => [mode, operations[0]?.operation === "set_node_input_value" ? operations[0].value : undefined]);
+
+test("a_cancelled_drag_that_began_on_a_saved_value_takes_its_live_value_off_and_commits_nothing", async () => {
   const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
   inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
   const gesture = inputValues.beginGesture(GAIN, "commit");
@@ -184,10 +187,65 @@ test("a_cancelled_drag_goes_back_live_to_where_it_began_and_commits_nothing", as
   expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.5, comes_from: "saved" });
   await answerTheNext();
   await answerTheNext();
-  expect(sent.map(({ operations, mode }) => [mode, operations[0]?.operation === "set_node_input_value" ? operations[0].value : undefined])).toEqual([
+  expect(valuesSent(sent)).toEqual([
     ["live", 0.6],
-    ["live", 0.5],
+    ["live", null],
   ]);
+});
+
+test("a_cancelled_drag_that_began_on_the_default_takes_its_live_value_off_and_one_that_began_live_goes_back_to_it", async () => {
+  const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
+  inputValues.takeTheGraphReading(PROJECT, graphReading({ value: 1, comes_from: "default" }));
+  const fromTheDefault = inputValues.beginGesture(GAIN, "commit");
+  fromTheDefault.move(0.6);
+  fromTheDefault.cancel();
+  expect(inputValues.shownValue(GAIN)).toEqual({ value: 1, comes_from: "default" });
+  await answerTheNext();
+  await answerTheNext();
+  inputValues.takeTheGraphReading(PROJECT, graphReading({ value: 0.3, comes_from: "live" }));
+  const fromALiveValue = inputValues.beginGesture(GAIN, "live");
+  fromALiveValue.move(0.4);
+  fromALiveValue.cancel();
+  await answerTheNext();
+  await answerTheNext();
+  expect(valuesSent(sent)).toEqual([
+    ["live", 0.6],
+    ["live", null],
+    ["live", 0.4],
+    ["live", 0.3],
+  ]);
+});
+
+test("a_refused_live_write_a_waiting_commit_overtook_keeps_the_value_sent_ahead_shown", async () => {
+  const { inputValues, answerTheNext } = storeOverAHeldConnection();
+  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  const shown = valuesShownAt(inputValues, GAIN);
+  const gesture = inputValues.beginGesture(GAIN, "commit");
+  gesture.move(0.6);
+  gesture.release(0.9);
+  await answerTheNext({ kind: "not_sent", because: "the stream is stopped" });
+  expect(inputValues.shownValue(GAIN).value).toBe(0.9);
+  await answerTheNext();
+  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.9)));
+  expect(shown.map(({ value }) => value)).toEqual([0.5, 0.6, 0.9]);
+});
+
+test("a_linked_input_is_held_only_where_the_store_already_holds_it_and_an_input_gone_from_the_stream_that_nothing_watches_is_forgotten", () => {
+  const { inputValues } = storeOverAHeldConnection();
+  const wiredOnly: StreamGraphSummary = { ...graphReading(null), nodes: [graphNode("MIX-ID", { value: null, comes_from: "wire" })] };
+  inputValues.takeTheGraphReading(PROJECT, wiredOnly);
+  const shown = valuesShownAt(inputValues, GAIN);
+  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  inputValues.takeTheGraphReading(PROJECT, wiredOnly);
+  expect(shown).toEqual([
+    { value: null, comes_from: null },
+    { value: 0.5, comes_from: "saved" },
+    { value: null, comes_from: "wire" },
+  ]);
+  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5), saved(0.25)));
+  inputValues.takeTheGraphReading(PROJECT, { ...graphReading(saved(0.5)), nodes: [graphNode("MIX-ID", saved(0.5))] });
+  expect(inputValues.shownValue(INSIDE)).toEqual({ value: null, comes_from: null });
+  expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.5, comes_from: "saved" });
 });
 
 test("a_gesture_released_live_sends_its_last_value_live_and_records_nothing", async () => {
