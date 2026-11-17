@@ -1,7 +1,8 @@
 // The modules the Studio supplies to a view by name. `supplied_modules.json` lists them; the SDK's
-// build writes each as one `.js` under `dist/studio_sdk/`, which the Studio serves at
-// `/studio_sdk/`; and the import map made here resolves each name to that file. A page holds the
-// map before any module script, so a view imports the SDK the Studio serves with no build.
+// build writes each as one `.js` under `dist/studio_sdk/`, or copies a stylesheet there as it is,
+// which the Studio serves at `/studio_sdk/`; and the import map made here resolves each name to
+// that file. A page holds the map before any module script, so a view imports the SDK the Studio
+// serves with no build, and a stylesheet as a CSS module script.
 
 import suppliedModulesList from "../supplied_modules.json" with { type: "json" };
 
@@ -15,6 +16,11 @@ export interface SuppliedModule {
 
 /** Every module the Studio supplies, as `supplied_modules.json` lists them. */
 export const SUPPLIED_MODULES: readonly SuppliedModule[] = suppliedModulesList;
+
+/** Whether `suppliedModule` is a stylesheet, imported as a CSS module script, rather than a JavaScript module. */
+export function isASuppliedStylesheet(suppliedModule: SuppliedModule): boolean {
+  return suppliedModule.served_file.endsWith(".css");
+}
 
 /** Where the Studio serves the supplied modules, on the window page's own origin. */
 export const SUPPLIED_MODULES_PATH = "/studio_sdk/";

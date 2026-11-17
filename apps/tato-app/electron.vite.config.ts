@@ -46,6 +46,8 @@ const BUILT_CORE_VIEWS_FOLDER = path.join(CORE_VIEWS_PACKAGE_FOLDER, "dist");
 const SERVED_CORE_VIEWS_PATH = "/core_views/";
 const VIEW_SDK_PACKAGE_FOLDER = path.resolve(import.meta.dirname, "../../packages/tato-app-view-sdk");
 const BUILT_SUPPLIED_MODULES_FOLDER = path.join(VIEW_SDK_PACKAGE_FOLDER, "dist", "studio_sdk");
+const STUDIO_NODE_UI_MODULE_FOLDER = path.resolve(import.meta.dirname, "../../packages/tato-app-core-node-ui/node_ui");
+const SERVED_STUDIO_NODE_UI_PATH = "/core_node_ui/";
 const CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -117,6 +119,24 @@ function suppliedModulesBesideTheWindow(): Plugin {
   };
 }
 
+/**
+ * Puts the Studio's own node UI module, `packages/tato-app-core-node-ui/node_ui/`, beside the window at `core_node_ui/`
+ * as its source: served as written by the dev server, and copied into `out/renderer/core_node_ui/` by a build. The
+ * window's page protocol reads each file from there and serves it to a page with its types removed, as it serves a
+ * project's extension file, so the module needs no build.
+ */
+function studioNodeUiModuleBesideTheWindow(): Plugin {
+  return {
+    name: "tatolab-studio-node-ui-module-beside-the-window",
+    configureServer(devServer) {
+      serveABuiltFolderFromTheDevServer(devServer, SERVED_STUDIO_NODE_UI_PATH, STUDIO_NODE_UI_MODULE_FOLDER, "the Studio's own node UI module");
+    },
+    async writeBundle(outputOptions) {
+      await cp(STUDIO_NODE_UI_MODULE_FOLDER, path.join(outputOptions.dir ?? "", SERVED_STUDIO_NODE_UI_PATH), { recursive: true });
+    },
+  };
+}
+
 export default defineConfig({
   main: {
     plugins: [buildFeaturesBesideTheMainBundle()],
@@ -130,7 +150,7 @@ export default defineConfig({
     },
   },
   renderer: {
-    plugins: [react(), tailwindcss(), builtCoreViewsBesideTheWindow(), suppliedModulesBesideTheWindow()],
+    plugins: [react(), tailwindcss(), builtCoreViewsBesideTheWindow(), suppliedModulesBesideTheWindow(), studioNodeUiModuleBesideTheWindow()],
     root: "src/renderer",
     resolve: { alias: { "@": path.resolve(import.meta.dirname, "src/renderer") } },
     // Every font ships as its own file: a CSP whose font-src names only 'self' refuses data: URLs.

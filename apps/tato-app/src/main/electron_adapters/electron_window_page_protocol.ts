@@ -2,10 +2,12 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { net, protocol } from "electron";
+import { isAMissingFileFailure } from "../file_system_entries_on_this_machine.js";
 import { describeCaughtFailure } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
 import { TATOLAB_WINDOW_PAGE_SCHEME } from "../../shared/tatolab_electron_bridge_contract.js";
-import { isAProjectViewFileUrl, type AnswerAProjectViewFileRequest } from "../extension_files_served_with_types_removed.js";
+import { isAProjectViewFileUrl, type AnswerAProjectViewFileRequest, type ExtensionFileAnswer } from "../extension_files_served_with_types_removed.js";
+import { answerAStudioNodeUiFileRequest, isAStudioNodeUiFileUrl, STUDIO_NODE_UI_FILES_PATH, type ReadAStudioNodeUiFile } from "../studio_node_ui_module.js";
 import { builtWindowFileForRequest, isASuppliedModuleUrl, windowPageContentSecurityPolicy } from "../tatolab_window_page_source.js";
 
 let answerAProjectViewFileRequestOnceServed: AnswerAProjectViewFileRequest | null = null;
@@ -25,9 +27,13 @@ export function registerTheWindowPageSchemeBeforeReady(): void {
 /** The response to a request for a project view's file; its pages carry no content security policy, since a project's view runs with full access. */
 async function projectViewFileResponse(requestUrl: string, tatolabAppLog: TatolabAppLog): Promise<Response> {
   if (answerAProjectViewFileRequestOnceServed === null) return new Response(null, { status: 503 });
-  const answer = await answerAProjectViewFileRequestOnceServed(requestUrl);
+  return responseOfTheExtensionFileAnswer(requestUrl, await answerAProjectViewFileRequestOnceServed(requestUrl), tatolabAppLog);
+}
+
+/** The response that carries `answer` to a request for an extension's file at `requestUrl`: its bytes, or its status and why, which is logged. */
+function responseOfTheExtensionFileAnswer(requestUrl: string, answer: ExtensionFileAnswer, tatolabAppLog: TatolabAppLog): Response {
   if (answer.kind === "not_served") {
-    tatolabAppLog.debug("a project view's file was not served", { request_url: requestUrl, because: answer.because });
+    tatolabAppLog.debug("an extension's file was not served", { request_url: requestUrl, because: answer.because });
     return new Response(answer.because, { status: answer.status, headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
   return new Response(new Uint8Array(answer.file_bytes), { status: 200, headers: { "Content-Type": answer.content_type, "Cache-Control": "no-store" } });
@@ -47,10 +53,31 @@ async function suppliedModuleFromTheDevServer(windowDevServerUrl: string, reques
   }
 }
 
+/** Reads a file of the Studio's own node UI module: from `core_node_ui/` of the built window, or from the dev server, which serves it as written; `null` when it is not there. */
+function studioNodeUiFileReader(windowPageFilesSource: WindowPageFilesSource): ReadAStudioNodeUiFile {
+  if (windowPageFilesSource.kind === "built_window") {
+    const moduleFolder = path.join(windowPageFilesSource.builtWindowDirectory, STUDIO_NODE_UI_FILES_PATH);
+    return async (pathInTheModule) => {
+      try {
+        return await readFile(path.join(moduleFolder, ...pathInTheModule.split("/")));
+      } catch (readFailure) {
+        return isAMissingFileFailure(readFailure) ? null : Promise.reject(readFailure);
+      }
+    };
+  }
+  return async (pathInTheModule) => {
+    const fileResponse = await net.fetch(new URL(`${STUDIO_NODE_UI_FILES_PATH}${pathInTheModule}`, windowPageFilesSource.windowDevServerUrl).href);
+    if (fileResponse.status === 404) return null;
+    if (!fileResponse.ok) return Promise.reject(new Error(`the dev server answered ${fileResponse.status}`));
+    return new Uint8Array(await fileResponse.arrayBuffer());
+  };
+}
+
 /**
- * Serves the window page's scheme: project views' files through the running app, and the built window, the supplied
- * modules among its files, each of its responses carrying the page's content
- * security policy; while the window comes from the dev server, only project views' files and the supplied modules.
+ * Serves the window page's scheme: project views' files through the running app, the Studio's own node UI module with
+ * its types removed, and the built window, the supplied modules among its files, each of its responses carrying the
+ * page's content security policy; while the window comes from the dev server, only project views' files, the Studio's
+ * own node UI module and the supplied modules.
  */
 export async function serveTheWindowPageScheme(windowPageFilesSource: WindowPageFilesSource, tatolabAppLog: TatolabAppLog): Promise<void> {
   let windowPageContentSecurityPolicyHeader = "default-src 'self'";
@@ -61,8 +88,12 @@ export async function serveTheWindowPageScheme(windowPageFilesSource: WindowPage
       tatolabAppLog.error("the built window could not be read", { built_window_directory: windowPageFilesSource.builtWindowDirectory, failure: describeCaughtFailure(caughtFailure) });
     }
   }
+  const readAStudioNodeUiFile = studioNodeUiFileReader(windowPageFilesSource);
   protocol.handle(TATOLAB_WINDOW_PAGE_SCHEME, async (windowPageRequest) => {
     if (isAProjectViewFileUrl(windowPageRequest.url)) return projectViewFileResponse(windowPageRequest.url, tatolabAppLog);
+    if (isAStudioNodeUiFileUrl(windowPageRequest.url)) {
+      return responseOfTheExtensionFileAnswer(windowPageRequest.url, await answerAStudioNodeUiFileRequest(windowPageRequest.url, readAStudioNodeUiFile, tatolabAppLog), tatolabAppLog);
+    }
     if (windowPageFilesSource.kind === "dev_server") {
       return isASuppliedModuleUrl(windowPageRequest.url) ? suppliedModuleFromTheDevServer(windowPageFilesSource.windowDevServerUrl, windowPageRequest.url, tatolabAppLog) : new Response(null, { status: 404 });
     }

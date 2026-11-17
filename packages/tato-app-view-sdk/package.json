@@ -11,6 +11,7 @@
     "./pin_type_readings": "./src/pin_type_readings.ts",
     "./pin_types": "./src/pin_types.ts",
     "./node_ui": "./src/node_ui.ts",
+    "./node_ui/input_control.css": "./src/node_ui/input_control.css",
     "./node_ui_host": "./src/node_ui_host.ts",
     "./pin_model/*": "./src/pin_model/*.ts",
     "./pin_services/*": "./src/pin_services/*.ts",
@@ -25,7 +26,7 @@
     "build": "vite build --config vite.studio_sdk.config.ts",
     "typecheck": "node ../../node_modules/@typescript/native/bin/tsc --noEmit && node ../../node_modules/@typescript/native/bin/tsc --noEmit -p tsconfig.design_system.json",
     "test": "vitest run",
-    "lint": "eslint . && oxlint src scripts && stylelint \"src/design_system/styles/**/*.css\""
+    "lint": "eslint . && oxlint src scripts && stylelint \"src/design_system/styles/**/*.css\" \"src/node_ui/**/*.css\""
   },
   "dependencies": {
     "react-colorful": "^5.8.1",

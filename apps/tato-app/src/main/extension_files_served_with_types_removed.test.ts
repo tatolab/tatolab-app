@@ -8,7 +8,7 @@ import {
   projectViewFileRequestsAnsweredOn,
   projectViewFolderUrl,
   ProjectViewsListedToTheWindows,
-  type ProjectViewFileAnswer,
+  type ExtensionFileAnswer,
 } from "./extension_files_served_with_types_removed.js";
 import { controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
 import { controlOperationCallsReceivedBy } from "./local_api_client_test_support.js";
@@ -44,6 +44,7 @@ test("a request outside a view folder, climbing out of one, or naming a project 
     `tatolab-app://app/project_views/${encodedNightShow}/views/deck`,
     `tatolab-app://app/project_views/${encodedNightShow}/views/deck/%2E%2E/%2E%2E/nodes/camera.py`,
     `tatolab-app://app/project_views/${encodedNightShow}/views/deck%2F..%2F..%2Fnodes/camera.py`,
+    `tatolab-app://app/project_views/${encodedNightShow}/views/deck/..%5C..%5Cnodes%5Ccamera.py`,
     `tatolab-app://app/project_views/${Buffer.from("streams/night-show").toString("base64url")}/views/deck/index.html`,
     `tatolab-app://app/project_views/${encodedNightShow}`,
     `tatolab-app://app/core_views/outliner/index.html`,
@@ -151,7 +152,7 @@ function projectViewFilesServedAt(localApiSocketPath: string) {
 }
 
 /** `answer` with the bytes it serves read as text. */
-function withItsBytesAsText(answer: ProjectViewFileAnswer) {
+function withItsBytesAsText(answer: ExtensionFileAnswer) {
   return answer.kind === "served" ? { kind: answer.kind, content_type: answer.content_type, file_text: answer.file_bytes.toString("utf8") } : answer;
 }
 
