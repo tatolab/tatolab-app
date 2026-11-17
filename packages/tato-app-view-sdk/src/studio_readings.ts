@@ -1,8 +1,8 @@
 // Everything a view reads from Tato Studio, as Zod schemas: what crosses a view's MessagePort is
 // parsed against these on both ends, and Studio's own code takes its types from them.
 
-import type { DeclaredPinType, PinFlow, PinType } from "@tatolab/runtime-client/pin_types";
 import { z } from "zod";
+import { declaredPinTypeSchema, pinFlowSchema, pinTypeSchema } from "./pin_type_readings.js";
 import { PORT_FAMILIES } from "./port_families.js";
 
 /** A value as JSON carries it. */
@@ -83,15 +83,6 @@ export const portStreamFactsSchema = z.discriminatedUnion("family", [
 ]);
 /** An output port's stream facts. */
 export type PortStreamFacts = z.infer<typeof portStreamFactsSchema>;
-
-/** A pin type as the runtime's control contract names it, its shape generated from the contract; Studio's main process checked it against the contract's own schema before it reached a reading. */
-const pinTypeSchema = z.custom<PinType>((value) => typeof value === "object" && value !== null && "type" in value && typeof value.type === "string", "a pin type is an object tagged by `type`");
-
-/** How a pin type is found, as a node type declares it in the contract's form: a type, one of several, any, or one another input sets. */
-const declaredPinTypeSchema = z.custom<DeclaredPinType>((value) => typeof value === "object" && value !== null && "kind" in value && typeof value.kind === "string", "a declared pin type is an object tagged by `kind`");
-
-/** How a pin's messages are read, as the contract names it: `value`, `stream` or `trigger`. */
-const pinFlowSchema = z.custom<PinFlow>((value) => typeof value === "string", "a pin's flow is text");
 
 /** The pin type a port of a running graph carries, resolved, and its flow, from its `pin_type` and `flow` keys. */
 export const streamGraphPortPinSchema = z.object({ pin_type: pinTypeSchema, flow: pinFlowSchema });
