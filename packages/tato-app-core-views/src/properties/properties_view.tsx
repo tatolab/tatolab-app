@@ -1,13 +1,13 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { NodeGraphPinMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
 import { pinWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
-import { takesAControl, type ControlledInput } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
+import { takesAControl } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
 import { inputAddressKey, valueAddressOfTheInput, type GraphAddress, type InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
-import { InputControlBinderContext, InputControlMount, useInputControlsOfTheFrame } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
+import { InputControlBinderContext, InputControlMount, useInputControlsOfTheFrame, useOwnFieldOfTheInput } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import { portFamilyWords } from "@tatolab/tato-app-view-sdk/port_families";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_banner";
@@ -23,6 +23,7 @@ import {
   PropertyNumberField,
   PropertyPortRow,
   PropertyRow,
+  type PropertyPortBandShade,
   PropertySection,
   PropertySliderField,
   PropertyTextField,
@@ -31,6 +32,7 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import { newGestureIdempotencyKey, type AreasForAViewTypeReading, type StopWatching, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import { FieldMenu, MenuItem, MenuNote } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import type {
+  InputValueComesFrom,
   JsonValue,
   NodeCatalogEntry,
   NodeCatalogPort,
@@ -38,6 +40,7 @@ import type {
   ProjectAssetsReading,
   StreamGraphDeclaredPort,
   StreamGraphNode,
+  StreamGraphPortPin,
   StreamGraphReading,
   StreamGraphSummary,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
@@ -61,12 +64,14 @@ import {
   configValueFromTheWordsTyped,
   exposeTheConfigFieldAsAGraphInput,
   LIST_ENTRY_MOVED_ON_REFUSAL,
+  linkDrivingTheInputTakenOut,
   linkedEndsOfThePort,
   listWithARecordAdded,
   listWithoutTheRecord,
   listWithTheRecordFieldSet,
   nodeIdInShort,
   pinValueFromTheWordsTyped,
+  promoteToGraphInput,
   resetTheConfigField,
   setTheConfigField,
   type SetNodeConfigAction,
@@ -406,109 +411,129 @@ function meaningOfAConfigKey(field: ConfigFormField): string {
   return field.description === null ? field.key : `${field.key} · ${field.description}`;
 }
 
-/** What a port's name shows while the pointer rests on it: what its type says it carries, and the stream facts it reads. */
-function meaningOfAPort(port: StreamGraphDeclaredPort, catalogPorts: NodeCatalogPort[], facts: Pick<StreamGraphDeclaredPort, "stream_facts" | "values_checked">): string | undefined {
-  const description = catalogPorts.find((catalogPort) => catalogPort.name === port.name)?.description;
+/** What a port's name shows while the pointer rests on it: the stream facts it reads, and that a Records port's values are not checked. */
+function meaningOfAPort(facts: Pick<StreamGraphDeclaredPort, "stream_facts" | "values_checked">): string | undefined {
   const factsWords = portStreamFactsWords(facts);
-  const meaning = [
-    description === undefined || description === "" ? null : description,
-    factsWords.length > 0 ? factsWords.join(" · ") : null,
-    facts.values_checked === false ? VALUES_UNCHECKED_MEANING : null,
-  ]
-    .filter((words): words is string => words !== null)
-    .join("\n");
+  const meaning = [factsWords.length > 0 ? factsWords.join(" · ") : null, facts.values_checked === false ? VALUES_UNCHECKED_MEANING : null].filter((words): words is string => words !== null).join("\n");
   return meaning === "" ? undefined : meaning;
 }
 
-function PortRowsOfOneDirection({
-  direction,
-  firstBandIndex,
-  graph,
-  node,
-  streamAsset,
-  valuesAt,
-  inputValues,
-  catalogPorts,
-  graphEdits,
-  portNamesListed,
-  searchWords,
-}: {
-  direction: "input" | "output";
-  /** Where this direction's bands fall in the panel's alternation, so Outputs carries on from Inputs. */
-  firstBandIndex: number;
+/** What the node type says `port` means, or `undefined` where it says nothing. */
+function descriptionOfThePort(port: StreamGraphDeclaredPort, catalogPorts: readonly NodeCatalogPort[]): string | undefined {
+  const description = catalogPorts.find((catalogPort) => catalogPort.name === port.name)?.description;
+  return description === undefined || description === "" ? undefined : description;
+}
+
+/** A port's type and flow in words; a port with no exact type says so, with its family. */
+function typeWordsOfThePort(port: StreamGraphDeclaredPort): string {
+  return port.pin === null && port.family !== null ? `${pinWords(null)} · ${portFamilyWords(port.family)}` : pinWords(port.pin);
+}
+
+/** Where the value an unwired input shows comes from, in a word. */
+const COMES_FROM_WORDS: Record<Exclude<InputValueComesFrom, "wire">, string> = { live: "Live", saved: "Saved", default: "Default" };
+
+/** The place an input's own edits, a disconnect or a promotion, show their refusal under. */
+function placeOfTheInput(input: string): PlaceOfAnEdit {
+  return `input:${input}`;
+}
+
+/** What every input row of the selected node reads and sends through. */
+interface InputRowsOfTheNode {
+  connection: TatoAppViewConnection;
+  stream: string;
+  level: readonly string[];
   graph: StreamGraphSummary;
   node: StreamGraphNode;
+  /** The stream's asset, which every edit names; `null` where the graph can't be edited. */
   streamAsset: string | null;
   /** The level of the stream's graph the node is at, where its inputs' values are kept; `null` where no stream's graph is known. */
   valuesAt: GraphAddress | null;
-  /** The frame's store, whose refusal of an input's last value shows under its control. */
+  /** The frame's store, which a reset and the refusal of an input's last value go through. */
   inputValues: InputValues;
-  catalogPorts: NodeCatalogPort[];
+  catalogPorts: readonly NodeCatalogPort[];
   graphEdits: GraphEditsOfTheNode;
-  /** The ports a search over the properties keeps, by name. */
-  portNamesListed: ReadonlySet<string>;
   searchWords: string;
-}) {
-  const ports = direction === "input" ? node.input_ports : node.output_ports;
-  if (ports.length === 0) return <p className="px-1 text-xs text-fg-3">None</p>;
-  return ports
-    .filter((port) => portNamesListed.has(port.name))
-    .map((port, portIndex) => {
-    const place: PlaceOfAnEdit = `${direction}:${port.name}`;
-    const linkedEnds = linkedEndsOfThePort(graph, node, direction, port.name);
-    const facts = direction === "input" ? streamFactsAnInputReceives(graph, node.name, port) : port;
-    const pinValue = node.pins[port.name];
-    return (
-      <PropertyPortRow
-        key={place}
-        direction={direction}
-        portName={port.name}
-        searchWords={searchWords}
-        typeWords={port.pin === null && port.family !== null ? `${pinWords(null)} · ${portFamilyWords(port.family)}` : pinWords(port.pin)}
-        pinMark={<NodeGraphPinMark pin={port.pin} />}
-        meaning={meaningOfAPort(port, catalogPorts, facts)}
-        bandShade={(firstBandIndex + portIndex) % 2 === 0 ? "first" : "second"}
-        refusal={graphEdits.refusalsByPlace.get(place) ?? null}
-        linkedEnds={linkedEnds.map((linkedEnd) => ({ nodeTitle: nodeTitle(linkedEnd.node.name, linkedEnd.node.type), port: linkedEnd.port, linkKey: `${linkedEnd.node.id}:${linkedEnd.port}` }))}
-        unlinkedValue={
-          direction === "input" && streamAsset !== null ? (
-            <UnlinkedValueOfTheInput inputValues={inputValues} controlled={takesAControl({ name: port.name, pin: port.pin, value_address: valueAddressOfTheInput(valuesAt, node.id, port) })}>
-              <PropertyTextField
-                fieldId={pinValueFieldId(node.id, port.name)}
-                words={pinValue === undefined ? "" : configFormFieldValueWords(pinValue)}
-                isTheTypesDefault={pinValue === undefined}
-                label={`Value of ${port.name}`}
-                onCommitted={(words) =>
-                  void graphEdits.commit(place, [
-                    {
-                      operation: "set_pin_value",
-                      stream: streamAsset,
-                      node: node.id,
-                      input: port.name,
-                      value: words.trim() === "" ? null : pinValueFromTheWordsTyped(words),
-                    },
-                  ])
-                }
-              />
-            </UnlinkedValueOfTheInput>
-          ) : undefined
-        }
-      />
-    );
-  });
 }
 
 /**
- * An unlinked input's value in its row: the control the node draws for it, written through the frame's store, where
- * `takesAControl` gives it one and the table has a control for its type; otherwise `children`, the row's own field.
+ * One input of the node, as its card draws it, wider: a wired input names each node and pin that drive it, with a way
+ * there and a disconnect; an unwired one draws the control its card draws, or the panel's own field where the table has
+ * none, says where its value comes from, and offers Reset to default and Promote to a Graph Input.
  */
-function UnlinkedValueOfTheInput({ inputValues, controlled, children }: { inputValues: InputValues; controlled: ControlledInput | null; children: ReactNode }) {
-  if (controlled === null) return children;
+function InputRowOfTheNode({ port, bandShade, rows }: { port: StreamGraphDeclaredPort; bandShade: PropertyPortBandShade; rows: InputRowsOfTheNode }) {
+  const { connection, stream, level, graph, node, streamAsset, valuesAt, inputValues, catalogPorts, graphEdits, searchWords } = rows;
+  const place = placeOfTheInput(port.name);
+  const drivenBy = linkedEndsOfThePort(graph, node, "input", port.name);
+  const isWired = drivenBy.length > 0;
+  const valueAddress = isWired || streamAsset === null ? null : valueAddressOfTheInput(valuesAt, node.id, port);
+  const comesFrom = isWired ? null : (port.value_read?.comes_from ?? null);
+  // A live value holds over the saved one until it is taken off live, so a reset is offered only on a saved value.
+  const holdsASavedValue = comesFrom === "saved";
+  return (
+    <PropertyPortRow
+      direction="input"
+      portName={port.name}
+      searchWords={searchWords}
+      typeWords={typeWordsOfThePort(port)}
+      pinMark={<NodeGraphPinMark pin={port.pin} />}
+      meaning={meaningOfAPort(streamFactsAnInputReceives(graph, node.name, port))}
+      description={descriptionOfThePort(port, catalogPorts)}
+      bandShade={bandShade}
+      refusal={graphEdits.refusalsByPlace.get(place) ?? null}
+      comesFromWords={comesFrom === null || comesFrom === "wire" ? undefined : COMES_FROM_WORDS[comesFrom]}
+      reset={valueAddress === null || !holdsASavedValue ? undefined : { label: `Reset ${port.name} to default`, onReset: () => inputValues.clear(valueAddress, "commit") }}
+      promotion={
+        isWired || streamAsset === null
+          ? undefined
+          : { label: `Promote ${port.name} to a Graph Input`, onPromoted: () => void graphEdits.commit(place, promoteToGraphInput(streamAsset, node, port)) }
+      }
+      linkedEnds={drivenBy.map((linkedEnd) => {
+        const driverTitle = nodeTitle(linkedEnd.node.name, linkedEnd.node.type);
+        return {
+          nodeTitle: driverTitle,
+          port: linkedEnd.port,
+          linkKey: `${linkedEnd.node.id}:${linkedEnd.port}`,
+          jump: { label: `Go to ${driverTitle}`, onJumped: () => void connection.select({ kind: "node", stream, node: linkedEnd.node.name, ...(level.length === 0 ? {} : { level: [...level] }) }) },
+          disconnection:
+            streamAsset === null
+              ? undefined
+              : { label: `Disconnect ${driverTitle} › ${linkedEnd.port}`, onDisconnected: () => void graphEdits.commit(place, linkDrivingTheInputTakenOut(streamAsset, linkedEnd, node, port.name)) },
+        };
+      })}
+      unlinkedValue={valueAddress === null ? undefined : <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, port.name)} pin={port.pin} address={valueAddress} inputValues={inputValues} />}
+    />
+  );
+}
+
+/**
+ * An unwired input's value: the control its card draws, through the frame's binder, where its type is exact; the panel's
+ * own field where it has none, or where the table has no control for its type. Under it, the store's refusal of the last
+ * value sent to it.
+ */
+function ValueOfTheUnwiredInput({ fieldId, pin, address, inputValues }: { fieldId: string; pin: StreamGraphPortPin | null; address: InputAddress; inputValues: InputValues }) {
+  const controlled = takesAControl({ name: address.input, pin, value_address: address });
+  const ownField = <OwnFieldOfTheInput fieldId={fieldId} address={address} />;
   return (
     <div className="flex w-full min-w-0 flex-col gap-1">
-      <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={children} className="w-full" />
-      <RefusalOfTheInputsValue inputValues={inputValues} address={controlled.address} />
+      {controlled === null ? ownField : <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={ownField} className="w-full" />}
+      <RefusalOfTheInputsValue inputValues={inputValues} address={address} />
     </div>
+  );
+}
+
+/** The panel's own field for an input the table has no control for: its value as JSON, each commit set as the input's value, the words left empty taking it off. */
+function OwnFieldOfTheInput({ fieldId, address }: { fieldId: string; address: InputAddress }) {
+  const ownField = useOwnFieldOfTheInput(address, "commit");
+  const shown = ownField?.shown ?? null;
+  const holdsItsOwnValue = shown?.comes_from === "saved" || shown?.comes_from === "live";
+  return (
+    <PropertyTextField
+      fieldId={fieldId}
+      words={shown !== null && holdsItsOwnValue ? configFormFieldValueWords(shown.value) : ""}
+      isTheTypesDefault={!holdsItsOwnValue}
+      label={`Value of ${address.input}`}
+      onCommitted={ownField === null ? undefined : (words) => ownField.releaseTheValue(words.trim() === "" ? null : pinValueFromTheWordsTyped(words))}
+    />
   );
 }
 
@@ -523,6 +548,27 @@ function RefusalOfTheInputsValue({ inputValues, address }: { inputValues: InputV
   useLayoutEffect(() => inputValues.watchRefusal(latestAddress.current, setRefusal), [inputValues, addressKey]);
   if (refusal === null) return null;
   return <RefusalLine lead="The value wasn't set:" words={refusal} layout="under_field" data-properties-input-value-refusal={address.input} />;
+}
+
+/** One output of the node: its type, and each input it feeds. */
+function OutputRowOfTheNode({ port, bandShade, graph, node, searchWords }: { port: StreamGraphDeclaredPort; bandShade: PropertyPortBandShade; graph: StreamGraphSummary; node: StreamGraphNode; searchWords: string }) {
+  return (
+    <PropertyPortRow
+      direction="output"
+      portName={port.name}
+      searchWords={searchWords}
+      typeWords={typeWordsOfThePort(port)}
+      pinMark={<NodeGraphPinMark pin={port.pin} />}
+      meaning={meaningOfAPort(port)}
+      bandShade={bandShade}
+      linkedEnds={linkedEndsOfThePort(graph, node, "output", port.name).map((reader) => ({ nodeTitle: nodeTitle(reader.node.name, reader.node.type), port: reader.port, linkKey: `${reader.node.id}:${reader.port}` }))}
+    />
+  );
+}
+
+/** The shade of the band at `bandIndex` down the panel. */
+function bandShadeAt(bandIndex: number): PropertyPortBandShade {
+  return bandIndex % 2 === 0 ? "first" : "second";
 }
 
 /** The place an edit of a config field, or exposing it as a Graph Input, shows its refusal under. */
@@ -666,6 +712,20 @@ function PropertiesOfTheSelectedNode({
     searchWords,
   );
   const configFieldsListed = configFields.filter((field) => matching.config_keys_listed.has(field.key));
+  const inputPortsListed = node.input_ports.filter((port) => matching.input_ports_listed.has(port.name));
+  const inputRows: InputRowsOfTheNode = {
+    connection,
+    stream,
+    level,
+    graph,
+    node,
+    streamAsset,
+    valuesAt,
+    inputValues,
+    catalogPorts: catalogEntry?.inputs ?? [],
+    graphEdits,
+    searchWords,
+  };
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-properties-of-node={node.name}>
       <header className="flex min-w-0 flex-col gap-0.5 border-b px-3 py-2">
@@ -748,36 +808,22 @@ function PropertiesOfTheSelectedNode({
         )}
         {(!matching.is_searching || matching.input_ports_listed.size > 0) && (
           <PropertySection title="Inputs" data-properties-section="inputs">
-            <PortRowsOfOneDirection
-              direction="input"
-              firstBandIndex={0}
-              graph={graph}
-              node={node}
-              streamAsset={streamAsset}
-              valuesAt={valuesAt}
-              inputValues={inputValues}
-              catalogPorts={catalogEntry?.inputs ?? []}
-              graphEdits={graphEdits}
-              portNamesListed={matching.input_ports_listed}
-              searchWords={searchWords}
-            />
+            {node.input_ports.length === 0 ? (
+              <p className="px-1 text-xs text-fg-3">None</p>
+            ) : (
+              inputPortsListed.map((port, portIndex) => <InputRowOfTheNode key={port.name} port={port} bandShade={bandShadeAt(portIndex)} rows={inputRows} />)
+            )}
           </PropertySection>
         )}
         {(!matching.is_searching || matching.output_ports_listed.size > 0) && (
           <PropertySection title="Outputs" data-properties-section="outputs">
-            <PortRowsOfOneDirection
-              direction="output"
-              firstBandIndex={node.input_ports.filter((port) => matching.input_ports_listed.has(port.name)).length}
-              graph={graph}
-              node={node}
-              streamAsset={streamAsset}
-              valuesAt={null}
-              inputValues={inputValues}
-              catalogPorts={catalogEntry?.outputs ?? []}
-              graphEdits={graphEdits}
-              portNamesListed={matching.output_ports_listed}
-              searchWords={searchWords}
-            />
+            {node.output_ports.length === 0 ? (
+              <p className="px-1 text-xs text-fg-3">None</p>
+            ) : (
+              node.output_ports
+                .filter((port) => matching.output_ports_listed.has(port.name))
+                .map((port, portIndex) => <OutputRowOfTheNode key={port.name} port={port} bandShade={bandShadeAt(inputPortsListed.length + portIndex)} graph={graph} node={node} searchWords={searchWords} />)
+            )}
             {imageOutputs
               .filter((port) => matching.output_ports_listed.has(port.name))
               .map((port) => (

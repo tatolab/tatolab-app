@@ -6,7 +6,7 @@
 // binder never sets the element's value, and every value that arrives is set in one animation-frame
 // flush, so a surface's React tree never sees one. DOM only, no React.
 
-import { inputAddressKey } from "../pin_model/node_inputs.js";
+import { inputAddressKey, type InputAddress } from "../pin_model/node_inputs.js";
 import type { ControlledInput } from "../pin_model/controlled_inputs.js";
 import { jsonOfTheStoredPinValue, storedPinValueOfTheJson } from "../pin_model/stored_pin_values.js";
 import type { BuiltInPinTypeName } from "../pin_types.js";
@@ -38,10 +38,23 @@ export interface InputControlBinding {
   unbind(): void;
 }
 
+/**
+ * A surface's own field for one input, where the table has no control for it: the store's value and refusal for that input,
+ * and a gesture that sends through the input's one sender and ends as the binding was asked to release.
+ */
+export interface OwnFieldBinding {
+  shownValue(): ShownValue;
+  watchValue(listener: (shown: ShownValue) => void): StopWatching;
+  watchRefusal(listener: (refusal: string | null) => void): StopWatching;
+  beginGesture(): InputValueGesture;
+}
+
 /** A frame's one binder. */
 export interface InputControlBinder {
   /** Draws the control for `input` inside `host`, telling `whenShown` what the slot shows each time it changes. */
   bindInputControl(host: HTMLElement, input: ControlledInput, place: InputControlPlace, whenShown?: (shown: InputControlShown) => void): InputControlBinding;
+  /** Binds a surface's own field to the input at `address`, each gesture on it released with `release`. */
+  bindOwnField(address: InputAddress, release: "commit" | "live"): OwnFieldBinding;
 }
 
 /** What a binder reads and writes through: the frame's element listing and its store, and, for tests, how an element loads and when a flush runs. */
@@ -378,5 +391,11 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       binding.refresh();
       return binding;
     },
+    bindOwnField: (address, release) => ({
+      shownValue: () => inputValues.shownValue(address),
+      watchValue: (listener) => inputValues.watchValue(address, listener),
+      watchRefusal: (listener) => inputValues.watchRefusal(address, listener),
+      beginGesture: () => inputValues.beginGesture(address, release),
+    }),
   };
 }

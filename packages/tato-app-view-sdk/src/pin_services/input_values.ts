@@ -33,6 +33,12 @@ export interface InputValues {
   watchRefusal(address: InputAddress, listener: (refusal: string | null) => void): StopWatching;
   /** Open a gesture on `address`, ended by one commit or by its last live value; it takes the place of a gesture still open there. */
   beginGesture(address: InputAddress, release: "commit" | "live"): InputValueGesture;
+  /**
+   * Take the input's own value off, ending a gesture open on it: `"commit"` takes its saved value off as one commit, so it
+   * reads its declared default; `"live"` takes its live value off, so it reads its saved value again, and below a stream's
+   * own level, where nothing is live, sends nothing. The value it reads then is shown once a reading gives it.
+   */
+  clear(address: InputAddress, mode: "commit" | "live"): void;
   /** Take what each input of `graph`, a stream of the project in `projectFolder`, reads in its latest reading, at every level, forgetting an input of that stream it no longer holds that nothing watches or sends. */
   takeTheGraphReading(projectFolder: string, graph: StreamGraphSummary): void;
 }
@@ -222,6 +228,14 @@ export function createInputValues(sending: InputValuesSending): InputValues {
           endWithTheValueSentAhead(gesture.began_at);
         },
       };
+    },
+    clear: (address, mode) => {
+      const state = stateOf(address);
+      state.gesture = null;
+      state.sent_ahead = null;
+      if (mode === "commit") senderOf(state).sendCommit(null, sending.newGestureIdempotencyKey());
+      else if (isOnTheStreamsOwnLevel(address)) senderOf(state).sendLive(null);
+      publishTheValue(state);
     },
     takeTheGraphReading: (projectFolder, graph) => {
       const streamAsset = graph.stream_asset;

@@ -256,3 +256,41 @@ test("a_gesture_released_live_sends_its_last_value_live_and_records_nothing", as
   expect(sent.map(({ mode, idempotency_key }) => [mode, idempotency_key])).toEqual([["live", null]]);
   expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.8, comes_from: "live" });
 });
+
+test("clearing_an_input_commits_its_value_off_under_a_new_key_and_clearing_it_live_takes_its_live_value_off_with_no_commit", async () => {
+  const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
+  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  inputValues.clear(GAIN, "commit");
+  await answerTheNext();
+  inputValues.clear(GAIN, "live");
+  await answerTheNext();
+  const takeGainOff: StreamGraphAction = { operation: "set_node_input_value", stream: STREAM_ASSET, node: "MIX-ID", input: "gain", value: null };
+  expect(sent).toEqual([
+    { project_folder: PROJECT, operations: [takeGainOff], mode: "commit", idempotency_key: "gesture-1" },
+    { project_folder: PROJECT, operations: [takeGainOff], mode: "live", idempotency_key: null },
+  ]);
+  inputValues.takeTheGraphReading(PROJECT, graphReading({ value: 1, comes_from: "default" }));
+  expect(inputValues.shownValue(GAIN)).toEqual({ value: 1, comes_from: "default" });
+});
+
+test("clearing_an_input_ends_a_gesture_open_on_it_so_its_release_sends_nothing_and_below_a_streams_own_level_a_live_clear_sends_nothing", async () => {
+  const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
+  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5), saved(0.25)));
+  const gesture = inputValues.beginGesture(INSIDE, "commit");
+  gesture.move(0.4);
+  inputValues.clear(INSIDE, "live");
+  expect(inputValues.shownValue(INSIDE)).toEqual({ value: 0.25, comes_from: "saved" });
+  gesture.release(0.9);
+  await answerTheNext();
+  expect(sent).toEqual([]);
+});
+
+test("a_refused_clear_keeps_the_runtimes_words", async () => {
+  const { inputValues, answerTheNext } = storeOverAHeldConnection();
+  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  const refusals: (string | null)[] = [];
+  inputValues.watchRefusal(GAIN, (refusal) => refusals.push(refusal));
+  inputValues.clear(GAIN, "commit");
+  await answerTheNext({ kind: "not_sent", because: "the project is read only" });
+  expect(refusals).toEqual([null, "the project is read only"]);
+});

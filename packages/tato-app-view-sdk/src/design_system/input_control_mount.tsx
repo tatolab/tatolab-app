@@ -1,9 +1,11 @@
 import { cn } from "cn";
-import { createContext, memo, useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, memo, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { areTheSameControlledInput, type ControlledInput } from "../pin_model/controlled_inputs";
+import { inputAddressKey, type InputAddress } from "../pin_model/node_inputs";
 import type { NodeUiSurface } from "../node_ui/input_control_element";
-import { createInputControlBinder, type InputControlBinder, type InputControlBinding, type InputControlShown } from "../pin_services/input_control_binding";
-import { createInputValues, type InputValues } from "../pin_services/input_values";
+import { createInputControlBinder, type InputControlBinder, type InputControlBinding, type InputControlShown, type OwnFieldBinding } from "../pin_services/input_control_binding";
+import { createInputValues, type InputValues, type ShownValue } from "../pin_services/input_values";
+import type { JsonValue } from "../studio_readings";
 import { newGestureIdempotencyKey, type TatoAppViewConnection } from "../tato_app_view_connection";
 
 /** The frame's one binder, which every control slot binds through; `null` draws each slot's own field. */
@@ -107,4 +109,45 @@ function haveTheSameInputAndPlace(before: InputControlHostProps, after: InputCon
     before.className === after.className &&
     before.hostAttributes === after.hostAttributes
   );
+}
+
+// A surface's own field for one input, where the control table has none, is the one place an input's value reaches
+// React: it reads the store's shown value through the frame's binder and writes each edit as one gesture through the
+// input's one sender, so it sends `set_node_input_value` as a control would.
+
+/** What a surface's own field reads and writes for its input. */
+export interface OwnFieldOfTheInput {
+  /** The value the store shows for the input, and where it comes from. */
+  readonly shown: ShownValue;
+  /** Sends `value` as one whole gesture, released as the field was bound to release. */
+  readonly releaseTheValue: (value: JsonValue | null) => void;
+}
+
+const SHOWS_NOTHING: ShownValue = Object.freeze({ value: null, comes_from: null });
+const watchesNothing = () => () => undefined;
+
+/** The binding of the own field of the input at `address`, and what it was bound under. */
+interface OwnFieldBound {
+  readonly binder: InputControlBinder | null;
+  readonly address_key: string;
+  readonly release: "commit" | "live";
+  readonly binding: OwnFieldBinding | null;
+}
+
+function ownFieldBoundAt(binder: InputControlBinder | null, address: InputAddress, addressKey: string, release: "commit" | "live"): OwnFieldBound {
+  return { binder, address_key: addressKey, release, binding: binder?.bindOwnField(address, release) ?? null };
+}
+
+/** The own field of the input at `address`, bound through the frame's binder; `null` where the frame gives no binder, so the field is only shown. */
+export function useOwnFieldOfTheInput(address: InputAddress, release: "commit" | "live"): OwnFieldOfTheInput | null {
+  const binder = useContext(InputControlBinderContext);
+  const addressKey = inputAddressKey(address);
+  const [bound, setBound] = useState(() => ownFieldBoundAt(binder, address, addressKey, release));
+  // An equal address in a new reading keeps the binding; another input, binder or release binds again, while rendering.
+  if (bound.binder !== binder || bound.address_key !== addressKey || bound.release !== release) setBound(ownFieldBoundAt(binder, address, addressKey, release));
+  const { binding } = bound;
+  const watchTheValue = useCallback((onChanged: () => void) => binding?.watchValue(onChanged) ?? watchesNothing(), [binding]);
+  const readTheValue = useCallback(() => binding?.shownValue() ?? SHOWS_NOTHING, [binding]);
+  const shown = useSyncExternalStore(watchTheValue, readTheValue);
+  return useMemo(() => (binding === null ? null : { shown, releaseTheValue: (value) => binding.beginGesture().release(value) }), [binding, shown]);
 }

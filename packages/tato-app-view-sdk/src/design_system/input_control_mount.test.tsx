@@ -1,9 +1,11 @@
 // @vitest-environment happy-dom
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vitest";
 import type { ControlledInput } from "../pin_model/controlled_inputs";
-import type { InputControlBinder, InputControlShown } from "../pin_services/input_control_binding";
-import { InputControlBinderContext, InputControlMount } from "./input_control_mount";
+import { createInputControlBinder, type InputControlBinder, type InputControlShown } from "../pin_services/input_control_binding";
+import { createInputValues } from "../pin_services/input_values";
+import { NODE_STUDIO_FIELDS_NONE_SET, type GraphEditMode, type JsonValue, type StreamGraphInputValueRead, type StreamGraphSummary } from "../studio_readings";
+import { InputControlBinderContext, InputControlMount, useOwnFieldOfTheInput } from "./input_control_mount";
 
 const COUNT: ControlledInput = {
   address: { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "LOOP-ID", input: "count" },
@@ -18,6 +20,9 @@ function binderUnderTest() {
       tellers.push(whenShown);
       whenShown("pending");
       return { update: () => undefined, unbind: () => undefined };
+    },
+    bindOwnField: () => {
+      throw new Error("the slot binds no own field");
     },
   };
   const show = (shown: InputControlShown) =>
@@ -51,4 +56,82 @@ test("the slot draws its fallback while the control is pending, and draws a chan
   show("element");
   expect(screen.queryByTestId("field")).toBeNull();
   expect(binds()).toBe(1);
+});
+
+/** A graph reading of the one node `LOOP-ID`, its `count` reading `count`. */
+function graphReading(count: StreamGraphInputValueRead): StreamGraphSummary {
+  return {
+    stream: "main",
+    stream_asset: COUNT.address.graph.stream_asset,
+    groups: [],
+    notes: [],
+    nodes: [
+      {
+        id: "LOOP-ID",
+        name: "loop",
+        type: "nodes.loop:Loop",
+        kind: "function",
+        state: "Running",
+        failed_because: null,
+        process_raising_because: null,
+        not_ready_because: null,
+        config: {},
+        pins: {},
+        exposed_config_fields: [],
+        input_ports: [{ name: "count", family: "records", stream_facts: null, values_checked: false, pin: null, value_read: count }],
+        output_ports: [],
+        dropped_bags_by_link: {},
+        refused_bags_by_output_port: {},
+        studio: NODE_STUDIO_FIELDS_NONE_SET,
+        fragment: null,
+        graph_interface: null,
+      },
+    ],
+    links: [],
+    graph_document_text: "{}",
+  };
+}
+
+function OwnFieldOfTheCount() {
+  const ownField = useOwnFieldOfTheInput(COUNT.address, "commit");
+  if (ownField === null) return <span data-testid="own-field">only shown</span>;
+  return (
+    <button type="button" data-testid="own-field" onClick={() => ownField.releaseTheValue({ every: 2 })}>
+      {`${JSON.stringify(ownField.shown.value)} ${ownField.shown.comes_from}`}
+    </button>
+  );
+}
+
+test("a surface's own field shows the store's value as each reading changes it, and sends an edit as one commit", async () => {
+  const sent: { value: JsonValue | null; mode: GraphEditMode }[] = [];
+  const inputValues = createInputValues({
+    transactInTheProject: (_projectFolder, operations, sending) => {
+      for (const operation of operations) if (operation.operation === "set_node_input_value") sent.push({ value: operation.value ?? null, mode: sending.mode });
+      return Promise.resolve({ kind: "applied", transaction: { mode: sending.mode, transaction: null, commit: null, operations: [], added_nodes: [], connected_links: [], added_groups: [], added_notes: [] } });
+    },
+    newGestureIdempotencyKey: () => "gesture",
+  });
+  inputValues.takeTheGraphReading(COUNT.address.graph.project_folder, graphReading({ value: { every: 1 }, comes_from: "saved" }));
+  const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues });
+  render(
+    <InputControlBinderContext value={binder}>
+      <OwnFieldOfTheCount />
+    </InputControlBinderContext>,
+  );
+  expect(screen.getByTestId("own-field").textContent).toBe('{"every":1} saved');
+
+  act(() => inputValues.takeTheGraphReading(COUNT.address.graph.project_folder, graphReading({ value: null, comes_from: "default" })));
+  expect(screen.getByTestId("own-field").textContent).toBe("null default");
+
+  fireEvent.click(screen.getByTestId("own-field"));
+  expect(screen.getByTestId("own-field").textContent).toBe('{"every":2} saved');
+  await act(async () => {
+    for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+  });
+  expect(sent).toEqual([{ value: { every: 2 }, mode: "commit" }]);
+});
+
+test("a surface's own field with no binder is only shown", () => {
+  render(<OwnFieldOfTheCount />);
+  expect(screen.getByTestId("own-field").textContent).toBe("only shown");
 });

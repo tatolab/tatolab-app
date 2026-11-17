@@ -1,7 +1,7 @@
 // What Properties sends the runtime for each edit, and what it shows of a node's links. `set_node_config` replaces
 // a node's whole config, so every config edit sends the whole config with the one field changed or removed.
 
-import type { JsonValue, StreamGraphAction, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { JsonValue, StreamGraphAction, StreamGraphDeclaredPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { GRAPH_INPUT_NODE_TYPE } from "../controls/graph_inputs_of_the_stream";
 import { recordsOfAListField, type ConfigFormField, type JsonObject } from "./config_form_fields";
 
@@ -157,4 +157,22 @@ export function exposeTheConfigFieldAsAGraphInput(stream: string, node: Pick<Str
     { operation: "add_node", stream, type: GRAPH_INPUT_NODE_TYPE, name: graphInputName, config: graphInputConfig, as: "graph_input" },
     { operation: "connect", stream, source: { node: "graph_input", port: "value" }, target: { node: node.id, port: field.key } },
   ];
+}
+
+/**
+ * One transaction that feeds `node`'s input from a new Graph Input of the stream, named `<node>_<input>`, which Perform's
+ * Controls then list. The Graph Input declares the input's family where it names one; otherwise the link gives it its own.
+ */
+export function promoteToGraphInput(stream: string, node: Pick<StreamGraphNode, "id" | "name">, input: Pick<StreamGraphDeclaredPort, "name" | "family">): StreamGraphAction[] {
+  const graphInputName = `${node.name}_${input.name}`;
+  const graphInputConfig: JsonObject = input.family === null ? { port: graphInputName } : { port: graphInputName, family: input.family };
+  return [
+    { operation: "add_node", stream, type: GRAPH_INPUT_NODE_TYPE, name: graphInputName, config: graphInputConfig, as: "graph_input" },
+    { operation: "connect", stream, source: { node: "graph_input", port: "value" }, target: { node: node.id, port: input.name } },
+  ];
+}
+
+/** The edit that takes out the link from `drivenBy`, a node's output, into `node`'s input `input`. */
+export function linkDrivingTheInputTakenOut(stream: string, drivenBy: { node: Pick<StreamGraphNode, "id">; port: string }, node: Pick<StreamGraphNode, "id">, input: string): StreamGraphAction[] {
+  return [{ operation: "disconnect", stream, source: { node: drivenBy.node.id, port: drivenBy.port }, target: { node: node.id, port: input } }];
 }

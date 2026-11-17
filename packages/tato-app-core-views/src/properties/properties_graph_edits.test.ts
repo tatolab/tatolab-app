@@ -5,12 +5,14 @@ import {
   configFieldsToExposeAsGraphInputs,
   configValueFromTheWordsTyped,
   exposeTheConfigFieldAsAGraphInput,
+  linkDrivingTheInputTakenOut,
   linkedEndsOfThePort,
   listWithARecordAdded,
   listWithoutTheRecord,
   listWithTheRecordFieldSet,
   nodeIdInShort,
   pinValueFromTheWordsTyped,
+  promoteToGraphInput,
   resetTheConfigField,
   setTheConfigField,
 } from "./properties_graph_edits";
@@ -142,4 +144,22 @@ test("exposing a config field is one transaction: the node takes it as an input,
   ]);
   expect(exposeTheConfigFieldAsAGraphInput("asset", glow, aConfigFormField("gain", { kind: "number", is_whole_number: false, minimum: null, maximum: 4 }))[1]).toMatchObject({ config: { port: "glow_gain", family: "channels" } });
   expect(exposeTheConfigFieldAsAGraphInput("asset", glow, aConfigFormField("gain", { kind: "number", is_whole_number: false, minimum: null, maximum: 4 }))[1]).not.toHaveProperty("config.range");
+});
+
+test("promoting an input is one transaction: a new Graph Input named for the node and input, of the input's family where it names one, wired into it", () => {
+  const glow = { id: "id-glow", name: "glow" };
+  expect(promoteToGraphInput("asset", glow, aPort("amount", "channels"))).toEqual([
+    { operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: "glow_amount", config: { port: "glow_amount", family: "channels" }, as: "graph_input" },
+    { operation: "connect", stream: "asset", source: { node: "graph_input", port: "value" }, target: { node: "id-glow", port: "amount" } },
+  ]);
+  expect(promoteToGraphInput("asset", glow, aPort("tint", null))[0]).toMatchObject({ config: { port: "glow_tint" } });
+  expect(promoteToGraphInput("asset", glow, aPort("tint", null))[0]).not.toHaveProperty("config.family");
+});
+
+test("taking out the link that drives an input disconnects it by both nodes' UUIDs", () => {
+  const camera = aNode("camera", [], [aPort("frames", "image")]);
+  const glow = aNode("glow", [aPort("video", "image")], []);
+  expect(linkDrivingTheInputTakenOut("asset", { node: camera, port: "frames" }, glow, "video")).toEqual([
+    { operation: "disconnect", stream: "asset", source: { node: "id-camera", port: "frames" }, target: { node: "id-glow", port: "video" } },
+  ]);
 });

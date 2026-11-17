@@ -141,10 +141,56 @@ describe("a property port row", () => {
     expect(screen.queryAllByRole("button")).toEqual([]);
   });
 
-  it("shows an unjoined input's value where it has no link", () => {
-    render(<PropertyPortRow direction="input" portName="tint" typeWords="Array" pinMark={null} bandShade="first" linkedEnds={[]} unlinkedValue={<span>0.5, 0.7</span>} />);
+  it("shows an unjoined input's value where it has no link, its description, and where its value comes from", () => {
+    render(<PropertyPortRow direction="input" portName="tint" typeWords="Array" pinMark={null} bandShade="first" linkedEnds={[]} description="The colour laid over each frame" comesFromWords="Saved" unlinkedValue={<span>0.5, 0.7</span>} />);
     expect(screen.getByText("0.5, 0.7")).toBeDefined();
+    expect(document.querySelector("[data-properties-input-description]")?.textContent).toBe("The colour laid over each frame");
+    expect(document.querySelector("[data-properties-input-comes-from]")?.textContent).toBe("Saved");
     expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+
+  it("offers to reset an input and to promote it to a Graph Input where it is given each", () => {
+    const pressed: string[] = [];
+    render(
+      <PropertyPortRow
+        direction="input"
+        portName="amount"
+        typeWords="Float"
+        pinMark={null}
+        bandShade="first"
+        linkedEnds={[]}
+        reset={{ label: "Reset amount to default", onReset: () => pressed.push("reset") }}
+        promotion={{ label: "Promote amount to a Graph Input", onPromoted: () => pressed.push("promoted") }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Reset amount to default" }));
+    fireEvent.click(screen.getByRole("button", { name: "Promote amount to a Graph Input" }));
+    expect(pressed).toEqual(["reset", "promoted"]);
+  });
+
+  it("offers to jump to and disconnect each link that drives an input where it is given each", () => {
+    const pressed: string[] = [];
+    render(
+      <PropertyPortRow
+        direction="input"
+        portName="video"
+        typeWords="Image"
+        pinMark={null}
+        bandShade="first"
+        linkedEnds={[
+          {
+            nodeTitle: "Camera",
+            port: "frames",
+            linkKey: "id-camera:frames",
+            jump: { label: "Go to Camera", onJumped: () => pressed.push("jumped") },
+            disconnection: { label: "Disconnect Camera › frames", onDisconnected: () => pressed.push("disconnected") },
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Go to Camera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect Camera › frames" }));
+    expect(pressed).toEqual(["jumped", "disconnected"]);
   });
 
   it("says Not connected for an output with no link", () => {

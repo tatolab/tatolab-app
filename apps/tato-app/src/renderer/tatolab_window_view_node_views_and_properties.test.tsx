@@ -436,7 +436,7 @@ describe("the studio", () => {
     await waitFor(() => expect(shownInWords()).toBe("1 area"));
   });
 
-  it("names each port's linked ends in Properties with no way to wire there, and keeps an unlinked input's value field", { timeout: 20_000 }, async () => {
+  it("names each port's linked ends in Properties, offering only a way to a wired input's driver and its disconnect, and no way to wire there", { timeout: 20_000 }, async () => {
     await mountedWindowOverTheMock("state=running");
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
     fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="brightnessmeter"]') ?? expect.unreachable("no Brightness Meter card")));
@@ -444,9 +444,9 @@ describe("the studio", () => {
     const linkedEndsOf = (port: string) => [...properties().querySelectorAll(`[data-properties-port="${port}"] [data-property-port-linked-end]`)].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"));
     await waitFor(() => expect(linkedEndsOf("video_from_upstream")).toEqual(["Inverting Effect › video_to_downstream"]));
 
-    const portRows = [...properties().querySelectorAll<HTMLElement>("[data-properties-port]")];
-    expect(portRows.length).toBeGreaterThan(0);
-    expect(portRows.flatMap((portRow) => [...portRow.querySelectorAll("button")])).toEqual([]);
+    const buttonsOf = (port: string) => [...(properties().querySelector(`[data-properties-port="${port}"]`)?.querySelectorAll("button") ?? [])].map((button) => button.getAttribute("aria-label"));
+    expect(buttonsOf("video_from_upstream")).toEqual(["Go to Inverting Effect", "Disconnect Inverting Effect › video_to_downstream"]);
+    expect([...properties().querySelectorAll('[data-properties-port-direction="output"] button')]).toEqual([]);
     expect(properties().querySelector('[data-properties-port="video_from_upstream"] input')).toBeNull();
   });
 
