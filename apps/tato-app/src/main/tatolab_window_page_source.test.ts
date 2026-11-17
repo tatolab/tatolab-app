@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { SUPPLIED_MODULES_IMPORT_MAP_TEXT } from "@tatolab/tato-app-view-sdk/supplied_modules";
 import { expect, test } from "vitest";
 import {
   builtWindowFileForRequest,
   inlineScriptHashSources,
+  isASuppliedModuleUrl,
   isACommandFromTheWindowsOwnPage,
   isAPermissionTheWindowLetsAViewAsk,
   mediaTypesOfAPermissionCheck,
@@ -41,16 +43,25 @@ test("the window navigates only on its own page's scheme and host, never to a fi
   expect(isOnTheWindowPagesOwnLocation("http://localhost:1420/", "http://localhost:1421/")).toBe(false);
 });
 
-test("the policy allows an inline script only by its hash, and the window page holds none", () => {
+test("the policy allows an inline script only by its hash: the window page holds none, and each core view's page holds the supplied modules' import map", () => {
   const windowPageHtml = readFileSync(new URL("../renderer/index.html", import.meta.url), "utf8");
+  const importMapHashSource = `'sha256-${createHash("sha256").update(SUPPLIED_MODULES_IMPORT_MAP_TEXT).digest("base64")}'`;
   expect(inlineScriptHashSources(windowPageHtml)).toEqual([]);
   expect(windowPageContentSecurityPolicy(windowPageHtml)).toBe(
-    "default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; frame-src tatolab-app://app/core_views/ tatolab-app://app/project_views/; object-src 'none'; base-uri 'self'",
+    `default-src 'self'; script-src 'self' ${importMapHashSource}; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; frame-src tatolab-app://app/core_views/ tatolab-app://app/project_views/; object-src 'none'; base-uri 'self'`,
   );
   const pageWithAnInlineScript = "<script>document.title = 'x';</script>";
   expect(inlineScriptHashSources(pageWithAnInlineScript)).toEqual([`'sha256-${createHash("sha256").update("document.title = 'x';").digest("base64")}'`]);
 });
 
+
+test("the supplied modules are asked for at /studio_sdk/ on the window page's scheme, and nowhere else", () => {
+  expect(isASuppliedModuleUrl("tatolab-app://app/studio_sdk/index.js")).toBe(true);
+  expect(isASuppliedModuleUrl("tatolab-app://app/studio_sdk/chunks/pin_type_readings-dLOFjpCe.js")).toBe(true);
+  expect(isASuppliedModuleUrl("tatolab-app://app/core_views/outliner/index.html")).toBe(false);
+  expect(isASuppliedModuleUrl("tatolab-app://elsewhere/studio_sdk/index.js")).toBe(false);
+  expect(isASuppliedModuleUrl("http://localhost:5173/studio_sdk/index.js")).toBe(false);
+});
 
 test("a command is answered only from the window page's own top frame, never a frame it embeds, a frame already gone or another page", () => {
   const windowPageUrl = "tatolab-app://app/index.html";

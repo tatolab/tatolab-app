@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import type { DependencySourceKind, PortViewerImageFrameFacts, StreamProjectFolderChosenFor, SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
 import type { ProjectFolderDialogPurpose } from "./open_project.js";
-import type { AnswerAProjectViewFileRequest } from "./project_view_files.js";
+import type { AnswerAProjectViewFileRequest } from "./extension_files_served_with_types_removed.js";
 import type { ProjectAssetFileFilter } from "./project_asset_file_filters.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { FakeCarriedRuntimeStarts, FakeSystemMediaAccess, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";

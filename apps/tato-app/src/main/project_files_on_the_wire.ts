@@ -65,9 +65,14 @@ export function bytesOfTheBase64Content(toolResult: JsonObjectOnTheWire): Result
   if (!contentBase64.ok) return contentBase64;
   const byteLen = requiredUnsignedInteger(toolResult, "byte_len");
   if (!byteLen.ok) return byteLen;
-  if (!isStandardBase64WithPadding(contentBase64.value)) return failedWith("`content_base64` is not standard base64 with padding");
-  const fileBytes = Buffer.from(contentBase64.value, "base64");
-  if (fileBytes.length !== byteLen.value) return failedWith(`\`content_base64\` holds ${fileBytes.length} bytes where \`byte_len\` says ${byteLen.value}`);
+  return bytesOfTheBase64ContentOfTheContract({ content_base64: contentBase64.value, byte_len: byteLen.value });
+}
+
+/** The bytes a contract-checked file read carries as `content_base64`, standard base64 with padding, checked against its `byte_len`. */
+export function bytesOfTheBase64ContentOfTheContract(fileRead: { readonly content_base64: string; readonly byte_len: number | bigint }): Result<Buffer, string> {
+  if (!isStandardBase64WithPadding(fileRead.content_base64)) return failedWith("`content_base64` is not standard base64 with padding");
+  const fileBytes = Buffer.from(fileRead.content_base64, "base64");
+  if (fileBytes.length !== Number(fileRead.byte_len)) return failedWith(`\`content_base64\` holds ${fileBytes.length} bytes where \`byte_len\` says ${fileRead.byte_len}`);
   return succeeded(fileBytes);
 }
 

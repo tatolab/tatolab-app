@@ -114,7 +114,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   requestTheSingleInstanceLock: (thisCopy) => app.requestSingleInstanceLock(tatolabAppCopyOnTheSingleInstanceLock(thisCopy)),
   whenReady: async () => {
     await app.whenReady();
-    await serveTheWindowPageScheme(windowDevServerUrl === null ? builtWindowDirectory : null, tatolabAppLog);
+    await serveTheWindowPageScheme(windowDevServerUrl === null ? { kind: "built_window", builtWindowDirectory } : { kind: "dev_server", windowDevServerUrl }, tatolabAppLog);
   },
   onTheAppOpenedAgain: (listener) => {
     app.on("second-instance", (_event, _argv, _workingDirectory, additionalData) => listener(tatolabAppCopyHandedOverOnTheSingleInstanceLock(additionalData)));

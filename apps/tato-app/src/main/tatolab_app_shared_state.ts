@@ -2,7 +2,7 @@
 // controller, the status publisher, the updater, and the requests the tray and the window both make.
 
 import type { StudioWarningsOfThisRun } from "./studio_warnings.js";
-import type { ProjectViewsListedToTheWindows } from "./project_view_files.js";
+import type { ProjectViewsListedToTheWindows } from "./extension_files_served_with_types_removed.js";
 import { describeCaughtFailure, type Result } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
