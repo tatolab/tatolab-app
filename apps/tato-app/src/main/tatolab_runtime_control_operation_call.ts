@@ -14,17 +14,19 @@ import {
   ControlOperationError,
   ControlPostTransport,
   ControlRequestInvalid,
+  ControlSchemas,
   TatolabRuntimeClient,
   type ControlCallOptions,
   type ControlNotificationMethodName,
   type ControlNotifications,
   type ControlOperationMethodName,
   type ControlOperations,
+  type ProjectActionRefusalOnTheWire,
 } from "@tatolab/runtime-client";
 import { Context, Duration, Effect, Layer } from "effect";
 import { TATO_STUDIO_MCP_CLIENT_NAME, type ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
-import { describeCaughtFailure, succeeded, type Result } from "./result.js";
+import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { ContractMismatch, RuntimeRefused, RuntimeTimedOut, RuntimeUnreachable, type RuntimeControlFailure } from "./runtime_control_failures.js";
 
 export type { ControlNotifications, ControlOperationMethodName, ControlOperations };
@@ -32,10 +34,17 @@ export type { ControlNotifications, ControlOperationMethodName, ControlOperation
 /** The params `method` takes, as the control contract declares them. */
 export type ControlOperationParams<Method extends ControlOperationMethodName> = ControlOperations[Method]["params"];
 
-/** What one control operation answered: its result, or the operation's own refusal in the runtime's words, with the structured refusal when the runtime gave one. */
+/** What one control operation answered: its result, or the operation's own refusal in the runtime's words. */
 export type ControlOperationAnswer =
   | { kind: "answered"; result: unknown }
-  | { kind: "refused_by_the_operation"; words: string; refusal: unknown };
+  | { kind: "refused_by_the_operation"; words: string };
+
+/** `sent` read as the contract's refusal by the generated client, a refusal code it does not know read as `refused`; or where and why it is not one. */
+export function controlContractRefusalOf(sent: unknown): Result<ProjectActionRefusalOnTheWire, string> {
+  const refusal = ControlSchemas.components.ProjectActionRefusalOnTheWire.safeParse(sent);
+  if (refusal.success) return succeeded(refusal.data);
+  return failedWith(refusal.error.issues.map((issue) => `${issue.path.length === 0 ? "the refusal" : issue.path.join(".")}: ${issue.message}`).join("; "));
+}
 
 /** How long one local API request may go without its answer before the runtime reads as not answering, unless its operation has a limit of its own. */
 export const LOCAL_API_REQUEST_TIMEOUT_MS = 3_000;
@@ -97,7 +106,7 @@ function runtimeControlFailureOfTheCall(method: ControlOperationMethodName, loca
       operation: method,
       words: byTheOperation ? callFailure.message : `the runtime refused \`${method}\`: ${callFailure.message}`,
       byTheOperation,
-      refusal: byTheOperation ? callFailure.refusal : undefined,
+      refusal: callFailure.refusal,
     });
   }
   if (callFailure instanceof ControlRequestInvalid) return new ContractMismatch({ operation: method, words: callFailure.message, direction: "request" });
@@ -124,7 +133,7 @@ async function controlOperationAnswerOfTheCall(
     const failure = runtimeControlFailureOfTheCall(method, localApiSocketPath, callFailure);
     switch (failure._tag) {
       case "RuntimeRefused":
-        return failure.byTheOperation ? succeeded({ kind: "refused_by_the_operation", words: failure.words, refusal: failure.refusal ?? null }) : theRuntimesRefusal(failure.words);
+        return failure.byTheOperation ? succeeded({ kind: "refused_by_the_operation", words: failure.words }) : theRuntimesRefusal(failure.words);
       case "RuntimeUnreachable":
         return localApiRequestFailure(responseTimeout.aborted ? runtimeTimedOut(method, localApiSocketPath, responseTimeoutMs).words : failure.words);
       case "RuntimeTimedOut":

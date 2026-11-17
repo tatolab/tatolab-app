@@ -63,11 +63,15 @@ function refusedActionWith(fields: Partial<RefusedProjectAction>): RefusedProjec
     operations: [{ operation: "set_node_config", stream: MAIN_STREAM_ASSET, node: "9c41", to: { softness: 2 } }],
     idempotency_key: null,
     refusal: {
+      refusal_code: "refused",
       action: "edit_graph",
       refused_operation_index: 0,
       refused_node: "9c41",
       refused_link: null,
       refused_field: "softness",
+      refused_params_pointer: null,
+      refused_file: null,
+      suggested_call: null,
       runtime_words: "softness 2 is above its maximum 1",
     },
     refused_at: "2026-11-09T18:42:31Z",
@@ -187,7 +191,7 @@ describe("the feed as one list", () => {
   });
 
   it("names a refused undo or redo, which asks for no operations, by its action", () => {
-    const refusedRedo = refusedActionWith({ operations: [], refusal: { action: "redo", refused_operation_index: null, refused_node: null, refused_link: null, refused_field: null, runtime_words: "nothing left to redo" } });
+    const refusedRedo = refusedActionWith({ operations: [], refusal: { refusal_code: "refused", action: "redo", refused_operation_index: null, refused_node: null, refused_link: null, refused_field: null, refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "nothing left to redo" } });
     const row = transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [], refused_actions: [refusedRedo] }, streamWordsOf)[0];
     expect(row).toMatchObject({ operations_words: "redo", operation_verbs: [], stream_cell_words: "project" });
   });

@@ -7,6 +7,7 @@
 // `undo_state` that rule gives it, and an undo or redo refused is kept as the runtime keeps it.
 // `?history=empty` opens a project with no transactions.
 
+import { MOCK_REFUSAL_NAMING_NOTHING } from "./mock_graph_transactions";
 import { mockNodeIdOf, mockStreamIdOf, mockStreamLocationOf } from "./mock_stream_fixtures";
 import type {
   JsonValue,
@@ -61,7 +62,7 @@ function mockRefusedUndoOrRedo(author: ProjectTransactionAuthor, undoOrRedo: "un
     mode: "commit",
     operations: [],
     idempotency_key: null,
-    refusal: { action: undoOrRedo, refused_operation_index: null, refused_node: null, refused_link: null, refused_field: null, runtime_words: runtimeWords },
+    refusal: { ...MOCK_REFUSAL_NAMING_NOTHING, action: undoOrRedo, refused_operation_index: null, runtime_words: runtimeWords },
     refused_at: refusedAt,
   };
 }

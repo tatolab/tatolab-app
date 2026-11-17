@@ -283,7 +283,7 @@ describe("the studio", () => {
         if (assetSet !== undefined && assetSet.operation === "set_node_config") {
           assetsSent.push(assetSet.config["asset"] ?? null);
           if (refusesTheNextAssetSet)
-            return { kind: "refused", refusal: { action: "transact", refused_operation_index: 0, refused_node: assetSet.node, refused_link: null, refused_field: "asset", runtime_words: "config field `asset`: not an asset of the project" } };
+            return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: assetSet.node, refused_link: null, refused_field: "asset", refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "config field `asset`: not an asset of the project" } };
         }
         return mockBackend.transactInTheOpenProject(operations, mode, idempotencyKey);
       },

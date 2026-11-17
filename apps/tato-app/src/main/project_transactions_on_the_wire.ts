@@ -5,22 +5,23 @@
 // left out. The runtime orders the array by the second each entry happened, a refusal first on a
 // tie, so `applied_at` and `refused_at` merge the two back as it sent them. An `undo` or `redo` tool answers one applied
 // transaction with no `status`. A key the runtime leaves out when it has no value reads as `null`;
-// every other key a newer runtime adds is ignored.
+// every other key a newer runtime adds is ignored. A refusal is read against the contract's own
+// refusal through the generated client, so a refusal code this app does not know reads as `refused`.
 
+import type { ProjectActionRefusalOnTheWire, SuggestedOperationCall } from "@tatolab/runtime-client";
 import type { JsonValue, ProjectActionRefusal, ProjectTransaction, ProjectTransactions, RefusedProjectAction } from "../shared/tatolab_backend_contract.js";
 import {
   everyOneRead,
   isAJsonValue,
   jsonObject,
-  optionalObject,
   optionalText,
-  optionalUnsignedInteger,
   requiredArray,
   requiredText,
   requiredUnsignedInteger,
   type JsonObjectOnTheWire,
 } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
+import { controlContractRefusalOf } from "./tatolab_runtime_control_operation_call.js";
 
 function jsonValuesOf(values: readonly unknown[], key: string): Result<JsonValue[], string> {
   return everyOneRead(values, (value) => (isAJsonValue(value) ? succeeded(value) : failedWith(`an entry of ${key} is not JSON`)));
@@ -75,52 +76,40 @@ function projectTransactionFromItsFields(fields: JsonObjectOnTheWire): Result<Pr
   });
 }
 
-function refusedLinkEndAt(link: JsonObjectOnTheWire, key: "source" | "target"): Result<{ node: string; port: string }, string> {
-  const end = jsonObject(link[key], `the refused link's ${key}`);
-  if (!end.ok) return end;
-  const node = requiredText(end.value, "node");
-  if (!node.ok) return node;
-  const port = requiredText(end.value, "port");
-  return port.ok ? succeeded({ node: node.value, port: port.value }) : port;
-}
-
-/** The structured refusal `fields` carries under `refusal`, as the feed's refused actions do, or why it cannot be read. */
-export function projectActionRefusalAt(fields: JsonObjectOnTheWire): Result<ProjectActionRefusal, string> {
-  return projectActionRefusalOnTheWire(fields["refusal"]);
-}
-
-/** `refusalOnTheWire` read as a structured refusal (`ProjectActionRefusalOnTheWire`), or why it cannot be read. */
-export function projectActionRefusalOnTheWire(refusalOnTheWire: unknown): Result<ProjectActionRefusal, string> {
-  const refusal = jsonObject(refusalOnTheWire, "a refusal");
-  if (!refusal.ok) return refusal;
-  const action = requiredText(refusal.value, "action");
-  if (!action.ok) return action;
-  const refusedOperationIndex = optionalUnsignedInteger(refusal.value, "refused_operation_index");
-  if (!refusedOperationIndex.ok) return refusedOperationIndex;
-  const refusedNode = optionalText(refusal.value, "refused_node");
-  if (!refusedNode.ok) return refusedNode;
-  const refusedLinkFields = optionalObject(refusal.value, "refused_link");
-  if (!refusedLinkFields.ok) return refusedLinkFields;
-  let refusedLink: ProjectActionRefusal["refused_link"] = null;
-  if (refusedLinkFields.value !== null) {
-    const source = refusedLinkEndAt(refusedLinkFields.value, "source");
-    if (!source.ok) return source;
-    const target = refusedLinkEndAt(refusedLinkFields.value, "target");
-    if (!target.ok) return target;
-    refusedLink = { source: source.value, target: target.value };
+/** `call`'s params as JSON, or `null` when one of them is not JSON: the client reads an integer past `Number.MAX_SAFE_INTEGER` as a `bigint`. */
+function suggestedCallOfTheContract(call: SuggestedOperationCall): ProjectActionRefusal["suggested_call"] {
+  const params: Record<string, JsonValue> = {};
+  for (const [key, value] of Object.entries(call.params)) {
+    if (!isAJsonValue(value)) return null;
+    params[key] = value;
   }
-  const refusedField = optionalText(refusal.value, "refused_field");
-  if (!refusedField.ok) return refusedField;
-  const runtimeWords = requiredText(refusal.value, "runtime_words");
-  if (!runtimeWords.ok) return runtimeWords;
-  return succeeded({
-    action: action.value,
-    refused_operation_index: refusedOperationIndex.value,
-    refused_node: refusedNode.value,
-    refused_link: refusedLink,
-    refused_field: refusedField.value,
-    runtime_words: runtimeWords.value,
-  });
+  return { operation: call.operation, params };
+}
+
+/**
+ * `refusal`, the contract's refusal as the generated runtime client read it, in Studio's shape: its code, its words and each place
+ * Studio reads, `null` for each it leaves out. Each field is assigned from the contract's own type, so a Studio shape the contract's
+ * values do not fit does not compile. `not_running_because` is not read yet.
+ */
+export function projectActionRefusalOfTheContract(refusal: ProjectActionRefusalOnTheWire): ProjectActionRefusal {
+  return {
+    refusal_code: refusal.refusal_code,
+    action: refusal.action,
+    refused_operation_index: refusal.refused_operation_index ?? null,
+    refused_node: refusal.refused_node ?? null,
+    refused_link: refusal.refused_link ?? null,
+    refused_field: refusal.refused_field ?? null,
+    refused_params_pointer: refusal.refused_params_pointer ?? null,
+    refused_file: refusal.refused_file ?? null,
+    suggested_call: refusal.suggested_call === undefined || refusal.suggested_call === null ? null : suggestedCallOfTheContract(refusal.suggested_call),
+    runtime_words: refusal.runtime_words,
+  };
+}
+
+/** The structured refusal `fields` carries under `refusal`, as the feed's refused actions do, read against the contract's refusal; or why it cannot be read. */
+export function projectActionRefusalAt(fields: JsonObjectOnTheWire): Result<ProjectActionRefusal, string> {
+  const refusal = controlContractRefusalOf(fields["refusal"]);
+  return refusal.ok ? succeeded(projectActionRefusalOfTheContract(refusal.value)) : failedWith(`a refused action's refusal is not the contract's refusal: ${refusal.failure}`);
 }
 
 function refusedProjectActionFromItsFields(fields: JsonObjectOnTheWire): Result<RefusedProjectAction, string> {

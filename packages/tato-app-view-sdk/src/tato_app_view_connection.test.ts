@@ -123,7 +123,7 @@ describe("connectToTatoAppOverPort", () => {
     expect(await connection.redoInTheProject("/p", author)).toEqual({ kind: "not_applied", because: "redo failed: claude-code has nothing to redo" });
   });
 
-  it("sends a graph transaction under its gesture's key, answering what the runtime applied, its structured refusal, or Studio's own refusal", async () => {
+  it("sends a graph transaction under its gesture's key, answering what the runtime applied, its structured refusal with its code, place and suggested call, or Studio's own refusal", async () => {
     const applied = {
       mode: "commit",
       transaction: "t1",
@@ -134,7 +134,18 @@ describe("connectToTatoAppOverPort", () => {
       added_groups: [],
       added_notes: [],
     };
-    const refusal = { action: "transact", refused_operation_index: 0, refused_node: "n-uuid", refused_link: null, refused_field: "width", runtime_words: "width is not an integer" };
+    const refusal = {
+      refusal_code: "params_do_not_match_schema",
+      action: "transact",
+      refused_operation_index: 0,
+      refused_node: "n-uuid",
+      refused_link: null,
+      refused_field: "width",
+      refused_params_pointer: "/operations/0/config/width",
+      refused_file: { path: "streams/main.graph.json", line: 7, column: 3 },
+      suggested_call: { operation: "describe_operations", params: { operations: ["transact"] } },
+      runtime_words: "width is not an integer",
+    };
     let asksAnswered = 0;
     const { connection, messagesFromTheView } = await connectionToAStandInStudio((message) => {
       if (message.kind !== "ask" || message.ask.kind !== "transact_in_the_project") return [];
