@@ -9,6 +9,8 @@ import suppliedModulesList from "../supplied_modules.json" with { type: "json" }
 export interface SuppliedModule {
   readonly name: string;
   readonly served_file: string;
+  /** Whether its built file holds no library's code, which the SDK's build asserts, so none of a library's types reach an author through it. */
+  readonly imports_no_library: boolean;
 }
 
 /** Every module the Studio supplies, as `supplied_modules.json` lists them. */

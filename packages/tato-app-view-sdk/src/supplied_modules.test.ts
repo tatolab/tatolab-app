@@ -12,6 +12,8 @@ test("the import map resolves every supplied module by its name to its file unde
       "@tatolab/tato-app-view-sdk/studio_readings": "/studio_sdk/studio_readings.js",
       "@tatolab/tato-app-view-sdk/port_families": "/studio_sdk/port_families.js",
       "@tatolab/tato-app-view-sdk/pin_type_readings": "/studio_sdk/pin_type_readings.js",
+      "@tatolab/tato-app-view-sdk/pin_types": "/studio_sdk/pin_types.js",
+      "@tatolab/tato-app-view-sdk/node_ui": "/studio_sdk/node_ui.js",
     },
   });
 });
