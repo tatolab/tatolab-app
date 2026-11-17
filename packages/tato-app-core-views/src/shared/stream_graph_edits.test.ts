@@ -13,11 +13,13 @@ import {
   editedStreamGraphOf,
   frameChangedEdits,
   frameRemovedEdits,
+  inputsAWireReaches,
   studioFieldsSetBy,
   nodePlacedEdits,
   noteChangedEdits,
   notePlacedEdits,
   pinsWiredEdits,
+  portALooseWireLinksTo,
   selectionFramedEdits,
   nameOfTheNewSubgraph,
   selectionCollapsedEdits,
@@ -77,10 +79,22 @@ const catalogEntry = (type: string, inputs: [string, "image" | "array" | null][]
   description: "",
   category: null,
   config_schema: null,
-  inputs: inputs.map(([name, family]) => ({ name, description: "", family, pin: null })),
-  outputs: outputs.map(([name, family]) => ({ name, description: "", family, pin: null })),
+  inputs: inputs.map(([name, family]) => ({ name, description: "", family, pin: null, input_mode: null })),
+  outputs: outputs.map(([name, family]) => ({ name, description: "", family, pin: null, input_mode: null })),
 });
 const BLUR = catalogEntry("nodes.blur:GaussianBlur", [["strength", "array"], ["video_in", "image"]], [["video_out", "image"]]);
+
+/** A node type as the catalog lists it once each setting is an input: its port `video_in`, then its settings, each with no family and taking no wire. */
+const A_SETTING = { mode: "setting_only", read: "at_setup" } as const;
+const BLUR_LISTING_ITS_SETTINGS: NodeCatalogEntry = {
+  ...catalogEntry("nodes.blur:GaussianBlur", [["video_in", "image"]], [["video_out", "image"]]),
+  inputs: [
+    { name: "video_in", description: "the picture", family: "image", pin: { pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" }, input_mode: null },
+    { name: "gain", description: "How loud.", family: null, pin: { pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value" }, input_mode: A_SETTING },
+    { name: "layers", description: "", family: null, pin: null, input_mode: A_SETTING },
+  ],
+};
+const SETTINGS_ONLY = { ...catalogEntry("nodes.tone:Tone", [], []), inputs: BLUR_LISTING_ITS_SETTINGS.inputs.slice(1) };
 
 test("a_graph_with_no_stream_asset_or_a_node_without_a_uuid_cannot_be_edited_and_says_why", () => {
   expect(editedStreamGraphOf({ ...GRAPH, stream_asset: null })).toEqual({ because: "The runtime's graph names no stream asset, so an edit has no stream to name." });
@@ -185,6 +199,28 @@ describe("placing_a_node", () => {
       source: { node: "placed", port: "video_out" },
       target: { node: "uuid-display", port: "video" },
     });
+  });
+
+  test("a_node_placed_off_a_wire_never_links_it_to_a_setting_and_is_placed_unlinked_when_only_a_setting_is_left", () => {
+    expect(nodePlacedEdits(edited(), BLUR_LISTING_ITS_SETTINGS, { x: 0, y: 0 }, { node_id: "pattern", pin: "video", side: "output", family: "image" })[1]).toEqual({
+      operation: "connect",
+      stream: STREAM_ASSET,
+      source: { node: "uuid-pattern", port: "video" },
+      target: { node: "placed", port: "video_in" },
+    });
+    expect(nodePlacedEdits(edited(), BLUR_LISTING_ITS_SETTINGS, { x: 0, y: 0 }, { node_id: "pattern", pin: "levels", side: "output", family: "array" })).toEqual([
+      { operation: "add_node", stream: STREAM_ASSET, type: "nodes.blur:GaussianBlur", studio: { position: [0, 0] }, as: "placed" },
+    ]);
+    expect(nodePlacedEdits(edited(), SETTINGS_ONLY, { x: 0, y: 0 }, { node_id: "pattern", pin: "video", side: "output", family: null })).toEqual([
+      { operation: "add_node", stream: STREAM_ASSET, type: "nodes.tone:Tone", studio: { position: [0, 0] }, as: "placed" },
+    ]);
+  });
+
+  test("a_setting_is_no_port_a_loose_wire_links_to", () => {
+    expect(portALooseWireLinksTo(BLUR_LISTING_ITS_SETTINGS, { side: "output", family: "image" })).toBe("video_in");
+    expect(portALooseWireLinksTo(BLUR_LISTING_ITS_SETTINGS, { side: "output", family: "array" })).toBeNull();
+    expect(portALooseWireLinksTo(SETTINGS_ONLY, { side: "output", family: null })).toBeNull();
+    expect(inputsAWireReaches(BLUR_LISTING_ITS_SETTINGS).map((input) => input.name)).toEqual(["video_in"]);
   });
 
   test("a_type_with_no_port_of_the_wires_family_cannot_take_the_wire", () => {

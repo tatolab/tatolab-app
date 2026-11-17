@@ -267,6 +267,15 @@ export const nodeCatalogPortPinSchema = z.object({ pin_type: declaredPinTypeSche
 /** The pin type a node type's port declares, and its flow. */
 export type NodeCatalogPortPin = z.infer<typeof nodeCatalogPortPinSchema>;
 
+/** Whether an input takes a wire, a stored value, or both, as the catalog input's `input_mode` tags it by `mode`; a setting takes no wire, and is read once as its node is set up or on each run. */
+export const nodeInputModeSchema = z.discriminatedUnion("mode", [
+  z.strictObject({ mode: z.literal("wire_or_value") }),
+  z.strictObject({ mode: z.literal("wire_only") }),
+  z.strictObject({ mode: z.literal("setting_only"), read: z.enum(["at_setup", "each_run"]).optional() }),
+]);
+/** Whether an input takes a wire, a stored value, or both. */
+export type NodeInputMode = z.infer<typeof nodeInputModeSchema>;
+
 /** One port a node type declares, as the node catalog lists it. */
 export const nodeCatalogPortSchema = z.object({
   name: z.string(),
@@ -274,6 +283,8 @@ export const nodeCatalogPortSchema = z.object({
   family: portFamilySchema.nullable(),
   /** Its declared pin type and flow; `null` on a port the catalog serves neither for, because its code does not state its type exactly. */
   pin: nodeCatalogPortPinSchema.nullable(),
+  /** On an input, whether it takes a wire, a stored value, or both, from its `input_mode` key; `null` on an input the catalog serves none for, which takes a wire, and on every output. */
+  input_mode: nodeInputModeSchema.nullable(),
 });
 /** One port a node type declares. */
 export type NodeCatalogPort = z.infer<typeof nodeCatalogPortSchema>;

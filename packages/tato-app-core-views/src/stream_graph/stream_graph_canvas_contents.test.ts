@@ -169,8 +169,8 @@ test("a card and its pins carry their node type's descriptions from the stream's
         description: "Inverts each frame's colours.",
         category: null,
         config_schema: null,
-        inputs: [{ name: "video_in", description: "The frames to invert.", family: "image", pin: null }],
-        outputs: [{ name: "video_out", description: "  ", family: "image", pin: null }],
+        inputs: [{ name: "video_in", description: "The frames to invert.", family: "image", pin: null, input_mode: null }],
+        outputs: [{ name: "video_out", description: "  ", family: "image", pin: null, input_mode: null }],
       },
     ],
   };

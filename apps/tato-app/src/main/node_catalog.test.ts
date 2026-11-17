@@ -1,5 +1,7 @@
 import { readFile } from "node:fs/promises";
-import { expect, test } from "vitest";
+import type { NodeInputMode } from "@tatolab/runtime-client";
+import { expect, expectTypeOf, test } from "vitest";
+import type { NodeCatalogPort } from "../shared/tatolab_backend_contract.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 
 /**
@@ -17,7 +19,7 @@ test("a_real_registry_answer_reads_as_each_node_types_description_config_schema_
   expect(relayTrackSource?.type).toBe("tatolab.stream:RelayTrackSource");
   expect(relayTrackSource?.description.startsWith("Reads one track at a MoQ relay into the graph")).toBe(true);
   expect(relayTrackSource?.inputs).toEqual([]);
-  expect(relayTrackSource?.outputs).toEqual([{ name: "track", description: "Each object of the track, as the relay delivered it", family: null, pin: null }]);
+  expect(relayTrackSource?.outputs).toEqual([{ name: "track", description: "Each object of the track, as the relay delivered it", family: null, pin: null, input_mode: null }]);
   expect(relayTrackSource?.config_schema).toMatchObject({
     title: "RelayTrackSourceConfig",
     type: "object",
@@ -32,7 +34,7 @@ test("a_node_type_described_without_a_config_schema_reads_as_none", () => {
 
   expect(nodeCatalogFromTheRegistryAnswer("main", registryAnswer)).toEqual({
     ok: true,
-    value: { stream: "main", node_types: [{ type: "nodes.x:X", description: "", category: null, config_schema: null, inputs: [{ name: "a", description: "", family: null, pin: null }], outputs: [] }] },
+    value: { stream: "main", node_types: [{ type: "nodes.x:X", description: "", category: null, config_schema: null, inputs: [{ name: "a", description: "", family: null, pin: null, input_mode: null }], outputs: [] }] },
   });
 });
 
@@ -112,4 +114,53 @@ test("a_catalog_port_reads_the_declared_pin_type_and_flow_it_serves_and_untyped_
     ["anything", { pin_type: { kind: "any" }, flow: "value" }],
     ["untyped", null],
   ]);
+});
+
+/**
+ * A node type as a runtime that lists each setting of a node type as an input answers for it: its port `video` with its
+ * family and no `input_mode`, then each setting with `input_mode` `setting_only`, its `default_value` and no `family`.
+ */
+const aNodeTypeHoldingSettings = {
+  type: "nodes.blur:GaussianBlur",
+  description: "Blurs the picture.",
+  inputs: [
+    { name: "video", description: "the picture", required: false, delivery_profile: null, family: { family: "image" }, pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" },
+    {
+      name: "gain",
+      description: "How loud.",
+      required: false,
+      delivery_profile: null,
+      pin_type: { kind: "is", pin_type: { type: "float" } },
+      flow: "value",
+      input_mode: { mode: "setting_only", read: "at_setup" },
+      default_value: 0.5,
+    },
+    { name: "layers", description: "", required: false, delivery_profile: null, input_mode: { mode: "setting_only", read: "at_setup" }, default_value: [] },
+  ],
+  outputs: [{ name: "video", description: "", family: { family: "image" }, pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" }],
+};
+
+test("a_setting_listed_among_a_node_types_inputs_reads_with_its_input_mode_and_a_port_with_none", () => {
+  const nodeCatalog = nodeCatalogFromTheRegistryAnswer("main", JSON.stringify({ nodes: [aNodeTypeHoldingSettings] }));
+
+  expect(nodeCatalog.ok).toBe(true);
+  if (!nodeCatalog.ok) return;
+  const [blur] = nodeCatalog.value.node_types;
+  expect(blur?.inputs.map(({ name, family, input_mode }) => ({ name, family, input_mode }))).toEqual([
+    { name: "video", family: "image", input_mode: null },
+    { name: "gain", family: null, input_mode: { mode: "setting_only", read: "at_setup" } },
+    { name: "layers", family: null, input_mode: { mode: "setting_only", read: "at_setup" } },
+  ]);
+  expect(blur?.outputs.map((port) => port.input_mode)).toEqual([null]);
+});
+
+test("an_input_mode_the_contract_does_not_name_reads_as_none", () => {
+  expectTypeOf<NonNullable<NodeCatalogPort["input_mode"]>>().toEqualTypeOf<NodeInputMode>();
+  const registryAnswer = JSON.stringify({
+    nodes: [{ type: "nodes.x:X", description: "", inputs: [{ name: "a", description: "", input_mode: { mode: "sometimes" } }, { name: "b", description: "", input_mode: "setting_only" }], outputs: [] }],
+  });
+
+  const nodeCatalog = nodeCatalogFromTheRegistryAnswer("main", registryAnswer);
+
+  expect(nodeCatalog.ok && nodeCatalog.value.node_types[0]?.inputs.map((port) => port.input_mode)).toEqual([null, null]);
 });

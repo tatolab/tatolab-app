@@ -2,9 +2,11 @@
 // the stream can add under the `type` a graph node carries, with its description, the category it is
 // filed under (`category`, absent for a type that declares none), its config's JSON Schema
 // (`config_schema`, absent for a type described without one) and its ports by name and description,
-// each typed one with the pin type and flow it declares. Every other key the runtime renders is
-// ignored.
+// each typed one with the pin type and flow it declares, and each input with whether it takes a
+// wire, a stored value, or both (`input_mode`, a setting taking no wire). Every other key the
+// runtime renders is ignored.
 
+import { ControlSchemas } from "@tatolab/runtime-client";
 import type { JsonValue, NodeCatalog, NodeCatalogEntry, NodeCatalogPort } from "../shared/tatolab_backend_contract.js";
 import { arrayOrEmpty, everyOneRead, isAJsonValue, jsonObject, type JsonObjectOnTheWire, optionalText, parseJsonOnTheWire, requiredArray, requiredText, textOrDefault } from "./json_on_the_wire.js";
 import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
@@ -72,6 +74,18 @@ function catalogPortsUnder(nodeType: JsonObjectOnTheWire, direction: "inputs" | 
     if (!name.ok) return name;
     const description = textOrDefault(port.value, "description", "");
     if (!description.ok) return description;
-    return succeeded({ name: name.value, description: description.value, family: portFamilyOnTheWire(port.value), pin: nodeCatalogPortPinOnTheWire(port.value) });
+    return succeeded({
+      name: name.value,
+      description: description.value,
+      family: portFamilyOnTheWire(port.value),
+      pin: nodeCatalogPortPinOnTheWire(port.value),
+      input_mode: direction === "inputs" ? inputModeOnTheWire(port.value) : null,
+    });
   });
+}
+
+/** The input's `input_mode`, checked against the control contract's own schema; `null` when it serves none, or one this app's contract cannot read. */
+function inputModeOnTheWire(input: JsonObjectOnTheWire): NodeCatalogPort["input_mode"] {
+  const inputMode = ControlSchemas.components.NodeInputMode.safeParse(input["input_mode"]);
+  return inputMode.success ? inputMode.data : null;
 }

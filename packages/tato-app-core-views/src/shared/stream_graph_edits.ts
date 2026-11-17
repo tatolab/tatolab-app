@@ -130,6 +130,11 @@ function firstPortOfTheFamily(ports: readonly Pick<NodeCatalogPort, "name" | "fa
   return (family === null ? ports[0] : (ports.find((port) => port.family === family || port.family === null) ?? null))?.name ?? null;
 }
 
+/** The inputs of `nodeType` a wire can end at: every input but a setting, which takes a stored value and no wire. */
+export function inputsAWireReaches(nodeType: Pick<NodeCatalogEntry, "inputs">): NodeCatalogPort[] {
+  return nodeType.inputs.filter((input) => input.input_mode?.mode !== "setting_only");
+}
+
 /** A pin a wire was dragged off and let go of over the canvas. */
 export interface LooseWire {
   node_id: string;
@@ -138,7 +143,7 @@ export interface LooseWire {
   family: string | null;
 }
 
-/** A node of `nodeType` placed with its card at `position`, and, from a loose wire, linked to the wire's pin by its first port of the wire's family. */
+/** A node of `nodeType` placed with its card at `position`, and, from a loose wire, linked to the wire's pin by its first port of the wire's family that takes a wire. */
 export function nodePlacedEdits(edited: EditedStreamGraph, nodeType: NodeCatalogEntry, position: StreamGraphCanvasPosition, looseWire: LooseWire | null): StreamGraphAction[] {
   const placed: StreamGraphAction = {
     operation: "add_node",
@@ -151,7 +156,7 @@ export function nodePlacedEdits(edited: EditedStreamGraph, nodeType: NodeCatalog
   if (looseWire === null || wiredNode === null) return [placed];
   const wiredEnd = { node: wiredNode, port: looseWire.pin };
   if (looseWire.side === "output") {
-    const input = firstPortOfTheFamily(nodeType.inputs, looseWire.family);
+    const input = firstPortOfTheFamily(inputsAWireReaches(nodeType), looseWire.family);
     return input === null ? [placed] : [placed, { operation: "connect", stream: edited.streamAsset, source: wiredEnd, target: { node: NODE_PLACED_IN_THIS_TRANSACTION, port: input } }];
   }
   const output = firstPortOfTheFamily(nodeType.outputs, looseWire.family);
@@ -160,7 +165,7 @@ export function nodePlacedEdits(edited: EditedStreamGraph, nodeType: NodeCatalog
 
 /** The port of `nodeType` a loose wire of `family` from `side` links to when a node of it is placed, or `null` when it has none. */
 export function portALooseWireLinksTo(nodeType: NodeCatalogEntry, looseWire: Pick<LooseWire, "side" | "family">): string | null {
-  return firstPortOfTheFamily(looseWire.side === "output" ? nodeType.inputs : nodeType.outputs, looseWire.family);
+  return firstPortOfTheFamily(looseWire.side === "output" ? inputsAWireReaches(nodeType) : nodeType.outputs, looseWire.family);
 }
 
 /** Whether `nodeType` has a port a loose wire of `family` from `side` could link to. */
