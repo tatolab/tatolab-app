@@ -98,6 +98,17 @@ function mainProcessConfigs() {
   ]);
 }
 
+// A frame meets no Effect: the frame lane, from the runtime's viewer to the window's port viewers, imports none of it.
+const FRAME_LANE_FILES = [
+  "src/preload/**/*.{ts,cts}",
+  "src/main/runtime_port_viewers.ts",
+  "src/main/runtime_viewer_*.ts",
+  "src/main/port_viewer_message_reading.ts",
+  "src/main/platform/**/viewer_image_frame_reading*.ts",
+  "src/renderer/view_host/port_viewer_connections.ts",
+];
+const FRAME_LANE_IMPORT_PATTERNS = [{ group: ["effect", "effect/*", "@effect/*"], message: "A frame meets no Effect: the frame lane imports no effect package." }];
+
 const WINDOW_FILES = ["src/renderer/**/*.{ts,tsx}", "src/shared/**/*.ts", "mock/**/*.{ts,tsx}"];
 const SCREEN_FILES = ["src/renderer/studio_shell/**/*.tsx", "src/renderer/setup_and_preferences/**/*.tsx", "src/renderer/tatolab_window_view.tsx"];
 const ICON_GEOMETRY_FILES = ["src/renderer/icons.ts"];
@@ -117,4 +128,5 @@ export default defineConfig(
   { files: WINDOW_FILES, ignores: [...TEST_FILES, ...SCREEN_FILES, ...ICON_GEOMETRY_FILES], rules: windowRestrictions({}) },
   { files: ICON_GEOMETRY_FILES, rules: windowRestrictions({ mayDrawCircles: true }) },
   { files: SCREEN_FILES, ignores: TEST_FILES, rules: windowRestrictions({ isScreen: true }) },
+  { files: FRAME_LANE_FILES, rules: { "@typescript-eslint/no-restricted-imports": ["error", { patterns: FRAME_LANE_IMPORT_PATTERNS }] } },
 );

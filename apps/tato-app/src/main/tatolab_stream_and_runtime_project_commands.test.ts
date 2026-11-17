@@ -6,8 +6,7 @@ import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, contro
 import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { failedWith, succeeded } from "./result.js";
 import { removeProject, openTheProjectWhenTheRuntimeHoldsItClosed } from "./tatolab_stream_and_runtime_project_commands.js";
-import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import { cleanUpTheFakesTheLastTestMade, FROM_THE_PROJECTS_WINDOW, cleanUps, recordedResponseBody, sharedStateOverFakes, RECORDED_PATTERN_PROJECT, RECORDED_PATTERN_RELOAD_ACTION, RECORDED_LOBBY_PROJECT, RECORDED_LOBBY_OPEN_ACTION, RECORDED_UNLISTED_PROJECT_THE_RUNTIME_HOLDS_OPEN } from "./tatolab_commands_test_support.js";
+import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, cleanUps, recordedResponseBody, sharedStateOverFakes, RECORDED_PATTERN_PROJECT, RECORDED_PATTERN_RELOAD_ACTION, RECORDED_LOBBY_PROJECT, RECORDED_LOBBY_OPEN_ACTION, RECORDED_UNLISTED_PROJECT_THE_RUNTIME_HOLDS_OPEN } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
@@ -38,7 +37,7 @@ test("each queued action answers the window null, and a missing argument or a pr
     ],
     "linux"
   );
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   expect(await commandHandlers.remove_project({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "The runtime lists no stream from /home/jonathan-fontanez/scratch/app176/projects/doorways.",
@@ -80,7 +79,7 @@ test("reloading a project the runtime lists open queues reload_project, one it l
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
   const reloads = vi.spyOn(sharedState.controller, "reloadProject");
   const opens = vi.spyOn(sharedState.controller, "openProject");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   await sharedState.statusPublisher.refreshAndPublish();
 
   expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: RECORDED_PATTERN_PROJECT }, FROM_THE_PROJECTS_WINDOW))).toBe(
@@ -134,7 +133,7 @@ test("renaming a stream sets the display name of the stream asset the runtime li
     "macos"
   );
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   await sharedState.statusPublisher.refreshAndPublish();
 
   expect(JSON.stringify(await commandHandlers.rename_stream({ stream: "hallways-main-26aa44", display_name: "Heat map" }, FROM_THE_PROJECTS_WINDOW))).toBe('{"ok":true,"value":null}');
@@ -181,7 +180,7 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
     "macos",
     ["/Users/jonathanf/streams/main", "/Users/jonathanf/streams/main/.streamlib/logs"],
   );
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   expect(await commandHandlers.open_stream_project_folder({ stream: "main-main-9e44b1" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "The runtime does not list main-main-9e44b1, so Tato Studio has no project folder to open.",
@@ -230,7 +229,7 @@ test("adding a project answers the window in the contract's shape, from the chos
     projectFolder,
   );
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
 
   expect(JSON.stringify(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_open" }, FROM_THE_PROJECTS_WINDOW))).toBe(`{"ok":true,"value":${JSON.stringify(projectFolder)}}`);
   expect(JSON.stringify(await commandHandlers.open_stream_project({ folder: projectFolder }, FROM_THE_PROJECTS_WINDOW))).toBe(
@@ -266,7 +265,7 @@ test("cancel_stream_action answers the window in the contract's shape, asks for 
     "linux",
   );
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
 
   expect(JSON.stringify(await commandHandlers.cancel_stream_action({ action: "Ra19ljkh20wimdvgya5udt9v1-9" }, FROM_THE_PROJECTS_WINDOW))).toBe(
     '{"ok":true,"value":{"action":"Ra19ljkh20wimdvgya5udt9v1-9","state":"in_progress"}}',
@@ -280,7 +279,7 @@ test("cancel_stream_action answers the window in the contract's shape, asks for 
 });
 
 test("the commands that add a project read their arguments as the window sends them, and refuse anything else", async () => {
-  const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
+  const commandHandlers = commandHandlersOver(await sharedStateOverFakes([], "linux"));
   expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "anything" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "choose_stream_project_folder needs `chosen_for`, project_to_open or new_project_directory",
@@ -306,7 +305,7 @@ test("deleting_a_stream_deletes_the_stream_asset_the_runtime_last_listed_for_it_
     ],
     "linux",
   );
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
   await sharedState.statusPublisher.refreshAndPublish();
 
   expect(await commandHandlers.delete_stream({ stream: "lobby-preview-0758ea" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
@@ -340,7 +339,7 @@ test("creating_a_stream_in_the_open_project_places_its_graph_document_in_streams
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
   const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const commandHandlers = commandHandlersOver(sharedState);
 
   expect(JSON.stringify(await commandHandlers.create_stream_in_the_open_project({ display_name: "Preview" }, fromTheStudioWindow))).toBe(
     '{"ok":true,"value":{"stream_asset":"38766917-e6ed-443f-bad5-6d70eff6efac"}}',

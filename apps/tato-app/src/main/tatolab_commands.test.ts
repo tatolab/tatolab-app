@@ -5,8 +5,7 @@ import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import { describeStreamGraph, readProjectLogRecords, readProjectLogRecordsArgumentsFrom, streamArgumentsFrom } from "./tatolab_stream_and_runtime_project_commands.js";
 import { enabledArgumentsFrom } from "./tatolab_status_runtime_and_settings_commands.js";
-import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import { cleanUpTheFakesTheLastTestMade, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
+import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
@@ -168,7 +167,7 @@ test("each command answers the window in the contract's shape, a refusal in its 
     "linux"
   );
   let quitRequests = 0;
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {
+  const commandHandlers = commandHandlersOver(sharedState, () => {
     quitRequests += 1;
   });
   expect(await commandHandlers.describe_stream_graph({ stream: "nope" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: graphRefusal });
