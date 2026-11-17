@@ -7,12 +7,12 @@ function refusalOf(pathInTheProject: string, typeScriptBytes: Uint8Array) {
   return Effect.runPromise(Effect.flip(typeScriptWithItsTypesRemoved(pathInTheProject, typeScriptBytes)));
 }
 
-test("types are blanked where they stand, so every line and column stays the author's", async () => {
+test("types are blanked where they stand, so every line and column stays the author's, and the text names the file's path in the project as its source URL", async () => {
   const typeScriptText = "type Level = number;\nexport const half = (level: Level): Level => level / 2;\n";
   const javaScriptText = await Effect.runPromise(typeScriptWithItsTypesRemoved("views/meter/half.ts", Buffer.from(typeScriptText)));
 
-  expect(javaScriptText).toBe("                    \nexport const half = (level       )        => level / 2;\n");
-  expect(javaScriptText.split("\n").map((line) => line.length)).toEqual(typeScriptText.split("\n").map((line) => line.length));
+  expect(javaScriptText).toBe("                    \nexport const half = (level       )        => level / 2;\n\n\n//# sourceURL=views/meter/half.ts");
+  expect(javaScriptText.split("\n").slice(0, 3).map((line) => line.length)).toEqual(typeScriptText.split("\n").map((line) => line.length));
 });
 
 test("an enum, a parameter property, a namespace and JSX are refused with the file and the line", async () => {

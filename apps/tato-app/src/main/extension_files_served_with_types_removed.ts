@@ -9,14 +9,15 @@
 import path from "node:path";
 import { withTheSuppliedModulesImportMap } from "@tatolab/tato-app-view-sdk/supplied_modules";
 import { Cause, Data, Effect, Exit, type ManagedRuntime } from "effect";
-import { TATOLAB_WINDOW_PAGE_HOST, TATOLAB_WINDOW_PAGE_SCHEME } from "../shared/tatolab_electron_bridge_contract.js";
 import { bytesOfTheBase64ContentOfTheContract } from "./project_files_on_the_wire.js";
 import { describeCaughtFailure } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { ProjectViewsListed, StudioWindows } from "./studio_runtime.js";
+import type { TatolabAppLog } from "./tatolab_app_log.js";
 import { RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import { typeScriptWithItsTypesRemoved, type TypeScriptTypesNotRemoved } from "./typescript_types_removed.js";
+import { isOnTheLocationUnderThePath, TATOLAB_WINDOW_PAGE_ROOT_URL } from "./window_page_locations.js";
 
 /** Where the window serves project views' files. */
 export const PROJECT_VIEW_FILES_PATH = "/project_views/";
@@ -24,45 +25,57 @@ export const PROJECT_VIEW_FILES_PATH = "/project_views/";
 /** A view's folder inside a project: its own `views/<folder>`, or an import's `imports/<import>/views/<folder>`. */
 const VIEW_FOLDER_IN_A_PROJECT = /^(?:views\/[^/]+|imports\/[^/]+\/views\/[^/]+)(?=\/)/;
 
-/** The content type each file a view's folder may hold is served with, by its extension; any other is served as bytes. A `.ts` file is served with its types removed. */
-const CONTENT_TYPE_BY_EXTENSION: ReadonlyMap<string, string> = new Map([
-  [".html", "text/html; charset=utf-8"],
-  [".js", "text/javascript; charset=utf-8"],
-  [".ts", "text/javascript; charset=utf-8"],
-  [".mjs", "text/javascript; charset=utf-8"],
-  [".css", "text/css; charset=utf-8"],
-  [".json", "application/json"],
-  [".map", "application/json"],
-  [".svg", "image/svg+xml"],
-  [".png", "image/png"],
-  [".jpg", "image/jpeg"],
-  [".jpeg", "image/jpeg"],
-  [".gif", "image/gif"],
-  [".webp", "image/webp"],
-  [".ico", "image/x-icon"],
-  [".woff", "font/woff"],
-  [".woff2", "font/woff2"],
-  [".ttf", "font/ttf"],
-  [".otf", "font/otf"],
-  [".wasm", "application/wasm"],
-  [".mp3", "audio/mpeg"],
-  [".wav", "audio/wav"],
-  [".mp4", "video/mp4"],
-  [".webm", "video/webm"],
-  [".txt", "text/plain; charset=utf-8"],
+/** What is done to a file of a view's folder on its way to the page: nothing, its types removed, or the supplied modules' import map written into it. */
+export type ProjectViewFileServedAs = "as_read" | "types_removed" | "with_import_map";
+
+/** How one kind of file of a view's folder is served: its content type and what is done to it on the way. */
+export interface ProjectViewFileServing {
+  readonly content_type: string;
+  readonly served_as: ProjectViewFileServedAs;
+}
+
+/** A file served with `contentType` as the runtime read it. */
+function servedAsRead(contentType: string): ProjectViewFileServing {
+  return { content_type: contentType, served_as: "as_read" };
+}
+
+/** How each file a view's folder may hold is served, by its extension; any other is served as bytes, as read. */
+const HOW_EACH_FILE_IS_SERVED_BY_EXTENSION: ReadonlyMap<string, ProjectViewFileServing> = new Map([
+  [".html", { content_type: "text/html; charset=utf-8", served_as: "with_import_map" }],
+  [".ts", { content_type: "text/javascript; charset=utf-8", served_as: "types_removed" }],
+  [".js", servedAsRead("text/javascript; charset=utf-8")],
+  [".mjs", servedAsRead("text/javascript; charset=utf-8")],
+  [".css", servedAsRead("text/css; charset=utf-8")],
+  [".json", servedAsRead("application/json")],
+  [".map", servedAsRead("application/json")],
+  [".svg", servedAsRead("image/svg+xml")],
+  [".png", servedAsRead("image/png")],
+  [".jpg", servedAsRead("image/jpeg")],
+  [".jpeg", servedAsRead("image/jpeg")],
+  [".gif", servedAsRead("image/gif")],
+  [".webp", servedAsRead("image/webp")],
+  [".ico", servedAsRead("image/x-icon")],
+  [".woff", servedAsRead("font/woff")],
+  [".woff2", servedAsRead("font/woff2")],
+  [".ttf", servedAsRead("font/ttf")],
+  [".otf", servedAsRead("font/otf")],
+  [".wasm", servedAsRead("application/wasm")],
+  [".mp3", servedAsRead("audio/mpeg")],
+  [".wav", servedAsRead("audio/wav")],
+  [".mp4", servedAsRead("video/mp4")],
+  [".webm", servedAsRead("video/webm")],
+  [".txt", servedAsRead("text/plain; charset=utf-8")],
 ]);
 
 /** The URL the view folder `viewFolderInTheProject` of the project in `openProjectFolder` is served under, which its entry and every file it loads resolve against. */
 export function projectViewFolderUrl(openProjectFolder: string, viewFolderInTheProject: string): string {
   const encodedPath = viewFolderInTheProject.split("/").map(encodeURIComponent).join("/");
-  return `${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}${PROJECT_VIEW_FILES_PATH}${Buffer.from(openProjectFolder, "utf8").toString("base64url")}/${encodedPath}/`;
+  return new URL(`${PROJECT_VIEW_FILES_PATH}${Buffer.from(openProjectFolder, "utf8").toString("base64url")}/${encodedPath}/`, TATOLAB_WINDOW_PAGE_ROOT_URL).href;
 }
 
 /** Whether `url` is served from a project's view folder. */
 export function isAProjectViewFileUrl(url: string): boolean {
-  if (!URL.canParse(url)) return false;
-  const parsedUrl = new URL(url);
-  return parsedUrl.protocol === `${TATOLAB_WINDOW_PAGE_SCHEME}:` && parsedUrl.host === TATOLAB_WINDOW_PAGE_HOST && parsedUrl.pathname.startsWith(PROJECT_VIEW_FILES_PATH);
+  return isOnTheLocationUnderThePath(TATOLAB_WINDOW_PAGE_ROOT_URL, url, PROJECT_VIEW_FILES_PATH);
 }
 
 /** A file of a project view a request names: the open project's folder, the view folder it is in, and the file's `/`-separated path in the project. */
@@ -92,13 +105,16 @@ export function projectViewFileOfTheRequest(requestUrl: string): ProjectViewFile
   return { open_project_folder: openProjectFolder, view_folder_in_the_project: viewFolderInTheProject, path_in_the_project: pathInTheProject };
 }
 
-/** The content type `pathInTheProject` is served with. */
-export function contentTypeOfAProjectViewFile(pathInTheProject: string): string {
-  return CONTENT_TYPE_BY_EXTENSION.get(path.posix.extname(pathInTheProject).toLowerCase()) ?? "application/octet-stream";
+/** How the file at `pathInTheProject` is served, by its extension. */
+export function howAProjectViewFileIsServed(pathInTheProject: string): ProjectViewFileServing {
+  return HOW_EACH_FILE_IS_SERVED_BY_EXTENSION.get(path.posix.extname(pathInTheProject).toLowerCase()) ?? servedAsRead("application/octet-stream");
 }
 
 /** How a request for a project view's file is answered: its bytes, or a status with why. */
-export type ProjectViewFileAnswer = { kind: "served"; content_type: string; file_bytes: Buffer } | { kind: "not_served"; status: 403 | 404 | 422 | 500; because: string };
+export type ProjectViewFileAnswer = { kind: "served"; content_type: string; file_bytes: Buffer } | { kind: "not_served"; status: ProjectViewFileNotServedStatus | 500; because: string };
+
+/** The status of a request a known failure left unserved: refused (403), not found (404), not servable as written (422), a runtime answer that breaks its contract (502), or no runtime answer (503). */
+type ProjectViewFileNotServedStatus = 403 | 404 | 422 | 502 | 503;
 
 /** How the running app answers a request for a project view's file. */
 export type AnswerAProjectViewFileRequest = (requestUrl: string) => Promise<ProjectViewFileAnswer>;
@@ -137,34 +153,54 @@ class ProjectViewNotOpenInAStudioWindow extends Data.TaggedError("ProjectViewNot
 /** The runtime's `read_project_file` answered bytes that do not read as its contract says. */
 class ProjectFileBytesUnreadable extends Data.TaggedError("ProjectFileBytesUnreadable")<{ readonly words: string }> {}
 
+/** A view's page is not UTF-8 text, so the supplied modules' import map cannot be written into it. */
+class ProjectViewPageNotUtf8Text extends Data.TaggedError("ProjectViewPageNotUtf8Text")<{ readonly words: string }> {}
+
 /** Every way a request for a project view's file goes unserved. */
-type ProjectViewFileNotServed = NotAProjectViewFile | ProjectViewNotOpenInAStudioWindow | ProjectFileBytesUnreadable | TypeScriptTypesNotRemoved | RuntimeControlFailure;
+type ProjectViewFileNotServed = NotAProjectViewFile | ProjectViewNotOpenInAStudioWindow | ProjectFileBytesUnreadable | TypeScriptTypesNotRemoved | ProjectViewPageNotUtf8Text | RuntimeControlFailure;
 
 /** The status a request answers with when `notServed` stopped it. */
-function statusOfAFileNotServed(notServed: ProjectViewFileNotServed): 403 | 404 | 422 {
+function statusOfAFileNotServed(notServed: ProjectViewFileNotServed): ProjectViewFileNotServedStatus {
   switch (notServed._tag) {
     case "ProjectViewNotOpenInAStudioWindow":
       return 403;
-    case "TypeScriptTypesNotRemoved":
-      return 422;
     case "NotAProjectViewFile":
-    case "ProjectFileBytesUnreadable":
     case "RuntimeRefused":
+      return 404;
+    case "TypeScriptTypesNotRemoved":
+    case "ProjectViewPageNotUtf8Text":
+      return 422;
+    case "ProjectFileBytesUnreadable":
+    case "ContractMismatch":
+      return 502;
     case "RuntimeUnreachable":
     case "RuntimeTimedOut":
-    case "ContractMismatch":
-      return 404;
+      return 503;
   }
 }
 
-/** The file at `pathInTheProject`, whose bytes the runtime read as `fileBytes`, as a page is served it: a `.ts` file with its types removed, a page with the supplied modules' import map, any other file as it is. */
-function projectViewFileAsServed(pathInTheProject: string, fileBytes: Buffer): Effect.Effect<Buffer, TypeScriptTypesNotRemoved> {
-  switch (path.posix.extname(pathInTheProject).toLowerCase()) {
-    case ".ts":
+const UTF8_DECODER_REFUSING_OTHER_BYTES = new TextDecoder("utf-8", { fatal: true });
+
+/** The page at `pathInTheProject`, whose bytes are `pageBytes`, with the supplied modules' import map straight after its doctype. */
+function pageWithTheSuppliedModulesImportMap(pathInTheProject: string, pageBytes: Buffer): Effect.Effect<Buffer, ProjectViewPageNotUtf8Text> {
+  return Effect.try({
+    try: () => Buffer.from(withTheSuppliedModulesImportMap(UTF8_DECODER_REFUSING_OTHER_BYTES.decode(pageBytes)), "utf8"),
+    catch: () => new ProjectViewPageNotUtf8Text({ words: `${pathInTheProject} is not UTF-8 text, so the import map of the modules the Studio supplies cannot be written into it.` }),
+  });
+}
+
+/** The file at `pathInTheProject`, whose bytes the runtime read as `fileBytes`, as `servedAs` says a page is served it. */
+function projectViewFileAsServed(
+  pathInTheProject: string,
+  fileBytes: Buffer,
+  servedAs: ProjectViewFileServedAs,
+): Effect.Effect<Buffer, TypeScriptTypesNotRemoved | ProjectViewPageNotUtf8Text> {
+  switch (servedAs) {
+    case "types_removed":
       return typeScriptWithItsTypesRemoved(pathInTheProject, fileBytes).pipe(Effect.map((javaScriptText) => Buffer.from(javaScriptText, "utf8")));
-    case ".html":
-      return Effect.succeed(Buffer.from(withTheSuppliedModulesImportMap(fileBytes.toString("utf8")), "utf8"));
-    default:
+    case "with_import_map":
+      return pageWithTheSuppliedModulesImportMap(pathInTheProject, fileBytes);
+    case "as_read":
       return Effect.succeed(fileBytes);
   }
 }
@@ -184,14 +220,15 @@ const projectViewFileServed = Effect.fn("project_view_file_served")(function* (r
   const runtimeControl = yield* RuntimeControl;
   const fileRead = yield* runtimeControl.call("read_project_file", { project_directory: fileAsked.open_project_folder, path: fileAsked.path_in_the_project });
   const fileBytes = yield* fromResult(bytesOfTheBase64ContentOfTheContract(fileRead), (failure) => new ProjectFileBytesUnreadable({ words: `the runtime's read_project_file result could not be read: ${failure}` }));
-  const servedBytes = yield* projectViewFileAsServed(fileAsked.path_in_the_project, fileBytes);
-  return { kind: "served", content_type: contentTypeOfAProjectViewFile(fileAsked.path_in_the_project), file_bytes: servedBytes } satisfies ProjectViewFileAnswer;
+  const serving = howAProjectViewFileIsServed(fileAsked.path_in_the_project);
+  const servedBytes = yield* projectViewFileAsServed(fileAsked.path_in_the_project, fileBytes, serving.served_as);
+  return { kind: "served", content_type: serving.content_type, file_bytes: servedBytes } satisfies ProjectViewFileAnswer;
 });
 
-/** The answer to `requestUrl`: the file served, or the status and words of what stopped it; a file whose types could not be removed is logged with its line. */
-export function answerAProjectViewFileRequest(requestUrl: string): Effect.Effect<ProjectViewFileAnswer, never, StudioWindows | ProjectViewsListed | RuntimeControl> {
+/** The answer to `requestUrl`: the file served, or the status and words of what stopped it; a file not servable as its author wrote it is logged with its words. */
+function answerAProjectViewFileRequest(requestUrl: string): Effect.Effect<ProjectViewFileAnswer, never, StudioWindows | ProjectViewsListed | RuntimeControl> {
   return projectViewFileServed(requestUrl).pipe(
-    Effect.tapError((notServed) => (notServed._tag === "TypeScriptTypesNotRemoved" ? Effect.logWarning("a project view's .ts file was not served", notServed.words) : Effect.void)),
+    Effect.tapError((notServed) => (statusOfAFileNotServed(notServed) === 422 ? Effect.logWarning("a project view's file was not served as its author wrote it", notServed.words) : Effect.void)),
     Effect.catch((notServed) => Effect.succeed<ProjectViewFileAnswer>({ kind: "not_served", status: statusOfAFileNotServed(notServed), because: notServed.words })),
   );
 }
@@ -201,9 +238,13 @@ function answerOfARequestThatEndedWithoutAnAnswer(requestUrl: string, cause: Cau
   return { kind: "not_served", status: 500, because: `serving ${requestUrl} ended without an answer: ${describeCaughtFailure(Cause.squash(cause))}` };
 }
 
-/** Every request for a project view's file answered on `studioRuntime`, never rejected: a defect is logged and answers that serving it ended without an answer. */
+/**
+ * Every request for a project view's file answered on `studioRuntime`, never rejected: a defect is logged and answers that
+ * serving it ended without an answer, and so does a request the runtime was disposed under, logged to `tatolabAppLog`.
+ */
 export function projectViewFileRequestsAnsweredOn(
   studioRuntime: ManagedRuntime.ManagedRuntime<StudioWindows | ProjectViewsListed | RuntimeControl, never>,
+  tatolabAppLog: TatolabAppLog,
 ): AnswerAProjectViewFileRequest {
   return (requestUrl) =>
     studioRuntime
@@ -214,5 +255,9 @@ export function projectViewFileRequestsAnsweredOn(
           ),
         ),
       )
-      .then((answered) => (Exit.isSuccess(answered) ? answered.value : answerOfARequestThatEndedWithoutAnAnswer(requestUrl, answered.cause)));
+      .then((answered) => {
+        if (Exit.isSuccess(answered)) return answered.value;
+        tatolabAppLog.debug("a project view's file was asked for as the studio runtime was disposed", { request_url: requestUrl, cause: Cause.pretty(answered.cause) });
+        return answerOfARequestThatEndedWithoutAnAnswer(requestUrl, answered.cause);
+      });
 }

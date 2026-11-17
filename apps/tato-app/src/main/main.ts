@@ -520,7 +520,8 @@ export async function startTatolabApp(
   const studioRuntime = ManagedRuntime.make(studioRuntimeLayer(sharedState, platformForThisBuild.localApiSocket));
   studioRuntimeOnceBuilt = studioRuntime;
   tatolabElectronAppShell.answerTheWindowsCommands(tatolabWindowCommandHandlers(sharedState, studioRuntime, quitTheApp));
-  tatolabElectronAppShell.answerProjectViewFileRequestsWith(projectViewFileRequestsAnsweredOn(studioRuntime));
+  // Both answer on the studio runtime, and both are in place before the first window shows below.
+  tatolabElectronAppShell.answerProjectViewFileRequestsWith(projectViewFileRequestsAnsweredOn(studioRuntime, tatolabAppLog));
   sharedStateOnceBuilt = sharedState;
   const onTrayMenuChoice = (trayMenuChoice: TrayMenuChoice) => {
     switch (trayMenuChoice) {

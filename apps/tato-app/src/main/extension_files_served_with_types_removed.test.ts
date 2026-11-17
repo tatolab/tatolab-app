@@ -3,7 +3,7 @@ import { SUPPLIED_MODULES_IMPORT_MAP_TEXT } from "@tatolab/tato-app-view-sdk/sup
 import { Layer, ManagedRuntime } from "effect";
 import { afterEach, expect, test } from "vitest";
 import {
-  contentTypeOfAProjectViewFile,
+  howAProjectViewFileIsServed,
   projectViewFileOfTheRequest,
   projectViewFileRequestsAnsweredOn,
   projectViewFolderUrl,
@@ -53,13 +53,13 @@ test("a request outside a view folder, climbing out of one, or naming a project 
   }
 });
 
-test("each file a view's folder holds is served with its content type, a .ts file as JavaScript, any other as bytes", () => {
-  expect(["views/deck/index.html", "views/deck/assets/app.js", "views/deck/deck.ts", "views/deck/icon.png", "views/deck/model.onnx"].map(contentTypeOfAProjectViewFile)).toEqual([
-    "text/html; charset=utf-8",
-    "text/javascript; charset=utf-8",
-    "text/javascript; charset=utf-8",
-    "image/png",
-    "application/octet-stream",
+test("each file a view's folder holds is served with its content type and its transform: a page with the import map, a .ts file as JavaScript with its types removed, any other as read", () => {
+  expect(["views/deck/index.html", "views/deck/assets/app.js", "views/deck/deck.TS", "views/deck/icon.png", "views/deck/model.onnx"].map(howAProjectViewFileIsServed)).toEqual([
+    { content_type: "text/html; charset=utf-8", served_as: "with_import_map" },
+    { content_type: "text/javascript; charset=utf-8", served_as: "as_read" },
+    { content_type: "text/javascript; charset=utf-8", served_as: "types_removed" },
+    { content_type: "image/png", served_as: "as_read" },
+    { content_type: "application/octet-stream", served_as: "as_read" },
   ]);
 });
 
@@ -85,6 +85,8 @@ const DECK_SCRIPT_WITH_ITS_TYPES_REMOVED = [
   "  return `${label} ${firstFamily} ${meterLevel(0.5          )}`;",
   "}",
   "",
+  "",
+  "//# sourceURL=views/deck/deck.ts",
 ].join("\n");
 const SCRIPT_WITH_AN_ENUM = ["const tracks = 2;", "", "enum Lane {", "  Left,", "}", ""].join("\n");
 const VENDORED_SCRIPT = "export const chart = (points: number) => points;\n";
@@ -105,7 +107,7 @@ function fileReadAnswer(filePath: string, fileText: string): Buffer {
  * views, a studio window holding night-show open and listing deck and weather as views that open; with every
  * `read_project_file` path the runtime was asked for and every line the app logged.
  */
-async function projectViewFilesServedOverAnOpenNightShow() {
+async function projectViewFilesServedOverAnOpenNightShow(answerAnotherRead: (filePath: string) => Promise<Buffer | null> = async () => null) {
   const fileReadAnswers = new Map<string, () => Promise<Buffer>>([
     ["views/deck/icon.png", async () => controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-read-project-file-tool-result-of-night-show-views-deck-icon-png.json"))],
     ["views/deck/index.html", async () => fileReadAnswer("views/deck/index.html", DECK_PAGE)],
@@ -115,11 +117,19 @@ async function projectViewFilesServedOverAnOpenNightShow() {
     ["views/weather/index.html", async () => fileReadAnswer("views/weather/index.html", "<html><body></body></html>")],
   ]);
   const server = await FakeLocalApiServer.answeringEachControlOperation(async (method, params) => {
-    const answerTheRead = method === "read_project_file" ? fileReadAnswers.get(String(params["path"])) : undefined;
+    const filePath = String(params["path"]);
+    const answerTheRead = method === "read_project_file" ? fileReadAnswers.get(filePath) : undefined;
     if (answerTheRead !== undefined) return answerTheRead();
+    const anotherAnswer = await answerAnotherRead(filePath);
+    if (anotherAnswer !== null) return anotherAnswer;
     return controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-read-project-file-refusal-for-a-path-outside-night-show.json"));
   });
   cleanUps.push(() => server.close());
+  return { ...projectViewFilesServedAt(server.localApiSocketPath), pathsTheRuntimeWasAskedToRead: () => controlOperationCallsReceivedBy(server).map(([, params]) => (typeof params === "object" && params !== null && "path" in params ? params.path : null)) };
+}
+
+/** Requests for project views' files answered on the live `RuntimeControl` over the local API at `localApiSocketPath`, a studio window holding night-show open and listing deck and weather as views that open; with every line the app logged. */
+function projectViewFilesServedAt(localApiSocketPath: string) {
   const projectViewsListed = new ProjectViewsListedToTheWindows();
   projectViewsListed.rememberTheListing(NIGHT_SHOW, projectViewsListed.startAListing(), [
     { view_folder_in_the_project: "views/deck", opens: true },
@@ -127,20 +137,17 @@ async function projectViewFilesServedOverAnOpenNightShow() {
     { view_folder_in_the_project: "views/broken", opens: false },
   ]);
   const loggedLines: string[] = [];
+  const tatolabAppLog = createTatolabAppLog("debug", (logLine) => loggedLines.push(logLine));
   const studioRuntime = ManagedRuntime.make(
     Layer.mergeAll(
-      runtimeControlLayer(server.localApiSocketPath, 2_000),
+      runtimeControlLayer(localApiSocketPath, 2_000),
       Layer.mock(StudioWindows, { aStudioWindowHoldsTheProjectIn: (projectFolder) => projectFolder === NIGHT_SHOW }),
       Layer.succeed(ProjectViewsListed, { isListedAsOpening: (openProjectFolder, viewFolder) => projectViewsListed.isListedAsOpening(openProjectFolder, viewFolder) }),
-      tatolabAppLogAsEffectsLogger(createTatolabAppLog("debug", (logLine) => loggedLines.push(logLine))),
+      tatolabAppLogAsEffectsLogger(tatolabAppLog),
     ),
   );
   cleanUps.push(() => studioRuntime.dispose());
-  return {
-    answerAProjectViewFileRequest: projectViewFileRequestsAnsweredOn(studioRuntime),
-    pathsTheRuntimeWasAskedToRead: () => controlOperationCallsReceivedBy(server).map(([, params]) => (typeof params === "object" && params !== null && "path" in params ? params.path : null)),
-    loggedLines,
-  };
+  return { answerAProjectViewFileRequest: projectViewFileRequestsAnsweredOn(studioRuntime, tatolabAppLog), loggedLines };
 }
 
 /** `answer` with the bytes it serves read as text. */
@@ -190,7 +197,38 @@ test("a .ts file whose types cannot be removed is not served, and the Studio nam
     status: 422,
     because: "views/deck/lanes.ts, line 3: TypeScript enum is not supported in strip-only mode",
   });
-  expect(served.loggedLines.filter((logLine) => logLine.includes("a project view's .ts file was not served") && logLine.includes("views/deck/lanes.ts, line 3"))).toHaveLength(1);
+  expect(served.loggedLines.filter((logLine) => logLine.includes("a project view's file was not served as its author wrote it") && logLine.includes("views/deck/lanes.ts, line 3"))).toHaveLength(1);
+});
+
+test("a page that is not UTF-8 text is not served, since the import map cannot be written into it", async () => {
+  const served = await projectViewFilesServedOverAnOpenNightShow(async (filePath) =>
+    filePath === "views/deck/latin1.html" ? controlOperationResultResponse({ path: filePath, byte_len: 4, content_base64: Buffer.from([0x3c, 0x70, 0xe9, 0x3e]).toString("base64"), content_sha256: "0".repeat(64) }) : null,
+  );
+
+  expect(await served.answerAProjectViewFileRequest(new URL("latin1.html", projectViewFolderUrl(NIGHT_SHOW, "views/deck")).href)).toEqual({
+    kind: "not_served",
+    status: 422,
+    because: "views/deck/latin1.html is not UTF-8 text, so the import map of the modules the Studio supplies cannot be written into it.",
+  });
+});
+
+test("a runtime answer that breaks its contract answers 502, and no runtime answering answers 503", async () => {
+  const served = await projectViewFilesServedOverAnOpenNightShow(async (filePath) => {
+    if (filePath === "views/deck/short.ts") return controlOperationResultResponse({ path: filePath, byte_len: 99, content_base64: Buffer.from("x").toString("base64"), content_sha256: "0".repeat(64) });
+    if (filePath === "views/deck/shapeless.ts") return controlOperationResultResponse({ path: filePath });
+    return null;
+  });
+  const deckFolderUrl = projectViewFolderUrl(NIGHT_SHOW, "views/deck");
+
+  expect(await served.answerAProjectViewFileRequest(new URL("short.ts", deckFolderUrl).href)).toEqual({
+    kind: "not_served",
+    status: 502,
+    because: "the runtime's read_project_file result could not be read: `content_base64` holds 1 bytes where `byte_len` says 99",
+  });
+  expect(await served.answerAProjectViewFileRequest(new URL("shapeless.ts", deckFolderUrl).href)).toMatchObject({ kind: "not_served", status: 502 });
+
+  const nothingListening = projectViewFilesServedAt("/tmp/tl-app-nothing-listens-here/local-api.sock");
+  expect(await nothingListening.answerAProjectViewFileRequest(new URL("deck.ts", deckFolderUrl).href)).toMatchObject({ kind: "not_served", status: 503 });
 });
 
 test("a file the runtime refuses to read is not served, in the runtime's words, and nothing is read for a request outside an open project's listed views", async () => {
