@@ -127,4 +127,21 @@ describe("a Float input's control", () => {
     await waitFor(async () => expect(await amountTheGraphReads(backend)).toEqual({ value: 1, comes_from: "default" }));
     await waitFor(() => expect(field.value).toBe(""));
   });
+
+  it("shows the runtime's refusal of a value under Properties' control, in its words, until a value is taken", async () => {
+    await mountedWindowOverTheMock("state=running&input_values=refuse_negative");
+    fireEvent.click(await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card")));
+    const inProperties = await waitFor(() => floatControlIn(coreViewPage("properties").querySelector('[data-properties-port="amount"] [data-input-control="amount"]')) ?? expect.unreachable("no control on Properties' amount row"), AS_LONG_AS_A_FRAME_BINDS);
+    const refusalLine = () => coreViewPage("properties").querySelector('[data-properties-input-value-refusal="amount"]');
+    expect(refusalLine()).toBeNull();
+
+    inProperties.dragTo(-0.5);
+    inProperties.release();
+    await waitFor(() => expect(refusalLine()?.textContent).toContain("the value is below the input's range, which starts at 0"));
+    expect(refusalLine()?.textContent).toContain("The value wasn't set:");
+
+    inProperties.dragTo(0.5);
+    inProperties.release();
+    await waitFor(() => expect(refusalLine()).toBeNull());
+  });
 });

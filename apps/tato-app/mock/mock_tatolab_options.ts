@@ -160,6 +160,8 @@ export interface MockTatolabOptions {
   isTheFixtureViewListed: boolean;
   /** `?node_ui=unserved`: the Studio's own controls are listed with scripts nothing serves, so each ends at the read-only line with why; `?node_ui=refused`: listing them is refused, so each input draws its own field. They are listed and served by default. */
   nodeUiElementsListing: MockNodeUiElementsListing;
+  /** `?input_values=refuse_negative`: an input's value below zero is refused, as the runtime refuses one outside its input's range. */
+  areNegativeInputValuesRefused: boolean;
   /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the effect's output. */
   isTheCompositorInMain: boolean;
   /** Whether the open project's main stream declares Graph Inputs, which the Controls view shows. */
@@ -294,6 +296,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
     isTheCompositorInMain: pageQuery.get("compositor") === "layered",
     nodeUiElementsListing: mockNodeUiElementsListingOf(pageQuery.get("node_ui")),
+    areNegativeInputValuesRefused: pageQuery.get("input_values") === "refuse_negative",
     doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",
     doesTheMainStreamHoldAGeneratedSubgraph: pageQuery.get("subgraphs") === "generated",
     isTheMainStreamLarge: pageQuery.get("main_graph") === "large",

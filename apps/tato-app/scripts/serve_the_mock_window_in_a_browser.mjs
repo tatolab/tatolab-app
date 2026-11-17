@@ -23,6 +23,30 @@ const mockStudioViewPagesTransformedByVite = {
   configureServer(viteDevServer) {
     viteDevServer.middlewares.use(async (request, response, next) => {
       try {
+        const requestPath = request.url?.split("?")[0] ?? "";
+        const pagePath = requestPath.startsWith("/@fs/") ? decodeURIComponent(requestPath.slice("/@fs".length)) : "";
+        if (!pagePath.endsWith(".html") || !pagePath.startsWith(`${mockStudioViewFolder}/`)) {
+          next();
+          return;
+        }
+        const page = await viteDevServer.transformIndexHtml(requestPath, await readFile(pagePath, "utf8"));
+        response.setHeader("Content-Type", "text/html");
+        response.end(page);
+      } catch (failure) {
+        next(failure);
+      }
+    });
+  },
+};
+// The app's page protocol serves the Studio's own node UI module with its types removed; the dev server serves it as
+// written, for that protocol to read. The mock window has no such protocol, so each `.ts` is served here as the
+// protocol serves it, ahead of the dev server's own answer.
+const studioNodeUiModuleFolder = path.resolve(tatoAppRoot, "../../packages/tato-app-core-node-ui/node_ui");
+const studioNodeUiModuleServedWithItsTypesRemoved = {
+  name: "studio-node-ui-module-served-with-its-types-removed",
+  configureServer(viteDevServer) {
+    viteDevServer.middlewares.use(async (request, response, next) => {
+      try {
         const requestPath = decodeURIComponent(request.url?.split("?")[0] ?? "");
         const moduleFile = requestPath.startsWith("/core_node_ui/") ? path.resolve(studioNodeUiModuleFolder, `.${requestPath.slice("/core_node_ui".length)}`) : "";
         if (!moduleFile.endsWith(".ts") || !moduleFile.startsWith(`${studioNodeUiModuleFolder}${path.sep}`)) {
