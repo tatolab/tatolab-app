@@ -19,8 +19,19 @@ export class StudioWindows extends Context.Service<
   {
     /** The folder of the project the window a command came from acts on, its own page or a view popped out of it; refused in the Projects window. */
     readonly projectFolderOfTheWindow: (commandFromWindow: TatolabCommandFromWindow) => Effect.Effect<string, CommandRefused>;
+    /** Whether a studio window holds the project in `projectFolder` open. */
+    readonly aStudioWindowHoldsTheProjectIn: (projectFolder: string) => boolean;
   }
 >()("tatolab-app/StudioWindows") {}
+
+/** The project views the studio windows last listed as ones that open: the only view folders served. */
+export class ProjectViewsListed extends Context.Service<
+  ProjectViewsListed,
+  {
+    /** Whether the last listing of the project in `openProjectFolder` holds `viewFolderInTheProject` as a view that opens. */
+    readonly isListedAsOpening: (openProjectFolder: string, viewFolderInTheProject: string) => boolean;
+  }
+>()("tatolab-app/ProjectViewsListed") {}
 
 /** The streams the runtime last listed. */
 export class ListedStreams extends Context.Service<
@@ -35,7 +46,7 @@ export class ListedStreams extends Context.Service<
 export class PersonEditingInStudio extends Context.Service<PersonEditingInStudio, { readonly author: ProjectTransactionAuthor }>()("tatolab-app/PersonEditingInStudio") {}
 
 /** Every service the main process's Effect code runs on. */
-export type StudioServices = RuntimeControl | StudioWindows | ListedStreams | PersonEditingInStudio;
+export type StudioServices = RuntimeControl | StudioWindows | ProjectViewsListed | ListedStreams | PersonEditingInStudio;
 
 /** The app's log level each of Effect's log levels writes at; `None` writes nothing. */
 function tatolabAppLogLevelOf(logLevel: LogLevel.LogLevel): TatolabAppLogLevel | null {
@@ -80,6 +91,10 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
         fromResult(studioWindowTheCommandCameFrom(sharedState, commandFromWindow), (words) => new CommandRefused({ words })).pipe(
           Effect.map((studioWindow) => studioWindow.projectTransactionsFeed.projectFolder),
         ),
+      aStudioWindowHoldsTheProjectIn: (projectFolder) => sharedState.appWindows.aStudioWindowHoldsTheProjectIn(projectFolder),
+    }),
+    Layer.succeed(ProjectViewsListed, {
+      isListedAsOpening: (openProjectFolder, viewFolderInTheProject) => sharedState.projectViewsListed.isListedAsOpening(openProjectFolder, viewFolderInTheProject),
     }),
     Layer.succeed(ListedStreams, {
       streamAssetsOfTheProject: (projectFolder) =>

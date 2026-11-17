@@ -4,28 +4,22 @@
 
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { TATOLAB_WINDOW_PAGE_HOST, TATOLAB_WINDOW_PAGE_SCHEME } from "../shared/tatolab_electron_bridge_contract.js";
-import { isAProjectViewFileUrl, PROJECT_VIEW_FILES_PATH } from "./project_view_files.js";
-
+import { SUPPLIED_MODULES_IMPORT_MAP_TEXT, SUPPLIED_MODULES_PATH } from "@tatolab/tato-app-view-sdk/supplied_modules";
+import { isAProjectViewFileUrl, PROJECT_VIEW_FILES_PATH } from "./extension_files_served_with_types_removed.js";
+import { isOnTheLocationUnderThePath, TATOLAB_WINDOW_PAGE_ROOT_URL } from "./window_page_locations.js";
 
 /** The shipped window's page. */
-export const TATOLAB_WINDOW_PAGE_URL = `${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}/index.html`;
+export const TATOLAB_WINDOW_PAGE_URL = `${TATOLAB_WINDOW_PAGE_ROOT_URL}index.html`;
 
 /** Where the window serves its core views' pages. */
 const CORE_VIEW_PAGES_PATH = "/core_views/";
 
 /** The file under `builtWindowDirectory` that `requestUrl` asks for, or `null` when it asks for another origin or a path outside it. */
 export function builtWindowFileForRequest(builtWindowDirectory: string, requestUrl: string): string | null {
-  let parsedRequestUrl: URL;
-  try {
-    parsedRequestUrl = new URL(requestUrl);
-  } catch {
-    return null;
-  }
-  if (parsedRequestUrl.protocol !== `${TATOLAB_WINDOW_PAGE_SCHEME}:` || parsedRequestUrl.host !== TATOLAB_WINDOW_PAGE_HOST) return null;
+  if (!isOnTheLocationUnderThePath(TATOLAB_WINDOW_PAGE_ROOT_URL, requestUrl, "/")) return null;
   let requestedPath: string;
   try {
-    requestedPath = decodeURIComponent(parsedRequestUrl.pathname);
+    requestedPath = decodeURIComponent(new URL(requestUrl).pathname);
   } catch {
     return null;
   }
@@ -35,12 +29,14 @@ export function builtWindowFileForRequest(builtWindowDirectory: string, requestU
   return builtWindowFile;
 }
 
-/** Whether `navigationUrl` stays on the window page's own scheme and host. A custom scheme's URL origin is the opaque "null", which every file:, data: and custom-scheme URL shares, so origins cannot be compared. */
+/** Whether `requestUrl` asks for one of the modules the Studio supplies to views, at `/studio_sdk/` on the window page's scheme. */
+export function isASuppliedModuleUrl(requestUrl: string): boolean {
+  return isOnTheLocationUnderThePath(TATOLAB_WINDOW_PAGE_ROOT_URL, requestUrl, SUPPLIED_MODULES_PATH);
+}
+
+/** Whether `navigationUrl` stays on the window page's own scheme and host. */
 export function isOnTheWindowPagesOwnLocation(windowPageUrl: string, navigationUrl: string): boolean {
-  if (!URL.canParse(windowPageUrl) || !URL.canParse(navigationUrl)) return false;
-  const windowPageLocation = new URL(windowPageUrl);
-  const navigationLocation = new URL(navigationUrl);
-  return navigationLocation.protocol === windowPageLocation.protocol && navigationLocation.host === windowPageLocation.host;
+  return isOnTheLocationUnderThePath(windowPageUrl, navigationUrl, "/");
 }
 
 /**
@@ -50,7 +46,7 @@ export function isOnTheWindowPagesOwnLocation(windowPageUrl: string, navigationU
  */
 export function isAViewPageTheWindowFrames(windowPageUrl: string, frameUrl: string): boolean {
   if (isAProjectViewFileUrl(frameUrl)) return true;
-  return isOnTheWindowPagesOwnLocation(windowPageUrl, frameUrl) && new URL(frameUrl).pathname.startsWith(CORE_VIEW_PAGES_PATH);
+  return isOnTheLocationUnderThePath(windowPageUrl, frameUrl, CORE_VIEW_PAGES_PATH);
 }
 
 /** The kinds of capture a view's frame may ask for: a camera and a microphone, never the screen. */
@@ -76,26 +72,30 @@ export function isACommandFromTheWindowsOwnPage(windowPageUrl: string, senderFra
   return senderFrameUrl !== null && senderIsTheTopFrame && isOnTheWindowPagesOwnLocation(windowPageUrl, senderFrameUrl);
 }
 
+/** The `'sha256-…'` source that admits the inline script `inlineScriptText`. */
+function scriptHashSource(inlineScriptText: string): string {
+  return `'sha256-${createHash("sha256").update(inlineScriptText).digest("base64")}'`;
+}
+
 /** The `'sha256-…'` source of every inline script in `windowPageHtml`: the theme script that runs before the page paints. */
 export function inlineScriptHashSources(windowPageHtml: string): string[] {
-  return [...windowPageHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(
-    ([, inlineScriptText]) => `'sha256-${createHash("sha256").update(inlineScriptText ?? "").digest("base64")}'`,
-  );
+  return [...windowPageHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(([, inlineScriptText]) => scriptHashSource(inlineScriptText ?? ""));
 }
 
 /**
- * The window page's content security policy: only its own origin, its inline theme script, inline styles, data: fonts
- * and images, and frames only of its core views' pages and its project views' files.
+ * The window page's content security policy: only its own origin, its inline theme script, the supplied modules' import
+ * map each core view's page holds, inline styles, data: fonts and images, and frames only of its core views' pages and
+ * its project views' files. The window serves every page of its own under this one policy, its core views' among them.
  */
 export function windowPageContentSecurityPolicy(windowPageHtml: string): string {
   return [
     "default-src 'self'",
-    `script-src 'self' ${inlineScriptHashSources(windowPageHtml).join(" ")}`.trimEnd(),
+    ["script-src 'self'", ...inlineScriptHashSources(windowPageHtml), scriptHashSource(SUPPLIED_MODULES_IMPORT_MAP_TEXT)].join(" "),
     "connect-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "img-src 'self' data:",
-    `frame-src ${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}${CORE_VIEW_PAGES_PATH} ${TATOLAB_WINDOW_PAGE_SCHEME}://${TATOLAB_WINDOW_PAGE_HOST}${PROJECT_VIEW_FILES_PATH}`,
+    `frame-src ${new URL(CORE_VIEW_PAGES_PATH, TATOLAB_WINDOW_PAGE_ROOT_URL).href} ${new URL(PROJECT_VIEW_FILES_PATH, TATOLAB_WINDOW_PAGE_ROOT_URL).href}`,
     "object-src 'none'",
     "base-uri 'self'",
   ].join("; ");
