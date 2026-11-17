@@ -141,6 +141,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
     #shown: InputControlShown | null = null;
     #gesture: InputValueGesture | null = null;
     #isIgnoringTheElement = false;
+    #isIgnoringTheElementUntilAPress = false;
     #isUnbound = false;
     #shownValue: ShownValue;
     #stopWatchingTheValue: StopWatching;
@@ -153,6 +154,8 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       this.#shownValue = inputValues.shownValue(input.address);
       this.#stopWatchingTheValue = this.#watchTheValue();
       host.addEventListener("pointercancel", this.#pressGivenUp);
+      host.addEventListener("pointerdown", this.#pressBegun, { capture: true });
+      host.addEventListener("keydown", this.#keyBegun, { capture: true });
     }
 
     update(input: ControlledInput, place: InputControlPlace): void {
@@ -174,6 +177,8 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       this.#isUnbound = true;
       this.#stopWatchingTheValue();
       this.#host.removeEventListener("pointercancel", this.#pressGivenUp);
+      this.#host.removeEventListener("pointerdown", this.#pressBegun, { capture: true });
+      this.#host.removeEventListener("keydown", this.#keyBegun, { capture: true });
       this.#takeTheElementOff();
       bindingsToFlush.delete(this);
       bindings.delete(this);
@@ -283,7 +288,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
 
     /** The JSON `event` carries for the input, or `undefined` for an event the binder does not act on. */
     #valueOfTheEvent(event: Event): ReturnType<typeof jsonOfTheStoredPinValue> {
-      if (this.#isIgnoringTheElement || this.#isUnbound || this.#place.read_only) return undefined;
+      if (this.#isIgnoringTheElement || this.#isIgnoringTheElementUntilAPress || this.#isUnbound || this.#place.read_only) return undefined;
       const carried = valueTheInputControlEventCarries(event);
       return carried === null ? undefined : jsonOfTheStoredPinValue(this.#input.declaration.pin_type, carried.value);
     }
@@ -321,7 +326,11 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       this.#closeTheGesture();
     };
 
-    /** Escape during a gesture cancels it, and ends the element's own press by making it read only for a moment, which puts its value back. */
+    /**
+     * Escape during a gesture cancels it, and ends the element's own press by making it read only for a moment, which puts
+     * its value back. Until the next press or key in the slot, nothing the element fires is acted on, so a control that
+     * still fires a `change` as its press ends commits nothing.
+     */
     readonly #keyPressedInTheGesture = (keyEvent: KeyboardEvent): void => {
       if (keyEvent.key !== "Escape" || this.#gesture === null) return;
       keyEvent.preventDefault();
@@ -334,6 +343,17 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
         });
       }
       this.#cancelTheGesture();
+      this.#isIgnoringTheElementUntilAPress = true;
+    };
+
+    /** A press in the slot begins what the element fires next, which is acted on again after an Escape. */
+    readonly #pressBegun = (): void => {
+      this.#isIgnoringTheElementUntilAPress = false;
+    };
+
+    /** A key in the slot, other than the Escape that cancelled, begins what the element fires next. */
+    readonly #keyBegun = (keyEvent: KeyboardEvent): void => {
+      if (keyEvent.key !== "Escape") this.#isIgnoringTheElementUntilAPress = false;
     };
 
     /** A press the pointer gave up ends no gesture with a `change`, so the gesture it opened is cancelled. */

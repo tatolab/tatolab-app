@@ -15,6 +15,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     ...mockProjectsAndStreamsBackendOf(simulation),
     ...mockModulesBackendOf(simulation),
     ...mockSettingsAndUpdatesBackendOf(simulation),
-    ...mockNodeUiElementsBackendOf(mockTatolabOptions.areTheNodeUiElementsUnserved),
+    ...mockNodeUiElementsBackendOf(mockTatolabOptions.nodeUiElementsListing),
   } satisfies TatolabBackend;
 }

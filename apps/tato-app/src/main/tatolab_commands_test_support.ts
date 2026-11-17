@@ -6,9 +6,9 @@ import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { localApiRequestFailure } from "./local_api_request_failure.js";
 import os from "node:os";
 import path from "node:path";
-import { ManagedRuntime } from "effect";
+import { Effect, Layer, ManagedRuntime } from "effect";
 import { assert, vi } from "vitest";
-import type { ListedStream, SystemMenuBarMenu, TatolabPlatform } from "../shared/tatolab_backend_contract.js";
+import type { ListedStream, ProjectTransactionAuthor, SystemMenuBarMenu, TatolabPlatform } from "../shared/tatolab_backend_contract.js";
 import { FakeLocalApiServer } from "./fake_local_api_server.js";
 import { FakeCarriedRuntimeStarts, FakeTatolabAppOpenedAtLogin, FakeTatolabCommandLineToolLink, FakeTerminalOpenedInAFolder, fakeTatolabPlatformForThisBuild, FakeSystemMediaAccess } from "./fake_tatolab_platform_for_this_build.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
@@ -23,11 +23,13 @@ import { recentProjectFoldersFileIn } from "./recent_project_folders_file.js";
 import { failedWith, succeeded } from "./result.js";
 import { StreamFailureNotifications } from "./stream_failure_notifications.js";
 import { TatolabAppController } from "./tatolab_app_controller.js";
-import { createTatolabAppLog } from "./tatolab_app_log.js";
+import { createTatolabAppLog, type TatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import type { TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import { studioRuntimeLayer } from "./studio_runtime.js";
+import { ListedStreams, PersonEditingInStudio, ProjectViewsListed, StudioAppVersion, studioRuntimeLayer, StudioWindows, tatolabAppLogAsEffectsLogger, type StudioServices } from "./studio_runtime.js";
+import { runtimeControlLayer } from "./tatolab_runtime_control_operation_call.js";
+import { CommandRefused } from "./window_command.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { StreamProjectAdding } from "./stream_project_adding.js";
@@ -74,6 +76,41 @@ function controlOperationCallOfTheRequest(request: string): [string, unknown][] 
 
 /** The version of the Studio the command handlers in a test run as. */
 export const STUDIO_APP_VERSION_UNDER_TEST = "0.45.0";
+
+/** What a test's Studio services hold where the defaults of `studioServicesLayerForTest` do not suit it. */
+export interface StudioServicesOfATest {
+  /** The local API the live `RuntimeControl` calls, and how long it waits; nothing answers at the default. */
+  readonly localApiSocketPath?: string;
+  readonly localApiTimeLimitMs?: number;
+  /** The one studio window, by its contents id, and the project it holds; a command from any other window is refused as one from the Projects window. */
+  readonly studioWindow?: { readonly windowContentsId: number; readonly projectFolder: string };
+  readonly streamAssetsOfTheProject?: (projectFolder: string) => ReadonlySet<string>;
+  readonly author?: ProjectTransactionAuthor;
+  readonly appVersion?: string;
+  /** Where Effect's logs go; nowhere at the default. */
+  readonly tatolabAppLog?: TatolabAppLog;
+}
+
+/** A studio window a test's commands come from, holding hallways. */
+export const STUDIO_WINDOW_UNDER_TEST = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1, projectFolder: "/home/sam/projects/hallways" } as const;
+
+/** Every Studio service a converted command runs on, as a test sets them up: the live `RuntimeControl` over a fake local API and the rest as `overrides` says. */
+export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}): Layer.Layer<StudioServices> {
+  const studioWindow = overrides.studioWindow ?? STUDIO_WINDOW_UNDER_TEST;
+  return Layer.mergeAll(
+    runtimeControlLayer(overrides.localApiSocketPath ?? "/nowhere/tatolab.sock", overrides.localApiTimeLimitMs ?? 2_000),
+    Layer.succeed(StudioWindows, {
+      projectFolderOfTheWindow: (commandFromWindow) =>
+        commandFromWindow.windowContentsId === studioWindow.windowContentsId ? Effect.succeed(studioWindow.projectFolder) : Effect.fail(new CommandRefused({ words: "No project is open in this window." })),
+      aStudioWindowHoldsTheProjectIn: (projectFolder) => projectFolder === studioWindow.projectFolder,
+    }),
+    Layer.succeed(ProjectViewsListed, { isListedAsOpening: () => false }),
+    Layer.succeed(ListedStreams, { streamAssetsOfTheProject: overrides.streamAssetsOfTheProject ?? (() => new Set()) }),
+    Layer.succeed(PersonEditingInStudio, { author: overrides.author ?? { kind: "person", name: "sam" } }),
+    Layer.succeed(StudioAppVersion, { version: overrides.appVersion ?? STUDIO_APP_VERSION_UNDER_TEST }),
+    tatolabAppLogAsEffectsLogger(overrides.tatolabAppLog ?? quietTatolabAppLog),
+  );
+}
 
 /** The handler of every command the window invokes over `sharedState`, the converted ones run on the app's live layers over it and its fake local API, disposed after the test; `quit_tatolab_app` quits through `quitTheApp`. */
 export function commandHandlersOver(sharedState: TatolabAppSharedState & { localApiSocketPath: string }, quitTheApp: () => void = () => {}): TatolabWindowCommandHandlers {
@@ -126,7 +163,7 @@ export async function sharedStateOverFakes(
     platform,
     platformForThisBuild,
     startTheCarriedRuntime: carriedRuntimeStarts.startTheCarriedRuntime,
-    appVersion: "0.45.0",
+    appVersion: STUDIO_APP_VERSION_UNDER_TEST,
     appBuild: { tatolab_app_commit: "22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1", build_kind: "dev", built_with_uncommitted_changes: true },
     readMonotonicClockMs: () => 0,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),

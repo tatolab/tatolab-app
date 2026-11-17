@@ -1,11 +1,12 @@
 // The node UI elements the mock lists: the Studio's own module, as the app lists it from its
 // manifest, each script served by the mock's dev server beside the window with its types removed,
 // as the app's page protocol serves it. `?node_ui=unserved` serves none, so each control ends at
-// the read-only line.
+// the read-only line; `?node_ui=refused` refuses the listing.
 
 import type { ListedNodeUiElement } from "@tatolab/tato-app-view-sdk/node_ui_host";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { sleep } from "./mock_tatolab_simulation";
+import type { MockNodeUiElementsListing } from "./mock_tatolab_options";
 import { MOCK_COMMAND_LATENCY_MILLISECONDS } from "./mock_tatolab_simulation_constants";
 
 /** Where the mock's dev server serves the Studio's own node UI module, as the app's window page serves it. */
@@ -30,11 +31,12 @@ export function mockStudioNodeUiElements(pageOrigin: string, isUnserved: boolean
 }
 
 /** The mock's `listNodeUiElements`. */
-export function mockNodeUiElementsBackendOf(isUnserved: boolean): Pick<TatolabBackend, "listNodeUiElements"> {
+export function mockNodeUiElementsBackendOf(listing: MockNodeUiElementsListing): Pick<TatolabBackend, "listNodeUiElements"> {
   return {
     listNodeUiElements: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      return mockStudioNodeUiElements(window.location.origin, isUnserved);
+      if (listing === "refused") throw new Error("The mock refuses to list the Studio's node UI elements (?node_ui=refused).");
+      return mockStudioNodeUiElements(window.location.origin, listing === "unserved");
     },
   };
 }

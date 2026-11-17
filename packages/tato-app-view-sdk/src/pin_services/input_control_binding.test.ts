@@ -205,6 +205,25 @@ test("Escape during a drag cancels it: the live value is taken off, the control'
   expect(control.shownValue).toBe(0.5);
 });
 
+test("after Escape, a change the element still fires as its press ends commits nothing, and the next press is acted on again", async () => {
+  const slot = binderUnderTest();
+  slot.list([FLOAT_DEFAULT]);
+  await slot.settled();
+  const control = slot.control();
+  control.dragTo(0.9);
+  document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  fireInputControlEvent(control, "change", 0.9);
+  await slot.settled();
+  expect(slot.sent).toEqual([
+    { value: 0.9, mode: "live" },
+    { value: null, mode: "live" },
+  ]);
+  slot.host.dispatchEvent(new Event("pointerdown"));
+  control.commitTyped(0.25);
+  await slot.settled();
+  expect(slot.sent.at(-1)).toEqual({ value: 0.25, mode: "commit" });
+});
+
 test("a press the pointer gives up cancels the gesture it opened", async () => {
   const slot = binderUnderTest();
   slot.list([FLOAT_DEFAULT]);

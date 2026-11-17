@@ -1,18 +1,15 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { Effect, Layer, ManagedRuntime } from "effect";
+import { ManagedRuntime } from "effect";
 import { afterEach, expect, test, vi } from "vitest";
 import type { ListedStream } from "../shared/tatolab_backend_contract.js";
 import { controlOperationFailedResponse, controlOperationRefusedResponse, controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
 import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { controlOperationCallsReceivedBy } from "./local_api_client_test_support.js";
-import { ListedStreams, PersonEditingInStudio, ProjectViewsListed, StudioAppVersion, StudioWindows, tatolabAppLogAsEffectsLogger } from "./studio_runtime.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
-import { cleanUpTheFakesTheLastTestMade, cleanUps, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, recordedResponseBody, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
-import { runtimeControlLayer } from "./tatolab_runtime_control_operation_call.js";
+import { cleanUpTheFakesTheLastTestMade, cleanUps, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, recordedResponseBody, sharedStateOverFakes, studioServicesLayerForTest } from "./tatolab_commands_test_support.js";
 import { transactInTheOpenProjectCommand } from "./transact_in_the_open_project_command.js";
-import { CommandRefused } from "./window_command.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
@@ -42,19 +39,14 @@ async function transactCommandOver(server: FakeLocalApiServer, timeLimitMs = 2_0
 async function transactCommandAt(localApiSocketPath: string, streamAsset: string, timeLimitMs: number) {
   const loggedLines: string[] = [];
   const studioRuntime = ManagedRuntime.make(
-    Layer.mergeAll(
-      runtimeControlLayer(localApiSocketPath, timeLimitMs),
-      Layer.mock(StudioWindows, {
-        projectFolderOfTheWindow: (commandFromWindow) =>
-          commandFromWindow.windowContentsId === FROM_HALLWAYS_STUDIO_WINDOW.windowContentsId ? Effect.succeed(HALLWAYS) : Effect.fail(new CommandRefused({ words: "No project is open in this window." })),
-        aStudioWindowHoldsTheProjectIn: (projectFolder) => projectFolder === HALLWAYS,
-      }),
-      Layer.succeed(ProjectViewsListed, { isListedAsOpening: () => false }),
-      Layer.succeed(ListedStreams, { streamAssetsOfTheProject: (projectFolder) => new Set(projectFolder === HALLWAYS ? [streamAsset] : []) }),
-      Layer.succeed(PersonEditingInStudio, { author: SAM_EDITING_IN_STUDIO }),
-      Layer.succeed(StudioAppVersion, { version: "0.45.0" }),
-      tatolabAppLogAsEffectsLogger(createTatolabAppLog("debug", (logLine) => loggedLines.push(logLine))),
-    ),
+    studioServicesLayerForTest({
+      localApiSocketPath,
+      localApiTimeLimitMs: timeLimitMs,
+      studioWindow: { windowContentsId: FROM_HALLWAYS_STUDIO_WINDOW.windowContentsId, projectFolder: HALLWAYS },
+      streamAssetsOfTheProject: (projectFolder) => new Set(projectFolder === HALLWAYS ? [streamAsset] : []),
+      author: SAM_EDITING_IN_STUDIO,
+      tatolabAppLog: createTatolabAppLog("debug", (logLine) => loggedLines.push(logLine)),
+    }),
   );
   cleanUps.push(() => studioRuntime.dispose());
   return { transact: transactInTheOpenProjectCommand(studioRuntime), loggedLines };

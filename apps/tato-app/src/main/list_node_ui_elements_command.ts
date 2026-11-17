@@ -7,14 +7,14 @@ import type { TatolabCommandAnswerTo } from "../shared/tatolab_electron_bridge_c
 import { StudioAppVersion, StudioWindows, type StudioServices } from "./studio_runtime.js";
 import { theStudiosOwnNodeUiElements } from "./studio_node_ui_module.js";
 import type { TatolabCommandFromWindow } from "./tatolab_command_answers.js";
-import { CommandRefused, windowCommand } from "./window_command.js";
+import { windowCommand } from "./window_command.js";
 
 /** The node UI elements a studio window, or a view popped out of one, lists; refused in the Projects window, and in words when the Studio's own manifest does not read. */
 export const listNodeUiElements = Effect.fn("list_node_ui_elements")(function* (_none: undefined, commandFromWindow: TatolabCommandFromWindow) {
   const studioWindows = yield* StudioWindows;
   yield* studioWindows.projectFolderOfTheWindow(commandFromWindow);
   const { version } = yield* StudioAppVersion;
-  return yield* theStudiosOwnNodeUiElements(version).pipe(Effect.mapError((unreadable) => new CommandRefused({ words: unreadable.words })));
+  return yield* theStudiosOwnNodeUiElements(version).pipe(Effect.tapError((unreadable) => Effect.logError("the Studio's own node UI manifest did not read", unreadable.words)));
 });
 
 /** The window's `list_node_ui_elements` on `studioRuntime`. */

@@ -5,10 +5,9 @@ import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system
 import { NodeGraphPinMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
 import { pinWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
 import { takesAControl, type ControlledInput } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
-import { valueAddressOfTheInput, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import { createInputValues, type InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
-import { createInputControlBinder } from "@tatolab/tato-app-view-sdk/pin_services/input_control_binding";
-import { InputControlBinderContext, InputControlMount } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
+import { inputAddressKey, valueAddressOfTheInput, type GraphAddress, type InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import type { InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
+import { InputControlBinderContext, InputControlMount, useInputControlsOfTheFrame } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import { portFamilyWords } from "@tatolab/tato-app-view-sdk/port_families";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_banner";
@@ -428,6 +427,7 @@ function PortRowsOfOneDirection({
   node,
   streamAsset,
   valuesAt,
+  inputValues,
   catalogPorts,
   graphEdits,
   portNamesListed,
@@ -441,6 +441,8 @@ function PortRowsOfOneDirection({
   streamAsset: string | null;
   /** The level of the stream's graph the node is at, where its inputs' values are kept; `null` where no stream's graph is known. */
   valuesAt: GraphAddress | null;
+  /** The frame's store, whose refusal of an input's last value shows under its control. */
+  inputValues: InputValues;
   catalogPorts: NodeCatalogPort[];
   graphEdits: GraphEditsOfTheNode;
   /** The ports a search over the properties keeps, by name. */
@@ -470,7 +472,7 @@ function PortRowsOfOneDirection({
         linkedEnds={linkedEnds.map((linkedEnd) => ({ nodeTitle: nodeTitle(linkedEnd.node.name, linkedEnd.node.type), port: linkedEnd.port, linkKey: `${linkedEnd.node.id}:${linkedEnd.port}` }))}
         unlinkedValue={
           direction === "input" && streamAsset !== null ? (
-            <UnlinkedValueOfTheInput controlled={takesAControl({ name: port.name, pin: port.pin, value_address: valueAddressOfTheInput(valuesAt, node.id, port) })}>
+            <UnlinkedValueOfTheInput inputValues={inputValues} controlled={takesAControl({ name: port.name, pin: port.pin, value_address: valueAddressOfTheInput(valuesAt, node.id, port) })}>
               <PropertyTextField
                 fieldId={pinValueFieldId(node.id, port.name)}
                 words={pinValue === undefined ? "" : configFormFieldValueWords(pinValue)}
@@ -500,9 +502,27 @@ function PortRowsOfOneDirection({
  * An unlinked input's value in its row: the control the node draws for it, written through the frame's store, where
  * `takesAControl` gives it one and the table has a control for its type; otherwise `children`, the row's own field.
  */
-function UnlinkedValueOfTheInput({ controlled, children }: { controlled: ControlledInput | null; children: ReactNode }) {
+function UnlinkedValueOfTheInput({ inputValues, controlled, children }: { inputValues: InputValues; controlled: ControlledInput | null; children: ReactNode }) {
   if (controlled === null) return children;
-  return <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={children} className="w-full" />;
+  return (
+    <div className="flex w-full min-w-0 flex-col gap-1">
+      <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={children} className="w-full" />
+      <RefusalOfTheInputsValue inputValues={inputValues} address={controlled.address} />
+    </div>
+  );
+}
+
+/** The store's refusal of the last value sent to `address`, under its control; nothing while the last one was taken. */
+function RefusalOfTheInputsValue({ inputValues, address }: { inputValues: InputValues; address: InputAddress }) {
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const addressKey = inputAddressKey(address);
+  const latestAddress = useRef(address);
+  useLayoutEffect(() => {
+    latestAddress.current = address;
+  });
+  useLayoutEffect(() => inputValues.watchRefusal(latestAddress.current, setRefusal), [inputValues, addressKey]);
+  if (refusal === null) return null;
+  return <RefusalLine lead="The value wasn't set:" words={refusal} layout="under_field" data-properties-input-value-refusal={address.input} />;
 }
 
 /** The place an edit of a config field, or exposing it as a Graph Input, shows its refusal under. */
@@ -735,6 +755,7 @@ function PropertiesOfTheSelectedNode({
               node={node}
               streamAsset={streamAsset}
               valuesAt={valuesAt}
+              inputValues={inputValues}
               catalogPorts={catalogEntry?.inputs ?? []}
               graphEdits={graphEdits}
               portNamesListed={matching.input_ports_listed}
@@ -751,6 +772,7 @@ function PropertiesOfTheSelectedNode({
               node={node}
               streamAsset={streamAsset}
               valuesAt={null}
+              inputValues={inputValues}
               catalogPorts={catalogEntry?.outputs ?? []}
               graphEdits={graphEdits}
               portNamesListed={matching.output_ports_listed}
@@ -798,11 +820,7 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
   const graphEditsInTheProject = useGraphEditsInTheOpenProject(connection, projectFolder);
   const openProjectOfTheAssetFields = useMemo(() => (projectFolder === null ? null : { connection, projectFolder }), [connection, projectFolder]);
   const [searchWords, setSearchWords] = useState("");
-  const inputValues = useMemo(
-    () => createInputValues({ transactInTheProject: (folder, operations, sending) => connection.transactInTheProject(folder, operations, sending), newGestureIdempotencyKey }),
-    [connection],
-  );
-  const inputControls = useMemo(() => createInputControlBinder({ watchNodeUiElements: (listener) => connection.watchNodeUiElements(listener), inputValues }), [connection, inputValues]);
+  const { inputValues, inputControls } = useInputControlsOfTheFrame(connection);
   if (selection?.kind === "nodes" && activeStreamTab?.stream === selection.stream) {
     return <SummaryOfTheSeveralSelectedNodes connection={connection} stream={selection.stream} level={selection.level ?? NO_LEVEL} nodeNames={selection.nodes} />;
   }

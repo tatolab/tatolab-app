@@ -22,43 +22,42 @@ const mockStudioViewPagesTransformedByVite = {
   name: "mock-studio-view-pages-transformed-by-vite",
   configureServer(viteDevServer) {
     viteDevServer.middlewares.use(async (request, response, next) => {
-      const requestPath = request.url?.split("?")[0] ?? "";
-      const pagePath = requestPath.startsWith("/@fs/") ? decodeURIComponent(requestPath.slice("/@fs".length)) : "";
-      if (!pagePath.endsWith(".html") || !pagePath.startsWith(`${mockStudioViewFolder}/`)) {
-        next();
-        return;
-      }
-      const page = await viteDevServer.transformIndexHtml(requestPath, await readFile(pagePath, "utf8"));
-      response.setHeader("Content-Type", "text/html");
-      response.end(page);
-    });
-  },
-};
-// The app's page protocol serves the Studio's own node UI module with its types removed; the dev server serves it as
-// written, for that protocol to read. The mock window has no such protocol, so each `.ts` is served here as the
-// protocol serves it, ahead of the dev server's own answer.
-const studioNodeUiModuleFolder = path.resolve(tatoAppRoot, "../../packages/tato-app-core-node-ui/node_ui");
-const studioNodeUiModuleServedWithItsTypesRemoved = {
-  name: "studio-node-ui-module-served-with-its-types-removed",
-  configureServer(viteDevServer) {
-    viteDevServer.middlewares.use(async (request, response, next) => {
-      const requestPath = decodeURIComponent(request.url?.split("?")[0] ?? "");
-      const moduleFile = requestPath.startsWith("/core_node_ui/") ? path.resolve(studioNodeUiModuleFolder, `.${requestPath.slice("/core_node_ui".length)}`) : "";
-      if (!moduleFile.endsWith(".ts") || !moduleFile.startsWith(`${studioNodeUiModuleFolder}${path.sep}`)) {
-        next();
-        return;
-      }
       try {
-        const pathInTheModule = path.relative(studioNodeUiModuleFolder, moduleFile);
+        const requestPath = decodeURIComponent(request.url?.split("?")[0] ?? "");
+        const moduleFile = requestPath.startsWith("/core_node_ui/") ? path.resolve(studioNodeUiModuleFolder, `.${requestPath.slice("/core_node_ui".length)}`) : "";
+        if (!moduleFile.endsWith(".ts") || !moduleFile.startsWith(`${studioNodeUiModuleFolder}${path.sep}`)) {
+          next();
+          return;
+        }
+        let moduleText;
+        try {
+          moduleText = await readFile(moduleFile, "utf8");
+        } catch (readFailure) {
+          if (readFailure?.code !== "ENOENT") throw readFailure;
+          answerThatItIsNotServed(response, 404, `${requestPath} is not in the Studio's node UI module`);
+          return;
+        }
+        let moduleScript;
+        try {
+          moduleScript = stripTypeScriptTypes(moduleText, { mode: "strip", sourceUrl: path.relative(studioNodeUiModuleFolder, moduleFile) });
+        } catch (stripFailure) {
+          answerThatItIsNotServed(response, 422, `${requestPath} is not servable as written: ${stripFailure instanceof Error ? stripFailure.message : String(stripFailure)}`);
+          return;
+        }
         response.setHeader("Content-Type", "text/javascript; charset=utf-8");
-        response.end(stripTypeScriptTypes(await readFile(moduleFile, "utf8"), { mode: "strip", sourceUrl: pathInTheModule }));
+        response.end(moduleScript);
       } catch (failure) {
-        response.statusCode = 404;
-        response.end(`${requestPath} is not served: ${failure instanceof Error ? failure.message : String(failure)}`);
+        next(failure);
       }
     });
   },
 };
+/** Answers a request for a node UI file with `status` and why, as the app's page protocol answers one it does not serve. */
+function answerThatItIsNotServed(response, status, because) {
+  response.statusCode = status;
+  response.setHeader("Content-Type", "text/plain; charset=utf-8");
+  response.end(because);
+}
 const mockWindowServer = await createServer({
   ...electronViteConfig.renderer,
   root: path.resolve(tatoAppRoot, electronViteConfig.renderer.root),

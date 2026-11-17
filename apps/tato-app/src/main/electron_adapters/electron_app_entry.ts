@@ -75,7 +75,7 @@ function accountNameOfThePersonSignedIn(): string {
 // Chromium's profile would otherwise land in `<appData>/<productName>`, beside the app's own config
 // directory rather than in it.
 app.setPath("userData", appConfigDirectory);
-registerTheWindowPageSchemeBeforeReady(windowDevServerUrl !== null);
+registerTheWindowPageSchemeBeforeReady(windowDevServerUrl);
 // macOS hands the notification whose click in Notification Center launched the app (its `UNNotificationRequest`
 // identifier) only to `ready`'s listeners, as `launchInfo`, so it is kept from there. Linux passes no `launchInfo`.
 let notificationIdentifierThatLaunchedTheApp: string | null = null;

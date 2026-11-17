@@ -2,6 +2,7 @@
 import { fireEvent, waitFor } from "@testing-library/react";
 import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState } from "@tatolab/tato-app-view-sdk/node_ui";
 import { nodeUiElementTag } from "@tatolab/tato-app-view-sdk/node_ui_host";
+import { NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_flow_elements";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mockStudioNodeUiElements } from "../../mock/mock_node_ui_elements";
 import { mountedWindowOverTheMock, coreViewPage, cleanUpTheWindowsOfEarlierTests, PATTERN_MAIN_STREAM } from "./tatolab_window_view_test_support";
@@ -79,6 +80,7 @@ describe("a Float input's control", () => {
     expect([onTheCard.getAttribute("data-surface"), onTheCard.getAttribute("data-state")]).toEqual(["node", "editable"]);
     expect(onTheCard.parentElement?.classList.contains("nodrag")).toBe(true);
     expect(onTheCard.parentElement?.classList.contains("nopan")).toBe(true);
+    expect(onTheCard.parentElement?.hasAttribute(NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE)).toBe(true);
     expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-node-graph-card="invertingeffect"] [data-input-control="video_from_upstream"]')).toBeNull();
 
     fireEvent.click(coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card"));
@@ -106,5 +108,23 @@ describe("a Float input's control", () => {
     await backend.undoInTheOpenProject({ kind: "person", name: "Sam" });
     await waitFor(async () => expect(await amountTheGraphReads(backend)).toEqual({ value: 1, comes_from: "default" }));
     await waitFor(() => expect(wordsOfTheControl(onTheCard)).toBe("1"));
+  });
+
+  it("where the listing is refused, Properties draws its own field for the input, and the field follows each value, an Undo's too", async () => {
+    const { backend } = await mountedWindowOverTheMock("state=running&node_ui=refused");
+    fireEvent.click(await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card")));
+    const field = await waitFor(() => coreViewPage("properties").querySelector<HTMLInputElement>('[data-properties-port="amount"] input[aria-label="Value of amount"]') ?? expect.unreachable("no field on Properties' amount row"), AS_LONG_AS_A_FRAME_BINDS);
+    expect(coreViewPage("properties").querySelector('[data-properties-port="amount"] [data-input-control="amount"]')?.firstElementChild ?? null).toBeNull();
+    expect(field.value).toBe("");
+
+    field.focus();
+    fireEvent.change(field, { target: { value: "1.5" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+    await waitFor(async () => expect(await amountTheGraphReads(backend)).toEqual({ value: 1.5, comes_from: "saved" }));
+    await waitFor(() => expect(field.value).toBe("1.5"));
+
+    await backend.undoInTheOpenProject({ kind: "person", name: "Sam" });
+    await waitFor(async () => expect(await amountTheGraphReads(backend)).toEqual({ value: 1, comes_from: "default" }));
+    await waitFor(() => expect(field.value).toBe(""));
   });
 });

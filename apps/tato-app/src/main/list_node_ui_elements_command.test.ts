@@ -1,12 +1,9 @@
-import { Effect, Layer, ManagedRuntime } from "effect";
+import { ManagedRuntime } from "effect";
 import { afterEach, expect, test } from "vitest";
 import { listNodeUiElementsCommand } from "./list_node_ui_elements_command.js";
-import { ListedStreams, PersonEditingInStudio, ProjectViewsListed, StudioAppVersion, StudioWindows } from "./studio_runtime.js";
-import { runtimeControlLayer } from "./tatolab_runtime_control_operation_call.js";
-import { CommandRefused } from "./window_command.js";
+import { FROM_THE_PROJECTS_WINDOW, STUDIO_WINDOW_UNDER_TEST, studioServicesLayerForTest } from "./tatolab_commands_test_support.js";
 
-const FROM_A_STUDIO_WINDOW = { windowContentsId: 2 };
-const FROM_THE_PROJECTS_WINDOW = { windowContentsId: 1 };
+const FROM_A_STUDIO_WINDOW = { windowContentsId: STUDIO_WINDOW_UNDER_TEST.windowContentsId };
 const disposals: (() => Promise<void>)[] = [];
 
 afterEach(async () => {
@@ -15,20 +12,7 @@ afterEach(async () => {
 
 /** The window's `list_node_ui_elements` in a Studio of `version`, whose one studio window is `FROM_A_STUDIO_WINDOW`. */
 function listCommandOfTheStudio(version: string) {
-  const studioRuntime = ManagedRuntime.make(
-    Layer.mergeAll(
-      runtimeControlLayer("/nowhere/tatolab.sock", 100),
-      Layer.mock(StudioWindows, {
-        projectFolderOfTheWindow: (commandFromWindow) =>
-          commandFromWindow.windowContentsId === FROM_A_STUDIO_WINDOW.windowContentsId ? Effect.succeed("/home/sam/projects/hallways") : Effect.fail(new CommandRefused({ words: "No project is open in this window." })),
-        aStudioWindowHoldsTheProjectIn: () => true,
-      }),
-      Layer.succeed(ProjectViewsListed, { isListedAsOpening: () => false }),
-      Layer.succeed(ListedStreams, { streamAssetsOfTheProject: () => new Set() }),
-      Layer.succeed(PersonEditingInStudio, { author: { kind: "person", name: "sam" } }),
-      Layer.succeed(StudioAppVersion, { version }),
-    ),
-  );
+  const studioRuntime = ManagedRuntime.make(studioServicesLayerForTest({ appVersion: version }));
   disposals.push(() => studioRuntime.dispose());
   return listNodeUiElementsCommand(studioRuntime);
 }
