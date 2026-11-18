@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { Effect, Layer } from "effect";
+import { Deferred, Effect, Layer } from "effect";
 import { TestClock } from "effect/testing";
 import { expect, test } from "vitest";
 import type { StreamActionDescription } from "../shared/tatolab_backend_contract.js";
@@ -31,21 +31,31 @@ function describedOnTheWire(description: StreamActionDescription): ControlOperat
 /** The followed stream actions over a fake runtime's connections, each describing an action as `describedActions` holds it now, counting each status read asked for and logging to `logLines`. */
 function streamActionsFollowedOverAFakeRuntime(options: { subscribeRefusals?: (string | null)[]; actionsUnderWay?: string[] } = {}) {
   const describedActions = new Map<string, StreamActionDescription>();
+  /** What the test has the runtime do before it answers a describe or the subscribe: nothing at the default. */
+  const answering: { beforeADescribe: () => Effect.Effect<void>; beforeTheSubscribe: () => void } = { beforeADescribe: () => Effect.void, beforeTheSubscribe: () => {} };
   let subscribesAnswered = 0;
   const runtime = fakeRuntimeOfConnections({
     subscribe_stream_action_changes: () => {
+      answering.beforeTheSubscribe();
       const refusal = options.subscribeRefusals?.[subscribesAnswered] ?? null;
       subscribesAnswered += 1;
       return refusal === null
         ? Effect.succeed({ actions_under_way: options.actionsUnderWay ?? [] })
         : Effect.fail(refusedByTheOperation("subscribe_stream_action_changes", refusal));
     },
-    describe_stream_action: ({ action }) => {
-      const description = describedActions.get(action);
-      return description === undefined
-        ? Effect.fail(refusedByTheOperation("describe_stream_action", `describe_stream_action failed: no stream action ${action} is held`))
-        : Effect.succeed(describedOnTheWire(description));
-    },
+    describe_stream_action: ({ action }) =>
+      Effect.suspend(() => {
+        const description = describedActions.get(action);
+        return answering
+          .beforeADescribe()
+          .pipe(
+            Effect.andThen(
+              description === undefined
+                ? Effect.fail(refusedByTheOperation("describe_stream_action", `describe_stream_action failed: no stream action ${action} is held`))
+                : Effect.succeed(describedOnTheWire(description)),
+            ),
+          );
+      }),
   });
   const statusReads = { asked: 0 };
   const logLines: string[] = [];
@@ -54,7 +64,7 @@ function streamActionsFollowedOverAFakeRuntime(options: { subscribeRefusals?: (s
     statusReads.asked += 1;
   });
   const layer = Layer.merge(runtime.layer, tatolabAppLogAsEffectsLogger(createTatolabAppLog("info", (logLine) => logLines.push(logLine))));
-  return { ...runtime, layer, followed, noticed, statusReads, describedActions, logLines };
+  return { ...runtime, layer, answering, followed, noticed, statusReads, describedActions, logLines };
 }
 
 /** Each action `connection` was asked to describe, in order. */
@@ -207,6 +217,76 @@ test("an_action_the_runtime_no_longer_describes_is_logged_and_shows_no_sync", as
   expect(noticed.takeTheProjectVenvSyncs()).toEqual({ underWay: [], justEnded: [] });
   expect(logLines.join("\n")).toContain(`no stream action ${SYNCING_ACTION} is held`);
   expect(connectionsOpened).toHaveLength(1);
+});
+
+test("a_change_the_runtime_sends_before_it_answers_the_subscribe_is_described", async () => {
+  const { followed, connectionsOpened, answering, describedActions, layer } = streamActionsFollowedOverAFakeRuntime();
+  describedActions.set(SYNCING_ACTION, await makingTheVenv());
+  answering.beforeTheSubscribe = () => pushAStreamActionChanged(connectionsOpened[0], SYNCING_ACTION);
+
+  await runOnATestClock(
+    Effect.gen(function* () {
+      yield* (yield* followed).follow;
+      yield* settle;
+    }),
+    layer,
+  );
+
+  expect(actionsDescribedOn(connectionsOpened[0])).toEqual([SYNCING_ACTION]);
+});
+
+test("changes_of_an_action_while_it_is_described_are_described_once_after_it", async () => {
+  const { followed, connectionsOpened, answering, describedActions, noticed, layer } = streamActionsFollowedOverAFakeRuntime();
+  describedActions.set(SYNCING_ACTION, await makingTheVenv());
+  const done = await doneAfterItsSync();
+  const letTheDescribeAnswer = Deferred.makeUnsafe<void>();
+
+  const justEnded = await runOnATestClock(
+    Effect.gen(function* () {
+      yield* (yield* followed).follow;
+      yield* settle;
+      answering.beforeADescribe = () => {
+        answering.beforeADescribe = () => Effect.void;
+        return Deferred.await(letTheDescribeAnswer);
+      };
+      pushAStreamActionChanged(connectionsOpened[0], SYNCING_ACTION);
+      yield* settle;
+      describedActions.set(SYNCING_ACTION, done);
+      pushAStreamActionChanged(connectionsOpened[0], SYNCING_ACTION);
+      pushAStreamActionChanged(connectionsOpened[0], SYNCING_ACTION);
+      yield* settle;
+      yield* Deferred.succeed(letTheDescribeAnswer, undefined);
+      yield* settle;
+      return noticed.takeTheProjectVenvSyncs().justEnded;
+    }),
+    layer,
+  );
+
+  expect(actionsDescribedOn(connectionsOpened[0])).toEqual([SYNCING_ACTION, SYNCING_ACTION]);
+  expect(justEnded.map((sync) => sync.venv_sync.phase)).toEqual(["installed"]);
+});
+
+test("a_syncing_action_the_runtime_no_longer_describes_shows_its_sync_no_more_and_reads_the_status_again", async () => {
+  const { followed, connectionsOpened, describedActions, noticed, statusReads, layer } = streamActionsFollowedOverAFakeRuntime();
+  describedActions.set(SYNCING_ACTION, await makingTheVenv());
+
+  await runOnATestClock(
+    Effect.gen(function* () {
+      yield* (yield* followed).follow;
+      yield* settle;
+      pushAStreamActionChanged(connectionsOpened[0], SYNCING_ACTION);
+      yield* settle;
+      expect(noticed.takeTheProjectVenvSyncs().underWay).toHaveLength(1);
+      const statusReadsWhileSyncing = statusReads.asked;
+      describedActions.delete(SYNCING_ACTION);
+      pushAStreamActionChanged(connectionsOpened[0], SYNCING_ACTION);
+      yield* settle;
+      expect(statusReads.asked).toBe(statusReadsWhileSyncing + 2);
+    }),
+    layer,
+  );
+
+  expect(noticed.takeTheProjectVenvSyncs().underWay).toEqual([]);
 });
 
 test("a_connection_the_runtime_closes_drops_its_syncs_under_way_and_is_followed_again_on_the_schedule", async () => {

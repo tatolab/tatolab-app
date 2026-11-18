@@ -14,7 +14,7 @@ import { Duration, Effect, Fiber, FiberSet, Latch, Result as EffectResult, Strea
 import type { ProjectTransactionsReading } from "../shared/tatolab_backend_contract.js";
 import { projectTransactionsFromTheChangeFeed } from "./project_transactions_on_the_wire.js";
 import { followedUntilTheConnectionEnds, runsOneAtATime, type AfterTheRun } from "./runtime_connection_following.js";
-import { controlOperationOnTheConnectionReadWith, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
+import { controlOperationOnTheConnectionReadWith, RuntimeControl, type ControlConnection } from "./tatolab_runtime_control_operation_call.js";
 
 /** How long after the feed's connection ends it is followed again. */
 export const PROJECT_TRANSACTIONS_FOLLOWED_AGAIN_AFTER = Duration.seconds(3);
@@ -85,47 +85,55 @@ export class ProjectTransactionsFeedOfAStudioWindow {
     const sources = this.sources;
     let hasFollowedAgainAtOnce = false;
 
-    /** The feed followed over one connection until it ends: why. */
+    /** The feed followed over `connection` until it ends: why. */
+    const followedOver = (connection: ControlConnection) =>
+      Effect.gen(function* () {
+        const readTheFeed = controlOperationOnTheConnectionReadWith(connection, "read_project_changes", { project_directory: projectFolder }, projectTransactionsFromTheChangeFeed);
+        const firstRead = yield* readTheFeed;
+        const project = firstRead.project;
+        const reading = yield* FiberSet.make<void, never>();
+        /** The feed read again and published, one read at a time; a change while one is under way is read once after it. */
+        const reads = runsOneAtATime<null>(
+          reading,
+          Effect.fnUntraced(function* (): Effect.fn.Return<AfterTheRun> {
+            const read = yield* Effect.result(readTheFeed);
+            feed.publish(EffectResult.isSuccess(read) ? { kind: "read", project_transactions: read.success } : { kind: "not_read", because: read.failure.words });
+            return "run_what_was_asked_since";
+          }),
+          () => null,
+        );
+        const readTheFeedAgain = reads.ask(projectFolder, null);
+        const changesNoticed = yield* connection.notifications("project_changed").pipe(
+          Stream.filter((change) => change.project === project),
+          Stream.runForEach((change) =>
+            Effect.suspend(() => {
+              const namesNodeTypes = PROJECT_CHANGES_NAMING_NODE_TYPES.has(change.change);
+              if (change.change === "files_changed" || change.change === "missed") sources.tellTheWindowTheProjectFilesChanged();
+              if (namesNodeTypes || change.change === "missed") sources.tellTheWindowTheProjectNodeTypesChanged();
+              return change.change !== "files_changed" && !namesNodeTypes ? readTheFeedAgain : Effect.void;
+            }),
+          ),
+          Effect.forkScoped({ startImmediately: true }),
+        );
+        yield* connection.call("subscribe_project_changes", { projects: [project] });
+        hasFollowedAgainAtOnce = false;
+        sources.tellTheWindowTheProjectFilesChanged();
+        sources.tellTheWindowTheProjectNodeTypesChanged();
+        feed.publish({ kind: "read", project_transactions: firstRead });
+        yield* readTheFeedAgain;
+        return yield* Effect.raceAllFirst([
+          Fiber.join(changesNoticed).pipe(Effect.as<FeedConnectionEnded>({ _tag: "Failed", why: "the runtime's project changes on the /control/ws connection ended" })),
+          FiberSet.join(reading).pipe(Effect.andThen(Effect.never)),
+        ]);
+      });
+
+    /** The feed followed over one connection until it ends, the runtime's close of it ending it whatever the following was doing: why. */
     const followedOverOneConnection = Effect.gen(function* () {
       const connection = yield* (yield* RuntimeControl).connect;
-      const readTheFeed = controlOperationOnTheConnectionReadWith(connection, "read_project_changes", { project_directory: projectFolder }, projectTransactionsFromTheChangeFeed);
-      const firstRead = yield* readTheFeed;
-      const project = firstRead.project;
-      const reading = yield* FiberSet.make<void, never>();
-      /** The feed read again and published, one read at a time; a change while one is under way is read once after it. */
-      const reads = runsOneAtATime<null>(
-        reading,
-        Effect.fnUntraced(function* (): Effect.fn.Return<AfterTheRun> {
-          const read = yield* Effect.result(readTheFeed);
-          feed.publish(EffectResult.isSuccess(read) ? { kind: "read", project_transactions: read.success } : { kind: "not_read", because: read.failure.words });
-          return "run_what_was_asked_since";
-        }),
-        () => null,
-      );
-      const readTheFeedAgain = reads.ask(projectFolder, null);
-      const changesNoticed = yield* connection.notifications("project_changed").pipe(
-        Stream.filter((change) => change.project === project),
-        Stream.runForEach((change) =>
-          Effect.suspend(() => {
-            const namesNodeTypes = PROJECT_CHANGES_NAMING_NODE_TYPES.has(change.change);
-            if (change.change === "files_changed" || change.change === "missed") sources.tellTheWindowTheProjectFilesChanged();
-            if (namesNodeTypes || change.change === "missed") sources.tellTheWindowTheProjectNodeTypesChanged();
-            return change.change !== "files_changed" && !namesNodeTypes ? readTheFeedAgain : Effect.void;
-          }),
-        ),
-        Effect.forkScoped({ startImmediately: true }),
-      );
-      yield* connection.call("subscribe_project_changes", { projects: [project] });
-      hasFollowedAgainAtOnce = false;
-      sources.tellTheWindowTheProjectFilesChanged();
-      sources.tellTheWindowTheProjectNodeTypesChanged();
-      feed.publish({ kind: "read", project_transactions: firstRead });
-      yield* readTheFeedAgain;
-      return yield* Effect.raceAllFirst([
+      return yield* Effect.raceFirst(
         connection.closedByTheRuntime.pipe(Effect.map((why): FeedConnectionEnded => ({ _tag: "ClosedByTheRuntime", why }))),
-        Fiber.join(changesNoticed).pipe(Effect.as<FeedConnectionEnded>({ _tag: "Failed", why: "the runtime's project changes on the /control/ws connection ended" })),
-        FiberSet.join(reading).pipe(Effect.andThen(Effect.never)),
-      ]);
+        followedOver(connection),
+      );
     });
 
     return Effect.forever(

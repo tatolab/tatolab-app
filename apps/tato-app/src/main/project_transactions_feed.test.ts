@@ -1,6 +1,6 @@
 import { rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { Effect, Layer, ManagedRuntime } from "effect";
+import { Deferred, Effect, Layer, ManagedRuntime } from "effect";
 import { TestClock } from "effect/testing";
 import { afterEach, expect, test } from "vitest";
 import type { ProjectTransactionsReading } from "../shared/tatolab_backend_contract.js";
@@ -64,10 +64,15 @@ function pushAProjectChanged(connection: FakeControlConnection | undefined, proj
 
 /** A window's feed over a fake runtime serving `transactionIds`, followed on a test clock; its subscribe refuses any project but this one's. */
 function feedOverAFakeRuntime(transactionIds: string[]) {
+  /** What the test has the runtime do before it answers a read or the subscribe: nothing at the default. */
+  const answering: { beforeARead: () => Effect.Effect<void>; beforeTheSubscribe: () => void } = { beforeARead: () => Effect.void, beforeTheSubscribe: () => {} };
   const runtime = fakeRuntimeOfConnections({
-    read_project_changes: () => Effect.succeed(changeFeedHolding(transactionIds)),
+    read_project_changes: () => Effect.suspend(() => answering.beforeARead()).pipe(Effect.as(changeFeedHolding(transactionIds))),
     subscribe_project_changes: ({ projects }) =>
-      projects.every((project) => project === PROJECT) ? Effect.succeed({ projects }) : Effect.fail(refusedByTheOperation("subscribe_project_changes", `no project ${projects.join(", ")}`)),
+      Effect.suspend(() => {
+        answering.beforeTheSubscribe();
+        return projects.every((project) => project === PROJECT) ? Effect.succeed({ projects }) : Effect.fail(refusedByTheOperation("subscribe_project_changes", `no project ${projects.join(", ")}`));
+      }),
   });
   const onATestClock = ManagedRuntime.make(Layer.merge(runtime.layer, TestClock.layer()));
   disposals.push(() => onATestClock.dispose());
@@ -89,6 +94,7 @@ function feedOverAFakeRuntime(transactionIds: string[]) {
   });
   return {
     ...runtime,
+    answering,
     feed,
     readingsSent,
     windowToldTheFilesChanged,
@@ -241,6 +247,94 @@ test("closes_its_connection_when_the_window_closes_and_sends_nothing_after", asy
 
   expect(connectionsOpened[0]?.closedByTheApp).toBe(true);
   expect(readingsSent).toHaveLength(1);
+});
+
+test("a_runtime_that_starts_answering_while_the_feed_is_followed_leaves_the_next_wait_as_it_is", async () => {
+  const { feed, connectionsOpened, runtime, settled, afterTheWait } = feedOverAFakeRuntime(["t1"]);
+  feed.follow();
+  await settled();
+  feed.followAgain();
+  await settled();
+
+  runtime.answers = false;
+  connectionsOpened[0]?.closeFromTheRuntime();
+  await settled();
+  await settled();
+
+  expect(runtime.connectsTried).toBe(2);
+  runtime.answers = true;
+  await afterTheWait();
+  expect(runtime.connectsTried).toBe(3);
+  expect(connectionsOpened).toHaveLength(2);
+});
+
+test("a_connection_the_runtime_closes_again_before_its_feed_is_followed_is_followed_again_after_the_wait", async () => {
+  const { feed, connectionsOpened, readingsSent, answering, settled, afterTheWait } = feedOverAFakeRuntime(["t1"]);
+  feed.follow();
+  await settled();
+
+  answering.beforeARead = () =>
+    Effect.suspend(() => {
+      answering.beforeARead = () => Effect.void;
+      connectionsOpened.at(-1)?.closeFromTheRuntime();
+      return Effect.never;
+    });
+  connectionsOpened[0]?.closeFromTheRuntime();
+  await settled();
+
+  expect(connectionsOpened).toHaveLength(2);
+  expect(readingsSent.map(transactionIdsOf)).toEqual([["t1"], "the runtime closed the /control/ws connection"]);
+  await afterTheWait();
+  expect(connectionsOpened).toHaveLength(3);
+  expect(transactionIdsOf(feed.readProjectTransactions())).toEqual(["t1"]);
+});
+
+test("each_close_after_the_feed_was_followed_again_is_followed_again_at_once", async () => {
+  const { feed, connectionsOpened, readingsSent, settled } = feedOverAFakeRuntime(["t1"]);
+  feed.follow();
+  await settled();
+
+  connectionsOpened[0]?.closeFromTheRuntime();
+  await settled();
+  connectionsOpened[1]?.closeFromTheRuntime();
+  await settled();
+
+  expect(connectionsOpened).toHaveLength(3);
+  expect(readingsSent.map(transactionIdsOf)).toEqual([["t1"]]);
+});
+
+test("a_change_the_runtime_sends_before_it_answers_the_subscribe_reaches_the_window", async () => {
+  const { feed, connectionsOpened, answering, windowToldTheFilesChanged, settled } = feedOverAFakeRuntime(["t1"]);
+  answering.beforeTheSubscribe = () => pushAProjectChanged(connectionsOpened[0], PROJECT, "files_changed");
+
+  feed.follow();
+  await settled();
+
+  expect(windowToldTheFilesChanged.times).toBe(2);
+});
+
+test("changes_while_a_read_is_under_way_are_read_once_after_it_and_the_latest_reading_sent", async () => {
+  const transactionIds = ["t1"];
+  const { feed, connectionsOpened, readingsSent, answering, settled } = feedOverAFakeRuntime(transactionIds);
+  feed.follow();
+  await settled();
+  const letTheReadAnswer = Deferred.makeUnsafe<void>();
+  answering.beforeARead = () => {
+    answering.beforeARead = () => Effect.void;
+    return Deferred.await(letTheReadAnswer);
+  };
+
+  pushAProjectChanged(connectionsOpened[0]);
+  await settled();
+  transactionIds.unshift("t2");
+  pushAProjectChanged(connectionsOpened[0]);
+  pushAProjectChanged(connectionsOpened[0]);
+  await settled();
+  Deferred.doneUnsafe(letTheReadAnswer, Effect.void);
+  await settled();
+
+  expect(callsOn(connectionsOpened[0]).filter((call) => call.startsWith("read_project_changes"))).toHaveLength(4);
+  expect(readingsSent.map(transactionIdsOf)).toEqual([["t1"], ["t2", "t1"]]);
 });
 
 test("a_feed_followed_in_the_studio_runtimes_scope_closes_its_connection_as_the_studio_runtime_is_disposed", async () => {
