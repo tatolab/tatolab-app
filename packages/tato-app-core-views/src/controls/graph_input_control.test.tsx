@@ -79,7 +79,7 @@ function drawTheRow(graphInput: GraphInputOfTheStream, valueRead: StreamGraphInp
 test("dragging a ranged Input's slider sets its Graph Input's value live while it moves and live on release, committing nothing", async () => {
   const row = drawTheRow(BRIGHTNESS, { value: 0.5, comes_from: "default" });
 
-  expect(row.field("label").textContent).toBe("brightness");
+  expect(nameOfTheField(row.rowHolder, 'input[type="range"]')).toBe("brightness");
   expect(row.field("[data-graph-input-lifetime]").textContent).toBe("Kept at Stop");
   await row.moveTheSliderTo(0.8);
   expect(row.rowHolder.querySelector("[data-property-live-edit]")).not.toBeNull();
@@ -184,4 +184,21 @@ test("words refused there show over the refusal of the value last sent, and Back
   expect(backToSaved.getAttribute("aria-label")).toBe("Back to saved: cue");
   await act(async () => backToSaved.click());
   expect(row.refusalWords()).not.toContain("isn't JSON");
+});
+
+/** The accessible name of the field `selector` finds in `holder`, from the element its `aria-labelledby` names, else its `aria-label`. */
+function nameOfTheField(holder: HTMLElement, selector: string): string | null {
+  const field = holder.querySelector(selector) ?? expect.unreachable(`no ${selector}`);
+  const labelledBy = field.getAttribute("aria-labelledby");
+  return labelledBy === null ? field.getAttribute("aria-label") : (document.getElementById(labelledBy)?.textContent ?? null);
+}
+
+test("an Input whose value pin is exact but which the table cannot draw takes Perform's own field, and each field is named by the Input", () => {
+  const STRING_VALUE = { pin_type: { type: "string" }, flow: "value" } as const;
+  const sliderRow = drawTheRow({ ...BRIGHTNESS, value_pin: STRING_VALUE }, { value: 0.5, comes_from: "default" });
+  expect(nameOfTheField(sliderRow.rowHolder, 'input[type="range"]')).toBe("brightness");
+  const numberRow = drawTheRow({ ...BRIGHTNESS, node_id: "4aa0", value_address: valueOf("4aa0"), port_name: "gain", range: null, control: "number", value_pin: STRING_VALUE }, { value: 2, comes_from: "default" });
+  expect(nameOfTheField(numberRow.rowHolder, 'input[inputmode="decimal"]')).toBe("gain");
+  const jsonRow = drawTheRow({ ...CUE, value_pin: STRING_VALUE }, { value: { scene: "intro" }, comes_from: "default" });
+  expect(nameOfTheField(jsonRow.rowHolder, "input")).toBe("cue");
 });

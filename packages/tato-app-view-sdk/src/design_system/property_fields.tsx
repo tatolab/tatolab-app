@@ -180,6 +180,7 @@ export function PropertyNumberField({
   minimum,
   maximum,
   isTheTypesDefault = false,
+  labelledBy,
   onCommitted,
 }: {
   fieldId: string;
@@ -187,6 +188,8 @@ export function PropertyNumberField({
   minimum: number | null;
   maximum: number | null;
   isTheTypesDefault?: boolean;
+  /** The id of the element that names the field, where no label points at it. */
+  labelledBy?: string;
   /** The words typed, which the caller reads as a number; absent for a value that is only shown. */
   onCommitted?: (words: string) => void;
 }) {
@@ -198,6 +201,7 @@ export function PropertyNumberField({
       <input
         id={fieldId}
         inputMode="decimal"
+        aria-labelledby={labelledBy}
         {...editing}
         className={cn(PROPERTY_FIELD_CLASS_NAMES, "relative bg-transparent text-center font-mono tabular-nums", valueToneClassName(isTheTypesDefault))}
       />
@@ -220,6 +224,7 @@ export function PropertySliderField({
   onLiveEdit,
   onCommitted,
   onDragCancelled,
+  labelledBy,
   valueTypedBesideTheSlider,
 }: {
   fieldId: string;
@@ -233,6 +238,8 @@ export function PropertySliderField({
   onCommitted: (value: number) => void;
   /** Escape during a drag: the drag ends where it began, nothing is committed, and the slider moves nothing more until the press ends; without it Escape does nothing. */
   onDragCancelled?: () => void;
+  /** The id of the element that names the slider, where no label points at it. */
+  labelledBy?: string;
   /** The value beside the slider typed into: its accessible name, and the words typed, which the caller reads as a number. */
   valueTypedBesideTheSlider: { label: string; onWordsTyped: (words: string) => void };
 }) {
@@ -261,6 +268,7 @@ export function PropertySliderField({
       <input
         id={fieldId}
         type="range"
+        aria-labelledby={labelledBy}
         min={minimum}
         max={maximum}
         step={step}

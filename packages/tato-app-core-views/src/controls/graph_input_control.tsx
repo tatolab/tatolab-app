@@ -18,11 +18,6 @@ function controlledValueOf(graphInput: GraphInputOfTheStream, address: InputAddr
   return controlled === null ? null : { ...controlled, declaration: { ...controlled.declaration, label: graphInput.port_name } };
 }
 
-/** Whether Perform's own field for `graphInput` is a field a label names: a slider, a number field or the JSON field. */
-function isTheOwnFieldLabelled(graphInput: GraphInputOfTheStream): boolean {
-  return graphInput.control === "slider" || graphInput.control === "number" || graphInput.control === "json";
-}
-
 /**
  * One of the stream's inputs in Perform: its name, its family and the lifetime of a value set live on it, and the control its
  * Graph Input node draws, through the frame's binder, on the node's `value` input, so Perform and the node share one value.
@@ -31,25 +26,15 @@ function isTheOwnFieldLabelled(graphInput: GraphInputOfTheStream): boolean {
  */
 export function GraphInputControl({ graphInput }: { graphInput: GraphInputOfTheStream }) {
   const labelId = useId();
-  const fieldId = useId();
   const portName = graphInput.port_name;
   const address = graphInput.value_address;
   const controlled = useMemo(() => (address === null ? null : controlledValueOf(graphInput, address)), [graphInput, address]);
-  // The name labels the own field only where it is surely drawn: a control the table picks names itself, and the own field
-  // drawn in its place where the table has none is reached through that slot.
-  const isLabelledByItsName = address !== null && controlled === null && isTheOwnFieldLabelled(graphInput);
   return (
     <li className="flex flex-col gap-2 rounded-lg border border-line px-3.5 py-3" data-graph-input={portName}>
       <div className="flex items-center gap-2 text-xs">
-        {isLabelledByItsName ? (
-          <label id={labelId} htmlFor={fieldId} className="min-w-0 truncate text-fg">
-            {portName}
-          </label>
-        ) : (
-          <span id={labelId} className="min-w-0 truncate text-fg">
-            {portName}
-          </span>
-        )}
+        <span id={labelId} className="min-w-0 truncate text-fg">
+          {portName}
+        </span>
         <span className="ml-auto shrink-0 font-mono text-2xs text-fg-3">{graphInput.family ?? "no family"}</span>
       </div>
       {address === null ? (
@@ -57,19 +42,19 @@ export function GraphInputControl({ graphInput }: { graphInput: GraphInputOfTheS
           {whyNothingSetsTheInput(graphInput)}
         </p>
       ) : (
-        <ValueOfTheGraphInput graphInput={graphInput} address={address} controlled={controlled} labelId={labelId} fieldId={fieldId} />
+        <ValueOfTheGraphInput graphInput={graphInput} address={address} controlled={controlled} labelId={labelId} />
       )}
     </li>
   );
 }
 
 /** The value of a Graph Input that holds one: its control, where its value comes from with Back to saved while it is live, its lifetime, and the refusal of its latest value. */
-function ValueOfTheGraphInput({ graphInput, address, controlled, labelId, fieldId }: { graphInput: GraphInputOfTheStream; address: InputAddress; controlled: ControlledInput | null; labelId: string; fieldId: string }) {
+function ValueOfTheGraphInput({ graphInput, address, controlled, labelId }: { graphInput: GraphInputOfTheStream; address: InputAddress; controlled: ControlledInput | null; labelId: string }) {
   const portName = graphInput.port_name;
   const valueSource = useWhereTheInputsValueComesFrom(address, "live");
   const refusal = useRefusalOfTheInput(address);
   const [wordsRefused, setWordsRefused] = useState<string | null>(null);
-  const ownField = <OwnFieldOfTheGraphInput graphInput={graphInput} address={address} labelId={labelId} fieldId={fieldId} onWordsRefused={setWordsRefused} />;
+  const ownField = <OwnFieldOfTheGraphInput graphInput={graphInput} address={address} labelId={labelId} onWordsRefused={setWordsRefused} />;
   const isLive = valueSource?.comes_from === "live";
   // Words refused here are the person's latest act, so they show over the refusal of the value last sent.
   const refusalShown = wordsRefused ?? refusal;
@@ -82,7 +67,7 @@ function ValueOfTheGraphInput({ graphInput, address, controlled, labelId, fieldI
           input={controlled}
           surface="perform"
           readOnly={false}
-          fallback={<InputValueWords address={address} pinType={graphInput.value_pin?.pin_type ?? null} data-graph-input-value-words={portName} />}
+          fallback={<InputValueWords address={address} pinType={graphInput.value_pin?.pin_type ?? null} className="text-xs" data-graph-input-value-words={portName} />}
           noControl={ownField}
           className="w-full"
         />
@@ -124,16 +109,16 @@ function OwnFieldOfTheGraphInput({
   graphInput,
   address,
   labelId,
-  fieldId,
   onWordsRefused,
 }: {
   graphInput: GraphInputOfTheStream;
   address: InputAddress;
+  /** The id of the element naming the Input, which names each field drawn here. */
   labelId: string;
-  fieldId: string;
   onWordsRefused: (because: string | null) => void;
 }) {
   const ownField = useOwnFieldOfTheInput(address, "live");
+  const fieldId = useId();
   const drag = useRef<InputValueGesture | null>(null);
   const portName = graphInput.port_name;
   const shownValue = ownField?.shown.value ?? null;
@@ -154,6 +139,7 @@ function OwnFieldOfTheGraphInput({
           minimum={graphInput.range?.lowest ?? 0}
           maximum={graphInput.range?.highest ?? 1}
           isWholeNumber={false}
+          labelledBy={labelId}
           onDragStarted={() => {
             onWordsRefused(null);
             drag.current = ownField?.beginTheGesture() ?? null;
@@ -171,7 +157,7 @@ function OwnFieldOfTheGraphInput({
         />
       );
     case "number":
-      return <PropertyNumberField fieldId={fieldId} value={typeof shownValue === "number" ? shownValue : null} minimum={null} maximum={null} onCommitted={(words) => releaseTheWordsTyped(numberFromTheWordsTyped(words))} />;
+      return <PropertyNumberField fieldId={fieldId} value={typeof shownValue === "number" ? shownValue : null} minimum={null} maximum={null} labelledBy={labelId} onCommitted={(words) => releaseTheWordsTyped(numberFromTheWordsTyped(words))} />;
     case "toggle":
       return <ToggleSwitch isOn={shownValue === true} onSwitched={release} labelledBy={labelId} data-graph-input-toggle={portName} />;
     case "json":
@@ -179,6 +165,7 @@ function OwnFieldOfTheGraphInput({
         <PropertyTextField
           fieldId={fieldId}
           words={shownValue === null ? "" : JSON.stringify(shownValue)}
+          label={portName}
           onCommitted={(words) => releaseTheWordsTyped(graphInput.family === "records" ? jsonObjectFromTheWordsTyped(words) : jsonFromTheWordsTyped(words))}
         />
       );
