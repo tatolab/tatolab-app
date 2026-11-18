@@ -200,17 +200,6 @@ async function controlOperationAnswerOfTheCall<Method extends ControlOperationMe
   }
 }
 
-/** Call `method` with `params` in one `POST /control` to the local API at `localApiSocketPath`, giving up after `responseTimeoutMs`. */
-export function callOneControlOperationOverAPost<Method extends ControlOperationMethodName>(
-  localApiSocketPath: string,
-  method: Method,
-  params: ControlOperationParams<Method>,
-  responseTimeoutMs: number,
-): Promise<Result<ControlOperationAnswer<Method>, LocalApiRequestFailure>> {
-  const controlClient = controlClientOfOnePost(localApiSocketPath);
-  return controlOperationAnswerOfTheCall(method, localApiSocketPath, responseTimeoutMs, (callOptions) => controlClient.call(method, params, callOptions));
-}
-
 /** One answer to a plain HTTP request of the local API: its status and its body as UTF-8 text. */
 export interface LocalApiHttpResponse {
   readonly statusCode: number;

@@ -6,11 +6,24 @@ import { mkdtemp, rm } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { Effect } from "effect";
-import { LocalApiClient } from "./local_api_client.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
 import type { RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
+
+/** `runtimeOperation` run over the local API at `localApiSocketPath`, each request given up after `defaultTimeLimitMs`: its answer, or the failure it ended with. */
+export function runOverTheLocalApiAt<Answer>(
+  localApiSocketPath: string,
+  runtimeOperation: Effect.Effect<Answer, RuntimeControlFailure, RuntimeControl>,
+  defaultTimeLimitMs: number,
+): Promise<Result<Answer, RuntimeControlFailure>> {
+  return Effect.runPromise(
+    runtimeOperation.pipe(
+      Effect.match({ onSuccess: (answer): Result<Answer, RuntimeControlFailure> => succeeded(answer), onFailure: (failure) => failedWith(failure) }),
+      Effect.provide(runtimeControlLayer(localApiSocketPath, defaultTimeLimitMs)),
+    ),
+  );
+}
 
 /** The temporary directory the socket goes in: macOS caps a socket path at 104 bytes, which its `$TMPDIR` alone nearly fills. */
 const SHORT_TEMPORARY_DIRECTORY_PREFIX = "/tmp/tl-app-";
@@ -75,20 +88,11 @@ export class FakeLocalApiServer {
     this.responsesLeft.push(...scriptedResponses);
   }
 
-  /** A client of this server. */
-  client(): LocalApiClient {
-    return new LocalApiClient(this.localApiSocketPath, 2_000);
+  /** `runtimeOperation` run against this server, each request given up after `defaultTimeLimitMs`: its answer, or the failure it ended with. */
+  run<Answer>(runtimeOperation: Effect.Effect<Answer, RuntimeControlFailure, RuntimeControl>, defaultTimeLimitMs = 2_000): Promise<Result<Answer, RuntimeControlFailure>> {
+    return runOverTheLocalApiAt(this.localApiSocketPath, runtimeOperation, defaultTimeLimitMs);
   }
 
-  /** `runtimeOperation` run against this server: its answer, or the failure it ended with. */
-  run<Answer>(runtimeOperation: Effect.Effect<Answer, RuntimeControlFailure, RuntimeControl>): Promise<Result<Answer, RuntimeControlFailure>> {
-    return Effect.runPromise(
-      runtimeOperation.pipe(
-        Effect.match({ onSuccess: (answer) => succeeded(answer), onFailure: (failure) => failedWith(failure) }),
-        Effect.provide(runtimeControlLayer(this.localApiSocketPath, 2_000)),
-      ),
-    );
-  }
 
   /** Every request the server read, in order. */
   receivedRequests(): string[] {

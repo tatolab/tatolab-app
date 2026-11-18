@@ -25,8 +25,9 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import { assetPreviewPictureFromTheReadAssetPreviewToolResult, type AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
 import { listedStreamsFromTheListStreamsToolResult } from "./listed_streams_on_the_wire.js";
-import { jsonTextKeepingTheWrittenNumbers, prettyJsonTextKeepingTheWrittenNumbers } from "./json_on_the_wire.js";
+import { isAJsonObject, jsonTextKeepingTheWrittenNumbers, parseJsonOnTheWire, prettyJsonTextKeepingTheWrittenNumbers, requiredText } from "./json_on_the_wire.js";
 import { bodyOfAnOkAnswer } from "./local_api_plain_http.js";
+import { failedWith } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectAssetListingFromTheListAssetsToolResult } from "./project_asset_listing.js";
@@ -59,7 +60,7 @@ import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_lis
 import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTheListAssetsToolResult, type ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
 import { projectViewsFromTheListProjectViewsToolResult, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
-import { ContractMismatch, type RuntimeControlFailure } from "./runtime_control_failures.js";
+import { ContractMismatch, RuntimeRefused, type RuntimeControlFailure } from "./runtime_control_failures.js";
 import { runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./runtime_description_on_the_wire.js";
 import {
   projectCreationQueuedFromTheCreateProjectToolResult,
@@ -357,4 +358,38 @@ export function createProject(projectDirectory: string | null): Effect.Effect<Pr
 /** How the running runtime describes itself through `describe_runtime`: its version, build, uptime and own log folder. */
 export function describeRuntime(): Effect.Effect<RuntimeDescription, RuntimeControlFailure, RuntimeControl> {
   return controlOperationReadWith("describe_runtime", {}, runtimeDescriptionFromTheDescribeRuntimeToolResult);
+}
+
+/** Whether the runtime is up: it answers `GET /health` with `200 ok`; any other answer is refused naming it. */
+export function checkTheRuntimesHealth(): Effect.Effect<void, RuntimeControlFailure, RuntimeControl> {
+  return RuntimeControl.use((runtimeControl) => runtimeControl.get("/health")).pipe(
+    Effect.flatMap((response) => {
+      const body = response.body.trim();
+      if (response.statusCode === 200 && body === "ok") return Effect.void;
+      return Effect.fail(
+        new RuntimeRefused({ operation: "GET /health", words: `the runtime answered /health with ${response.statusCode}: ${body}`, byTheOperation: false, refusal: undefined }),
+      );
+    }),
+  );
+}
+
+/** This machine's name, as `GET /api/graph` states it beside every loaded stream's graph; refused in the runtime's own words. */
+export function readTheMachineName(): Effect.Effect<string, RuntimeControlFailure, RuntimeControl> {
+  const requestTarget = "/api/graph";
+  return RuntimeControl.use((runtimeControl) => runtimeControl.get(requestTarget)).pipe(
+    Effect.flatMap((response) => bodyOfAnOkAnswer(requestTarget, response)),
+    Effect.flatMap((graphBody) => {
+      const graph = parseJsonOnTheWire(graphBody);
+      const machine = graph.ok ? (isAJsonObject(graph.value) ? requiredText(graph.value, "machine") : failedWith("the graph is not an object")) : graph;
+      return fromResult(
+        machine,
+        (why) => new ContractMismatch({ operation: `GET ${requestTarget}`, contractType: "the graph export", direction: "answer", words: `the runtime's /api/graph names no machine: ${why}` }),
+      );
+    }),
+  );
+}
+
+/** The close of the open project in `projectDirectory` queued through the runtime's `close_project`, which ends its playback and unloads every stream of it: the id of the action it queued. */
+export function closeProject(projectDirectory: string): Effect.Effect<string, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("close_project", { project_directory: projectDirectory }, (answered) => queuedStreamActionFromTheToolResult("close_project", answered));
 }

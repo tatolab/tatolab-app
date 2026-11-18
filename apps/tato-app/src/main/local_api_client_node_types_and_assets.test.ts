@@ -3,7 +3,7 @@ import { afterEach, expect, test } from "vitest";
 import { FakeLocalApiServer, controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationFailedResponse } from "./fake_local_api_server.js";
 import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./local_api_client_test_support.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { describeNodeCatalog, listProjectAssets, listProjectNodeTypes, readAssetPreview } from "./runtime_operations.js";
+import { describeNodeCatalog, listProjectAssets, listProjectNodeTypes, nameTheProject, readAssetPreview } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -143,17 +143,17 @@ test("a_real_asset_listing_names_the_project_and_a_folder_that_is_not_a_project_
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-assets-refusal-for-a-folder-that-is-not-a-project.json")),
   ]);
 
-  expect(answerOf(await server.client().nameTheProject("/tmp/tatolab-proof-projects/night-show"))).toEqual({
+  expect(answerOf(await server.run(nameTheProject("/tmp/tatolab-proof-projects/night-show")))).toEqual({
     folder: "/tmp/tatolab-proof-projects/night-show",
     project: "cc5046d5-d8b7-4ecf-82e7-3f0e511b2ab0",
     name: "night-show",
   });
-  expect(answerOf(await server.client().nameTheProject("/tmp/tatolab-proof-projects/night-show/imports/lobby-wall"))).toEqual({
+  expect(answerOf(await server.run(nameTheProject("/tmp/tatolab-proof-projects/night-show/imports/lobby-wall")))).toEqual({
     folder: "/tmp/tatolab-proof-projects/night-show/imports/lobby-wall",
     project: "dde5a62f-b0a8-45d2-a741-79140871f978",
     name: "lobby-wall",
   });
-  expect(failureOf(await server.client().nameTheProject("/tmp/tatolab-proof-projects/not-a-project")).failureDescription).toBe(
+  expect(failureOf(await server.run(nameTheProject("/tmp/tatolab-proof-projects/not-a-project"))).words).toBe(
     "list_assets failed: /tmp/tatolab-proof-projects/not-a-project holds no project: it has no tatolab-project.json",
   );
   expect(controlOperationCallsReceivedBy(server).map(([toolName]) => toolName)).toEqual(["list_assets", "list_assets", "list_assets"]);

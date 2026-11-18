@@ -1,13 +1,11 @@
-// The app's one controller: it owns the runtime the app runs as its child, the `tatolab` command's
-// link and the local API client, and composes the status the tray and the window show.
+// The app's one controller: it owns the runtime the app runs as its child and the `tatolab` command's
+// link, and composes the status the tray and the window show from what the runtime's local API answers.
 
 import type {
   ListedStream,
-  ProjectStreamActionQueued,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
   StudioWarning,
-  ProjectTheRuntimeNames,
   TatolabAppBuild,
   TatolabAppUpdateAnnouncement,
   TatolabAppUpdateState,
@@ -18,14 +16,13 @@ import { Effect, Layer } from "effect";
 import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_apps_child.js";
 import type { StreamActionChangesFollowedForTheStatus } from "./stream_action_changes_followed_for_the_status.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
-import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
-import { LocalApiClient } from "./local_api_client.js";
-import { type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import type { TatolabCommandLineToolLink } from "./platform/command_line_tool_link_in_the_home_folder.js";
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
-import { failedWith, type Result } from "./result.js";
+import { failedWith, succeeded, type Result } from "./result.js";
+import type { RuntimeControlFailure } from "./runtime_control_failures.js";
+import { checkTheRuntimesHealth, listStreams, readTheMachineName } from "./runtime_operations.js";
 import { readTheAnsweringRuntimesIdentity, readTheRuntimesContractAge, type RuntimeContractAgeReading } from "./runtime_contract_age.js";
 import { tatolabAppLogAsEffectsLogger } from "./studio_runtime.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
@@ -99,7 +96,6 @@ export class TatolabAppController {
     private readonly carriedRuntimeRunAsTheAppsChild: CarriedRuntimeRunAsTheAppsChild,
     private readonly commandLineToolLink: TatolabCommandLineToolLink,
     private readonly localApiSocket: string,
-    private readonly localApiClient: LocalApiClient,
     /** The runtime's control API, and Effect's logs written to the app's log. */
     private readonly studioEffectLayer: Layer.Layer<RuntimeControl>,
     private readonly readTheAppUpdateState: () => TatolabAppUpdateState,
@@ -129,7 +125,6 @@ export class TatolabAppController {
       ),
       sources.platformForThisBuild.commandLineToolLink,
       sources.platformForThisBuild.localApiSocket,
-      new LocalApiClient(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS),
       Layer.merge(runtimeControlLayer(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS), tatolabAppLogAsEffectsLogger(sources.tatolabAppLog)),
       sources.readTheAppUpdateState,
       sources.readTheAppUpdateAnnouncement,
@@ -160,7 +155,7 @@ export class TatolabAppController {
 
   /** "Restart runtime": stop the app's runtime and start it again; refused for a runtime the app did not start. */
   async restartTheRuntimeOnRequest(): Promise<Result<void, string>> {
-    const healthCheck = await this.localApiClient.checkHealth();
+    const healthCheck = await this.answerOf(checkTheRuntimesHealth());
     const restarted = this.carriedRuntimeRunAsTheAppsChild.restartOnRequest(healthCheck.ok);
     if (!restarted.ok) this.tatolabAppLog.warn("the runtime could not be restarted on request", { failure: restarted.failure });
     return restarted;
@@ -186,7 +181,7 @@ export class TatolabAppController {
 
   /** Observe everything once at `nowMs`, start the app's runtime when none answers, and compose the status. */
   async composeStatus(nowMs: number): Promise<TatolabStatus> {
-    const healthCheck = await this.localApiClient.checkHealth();
+    const healthCheck = await this.answerOf(checkTheRuntimesHealth());
     let streams: ListedStream[] | null = null;
     let streamsNotListedBecause: string | null = null;
     let machineName: string | null = null;
@@ -210,7 +205,7 @@ export class TatolabAppController {
     if (this.runtimeNotRunningOnset.conditionJustStartedHolding(runtimeState === "not_running") && !healthCheck.ok) {
       this.tatolabAppLog.warn("the runtime is not answering its health check", {
         runtime_not_running_because: runtimeNotRunningBecause,
-        failure: healthCheck.failure.failureDescription,
+        failure: healthCheck.failure,
       });
     }
 
@@ -240,40 +235,20 @@ export class TatolabAppController {
     };
   }
 
-  /** Queue the close of the open project in `projectDirectory` through the runtime's `close_project`, answering the id of the action the runtime queued. */
-  closeProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
-    return this.localApiClient.closeProject(projectDirectory);
-  }
-
-  /** Queue the reload from disk of the open project in `projectDirectory`, keeping its playback, through the runtime's `reload_project`. */
-  reloadProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
-    return this.localApiClient.reloadProject(projectDirectory);
-  }
-
-  /** The project in `projectDirectory` as the runtime names it. */
-  nameTheProject(projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
-    return this.localApiClient.nameTheProject(projectDirectory);
-  }
-
-  /** Each import of the project in `projectDirectory`, each source read for a newer version with `checkForNewer`. */
-  listDependencies(projectDirectory: string, checkForNewer: boolean): Promise<Result<ListedProjectDependency[], LocalApiRequestFailure>> {
-    return this.localApiClient.listDependencies(projectDirectory, checkForNewer);
-  }
-
   /** The runtime's streams, or why listing them failed, which is logged on the round it starts failing. */
   private async listedStreams(): Promise<Result<ListedStream[], string>> {
-    const streams = await this.localApiClient.listStreams();
+    const streams = await this.answerOf(listStreams());
     if (this.streamListingFailureOnset.conditionJustStartedHolding(!streams.ok) && !streams.ok) {
-      this.tatolabAppLog.warn("the runtime's streams could not be listed", { failure: streams.failure.failureDescription });
+      this.tatolabAppLog.warn("the runtime's streams could not be listed", { failure: streams.failure });
     }
-    return streams.ok ? streams : failedWith(streams.failure.failureDescription);
+    return streams;
   }
 
   private async askTheRuntimeItsMachineName(): Promise<string | null> {
-    const machineName = await this.localApiClient.machineName();
+    const machineName = await this.answerOf(readTheMachineName());
     if (machineName.ok) return machineName.value;
     this.tatolabAppLog.warn("the runtime's machine name could not be read; it is asked again once the runtime restarts", {
-      failure: machineName.failure.failureDescription,
+      failure: machineName.failure,
     });
     return null;
   }
@@ -316,6 +291,13 @@ export class TatolabAppController {
         break;
     }
     return reading;
+  }
+
+  /** `runtimeOperation` run on the runtime's control API to its end: its answer, or its failure in its words. */
+  private answerOf<Answer>(runtimeOperation: Effect.Effect<Answer, RuntimeControlFailure, RuntimeControl>): Promise<Result<Answer, string>> {
+    return this.runEffect(
+      runtimeOperation.pipe(Effect.match({ onSuccess: (answer): Result<Answer, string> => succeeded(answer), onFailure: (failure) => failedWith(failure.words) })),
+    );
   }
 
   /** Run `effect` on the runtime's control API, its logs written to the app's log. */
