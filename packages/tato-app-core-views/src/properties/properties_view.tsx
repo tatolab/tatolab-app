@@ -493,9 +493,8 @@ function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port:
               label: `Promote ${pin.name} to a Graph Input`,
               onPromoted: () => {
                 const nodeNamesTaken = new Set(graph.nodes.map((graphNode) => graphNode.name));
-                // The store's value, not the reading's: a value set live since the graph was read changes no reading.
-                const input = state.kind === "holds_a_value" ? { ...port, value_read: inputValues.shownValue(state.address) } : port;
-                void graphEdits.commit(place, promoteToGraphInput(streamAsset, { node, input, isOnTheStreamsOwnLevel: level.length === 0, nodeNamesTaken }));
+                const valueShown = state.kind === "holds_a_value" ? inputValues.shownValue(state.address).value : (port.value_read?.value ?? null);
+                void graphEdits.commit(place, promoteToGraphInput(streamAsset, { node, input: port, valueShown, isOnTheStreamsOwnLevel: level.length === 0, nodeNamesTaken }));
               },
             }
       }

@@ -209,3 +209,17 @@ test("a_value_change_pushed_while_the_graph_is_read_again_is_kept_over_what_that
   const last = told.at(-1);
   expect(last?.kind === "values" && last.values[0]?.value_read).toEqual({ value: 0.9, comes_from: "live" });
 });
+
+test("a_node_a_commit_adds_has_its_values_told_before_the_graph_that_draws_it", async () => {
+  vi.useFakeTimers();
+  const { backend, served, pushTheStreamGraphChanged } = countingBackend();
+  const readings = new StreamGraphAndCatalogReadings(backend);
+  const told: string[] = [];
+  readings.watchStreamGraph("main", (reading) => told.push(reading.kind === "read" ? `graph ${reading.graph.nodes.length}` : reading.kind));
+  readings.watchStreamInputValues("main", (reading) => told.push(reading.kind === "values" ? `values ${reading.values.length}` : reading.kind));
+  await vi.advanceTimersByTimeAsync(10);
+  served.graphTypes = ["A", "B"];
+  pushTheStreamGraphChanged("main");
+  await vi.advanceTimersByTimeAsync(10);
+  expect(told).toEqual(["values 1", "graph 1", "values 2", "graph 2"]);
+});

@@ -198,9 +198,10 @@ test.skipIf(liveLocalApiSocket === "" || liveLoadedStream === "")("a_real_runtim
   await shell.value.callControlOperation("transact", { operations: [{ operation: "set_node_input_value", stream: streamAsset, node: numberInput.node, input: numberInput.input, value: null }], mode: "live" });
   shell.value.close();
 
-  await expect.poll(() => studioWindow.sent.at(-1)?.[1]?.value_read.comes_from, { timeout: 5_000 }).not.toBe("live");
-  const pushedAfterTheFirstRead = studioWindow.sent.slice(1);
-  expect(pushedAfterTheFirstRead.filter(([, inputValueChange]) => inputValueChange === null)).toEqual([]);
-  expect(pushedAfterTheFirstRead.every(([, inputValueChange]) => inputValueChange?.node === numberInput.node && inputValueChange.input === numberInput.input)).toBe(true);
+  const pushedAfterTheFirstRead = (): readonly [string, StreamGraphInputValueChange | null][] => studioWindow.sent.slice(1);
+  await expect.poll(() => pushedAfterTheFirstRead().some(([, inputValueChange]) => inputValueChange?.value_read.comes_from === "live" && inputValueChange.value_read.value === 0.8), { timeout: 5_000 }).toBe(true);
+  await expect.poll(() => pushedAfterTheFirstRead().at(-1)?.[1]?.value_read.comes_from, { timeout: 5_000 }).toBeOneOf(["saved", "default", null]);
+  expect(pushedAfterTheFirstRead().filter(([, inputValueChange]) => inputValueChange === null)).toEqual([]);
+  expect(pushedAfterTheFirstRead().every(([, inputValueChange]) => inputValueChange?.node === numberInput.node && inputValueChange.input === numberInput.input)).toBe(true);
   followed.stopFollowingEverySubject();
 });
