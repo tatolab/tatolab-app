@@ -50,8 +50,8 @@ function refusalOfAnImportsFile(file: string): CommandRefused {
   return new CommandRefused({ words: `${file} belongs to an imported project, which the studio opens read-only.` });
 }
 
-function refusalOfAFileOutsideTheProject(file: string): string {
-  return `${file} is not a file of the open project or its imports, so Tatolab does not open it.`;
+function refusalOfAFileOutsideTheProject(file: string): CommandRefused {
+  return new CommandRefused({ words: `${file} is not a file of the open project or its imports, so Tatolab does not open it.` });
 }
 
 /** The open project's folder and the folder of each of its imports, inside its `imports/`, from `reading`; `null` while no project is read. */
@@ -84,7 +84,7 @@ function addressOf(reading: OpenProjectReading, file: string): Effect.Effect<Ope
   const folders = foldersOfTheOpenProject(reading);
   const resolvedFile = path.resolve(file);
   if (folders === null || !path.isAbsolute(file) || !isInsideTheFolder(resolvedFile, folders.open_project_folder)) {
-    return Effect.fail(new CommandRefused({ words: refusalOfAFileOutsideTheProject(file) }));
+    return Effect.fail(refusalOfAFileOutsideTheProject(file));
   }
   const importFolder = folders.import_folders.find((folder) => isInsideTheFolder(resolvedFile, folder));
   return Effect.succeed({
@@ -99,6 +99,12 @@ function addressOf(reading: OpenProjectReading, file: string): Effect.Effect<Ope
 function addressOfAnEditableFile(reading: OpenProjectReading, file: string): Effect.Effect<OpenProjectFileAddress, CommandRefused> {
   return addressOf(reading, file).pipe(Effect.filterOrFail((fileAddress) => fileAddress.is_editable, () => refusalOfAnImportsFile(file)));
 }
+
+/** Who a change Studio asks of the runtime is by, the person editing in Studio, and the idempotency key it is recorded under once. */
+const aChangeByThePersonEditingInStudio = Effect.all({
+  author: PersonEditingInStudio.use(({ author }) => Effect.succeed(author)),
+  idempotencyKey: IdempotencyKeys.use(({ mint }) => mint),
+});
 
 /** The text of `file`, its version, and whether it may be saved; refused for a file outside the open project and its imports, or in the runtime's words. */
 export const readTheOpenProjectsFile = Effect.fn("readTheOpenProjectsFile")(function* (reading: OpenProjectReading, file: string) {
@@ -138,8 +144,7 @@ export const saveTheOpenProjectsFile = Effect.fn("saveTheOpenProjectsFile")(func
   }
   const versionSaved = projectFileVersionOf(text);
   if (versionSaved !== versionNow) {
-    const { author } = yield* PersonEditingInStudio;
-    const idempotencyKey = yield* (yield* IdempotencyKeys).mint;
+    const { author, idempotencyKey } = yield* aChangeByThePersonEditingInStudio;
     yield* writeProjectFile(openProjectFolder, pathInTheOpenProject, text, author, idempotencyKey);
   }
   return { version: versionSaved } satisfies ProjectFileSaved;
@@ -148,8 +153,7 @@ export const saveTheOpenProjectsFile = Effect.fn("saveTheOpenProjectsFile")(func
 /** A new node file at `file`, inside the open project's own folder, from the runtime's node template as one transaction on its history by the person editing in Studio; refused for an import's file or in the runtime's words. */
 export const createANodeFileInTheOpenProject = Effect.fn("createANodeFileInTheOpenProject")(function* (reading: OpenProjectReading, file: string) {
   const fileAddress = yield* addressOfAnEditableFile(reading, file);
-  const { author } = yield* PersonEditingInStudio;
-  const idempotencyKey = yield* (yield* IdempotencyKeys).mint;
+  const { author, idempotencyKey } = yield* aChangeByThePersonEditingInStudio;
   const created = yield* createNodeFile(fileAddress.open_project_folder, fileAddress.path_in_the_open_project, author, idempotencyKey);
   return { file: path.resolve(file), node_type: created.node_type } satisfies NodeFileCreated;
 });

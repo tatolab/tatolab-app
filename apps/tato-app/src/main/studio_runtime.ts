@@ -17,7 +17,6 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import { projectPlaybackAsListed, streamsOfTheProjectIn, theStreamsListTheProjectOpen, type ProjectPlaybackAsListed } from "../shared/project_playback.js";
 import { downloadTheCatalogEntrysZip } from "./marketplace_module_download.js";
-import { projectFolderOfTheOpenProject } from "./open_project_files.js";
 import type { ProjectFolderDialogPurpose, RecentProjectFolderOpened, StudioWindowOfTheProjectShown } from "./open_project.js";
 import type { ProjectAssetFileFilter } from "./project_asset_file_filters.js";
 import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
@@ -300,8 +299,7 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
           if (sharedState.appWindows.isTheProjectsWindow(commandFromWindow.windowContentsId)) sharedState.appWindows.projectsWindow.hide();
         }),
       folderOfTheWindowsOpenProject: (commandFromWindow, folder) => {
-        const studioWindow = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId);
-        const openProjectFolder = studioWindow === null ? null : projectFolderOfTheOpenProject(studioWindow.openProject.readOpenProject(), folder);
+        const openProjectFolder = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId)?.openProject.projectFolderOfTheOpenProject(folder);
         return openProjectFolder?.ok === true ? openProjectFolder.value : null;
       },
     }),

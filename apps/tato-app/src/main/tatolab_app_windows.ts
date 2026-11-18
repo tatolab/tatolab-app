@@ -7,7 +7,6 @@
 import path from "node:path";
 import type { OpenProjectReading, PoppedOutView, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import type { ModulesShown } from "../shared/tatolab_electron_bridge_contract.js";
-import { projectFolderOfTheOpenProject } from "./open_project_files.js";
 import { OpenProjectOfAStudioWindow, type FolderEntriesWatch, type ProjectReadingsOfTheRuntime, type StudioWindowOfTheProjectShown } from "./open_project.js";
 import { ProjectTransactionsFeedOfAStudioWindow, type ProjectTransactionsFeedOfAStudioWindowSources } from "./project_transactions_feed.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
@@ -371,7 +370,7 @@ export class TatolabAppWindows {
       openProject,
       projectTransactionsFeed,
       languageServerOfTheWindow: {
-        projectFolderOfTheOpenProject: (folder) => projectFolderOfTheOpenProject(openProject.readOpenProject(), folder),
+        projectFolderOfTheOpenProject: (folder) => openProject.projectFolderOfTheOpenProject(folder),
         sendTheWindowALanguageServerEvent: (event: PythonLanguageServerEvent) => tatolabMainWindow.sendTheWindowALanguageServerEvent(event),
       },
       poppedOutViews: new Map(),

@@ -60,7 +60,6 @@ export class LocalApiClient {
     return this.answerOf(listStreams());
   }
 
-
   /** This machine's name, as `GET /api/graph` states it beside every loaded stream's graph. */
   async machineName(): Promise<Result<string, LocalApiRequestFailure>> {
     const graphBody = await this.getBodyOfAnOkAnswer("/api/graph");
@@ -91,7 +90,6 @@ export class LocalApiClient {
     return this.answerOf(createProject(projectDirectory));
   }
 
-
   /** Queue the open of the closed or never-opened project in `projectDirectory`, which loads every stream asset in it with its playback stopped; answered at once, refused in the runtime's own words, as for an open project, which `reloadProject` re-reads. */
   openProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
     return this.answerOf(openProject(projectDirectory));
@@ -111,7 +109,6 @@ export class LocalApiClient {
   listDependencies(projectDirectory: string, checkForNewer: boolean): Promise<Result<ListedProjectDependency[], LocalApiRequestFailure>> {
     return this.answerOf(listDependencies(projectDirectory, checkForNewer));
   }
-
 
   /** `GET requestTarget`, answering the body of a `200`; any other answer is refused in the runtime's own words when its body carries them. */
   private getBodyOfAnOkAnswer(requestTarget: string): Promise<Result<string, LocalApiRequestFailure>> {

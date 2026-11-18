@@ -5,12 +5,13 @@ import path from "node:path";
 import { Effect, ManagedRuntime } from "effect";
 import { afterEach, expect, test } from "vitest";
 import type { ListedStream } from "../shared/tatolab_backend_contract.js";
-import { controlOperationFailedResponse, controlOperationResponseOfTheRecordedToolResponse, FakeLocalApiServer, httpResponse } from "./fake_local_api_server.js";
+import { controlOperationFailedResponse, controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse, FakeLocalApiServer, httpResponse } from "./fake_local_api_server.js";
 import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { succeeded } from "./result.js";
-import { reloadTheOpenProjectAfterASaveOfItsPythonFile } from "./tatolab_open_project_commands.js";
+import { openProjectCommandHandlersOf, reloadTheOpenProjectAfterASaveOfItsPythonFile } from "./tatolab_open_project_commands.js";
+import { projectFileVersionOf } from "./open_project_files.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
-import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, cleanUps, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS, recordedResponseBody, sharedStateOverFakes, listedStreamOfTheProject, statusLastPublishedListing, aLocalApiQueuingEachProjectAction, studioServicesLayerForTest } from "./tatolab_commands_test_support.js";
+import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, cleanUps, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS, recordedResponseBody, sharedStateOverFakes, listedStreamOfTheProject, statusLastPublishedListing, aLocalApiQueuingEachProjectAction, studioServicesLayerForTest, STUDIO_WINDOW_UNDER_TEST } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
@@ -63,6 +64,61 @@ test("a reload the runtime refuses after a save is logged in its own words, and 
 
   expect(statusRounds).toBe(1);
   expect(loggedLines.find((logLine) => logLine.includes("refused to reload the project after a save"))).toContain("reload_project failed: the project's history is busy");
+});
+
+test("a save from the studio window writes the file by the person editing, then reloads the open project for a Python file; a refused save reloads nothing, and bad arguments or the Projects window are refused", async () => {
+  const hallways = STUDIO_WINDOW_UNDER_TEST.projectFolder;
+  const fromTheStudioWindow = { windowContentsId: STUDIO_WINDOW_UNDER_TEST.windowContentsId };
+  const heldText = "class Invert: ...\n";
+  const filesByPath = new Map([["nodes/invert.py", Buffer.from(heldText)]]);
+  const operationsAsked: [string, unknown][] = [];
+  const localApiServer = await FakeLocalApiServer.answeringEachControlOperation(async (method, params) => {
+    operationsAsked.push([method, method === "write_project_file" ? { path: params["path"], content: params["content"], idempotency_key: params["idempotency_key"] } : params["project_directory"]]);
+    switch (method) {
+      case "list_project_files":
+        return controlOperationResultResponse({ files: [...filesByPath.entries()].map(([filePath, fileBytes]) => ({ path: filePath, byte_len: fileBytes.length })) });
+      case "read_project_file": {
+        const fileBytes = filesByPath.get(String(params["path"])) ?? Buffer.from("");
+        return controlOperationResultResponse({ path: params["path"], byte_len: fileBytes.length, content_base64: fileBytes.toString("base64"), content_sha256: projectFileVersionOf(fileBytes) });
+      }
+      case "write_project_file":
+        filesByPath.set(String(params["path"]), Buffer.from(String(params["content"])));
+        return controlOperationResultResponse({ path: params["path"], content_sha256: projectFileVersionOf(String(params["content"])), transaction: "a1b2c3d4-0000-4000-8000-000000000001", commit: "4f102d0624025485316c83cd6d759672c34fb18a" });
+      case "reload_project":
+        return controlOperationResultResponse({ action: "reload_project-1", project_directory: params["project_directory"] });
+      default:
+        return null;
+    }
+  });
+  cleanUps.push(() => localApiServer.close());
+  const studioRuntime = ManagedRuntime.make(
+    studioServicesLayerForTest({
+      localApiSocketPath: localApiServer.localApiSocketPath,
+      openProjectReading: { kind: "read", open_project: { project: { folder: hallways, project: "6f1d0b7e-hallways", name: "hallways" }, imports: [], imports_not_listed_because: null } },
+      theProjectIsListedOpen: (projectFolder) => projectFolder === hallways,
+    }),
+  );
+  cleanUps.push(() => studioRuntime.dispose());
+  const { save_project_file: saveProjectFile } = openProjectCommandHandlersOf(await sharedStateOverFakes([], "linux"), studioRuntime);
+  const invertPy = path.join(hallways, "nodes", "invert.py");
+
+  expect(await saveProjectFile({ file: invertPy, text: "# edited\n", based_on_version: projectFileVersionOf(heldText) }, fromTheStudioWindow)).toEqual({
+    ok: true,
+    value: { version: projectFileVersionOf("# edited\n") },
+  });
+  expect(operationsAsked.filter(([method]) => method === "write_project_file" || method === "reload_project")).toEqual([
+    ["write_project_file", { path: "nodes/invert.py", content: "# edited\n", idempotency_key: "a-key-1" }],
+    ["reload_project", hallways],
+  ]);
+  operationsAsked.length = 0;
+
+  expect(await saveProjectFile({ file: invertPy, text: "# mine\n", based_on_version: projectFileVersionOf(heldText) }, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: "invert.py changed since it was opened, so it was not saved.",
+  });
+  expect(await saveProjectFile({ file: invertPy, text: "# mine\n" }, fromTheStudioWindow)).toEqual({ ok: false, refusal: expect.stringMatching(/^save_project_file: /) });
+  expect(await saveProjectFile({ file: invertPy, text: "# mine\n", based_on_version: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+  expect(operationsAsked.map(([method]) => method)).toEqual(["list_project_files", "read_project_file"]);
 });
 
 test("Live opens then plays a closed project, reloads then plays a stopped one with a failed stream, only reloads a playing one with a failed stream, resumes a paused one, and plays any other open one; Pause pauses it", async () => {
