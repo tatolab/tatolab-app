@@ -20,7 +20,7 @@ export const importTheFilesThePersonChooses = Effect.fn("importTheFilesThePerson
   author: ProjectTransactionAuthor,
 ) {
   const { homeDirectory } = yield* ThisMachinesFolders;
-  const chosenFiles = yield* (yield* ProjectDialogs).chooseProjectAssetFiles(homeDirectory, projectAssetFileFiltersFor(media));
+  const chosenFiles = yield* (yield* ProjectDialogs).chooseAProjectsAssetFiles(homeDirectory, projectAssetFileFiltersFor(media));
   if (chosenFiles === null || chosenFiles.length === 0) return null;
   const assetsImported: ProjectAssetsImported = { imported: [], refused: [] };
   for (const chosenFile of chosenFiles) {

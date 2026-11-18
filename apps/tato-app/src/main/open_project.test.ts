@@ -385,7 +385,7 @@ async function anOpenProject(options: {
           coverImageDialogsAsked.push(defaultFolder);
           return options.coverImageDialogAnswers ?? null;
         }),
-      chooseProjectAssetFiles: () => Effect.succeed(null),
+      chooseAProjectsAssetFiles: () => Effect.succeed(null),
     }),
     Layer.succeed(RecentProjects, {
       readRecentFolders: Effect.sync(() => recentFolders),

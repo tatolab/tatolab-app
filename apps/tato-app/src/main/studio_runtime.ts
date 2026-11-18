@@ -62,7 +62,7 @@ export class ProjectDialogs extends Context.Service<
     readonly chooseAProjectFolder: (purpose: ProjectFolderDialogPurpose, defaultFolder: string) => Effect.Effect<string | null, CommandRefused>;
     readonly chooseAProjectArchive: (defaultFolder: string) => Effect.Effect<string | null, CommandRefused>;
     readonly chooseAProjectCoverImage: (defaultFolder: string) => Effect.Effect<string | null, CommandRefused>;
-    readonly chooseProjectAssetFiles: (defaultFolder: string, fileFilters: readonly ProjectAssetFileFilter[]) => Effect.Effect<readonly string[] | null, CommandRefused>;
+    readonly chooseAProjectsAssetFiles: (defaultFolder: string, fileFilters: readonly ProjectAssetFileFilter[]) => Effect.Effect<readonly string[] | null, CommandRefused>;
   }
 >()("tatolab-app/ProjectDialogs") {}
 
@@ -261,7 +261,7 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
       chooseAProjectFolder: (purpose, defaultFolder) => commandAnswerOfPlainCode(() => sharedState.projectFolderDialog(purpose, defaultFolder)),
       chooseAProjectArchive: (defaultFolder) => commandAnswerOfPlainCode(() => sharedState.projectArchiveDialog(defaultFolder)),
       chooseAProjectCoverImage: (defaultFolder) => commandAnswerOfPlainCode(() => sharedState.projectCoverImageDialog(defaultFolder)),
-      chooseProjectAssetFiles: (defaultFolder, fileFilters) => commandAnswerOfPlainCode(() => sharedState.projectAssetFilesDialog(defaultFolder, fileFilters)),
+      chooseAProjectsAssetFiles: (defaultFolder, fileFilters) => commandAnswerOfPlainCode(() => sharedState.projectAssetFilesDialog(defaultFolder, fileFilters)),
     }),
     Layer.succeed(RecentProjects, {
       readRecentFolders: Effect.promise(() => sharedState.recentProjectFolders.readRecentFolders()),

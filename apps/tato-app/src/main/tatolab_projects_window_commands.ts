@@ -22,12 +22,17 @@ import {
 import { StudioWindows, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
 import { windowCommand } from "./window_command.js";
 
-/** `opening`, then, once it opened a project, the Projects window stepped aside for the project's own window when the command came from it; a studio window is left as it is. */
+/** The Projects window stepped aside for the project's own window when `commandFromWindow` came from it; a studio window is left as it is. */
+function stepTheProjectsWindowAsideFor(commandFromWindow: TatolabCommandFromWindow): Effect.Effect<void, never, StudioWindows> {
+  return StudioWindows.use((studioWindows) => studioWindows.stepTheProjectsWindowAsideFor(commandFromWindow));
+}
+
+/** `opening`, then, once it opened a project, the Projects window stepped aside as `stepTheProjectsWindowAsideFor` does. */
 function thenStepTheProjectsWindowAside<Answer, Failure, Services>(
   commandFromWindow: TatolabCommandFromWindow,
   opening: Effect.Effect<Answer, Failure, Services>,
 ): Effect.Effect<Answer, Failure, Services | StudioWindows> {
-  return opening.pipe(Effect.tap((opened) => (opened === null ? Effect.void : StudioWindows.use((studioWindows) => studioWindows.stepTheProjectsWindowAsideFor(commandFromWindow)))));
+  return opening.pipe(Effect.tap(() => stepTheProjectsWindowAsideFor(commandFromWindow)));
 }
 
 /** The arguments of `choose_project_folder`: what the folder is chosen for. */
@@ -81,7 +86,9 @@ export function projectsWindowCommandHandlersOf(
   return {
     choose_project_folder: windowCommand(studioRuntime, "choose_project_folder", ChooseProjectFolderArguments, ({ chosen_for }, commandFromWindow) =>
       StudioWindows.use((studioWindows) =>
-        thenStepTheProjectsWindowAside(commandFromWindow, chooseProjectFolder(chosen_for, studioWindows.openedFolderOfTheStudioWindow(commandFromWindow))),
+        chooseProjectFolder(chosen_for, studioWindows.openedFolderOfTheStudioWindow(commandFromWindow)).pipe(
+          Effect.tap((chosen) => (chosen === null ? Effect.void : stepTheProjectsWindowAsideFor(commandFromWindow))),
+        ),
       ),
     ),
     read_new_project_defaults: windowCommand(studioRuntime, "read_new_project_defaults", Schema.Undefined, () => readNewProjectDefaults),
@@ -95,7 +102,7 @@ export function projectsWindowCommandHandlersOf(
     }),
     read_recent_projects: windowCommand(studioRuntime, "read_recent_projects", Schema.Undefined, () => readRecentProjects),
     open_recent_project: windowCommand(studioRuntime, "open_recent_project", RecentProjectArguments, ({ folder }, commandFromWindow) =>
-      thenStepTheProjectsWindowAside(commandFromWindow, openRecentProject(folder).pipe(Effect.as(folder))).pipe(Effect.as(null)),
+      thenStepTheProjectsWindowAside(commandFromWindow, openRecentProject(folder)).pipe(Effect.as(null)),
     ),
     rename_recent_project: windowCommand(studioRuntime, "rename_recent_project", RenameRecentProjectArguments, ({ folder, name }) => renameRecentProject(folder, name).pipe(Effect.as(null))),
     duplicate_recent_project: windowCommand(studioRuntime, "duplicate_recent_project", RecentProjectArguments, ({ folder }) => duplicateRecentProject(folder)),

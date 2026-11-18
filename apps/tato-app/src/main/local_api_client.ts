@@ -25,8 +25,7 @@ import { failedWith, succeeded, type Result } from "./result.js";
 import { bodyOfAnOkAnswer, getOverTheLocalApi } from "./local_api_plain_http.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { listDependencies, listProjectFiles, nameTheProject, openProject, reloadProject } from "./runtime_operations.js";
-import { listedStreamsFromTheListStreamsToolResult } from "./listed_streams_on_the_wire.js";
+import { createProject, listDependencies, listProjectFiles, listStreams, nameTheProject, openProject, readProjectFile, reloadProject } from "./runtime_operations.js";
 import { queuedStreamActionFromTheToolResult, type ProjectActionToolName } from "./stream_changes_on_the_wire.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import {
@@ -40,7 +39,6 @@ import {
   type RuntimeControl,
 } from "./tatolab_runtime_control_operation_call.js";
 import {
-  projectFileBytesFromTheReadProjectFileToolResult,
   projectFileWriteFromTheWriteProjectFileToolResult,
   nodeFileCreationFromTheCreateNodeFileToolResult,
   type NodeFileCreationRecorded,
@@ -48,7 +46,6 @@ import {
   type ProjectFileWriteRecorded,
 } from "./project_files_on_the_wire.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
-import { projectCreationQueuedFromTheCreateProjectToolResult } from "./stream_action_description.js";
 
 /** A `describe_runtime` tool result read field for field; unknown fields are ignored. */
 export function runtimeDescriptionFromTheDescribeRuntimeToolResult(operationResult: ControlOperationResult<"describe_runtime">): Result<RuntimeDescription, string> {
@@ -100,12 +97,10 @@ export class LocalApiClient {
   }
 
   /** Every stream the runtime holds, from its `list_streams` tool. */
-  async listStreams(): Promise<Result<ListedStream[], LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("list_streams", {});
-    if (!operationResult.ok) return operationResult;
-    const listedStreams = listedStreamsFromTheListStreamsToolResult(operationResult.value);
-    return listedStreams.ok ? listedStreams : localApiRequestFailure(listedStreams.failure);
+  listStreams(): Promise<Result<ListedStream[], LocalApiRequestFailure>> {
+    return this.answerOf(listStreams());
   }
+
 
   /** This machine's name, as `GET /api/graph` states it beside every loaded stream's graph. */
   async machineName(): Promise<Result<string, LocalApiRequestFailure>> {
@@ -133,12 +128,10 @@ export class LocalApiClient {
   }
 
   /** Queue the creation of a new project in `projectDirectory`, or with `null` in a folder the runtime draws under `~/streams`, and its run; answered at once, refused in the runtime's own words. */
-  async createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("create_project", projectDirectory === null ? {} : { project_directory: projectDirectory });
-    if (!operationResult.ok) return operationResult;
-    const queued = projectCreationQueuedFromTheCreateProjectToolResult(operationResult.value);
-    return queued.ok ? queued : localApiRequestFailure(queued.failure);
+  createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>> {
+    return this.answerOf(createProject(projectDirectory));
   }
+
 
   /** Queue the open of the closed or never-opened project in `projectDirectory`, which loads every stream asset in it with its playback stopped; answered at once, refused in the runtime's own words, as for an open project, which `reloadProject` re-reads. */
   openProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
@@ -166,12 +159,10 @@ export class LocalApiClient {
   }
 
   /** The bytes of the file `filePath`, `/`-separated in the project in `projectDirectory`, from the runtime's `read_project_file`; refused in the runtime's own words. */
-  async readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("read_project_file", { project_directory: projectDirectory, path: filePath });
-    if (!operationResult.ok) return operationResult;
-    const fileBytes = projectFileBytesFromTheReadProjectFileToolResult(operationResult.value);
-    return fileBytes.ok ? fileBytes : localApiRequestFailure(fileBytes.failure);
+  readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, LocalApiRequestFailure>> {
+    return this.answerOf(readProjectFile(projectDirectory, filePath));
   }
+
 
   /** Write `text` whole to `filePath` in the project in `projectDirectory` as one transaction by `author`, keyed by `idempotencyKey`, through the runtime's `write_project_file`; refused in the runtime's own words. */
   async writeProjectFile(
@@ -224,7 +215,8 @@ export class LocalApiClient {
       runtimeOperation.pipe(
         Effect.match({
           onSuccess: (answer): Result<Answer, LocalApiRequestFailure> => succeeded(answer),
-          onFailure: (failure) => (failure._tag === "RuntimeRefused" ? theRuntimesRefusal(failure.words) : localApiRequestFailure(failure.words)),
+          onFailure: (failure) =>
+            failure._tag === "RuntimeRefused" || failure._tag === "RuntimeOfAnotherContract" ? theRuntimesRefusal(failure.words) : localApiRequestFailure(failure.words),
         }),
         Effect.provide(this.runtimeControl),
       ),

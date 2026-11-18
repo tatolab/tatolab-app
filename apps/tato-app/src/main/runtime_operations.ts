@@ -315,7 +315,7 @@ export function deleteProject(projectDirectory: string): Effect.Effect<string, R
   return controlOperationReadWith("delete_project", { project_directory: projectDirectory }, (answered) => queuedStreamActionFromTheToolResult("delete_project", answered));
 }
 
-/** A new project's creation and open queued through the runtime's `create_project`, in `projectDirectory`, a folder that does not exist yet. */
-export function createProject(projectDirectory: string): Effect.Effect<ProjectCreationQueued, RuntimeControlFailure, RuntimeControl> {
-  return controlOperationReadWith("create_project", { project_directory: projectDirectory }, projectCreationQueuedFromTheCreateProjectToolResult);
+/** A new project's creation and open queued through the runtime's `create_project`, in `projectDirectory`, a folder that does not exist yet, or with `null` in a folder the runtime draws under `~/streams`. */
+export function createProject(projectDirectory: string | null): Effect.Effect<ProjectCreationQueued, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("create_project", projectDirectory === null ? {} : { project_directory: projectDirectory }, projectCreationQueuedFromTheCreateProjectToolResult);
 }
