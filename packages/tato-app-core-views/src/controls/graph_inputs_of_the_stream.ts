@@ -3,8 +3,9 @@
 // sets its value with `set_node_input_value` as every surface sets a node's, and the control Perform
 // draws there while the control table has none for it.
 
-import { valueAddressOfTheInput, type GraphAddress, type InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import type { GraphAddress, InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { JsonValue, StreamGraphPortPin, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { nodeInputs } from "../shared/node_pins_of_the_graph";
 
 /** The node type a stream declares one of its input ports with. */
 export const GRAPH_INPUT_NODE_TYPE = "tatolab.stream:GraphInput";
@@ -48,7 +49,7 @@ export interface GraphInputOfTheStream {
   readonly control: GraphInputControlKind;
 }
 
-/** Each top-level Graph Input `graph` declares, in the order the graph lists its nodes, its value addressed at `valuesAt`, the stream's own level; `null` addresses none. */
+/** Each top-level Graph Input `graph` declares, in the order the graph lists its nodes, its `value` input read as every surface reads a node's inputs and addressed at `valuesAt`, the stream's own level; `null` addresses none. */
 export function graphInputsOfTheStream(graph: StreamGraphSummary, valuesAt: GraphAddress | null): GraphInputOfTheStream[] {
   return graph.nodes
     .filter((node) => node.type === GRAPH_INPUT_NODE_TYPE)
@@ -59,12 +60,12 @@ export function graphInputsOfTheStream(graph: StreamGraphSummary, valuesAt: Grap
       const declared = node.graph_interface;
       const familyDeclared = declared?.family ?? (typeof family === "string" ? family : null);
       const rangeDeclared = graphInputRangeFrom(range);
-      const valueInput = node.input_ports.find((input) => input.name === GRAPH_INPUT_VALUE_INPUT);
+      const valueInput = nodeInputs(graph, node, undefined, valuesAt).find((input) => input.name === GRAPH_INPUT_VALUE_INPUT);
       return {
         node_id: node.id,
         port_name: declared?.port ?? (typeof port === "string" && port !== "" ? port : node.name),
         family: familyDeclared,
-        value_address: valueInput === undefined ? null : valueAddressOfTheInput(valuesAt, node.id, valueInput),
+        value_address: valueInput?.value_address ?? null,
         value_pin: valueInput?.pin ?? null,
         lifetime: lifetime === "reset" ? "reset" : "kept",
         range: rangeDeclared,
@@ -88,6 +89,14 @@ function controlForTheInput(family: string | null, declaredDefault: JsonValue | 
   if (family === "channels" && typeof declaredDefault === "boolean") return "toggle";
   if (declaredDefault !== null && typeof declaredDefault !== "number") return "json";
   return range === null ? "number" : "slider";
+}
+
+/** The lifetime of a value set live on an Input, in words. */
+export const LIFETIME_WORDS: Readonly<Record<GraphInputLifetime, string>> = { kept: "Kept at Stop", reset: "Reset at Stop" };
+
+/** Why Perform sets nothing on `graphInput`, which holds no value it can address: an Input of a family no client writes carries only what its graph wires into it; one of a family a client writes waits for its stream's graph to serve its `value` input. */
+export function whyNothingSetsTheInput(graphInput: Pick<GraphInputOfTheStream, "family" | "control">): string {
+  return graphInput.control === "not_written" ? whyNoControlWritesTheInput(graphInput.family) : "Nothing sets this Input until its stream's graph serves its value.";
 }
 
 /** Why no control writes an Input of `family`, which carries only what its graph wires into it. */

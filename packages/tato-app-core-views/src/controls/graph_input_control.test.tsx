@@ -170,3 +170,18 @@ test("an Input no control sets keeps today's line", () => {
 
   expect(row.field("[data-graph-input-not-set]").textContent).toBe("This image Input carries only what the graph wires into it, so no control writes it.");
 });
+
+test("words refused there show over the refusal of the value last sent, and Back to saved, named by its words, clears them", async () => {
+  const row = drawTheRow(CUE, { value: { scene: "intro" }, comes_from: "default" }, () => ({ kind: "not_sent", because: "the stream is stopped" }));
+
+  await row.typeAndPressEnter("input", '{"scene": "finale"}');
+  expect(row.refusalWords()).toContain("the stream is stopped");
+  await row.typeAndPressEnter("input", "{scene: finale}");
+  expect(row.refusalWords()).toContain("“{scene: finale}” isn't JSON.");
+
+  await row.takeTheValue({ value: { scene: "drop" }, comes_from: "live" });
+  const backToSaved = row.field("[data-graph-input-back-to-saved]");
+  expect(backToSaved.getAttribute("aria-label")).toBe("Back to saved: cue");
+  await act(async () => backToSaved.click());
+  expect(row.refusalWords()).not.toContain("isn't JSON");
+});

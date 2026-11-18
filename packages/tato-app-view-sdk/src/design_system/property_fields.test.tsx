@@ -129,10 +129,11 @@ describe("a property slider", () => {
     expect(edits).toEqual(["drag started", "live 31", "cancelled", "drag started", "live 40", "commit 40"]);
   });
 
-  it("does nothing on Escape where the drag cannot be cancelled", () => {
+  it("releases a drag on Escape's key-up, as on any key's, where the drag cannot be cancelled", () => {
     const { edits, slider } = aSliderRecordingEachEdit();
     fireEvent.change(slider, { target: { value: "31" } });
     fireEvent.keyDown(slider, { key: "Escape" });
+    fireEvent.keyUp(slider, { key: "Escape" });
     fireEvent.pointerUp(window);
     expect(edits).toEqual(["drag started", "live 31", "commit 31"]);
   });

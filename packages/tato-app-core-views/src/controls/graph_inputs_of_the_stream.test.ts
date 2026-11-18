@@ -1,7 +1,7 @@
 import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import { NODE_STUDIO_FIELDS_NONE_SET, type JsonValue, type StreamGraphDeclaredPort, type StreamGraphInterfacePort, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { expect, test } from "vitest";
-import { graphInputsOfTheStream, whyNoControlWritesTheInput } from "./graph_inputs_of_the_stream";
+import { LIFETIME_WORDS, graphInputsOfTheStream, whyNoControlWritesTheInput, whyNothingSetsTheInput } from "./graph_inputs_of_the_stream";
 
 function node(id: string, name: string, type: string, config: StreamGraphNode["config"], graphInterface: StreamGraphInterfacePort | null = null): StreamGraphNode {
   return { id, name, type, kind: "process", state: "Running", failed_because: null, process_raising_because: null, not_ready_because: null, config, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: graphInterface };
@@ -77,4 +77,10 @@ test("an Input no control writes says why, by its family", () => {
   expect(whyNoControlWritesTheInput("packets")).toBe("This packets Input carries only what the graph wires into it, so no control writes it.");
   expect(whyNoControlWritesTheInput("image")).toBe("This image Input carries only what the graph wires into it, so no control writes it.");
   expect(whyNoControlWritesTheInput(null)).toBe("This Input of no family carries only what the graph wires into it, so no control writes it.");
+});
+
+test("a lifetime reads as what happens to a live value at Stop, and an Input nothing sets says why, by whether a client writes its family", () => {
+  expect(LIFETIME_WORDS).toEqual({ kept: "Kept at Stop", reset: "Reset at Stop" });
+  expect(whyNothingSetsTheInput({ family: "image", control: "not_written" })).toBe("This image Input carries only what the graph wires into it, so no control writes it.");
+  expect(whyNothingSetsTheInput({ family: "channels", control: "slider" })).toBe("Nothing sets this Input until its stream's graph serves its value.");
 });

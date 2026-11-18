@@ -10,16 +10,14 @@ import type { InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_
 import {
   InputControlBinderContext,
   InputControlMount,
+  InputValueWords,
   useInputControlsOfTheFrame,
   useInputValuesOfTheStream,
   useOwnFieldOfTheInput,
   useRefusalOfTheInput,
-  useShownValueOfTheInput,
   useWhereTheInputsValueComesFrom,
 } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import type { NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
-import { valueWords } from "@tatolab/tato-app-view-sdk/pin_model/value_words";
-import type { PinType } from "@tatolab/tato-app-view-sdk/pin_types";
 import { portFamilyWords } from "@tatolab/tato-app-view-sdk/port_families";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_banner";
@@ -543,20 +541,10 @@ function ValueOfTheUnwiredInput({ fieldId, pin, address }: { fieldId: string; pi
       {controlled === null ? (
         ownField
       ) : (
-        <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={<ValueWordsOfTheInput address={address} pinType={pin?.pin_type ?? null} />} noControl={ownField} className="w-full" />
+        <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={<InputValueWords address={address} pinType={pin?.pin_type ?? null} data-properties-input-value-words={address.input} />} noControl={ownField} className="w-full" />
       )}
       <RefusalOfTheInputsValue address={address} />
     </div>
-  );
-}
-
-/** An input's value in words, as its card shows it while its control loads. */
-function ValueWordsOfTheInput({ address, pinType }: { address: InputAddress; pinType: PinType | null }) {
-  const shown = useShownValueOfTheInput(address);
-  return (
-    <span className="truncate text-fg-3 tabular-nums" data-properties-input-value-words={address.input}>
-      {valueWords(pinType, shown.value) ?? ""}
-    </span>
   );
 }
 

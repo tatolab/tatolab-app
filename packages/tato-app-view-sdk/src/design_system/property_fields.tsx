@@ -273,11 +273,7 @@ export function PropertySliderField({
           onLiveEdit(moved);
         }}
         onKeyDown={(keyEvent) => {
-          if (keyEvent.key !== "Escape") {
-            setIsCancelledUntilThePressEnds(false);
-            return;
-          }
-          if (draggedValue === null || onDragCancelled === undefined) return;
+          if (keyEvent.key !== "Escape" || draggedValue === null || onDragCancelled === undefined) return;
           keyEvent.preventDefault();
           keyEvent.stopPropagation();
           setDraggedValue(null);
@@ -285,7 +281,8 @@ export function PropertySliderField({
           onDragCancelled();
         }}
         onKeyUp={(keyEvent) => {
-          if (keyEvent.key !== "Escape") release();
+          // On a slider whose drag Escape cancels, Escape's key-up is part of the cancel, not a release.
+          if (keyEvent.key !== "Escape" || onDragCancelled === undefined) release();
         }}
         onBlur={release}
         className="h-4 min-w-0 flex-1 accent-brand"

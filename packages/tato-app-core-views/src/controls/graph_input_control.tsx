@@ -1,32 +1,43 @@
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
-import { InputControlMount, useOwnFieldOfTheInput, useRefusalOfTheInput, useShownValueOfTheInput, useWhereTheInputsValueComesFrom } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
+import { InputControlMount, InputValueWords, useOwnFieldOfTheInput, useRefusalOfTheInput, useWhereTheInputsValueComesFrom } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import { PropertyNumberField, PropertySliderField, PropertyTextField } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { StatusChip } from "@tatolab/tato-app-view-sdk/design_system/status_chip";
 import { ToggleSwitch } from "@tatolab/tato-app-view-sdk/design_system/toggle_switch";
-import { takesAControl } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
+import { takesAControl, type ControlledInput } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
 import type { InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import { valueWords } from "@tatolab/tato-app-view-sdk/pin_model/value_words";
 import type { InputValueGesture } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
 import type { JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { useId, useMemo, useRef, useState } from "react";
 import { jsonFromTheWordsTyped, jsonObjectFromTheWordsTyped, numberFromTheWordsTyped, type GraphInputWordsTyped } from "./graph_input_words_typed";
-import { GRAPH_INPUT_VALUE_INPUT, whyNoControlWritesTheInput, type GraphInputLifetime, type GraphInputOfTheStream } from "./graph_inputs_of_the_stream";
+import { GRAPH_INPUT_VALUE_INPUT, LIFETIME_WORDS, whyNoControlWritesTheInput, whyNothingSetsTheInput, type GraphInputOfTheStream } from "./graph_inputs_of_the_stream";
 
-/** The lifetime of an Input's live value in words. */
-const LIFETIME_WORDS: Record<GraphInputLifetime, string> = { kept: "Kept at Stop", reset: "Reset at Stop" };
+/** The control Perform draws for `graphInput`'s value, the one its Graph Input node draws; `null` where it takes none, so Perform draws its own field. */
+function controlledValueOf(graphInput: GraphInputOfTheStream, address: InputAddress): ControlledInput | null {
+  const controlled = takesAControl({ name: GRAPH_INPUT_VALUE_INPUT, pin: graphInput.value_pin, value_address: address });
+  return controlled === null ? null : { ...controlled, declaration: { ...controlled.declaration, label: graphInput.port_name } };
+}
+
+/** Whether Perform's own field for `graphInput` is a field a label names: a slider, a number field or the JSON field. */
+function isTheOwnFieldLabelled(graphInput: GraphInputOfTheStream): boolean {
+  return graphInput.control === "slider" || graphInput.control === "number" || graphInput.control === "json";
+}
 
 /**
  * One of the stream's inputs in Perform: its name, its family and the lifetime of a value set live on it, and the control its
  * Graph Input node draws, through the frame's binder, on the node's `value` input, so Perform and the node share one value.
- * Every move there is live and nothing is committed. A live value says so and offers Back to saved; the runtime's refusal of
- * the latest one shows under it.
+ * Every move there is live and nothing is committed. A live value says so and offers Back to saved; the refusal of the latest
+ * one shows under it.
  */
 export function GraphInputControl({ graphInput }: { graphInput: GraphInputOfTheStream }) {
   const labelId = useId();
   const fieldId = useId();
   const portName = graphInput.port_name;
-  const isLabelledByItsName = graphInput.value_address !== null && (graphInput.control === "slider" || graphInput.control === "number" || graphInput.control === "json");
+  const address = graphInput.value_address;
+  const controlled = useMemo(() => (address === null ? null : controlledValueOf(graphInput, address)), [graphInput, address]);
+  // The name labels the own field only where it is surely drawn: a control the table picks names itself, and the own field
+  // drawn in its place where the table has none is reached through that slot.
+  const isLabelledByItsName = address !== null && controlled === null && isTheOwnFieldLabelled(graphInput);
   return (
     <li className="flex flex-col gap-2 rounded-lg border border-line px-3.5 py-3" data-graph-input={portName}>
       <div className="flex items-center gap-2 text-xs">
@@ -41,36 +52,40 @@ export function GraphInputControl({ graphInput }: { graphInput: GraphInputOfTheS
         )}
         <span className="ml-auto shrink-0 font-mono text-2xs text-fg-3">{graphInput.family ?? "no family"}</span>
       </div>
-      {graphInput.value_address === null ? (
+      {address === null ? (
         <p className="text-2xs text-fg-3" data-graph-input-not-set={portName}>
-          {graphInput.control === "not_written" ? whyNoControlWritesTheInput(graphInput.family) : "Nothing sets this Input until its stream's graph serves its value."}
+          {whyNothingSetsTheInput(graphInput)}
         </p>
       ) : (
-        <ValueOfTheGraphInput graphInput={graphInput} address={graphInput.value_address} labelId={labelId} fieldId={fieldId} />
+        <ValueOfTheGraphInput graphInput={graphInput} address={address} controlled={controlled} labelId={labelId} fieldId={fieldId} />
       )}
     </li>
   );
 }
 
 /** The value of a Graph Input that holds one: its control, where its value comes from with Back to saved while it is live, its lifetime, and the refusal of its latest value. */
-function ValueOfTheGraphInput({ graphInput, address, labelId, fieldId }: { graphInput: GraphInputOfTheStream; address: InputAddress; labelId: string; fieldId: string }) {
+function ValueOfTheGraphInput({ graphInput, address, controlled, labelId, fieldId }: { graphInput: GraphInputOfTheStream; address: InputAddress; controlled: ControlledInput | null; labelId: string; fieldId: string }) {
   const portName = graphInput.port_name;
   const valueSource = useWhereTheInputsValueComesFrom(address, "live");
   const refusal = useRefusalOfTheInput(address);
   const [wordsRefused, setWordsRefused] = useState<string | null>(null);
-  const valuePin = graphInput.value_pin;
-  const controlled = useMemo(() => {
-    const controlledInput = takesAControl({ name: GRAPH_INPUT_VALUE_INPUT, pin: valuePin, value_address: address });
-    return controlledInput === null ? null : { ...controlledInput, declaration: { ...controlledInput.declaration, label: portName } };
-  }, [valuePin, address, portName]);
   const ownField = <OwnFieldOfTheGraphInput graphInput={graphInput} address={address} labelId={labelId} fieldId={fieldId} onWordsRefused={setWordsRefused} />;
   const isLive = valueSource?.comes_from === "live";
+  // Words refused here are the person's latest act, so they show over the refusal of the value last sent.
+  const refusalShown = wordsRefused ?? refusal;
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       {controlled === null ? (
         ownField
       ) : (
-        <InputControlMount input={controlled} surface="perform" readOnly={false} fallback={<ValueWordsOfTheGraphInput address={address} graphInput={graphInput} />} noControl={ownField} className="w-full" />
+        <InputControlMount
+          input={controlled}
+          surface="perform"
+          readOnly={false}
+          fallback={<InputValueWords address={address} pinType={graphInput.value_pin?.pin_type ?? null} data-graph-input-value-words={portName} />}
+          noControl={ownField}
+          className="w-full"
+        />
       )}
       <div className="flex min-h-6 items-center gap-2 text-2xs text-fg-3">
         {isLive && (
@@ -80,21 +95,24 @@ function ValueOfTheGraphInput({ graphInput, address, labelId, fieldId }: { graph
         )}
         <span data-graph-input-lifetime={graphInput.lifetime}>{LIFETIME_WORDS[graphInput.lifetime]}</span>
         {isLive && valueSource !== null && (
-          <ActionButton appearance="quiet" size="small" className="ml-auto h-6 px-2" label={`Put ${portName} back to its saved value`} onPressed={valueSource.clearTheValue} data-graph-input-back-to-saved={portName}>
+          <ActionButton
+            appearance="quiet"
+            size="small"
+            className="ml-auto"
+            label={`Back to saved: ${portName}`}
+            onPressed={() => {
+              setWordsRefused(null);
+              valueSource.clearTheValue();
+            }}
+            data-graph-input-back-to-saved={portName}
+          >
             Back to saved
           </ActionButton>
         )}
       </div>
-      {(refusal ?? wordsRefused) !== null && <RefusalLine lead="The value wasn't set:" layout="under_field" words={refusal ?? wordsRefused ?? ""} data-graph-input-refusal={portName} />}
+      {refusalShown !== null && <RefusalLine lead="The value wasn't set:" layout="under_field" words={refusalShown} data-graph-input-refusal={portName} />}
     </div>
   );
-}
-
-/** A Graph Input's value in words, or as JSON where its type writes none, while its control loads. */
-function ValueWordsOfTheGraphInput({ address, graphInput }: { address: InputAddress; graphInput: GraphInputOfTheStream }) {
-  const shown = useShownValueOfTheInput(address);
-  const words = shown.value === null ? "" : (valueWords(graphInput.value_pin?.pin_type ?? null, shown.value) ?? JSON.stringify(shown.value));
-  return <span className="truncate text-xs text-fg-3 tabular-nums">{words}</span>;
 }
 
 /**

@@ -170,7 +170,7 @@ export interface MockTatolabOptions {
   valueAShellSetsLive: number | null;
   /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the effect's output. */
   isTheCompositorInMain: boolean;
-  /** Whether the open project's main stream declares Graph Inputs, which the Controls view shows. */
+  /** Whether the open project's main stream declares Graph Inputs, which Perform shows. */
   doesTheMainStreamDeclareGraphInputs: boolean;
   /** `?subgraphs=generated`: `main` holds a graph generator's frozen output. */
   doesTheMainStreamHoldAGeneratedSubgraph: boolean;

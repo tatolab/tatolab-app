@@ -3,6 +3,9 @@ import { createContext, memo, useCallback, useContext, useLayoutEffect, useMemo,
 import { areTheSameControlledInput, type ControlledInput } from "../pin_model/controlled_inputs";
 import { inputAddressKey, type InputAddress } from "../pin_model/node_inputs";
 import type { NodeUiSurface } from "../node_ui/input_control_element";
+import { valueWords } from "../pin_model/value_words";
+import type { PinType } from "../pin_types";
+import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { createInputControlBinder, type InputControlBinder, type InputControlBinding, type InputControlShown, type InputValueRelease, type OwnFieldBinding } from "../pin_services/input_control_binding";
 import { createInputValues, type InputValueGesture, type InputValues, type ShownValue } from "../pin_services/input_values";
 import type { InputValueComesFrom, JsonValue } from "../studio_readings";
@@ -148,15 +151,39 @@ function useOwnFieldBinding(address: InputAddress | null, release: InputValueRel
   return bound.binding;
 }
 
+/** What a surface reads of one input's value without setting it: the value the store shows and the refusal of its latest write. */
+type InputValueReading = Pick<OwnFieldBinding, "shownValue" | "watchValue" | "watchRefusal">;
+
+/**
+ * The frame's reading of the input at `address`; `null` for no address or no binder. A reading opens no gesture and clears
+ * nothing, so the release the binding is made with plays no part in it.
+ */
+function useInputValueReading(address: InputAddress | null): InputValueReading | null {
+  return useOwnFieldBinding(address, "commit");
+}
+
 const SHOWS_NOTHING: ShownValue = Object.freeze({ value: null, comes_from: null });
 const watchesNothing = () => () => undefined;
 
 /** The value the store shows for the input at `address`, at once and on each change; nothing for no address or no binder. */
 export function useShownValueOfTheInput(address: InputAddress | null): ShownValue {
-  return useShownValueThrough(useOwnFieldBinding(address, "commit"));
+  return useShownValueThrough(useInputValueReading(address));
 }
 
-function useShownValueThrough(binding: OwnFieldBinding | null): ShownValue {
+/**
+ * The value the store shows for the input at `address` in words, as a card writes a value of `pinType`, else as JSON, while
+ * its control loads; nothing while it shows no value.
+ */
+export function InputValueWords({ address, pinType, ...controlDataAttributes }: { address: InputAddress; pinType: PinType | null } & ControlDataAttributes) {
+  const { value } = useShownValueOfTheInput(address);
+  return (
+    <span className="truncate text-fg-3 tabular-nums" {...controlDataAttributes}>
+      {value === null ? "" : (valueWords(pinType, value) ?? JSON.stringify(value))}
+    </span>
+  );
+}
+
+function useShownValueThrough(binding: InputValueReading | null): ShownValue {
   const watchTheValue = useCallback((onChanged: () => void) => binding?.watchValue(onChanged) ?? watchesNothing(), [binding]);
   const readTheValue = useCallback(() => binding?.shownValue() ?? SHOWS_NOTHING, [binding]);
   return useSyncExternalStore(watchTheValue, readTheValue);
@@ -164,8 +191,8 @@ function useShownValueThrough(binding: OwnFieldBinding | null): ShownValue {
 
 /** Why the store's latest write of the input at `address` was refused, in the words of what refused it; `null` once a write applies, and for no address or no binder. */
 export function useRefusalOfTheInput(address: InputAddress | null): string | null {
-  const binding = useOwnFieldBinding(address, "commit");
-  const [refusal, setRefusal] = useState<{ readonly binding: OwnFieldBinding | null; readonly words: string | null }>({ binding, words: null });
+  const binding = useInputValueReading(address);
+  const [refusal, setRefusal] = useState<{ readonly binding: InputValueReading | null; readonly words: string | null }>({ binding, words: null });
   useLayoutEffect(() => binding?.watchRefusal((words) => setRefusal({ binding, words })), [binding]);
   return refusal.binding === binding ? refusal.words : null;
 }
