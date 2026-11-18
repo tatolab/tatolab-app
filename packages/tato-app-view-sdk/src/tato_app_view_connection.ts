@@ -26,6 +26,7 @@ import type {
   PythonLanguageServerConnectionEvent,
   StreamGraphAction,
   StreamGraphReading,
+  StreamInputValuesReading,
   StreamTabAddress,
   StudioSelection,
   ThePersonEditingReading,
@@ -97,6 +98,8 @@ export interface TatoAppViewConnection {
   watchStreamGraph(stream: string, listener: (reading: StreamGraphReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The node types `stream` can add. */
   watchNodeCatalog(stream: string, listener: (reading: NodeCatalogReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
+  /** Every input's value in `stream`'s graph once it is read, then each change the runtime announces of one. */
+  watchStreamInputValues(stream: string, listener: (reading: StreamInputValuesReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The log of the project in `projectFolder`; the first reading arrives once read. */
   watchProjectLog(projectFolder: string, listener: (reading: ProjectLogReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The node types the project in `projectFolder` offers; the first reading arrives once listed. */
@@ -281,6 +284,8 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       watchSelection: (listener, whenRefused = IGNORE_THE_REFUSAL) => watchFor({ kind: "selection" }, (watched) => watched.subject === "selection" && listener(watched.reading), whenRefused),
       watchStreamGraph: (stream, listener, whenRefused = IGNORE_THE_REFUSAL) => watchFor({ kind: "stream_graph", stream }, (watched) => watched.subject === "stream_graph" && listener(watched.reading), whenRefused),
       watchNodeCatalog: (stream, listener, whenRefused = IGNORE_THE_REFUSAL) => watchFor({ kind: "node_catalog", stream }, (watched) => watched.subject === "node_catalog" && listener(watched.reading), whenRefused),
+      watchStreamInputValues: (stream, listener, whenRefused = IGNORE_THE_REFUSAL) =>
+        watchFor({ kind: "input_values", stream }, (watched) => watched.subject === "input_values" && listener(watched.reading), whenRefused),
       watchProjectLog: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>
         watchFor({ kind: "project_log", project_folder: projectFolder }, (watched) => watched.subject === "project_log" && listener(watched.reading), whenRefused),
       watchProjectNodeTypes: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>

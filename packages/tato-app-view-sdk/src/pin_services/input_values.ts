@@ -1,11 +1,12 @@
-// The window's one store of input values, one per view frame, and its one set-value path. It starts
-// from each input's value in the latest graph reading, shows a gesture's value at once, and sends
-// every value as `set_node_input_value` through one sender per input.
+// The window's one store of input values, one per view frame, and its one set-value path. It takes
+// each input's value from what the host keeps of a stream's values, every input's from its latest
+// graph reading and then each change the runtime announces, shows a gesture's value at once, and
+// sends every value as `set_node_input_value` through one sender per input.
 
 import { inputAddressKey, isOnTheStreamsOwnLevel, type GraphAddress, type InputAddress } from "../pin_model/node_inputs.js";
 import { setNodeInputValueAction } from "../pin_model/input_value_actions.js";
 import type { StopWatching, TatoAppViewConnection } from "../tato_app_view_connection.js";
-import type { InputValueComesFrom, JsonValue, StreamGraphNode, StreamGraphSummary } from "../studio_readings.js";
+import type { InputValueComesFrom, JsonValue, StreamInputValue, StreamInputValuesReading } from "../studio_readings.js";
 import { createInputValueSender, type InputValueSender, type InputValueWrite, type InputValueWriteAnswer } from "./input_value_sender.js";
 
 /** The value an input shows and where it comes from; `null` for both while it reads none, and a `null` value while a link feeds it. */
@@ -35,8 +36,11 @@ export interface InputValues {
   beginGesture(address: InputAddress, release: "commit" | "live"): InputValueGesture;
   /** Take the input's saved value off as one commit, ending a gesture open on it, so it reads its declared default; an input that already reads its default sends nothing. */
   clear(address: InputAddress): void;
-  /** Take what each input of `graph`, a stream of the project in `projectFolder`, reads in its latest reading, at every level, forgetting an input of that stream it no longer holds that nothing watches or sends. */
-  takeTheGraphReading(projectFolder: string, graph: StreamGraphSummary): void;
+  /**
+   * Take `reading` of the values of a stream of the project in `projectFolder`: what every input reads, at every level,
+   * forgetting an input of that stream it no longer holds that nothing watches or sends; or what one input reads now.
+   */
+  takeTheInputValues(projectFolder: string, reading: StreamInputValuesReading): void;
 }
 
 /** What the store sends through: the frame's connection, and the key a new gesture is sent under. */
@@ -49,7 +53,7 @@ const READS_NOTHING: ShownValue = Object.freeze({ value: null, comes_from: null 
 
 /**
  * The readings a value sent ahead waits for, once its last write is answered, before the runtime's own value is shown in its
- * place: the first may have been asked for before that write landed.
+ * place: a graph reading, or a change the runtime announced of the input, and the first may predate that write landing.
  */
 const READINGS_A_VALUE_SENT_AHEAD_WAITS_FOR = 2;
 
@@ -150,20 +154,17 @@ export function createInputValues(sending: InputValuesSending): InputValues {
     }
     publishTheValue(state);
   };
-  /** Takes each read of `nodes` at `graph`, keying each input it holds in `keysRead`. A link renders on every input it feeds, one that takes no stored value too, so a wired input is taken only where the store already holds it. */
-  const takeTheLevel = (graph: GraphAddress, nodes: readonly StreamGraphNode[], keysRead: Set<string>): void => {
-    for (const node of nodes) {
-      for (const port of node.input_ports) {
-        if (port.value_read === null) continue;
-        const address: InputAddress = { graph, node_id: node.id, input: port.name };
-        const key = inputAddressKey(address);
-        const known = statesByKey.get(key);
-        if (port.value_read.comes_from === "wire" && known === undefined) continue;
-        keysRead.add(key);
-        takeTheRead(known ?? stateOf(address), port.value_read);
-      }
-      if (node.fragment !== null) takeTheLevel({ ...graph, level: [...graph.level, node.id] }, node.fragment.nodes, keysRead);
-    }
+  /**
+   * Takes what one input of the stream at `stream` reads, answering its key, or `null` when it is not taken: a link renders
+   * on every input it feeds, one that takes no stored value too, so a wired input is taken only where the store holds it.
+   */
+  const takeTheValue = (stream: Omit<GraphAddress, "level">, { level, node_id, input, value_read }: StreamInputValue): string | null => {
+    const address: InputAddress = { graph: { ...stream, level }, node_id, input };
+    const key = inputAddressKey(address);
+    const known = statesByKey.get(key);
+    if (value_read.comes_from === "wire" && known === undefined) return null;
+    takeTheRead(known ?? stateOf(address), value_read);
+    return key;
   };
   const isForgettable = (state: InputValueState): boolean =>
     state.value_listeners.size === 0 && state.refusal_listeners.size === 0 && state.gesture === null && (state.sender === null || state.sender.isSettled());
@@ -244,11 +245,19 @@ export function createInputValues(sending: InputValuesSending): InputValues {
       state.sent_ahead = { shown: CLEARED, readings_since_settled: 0 };
       publishTheValue(state);
     },
-    takeTheGraphReading: (projectFolder, graph) => {
-      const streamAsset = graph.stream_asset;
+    takeTheInputValues: (projectFolder, reading) => {
+      const streamAsset = reading.stream_asset;
       if (streamAsset === null) return;
+      const stream = { project_folder: projectFolder, stream_asset: streamAsset };
+      if (reading.kind === "changed") {
+        takeTheValue(stream, reading.change);
+        return;
+      }
       const keysRead = new Set<string>();
-      takeTheLevel({ project_folder: projectFolder, stream_asset: streamAsset, level: [] }, graph.nodes, keysRead);
+      for (const value of reading.values) {
+        const key = takeTheValue(stream, value);
+        if (key !== null) keysRead.add(key);
+      }
       for (const [key, state] of statesByKey) {
         const isOfTheStream = state.address.graph.project_folder === projectFolder && state.address.graph.stream_asset === streamAsset;
         if (isOfTheStream && !keysRead.has(key) && isForgettable(state)) statesByKey.delete(key);

@@ -37,6 +37,9 @@ import type {
   StreamActionCancelAnswer,
   StreamActionFollowed,
   StreamGraphSummary,
+  StreamGraphInputValueChange,
+  StreamGraphInputValueRead,
+  InputValueComesFrom,
   StreamProjectFolderChosenFor,
   TatolabAppUpdateAnnouncementKind,
   TatolabAppUpdateAnnouncementAnswer,
@@ -241,9 +244,10 @@ export interface TatolabStreamPageRequest {
   stream: string;
 }
 
-/** What `tatolab-stream-graph-changed` carries: the stream, by stream id, whose graph changed. */
+/** What `tatolab-stream-graph-changed` carries: the stream, by stream id, whose graph changed, and the change of what one of its inputs reads, or `null` when the window reads that graph again. */
 export interface StreamGraphChanged {
   stream: string;
+  input_value_changed: StreamGraphInputValueChange | null;
 }
 
 /** What `tatolab-project-log-records-written` carries: the project, by the directory the window followed it as, and the records the runtime pushed of its log, or `null` when the window reads that log on from its cursor. */
@@ -281,8 +285,36 @@ function isAProjectLogRecordsPushed(pushed: unknown): pushed is ProjectLogRecord
 
 /** Whether an event's payload is a `StreamGraphChanged`. */
 export function isAStreamGraphChanged(eventPayload: unknown): eventPayload is StreamGraphChanged {
-  return typeof eventPayload === "object" && eventPayload !== null && "stream" in eventPayload && typeof eventPayload.stream === "string";
+  return (
+    typeof eventPayload === "object" &&
+    eventPayload !== null &&
+    "stream" in eventPayload &&
+    typeof eventPayload.stream === "string" &&
+    "input_value_changed" in eventPayload &&
+    (eventPayload.input_value_changed === null || isAStreamGraphInputValueChange(eventPayload.input_value_changed))
+  );
 }
+
+function isAStreamGraphInputValueChange(change: unknown): change is StreamGraphInputValueChange {
+  return (
+    typeof change === "object" &&
+    change !== null &&
+    "node" in change &&
+    typeof change.node === "string" &&
+    "input" in change &&
+    typeof change.input === "string" &&
+    "value_read" in change &&
+    isAStreamGraphInputValueRead(change.value_read)
+  );
+}
+
+function isAStreamGraphInputValueRead(valueRead: unknown): valueRead is StreamGraphInputValueRead {
+  if (typeof valueRead !== "object" || valueRead === null || !("value" in valueRead) || !("comes_from" in valueRead)) return false;
+  const comesFrom = valueRead.comes_from;
+  return comesFrom === null || INPUT_VALUE_SOURCES.some((source) => source === comesFrom);
+}
+
+const INPUT_VALUE_SOURCES: readonly InputValueComesFrom[] = ["live", "saved", "default", "wire"];
 
 /** Whether an event's payload is a `TatolabStreamPageRequest`. */
 export function isATatolabStreamPageRequest(eventPayload: unknown): eventPayload is TatolabStreamPageRequest {
@@ -520,8 +552,8 @@ export interface TatolabElectronBridge {
   onPortViewerEvent(listener: (event: PortViewerEvent) => void): () => void;
   /** Calls `listener` with each Image frame a port viewer hands over as a shared texture, a WebCodecs `VideoFrame` the listener closes once drawn; the returned function stops it. */
   onPortViewerImageFrame(listener: (videoFrame: PortViewerVideoFrame, frameFacts: PortViewerImageFrameFacts) => void): () => void;
-  /** Calls `listener` with the stream id of each stream the window follows whose graph changed; the returned function stops it. */
-  onStreamGraphChanged(listener: (stream: string) => void): () => void;
+  /** Calls `listener` with the stream id of each stream the window follows whose graph changed, and the change of what one of its inputs reads, or `null` to read that graph again; the returned function stops it. */
+  onStreamGraphChanged(listener: (stream: string, inputValueChange: StreamGraphInputValueChange | null) => void): () => void;
   /** Calls `listener` with the directory of each project the window follows whose log has new records, and the records the runtime pushed, or `null` to read on from the cursor; the returned function stops it. */
   onProjectLogRecordsWritten(listener: (projectDirectory: string, pushed: ProjectLogRecordsPushed | null) => void): () => void;
   /** Calls `listener` with the `entry_id` of each entry the person chooses in the system menu bar from this window's menus; the returned function stops it. */

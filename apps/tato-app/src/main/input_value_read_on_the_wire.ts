@@ -5,11 +5,11 @@
 // read is read as no value, as the input read before the runtime served one.
 
 import type { StreamGraphInputValueRead } from "../shared/tatolab_backend_contract.js";
-import { isAJsonValue, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
+import { isAJsonValue } from "./json_on_the_wire.js";
 import { readControlContractValue } from "./tatolab_runtime_control_operation_call.js";
 
-/** What input `port` reads while unlinked and where that comes from; `null` for an input that takes no stored value, and for an output. */
-export function inputValueReadOnTheWire(port: JsonObjectOnTheWire): StreamGraphInputValueRead | null {
+/** What input `port`, or an `input_value_changed` naming it, says it reads while unlinked and where that comes from; `null` for an input that takes no stored value, and for an output. */
+export function inputValueReadOnTheWire(port: { readonly value?: unknown; readonly value_comes_from?: unknown }): StreamGraphInputValueRead | null {
   const value = port["value"];
   const valueComesFrom = port["value_comes_from"];
   if (valueComesFrom === undefined) return value === null ? { value: null, comes_from: null } : null;

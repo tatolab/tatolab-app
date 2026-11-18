@@ -79,6 +79,9 @@ export type InputValueComesFrom = "live" | "saved" | "default" | "wire";
 /** The value an input reads while unlinked, `null` while a link feeds it or it reads none, and where it comes from, `null` while it reads none. */
 export type StreamGraphInputValueRead = { value: JsonValue | null; comes_from: InputValueComesFrom | null };
 
+/** A change the runtime announced of what one input of a running graph reads, its node named by its graph `id`. */
+export type StreamGraphInputValueChange = { node: string; input: string; value_read: StreamGraphInputValueRead };
+
 /** A port a node declares under the graph's `ports.inputs` or `ports.outputs`. */
 export type StreamGraphDeclaredPort = {
   name: string;
@@ -515,6 +518,16 @@ export type ListedStreamsReading = { kind: "listed"; streams: ListedStream[] } |
 
 /** A stream's graph as the runtime renders it now, or why it renders none, in its own words. */
 export type StreamGraphReading = { kind: "read"; graph: StreamGraphSummary } | { kind: "not_read"; because: string };
+
+/** What one input of a stream's graph reads, at the level of the subgraphs it is inside, by their node ids from the outermost, and its node by its graph `id`. */
+export type StreamInputValue = { level: string[]; node_id: string; input: string; value_read: StreamGraphInputValueRead };
+
+/**
+ * A stream's input values as the host keeps them: every input's value at every level, as its latest graph reading holds it with
+ * each change the runtime announced since on top; then each change on its own. Both name the stream's asset, `null` for a
+ * stream run from no asset, as its graph reading does.
+ */
+export type StreamInputValuesReading = { kind: "values"; stream_asset: string | null; values: StreamInputValue[] } | { kind: "changed"; stream_asset: string | null; change: StreamInputValue };
 
 /** The node types a stream can add, or why the runtime lists none, in its own words. */
 export type NodeCatalogReading = { kind: "listed"; catalog: NodeCatalog } | { kind: "not_listed"; because: string };
