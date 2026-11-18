@@ -13,8 +13,6 @@ import type {
   StudioWarning,
   StreamActionFollowed,
   ProjectTheRuntimeNames,
-  ProjectDependency,
-  WorkspaceDependencyUpdate,
   TatolabAppBuild,
   TatolabAppUpdateAnnouncement,
   TatolabAppUpdateState,
@@ -375,21 +373,6 @@ export class TatolabAppController {
   /** Make a project in `projectDirectory` from the `.zip` `source` through the runtime's `import_project`. */
   importProject(source: string, projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
     return this.localApiClient.importProject(source, projectDirectory);
-  }
-
-  /** Copy the project in `source` into `imports/` of the project in `projectDirectory`. */
-  addDependency(projectDirectory: string, source: string): Promise<Result<ProjectDependency, LocalApiRequestFailure>> {
-    return this.localApiClient.addDependency(projectDirectory, source);
-  }
-
-  /** Copy the import `project` of the project in `projectDirectory` again from its source, overwriting files edited since its copy only with `overwriteEditedFiles`. */
-  updateDependency(projectDirectory: string, project: string, overwriteEditedFiles: boolean): Promise<Result<WorkspaceDependencyUpdate, LocalApiRequestFailure>> {
-    return this.localApiClient.updateDependency(projectDirectory, project, overwriteEditedFiles);
-  }
-
-  /** Take the import `project` out of the project in `projectDirectory`. */
-  removeDependency(projectDirectory: string, project: string): Promise<Result<ProjectDependency, LocalApiRequestFailure>> {
-    return this.localApiClient.removeDependency(projectDirectory, project);
   }
 
   /** Each import of the project in `projectDirectory`, each source read for a newer version with `checkForNewer`. */

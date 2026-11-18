@@ -22,7 +22,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     ...streamAndRuntimeProjectCommandHandlersOf(sharedState, studioRuntime),
     ...projectsWindowCommandHandlersOf(sharedState),
     ...openProjectCommandHandlersOf(sharedState),
-    ...moduleManagerCommandHandlersOf(sharedState),
+    ...moduleManagerCommandHandlersOf(sharedState, studioRuntime),
     transact_in_the_open_project: transactInTheOpenProjectCommand(studioRuntime),
     list_node_ui_elements: listNodeUiElementsCommand(studioRuntime),
   };

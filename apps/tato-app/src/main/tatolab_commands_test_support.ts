@@ -27,7 +27,20 @@ import { createTatolabAppLog, type TatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import type { TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import { ListedStreams, StatusRounds, PersonEditingInStudio, ProjectViewsListed, StudioAppVersion, studioRuntimeLayer, StudioWindows, tatolabAppLogAsEffectsLogger, type StudioServices } from "./studio_runtime.js";
+import {
+  ListedStreams,
+  ModuleManagerWindows,
+  PackageCatalog,
+  PersonEditingInStudio,
+  StudioProjectOpening,
+  ProjectViewsListed,
+  StatusRounds,
+  StudioAppVersion,
+  studioRuntimeLayer,
+  StudioWindows,
+  tatolabAppLogAsEffectsLogger,
+  type StudioServices,
+} from "./studio_runtime.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
 import { CommandRefused } from "./window_command.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
@@ -111,6 +124,15 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
       aStudioWindowHoldsTheProjectIn: (projectFolder) => projectFolder === studioWindow.projectFolder,
       folderOfTheWindowsOpenProject: (commandFromWindow, folder) => (commandFromWindow.windowContentsId === studioWindow.windowContentsId && folder === studioWindow.projectFolder ? folder : null),
     }),
+    Layer.succeed(ModuleManagerWindows, {
+      workspaceFolderOfTheWindow: () => Effect.fail(new CommandRefused({ words: "Only a Module manager window imports into a project." })),
+      chooseDependencySource: () => Effect.succeed(null),
+    }),
+    Layer.succeed(PackageCatalog, {
+      readTheCatalog: Effect.succeed({ kind: "read" as const, entries: [], unreadable_entry_count: 0 }),
+      downloadTheZipOf: (entry) => Effect.fail(new CommandRefused({ words: `${entry.title} was not downloaded.` })),
+    }),
+    Layer.succeed(StudioProjectOpening, { makeAProjectOfItsOwnFromTheArchive: (archive) => Effect.fail(new CommandRefused({ words: `${archive} was not made into a project.` })) }),
     Layer.succeed(ProjectViewsListed, { isListedAsOpening: () => false }),
     Layer.succeed(ListedStreams, {
       streamAssetsOfTheProject: overrides.streamAssetsOfTheProject ?? (() => new Set()),
