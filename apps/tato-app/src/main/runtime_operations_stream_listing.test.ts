@@ -2,7 +2,8 @@ import { afterEach, expect, test } from "vitest";
 import type { StreamLocation } from "../shared/tatolab_backend_contract.js";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse } from "./fake_local_api_server.js";
 import { listedStreamsFromTheListStreamsToolResult } from "./listed_streams_on_the_wire.js";
-import { answerOf, cleanUpWhatTheTestStarted, failureOf, fakeLocalApiServerAnswering, listedStream, recordedResponseBody } from "./local_api_client_test_support.js";
+import { answerOf, cleanUpWhatTheTestStarted, failureOf, fakeLocalApiServerAnswering, listedStream, recordedResponseBody } from "./runtime_operations_test_support.js";
+import { listStreams, readTheMachineName } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -39,7 +40,7 @@ test("a_real_list_streams_result_lists_a_running_a_stopped_and_a_failed_stream_b
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
   ]);
 
-  expect(answerOf(await server.client().listStreams())).toEqual([
+  expect(answerOf(await server.run(listStreams()))).toEqual([
     RECORDED_BACK_DOOR,
     RECORDED_FRONT_DOOR,
     listedStream("pattern-main-9960f6", "pattern", RECORDED_PATTERN_LOCATION, "stopped", null, null),
@@ -51,7 +52,7 @@ test("a_real_listing_after_the_runtime_restarted_lists_every_stream_it_re_loaded
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-after-the-runtime-restarted.json")),
   ]);
 
-  const listedStreams = answerOf(await server.client().listStreams());
+  const listedStreams = answerOf(await server.run(listStreams()));
   expect(listedStreams.map((listed) => [listed.stream, listed.state, listed.node_count])).toEqual([
     ["doorways-back_door-a38bd7", "failed", null],
     ["doorways-front_door-1cd149", "running", 3],
@@ -65,12 +66,12 @@ test("a_real_listing_names_the_action_and_step_of_a_stream_preparing_or_stopping
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-the-stream-pattern-main-stopping.json")),
   ]);
 
-  expect(answerOf(await server.client().listStreams())).toEqual([
+  expect(answerOf(await server.run(listStreams()))).toEqual([
     RECORDED_BACK_DOOR,
     RECORDED_FRONT_DOOR,
     listedStream("pattern-main-9960f6", "pattern", RECORDED_PATTERN_LOCATION, "preparing", null, null, { action: "Ruvjtaprxhhworo0axqwt6ffb-2", step: "starting" }),
   ]);
-  expect(answerOf(await server.client().listStreams())).toEqual([
+  expect(answerOf(await server.run(listStreams()))).toEqual([
     RECORDED_BACK_DOOR,
     RECORDED_FRONT_DOOR,
     listedStream("pattern-main-9960f6", "pattern", RECORDED_PATTERN_LOCATION, "stopping", 3, null, { action: "Ruvjtaprxhhworo0axqwt6ffb-3", step: "stopping" }),
@@ -182,7 +183,7 @@ test("the_machine_name_comes_from_the_machine_wide_graph", async () => {
   const graph = { machine: "jonathanf-macbook", streams: [{ stream: "main", nodes: [], links: [], exposed: [], machine: "jonathanf-macbook" }] };
   const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", JSON.stringify(graph))]);
 
-  expect(answerOf(await server.client().machineName())).toBe("jonathanf-macbook");
+  expect(answerOf(await server.run(readTheMachineName()))).toBe("jonathanf-macbook");
   expect(server.receivedRequests()[0]?.startsWith("GET /api/graph HTTP/1.1\r\n")).toBe(true);
 });
 
@@ -191,7 +192,7 @@ test("the_listing_reads_a_closed_projects_streams_closed_and_unloaded_beside_a_p
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-a-playing-a-stopped-and-a-closed-project.json")),
   ]);
 
-  expect(answerOf(await server.client().listStreams()).map((listedStream) => [listedStream.stream, listedStream.state, listedStream.node_count === null])).toEqual([
+  expect(answerOf(await server.run(listStreams())).map((listedStream) => [listedStream.stream, listedStream.state, listedStream.node_count === null])).toEqual([
     ["hallways-main-80cbae", "running", false],
     ["lobby-main-298da3", "closed", true],
     ["pattern-main-32fee2", "stopped", false],

@@ -35,7 +35,7 @@ import {
 } from "./open_project.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { RECORDED_LOBBY_PROJECT, RECORDED_PATTERN_PROJECT, RECORDED_UNLISTED_PROJECT_THE_RUNTIME_HOLDS_OPEN, recordedResponseBody } from "./tatolab_commands_test_support.js";
-import { controlOperationCallsReceivedBy } from "./local_api_client_test_support.js";
+import { controlOperationCallsReceivedBy } from "./runtime_operations_test_support.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
 import { ProjectDialogs, RecentProjects, StatusRounds, StudioWindows, ThisMachinesFolders } from "./studio_runtime.js";
 import { RuntimeControl } from "./tatolab_runtime_control_operation_call.js";

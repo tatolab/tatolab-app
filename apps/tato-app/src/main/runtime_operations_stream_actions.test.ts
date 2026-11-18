@@ -1,11 +1,10 @@
 import { afterEach, expect, test } from "vitest";
 import type { StreamActionDescription, StreamActionFollowed } from "../shared/tatolab_backend_contract.js";
 import { FakeLocalApiServer, controlOperationResponseOfTheRecordedToolResponse, httpResponse } from "./fake_local_api_server.js";
-import { LocalApiClient } from "./local_api_client.js";
 import { queuedStreamActionFromTheToolResult, streamAssetChangeFromTheToolResult, streamsThePauseOrResumeReachedFromTheToolResult } from "./stream_changes_on_the_wire.js";
 import { projectCreationQueuedFromTheCreateProjectToolResult, projectStreamActionQueuedFromTheToolResult, streamActionCancelAnswerFromTheCancelStreamActionToolResult, streamActionDescriptionFromTheDescribeStreamActionToolResult } from "./stream_action_description.js";
-import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./local_api_client_test_support.js";
-import { cancelStreamAction, createProject, createStream, deleteStream, describeStreamAction, openProject, pausePlayback, removeProject, resumePlayback, setStreamDisplayName, startPlayback, stopPlayback } from "./runtime_operations.js";
+import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./runtime_operations_test_support.js";
+import { cancelStreamAction, closeProject, createProject, createStream, deleteStream, describeStreamAction, openProject, pausePlayback, reloadProject, removeProject, resumePlayback, setStreamDisplayName, startPlayback, stopPlayback } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -79,11 +78,11 @@ test("closing_a_project_queues_close_project_with_its_folder_and_a_closed_one_is
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-close-project-refusal-for-the-closed-project-lobby.json")),
   ]);
 
-  expect(answerOf(await server.client().closeProject("/tmp/tatolab-proof-projects/lobby"))).toBe("Rhrb4oumhnnzujbb137ivd7ah-5");
-  expect(failureOf(await server.client().closeProject("/tmp/tatolab-proof-projects/lobby"))).toEqual({
-    failureDescription:
+  expect(answerOf(await server.run(closeProject("/tmp/tatolab-proof-projects/lobby")))).toBe("Rhrb4oumhnnzujbb137ivd7ah-5");
+  expect(failureOf(await server.run(closeProject("/tmp/tatolab-proof-projects/lobby")))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words:
       "Runtime error: the project in /tmp/tatolab-proof-projects/lobby is not open, so there is none to close. Loaded: hallways-main-80cbae, pattern-main-32fee2. Recorded: hallways-main-80cbae, lobby-main-298da3 (closed), pattern-main-32fee2 (stopped)",
-    isTheRuntimesRefusal: true,
   });
   expect(controlOperationCallsReceivedBy(server)).toEqual([
     ["close_project", { project_directory: "/tmp/tatolab-proof-projects/lobby" }],
@@ -97,11 +96,10 @@ test("a_stream_action_answers_within_the_ordinary_request_timeout_or_reads_as_no
     300,
   );
   cleanUps.push(() => server.close());
-  const clientWithAShortRequestTimeout = new LocalApiClient(server.localApiSocketPath, 100);
 
-  expect(failureOf(await clientWithAShortRequestTimeout.closeProject("/tmp/tatolab-proof-projects/hallways"))).toEqual({
-    failureDescription: `\`close_project\` to ${server.localApiSocketPath} did not answer within 100ms`,
-    isTheRuntimesRefusal: false,
+  expect(failureOf(await server.run(closeProject("/tmp/tatolab-proof-projects/hallways"), 100))).toMatchObject({
+    _tag: "RuntimeTimedOut",
+    words: `\`close_project\` to ${server.localApiSocketPath} did not answer within 100ms`,
   });
 });
 
@@ -268,9 +266,9 @@ test("reloading_a_closed_project_is_refused_naming_open_project", async () => {
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-reload-project-refusal-for-the-closed-project-lobby.json")),
   ]);
 
-  expect(failureOf(await server.client().reloadProject("/tmp/tatolab-proof-projects/lobby"))).toEqual({
-    failureDescription: "Runtime error: the project in /tmp/tatolab-proof-projects/lobby is not open, so there is none to reload; `open_project` opens it",
-    isTheRuntimesRefusal: true,
+  expect(failureOf(await server.run(reloadProject("/tmp/tatolab-proof-projects/lobby")))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words: "Runtime error: the project in /tmp/tatolab-proof-projects/lobby is not open, so there is none to reload; `open_project` opens it",
   });
 });
 
@@ -279,7 +277,7 @@ test("reloading_a_project_calls_reload_project_with_its_folder_and_reads_the_act
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-reload-project-answer-for-the-stopped-project-pattern.json")),
   ]);
 
-  expect(answerOf(await server.client().reloadProject("/tmp/tatolab-proof-projects/pattern"))).toEqual({
+  expect(answerOf(await server.run(reloadProject("/tmp/tatolab-proof-projects/pattern")))).toEqual({
     action: "Rhrb4oumhnnzujbb137ivd7ah-7",
     project_directory: "/tmp/tatolab-proof-projects/pattern",
   });

@@ -6,7 +6,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import type { ListedStream } from "../shared/tatolab_backend_contract.js";
 import { controlOperationFailedResponse, controlOperationRefusedResponse, controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
 import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
-import { controlOperationCallsReceivedBy } from "./local_api_client_test_support.js";
+import { controlOperationCallsReceivedBy } from "./runtime_operations_test_support.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import { cleanUpTheFakesTheLastTestMade, cleanUps, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, recordedResponseBody, sharedStateOverFakes, studioServicesLayerForTest } from "./tatolab_commands_test_support.js";
 import { transactInTheOpenProject, transactInTheOpenProjectCommand } from "./transact_in_the_open_project_command.js";

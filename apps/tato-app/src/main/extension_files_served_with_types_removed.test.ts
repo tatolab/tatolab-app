@@ -11,7 +11,7 @@ import {
   type ExtensionFileAnswer,
 } from "./extension_files_served_with_types_removed.js";
 import { controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
-import { controlOperationCallsReceivedBy } from "./local_api_client_test_support.js";
+import { controlOperationCallsReceivedBy } from "./runtime_operations_test_support.js";
 import { ProjectViewsListed, StudioWindows, tatolabAppLogAsEffectsLogger } from "./studio_runtime.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import { cleanUpTheFakesTheLastTestMade, cleanUps, recordedResponseBody } from "./tatolab_commands_test_support.js";

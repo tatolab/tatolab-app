@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
 import { projectActionRefusalAt, projectTransactionFromTheUndoOrRedoToolResult, projectTransactionsFromTheChangeFeed } from "./project_transactions_on_the_wire.js";
-import { recordedResponseBody } from "./local_api_client_test_support.js";
+import { recordedResponseBody } from "./runtime_operations_test_support.js";
 import type { Result } from "./result.js";
 
 /** The first text block of a recorded JSON-RPC answer: a tool result's `content[0].text` or a resource read's `contents[0].text`. */

@@ -2,12 +2,9 @@ import type { ControlOperations, DescribeRuntimeToolResult, ListStreamsToolResul
 import { Effect } from "effect";
 import { afterEach, expect, expectTypeOf, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
-import { answerOf, cleanUpWhatTheTestStarted, fakeLocalApiServerAnswering, recordedResponseBody } from "./local_api_client_test_support.js";
-import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
-import type { Result } from "./result.js";
+import { cleanUpWhatTheTestStarted, fakeLocalApiServerAnswering, recordedResponseBody } from "./runtime_operations_test_support.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import {
-  callOneControlOperationOverAPost,
   controlContractTypeOf,
   RuntimeControl,
   type ControlOperationAnswer,
@@ -30,7 +27,6 @@ function settledCall<Method extends keyof ControlOperations>(localApiSocketPath:
 }
 
 test("each call answers its operation's result in the contract's type", () => {
-  expectTypeOf(callOneControlOperationOverAPost<"describe_runtime">).returns.resolves.toEqualTypeOf<Result<ControlOperationAnswer<"describe_runtime">, LocalApiRequestFailure>>();
   expectTypeOf<Extract<ControlOperationAnswer<"list_streams">, { kind: "answered" }>["result"]>().toEqualTypeOf<ListStreamsToolResult>();
   const describeTheRuntime = Effect.gen(function* () {
     const runtimeControl = yield* RuntimeControl;
@@ -40,14 +36,14 @@ test("each call answers its operation's result in the contract's type", () => {
   expectTypeOf<Effect.Error<typeof describeTheRuntime>>().toEqualTypeOf<RuntimeControlFailure>();
 });
 
-test("a recorded describe_runtime answer is handed on as the contract's DescribeRuntimeToolResult, as the client read it", async () => {
+test("a recorded describe_runtime answer is handed on as the contract's DescribeRuntimeToolResult", async () => {
   const server = await fakeLocalApiServerAnswering([controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-runtime-tool-result-of-a-test-root-runtime.json"))]);
 
-  const answer = answerOf(await callOneControlOperationOverAPost(server.localApiSocketPath, "describe_runtime", {}, 2_000));
+  const settled = await settledCall(server.localApiSocketPath, "describe_runtime", {});
 
-  if (answer.kind !== "answered") return expect.unreachable(answer.words);
-  expect(typeof answer.result.version).toBe("string");
-  expect(typeof answer.result.build_id).toBe("string");
+  if (settled._tag !== "Success") return expect.unreachable(settled.failure.words);
+  expect(typeof settled.success.version).toBe("string");
+  expect(typeof settled.success.build_id).toBe("string");
 });
 
 test("an answer off the contract fails as a contract mismatch naming the contract type it is not, and where it is not", async () => {

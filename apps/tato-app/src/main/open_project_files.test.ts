@@ -5,7 +5,7 @@ import { afterEach, expect, test } from "vitest";
 import type { OpenProjectReading, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import { controlOperationFailedResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
 import { isAJsonObject } from "./json_on_the_wire.js";
-import { cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy } from "./local_api_client_test_support.js";
+import { cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy } from "./runtime_operations_test_support.js";
 import { createANodeFileInTheOpenProject, listTheOpenProjectsFiles, projectFileVersionOf, readTheOpenProjectsFile, saveTheOpenProjectsFile } from "./open_project_files.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";

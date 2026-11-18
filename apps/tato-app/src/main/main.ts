@@ -7,7 +7,7 @@
 // folder and starts checking for updates on its own.
 
 import path from "node:path";
-import { ManagedRuntime } from "effect";
+import { Effect, ManagedRuntime } from "effect";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
 import { MODULE_DOWNLOADS_FOLDER_NAME } from "../shared/marketplace_module_download_file.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
@@ -29,7 +29,10 @@ import {
 } from "./tatolab_app_shared_state.js";
 import type { TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import { studioRuntimeLayer, type StudioServices } from "./studio_runtime.js";
+import { closeProject, listDependencies, nameTheProject } from "./runtime_operations.js";
+import { resultInWordsOf } from "./result_as_effect.js";
+import { answerOnTheStudioRuntime } from "./window_command.js";
+import { studioRuntimeLayer, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
@@ -193,21 +196,17 @@ export async function startTatolabApp(
   let runtimePortViewersOnceBuilt: RuntimePortViewers | null = null;
   let streamGraphChangesFollowedOnceBuilt: StreamGraphChangesFollowedForTheWindows | null = null;
   let projectLogRecordsFollowedOnceBuilt: ProjectLogRecordsFollowedForTheWindows | null = null;
-  let controllerOnceBuilt: TatolabAppController | null = null;
-  const projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime = {
-    nameTheProject: async (projectFolder) => {
-      if (controllerOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
-      const named = await controllerOnceBuilt.nameTheProject(projectFolder);
-      return named.ok ? named : failedWith(named.failure.failureDescription);
-    },
-    listTheDependencies: async (projectFolder) => {
-      if (controllerOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
-      const listed = await controllerOnceBuilt.listDependencies(projectFolder, false);
-      return listed.ok ? listed : failedWith(listed.failure.failureDescription);
-    },
-  };
   let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
   let studioRuntimeOnceBuilt: ManagedRuntime.ManagedRuntime<StudioServices, never> | null = null;
+  /** `effect`, named `workName`, run on the studio runtime once it is built: its answer, or its failure in its words; never rejecting. */
+  const answerInWordsOnTheStudioRuntime = <Answer>(workName: string, effect: Effect.Effect<Answer, { readonly words: string }, StudioServices>): Promise<Result<Answer, string>> =>
+    studioRuntimeOnceBuilt === null
+      ? Promise.resolve(failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET))
+      : answerOnTheStudioRuntime(studioRuntimeOnceBuilt, workName, resultInWordsOf(effect), (words) => failedWith(words));
+  const projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime = {
+    nameTheProject: (projectFolder) => answerInWordsOnTheStudioRuntime("naming the project", nameTheProject(projectFolder)),
+    listTheDependencies: (projectFolder) => answerInWordsOnTheStudioRuntime("listing the project's dependencies", listDependencies(projectFolder, false)),
+  };
   let localApiSocketOnceKnown: string | null = null;
   const tatolabAppWindows = new TatolabAppWindows({
     mainWindowHostFactory: tatolabElectronAppShell.mainWindowHostFactory,
@@ -225,12 +224,7 @@ export async function startTatolabApp(
       const timer = setTimeout(work, delayMs);
       return () => clearTimeout(timer);
     },
-    closeTheProjectAsItsWindowCloses: async (projectFolder) => {
-      if (sharedStateOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
-      const closeQueued = await sharedStateOnceBuilt.controller.closeProject(projectFolder);
-      sharedStateOnceBuilt.statusPublisher.requestRefresh();
-      return closeQueued.ok ? succeeded(undefined) : failedWith(closeQueued.failure.failureDescription);
-    },
+    closeTheProjectAsItsWindowCloses: (projectFolder) => answerInWordsOnTheStudioRuntime("closing the project as its window closes", thenAStatusRound(closeProject(projectFolder)).pipe(Effect.asVoid)),
     whenAWindowStartingLanguageServersClosed: (languageServerOfTheWindow) => pythonLanguageServersOnceBuilt?.stopTheLanguageServersOf(languageServerOfTheWindow),
     whenAWindowShowingPortViewersClosed: (tatolabMainWindow) => {
       runtimePortViewersOnceBuilt?.closeThePortViewersOf(tatolabMainWindow);
@@ -345,7 +339,6 @@ export async function startTatolabApp(
     projectStreamActionFailuresOfTheFollowedStreamActions: streamActionChangesFollowed,
     tatolabAppLog,
   });
-  controllerOnceBuilt = controller;
   const statusPublisher = new TatolabStatusPublisher(
     controller,
     (status) => tatolabAppWindows.sendEveryWindowTheStatus(status),

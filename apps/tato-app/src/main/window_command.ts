@@ -11,9 +11,20 @@ import type { TatolabCommandFromWindow } from "./tatolab_command_answers.js";
 /** Studio refused the command before it reached the runtime, in Studio's words. */
 export class CommandRefused extends Data.TaggedError("CommandRefused")<{ readonly words: string }> {}
 
-/** What the command `commandName` answers when it ended without an answer: `cause` was a defect, or the runtime that ran it was disposed. */
-function refusalOfACommandThatEndedWithoutAnAnswer(commandName: TatolabCommandName, cause: Cause.Cause<unknown>): { ok: false; refusal: string } {
-  return { ok: false, refusal: `${commandName} ended without an answer: ${describeCaughtFailure(Cause.squash(cause))}` };
+/**
+ * `work`, named `workName`, run on `studioRuntime` to its answer, never rejecting: when it ended without one, as a defect does or a
+ * disposed runtime's work does, the answer `answerOfAnEnd` makes of words naming why, the defect logged.
+ */
+export function answerOnTheStudioRuntime<Answer, Services>(
+  studioRuntime: ManagedRuntime.ManagedRuntime<Services, never>,
+  workName: string,
+  work: Effect.Effect<Answer, never, Services>,
+  answerOfAnEnd: (words: string) => Answer,
+): Promise<Answer> {
+  const endedWithoutAnAnswer = (cause: Cause.Cause<unknown>) => answerOfAnEnd(`${workName} ended without an answer: ${describeCaughtFailure(Cause.squash(cause))}`);
+  return studioRuntime
+    .runPromiseExit(work.pipe(Effect.catchCause((cause) => Effect.logError(`${workName} ended without an answer`, Cause.pretty(cause)).pipe(Effect.as(endedWithoutAnAnswer(cause))))))
+    .then((answered) => (Exit.isSuccess(answered) ? answered.value : endedWithoutAnAnswer(answered.cause)));
 }
 
 /**
@@ -31,19 +42,17 @@ export function windowCommand<CommandName extends TatolabCommandName, Services>(
   ) => Effect.Effect<TatolabCommandSignatures[CommandName]["answer"], { readonly words: string }, Services>,
 ): (sent: unknown, commandFromWindow: TatolabCommandFromWindow) => Promise<TatolabCommandAnswerTo<CommandName>> {
   return (sent, commandFromWindow) =>
-    studioRuntime
-      .runPromiseExit(
-        Schema.decodeUnknownEffect(commandArguments)(sent).pipe(
-          Effect.mapError((mismatch) => new CommandRefused({ words: `${commandName}: ${mismatch.message}` })),
-          Effect.flatMap((decoded) => handler(decoded, commandFromWindow)),
-          Effect.match({
-            onSuccess: (value): TatolabCommandAnswerTo<CommandName> => ({ ok: true, value }),
-            onFailure: (failure): TatolabCommandAnswerTo<CommandName> => ({ ok: false, refusal: failure.words }),
-          }),
-          Effect.catchCause((cause) =>
-            Effect.logError(`${commandName} ended without an answer`, Cause.pretty(cause)).pipe(Effect.as(refusalOfACommandThatEndedWithoutAnAnswer(commandName, cause))),
-          ),
-        ),
-      )
-      .then((answered) => (Exit.isSuccess(answered) ? answered.value : refusalOfACommandThatEndedWithoutAnAnswer(commandName, answered.cause)));
+    answerOnTheStudioRuntime(
+      studioRuntime,
+      commandName,
+      Schema.decodeUnknownEffect(commandArguments)(sent).pipe(
+        Effect.mapError((mismatch) => new CommandRefused({ words: `${commandName}: ${mismatch.message}` })),
+        Effect.flatMap((decoded) => handler(decoded, commandFromWindow)),
+        Effect.match({
+          onSuccess: (value): TatolabCommandAnswerTo<CommandName> => ({ ok: true, value }),
+          onFailure: (failure): TatolabCommandAnswerTo<CommandName> => ({ ok: false, refusal: failure.words }),
+        }),
+      ),
+      (refusal): TatolabCommandAnswerTo<CommandName> => ({ ok: false, refusal }),
+    );
 }

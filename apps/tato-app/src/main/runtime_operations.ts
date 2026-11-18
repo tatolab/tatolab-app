@@ -25,8 +25,9 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import { assetPreviewPictureFromTheReadAssetPreviewToolResult, type AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
 import { listedStreamsFromTheListStreamsToolResult } from "./listed_streams_on_the_wire.js";
-import { jsonTextKeepingTheWrittenNumbers, prettyJsonTextKeepingTheWrittenNumbers } from "./json_on_the_wire.js";
+import { isAJsonObject, jsonTextKeepingTheWrittenNumbers, parseJsonOnTheWire, prettyJsonTextKeepingTheWrittenNumbers, requiredText } from "./json_on_the_wire.js";
 import { bodyOfAnOkAnswer } from "./local_api_plain_http.js";
+import { failedWith, succeeded, type Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectAssetListingFromTheListAssetsToolResult } from "./project_asset_listing.js";
@@ -71,6 +72,17 @@ import { queuedStreamActionFromTheToolResult, streamAssetChangeFromTheToolResult
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { authorOnTheWire, controlOperationReadWith, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 
+/**
+ * `GET requestTarget`'s body, from a `200`, read with `readTheBody`; any other status refused in the runtime's own words, and a body
+ * `readTheBody` cannot read as `contractType` not the contract's answer.
+ */
+function restReadWith<Read>(requestTarget: string, contractType: string, readTheBody: (body: string) => Result<Read, string>): Effect.Effect<Read, RuntimeControlFailure, RuntimeControl> {
+  return RuntimeControl.use((runtimeControl) => runtimeControl.get(requestTarget)).pipe(
+    Effect.flatMap((response) => bodyOfAnOkAnswer(requestTarget, response)),
+    Effect.flatMap((body) => fromResult(readTheBody(body), (why) => new ContractMismatch({ operation: `GET ${requestTarget}`, contractType, direction: "answer", words: why }))),
+  );
+}
+
 /** How many log records one page the window reads holds. */
 const PROJECT_LOG_RECORDS_PER_PAGE = 500;
 
@@ -102,16 +114,7 @@ export function describeStreamGraph(stream: string): Effect.Effect<StreamGraphSu
 
 /** Every node type the loaded stream `stream` can add, from `GET /api/registry?stream=`; refused in the runtime's own words. */
 export function describeNodeCatalog(stream: string): Effect.Effect<NodeCatalog, RuntimeControlFailure, RuntimeControl> {
-  const requestTarget = nodeCatalogRequestTarget(stream);
-  return RuntimeControl.use((runtimeControl) => runtimeControl.get(requestTarget)).pipe(
-    Effect.flatMap((response) => bodyOfAnOkAnswer(requestTarget, response)),
-    Effect.flatMap((registryAnswer) =>
-      fromResult(
-        nodeCatalogFromTheRegistryAnswer(stream, registryAnswer),
-        (why) => new ContractMismatch({ operation: `GET ${requestTarget}`, contractType: "the node registry", direction: "answer", words: why }),
-      ),
-    ),
-  );
+  return restReadWith(nodeCatalogRequestTarget(stream), "the node registry", (registryAnswer) => nodeCatalogFromTheRegistryAnswer(stream, registryAnswer));
 }
 
 /** What the project in `projectDirectory`, each import and each installed distribution declare, from the runtime's `list_project_node_types`, read from source without running it. */
@@ -357,4 +360,28 @@ export function createProject(projectDirectory: string | null): Effect.Effect<Pr
 /** How the running runtime describes itself through `describe_runtime`: its version, build, uptime and own log folder. */
 export function describeRuntime(): Effect.Effect<RuntimeDescription, RuntimeControlFailure, RuntimeControl> {
   return controlOperationReadWith("describe_runtime", {}, runtimeDescriptionFromTheDescribeRuntimeToolResult);
+}
+
+/** Whether the runtime is up: it answers `GET /health` with `200 ok`; another status is refused in the runtime's own words, and another body is not the contract's answer. */
+export function checkTheRuntimesHealth(): Effect.Effect<void, RuntimeControlFailure, RuntimeControl> {
+  return restReadWith("/health", "the health answer", (body) => (body.trim() === "ok" ? succeeded(undefined) : failedWith(`the runtime answered /health with: ${body.trim()}`)));
+}
+
+/** The machine's name an `/api/graph` export states beside every loaded stream's graph, or why it states none. */
+function machineNameFromTheGraphExport(graphExport: string): Result<string, string> {
+  const graph = parseJsonOnTheWire(graphExport);
+  if (!graph.ok) return failedWith(`the runtime's /api/graph names no machine: ${graph.failure}`);
+  if (!isAJsonObject(graph.value)) return failedWith("the runtime's /api/graph names no machine: the graph is not an object");
+  const machine = requiredText(graph.value, "machine");
+  return machine.ok ? machine : failedWith(`the runtime's /api/graph names no machine: ${machine.failure}`);
+}
+
+/** This machine's name, as `GET /api/graph` states it; refused in the runtime's own words. */
+export function readTheMachineName(): Effect.Effect<string, RuntimeControlFailure, RuntimeControl> {
+  return restReadWith("/api/graph", "the graph export", machineNameFromTheGraphExport);
+}
+
+/** The close of the open project in `projectDirectory` queued through the runtime's `close_project`, which ends its playback and unloads every stream of it: the id of the action it queued. */
+export function closeProject(projectDirectory: string): Effect.Effect<string, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("close_project", { project_directory: projectDirectory }, (answered) => queuedStreamActionFromTheToolResult("close_project", answered));
 }

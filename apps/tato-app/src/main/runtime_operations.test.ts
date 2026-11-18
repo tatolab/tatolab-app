@@ -4,15 +4,14 @@ import path from "node:path";
 import { CONTROL_CONTRACT_REVISION, CONTROL_CONTRACT_VERSION, CONTROL_CONTRACT_VERSION_MISMATCH_ERROR_CODE } from "@tatolab/runtime-client";
 import { Effect } from "effect";
 import { afterEach, expect, test } from "vitest";
-import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationFailedResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
-import { LocalApiClient } from "./local_api_client.js";
+import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationFailedResponse, controlOperationResultResponse, runOverTheLocalApiAt } from "./fake_local_api_server.js";
 import { runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./runtime_description_on_the_wire.js";
 import { httpRequestBytes, parseHttpResponse } from "./local_api_plain_http.js";
-import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { describeNodeCatalog, describeRuntime, describeStreamGraph, listProjectAssets, listProjectNodeTypes, readAssetPreview, readProjectLogRecords } from "./runtime_operations.js";
-import { TatolabRuntimeControlWebSocketConnection } from "./tatolab_runtime_control_operation_call.js";
+import { checkTheRuntimesHealth, describeNodeCatalog, describeRuntime, describeStreamGraph, listDependencies, listProjectAssets, listProjectNodeTypes, listStreams, readAssetPreview, readProjectLogRecords, readTheMachineName } from "./runtime_operations.js";
+import type { RuntimeControlFailure } from "./runtime_control_failures.js";
+import { TatolabRuntimeControlWebSocketConnection, type RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import { streamActionChangesConnectionOver } from "./stream_action_changes_followed_for_the_status.js";
-import { answerOf, cleanUps, cleanUpWhatTheTestStarted, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./local_api_client_test_support.js";
+import { answerOf, cleanUps, cleanUpWhatTheTestStarted, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./runtime_operations_test_support.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -29,13 +28,13 @@ const DESCRIBE_RUNTIME_WIRE_TEXT_WITH_A_LOG_FOLDER =
 const DESCRIBE_RUNTIME_WIRE_TEXT_WITHOUT_A_LOG_FOLDER =
   '{"version":"0.55.1","build_id":"0.55.1+0123abc.9f8e7d","up_for_ms":266400000,"runtime_log_directory":null}';
 
-/** Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src/main/local_api_client.test.ts`. */
+/** Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src/main/runtime_operations.test.ts`. */
 const noLiveRuntimeSocketIsNamed = !process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"];
 
 test("a_runtime_answering_ok_is_healthy", async () => {
   const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "text/plain; charset=utf-8", "ok")]);
 
-  answerOf(await server.client().checkHealth());
+  answerOf(await server.run(checkTheRuntimesHealth()));
 
   const request = server.receivedRequests()[0];
   expect(request?.startsWith("GET /health HTTP/1.1\r\nHost: localhost\r\n"), request).toBe(true);
@@ -43,12 +42,29 @@ test("a_runtime_answering_ok_is_healthy", async () => {
   expect(request).not.toContain("Content-Length");
 });
 
+test("a_runtime_answering_health_with_another_status_is_refused_and_with_another_body_is_off_the_contract", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("503 Service Unavailable", "text/plain; charset=utf-8", "starting"),
+    httpResponse("200 OK", "text/plain; charset=utf-8", "starting"),
+  ]);
+
+  expect(failureOf(await server.run(checkTheRuntimesHealth()))).toMatchObject({ _tag: "RuntimeRefused", words: "the runtime answered /health with 503: starting" });
+  expect(failureOf(await server.run(checkTheRuntimesHealth()))).toMatchObject({ _tag: "ContractMismatch", words: "the runtime answered /health with: starting" });
+});
+
+test("a_graph_export_naming_no_machine_is_not_the_contracts_answer", async () => {
+  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", '{"streams":[]}')]);
+
+  expect(failureOf(await server.run(readTheMachineName()))).toMatchObject({ _tag: "ContractMismatch", words: expect.stringMatching(/^the runtime's \/api\/graph names no machine: /) });
+});
+
 test("nothing_listening_names_the_socket", async () => {
   const socketPath = await shortTemporarySocketPath();
 
-  const failure = failureOf(await new LocalApiClient(socketPath, 1_000).checkHealth());
+  const failure = failureOf(await runOverTheLocalApiAt(socketPath, checkTheRuntimesHealth(), 1_000));
 
-  expect(failure.failureDescription).toContain(socketPath);
+  expect(failure._tag).toBe("RuntimeUnreachable");
+  expect(failure.words).toContain(socketPath);
 });
 
 test("a_runtime_that_never_answers_times_out", async () => {
@@ -61,15 +77,16 @@ test("a_runtime_that_never_answers_times_out", async () => {
     return new Promise<void>((closed) => listenerThatNeverAnswers.close(() => closed()));
   });
 
-  const failure = failureOf(await new LocalApiClient(socketPath, 200).checkHealth());
+  const failure = failureOf(await runOverTheLocalApiAt(socketPath, checkTheRuntimesHealth(), 200));
 
-  expect(failure.failureDescription).toContain("did not answer within");
+  expect(failure._tag).toBe("RuntimeTimedOut");
+  expect(failure.words).toContain("did not answer within");
 });
 
 test("listing_streams_posts_list_streams_to_control_with_the_contract_version_and_the_apps_name", async () => {
   const server = await fakeLocalApiServerAnswering([controlOperationResultResponse({ streams: [] })]);
 
-  expect(answerOf(await server.client().listStreams())).toEqual([]);
+  expect(answerOf(await server.run(listStreams()))).toEqual([]);
 
   const [head, body] = headAndBodyOf(server.receivedRequests()[0]);
   expect(head.startsWith("POST /control HTTP/1.1\r\n"), head).toBe(true);
@@ -138,7 +155,7 @@ test("a_refused_rest_request_carries_the_runtimes_own_words", async () => {
     httpResponse("500 Internal Server Error", "application/json", '{"error":"graph export failed: the engine is shutting down"}'),
   ]);
 
-  expect(failureOf(await server.client().machineName()).failureDescription).toBe("graph export failed: the engine is shutting down");
+  expect(failureOf(await server.run(readTheMachineName())).words).toBe("graph export failed: the engine is shutting down");
 });
 
 test("a_runtime_serving_another_contract_version_is_refused_in_its_own_words", async () => {
@@ -146,9 +163,9 @@ test("a_runtime_serving_another_contract_version_is_refused_in_its_own_words", a
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-control-refusal-for-a-client-of-contract-version-1.json")),
   ]);
 
-  expect(failureOf(await server.client().listStreams())).toEqual({
-    failureDescription: "the runtime refused `list_streams`: the client was built against control contract version 1, and this runtime serves version 2",
-    isTheRuntimesRefusal: true,
+  expect(failureOf(await server.run(listStreams()))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words: "the runtime refused `list_streams`: the client was built against control contract version 1, and this runtime serves version 2",
   });
 });
 
@@ -165,10 +182,10 @@ test("a_runtime_refusing_the_studios_contract_with_its_record_is_refused_in_the_
     httpResponse("200 OK", "application/json", JSON.stringify({ jsonrpc: "2.0", id: 1, error: { code: CONTROL_CONTRACT_VERSION_MISMATCH_ERROR_CODE, message: "refused", data: mismatch } })),
   ]);
 
-  const failure = failureOf(await server.client().listStreams());
+  const failure = failureOf(await server.run(listStreams()));
 
-  expect(failure.isTheRuntimesRefusal).toBe(true);
-  expect(failure.failureDescription).toBe(
+  expect(failure._tag).toBe("RuntimeOfAnotherContract");
+  expect(failure.words).toBe(
     `this client is older than the runtime: it was built against control contract version ${CONTROL_CONTRACT_VERSION} revision ${CONTROL_CONTRACT_REVISION}, and the runtime (release 0.70.1) serves version ${CONTROL_CONTRACT_VERSION} revision ${CONTROL_CONTRACT_REVISION + 1}; take the client the runtime carries`,
   );
 });
@@ -176,49 +193,49 @@ test("a_runtime_refusing_the_studios_contract_with_its_record_is_refused_in_the_
 test("an_operation_that_ran_and_failed_is_reported_with_its_words", async () => {
   const server = await fakeLocalApiServerAnswering([controlOperationFailedResponse("the stream action did not finish")]);
 
-  expect(failureOf(await server.client().listStreams()).failureDescription).toBe("the stream action did not finish");
+  expect(failureOf(await server.run(listStreams())).words).toBe("the stream action did not finish");
 });
 
 test("a_chunked_response_is_dechunked", async () => {
   const server = await fakeLocalApiServerAnswering([Buffer.from("HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\n\r\n1\r\no\r\n1;ext=1\r\nk\r\n0\r\n\r\n")]);
 
-  answerOf(await server.client().checkHealth());
+  answerOf(await server.run(checkTheRuntimesHealth()));
 });
 
 test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_description_its_streams_their_graphs_and_node_catalogs_logs_node_types_assets_and_dependencies_and_its_machine_name", async () => {
   const liveLocalApiSocketPath = process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"] ?? "";
-  const client = new LocalApiClient(liveLocalApiSocketPath, 5_000);
-  const liveRuntimeControl = runtimeControlLayer(liveLocalApiSocketPath, 5_000);
+  const live = async <Answer>(runtimeOperation: Effect.Effect<Answer, RuntimeControlFailure, RuntimeControl>): Promise<Answer> =>
+    answerOf(await runOverTheLocalApiAt(liveLocalApiSocketPath, runtimeOperation, 5_000));
 
-  answerOf(await client.checkHealth());
-  const runtimeDescription = await Effect.runPromise(describeRuntime().pipe(Effect.provide(liveRuntimeControl)));
+  await live(checkTheRuntimesHealth());
+  const runtimeDescription = await live(describeRuntime());
   expect(runtimeDescription.build_id.startsWith(`${runtimeDescription.version}+`)).toBe(true);
   expect(runtimeDescription.up_for_ms).toBeGreaterThan(0);
-  const streams = answerOf(await client.listStreams());
-  expect(answerOf(await client.machineName())).not.toBe("");
+  const streams = await live(listStreams());
+  expect(await live(readTheMachineName())).not.toBe("");
   for (const loadedStream of streams.filter((listedStream) => listedStream.node_count !== null)) {
-    const graph = await Effect.runPromise(describeStreamGraph(loadedStream.stream).pipe(Effect.provide(liveRuntimeControl)));
+    const graph = await live(describeStreamGraph(loadedStream.stream));
     expect(graph.stream).toBe(loadedStream.stream);
     expect(graph.graph_document_text.startsWith("{\n")).toBe(true);
-    const nodeCatalog = await Effect.runPromise(describeNodeCatalog(loadedStream.stream).pipe(Effect.provide(liveRuntimeControl)));
+    const nodeCatalog = await live(describeNodeCatalog(loadedStream.stream));
     expect(nodeCatalog.node_types.length).toBeGreaterThan(0);
   }
   for (const projectDirectory of new Set(streams.flatMap((listedStream) => (listedStream.location === null ? [] : [listedStream.location.project_directory])))) {
     const projectStreams = streams.filter((listedStream) => listedStream.location?.project_directory === projectDirectory);
-    const nodeTypeListing = await Effect.runPromise(listProjectNodeTypes(projectDirectory).pipe(Effect.provide(liveRuntimeControl)));
-    answerOf(await client.listDependencies(projectDirectory, false));
+    const nodeTypeListing = await live(listProjectNodeTypes(projectDirectory));
+    await live(listDependencies(projectDirectory, false));
     expect(nodeTypeListing.sources[0]?.origin).toEqual({ source: "project" });
-    const assetListing = await Effect.runPromise(listProjectAssets(projectDirectory).pipe(Effect.provide(liveRuntimeControl)));
+    const assetListing = await live(listProjectAssets(projectDirectory));
     expect(assetListing.assets.filter((asset) => asset.kind === "stream").length).toBeGreaterThanOrEqual(projectStreams.length);
     for (const previewedAsset of assetListing.assets.filter((asset) => asset.preview !== null)) {
-      const picture = await Effect.runPromise(readAssetPreview(projectDirectory, previewedAsset.asset).pipe(Effect.provide(liveRuntimeControl)));
+      const picture = await live(readAssetPreview(projectDirectory, previewedAsset.asset));
       expect([picture.pixel_width, picture.pixel_height, picture.media_type]).toEqual([previewedAsset.preview?.pixel_width, previewedAsset.preview?.pixel_height, previewedAsset.preview?.media_type]);
     }
-    const wholeLog = await Effect.runPromise(readProjectLogRecords(projectDirectory, { stream: null, action: null }, null, null).pipe(Effect.provide(liveRuntimeControl)));
+    const wholeLog = await live(readProjectLogRecords(projectDirectory, { stream: null, action: null }, null, null));
     expect(wholeLog.project_directory).toBe(projectDirectory);
     expect(wholeLog.records.length).toBeGreaterThan(0);
     for (const projectStream of projectStreams) {
-      const streamLog = await Effect.runPromise(readProjectLogRecords(projectDirectory, { stream: projectStream.stream, action: null }, null, null).pipe(Effect.provide(liveRuntimeControl)));
+      const streamLog = await live(readProjectLogRecords(projectDirectory, { stream: projectStream.stream, action: null }, null, null));
       expect(streamLog.records.every((record) => record.stream === projectStream.stream)).toBe(true);
     }
   }
