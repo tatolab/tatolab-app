@@ -18,7 +18,7 @@ import { listNodeUiElementsCommand } from "./list_node_ui_elements_command.js";
 /** The handler of every command the window invokes, over `sharedState`, a converted one run on `studioRuntime`; `quit_tatolab_app` quits through `quitTheApp`. */
 export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState, studioRuntime: ManagedRuntime.ManagedRuntime<StudioServices, never>, quitTheApp: () => void): TatolabWindowCommandHandlers {
   return {
-    ...statusRuntimeAndSettingsCommandHandlersOf(sharedState, quitTheApp),
+    ...statusRuntimeAndSettingsCommandHandlersOf(sharedState, studioRuntime, quitTheApp),
     ...streamAndRuntimeProjectCommandHandlersOf(sharedState, studioRuntime),
     ...projectsWindowCommandHandlersOf(sharedState, studioRuntime),
     ...openProjectCommandHandlersOf(sharedState, studioRuntime),

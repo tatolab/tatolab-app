@@ -6,7 +6,6 @@ import type {
   ProjectCreationQueued,
   ProjectStreamActionQueued,
   ProjectTransactionAuthor,
-  RuntimeDescription,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
   StudioWarning,
@@ -242,11 +241,6 @@ export class TatolabAppController {
       command_line_tool_version: this.readTheCommandLineToolVersion(),
       studio_warnings: this.readTheStudioWarnings(),
     };
-  }
-
-  /** How the running runtime describes itself: its version and build, how long it has been up, and the folder of its own log. */
-  describeRuntime(): Promise<Result<RuntimeDescription, LocalApiRequestFailure>> {
-    return this.localApiClient.describeRuntime();
   }
 
   /** Queue the close of the open project in `projectDirectory` through the runtime's `close_project`, answering the id of the action the runtime queued. */

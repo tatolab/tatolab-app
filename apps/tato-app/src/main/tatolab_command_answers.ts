@@ -13,19 +13,6 @@ export async function answerTheWindow<Answer>(commandName: string, work: () => P
   }
 }
 
-/** `work`'s answer to the command `commandName`, then a status round whether it was carried out or refused, so the window sees what it changed. */
-export function answerTheWindowThenRefreshTheStatus(
-  sharedState: TatolabAppSharedState,
-  commandName: string,
-  work: () => Promise<Result<void, string>>,
-): Promise<Result<void, string>> {
-  return answerTheWindow(commandName, async () => {
-    const answer = await work();
-    sharedState.statusPublisher.requestRefresh();
-    return answer;
-  });
-}
-
 /** The window a command came from, by its page's contents id. */
 export interface TatolabCommandFromWindow {
   windowContentsId: number;

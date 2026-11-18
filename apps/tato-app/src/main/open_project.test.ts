@@ -430,7 +430,7 @@ async function anOpenProject(options: {
           return "opened_its_studio_window" as const;
         }),
     }),
-    Layer.succeed(StatusRounds, { requestARound: Effect.void }),
+    Layer.mock(StatusRounds, { requestARound: Effect.void }),
   );
   /** `opening` run on the services above and the test's clock: its answer, or its refusal's words. */
   const run = <Answer>(opening: Effect.Effect<Answer, { readonly words: string }, ProjectOpeningServices>): Promise<Result<Answer, string>> =>
@@ -952,7 +952,7 @@ test("a project is opened on the runtime only when the runtime, asked then, list
   ]);
   localApisStarted.push(localApi);
   let statusRounds = 0;
-  const statusRoundsCounted = Layer.succeed(StatusRounds, { requestARound: Effect.sync(() => void (statusRounds += 1)) });
+  const statusRoundsCounted = Layer.mock(StatusRounds, { requestARound: Effect.sync(() => void (statusRounds += 1)) });
   const openOnTheRuntime = (folder: string) => localApi.run(openTheProjectWhenTheRuntimeHoldsItClosed(folder).pipe(Effect.provide(statusRoundsCounted)));
 
   expect(await openOnTheRuntime(RECORDED_LOBBY_PROJECT)).toEqual(succeeded(undefined));

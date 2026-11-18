@@ -5,10 +5,11 @@ import { CONTROL_CONTRACT_REVISION, CONTROL_CONTRACT_VERSION, CONTROL_CONTRACT_V
 import { Effect } from "effect";
 import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationFailedResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
-import { LocalApiClient, runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./local_api_client.js";
+import { LocalApiClient } from "./local_api_client.js";
+import { runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./runtime_description_on_the_wire.js";
 import { httpRequestBytes, parseHttpResponse } from "./local_api_plain_http.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { describeNodeCatalog, describeStreamGraph, listProjectAssets, listProjectNodeTypes, readAssetPreview, readProjectLogRecords } from "./runtime_operations.js";
+import { describeNodeCatalog, describeRuntime, describeStreamGraph, listProjectAssets, listProjectNodeTypes, readAssetPreview, readProjectLogRecords } from "./runtime_operations.js";
 import { TatolabRuntimeControlWebSocketConnection } from "./tatolab_runtime_control_operation_call.js";
 import { streamActionChangesConnectionOver } from "./stream_action_changes_followed_for_the_status.js";
 import { answerOf, cleanUps, cleanUpWhatTheTestStarted, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./local_api_client_test_support.js";
@@ -87,7 +88,7 @@ test("listing_streams_posts_list_streams_to_control_with_the_contract_version_an
 test("describing_the_runtime_calls_describe_runtime_with_no_arguments_and_reads_its_four_fields", async () => {
   const server = await fakeLocalApiServerAnswering([controlOperationResultResponse(JSON.parse(DESCRIBE_RUNTIME_WIRE_TEXT_WITH_A_LOG_FOLDER))]);
 
-  expect(answerOf(await server.client().describeRuntime())).toEqual({
+  expect(answerOf(await server.run(describeRuntime()))).toEqual({
     version: "0.55.1",
     build_id: "0.55.1+0123abc.9f8e7d",
     up_for_ms: 266_400_000,
@@ -103,7 +104,7 @@ test("a_real_describe_runtime_result_reads_its_version_build_uptime_and_log_fold
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-runtime-tool-result-of-a-test-root-runtime.json")),
   ]);
 
-  expect(answerOf(await server.client().describeRuntime())).toEqual({
+  expect(answerOf(await server.run(describeRuntime()))).toEqual({
     version: "0.55.2",
     build_id: "0.55.2+ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a.eecdc9dbaa1025c25565ca507699ed60",
     up_for_ms: 10_007,
@@ -126,9 +127,9 @@ test("an_operation_the_runtime_does_not_serve_is_refused_in_its_own_words", asyn
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-control-refusal-for-an-operation-this-runtime-does-not-serve.json")),
   ]);
 
-  expect(failureOf(await server.client().describeRuntime())).toEqual({
-    failureDescription: "the runtime refused `describe_runtime`: the runtime serves no operation named `describe_runtime_of_a_later_runtime`",
-    isTheRuntimesRefusal: true,
+  expect(failureOf(await server.run(describeRuntime()))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words: "the runtime refused `describe_runtime`: the runtime serves no operation named `describe_runtime_of_a_later_runtime`",
   });
 });
 
@@ -190,7 +191,7 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
   const liveRuntimeControl = runtimeControlLayer(liveLocalApiSocketPath, 5_000);
 
   answerOf(await client.checkHealth());
-  const runtimeDescription = answerOf(await client.describeRuntime());
+  const runtimeDescription = await Effect.runPromise(describeRuntime().pipe(Effect.provide(liveRuntimeControl)));
   expect(runtimeDescription.build_id.startsWith(`${runtimeDescription.version}+`)).toBe(true);
   expect(runtimeDescription.up_for_ms).toBeGreaterThan(0);
   const streams = answerOf(await client.listStreams());

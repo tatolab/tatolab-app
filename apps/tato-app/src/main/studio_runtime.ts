@@ -11,6 +11,8 @@ import type {
   PackageCatalogEntry,
   PackageCatalogReading,
   ProjectTransactionAuthor,
+  StudioWarningKind,
+  TatolabStatus,
 } from "../shared/tatolab_backend_contract.js";
 import { projectPlaybackAsListed, streamsOfTheProjectIn, theStreamsListTheProjectOpen, type ProjectPlaybackAsListed } from "../shared/project_playback.js";
 import { downloadTheCatalogEntrysZip } from "./marketplace_module_download.js";
@@ -18,6 +20,7 @@ import type { ProjectFolderDialogPurpose, RecentProjectFolderOpened, StudioWindo
 import type { ProjectAssetFileFilter } from "./project_asset_file_filters.js";
 import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { readThePackageCatalog } from "./package_catalog.js";
+import { openedWhenAnExistingFolder } from "./stream_project_folder_opening.js";
 import type { Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
 import type { TatolabAppLog, TatolabAppLogFields, TatolabAppLogLevel } from "./tatolab_app_log.js";
@@ -156,6 +159,8 @@ export class StatusRounds extends Context.Service<
   {
     /** Ask for a round now, so the listing shows what a command changed. */
     readonly requestARound: Effect.Effect<void>;
+    /** The status as of the last round, waiting up to `waitLimitMs` for the first; `null` when none came by then. */
+    readonly lastStatusWaitingUpTo: (waitLimitMs: number) => Effect.Effect<TatolabStatus | null>;
   }
 >()("tatolab-app/StatusRounds") {}
 
@@ -163,6 +168,41 @@ export class StatusRounds extends Context.Service<
 export function thenAStatusRound<Answer, Failure, Services>(change: Effect.Effect<Answer, Failure, Services>): Effect.Effect<Answer, Failure, Services | StatusRounds> {
   return change.pipe(Effect.ensuring(StatusRounds.use((statusRounds) => statusRounds.requestARound)));
 }
+
+/** The settings the window changes, each remembered between launches; a choice that could not be remembered is refused in words. */
+export class StudioSettings extends Context.Service<
+  StudioSettings,
+  {
+    /** Notify when a stream fails, or stop. */
+    readonly setStreamFailureNotifications: (enabled: boolean) => Effect.Effect<void, CommandRefused>;
+    /** Turn Developer mode on or off. */
+    readonly setDeveloperMode: (enabled: boolean) => Effect.Effect<void, CommandRefused>;
+    /** Remember that the dialog of the warning `kind` was shown, so no window shows it again. */
+    readonly rememberTheWarningDialogWasShown: (kind: StudioWarningKind) => Effect.Effect<void, CommandRefused>;
+    /** Have the desktop open the app at login, or stop; refused in the desktop's words. */
+    readonly setOpenTatolabAtLogin: (enabled: boolean) => Effect.Effect<void, CommandRefused>;
+  }
+>()("tatolab-app/StudioSettings") {}
+
+/** What the app carries for this machine: the runtime it runs as its child, and the `tatolab` command it links in the home folder. */
+export class CarriedTools extends Context.Service<
+  CarriedTools,
+  {
+    /** Stop the app's runtime and start it again; refused for a runtime the app did not start. */
+    readonly restartTheRuntime: Effect.Effect<void, CommandRefused>;
+    /** Link `~/.local/bin/tatolab` to the command the app carries; refused in words when something else holds the name or the build offers none. */
+    readonly linkTheCommandLineTool: Effect.Effect<void, CommandRefused>;
+  }
+>()("tatolab-app/CarriedTools") {}
+
+/** The desktop's file manager. */
+export class FileManager extends Context.Service<
+  FileManager,
+  {
+    /** Show `folder` in the file manager; refused with `refusalWhenMissing` when it is no folder on this machine, and in the desktop's words. */
+    readonly showAnExistingFolder: (folder: string, refusalWhenMissing: string) => Effect.Effect<void, CommandRefused>;
+  }
+>()("tatolab-app/FileManager") {}
 
 /** The person signed in to this computer, the author Studio's graph edits are recorded under. */
 export class PersonEditingInStudio extends Context.Service<PersonEditingInStudio, { readonly author: ProjectTransactionAuthor }>()("tatolab-app/PersonEditingInStudio") {}
@@ -183,6 +223,9 @@ export type StudioServices =
   | ListedStreams
   | SystemMediaAccessAhead
   | StatusRounds
+  | StudioSettings
+  | CarriedTools
+  | FileManager
   | PersonEditingInStudio
   | StudioAppVersion;
 
@@ -294,7 +337,28 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
     Layer.succeed(SystemMediaAccessAhead, {
       askForTheDevicesTheViewsDeclare: (listedViews) => Effect.promise(() => sharedState.systemMediaAccessAskedAheadForViews.askForTheDevicesTheViewsDeclare(listedViews)),
     }),
-    Layer.succeed(StatusRounds, { requestARound: Effect.sync(() => sharedState.statusPublisher.requestRefresh()) }),
+    Layer.succeed(StatusRounds, {
+      requestARound: Effect.sync(() => sharedState.statusPublisher.requestRefresh()),
+      lastStatusWaitingUpTo: (waitLimitMs) => Effect.promise(() => sharedState.statusPublisher.lastPublishedStatusWaitingUpTo(waitLimitMs)),
+    }),
+    Layer.succeed(StudioSettings, {
+      setStreamFailureNotifications: (enabled) => commandAnswerOfPlainCode(() => sharedState.streamFailureNotifications.setNotifyWhenAStreamFails(enabled)),
+      setDeveloperMode: (enabled) => commandAnswerOfPlainCode(() => sharedState.developerModeSwitch.setAndRemember(enabled)),
+      rememberTheWarningDialogWasShown: (kind) => commandAnswerOfPlainCode(() => sharedState.studioWarnings.rememberTheDialogWasShown(kind)),
+      setOpenTatolabAtLogin: (enabled) => commandAnswerOfPlainCode(() => sharedState.controller.setOpenTatolabAtLogin(enabled)),
+    }),
+    Layer.succeed(CarriedTools, {
+      restartTheRuntime: commandAnswerOfPlainCode(() => sharedState.controller.restartTheRuntimeOnRequest()),
+      linkTheCommandLineTool: commandAnswerOfPlainCode(() => sharedState.controller.linkTheCommandLineTool()),
+    }),
+    Layer.succeed(FileManager, {
+      showAnExistingFolder: (folder, refusalWhenMissing) =>
+        commandAnswerOfPlainCode(() =>
+          openedWhenAnExistingFolder(sharedState.streamProjectFolderOpeners, folder, refusalWhenMissing, (existingFolder) =>
+            sharedState.streamProjectFolderOpeners.openAFolderInTheFileManager(existingFolder),
+          ),
+        ),
+    }),
     Layer.succeed(PersonEditingInStudio, { author: sharedState.thePersonEditingInStudio }),
     Layer.succeed(StudioAppVersion, { version: appVersion }),
     tatolabAppLogAsEffectsLogger(sharedState.tatolabAppLog),
