@@ -1,4 +1,5 @@
 import type { RuntimeState, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import { runtimeOfAnotherAgeShownFor } from "./runtime_of_another_age_presentation";
 
 /** The tones every status colour in the window comes from. */
 export type StatusTone = "ok" | "progress" | "idle" | "warning" | "error";
@@ -9,7 +10,7 @@ export interface RuntimeBannerPresentation {
   explanation: string;
 }
 
-/** How the window shows the runtime: its state, its tone, its short label, and the banner a non-running state needs. */
+/** How the window shows the runtime: its state, its tone (a warning for a runtime of another age, whose notice says why), its short label, and the banner a non-running state needs. */
 export interface RuntimeDisplayPresentation {
   runtimeState: RuntimeState;
   tone: StatusTone;
@@ -21,7 +22,7 @@ export interface RuntimeDisplayPresentation {
 export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPresentation {
   switch (status.runtime_state) {
     case "running":
-      return { runtimeState: "running", tone: "ok", shortLabel: "Running", banner: null };
+      return { runtimeState: "running", tone: runtimeOfAnotherAgeShownFor(status) === null ? "ok" : "warning", shortLabel: "Running", banner: null };
     case "starting":
       return {
         runtimeState: "starting",

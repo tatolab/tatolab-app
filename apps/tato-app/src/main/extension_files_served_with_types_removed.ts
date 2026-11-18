@@ -168,6 +168,7 @@ function statusOfAFileNotServed(notServed: ProjectViewFileNotServed): ProjectVie
       return 422;
     case "ProjectFileBytesUnreadable":
     case "ContractMismatch":
+    case "RuntimeOfAnotherContract":
       return 502;
     case "RuntimeUnreachable":
     case "RuntimeTimedOut":

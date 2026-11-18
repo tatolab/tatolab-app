@@ -20,6 +20,7 @@ const AN_AGENTS_EDIT: ProjectTransaction = {
 
 const RUNNING_WITH_AN_EDIT: StudioStatusBarSources = {
   runtimeState: "running",
+  runtimeOfAnotherAge: null,
   runtimeDescription: { kind: "read", description: { version: "0.68.55", build_id: "0.68.55+3e1a48c.1", up_for_ms: 1_000, runtime_log_directory: "/tmp/logs" } },
   projectTransactions: {
     kind: "read",
@@ -31,23 +32,32 @@ const RUNNING_WITH_AN_EDIT: StudioStatusBarSources = {
 describe("the studio's status bar", () => {
   it("names the runtime's version without the machine, and the newest edit's author and when", () => {
     expect(studioStatusBarWordsOf(RUNNING_WITH_AN_EDIT)).toEqual({
-      runtime_tone: "running",
-      runtime: "tatolabd 0.68.55",
+      runtime: { tone: "running", words: "tatolabd 0.68.55" },
       last_edit: "Last edit by claude-code · 2 minutes ago",
     });
   });
 
   it("says the runtime is not running, and leaves out a feed with no edit", () => {
     const words = studioStatusBarWordsOf({ ...RUNNING_WITH_AN_EDIT, runtimeState: "not_running", projectTransactions: { kind: "not_read", because: "no runtime answers" } });
-    expect(words.runtime).toBe("Runtime not running");
+    expect(words.runtime).toEqual({ tone: "not_running", words: "Runtime not running" });
     expect(words.last_edit).toBeNull();
   });
 
+  it("names a runtime of another age by its release and which side is older, carrying its record for the panel", () => {
+    const runtimeOfAnotherAge = { older_side: "studio", runtime_version: "0.80.0", runtime_contract: { version: 4, revision: 0 }, studio_contract: { version: 3, revision: 1 }, remedy: "update_studio" } as const;
+    expect(studioStatusBarWordsOf({ ...RUNNING_WITH_AN_EDIT, runtimeOfAnotherAge }).runtime).toEqual({
+      tone: "of_another_age",
+      words: "tatolabd 0.80.0 · newer than this Studio",
+      runtime_of_another_age: runtimeOfAnotherAge,
+    });
+    expect(studioStatusBarWordsOf({ ...RUNNING_WITH_AN_EDIT, runtimeState: "starting", runtimeOfAnotherAge }).runtime.tone).toBe("starting");
+  });
+
   it("says the runtime is starting without naming the machine", () => {
-    expect(studioStatusBarWordsOf({ ...RUNNING_WITH_AN_EDIT, runtimeState: "starting" }).runtime).toBe("Runtime starting");
+    expect(studioStatusBarWordsOf({ ...RUNNING_WITH_AN_EDIT, runtimeState: "starting" }).runtime.words).toBe("Runtime starting");
   });
 
   it("names the runtime without a version until its description is read", () => {
-    expect(studioStatusBarWordsOf({ ...RUNNING_WITH_AN_EDIT, runtimeDescription: { kind: "not_read" } }).runtime).toBe("tatolabd");
+    expect(studioStatusBarWordsOf({ ...RUNNING_WITH_AN_EDIT, runtimeDescription: { kind: "not_read" } }).runtime.words).toBe("tatolabd");
   });
 });

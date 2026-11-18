@@ -7,6 +7,7 @@ import type { RecentProjectChangeRefusal } from "../presentation/projects_presen
 import { projectPlaybackAsListed } from "../../shared/project_playback";
 import { NO_PROJECT_OPEN_REASON } from "./studio_menu_bar_model";
 import type { ProjectPlaybackAskedFor, ProjectPlaybackReading } from "../presentation/project_playback_presentation";
+import { presentRuntimeOfAnotherAge, runtimeOfAnotherAgeShownFor } from "../presentation/runtime_of_another_age_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import type { StudioWindowValuesServedToViews } from "../view_host/studio_view_host_services";
@@ -31,10 +32,12 @@ export interface ModuleManagerSectionAskNumbered {
   ask_number: number;
 }
 
-/** The streams the runtime lists in `status`, or why it lists none now. */
+/** The streams the runtime lists in `status`, or why it lists none now: a runtime of another age that refuses the listing is named by its notice's title, not by each refusal. */
 export function listedStreamsReadingOf(status: TatolabStatus): ListedStreamsReading {
   const runtimeStatus = presentRuntimeStatus(status);
   if (runtimeStatus.runtimeState === "running" && status.streams !== null) return { kind: "listed", streams: status.streams };
+  const runtimeOfAnotherAge = runtimeOfAnotherAgeShownFor(status);
+  if (runtimeOfAnotherAge !== null) return { kind: "not_listed", because: presentRuntimeOfAnotherAge(runtimeOfAnotherAge).title };
   if (runtimeStatus.runtimeState === "running" && status.streams_not_listed_because !== null) return { kind: "listing_failed", because: status.streams_not_listed_because };
   return { kind: "not_listed", because: runtimeStatus.banner?.title ?? runtimeStatus.shortLabel };
 }

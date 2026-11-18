@@ -174,6 +174,32 @@ export interface StudioWarning {
   first_open_dialog_due: boolean;
 }
 
+/** One side's control contract: its version, which a breaking change raises, and its revision, the additions made within that version. */
+export interface ControlContractAge {
+  version: number;
+  revision: number;
+}
+
+/**
+ * What the person does about a runtime of another age: update Tato Studio, which is the older side or carries the older
+ * runtime it started; quit the older runtime it did not start, so it starts the one it carries; or, in a build that carries
+ * no runtime, update the runtime that answers.
+ */
+export type RuntimeOfAnotherAgeRemedy = "update_studio" | "quit_the_running_runtime" | "update_the_runtime";
+
+/**
+ * The runtime refused this Studio's control contract, as its mismatch record states it: which side is older, the runtime's
+ * release, both contracts, and the one thing to do about it. It blocks nothing on its own.
+ */
+export interface RuntimeOfAnotherAge {
+  older_side: "runtime" | "studio";
+  /** The runtime's release, as its record names it. */
+  runtime_version: string;
+  runtime_contract: ControlContractAge;
+  studio_contract: ControlContractAge;
+  remedy: RuntimeOfAnotherAgeRemedy;
+}
+
 /** What `get_tatolab_status` answers and `tatolab-status-changed` carries. */
 export interface TatolabStatus {
   app_version: string;
@@ -183,6 +209,8 @@ export interface TatolabStatus {
   runtime_state: RuntimeState;
   /** Why no runtime answers while `runtime_state` is `not_running`, in words the window shows; `null` otherwise. */
   runtime_not_running_because: string | null;
+  /** The runtime answering, when it refused this Studio's control contract as older or newer; `null` while it agrees, is not read yet, or is down. */
+  runtime_of_another_age: RuntimeOfAnotherAge | null;
   machine_name: string | null;
   /** `null` when the streams were not listed: the runtime is down or listing them failed. */
   streams: ListedStream[] | null;

@@ -11,6 +11,7 @@ import { SectionedDialog } from "@tatolab/tato-app-view-sdk/design_system/sectio
 import { SettingsGroup, SettingsMachineWords, SettingsRow, SettingsSectionExplanation } from "@tatolab/tato-app-view-sdk/design_system/settings_rows";
 import { ToggleSwitch } from "@tatolab/tato-app-view-sdk/design_system/toggle_switch";
 import { presentTatolabAppUpdate } from "../presentation/app_update_presentation";
+import { runtimeOfAnotherAgeShownFor } from "../presentation/runtime_of_another_age_presentation";
 import { presentCommandLineTool, presentPlatform } from "../presentation/platform_presentation";
 import type { StatusTone } from "../presentation/runtime_presentation";
 import {
@@ -30,7 +31,8 @@ import {
   TATOLAB_MCP_CONFIG,
   type SettingsSection,
 } from "../presentation/settings_presentation";
-import { useActionThroughTheBackend, type BackendActionRefusal } from "./action_through_the_backend";
+import { useActionThroughTheBackend, useTatolabAppUpdateAction, type BackendActionRefusal } from "./action_through_the_backend";
+import { RuntimeOfAnotherAgeNotice } from "./runtime_of_another_age_notice";
 import { ProjectSettingsSectionView, type ProjectSettingsSources } from "./project_settings_section_view";
 import { useRuntimeDescriptionReading, useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
@@ -205,6 +207,7 @@ function RuntimeSection() {
   const runtimeDescription = useRuntimeDescriptionReading();
   const platformPresentation = presentPlatform(platform);
   const runtimeStatusRow = presentRuntimeStatusRow(status, runtimeDescription);
+  const runtimeOfAnotherAge = runtimeOfAnotherAgeShownFor(status);
   const restartUnavailableBecause = restartRuntimeUnavailableBecause(status);
   const restartRuntime = useActionThroughTheBackend(() => backend.restartRuntime(), "Couldn't restart the runtime:");
   const runtimeLogFolder = presentRuntimeLogFolder(status, runtimeDescription);
@@ -242,6 +245,7 @@ function RuntimeSection() {
           )}
         >
           {runtimeStatusRow.refusal !== null && <RefusalLine lead="The runtime didn't describe itself:" words={runtimeStatusRow.refusal} tone="warning" />}
+          {runtimeOfAnotherAge !== null && <RuntimeOfAnotherAgeNotice runtimeOfAnotherAge={runtimeOfAnotherAge} className="mt-1" />}
         </SettingsRow>
         <SettingsRow
           label="Local API socket"
@@ -362,10 +366,7 @@ function AboutSection() {
   const status = useTatolabStatus();
   const runtimeDescription = useRuntimeDescriptionReading();
   const appUpdate = presentTatolabAppUpdate(status.app_update);
-  const runTheUpdateAction = useActionThroughTheBackend(
-    () => (appUpdate.action?.command === "take_the_newer_version" ? backend.takeTheNewerTatolabAppVersion() : backend.checkForTatolabAppUpdates()),
-    "Couldn't update Tato Studio:",
-  );
+  const runTheUpdateAction = useTatolabAppUpdateAction(backend, status.app_update);
   const versions = presentAboutVersions(status, runtimeDescription);
   return (
     <div className="flex flex-col items-center gap-6 pt-6 text-center" data-settings-about="">
@@ -383,9 +384,9 @@ function AboutSection() {
             description={appUpdate.description}
             refusal={runTheUpdateAction.refusal ?? (appUpdate.failure === null ? null : { lead: "The last check failed:", words: appUpdate.failure })}
             control={() =>
-              appUpdate.action !== null && (
-                <ActionButton isDisabled={!appUpdate.action.isEnabled || runTheUpdateAction.isPending} onPressed={runTheUpdateAction.run}>
-                  {appUpdate.action.label}
+              runTheUpdateAction.action !== null && (
+                <ActionButton isDisabled={!runTheUpdateAction.action.isEnabled || runTheUpdateAction.isPending} onPressed={runTheUpdateAction.run}>
+                  {runTheUpdateAction.action.label}
                 </ActionButton>
               )
             }
