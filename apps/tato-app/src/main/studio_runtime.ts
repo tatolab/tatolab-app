@@ -24,6 +24,7 @@ import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js
 import { readThePackageCatalog } from "./package_catalog.js";
 import { controlPushesFollowedForTheWindows } from "./control_pushes_followed_for_the_windows.js";
 import { PROJECT_LOG_RECORDS_WRITTEN, tellTheWindowTheProjectLogRecordsWritten, type ProjectLogRecordsFollowedForTheWindows, type WindowFollowingProjectLogs } from "./project_log_records_followed_for_the_windows.js";
+import { streamActionsFollowedForTheStatus, type StreamActionsFollowedForTheStatus, type StreamActionsNoticed } from "./stream_action_changes_followed_for_the_status.js";
 import { STREAM_GRAPH_CHANGES, tellTheWindowTheStreamGraphChanged, type StreamGraphChangesFollowedForTheWindows, type WindowFollowingStreamGraphs } from "./stream_graph_changes_followed_for_the_windows.js";
 import { failedWith, type Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
@@ -270,6 +271,25 @@ export function runtimePushesFollowedLayerOver(runtimeControl: Layer.Layer<Runti
   ).pipe(Layer.provide(Layer.merge(runtimeControl, tatolabAppLogAsEffectsLogger(tatolabAppLog))));
 }
 
+/** The runtime's stream actions, followed for the status once the app has opened. */
+export class StreamActionsFollowed extends Context.Service<StreamActionsFollowed, StreamActionsFollowedForTheStatus>()("tatolab-app/StreamActionsFollowed") {}
+
+/** The stream actions followed over `runtimeControl` into `noticed`, the status read again with `readTheStatusAgain`, while the layer's scope is open. */
+export function streamActionsFollowedLayerOver(
+  runtimeControl: Layer.Layer<RuntimeControl>,
+  tatolabAppLog: TatolabAppLog,
+  noticed: StreamActionsNoticed,
+  readTheStatusAgain: () => void,
+): Layer.Layer<StreamActionsFollowed> {
+  return Layer.effect(StreamActionsFollowed, streamActionsFollowedForTheStatus(noticed, readTheStatusAgain)).pipe(
+    // The following runs in a fiber of its own, which logs through the logger provided to it here.
+    Layer.provide(Layer.merge(runtimeControl, tatolabAppLogAsEffectsLogger(tatolabAppLog))),
+  );
+}
+
+/** How long the stream actions' connection waits for the runtime to answer a subscribe or a describe. */
+const STREAM_ACTIONS_CONNECTION_REQUEST_TIMEOUT_MS = 10_000;
+
 /** How long a connection the windows follow the runtime's pushes over waits for the runtime to answer a subscribe. */
 const CONTROL_PUSHES_CONNECTION_REQUEST_TIMEOUT_MS = 5_000;
 
@@ -295,6 +315,7 @@ export type StudioServices =
   | IdempotencyKeys
   | StudioAppVersion
   | StreamGraphsFollowed
+  | StreamActionsFollowed
   | ProjectLogsFollowed;
 
 /** The app's log level each of Effect's log levels writes at; `None` writes nothing. */
@@ -360,6 +381,9 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
   return Layer.mergeAll(
     runtimeControlLayer(localApiSocketPath, LOCAL_API_REQUEST_TIMEOUT_MS),
     runtimePushesFollowedLayerOver(runtimeControlLayer(localApiSocketPath, CONTROL_PUSHES_CONNECTION_REQUEST_TIMEOUT_MS), sharedState.tatolabAppLog),
+    streamActionsFollowedLayerOver(runtimeControlLayer(localApiSocketPath, STREAM_ACTIONS_CONNECTION_REQUEST_TIMEOUT_MS), sharedState.tatolabAppLog, sharedState.streamActionsNoticed, () =>
+      sharedState.statusPublisher.requestRefresh(),
+    ),
     Layer.succeed(StudioWindows, {
       projectFolderOfTheWindow: (commandFromWindow) => studioWindowOf(commandFromWindow).pipe(Effect.map((studioWindow) => studioWindow.projectTransactionsFeed.projectFolder)),
       openProjectReadingOfTheWindow: (commandFromWindow) => studioWindowOf(commandFromWindow).pipe(Effect.map((studioWindow) => studioWindow.openProject.readOpenProject())),

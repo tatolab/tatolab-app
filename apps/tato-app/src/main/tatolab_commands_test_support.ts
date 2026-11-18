@@ -43,6 +43,7 @@ import {
   StudioAppVersion,
   studioRuntimeLayer,
   runtimePushesFollowedLayerOver,
+  streamActionsFollowedLayerOver,
   type WindowFollowingTheRuntime,
   StudioWindows,
   SystemMediaAccessAhead,
@@ -52,6 +53,7 @@ import {
 } from "./studio_runtime.js";
 import { projectPlaybackAsListed } from "../shared/project_playback.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
+import { StreamActionsNoticed } from "./stream_action_changes_followed_for_the_status.js";
 import type { RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import { CommandRefused } from "./window_command.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
@@ -145,6 +147,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
   return Layer.mergeAll(
     runtimeControl,
     runtimePushesFollowedLayerOver(overrides.runtimeControlOfThePushes ?? runtimeControl, overrides.tatolabAppLog ?? quietTatolabAppLog),
+    streamActionsFollowedLayerOver(runtimeControl, overrides.tatolabAppLog ?? quietTatolabAppLog, new StreamActionsNoticed(), () => {}),
     Layer.succeed(StudioWindows, {
       projectFolderOfTheWindow: (commandFromWindow) =>
         commandFromWindow.windowContentsId === studioWindow.windowContentsId ? Effect.succeed(studioWindow.projectFolder) : Effect.fail(new CommandRefused({ words: "No project is open in this window." })),
@@ -306,7 +309,7 @@ export async function sharedStateOverFakes(
     dockIconHost: fakeShellForTheWindows.tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: () => null,
     projectReadingsOfTheRuntime,
-    openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
+    followOverTheRuntime: () => null,
     runAfter: () => () => {},
     closeTheProjectAsItsWindowCloses: async () => succeeded(undefined),
     whenAWindowStartingLanguageServersClosed: () => {},
@@ -317,6 +320,7 @@ export async function sharedStateOverFakes(
   return {
     controller,
     statusPublisher,
+    streamActionsNoticed: new StreamActionsNoticed(),
     tatolabAppUpdater,
     tatolabAppUpdateAnnouncements: new TatolabAppUpdateAnnouncements(() => {}),
     machineModulesInstallOn: { sys_platform: "darwin", platform_machine: "arm64" },

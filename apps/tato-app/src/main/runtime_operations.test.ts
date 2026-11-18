@@ -9,8 +9,8 @@ import { runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./runtime_de
 import { httpRequestBytes, parseHttpResponse } from "./local_api_plain_http.js";
 import { checkTheRuntimesHealth, describeNodeCatalog, describeRuntime, describeStreamGraph, listDependencies, listProjectAssets, listProjectNodeTypes, listStreams, readAssetPreview, readProjectLogRecords, readTheMachineName } from "./runtime_operations.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
-import { TatolabRuntimeControlWebSocketConnection, type RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
-import { streamActionChangesConnectionOver } from "./stream_action_changes_followed_for_the_status.js";
+import { controlOperationOnTheConnectionReadWith, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
+import { streamActionDescriptionFromTheDescribeStreamActionToolResult } from "./stream_action_description.js";
 import { answerOf, cleanUps, cleanUpWhatTheTestStarted, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./runtime_operations_test_support.js";
 
 afterEach(cleanUpWhatTheTestStarted);
@@ -245,16 +245,24 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
 });
 
 test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_names_its_stream_actions_under_way_on_subscribing_and_describes_each_on_the_same_connection", async () => {
-  const opened = await TatolabRuntimeControlWebSocketConnection.open(process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"] ?? "", 5_000);
-  const connection = streamActionChangesConnectionOver(answerOf(opened));
-  try {
-    const actionsUnderWay = answerOf(await connection.subscribeToTheStreamActionChanges());
-    for (const action of actionsUnderWay) expect(answerOf(await connection.describeTheStreamAction(action)).action).toBe(action);
-    const finishedAction = process.env["TATOLAB_APP_LIVE_FINISHED_STREAM_ACTION"];
-    if (finishedAction !== undefined) expect(answerOf(await connection.describeTheStreamAction(finishedAction)).action).toBe(finishedAction);
-  } finally {
-    connection.close();
-  }
+  const finishedAction = process.env["TATOLAB_APP_LIVE_FINISHED_STREAM_ACTION"];
+  const describedActions = await runOverTheLocalApiAt(
+    process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"] ?? "",
+    Effect.scoped(
+      Effect.gen(function* () {
+        const connection = yield* RuntimeControl.use((runtimeControl) => runtimeControl.connect);
+        const { actions_under_way: actionsUnderWay } = yield* connection.call("subscribe_stream_action_changes", {});
+        const actionsToDescribe = finishedAction === undefined ? actionsUnderWay : [...actionsUnderWay, finishedAction];
+        return yield* Effect.forEach(actionsToDescribe, (action) =>
+          controlOperationOnTheConnectionReadWith(connection, "describe_stream_action", { action }, streamActionDescriptionFromTheDescribeStreamActionToolResult).pipe(
+            Effect.map((description) => [action, description.action]),
+          ),
+        );
+      }),
+    ),
+    5_000,
+  );
+  for (const [action, described] of answerOf(describedActions)) expect(described).toBe(action);
 });
 
 test("a_plain_request_is_one_get_with_no_body_on_a_connection_the_runtime_closes", () => {

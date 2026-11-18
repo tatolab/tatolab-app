@@ -249,9 +249,25 @@ export function controlOperationReadWith<Method extends ControlOperationMethodNa
   params: ControlOperationParams<Method>,
   readTheAnswer: (answered: ControlOperationResult<Method>) => Result<Value, string>,
 ): Effect.Effect<Value, RuntimeControlFailure, RuntimeControl> {
-  return RuntimeControl.use((runtimeControl) => runtimeControl.call(method, params)).pipe(
-    Effect.flatMap((answered) => fromResult(readTheAnswer(answered), (why) => answerContractMismatch(method, why))),
-  );
+  return RuntimeControl.use((runtimeControl) => answerReadWith(runtimeControl.call(method, params), method, readTheAnswer));
+}
+
+/** `method` called with `params` on `connection` and its answer read with `readTheAnswer`, as `controlOperationReadWith` reads one. */
+export function controlOperationOnTheConnectionReadWith<Method extends ControlOperationMethodName, Value>(
+  connection: ControlConnection,
+  method: Method,
+  params: ControlOperationParams<Method>,
+  readTheAnswer: (answered: ControlOperationResult<Method>) => Result<Value, string>,
+): Effect.Effect<Value, RuntimeControlFailure> {
+  return answerReadWith(connection.call(method, params), method, readTheAnswer);
+}
+
+function answerReadWith<Method extends ControlOperationMethodName, Value, Services>(
+  answering: Effect.Effect<ControlOperationResult<Method>, RuntimeControlFailure, Services>,
+  method: Method,
+  readTheAnswer: (answered: ControlOperationResult<Method>) => Result<Value, string>,
+): Effect.Effect<Value, RuntimeControlFailure, Services> {
+  return answering.pipe(Effect.flatMap((answered) => fromResult(readTheAnswer(answered), (why) => answerContractMismatch(method, why))));
 }
 
 /** A client connected to the local API at `localApiSocketPath` over `/control/ws`, its `discover` answered; aborting `signal` gives up on it. */

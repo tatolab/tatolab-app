@@ -1,6 +1,7 @@
 // What the tray, the window's commands and the app's events reach once the app is set up: the
 // controller, the status publisher, the updater, and the requests the tray and the window both make.
 
+import type { StreamActionsNoticed } from "./stream_action_changes_followed_for_the_status.js";
 import type { StudioWarningsOfThisRun } from "./studio_warnings.js";
 import type { ProjectViewsListedToTheWindows } from "./extension_files_served_with_types_removed.js";
 import { describeCaughtFailure, type Result } from "./result.js";
@@ -36,6 +37,8 @@ export interface StreamProjectFolderOpeners {
 export interface TatolabAppSharedState {
   controller: TatolabAppController;
   statusPublisher: TatolabStatusPublisher;
+  /** What the followed stream actions noticed, which the status carries. */
+  streamActionsNoticed: StreamActionsNoticed;
   tatolabAppUpdater: TatolabAppUpdater;
   /** The update dialog the Projects and studio windows show. */
   tatolabAppUpdateAnnouncements: TatolabAppUpdateAnnouncements;

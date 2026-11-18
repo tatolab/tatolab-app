@@ -19,7 +19,7 @@ import type { TatolabAppUpdatePackaging } from "./platform/tatolab_app_update_pa
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { TatolabPlatformItems } from "./platform/tatolab_platform_items.js";
 import { TatolabAppController } from "./tatolab_app_controller.js";
-import { describeCaughtFailure, failedWith, succeeded } from "./result.js";
+import { describeCaughtFailure, failedWith } from "./result.js";
 import {
   runTatolabAppUpdateWorkInTheBackground,
   quitTheTatolabApp,
@@ -32,7 +32,7 @@ import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import { closeProject, listDependencies, nameTheProject } from "./runtime_operations.js";
 import { resultInWordsOf } from "./result_as_effect.js";
 import { answerOnTheStudioRuntime } from "./window_command.js";
-import { ProjectLogsFollowed, StreamGraphsFollowed, studioRuntimeLayer, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
+import { ProjectLogsFollowed, StreamActionsFollowed, StreamGraphsFollowed, studioRuntimeLayer, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
@@ -50,14 +50,12 @@ import { type FolderEntriesWatch, type ProjectArchiveDialog, type ProjectCoverIm
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import type { ProjectAssetFilesDialog } from "./project_assets_imported_from_chosen_files.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
-import { localApiRequestFailure } from "./local_api_request_failure.js";
 import { projectViewFileRequestsAnsweredOn, ProjectViewsListedToTheWindows, type AnswerAProjectViewFileRequest } from "./extension_files_served_with_types_removed.js";
 import { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 import { RuntimeViewerControlConnection } from "./runtime_viewer_control_connection.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
-import { projectChangesConnectionOver } from "./project_transactions_feed.js";
-import { StreamActionChangesFollowedForTheStatus, streamActionChangesConnectionOver } from "./stream_action_changes_followed_for_the_status.js";
-import { TatolabRuntimeControlWebSocketConnection } from "./tatolab_runtime_control_operation_call.js";
+import { StreamActionsNoticed } from "./stream_action_changes_followed_for_the_status.js";
+import { runtimeControlLayer } from "./runtime_control_layer.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import { runtimeViewerChannelReaderOpenerOver } from "./runtime_viewer_frame_import_addon.js";
 import { StudioWarningsOfThisRun } from "./studio_warnings.js";
@@ -70,8 +68,6 @@ const PORT_VIEWER_REQUEST_TIMEOUT_MS = 5_000;
 
 /** How long a read of a project's change feed waits on the runtime. */
 const PROJECT_TRANSACTIONS_FEED_REQUEST_TIMEOUT_MS = 10_000;
-/** How long the stream action changes' connection waits for the runtime to answer a subscribe or a describe. */
-const STREAM_ACTION_CHANGES_REQUEST_TIMEOUT_MS = 10_000;
 
 const TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET = "Tato Studio has not reached the runtime yet.";
 
@@ -207,12 +203,11 @@ export async function startTatolabApp(
     dockIconHost: tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: tatolabElectronAppShell.watchFolderEntries,
     projectReadingsOfTheRuntime,
-    openTheProjectTransactionsFeedConnection: async () =>
-      localApiSocketOnceKnown === null
-        ? localApiRequestFailure(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET)
-        : TatolabRuntimeControlWebSocketConnection.open(localApiSocketOnceKnown, PROJECT_TRANSACTIONS_FEED_REQUEST_TIMEOUT_MS).then((opened) =>
-            opened.ok ? succeeded(projectChangesConnectionOver(opened.value)) : opened,
-          ),
+    followOverTheRuntime: (following) => {
+      if (studioRuntimeOnceBuilt === null || localApiSocketOnceKnown === null) return null;
+      const followingFiber = studioRuntimeOnceBuilt.runFork(following.pipe(Effect.provide(runtimeControlLayer(localApiSocketOnceKnown, PROJECT_TRANSACTIONS_FEED_REQUEST_TIMEOUT_MS))));
+      return () => followingFiber.interruptUnsafe();
+    },
     runAfter: (delayMs, work) => {
       const timer = setTimeout(work, delayMs);
       return () => clearTimeout(timer);
@@ -308,17 +303,7 @@ export async function startTatolabApp(
     runProgramToCompletion,
     tatolabAppLog,
   );
-  const streamActionChangesFollowed = new StreamActionChangesFollowedForTheStatus({
-    openTheStreamActionChangesConnection: async () => {
-      const opened = await TatolabRuntimeControlWebSocketConnection.open(platformForThisBuild.localApiSocket, STREAM_ACTION_CHANGES_REQUEST_TIMEOUT_MS);
-      return opened.ok ? succeeded(streamActionChangesConnectionOver(opened.value)) : opened;
-    },
-    waitThen: (afterMs, then) => {
-      setTimeout(then, afterMs);
-    },
-    readTheStatusAgain: () => statusPublisherOnceBuilt?.requestRefresh(),
-    tatolabAppLog,
-  });
+  const streamActionsNoticed = new StreamActionsNoticed();
   const controller = TatolabAppController.create({
     platform: platformItems.platform,
     platformForThisBuild,
@@ -333,8 +318,8 @@ export async function startTatolabApp(
     readTheCommandLineToolVersion: () => tatolabCommandLineToolVersion.versionNow(),
     readTheStudioWarnings: () => studioWarnings.warningsNow(),
     whenTheRuntimeExits: () => statusPublisherOnceBuilt?.requestRefresh(),
-    projectVenvSyncsOfTheFollowedStreamActions: streamActionChangesFollowed,
-    projectStreamActionFailuresOfTheFollowedStreamActions: streamActionChangesFollowed,
+    projectVenvSyncsOfTheFollowedStreamActions: streamActionsNoticed,
+    projectStreamActionFailuresOfTheFollowedStreamActions: streamActionsNoticed,
     tatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(
@@ -376,6 +361,7 @@ export async function startTatolabApp(
   const sharedState: TatolabAppSharedState = {
     controller,
     statusPublisher,
+    streamActionsNoticed,
     tatolabAppUpdater,
     tatolabAppUpdateAnnouncements,
     openAWebPageInTheBrowser: (webPageUrl) => tatolabElectronAppShell.openAWebPageInTheBrowser(webPageUrl),
@@ -419,7 +405,6 @@ export async function startTatolabApp(
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.stopWatchingEveryProject());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.pythonLanguageServers.stopEveryLanguageServer());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.runtimePortViewers.closeEveryPortViewer());
-  tatolabElectronAppShell.onTheAppQuitting(() => streamActionChangesFollowed.stop());
   const quitTheApp = () =>
     quitTheTatolabApp(
       tatolabAppWindows,
@@ -462,7 +447,7 @@ export async function startTatolabApp(
   }
   runInTheBackgroundWithTheController(sharedState, "tatolab-app-opened", async (controller, statusPublisher) => {
     statusPublisher.startPolling();
-    streamActionChangesFollowed.follow();
+    void answerOnTheStudioRuntime(studioRuntime, "following the stream actions", StreamActionsFollowed.use((followed) => followed.follow), () => undefined);
     tatolabAppUpdater.startCheckingOnItsOwn(tatolabElectronAppShell.repeatingTimer);
     await controller.linkTheCommandLineToolUnlessSomethingElseHoldsTheName();
     statusPublisher.requestRefresh();

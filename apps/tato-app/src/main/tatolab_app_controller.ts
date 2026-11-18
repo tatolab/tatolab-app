@@ -14,7 +14,7 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import { Effect, Layer } from "effect";
 import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_apps_child.js";
-import type { StreamActionChangesFollowedForTheStatus } from "./stream_action_changes_followed_for_the_status.js";
+import type { StreamActionsNoticed } from "./stream_action_changes_followed_for_the_status.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import type { TatolabCommandLineToolLink } from "./platform/command_line_tool_link_in_the_home_folder.js";
@@ -73,9 +73,9 @@ export interface TatolabAppControllerSources {
   /** Called each time the app's runtime exits, so the status is read again at once. */
   whenTheRuntimeExits: () => void;
   /** Each project's `.venv` sync, followed on the runtime's stream actions while it answers. */
-  projectVenvSyncsOfTheFollowedStreamActions: Pick<StreamActionChangesFollowedForTheStatus, "takeTheProjectVenvSyncs">;
+  projectVenvSyncsOfTheFollowedStreamActions: Pick<StreamActionsNoticed, "takeTheProjectVenvSyncs">;
   /** Each project whose latest stream action failed, followed on the runtime's stream actions while it answers. */
-  projectStreamActionFailuresOfTheFollowedStreamActions: Pick<StreamActionChangesFollowedForTheStatus, "projectStreamActionFailuresNow">;
+  projectStreamActionFailuresOfTheFollowedStreamActions: Pick<StreamActionsNoticed, "projectStreamActionFailuresNow">;
   tatolabAppLog: TatolabAppLog;
 }
 
