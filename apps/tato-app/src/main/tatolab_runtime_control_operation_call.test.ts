@@ -2,7 +2,7 @@ import type { ControlOperations, DescribeRuntimeToolResult, ListStreamsToolResul
 import { Effect } from "effect";
 import { afterEach, expect, expectTypeOf, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
-import { cleanUpWhatTheTestStarted, fakeLocalApiServerAnswering, recordedResponseBody } from "./local_api_client_test_support.js";
+import { cleanUpWhatTheTestStarted, fakeLocalApiServerAnswering, recordedResponseBody } from "./runtime_operations_test_support.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import {
   controlContractTypeOf,
@@ -36,7 +36,7 @@ test("each call answers its operation's result in the contract's type", () => {
   expectTypeOf<Effect.Error<typeof describeTheRuntime>>().toEqualTypeOf<RuntimeControlFailure>();
 });
 
-test("a recorded describe_runtime answer is handed on as the contract's DescribeRuntimeToolResult, as the client read it", async () => {
+test("a recorded describe_runtime answer is handed on as the contract's DescribeRuntimeToolResult", async () => {
   const server = await fakeLocalApiServerAnswering([controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-runtime-tool-result-of-a-test-root-runtime.json"))]);
 
   const settled = await settledCall(server.localApiSocketPath, "describe_runtime", {});

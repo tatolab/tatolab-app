@@ -7,11 +7,11 @@ import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationFailedResponse, controlOperationResultResponse, runOverTheLocalApiAt } from "./fake_local_api_server.js";
 import { runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./runtime_description_on_the_wire.js";
 import { httpRequestBytes, parseHttpResponse } from "./local_api_plain_http.js";
-import { runtimeControlLayer } from "./runtime_control_layer.js";
 import { checkTheRuntimesHealth, describeNodeCatalog, describeRuntime, describeStreamGraph, listDependencies, listProjectAssets, listProjectNodeTypes, listStreams, readAssetPreview, readProjectLogRecords, readTheMachineName } from "./runtime_operations.js";
-import { TatolabRuntimeControlWebSocketConnection } from "./tatolab_runtime_control_operation_call.js";
+import type { RuntimeControlFailure } from "./runtime_control_failures.js";
+import { TatolabRuntimeControlWebSocketConnection, type RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import { streamActionChangesConnectionOver } from "./stream_action_changes_followed_for_the_status.js";
-import { answerOf, cleanUps, cleanUpWhatTheTestStarted, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./local_api_client_test_support.js";
+import { answerOf, cleanUps, cleanUpWhatTheTestStarted, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./runtime_operations_test_support.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -28,7 +28,7 @@ const DESCRIBE_RUNTIME_WIRE_TEXT_WITH_A_LOG_FOLDER =
 const DESCRIBE_RUNTIME_WIRE_TEXT_WITHOUT_A_LOG_FOLDER =
   '{"version":"0.55.1","build_id":"0.55.1+0123abc.9f8e7d","up_for_ms":266400000,"runtime_log_directory":null}';
 
-/** Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src/main/local_api_client.test.ts`. */
+/** Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src/main/runtime_operations.test.ts`. */
 const noLiveRuntimeSocketIsNamed = !process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"];
 
 test("a_runtime_answering_ok_is_healthy", async () => {
@@ -42,10 +42,14 @@ test("a_runtime_answering_ok_is_healthy", async () => {
   expect(request).not.toContain("Content-Length");
 });
 
-test("a_runtime_answering_health_with_anything_but_ok_is_refused_naming_its_answer", async () => {
-  const server = await fakeLocalApiServerAnswering([httpResponse("503 Service Unavailable", "text/plain; charset=utf-8", "starting")]);
+test("a_runtime_answering_health_with_another_status_is_refused_and_with_another_body_is_off_the_contract", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("503 Service Unavailable", "text/plain; charset=utf-8", "starting"),
+    httpResponse("200 OK", "text/plain; charset=utf-8", "starting"),
+  ]);
 
   expect(failureOf(await server.run(checkTheRuntimesHealth()))).toMatchObject({ _tag: "RuntimeRefused", words: "the runtime answered /health with 503: starting" });
+  expect(failureOf(await server.run(checkTheRuntimesHealth()))).toMatchObject({ _tag: "ContractMismatch", words: "the runtime answered /health with: starting" });
 });
 
 test("a_graph_export_naming_no_machine_is_not_the_contracts_answer", async () => {
@@ -200,37 +204,38 @@ test("a_chunked_response_is_dechunked", async () => {
 
 test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_description_its_streams_their_graphs_and_node_catalogs_logs_node_types_assets_and_dependencies_and_its_machine_name", async () => {
   const liveLocalApiSocketPath = process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"] ?? "";
-  const liveRuntimeControl = runtimeControlLayer(liveLocalApiSocketPath, 5_000);
+  const live = async <Answer>(runtimeOperation: Effect.Effect<Answer, RuntimeControlFailure, RuntimeControl>): Promise<Answer> =>
+    answerOf(await runOverTheLocalApiAt(liveLocalApiSocketPath, runtimeOperation, 5_000));
 
-  await Effect.runPromise(checkTheRuntimesHealth().pipe(Effect.provide(liveRuntimeControl)));
-  const runtimeDescription = await Effect.runPromise(describeRuntime().pipe(Effect.provide(liveRuntimeControl)));
+  await live(checkTheRuntimesHealth());
+  const runtimeDescription = await live(describeRuntime());
   expect(runtimeDescription.build_id.startsWith(`${runtimeDescription.version}+`)).toBe(true);
   expect(runtimeDescription.up_for_ms).toBeGreaterThan(0);
-  const streams = await Effect.runPromise(listStreams().pipe(Effect.provide(liveRuntimeControl)));
-  expect(await Effect.runPromise(readTheMachineName().pipe(Effect.provide(liveRuntimeControl)))).not.toBe("");
+  const streams = await live(listStreams());
+  expect(await live(readTheMachineName())).not.toBe("");
   for (const loadedStream of streams.filter((listedStream) => listedStream.node_count !== null)) {
-    const graph = await Effect.runPromise(describeStreamGraph(loadedStream.stream).pipe(Effect.provide(liveRuntimeControl)));
+    const graph = await live(describeStreamGraph(loadedStream.stream));
     expect(graph.stream).toBe(loadedStream.stream);
     expect(graph.graph_document_text.startsWith("{\n")).toBe(true);
-    const nodeCatalog = await Effect.runPromise(describeNodeCatalog(loadedStream.stream).pipe(Effect.provide(liveRuntimeControl)));
+    const nodeCatalog = await live(describeNodeCatalog(loadedStream.stream));
     expect(nodeCatalog.node_types.length).toBeGreaterThan(0);
   }
   for (const projectDirectory of new Set(streams.flatMap((listedStream) => (listedStream.location === null ? [] : [listedStream.location.project_directory])))) {
     const projectStreams = streams.filter((listedStream) => listedStream.location?.project_directory === projectDirectory);
-    const nodeTypeListing = await Effect.runPromise(listProjectNodeTypes(projectDirectory).pipe(Effect.provide(liveRuntimeControl)));
-    await Effect.runPromise(listDependencies(projectDirectory, false).pipe(Effect.provide(liveRuntimeControl)));
+    const nodeTypeListing = await live(listProjectNodeTypes(projectDirectory));
+    await live(listDependencies(projectDirectory, false));
     expect(nodeTypeListing.sources[0]?.origin).toEqual({ source: "project" });
-    const assetListing = await Effect.runPromise(listProjectAssets(projectDirectory).pipe(Effect.provide(liveRuntimeControl)));
+    const assetListing = await live(listProjectAssets(projectDirectory));
     expect(assetListing.assets.filter((asset) => asset.kind === "stream").length).toBeGreaterThanOrEqual(projectStreams.length);
     for (const previewedAsset of assetListing.assets.filter((asset) => asset.preview !== null)) {
-      const picture = await Effect.runPromise(readAssetPreview(projectDirectory, previewedAsset.asset).pipe(Effect.provide(liveRuntimeControl)));
+      const picture = await live(readAssetPreview(projectDirectory, previewedAsset.asset));
       expect([picture.pixel_width, picture.pixel_height, picture.media_type]).toEqual([previewedAsset.preview?.pixel_width, previewedAsset.preview?.pixel_height, previewedAsset.preview?.media_type]);
     }
-    const wholeLog = await Effect.runPromise(readProjectLogRecords(projectDirectory, { stream: null, action: null }, null, null).pipe(Effect.provide(liveRuntimeControl)));
+    const wholeLog = await live(readProjectLogRecords(projectDirectory, { stream: null, action: null }, null, null));
     expect(wholeLog.project_directory).toBe(projectDirectory);
     expect(wholeLog.records.length).toBeGreaterThan(0);
     for (const projectStream of projectStreams) {
-      const streamLog = await Effect.runPromise(readProjectLogRecords(projectDirectory, { stream: projectStream.stream, action: null }, null, null).pipe(Effect.provide(liveRuntimeControl)));
+      const streamLog = await live(readProjectLogRecords(projectDirectory, { stream: projectStream.stream, action: null }, null, null));
       expect(streamLog.records.every((record) => record.stream === projectStream.stream)).toBe(true);
     }
   }

@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse } from "./fake_local_api_server.js";
-import { answerOf, cleanUpWhatTheTestStarted, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./local_api_client_test_support.js";
+import { answerOf, cleanUpWhatTheTestStarted, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./runtime_operations_test_support.js";
 import { describeStreamGraph, readProjectLogRecords } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);

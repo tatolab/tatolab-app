@@ -20,7 +20,8 @@ import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_r
 import type { TatolabCommandLineToolLink } from "./platform/command_line_tool_link_in_the_home_folder.js";
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
-import { failedWith, succeeded, type Result } from "./result.js";
+import type { Result } from "./result.js";
+import { resultInWordsOf } from "./result_as_effect.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { checkTheRuntimesHealth, listStreams, readTheMachineName } from "./runtime_operations.js";
 import { readTheAnsweringRuntimesIdentity, readTheRuntimesContractAge, type RuntimeContractAgeReading } from "./runtime_contract_age.js";
@@ -295,9 +296,7 @@ export class TatolabAppController {
 
   /** `runtimeOperation` run on the runtime's control API to its end: its answer, or its failure in its words. */
   private answerOf<Answer>(runtimeOperation: Effect.Effect<Answer, RuntimeControlFailure, RuntimeControl>): Promise<Result<Answer, string>> {
-    return this.runEffect(
-      runtimeOperation.pipe(Effect.match({ onSuccess: (answer): Result<Answer, string> => succeeded(answer), onFailure: (failure) => failedWith(failure.words) })),
-    );
+    return this.runEffect(resultInWordsOf(runtimeOperation));
   }
 
   /** Run `effect` on the runtime's control API, its logs written to the app's log. */

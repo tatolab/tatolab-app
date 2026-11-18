@@ -5,7 +5,7 @@ import { Effect, Layer, ManagedRuntime } from "effect";
 import { afterEach, expect, test } from "vitest";
 import type { StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
 import { controlOperationFailedResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
-import { cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy } from "./local_api_client_test_support.js";
+import { cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy } from "./runtime_operations_test_support.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
 import { chooseAStreamProjectFolder, createAStreamProject, openAStreamProject } from "./stream_project_adding.js";

@@ -3,7 +3,7 @@ import type { StreamActionDescription, StreamActionFollowed } from "../shared/ta
 import { FakeLocalApiServer, controlOperationResponseOfTheRecordedToolResponse, httpResponse } from "./fake_local_api_server.js";
 import { queuedStreamActionFromTheToolResult, streamAssetChangeFromTheToolResult, streamsThePauseOrResumeReachedFromTheToolResult } from "./stream_changes_on_the_wire.js";
 import { projectCreationQueuedFromTheCreateProjectToolResult, projectStreamActionQueuedFromTheToolResult, streamActionCancelAnswerFromTheCancelStreamActionToolResult, streamActionDescriptionFromTheDescribeStreamActionToolResult } from "./stream_action_description.js";
-import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./local_api_client_test_support.js";
+import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./runtime_operations_test_support.js";
 import { cancelStreamAction, closeProject, createProject, createStream, deleteStream, describeStreamAction, openProject, pausePlayback, reloadProject, removeProject, resumePlayback, setStreamDisplayName, startPlayback, stopPlayback } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);

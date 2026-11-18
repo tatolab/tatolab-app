@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { afterEach, expect, test } from "vitest";
 import { FakeLocalApiServer, controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationFailedResponse } from "./fake_local_api_server.js";
-import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./local_api_client_test_support.js";
+import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./runtime_operations_test_support.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
 import { describeNodeCatalog, listProjectAssets, listProjectNodeTypes, nameTheProject, readAssetPreview } from "./runtime_operations.js";
 

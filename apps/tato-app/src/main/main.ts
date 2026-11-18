@@ -30,6 +30,8 @@ import {
 import type { TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import { closeProject, listDependencies, nameTheProject } from "./runtime_operations.js";
+import { resultInWordsOf } from "./result_as_effect.js";
+import { answerOnTheStudioRuntime } from "./window_command.js";
 import { studioRuntimeLayer, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
@@ -196,14 +198,14 @@ export async function startTatolabApp(
   let projectLogRecordsFollowedOnceBuilt: ProjectLogRecordsFollowedForTheWindows | null = null;
   let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
   let studioRuntimeOnceBuilt: ManagedRuntime.ManagedRuntime<StudioServices, never> | null = null;
-  /** `effect` run on the studio runtime once it is built: its answer, or its failure in its words. */
-  const answerOnTheStudioRuntime = <Answer>(effect: Effect.Effect<Answer, { readonly words: string }, StudioServices>): Promise<Result<Answer, string>> =>
+  /** `effect`, named `workName`, run on the studio runtime once it is built: its answer, or its failure in its words; never rejecting. */
+  const answerInWordsOnTheStudioRuntime = <Answer>(workName: string, effect: Effect.Effect<Answer, { readonly words: string }, StudioServices>): Promise<Result<Answer, string>> =>
     studioRuntimeOnceBuilt === null
       ? Promise.resolve(failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET))
-      : studioRuntimeOnceBuilt.runPromise(effect.pipe(Effect.match({ onSuccess: (answer): Result<Answer, string> => succeeded(answer), onFailure: (failure) => failedWith(failure.words) })));
+      : answerOnTheStudioRuntime(studioRuntimeOnceBuilt, workName, resultInWordsOf(effect), (words) => failedWith(words));
   const projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime = {
-    nameTheProject: (projectFolder) => answerOnTheStudioRuntime(nameTheProject(projectFolder)),
-    listTheDependencies: (projectFolder) => answerOnTheStudioRuntime(listDependencies(projectFolder, false)),
+    nameTheProject: (projectFolder) => answerInWordsOnTheStudioRuntime("naming the project", nameTheProject(projectFolder)),
+    listTheDependencies: (projectFolder) => answerInWordsOnTheStudioRuntime("listing the project's dependencies", listDependencies(projectFolder, false)),
   };
   let localApiSocketOnceKnown: string | null = null;
   const tatolabAppWindows = new TatolabAppWindows({
@@ -222,7 +224,7 @@ export async function startTatolabApp(
       const timer = setTimeout(work, delayMs);
       return () => clearTimeout(timer);
     },
-    closeTheProjectAsItsWindowCloses: (projectFolder) => answerOnTheStudioRuntime(thenAStatusRound(closeProject(projectFolder)).pipe(Effect.asVoid)),
+    closeTheProjectAsItsWindowCloses: (projectFolder) => answerInWordsOnTheStudioRuntime("closing the project as its window closes", thenAStatusRound(closeProject(projectFolder)).pipe(Effect.asVoid)),
     whenAWindowStartingLanguageServersClosed: (languageServerOfTheWindow) => pythonLanguageServersOnceBuilt?.stopTheLanguageServersOf(languageServerOfTheWindow),
     whenAWindowShowingPortViewersClosed: (tatolabMainWindow) => {
       runtimePortViewersOnceBuilt?.closeThePortViewersOf(tatolabMainWindow);

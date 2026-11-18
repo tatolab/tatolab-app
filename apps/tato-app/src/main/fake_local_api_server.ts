@@ -6,7 +6,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { Effect } from "effect";
-import { failedWith, succeeded, type Result } from "./result.js";
+import type { Result } from "./result.js";
+import { resultOf } from "./result_as_effect.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
 import type { RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
@@ -17,12 +18,7 @@ export function runOverTheLocalApiAt<Answer>(
   runtimeOperation: Effect.Effect<Answer, RuntimeControlFailure, RuntimeControl>,
   defaultTimeLimitMs: number,
 ): Promise<Result<Answer, RuntimeControlFailure>> {
-  return Effect.runPromise(
-    runtimeOperation.pipe(
-      Effect.match({ onSuccess: (answer): Result<Answer, RuntimeControlFailure> => succeeded(answer), onFailure: (failure) => failedWith(failure) }),
-      Effect.provide(runtimeControlLayer(localApiSocketPath, defaultTimeLimitMs)),
-    ),
-  );
+  return Effect.runPromise(resultOf(runtimeOperation).pipe(Effect.provide(runtimeControlLayer(localApiSocketPath, defaultTimeLimitMs))));
 }
 
 /** The temporary directory the socket goes in: macOS caps a socket path at 104 bytes, which its `$TMPDIR` alone nearly fills. */
@@ -88,7 +84,7 @@ export class FakeLocalApiServer {
     this.responsesLeft.push(...scriptedResponses);
   }
 
-  /** `runtimeOperation` run against this server, each request given up after `defaultTimeLimitMs`: its answer, or the failure it ended with. */
+  /** `runOverTheLocalApiAt` against this server. */
   run<Answer>(runtimeOperation: Effect.Effect<Answer, RuntimeControlFailure, RuntimeControl>, defaultTimeLimitMs = 2_000): Promise<Result<Answer, RuntimeControlFailure>> {
     return runOverTheLocalApiAt(this.localApiSocketPath, runtimeOperation, defaultTimeLimitMs);
   }
