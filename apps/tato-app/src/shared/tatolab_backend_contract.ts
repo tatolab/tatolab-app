@@ -7,6 +7,8 @@ export type {
   ListedStream,
   StreamGraphDeclaredPort,
   StreamGraphInputValueRead,
+  StreamGraphInputValueChange,
+  InputValueComesFrom,
   StreamGraphPortPin,
   ImageStreamFrameRate,
   ImageStreamContentLightLevel,

@@ -11,6 +11,7 @@ import {
   InputControlBinderContext,
   InputControlMount,
   useInputControlsOfTheFrame,
+  useInputValuesOfTheStream,
   useOwnFieldOfTheInput,
   useShownValueOfTheInput,
   useWhereTheInputsValueComesFrom,
@@ -492,7 +493,8 @@ function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port:
               label: `Promote ${pin.name} to a Graph Input`,
               onPromoted: () => {
                 const nodeNamesTaken = new Set(graph.nodes.map((graphNode) => graphNode.name));
-                void graphEdits.commit(place, promoteToGraphInput(streamAsset, { node, input: port, isOnTheStreamsOwnLevel: level.length === 0, nodeNamesTaken }));
+                const valueShown = state.kind === "holds_a_value" ? inputValues.shownValue(state.address).value : (port.value_read?.value ?? null);
+                void graphEdits.commit(place, promoteToGraphInput(streamAsset, { node, input: port, valueShown, isOnTheStreamsOwnLevel: level.length === 0, nodeNamesTaken }));
               },
             }
       }
@@ -712,9 +714,7 @@ function PropertiesOfTheSelectedNode({
   const graphEdits = graphEditsInTheProject.ofTheNode(node?.id ?? "", level);
   const catalogEntry: NodeCatalogEntry | undefined = catalogReading?.kind === "listed" && node !== undefined ? catalogReading.catalog.node_types.find((entry) => entry.type === node.type) : undefined;
   const configForm = useMemo(() => (node === undefined ? null : configFormOf(catalogEntry?.config_schema ?? null, node.config)), [node, catalogEntry]);
-  useLayoutEffect(() => {
-    if (streamGraph !== null && projectFolder !== null) inputValues.takeTheGraphReading(projectFolder, streamGraph);
-  }, [streamGraph, projectFolder, inputValues]);
+  useInputValuesOfTheStream(connection, inputValues, stream, projectFolder);
   const streamAssetOfTheGraph = streamGraph?.stream_asset ?? null;
   const valuesAt = useMemo(
     (): GraphAddress | null => (projectFolder === null || streamAssetOfTheGraph === null ? null : { project_folder: projectFolder, stream_asset: streamAssetOfTheGraph, level }),

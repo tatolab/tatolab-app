@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { InputAddress } from "../pin_model/node_inputs.js";
-import { NODE_STUDIO_FIELDS_NONE_SET, type GraphEditMode, type JsonValue, type ProjectGraphTransactionApplying, type StreamGraphAction, type StreamGraphInputValueRead, type StreamGraphNode, type StreamGraphSummary } from "../studio_readings.js";
+import type { GraphEditMode, JsonValue, ProjectGraphTransactionApplying, StreamGraphAction, StreamGraphInputValueRead, StreamInputValuesReading } from "../studio_readings.js";
 import { createInputValues, type ShownValue } from "./input_values.js";
 
 const PROJECT = "/projects/demo";
@@ -8,41 +8,18 @@ const STREAM_ASSET = "11111111-2222-3333-4444-555555555555";
 const GAIN: InputAddress = { graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: "MIX-ID", input: "gain" };
 const INSIDE: InputAddress = { graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: ["SUB-ID"] }, node_id: "INNER-ID", input: "gain" };
 
-function graphNode(id: string, gain: StreamGraphInputValueRead | null, fragmentNodes: StreamGraphNode[] | null = null): StreamGraphNode {
-  return {
-    id,
-    name: id.toLowerCase(),
-    type: "nodes.mix:Mix",
-    kind: "function",
-    state: "Running",
-    failed_because: null,
-    process_raising_because: null,
-    not_ready_because: null,
-    config: {},
-    pins: {},
-    exposed_config_fields: [],
-    input_ports: [
-      { name: "gain", family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: { type: "float" }, flow: "value" }, value_read: gain },
-      { name: "video", family: "image", stream_facts: null, values_checked: null, pin: { pin_type: { type: "texture" }, flow: "stream" }, value_read: null },
-    ],
-    output_ports: [],
-    dropped_bags_by_link: {},
-    refused_bags_by_output_port: {},
-    studio: NODE_STUDIO_FIELDS_NONE_SET,
-    fragment: fragmentNodes === null ? null : { kind: "placed_stream", nodes: fragmentNodes, links: [], groups: [] },
-    graph_interface: null,
-  };
-}
-
-const graphReading = (gain: StreamGraphInputValueRead | null, innerGain: StreamGraphInputValueRead | null = null): StreamGraphSummary => ({
-  stream: "main",
+/** Every input's value as the host keeps it: Mix's gain on the stream's own level, and the gain of a node inside a subgraph. */
+const valuesRead = (gain: StreamGraphInputValueRead | null, innerGain: StreamGraphInputValueRead | null = null): StreamInputValuesReading => ({
+  kind: "values",
   stream_asset: STREAM_ASSET,
-  groups: [],
-  notes: [],
-  nodes: [graphNode("MIX-ID", gain), graphNode("SUB-ID", null, [graphNode("INNER-ID", innerGain)])],
-  links: [],
-  graph_document_text: "{}",
+  values: [
+    ...(gain === null ? [] : [{ level: [], node_id: "MIX-ID", input: "gain", value_read: gain }]),
+    ...(innerGain === null ? [] : [{ level: ["SUB-ID"], node_id: "INNER-ID", input: "gain", value_read: innerGain }]),
+  ],
 });
+
+/** A change the runtime announced of Mix's gain. */
+const gainChanged = (value_read: StreamGraphInputValueRead): StreamInputValuesReading => ({ kind: "changed", stream_asset: STREAM_ASSET, change: { level: [], node_id: "MIX-ID", input: "gain", value_read } });
 
 const saved = (value: JsonValue): StreamGraphInputValueRead => ({ value, comes_from: "saved" });
 
@@ -78,16 +55,16 @@ function valuesShownAt(inputValues: ReturnType<typeof createInputValues>, addres
   return shown;
 }
 
-test("an_input_shows_the_value_its_graph_reading_gives_and_follows_each_new_reading_as_an_edit_or_an_undo_makes_it", () => {
+test("an_input_shows_the_value_the_host_keeps_for_it_and_follows_each_new_reading_as_an_edit_or_an_undo_makes_it", () => {
   const { inputValues } = storeOverAHeldConnection();
   const shown = valuesShownAt(inputValues, GAIN);
-  inputValues.takeTheGraphReading(PROJECT, graphReading({ value: 1, comes_from: "default" }, saved(0.25)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead({ value: 1, comes_from: "default" }, saved(0.25)));
   expect(inputValues.shownValue(GAIN)).toEqual({ value: 1, comes_from: "default" });
   expect(inputValues.shownValue(INSIDE)).toEqual({ value: 0.25, comes_from: "saved" });
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
-  inputValues.takeTheGraphReading(PROJECT, graphReading({ value: 1, comes_from: "default" }));
-  inputValues.takeTheGraphReading(PROJECT, graphReading({ value: null, comes_from: "wire" }));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead({ value: 1, comes_from: "default" }));
+  inputValues.takeTheInputValues(PROJECT, valuesRead({ value: null, comes_from: "wire" }));
   expect(shown).toEqual([
     { value: null, comes_from: null },
     { value: 1, comes_from: "default" },
@@ -99,7 +76,7 @@ test("an_input_shows_the_value_its_graph_reading_gives_and_follows_each_new_read
 
 test("a_drag_shows_each_value_at_once_and_its_release_is_one_commit_under_the_gestures_key", async () => {
   const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
   const gesture = inputValues.beginGesture(GAIN, "commit");
   gesture.move(0.6);
   expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.6, comes_from: "live" });
@@ -118,30 +95,30 @@ test("a_drag_shows_each_value_at_once_and_its_release_is_one_commit_under_the_ge
 
 test("a_reading_that_lands_while_a_gesture_is_open_does_not_move_its_value_and_the_value_sent_is_held_until_a_reading_shows_it", async () => {
   const { inputValues, answerTheNext } = storeOverAHeldConnection();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
   const gesture = inputValues.beginGesture(GAIN, "commit");
   gesture.move(0.6);
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.1)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.1)));
   expect(inputValues.shownValue(GAIN).value).toBe(0.6);
   gesture.release(0.9);
   await answerTheNext();
-  inputValues.takeTheGraphReading(PROJECT, graphReading({ value: 0.6, comes_from: "live" }));
+  inputValues.takeTheInputValues(PROJECT, valuesRead({ value: 0.6, comes_from: "live" }));
   expect(inputValues.shownValue(GAIN).value).toBe(0.9);
   await answerTheNext();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.9)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.9)));
   expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.9, comes_from: "saved" });
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.2)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.2)));
   expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.2, comes_from: "saved" });
 });
 
 test("a_value_sent_ahead_gives_way_to_the_runtimes_once_a_second_reading_after_its_answer_still_differs", async () => {
   const { inputValues, answerTheNext } = storeOverAHeldConnection();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
   inputValues.beginGesture(GAIN, "commit").release(0.9);
   await answerTheNext();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
   expect(inputValues.shownValue(GAIN).value).toBe(0.9);
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.3)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.3)));
   expect(inputValues.shownValue(GAIN).value).toBe(0.3);
 });
 
@@ -149,7 +126,7 @@ test("a_refused_commit_shows_the_value_the_graph_reads_again_and_keeps_the_runti
   const { inputValues, answerTheNext } = storeOverAHeldConnection();
   const refusals: (string | null)[] = [];
   inputValues.watchRefusal(GAIN, (refusal) => refusals.push(refusal));
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
   inputValues.beginGesture(GAIN, "commit").release(7);
   await answerTheNext({ kind: "not_sent", because: "input_value_not_valid: 7 is above the range" });
   expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.5, comes_from: "saved" });
@@ -160,7 +137,7 @@ test("a_refused_commit_shows_the_value_the_graph_reads_again_and_keeps_the_runti
 
 test("below_a_streams_own_level_a_drag_sends_only_its_commit_with_the_level", async () => {
   const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5), saved(0.25)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5), saved(0.25)));
   const gesture = inputValues.beginGesture(INSIDE, "commit");
   gesture.move(0.3);
   gesture.move(0.4);
@@ -178,7 +155,7 @@ const valuesSent = (sent: readonly TransactionSent[]) => sent.map(({ operations,
 
 test("a_cancelled_drag_that_began_on_a_saved_value_takes_its_live_value_off_and_commits_nothing", async () => {
   const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
   const gesture = inputValues.beginGesture(GAIN, "commit");
   gesture.move(0.6);
   gesture.move(0.7);
@@ -195,14 +172,14 @@ test("a_cancelled_drag_that_began_on_a_saved_value_takes_its_live_value_off_and_
 
 test("a_cancelled_drag_that_began_on_the_default_takes_its_live_value_off_and_one_that_began_live_goes_back_to_it", async () => {
   const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
-  inputValues.takeTheGraphReading(PROJECT, graphReading({ value: 1, comes_from: "default" }));
+  inputValues.takeTheInputValues(PROJECT, valuesRead({ value: 1, comes_from: "default" }));
   const fromTheDefault = inputValues.beginGesture(GAIN, "commit");
   fromTheDefault.move(0.6);
   fromTheDefault.cancel();
   expect(inputValues.shownValue(GAIN)).toEqual({ value: 1, comes_from: "default" });
   await answerTheNext();
   await answerTheNext();
-  inputValues.takeTheGraphReading(PROJECT, graphReading({ value: 0.3, comes_from: "live" }));
+  inputValues.takeTheInputValues(PROJECT, valuesRead({ value: 0.3, comes_from: "live" }));
   const fromALiveValue = inputValues.beginGesture(GAIN, "live");
   fromALiveValue.move(0.4);
   fromALiveValue.cancel();
@@ -218,7 +195,7 @@ test("a_cancelled_drag_that_began_on_the_default_takes_its_live_value_off_and_on
 
 test("a_refused_live_write_a_waiting_commit_overtook_keeps_the_value_sent_ahead_shown", async () => {
   const { inputValues, answerTheNext } = storeOverAHeldConnection();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
   const shown = valuesShownAt(inputValues, GAIN);
   const gesture = inputValues.beginGesture(GAIN, "commit");
   gesture.move(0.6);
@@ -226,31 +203,31 @@ test("a_refused_live_write_a_waiting_commit_overtook_keeps_the_value_sent_ahead_
   await answerTheNext({ kind: "not_sent", because: "the stream is stopped" });
   expect(inputValues.shownValue(GAIN).value).toBe(0.9);
   await answerTheNext();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.9)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.9)));
   expect(shown.map(({ value }) => value)).toEqual([0.5, 0.6, 0.9]);
 });
 
 test("a_linked_input_is_held_only_where_the_store_already_holds_it_and_an_input_gone_from_the_stream_that_nothing_watches_is_forgotten", () => {
   const { inputValues } = storeOverAHeldConnection();
-  const wiredOnly: StreamGraphSummary = { ...graphReading(null), nodes: [graphNode("MIX-ID", { value: null, comes_from: "wire" })] };
-  inputValues.takeTheGraphReading(PROJECT, wiredOnly);
+  const wiredOnly = valuesRead({ value: null, comes_from: "wire" });
+  inputValues.takeTheInputValues(PROJECT, wiredOnly);
   const shown = valuesShownAt(inputValues, GAIN);
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
-  inputValues.takeTheGraphReading(PROJECT, wiredOnly);
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
+  inputValues.takeTheInputValues(PROJECT, wiredOnly);
   expect(shown).toEqual([
     { value: null, comes_from: null },
     { value: 0.5, comes_from: "saved" },
     { value: null, comes_from: "wire" },
   ]);
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5), saved(0.25)));
-  inputValues.takeTheGraphReading(PROJECT, { ...graphReading(saved(0.5)), nodes: [graphNode("MIX-ID", saved(0.5))] });
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5), saved(0.25)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
   expect(inputValues.shownValue(INSIDE)).toEqual({ value: null, comes_from: null });
   expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.5, comes_from: "saved" });
 });
 
 test("a_gesture_released_live_sends_its_last_value_live_and_records_nothing", async () => {
   const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
   inputValues.beginGesture(GAIN, "live").release(0.8);
   await answerTheNext();
   expect(sent.map(({ mode, idempotency_key }) => [mode, idempotency_key])).toEqual([["live", null]]);
@@ -259,20 +236,20 @@ test("a_gesture_released_live_sends_its_last_value_live_and_records_nothing", as
 
 test("clearing_an_input_commits_its_value_off_under_a_new_key_and_shows_it_at_its_default_until_a_reading_gives_that_default", async () => {
   const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
   inputValues.clear(GAIN);
   expect(inputValues.shownValue(GAIN)).toEqual({ value: null, comes_from: "default" });
   await answerTheNext();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
   expect(inputValues.shownValue(GAIN)).toEqual({ value: null, comes_from: "default" });
-  inputValues.takeTheGraphReading(PROJECT, graphReading({ value: 1, comes_from: "default" }));
+  inputValues.takeTheInputValues(PROJECT, valuesRead({ value: 1, comes_from: "default" }));
   expect(inputValues.shownValue(GAIN)).toEqual({ value: 1, comes_from: "default" });
   expect(sent).toEqual([{ project_folder: PROJECT, operations: [{ operation: "set_node_input_value", stream: STREAM_ASSET, node: "MIX-ID", input: "gain", value: null }], mode: "commit", idempotency_key: "gesture-1" }]);
 });
 
 test("two_clears_in_a_row_send_one_commit_and_clearing_an_input_at_its_default_sends_nothing", async () => {
   const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5), { value: 1, comes_from: "default" }));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5), { value: 1, comes_from: "default" }));
   inputValues.clear(GAIN);
   inputValues.clear(GAIN);
   inputValues.clear(INSIDE);
@@ -283,7 +260,7 @@ test("two_clears_in_a_row_send_one_commit_and_clearing_an_input_at_its_default_s
 
 test("clearing_an_input_ends_a_gesture_open_on_it_so_its_release_sends_nothing_more", async () => {
   const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5), saved(0.25)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5), saved(0.25)));
   const gesture = inputValues.beginGesture(INSIDE, "commit");
   gesture.move(0.4);
   inputValues.clear(INSIDE);
@@ -297,11 +274,49 @@ test("clearing_an_input_ends_a_gesture_open_on_it_so_its_release_sends_nothing_m
 
 test("a_refused_clear_keeps_the_runtimes_words_and_shows_the_value_the_graph_reads_again", async () => {
   const { inputValues, answerTheNext } = storeOverAHeldConnection();
-  inputValues.takeTheGraphReading(PROJECT, graphReading(saved(0.5)));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
   const refusals: (string | null)[] = [];
   inputValues.watchRefusal(GAIN, (refusal) => refusals.push(refusal));
   inputValues.clear(GAIN);
   await answerTheNext({ kind: "not_sent", because: "the project is read only" });
   expect(refusals).toEqual([null, "the project is read only"]);
   expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.5, comes_from: "saved" });
+});
+
+test("a_change_the_runtime_announces_shows_at_once_and_one_for_an_input_the_store_holds_no_link_for_is_not_taken", () => {
+  const { inputValues } = storeOverAHeldConnection();
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
+  const shown = valuesShownAt(inputValues, GAIN);
+  inputValues.takeTheInputValues(PROJECT, gainChanged({ value: 0.7, comes_from: "live" }));
+  inputValues.takeTheInputValues(PROJECT, gainChanged({ value: 0.5, comes_from: "saved" }));
+  expect(shown).toEqual([
+    { value: 0.5, comes_from: "saved" },
+    { value: 0.7, comes_from: "live" },
+    { value: 0.5, comes_from: "saved" },
+  ]);
+  const OTHER: InputAddress = { ...GAIN, node_id: "OTHER-ID" };
+  inputValues.takeTheInputValues(PROJECT, { kind: "changed", stream_asset: STREAM_ASSET, change: { level: [], node_id: "OTHER-ID", input: "gain", value_read: { value: null, comes_from: "wire" } } });
+  expect(inputValues.shownValue(OTHER)).toEqual({ value: null, comes_from: null });
+});
+
+test("a_dragged_control_does_not_jump_as_its_own_live_values_come_back_and_holds_its_release_until_the_runtime_announces_it", async () => {
+  const { inputValues, answerTheNext } = storeOverAHeldConnection();
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
+  const shown = valuesShownAt(inputValues, GAIN);
+  const gesture = inputValues.beginGesture(GAIN, "commit");
+  gesture.move(0.6);
+  gesture.move(0.7);
+  inputValues.takeTheInputValues(PROJECT, gainChanged({ value: 0.6, comes_from: "live" }));
+  await answerTheNext();
+  gesture.move(0.8);
+  gesture.release(0.9);
+  await answerTheNext();
+  inputValues.takeTheInputValues(PROJECT, gainChanged({ value: 0.7, comes_from: "live" }));
+  await answerTheNext();
+  inputValues.takeTheInputValues(PROJECT, gainChanged({ value: 0.7, comes_from: "live" }));
+  inputValues.takeTheInputValues(PROJECT, gainChanged({ value: 0.9, comes_from: "saved" }));
+  expect(shown.map(({ value }) => value)).toEqual([0.5, 0.6, 0.7, 0.8, 0.9]);
+  expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.9, comes_from: "saved" });
+  inputValues.takeTheInputValues(PROJECT, gainChanged({ value: 0.2, comes_from: "live" }));
+  expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.2, comes_from: "live" });
 });

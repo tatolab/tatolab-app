@@ -1,0 +1,7 @@
+[
+  { "stream": "pattern-main-bcd55b", "node": "8f1e2c74-6b0a-4c1d-9a63-0d5c7e21a9b4", "input": "gain", "value": 0.6, "value_comes_from": "live" },
+  { "stream": "pattern-main-bcd55b", "node": "8f1e2c74-6b0a-4c1d-9a63-0d5c7e21a9b4", "input": "gain", "value": 0.9, "value_comes_from": "saved" },
+  { "stream": "lobby-wall-3a91f0", "node": "1d0b6a55-2f48-4e7c-8b19-7c3e9d04f612", "input": "colour", "value": { "r": 1, "g": 0.5, "b": 0, "a": 1 }, "value_comes_from": "live" },
+  { "stream": "pattern-main-bcd55b", "node": "8f1e2c74-6b0a-4c1d-9a63-0d5c7e21a9b4", "input": "gain", "value_comes_from": "wire" },
+  { "stream": "pattern-main-bcd55b", "node": "8f1e2c74-6b0a-4c1d-9a63-0d5c7e21a9b4", "input": "label" }
+]

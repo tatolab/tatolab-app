@@ -10,11 +10,29 @@ import { mockNodeUiElementsBackendOf } from "./mock_node_ui_elements";
 /** A backend whose commands change its own state and whose streams log on their own, so the window works in a browser. */
 export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions): TatolabBackend {
   const simulation = createMockTatolabSimulation(mockTatolabOptions);
-  return {
+  const backend = {
     ...mockStatusAndRuntimeBackendOf(simulation),
     ...mockProjectsAndStreamsBackendOf(simulation),
     ...mockModulesBackendOf(simulation),
     ...mockSettingsAndUpdatesBackendOf(simulation),
     ...mockNodeUiElementsBackendOf(mockTatolabOptions.nodeUiElementsListing),
   } satisfies TatolabBackend;
+  if (mockTatolabOptions.valueAShellSetsLive !== null) setTheEffectsAmountLiveFromAShell(backend, mockTatolabOptions.valueAShellSetsLive);
+  return backend;
+}
+
+/** The main stream of the mock's open project, which holds the inverting effect. */
+const MAIN_STREAM = "pattern-main-bcd55b";
+/** How long after the page opens the shell sets its value: once `main` is loaded and drawn. */
+const A_SHELL_SETS_THE_VALUE_AFTER_MILLISECONDS = 4_000;
+
+/** A shell outside the window sets the inverting effect's `amount` in `main` live to `value`, as an agent's `transact` does. */
+function setTheEffectsAmountLiveFromAShell(backend: TatolabBackend, value: number): void {
+  window.setTimeout(() => {
+    void backend.describeStreamGraph(MAIN_STREAM).then((graph) => {
+      const invert = graph.nodes.find((node) => node.name === "invertingeffect");
+      if (invert === undefined || graph.stream_asset === null) return undefined;
+      return backend.transactInTheOpenProject([{ operation: "set_node_input_value", stream: graph.stream_asset, node: invert.id, input: "amount", value }], "live", null);
+    });
+  }, A_SHELL_SETS_THE_VALUE_AFTER_MILLISECONDS);
 }

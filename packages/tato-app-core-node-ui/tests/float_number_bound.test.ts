@@ -2,7 +2,7 @@ import { createInputControlBinder } from "@tatolab/tato-app-view-sdk/pin_service
 import { createInputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
 import type { ControlledInput } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
 import { nodeUiElementTag, type ListedNodeUiElement } from "@tatolab/tato-app-view-sdk/node_ui_host";
-import type { JsonValue, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { JsonValue, StreamInputValuesReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { afterEach, expect, it, vi } from "vitest";
 import FloatNumber from "../node_ui/float_number.ts";
 
@@ -23,11 +23,9 @@ const GAIN: ControlledInput = {
   declaration: { input_name: "gain", label: "gain", pin_type: { type: "float" }, annotations: {}, may_be_unset: false },
 };
 
-/** A graph reading in which the mix node's `gain` reads `value`, saved. */
-function readingOfTheGain(value: JsonValue): StreamGraphSummary {
-  const port = { name: "gain", family: "channels" as const, stream_facts: null, values_checked: null, pin: { pin_type: { type: "float" as const }, flow: "value" as const }, value_read: { value, comes_from: "saved" as const } };
-  const node = { id: "MIX-ID", name: "mix", type: "nodes.mix:Mix", kind: "function" as const, state: "Running", failed_because: null, process_raising_because: null, not_ready_because: null, config: {}, pins: {}, exposed_config_fields: [], input_ports: [port], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, studio: { position: null, group: null, comment: null, colour: null, collapsed: null, metadata: {} }, fragment: null, graph_interface: null };
-  return { stream: "main", stream_asset: "STREAM-ASSET", groups: [], notes: [], nodes: [node], links: [], graph_document_text: "{}" };
+/** The host's values of the stream, in which the mix node's `gain` reads `value`, saved. */
+function valuesOfTheGain(value: JsonValue): StreamInputValuesReading {
+  return { kind: "values", stream_asset: "STREAM-ASSET", values: [{ level: [], node_id: "MIX-ID", input: "gain", value_read: { value, comes_from: "saved" } }] };
 }
 
 /** The Studio's Float control bound to `gain` through a binder over a store whose writes apply at once, each flush run at once. */
@@ -40,7 +38,7 @@ async function boundFloatNumber() {
     },
     newGestureIdempotencyKey: () => "drag",
   });
-  inputValues.takeTheGraphReading("/projects/demo", readingOfTheGain(0.5));
+  inputValues.takeTheInputValues("/projects/demo", valuesOfTheGain(0.5));
   const binder = createInputControlBinder({ watchNodeUiElements: (listener) => (listener({ elements: [FLOAT_NUMBER_LISTED] }), () => undefined), inputValues, requestAFlush: (flush) => flush() });
   const host = document.createElement("div");
   document.body.append(host);
@@ -65,7 +63,7 @@ it("a value that arrives while the Float control is dragged does not move it, an
   expect(bound.words()).toBe("0.5");
   bound.pointer("pointerdown", 100);
   bound.pointer("pointermove", 120);
-  bound.inputValues.takeTheGraphReading("/projects/demo", readingOfTheGain(0.1));
+  bound.inputValues.takeTheInputValues("/projects/demo", valuesOfTheGain(0.1));
   await bound.settled();
   expect(bound.words()).toBe("0.7");
   bound.pointer("pointerup", 120);

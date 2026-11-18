@@ -32,6 +32,7 @@ import {
   type ProjectTransactionsReading,
   type PythonLanguageServerConnectionEvent,
   type StreamGraphReading,
+  type StreamInputValuesReading,
   type StreamTabAddress,
   type StudioSelection,
   type StudioViewsReading,
@@ -99,6 +100,8 @@ export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("selection") }),
   z.object({ kind: z.literal("stream_graph"), stream: z.string() }),
   z.object({ kind: z.literal("node_catalog"), stream: z.string() }),
+  /** Every input's value in the stream's graph, then each change of one. */
+  z.object({ kind: z.literal("input_values"), stream: z.string() }),
   z.object({ kind: z.literal("project_log"), project_folder: z.string() }),
   z.object({ kind: z.literal("project_node_types"), project_folder: z.string() }),
   /** The project's assets, listed again while watched. */
@@ -212,6 +215,7 @@ export type ViewWatchedReading =
   | { subject: "selection"; reading: StudioSelection }
   | { subject: "stream_graph"; reading: StreamGraphReading }
   | { subject: "node_catalog"; reading: NodeCatalogReading }
+  | { subject: "input_values"; reading: StreamInputValuesReading }
   | { subject: "project_log"; reading: ProjectLogReading }
   | { subject: "project_node_types"; reading: ProjectNodeTypesReading }
   | { subject: "project_assets"; reading: ProjectAssetsReading }
