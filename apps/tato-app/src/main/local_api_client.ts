@@ -84,7 +84,7 @@ export class LocalApiClient {
     return action.ok ? action : localApiRequestFailure(action.failure);
   }
 
-  /** Queue the reload from disk of the open project in `projectDirectory`, which keeps its playback and retries its failed streams; answered at once, refused in the runtime's own words, as for a project that is not open, which `openProject` opens. */
+  /** Queue the reload from disk of the open project in `projectDirectory`, which keeps its playback and retries its failed streams; answered at once, refused in the runtime's own words, as for a project that is not open, which the runtime's `open_project` opens. */
   reloadProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
     return this.answerOf(reloadProject(projectDirectory));
   }

@@ -1,5 +1,7 @@
 import type { Stats } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
+import path from "node:path";
+import { Effect } from "effect";
 
 /** What is at `fileSystemPath`, links followed; `null` when nothing is there or it cannot be read. */
 async function fileSystemEntryAt(fileSystemPath: string): Promise<Stats | null> {
@@ -37,4 +39,9 @@ export async function realPathOrAsGiven(fileSystemPath: string): Promise<string>
 /** Whether a caught filesystem failure is the file not being there (`ENOENT`), rather than one that could not be read. */
 export function isAMissingFileFailure(caughtFailure: unknown): boolean {
   return caughtFailure instanceof Error && "code" in caughtFailure && caughtFailure.code === "ENOENT";
+}
+
+/** `folder`, absolute and resolved to its real path when it has one, as the runtime lists a project's folder. */
+export function realFolderOf(folder: string): Effect.Effect<string> {
+  return Effect.promise(() => realPathOrAsGiven(path.resolve(folder)));
 }

@@ -6,7 +6,7 @@
 import path from "node:path";
 import { Effect } from "effect";
 import type { StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
-import { isAnExistingFolderOnThisMachine, realPathOrAsGiven } from "./file_system_entries_on_this_machine.js";
+import { isAnExistingFolderOnThisMachine, realFolderOf } from "./file_system_entries_on_this_machine.js";
 import type { Result } from "./result.js";
 import { createProject, openProject } from "./runtime_operations.js";
 import { FoldersChosenInTheWindow, ProjectDialogs, thenAStatusRound, ThisMachinesFolders } from "./studio_runtime.js";
@@ -34,14 +34,15 @@ const dialogsDefaultFolder = Effect.fn("dialogsDefaultFolder")(function* (chosen
 export const chooseAStreamProjectFolder = Effect.fn("chooseAStreamProjectFolder")(function* (chosenFor: StreamProjectFolderChosenFor) {
   const chosenFolder = yield* (yield* ProjectDialogs).chooseAStreamProjectFolder(chosenFor, yield* dialogsDefaultFolder(chosenFor));
   if (chosenFolder === null) return null;
-  const resolvedFolder = yield* Effect.promise(() => realPathOrAsGiven(path.resolve(chosenFolder)));
+  const resolvedFolder = yield* realFolderOf(chosenFolder);
   yield* (yield* FoldersChosenInTheWindow).remember(resolvedFolder);
   return resolvedFolder;
 });
 
 /** `folder` resolved, when the app handed it to the window from its dialog; refused otherwise. */
 const folderChosenInTheWindow = Effect.fn("folderChosenInTheWindow")(function* (folder: string) {
-  if (yield* (yield* FoldersChosenInTheWindow).holds(folder)) return path.resolve(folder);
+  const resolvedFolder = path.resolve(folder);
+  if (yield* (yield* FoldersChosenInTheWindow).holds(resolvedFolder)) return resolvedFolder;
   return yield* new CommandRefused({ words: `Tato Studio acts only on a folder chosen in its window. Choose ${folder} again.` });
 });
 

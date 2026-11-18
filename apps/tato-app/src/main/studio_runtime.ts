@@ -4,7 +4,6 @@
 // app's log, never to the console.
 
 import { randomUUID } from "node:crypto";
-import path from "node:path";
 import { Cause, Context, Effect, HashSet, Layer, Logger, Ref, References, type LogLevel } from "effect";
 import type {
   DependencySourceKind,
@@ -26,7 +25,7 @@ import { readThePackageCatalog } from "./package_catalog.js";
 import { failedWith, type Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
 import type { TatolabAppLog, TatolabAppLogFields, TatolabAppLogLevel } from "./tatolab_app_log.js";
-import type { StreamProjectFolderOpeners, TatolabAppSharedState } from "./tatolab_app_shared_state.js";
+import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { studioWindowTheCommandCameFrom, type TatolabCommandFromWindow } from "./tatolab_command_answers.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
 import { LOCAL_API_REQUEST_TIMEOUT_MS, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
@@ -221,20 +220,20 @@ export class Terminal extends Context.Service<
 export class FoldersChosenInTheWindow extends Context.Service<
   FoldersChosenInTheWindow,
   {
-    /** Remember `folder`, resolved, as handed to the window. */
+    /** Remember `folder`, absolute, as handed to the window. */
     readonly remember: (folder: string) => Effect.Effect<void>;
-    /** Whether the app handed `folder`, resolved, to the window. */
+    /** Whether the app handed `folder`, absolute, to the window. */
     readonly holds: (folder: string) => Effect.Effect<boolean>;
   }
 >()("tatolab-app/FoldersChosenInTheWindow") {}
 
-/** The folders handed to the window, none at first, each kept resolved for as long as the runtime the layer builds. */
+/** The folders handed to the window, none at first, kept for as long as the runtime the layer builds. */
 export const foldersChosenInTheWindowLayer: Layer.Layer<FoldersChosenInTheWindow> = Layer.effect(
   FoldersChosenInTheWindow,
   Ref.make(HashSet.empty<string>()).pipe(
     Effect.map((foldersHandedToTheWindow) => ({
-      remember: (folder: string) => Ref.update(foldersHandedToTheWindow, HashSet.add(path.resolve(folder))),
-      holds: (folder: string) => Ref.get(foldersHandedToTheWindow).pipe(Effect.map(HashSet.has(path.resolve(folder)))),
+      remember: (folder: string) => Ref.update(foldersHandedToTheWindow, HashSet.add(folder)),
+      holds: (folder: string) => Ref.get(foldersHandedToTheWindow).pipe(Effect.map(HashSet.has(folder))),
     })),
   ),
 );
@@ -310,23 +309,22 @@ export function tatolabAppLogAsEffectsLogger(tatolabAppLog: TatolabAppLog): Laye
   ]);
 }
 
-/** `folder` opened by `openTheFolder` while it is a folder on this machine; refused with `refusalWhenMissing` once it is not. */
-async function openedWhenAnExistingFolder(
-  streamProjectFolderOpeners: StreamProjectFolderOpeners,
-  folder: string,
-  refusalWhenMissing: string,
-  openTheFolder: (existingFolder: string) => Promise<Result<void, string>>,
-): Promise<Result<void, string>> {
-  return (await streamProjectFolderOpeners.isAnExistingFolder(folder)) ? openTheFolder(folder) : failedWith(refusalWhenMissing);
-}
-
 /** The answer of plain code `answering`, its failure Studio's refusal in its words. */
 function commandAnswerOfPlainCode<Answer>(answering: () => Promise<Result<Answer, string>>): Effect.Effect<Answer, CommandRefused> {
   return Effect.promise(answering).pipe(Effect.flatMap((answered) => fromResult(answered, (words) => new CommandRefused({ words }))));
 }
 
+/** A service method opening a folder with `openTheFolder` while `isAnExistingFolder` says it is a folder on this machine; refused with `refusalWhenMissing` once it is not, and in the opener's words. */
+function existingFolderOpenedBy(
+  isAnExistingFolder: (folder: string) => Promise<boolean>,
+  openTheFolder: (existingFolder: string) => Promise<Result<void, string>>,
+): (folder: string, refusalWhenMissing: string) => Effect.Effect<void, CommandRefused> {
+  return (folder, refusalWhenMissing) => commandAnswerOfPlainCode(async () => ((await isAnExistingFolder(folder)) ? openTheFolder(folder) : failedWith(refusalWhenMissing)));
+}
+
 /** Every service the main process's Effect code runs on, over `sharedState`, the local API at `localApiSocketPath` and this copy's `appVersion`. */
 export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiSocketPath: string, appVersion: string): Layer.Layer<StudioServices> {
+  const folderOpeners = sharedState.streamProjectFolderOpeners;
   const streamsLastListed = () => sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [];
   const streamsLastListedFrom = (projectFolder: string) => streamsOfTheProjectIn(streamsLastListed(), projectFolder);
   const studioWindowOf = (commandFromWindow: TatolabCommandFromWindow) =>
@@ -403,22 +401,8 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
       restartTheRuntime: commandAnswerOfPlainCode(() => sharedState.controller.restartTheRuntimeOnRequest()),
       linkTheCommandLineTool: commandAnswerOfPlainCode(() => sharedState.controller.linkTheCommandLineTool()),
     }),
-    Layer.succeed(FileManager, {
-      showAnExistingFolder: (folder, refusalWhenMissing) =>
-        commandAnswerOfPlainCode(() =>
-          openedWhenAnExistingFolder(sharedState.streamProjectFolderOpeners, folder, refusalWhenMissing, (existingFolder) =>
-            sharedState.streamProjectFolderOpeners.openAFolderInTheFileManager(existingFolder),
-          ),
-        ),
-    }),
-    Layer.succeed(Terminal, {
-      openInAnExistingFolder: (folder, refusalWhenMissing) =>
-        commandAnswerOfPlainCode(() =>
-          openedWhenAnExistingFolder(sharedState.streamProjectFolderOpeners, folder, refusalWhenMissing, (existingFolder) =>
-            sharedState.streamProjectFolderOpeners.terminalOpenedInAFolder.openTerminalIn(existingFolder),
-          ),
-        ),
-    }),
+    Layer.succeed(FileManager, { showAnExistingFolder: existingFolderOpenedBy(folderOpeners.isAnExistingFolder, (folder) => folderOpeners.openAFolderInTheFileManager(folder)) }),
+    Layer.succeed(Terminal, { openInAnExistingFolder: existingFolderOpenedBy(folderOpeners.isAnExistingFolder, (folder) => folderOpeners.terminalOpenedInAFolder.openTerminalIn(folder)) }),
     foldersChosenInTheWindowLayer,
     Layer.succeed(PersonEditingInStudio, { author: sharedState.thePersonEditingInStudio }),
     Layer.succeed(IdempotencyKeys, { mint: Effect.sync(() => randomUUID()) }),

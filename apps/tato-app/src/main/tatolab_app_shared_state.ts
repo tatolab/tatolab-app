@@ -26,7 +26,6 @@ import type { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_f
 import type { PackageCatalogMachine, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import type { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 
-/** The controller, the status publisher, the updater, what opens a stream's project, adding a project, the stream-failure notifications, Developer mode, the project dialogs and recent projects, the app's windows, the language servers, the port viewers and the system menu bar, which the tray's choices and the window's commands reach. */
 /** What opens a folder, and how the app tells a folder still exists. */
 export interface StreamProjectFolderOpeners {
   /** Show `folder` in the desktop's file manager, refused in the file manager's own words. */
@@ -35,6 +34,7 @@ export interface StreamProjectFolderOpeners {
   isAnExistingFolder(folderPath: string): Promise<boolean>;
 }
 
+/** The controller, the status publisher, the updater, what opens a stream's project, the add-a-project folder dialog, the stream-failure notifications, Developer mode, the project dialogs and recent projects, the app's windows, the language servers, the port viewers and the system menu bar, which the tray's choices and the window's commands reach. */
 export interface TatolabAppSharedState {
   controller: TatolabAppController;
   statusPublisher: TatolabStatusPublisher;

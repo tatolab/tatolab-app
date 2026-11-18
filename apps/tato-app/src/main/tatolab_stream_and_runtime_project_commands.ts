@@ -2,7 +2,7 @@ import type { TatolabCommandName } from "../shared/tatolab_electron_bridge_contr
 import { succeeded, type Result } from "./result.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { chooseAStreamProjectFolder, createAStreamProject, openAStreamProject } from "./stream_project_adding.js";
-import { openTheStreamsProjectFolder } from "./stream_project_folder_opening.js";
+import { openTheStreamsProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
 import { newStreamDocumentPathNoFileHolds, PROJECT_STREAMS_FOLDER } from "./new_stream_document_path.js";
 import { Effect, Schema, type ManagedRuntime } from "effect";
 import {
@@ -93,6 +93,15 @@ const CreateStreamProjectArguments = Schema.Struct({ folder: Schema.NullOr(Schem
 /** The arguments of `open_stream_project`: a folder chosen in the window. */
 const OpenStreamProjectArguments = Schema.Struct({ folder: Schema.String });
 
+/** The window's `commandName { stream }` on `studioRuntime`: the project folder the runtime last listed for the stream, or its log folder, opened as `opening` asks, answering nothing. */
+function streamProjectFolderCommand(
+  studioRuntime: ManagedRuntime.ManagedRuntime<StudioServices, never>,
+  commandName: "open_stream_project_folder" | "open_terminal_at_stream_project" | "open_stream_log_folder",
+  opening: StreamProjectFolderOpening,
+) {
+  return windowCommand(studioRuntime, commandName, StreamArguments, ({ stream }) => openTheStreamsProjectFolder(stream, opening).pipe(Effect.as(null)));
+}
+
 type StreamAndRuntimeProjectCommandName =
   | "read_project_log_records"
   | "describe_stream_graph"
@@ -173,13 +182,9 @@ export function streamAndRuntimeProjectCommandHandlersOf(
       }),
     ),
     describe_stream_action: windowCommand(studioRuntime, "describe_stream_action", StreamActionArguments, ({ action }) => describeStreamAction(action)),
-    open_stream_project_folder: windowCommand(studioRuntime, "open_stream_project_folder", StreamArguments, ({ stream }) => openTheStreamsProjectFolder(stream, "file_manager").pipe(Effect.as(null))),
-    open_terminal_at_stream_project: windowCommand(studioRuntime, "open_terminal_at_stream_project", StreamArguments, ({ stream }) =>
-      openTheStreamsProjectFolder(stream, "terminal").pipe(Effect.as(null)),
-    ),
-    open_stream_log_folder: windowCommand(studioRuntime, "open_stream_log_folder", StreamArguments, ({ stream }) =>
-      openTheStreamsProjectFolder(stream, "log_folder_in_the_file_manager").pipe(Effect.as(null)),
-    ),
+    open_stream_project_folder: streamProjectFolderCommand(studioRuntime, "open_stream_project_folder", "file_manager"),
+    open_terminal_at_stream_project: streamProjectFolderCommand(studioRuntime, "open_terminal_at_stream_project", "terminal"),
+    open_stream_log_folder: streamProjectFolderCommand(studioRuntime, "open_stream_log_folder", "log_folder_in_the_file_manager"),
     choose_stream_project_folder: windowCommand(studioRuntime, "choose_stream_project_folder", ChooseStreamProjectFolderArguments, ({ chosen_for }) => chooseAStreamProjectFolder(chosen_for)),
     create_stream_project: windowCommand(studioRuntime, "create_stream_project", CreateStreamProjectArguments, ({ folder }) => createAStreamProject(folder)),
     open_stream_project: windowCommand(studioRuntime, "open_stream_project", OpenStreamProjectArguments, ({ folder }) => openAStreamProject(folder)),
