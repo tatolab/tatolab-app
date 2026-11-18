@@ -1,10 +1,11 @@
+import { CONTROL_CONTRACT_REVISION, CONTROL_CONTRACT_VERSION } from "@tatolab/runtime-client";
 import { afterEach, expect, test } from "vitest";
 import type { CarriedRuntime } from "./platform/carried_runtime.js";
 import { RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL, RUNTIME_STARTING_GRACE_PERIOD_MS } from "./carried_runtime_run_as_the_apps_child.js";
 import { FakeLocalApiServer, httpResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
 import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import { failedWith, succeeded } from "./result.js";
-import { MachineNameAskedOncePerRuntimeUpEpisode, TatolabAppController, type TatolabAppControllerSources } from "./tatolab_app_controller.js";
+import { AskedOncePerRuntimeUpEpisode, TatolabAppController, type TatolabAppControllerSources } from "./tatolab_app_controller.js";
 import type { TatolabAppUpdateState } from "../shared/tatolab_backend_contract.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 
@@ -15,11 +16,11 @@ afterEach(async () => {
 });
 
 test("the_machine_name_is_asked_once_while_the_runtime_stays_up", async () => {
-  const machineName = new MachineNameAskedOncePerRuntimeUpEpisode();
+  const machineName = new AskedOncePerRuntimeUpEpisode<string | null>();
   let timesAsked = 0;
 
   for (let round = 0; round < 3; round += 1) {
-    const answer = await machineName.machineName(async () => {
+    const answer = await machineName.answer(async () => {
       timesAsked += 1;
       return "jonathanf-macbook";
     });
@@ -29,13 +30,13 @@ test("the_machine_name_is_asked_once_while_the_runtime_stays_up", async () => {
 });
 
 test("a_machine_name_the_runtime_did_not_give_is_asked_again_only_after_a_restart", async () => {
-  const machineName = new MachineNameAskedOncePerRuntimeUpEpisode();
+  const machineName = new AskedOncePerRuntimeUpEpisode<string | null>();
 
-  expect(await machineName.machineName(async () => null)).toBe(null);
-  expect(await machineName.machineName(async () => "asked-twice")).toBe(null);
+  expect(await machineName.answer(async () => null)).toBe(null);
+  expect(await machineName.answer(async () => "asked-twice")).toBe(null);
 
   machineName.runtimeIsDown();
-  expect(await machineName.machineName(async () => "jonathanf-macbook")).toBe("jonathanf-macbook");
+  expect(await machineName.answer(async () => "jonathanf-macbook")).toBe("jonathanf-macbook");
 });
 
 interface ControllerOverFakesOptions {
@@ -81,6 +82,22 @@ async function controllerOverFakes(scriptedLocalApiResponses: readonly Buffer[],
 const healthyAnswer = () => httpResponse("200 OK", "text/plain", "ok");
 const noStreams = () => controlOperationResultResponse({ streams: [] });
 const theMachine = () => httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] }));
+/** The `/control/ws` upgrade the contract age is read on, refused with words alone, which leaves the age unread. */
+const anUpgradeRefusedWithWords = () => httpResponse("409 Conflict", "text/plain", "not served in this test");
+/** The `/control/ws` upgrade refused by a runtime of release 0.68.90 at revision 0, older than this Studio. */
+const anUpgradeRefusedByAnOlderRuntime = () =>
+  httpResponse(
+    "409 Conflict",
+    "application/json",
+    JSON.stringify({
+      client_contract_version: CONTROL_CONTRACT_VERSION,
+      runtime_contract_version: CONTROL_CONTRACT_VERSION,
+      client_contract_revision: CONTROL_CONTRACT_REVISION,
+      runtime_contract_revision: 0,
+      older_side: "runtime",
+      runtime_version: "0.68.90",
+    }),
+  );
 
 test("a healthy runtime's status names its streams and machine, read as the window reads them, and starts no runtime of the app's", async () => {
   const { controller, localApiServer, carriedRuntimeStarts } = await controllerOverFakes([
@@ -90,7 +107,7 @@ test("a healthy runtime's status names its streams and machine, read as the wind
   ]);
 
   expect(JSON.stringify(await controller.composeStatus(0))).toBe(
-    '{"app_version":"0.45.0","app_build":null,"platform":"macos","runtime_state":"running","runtime_not_running_because":null,' +
+    '{"app_version":"0.45.0","app_build":null,"platform":"macos","runtime_state":"running","runtime_not_running_because":null,"runtime_of_another_age":null,' +
       '"machine_name":"jonathanf-macbook","streams":[{"stream":"p-main-0a1b2c","display_name":"main","location":{"project_directory":"/p","project":"0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55","stream_asset":"7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68"},' +
       '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"project_venv_syncs_under_way":[],"project_venv_syncs_just_ended":[],"project_stream_action_failures":[],"streams_not_listed_because":null,' +
       '"command_line_tool_link":{"kind":"not_linked","path":"/Users/someone/.local/bin/tatolab"},' +
@@ -184,13 +201,34 @@ test("quitting stops the app's runtime with it", async () => {
   expect(carriedRuntimeStarts.lastRuntimeStarted()?.askedToStop).toBe(true);
 });
 
+test("a runtime older than this Studio is named once in the status, read once while it stays up and again after it goes down", async () => {
+  const { controller, localApiServer } = await controllerOverFakes([healthyAnswer(), noStreams(), theMachine(), anUpgradeRefusedByAnOlderRuntime(), healthyAnswer(), noStreams()]);
+
+  const firstStatus = await controller.composeStatus(0);
+  const secondStatus = await controller.composeStatus(0);
+
+  const theOlderRuntime = {
+    older_side: "runtime",
+    runtime_version: "0.68.90",
+    runtime_contract: { version: CONTROL_CONTRACT_VERSION, revision: 0 },
+    studio_contract: { version: CONTROL_CONTRACT_VERSION, revision: CONTROL_CONTRACT_REVISION },
+    remedy: "quit_the_running_runtime",
+  };
+  expect(firstStatus.runtime_of_another_age).toEqual(theOlderRuntime);
+  expect(secondStatus.runtime_of_another_age).toEqual(theOlderRuntime);
+  expect(localApiServer.receivedRequests().filter((request) => request.startsWith("GET /control/ws "))).toHaveLength(1);
+
+  const downStatus = await controller.composeStatus(0);
+  expect(downStatus.runtime_of_another_age).toBeNull();
+});
+
 test("restart stops the app's runtime and refuses a runtime the app did not start", async () => {
   const started = await controllerOverFakes([]);
   await started.controller.composeStatus(0);
   expect(await started.controller.restartTheRuntimeOnRequest()).toEqual(succeeded(undefined));
   expect(started.carriedRuntimeStarts.lastRuntimeStarted()?.askedToStop).toBe(true);
 
-  const attached = await controllerOverFakes([healthyAnswer(), noStreams(), theMachine(), healthyAnswer()]);
+  const attached = await controllerOverFakes([healthyAnswer(), noStreams(), theMachine(), anUpgradeRefusedWithWords(), healthyAnswer()]);
   await attached.controller.composeStatus(0);
   expect(await attached.controller.restartTheRuntimeOnRequest()).toEqual(failedWith(RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL));
 });

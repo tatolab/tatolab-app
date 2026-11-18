@@ -30,7 +30,8 @@ import {
   TATOLAB_MCP_CONFIG,
   type SettingsSection,
 } from "../presentation/settings_presentation";
-import { useActionThroughTheBackend, type BackendActionRefusal } from "./action_through_the_backend";
+import { useActionThroughTheBackend, useTatolabAppUpdateAction, type BackendActionRefusal } from "./action_through_the_backend";
+import { RuntimeOfAnotherAgeNotice } from "./runtime_of_another_age_notice";
 import { ProjectSettingsSectionView, type ProjectSettingsSources } from "./project_settings_section_view";
 import { useRuntimeDescriptionReading, useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
@@ -242,6 +243,7 @@ function RuntimeSection() {
           )}
         >
           {runtimeStatusRow.refusal !== null && <RefusalLine lead="The runtime didn't describe itself:" words={runtimeStatusRow.refusal} tone="warning" />}
+          {status.runtime_state === "running" && status.runtime_of_another_age !== null && <RuntimeOfAnotherAgeNotice runtimeOfAnotherAge={status.runtime_of_another_age} />}
         </SettingsRow>
         <SettingsRow
           label="Local API socket"
@@ -362,10 +364,7 @@ function AboutSection() {
   const status = useTatolabStatus();
   const runtimeDescription = useRuntimeDescriptionReading();
   const appUpdate = presentTatolabAppUpdate(status.app_update);
-  const runTheUpdateAction = useActionThroughTheBackend(
-    () => (appUpdate.action?.command === "take_the_newer_version" ? backend.takeTheNewerTatolabAppVersion() : backend.checkForTatolabAppUpdates()),
-    "Couldn't update Tato Studio:",
-  );
+  const runTheUpdateAction = useTatolabAppUpdateAction(backend, status.app_update);
   const versions = presentAboutVersions(status, runtimeDescription);
   return (
     <div className="flex flex-col items-center gap-6 pt-6 text-center" data-settings-about="">

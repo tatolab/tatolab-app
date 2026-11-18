@@ -636,14 +636,14 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     }
     window.clearInterval(liveTickTimer);
     liveTickTimer = window.setInterval(runLiveTick, MOCK_LIVE_TICK_MILLISECONDS);
-    publishStatus({ runtime_state: "running", machine_name: fixtures.machine.name, streams: listStreams() });
+    publishStatus({ runtime_state: "running", runtime_of_another_age: mockTatolabOptions.runtimeOfAnotherAge, machine_name: fixtures.machine.name, streams: listStreams() });
   };
 
   const takeRuntimeDown = (statusChanges: Partial<TatolabStatus>): void => {
     runtimeUpSinceMilliseconds = null;
     loadedStreams.clear();
     window.clearInterval(liveTickTimer);
-    publishStatus({ ...statusChanges, machine_name: null, streams: null });
+    publishStatus({ ...statusChanges, runtime_of_another_age: null, machine_name: null, streams: null });
   };
 
   const startRuntime = (): void => {

@@ -2,7 +2,7 @@
 // `words` a person is shown. A refusal's words are the runtime's own, never rewritten.
 
 import { Data } from "effect";
-import type { ProjectActionRefusalOnTheWire } from "./tatolab_runtime_control_operation_call.js";
+import type { ControlContractVersionMismatch, ProjectActionRefusalOnTheWire } from "./tatolab_runtime_control_operation_call.js";
 
 /**
  * The runtime answered `operation` and said no: `byTheOperation` when the operation itself refused or failed, otherwise its
@@ -36,5 +36,12 @@ export class ContractMismatch extends Data.TaggedError("ContractMismatch")<{
   readonly direction: "request" | "answer";
 }> {}
 
+/** The runtime refused `operation` because this Studio was built against another control contract than it serves; `mismatch` is its record of which side is older. */
+export class RuntimeOfAnotherContract extends Data.TaggedError("RuntimeOfAnotherContract")<{
+  readonly operation: string;
+  readonly words: string;
+  readonly mismatch: ControlContractVersionMismatch;
+}> {}
+
 /** Every way a call to the runtime's control API fails. */
-export type RuntimeControlFailure = RuntimeRefused | RuntimeUnreachable | RuntimeTimedOut | ContractMismatch;
+export type RuntimeControlFailure = RuntimeRefused | RuntimeUnreachable | RuntimeTimedOut | ContractMismatch | RuntimeOfAnotherContract;

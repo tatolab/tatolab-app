@@ -5,7 +5,7 @@ import { ProgressMeter } from "@tatolab/tato-app-view-sdk/design_system/progress
 import { StatusBarPanelButton } from "@tatolab/tato-app-view-sdk/design_system/status_bar_panel_button";
 import { TriangleAlert } from "lucide-react";
 import type { ProjectTransactionsReading } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { RuntimeOfAnotherAge, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import {
   EMPTY_STUDIO_ACTIVITY_LOG,
   nextStudioActivityLog,
@@ -17,6 +17,7 @@ import {
 } from "../presentation/studio_activity_presentation";
 import { studioStatusBarWordsOf } from "../presentation/studio_status_bar_presentation";
 import { presentStudioWarning, studioWarningsButtonWordsOf } from "../presentation/studio_warnings_presentation";
+import { RuntimeOfAnotherAgeNotice } from "../setup_and_settings/runtime_of_another_age_notice";
 import { useRuntimeDescriptionReading, useTatolabStatus } from "../setup_and_settings/tatolab_window_context";
 import type { StudioViewHostServices } from "../view_host/studio_view_contract";
 
@@ -166,6 +167,25 @@ function StudioWarningsPanelButton({ status }: { status: TatolabStatus }) {
   );
 }
 
+/** The runtime's phrase while it refuses this Studio's contract, opening a panel with the one notice and its remedy. */
+function RuntimeOfAnotherAgePanelButton({ words, runtimeOfAnotherAge }: { words: string; runtimeOfAnotherAge: RuntimeOfAnotherAge }) {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <StatusBarPanelButton
+      words={words}
+      isBusy={false}
+      isFailing={false}
+      panelTitle="Runtime"
+      isOpen={isOpen}
+      onOpenChange={setIsOpen}
+      takesFocusOnOpen
+      data-studio-status-bar-runtime="of_another_age"
+    >
+      <RuntimeOfAnotherAgeNotice runtimeOfAnotherAge={runtimeOfAnotherAge} />
+    </StatusBarPanelButton>
+  );
+}
+
 /** The studio's foot: the warnings that hold, the runtime and where it runs, what downloads or installs, and the project's last edit and who made it. */
 export function StudioStatusBar({
   viewHostServices,
@@ -180,6 +200,7 @@ export function StudioStatusBar({
   const wallClockNowMs = useWallClockForDisplay(LAST_EDIT_WORDS_REFRESH_MS);
   const words = studioStatusBarWordsOf({
     runtimeState: status.runtime_state,
+    runtimeOfAnotherAge: status.runtime_of_another_age,
     runtimeDescription,
     projectTransactions,
     wallClockNowMs,
@@ -187,9 +208,13 @@ export function StudioStatusBar({
   return (
     <footer className="flex h-6 shrink-0 items-center gap-4 bg-studio-menu-bar px-3 text-2xs text-fg-3" aria-label="Status" data-studio-status-bar="">
       <StudioWarningsPanelButton status={status} />
-      <span className={cn(words.runtime_tone === "not_running" && "text-danger-text")} data-studio-status-bar-runtime={words.runtime_tone}>
-        {words.runtime}
-      </span>
+      {words.runtime_tone === "of_another_age" && status.runtime_of_another_age !== null ? (
+        <RuntimeOfAnotherAgePanelButton words={words.runtime} runtimeOfAnotherAge={status.runtime_of_another_age} />
+      ) : (
+        <span className={cn(words.runtime_tone === "not_running" && "text-danger-text")} data-studio-status-bar-runtime={words.runtime_tone}>
+          {words.runtime}
+        </span>
+      )}
       <StudioActivityPanelButton status={status} />
       <span className="flex-1" />
       {words.last_edit !== null && <span data-studio-status-bar-last-edit="">{words.last_edit}</span>}

@@ -22,6 +22,7 @@ function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
     platform: "macos",
     runtime_state: "running",
     runtime_not_running_because: null,
+    runtime_of_another_age: null,
     machine_name: "ada-macbook-pro",
     streams: [],
     streams_not_listed_because: null,
@@ -99,6 +100,16 @@ describe("Runtime › Status", () => {
       statusWords: "Not running",
       tone: "error",
       problemExplanation: "The runtime is running but not answering.",
+      refusal: null,
+    });
+  });
+
+  it("tones a runtime of another age as a warning and leaves its words to the notice under the row", () => {
+    const runtimeOfAnotherAge = { older_side: "studio", runtime_version: "0.80.0", runtime_contract: { version: 4, revision: 0 }, studio_contract: { version: 3, revision: 1 }, remedy: "update_studio" } as const;
+    expect(presentRuntimeStatusRow(statusWith({ runtime_of_another_age: runtimeOfAnotherAge }), describedAs({}))).toEqual({
+      statusWords: "Running · tatolabd 0.55.2 · up 3d 2h",
+      tone: "warning",
+      problemExplanation: null,
       refusal: null,
     });
   });

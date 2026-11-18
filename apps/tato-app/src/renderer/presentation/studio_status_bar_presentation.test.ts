@@ -20,6 +20,7 @@ const AN_AGENTS_EDIT: ProjectTransaction = {
 
 const RUNNING_WITH_AN_EDIT: StudioStatusBarSources = {
   runtimeState: "running",
+  runtimeOfAnotherAge: null,
   runtimeDescription: { kind: "read", description: { version: "0.68.55", build_id: "0.68.55+3e1a48c.1", up_for_ms: 1_000, runtime_log_directory: "/tmp/logs" } },
   projectTransactions: {
     kind: "read",
@@ -41,6 +42,15 @@ describe("the studio's status bar", () => {
     const words = studioStatusBarWordsOf({ ...RUNNING_WITH_AN_EDIT, runtimeState: "not_running", projectTransactions: { kind: "not_read", because: "no runtime answers" } });
     expect(words.runtime).toBe("Runtime not running");
     expect(words.last_edit).toBeNull();
+  });
+
+  it("names a runtime of another age by its release and which side is older", () => {
+    const words = studioStatusBarWordsOf({
+      ...RUNNING_WITH_AN_EDIT,
+      runtimeOfAnotherAge: { older_side: "studio", runtime_version: "0.80.0", runtime_contract: { version: 4, revision: 0 }, studio_contract: { version: 3, revision: 1 }, remedy: "update_studio" },
+    });
+    expect(words.runtime_tone).toBe("of_another_age");
+    expect(words.runtime).toBe("tatolabd 0.80.0 · newer than this Studio");
   });
 
   it("says the runtime is starting without naming the machine", () => {

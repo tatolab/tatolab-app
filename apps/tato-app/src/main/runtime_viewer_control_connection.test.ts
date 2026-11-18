@@ -1,9 +1,7 @@
-import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
-import net from "node:net";
 import path from "node:path";
-import { CONTROL_OPERATION_METHOD_NAMES } from "@tatolab/runtime-client";
 import { afterEach, expect, test } from "vitest";
+import { fakeControlWebSocketRuntime as fakeControlWebSocketRuntimeOnASocket, resultLine, type FakeControlWebSocketAnswer } from "./fake_control_websocket_runtime.js";
 import { type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import type { Result } from "./result.js";
 import {
@@ -29,106 +27,11 @@ function failureOf<T, F>(result: Result<T, F>): F {
   return result.failure;
 }
 
-/** How the fake runtime answers one call on `/control/ws` after `discover`: the messages to send back, or `null` to leave it unanswered. */
-type FakeControlWebSocketAnswer = (call: Record<string, unknown>) => string[] | null;
-
-/** What `discover` answers, in the shape the runtime's `DiscoverResult` serializes to. */
-const DISCOVERED = { contract_version: 2, runtime_version: "0.68.74", build_id: "test-build", operations: [...CONTROL_OPERATION_METHOD_NAMES] };
-
-/** The GUID RFC 6455 appends to a client's `Sec-WebSocket-Key` before hashing it into `Sec-WebSocket-Accept`. */
-const WEBSOCKET_ACCEPT_KEY_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-
-const WEBSOCKET_TEXT_OPCODE = 0x1;
-const WEBSOCKET_CLOSE_OPCODE = 0x8;
-
-/** One unmasked, final server frame carrying `payload` with `opcode`, as RFC 6455 frames it. */
-function serverWebSocketFrame(opcode: number, payload: Buffer): Buffer {
-  const lengthBytes = payload.length < 126 ? Buffer.from([payload.length]) : Buffer.alloc(9);
-  if (payload.length >= 126) {
-    lengthBytes[0] = 127;
-    lengthBytes.writeBigUInt64BE(BigInt(payload.length), 1);
-  }
-  return Buffer.concat([Buffer.from([0x80 | opcode]), lengthBytes, payload]);
-}
-
-/** The first whole masked client frame in `bytes`, unmasked, with the bytes after it; or `null` while it has not all arrived. */
-function firstClientWebSocketFrame(bytes: Buffer): { opcode: number; payload: Buffer; bytesAfter: Buffer } | null {
-  if (bytes.length < 2) return null;
-  const opcode = (bytes[0] ?? 0) & 0x0f;
-  const shortLength = (bytes[1] ?? 0) & 0x7f;
-  const lengthFieldBytes = shortLength === 126 ? 2 : shortLength === 127 ? 8 : 0;
-  const maskStart = 2 + lengthFieldBytes;
-  if (bytes.length < maskStart + 4) return null;
-  const payloadLength = shortLength === 126 ? bytes.readUInt16BE(2) : shortLength === 127 ? Number(bytes.readBigUInt64BE(2)) : shortLength;
-  const payloadStart = maskStart + 4;
-  if (bytes.length < payloadStart + payloadLength) return null;
-  const mask = bytes.subarray(maskStart, payloadStart);
-  const payload = Buffer.from(bytes.subarray(payloadStart, payloadStart + payloadLength).map((byte, index) => byte ^ (mask[index % 4] ?? 0)));
-  return { opcode, payload, bytesAfter: bytes.subarray(payloadStart + payloadLength) };
-}
-
-/** A local API that upgrades `/control/ws`, answers `discover`, and then each call with `answerCall`, recording every upgrade and call it read. */
+/** A fake `/control/ws` runtime answering each call after `discover` with `answerCall`, closed after the test. */
 async function fakeControlWebSocketRuntime(answerCall: FakeControlWebSocketAnswer) {
-  const socketDirectory = await mkdtemp("/tmp/tl-app-");
-  const localApiSocketPath = path.join(socketDirectory, "local-api.sock");
-  const upgradeRequestsRead: string[] = [];
-  const callsRead: Record<string, unknown>[] = [];
-  const connectionsOpen: net.Socket[] = [];
-  const server = net.createServer((connection) => {
-    connectionsOpen.push(connection);
-    const sendText = (messageText: string) => connection.write(serverWebSocketFrame(WEBSOCKET_TEXT_OPCODE, Buffer.from(messageText, "utf8")));
-    let bytesRead: Buffer = Buffer.alloc(0);
-    let upgraded = false;
-    connection.on("data", (chunk: Buffer) => {
-      bytesRead = Buffer.concat([bytesRead, chunk]);
-      if (!upgraded) {
-        const headEnd = bytesRead.indexOf("\r\n\r\n");
-        if (headEnd === -1) return;
-        const upgradeHead = bytesRead.subarray(0, headEnd).toString("utf8");
-        upgradeRequestsRead.push(upgradeHead);
-        bytesRead = bytesRead.subarray(headEnd + 4);
-        upgraded = true;
-        const websocketKey = /^sec-websocket-key:\s*(\S+)\s*$/im.exec(upgradeHead)?.[1] ?? "";
-        const acceptKey = createHash("sha1").update(websocketKey + WEBSOCKET_ACCEPT_KEY_GUID).digest("base64");
-        connection.write(`HTTP/1.1 101 Switching Protocols\r\nconnection: upgrade\r\nupgrade: websocket\r\nsec-websocket-accept: ${acceptKey}\r\n\r\n`);
-      }
-      for (let frame = firstClientWebSocketFrame(bytesRead); frame !== null; frame = firstClientWebSocketFrame(bytesRead)) {
-        bytesRead = frame.bytesAfter;
-        if (frame.opcode === WEBSOCKET_CLOSE_OPCODE) {
-          connection.end(serverWebSocketFrame(WEBSOCKET_CLOSE_OPCODE, frame.payload.subarray(0, 2)));
-          return;
-        }
-        if (frame.opcode !== WEBSOCKET_TEXT_OPCODE) continue;
-        const call: unknown = JSON.parse(frame.payload.toString("utf8"));
-        if (typeof call !== "object" || call === null) continue;
-        const callFields = Object.fromEntries(Object.entries(call));
-        if (callFields["method"] === "discover") {
-          sendText(JSON.stringify({ jsonrpc: "2.0", id: callFields["id"], result: DISCOVERED }));
-          continue;
-        }
-        callsRead.push(callFields);
-        for (const answerText of answerCall(callFields) ?? []) sendText(answerText);
-      }
-    });
-    connection.on("error", () => connection.destroy());
-    connection.once("end", () => connection.end());
-  });
-  await new Promise<void>((listening) => server.listen(localApiSocketPath, listening));
-  cleanUps.push(async () => {
-    for (const connection of connectionsOpen) connection.destroy();
-    await new Promise<void>((closed) => server.close(() => closed()));
-    await rm(socketDirectory, { recursive: true, force: true });
-  });
-  return {
-    localApiSocketPath,
-    upgradeRequestsRead,
-    callsRead,
-    closeEveryConnection: () => connectionsOpen.forEach((connection) => connection.destroy()),
-  };
-}
-
-function resultLine(id: unknown, result: unknown): string {
-  return JSON.stringify({ jsonrpc: "2.0", id, result });
+  const runtime = await fakeControlWebSocketRuntimeOnASocket(answerCall);
+  cleanUps.push(() => runtime.close());
+  return runtime;
 }
 
 /** An `open_viewer` result in the shape `OpenViewerToolResult` (`local_api_wire_contract.rs`) serializes to. */

@@ -27,6 +27,7 @@ function runningRuntimeListing(streams: ListedStream[]): TatolabStatus {
     platform: "macos",
     runtime_state: "running",
     runtime_not_running_because: null,
+    runtime_of_another_age: null,
     machine_name: "studio-mac",
     streams,
     streams_not_listed_because: null,
@@ -64,6 +65,17 @@ describe("the streams the studio reads from a status", () => {
     const because = "the runtime's list_streams result could not be read: missing field `stream_asset`";
     studioWindowModel.showStatus({ ...runningRuntimeListing([]), streams: null, streams_not_listed_because: because });
     expect(studioWindowModel.listedStreams.readLatest()).toEqual({ kind: "listing_failed", because });
+  });
+
+  it("names a runtime of another age that refuses the listing by its notice, not by the refusal", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    studioWindowModel.showStatus({
+      ...runningRuntimeListing([]),
+      streams: null,
+      streams_not_listed_because: "this client is older than the runtime: …",
+      runtime_of_another_age: { older_side: "studio", runtime_version: "0.80.0", runtime_contract: { version: 4, revision: 0 }, studio_contract: { version: 3, revision: 1 }, remedy: "update_studio" },
+    });
+    expect(studioWindowModel.listedStreams.readLatest()).toEqual({ kind: "not_listed", because: "This Studio is older than the runtime" });
   });
 });
 

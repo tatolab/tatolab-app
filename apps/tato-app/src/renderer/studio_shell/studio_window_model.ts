@@ -31,11 +31,13 @@ export interface ModuleManagerSectionAskNumbered {
   ask_number: number;
 }
 
-/** The streams the runtime lists in `status`, or why it lists none now. */
+/** The streams the runtime lists in `status`, or why it lists none now: a runtime of another age that refuses the listing is named by its notice's title, not by each refusal. */
 export function listedStreamsReadingOf(status: TatolabStatus): ListedStreamsReading {
   const runtimeStatus = presentRuntimeStatus(status);
   if (runtimeStatus.runtimeState === "running" && status.streams !== null) return { kind: "listed", streams: status.streams };
-  if (runtimeStatus.runtimeState === "running" && status.streams_not_listed_because !== null) return { kind: "listing_failed", because: status.streams_not_listed_because };
+  if (runtimeStatus.runtimeState === "running" && status.streams_not_listed_because !== null && status.runtime_of_another_age === null) {
+    return { kind: "listing_failed", because: status.streams_not_listed_because };
+  }
   return { kind: "not_listed", because: runtimeStatus.banner?.title ?? runtimeStatus.shortLabel };
 }
 

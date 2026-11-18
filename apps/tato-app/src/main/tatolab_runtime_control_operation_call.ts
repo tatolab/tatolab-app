@@ -5,7 +5,8 @@
 // settle every outcome as a `Result`. The client checks each call and answer against the control
 // contract: it rejects params that do not match with `ControlRequestInvalid` before sending them,
 // an answer that does not match with `ControlAnswerInvalid`, the runtime's JSON-RPC error with
-// `ControlOperationError`, and with any other error when nothing answered. An answer is checked
+// `ControlOperationError`, the runtime's refusal of the client's contract with `ControlContractMismatch`, and with any other
+// error when nothing answered. An answer is checked
 // once, by the client, and handed on as the contract's type for its operation; a hand-written
 // reader still walks it, typed, until its operation is next touched. The contract types and the
 // checker the rest of the main process reads with are re-exported from here.
@@ -14,6 +15,7 @@ import {
   CONTROL_OPERATION_FAILED_ERROR_CODE,
   CONTROL_OPERATION_REFUSED_ERROR_CODE,
   ControlAnswerInvalid,
+  ControlContractMismatch,
   ControlOperationError,
   ControlPostTransport,
   ControlRequestInvalid,
@@ -26,18 +28,21 @@ import {
   type ControlNotifications,
   type ControlOperationMethodName,
   type ControlOperations,
+  type DiscoverResult,
   type ProjectActionRefusalOnTheWire,
 } from "@tatolab/runtime-client";
 import { Context, Duration, Effect, Layer } from "effect";
 import { TATO_STUDIO_MCP_CLIENT_NAME, type ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
-import { ContractMismatch, RuntimeRefused, RuntimeTimedOut, RuntimeUnreachable, type RuntimeControlFailure } from "./runtime_control_failures.js";
+import { ContractMismatch, RuntimeOfAnotherContract, RuntimeRefused, RuntimeTimedOut, RuntimeUnreachable, type RuntimeControlFailure } from "./runtime_control_failures.js";
 
 export type { ControlNotifications, ControlOperationMethodName, ControlOperations };
 export type {
   ControlContractComponents,
   ControlContractIssue,
+  ControlContractVersionMismatch,
+  DiscoverResult,
   GraphTransactionToolResult,
   NodeUiManifest,
   PinFlow,
@@ -157,6 +162,7 @@ function runtimeControlFailureOfTheCall(method: ControlOperationMethodName, loca
       refusal: callFailure.refusal,
     });
   }
+  if (callFailure instanceof ControlContractMismatch) return new RuntimeOfAnotherContract({ operation: method, words: callFailure.message, mismatch: callFailure.mismatch });
   if (callFailure instanceof ControlRequestInvalid) return requestContractMismatch(method, describeTheContractIssues(callFailure.issues, THE_WHOLE_VALUE));
   if (callFailure instanceof ControlAnswerInvalid) return answerContractMismatch(method, describeTheContractIssues(callFailure.issues, THE_WHOLE_VALUE));
   const failureText = describeCaughtFailure(callFailure);
@@ -182,6 +188,8 @@ async function controlOperationAnswerOfTheCall<Method extends ControlOperationMe
     switch (failure._tag) {
       case "RuntimeRefused":
         return failure.byTheOperation ? succeeded({ kind: "refused_by_the_operation", words: failure.words }) : theRuntimesRefusal(failure.words);
+      case "RuntimeOfAnotherContract":
+        return theRuntimesRefusal(failure.words);
       case "RuntimeUnreachable":
         return localApiRequestFailure(responseTimeout.aborted ? runtimeTimedOut(method, localApiSocketPath, responseTimeoutMs).words : failure.words);
       case "RuntimeTimedOut":
@@ -210,12 +218,38 @@ export class RuntimeControl extends Context.Service<
       method: Method,
       params: ControlOperationParams<Method>,
     ) => Effect.Effect<ControlOperationResult<Method>, RuntimeControlFailure>;
+    /**
+     * Open a `/control/ws` connection, `discover` on it naming this Studio's contract, and close it: what the runtime answered,
+     * or `RuntimeOfAnotherContract` when it refused that contract, on the upgrade or on `discover`, or is a runtime from before
+     * the contract had a revision.
+     */
+    readonly discover: Effect.Effect<DiscoverResult, RuntimeControlFailure>;
   }
 >()("tatolab-app/RuntimeControl") {}
+
+/** A client connected to the local API at `localApiSocketPath` over `/control/ws`, its `discover` answered; aborting `signal` gives up on it. */
+function controlClientConnectedOverAWebSocket(localApiSocketPath: string, signal: ControlCallOptions["signal"]) {
+  return TatolabRuntimeClient.connect(
+    signal === undefined ? { socketPath: localApiSocketPath, clientName: TATO_STUDIO_MCP_CLIENT_NAME } : { socketPath: localApiSocketPath, clientName: TATO_STUDIO_MCP_CLIENT_NAME, signal },
+  );
+}
 
 /** `RuntimeControl` over the local API at `localApiSocketPath`: each call one `POST /control`, given up after its operation's limit or `defaultTimeLimitMs`, which aborts the request, as an interrupt does. */
 export function runtimeControlLayer(localApiSocketPath: string, defaultTimeLimitMs: number): Layer.Layer<RuntimeControl> {
   return Layer.succeed(RuntimeControl, {
+    discover: Effect.acquireUseRelease(
+      Effect.tryPromise({
+        try: (signal) => controlClientConnectedOverAWebSocket(localApiSocketPath, signal),
+        catch: (connectFailure) => runtimeControlFailureOfTheCall("discover", localApiSocketPath, connectFailure),
+      }),
+      (connectedClient) => Effect.succeed(connectedClient.discovered),
+      (connectedClient) => Effect.promise(() => connectedClient.close()),
+    ).pipe(
+      Effect.timeoutOrElse({
+        duration: Duration.millis(defaultTimeLimitMs),
+        orElse: () => Effect.fail(runtimeTimedOut("discover", localApiSocketPath, defaultTimeLimitMs)),
+      }),
+    ),
     call: <Method extends ControlOperationMethodName>(method: Method, params: ControlOperationParams<Method>) => {
       const timeLimitMs = controlOperationTimeLimitMs(method, defaultTimeLimitMs);
       return Effect.tryPromise({
@@ -252,9 +286,7 @@ export class TatolabRuntimeControlWebSocketConnection {
       localApiSocketPath,
       requestTimeoutMs,
       async ({ signal }) => {
-        const connectedClient = await TatolabRuntimeClient.connect(
-          signal === undefined ? { socketPath: localApiSocketPath, clientName: TATO_STUDIO_MCP_CLIENT_NAME } : { socketPath: localApiSocketPath, clientName: TATO_STUDIO_MCP_CLIENT_NAME, signal },
-        );
+        const connectedClient = await controlClientConnectedOverAWebSocket(localApiSocketPath, signal);
         controlClient = connectedClient;
         return connectedClient.discovered;
       },

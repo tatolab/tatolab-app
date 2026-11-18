@@ -29,6 +29,7 @@ import type {
   TatolabStatus,
   JsonValue,
 } from "../shared/tatolab_backend_contract.js";
+import { Effect, type Layer } from "effect";
 import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_apps_child.js";
 import type { StreamActionChangesFollowedForTheStatus } from "./stream_action_changes_followed_for_the_status.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
@@ -46,21 +47,27 @@ import type { TatolabCommandLineToolLink } from "./platform/command_line_tool_li
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
 import { failedWith, type Result } from "./result.js";
-import { LOCAL_API_REQUEST_TIMEOUT_MS } from "./tatolab_runtime_control_operation_call.js";
+import { readTheRuntimesContractAge, type RuntimeContractAgeReading } from "./runtime_contract_age.js";
+import { LOCAL_API_REQUEST_TIMEOUT_MS, RuntimeControl, runtimeControlLayer } from "./tatolab_runtime_control_operation_call.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 
 /** How many log records one page the window reads holds. */
 const PROJECT_LOG_RECORDS_PER_PAGE = 500;
 
-/** The machine's name, asked of the runtime once each time it comes up. */
-export class MachineNameAskedOncePerRuntimeUpEpisode {
-  /** `undefined` until asked since the runtime came up; then what it answered, `null` when it did not say. */
-  private answerThisEpisode: string | null | undefined = undefined;
+/** Something asked of the runtime once each time it comes up, as its machine's name and its contract's age are. */
+export class AskedOncePerRuntimeUpEpisode<Answer> {
+  /** `undefined` until settled since the runtime came up; then what it answered. */
+  private answerThisEpisode: Answer | undefined = undefined;
 
-  /** This episode's answer, calling `askTheRuntime` only the first time. */
-  async machineName(askTheRuntime: () => Promise<string | null>): Promise<string | null> {
-    if (this.answerThisEpisode === undefined) this.answerThisEpisode = await askTheRuntime();
-    return this.answerThisEpisode;
+  /** `isSettled` says which answers hold for the episode; any other is given back and asked again next time. */
+  constructor(private readonly isSettled: (answer: Answer) => boolean = () => true) {}
+
+  /** This episode's settled answer, calling `askTheRuntime` until one settles. */
+  async answer(askTheRuntime: () => Promise<Answer>): Promise<Answer> {
+    if (this.answerThisEpisode !== undefined) return this.answerThisEpisode;
+    const answer = await askTheRuntime();
+    if (this.isSettled(answer)) this.answerThisEpisode = answer;
+    return answer;
   }
 
   /** The runtime is down, so the next time it is up it is asked again. */
@@ -105,7 +112,10 @@ export interface TatolabAppControllerSources {
 export class TatolabAppController {
   private readonly runtimeNotRunningOnset = new ConditionOnsetLatch();
   private readonly streamListingFailureOnset = new ConditionOnsetLatch();
-  private readonly machineNameOfTheRunningRuntime = new MachineNameAskedOncePerRuntimeUpEpisode();
+  /** The machine's name, `null` when the runtime did not say. */
+  private readonly machineNameOfTheRunningRuntime = new AskedOncePerRuntimeUpEpisode<string | null>();
+  /** The runtime's contract age, asked again while it could not be read. */
+  private readonly contractAgeOfTheRunningRuntime = new AskedOncePerRuntimeUpEpisode<RuntimeContractAgeReading>((reading) => reading.kind !== "unread");
 
   private constructor(
     private readonly appVersion: string,
@@ -115,6 +125,7 @@ export class TatolabAppController {
     private readonly commandLineToolLink: TatolabCommandLineToolLink,
     private readonly localApiSocket: string,
     private readonly localApiClient: LocalApiClient,
+    private readonly runtimeControl: Layer.Layer<RuntimeControl>,
     private readonly readTheAppUpdateState: () => TatolabAppUpdateState,
     private readonly readTheAppUpdateAnnouncement: () => TatolabAppUpdateAnnouncement | null,
     private readonly readStreamFailureNotifications: () => StreamFailureNotificationsState,
@@ -143,6 +154,7 @@ export class TatolabAppController {
       sources.platformForThisBuild.commandLineToolLink,
       sources.platformForThisBuild.localApiSocket,
       new LocalApiClient(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS),
+      runtimeControlLayer(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS),
       sources.readTheAppUpdateState,
       sources.readTheAppUpdateAnnouncement,
       sources.readStreamFailureNotifications,
@@ -202,13 +214,16 @@ export class TatolabAppController {
     let streams: ListedStream[] | null = null;
     let streamsNotListedBecause: string | null = null;
     let machineName: string | null = null;
+    let runtimeOfAnotherAge: RuntimeContractAgeReading | null = null;
     if (healthCheck.ok) {
       const listing = await this.listedStreams();
       streams = listing.ok ? listing.value : null;
       streamsNotListedBecause = listing.ok ? null : listing.failure;
-      machineName = await this.machineNameOfTheRunningRuntime.machineName(() => this.askTheRuntimeItsMachineName());
+      machineName = await this.machineNameOfTheRunningRuntime.answer(() => this.askTheRuntimeItsMachineName());
+      runtimeOfAnotherAge = await this.contractAgeOfTheRunningRuntime.answer(() => this.askTheRuntimeItsContractAge());
     } else {
       this.machineNameOfTheRunningRuntime.runtimeIsDown();
+      this.contractAgeOfTheRunningRuntime.runtimeIsDown();
     }
     this.carriedRuntimeRunAsTheAppsChild.keepTheRuntimeRunning(healthCheck.ok, nowMs);
     const { runtimeState, runtimeNotRunningBecause } = this.carriedRuntimeRunAsTheAppsChild.runtimeStateNow(healthCheck.ok, nowMs);
@@ -226,6 +241,7 @@ export class TatolabAppController {
       platform: this.platform,
       runtime_state: runtimeState,
       runtime_not_running_because: runtimeNotRunningBecause,
+      runtime_of_another_age: runtimeOfAnotherAge?.kind === "of_another_age" ? runtimeOfAnotherAge.runtimeOfAnotherAge : null,
       machine_name: machineName,
       streams,
       project_venv_syncs_under_way: underWay,
@@ -495,5 +511,19 @@ export class TatolabAppController {
       failure: machineName.failure.failureDescription,
     });
     return null;
+  }
+
+  private async askTheRuntimeItsContractAge(): Promise<RuntimeContractAgeReading> {
+    const reading = await Effect.runPromise(
+      readTheRuntimesContractAge(this.carriedRuntimeRunAsTheAppsChild.howTheAnsweringRuntimeRuns()).pipe(Effect.provide(this.runtimeControl)),
+    );
+    if (reading.kind === "of_another_age") {
+      this.tatolabAppLog.warn("the runtime refused this Studio's control contract", {
+        older_side: reading.runtimeOfAnotherAge.older_side,
+        runtime_version: reading.runtimeOfAnotherAge.runtime_version,
+        runtime_words: reading.runtimeWords,
+      });
+    }
+    return reading;
   }
 }

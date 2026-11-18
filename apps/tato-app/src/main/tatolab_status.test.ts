@@ -20,6 +20,7 @@ function statusWith(runtimeState: RuntimeState, streamCount: number | null): Tat
     platform: "macos",
     runtime_state: runtimeState,
     runtime_not_running_because: runtimeState === "not_running" ? "The runtime stopped: it exited with status 1. Tato Studio starts it again shortly." : null,
+    runtime_of_another_age: null,
     machine_name: null,
     streams: streamCount === null ? null : listedStreams(streamCount),
     streams_not_listed_because: null,
