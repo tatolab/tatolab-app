@@ -4,8 +4,8 @@
 // app's log, never to the console.
 
 import { Cause, Context, Effect, Layer, Logger, type LogLevel } from "effect";
-import type { ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
-import { streamsOfTheProjectIn } from "../shared/project_playback.js";
+import type { ListedStream, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
+import { streamsOfTheProjectIn, theStreamsListTheProjectOpen } from "../shared/project_playback.js";
 import { fromResult } from "./result_as_effect.js";
 import type { TatolabAppLog, TatolabAppLogFields, TatolabAppLogLevel } from "./tatolab_app_log.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
@@ -44,6 +44,10 @@ export class ListedStreams extends Context.Service<
     readonly streamAssetsOfTheProject: (projectFolder: string) => ReadonlySet<string>;
     /** Whether the runtime last listed a stream from the project in `projectFolder`. */
     readonly aStreamIsListedFrom: (projectFolder: string) => boolean;
+    /** Whether the runtime last listed the project in `projectFolder` open: any of its streams in a state other than `closed`. */
+    readonly theProjectIsListedOpen: (projectFolder: string) => boolean;
+    /** The stream with the id `stream` as the runtime last listed it; `null` when it did not list it. */
+    readonly listedStream: (stream: string) => ListedStream | null;
   }
 >()("tatolab-app/ListedStreams") {}
 
@@ -101,7 +105,8 @@ export function tatolabAppLogAsEffectsLogger(tatolabAppLog: TatolabAppLog): Laye
 
 /** Every service the main process's Effect code runs on, over `sharedState`, the local API at `localApiSocketPath` and this copy's `appVersion`. */
 export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiSocketPath: string, appVersion: string): Layer.Layer<StudioServices> {
-  const streamsLastListedFrom = (projectFolder: string) => streamsOfTheProjectIn(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectFolder);
+  const streamsLastListed = () => sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [];
+  const streamsLastListedFrom = (projectFolder: string) => streamsOfTheProjectIn(streamsLastListed(), projectFolder);
   return Layer.mergeAll(
     runtimeControlLayer(localApiSocketPath, LOCAL_API_REQUEST_TIMEOUT_MS),
     Layer.succeed(StudioWindows, {
@@ -121,6 +126,8 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
     Layer.succeed(ListedStreams, {
       streamAssetsOfTheProject: (projectFolder) => new Set(streamsLastListedFrom(projectFolder).flatMap((listedStream) => listedStream.location?.stream_asset ?? [])),
       aStreamIsListedFrom: (projectFolder) => streamsLastListedFrom(projectFolder).length > 0,
+      theProjectIsListedOpen: (projectFolder) => theStreamsListTheProjectOpen(streamsLastListedFrom(projectFolder)),
+      listedStream: (stream) => streamsLastListed().find((listedStream) => listedStream.stream === stream) ?? null,
     }),
     Layer.succeed(StatusRounds, { requestARound: Effect.sync(() => sharedState.statusPublisher.requestRefresh()) }),
     Layer.succeed(PersonEditingInStudio, { author: sharedState.thePersonEditingInStudio }),

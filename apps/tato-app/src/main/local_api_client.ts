@@ -3,7 +3,7 @@
 // /health` says the runtime is up and `GET /api/graph` names the machine, each read through
 // `getOverTheLocalApi`.
 
-import { Effect } from "effect";
+import { Effect, type Layer } from "effect";
 import type {
   ProjectDependency,
   WorkspaceDependencyUpdate,
@@ -28,7 +28,6 @@ import {
   optionalUnsignedInteger,
   parseJsonOnTheWire,
   requiredArray,
-  requiredObject,
   requiredText,
   requiredUnsignedInteger,
   toolResultReadWith,
@@ -36,6 +35,9 @@ import {
 import { failedWith, succeeded, type Result } from "./result.js";
 import { bodyOfAnOkAnswer, getOverTheLocalApi } from "./local_api_plain_http.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
+import { runtimeControlLayer } from "./runtime_control_layer.js";
+import { describeStreamAction, listProjectFiles, openProject, reloadProject, startPlayback } from "./runtime_operations.js";
+import { queuedStreamActionFromTheToolResult, type ProjectActionToolName } from "./stream_changes_on_the_wire.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import {
   authorOnTheWire,
@@ -45,6 +47,7 @@ import {
   type ControlOperationMethodName,
   type ControlOperationParams,
   type ControlOperationResult,
+  type RuntimeControl,
 } from "./tatolab_runtime_control_operation_call.js";
 import { assetPreviewPictureFromTheReadAssetPreviewToolResult, type AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
 import {
@@ -62,7 +65,6 @@ import {
 } from "./project_transactions_on_the_wire.js";
 import {
   projectFileBytesFromTheReadProjectFileToolResult,
-  projectFilesFromTheListProjectFilesToolResult,
   projectFileWriteFromTheWriteProjectFileToolResult,
   nodeFileCreationFromTheCreateNodeFileToolResult,
   type NodeFileCreationRecorded,
@@ -80,12 +82,7 @@ import {
   projectDependencyFromTheRemoveDependencyToolResult,
   workspaceDependenciesFromTheListDependenciesToolResult,
 } from "./project_dependencies_on_the_wire.js";
-import {
-  projectCreationQueuedFromTheCreateProjectToolResult,
-  projectStreamActionQueuedFromTheToolResult,
-  type ProjectStreamActionToolName,
-  streamActionDescriptionFromTheDescribeStreamActionToolResult,
-} from "./stream_action_description.js";
+import { projectCreationQueuedFromTheCreateProjectToolResult } from "./stream_action_description.js";
 
 /** A stream's `location` on the wire: `project_directory`, its project's UUID as `project` and its stream asset's UUID as `stream_asset`. */
 function streamLocationOnTheWire(location: JsonObjectOnTheWire): Result<StreamLocation, string> {
@@ -96,35 +93,6 @@ function streamLocationOnTheWire(location: JsonObjectOnTheWire): Result<StreamLo
   const streamAsset = requiredText(location, "stream_asset");
   if (!streamAsset.ok) return streamAsset;
   return succeeded({ project_directory: projectDirectory.value, project: project.value, stream_asset: streamAsset.value });
-}
-
-/** The stream-asset tools that change one stream asset as one transaction on the project's history. */
-export type StreamAssetChangeToolName = "create_stream" | "set_stream_display_name" | "delete_stream";
-
-/** What `create_stream`, `set_stream_display_name` and `delete_stream` answer: the stream asset's UUID as `asset.asset`, the one transaction that changed it, and its commit on the project's history. */
-export interface StreamAssetChange {
-  stream_asset: string;
-  transaction: string;
-  commit: string;
-}
-
-/** A stream-asset tool's result read field for field; unknown fields, the rest of the asset and a `create_stream`'s load `action` among them, are ignored. */
-export function streamAssetChangeFromTheToolResult(toolName: StreamAssetChangeToolName, operationResult: ControlOperationResult<StreamAssetChangeToolName>): Result<StreamAssetChange, string> {
-  const toolResult = jsonObject(operationResult, `the ${toolName} result`);
-  const streamAssetChange = toolResult.ok ? streamAssetChangeOnTheWire(toolResult.value) : toolResult;
-  return streamAssetChange.ok ? streamAssetChange : failedWith(`the runtime's ${toolName} result could not be read: ${streamAssetChange.failure}`);
-}
-
-function streamAssetChangeOnTheWire(toolResult: JsonObjectOnTheWire): Result<StreamAssetChange, string> {
-  const assetOnTheWire = requiredObject(toolResult, "asset");
-  if (!assetOnTheWire.ok) return assetOnTheWire;
-  const streamAsset = requiredText(assetOnTheWire.value, "asset");
-  if (!streamAsset.ok) return streamAsset;
-  const transaction = requiredText(toolResult, "transaction");
-  if (!transaction.ok) return transaction;
-  const commit = requiredText(toolResult, "commit");
-  if (!commit.ok) return commit;
-  return succeeded({ stream_asset: streamAsset.value, transaction: transaction.value, commit: commit.value });
 }
 
 /** A `describe_runtime` tool result read field for field; unknown fields are ignored. */
@@ -205,13 +173,6 @@ function captureDevicesWhoseAccessWasNeverAskedForOnTheWire(listedStream: JsonOb
   return everyOneRead(captureDevices.value, (captureDevice) => (typeof captureDevice === "string" ? succeeded(captureDevice) : failedWith(`\`${key}\` holds a value that is not a string`)));
 }
 
-/** The action id a tool result that queued a stream action names, read from the result of `toolName`. */
-export function queuedStreamActionFromTheToolResult(toolName: ProjectActionToolName, operationResult: ControlOperationResult<ProjectActionToolName>): Result<string, string> {
-  const toolResult = jsonObject(operationResult, `the ${toolName} result`);
-  const action = toolResult.ok ? requiredText(toolResult.value, "action") : toolResult;
-  return action.ok ? action : failedWith(`the runtime's ${toolName} result could not be read: ${action.failure}`);
-}
-
 /** A runtime tool that pauses or resumes a whole project's playback at once, queueing no action. */
 type ProjectPlaybackPauseOrResumeToolName = "pause_playback" | "resume_playback";
 
@@ -224,20 +185,22 @@ export function streamsThePauseOrResumeReachedFromTheToolResult(toolName: Projec
   });
 }
 
-/** A runtime tool that queues an action on a whole project. */
-type ProjectActionToolName = "stop_playback" | "close_project" | "remove_project" | "delete_project";
-
 /** A client of the local API served at one socket path. */
 export class LocalApiClient {
   /** A client of the local API at `localApiSocketPath`, giving up on a request unanswered after `requestTimeoutMs`. */
+  /** The live `RuntimeControl` each Effect operation this client answers runs on. */
+  private readonly runtimeControl: Layer.Layer<RuntimeControl>;
+
   constructor(
     private readonly localApiSocketPath: string,
     private readonly requestTimeoutMs: number,
-  ) {}
+  ) {
+    this.runtimeControl = runtimeControlLayer(localApiSocketPath, requestTimeoutMs);
+  }
 
   /** Whether the runtime answers `GET /health` with `ok`. */
   async checkHealth(): Promise<Result<void, LocalApiRequestFailure>> {
-    const response = await this.runAPlainHttpRequest(getOverTheLocalApi(this.localApiSocketPath, "/health", this.requestTimeoutMs));
+    const response = await this.answerOf(getOverTheLocalApi(this.localApiSocketPath, "/health", this.requestTimeoutMs));
     if (!response.ok) return response;
     const body = response.value.body.trim();
     if (response.value.statusCode === 200 && body === "ok") return succeeded(undefined);
@@ -294,11 +257,6 @@ export class LocalApiClient {
   /** Queue the close of the open project in `projectDirectory`, which ends its playback and unloads every stream of it, answering the id of the action it queued; refused in the runtime's own words, as for a project that is not open. */
   closeProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
     return this.queueRuntimeAction("close_project", { project_directory: projectDirectory });
-  }
-
-  /** Queue the removal of every stream the runtime holds from the project in `projectDirectory`, answering the id of the action it queued; refused in the runtime's own words. */
-  removeProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
-    return this.queueRuntimeAction("remove_project", { project_directory: projectDirectory });
   }
 
   /** Queue the deletion of the project in `projectDirectory`: its streams unloaded and forgotten, then its folder moved to the Trash; answers the id of the action it queued, refused in the runtime's own words. */
@@ -387,31 +345,6 @@ export class LocalApiClient {
     return action.ok ? action : localApiRequestFailure(action.failure);
   }
 
-  /** Make a stream in the project in `projectDirectory`, its empty graph document at `streamDocumentPath`, shown under `displayName`, through the runtime's `create_stream`, one transaction by `author`; refused in the runtime's own words. */
-  createStream(projectDirectory: string, streamDocumentPath: string, displayName: string, author: ProjectTransactionAuthor): Promise<Result<StreamAssetChange, LocalApiRequestFailure>> {
-    return this.changeOneStreamAsset("create_stream", { project_directory: projectDirectory, path: streamDocumentPath, display_name: displayName, author: authorOnTheWire(author) });
-  }
-
-  /** Show the stream asset `streamAsset` of the project in `projectDirectory` under `displayName` through the runtime's `set_stream_display_name`, one transaction by `author`; refused in the runtime's own words. */
-  setStreamDisplayName(projectDirectory: string, streamAsset: string, displayName: string, author: ProjectTransactionAuthor): Promise<Result<StreamAssetChange, LocalApiRequestFailure>> {
-    return this.changeOneStreamAsset("set_stream_display_name", { project_directory: projectDirectory, stream_asset: streamAsset, display_name: displayName, author: authorOnTheWire(author) });
-  }
-
-  /** Delete the stream asset `streamAsset` from the project in `projectDirectory`, its stream unloaded and forgotten, through the runtime's `delete_stream`, one transaction by `author`; refused in the runtime's own words. */
-  deleteStream(projectDirectory: string, streamAsset: string, author: ProjectTransactionAuthor): Promise<Result<StreamAssetChange, LocalApiRequestFailure>> {
-    return this.changeOneStreamAsset("delete_stream", { project_directory: projectDirectory, stream_asset: streamAsset, author: authorOnTheWire(author) });
-  }
-
-  private async changeOneStreamAsset<StreamAssetOperation extends StreamAssetChangeToolName>(
-    toolName: StreamAssetOperation,
-    toolArguments: ControlOperationParams<StreamAssetOperation>,
-  ): Promise<Result<StreamAssetChange, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation(toolName, toolArguments);
-    if (!operationResult.ok) return operationResult;
-    const streamAssetChange = streamAssetChangeFromTheToolResult(toolName, operationResult.value);
-    return streamAssetChange.ok ? streamAssetChange : localApiRequestFailure(streamAssetChange.failure);
-  }
-
   /** Queue the creation of a new project in `projectDirectory`, or with `null` in a folder the runtime draws under `~/streams`, and its run; answered at once, refused in the runtime's own words. */
   async createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>> {
     const operationResult = await this.callControlOperation("create_project", projectDirectory === null ? {} : { project_directory: projectDirectory });
@@ -422,36 +355,22 @@ export class LocalApiClient {
 
   /** Queue the open of the closed or never-opened project in `projectDirectory`, which loads every stream asset in it with its playback stopped; answered at once, refused in the runtime's own words, as for an open project, which `reloadProject` re-reads. */
   openProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
-    return this.queueAProjectStreamAction("open_project", projectDirectory);
+    return this.answerOf(openProject(projectDirectory));
   }
 
   /** Queue the start of the playback of the open project in `projectDirectory` from the graphs it holds; answered at once, refused in the runtime's own words, as for a project that is not open or already plays. */
   startPlayback(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
-    return this.queueAProjectStreamAction("start_playback", projectDirectory);
+    return this.answerOf(startPlayback(projectDirectory));
   }
 
   /** Queue the reload from disk of the open project in `projectDirectory`, which keeps its playback and retries its failed streams; answered at once, refused in the runtime's own words, as for a project that is not open, which `openProject` opens. */
   reloadProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
-    return this.queueAProjectStreamAction("reload_project", projectDirectory);
-  }
-
-  private async queueAProjectStreamAction(
-    toolName: ProjectStreamActionToolName,
-    projectDirectory: string,
-  ): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation(toolName, { project_directory: projectDirectory });
-    if (!operationResult.ok) return operationResult;
-    const queued = projectStreamActionQueuedFromTheToolResult(toolName, operationResult.value);
-    return queued.ok ? queued : localApiRequestFailure(queued.failure);
+    return this.answerOf(reloadProject(projectDirectory));
   }
 
   /** Where the stream action `action` is: its state and step, and the streams it took in; refused in the runtime's own words, as for an action it no longer holds. */
-  async describeStreamAction(action: string): Promise<Result<StreamActionFollowed, LocalApiRequestFailure>> {
-    const operationAnswer = await this.callControlOperationKeepingItsRefusal("describe_stream_action", { action });
-    if (!operationAnswer.ok) return operationAnswer;
-    if (operationAnswer.value.kind === "refused_by_the_operation") return succeeded({ kind: "not_held", words: operationAnswer.value.words });
-    const description = streamActionDescriptionFromTheDescribeStreamActionToolResult(operationAnswer.value.result);
-    return description.ok ? succeeded({ kind: "described", description: description.value }) : localApiRequestFailure(description.failure);
+  describeStreamAction(action: string): Promise<Result<StreamActionFollowed, LocalApiRequestFailure>> {
+    return this.answerOf(describeStreamAction(action));
   }
 
   /** The preview picture of the asset `asset` of the project in `projectDirectory`, an image's own or a video's poster frame, through `read_asset_preview`; refused in the runtime's own words, as for an asset with none or whose bytes it is still reading. */
@@ -514,11 +433,8 @@ export class LocalApiClient {
   }
 
   /** The files of the project in `projectDirectory`, or of its folder `under` alone, from the runtime's `list_project_files`; refused in the runtime's own words. */
-  async listProjectFiles(projectDirectory: string, under: string | null): Promise<Result<ProjectFileTheRuntimeListed[], LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("list_project_files", under === null ? { project_directory: projectDirectory } : { project_directory: projectDirectory, under });
-    if (!operationResult.ok) return operationResult;
-    const listed = projectFilesFromTheListProjectFilesToolResult(operationResult.value);
-    return listed.ok ? listed : localApiRequestFailure(listed.failure);
+  listProjectFiles(projectDirectory: string, under: string | null): Promise<Result<ProjectFileTheRuntimeListed[], LocalApiRequestFailure>> {
+    return this.answerOf(listProjectFiles(projectDirectory, under));
   }
 
   /** The bytes of the file `filePath`, `/`-separated in the project in `projectDirectory`, from the runtime's `read_project_file`; refused in the runtime's own words. */
@@ -594,18 +510,21 @@ export class LocalApiClient {
 
   /** `GET requestTarget`, answering the body of a `200`; any other answer is refused in the runtime's own words when its body carries them. */
   private getBodyOfAnOkAnswer(requestTarget: string): Promise<Result<string, LocalApiRequestFailure>> {
-    return this.runAPlainHttpRequest(
+    return this.answerOf(
       getOverTheLocalApi(this.localApiSocketPath, requestTarget, this.requestTimeoutMs).pipe(Effect.flatMap((response) => bodyOfAnOkAnswer(requestTarget, response))),
     );
   }
 
-  /** `request` run to its end, its failure in its words. */
-  private runAPlainHttpRequest<Answer>(request: Effect.Effect<Answer, RuntimeControlFailure>): Promise<Result<Answer, LocalApiRequestFailure>> {
+  /** `runtimeOperation` run over this client's local API to its end: its answer, or its failure in its words, a refusal as the runtime's. */
+  private answerOf<Answer>(runtimeOperation: Effect.Effect<Answer, RuntimeControlFailure, RuntimeControl>): Promise<Result<Answer, LocalApiRequestFailure>> {
     return Effect.runPromise(
-      Effect.match(request, {
-        onSuccess: (answer): Result<Answer, LocalApiRequestFailure> => succeeded(answer),
-        onFailure: (failure) => localApiRequestFailure(failure.words),
-      }),
+      runtimeOperation.pipe(
+        Effect.match({
+          onSuccess: (answer): Result<Answer, LocalApiRequestFailure> => succeeded(answer),
+          onFailure: (failure) => (failure._tag === "RuntimeRefused" ? theRuntimesRefusal(failure.words) : localApiRequestFailure(failure.words)),
+        }),
+        Effect.provide(this.runtimeControl),
+      ),
     );
   }
 

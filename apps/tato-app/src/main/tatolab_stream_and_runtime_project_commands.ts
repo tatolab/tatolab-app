@@ -1,33 +1,59 @@
-import type { ProjectCreationQueued, ProjectStreamActionQueued, StreamActionFollowed, StreamAssetCreated, StreamLocation, StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
+import type { ProjectCreationQueued, ProjectStreamActionQueued, StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
 import { streamsOfTheProjectIn, theStreamsListTheProjectOpen } from "../shared/project_playback.js";
 import type { TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject } from "./json_on_the_wire.js";
-import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { openStreamProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
 import { newStreamDocumentPathNoFileHolds, PROJECT_STREAMS_FOLDER } from "./new_stream_document_path.js";
 import { Effect, Schema, type ManagedRuntime } from "effect";
-import { cancelStreamAction, describeNodeCatalog, describeStreamGraph, listProjectAssets, listProjectNodeTypes, readProjectLogRecords } from "./runtime_operations.js";
-import { ListedStreams, StatusRounds, StudioWindows, type StudioServices } from "./studio_runtime.js";
+import {
+  cancelStreamAction,
+  createStream,
+  deleteStream,
+  describeNodeCatalog,
+  describeStreamAction,
+  describeStreamGraph,
+  listProjectAssets,
+  listProjectFiles,
+  listProjectNodeTypes,
+  openProject,
+  readProjectLogRecords,
+  reloadProject,
+  removeProject,
+  setStreamDisplayName,
+} from "./runtime_operations.js";
+import { ListedStreams, PersonEditingInStudio, StatusRounds, StudioWindows, type StudioServices } from "./studio_runtime.js";
 import { CommandRefused, windowCommand } from "./window_command.js";
-import { answerTheWindow, answerTheWindowOnceTheRuntimeAnswered, type TatolabCommandFromWindow, studioWindowTheCommandCameFrom, isTextOrNull, oneTextArgumentFrom, type TatolabWindowCommandHandlers, commandAnswerFrom, commandAnswerOfNothingFrom } from "./tatolab_command_answers.js";
+import { answerTheWindow, type TatolabCommandFromWindow, isTextOrNull, oneTextArgumentFrom, type TatolabWindowCommandHandlers, commandAnswerFrom, commandAnswerOfNothingFrom } from "./tatolab_command_answers.js";
 
-/** `remove_project { project_directory }`: the runtime's `remove_project` queued on the project, so the listing shows its streams `stopping`; refused in the runtime's own words. */
-export function removeProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<void, string>> {
-  return answerTheWindowOnceTheRuntimeAnswered(sharedState, "remove_project", () => sharedState.controller.removeProject(projectDirectory));
+/** What Tato Studio calls each stream edit in a refusal, as it asks and once done. */
+const STREAM_EDIT_WORDS = { rename: "renamed", delete: "deleted" } as const;
+
+/** Where the runtime last listed the stream with the id `stream`, its project folder and stream asset; refused naming why Tato Studio cannot `edit` it. */
+const streamLocationTheRuntimeLastListedFor = Effect.fn("streamLocationTheRuntimeLastListedFor")(function* (stream: string, edit: keyof typeof STREAM_EDIT_WORDS) {
+  const listedStream = (yield* ListedStreams).listedStream(stream);
+  if (listedStream === null) return yield* new CommandRefused({ words: `The runtime does not list ${stream}, so Tato Studio has no stream to ${edit}.` });
+  if (listedStream.location === null) return yield* new CommandRefused({ words: `The runtime lists no project for ${listedStream.display_name}, so it cannot be ${STREAM_EDIT_WORDS[edit]}.` });
+  return listedStream.location;
+});
+
+/** `projectDirectory` when the runtime last listed a stream from it, so a command naming a folder acts only on a project the runtime holds; refused naming it otherwise. */
+const projectFolderTheRuntimeLastListed = Effect.fn("projectFolderTheRuntimeLastListed")(function* (projectDirectory: string) {
+  if ((yield* ListedStreams).aStreamIsListedFrom(projectDirectory)) return projectDirectory;
+  return yield* new CommandRefused({ words: `The runtime lists no stream from ${projectDirectory}.` });
+});
+
+/** `change`, then a status round whether it changed the runtime or was refused, so the listing shows what it did. */
+function thenAStatusRound<Answer, Failure, Services>(change: Effect.Effect<Answer, Failure, Services>): Effect.Effect<Answer, Failure, Services | StatusRounds> {
+  return change.pipe(Effect.ensuring(StatusRounds.use((statusRounds) => statusRounds.requestARound)));
 }
 
-/** `projectDirectory` when a stream the runtime last listed is from it, so a command naming a folder acts only on a project the runtime holds; refused naming it otherwise. */
-function projectDirectoryTheRuntimeLastListed(sharedState: TatolabAppSharedState, projectDirectory: string): Result<string, string> {
-  const isListed = streamsOfTheProjectIn(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectDirectory).length > 0;
-  return isListed ? succeeded(projectDirectory) : failedWith(refusalOfAFolderTheRuntimeListsNoStreamFrom(projectDirectory));
-}
+/** The arguments of `rename_stream`: the stream's id and the display name to show it under. */
+const RenameStreamArguments = Schema.Struct({ stream: Schema.String, display_name: Schema.String });
 
-/** The refusal of a command naming `projectDirectory`, a folder the runtime last listed no stream from. */
-function refusalOfAFolderTheRuntimeListsNoStreamFrom(projectDirectory: string): string {
-  return `The runtime lists no stream from ${projectDirectory}.`;
-}
+/** The arguments of `create_stream_in_the_open_project`: the display name to show the new stream under. */
+const CreateStreamArguments = Schema.Struct({ display_name: Schema.String });
 
 /** The arguments of a command on one stream: its id. */
 const StreamArguments = Schema.Struct({ stream: Schema.String });
@@ -56,62 +82,8 @@ const projectFolderTheWindowMayAskTheRuntimeAbout = Effect.fn("projectFolderTheW
   const studioWindows = yield* StudioWindows;
   const folderOfTheWindowsOpenProject = studioWindows.folderOfTheWindowsOpenProject(commandFromWindow, projectDirectory);
   if (folderOfTheWindowsOpenProject !== null) return folderOfTheWindowsOpenProject;
-  const listedStreams = yield* ListedStreams;
-  if (listedStreams.aStreamIsListedFrom(projectDirectory)) return projectDirectory;
-  return yield* new CommandRefused({ words: refusalOfAFolderTheRuntimeListsNoStreamFrom(projectDirectory) });
+  return yield* projectFolderTheRuntimeLastListed(projectDirectory);
 });
-
-/** What Tato Studio calls each stream edit in a refusal, as it asks and once done. */
-const STREAM_EDIT_WORDS = { rename: "renamed", delete: "deleted" } as const;
-
-/** Where the runtime last listed the stream with the id `stream`, its project folder and stream asset, or why Tato Studio cannot `edit` it. */
-function streamLocationTheRuntimeLastListedFor(sharedState: TatolabAppSharedState, stream: string, edit: keyof typeof STREAM_EDIT_WORDS): Result<StreamLocation, string> {
-  const listedStream = sharedState.statusPublisher.lastPublishedStatusNow()?.streams?.find((candidateListedStream) => candidateListedStream.stream === stream) ?? null;
-  if (listedStream === null) return failedWith(`The runtime does not list ${stream}, so Tato Studio has no stream to ${edit}.`);
-  if (listedStream.location === null) return failedWith(`The runtime lists no project for ${listedStream.display_name}, so it cannot be ${STREAM_EDIT_WORDS[edit]}.`);
-  return succeeded(listedStream.location);
-}
-
-/** `rename_stream { stream, display_name }`: the runtime's `set_stream_display_name` by the person editing on the stream asset the runtime last listed for `stream`, then a status round whether it renamed or refused; refused in the runtime's own words, or for a stream it lists no project for. */
-function renameStream(sharedState: TatolabAppSharedState, stream: string, displayName: string): Promise<Result<void, string>> {
-  return answerTheWindow("rename_stream", async () => {
-    const streamLocation = streamLocationTheRuntimeLastListedFor(sharedState, stream, "rename");
-    if (!streamLocation.ok) return streamLocation;
-    const renamed = await sharedState.controller.setStreamDisplayName(streamLocation.value.project_directory, streamLocation.value.stream_asset, displayName, sharedState.thePersonEditingInStudio);
-    sharedState.statusPublisher.requestRefresh();
-    return renamed.ok ? succeeded(undefined) : failedWith(renamed.failure.failureDescription);
-  });
-}
-
-/** `delete_stream { stream }`: the runtime's `delete_stream` by the person editing on the stream asset the runtime last listed for `stream`, then a status round whether it deleted or refused; refused in the runtime's own words, or for a stream it lists no project for. */
-function deleteStream(sharedState: TatolabAppSharedState, stream: string): Promise<Result<void, string>> {
-  return answerTheWindow("delete_stream", async () => {
-    const streamLocation = streamLocationTheRuntimeLastListedFor(sharedState, stream, "delete");
-    if (!streamLocation.ok) return streamLocation;
-    const deleted = await sharedState.controller.deleteStream(streamLocation.value.project_directory, streamLocation.value.stream_asset, sharedState.thePersonEditingInStudio);
-    sharedState.statusPublisher.requestRefresh();
-    return deleted.ok ? succeeded(undefined) : failedWith(deleted.failure.failureDescription);
-  });
-}
-
-/** `create_stream_in_the_open_project { display_name }`: the runtime's `create_stream` by the person editing in the asking window's project, its graph document in `streams/` under a name no file there holds, then a status round; refused in the Projects window, or in the runtime's own words. */
-function createStreamInTheOpenProject(sharedState: TatolabAppSharedState, displayName: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<StreamAssetCreated, string>> {
-  return answerTheWindow("create_stream_in_the_open_project", async () => {
-    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-    if (!studioWindow.ok) return studioWindow;
-    const projectFolder = studioWindow.value.projectTransactionsFeed.projectFolder;
-    const filesUnderTheStreamsFolder = await sharedState.controller.listProjectFiles(projectFolder, PROJECT_STREAMS_FOLDER);
-    if (!filesUnderTheStreamsFolder.ok) return failedWith(filesUnderTheStreamsFolder.failure.failureDescription);
-    const created = await sharedState.controller.createStream(
-      projectFolder,
-      newStreamDocumentPathNoFileHolds(displayName, filesUnderTheStreamsFolder.value),
-      displayName,
-      sharedState.thePersonEditingInStudio,
-    );
-    sharedState.statusPublisher.requestRefresh();
-    return created.ok ? succeeded({ stream_asset: created.value.stream_asset }) : failedWith(created.failure.failureDescription);
-  });
-}
 
 /** Where each command that opens a stream's project folder opens it. */
 const STREAM_PROJECT_FOLDER_OPENING_OF_THE_COMMAND = {
@@ -162,11 +134,6 @@ function openStreamProject(sharedState: TatolabAppSharedState, folder: string): 
   });
 }
 
-/** Whether the runtime last listed the project in `projectDirectory` open. */
-function theRuntimeLastListedTheProjectOpen(sharedState: Pick<TatolabAppSharedState, "statusPublisher">, projectDirectory: string): boolean {
-  return theStreamsListTheProjectOpen(streamsOfTheProjectIn(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectDirectory));
-}
-
 /**
  * `open_project` queued on the project in `projectDirectory` when the runtime, asked now, lists no stream of it or each of them `closed`, since it draws and
  * edits only a loaded stream's graph, then a status round; nothing when it holds the project open. Refused in the runtime's own words.
@@ -183,52 +150,10 @@ export async function openTheProjectWhenTheRuntimeHoldsItClosed(
   return queued.ok ? succeeded(undefined) : failedWith(queued.failure.failureDescription);
 }
 
-/** The runtime's `reload_project` queued on `projectDirectory` when it last listed the project open, which keeps its playback, else its `open_project`. */
-function reloadOrOpenTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
-  return theRuntimeLastListedTheProjectOpen(sharedState, projectDirectory) ? sharedState.controller.reloadProject(projectDirectory) : sharedState.controller.openProject(projectDirectory);
-}
-
-/** `reload_project { project_directory }`: a project the runtime lists read again from disk with `reload_project` while it is open, keeping its playback, or opened with `open_project` while it is closed, then a status round; refused in the runtime's own words. */
-function reloadProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectStreamActionQueued, string>> {
-  return answerTheWindow("reload_project", async () => {
-    const queued = await reloadOrOpenTheProject(sharedState, projectDirectory);
-    sharedState.statusPublisher.requestRefresh();
-    return queued.ok ? queued : failedWith(queued.failure.failureDescription);
-  });
-}
-
-/** `describe_stream_action { action }`: where the action is, or the runtime's words that it no longer holds it; refused when the runtime could not be asked. */
-function describeStreamAction(sharedState: TatolabAppSharedState, action: string): Promise<Result<StreamActionFollowed, string>> {
-  return answerTheWindow("describe_stream_action", async (): Promise<Result<StreamActionFollowed, string>> => {
-    const followed = await sharedState.controller.describeStreamAction(action);
-    return followed.ok ? followed : failedWith(followed.failure.failureDescription);
-  });
-}
-
 /** The `{ stream }` arguments of the command `commandName` as the window sends them, or why they are not. */
 export function streamArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ stream: string }, string> {
   const stream = oneTextArgumentFrom(commandName, commandArguments, "stream", "a stream's id");
   return stream.ok ? succeeded({ stream: stream.value }) : stream;
-}
-
-/** `rename_stream`'s arguments as the window sends them, or why they are not. */
-function renameStreamArgumentsFrom(commandArguments: unknown): Result<{ stream: string; display_name: string }, string> {
-  const stream = oneTextArgumentFrom("rename_stream", commandArguments, "stream", "a stream's id");
-  if (!stream.ok) return stream;
-  const displayName = oneTextArgumentFrom("rename_stream", commandArguments, "display_name", "the display name to show it under");
-  return displayName.ok ? succeeded({ stream: stream.value, display_name: displayName.value }) : displayName;
-}
-
-/** `delete_stream`'s arguments as the window sends them, or why they are not. */
-function deleteStreamArgumentsFrom(commandArguments: unknown): Result<{ stream: string }, string> {
-  const stream = oneTextArgumentFrom("delete_stream", commandArguments, "stream", "a stream's id");
-  return stream.ok ? succeeded({ stream: stream.value }) : stream;
-}
-
-/** `create_stream_in_the_open_project`'s arguments as the window sends them, or why they are not. */
-function createStreamInTheOpenProjectArgumentsFrom(commandArguments: unknown): Result<{ display_name: string }, string> {
-  const displayName = oneTextArgumentFrom("create_stream_in_the_open_project", commandArguments, "display_name", "the display name to show the new stream under");
-  return displayName.ok ? succeeded({ display_name: displayName.value }) : displayName;
 }
 
 /** The `{ folder }` arguments of the command `commandName` as the window sends them, or why they are not. */
@@ -306,31 +231,43 @@ export function streamAndRuntimeProjectCommandHandlersOf(
     list_project_assets: windowCommand(studioRuntime, "list_project_assets", ProjectDirectoryArguments, ({ project_directory }, commandFromWindow) =>
       projectFolderTheWindowMayAskTheRuntimeAbout(project_directory, commandFromWindow).pipe(Effect.flatMap(listProjectAssets)),
     ),
-    cancel_stream_action: windowCommand(studioRuntime, "cancel_stream_action", StreamActionArguments, ({ action }) =>
-      cancelStreamAction(action).pipe(Effect.ensuring(StatusRounds.use((statusRounds) => statusRounds.requestARound))),
+    cancel_stream_action: windowCommand(studioRuntime, "cancel_stream_action", StreamActionArguments, ({ action }) => thenAStatusRound(cancelStreamAction(action))),
+    remove_project: windowCommand(studioRuntime, "remove_project", ProjectDirectoryArguments, ({ project_directory }) =>
+      projectFolderTheRuntimeLastListed(project_directory).pipe(Effect.flatMap((projectFolder) => thenAStatusRound(removeProject(projectFolder))), Effect.as(null)),
     ),
-    remove_project: async (commandArguments) => {
-      const projectDirectory = oneTextArgumentFrom("remove_project", commandArguments, "project_directory", "a project's folder as the runtime lists it");
-      if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
-      const listedProjectDirectory = projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory.value);
-      if (!listedProjectDirectory.ok) return { ok: false, refusal: listedProjectDirectory.failure };
-      return commandAnswerOfNothingFrom(await removeProject(sharedState, listedProjectDirectory.value));
-    },
-    rename_stream: async (commandArguments) => {
-      const renameStreamArguments = renameStreamArgumentsFrom(commandArguments);
-      if (!renameStreamArguments.ok) return { ok: false, refusal: renameStreamArguments.failure };
-      return commandAnswerOfNothingFrom(await renameStream(sharedState, renameStreamArguments.value.stream, renameStreamArguments.value.display_name));
-    },
-    delete_stream: async (commandArguments) => {
-      const deleteStreamArguments = deleteStreamArgumentsFrom(commandArguments);
-      if (!deleteStreamArguments.ok) return { ok: false, refusal: deleteStreamArguments.failure };
-      return commandAnswerOfNothingFrom(await deleteStream(sharedState, deleteStreamArguments.value.stream));
-    },
-    create_stream_in_the_open_project: async (commandArguments, commandFromWindow) => {
-      const createStreamArguments = createStreamInTheOpenProjectArgumentsFrom(commandArguments);
-      if (!createStreamArguments.ok) return { ok: false, refusal: createStreamArguments.failure };
-      return commandAnswerFrom(await createStreamInTheOpenProject(sharedState, createStreamArguments.value.display_name, commandFromWindow));
-    },
+    rename_stream: windowCommand(studioRuntime, "rename_stream", RenameStreamArguments, ({ stream, display_name }) =>
+      Effect.gen(function* () {
+        const location = yield* streamLocationTheRuntimeLastListedFor(stream, "rename");
+        const { author } = yield* PersonEditingInStudio;
+        yield* thenAStatusRound(setStreamDisplayName(location.project_directory, location.stream_asset, display_name, author));
+        return null;
+      }),
+    ),
+    delete_stream: windowCommand(studioRuntime, "delete_stream", StreamArguments, ({ stream }) =>
+      Effect.gen(function* () {
+        const location = yield* streamLocationTheRuntimeLastListedFor(stream, "delete");
+        const { author } = yield* PersonEditingInStudio;
+        yield* thenAStatusRound(deleteStream(location.project_directory, location.stream_asset, author));
+        return null;
+      }),
+    ),
+    create_stream_in_the_open_project: windowCommand(studioRuntime, "create_stream_in_the_open_project", CreateStreamArguments, ({ display_name }, commandFromWindow) =>
+      Effect.gen(function* () {
+        const projectFolder = yield* (yield* StudioWindows).projectFolderOfTheWindow(commandFromWindow);
+        const filesUnderTheStreamsFolder = yield* listProjectFiles(projectFolder, PROJECT_STREAMS_FOLDER);
+        const { author } = yield* PersonEditingInStudio;
+        const created = yield* thenAStatusRound(createStream(projectFolder, newStreamDocumentPathNoFileHolds(display_name, filesUnderTheStreamsFolder), display_name, author));
+        return { stream_asset: created.stream_asset };
+      }),
+    ),
+    reload_project: windowCommand(studioRuntime, "reload_project", ProjectDirectoryArguments, ({ project_directory }) =>
+      Effect.gen(function* () {
+        const projectFolder = yield* projectFolderTheRuntimeLastListed(project_directory);
+        const listedOpen = (yield* ListedStreams).theProjectIsListedOpen(projectFolder);
+        return yield* thenAStatusRound(listedOpen ? reloadProject(projectFolder) : openProject(projectFolder));
+      }),
+    ),
+    describe_stream_action: windowCommand(studioRuntime, "describe_stream_action", StreamActionArguments, ({ action }) => describeStreamAction(action)),
     open_stream_project_folder: async (commandArguments) =>
       commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_stream_project_folder", commandArguments)),
     open_terminal_at_stream_project: async (commandArguments) =>
@@ -351,18 +288,6 @@ export function streamAndRuntimeProjectCommandHandlersOf(
       const folderArguments = folderArgumentsFrom("open_stream_project", commandArguments);
       if (!folderArguments.ok) return { ok: false, refusal: folderArguments.failure };
       return commandAnswerFrom(await openStreamProject(sharedState, folderArguments.value.folder));
-    },
-    reload_project: async (commandArguments) => {
-      const projectDirectory = oneTextArgumentFrom("reload_project", commandArguments, "project_directory", "a project's folder as the runtime lists it");
-      if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
-      const listedProjectDirectory = projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory.value);
-      if (!listedProjectDirectory.ok) return { ok: false, refusal: listedProjectDirectory.failure };
-      return commandAnswerFrom(await reloadProject(sharedState, listedProjectDirectory.value));
-    },
-    describe_stream_action: async (commandArguments) => {
-      const action = oneTextArgumentFrom("describe_stream_action", commandArguments, "action", "a stream action's id");
-      if (!action.ok) return { ok: false, refusal: action.failure };
-      return commandAnswerFrom(await describeStreamAction(sharedState, action.value));
     },
     follow_stream_graph_changes: async (commandArguments, commandFromWindow) => {
       const followed = streamArgumentsFrom("follow_stream_graph_changes", commandArguments);
