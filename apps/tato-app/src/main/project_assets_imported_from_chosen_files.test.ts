@@ -39,7 +39,7 @@ async function importingFilesTheDialogAnswers(filesTheDialogAnswers: readonly st
     runtimeControlLayer(localApi.localApiSocketPath, 2_000),
     Layer.succeed(ThisMachinesFolders, { homeDirectory: "/home/sam", documentsDirectory: "/home/sam/Documents" }),
     Layer.mock(ProjectDialogs, {
-      chooseAProjectsAssetFiles: (defaultFolder, fileFilters) =>
+      chooseAssetFilesToImport: (defaultFolder, fileFilters) =>
         Effect.sync(() => {
           dialogsOpenedAt.push(defaultFolder);
           fileFiltersOffered.push(fileFilters);

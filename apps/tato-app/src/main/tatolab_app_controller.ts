@@ -269,11 +269,6 @@ export class TatolabAppController {
     return this.localApiClient.reloadProject(projectDirectory);
   }
 
-  /** Every stream the runtime lists now. */
-  listStreams(): Promise<Result<ListedStream[], LocalApiRequestFailure>> {
-    return this.localApiClient.listStreams();
-  }
-
   /** The project in `projectDirectory` as the runtime names it. */
   nameTheProject(projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
     return this.localApiClient.nameTheProject(projectDirectory);

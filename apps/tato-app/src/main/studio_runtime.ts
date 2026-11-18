@@ -51,18 +51,28 @@ export class StudioWindows extends Context.Service<
 >()("tatolab-app/StudioWindows") {}
 
 /** The person's home folder, where dialogs open, and the platform's Documents folder, where new projects go under `Tato Studio/`. */
-export class ThisMachinesFolders extends Context.Service<ThisMachinesFolders, { readonly homeDirectory: string; readonly documentsDirectory: string }>()(
-  "tatolab-app/ThisMachinesFolders",
-) {}
+export class ThisMachinesFolders extends Context.Service<
+  ThisMachinesFolders,
+  {
+    /** The person's home folder, where the project dialogs open. */
+    readonly homeDirectory: string;
+    /** The platform's Documents folder, where new projects go under `Tato Studio/`. */
+    readonly documentsDirectory: string;
+  }
+>()("tatolab-app/ThisMachinesFolders") {}
 
 /** The desktop's dialogs that ask the person for a project's folder, its `.zip`, its cover image or files to import into it; each answers `null` when they cancel. */
 export class ProjectDialogs extends Context.Service<
   ProjectDialogs,
   {
+    /** A folder, for a project to open or a new project's location as `purpose` says, the dialog opened at `defaultFolder`. */
     readonly chooseAProjectFolder: (purpose: ProjectFolderDialogPurpose, defaultFolder: string) => Effect.Effect<string | null, CommandRefused>;
+    /** A project `.zip` to import, the dialog opened at `defaultFolder`. */
     readonly chooseAProjectArchive: (defaultFolder: string) => Effect.Effect<string | null, CommandRefused>;
+    /** An image to show a project by, the dialog opened at `defaultFolder`. */
     readonly chooseAProjectCoverImage: (defaultFolder: string) => Effect.Effect<string | null, CommandRefused>;
-    readonly chooseAProjectsAssetFiles: (defaultFolder: string, fileFilters: readonly ProjectAssetFileFilter[]) => Effect.Effect<readonly string[] | null, CommandRefused>;
+    /** The files to import as assets, the dialog opened at `defaultFolder` offering `fileFilters`, the first chosen. */
+    readonly chooseAssetFilesToImport: (defaultFolder: string, fileFilters: readonly ProjectAssetFileFilter[]) => Effect.Effect<readonly string[] | null, CommandRefused>;
   }
 >()("tatolab-app/ProjectDialogs") {}
 
@@ -261,7 +271,7 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
       chooseAProjectFolder: (purpose, defaultFolder) => commandAnswerOfPlainCode(() => sharedState.projectFolderDialog(purpose, defaultFolder)),
       chooseAProjectArchive: (defaultFolder) => commandAnswerOfPlainCode(() => sharedState.projectArchiveDialog(defaultFolder)),
       chooseAProjectCoverImage: (defaultFolder) => commandAnswerOfPlainCode(() => sharedState.projectCoverImageDialog(defaultFolder)),
-      chooseAProjectsAssetFiles: (defaultFolder, fileFilters) => commandAnswerOfPlainCode(() => sharedState.projectAssetFilesDialog(defaultFolder, fileFilters)),
+      chooseAssetFilesToImport: (defaultFolder, fileFilters) => commandAnswerOfPlainCode(() => sharedState.projectAssetFilesDialog(defaultFolder, fileFilters)),
     }),
     Layer.succeed(RecentProjects, {
       readRecentFolders: Effect.promise(() => sharedState.recentProjectFolders.readRecentFolders()),

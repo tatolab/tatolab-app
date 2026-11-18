@@ -46,9 +46,11 @@ export interface TatolabAppSharedState {
   homeDirectory: string;
   /** The platform's Documents folder, where new projects go under `Tato Studio/`. */
   documentsDirectory: string;
-  /** The desktop's dialogs for a project's folder, its `.zip` and its cover image. */
+  /** The desktop's dialog for a project's folder: one to open, or a new project's location. */
   projectFolderDialog: ProjectFolderDialog;
+  /** The desktop's dialog for a project `.zip` to import. */
   projectArchiveDialog: ProjectArchiveDialog;
+  /** The desktop's dialog for an image to show a project by. */
   projectCoverImageDialog: ProjectCoverImageDialog;
   /** The projects opened before, remembered between launches. */
   recentProjectFolders: RecentProjectFolders;

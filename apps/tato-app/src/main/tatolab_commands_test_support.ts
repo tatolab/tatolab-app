@@ -148,7 +148,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
       chooseAProjectFolder: () => Effect.succeed(null),
       chooseAProjectArchive: () => Effect.succeed(null),
       chooseAProjectCoverImage: () => Effect.succeed(null),
-      chooseAProjectsAssetFiles: () => Effect.succeed(null),
+      chooseAssetFilesToImport: () => Effect.succeed(null),
     }),
     Layer.succeed(RecentProjects, { readRecentFolders: Effect.succeed([]), rememberOpened: () => Effect.void, forget: () => Effect.void }),
     Layer.succeed(ProjectViewsListed, { isListedAsOpening: () => false, startAListing: Effect.succeed(1), rememberTheListing: () => Effect.void }),
