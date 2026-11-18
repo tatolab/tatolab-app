@@ -87,6 +87,10 @@ export interface StudioServicesOfATest {
   readonly streamAssetsOfTheProject?: (projectFolder: string) => ReadonlySet<string>;
   /** Whether the runtime lists a stream from a folder; at the default, whether `streamAssetsOfTheProject` gives it any. */
   readonly aStreamIsListedFrom?: (projectFolder: string) => boolean;
+  /** Whether the runtime lists a folder's project open; none at the default. */
+  readonly theProjectIsListedOpen?: (projectFolder: string) => boolean;
+  /** The stream the runtime lists with an id; none at the default. */
+  readonly listedStream?: (stream: string) => ListedStream | null;
   readonly author?: ProjectTransactionAuthor;
   readonly appVersion?: string;
   /** Where Effect's logs go; nowhere at the default. */
@@ -111,6 +115,8 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
     Layer.succeed(ListedStreams, {
       streamAssetsOfTheProject: overrides.streamAssetsOfTheProject ?? (() => new Set()),
       aStreamIsListedFrom: overrides.aStreamIsListedFrom ?? ((projectFolder) => (overrides.streamAssetsOfTheProject?.(projectFolder).size ?? 0) > 0),
+      theProjectIsListedOpen: overrides.theProjectIsListedOpen ?? (() => false),
+      listedStream: overrides.listedStream ?? (() => null),
     }),
     Layer.succeed(StatusRounds, { requestARound: Effect.void }),
     Layer.succeed(PersonEditingInStudio, { author: overrides.author ?? { kind: "person", name: "sam" } }),

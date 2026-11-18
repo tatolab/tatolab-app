@@ -1,10 +1,11 @@
 import { afterEach, expect, test } from "vitest";
 import type { StreamActionDescription, StreamActionFollowed } from "../shared/tatolab_backend_contract.js";
 import { FakeLocalApiServer, controlOperationResponseOfTheRecordedToolResponse, httpResponse } from "./fake_local_api_server.js";
-import { LocalApiClient, queuedStreamActionFromTheToolResult, streamsThePauseOrResumeReachedFromTheToolResult, streamAssetChangeFromTheToolResult } from "./local_api_client.js";
+import { LocalApiClient, streamsThePauseOrResumeReachedFromTheToolResult } from "./local_api_client.js";
+import { queuedStreamActionFromTheToolResult, streamAssetChangeFromTheToolResult } from "./stream_changes_on_the_wire.js";
 import { projectCreationQueuedFromTheCreateProjectToolResult, projectStreamActionQueuedFromTheToolResult, streamActionCancelAnswerFromTheCancelStreamActionToolResult, streamActionDescriptionFromTheDescribeStreamActionToolResult } from "./stream_action_description.js";
 import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./local_api_client_test_support.js";
-import { cancelStreamAction } from "./runtime_operations.js";
+import { cancelStreamAction, createStream, deleteStream, removeProject, setStreamDisplayName } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -116,8 +117,8 @@ test("removing_a_project_queues_remove_project_with_its_folder_and_a_project_the
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-remove-project-refusal-for-a-project-the-runtime-holds-no-stream-of.json")),
   ]);
 
-  expect(answerOf(await server.client().removeProject("/tmp/tatolab-proof-projects/doorways"))).toBe("Rnd53mwtsrixjyxk7h3jfq5j5-8");
-  expect(failureOf(await server.client().removeProject("/tmp/tatolab-proof-projects/doorways")).failureDescription).toBe(
+  expect(answerOf(await server.run(removeProject("/tmp/tatolab-proof-projects/doorways")))).toBe("Rnd53mwtsrixjyxk7h3jfq5j5-8");
+  expect(failureOf(await server.run(removeProject("/tmp/tatolab-proof-projects/doorways"))).words).toBe(
     "Resource not found: this runtime holds no stream of the project in /tmp/tatolab-proof-projects/doorways, so there is none to remove. Loaded: pattern-main-d76f70. Recorded: pattern-main-d76f70",
   );
   expect(controlOperationCallsReceivedBy(server)).toEqual([
@@ -134,14 +135,14 @@ test("setting_a_streams_display_name_calls_set_stream_display_name_with_its_proj
   const hallways = "/private/tmp/tatolab-proof-projects/hallways";
   const mainStreamAsset = "666895f1-e258-4587-8c62-ed07c0cc70db";
 
-  expect(answerOf(await server.client().setStreamDisplayName(hallways, mainStreamAsset, "Heat map", SAM_EDITING))).toEqual({
+  expect(answerOf(await server.run(setStreamDisplayName(hallways, mainStreamAsset, "Heat map", SAM_EDITING)))).toEqual({
     stream_asset: mainStreamAsset,
     transaction: "43d874c1-83a9-4506-90fc-e01bfc47b9ca",
     commit: "22857d5b7b2ac6dbd9e62ed1b64fd38dff47cb9f",
   });
-  expect(failureOf(await server.client().setStreamDisplayName(hallways, mainStreamAsset, "   ", SAM_EDITING))).toEqual({
-    failureDescription: `set_stream_display_name failed: "   " cannot be a stream's display name: it shows nothing`,
-    isTheRuntimesRefusal: true,
+  expect(failureOf(await server.run(setStreamDisplayName(hallways, mainStreamAsset, "   ", SAM_EDITING)))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words: `set_stream_display_name failed: "   " cannot be a stream's display name: it shows nothing`,
   });
   expect(controlOperationCallsReceivedBy(server)).toEqual([
     ["set_stream_display_name", { project_directory: hallways, stream_asset: mainStreamAsset, display_name: "Heat map", author: SAM_EDITING }],
@@ -157,15 +158,15 @@ test("creating_a_stream_calls_create_stream_with_its_project_path_display_name_a
   ]);
   const lobby = "/root/streams/lobby";
 
-  expect(answerOf(await server.client().createStream(lobby, "streams/preview.graph.json", "Preview", SAM_EDITING))).toEqual({
+  expect(answerOf(await server.run(createStream(lobby, "streams/preview.graph.json", "Preview", SAM_EDITING)))).toEqual({
     stream_asset: "38766917-e6ed-443f-bad5-6d70eff6efac",
     transaction: "9f884a11-5efd-4189-b119-6d6ea8212744",
     commit: "7af0da3b8cb0bae77712253ab2df7108217fac22",
   });
-  expect(failureOf(await server.client().createStream(lobby, "streams/preview.graph.json", "Preview", SAM_EDITING)).failureDescription).toBe(
+  expect(failureOf(await server.run(createStream(lobby, "streams/preview.graph.json", "Preview", SAM_EDITING))).words).toBe(
     "create_stream failed: `streams/preview.graph.json` is already the path of the asset 38766917-e6ed-443f-bad5-6d70eff6efac",
   );
-  expect(failureOf(await server.client().createStream(lobby, "streams/blank.graph.json", "   ", SAM_EDITING)).failureDescription).toBe(
+  expect(failureOf(await server.run(createStream(lobby, "streams/blank.graph.json", "   ", SAM_EDITING))).words).toBe(
     `create_stream failed: "   " cannot be a stream's display name: it shows nothing`,
   );
   expect(controlOperationCallsReceivedBy(server)[0]).toEqual(["create_stream", { project_directory: lobby, path: "streams/preview.graph.json", display_name: "Preview", author: SAM_EDITING }]);
@@ -179,14 +180,14 @@ test("deleting_a_stream_calls_delete_stream_with_its_project_stream_asset_and_au
   const lobby = "/root/streams/lobby";
   const previewStreamAsset = "38766917-e6ed-443f-bad5-6d70eff6efac";
 
-  expect(answerOf(await server.client().deleteStream(lobby, previewStreamAsset, SAM_EDITING))).toEqual({
+  expect(answerOf(await server.run(deleteStream(lobby, previewStreamAsset, SAM_EDITING)))).toEqual({
     stream_asset: previewStreamAsset,
     transaction: "4a8fed8f-bf7c-4941-a1a5-31f5731718ca",
     commit: "88bf532826018559d6105af6e9e7b8bc3e556155",
   });
-  expect(failureOf(await server.client().deleteStream(lobby, previewStreamAsset, SAM_EDITING))).toEqual({
-    failureDescription: `delete_stream failed: the project holds no stream asset ${previewStreamAsset}`,
-    isTheRuntimesRefusal: true,
+  expect(failureOf(await server.run(deleteStream(lobby, previewStreamAsset, SAM_EDITING)))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words: `delete_stream failed: the project holds no stream asset ${previewStreamAsset}`,
   });
   expect(controlOperationCallsReceivedBy(server)[0]).toEqual(["delete_stream", { project_directory: lobby, stream_asset: previewStreamAsset, author: SAM_EDITING }]);
 });

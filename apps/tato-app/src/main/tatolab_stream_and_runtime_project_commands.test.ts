@@ -5,26 +5,38 @@ import { afterEach, expect, test, vi } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationResultResponse, controlWebSocketUpgradeRefusedWithWords, runtimeDescribedResponse } from "./fake_local_api_server.js";
 import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { failedWith, succeeded } from "./result.js";
-import { removeProject, openTheProjectWhenTheRuntimeHoldsItClosed } from "./tatolab_stream_and_runtime_project_commands.js";
+import { openTheProjectWhenTheRuntimeHoldsItClosed } from "./tatolab_stream_and_runtime_project_commands.js";
 import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, cleanUps, recordedResponseBody, sharedStateOverFakes, RECORDED_PATTERN_PROJECT, RECORDED_PATTERN_RELOAD_ACTION, RECORDED_LOBBY_PROJECT, RECORDED_LOBBY_OPEN_ACTION, RECORDED_UNLISTED_PROJECT_THE_RUNTIME_HOLDS_OPEN, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
 test("removing a project queues on the runtime, then observes again whether it queued or was refused", async () => {
+  const doorways = "/home/jonathan-fontanez/scratch/app176/projects/doorways";
   const sharedState = await sharedStateOverFakes(
     [
+      httpResponse("200 OK", "text/plain", "ok"),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
+      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      controlWebSocketUpgradeRefusedWithWords(),
+      runtimeDescribedResponse("0.69.84+test.1"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-remove-project-answer-for-the-project-doorways.json")),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-remove-project-refusal-for-a-project-the-runtime-holds-no-stream-of.json")),
     ],
     "linux"
   );
+  const commandHandlers = commandHandlersOver(sharedState);
+  await sharedState.statusPublisher.refreshAndPublish();
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
 
-  expect(await removeProject(sharedState, "/tmp/tatolab-proof-projects/doorways")).toEqual(succeeded(undefined));
+  expect(await commandHandlers.remove_project({ project_directory: doorways }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(refreshRequests).toHaveBeenCalledTimes(1);
-  const refusal = await removeProject(sharedState, "/tmp/tatolab-proof-projects/doorways");
-  expect(!refusal.ok && refusal.failure).toContain("this runtime holds no stream of the project in /tmp/tatolab-proof-projects/doorways");
+  const refusal = await commandHandlers.remove_project({ project_directory: doorways }, FROM_THE_PROJECTS_WINDOW);
+  expect(!refusal.ok && refusal.refusal).toContain("this runtime holds no stream of the project in /tmp/tatolab-proof-projects/doorways");
   expect(refreshRequests).toHaveBeenCalledTimes(2);
+  expect(sharedState.localApiControlOperationCallsReceived().filter(([method]) => method === "remove_project")).toEqual([
+    ["remove_project", { project_directory: doorways }],
+    ["remove_project", { project_directory: doorways }],
+  ]);
 });
 
 test("each queued action answers the window null, and a missing argument or a project the runtime does not list is refused in the command's words", async () => {
@@ -51,7 +63,7 @@ test("each queued action answers the window null, and a missing argument or a pr
   expect(await commandHandlers.remove_project({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(await commandHandlers.remove_project({ stream: "pattern-main-d76f70" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: "remove_project needs `project_directory`, a project's folder as the runtime lists it",
+    refusal: 'remove_project: Missing key\n  at ["project_directory"]',
   });
   expect(await commandHandlers.remove_project({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
   expect(await commandHandlers.read_project_log_records({ project_directory: "/etc", stream: null, action: null, after: null, until: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({
@@ -81,24 +93,26 @@ test("reloading a project the runtime lists open queues reload_project, one it l
     "linux"
   );
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
-  const reloads = vi.spyOn(sharedState.controller, "reloadProject");
-  const opens = vi.spyOn(sharedState.controller, "openProject");
   const commandHandlers = commandHandlersOver(sharedState);
   await sharedState.statusPublisher.refreshAndPublish();
+  const projectLoadsQueued = () => sharedState.localApiControlOperationCallsReceived().filter(([method]) => method === "reload_project" || method === "open_project");
 
   expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: RECORDED_PATTERN_PROJECT }, FROM_THE_PROJECTS_WINDOW))).toBe(
     `{"ok":true,"value":{"action":"${RECORDED_PATTERN_RELOAD_ACTION}","project_directory":"${RECORDED_PATTERN_PROJECT}"}}`,
   );
-  expect(reloads.mock.calls).toEqual([[RECORDED_PATTERN_PROJECT]]);
+  expect(projectLoadsQueued()).toEqual([["reload_project", { project_directory: RECORDED_PATTERN_PROJECT }]]);
   expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: RECORDED_LOBBY_PROJECT }, FROM_THE_PROJECTS_WINDOW))).toBe(
     `{"ok":true,"value":{"action":"${RECORDED_LOBBY_OPEN_ACTION}","project_directory":"${RECORDED_LOBBY_PROJECT}"}}`,
   );
-  expect(opens.mock.calls).toEqual([[RECORDED_LOBBY_PROJECT]]);
+  expect(projectLoadsQueued()).toEqual([
+    ["reload_project", { project_directory: RECORDED_PATTERN_PROJECT }],
+    ["open_project", { project_directory: RECORDED_LOBBY_PROJECT }],
+  ]);
   expect(refreshRequests).toHaveBeenCalledTimes(2);
   expect(await commandHandlers.reload_project({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
   expect(await commandHandlers.reload_project({ folder: "/tmp/tatolab-proof-projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: "reload_project needs `project_directory`, a project's folder as the runtime lists it",
+    refusal: 'reload_project: Missing key\n  at ["project_directory"]',
   });
 });
 
@@ -158,7 +172,7 @@ test("renaming a stream sets the display name of the stream asset the runtime li
   });
   expect(await commandHandlers.rename_stream({ stream: "hallways-main-26aa44" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: "rename_stream needs `display_name`, the display name to show it under",
+    refusal: 'rename_stream: Missing key\n  at ["display_name"]',
   });
 });
 
@@ -230,6 +244,7 @@ test("adding a project answers the window in the contract's shape, from the chos
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-create-project-answer-with-no-folder-drawn-kind-butte.json")),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-stream-action-of-the-create-of-kind-butte-starting.json")),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-control-refusal-for-an-operation-this-runtime-does-not-serve.json")),
       httpResponse("503 Service Unavailable", "text/plain", "starting"),
     ],
     "macos",
@@ -259,8 +274,18 @@ test("adding a project answers the window in the contract's shape, from the chos
         "Invalid configuration: the stream action `Rj12j3eujz3zn0dposliv79k9-999` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log",
     },
   });
+  expect(await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-7" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "the runtime refused `describe_stream_action`: the runtime serves no operation named `describe_runtime_of_a_later_runtime`",
+  });
   const unanswered = await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-7" }, FROM_THE_PROJECTS_WINDOW);
   expect(unanswered.ok).toBe(false);
+  expect(sharedState.localApiControlOperationCallsReceived().filter(([method]) => method === "describe_stream_action")).toEqual([
+    ["describe_stream_action", { action: "Rj12j3eujz3zn0dposliv79k9-7" }],
+    ["describe_stream_action", { action: "Rj12j3eujz3zn0dposliv79k9-999" }],
+    ["describe_stream_action", { action: "Rj12j3eujz3zn0dposliv79k9-7" }],
+    ["describe_stream_action", { action: "Rj12j3eujz3zn0dposliv79k9-7" }],
+  ]);
 });
 
 /** The window's `StreamActionCancelAnswer` reads exactly this JSON. */
@@ -299,7 +324,7 @@ test("the commands that add a project read their arguments as the window sends t
   });
   expect(await commandHandlers.create_stream_project({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "Tato Studio acts only on a folder chosen in its window. Choose /etc again." });
   expect(await commandHandlers.open_stream_project({ folder: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "open_stream_project needs `folder`, a folder chosen in the window" });
-  expect(await commandHandlers.describe_stream_action({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "describe_stream_action needs `action`, a stream action's id" });
+  expect(await commandHandlers.describe_stream_action({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: 'describe_stream_action: Missing key\n  at ["action"]' });
 });
 
 test("deleting_a_stream_deletes_the_stream_asset_the_runtime_last_listed_for_it_by_the_person_editing_and_a_refusal_is_the_runtimes_own_words", async () => {
@@ -317,12 +342,15 @@ test("deleting_a_stream_deletes_the_stream_asset_the_runtime_last_listed_for_it_
   );
   const commandHandlers = commandHandlersOver(sharedState);
   await sharedState.statusPublisher.refreshAndPublish();
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
 
   expect(await commandHandlers.delete_stream({ stream: "lobby-preview-0758ea" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(refreshRequests).toHaveBeenCalledTimes(1);
   expect(await commandHandlers.delete_stream({ stream: "lobby-preview-0758ea" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "delete_stream failed: the project holds no stream asset 38766917-e6ed-443f-bad5-6d70eff6efac",
   });
+  expect(refreshRequests).toHaveBeenCalledTimes(2);
   expect(sharedState.localApiControlOperationCallsReceived().filter(([toolName]) => toolName === "delete_stream")[0]).toEqual([
     "delete_stream",
     { project_directory: "/root/streams/lobby", stream_asset: "38766917-e6ed-443f-bad5-6d70eff6efac", author: { kind: "person", name: "sam" } },
@@ -331,14 +359,15 @@ test("deleting_a_stream_deletes_the_stream_asset_the_runtime_last_listed_for_it_
     ok: false,
     refusal: "The runtime does not list doorways-main-0b1c2d, so Tato Studio has no stream to delete.",
   });
-  expect(await commandHandlers.delete_stream({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "delete_stream needs `stream`, a stream's id" });
+  expect(await commandHandlers.delete_stream({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: 'delete_stream: Missing key\n  at ["stream"]' });
+  expect(refreshRequests).toHaveBeenCalledTimes(2);
 });
 
 /** The window's `StreamAssetCreated` reads exactly this JSON. */
 test("creating_a_stream_in_the_open_project_places_its_graph_document_in_streams_under_a_name_no_file_holds_by_the_person_editing_and_answers_its_stream_asset", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-files-tool-result-of-lobby-under-streams.json")),
+      controlOperationResultResponse({ files: [{ path: "streams/main.graph.json", byte_len: 287 }, { path: "streams/Preview.graph.json", byte_len: 64 }] }),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-create-stream-answer-for-preview-in-lobby-loading-it.json")),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-files-tool-result-of-lobby-under-streams.json")),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-create-stream-refusal-for-a-display-name-that-shows-nothing.json")),
@@ -349,6 +378,7 @@ test("creating_a_stream_in_the_open_project_places_its_graph_document_in_streams
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
   const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
   const commandHandlers = commandHandlersOver(sharedState);
 
   expect(JSON.stringify(await commandHandlers.create_stream_in_the_open_project({ display_name: "Preview" }, fromTheStudioWindow))).toBe(
@@ -358,15 +388,17 @@ test("creating_a_stream_in_the_open_project_places_its_graph_document_in_streams
     ok: false,
     refusal: `create_stream failed: "   " cannot be a stream's display name: it shows nothing`,
   });
+  expect(refreshRequests).toHaveBeenCalledTimes(2);
   expect(sharedState.localApiControlOperationCallsReceived().slice(0, 2)).toEqual([
     ["list_project_files", { project_directory: projectFolder, under: "streams" }],
-    ["create_stream", { project_directory: projectFolder, path: "streams/preview.graph.json", display_name: "Preview", author: { kind: "person", name: "sam" } }],
+    ["create_stream", { project_directory: projectFolder, path: "streams/preview-2.graph.json", display_name: "Preview", author: { kind: "person", name: "sam" } }],
   ]);
   expect(await commandHandlers.create_stream_in_the_open_project({ display_name: "Preview" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
   expect(await commandHandlers.create_stream_in_the_open_project({}, fromTheStudioWindow)).toEqual({
     ok: false,
-    refusal: "create_stream_in_the_open_project needs `display_name`, the display name to show the new stream under",
+    refusal: 'create_stream_in_the_open_project: Missing key\n  at ["display_name"]',
   });
+  expect(refreshRequests).toHaveBeenCalledTimes(2);
 });
 
 test("a studio window reads the log and assets of its own project before the runtime lists a stream of it, the folder resolved as it holds it", async () => {

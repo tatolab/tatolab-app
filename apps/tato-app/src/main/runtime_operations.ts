@@ -4,18 +4,35 @@
 // contract's type.
 
 import { Effect } from "effect";
-import type { NodeCatalog, ProjectAssetListing, ProjectLogNarrowing, ProjectLogRecordsPage, ProjectNodeTypeListing, StreamActionCancelAnswer, StreamGraphSummary } from "../shared/tatolab_backend_contract.js";
+import type {
+  NodeCatalog,
+  ProjectAssetListing,
+  ProjectLogNarrowing,
+  ProjectLogRecordsPage,
+  ProjectNodeTypeListing,
+  ProjectStreamActionQueued,
+  ProjectTransactionAuthor,
+  StreamActionCancelAnswer,
+  StreamActionFollowed,
+  StreamGraphSummary,
+} from "../shared/tatolab_backend_contract.js";
 import { jsonTextKeepingTheWrittenNumbers, prettyJsonTextKeepingTheWrittenNumbers } from "./json_on_the_wire.js";
 import { bodyOfAnOkAnswer } from "./local_api_plain_http.js";
 import { fromResult } from "./result_as_effect.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectAssetListingFromTheListAssetsToolResult } from "./project_asset_listing.js";
+import { projectFilesFromTheListProjectFilesToolResult, type ProjectFileTheRuntimeListed } from "./project_files_on_the_wire.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
 import { ContractMismatch, type RuntimeControlFailure } from "./runtime_control_failures.js";
-import { streamActionCancelAnswerFromTheCancelStreamActionToolResult } from "./stream_action_description.js";
+import {
+  projectStreamActionQueuedFromTheToolResult,
+  streamActionCancelAnswerFromTheCancelStreamActionToolResult,
+  streamActionDescriptionFromTheDescribeStreamActionToolResult,
+} from "./stream_action_description.js";
+import { queuedStreamActionFromTheToolResult, streamAssetChangeFromTheToolResult, type StreamAssetChange } from "./stream_changes_on_the_wire.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
-import { controlOperationReadWith, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
+import { authorOnTheWire, controlOperationReadWith, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 
 /** How many log records one page the window reads holds. */
 const PROJECT_LOG_RECORDS_PER_PAGE = 500;
@@ -73,4 +90,68 @@ export function listProjectAssets(projectDirectory: string): Effect.Effect<Proje
 /** The stream action `action` ended early through the runtime's `cancel_stream_action`: dropped while queued, stopped at its step while running. */
 export function cancelStreamAction(action: string): Effect.Effect<StreamActionCancelAnswer, RuntimeControlFailure, RuntimeControl> {
   return controlOperationReadWith("cancel_stream_action", { action }, streamActionCancelAnswerFromTheCancelStreamActionToolResult);
+}
+
+/** The removal of every stream the runtime holds of the project in `projectDirectory` queued through its `remove_project`: the id of the action it queued. */
+export function removeProject(projectDirectory: string): Effect.Effect<string, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("remove_project", { project_directory: projectDirectory }, (answered) => queuedStreamActionFromTheToolResult("remove_project", answered));
+}
+
+/** The open of the closed or never-opened project in `projectDirectory` queued through the runtime's `open_project`, which loads each of its stream assets with its playback stopped. */
+export function openProject(projectDirectory: string): Effect.Effect<ProjectStreamActionQueued, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("open_project", { project_directory: projectDirectory }, (answered) => projectStreamActionQueuedFromTheToolResult("open_project", answered));
+}
+
+/** The start of the playback of the open project in `projectDirectory` from the graphs it holds, queued through the runtime's `start_playback`. */
+export function startPlayback(projectDirectory: string): Effect.Effect<ProjectStreamActionQueued, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("start_playback", { project_directory: projectDirectory }, (answered) => projectStreamActionQueuedFromTheToolResult("start_playback", answered));
+}
+
+/** The reload from disk of the open project in `projectDirectory` queued through the runtime's `reload_project`, which keeps its playback and retries its failed streams. */
+export function reloadProject(projectDirectory: string): Effect.Effect<ProjectStreamActionQueued, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("reload_project", { project_directory: projectDirectory }, (answered) => projectStreamActionQueuedFromTheToolResult("reload_project", answered));
+}
+
+/** Where the stream action `action` is, from the runtime's `describe_stream_action`, or the runtime's words that it no longer holds it. */
+export function describeStreamAction(action: string): Effect.Effect<StreamActionFollowed, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("describe_stream_action", { action }, streamActionDescriptionFromTheDescribeStreamActionToolResult).pipe(
+    Effect.map((description): StreamActionFollowed => ({ kind: "described", description })),
+    Effect.catchTag("RuntimeRefused", (refused) => (refused.byTheOperation ? Effect.succeed<StreamActionFollowed>({ kind: "not_held", words: refused.words }) : Effect.fail(refused))),
+  );
+}
+
+/** The files of the project in `projectDirectory`, or of its folder `under` alone, from the runtime's `list_project_files`. */
+export function listProjectFiles(projectDirectory: string, under: string | null): Effect.Effect<ProjectFileTheRuntimeListed[], RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith(
+    "list_project_files",
+    under === null ? { project_directory: projectDirectory } : { project_directory: projectDirectory, under },
+    projectFilesFromTheListProjectFilesToolResult,
+  );
+}
+
+/** A stream made in the project in `projectDirectory`, its empty graph document at `streamDocumentPath`, shown under `displayName`, through the runtime's `create_stream`, one transaction by `author`. */
+export function createStream(projectDirectory: string, streamDocumentPath: string, displayName: string, author: ProjectTransactionAuthor): Effect.Effect<StreamAssetChange, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith(
+    "create_stream",
+    { project_directory: projectDirectory, path: streamDocumentPath, display_name: displayName, author: authorOnTheWire(author) },
+    (answered) => streamAssetChangeFromTheToolResult("create_stream", answered),
+  );
+}
+
+/** The stream asset `streamAsset` of the project in `projectDirectory` shown under `displayName` through the runtime's `set_stream_display_name`, one transaction by `author`. */
+export function setStreamDisplayName(projectDirectory: string, streamAsset: string, displayName: string, author: ProjectTransactionAuthor): Effect.Effect<StreamAssetChange, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith(
+    "set_stream_display_name",
+    { project_directory: projectDirectory, stream_asset: streamAsset, display_name: displayName, author: authorOnTheWire(author) },
+    (answered) => streamAssetChangeFromTheToolResult("set_stream_display_name", answered),
+  );
+}
+
+/** The stream asset `streamAsset` deleted from the project in `projectDirectory`, its stream unloaded and forgotten, through the runtime's `delete_stream`, one transaction by `author`. */
+export function deleteStream(projectDirectory: string, streamAsset: string, author: ProjectTransactionAuthor): Effect.Effect<StreamAssetChange, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith(
+    "delete_stream",
+    { project_directory: projectDirectory, stream_asset: streamAsset, author: authorOnTheWire(author) },
+    (answered) => streamAssetChangeFromTheToolResult("delete_stream", answered),
+  );
 }
