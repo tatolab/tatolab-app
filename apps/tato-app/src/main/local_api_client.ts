@@ -9,7 +9,6 @@ import type {
   ProjectCreationQueued,
   ProjectStreamActionQueued,
   ProjectTheRuntimeNames,
-  ProjectTransactionAuthor,
 } from "../shared/tatolab_backend_contract.js";
 import {
   isAJsonObject,
@@ -20,11 +19,10 @@ import { failedWith, succeeded, type Result } from "./result.js";
 import { bodyOfAnOkAnswer, getOverTheLocalApi } from "./local_api_plain_http.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { createProject, listDependencies, listProjectFiles, listStreams, nameTheProject, openProject, readProjectFile, reloadProject } from "./runtime_operations.js";
+import { createProject, listDependencies, listStreams, nameTheProject, openProject, reloadProject } from "./runtime_operations.js";
 import { queuedStreamActionFromTheToolResult, type ProjectActionToolName } from "./stream_changes_on_the_wire.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import {
-  authorOnTheWire,
   callOneControlOperationOverAPost,
   controlOperationTimeLimitMs,
   type ControlOperationAnswer,
@@ -33,13 +31,6 @@ import {
   type ControlOperationResult,
   type RuntimeControl,
 } from "./tatolab_runtime_control_operation_call.js";
-import {
-  projectFileWriteFromTheWriteProjectFileToolResult,
-  nodeFileCreationFromTheCreateNodeFileToolResult,
-  type NodeFileCreationRecorded,
-  type ProjectFileTheRuntimeListed,
-  type ProjectFileWriteRecorded,
-} from "./project_files_on_the_wire.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 
 /** A client of the local API served at one socket path. */
@@ -68,7 +59,6 @@ export class LocalApiClient {
   listStreams(): Promise<Result<ListedStream[], LocalApiRequestFailure>> {
     return this.answerOf(listStreams());
   }
-
 
   /** This machine's name, as `GET /api/graph` states it beside every loaded stream's graph. */
   async machineName(): Promise<Result<string, LocalApiRequestFailure>> {
@@ -100,7 +90,6 @@ export class LocalApiClient {
     return this.answerOf(createProject(projectDirectory));
   }
 
-
   /** Queue the open of the closed or never-opened project in `projectDirectory`, which loads every stream asset in it with its playback stopped; answered at once, refused in the runtime's own words, as for an open project, which `reloadProject` re-reads. */
   openProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
     return this.answerOf(openProject(projectDirectory));
@@ -119,55 +108,6 @@ export class LocalApiClient {
   /** Each import of the project in `projectDirectory` from the runtime's `list_dependencies`, each source read for a newer version with `checkForNewer`; refused in the runtime's own words. */
   listDependencies(projectDirectory: string, checkForNewer: boolean): Promise<Result<ListedProjectDependency[], LocalApiRequestFailure>> {
     return this.answerOf(listDependencies(projectDirectory, checkForNewer));
-  }
-
-  /** The files of the project in `projectDirectory`, or of its folder `under` alone, from the runtime's `list_project_files`; refused in the runtime's own words. */
-  listProjectFiles(projectDirectory: string, under: string | null): Promise<Result<ProjectFileTheRuntimeListed[], LocalApiRequestFailure>> {
-    return this.answerOf(listProjectFiles(projectDirectory, under));
-  }
-
-  /** The bytes of the file `filePath`, `/`-separated in the project in `projectDirectory`, from the runtime's `read_project_file`; refused in the runtime's own words. */
-  readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, LocalApiRequestFailure>> {
-    return this.answerOf(readProjectFile(projectDirectory, filePath));
-  }
-
-
-  /** Write `text` whole to `filePath` in the project in `projectDirectory` as one transaction by `author`, keyed by `idempotencyKey`, through the runtime's `write_project_file`; refused in the runtime's own words. */
-  async writeProjectFile(
-    projectDirectory: string,
-    filePath: string,
-    text: string,
-    author: ProjectTransactionAuthor,
-    idempotencyKey: string,
-  ): Promise<Result<ProjectFileWriteRecorded, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("write_project_file", {
-      project_directory: projectDirectory,
-      path: filePath,
-      content: text,
-      author: authorOnTheWire(author),
-      idempotency_key: idempotencyKey,
-    });
-    if (!operationResult.ok) return operationResult;
-    const written = projectFileWriteFromTheWriteProjectFileToolResult(operationResult.value);
-    return written.ok ? written : localApiRequestFailure(written.failure);
-  }
-
-  /** A new Python node file at `filePath` in the project in `projectDirectory`, from the runtime's node template, as one transaction by `author` keyed by `idempotencyKey`, through the runtime's `create_node_file`; refused in the runtime's own words. */
-  async createNodeFile(
-    projectDirectory: string,
-    filePath: string,
-    author: ProjectTransactionAuthor,
-    idempotencyKey: string,
-  ): Promise<Result<NodeFileCreationRecorded, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("create_node_file", {
-      project_directory: projectDirectory,
-      path: filePath,
-      author: { kind: author.kind, name: author.name },
-      idempotency_key: idempotencyKey,
-    });
-    if (!operationResult.ok) return operationResult;
-    const created = nodeFileCreationFromTheCreateNodeFileToolResult(operationResult.value);
-    return created.ok ? created : localApiRequestFailure(created.failure);
   }
 
   /** `GET requestTarget`, answering the body of a `200`; any other answer is refused in the runtime's own words when its body carries them. */

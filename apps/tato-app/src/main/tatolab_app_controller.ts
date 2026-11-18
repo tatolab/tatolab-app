@@ -5,7 +5,6 @@ import type {
   ListedStream,
   ProjectCreationQueued,
   ProjectStreamActionQueued,
-  ProjectTransactionAuthor,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
   StudioWarning,
@@ -21,7 +20,6 @@ import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_ap
 import type { StreamActionChangesFollowedForTheStatus } from "./stream_action_changes_followed_for_the_status.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
-import type { NodeFileCreationRecorded, ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
 import { LocalApiClient } from "./local_api_client.js";
 import { type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
@@ -271,26 +269,6 @@ export class TatolabAppController {
   /** Each import of the project in `projectDirectory`, each source read for a newer version with `checkForNewer`. */
   listDependencies(projectDirectory: string, checkForNewer: boolean): Promise<Result<ListedProjectDependency[], LocalApiRequestFailure>> {
     return this.localApiClient.listDependencies(projectDirectory, checkForNewer);
-  }
-
-  /** The files of the project in `projectDirectory`, or of its folder `under` alone. */
-  listProjectFiles(projectDirectory: string, under: string | null): Promise<Result<ProjectFileTheRuntimeListed[], LocalApiRequestFailure>> {
-    return this.localApiClient.listProjectFiles(projectDirectory, under);
-  }
-
-  /** The bytes of `filePath` in the project in `projectDirectory`. */
-  readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, LocalApiRequestFailure>> {
-    return this.localApiClient.readProjectFile(projectDirectory, filePath);
-  }
-
-  /** Write `text` whole to `filePath` in the project in `projectDirectory`, one transaction by `author` keyed by `idempotencyKey`. */
-  writeProjectFile(projectDirectory: string, filePath: string, text: string, author: ProjectTransactionAuthor, idempotencyKey: string): Promise<Result<ProjectFileWriteRecorded, LocalApiRequestFailure>> {
-    return this.localApiClient.writeProjectFile(projectDirectory, filePath, text, author, idempotencyKey);
-  }
-
-  /** The runtime's `create_node_file` of `filePath` in the project in `projectDirectory`. */
-  createNodeFile(projectDirectory: string, filePath: string, author: ProjectTransactionAuthor, idempotencyKey: string): Promise<Result<NodeFileCreationRecorded, LocalApiRequestFailure>> {
-    return this.localApiClient.createNodeFile(projectDirectory, filePath, author, idempotencyKey);
   }
 
   /** The runtime's streams, or why listing them failed, which is logged on the round it starts failing. */

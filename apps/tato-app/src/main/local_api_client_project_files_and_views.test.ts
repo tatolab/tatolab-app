@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse } from "./fake_local_api_server.js";
 import { answerOf, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./local_api_client_test_support.js";
-import { listProjectViews, undoOrRedo } from "./runtime_operations.js";
+import { createNodeFile, listProjectFiles, listProjectViews, readProjectFile, undoOrRedo, writeProjectFile } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -23,27 +23,27 @@ test("project files are listed, read whole as bytes, and written as one transact
   ]);
   const sam = { kind: "person", name: "Sam" } as const;
 
-  const wholeProject = answerOf(await server.client().listProjectFiles(RECORDED_NIGHT_SHOW, null));
+  const wholeProject = answerOf(await server.run(listProjectFiles(RECORDED_NIGHT_SHOW, null)));
   expect(wholeProject.map((listedFile) => listedFile.path)).toContain("views/deck/icon.png");
   expect(wholeProject.find((listedFile) => listedFile.path === "nodes/camera.py")).toEqual({ path: "nodes/camera.py", byte_len: 43 });
-  expect(answerOf(await server.client().listProjectFiles(RECORDED_NIGHT_SHOW, "nodes"))).toEqual([{ path: "nodes/camera.py", byte_len: 43 }]);
-  expect(answerOf(await server.client().readProjectFile(RECORDED_NIGHT_SHOW, "nodes/camera.py")).toString("utf8")).toBe("import streamlib\n\n\nCAMERA_DEVICE_INDEX = 0\n");
-  const iconBytes = answerOf(await server.client().readProjectFile(RECORDED_NIGHT_SHOW, "views/deck/icon.png"));
+  expect(answerOf(await server.run(listProjectFiles(RECORDED_NIGHT_SHOW, "nodes")))).toEqual([{ path: "nodes/camera.py", byte_len: 43 }]);
+  expect(answerOf(await server.run(readProjectFile(RECORDED_NIGHT_SHOW, "nodes/camera.py"))).toString("utf8")).toBe("import streamlib\n\n\nCAMERA_DEVICE_INDEX = 0\n");
+  const iconBytes = answerOf(await server.run(readProjectFile(RECORDED_NIGHT_SHOW, "views/deck/icon.png")));
   expect([iconBytes.length, [...iconBytes.subarray(0, 8)]]).toEqual([75, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]]);
-  expect(JSON.parse(answerOf(await server.client().readProjectFile(RECORDED_NIGHT_SHOW, "imports/lobby-wall/views/meter/tatolab_view.json")).toString("utf8"))).toMatchObject({ title: "Meter" });
-  expect(failureOf(await server.client().readProjectFile(RECORDED_NIGHT_SHOW, "../elsewhere.txt"))).toMatchObject({
-    isTheRuntimesRefusal: true,
-    failureDescription: "read_project_file failed: the file path `../elsewhere.txt` is refused: it holds `.`, `..` or a root, which could lead outside the project",
+  expect(JSON.parse(answerOf(await server.run(readProjectFile(RECORDED_NIGHT_SHOW, "imports/lobby-wall/views/meter/tatolab_view.json"))).toString("utf8"))).toMatchObject({ title: "Meter" });
+  expect(failureOf(await server.run(readProjectFile(RECORDED_NIGHT_SHOW, "../elsewhere.txt")))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words: "read_project_file failed: the file path `../elsewhere.txt` is refused: it holds `.`, `..` or a root, which could lead outside the project",
   });
-  expect(answerOf(await server.client().writeProjectFile(RECORDED_NIGHT_SHOW, "nodes/camera.py", "import streamlib\n", sam, "save-1"))).toEqual({
+  expect(answerOf(await server.run(writeProjectFile(RECORDED_NIGHT_SHOW, "nodes/camera.py", "import streamlib\n", sam, "save-1")))).toEqual({
     path: "nodes/camera.py",
     transaction: "841dea3f-0f85-44f6-a3bf-7ab09d1fa179",
     commit: "bbd985b362ad3ff5e7154324bcd13d19022e9ff2",
   });
-  expect(failureOf(await server.client().writeProjectFile(RECORDED_NIGHT_SHOW, "imports/lobby-wall/views/meter/index.html", "<p></p>\n", sam, "save-2")).failureDescription).toBe(
+  expect(failureOf(await server.run(writeProjectFile(RECORDED_NIGHT_SHOW, "imports/lobby-wall/views/meter/index.html", "<p></p>\n", sam, "save-2"))).words).toBe(
     "write_project_file failed: the file `imports/lobby-wall/views/meter/index.html` is not written with write_project_file: an import's files are edited by opening `imports/<folder>/` as a project of its own",
   );
-  expect(failureOf(await server.client().writeProjectFile(RECORDED_NIGHT_SHOW, "nodes/camera.py", "import streamlib\n", sam, "save-3")).failureDescription).toBe(
+  expect(failureOf(await server.run(writeProjectFile(RECORDED_NIGHT_SHOW, "nodes/camera.py", "import streamlib\n", sam, "save-3"))).words).toBe(
     "write_project_file failed: `nodes/camera.py` already holds this content, so the write has nothing to change",
   );
   expect(controlOperationCallsReceivedBy(server)).toEqual([
@@ -67,17 +67,17 @@ test("a new node file is created from the runtime's node template as one transac
   ]);
   const sam = { kind: "person", name: "Sam" } as const;
 
-  expect(answerOf(await server.client().createNodeFile(RECORDED_S07_CODE, "nodes/invert.py", sam, "create-1"))).toEqual({
+  expect(answerOf(await server.run(createNodeFile(RECORDED_S07_CODE, "nodes/invert.py", sam, "create-1")))).toEqual({
     path: "nodes/invert.py",
     node_type: "nodes.invert:Invert",
     transaction: "9c38b2ef-7d8b-4d89-b6fd-c226ca507521",
     commit: "665925378946a3db63451a5eff799202db9bc04b",
   });
-  expect(failureOf(await server.client().createNodeFile(RECORDED_S07_CODE, "nodes/invert.py", sam, "create-2"))).toMatchObject({
-    isTheRuntimesRefusal: true,
-    failureDescription: "create_node_file failed: the project already holds `nodes/invert.py`, and a new file is never written over it",
+  expect(failureOf(await server.run(createNodeFile(RECORDED_S07_CODE, "nodes/invert.py", sam, "create-2")))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words: "create_node_file failed: the project already holds `nodes/invert.py`, and a new file is never written over it",
   });
-  expect(failureOf(await server.client().createNodeFile(RECORDED_S07_CODE, "nodes/my-effect.py", sam, "create-3")).failureDescription).toBe(
+  expect(failureOf(await server.run(createNodeFile(RECORDED_S07_CODE, "nodes/my-effect.py", sam, "create-3"))).words).toBe(
     "create_node_file failed: `nodes/my-effect.py` is not importable as a Python module: `my-effect` is not a Python identifier; use letters, digits and `_`, not starting with a digit",
   );
   expect(controlOperationCallsReceivedBy(server)).toEqual([

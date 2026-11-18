@@ -39,6 +39,7 @@ import {
 import { ProjectDialogs, RecentProjects, StudioWindows, thenAStatusRound, ThisMachinesFolders } from "./studio_runtime.js";
 import type { RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import { importFolderInsideTheWorkspace, PROJECT_IMPORTS_FOLDER } from "./workspace_dependencies.js";
+import { projectFolderOfTheOpenProject } from "./open_project_files.js";
 import { describeCaughtFailure, type Result as PlainResult } from "./result.js";
 import { CommandRefused } from "./window_command.js";
 
@@ -453,6 +454,11 @@ export class OpenProjectOfAStudioWindow {
   /** The project as last read. */
   readOpenProject(): OpenProjectReading {
     return this.lastReading;
+  }
+
+  /** `folder` as the folder of the project as last read or of one of its imports, or why it is not one. */
+  projectFolderOfTheOpenProject(folder: string): PlainResult<string, string> {
+    return projectFolderOfTheOpenProject(this.lastReading, folder);
   }
 
   /** Read the project, send it to the window and watch its folders; answers once it is read. */

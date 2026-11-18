@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { assert, vi } from "vitest";
-import type { ListedStream, ProjectTransactionAuthor, SystemMenuBarMenu, TatolabPlatform } from "../shared/tatolab_backend_contract.js";
+import type { ListedStream, OpenProjectReading, ProjectTransactionAuthor, SystemMenuBarMenu, TatolabPlatform } from "../shared/tatolab_backend_contract.js";
 import { controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
 import { FakeCarriedRuntimeStarts, FakeTatolabAppOpenedAtLogin, FakeTatolabCommandLineToolLink, FakeTerminalOpenedInAFolder, fakeTatolabPlatformForThisBuild, FakeSystemMediaAccess } from "./fake_tatolab_platform_for_this_build.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
@@ -31,6 +31,7 @@ import {
   ListedStreams,
   ModuleManagerWindows,
   PackageCatalog,
+  IdempotencyKeys,
   PersonEditingInStudio,
   RecentProjects,
   ProjectDialogs,
@@ -108,12 +109,24 @@ export interface StudioServicesOfATest {
   readonly aStreamIsListedFrom?: (projectFolder: string) => boolean;
   /** Whether the runtime lists a folder's project open; none at the default. */
   readonly theProjectIsListedOpen?: (projectFolder: string) => boolean;
+  /** Each status round asked for; nothing happens at the default. */
+  readonly requestARound?: Effect.Effect<void>;
   /** The stream the runtime lists with an id; none at the default. */
   readonly listedStream?: (stream: string) => ListedStream | null;
   readonly author?: ProjectTransactionAuthor;
+  /** What the studio window reads its open project as; none open at the default. */
+  readonly openProjectReading?: OpenProjectReading;
+  /** Each idempotency key minted, in order; `a-key-<n>` at the default. */
+  readonly idempotencyKeys?: Effect.Effect<string>;
   readonly appVersion?: string;
   /** Where Effect's logs go; nowhere at the default. */
   readonly tatolabAppLog?: TatolabAppLog;
+}
+
+/** Idempotency keys `a-key-1`, `a-key-2`, and on, one for each minted. */
+export function idempotencyKeysNumberedInOrder(): Effect.Effect<string> {
+  let keysMinted = 0;
+  return Effect.sync(() => `a-key-${++keysMinted}`);
 }
 
 /** A studio window a test's commands come from, holding hallways. */
@@ -129,7 +142,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
         commandFromWindow.windowContentsId === studioWindow.windowContentsId ? Effect.succeed(studioWindow.projectFolder) : Effect.fail(new CommandRefused({ words: "No project is open in this window." })),
       openProjectReadingOfTheWindow: (commandFromWindow) =>
         commandFromWindow.windowContentsId === studioWindow.windowContentsId
-          ? Effect.succeed({ kind: "none_open" as const })
+          ? Effect.succeed(overrides.openProjectReading ?? { kind: "none_open" as const })
           : Effect.fail(new CommandRefused({ words: "No project is open in this window." })),
       aStudioWindowHoldsTheProjectIn: (projectFolder) => projectFolder === studioWindow.projectFolder,
       folderOfTheWindowsOpenProject: (commandFromWindow, folder) => (commandFromWindow.windowContentsId === studioWindow.windowContentsId && folder === studioWindow.projectFolder ? folder : null),
@@ -163,7 +176,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
       playbackOfTheProject: (projectFolder) => projectPlaybackAsListed([], projectFolder),
     }),
     Layer.succeed(SystemMediaAccessAhead, { askForTheDevicesTheViewsDeclare: () => Effect.void }),
-    Layer.succeed(StatusRounds, { requestARound: Effect.void, lastStatusWaitingUpTo: () => Effect.succeed(null) }),
+    Layer.succeed(StatusRounds, { requestARound: overrides.requestARound ?? Effect.void, lastStatusWaitingUpTo: () => Effect.succeed(null) }),
     Layer.succeed(StudioSettings, {
       setStreamFailureNotifications: () => Effect.void,
       setDeveloperMode: () => Effect.void,
@@ -173,6 +186,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
     Layer.succeed(CarriedTools, { restartTheRuntime: Effect.void, linkTheCommandLineTool: Effect.void }),
     Layer.succeed(FileManager, { showAnExistingFolder: () => Effect.void }),
     Layer.succeed(PersonEditingInStudio, { author: overrides.author ?? { kind: "person", name: "sam" } }),
+    Layer.succeed(IdempotencyKeys, { mint: overrides.idempotencyKeys ?? idempotencyKeysNumberedInOrder() }),
     Layer.succeed(StudioAppVersion, { version: overrides.appVersion ?? STUDIO_APP_VERSION_UNDER_TEST }),
     tatolabAppLogAsEffectsLogger(overrides.tatolabAppLog ?? quietTatolabAppLog),
   );
@@ -280,14 +294,6 @@ export async function sharedStateOverFakes(
     dockIconHost: fakeShellForTheWindows.tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: () => null,
     projectReadingsOfTheRuntime,
-    projectFilesOfTheRuntime: {
-      listProjectFiles: async () => failedWith("no runtime answers"),
-      readProjectFile: async () => failedWith("no runtime answers"),
-      writeProjectFile: async () => failedWith("no runtime answers"),
-      createNodeFile: async () => failedWith("no runtime answers"),
-    },
-    personSavingTheFiles: { kind: "person", name: "sam" },
-    mintAnIdempotencyKey: () => "a-save",
     openTheProjectTransactionsFeedConnection: async () => localApiRequestFailure("no runtime answers"),
     runAfter: () => () => {},
     closeTheProjectAsItsWindowCloses: async () => succeeded(undefined),

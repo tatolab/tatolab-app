@@ -5,9 +5,8 @@
 // the Projects window hides it; with every window gone the app stays in the tray. On macOS the Dock icon shows while any window is on screen.
 
 import path from "node:path";
-import type { OpenProjectReading, PoppedOutView, ProjectTransactionAuthor, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { OpenProjectReading, PoppedOutView, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import type { ModulesShown } from "../shared/tatolab_electron_bridge_contract.js";
-import { OpenProjectFiles, type ProjectFilesOfTheRuntime } from "./open_project_files.js";
 import { OpenProjectOfAStudioWindow, type FolderEntriesWatch, type ProjectReadingsOfTheRuntime, type StudioWindowOfTheProjectShown } from "./open_project.js";
 import { ProjectTransactionsFeedOfAStudioWindow, type ProjectTransactionsFeedOfAStudioWindowSources } from "./project_transactions_feed.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
@@ -23,11 +22,10 @@ export const STOP_AND_CLOSE_BUTTON_LABEL = "Stop and Close";
 /** The Projects window's title. */
 export const PROJECTS_WINDOW_TITLE = "Tato Studio";
 
-/** A project's studio window: the window, the project it shows, that project's files, and the language servers it started. */
+/** A project's studio window: the window, the project it shows, its change feed, and the language servers it started. */
 export interface StudioWindowOfAProject {
   readonly tatolabMainWindow: TatolabMainWindow;
   readonly openProject: OpenProjectOfAStudioWindow;
-  readonly openProjectFiles: OpenProjectFiles;
   /** The project's change feed, followed while the window is open. */
   readonly projectTransactionsFeed: ProjectTransactionsFeedOfAStudioWindow;
   /** Where language servers this window starts send their events, and which folders they may serve. */
@@ -57,12 +55,6 @@ export interface TatolabAppWindowsSources {
   watchFolderEntries: FolderEntriesWatch;
   /** The runtime's list of what a project imports. */
   projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime;
-  /** The runtime's file tools, which every project file a window reads or saves goes through. */
-  projectFilesOfTheRuntime: ProjectFilesOfTheRuntime;
-  /** Who a save in a studio window is by, as the project's history records it. */
-  personSavingTheFiles: ProjectTransactionAuthor;
-  /** A fresh idempotency key, one for each save. */
-  mintAnIdempotencyKey: () => string;
   /** A connection each studio window follows its project's change feed over. */
   openTheProjectTransactionsFeedConnection: ProjectTransactionsFeedOfAStudioWindowSources["openTheFeedConnection"];
   /** Runs `work` once after `delayMs`; the answer cancels it. */
@@ -356,12 +348,6 @@ export class TatolabAppWindows {
       this.sources.tatolabAppLog,
     );
     windowOfTheProject = tatolabMainWindow;
-    const openProjectFiles = new OpenProjectFiles({
-      readOpenProject: () => openProject.readOpenProject(),
-      projectFilesOfTheRuntime: this.sources.projectFilesOfTheRuntime,
-      personSavingTheFiles: this.sources.personSavingTheFiles,
-      mintAnIdempotencyKey: this.sources.mintAnIdempotencyKey,
-    });
     const openedProject = openProject.readOpenProject();
     const projectTransactionsFeed = new ProjectTransactionsFeedOfAStudioWindow(openedProject.kind === "read" ? openedProject.open_project.project.folder : projectFolder, {
       openTheFeedConnection: this.sources.openTheProjectTransactionsFeedConnection,
@@ -382,10 +368,9 @@ export class TatolabAppWindows {
     const studioWindow: StudioWindowOfAProject = {
       tatolabMainWindow,
       openProject,
-      openProjectFiles,
       projectTransactionsFeed,
       languageServerOfTheWindow: {
-        projectFolderOfTheOpenProject: (folder) => openProjectFiles.projectFolderOfTheOpenProject(folder),
+        projectFolderOfTheOpenProject: (folder) => openProject.projectFolderOfTheOpenProject(folder),
         sendTheWindowALanguageServerEvent: (event: PythonLanguageServerEvent) => tatolabMainWindow.sendTheWindowALanguageServerEvent(event),
       },
       poppedOutViews: new Map(),

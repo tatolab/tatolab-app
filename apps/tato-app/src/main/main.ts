@@ -6,7 +6,6 @@
 // working; quitting stops both. The first opening also links the `tatolab` command in the home
 // folder and starts checking for updates on its own.
 
-import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { ManagedRuntime } from "effect";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
@@ -44,7 +43,6 @@ import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "
 import type { Result } from "./result.js";
 import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
-import type { ProjectFilesOfTheRuntime } from "./open_project_files.js";
 import { type FolderEntriesWatch, type ProjectArchiveDialog, type ProjectCoverImageDialog, type ProjectFolderDialog, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import type { ProjectAssetFilesDialog } from "./project_assets_imported_from_chosen_files.js";
@@ -142,8 +140,6 @@ export interface TatolabElectronAppShell {
   homeDirectory: string;
   /** The platform's Documents folder, where new projects go under `Tato Studio/`. */
   documentsDirectory: string;
-  /** The account name of the person signed in to this machine, whom a project's history names as the author of a save in the studio. */
-  personSignedInToThisMachine: string;
   /** Serve every request for a project view's file with `answerAProjectViewFileRequest`. */
   answerProjectViewFileRequestsWith(answerAProjectViewFileRequest: AnswerAProjectViewFileRequest): void;
   /** The update feed `appUpdatePackaging` reads and takes from, or why this app cannot update itself. */
@@ -210,28 +206,6 @@ export async function startTatolabApp(
       return listed.ok ? listed : failedWith(listed.failure.failureDescription);
     },
   };
-  const projectFilesOfTheRuntime: ProjectFilesOfTheRuntime = {
-    listProjectFiles: async (projectDirectory, under) => {
-      if (controllerOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
-      const listed = await controllerOnceBuilt.listProjectFiles(projectDirectory, under);
-      return listed.ok ? listed : failedWith(listed.failure.failureDescription);
-    },
-    readProjectFile: async (projectDirectory, filePath) => {
-      if (controllerOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
-      const fileBytes = await controllerOnceBuilt.readProjectFile(projectDirectory, filePath);
-      return fileBytes.ok ? fileBytes : failedWith(fileBytes.failure.failureDescription);
-    },
-    writeProjectFile: async (projectDirectory, filePath, text, author, idempotencyKey) => {
-      if (controllerOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
-      const written = await controllerOnceBuilt.writeProjectFile(projectDirectory, filePath, text, author, idempotencyKey);
-      return written.ok ? written : failedWith(written.failure.failureDescription);
-    },
-    createNodeFile: async (projectDirectory, filePath, author, idempotencyKey) => {
-      if (controllerOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
-      const created = await controllerOnceBuilt.createNodeFile(projectDirectory, filePath, author, idempotencyKey);
-      return created.ok ? created : failedWith(created.failure.failureDescription);
-    },
-  };
   let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
   let studioRuntimeOnceBuilt: ManagedRuntime.ManagedRuntime<StudioServices, never> | null = null;
   let localApiSocketOnceKnown: string | null = null;
@@ -241,9 +215,6 @@ export async function startTatolabApp(
     dockIconHost: tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: tatolabElectronAppShell.watchFolderEntries,
     projectReadingsOfTheRuntime,
-    projectFilesOfTheRuntime,
-    personSavingTheFiles: { kind: "person", name: tatolabElectronAppShell.personSignedInToThisMachine },
-    mintAnIdempotencyKey: () => randomUUID(),
     openTheProjectTransactionsFeedConnection: async () =>
       localApiSocketOnceKnown === null
         ? localApiRequestFailure(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET)
