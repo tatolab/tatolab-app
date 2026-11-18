@@ -213,6 +213,32 @@ describe("Settings", () => {
     expect(within(settingsRow("runtime-status")).getByText("The runtime stopped: it exited with status 1. Tato Studio starts it again shortly.")).toBeTruthy();
   });
 
+  it("shows one notice for a runtime older than this Studio, naming both contracts, with the remedy and no update to offer", async () => {
+    await mountedWindowOverTheMock("state=running&runtime_age=older");
+    await openSettingsOn("runtime");
+
+    const statusWords = document.querySelector<HTMLElement>("[data-runtime-status-words]") ?? expect.unreachable("no status words");
+    expect(statusWords.classList.contains("text-warn-text")).toBe(true);
+    const notices = settingsRow("runtime-status").querySelectorAll("[data-runtime-of-another-age]");
+    expect(notices).toHaveLength(1);
+    const notice = within(settingsRow("runtime-status"));
+    expect(notice.getByText("The runtime is older than this Studio")).toBeTruthy();
+    expect(textOf("[data-runtime-of-another-age-facts]")).toBe("tatolabd 0.55.2 serves control contract 3, revision 0; this Studio needs contract 3, revision 1. Your projects are untouched.");
+    expect(document.querySelector("[data-runtime-of-another-age-remedy='quit_the_running_runtime']")).not.toBeNull();
+    expect(document.querySelector("[data-runtime-of-another-age-action]")).toBeNull();
+  });
+
+  it("offers the app's update in the notice of a runtime newer than this Studio, and checks for one when pressed", async () => {
+    await mountedWindowOverTheMock("state=running&runtime_age=newer");
+    await openSettingsOn("runtime");
+
+    expect(within(settingsRow("runtime-status")).getByText("This Studio is older than the runtime")).toBeTruthy();
+    const updateButton = document.querySelector<HTMLElement>("[data-runtime-of-another-age-action='update_studio']") ?? expect.unreachable("no update offered");
+    expect(updateButton.textContent).toBe("Check for Updates…");
+    fireEvent.click(updateButton);
+    await waitFor(() => expect(document.querySelector("[data-runtime-of-another-age-action='update_studio']")?.textContent).toBe("Checking for Updates…"));
+  });
+
   it("names the tatolab command's path and version, and how a coding agent starts tatolab mcp", async () => {
     await mountedWindowOverTheMock("state=running");
     await openSettingsOn("command-line");

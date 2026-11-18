@@ -34,6 +34,7 @@ function statusListing(streams: ListedStream[] | null): TatolabStatus {
     platform: "macos",
     runtime_state: streams === null ? "starting" : "running",
     runtime_not_running_because: null,
+    runtime_of_another_age: null,
     machine_name: streams === null ? null : "jonathanf-macbook",
     streams,
     streams_not_listed_because: null,

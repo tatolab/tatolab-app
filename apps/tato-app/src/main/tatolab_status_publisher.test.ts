@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from "vitest";
 import type { TatolabStatus } from "../shared/tatolab_backend_contract.js";
-import { FakeLocalApiServer, httpResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
+import { FakeLocalApiServer, httpResponse, controlOperationResultResponse, controlWebSocketUpgradeRefusedWithWords, runtimeDescribedResponse } from "./fake_local_api_server.js";
 import { FakeCarriedRuntimeStarts, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import { TatolabAppController } from "./tatolab_app_controller.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
@@ -70,8 +70,11 @@ test("the published status walks starting, running, starting and not running as 
     runtimeHealthy(),
     oneStreamListed(),
     machineWideGraph(),
+    controlWebSocketUpgradeRefusedWithWords(),
+    runtimeDescribedResponse("0.69.84+test.1"),
     runtimeHealthy(),
     oneStreamListed(),
+    runtimeDescribedResponse("0.69.84+test.1"),
     runtimeNotAnsweringHealth(),
     runtimeNotAnsweringHealth(),
   ]);

@@ -25,6 +25,7 @@ function aStatusListing(streams: ListedStream[]): TatolabStatus {
     platform: "macos",
     runtime_state: "running",
     runtime_not_running_because: null,
+    runtime_of_another_age: null,
     machine_name: "jonathanf-macbook",
     streams,
     streams_not_listed_because: null,

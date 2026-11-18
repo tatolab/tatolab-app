@@ -2,6 +2,7 @@
 // started again with a growing wait when it exits, stopped with SIGTERM as the app quits. A runtime
 // that already answers, one the CLI started, is used as it is and never started over.
 
+import type { HowTheRunningRuntimeRuns } from "./runtime_contract_age.js";
 import type { RuntimeState } from "../shared/tatolab_backend_contract.js";
 import type { CarriedRuntime, RuntimeChildProcess, RuntimeChildProcessExit, StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import { failedWith, succeeded, type Result } from "./result.js";
@@ -93,6 +94,12 @@ export class CarriedRuntimeRunAsTheAppsChild {
     this.startAgainAsSoonAsItExits = true;
     this.runningRuntime.runtimeChildProcess.askItToStop();
     return succeeded(undefined);
+  }
+
+  /** How the runtime answering now came to run: the one the app started, another while the app carries one, or any while it carries none. */
+  howTheAnsweringRuntimeRuns(): HowTheRunningRuntimeRuns {
+    if (this.carriedRuntime === null) return "the_app_carries_none";
+    return this.runningRuntime === null ? "not_started_by_the_app" : "started_by_the_app";
   }
 
   /** Whether a runtime the app started is running now, which a quit waits for. */

@@ -2,7 +2,7 @@ import { mkdtemp, realpath, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
-import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
+import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationResultResponse, controlWebSocketUpgradeRefusedWithWords, runtimeDescribedResponse } from "./fake_local_api_server.js";
 import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { failedWith, succeeded } from "./result.js";
 import { removeProject, openTheProjectWhenTheRuntimeHoldsItClosed } from "./tatolab_stream_and_runtime_project_commands.js";
@@ -33,6 +33,8 @@ test("each queued action answers the window null, and a missing argument or a pr
       httpResponse("200 OK", "text/plain", "ok"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      controlWebSocketUpgradeRefusedWithWords(),
+      runtimeDescribedResponse("0.69.84+test.1"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-remove-project-answer-for-the-project-doorways.json")),
     ],
     "linux"
@@ -71,6 +73,8 @@ test("reloading a project the runtime lists open queues reload_project, one it l
       httpResponse("200 OK", "text/plain", "ok"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-a-playing-a-stopped-and-a-closed-project.json")),
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      controlWebSocketUpgradeRefusedWithWords(),
+      runtimeDescribedResponse("0.69.84+test.1"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-reload-project-answer-for-the-stopped-project-pattern.json")),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-open-project-answer-for-the-closed-project-lobby.json")),
     ],
@@ -127,6 +131,8 @@ test("renaming a stream sets the display name of the stream asset the runtime li
       httpResponse("200 OK", "text/plain", "ok"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-hallways-running.json")),
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      controlWebSocketUpgradeRefusedWithWords(),
+      runtimeDescribedResponse("0.69.84+test.1"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-set-stream-display-name-answer-for-the-main-stream-of-hallways-renamed-heat-map.json")),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-set-stream-display-name-refusal-for-a-display-name-that-shows-nothing.json")),
     ],
@@ -176,6 +182,8 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
         ],
       }),
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      controlWebSocketUpgradeRefusedWithWords(),
+      runtimeDescribedResponse("0.69.84+test.1"),
     ],
     "macos",
     ["/Users/jonathanf/streams/main", "/Users/jonathanf/streams/main/.streamlib/logs"],
@@ -300,6 +308,8 @@ test("deleting_a_stream_deletes_the_stream_asset_the_runtime_last_listed_for_it_
       httpResponse("200 OK", "text/plain", "ok"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-lobby-with-its-new-stream-preview.json")),
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "sams-laptop", streams: [] })),
+      controlWebSocketUpgradeRefusedWithWords(),
+      runtimeDescribedResponse("0.69.84+test.1"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-delete-stream-answer-for-preview-of-lobby.json")),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-delete-stream-refusal-for-a-stream-asset-the-project-no-longer-holds.json")),
     ],

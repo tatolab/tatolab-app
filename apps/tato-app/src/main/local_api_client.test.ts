@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
-import { CONTROL_CONTRACT_VERSION } from "@tatolab/runtime-client";
+import { CONTROL_CONTRACT_REVISION, CONTROL_CONTRACT_VERSION, CONTROL_CONTRACT_VERSION_MISMATCH_ERROR_CODE } from "@tatolab/runtime-client";
 import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationFailedResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
 import { httpRequestBytes, LocalApiClient, parseHttpResponse, runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./local_api_client.js";
@@ -145,6 +145,27 @@ test("a_runtime_serving_another_contract_version_is_refused_in_its_own_words", a
     failureDescription: "the runtime refused `list_streams`: the client was built against control contract version 1, and this runtime serves version 2",
     isTheRuntimesRefusal: true,
   });
+});
+
+test("a_runtime_refusing_the_studios_contract_with_its_record_is_refused_in_the_words_of_that_record", async () => {
+  const mismatch = {
+    client_contract_version: CONTROL_CONTRACT_VERSION,
+    runtime_contract_version: CONTROL_CONTRACT_VERSION,
+    client_contract_revision: CONTROL_CONTRACT_REVISION,
+    runtime_contract_revision: CONTROL_CONTRACT_REVISION + 1,
+    older_side: "client",
+    runtime_version: "0.70.1",
+  };
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", JSON.stringify({ jsonrpc: "2.0", id: 1, error: { code: CONTROL_CONTRACT_VERSION_MISMATCH_ERROR_CODE, message: "refused", data: mismatch } })),
+  ]);
+
+  const failure = failureOf(await server.client().listStreams());
+
+  expect(failure.isTheRuntimesRefusal).toBe(true);
+  expect(failure.failureDescription).toBe(
+    `this client is older than the runtime: it was built against control contract version ${CONTROL_CONTRACT_VERSION} revision ${CONTROL_CONTRACT_REVISION}, and the runtime (release 0.70.1) serves version ${CONTROL_CONTRACT_VERSION} revision ${CONTROL_CONTRACT_REVISION + 1}; take the client the runtime carries`,
+  );
 });
 
 test("an_operation_that_ran_and_failed_is_reported_with_its_words", async () => {

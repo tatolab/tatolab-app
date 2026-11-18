@@ -9,6 +9,7 @@ function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
     platform: "macos",
     runtime_state: "running",
     runtime_not_running_because: null,
+    runtime_of_another_age: null,
     machine_name: "ada-macbook-pro",
     streams: [],
     streams_not_listed_because: null,
@@ -31,6 +32,17 @@ function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
 describe("presentRuntimeStatus", () => {
   it("shows a running runtime with no banner", () => {
     expect(presentRuntimeStatus(statusWith({}))).toEqual({ runtimeState: "running", tone: "ok", shortLabel: "Running", banner: null });
+  });
+
+  it("warns of a running runtime of another age with no banner, as its notice says why", () => {
+    const runtimeOfAnotherAge = {
+      older_side: "runtime",
+      runtime_version: "0.68.90",
+      runtime_contract: { version: 3, revision: 0 },
+      studio_contract: { version: 3, revision: 1 },
+      remedy: "update_the_runtime",
+    } as const;
+    expect(presentRuntimeStatus(statusWith({ runtime_of_another_age: runtimeOfAnotherAge }))).toEqual({ runtimeState: "running", tone: "warning", shortLabel: "Running", banner: null });
   });
 
   it("shows a runtime the app is starting as in progress", () => {

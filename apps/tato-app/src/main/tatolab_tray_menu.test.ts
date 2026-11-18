@@ -37,6 +37,7 @@ function statusWith(
     platform: "macos",
     runtime_state: runtimeState,
     runtime_not_running_because: null,
+    runtime_of_another_age: null,
     machine_name: null,
     streams: [],
     streams_not_listed_because: null,

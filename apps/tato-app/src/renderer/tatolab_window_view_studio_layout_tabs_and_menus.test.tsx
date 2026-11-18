@@ -14,6 +14,16 @@ vi.mock("@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_monac
 afterEach(cleanUpTheWindowsOfEarlierTests);
 
 describe("the studio", () => {
+  it("names a runtime older than this Studio in the status bar, whose panel shows the one notice", async () => {
+    await mountedWindowOverTheMock("state=running&runtime_age=older");
+
+    const runtimePhrase = await waitFor(() => document.querySelector<HTMLElement>("[data-studio-status-bar-runtime='of_another_age']") ?? expect.unreachable("no runtime of another age in the status bar"));
+    expect(runtimePhrase.textContent).toBe("tatolabd 0.55.2 · older than this Studio");
+    fireEvent.click(runtimePhrase);
+    await waitFor(() => expect(screen.getByText("The runtime is older than this Studio")).toBeTruthy());
+    expect(document.querySelectorAll("[data-runtime-of-another-age]")).toHaveLength(1);
+  });
+
   it("opens the project on its default layout, the outliner showing the project's streams, the open tab's stream open on its nodes, each with its type", async () => {
     await mountedWindowOverTheMock("state=running");
 

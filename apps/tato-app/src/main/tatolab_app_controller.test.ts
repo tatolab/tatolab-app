@@ -1,10 +1,12 @@
+import { CONTROL_CONTRACT_REVISION, CONTROL_CONTRACT_VERSION } from "@tatolab/runtime-client";
 import { afterEach, expect, test } from "vitest";
 import type { CarriedRuntime } from "./platform/carried_runtime.js";
 import { RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL, RUNTIME_STARTING_GRACE_PERIOD_MS } from "./carried_runtime_run_as_the_apps_child.js";
-import { FakeLocalApiServer, httpResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
+import { fakeControlWebSocketRuntime, resultLine, DISCOVERED_AT_THIS_STUDIOS_CONTRACT } from "./fake_control_websocket_runtime.js";
+import { FakeLocalApiServer, httpResponse, controlOperationResultResponse, controlWebSocketUpgradeRefusedWithWords, runtimeDescribedResponse } from "./fake_local_api_server.js";
 import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import { failedWith, succeeded } from "./result.js";
-import { MachineNameAskedOncePerRuntimeUpEpisode, TatolabAppController, type TatolabAppControllerSources } from "./tatolab_app_controller.js";
+import { AskedOncePerRuntimeUpEpisode, TatolabAppController, type TatolabAppControllerSources } from "./tatolab_app_controller.js";
 import type { TatolabAppUpdateState } from "../shared/tatolab_backend_contract.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 
@@ -14,12 +16,12 @@ afterEach(async () => {
   await Promise.all(cleanUps.splice(0).map((cleanUp) => cleanUp()));
 });
 
-test("the_machine_name_is_asked_once_while_the_runtime_stays_up", async () => {
-  const machineName = new MachineNameAskedOncePerRuntimeUpEpisode();
+test("an_answer_is_asked_once_while_the_runtime_answering_stays_the_same", async () => {
+  const askedOnce = new AskedOncePerRuntimeUpEpisode<string | null>();
   let timesAsked = 0;
 
   for (let round = 0; round < 3; round += 1) {
-    const answer = await machineName.machineName(async () => {
+    const answer = await askedOnce.answer(async () => {
       timesAsked += 1;
       return "jonathanf-macbook";
     });
@@ -28,14 +30,14 @@ test("the_machine_name_is_asked_once_while_the_runtime_stays_up", async () => {
   expect(timesAsked).toBe(1);
 });
 
-test("a_machine_name_the_runtime_did_not_give_is_asked_again_only_after_a_restart", async () => {
-  const machineName = new MachineNameAskedOncePerRuntimeUpEpisode();
+test("an_answer_the_runtime_did_not_give_holds_until_the_runtime_asked_is_gone_and_then_is_asked_again", async () => {
+  const askedOnce = new AskedOncePerRuntimeUpEpisode<string | null>();
 
-  expect(await machineName.machineName(async () => null)).toBe(null);
-  expect(await machineName.machineName(async () => "asked-twice")).toBe(null);
+  expect(await askedOnce.answer(async () => null)).toBe(null);
+  expect(await askedOnce.answer(async () => "asked-twice")).toBe(null);
 
-  machineName.runtimeIsDown();
-  expect(await machineName.machineName(async () => "jonathanf-macbook")).toBe("jonathanf-macbook");
+  askedOnce.runtimeIsGone();
+  expect(await askedOnce.answer(async () => "jonathanf-macbook")).toBe("jonathanf-macbook");
 });
 
 interface ControllerOverFakesOptions {
@@ -50,13 +52,17 @@ interface ControllerOverFakesOptions {
 async function controllerOverFakes(scriptedLocalApiResponses: readonly Buffer[], options: ControllerOverFakesOptions = {}) {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
   cleanUps.push(() => localApiServer.close());
+  return { ...controllerReadingTheLocalApiAt(localApiServer.localApiSocketPath, options), localApiServer };
+}
+
+function controllerReadingTheLocalApiAt(localApiSocketPath: string, options: ControllerOverFakesOptions = {}) {
   const carriedRuntimeStarts = new FakeCarriedRuntimeStarts();
   const commandLineToolLink = new FakeTatolabCommandLineToolLink();
   const runtimeExits: string[] = [];
   const controller = TatolabAppController.create({
     platform: "macos",
     platformForThisBuild: fakeTatolabPlatformForThisBuild({
-      localApiSocket: localApiServer.localApiSocketPath,
+      localApiSocket: localApiSocketPath,
       carriedRuntime: options.carriedRuntime,
       commandLineToolLink,
     }),
@@ -75,13 +81,12 @@ async function controllerOverFakes(scriptedLocalApiResponses: readonly Buffer[],
     projectStreamActionFailuresOfTheFollowedStreamActions: options.projectStreamActionFailuresOfTheFollowedStreamActions ?? { projectStreamActionFailuresNow: () => [] },
     tatolabAppLog: options.tatolabAppLog ?? createTatolabAppLog("error", () => {}),
   });
-  return { controller, carriedRuntimeStarts, commandLineToolLink, localApiServer, runtimeExits };
+  return { controller, carriedRuntimeStarts, commandLineToolLink, runtimeExits };
 }
 
 const healthyAnswer = () => httpResponse("200 OK", "text/plain", "ok");
 const noStreams = () => controlOperationResultResponse({ streams: [] });
 const theMachine = () => httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] }));
-
 test("a healthy runtime's status names its streams and machine, read as the window reads them, and starts no runtime of the app's", async () => {
   const { controller, localApiServer, carriedRuntimeStarts } = await controllerOverFakes([
     healthyAnswer(),
@@ -90,7 +95,7 @@ test("a healthy runtime's status names its streams and machine, read as the wind
   ]);
 
   expect(JSON.stringify(await controller.composeStatus(0))).toBe(
-    '{"app_version":"0.45.0","app_build":null,"platform":"macos","runtime_state":"running","runtime_not_running_because":null,' +
+    '{"app_version":"0.45.0","app_build":null,"platform":"macos","runtime_state":"running","runtime_not_running_because":null,"runtime_of_another_age":null,' +
       '"machine_name":"jonathanf-macbook","streams":[{"stream":"p-main-0a1b2c","display_name":"main","location":{"project_directory":"/p","project":"0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55","stream_asset":"7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68"},' +
       '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"project_venv_syncs_under_way":[],"project_venv_syncs_just_ended":[],"project_stream_action_failures":[],"streams_not_listed_because":null,' +
       '"command_line_tool_link":{"kind":"not_linked","path":"/Users/someone/.local/bin/tatolab"},' +
@@ -184,13 +189,106 @@ test("quitting stops the app's runtime with it", async () => {
   expect(carriedRuntimeStarts.lastRuntimeStarted()?.askedToStop).toBe(true);
 });
 
+/** The runtime's older-than-this-Studio record, release 0.68.90 at revision 0, as the status carries it for a runtime the app did not start. */
+const THE_OLDER_RUNTIME = {
+  older_side: "runtime",
+  runtime_version: "0.68.90",
+  runtime_contract: { version: CONTROL_CONTRACT_VERSION, revision: 0 },
+  studio_contract: { version: CONTROL_CONTRACT_VERSION, revision: CONTROL_CONTRACT_REVISION },
+  remedy: "quit_the_running_runtime",
+};
+
+/** The JSON-RPC answer refusing `discover`'s call `id` with the older runtime's record. */
+function discoverRefusedByTheOlderRuntime(id: unknown): string {
+  return JSON.stringify({
+    jsonrpc: "2.0",
+    id,
+    error: {
+      code: 3,
+      message: "refused",
+      data: {
+        client_contract_version: CONTROL_CONTRACT_VERSION,
+        runtime_contract_version: CONTROL_CONTRACT_VERSION,
+        client_contract_revision: CONTROL_CONTRACT_REVISION,
+        runtime_contract_revision: 0,
+        older_side: "runtime",
+        runtime_version: "0.68.90",
+      },
+    },
+  });
+}
+
+/**
+ * A runtime the test swaps under the socket: whether it answers its health check, which build answers `describe_runtime`, and
+ * whether `discover` refuses this Studio as the older runtime does or agrees; every round's requests are counted.
+ */
+async function aRuntimeTheTestSwaps() {
+  const runtime = { answersHealth: true, buildId: "0.68.90+old.1", isOlder: true };
+  const fake = await fakeControlWebSocketRuntime(
+    () => null,
+    (call) => [runtime.isOlder ? discoverRefusedByTheOlderRuntime(call["id"]) : resultLine(call["id"], DISCOVERED_AT_THIS_STUDIOS_CONTRACT)],
+    {
+      answerHttpRequest: (request) => {
+        if (request.startsWith("GET /health ")) return runtime.answersHealth ? healthyAnswer() : httpResponse("503 Service Unavailable", "text/plain", "down");
+        if (request.startsWith("GET /api/graph")) return theMachine();
+        if (request.includes('"method":"list_streams"')) return noStreams();
+        if (request.includes('"method":"describe_runtime"')) return runtimeDescribedResponse(runtime.buildId);
+        return null;
+      },
+    },
+  );
+  cleanUps.push(() => fake.close());
+  return { runtime, upgradesRead: () => fake.upgradeRequestsRead.length, localApiSocketPath: fake.localApiSocketPath };
+}
+
+test("a runtime older than this Studio is named in the status, read once while it stays up, and read again after it goes down and a runtime of this age comes up", async () => {
+  const { runtime, upgradesRead, localApiSocketPath } = await aRuntimeTheTestSwaps();
+  const { controller } = controllerReadingTheLocalApiAt(localApiSocketPath);
+
+  expect((await controller.composeStatus(0)).runtime_of_another_age).toEqual(THE_OLDER_RUNTIME);
+  expect((await controller.composeStatus(0)).runtime_of_another_age).toEqual(THE_OLDER_RUNTIME);
+  expect(upgradesRead()).toBe(1);
+
+  runtime.answersHealth = false;
+  expect((await controller.composeStatus(0)).runtime_of_another_age).toBeNull();
+
+  Object.assign(runtime, { answersHealth: true, buildId: "0.69.84+new.1", isOlder: false });
+  expect((await controller.composeStatus(0)).runtime_of_another_age).toBeNull();
+  expect(upgradesRead()).toBe(2);
+});
+
+test("a runtime replaced between two healthy rounds is read again, so the older one's notice goes with it", async () => {
+  const { runtime, upgradesRead, localApiSocketPath } = await aRuntimeTheTestSwaps();
+  const { controller } = controllerReadingTheLocalApiAt(localApiSocketPath);
+
+  expect((await controller.composeStatus(0)).runtime_of_another_age).toEqual(THE_OLDER_RUNTIME);
+
+  Object.assign(runtime, { buildId: "0.69.84+new.1", isOlder: false });
+  expect((await controller.composeStatus(0)).runtime_of_another_age).toBeNull();
+  expect(upgradesRead()).toBe(2);
+});
+
+test("a contract that could not be read is read once for the runtime answering and logged once, not every round", async () => {
+  const loggedLines: string[] = [];
+  const { controller, localApiServer } = await controllerOverFakes(
+    [healthyAnswer(), noStreams(), theMachine(), controlWebSocketUpgradeRefusedWithWords(), runtimeDescribedResponse("0.68.90+old.1"), healthyAnswer(), noStreams(), runtimeDescribedResponse("0.68.90+old.1")],
+    { tatolabAppLog: createTatolabAppLog("info", (line) => loggedLines.push(line)) },
+  );
+
+  expect((await controller.composeStatus(0)).runtime_of_another_age).toBeNull();
+  expect((await controller.composeStatus(0)).runtime_of_another_age).toBeNull();
+
+  expect(localApiServer.receivedRequests().filter((request) => request.startsWith("GET /control/ws "))).toHaveLength(1);
+  expect(loggedLines.filter((line) => line.includes("the runtime's control contract could not be read"))).toHaveLength(1);
+});
+
 test("restart stops the app's runtime and refuses a runtime the app did not start", async () => {
   const started = await controllerOverFakes([]);
   await started.controller.composeStatus(0);
   expect(await started.controller.restartTheRuntimeOnRequest()).toEqual(succeeded(undefined));
   expect(started.carriedRuntimeStarts.lastRuntimeStarted()?.askedToStop).toBe(true);
 
-  const attached = await controllerOverFakes([healthyAnswer(), noStreams(), theMachine(), healthyAnswer()]);
+  const attached = await controllerOverFakes([healthyAnswer(), noStreams(), theMachine(), controlWebSocketUpgradeRefusedWithWords(), runtimeDescribedResponse("0.68.90+old.1"), healthyAnswer()]);
   await attached.controller.composeStatus(0);
   expect(await attached.controller.restartTheRuntimeOnRequest()).toEqual(failedWith(RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL));
 });

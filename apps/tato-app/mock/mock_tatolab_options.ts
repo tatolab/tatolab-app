@@ -15,6 +15,7 @@ import type {
   TatolabAppUpdateState,
   TatolabPlatform,
   TatolabStatus,
+  RuntimeOfAnotherAge,
   StudioWarning,
 } from "../src/shared/tatolab_backend_contract";
 
@@ -115,6 +116,8 @@ export interface MockTatolabOptions {
   doesTheDesktopShowNoNotifications: boolean;
   /** `?developer_mode=on`: Developer mode is on, so every area's view menu offers Transactions; off by default. */
   isDeveloperModeOn: boolean;
+  /** `?runtime_age=older|older_started|older_uncarried|newer`: the runtime refused this Studio's contract, older than it (one it did not start, one it started, or one in a build that carries none) or newer; the same age by default. */
+  runtimeOfAnotherAge: RuntimeOfAnotherAge | null;
   /** `?x11_warning=due|shown`: the session is X11, so viewers copy their frames, with the warning's dialog still to be shown or shown already; Wayland by default. */
   studioWarnings: StudioWarning[];
   /** `?cli_version=reading|unreadable`: the CLI's version still being read, or unreadable; read by default. */
@@ -275,6 +278,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     openAtLogin: mockOpenAtLogin(pageQuery.get("open_at_login")),
     doesTheDesktopShowNoNotifications: pageQuery.get("notifications") === "unsupported",
     isDeveloperModeOn: pageQuery.get("developer_mode") === "on",
+    runtimeOfAnotherAge: mockRuntimeOfAnotherAge(pageQuery.get("runtime_age")),
     studioWarnings: mockStudioWarnings(pageQuery.get("x11_warning")),
     commandLineToolVersion: mockCommandLineToolVersion(pageQuery.get("cli_version")),
     streamPageRequestedByANotification: pageQuery.get("stream_page_requested"),
@@ -329,7 +333,23 @@ function initialMockAppUpdateState(appUpdateScenario: MockTatolabAppUpdateScenar
   }
 }
 
-/** The update dialog the mock shows as the page opens: the staged version's in `ready`, and the version the app is now in `landed`. */
+/** The runtime's mismatch record for `?runtime_age=`, as a runtime of release `MOCK_RUNTIME_VERSION` states it; `null` for the same age. */
+function mockRuntimeOfAnotherAge(runtimeAgeScenario: string | null): RuntimeOfAnotherAge | null {
+  const studioContract = { version: 3, revision: 1 };
+  switch (runtimeAgeScenario) {
+    case "older":
+      return { older_side: "runtime", runtime_version: MOCK_RUNTIME_VERSION, runtime_contract: { version: 3, revision: 0 }, studio_contract: studioContract, remedy: "quit_the_running_runtime" };
+    case "older_started":
+      return { older_side: "runtime", runtime_version: MOCK_RUNTIME_VERSION, runtime_contract: { version: 3, revision: 0 }, studio_contract: studioContract, remedy: "update_studio" };
+    case "older_uncarried":
+      return { older_side: "runtime", runtime_version: MOCK_RUNTIME_VERSION, runtime_contract: { version: 3, revision: 0 }, studio_contract: studioContract, remedy: "update_the_runtime" };
+    case "newer":
+      return { older_side: "studio", runtime_version: MOCK_RUNTIME_VERSION, runtime_contract: { version: 4, revision: 0 }, studio_contract: studioContract, remedy: "update_studio" };
+    default:
+      return null;
+  }
+}
+
 function mockStudioWarnings(x11WarningScenario: string | null): StudioWarning[] {
   if (x11WarningScenario === "due") return [{ kind: "viewer_frames_copied_on_x11", first_open_dialog_due: true }];
   if (x11WarningScenario === "shown") return [{ kind: "viewer_frames_copied_on_x11", first_open_dialog_due: false }];
@@ -353,6 +373,7 @@ export function initialMockStatus(
     doesTheDesktopShowNoNotifications,
     isDeveloperModeOn,
     studioWarnings,
+    runtimeOfAnotherAge,
     commandLineToolVersion,
     commandLineToolLinkScenario,
     appBuild,
@@ -364,6 +385,7 @@ export function initialMockStatus(
     platform,
     runtime_state: "running",
     runtime_not_running_because: null,
+    runtime_of_another_age: runtimeOfAnotherAge,
     machine_name: machine.name,
     streams: [],
     project_venv_syncs_under_way: [],
@@ -396,9 +418,9 @@ export function initialMockStatus(
     case "not-listed":
       return runningStatus;
     case "starting":
-      return { ...runningStatus, runtime_state: "starting", machine_name: null, streams: null, streams_not_listed_because: null };
+      return { ...runningStatus, runtime_state: "starting", runtime_of_another_age: null, machine_name: null, streams: null, streams_not_listed_because: null };
     case "not-running":
-      return { ...runningStatus, runtime_state: "not_running", runtime_not_running_because: MOCK_RUNTIME_NOT_RUNNING_BECAUSE, machine_name: null, streams: null, streams_not_listed_because: null };
+      return { ...runningStatus, runtime_state: "not_running", runtime_not_running_because: MOCK_RUNTIME_NOT_RUNNING_BECAUSE, runtime_of_another_age: null, machine_name: null, streams: null, streams_not_listed_because: null };
   }
 }
 
