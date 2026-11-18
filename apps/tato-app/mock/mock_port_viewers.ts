@@ -84,6 +84,7 @@ export function mockPortViewerMessageReading(portFamily: PortFamily | null, mess
 /** Every port viewer the mock's window opened, each playing until closed. */
 export class MockPortViewers {
   private readonly stopPlayingByPortViewer = new Map<string, () => void>();
+  private readonly targetByPortViewerOfAValueSource = new Map<string, PortViewerTarget>();
   private readonly eventListeners = new Set<(event: PortViewerEvent) => void>();
   private readonly imageFrameListeners = new Set<(videoFrame: VideoFrame, frameFacts: PortViewerImageFrameFacts) => void>();
   private portViewersOpened = 0;
@@ -97,9 +98,34 @@ export class MockPortViewers {
     return portViewer;
   }
 
+  /** Open a port viewer of `target`, an output of a value source, which carries only what is published on it, first `carriedNow`, what the output keeps, unless `null`; answering the id its events arrive under. */
+  openOnAValueSource(target: PortViewerTarget, carriedNow: PortViewerMessageReading | null): string {
+    this.portViewersOpened += 1;
+    const portViewer = `port-viewer-${this.portViewersOpened}`;
+    this.targetByPortViewerOfAValueSource.set(portViewer, target);
+    const timer = carriedNow === null ? null : window.setTimeout(() => this.send(portViewer, carriedNow), 0);
+    this.stopPlayingByPortViewer.set(portViewer, () => {
+      if (timer !== null) window.clearTimeout(timer);
+    });
+    return portViewer;
+  }
+
+  /** `reading`, a value just set on a value source, published on its output `target` to every port viewer open on it. */
+  publish(target: PortViewerTarget, reading: PortViewerMessageReading): void {
+    for (const [portViewer, viewed] of this.targetByPortViewerOfAValueSource) {
+      if (viewed.stream === target.stream && viewed.node_id === target.node_id && viewed.port === target.port) this.send(portViewer, reading);
+    }
+  }
+
   close(portViewer: string): void {
     this.stopPlayingByPortViewer.get(portViewer)?.();
     this.stopPlayingByPortViewer.delete(portViewer);
+    this.targetByPortViewerOfAValueSource.delete(portViewer);
+  }
+
+  private send(portViewer: string, reading: PortViewerMessageReading): void {
+    const event: PortViewerEvent = { port_viewer: portViewer, kind: "message", reading, skipped_since_last_read: 0 };
+    for (const listener of this.eventListeners) listener(event);
   }
 
   onEvent(listener: (event: PortViewerEvent) => void): () => void {

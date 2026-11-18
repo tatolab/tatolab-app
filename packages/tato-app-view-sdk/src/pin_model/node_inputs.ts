@@ -9,6 +9,13 @@ export interface GraphAddress {
   readonly level: readonly string[];
 }
 
+/** The stream's own level, where a value can be set live, in the project at `projectFolder`, of the stream whose asset's UUID is `streamAsset`; `null` while either is unknown. */
+export function graphAddressOfTheStreamsOwnLevel(projectFolder: string, streamAsset: string): GraphAddress;
+export function graphAddressOfTheStreamsOwnLevel(projectFolder: string | null, streamAsset: string | null): GraphAddress | null;
+export function graphAddressOfTheStreamsOwnLevel(projectFolder: string | null, streamAsset: string | null): GraphAddress | null {
+  return projectFolder === null || streamAsset === null ? null : { project_folder: projectFolder, stream_asset: streamAsset, level: [] };
+}
+
 /** One input of one node, by the node's UUID. */
 export interface InputAddress {
   readonly graph: GraphAddress;

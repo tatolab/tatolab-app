@@ -1,4 +1,5 @@
 import { useViewReading, useViewReadingSoFar, type ViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
+import { graphAddressOfTheStreamsOwnLevel } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import { InputControlBinderContext, useInputControlsOfTheFrame, useInputValuesOfTheStream } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
@@ -18,7 +19,7 @@ function GraphInputsOfTheTab({ connection, inputValues, streamTab, projectFolder
   const graphInputs = useMemo(() => {
     if (graphReading?.kind !== "read") return null;
     const streamAsset = graphReading.graph.stream_asset;
-    return graphInputsOfTheStream(graphReading.graph, projectFolder === null || streamAsset === null ? null : { project_folder: projectFolder, stream_asset: streamAsset, level: [] });
+    return graphInputsOfTheStream(graphReading.graph, graphAddressOfTheStreamsOwnLevel(projectFolder, streamAsset));
   }, [graphReading, projectFolder]);
   if (graphReading === null) return null;
   if (graphReading.kind === "not_read") return <WaitingState isFailure title={`${streamTab.display_name}'s graph can't be read`} explanation={graphReading.because} />;

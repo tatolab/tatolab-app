@@ -3,7 +3,6 @@
 // whether it opens and, when not, why in the runtime's own words. Every key the window does not
 // draw from is ignored.
 
-import type { ControlOperationResult } from "./tatolab_runtime_control_operation_call.js";
 import type { JsonValue, StudioViewOpening } from "../shared/tatolab_backend_contract.js";
 import { everyOneRead, isAJsonValue, jsonObject, optionalText, requiredArray, requiredText, requiredTrueOrFalse } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
@@ -73,29 +72,4 @@ function viewsFromTheParsedToolResult(operationResult: unknown): Result<ProjectV
       ...opening.value,
     });
   });
-}
-
-/** The output `write_studio_view_output` published a value on: the stream, the view node's UUID and its port. */
-export interface StudioViewOutputWritten {
-  stream: string;
-  node: string;
-  port: string;
-}
-
-/** The output `write_studio_view_output` answered with `operationResult`, or why it could not be read. */
-export function studioViewOutputFromTheWriteStudioViewOutputToolResult(operationResult: ControlOperationResult<"write_studio_view_output">): Result<StudioViewOutputWritten, string> {
-  const written = outputFromTheParsedToolResult(operationResult);
-  return written.ok ? written : failedWith(`the runtime's write_studio_view_output result could not be read: ${written.failure}`);
-}
-
-function outputFromTheParsedToolResult(operationResult: unknown): Result<StudioViewOutputWritten, string> {
-  const toolResult = jsonObject(operationResult, "the output written");
-  if (!toolResult.ok) return toolResult;
-  const stream = requiredText(toolResult.value, "stream");
-  if (!stream.ok) return stream;
-  const node = requiredText(toolResult.value, "node");
-  if (!node.ok) return node;
-  const port = requiredText(toolResult.value, "port");
-  if (!port.ok) return port;
-  return succeeded({ stream: stream.value, node: node.value, port: port.value });
 }

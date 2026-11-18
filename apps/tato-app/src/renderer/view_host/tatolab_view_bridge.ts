@@ -2,17 +2,21 @@
 // against the view contract's schemas; every view runs with full access.
 
 import {
+  FAMILIES_A_PANEL_WRITES,
   jsonValueSchema,
   messageFromTheViewSchema,
+  portFamilyWords,
   readViewSettings,
   viewSettingsForAnArea,
   type MessageFromStudio,
   type TatolabViewManifest,
   type ViewAsk,
   type ViewAskAnswer,
+  type ViewDeclaredPort,
   type ViewWatchedReading,
   type ViewWatchedSubject,
 } from "@tatolab/tato-app-view-sdk";
+import { setNodeInputValueAction } from "@tatolab/tato-app-view-sdk/pin_model/input_value_actions";
 import type {
   JsonValue,
   PortViewerConnection,
@@ -24,6 +28,7 @@ import type {
   StudioViewNodeAddress,
   ViewHeaderRow,
 } from "./studio_view_contract";
+import type { InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { StudioViewInputWiring } from "./studio_view_node_wiring";
 
 /** The parts of a `MessagePort` the bridge uses, so a test can stand in for one. */
@@ -57,7 +62,7 @@ interface InputWatch {
   portViewerConnection: PortViewerConnection | null;
 }
 
-/** Serves one view of `viewTypeId`, declared by `manifest`, over `port`: reading through `hostServices`, its area through `areaServices`, a `node` view's inputs through `inputWiring` and its outputs onto `viewNode`; Image frames cross as the transferred `VideoFrame`, with no copy. */
+/** Serves one view of `viewTypeId`, declared by `manifest`, over `port`: reading through `hostServices`, its area through `areaServices`, a `node` view's inputs through `inputWiring` and its outputs onto `viewNode`; Image frames reach its inputs and port viewers as the transferred `VideoFrame`, with no copy. */
 export class TatolabViewBridge {
   private readonly stopWatchingByWatchId = new Map<number, StopWatching>();
   private readonly inputWatchesByWatchId = new Map<number, InputWatch>();
@@ -84,7 +89,7 @@ export class TatolabViewBridge {
     private readonly hostServices: StudioViewHostServices,
     private readonly areaServices: TatolabViewAreaServices,
     private inputWiring: Record<string, StudioViewInputWiring> = {},
-    private readonly viewNode: StudioViewNodeAddress | null = null,
+    private viewNode: StudioViewNodeAddress | null = null,
   ) {}
 
   /** Tell the view its id, contract, placement, declared ports and capabilities, and answer its messages from now on. */
@@ -114,6 +119,11 @@ export class TatolabViewBridge {
     }
   }
 
+  /** Set what the view sends on its outputs at `viewNode` from now on, as the window's project or the stream's asset becomes known or changes. */
+  readdress(viewNode: StudioViewNodeAddress | null): void {
+    this.viewNode = viewNode;
+  }
+
   /** Stop every watch, port viewer and language server the view holds, and close its port. */
   close(): void {
     if (this.isClosed) return;
@@ -133,13 +143,28 @@ export class TatolabViewBridge {
     if (!this.isClosed) this.port.postMessage(message, transfer);
   }
 
-  private async writeTheOutput(output: string, sentPayload: unknown): Promise<ViewAskAnswer> {
-    if (this.viewNode === null) return { kind: "refused", because: `${this.manifest.title} shows in an area and has no node, so what it sends on ${output} reaches no stream.` };
-    if (isAPictureToClose(sentPayload)) return { kind: "refused", because: `The runtime publishes what a view writes on its Array, Channels and Records outputs, so ${output} takes JSON, not a picture.` };
+  /** Sets what the view sends on `output`, live, on its node's input of that name, whose value the node publishes on the output. */
+  private async writeTheOutput(output: ViewDeclaredPort, sentPayload: unknown): Promise<ViewAskAnswer> {
+    const { title } = this.manifest;
+    const familyWords = portFamilyWords(output.family);
+    if (!FAMILIES_A_PANEL_WRITES.includes(output.family)) {
+      return { kind: "refused", because: `${title} writes no value on its ${familyWords} output ${output.name}; a panel writes Array, Channels and Records outputs.` };
+    }
+    if (this.viewNode === null) return { kind: "refused", because: `${title} shows in an area and has no node, so what it sends on ${output.name} reaches no stream.` };
+    if (isAPictureToClose(sentPayload)) return { kind: "refused", because: `${title} writes JSON on its ${familyWords} output ${output.name}, not a picture.` };
     const value = jsonValueSchema.safeParse(sentPayload);
-    if (!value.success) return { kind: "refused", because: `${output} takes JSON, and what the view sent is not.` };
-    const writing = await this.hostServices.writeStudioViewOutput(this.viewNode, output, value.data);
-    return writing.kind === "written" ? { kind: "done" } : { kind: "refused", because: writing.because };
+    if (!value.success) return { kind: "refused", because: `${output.name} takes JSON, and what the view sent is not.` };
+    if (this.viewNode.kind === "not_addressed") return { kind: "refused", because: this.viewNode.because };
+    const input: InputAddress = { graph: this.viewNode.graph, node_id: this.viewNode.node_id, input: output.name };
+    const applying = await this.hostServices.transactInTheProject(input.graph.project_folder, [setNodeInputValueAction(input, value.data)], "live", null);
+    switch (applying.kind) {
+      case "applied":
+        return { kind: "done" };
+      case "refused":
+        return { kind: "refused", because: applying.refusal.runtime_words };
+      case "not_sent":
+        return { kind: "refused", because: applying.because };
+    }
   }
 
   private wiringOfTheInput(input: string): StudioViewInputWiring {
@@ -388,11 +413,11 @@ export class TatolabViewBridge {
         const reading = await this.hostServices.readThePersonEditing();
         return reading.kind === "read" ? { kind: "the_person_editing", author: reading.author } : { kind: "refused", because: reading.because };
       }
-      case "send_output":
-        if (!this.manifest.outputs.some((declaredOutput) => declaredOutput.name === ask.output)) {
-          return { kind: "refused", because: `${this.manifest.title} declares no output named ${ask.output}.` };
-        }
-        return this.writeTheOutput(ask.output, sentPayload);
+      case "send_output": {
+        const declaredOutput = this.manifest.outputs.find((candidate) => candidate.name === ask.output);
+        if (declaredOutput === undefined) return { kind: "refused", because: `${this.manifest.title} declares no output named ${ask.output}.` };
+        return this.writeTheOutput(declaredOutput, sentPayload);
+      }
     }
   }
 }

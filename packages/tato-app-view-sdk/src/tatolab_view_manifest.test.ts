@@ -76,6 +76,21 @@ describe("readTatolabViewManifest", () => {
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, outputs: [{ name: "level", family: "array", range: [1, 0] }] })).toBe("`outputs[0].range`: a range is [lowest, highest], lowest first.");
   });
 
+  it("refuses an output named after one of its inputs, and an output a panel writes named after one of its settings, since each is one input name on the view node", () => {
+    expect(becauseOf({ ...STAGE_RIG_MANIFEST, outputs: [{ name: "fixtures", family: "image" }] })).toBe("`outputs[0].name`: `fixtures` names an input too, and a port is named once.");
+    for (const family of ["array", "channels", "records"]) {
+      expect(becauseOf({ ...STAGE_RIG_MANIFEST, outputs: [{ name: "show_beams", family }] })).toBe(
+        "`outputs[0].name`: `show_beams` names a setting too, and the value of an output a panel writes is set on the view node's input of the output's name, so such an output is named after no setting.",
+      );
+    }
+  });
+
+  it("reads an Image or Packets output named after one of its settings, since a panel writes neither and neither has an input", () => {
+    for (const family of ["image", "packets"]) {
+      expect(readTatolabViewManifest({ ...STAGE_RIG_MANIFEST, outputs: [{ name: "show_beams", family }] }).kind).toBe("read");
+    }
+  });
+
   it("refuses ports on an area view, which has no node to carry them", () => {
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, placement: "area" })).toContain("`placement`: an `area` view has no node");
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, placement: "dock" })).toContain("`placement`:");

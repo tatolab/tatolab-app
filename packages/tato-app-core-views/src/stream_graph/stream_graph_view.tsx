@@ -11,7 +11,7 @@ import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_on
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings } from "@tatolab/tato-app-view-sdk";
-import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import { graphAddressOfTheStreamsOwnLevel, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
 import { InputControlBinderContext, useInputControlsOfTheFrame, useInputValuesOfTheStream } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import type {
@@ -125,7 +125,10 @@ function StreamGraphOfTheTab({
   useInputValuesOfTheStream(connection, inputValues, streamTab.stream, projectFolder);
   const streamAsset = graphReading?.kind === "read" ? graphReading.graph.stream_asset : null;
   const valuesOfTheLevelShown = useMemo(
-    (): GraphAddress | null => (projectFolder === null || streamAsset === null ? null : { project_folder: projectFolder, stream_asset: streamAsset, level: levelOfTheEdits }),
+    (): GraphAddress | null => {
+      const streamsOwnLevel = graphAddressOfTheStreamsOwnLevel(projectFolder, streamAsset);
+      return streamsOwnLevel === null ? null : { ...streamsOwnLevel, level: levelOfTheEdits };
+    },
     [projectFolder, streamAsset, levelOfTheEdits],
   );
   // Each reading is drawn from the one before, so the cards of the nodes it left as they were are not drawn again.

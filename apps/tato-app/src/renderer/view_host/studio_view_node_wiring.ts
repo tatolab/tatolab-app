@@ -1,9 +1,11 @@
 // A view people write is a node in its stream's graph: each of its inputs reads whatever output a
-// link wires into it, through that output's port viewer, and what it writes on its outputs the
-// node publishes.
+// link wires into it, through that output's port viewer, and what it writes on an output is set on
+// the node's input of that name, which the node publishes on the output.
 
 import type { ViewDeclaredPort } from "@tatolab/tato-app-view-sdk";
-import type { PortViewerTarget, StreamGraphNode, StreamGraphSummary } from "./studio_view_contract";
+import { graphAddressOfTheStreamsOwnLevel } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import { nodeTitle } from "@tatolab/tato-app-core-views/shared/node_words";
+import type { PortViewerTarget, StreamGraphNode, StreamGraphSummary, StudioViewNodeAddress } from "./studio_view_contract";
 
 /** What one input of a view reads: the output wired into it, named as `Node › port`, or why it reads nothing. */
 export type StudioViewInputWiring = { kind: "wired"; target: PortViewerTarget; wired_from_words: string } | { kind: "unwired"; because: string };
@@ -11,6 +13,14 @@ export type StudioViewInputWiring = { kind: "wired"; target: PortViewerTarget; w
 /** The nodes of `graph` of the view type `viewTypeId`, which is a node type of its own, in the graph's order. */
 export function nodesOfTheStudioViewType(graph: StreamGraphSummary, viewTypeId: string): StreamGraphNode[] {
   return graph.nodes.filter((node) => node.type === viewTypeId);
+}
+
+/** Where a value is set on the inputs of `viewNode`, on the own level of the stream `graph` renders, named `streamWords`, in the window's project at `projectFolder`; or why none is while either is unknown. */
+export function studioViewNodeAddressOf(projectFolder: string | null, graph: StreamGraphSummary, viewNode: StreamGraphNode, streamWords: string): StudioViewNodeAddress {
+  const title = nodeTitle(viewNode.name, viewNode.type);
+  if (projectFolder === null) return { kind: "not_addressed", because: `No project is open in this window, so nothing is set on the ${title} node in ${streamWords}.` };
+  if (graph.stream_asset === null) return { kind: "not_addressed", because: `The runtime's graph of ${streamWords} names no stream asset, so nothing is set on its ${title} node.` };
+  return { kind: "addressed", graph: graphAddressOfTheStreamsOwnLevel(projectFolder, graph.stream_asset), node_id: viewNode.id };
 }
 
 /** What each of `declaredInputs` of the view node `viewNode` reads in `graph`, by input name. */
