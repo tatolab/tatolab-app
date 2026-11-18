@@ -1,52 +1,84 @@
 import path from "node:path";
-import { type ListedStream, type JsonValue, type PoppedOutView, type PortViewerTarget, type ProjectTransaction, type ProjectTransactionAuthor, type ProjectAssetsImported, type AssetPreviewPicture } from "../shared/tatolab_backend_contract.js";
-import { projectPlaybackAsListed, streamsOfTheProjectIn, theStreamsListTheProjectOpen } from "../shared/project_playback.js";
-import type { TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
+import { Effect, Schema, type ManagedRuntime } from "effect";
+import type { ListedStream, JsonValue, PoppedOutView, PortViewerTarget, ProjectAssetsImported, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
+import { streamsOfTheProjectIn, theStreamsListTheProjectOpen } from "../shared/project_playback.js";
 import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
-import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
-import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
+import { failedWith, succeeded, type Result } from "./result.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { studioViewsOfTheOpenProject } from "./open_project_views.js";
-import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
-import { answerTheWindow, answerTheWindowOnceTheRuntimeAnswered, type TatolabCommandFromWindow, NO_PROJECT_IN_THE_PROJECTS_WINDOW_REFUSAL, studioWindowTheCommandCameFrom, isTextOrNull, oneTextArgumentFrom, type TatolabWindowCommandHandlers, commandAnswerFrom, commandAnswerOfNothingFrom } from "./tatolab_command_answers.js";
-
-/** Ask the system for each device the views in `listedViews` declare, off the listing's answer path, logging a failure nothing expected. */
-function askTheSystemAheadForTheDevicesTheViewsDeclare(sharedState: TatolabAppSharedState, listedViews: readonly ProjectViewTheRuntimeListed[]): void {
-  sharedState.systemMediaAccessAskedAheadForViews.askForTheDevicesTheViewsDeclare(listedViews).catch((unexpectedFailure: unknown) => {
-    sharedState.tatolabAppLog.error("asking the system for a device a view declares ended without finishing", { failure: describeCaughtFailure(unexpectedFailure) });
-  });
-}
+import { deleteAsset, openProject, pausePlayback, readAssetPreview, relocateAsset, reloadProject, resumePlayback, startPlayback, stopPlayback, undoOrRedo } from "./runtime_operations.js";
+import { ListedStreams, PersonEditingInStudio, StudioWindows, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
+import { CommandRefused, windowCommand } from "./window_command.js";
+import { answerTheWindow, type TatolabCommandFromWindow, NO_PROJECT_IN_THE_PROJECTS_WINDOW_REFUSAL, studioWindowTheCommandCameFrom, isTextOrNull, oneTextArgumentFrom, type TatolabWindowCommandHandlers, commandAnswerFrom, commandAnswerOfNothingFrom } from "./tatolab_command_answers.js";
 
 /**
- * The playback of the project in `projectDirectory` started as the runtime last listed it, a failed stream of an open one first reloaded, which retries it and
+ * The playback of the project in `projectFolder` started as the runtime last listed it, a failed stream of an open one first reloaded, which retries it and
  * keeps the playback: a closed project opened, then played; a paused one resumed; one with a running stream left as it plays once a reload retried its failed
  * stream, and otherwise handed to `start_playback`, which refuses it in its own words; a stopped or preparing one handed to `start_playback`.
  */
-async function startThePlaybackOfTheProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<void, LocalApiRequestFailure>> {
-  const { playback, a_stream_has_failed: aStreamHasFailed, a_stream_is_running: aStreamIsRunning } = projectPlaybackAsListed(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectDirectory);
+const startThePlaybackOfTheProject = Effect.fn("startThePlaybackOfTheProject")(function* (projectFolder: string) {
+  const { playback, a_stream_has_failed: aStreamHasFailed, a_stream_is_running: aStreamIsRunning } = (yield* ListedStreams).playbackOfTheProject(projectFolder);
   if (playback === "closed") {
-    const opened = await sharedState.controller.openProject(projectDirectory);
-    return resultWithoutItsAnswer(opened.ok ? await sharedState.controller.startPlayback(projectDirectory) : opened);
+    yield* openProject(projectFolder);
+    yield* startPlayback(projectFolder);
+    return;
   }
-  if (aStreamHasFailed) {
-    const reloaded = await sharedState.controller.reloadProject(projectDirectory);
-    if (!reloaded.ok) return reloaded;
-  }
+  if (aStreamHasFailed) yield* reloadProject(projectFolder);
   switch (playback) {
     case "paused":
-      return resultWithoutItsAnswer(await sharedState.controller.resumePlayback(projectDirectory));
+      yield* resumePlayback(projectFolder);
+      return;
     case "playing":
     case "stopping":
-      return aStreamHasFailed && aStreamIsRunning ? succeeded(undefined) : resultWithoutItsAnswer(await sharedState.controller.startPlayback(projectDirectory));
+      if (!(aStreamHasFailed && aStreamIsRunning)) yield* startPlayback(projectFolder);
+      return;
     case "stopped":
     case "preparing":
-      return resultWithoutItsAnswer(await sharedState.controller.startPlayback(projectDirectory));
+      yield* startPlayback(projectFolder);
+      return;
   }
+});
+
+/** `run_open_project`: the playback of the asking window's project started, opening it first while it is closed, reloading it first while a stream of it has failed and resuming it while it is paused, then a status round; refused in the Projects window, or in the runtime's own words. */
+const runOpenProject = Effect.fn("runOpenProject")(function* (commandFromWindow: TatolabCommandFromWindow) {
+  const reading = yield* (yield* StudioWindows).openProjectReadingOfTheWindow(commandFromWindow);
+  if (reading.kind === "none_open") return yield* new CommandRefused({ words: "No project is open to run." });
+  if (reading.kind === "unreadable") return yield* new CommandRefused({ words: `The project in ${reading.folder} could not be read: ${reading.refusal}` });
+  yield* thenAStatusRound(startThePlaybackOfTheProject(reading.open_project.project.folder));
+  return null;
+});
+
+/** The asking window's project's folder handed to `ofTheFolder`, then a status round whether the runtime carried it out or refused it; refused in the Projects window. */
+function ofTheWindowsProjectThenAStatusRound<Answer, Failure, Services>(
+  commandFromWindow: TatolabCommandFromWindow,
+  ofTheFolder: (projectFolder: string) => Effect.Effect<Answer, Failure, Services>,
+): Effect.Effect<null, Failure | CommandRefused, Services | StudioServices> {
+  return StudioWindows.use((studioWindows) => studioWindows.projectFolderOfTheWindow(commandFromWindow)).pipe(
+    Effect.flatMap((projectFolder) => thenAStatusRound(ofTheFolder(projectFolder))),
+    Effect.as(null),
+  );
 }
 
-function resultWithoutItsAnswer<Answer>(answered: Result<Answer, LocalApiRequestFailure>): Result<void, LocalApiRequestFailure> {
-  return answered.ok ? succeeded(undefined) : answered;
+/** The asking window's project's folder and the person editing in Studio, handed to `byThePerson`; refused in the Projects window. */
+function byThePersonEditingInTheWindowsProject<Answer, Failure, Services>(
+  commandFromWindow: TatolabCommandFromWindow,
+  byThePerson: (projectFolder: string, author: ProjectTransactionAuthor) => Effect.Effect<Answer, Failure, Services>,
+): Effect.Effect<Answer, Failure | CommandRefused, Services | StudioServices> {
+  return Effect.gen(function* () {
+    const projectFolder = yield* (yield* StudioWindows).projectFolderOfTheWindow(commandFromWindow);
+    const { author } = yield* PersonEditingInStudio;
+    return yield* byThePerson(projectFolder, author);
+  });
 }
+
+/** The arguments of `undo_in_the_open_project` and `redo_in_the_open_project`: the person or agent by the name history shows. */
+const UndoOrRedoArguments = Schema.Struct({ author: Schema.Struct({ kind: Schema.Literals(["person", "agent"]), name: Schema.String }) });
+
+/** The arguments of `relocate_asset_in_the_open_project`: the UUID of an asset of the open project and its new path in the project. */
+const RelocateAssetArguments = Schema.Struct({ asset: Schema.String, to_path: Schema.String });
+
+/** The arguments of the commands on one asset of the open project: its UUID. */
+const AssetArguments = Schema.Struct({ asset: Schema.String });
 
 /** What a save of a project's node file asks of the runtime: `reload` while it holds the project in `projectDirectory` open, which keeps its playback, and `nothing` while it is closed. */
 export function whatASavedNodeFileAsksOfTheRuntime(listedStreams: readonly ListedStream[], projectDirectory: string): "reload" | "nothing" {
@@ -63,60 +95,6 @@ export async function reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState:
   else sharedState.tatolabAppLog.warn("the runtime refused to reload the project after a save of its Python file", { project_folder: projectDirectory, file: savedFile, refusal: queued.failure.failureDescription });
 }
 
-/** `run_open_project`: the playback of the asking window's project started, opening it first while it is closed, reloading it first while a stream of it has failed and resuming it while it is paused, then a status round; refused in the Projects window, or in the runtime's own words. */
-function runOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
-  return answerTheWindow("run_open_project", async () => {
-    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-    if (!studioWindow.ok) return studioWindow;
-    const reading = studioWindow.value.openProject.readOpenProject();
-    if (reading.kind !== "read") return failedWith(reading.kind === "none_open" ? "No project is open to run." : `The project in ${reading.folder} could not be read: ${reading.refusal}`);
-    const queued = await startThePlaybackOfTheProject(sharedState, reading.open_project.project.folder);
-    sharedState.statusPublisher.requestRefresh();
-    return queued.ok ? queued : failedWith(queued.failure.failureDescription);
-  });
-}
-
-/** `pause_open_project`: the runtime's `pause_playback` of the asking window's project's folder, which holds every stream of it loaded and `paused` at once, then a status round; refused in the Projects window, or in the runtime's own words. */
-async function pauseOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
-  const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-  if (!studioWindow.ok) return studioWindow;
-  return answerTheWindowOnceTheRuntimeAnswered(sharedState, "pause_open_project", () => sharedState.controller.pausePlayback(studioWindow.value.openProject.projectFolder));
-}
-
-/** `stop_open_project`: the runtime's `stop_playback` queued on the asking window's project's folder, which keeps its graphs loaded, so the listing shows its streams `stopping`; refused in the Projects window, or in the runtime's own words. */
-async function stopOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
-  const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-  if (!studioWindow.ok) return studioWindow;
-  return answerTheWindowOnceTheRuntimeAnswered(sharedState, "stop_open_project", () => sharedState.controller.stopPlayback(studioWindow.value.openProject.projectFolder));
-}
-
-/** `undo_in_the_open_project`'s and `redo_in_the_open_project`'s `{ author }` as the window sends it, or why it is not. */
-function undoOrRedoArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<ProjectTransactionAuthor, string> {
-  const author = isAJsonObject(commandArguments) ? commandArguments["author"] : undefined;
-  if (!isAJsonObject(author) || (author["kind"] !== "person" && author["kind"] !== "agent") || typeof author["name"] !== "string") {
-    return failedWith(`${commandName} needs \`author\`, a person or an agent by the name history shows`);
-  }
-  return succeeded({ kind: author["kind"], name: author["name"] });
-}
-
-/** The runtime's `undo` or `redo` by `author` on the asking window's project, as the feed names its folder; refused in the Projects window, or in the runtime's own words. */
-function undoOrRedoInTheOpenProject(
-  sharedState: TatolabAppSharedState,
-  undoOrRedo: "undo" | "redo",
-  author: ProjectTransactionAuthor,
-  commandFromWindow: TatolabCommandFromWindow,
-): Promise<Result<ProjectTransaction, string>> {
-  const commandName = undoOrRedo === "undo" ? "undo_in_the_open_project" : "redo_in_the_open_project";
-  return answerTheWindow(commandName, async () => {
-    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-    if (!studioWindow.ok) return studioWindow;
-    const projectFolder = studioWindow.value.projectTransactionsFeed.projectFolder;
-    const applied =
-      undoOrRedo === "undo" ? await sharedState.controller.undoInTheProject(projectFolder, author) : await sharedState.controller.redoInTheProject(projectFolder, author);
-    return applied.ok ? applied : failedWith(applied.failure.failureDescription);
-  });
-}
-
 /** `import_assets_into_the_open_project`'s `{ media }` as the window sends it: the `media_facts` members the dialog offers files of, `null` for any; or why it is not. */
 function importAssetsArgumentsFrom(commandArguments: unknown): Result<{ media: readonly string[] | null }, string> {
   const media = isAJsonObject(commandArguments) ? commandArguments["media"] : undefined;
@@ -131,48 +109,6 @@ function importAssetsIntoTheOpenProject(sharedState: TatolabAppSharedState, medi
     const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
     if (!studioWindow.ok) return studioWindow;
     return sharedState.projectAssetsImportedFromChosenFiles.importTheFilesThePersonChooses(studioWindow.value.projectTransactionsFeed.projectFolder, media, sharedState.thePersonEditingInStudio);
-  });
-}
-
-const AN_ASSET_OF_THE_OPEN_PROJECT_IN_WORDS = "the UUID of an asset of the open project";
-
-/** `relocate_asset_in_the_open_project`'s `{ asset, to_path }` as the window sends it, or why it is not. */
-function relocateAssetArgumentsFrom(commandArguments: unknown): Result<{ asset: string; to_path: string }, string> {
-  const asset = oneTextArgumentFrom("relocate_asset_in_the_open_project", commandArguments, "asset", AN_ASSET_OF_THE_OPEN_PROJECT_IN_WORDS);
-  if (!asset.ok) return asset;
-  const toPath = oneTextArgumentFrom("relocate_asset_in_the_open_project", commandArguments, "to_path", "the asset's new path in the project");
-  return toPath.ok ? succeeded({ asset: asset.value, to_path: toPath.value }) : toPath;
-}
-
-/** `relocate_asset_in_the_open_project`: `asset` of the asking window's project put at `toPath` by the person editing; refused in the Projects window, or in the runtime's own words. */
-function relocateAssetInTheOpenProject(sharedState: TatolabAppSharedState, asset: string, toPath: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
-  return answerTheWindow("relocate_asset_in_the_open_project", async () => {
-    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-    if (!studioWindow.ok) return studioWindow;
-    const relocated = await sharedState.controller.relocateAsset(studioWindow.value.projectTransactionsFeed.projectFolder, asset, toPath, sharedState.thePersonEditingInStudio);
-    return relocated.ok ? succeeded(undefined) : failedWith(relocated.failure.failureDescription);
-  });
-}
-
-/** `read_asset_preview_of_the_open_project`: the preview picture of `asset` of the asking window's project as a `data:` URL; refused in the Projects window, or in the runtime's own words, as for an asset with none. */
-function readAssetPreviewOfTheOpenProject(sharedState: TatolabAppSharedState, asset: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<AssetPreviewPicture, string>> {
-  return answerTheWindow("read_asset_preview_of_the_open_project", async () => {
-    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-    if (!studioWindow.ok) return studioWindow;
-    const picture = await sharedState.controller.readAssetPreview(studioWindow.value.projectTransactionsFeed.projectFolder, asset);
-    if (!picture.ok) return failedWith(picture.failure.failureDescription);
-    const { media_type: mediaType, picture_bytes: pictureBytes, pixel_width: pixelWidth, pixel_height: pixelHeight } = picture.value;
-    return succeeded({ picture_url: `data:${mediaType};base64,${pictureBytes.toString("base64")}`, pixel_width: pixelWidth, pixel_height: pixelHeight });
-  });
-}
-
-/** `delete_asset_from_the_open_project`: `asset` of the asking window's project no longer tracked, by the person editing; refused in the Projects window, or in the runtime's own words. */
-function deleteAssetFromTheOpenProject(sharedState: TatolabAppSharedState, asset: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
-  return answerTheWindow("delete_asset_from_the_open_project", async () => {
-    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-    if (!studioWindow.ok) return studioWindow;
-    const deleted = await sharedState.controller.deleteAsset(studioWindow.value.projectTransactionsFeed.projectFolder, asset, sharedState.thePersonEditingInStudio);
-    return deleted.ok ? succeeded(undefined) : failedWith(deleted.failure.failureDescription);
   });
 }
 
@@ -260,8 +196,11 @@ type OpenProjectCommandName =
   | "open_port_viewer"
   | "close_port_viewer";
 
-/** The handlers of a studio window's commands on its open project: its files, playback, transactions, assets, views, pop-outs, language servers and port viewers, over `sharedState`. */
-export function openProjectCommandHandlersOf(sharedState: TatolabAppSharedState): Pick<TatolabWindowCommandHandlers, OpenProjectCommandName> {
+/** The handlers of a studio window's commands on its open project: its files, playback, transactions, assets, views, pop-outs, language servers and port viewers, over `sharedState`, the converted ones run on `studioRuntime`. */
+export function openProjectCommandHandlersOf(
+  sharedState: TatolabAppSharedState,
+  studioRuntime: ManagedRuntime.ManagedRuntime<StudioServices, never>,
+): Pick<TatolabWindowCommandHandlers, OpenProjectCommandName> {
   return {
     pop_out_view: async (commandArguments, commandFromWindow) => {
       const target = popOutViewArgumentsFrom(commandArguments);
@@ -303,58 +242,44 @@ export function openProjectCommandHandlersOf(sharedState: TatolabAppSharedState)
       if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
       return commandAnswerFrom(await answerTheWindow("list_project_files", () => studioWindow.value.openProjectFiles.listProjectFiles(projectFolder.value)));
     },
-    list_studio_views_of_the_open_project: async (_commandArguments, commandFromWindow) => {
-      const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-      if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
-      return commandAnswerFrom(
-        await answerTheWindow("list_studio_views_of_the_open_project", () =>
-          studioViewsOfTheOpenProject(studioWindow.value.openProject.readOpenProject(), async (projectDirectory) => {
-            const listed = await sharedState.controller.listProjectViews(projectDirectory);
-            if (!listed.ok) return failedWith(listed.failure.failureDescription);
-            askTheSystemAheadForTheDevicesTheViewsDeclare(sharedState, listed.value);
-            return listed;
-          }, sharedState.projectViewsListed),
-        ),
-      );
-    },
-    run_open_project: async (_commandArguments, commandFromWindow) => commandAnswerOfNothingFrom(await runOpenProject(sharedState, commandFromWindow)),
-    pause_open_project: async (_commandArguments, commandFromWindow) => commandAnswerOfNothingFrom(await pauseOpenProject(sharedState, commandFromWindow)),
-    stop_open_project: async (_commandArguments, commandFromWindow) => commandAnswerOfNothingFrom(await stopOpenProject(sharedState, commandFromWindow)),
+    list_studio_views_of_the_open_project: windowCommand(studioRuntime, "list_studio_views_of_the_open_project", Schema.Undefined, (_nothing, commandFromWindow) =>
+      StudioWindows.use((studioWindows) => studioWindows.openProjectReadingOfTheWindow(commandFromWindow)).pipe(Effect.flatMap(studioViewsOfTheOpenProject)),
+    ),
+    run_open_project: windowCommand(studioRuntime, "run_open_project", Schema.Undefined, (_nothing, commandFromWindow) => runOpenProject(commandFromWindow)),
+    pause_open_project: windowCommand(studioRuntime, "pause_open_project", Schema.Undefined, (_nothing, commandFromWindow) =>
+      ofTheWindowsProjectThenAStatusRound(commandFromWindow, pausePlayback),
+    ),
+    stop_open_project: windowCommand(studioRuntime, "stop_open_project", Schema.Undefined, (_nothing, commandFromWindow) =>
+      ofTheWindowsProjectThenAStatusRound(commandFromWindow, stopPlayback),
+    ),
     read_open_project_transactions: async (_commandArguments, commandFromWindow) => {
       const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
       return studioWindow.ok ? { ok: true, value: studioWindow.value.projectTransactionsFeed.readProjectTransactions() } : { ok: false, refusal: studioWindow.failure };
     },
-    undo_in_the_open_project: async (commandArguments, commandFromWindow) => {
-      const author = undoOrRedoArgumentsFrom("undo_in_the_open_project", commandArguments);
-      if (!author.ok) return { ok: false, refusal: author.failure };
-      return commandAnswerFrom(await undoOrRedoInTheOpenProject(sharedState, "undo", author.value, commandFromWindow));
-    },
+    undo_in_the_open_project: windowCommand(studioRuntime, "undo_in_the_open_project", UndoOrRedoArguments, ({ author }, commandFromWindow) =>
+      StudioWindows.use((studioWindows) => studioWindows.projectFolderOfTheWindow(commandFromWindow)).pipe(Effect.flatMap((projectFolder) => undoOrRedo("undo", projectFolder, author))),
+    ),
     import_assets_into_the_open_project: async (commandArguments, commandFromWindow) => {
       const importing = importAssetsArgumentsFrom(commandArguments);
       if (!importing.ok) return { ok: false, refusal: importing.failure };
       return commandAnswerFrom(await importAssetsIntoTheOpenProject(sharedState, importing.value.media, commandFromWindow));
     },
-    relocate_asset_in_the_open_project: async (commandArguments, commandFromWindow) => {
-      const relocating = relocateAssetArgumentsFrom(commandArguments);
-      if (!relocating.ok) return { ok: false, refusal: relocating.failure };
-      return commandAnswerOfNothingFrom(await relocateAssetInTheOpenProject(sharedState, relocating.value.asset, relocating.value.to_path, commandFromWindow));
-    },
-    read_asset_preview_of_the_open_project: async (commandArguments, commandFromWindow) => {
-      const asset = oneTextArgumentFrom("read_asset_preview_of_the_open_project", commandArguments, "asset", AN_ASSET_OF_THE_OPEN_PROJECT_IN_WORDS);
-      if (!asset.ok) return { ok: false, refusal: asset.failure };
-      return commandAnswerFrom(await readAssetPreviewOfTheOpenProject(sharedState, asset.value, commandFromWindow));
-    },
-    delete_asset_from_the_open_project: async (commandArguments, commandFromWindow) => {
-      const asset = oneTextArgumentFrom("delete_asset_from_the_open_project", commandArguments, "asset", AN_ASSET_OF_THE_OPEN_PROJECT_IN_WORDS);
-      if (!asset.ok) return { ok: false, refusal: asset.failure };
-      return commandAnswerOfNothingFrom(await deleteAssetFromTheOpenProject(sharedState, asset.value, commandFromWindow));
-    },
+    relocate_asset_in_the_open_project: windowCommand(studioRuntime, "relocate_asset_in_the_open_project", RelocateAssetArguments, ({ asset, to_path }, commandFromWindow) =>
+      byThePersonEditingInTheWindowsProject(commandFromWindow, (projectFolder, author) => relocateAsset(projectFolder, asset, to_path, author)).pipe(Effect.as(null)),
+    ),
+    read_asset_preview_of_the_open_project: windowCommand(studioRuntime, "read_asset_preview_of_the_open_project", AssetArguments, ({ asset }, commandFromWindow) =>
+      StudioWindows.use((studioWindows) => studioWindows.projectFolderOfTheWindow(commandFromWindow)).pipe(
+        Effect.flatMap((projectFolder) => readAssetPreview(projectFolder, asset)),
+        Effect.map(({ media_type, picture_bytes, pixel_width, pixel_height }) => ({ picture_url: `data:${media_type};base64,${picture_bytes.toString("base64")}`, pixel_width, pixel_height })),
+      ),
+    ),
+    delete_asset_from_the_open_project: windowCommand(studioRuntime, "delete_asset_from_the_open_project", AssetArguments, ({ asset }, commandFromWindow) =>
+      byThePersonEditingInTheWindowsProject(commandFromWindow, (projectFolder, author) => deleteAsset(projectFolder, asset, author)).pipe(Effect.as(null)),
+    ),
     read_the_person_editing_in_studio: async () => ({ ok: true, value: sharedState.thePersonEditingInStudio }),
-    redo_in_the_open_project: async (commandArguments, commandFromWindow) => {
-      const author = undoOrRedoArgumentsFrom("redo_in_the_open_project", commandArguments);
-      if (!author.ok) return { ok: false, refusal: author.failure };
-      return commandAnswerFrom(await undoOrRedoInTheOpenProject(sharedState, "redo", author.value, commandFromWindow));
-    },
+    redo_in_the_open_project: windowCommand(studioRuntime, "redo_in_the_open_project", UndoOrRedoArguments, ({ author }, commandFromWindow) =>
+      StudioWindows.use((studioWindows) => studioWindows.projectFolderOfTheWindow(commandFromWindow)).pipe(Effect.flatMap((projectFolder) => undoOrRedo("redo", projectFolder, author))),
+    ),
     start_python_language_server: async (commandArguments, commandFromWindow) => {
       const projectFolder = oneTextArgumentFrom("start_python_language_server", commandArguments, "project_folder", "the folder of the open project or of one of its imports");
       if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };

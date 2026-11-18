@@ -143,7 +143,7 @@ function projectViewFilesServedAt(localApiSocketPath: string) {
     Layer.mergeAll(
       runtimeControlLayer(localApiSocketPath, 2_000),
       Layer.mock(StudioWindows, { aStudioWindowHoldsTheProjectIn: (projectFolder) => projectFolder === NIGHT_SHOW, folderOfTheWindowsOpenProject: () => null }),
-      Layer.succeed(ProjectViewsListed, { isListedAsOpening: (openProjectFolder, viewFolder) => projectViewsListed.isListedAsOpening(openProjectFolder, viewFolder) }),
+      Layer.mock(ProjectViewsListed, { isListedAsOpening: (openProjectFolder, viewFolder) => projectViewsListed.isListedAsOpening(openProjectFolder, viewFolder) }),
       tatolabAppLogAsEffectsLogger(tatolabAppLog),
     ),
   );

@@ -1,6 +1,5 @@
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject } from "./json_on_the_wire.js";
-import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import type { StudioWindowOfAProject } from "./tatolab_app_windows.js";
@@ -24,19 +23,6 @@ export function answerTheWindowThenRefreshTheStatus(
     const answer = await work();
     sharedState.statusPublisher.requestRefresh();
     return answer;
-  });
-}
-
-/** The window's `commandName` answered once the runtime carried out or queued what `askTheRuntime` asks, or refused it, then a status round either way, so the listing shows what changed; the runtime's answer is read only to check it. */
-export function answerTheWindowOnceTheRuntimeAnswered(
-  sharedState: TatolabAppSharedState,
-  commandName: TatolabCommandName,
-  askTheRuntime: () => Promise<Result<unknown, LocalApiRequestFailure>>,
-): Promise<Result<void, string>> {
-  return answerTheWindow(commandName, async () => {
-    const answered = await askTheRuntime();
-    sharedState.statusPublisher.requestRefresh();
-    return answered.ok ? succeeded(undefined) : failedWith(answered.failure.failureDescription);
   });
 }
 

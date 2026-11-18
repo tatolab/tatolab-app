@@ -6,16 +6,20 @@ import { afterEach, expect, test, vi } from "vitest";
 import type { ListedStream } from "../shared/tatolab_backend_contract.js";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse } from "./fake_local_api_server.js";
 import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
-import { failedWith, succeeded } from "./result.js";
+import { succeeded } from "./result.js";
 import { reloadTheOpenProjectAfterASaveOfItsPythonFile, whatASavedNodeFileAsksOfTheRuntime } from "./tatolab_open_project_commands.js";
-import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, cleanUps, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS, recordedResponseBody, sharedStateOverFakes, listedStreamOfTheProject, statusLastPublishedListing, projectActionsQueuedOn } from "./tatolab_commands_test_support.js";
+import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, cleanUps, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS, recordedResponseBody, sharedStateOverFakes, listedStreamOfTheProject, statusLastPublishedListing, aLocalApiQueuingEachProjectAction } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
 test("a saved Python file of a project the runtime lists open queues reload_project, as tatolab dev does; another file, or a closed project, is left as it is", async () => {
   const sharedState = await sharedStateOverFakes([httpResponse("200 OK", "text/plain", "ok")], "linux");
   await sharedState.statusPublisher.refreshAndPublish();
-  const projectActionsQueued = projectActionsQueuedOn(sharedState);
+  const projectActionsQueued: [string, string][] = [];
+  vi.spyOn(sharedState.controller, "reloadProject").mockImplementation(async (projectDirectory) => {
+    projectActionsQueued.push(["reload_project", projectDirectory]);
+    return succeeded({ action: "reload_project-1", project_directory: projectDirectory });
+  });
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
   const doorways = "/projects/doorways";
   const pattern = "/projects/pattern";
@@ -52,8 +56,8 @@ test("Live opens then plays a closed project, reloads then plays a stopped one w
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
   const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
-  const commandHandlers = commandHandlersOver(sharedState);
-  const projectActionsQueued = projectActionsQueuedOn(sharedState);
+  const { localApiSocketPath, projectActionsQueued } = await aLocalApiQueuingEachProjectAction();
+  const commandHandlers = commandHandlersOver(sharedState, () => {}, localApiSocketPath);
   const runTheProjectLiveListing = async (streams: ListedStream[]) => {
     statusLastPublishedListing(sharedState, streams);
     projectActionsQueued.splice(0);
@@ -114,13 +118,16 @@ test("Live answers the runtime's refusal of an open it would play after, in its 
   const projectFolder = await realpath(await mkdtemp(path.join(os.tmpdir(), "hallways-")));
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
-  const refusal = `Runtime error: the project in ${projectFolder} is already open, so there is none to open; \`reload_project\` re-reads what changed on disk`;
-  vi.spyOn(sharedState.controller, "openProject").mockResolvedValue(failedWith({ failureDescription: refusal, isTheRuntimesRefusal: true }));
-  const playbackStarts = vi.spyOn(sharedState.controller, "startPlayback");
+  const { localApiSocketPath, projectActionsQueued } = await aLocalApiQueuingEachProjectAction(
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-open-project-refusal-for-the-open-project-pattern.json")),
+  );
   statusLastPublishedListing(sharedState, []);
 
-  expect(await commandHandlersOver(sharedState).run_open_project(undefined, { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 })).toEqual({ ok: false, refusal });
-  expect(playbackStarts).not.toHaveBeenCalled();
+  expect(await commandHandlersOver(sharedState, () => {}, localApiSocketPath).run_open_project(undefined, { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 })).toEqual({
+    ok: false,
+    refusal: "Runtime error: the project in /tmp/tatolab-proof-projects/pattern is already open, so there is none to open; `reload_project` re-reads what changed on disk",
+  });
+  expect(projectActionsQueued).toEqual([["open_project", projectFolder]]);
 });
 
 /** The window's `ProjectTransaction` and `ProjectTransactionsReading` read exactly this JSON. */
@@ -145,7 +152,7 @@ test("undo and redo in the open project ask the runtime by the window's author a
   expect(await commandHandlers.redo_in_the_open_project({ author: sam }, fromTheStudioWindow)).toEqual({ ok: false, refusal: "redo failed: Sam has undone nothing that is left to redo" });
   expect(await commandHandlers.undo_in_the_open_project({ author: { kind: "runtime", name: "tatolab" } }, fromTheStudioWindow)).toEqual({
     ok: false,
-    refusal: "undo_in_the_open_project needs `author`, a person or an agent by the name history shows",
+    refusal: expect.stringMatching(/^undo_in_the_open_project: /),
   });
   expect(await commandHandlers.undo_in_the_open_project({ author: sam }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
@@ -207,7 +214,7 @@ test("renaming, moving and deleting an asset of the open project reach the runti
   });
   expect(await commandHandlers.relocate_asset_in_the_open_project({ asset: poster }, fromTheStudioWindow)).toEqual({
     ok: false,
-    refusal: "relocate_asset_in_the_open_project needs `to_path`, the asset's new path in the project",
+    refusal: expect.stringMatching(/^relocate_asset_in_the_open_project: Missing key/),
   });
   expect(await commandHandlers.delete_asset_from_the_open_project({ asset: poster }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
@@ -242,7 +249,7 @@ test("an asset's preview picture of the open project reaches the window as a dat
   });
   expect(await commandHandlers.read_asset_preview_of_the_open_project({}, fromTheStudioWindow)).toEqual({
     ok: false,
-    refusal: "read_asset_preview_of_the_open_project needs `asset`, the UUID of an asset of the open project",
+    refusal: expect.stringMatching(/^read_asset_preview_of_the_open_project: Missing key/),
   });
   expect(await commandHandlers.read_asset_preview_of_the_open_project({ asset: "38ab4435-5f49-4cd1-b60e-f03acf54db34" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,

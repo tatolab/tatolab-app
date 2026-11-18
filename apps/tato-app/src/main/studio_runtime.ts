@@ -4,9 +4,18 @@
 // app's log, never to the console.
 
 import { Cause, Context, Effect, Layer, Logger, References, type LogLevel } from "effect";
-import type { ChosenProjectFolder, DependencySourceKind, ListedStream, PackageCatalogEntry, PackageCatalogReading, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
-import { streamsOfTheProjectIn, theStreamsListTheProjectOpen } from "../shared/project_playback.js";
+import type {
+  ChosenProjectFolder,
+  DependencySourceKind,
+  ListedStream,
+  OpenProjectReading,
+  PackageCatalogEntry,
+  PackageCatalogReading,
+  ProjectTransactionAuthor,
+} from "../shared/tatolab_backend_contract.js";
+import { projectPlaybackAsListed, streamsOfTheProjectIn, theStreamsListTheProjectOpen, type ProjectPlaybackAsListed } from "../shared/project_playback.js";
 import { downloadTheCatalogEntrysZip } from "./marketplace_module_download.js";
+import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { readThePackageCatalog } from "./package_catalog.js";
 import type { Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
@@ -23,6 +32,8 @@ export class StudioWindows extends Context.Service<
   {
     /** The folder of the project the window a command came from acts on, its own page or a view popped out of it; refused in the Projects window. */
     readonly projectFolderOfTheWindow: (commandFromWindow: TatolabCommandFromWindow) => Effect.Effect<string, CommandRefused>;
+    /** The project the window a command came from holds open as the window last read it, its own page or a view popped out of it; refused in the Projects window. */
+    readonly openProjectReadingOfTheWindow: (commandFromWindow: TatolabCommandFromWindow) => Effect.Effect<OpenProjectReading, CommandRefused>;
     /** Whether a studio window holds the project in `projectFolder` open. */
     readonly aStudioWindowHoldsTheProjectIn: (projectFolder: string) => boolean;
     /** `folder`, resolved, when it is the folder of the project the window a command came from holds open or of one of its imports; `null` otherwise, and in the Projects window. */
@@ -36,6 +47,10 @@ export class ProjectViewsListed extends Context.Service<
   {
     /** Whether the last listing of the project in `openProjectFolder` holds `viewFolderInTheProject` as a view that opens. */
     readonly isListedAsOpening: (openProjectFolder: string, viewFolderInTheProject: string) => boolean;
+    /** The mark of a listing about to be asked for, which `rememberTheListing` takes back with its answer. */
+    readonly startAListing: Effect.Effect<number>;
+    /** Keep the views that open in `listedViews`, the listing of the project in `openProjectFolder` started as `listingStarted`, unless a listing started later is already kept. */
+    readonly rememberTheListing: (openProjectFolder: string, listingStarted: number, listedViews: readonly ProjectViewTheRuntimeListed[]) => Effect.Effect<void>;
   }
 >()("tatolab-app/ProjectViewsListed") {}
 
@@ -51,6 +66,8 @@ export class ListedStreams extends Context.Service<
     readonly theProjectIsListedOpen: (projectFolder: string) => boolean;
     /** The stream with the id `stream` as the runtime last listed it; `null` when it did not list it. */
     readonly listedStream: (stream: string) => ListedStream | null;
+    /** The playback of the project in `projectFolder` as the runtime last listed its streams. */
+    readonly playbackOfTheProject: (projectFolder: string) => ProjectPlaybackAsListed;
   }
 >()("tatolab-app/ListedStreams") {}
 
@@ -85,6 +102,15 @@ export class StudioProjectOpening extends Context.Service<
   }
 >()("tatolab-app/StudioProjectOpening") {}
 
+/** What asks the system for the camera and microphone the project views declare, ahead of a view asking for one. */
+export class SystemMediaAccessAhead extends Context.Service<
+  SystemMediaAccessAhead,
+  {
+    /** Ask the system for each device a view among `listedViews` declares that this run has not asked for yet, notifying the person of a refusal. */
+    readonly askForTheDevicesTheViewsDeclare: (listedViews: readonly ProjectViewTheRuntimeListed[]) => Effect.Effect<void>;
+  }
+>()("tatolab-app/SystemMediaAccessAhead") {}
+
 /** The status rounds that read the runtime and publish what it holds to the tray and the windows. */
 export class StatusRounds extends Context.Service<
   StatusRounds,
@@ -93,6 +119,11 @@ export class StatusRounds extends Context.Service<
     readonly requestARound: Effect.Effect<void>;
   }
 >()("tatolab-app/StatusRounds") {}
+
+/** `change`, then a status round whether it changed the runtime or was refused, so the listing shows what it did. */
+export function thenAStatusRound<Answer, Failure, Services>(change: Effect.Effect<Answer, Failure, Services>): Effect.Effect<Answer, Failure, Services | StatusRounds> {
+  return change.pipe(Effect.ensuring(StatusRounds.use((statusRounds) => statusRounds.requestARound)));
+}
 
 /** The person signed in to this computer, the author Studio's graph edits are recorded under. */
 export class PersonEditingInStudio extends Context.Service<PersonEditingInStudio, { readonly author: ProjectTransactionAuthor }>()("tatolab-app/PersonEditingInStudio") {}
@@ -109,6 +140,7 @@ export type StudioServices =
   | StudioProjectOpening
   | ProjectViewsListed
   | ListedStreams
+  | SystemMediaAccessAhead
   | StatusRounds
   | PersonEditingInStudio
   | StudioAppVersion;
@@ -169,6 +201,10 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
         fromResult(studioWindowTheCommandCameFrom(sharedState, commandFromWindow), (words) => new CommandRefused({ words })).pipe(
           Effect.map((studioWindow) => studioWindow.projectTransactionsFeed.projectFolder),
         ),
+      openProjectReadingOfTheWindow: (commandFromWindow) =>
+        fromResult(studioWindowTheCommandCameFrom(sharedState, commandFromWindow), (words) => new CommandRefused({ words })).pipe(
+          Effect.map((studioWindow) => studioWindow.openProject.readOpenProject()),
+        ),
       aStudioWindowHoldsTheProjectIn: (projectFolder) => sharedState.appWindows.aStudioWindowHoldsTheProjectIn(projectFolder),
       folderOfTheWindowsOpenProject: (commandFromWindow, folder) => {
         const openProjectFolder = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId)?.openProjectFiles.projectFolderOfTheOpenProject(folder);
@@ -191,12 +227,19 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
     }),
     Layer.succeed(ProjectViewsListed, {
       isListedAsOpening: (openProjectFolder, viewFolderInTheProject) => sharedState.projectViewsListed.isListedAsOpening(openProjectFolder, viewFolderInTheProject),
+      startAListing: Effect.sync(() => sharedState.projectViewsListed.startAListing()),
+      rememberTheListing: (openProjectFolder, listingStarted, listedViews) =>
+        Effect.sync(() => sharedState.projectViewsListed.rememberTheListing(openProjectFolder, listingStarted, listedViews)),
     }),
     Layer.succeed(ListedStreams, {
       streamAssetsOfTheProject: (projectFolder) => new Set(streamsLastListedFrom(projectFolder).flatMap((listedStream) => listedStream.location?.stream_asset ?? [])),
       aStreamIsListedFrom: (projectFolder) => streamsLastListedFrom(projectFolder).length > 0,
       theProjectIsListedOpen: (projectFolder) => theStreamsListTheProjectOpen(streamsLastListedFrom(projectFolder)),
       listedStream: (stream) => streamsLastListed().find((listedStream) => listedStream.stream === stream) ?? null,
+      playbackOfTheProject: (projectFolder) => projectPlaybackAsListed(streamsLastListed(), projectFolder),
+    }),
+    Layer.succeed(SystemMediaAccessAhead, {
+      askForTheDevicesTheViewsDeclare: (listedViews) => Effect.promise(() => sharedState.systemMediaAccessAskedAheadForViews.askForTheDevicesTheViewsDeclare(listedViews)),
     }),
     Layer.succeed(StatusRounds, { requestARound: Effect.sync(() => sharedState.statusPublisher.requestRefresh()) }),
     Layer.succeed(PersonEditingInStudio, { author: sharedState.thePersonEditingInStudio }),

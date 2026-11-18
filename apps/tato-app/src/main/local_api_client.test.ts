@@ -8,7 +8,7 @@ import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, contro
 import { LocalApiClient, runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./local_api_client.js";
 import { httpRequestBytes, parseHttpResponse } from "./local_api_plain_http.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { describeNodeCatalog, describeStreamGraph, listProjectAssets, listProjectNodeTypes, readProjectLogRecords } from "./runtime_operations.js";
+import { describeNodeCatalog, describeStreamGraph, listProjectAssets, listProjectNodeTypes, readAssetPreview, readProjectLogRecords } from "./runtime_operations.js";
 import { TatolabRuntimeControlWebSocketConnection } from "./tatolab_runtime_control_operation_call.js";
 import { streamActionChangesConnectionOver } from "./stream_action_changes_followed_for_the_status.js";
 import { answerOf, cleanUps, cleanUpWhatTheTestStarted, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./local_api_client_test_support.js";
@@ -210,7 +210,7 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
     const assetListing = await Effect.runPromise(listProjectAssets(projectDirectory).pipe(Effect.provide(liveRuntimeControl)));
     expect(assetListing.assets.filter((asset) => asset.kind === "stream").length).toBeGreaterThanOrEqual(projectStreams.length);
     for (const previewedAsset of assetListing.assets.filter((asset) => asset.preview !== null)) {
-      const picture = answerOf(await client.readAssetPreview(projectDirectory, previewedAsset.asset));
+      const picture = await Effect.runPromise(readAssetPreview(projectDirectory, previewedAsset.asset).pipe(Effect.provide(liveRuntimeControl)));
       expect([picture.pixel_width, picture.pixel_height, picture.media_type]).toEqual([previewedAsset.preview?.pixel_width, previewedAsset.preview?.pixel_height, previewedAsset.preview?.media_type]);
     }
     const wholeLog = await Effect.runPromise(readProjectLogRecords(projectDirectory, { stream: null, action: null }, null, null).pipe(Effect.provide(liveRuntimeControl)));

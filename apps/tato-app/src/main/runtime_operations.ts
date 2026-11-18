@@ -14,16 +14,19 @@ import type {
   ProjectLogRecordsPage,
   ProjectNodeTypeListing,
   ProjectStreamActionQueued,
+  ProjectTransaction,
   ProjectTransactionAuthor,
   StreamActionCancelAnswer,
   StreamActionFollowed,
   StreamGraphSummary,
 } from "../shared/tatolab_backend_contract.js";
+import { assetPreviewPictureFromTheReadAssetPreviewToolResult, type AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
 import { jsonTextKeepingTheWrittenNumbers, prettyJsonTextKeepingTheWrittenNumbers } from "./json_on_the_wire.js";
 import { bodyOfAnOkAnswer } from "./local_api_plain_http.js";
 import { fromResult } from "./result_as_effect.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectAssetListingFromTheListAssetsToolResult } from "./project_asset_listing.js";
+import { assetAtItsPathFromTheToolResult, type ProjectAssetAtItsPath } from "./project_changes_on_the_wire.js";
 import {
   dependencyUpdateFromTheUpdateDependencyToolResult,
   projectDependencyFromTheAddDependencyToolResult,
@@ -35,6 +38,7 @@ import { projectFilesFromTheListProjectFilesToolResult, type ProjectFileTheRunti
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
 import { projectTheRuntimeNamesFromTheListAssetsToolResult } from "./project_the_runtime_names.js";
+import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
 import { projectViewsFromTheListProjectViewsToolResult, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { ContractMismatch, type RuntimeControlFailure } from "./runtime_control_failures.js";
 import {
@@ -42,7 +46,7 @@ import {
   streamActionCancelAnswerFromTheCancelStreamActionToolResult,
   streamActionDescriptionFromTheDescribeStreamActionToolResult,
 } from "./stream_action_description.js";
-import { queuedStreamActionFromTheToolResult, streamAssetChangeFromTheToolResult, type StreamAssetChange } from "./stream_changes_on_the_wire.js";
+import { queuedStreamActionFromTheToolResult, streamAssetChangeFromTheToolResult, streamsThePauseOrResumeReachedFromTheToolResult, type StreamAssetChange } from "./stream_changes_on_the_wire.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { authorOnTheWire, controlOperationReadWith, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 
@@ -200,4 +204,43 @@ export function updateDependency(projectDirectory: string, project: string, over
 /** The import `project` taken out of the project in `projectDirectory` by the runtime's `remove_dependency`, answering the import it removed. */
 export function removeDependency(projectDirectory: string, project: string): Effect.Effect<ProjectDependency, RuntimeControlFailure, RuntimeControl> {
   return controlOperationReadWith("remove_dependency", { project_directory: projectDirectory, project }, projectDependencyFromTheRemoveDependencyToolResult);
+}
+
+/** The stop of the playback of the project in `projectDirectory` queued through the runtime's `stop_playback`, which keeps each stream's graph loaded: the id of the action it queued. */
+export function stopPlayback(projectDirectory: string): Effect.Effect<string, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("stop_playback", { project_directory: projectDirectory }, (answered) => queuedStreamActionFromTheToolResult("stop_playback", answered));
+}
+
+/** The playback of the project in `projectDirectory` paused at once through the runtime's `pause_playback`: the id of each stream it paused. */
+export function pausePlayback(projectDirectory: string): Effect.Effect<string[], RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("pause_playback", { project_directory: projectDirectory }, (answered) => streamsThePauseOrResumeReachedFromTheToolResult("pause_playback", answered));
+}
+
+/** The paused playback of the project in `projectDirectory` resumed at once through the runtime's `resume_playback`: the id of each stream it resumed. */
+export function resumePlayback(projectDirectory: string): Effect.Effect<string[], RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("resume_playback", { project_directory: projectDirectory }, (answered) => streamsThePauseOrResumeReachedFromTheToolResult("resume_playback", answered));
+}
+
+/** `author`'s latest transaction in the project in `projectDirectory` not undone yet, undone through the runtime's `undo`, or what `author`'s latest undo reversed, redone through its `redo`: the transaction it applied. */
+export function undoOrRedo(undoOrRedoTool: "undo" | "redo", projectDirectory: string, author: ProjectTransactionAuthor): Effect.Effect<ProjectTransaction, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith(undoOrRedoTool, { project_directory: projectDirectory, author: authorOnTheWire(author) }, (answered) =>
+    projectTransactionFromTheUndoOrRedoToolResult(undoOrRedoTool, answered),
+  );
+}
+
+/** The asset `asset` of the project in `projectDirectory` put at `toPath`, renamed, moved to another folder or both, through the runtime's `relocate_asset`, one transaction recorded under `author`: the asset at its new path. */
+export function relocateAsset(projectDirectory: string, asset: string, toPath: string, author: ProjectTransactionAuthor): Effect.Effect<ProjectAssetAtItsPath, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("relocate_asset", { project_directory: projectDirectory, asset, to_path: toPath, author: authorOnTheWire(author) }, (answered) =>
+    assetAtItsPathFromTheToolResult("relocate_asset", answered),
+  );
+}
+
+/** The asset `asset` of the project in `projectDirectory` no longer tracked through the runtime's `delete_asset`, its file and sidecar leaving the project, one transaction recorded under `author`: the asset as it was. */
+export function deleteAsset(projectDirectory: string, asset: string, author: ProjectTransactionAuthor): Effect.Effect<ProjectAssetAtItsPath, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("delete_asset", { project_directory: projectDirectory, asset, author: authorOnTheWire(author) }, (answered) => assetAtItsPathFromTheToolResult("delete_asset", answered));
+}
+
+/** The preview picture of the asset `asset` of the project in `projectDirectory`, an image's own or a video's poster frame, from the runtime's `read_asset_preview`. */
+export function readAssetPreview(projectDirectory: string, asset: string): Effect.Effect<AssetPreviewPictureTheRuntimeRead, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("read_asset_preview", { project_directory: projectDirectory, asset }, (answered) => assetPreviewPictureFromTheReadAssetPreviewToolResult(asset, answered));
 }

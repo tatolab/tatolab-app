@@ -9,7 +9,7 @@ import path from "node:path";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { assert, vi } from "vitest";
 import type { ListedStream, ProjectTransactionAuthor, SystemMenuBarMenu, TatolabPlatform } from "../shared/tatolab_backend_contract.js";
-import { FakeLocalApiServer } from "./fake_local_api_server.js";
+import { controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
 import { FakeCarriedRuntimeStarts, FakeTatolabAppOpenedAtLogin, FakeTatolabCommandLineToolLink, FakeTerminalOpenedInAFolder, fakeTatolabPlatformForThisBuild, FakeSystemMediaAccess } from "./fake_tatolab_platform_for_this_build.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
@@ -38,9 +38,11 @@ import {
   StudioAppVersion,
   studioRuntimeLayer,
   StudioWindows,
+  SystemMediaAccessAhead,
   tatolabAppLogAsEffectsLogger,
   type StudioServices,
 } from "./studio_runtime.js";
+import { projectPlaybackAsListed } from "../shared/project_playback.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
 import { CommandRefused } from "./window_command.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
@@ -121,6 +123,10 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
     Layer.succeed(StudioWindows, {
       projectFolderOfTheWindow: (commandFromWindow) =>
         commandFromWindow.windowContentsId === studioWindow.windowContentsId ? Effect.succeed(studioWindow.projectFolder) : Effect.fail(new CommandRefused({ words: "No project is open in this window." })),
+      openProjectReadingOfTheWindow: (commandFromWindow) =>
+        commandFromWindow.windowContentsId === studioWindow.windowContentsId
+          ? Effect.succeed({ kind: "none_open" as const })
+          : Effect.fail(new CommandRefused({ words: "No project is open in this window." })),
       aStudioWindowHoldsTheProjectIn: (projectFolder) => projectFolder === studioWindow.projectFolder,
       folderOfTheWindowsOpenProject: (commandFromWindow, folder) => (commandFromWindow.windowContentsId === studioWindow.windowContentsId && folder === studioWindow.projectFolder ? folder : null),
     }),
@@ -133,13 +139,15 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
       downloadTheZipOf: (entry) => Effect.fail(new CommandRefused({ words: `${entry.title} was not downloaded.` })),
     }),
     Layer.succeed(StudioProjectOpening, { makeAProjectOfItsOwnFromTheArchive: (archive) => Effect.fail(new CommandRefused({ words: `${archive} was not made into a project.` })) }),
-    Layer.succeed(ProjectViewsListed, { isListedAsOpening: () => false }),
+    Layer.succeed(ProjectViewsListed, { isListedAsOpening: () => false, startAListing: Effect.succeed(1), rememberTheListing: () => Effect.void }),
     Layer.succeed(ListedStreams, {
       streamAssetsOfTheProject: overrides.streamAssetsOfTheProject ?? (() => new Set()),
       aStreamIsListedFrom: overrides.aStreamIsListedFrom ?? ((projectFolder) => (overrides.streamAssetsOfTheProject?.(projectFolder).size ?? 0) > 0),
       theProjectIsListedOpen: overrides.theProjectIsListedOpen ?? (() => false),
       listedStream: overrides.listedStream ?? (() => null),
+      playbackOfTheProject: (projectFolder) => projectPlaybackAsListed([], projectFolder),
     }),
+    Layer.succeed(SystemMediaAccessAhead, { askForTheDevicesTheViewsDeclare: () => Effect.void }),
     Layer.succeed(StatusRounds, { requestARound: Effect.void }),
     Layer.succeed(PersonEditingInStudio, { author: overrides.author ?? { kind: "person", name: "sam" } }),
     Layer.succeed(StudioAppVersion, { version: overrides.appVersion ?? STUDIO_APP_VERSION_UNDER_TEST }),
@@ -147,9 +155,16 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
   );
 }
 
-/** The handler of every command the window invokes over `sharedState`, the converted ones run on the app's live layers over it and its fake local API, disposed after the test; `quit_tatolab_app` quits through `quitTheApp`. */
-export function commandHandlersOver(sharedState: TatolabAppSharedState & { localApiSocketPath: string }, quitTheApp: () => void = () => {}): TatolabWindowCommandHandlers {
-  const studioRuntime = ManagedRuntime.make(studioRuntimeLayer(sharedState, sharedState.localApiSocketPath, STUDIO_APP_VERSION_UNDER_TEST));
+/**
+ * The handler of every command the window invokes over `sharedState`, the converted ones run on the app's live layers over it and the local API at
+ * `localApiSocketPath`, its fake one at the default, disposed after the test; `quit_tatolab_app` quits through `quitTheApp`.
+ */
+export function commandHandlersOver(
+  sharedState: TatolabAppSharedState & { localApiSocketPath: string },
+  quitTheApp: () => void = () => {},
+  localApiSocketPath: string = sharedState.localApiSocketPath,
+): TatolabWindowCommandHandlers {
+  const studioRuntime = ManagedRuntime.make(studioRuntimeLayer(sharedState, localApiSocketPath, STUDIO_APP_VERSION_UNDER_TEST));
   cleanUps.push(() => studioRuntime.dispose());
   return tatolabWindowCommandHandlers(sharedState, studioRuntime, quitTheApp);
 }
@@ -394,25 +409,27 @@ export function statusLastPublishedListing(sharedState: TatolabAppSharedState, s
   vi.spyOn(sharedState.statusPublisher, "lastPublishedStatusNow").mockReturnValue({ ...lastPublished, streams });
 }
 
-/** The project actions each controller method queued, in order, each answering `queued`. */
-export function projectActionsQueuedOn(sharedState: TatolabAppSharedState) {
+/** A local API carrying out each project action the open-project commands ask of it as the runtime does, recording each in order with its folder, and answering `open_project` with `openRefusedWith` instead when given. */
+export async function aLocalApiQueuingEachProjectAction(openRefusedWith: Buffer | null = null): Promise<{ localApiSocketPath: string; projectActionsQueued: [string, string][] }> {
   const projectActionsQueued: [string, string][] = [];
-  const queued = (verb: string) => async (projectDirectory: string) => {
-    projectActionsQueued.push([verb, projectDirectory]);
-    return succeeded({ action: `${verb}-1`, project_directory: projectDirectory });
-  };
-  vi.spyOn(sharedState.controller, "openProject").mockImplementation(queued("open_project"));
-  vi.spyOn(sharedState.controller, "startPlayback").mockImplementation(queued("start_playback"));
-  vi.spyOn(sharedState.controller, "reloadProject").mockImplementation(queued("reload_project"));
-  vi.spyOn(sharedState.controller, "stopPlayback").mockImplementation(async (projectDirectory) => {
-    projectActionsQueued.push(["stop_playback", projectDirectory]);
-    return succeeded("stop_playback-1");
+  const localApiServer = await FakeLocalApiServer.answeringEachControlOperation(async (method, params) => {
+    const projectDirectory = String(params["project_directory"]);
+    projectActionsQueued.push([method, projectDirectory]);
+    switch (method) {
+      case "open_project":
+        return openRefusedWith ?? controlOperationResultResponse({ action: `${method}-1`, project_directory: projectDirectory });
+      case "start_playback":
+      case "reload_project":
+        return controlOperationResultResponse({ action: `${method}-1`, project_directory: projectDirectory });
+      case "stop_playback":
+        return controlOperationResultResponse({ action: `${method}-1`, project_directory: projectDirectory });
+      case "pause_playback":
+      case "resume_playback":
+        return controlOperationResultResponse({ project_directory: projectDirectory, streams: ["hallways-main-80cbae"] });
+      default:
+        return null;
+    }
   });
-  const heldOrResumed = (verb: string) => async (projectDirectory: string) => {
-    projectActionsQueued.push([verb, projectDirectory]);
-    return succeeded(["hallways-main-80cbae"]);
-  };
-  vi.spyOn(sharedState.controller, "pausePlayback").mockImplementation(heldOrResumed("pause_playback"));
-  vi.spyOn(sharedState.controller, "resumePlayback").mockImplementation(heldOrResumed("resume_playback"));
-  return projectActionsQueued;
+  cleanUps.push(() => localApiServer.close());
+  return { localApiSocketPath: localApiServer.localApiSocketPath, projectActionsQueued };
 }
