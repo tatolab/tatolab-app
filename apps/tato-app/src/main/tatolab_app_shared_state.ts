@@ -14,19 +14,19 @@ import type { StreamProjectFolderOpeners } from "./stream_project_folder_opening
 import type { StreamProjectAdding } from "./stream_project_adding.js";
 import type { StreamFailureNotifications } from "./stream_failure_notifications.js";
 import type { HeldRememberedSwitch } from "./remembered_switch_file.js";
-import type { ProjectOpening } from "./open_project.js";
+import type { ProjectArchiveDialog, ProjectCoverImageDialog, ProjectFolderDialog, RecentProjectFolders } from "./open_project.js";
 import type { PythonLanguageServers } from "./python_language_servers.js";
 import type { RuntimePortViewers } from "./runtime_port_viewers.js";
 import type { StreamGraphChangesFollowedForTheWindows } from "./stream_graph_changes_followed_for_the_windows.js";
 import type { ProjectLogRecordsFollowedForTheWindows } from "./project_log_records_followed_for_the_windows.js";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
-import type { ProjectAssetsImportedFromChosenFiles } from "./project_assets_imported_from_chosen_files.js";
+import type { ProjectAssetFilesDialog } from "./project_assets_imported_from_chosen_files.js";
 import type { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import type { PackageCatalogMachine, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import type { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 
-/** The controller, the status publisher, the updater, what opens a stream's project, adding a project, the stream-failure notifications, Developer mode, opening projects, the app's windows, the language servers, the port viewers and the system menu bar, which the tray's choices and the window's commands reach. */
+/** The controller, the status publisher, the updater, what opens a stream's project, adding a project, the stream-failure notifications, Developer mode, the project dialogs and recent projects, the app's windows, the language servers, the port viewers and the system menu bar, which the tray's choices and the window's commands reach. */
 export interface TatolabAppSharedState {
   controller: TatolabAppController;
   statusPublisher: TatolabStatusPublisher;
@@ -42,8 +42,18 @@ export interface TatolabAppSharedState {
   developerModeSwitch: HeldRememberedSwitch;
   /** The warnings the status carries, and whether each one's dialog was shown. */
   studioWarnings: StudioWarningsOfThisRun;
-  /** Opening a project in its own studio window, from any window. */
-  projectOpening: ProjectOpening;
+  /** The person's home folder, where the project dialogs open. */
+  homeDirectory: string;
+  /** The platform's Documents folder, where new projects go under `Tato Studio/`. */
+  documentsDirectory: string;
+  /** The desktop's dialog for a project's folder: one to open, or a new project's location. */
+  projectFolderDialog: ProjectFolderDialog;
+  /** The desktop's dialog for a project `.zip` to import. */
+  projectArchiveDialog: ProjectArchiveDialog;
+  /** The desktop's dialog for an image to show a project by. */
+  projectCoverImageDialog: ProjectCoverImageDialog;
+  /** The projects opened before, remembered between launches. */
+  recentProjectFolders: RecentProjectFolders;
   /** The Projects window and each project's studio window, each with its project and that project's files. */
   appWindows: TatolabAppWindows;
   /** The code pane's Pyright language servers. */
@@ -66,8 +76,8 @@ export interface TatolabAppSharedState {
   moduleDownloadsFolder: string;
   /** How Module manager asks for a project's folder or `.zip` to import. */
   dependencySourceDialog: DependencySourceDialog;
-  /** How the Library's Import asset… imports the files the person chooses. */
-  projectAssetsImportedFromChosenFiles: ProjectAssetsImportedFromChosenFiles;
+  /** How the Library's Import asset… asks for the files to import. */
+  projectAssetFilesDialog: ProjectAssetFilesDialog;
   /** The person signed in to this computer, the author Studio's graph edits are recorded under. */
   thePersonEditingInStudio: ProjectTransactionAuthor;
   /** The views each studio window listed as ones that open, the only ones whose files are served. */

@@ -1,47 +1,77 @@
 import path from "node:path";
-import { expect, test } from "vitest";
+import { Effect, Layer } from "effect";
+import { afterEach, expect, test } from "vitest";
 import type { ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
-import { localApiRequestFailure } from "./local_api_request_failure.js";
+import { controlOperationFailedResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
 import type { ProjectAssetFileFilter } from "./project_asset_file_filters.js";
-import { ProjectAssetsImportedFromChosenFiles } from "./project_assets_imported_from_chosen_files.js";
-import { succeeded } from "./result.js";
+import { importTheFilesThePersonChooses } from "./project_assets_imported_from_chosen_files.js";
+import { failedWith, succeeded } from "./result.js";
+import { runtimeControlLayer } from "./runtime_control_layer.js";
+import { ProjectDialogs, ThisMachinesFolders } from "./studio_runtime.js";
 
 const SAM: ProjectTransactionAuthor = { kind: "person", name: "sam" };
 
-function importingFilesTheDialogAnswers(filesTheDialogAnswers: readonly string[] | null) {
-  const importsAsked: { projectDirectory: string; source: string; assetPath: string | null; author: ProjectTransactionAuthor | null }[] = [];
+const localApisStarted: FakeLocalApiServer[] = [];
+
+afterEach(async () => {
+  for (const localApi of localApisStarted.splice(0)) await localApi.close();
+});
+
+/** Importing the files the dialog answers with into a runtime that refuses a `notes.txt` and places each other file in `media/` under its own name. */
+async function importingFilesTheDialogAnswers(filesTheDialogAnswers: readonly string[] | null) {
+  const importsAsked: Readonly<Record<string, unknown>>[] = [];
   const dialogsOpenedAt: string[] = [];
   const fileFiltersOffered: (readonly ProjectAssetFileFilter[])[] = [];
-  const assetImport = new ProjectAssetsImportedFromChosenFiles({
-    homeDirectory: "/home/sam",
-    projectAssetFilesDialog: async (defaultFolder, fileFilters) => {
-      dialogsOpenedAt.push(defaultFolder);
-      fileFiltersOffered.push(fileFilters);
-      return succeeded(filesTheDialogAnswers);
-    },
-    projectChanges: {
-      importAsset: async (projectDirectory, source, assetPath, author) => {
-        importsAsked.push({ projectDirectory, source, assetPath, author });
-        if (source.endsWith("notes.txt")) return localApiRequestFailure("import_asset failed: a stream is never imported");
-        const fileName = path.basename(source);
-        return succeeded({ asset: `uuid-of-${fileName}`, path: `media/${fileName}` });
-      },
-    },
+  const localApi = await FakeLocalApiServer.answeringEachControlOperation(async (method, params) => {
+    if (method !== "import_asset") return controlOperationFailedResponse(`this runtime answers no ${method}`);
+    importsAsked.push(params);
+    const source = typeof params["source"] === "string" ? params["source"] : "";
+    if (source.endsWith("notes.txt")) return controlOperationFailedResponse("import_asset failed: a stream is never imported");
+    const fileName = path.basename(source);
+    return controlOperationResultResponse({
+      asset: { asset: `uuid-of-${fileName}`, kind: "media", path: `media/${fileName}`, content_sha256: "0".repeat(64), content_byte_len: 4, import_settings: {} },
+      transaction: "cd368349-3674-4f92-bab2-beb5c88f016e",
+      commit: "e769184546f290d9ed91d980de2769655a52df9d",
+    });
   });
-  return { assetImport, importsAsked, dialogsOpenedAt, fileFiltersOffered };
+  localApisStarted.push(localApi);
+  const services = Layer.mergeAll(
+    runtimeControlLayer(localApi.localApiSocketPath, 2_000),
+    Layer.succeed(ThisMachinesFolders, { homeDirectory: "/home/sam", documentsDirectory: "/home/sam/Documents" }),
+    Layer.mock(ProjectDialogs, {
+      chooseAssetFilesToImport: (defaultFolder, fileFilters) =>
+        Effect.sync(() => {
+          dialogsOpenedAt.push(defaultFolder);
+          fileFiltersOffered.push(fileFilters);
+          return filesTheDialogAnswers;
+        }),
+    }),
+  );
+  const importTheFiles = (projectDirectory: string, media: readonly string[] | null) =>
+    Effect.runPromise(
+      importTheFilesThePersonChooses(projectDirectory, media, SAM).pipe(
+        Effect.match({ onSuccess: (imported) => succeeded(imported), onFailure: ({ words }) => failedWith(words) }),
+        Effect.provide(services),
+      ),
+    );
+  return { importTheFiles, importsAsked, dialogsOpenedAt, fileFiltersOffered };
 }
 
 test("each chosen file is imported naming no path, so the runtime places it, by the person, one refusal leaving the rest to import", async () => {
-  const { assetImport, importsAsked, dialogsOpenedAt, fileFiltersOffered } = importingFilesTheDialogAnswers(["/home/sam/Pictures/poster.png", "/home/sam/notes.txt", "/home/sam/Movies/intro.mp4"]);
+  const { importTheFiles, importsAsked, dialogsOpenedAt, fileFiltersOffered } = await importingFilesTheDialogAnswers([
+    "/home/sam/Pictures/poster.png",
+    "/home/sam/notes.txt",
+    "/home/sam/Movies/intro.mp4",
+  ]);
 
-  const imported = await assetImport.importTheFilesThePersonChooses("/projects/lobby", null, SAM);
+  const imported = await importTheFiles("/projects/lobby", null);
 
   expect(dialogsOpenedAt).toEqual(["/home/sam"]);
   expect(fileFiltersOffered).toEqual([[{ name: "All files", extensions: ["*"] }]]);
   expect(importsAsked).toEqual([
-    { projectDirectory: "/projects/lobby", source: "/home/sam/Pictures/poster.png", assetPath: null, author: SAM },
-    { projectDirectory: "/projects/lobby", source: "/home/sam/notes.txt", assetPath: null, author: SAM },
-    { projectDirectory: "/projects/lobby", source: "/home/sam/Movies/intro.mp4", assetPath: null, author: SAM },
+    { project_directory: "/projects/lobby", source: "/home/sam/Pictures/poster.png", author: SAM },
+    { project_directory: "/projects/lobby", source: "/home/sam/notes.txt", author: SAM },
+    { project_directory: "/projects/lobby", source: "/home/sam/Movies/intro.mp4", author: SAM },
   ]);
   expect(imported).toEqual(
     succeeded({
@@ -55,16 +85,16 @@ test("each chosen file is imported naming no path, so the runtime places it, by 
 });
 
 test("choosing nothing imports nothing", async () => {
-  const { assetImport, importsAsked } = importingFilesTheDialogAnswers(null);
+  const { importTheFiles, importsAsked } = await importingFilesTheDialogAnswers(null);
 
-  expect(await assetImport.importTheFilesThePersonChooses("/projects/lobby", null, SAM)).toEqual(succeeded(null));
+  expect(await importTheFiles("/projects/lobby", null)).toEqual(succeeded(null));
   expect(importsAsked).toEqual([]);
 });
 
 test("a field taking images opens the dialog on the image files the runtime reads, every file still choosable", async () => {
-  const { assetImport, fileFiltersOffered } = importingFilesTheDialogAnswers(null);
+  const { importTheFiles, fileFiltersOffered } = await importingFilesTheDialogAnswers(null);
 
-  await assetImport.importTheFilesThePersonChooses("/projects/lobby", ["image"], SAM);
+  await importTheFiles("/projects/lobby", ["image"]);
 
   expect(fileFiltersOffered).toEqual([
     [

@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "vitest";
 import type { StreamLocation } from "../shared/tatolab_backend_contract.js";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse } from "./fake_local_api_server.js";
-import { listedStreamsFromTheListStreamsToolResult } from "./local_api_client.js";
+import { listedStreamsFromTheListStreamsToolResult } from "./listed_streams_on_the_wire.js";
 import { answerOf, cleanUpWhatTheTestStarted, failureOf, fakeLocalApiServerAnswering, listedStream, recordedResponseBody } from "./local_api_client_test_support.js";
 
 afterEach(cleanUpWhatTheTestStarted);

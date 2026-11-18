@@ -3,7 +3,8 @@ import { Effect, Schema, type ManagedRuntime } from "effect";
 import { isAModuleManagerSectionAsked, MODULES_SHOWN, type TatolabCommandSignatures } from "../shared/tatolab_electron_bridge_contract.js";
 import { whyTheModuleBringsNothingOnThisMachine } from "../shared/package_catalog_machine_words.js";
 import { addDependency, listDependencies, listProjectViews, nameTheProject, removeDependency, updateDependency } from "./runtime_operations.js";
-import { ModuleManagerWindows, PackageCatalog, StatusRounds, StudioProjectOpening, type StudioServices } from "./studio_runtime.js";
+import { makeAProjectOfItsOwnFromTheArchive } from "./open_project.js";
+import { ModuleManagerWindows, PackageCatalog, StatusRounds, type StudioServices } from "./studio_runtime.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import type { TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 import { workspaceDependenciesOf } from "./workspace_dependencies.js";
@@ -64,7 +65,7 @@ const marketplaceSampleCloned = Effect.fn("marketplaceSampleCloned")(function* (
   const entry = yield* catalogEntryNamed(name);
   if (entry.kind !== "sample") return yield* new CommandRefused({ words: `${entry.title} is not a sample project; add it to a project instead.` });
   const zipPath = yield* PackageCatalog.use((packageCatalog) => packageCatalog.downloadTheZipOf(entry));
-  const cloned = yield* (yield* StudioProjectOpening).makeAProjectOfItsOwnFromTheArchive(zipPath, entry.title);
+  const cloned = yield* makeAProjectOfItsOwnFromTheArchive(zipPath, entry.title);
   yield* StatusRounds.use((statusRounds) => statusRounds.requestARound);
   yield* Effect.logInfo("cloned a Marketplace sample into a project of its own").pipe(Effect.annotateLogs({ name, version: entry.version, project_folder: cloned.folder }));
   return cloned;

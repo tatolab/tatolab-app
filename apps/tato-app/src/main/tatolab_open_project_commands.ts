@@ -1,11 +1,12 @@
 import path from "node:path";
 import { Effect, Schema, type ManagedRuntime } from "effect";
-import type { ListedStream, JsonValue, PoppedOutView, PortViewerTarget, ProjectAssetsImported, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
+import type { ListedStream, JsonValue, PoppedOutView, PortViewerTarget, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import { streamsOfTheProjectIn, theStreamsListTheProjectOpen } from "../shared/project_playback.js";
 import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { studioViewsOfTheOpenProject } from "./open_project_views.js";
+import { importTheFilesThePersonChooses } from "./project_assets_imported_from_chosen_files.js";
 import { deleteAsset, openProject, pausePlayback, readAssetPreview, relocateAsset, reloadProject, resumePlayback, startPlayback, stopPlayback, undoOrRedo } from "./runtime_operations.js";
 import { ListedStreams, PersonEditingInStudio, StudioWindows, thenAStatusRound, type StatusRounds, type StudioServices } from "./studio_runtime.js";
 import { CommandRefused, windowCommand } from "./window_command.js";
@@ -87,6 +88,9 @@ const UndoOrRedoArguments = Schema.Struct({ author: Schema.Struct({ kind: Schema
 /** The arguments of `relocate_asset_in_the_open_project`: the UUID of an asset of the open project and its new path in the project. */
 const RelocateAssetArguments = Schema.Struct({ asset: Schema.String, to_path: Schema.String });
 
+/** The arguments of `import_assets_into_the_open_project`: the `media_facts` members the dialog offers files of first, `null` for any. */
+const ImportAssetsArguments = Schema.Struct({ media: Schema.NullOr(Schema.Array(Schema.String)) });
+
 /** The arguments of the commands on one asset of the open project: its UUID. */
 const AssetArguments = Schema.Struct({ asset: Schema.String });
 
@@ -103,23 +107,6 @@ export async function reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState:
   sharedState.statusPublisher.requestRefresh();
   if (queued.ok) sharedState.tatolabAppLog.info("reloaded the project after a save of its Python file", { project_folder: projectDirectory, file: savedFile, action: queued.value.action });
   else sharedState.tatolabAppLog.warn("the runtime refused to reload the project after a save of its Python file", { project_folder: projectDirectory, file: savedFile, refusal: queued.failure.failureDescription });
-}
-
-/** `import_assets_into_the_open_project`'s `{ media }` as the window sends it: the `media_facts` members the dialog offers files of, `null` for any; or why it is not. */
-function importAssetsArgumentsFrom(commandArguments: unknown): Result<{ media: readonly string[] | null }, string> {
-  const media = isAJsonObject(commandArguments) ? commandArguments["media"] : undefined;
-  if (media === null) return succeeded({ media: null });
-  if (Array.isArray(media) && media.every((medium: unknown): medium is string => typeof medium === "string")) return succeeded({ media });
-  return failedWith("import_assets_into_the_open_project needs `media`, a list of media names or null");
-}
-
-/** `import_assets_into_the_open_project`: the files the person chooses, the dialog offering those of `media` first, imported into the asking window's project by the person editing; `null` when they choose nothing, refused in the Projects window. */
-function importAssetsIntoTheOpenProject(sharedState: TatolabAppSharedState, media: readonly string[] | null, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectAssetsImported | null, string>> {
-  return answerTheWindow("import_assets_into_the_open_project", async () => {
-    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-    if (!studioWindow.ok) return studioWindow;
-    return sharedState.projectAssetsImportedFromChosenFiles.importTheFilesThePersonChooses(studioWindow.value.projectTransactionsFeed.projectFolder, media, sharedState.thePersonEditingInStudio);
-  });
 }
 
 /** `pop_out_view`'s arguments as the window sends them, or why they are not. */
@@ -267,11 +254,9 @@ export function openProjectCommandHandlersOf(
       return studioWindow.ok ? { ok: true, value: studioWindow.value.projectTransactionsFeed.readProjectTransactions() } : { ok: false, refusal: studioWindow.failure };
     },
     undo_in_the_open_project: undoOrRedoCommand(studioRuntime, "undo"),
-    import_assets_into_the_open_project: async (commandArguments, commandFromWindow) => {
-      const importing = importAssetsArgumentsFrom(commandArguments);
-      if (!importing.ok) return { ok: false, refusal: importing.failure };
-      return commandAnswerFrom(await importAssetsIntoTheOpenProject(sharedState, importing.value.media, commandFromWindow));
-    },
+    import_assets_into_the_open_project: windowCommand(studioRuntime, "import_assets_into_the_open_project", ImportAssetsArguments, ({ media }, commandFromWindow) =>
+      ofTheWindowsProject(commandFromWindow, (projectFolder) => PersonEditingInStudio.use(({ author }) => importTheFilesThePersonChooses(projectFolder, media, author))),
+    ),
     relocate_asset_in_the_open_project: windowCommand(studioRuntime, "relocate_asset_in_the_open_project", RelocateAssetArguments, ({ asset, to_path }, commandFromWindow) =>
       byThePersonEditingInTheWindowsProject(commandFromWindow, (projectFolder, author) => relocateAsset(projectFolder, asset, to_path, author)),
     ),

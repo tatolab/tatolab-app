@@ -1,5 +1,4 @@
 import type { ProjectCreationQueued, ProjectStreamActionQueued, StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
-import { streamsOfTheProjectIn, theStreamsListTheProjectOpen } from "../shared/project_playback.js";
 import type { TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
@@ -127,22 +126,6 @@ function openStreamProject(sharedState: TatolabAppSharedState, folder: string): 
     sharedState.statusPublisher.requestRefresh();
     return queued;
   });
-}
-
-/**
- * `open_project` queued on the project in `projectDirectory` when the runtime, asked now, lists no stream of it or each of them `closed`, since it draws and
- * edits only a loaded stream's graph, then a status round; nothing when it holds the project open. Refused in the runtime's own words.
- */
-export async function openTheProjectWhenTheRuntimeHoldsItClosed(
-  sharedState: Pick<TatolabAppSharedState, "controller" | "statusPublisher">,
-  projectDirectory: string,
-): Promise<Result<void, string>> {
-  const listedStreams = await sharedState.controller.listStreams();
-  if (!listedStreams.ok) return failedWith(listedStreams.failure.failureDescription);
-  if (theStreamsListTheProjectOpen(streamsOfTheProjectIn(listedStreams.value, projectDirectory))) return succeeded(undefined);
-  const queued = await sharedState.controller.openProject(projectDirectory);
-  sharedState.statusPublisher.requestRefresh();
-  return queued.ok ? succeeded(undefined) : failedWith(queued.failure.failureDescription);
 }
 
 /** The `{ stream }` arguments of the command `commandName` as the window sends them, or why they are not. */

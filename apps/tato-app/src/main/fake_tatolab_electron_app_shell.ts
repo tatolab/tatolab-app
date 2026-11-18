@@ -225,7 +225,6 @@ export class FakeTatolabElectronAppShell {
     appConfigDirectory: this.appConfigDirectory,
     thePersonSignedInToThisComputer: { kind: "person", name: "sam" },
     readMonotonicClockMs: () => 0,
-    readWallClockMsForDisplay: () => 1_790_000_000_000,
     mainWindowHostFactory: {
       createMainWindowHost: (mainWindowSpecification, answerCloseRequest, whenClosed) => {
         if (this.mainWindowCreationFailure !== null) return failedWith(this.mainWindowCreationFailure);

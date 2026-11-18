@@ -191,8 +191,6 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   appConfigDirectory,
   thePersonSignedInToThisComputer: { kind: "person", name: accountNameOfThePersonSignedIn() },
   readMonotonicClockMs: () => performance.now(),
-  // eslint-disable-next-line no-restricted-properties -- the one wall-clock read in the main process: it stamps when a project was opened, which the Projects window only displays
-  readWallClockMsForDisplay: () => Date.now(),
   mainWindowHostFactory: createElectronMainWindowHostFactory(
     windowPageUrl,
     builtWindowPreloadScript,

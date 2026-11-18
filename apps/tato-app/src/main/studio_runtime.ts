@@ -5,7 +5,6 @@
 
 import { Cause, Context, Effect, Layer, Logger, References, type LogLevel } from "effect";
 import type {
-  ChosenProjectFolder,
   DependencySourceKind,
   ListedStream,
   OpenProjectReading,
@@ -15,6 +14,8 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import { projectPlaybackAsListed, streamsOfTheProjectIn, theStreamsListTheProjectOpen, type ProjectPlaybackAsListed } from "../shared/project_playback.js";
 import { downloadTheCatalogEntrysZip } from "./marketplace_module_download.js";
+import type { ProjectFolderDialogPurpose, RecentProjectFolderOpened, StudioWindowOfTheProjectShown } from "./open_project.js";
+import type { ProjectAssetFileFilter } from "./project_asset_file_filters.js";
 import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { readThePackageCatalog } from "./package_catalog.js";
 import type { Result } from "./result.js";
@@ -38,8 +39,55 @@ export class StudioWindows extends Context.Service<
     readonly aStudioWindowHoldsTheProjectIn: (projectFolder: string) => boolean;
     /** `folder`, resolved, when it is the folder of the project the window a command came from holds open or of one of its imports; `null` otherwise, and in the Projects window. */
     readonly folderOfTheWindowsOpenProject: (commandFromWindow: TatolabCommandFromWindow, folder: string) => string | null;
+    /** The folder the studio window a command came from was opened at, its own page alone; `null` from any other window. */
+    readonly openedFolderOfTheStudioWindow: (commandFromWindow: TatolabCommandFromWindow) => string | null;
+    /** Open the project in `folder` in its own studio window, or bring that window forward when it is open; answers once the window shows the project. */
+    readonly openTheProjectInItsStudioWindow: (folder: string) => Effect.Effect<StudioWindowOfTheProjectShown>;
+    /** Close the studio window of the project in `folder` and the windows it opened, without asking; nothing when none is open. */
+    readonly closeTheStudioWindowOf: (folder: string) => Effect.Effect<void>;
+    /** Step the Projects window aside for the project's own window when the command came from it; a studio window is left as it is. */
+    readonly stepTheProjectsWindowAsideFor: (commandFromWindow: TatolabCommandFromWindow) => Effect.Effect<void>;
   }
 >()("tatolab-app/StudioWindows") {}
+
+/** The person's home folder, where dialogs open, and the platform's Documents folder, where new projects go under `Tato Studio/`. */
+export class ThisMachinesFolders extends Context.Service<
+  ThisMachinesFolders,
+  {
+    /** The person's home folder, where the project dialogs open. */
+    readonly homeDirectory: string;
+    /** The platform's Documents folder, where new projects go under `Tato Studio/`. */
+    readonly documentsDirectory: string;
+  }
+>()("tatolab-app/ThisMachinesFolders") {}
+
+/** The desktop's dialogs that ask the person for a project's folder, its `.zip`, its cover image or files to import into it; each answers `null` when they cancel. */
+export class ProjectDialogs extends Context.Service<
+  ProjectDialogs,
+  {
+    /** A folder, for a project to open or a new project's location as `purpose` says, the dialog opened at `defaultFolder`. */
+    readonly chooseAProjectFolder: (purpose: ProjectFolderDialogPurpose, defaultFolder: string) => Effect.Effect<string | null, CommandRefused>;
+    /** A project `.zip` to import, the dialog opened at `defaultFolder`. */
+    readonly chooseAProjectArchive: (defaultFolder: string) => Effect.Effect<string | null, CommandRefused>;
+    /** An image to show a project by, the dialog opened at `defaultFolder`. */
+    readonly chooseAProjectCoverImage: (defaultFolder: string) => Effect.Effect<string | null, CommandRefused>;
+    /** The files to import as assets, the dialog opened at `defaultFolder` offering `fileFilters`, the first chosen. */
+    readonly chooseAssetFilesToImport: (defaultFolder: string, fileFilters: readonly ProjectAssetFileFilter[]) => Effect.Effect<readonly string[] | null, CommandRefused>;
+  }
+>()("tatolab-app/ProjectDialogs") {}
+
+/** The projects opened before, remembered between launches, recent first. */
+export class RecentProjects extends Context.Service<
+  RecentProjects,
+  {
+    /** The folders remembered, recent first; none when none are. */
+    readonly readRecentFolders: Effect.Effect<RecentProjectFolderOpened[]>;
+    /** Put `folder` first, opened at `openedAtWallClockMs`; refused in words when it could not be written, though it stays remembered until the app quits. */
+    readonly rememberOpened: (folder: string, openedAtWallClockMs: number) => Effect.Effect<void, CommandRefused>;
+    /** Forget `folder`; nothing changes when it is not remembered, and refused in words when it could not be written. */
+    readonly forget: (folder: string) => Effect.Effect<void, CommandRefused>;
+  }
+>()("tatolab-app/RecentProjects") {}
 
 /** The project views the studio windows last listed as ones that open: the only view folders served. */
 export class ProjectViewsListed extends Context.Service<
@@ -93,15 +141,6 @@ export class PackageCatalog extends Context.Service<
   }
 >()("tatolab-app/PackageCatalog") {}
 
-/** What opens projects in their studio windows. */
-export class StudioProjectOpening extends Context.Service<
-  StudioProjectOpening,
-  {
-    /** A project of its own named `name`, made from the project archive `archive` by the runtime's `import_project`, then opened in its studio window. */
-    readonly makeAProjectOfItsOwnFromTheArchive: (archive: string, name: string) => Effect.Effect<ChosenProjectFolder, CommandRefused>;
-  }
->()("tatolab-app/StudioProjectOpening") {}
-
 /** What asks the system for the camera and microphone the project views declare, ahead of a view asking for one. */
 export class SystemMediaAccessAhead extends Context.Service<
   SystemMediaAccessAhead,
@@ -137,7 +176,9 @@ export type StudioServices =
   | StudioWindows
   | ModuleManagerWindows
   | PackageCatalog
-  | StudioProjectOpening
+  | ThisMachinesFolders
+  | ProjectDialogs
+  | RecentProjects
   | ProjectViewsListed
   | ListedStreams
   | SystemMediaAccessAhead
@@ -202,6 +243,13 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
       projectFolderOfTheWindow: (commandFromWindow) => studioWindowOf(commandFromWindow).pipe(Effect.map((studioWindow) => studioWindow.projectTransactionsFeed.projectFolder)),
       openProjectReadingOfTheWindow: (commandFromWindow) => studioWindowOf(commandFromWindow).pipe(Effect.map((studioWindow) => studioWindow.openProject.readOpenProject())),
       aStudioWindowHoldsTheProjectIn: (projectFolder) => sharedState.appWindows.aStudioWindowHoldsTheProjectIn(projectFolder),
+      openedFolderOfTheStudioWindow: (commandFromWindow) => sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId)?.openProject.projectFolder ?? null,
+      openTheProjectInItsStudioWindow: (folder) => Effect.promise(() => sharedState.appWindows.openTheProjectInItsStudioWindow(folder)),
+      closeTheStudioWindowOf: (folder) => Effect.sync(() => sharedState.appWindows.studioWindowOfTheProjectIn(folder)?.tatolabMainWindow.close()),
+      stepTheProjectsWindowAsideFor: (commandFromWindow) =>
+        Effect.sync(() => {
+          if (sharedState.appWindows.isTheProjectsWindow(commandFromWindow.windowContentsId)) sharedState.appWindows.projectsWindow.hide();
+        }),
       folderOfTheWindowsOpenProject: (commandFromWindow, folder) => {
         const openProjectFolder = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId)?.openProjectFiles.projectFolderOfTheOpenProject(folder);
         return openProjectFolder?.ok === true ? openProjectFolder.value : null;
@@ -218,8 +266,17 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
       readTheCatalog: Effect.promise(() => readThePackageCatalog(sharedState.fetchTextOverHttps, sharedState.machineModulesInstallOn)),
       downloadTheZipOf: (entry) => commandAnswerOfPlainCode(() => downloadTheCatalogEntrysZip(entry, sharedState.fetchBytesOverHttps, sharedState.moduleDownloadsFolder)),
     }),
-    Layer.succeed(StudioProjectOpening, {
-      makeAProjectOfItsOwnFromTheArchive: (archive, name) => commandAnswerOfPlainCode(() => sharedState.projectOpening.makeAProjectOfItsOwnFromTheArchive(archive, name)),
+    Layer.succeed(ThisMachinesFolders, { homeDirectory: sharedState.homeDirectory, documentsDirectory: sharedState.documentsDirectory }),
+    Layer.succeed(ProjectDialogs, {
+      chooseAProjectFolder: (purpose, defaultFolder) => commandAnswerOfPlainCode(() => sharedState.projectFolderDialog(purpose, defaultFolder)),
+      chooseAProjectArchive: (defaultFolder) => commandAnswerOfPlainCode(() => sharedState.projectArchiveDialog(defaultFolder)),
+      chooseAProjectCoverImage: (defaultFolder) => commandAnswerOfPlainCode(() => sharedState.projectCoverImageDialog(defaultFolder)),
+      chooseAssetFilesToImport: (defaultFolder, fileFilters) => commandAnswerOfPlainCode(() => sharedState.projectAssetFilesDialog(defaultFolder, fileFilters)),
+    }),
+    Layer.succeed(RecentProjects, {
+      readRecentFolders: Effect.promise(() => sharedState.recentProjectFolders.readRecentFolders()),
+      rememberOpened: (folder, openedAtWallClockMs) => commandAnswerOfPlainCode(() => sharedState.recentProjectFolders.rememberOpened(folder, openedAtWallClockMs)),
+      forget: (folder) => commandAnswerOfPlainCode(() => sharedState.recentProjectFolders.forget(folder)),
     }),
     Layer.succeed(ProjectViewsListed, {
       isListedAsOpening: (openProjectFolder, viewFolderInTheProject) => sharedState.projectViewsListed.isListedAsOpening(openProjectFolder, viewFolderInTheProject),

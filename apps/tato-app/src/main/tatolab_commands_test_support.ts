@@ -15,7 +15,7 @@ import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 import { HeldRememberedSwitch, RememberedSwitchFile } from "./remembered_switch_file.js";
 import { StudioWarningsOfThisRun } from "./studio_warnings.js";
-import { ProjectOpening, type ProjectReadingsOfTheRuntime } from "./open_project.js";
+import type { ProjectReadingsOfTheRuntime } from "./open_project.js";
 import { PythonLanguageServers } from "./python_language_servers.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { FakeTatolabElectronAppShell, PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
@@ -32,13 +32,15 @@ import {
   ModuleManagerWindows,
   PackageCatalog,
   PersonEditingInStudio,
-  StudioProjectOpening,
+  RecentProjects,
+  ProjectDialogs,
   ProjectViewsListed,
   StatusRounds,
   StudioAppVersion,
   studioRuntimeLayer,
   StudioWindows,
   SystemMediaAccessAhead,
+  ThisMachinesFolders,
   tatolabAppLogAsEffectsLogger,
   type StudioServices,
 } from "./studio_runtime.js";
@@ -50,7 +52,6 @@ import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { StreamProjectAdding } from "./stream_project_adding.js";
 import { TatolabAppUpdateAnnouncements } from "./tatolab_app_update_announcements.js";
 import { TatolabAppUpdater } from "./tatolab_app_updater.js";
-import { ProjectAssetsImportedFromChosenFiles } from "./project_assets_imported_from_chosen_files.js";
 
 
 /** A command as the Projects window sends it. */
@@ -129,6 +130,10 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
           : Effect.fail(new CommandRefused({ words: "No project is open in this window." })),
       aStudioWindowHoldsTheProjectIn: (projectFolder) => projectFolder === studioWindow.projectFolder,
       folderOfTheWindowsOpenProject: (commandFromWindow, folder) => (commandFromWindow.windowContentsId === studioWindow.windowContentsId && folder === studioWindow.projectFolder ? folder : null),
+      openedFolderOfTheStudioWindow: (commandFromWindow) => (commandFromWindow.windowContentsId === studioWindow.windowContentsId ? studioWindow.projectFolder : null),
+      openTheProjectInItsStudioWindow: () => Effect.succeed("opened_its_studio_window" as const),
+      closeTheStudioWindowOf: () => Effect.void,
+      stepTheProjectsWindowAsideFor: () => Effect.void,
     }),
     Layer.succeed(ModuleManagerWindows, {
       workspaceFolderOfTheWindow: () => Effect.fail(new CommandRefused({ words: "Only a Module manager window imports into a project." })),
@@ -138,7 +143,14 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
       readTheCatalog: Effect.succeed({ kind: "read" as const, entries: [], unreadable_entry_count: 0 }),
       downloadTheZipOf: (entry) => Effect.fail(new CommandRefused({ words: `${entry.title} was not downloaded.` })),
     }),
-    Layer.succeed(StudioProjectOpening, { makeAProjectOfItsOwnFromTheArchive: (archive) => Effect.fail(new CommandRefused({ words: `${archive} was not made into a project.` })) }),
+    Layer.succeed(ThisMachinesFolders, { homeDirectory: "/home/sam", documentsDirectory: "/home/sam/Documents" }),
+    Layer.succeed(ProjectDialogs, {
+      chooseAProjectFolder: () => Effect.succeed(null),
+      chooseAProjectArchive: () => Effect.succeed(null),
+      chooseAProjectCoverImage: () => Effect.succeed(null),
+      chooseAssetFilesToImport: () => Effect.succeed(null),
+    }),
+    Layer.succeed(RecentProjects, { readRecentFolders: Effect.succeed([]), rememberOpened: () => Effect.void, forget: () => Effect.void }),
     Layer.succeed(ProjectViewsListed, { isListedAsOpening: () => false, startAListing: Effect.succeed(1), rememberTheListing: () => Effect.void }),
     Layer.succeed(ListedStreams, {
       streamAssetsOfTheProject: overrides.streamAssetsOfTheProject ?? (() => new Set()),
@@ -273,23 +285,6 @@ export async function sharedStateOverFakes(
     tatolabAppLog: quietTatolabAppLog,
   });
   appWindows.showTheProjectsWindow();
-  const projectOpening = new ProjectOpening({
-    homeDirectory: appConfigDirectory,
-    documentsDirectory: path.join(appConfigDirectory, "Documents"),
-    projectFolderDialog: async () => succeeded(null),
-    projectArchiveDialog: async () => succeeded(null),
-    projectCoverImageDialog: async () => succeeded(null),
-    recentProjectFolders: recentProjectFoldersFileIn(appConfigDirectory, quietTatolabAppLog),
-    readWallClockNowMs: () => 1_790_000_000_000,
-    newProjectCreation: controller,
-    projectReadingsOfTheRuntime,
-    projectChanges: controller,
-    waitFor: async () => {},
-    readMonotonicClockMs: () => 0,
-    openTheProjectInItsStudioWindow: (folder) => appWindows.openTheProjectInItsStudioWindow(folder),
-    closeTheStudioWindowOf: (folder) => appWindows.studioWindowOfTheProjectIn(folder)?.tatolabMainWindow.close(),
-    openTheProjectWhenTheRuntimeHoldsItClosed: async () => succeeded(undefined),
-  });
   return {
     controller,
     statusPublisher,
@@ -315,7 +310,12 @@ export async function sharedStateOverFakes(
     }),
     developerModeSwitch,
     studioWarnings,
-    projectOpening,
+    homeDirectory: appConfigDirectory,
+    documentsDirectory: path.join(appConfigDirectory, "Documents"),
+    projectFolderDialog: async () => succeeded(null),
+    projectArchiveDialog: async () => succeeded(null),
+    projectCoverImageDialog: async () => succeeded(null),
+    recentProjectFolders: recentProjectFoldersFileIn(appConfigDirectory, quietTatolabAppLog),
     appWindows,
     pythonLanguageServers: new PythonLanguageServers({
       startANodeLanguageServer: () => failedWith("these tests start no language server"),
@@ -350,11 +350,7 @@ export async function sharedStateOverFakes(
     fetchBytesOverHttps: async () => failedWith("these tests reach no network"),
     moduleDownloadsFolder: path.join(appConfigDirectory, "module-downloads"),
     dependencySourceDialog: async () => succeeded(null),
-    projectAssetsImportedFromChosenFiles: new ProjectAssetsImportedFromChosenFiles({
-      homeDirectory: appConfigDirectory,
-      projectAssetFilesDialog: async () => succeeded(assetFilesTheDialogAnswers.files),
-      projectChanges: controller,
-    }),
+    projectAssetFilesDialog: async () => succeeded(assetFilesTheDialogAnswers.files),
     assetFilesTheDialogAnswers,
     thePersonEditingInStudio: { kind: "person", name: "sam" },
     projectViewsListed: new ProjectViewsListedToTheWindows(),

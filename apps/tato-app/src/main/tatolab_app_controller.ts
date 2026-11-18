@@ -10,7 +10,6 @@ import type {
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
   StudioWarning,
-  StreamActionFollowed,
   ProjectTheRuntimeNames,
   TatolabAppBuild,
   TatolabAppUpdateAnnouncement,
@@ -23,8 +22,6 @@ import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_ap
 import type { StreamActionChangesFollowedForTheStatus } from "./stream_action_changes_followed_for_the_status.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
-import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
-import type { ProjectAssetAtItsPath, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
 import type { NodeFileCreationRecorded, ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
 import { LocalApiClient } from "./local_api_client.js";
 import { type LocalApiRequestFailure } from "./local_api_request_failure.js";
@@ -272,59 +269,9 @@ export class TatolabAppController {
     return this.localApiClient.reloadProject(projectDirectory);
   }
 
-  /** The stream action `action` as the runtime's `describe_stream_action` describes it. */
-  describeStreamAction(action: string): Promise<Result<StreamActionFollowed, LocalApiRequestFailure>> {
-    return this.localApiClient.describeStreamAction(action);
-  }
-
-  /** Every stream the runtime lists now. */
-  listStreams(): Promise<Result<ListedStream[], LocalApiRequestFailure>> {
-    return this.localApiClient.listStreams();
-  }
-
   /** The project in `projectDirectory` as the runtime names it. */
   nameTheProject(projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
     return this.localApiClient.nameTheProject(projectDirectory);
-  }
-
-  /** The project in `projectDirectory` as its card shows it: its name, description and last edit. */
-  summarizeTheProject(projectDirectory: string): Promise<Result<ProjectSummaryTheRuntimeServes, LocalApiRequestFailure>> {
-    return this.localApiClient.summarizeTheProject(projectDirectory);
-  }
-
-  /** Name the project in `projectDirectory` `name` through the runtime's `rename_project`, answering its name now. */
-  renameProject(projectDirectory: string, name: string): Promise<Result<string, LocalApiRequestFailure>> {
-    return this.localApiClient.renameProject(projectDirectory, name);
-  }
-
-  /** Copy the project in `projectDirectory` into `into` as a project of its own through the runtime's `duplicate_project`. */
-  duplicateProject(projectDirectory: string, into: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
-    return this.localApiClient.duplicateProject(projectDirectory, into);
-  }
-
-  /** Queue the deletion of the project in `projectDirectory` through the runtime's `delete_project`, answering the action's id. */
-  deleteProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
-    return this.localApiClient.deleteProject(projectDirectory);
-  }
-
-  /** Describe the project in `projectDirectory` through the runtime's `set_project_description`; `null` clears it. */
-  setProjectDescription(projectDirectory: string, description: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>> {
-    return this.localApiClient.setProjectDescription(projectDirectory, description);
-  }
-
-  /** Show the project in `projectDirectory` by the media asset `cover` through the runtime's `set_project_cover`; `null` clears it. */
-  setProjectCover(projectDirectory: string, cover: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>> {
-    return this.localApiClient.setProjectCover(projectDirectory, cover);
-  }
-
-  /** Copy the file at `source` into the project in `projectDirectory` at `assetPath` or, for `null`, in its kind's folder, through the runtime's `import_asset`, by `author` or, for `null`, the runtime's own. */
-  importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>> {
-    return this.localApiClient.importAsset(projectDirectory, source, assetPath, author);
-  }
-
-  /** Make a project in `projectDirectory` from the `.zip` `source` through the runtime's `import_project`. */
-  importProject(source: string, projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
-    return this.localApiClient.importProject(source, projectDirectory);
   }
 
   /** Each import of the project in `projectDirectory`, each source read for a newer version with `checkForNewer`. */

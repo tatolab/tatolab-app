@@ -5,7 +5,9 @@
 
 import { Effect } from "effect";
 import type {
+  ListedStream,
   NodeCatalog,
+  ProjectCreationQueued,
   ProjectDependency,
   ProjectTheRuntimeNames,
   WorkspaceDependencyUpdate,
@@ -21,12 +23,20 @@ import type {
   StreamGraphSummary,
 } from "../shared/tatolab_backend_contract.js";
 import { assetPreviewPictureFromTheReadAssetPreviewToolResult, type AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
+import { listedStreamsFromTheListStreamsToolResult } from "./listed_streams_on_the_wire.js";
 import { jsonTextKeepingTheWrittenNumbers, prettyJsonTextKeepingTheWrittenNumbers } from "./json_on_the_wire.js";
 import { bodyOfAnOkAnswer } from "./local_api_plain_http.js";
 import { fromResult } from "./result_as_effect.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectAssetListingFromTheListAssetsToolResult } from "./project_asset_listing.js";
-import { assetAtItsPathFromTheToolResult, type ProjectAssetAtItsPath } from "./project_changes_on_the_wire.js";
+import {
+  assetAtItsPathFromTheToolResult,
+  duplicateFromTheDuplicateProjectToolResult,
+  projectFromTheImportProjectToolResult,
+  projectSettingsFromTheToolResult,
+  type ProjectAssetAtItsPath,
+  type ProjectSettingsAfterTheTransaction,
+} from "./project_changes_on_the_wire.js";
 import {
   dependencyUpdateFromTheUpdateDependencyToolResult,
   projectDependencyFromTheAddDependencyToolResult,
@@ -34,14 +44,15 @@ import {
   workspaceDependenciesFromTheListDependenciesToolResult,
   type ListedProjectDependency,
 } from "./project_dependencies_on_the_wire.js";
-import { projectFilesFromTheListProjectFilesToolResult, type ProjectFileTheRuntimeListed } from "./project_files_on_the_wire.js";
+import { projectFileBytesFromTheReadProjectFileToolResult, projectFilesFromTheListProjectFilesToolResult, type ProjectFileTheRuntimeListed } from "./project_files_on_the_wire.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
-import { projectTheRuntimeNamesFromTheListAssetsToolResult } from "./project_the_runtime_names.js";
+import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTheListAssetsToolResult, type ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
 import { projectViewsFromTheListProjectViewsToolResult, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { ContractMismatch, type RuntimeControlFailure } from "./runtime_control_failures.js";
 import {
+  projectCreationQueuedFromTheCreateProjectToolResult,
   projectStreamActionQueuedFromTheToolResult,
   streamActionCancelAnswerFromTheCancelStreamActionToolResult,
   streamActionDescriptionFromTheDescribeStreamActionToolResult,
@@ -243,4 +254,68 @@ export function deleteAsset(projectDirectory: string, asset: string, author: Pro
 /** The preview picture of the asset `asset` of the project in `projectDirectory`, an image's own or a video's poster frame, from the runtime's `read_asset_preview`. */
 export function readAssetPreview(projectDirectory: string, asset: string): Effect.Effect<AssetPreviewPictureTheRuntimeRead, RuntimeControlFailure, RuntimeControl> {
   return controlOperationReadWith("read_asset_preview", { project_directory: projectDirectory, asset }, (answered) => assetPreviewPictureFromTheReadAssetPreviewToolResult(asset, answered));
+}
+
+/** Every stream the runtime holds, from its `list_streams`. */
+export function listStreams(): Effect.Effect<ListedStream[], RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("list_streams", {}, listedStreamsFromTheListStreamsToolResult);
+}
+
+/** The project in `projectDirectory` as its card shows it, from the runtime's `list_assets`: its name, description, last edit and cover. */
+export function summarizeTheProject(projectDirectory: string): Effect.Effect<ProjectSummaryTheRuntimeServes, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("list_assets", { project_directory: projectDirectory }, projectSummaryFromTheListAssetsToolResult);
+}
+
+/** The bytes of the file `filePath`, `/`-separated in the project in `projectDirectory`, from the runtime's `read_project_file`. */
+export function readProjectFile(projectDirectory: string, filePath: string): Effect.Effect<Buffer, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("read_project_file", { project_directory: projectDirectory, path: filePath }, projectFileBytesFromTheReadProjectFileToolResult);
+}
+
+/** The project in `projectDirectory` named `name` through the runtime's `rename_project`, one transaction on its history: how people see it after. */
+export function renameProject(projectDirectory: string, name: string): Effect.Effect<ProjectSettingsAfterTheTransaction, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("rename_project", { project_directory: projectDirectory, name }, (answered) => projectSettingsFromTheToolResult("rename_project", answered));
+}
+
+/** The project in `projectDirectory` described as `description` through the runtime's `set_project_description`, one transaction on its history; `null` clears it. */
+export function setProjectDescription(projectDirectory: string, description: string | null): Effect.Effect<ProjectSettingsAfterTheTransaction, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("set_project_description", { project_directory: projectDirectory, description }, (answered) =>
+    projectSettingsFromTheToolResult("set_project_description", answered),
+  );
+}
+
+/** The project in `projectDirectory` shown by the media asset `cover`, a UUID it holds, through the runtime's `set_project_cover`, one transaction on its history; `null` clears it. */
+export function setProjectCover(projectDirectory: string, cover: string | null): Effect.Effect<ProjectSettingsAfterTheTransaction, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("set_project_cover", { project_directory: projectDirectory, cover }, (answered) => projectSettingsFromTheToolResult("set_project_cover", answered));
+}
+
+/**
+ * The file at `source`, an absolute path on this machine, copied into the project in `projectDirectory` as an asset through the runtime's `import_asset`, at
+ * `assetPath` or, for `null`, in its kind's folder under its own name numbered past a name already taken, recorded under `author` or, for `null`, the runtime's own.
+ */
+export function importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Effect.Effect<ProjectAssetAtItsPath, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith(
+    "import_asset",
+    { project_directory: projectDirectory, source, ...(assetPath === null ? {} : { asset_path: assetPath }), ...(author === null ? {} : { author: authorOnTheWire(author) }) },
+    (answered) => assetAtItsPathFromTheToolResult("import_asset", answered),
+  );
+}
+
+/** The project in `projectDirectory` copied with its history into `into`, a folder that does not exist yet, as a project of its own, through the runtime's `duplicate_project`: the duplicate. */
+export function duplicateProject(projectDirectory: string, into: string): Effect.Effect<ProjectTheRuntimeNames, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("duplicate_project", { project_directory: projectDirectory, into }, duplicateFromTheDuplicateProjectToolResult);
+}
+
+/** A project made in `projectDirectory`, a folder that does not exist yet, from `source`, an absolute `.zip` of one, through the runtime's `import_project`, which runs nothing: the project it made. */
+export function importProject(source: string, projectDirectory: string): Effect.Effect<ProjectTheRuntimeNames, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("import_project", { source, project_directory: projectDirectory }, projectFromTheImportProjectToolResult);
+}
+
+/** The deletion of the project in `projectDirectory` queued through the runtime's `delete_project`, its streams unloaded and forgotten, then its folder moved to the Trash: the id of the action it queued. */
+export function deleteProject(projectDirectory: string): Effect.Effect<string, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("delete_project", { project_directory: projectDirectory }, (answered) => queuedStreamActionFromTheToolResult("delete_project", answered));
+}
+
+/** A new project's creation and open queued through the runtime's `create_project`, in `projectDirectory`, a folder that does not exist yet, or with `null` in a folder the runtime draws under `~/streams`. */
+export function createProject(projectDirectory: string | null): Effect.Effect<ProjectCreationQueued, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("create_project", projectDirectory === null ? {} : { project_directory: projectDirectory }, projectCreationQueuedFromTheCreateProjectToolResult);
 }
