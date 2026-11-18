@@ -6,7 +6,7 @@ import { fireInputControlEvent, type ControlledPin, type InputControlElement, ty
 import type { NodeUiElementLoading } from "../node_ui/load_node_ui_element.js";
 import type { ListedNodeUiElement, NodeUiElementsReading } from "../node_ui/node_ui_elements_listing.js";
 import { listedElementOf } from "../node_ui/test_fixtures/node_ui_listing_fixtures.js";
-import { NODE_STUDIO_FIELDS_NONE_SET, type GraphEditMode, type JsonValue, type StreamGraphSummary } from "../studio_readings.js";
+import type { GraphEditMode, JsonValue, StreamInputValuesReading } from "../studio_readings.js";
 import { createInputControlBinder, type InputControlShown } from "./input_control_binding.js";
 import { createInputValues } from "./input_values.js";
 
@@ -54,37 +54,8 @@ class StandInFloatControl extends HTMLElement implements InputControlElement<"fl
 }
 customElements.define(STAND_IN_TAG, StandInFloatControl);
 
-function graphReading(gain: JsonValue, comesFrom: "saved" | "default" | "live" = "saved"): StreamGraphSummary {
-  return {
-    stream: "main",
-    stream_asset: STREAM_ASSET,
-    groups: [],
-    notes: [],
-    nodes: [
-      {
-        id: "MIX-ID",
-        name: "mix",
-        type: "nodes.mix:Mix",
-        kind: "function",
-        state: "Running",
-        failed_because: null,
-        process_raising_because: null,
-        not_ready_because: null,
-        config: {},
-        pins: {},
-        exposed_config_fields: [],
-        input_ports: [{ name: "gain", family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: { type: "float" }, flow: "value" }, value_read: { value: gain, comes_from: comesFrom } }],
-        output_ports: [],
-        dropped_bags_by_link: {},
-        refused_bags_by_output_port: {},
-        studio: NODE_STUDIO_FIELDS_NONE_SET,
-        fragment: null,
-        graph_interface: null,
-      },
-    ],
-    links: [],
-    graph_document_text: "{}",
-  };
+function valuesRead(gain: JsonValue, comesFrom: "saved" | "default" | "live" = "saved"): StreamInputValuesReading {
+  return { kind: "values", stream_asset: STREAM_ASSET, values: [{ level: [], node_id: "MIX-ID", input: "gain", value_read: { value: gain, comes_from: comesFrom } }] };
 }
 
 /** A binder over a store whose every write applies at once, with the listing, the loads and the flushes in the test's hands. */
@@ -97,7 +68,7 @@ function binderUnderTest({ loading = { kind: "defined", tag: STAND_IN_TAG } }: {
     },
     newGestureIdempotencyKey: () => "gesture",
   });
-  inputValues.takeTheGraphReading(PROJECT, graphReading(0.5));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(0.5));
   const listingListeners = new Set<(reading: NodeUiElementsReading) => void>();
   const loadsAsked: ListedNodeUiElement[] = [];
   const flushes: (() => void)[] = [];
@@ -159,7 +130,7 @@ test("a drag sends each move live and its release one commit, and a value that a
   control.dragTo(0.6);
   control.dragTo(0.7);
   await slot.settled();
-  slot.inputValues.takeTheGraphReading(PROJECT, graphReading(0.1));
+  slot.inputValues.takeTheInputValues(PROJECT, valuesRead(0.1));
   slot.flush();
   expect(control.valuesHanded).toEqual([0.5]);
   control.dragTo(0.8);
@@ -282,7 +253,7 @@ test("a_surfaces_own_field_shows_the_stores_value_and_writes_a_whole_gesture_and
     },
     newGestureIdempotencyKey: () => "gesture",
   });
-  inputValues.takeTheGraphReading(PROJECT, graphReading(0.5));
+  inputValues.takeTheInputValues(PROJECT, valuesRead(0.5));
   const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues });
   const field = binder.bindOwnField(GAIN);
   const valuesShown: JsonValue[] = [];

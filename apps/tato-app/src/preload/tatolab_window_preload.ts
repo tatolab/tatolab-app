@@ -77,7 +77,7 @@ const tatolabElectronBridge: TatolabElectronBridge = {
   },
   onStreamGraphChanged: (listener) => {
     const streamGraphChangedListener = (_streamGraphChangedEvent: IpcRendererEvent, streamGraphChanged: unknown) => {
-      if (isAStreamGraphChanged(streamGraphChanged)) listener(streamGraphChanged.stream);
+      if (isAStreamGraphChanged(streamGraphChanged)) listener(streamGraphChanged.stream, streamGraphChanged.input_value_changed);
     };
     ipcRenderer.on(TATOLAB_STREAM_GRAPH_CHANGED_EVENT, streamGraphChangedListener);
     return () => {

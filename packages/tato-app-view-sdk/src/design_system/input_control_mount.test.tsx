@@ -4,7 +4,7 @@ import { afterEach, expect, test } from "vitest";
 import type { ControlledInput } from "../pin_model/controlled_inputs";
 import { createInputControlBinder, type InputControlBinder, type InputControlShown } from "../pin_services/input_control_binding";
 import { createInputValues } from "../pin_services/input_values";
-import { NODE_STUDIO_FIELDS_NONE_SET, type GraphEditMode, type JsonValue, type StreamGraphInputValueRead, type StreamGraphSummary } from "../studio_readings";
+import type { GraphEditMode, JsonValue, StreamGraphInputValueRead, StreamInputValuesReading } from "../studio_readings";
 import { InputControlBinderContext, InputControlMount, useOwnFieldOfTheInput } from "./input_control_mount";
 
 const COUNT: ControlledInput = {
@@ -58,38 +58,9 @@ test("the slot draws its fallback while the control is pending, and draws a chan
   expect(binds()).toBe(1);
 });
 
-/** A graph reading of the one node `LOOP-ID`, its `count` reading `count`. */
-function graphReading(count: StreamGraphInputValueRead): StreamGraphSummary {
-  return {
-    stream: "main",
-    stream_asset: COUNT.address.graph.stream_asset,
-    groups: [],
-    notes: [],
-    nodes: [
-      {
-        id: "LOOP-ID",
-        name: "loop",
-        type: "nodes.loop:Loop",
-        kind: "function",
-        state: "Running",
-        failed_because: null,
-        process_raising_because: null,
-        not_ready_because: null,
-        config: {},
-        pins: {},
-        exposed_config_fields: [],
-        input_ports: [{ name: "count", family: "records", stream_facts: null, values_checked: false, pin: null, value_read: count }],
-        output_ports: [],
-        dropped_bags_by_link: {},
-        refused_bags_by_output_port: {},
-        studio: NODE_STUDIO_FIELDS_NONE_SET,
-        fragment: null,
-        graph_interface: null,
-      },
-    ],
-    links: [],
-    graph_document_text: "{}",
-  };
+/** The host's values of the stream: the one node `LOOP-ID`, its `count` reading `count`. */
+function valuesRead(count: StreamGraphInputValueRead): StreamInputValuesReading {
+  return { kind: "values", stream_asset: COUNT.address.graph.stream_asset, values: [{ level: [], node_id: "LOOP-ID", input: "count", value_read: count }] };
 }
 
 function OwnFieldOfTheCount() {
@@ -134,7 +105,7 @@ test("a surface's own field shows the store's value as each reading changes it, 
     },
     newGestureIdempotencyKey: () => "gesture",
   });
-  inputValues.takeTheGraphReading(COUNT.address.graph.project_folder, graphReading({ value: { every: 1 }, comes_from: "saved" }));
+  inputValues.takeTheInputValues(COUNT.address.graph.project_folder, valuesRead({ value: { every: 1 }, comes_from: "saved" }));
   const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues });
   render(
     <InputControlBinderContext value={binder}>
@@ -143,7 +114,7 @@ test("a surface's own field shows the store's value as each reading changes it, 
   );
   expect(screen.getByTestId("own-field").textContent).toBe('{"every":1} saved');
 
-  act(() => inputValues.takeTheGraphReading(COUNT.address.graph.project_folder, graphReading({ value: null, comes_from: "default" })));
+  act(() => inputValues.takeTheInputValues(COUNT.address.graph.project_folder, valuesRead({ value: null, comes_from: "default" })));
   expect(screen.getByTestId("own-field").textContent).toBe("null default");
 
   fireEvent.click(screen.getByTestId("own-field"));

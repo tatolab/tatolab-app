@@ -1,33 +1,35 @@
 import { afterEach, expect, test, vi } from "vitest";
-import type { NodeCatalog, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
+import type { NodeCatalog, StreamGraphInputValueChange, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
 import { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
-import type { NodeCatalogReading, StreamGraphReading } from "./studio_view_contract";
+import type { NodeCatalogReading, StreamGraphReading, StreamInputValuesReading } from "./studio_view_contract";
 import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
-function graphOfTheTypes(stream: string, nodeTypes: string[]): StreamGraphSummary {
+/** A graph of one node of each type, each with a `gain` input reading `gain`, saved. */
+function graphOfTheTypes(stream: string, nodeTypes: string[], gain: number): StreamGraphSummary {
+  const gainInput = { name: "gain", family: "channels" as const, stream_facts: null, values_checked: null, pin: null, value_read: { value: gain, comes_from: "saved" as const } };
   return {
     stream,
-    nodes: nodeTypes.map((type, index) => ({ id: `P${index}`, name: `n${index}`, type, kind: "process", state: null, failed_because: null, process_raising_because: null, not_ready_because: null, config: {}, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null })),
+    nodes: nodeTypes.map((type, index) => ({ id: `P${index}`, name: `n${index}`, type, kind: "process", state: null, failed_because: null, process_raising_because: null, not_ready_because: null, config: {}, input_ports: [gainInput], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null })),
     links: [],
-    stream_asset: null,
+    stream_asset: "STREAM-ASSET",
     groups: [],
     notes: [],
     graph_document_text: "{}",
   };
 }
 
-/** A backend whose graph names `served.graphTypes` and whose catalog lists `served.catalogTypes`, or refuses in `served.catalogRefusal`, counting each read, recording the streams followed, and pushing a graph change with `pushTheStreamGraphChanged`. */
+/** A backend whose graph names `served.graphTypes`, each node's gain reading `served.gain`, and whose catalog lists `served.catalogTypes`, or refuses in `served.catalogRefusal`, counting each read, recording the streams followed, and pushing a graph change with `pushTheStreamGraphChanged`. */
 function countingBackend() {
-  const served: { graphTypes: string[]; catalogTypes: string[]; catalogRefusal: string | null } = { graphTypes: ["A"], catalogTypes: ["A"], catalogRefusal: null };
+  const served: { graphTypes: string[]; gain: number; catalogTypes: string[]; catalogRefusal: string | null } = { graphTypes: ["A"], gain: 0.5, catalogTypes: ["A"], catalogRefusal: null };
   const reads = { graph: 0, catalog: 0 };
   const streamsFollowed = new Set<string>();
-  const streamGraphChangedListeners = new Set<(stream: string) => void>();
-  const pushTheStreamGraphChanged = (stream: string) => {
-    for (const listener of streamGraphChangedListeners) listener(stream);
+  const streamGraphChangedListeners = new Set<(stream: string, inputValueChange: StreamGraphInputValueChange | null) => void>();
+  const pushTheStreamGraphChanged = (stream: string, inputValueChange: StreamGraphInputValueChange | null = null) => {
+    for (const listener of streamGraphChangedListeners) listener(stream, inputValueChange);
   };
   const backend = {
     followStreamGraphChanges: (stream: string): Promise<void> => {
@@ -38,13 +40,13 @@ function countingBackend() {
       streamsFollowed.delete(stream);
       return Promise.resolve();
     },
-    onStreamGraphChanged: (listener: (stream: string) => void): (() => void) => {
+    onStreamGraphChanged: (listener: (stream: string, inputValueChange: StreamGraphInputValueChange | null) => void): (() => void) => {
       streamGraphChangedListeners.add(listener);
       return () => streamGraphChangedListeners.delete(listener);
     },
     describeStreamGraph: (stream: string): Promise<StreamGraphSummary> => {
       reads.graph += 1;
-      return Promise.resolve(graphOfTheTypes(stream, served.graphTypes));
+      return Promise.resolve(graphOfTheTypes(stream, served.graphTypes, served.gain));
     },
     describeNodeCatalog: (stream: string): Promise<NodeCatalog> => {
       reads.catalog += 1;
@@ -169,4 +171,41 @@ test("a_stream_is_followed_while_a_view_watches_it_and_the_window_is_shown", asy
   expect([...streamsFollowed]).toEqual(["main"]);
   stopWatching();
   expect([...streamsFollowed]).toEqual([]);
+});
+
+test("a_value_change_the_runtime_pushes_reaches_every_view_watching_the_streams_values_and_reads_no_graph", async () => {
+  vi.useFakeTimers();
+  const { backend, reads, streamsFollowed, pushTheStreamGraphChanged } = countingBackend();
+  const readings = new StreamGraphAndCatalogReadings(backend);
+  const canvasValues: StreamInputValuesReading[] = [];
+  const propertiesValues: StreamInputValuesReading[] = [];
+  const stopTheCanvas = readings.watchStreamInputValues("main", (reading) => canvasValues.push(reading));
+  readings.watchStreamInputValues("main", (reading) => propertiesValues.push(reading));
+  expect([...streamsFollowed]).toEqual(["main"]);
+  await vi.advanceTimersByTimeAsync(10);
+  expect(reads.graph).toBe(1);
+  for (const value of [0.6, 0.7, 0.8]) pushTheStreamGraphChanged("main", { node: "P0", input: "gain", value_read: { value, comes_from: "live" } });
+  pushTheStreamGraphChanged("another-stream", { node: "P0", input: "gain", value_read: { value: 0.1, comes_from: "live" } });
+  await vi.advanceTimersByTimeAsync(10);
+  expect(reads.graph).toBe(1);
+  const changedTo = (told: StreamInputValuesReading[]) => told.map((reading) => (reading.kind === "values" ? reading.values.map((value) => value.value_read.value) : reading.change.value_read.value));
+  expect(changedTo(canvasValues)).toEqual([[0.5], 0.6, 0.7, 0.8]);
+  expect(changedTo(propertiesValues)).toEqual([[0.5], 0.6, 0.7, 0.8]);
+  stopTheCanvas();
+  expect([...streamsFollowed]).toEqual(["main"]);
+});
+
+test("a_value_change_pushed_while_the_graph_is_read_again_is_kept_over_what_that_read_answers", async () => {
+  vi.useFakeTimers();
+  const { backend, served, pushTheStreamGraphChanged } = countingBackend();
+  const readings = new StreamGraphAndCatalogReadings(backend);
+  const told: StreamInputValuesReading[] = [];
+  readings.watchStreamInputValues("main", (reading) => told.push(reading));
+  await vi.advanceTimersByTimeAsync(10);
+  served.gain = 0.6;
+  pushTheStreamGraphChanged("main");
+  pushTheStreamGraphChanged("main", { node: "P0", input: "gain", value_read: { value: 0.9, comes_from: "live" } });
+  await vi.advanceTimersByTimeAsync(10);
+  const last = told.at(-1);
+  expect(last?.kind === "values" && last.values[0]?.value_read).toEqual({ value: 0.9, comes_from: "live" });
 });

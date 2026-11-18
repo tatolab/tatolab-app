@@ -21,6 +21,14 @@ export function useInputControlsOfTheFrame(connection: TatoAppViewConnection): {
   return { inputValues, inputControls };
 }
 
+/** Feeds `inputValues` the values of `stream`, a stream of the project in `projectFolder`, while drawn and the project is known. */
+export function useInputValuesOfTheStream(connection: TatoAppViewConnection, inputValues: InputValues, stream: string, projectFolder: string | null): void {
+  useLayoutEffect(() => {
+    if (projectFolder === null) return undefined;
+    return connection.watchStreamInputValues(stream, (reading) => inputValues.takeTheInputValues(projectFolder, reading));
+  }, [connection, inputValues, stream, projectFolder]);
+}
+
 interface InputControlMountProps {
   input: ControlledInput;
   surface: NodeUiSurface;

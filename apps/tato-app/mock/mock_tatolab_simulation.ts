@@ -10,6 +10,7 @@ import {
   stampMockLogRecord,
 } from "./mock_stream_fixtures";
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
+import type { MockInputValueChanged } from "./mock_input_value_changes";
 import { mockFoldersInDocumentsTatoStudio, mockOpenProjectReading, mockRecentProjects } from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
 import { MockPortViewers } from "./mock_port_viewers";
@@ -27,6 +28,7 @@ import {
   type ProjectLogRecordsPage,
   type ProjectLogRecordsPushed,
   type StreamGraphSummary,
+  type StreamGraphInputValueChange,
   type ProjectVenvSyncOfAStreamAction,
   type FailedProjectStreamAction,
   type StreamActionDescription,
@@ -241,11 +243,17 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
 
   /** The streams the window follows the graphs of, and who is told when one changes. */
   const streamsWhoseGraphsAreFollowed = new Set<string>();
-  const streamGraphChangedListeners = new Set<(streamId: string) => void>();
+  const streamGraphChangedListeners = new Set<(streamId: string, inputValueChange: StreamGraphInputValueChange | null) => void>();
   /** Tell the window each followed stream's graph changed after the command that changed it answers, as the runtime pushes `stream_graph_changed`. */
   const pushEveryFollowedStreamGraphChanged = (): void => {
     window.setTimeout(() => {
-      for (const streamId of streamsWhoseGraphsAreFollowed) for (const listener of streamGraphChangedListeners) listener(streamId);
+      for (const streamId of streamsWhoseGraphsAreFollowed) for (const listener of streamGraphChangedListeners) listener(streamId, null);
+    }, 0);
+  };
+  /** Tell the window each of `changes` after the command that made it answers, as the runtime pushes `input_value_changed` to a connection subscribed to both graph and value changes. */
+  const pushEachInputValueChanged = (changes: readonly MockInputValueChanged[]): void => {
+    window.setTimeout(() => {
+      for (const { stream_id, change } of changes) for (const listener of streamGraphChangedListeners) listener(stream_id, change);
     }, 0);
   };
 
@@ -904,6 +912,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     streamsWhoseGraphsAreFollowed,
     streamGraphChangedListeners,
     pushEveryFollowedStreamGraphChanged,
+    pushEachInputValueChanged,
     projectsWhoseLogsAreFollowed,
     projectLogRecordsWrittenListeners,
     publishStatus,

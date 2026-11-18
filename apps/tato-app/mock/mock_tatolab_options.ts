@@ -162,6 +162,8 @@ export interface MockTatolabOptions {
   nodeUiElementsListing: MockNodeUiElementsListing;
   /** `?input_values=refuse_negative`: an input's value below zero is refused, as the runtime refuses one outside its input's range. */
   areNegativeInputValuesRefused: boolean;
+  /** `?shell_sets_live=<number>`: a few seconds after the page opens, a shell sets the inverting effect's `amount` in `main` live to the number, as an agent's `transact` would; nothing is set by default. */
+  valueAShellSetsLive: number | null;
   /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the effect's output. */
   isTheCompositorInMain: boolean;
   /** Whether the open project's main stream declares Graph Inputs, which the Controls view shows. */
@@ -297,6 +299,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isTheCompositorInMain: pageQuery.get("compositor") === "layered",
     nodeUiElementsListing: mockNodeUiElementsListingOf(pageQuery.get("node_ui")),
     areNegativeInputValuesRefused: pageQuery.get("input_values") === "refuse_negative",
+    valueAShellSetsLive: numberInTheQuery(pageQuery.get("shell_sets_live")),
     doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",
     doesTheMainStreamHoldAGeneratedSubgraph: pageQuery.get("subgraphs") === "generated",
     isTheMainStreamLarge: pageQuery.get("main_graph") === "large",
@@ -396,4 +399,10 @@ export function initialMockStatus(
     case "not-running":
       return { ...runningStatus, runtime_state: "not_running", runtime_not_running_because: MOCK_RUNTIME_NOT_RUNNING_BECAUSE, machine_name: null, streams: null, streams_not_listed_because: null };
   }
+}
+
+/** The finite number `words` spell, or `null` for none. */
+function numberInTheQuery(words: string | null): number | null {
+  const number = words === null || words.trim() === "" ? Number.NaN : Number(words);
+  return Number.isFinite(number) ? number : null;
 }

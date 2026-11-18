@@ -137,6 +137,7 @@ export function studioViewHostServicesOf(
     openStreamTab: (streamTab) => sources.openStreamTab(streamTab),
     watchStreamGraph: streamReadings.watchStreamGraph,
     watchNodeCatalog: streamReadings.watchNodeCatalog,
+    watchStreamInputValues: streamReadings.watchStreamInputValues,
     openView: (viewTypeId, on) => sources.openView(viewTypeId, on),
     watchAreasForTheViewType: (viewTypeId, listener) => sources.watchAreasForTheViewType(viewTypeId, listener),
     showViewTypeInArea: (viewTypeId, areaId) => sources.showViewTypeInArea(viewTypeId, areaId),

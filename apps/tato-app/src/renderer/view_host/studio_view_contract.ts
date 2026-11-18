@@ -19,6 +19,7 @@ import type {
   StudioViewsReading,
   PythonLanguageServerConnectionEvent,
   StreamGraphReading,
+  StreamInputValuesReading,
   StreamTabAddress,
   StudioSelection,
   ViewOpenedOn,
@@ -54,6 +55,8 @@ export type {
   ProjectTransactionsReading,
   PythonLanguageServerConnectionEvent,
   StreamGraphReading,
+  StreamInputValue,
+  StreamInputValuesReading,
   StreamTabAddress,
   StudioSelection,
   ViewHeaderRow,
@@ -125,6 +128,8 @@ export interface StudioViewHostServices {
   watchStreamGraph(stream: string, listener: (reading: StreamGraphReading) => void): StopWatching;
   /** The node types `stream` can add, read when first watched and again once its graph names a type the catalog lacks. */
   watchNodeCatalog(stream: string, listener: (reading: NodeCatalogReading) => void): StopWatching;
+  /** Every input's value in the graph of `stream`, once it is read, then each change the runtime announces; it keeps that graph followed as `watchStreamGraph` does. */
+  watchStreamInputValues(stream: string, listener: (reading: StreamInputValuesReading) => void): StopWatching;
   /** Open a view of `viewTypeId` on `on`, in the area of the layout showing that type; refused while no area shows it. */
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening;
   /** What views of `viewTypeId` were last opened on, at once and again on each `openView` of that type; `null` until one is. */

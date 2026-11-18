@@ -2,7 +2,7 @@
 // in the tray, or a project's studio window or a view popped out of one, which closing closes.
 // `TatolabAppWindows` holds them all and shows the Dock icon on macOS while any is on screen.
 
-import type { OpenProjectReading, ProjectTransactionsReading, PortViewerEvent, PortViewerImageFrameFacts, ProjectLogRecordsPushed, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { OpenProjectReading, ProjectTransactionsReading, PortViewerEvent, PortViewerImageFrameFacts, ProjectLogRecordsPushed, PythonLanguageServerEvent, StreamGraphInputValueChange, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
   TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT,
   TATOLAB_OPEN_PROJECT_CHANGED_EVENT,
@@ -209,9 +209,9 @@ export class TatolabMainWindow implements WindowShowingPortViewers, WindowFollow
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_PORT_VIEWER_EVENT, event);
   }
 
-  /** Send the window `stream` as `tatolab-stream-graph-changed`; nothing, before the window is first shown, which reads each graph it follows when it opens. */
-  sendTheWindowTheStreamGraphChanged(stream: string): void {
-    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_STREAM_GRAPH_CHANGED_EVENT, { stream } satisfies StreamGraphChanged);
+  /** Send the window `stream` and the change of what one of its inputs reads, or `null` to read its graph again, as `tatolab-stream-graph-changed`; nothing, before the window is first shown, which reads each graph it follows when it opens. */
+  sendTheWindowTheStreamGraphChanged(stream: string, inputValueChange: StreamGraphInputValueChange | null): void {
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_STREAM_GRAPH_CHANGED_EVENT, { stream, input_value_changed: inputValueChange } satisfies StreamGraphChanged);
   }
 
   /** Send the window `projectDirectory` and the records pushed of its log, or `null` to read on from its cursor, as `tatolab-project-log-records-written`; nothing, before the window is first shown, which reads each log it follows when it opens. */
