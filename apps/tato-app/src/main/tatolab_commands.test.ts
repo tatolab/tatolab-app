@@ -4,7 +4,6 @@ import { succeeded } from "./result.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import { streamArgumentsFrom } from "./tatolab_stream_and_runtime_project_commands.js";
-import { enabledArgumentsFrom } from "./tatolab_status_runtime_and_settings_commands.js";
 import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
@@ -146,9 +145,6 @@ test("a refusal from the runtime reaches the window in the runtime's own words, 
 });
 
 test("a command's arguments are read as the window sends them, and anything else is refused", () => {
-  expect(enabledArgumentsFrom("set_stream_failure_notifications", { enabled: false })).toEqual(succeeded({ enabled: false }));
-  expect(enabledArgumentsFrom("set_stream_failure_notifications", { enabled: "yes" }).ok).toBe(false);
-  expect(enabledArgumentsFrom("set_stream_failure_notifications", null).ok).toBe(false);
   expect(streamArgumentsFrom("describe_stream_graph", { stream: "main" })).toEqual(succeeded({ stream: "main" }));
   expect(streamArgumentsFrom("describe_stream_graph", {}).ok).toBe(false);
 });
@@ -169,7 +165,7 @@ test("each command answers the window in the contract's shape, a refusal in its 
   expect(quitRequests).toBe(1);
   expect(await commandHandlers.set_stream_failure_notifications({ enabled: "yes" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: "set_stream_failure_notifications needs `enabled`, true or false",
+    refusal: expect.stringMatching(/^set_stream_failure_notifications: /),
   });
   expect(await commandHandlers.read_project_log_records({ stream: "camera" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,

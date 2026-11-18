@@ -1,9 +1,7 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { httpResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
-import { failedWith, succeeded } from "./result.js";
 import { RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL } from "./carried_runtime_run_as_the_apps_child.js";
 import { RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL } from "./runtime_log_folder_opening.js";
-import { getTatolabStatus, linkCommandLineTool } from "./tatolab_status_runtime_and_settings_commands.js";
 import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
@@ -11,7 +9,7 @@ afterEach(cleanUpTheFakesTheLastTestMade);
 test("the window asking for the status before the first round waits for it", async () => {
   const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "linux");
 
-  const status = getTatolabStatus(sharedState);
+  const status = commandHandlersOver(sharedState).get_tatolab_status(undefined, FROM_THE_PROJECTS_WINDOW);
   await sharedState.statusPublisher.refreshAndPublish();
 
   expect((await status).ok).toBe(true);
@@ -20,14 +18,18 @@ test("the window asking for the status before the first round waits for it", asy
 test("linking the tatolab command asks the link, then observes again, and a refusal reaches the window in its own words", async () => {
   const sharedState = await sharedStateOverFakes([], "macos");
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const commandHandlers = commandHandlersOver(sharedState);
   sharedState.commandLineToolLink.commandLineToolLink = { kind: "not_linked", path: "/Users/someone/.local/bin/tatolab" };
 
-  expect(await linkCommandLineTool(sharedState)).toEqual(succeeded(undefined));
+  expect(await commandHandlers.link_command_line_tool(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(sharedState.commandLineToolLink.commandLineToolLink).toEqual({ kind: "linked", path: "/Users/someone/.local/bin/tatolab" });
   expect(refreshRequests).toHaveBeenCalledTimes(1);
 
   sharedState.commandLineToolLink.linkRefusal = "/Users/someone/.local/bin/tatolab is not a link to Tatolab, so Tato Studio left it alone.";
-  expect(await linkCommandLineTool(sharedState)).toEqual(failedWith("/Users/someone/.local/bin/tatolab is not a link to Tatolab, so Tato Studio left it alone."));
+  expect(await commandHandlers.link_command_line_tool(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "/Users/someone/.local/bin/tatolab is not a link to Tatolab, so Tato Studio left it alone.",
+  });
   expect(sharedState.commandLineToolLink.linksAsked).toBe(2);
   expect(refreshRequests).toHaveBeenCalledTimes(2);
 });
@@ -73,20 +75,23 @@ test("restarting_the_runtime_stops_the_apps_runtime_to_start_it_again_then_obser
   expect(runtimeTheCommandLineStarted.carriedRuntimeStarts.runtimesStarted).toHaveLength(0);
 });
 
-test("opening_the_runtimes_log_folder_opens_the_folder_the_runtime_names_and_never_a_path_from_the_window", async () => {
+test("opening_the_runtimes_log_folder_opens_the_folder_the_runtime_names_and_refuses_a_path_from_the_window", async () => {
   const runtimeLogFolder = "/Users/jonathanf/Library/Application Support/Tatolab/logs";
   const sharedState = await sharedStateOverFakes(
     [
       controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 4_000, runtime_log_directory: runtimeLogFolder }),
       controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 5_000, runtime_log_directory: null }),
+      controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 6_000, runtime_log_directory: "/gone/logs" }),
     ],
     "macos",
     [runtimeLogFolder],
   );
   const commandHandlers = commandHandlersOver(sharedState);
 
-  expect(await commandHandlers.open_runtime_log_folder({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.open_runtime_log_folder({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: expect.stringMatching(/^open_runtime_log_folder: /) });
+  expect(await commandHandlers.open_runtime_log_folder(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(await commandHandlers.open_runtime_log_folder(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL });
+  expect(await commandHandlers.open_runtime_log_folder(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "/gone/logs is not a folder on this machine." });
   expect(sharedState.foldersShownInTheFileManager).toEqual([runtimeLogFolder]);
 });
 
@@ -100,7 +105,7 @@ test("turning_stream_failure_notifications_off_is_remembered_shown_in_the_next_s
   expect(sharedState.streamFailureNotifications.stateNow()).toEqual({ enabled: false, shown_by_this_desktop: true });
   expect(await commandHandlers.set_stream_failure_notifications({ enabled: "no" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: "set_stream_failure_notifications needs `enabled`, true or false",
+    refusal: expect.stringMatching(/^set_stream_failure_notifications: /),
   });
 });
 
@@ -150,7 +155,7 @@ test("dismissing_the_x11_warning_dialog_is_remembered_shown_in_the_next_status_a
   expect(sharedState.studioWarnings.warningsNow()).toEqual([{ kind: "viewer_frames_copied_on_x11", first_open_dialog_due: false }]);
   expect(await commandHandlers.dismiss_the_studio_warning_dialog({ kind: "slow_disk" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: "dismiss_the_studio_warning_dialog takes `kind` viewer_frames_copied_on_x11, not slow_disk",
+    refusal: expect.stringMatching(/^dismiss_the_studio_warning_dialog: /),
   });
 });
 
@@ -165,7 +170,7 @@ test("turning_developer_mode_on_is_remembered_shown_in_the_next_status_and_refus
   expect(sharedState.developerModeSwitch.isOnNow()).toBe(true);
   expect(await commandHandlers.set_developer_mode({ enabled: "yes" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: "set_developer_mode needs `enabled`, true or false",
+    refusal: expect.stringMatching(/^set_developer_mode: /),
   });
 });
 
@@ -183,7 +188,7 @@ test("opening_tatolab_at_login_asks_the_desktop_then_observes_again_and_is_refus
     ok: false,
     refusal: "Tato Studio could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied",
   });
-  expect(await commandHandlers.set_open_tatolab_at_login({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "set_open_tatolab_at_login needs `enabled`, true or false" });
+  expect(await commandHandlers.set_open_tatolab_at_login({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: expect.stringMatching(/^set_open_tatolab_at_login: /) });
 });
 
 test("a window's menus are kept for the system menu bar on macOS, shown while it is in focus, and menus out of shape are refused", async () => {

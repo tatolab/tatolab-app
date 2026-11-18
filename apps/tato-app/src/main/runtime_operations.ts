@@ -18,6 +18,7 @@ import type {
   ProjectStreamActionQueued,
   ProjectTransaction,
   ProjectTransactionAuthor,
+  RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
   StreamGraphSummary,
@@ -51,6 +52,7 @@ import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTh
 import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
 import { projectViewsFromTheListProjectViewsToolResult, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { ContractMismatch, type RuntimeControlFailure } from "./runtime_control_failures.js";
+import { runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./runtime_description_on_the_wire.js";
 import {
   projectCreationQueuedFromTheCreateProjectToolResult,
   projectStreamActionQueuedFromTheToolResult,
@@ -318,4 +320,9 @@ export function deleteProject(projectDirectory: string): Effect.Effect<string, R
 /** A new project's creation and open queued through the runtime's `create_project`, in `projectDirectory`, a folder that does not exist yet, or with `null` in a folder the runtime draws under `~/streams`. */
 export function createProject(projectDirectory: string | null): Effect.Effect<ProjectCreationQueued, RuntimeControlFailure, RuntimeControl> {
   return controlOperationReadWith("create_project", projectDirectory === null ? {} : { project_directory: projectDirectory }, projectCreationQueuedFromTheCreateProjectToolResult);
+}
+
+/** How the running runtime describes itself through `describe_runtime`: its version, build, uptime and own log folder. */
+export function describeRuntime(): Effect.Effect<RuntimeDescription, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("describe_runtime", {}, runtimeDescriptionFromTheDescribeRuntimeToolResult);
 }
