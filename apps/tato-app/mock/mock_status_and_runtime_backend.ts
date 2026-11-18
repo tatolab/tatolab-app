@@ -1,4 +1,4 @@
-import { MOCK_NODE_CATALOG_ENTRIES } from "./mock_node_catalog";
+import { MOCK_RECORDED_NODE_CATALOG } from "./mock_recordings";
 import { mockGraphNodeIdOf } from "./mock_stream_fixtures";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
@@ -80,8 +80,8 @@ export function mockStatusAndRuntimeBackendOf(simulation: MockTatolabSimulation)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       loadedStreamOfTheId(streamId);
       const nodeTypes = mockTatolabOptions.arePortFamiliesServed
-        ? [...MOCK_NODE_CATALOG_ENTRIES]
-        : MOCK_NODE_CATALOG_ENTRIES.map((entry) => ({ ...entry, inputs: entry.inputs.map((port) => ({ ...port, family: null })), outputs: entry.outputs.map((port) => ({ ...port, family: null })) }));
+        ? structuredClone([...MOCK_RECORDED_NODE_CATALOG])
+        : MOCK_RECORDED_NODE_CATALOG.map((entry) => ({ ...entry, inputs: entry.inputs.map((port) => ({ ...port, family: null })), outputs: entry.outputs.map((port) => ({ ...port, family: null })) }));
       return { stream: streamId, node_types: nodeTypes };
     },
     describeRuntime: async (): Promise<RuntimeDescription> => {

@@ -12,6 +12,7 @@ import {
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import { mockFoldersInDocumentsTatoStudio, mockOpenProjectReading, mockRecentProjects } from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
+import { MOCK_RECORDED_NODE_CATALOG } from "./mock_recordings";
 import { MockPortViewers } from "./mock_port_viewers";
 import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./mock_studio_view/mock_studio_view_listing";
 import { MockProjectFiles } from "./mock_project_files";
@@ -88,8 +89,8 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const assetsChangedWhileTheMockRuns = mockProjectAssetsUnchanged();
-  const mainStreamAsChosen = mockTatolabOptions.isTheMainStreamLarge
-    ? fixtures.mainStreamOfTheLargeGraph
+  const mainStreamAsChosen = mockTatolabOptions.mainGraph !== null
+    ? fixtures.mainStreamHoldingTheGraph[mockTatolabOptions.mainGraph]
     : scenario === "node-error"
       ? fixtures.mainStreamWithDisplayWindowInError
       : scenario === "node-not-ready"
@@ -184,9 +185,9 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     );
   /** Commit `operations`: applied to the saved graphs, which answer, then to the running ones. */
   const commitGraphActions = (operations: readonly StreamGraphAction[], applying: "a_transaction" | "undo_or_redo", historyOperationsReplayed: readonly JsonValue[] = []) => {
-    const outcome = applyMockGraphTransaction(savedGraphTargetsOfTheOpenProject(), operations, applying, historyOperationsReplayed);
-    if (outcome.kind === "applied") applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations, applying, outcome.history_operations);
-    return outcome;
+    const applied = applyMockGraphTransaction(savedGraphTargetsOfTheOpenProject(), MOCK_RECORDED_NODE_CATALOG, operations, applying, historyOperationsReplayed);
+    applyMockGraphTransaction(graphTargetsOfTheOpenProject(), MOCK_RECORDED_NODE_CATALOG, operations, applying, applied.history_operations);
+    return applied;
   };
   /** Why undoing `undone` is refused, in the runtime's words: the stream it saved is edited since, or placed by another node still; `null` when nothing refuses it. */
   const whyTheUndoIsRefused = (undone: ProjectTransaction): string | null => {

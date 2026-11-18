@@ -16,7 +16,9 @@ import { mockDeleteTheAsset, mockImportTheFilesChosen, mockReadTheAssetPreview, 
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import type { JsonValue, ProjectGraphTransaction } from "../src/shared/tatolab_backend_contract";
-import { applyMockGraphTransaction, isAJsonObject, MOCK_REFUSAL_NAMING_NOTHING } from "./mock_graph_transactions";
+import { applyMockGraphTransaction, isAJsonObject } from "./mock_graph_transactions";
+import { MOCK_RECORDED_NODE_CATALOG } from "./mock_recordings";
+import { MockReplayedRefusals } from "./mock_replayed_refusals";
 import { PROJECT_LOG_FOLDER_IN_THE_PROJECT, type StreamActionCancelAnswer, type StreamActionFollowed } from "../src/shared/tatolab_backend_contract";
 import { MOCK_COMMAND_LATENCY_MILLISECONDS, type MockLoadedStream } from "./mock_tatolab_simulation_constants";
 import { sleep, type MockTatolabSimulation } from "./mock_tatolab_simulation";
@@ -60,6 +62,7 @@ function whyAnArrayValueIsNotANumberOrAListOfOneShape(value: JsonValue): string 
 /** The mock backend's projects and streams methods over `simulation`. */
 export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulation): Pick<TatolabBackend, "listProjectNodeTypes" | "listProjectAssets" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "deleteAssetFromTheOpenProject" | "removeProject" | "renameStream" | "createStreamInTheOpenProject" | "deleteStream" | "openStreamProjectFolder" | "openTerminalAtStreamProject" | "openStreamLogFolder" | "chooseStreamProjectFolder" | "createStreamProject" | "openStreamProject" | "stopOpenProject" | "reloadProject" | "describeStreamAction" | "cancelStreamAction" | "chooseProjectFolder" | "readNewProjectDefaults" | "chooseNewProjectLocation" | "createNewProject" | "readOpenProject" | "readRecentProjects" | "openRecentProject" | "renameRecentProject" | "duplicateRecentProject" | "deleteRecentProject" | "readRecentProjectCover" | "setRecentProjectDescription" | "chooseProjectCoverImage" | "setRecentProjectCover" | "chooseProjectArchiveToImport" | "importProjectArchive" | "onOpenProjectChanged" | "readOpenProjectTransactions" | "onProjectTransactionsChanged" | "onProjectFilesChanged" | "onProjectNodeTypesChanged" | "undoInTheOpenProject" | "transactInTheOpenProject" | "readThePersonEditingInStudio" | "redoInTheOpenProject" | "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "runOpenProject" | "pauseOpenProject" | "listStudioViewsOfTheOpenProject" | "writeStudioViewOutput" | "writeGraphInput"> {
   const { fixtures, assetsChangedWhileTheMockRuns, openProjectListeners, mockStudioViewsListedInTheProject, coverImageUrlsByFolder, mockFoldersOnDisk, rememberTheProjectAsOpenedLast, openTheProjectInTheMock, mockProjectFiles, graphTransactionsCommittedByIdempotencyKey, mockProjectTransactions, refuseWithoutAnOpenProject, loadedStreams, graphTargetsOfTheOpenProject, savedGraphTargetsOfTheOpenProject, commitGraphActions, whyTheUndoIsRefused, applyingItsGraphOperations, pushEveryFollowedStreamGraphChanged, listStreams, projectFolders, foldersHandedToTheWindow, projectFolderTheDialogChooses, refuseAFolderNotHandedToTheWindow, newProjectFolderTheRuntimeDraws, projectLoadsQueued, notHeldWords, cancelMockStreamAction, queueAMockProjectLoadThatFails, queueAMockProjectLoad, noRuntimeAnswersRefusal, loadedStreamOfTheId, streamIdsListedForARefusal, loadedStreamsOfTheMockProjectIn, mockPlaybackAReloadOfTheProjectKeeps, setTheMockPlaybackOfTheStreams, stopMockProject, removeMockProject, renameMockStream, createMockStreamInTheOpenProject, deleteMockStream, listedProjectFolderOf, isTheTerminalMissing, isTheLogFolderMissing, isNoProjectLoadHeld, mockTatolabOptions } = simulation;
+  const replayedRefusals = new MockReplayedRefusals(mockTatolabOptions.replayedRefusal);
   return {
     listProjectNodeTypes: async (projectDirectory) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -343,18 +346,9 @@ export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulatio
         return { kind: "applied", transaction: { ...structuredClone(committedBefore), added_nodes: committedBefore.added_nodes.map((addedNode) => ({ ...addedNode, as: null })) } };
       }
       savedGraphTargetsOfTheOpenProject();
-      const operationInsideAPlacedStream = operations.findIndex((operation) => "level" in operation && (operation.level ?? []).length > 0);
-      if (mode === "live" && operationInsideAPlacedStream !== -1) {
-        const refusal = { ...MOCK_REFUSAL_NAMING_NOTHING, action: "transact", refused_operation_index: operationInsideAPlacedStream };
-        return { kind: "refused", refusal: { ...refusal, runtime_words: "an edit inside a placed stream is refused live: it is made on the project's graph documents, with `mode` `commit`" } };
-      }
-      const negativeInputValue = mockTatolabOptions.areNegativeInputValuesRefused ? operations.findIndex((operation) => operation.operation === "set_node_input_value" && typeof operation.value === "number" && operation.value < 0) : -1;
-      if (negativeInputValue !== -1) {
-        const refusal = { ...MOCK_REFUSAL_NAMING_NOTHING, action: "transact", refused_operation_index: negativeInputValue };
-        return { kind: "refused", refusal: { ...refusal, runtime_words: "the value is below the input's range, which starts at 0" } };
-      }
-      const outcome = mode === "commit" ? commitGraphActions(operations, "a_transaction") : applyMockGraphTransaction(graphTargetsOfTheOpenProject(), operations, "a_live_transaction");
-      if (outcome.kind === "refused") return outcome;
+      const replayedRefusal = replayedRefusals.refusalOf(operations, mode);
+      if (replayedRefusal !== null) return { kind: "refused", refusal: replayedRefusal };
+      const outcome = mode === "commit" ? commitGraphActions(operations, "a_transaction") : applyMockGraphTransaction(graphTargetsOfTheOpenProject(), MOCK_RECORDED_NODE_CATALOG, operations, "a_live_transaction");
       pushEveryFollowedStreamGraphChanged();
       const recorded = mode === "commit" ? mockProjectTransactions.record(MOCK_PERSON_EDITING_IN_STUDIO, outcome.history_operations, outcome.inverse_operations) : null;
       const transaction: ProjectGraphTransaction = { mode, transaction: recorded?.transaction ?? null, commit: recorded?.commit ?? null, ...outcome.transaction };

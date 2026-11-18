@@ -7,10 +7,10 @@
 // `undo_state` that rule gives it, and an undo or redo refused is kept as the runtime keeps it.
 // `?history=empty` opens a project with no transactions.
 
-import { MOCK_REFUSAL_NAMING_NOTHING } from "./mock_graph_transactions";
 import { mockNodeIdOf, mockStreamIdOf, mockStreamLocationOf } from "./mock_stream_fixtures";
 import type {
   JsonValue,
+  ProjectActionRefusal,
   ProjectTransaction,
   ProjectTransactionAuthor,
   ProjectTransactions,
@@ -55,6 +55,17 @@ function mockAppliedAt(number: number): string {
   return new Date(Date.UTC(2026, 10, 9, 18, 0) + number * 7 * 60_000).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
+/** What a mock history refusal names beside its action and words: the general code `refused`, and no place or suggested call. */
+const MOCK_HISTORY_REFUSAL_NAMING_NOTHING: Omit<ProjectActionRefusal, "action" | "refused_operation_index" | "runtime_words"> = {
+  refusal_code: "refused",
+  refused_node: null,
+  refused_link: null,
+  refused_field: null,
+  refused_params_pointer: null,
+  refused_file: null,
+  suggested_call: null,
+};
+
 function mockRefusedUndoOrRedo(author: ProjectTransactionAuthor, undoOrRedo: "undo" | "redo", runtimeWords: string, refusedAt: string): RefusedProjectAction {
   return {
     author_kind: author.kind,
@@ -62,7 +73,7 @@ function mockRefusedUndoOrRedo(author: ProjectTransactionAuthor, undoOrRedo: "un
     mode: "commit",
     operations: [],
     idempotency_key: null,
-    refusal: { ...MOCK_REFUSAL_NAMING_NOTHING, action: undoOrRedo, refused_operation_index: null, runtime_words: runtimeWords },
+    refusal: { ...MOCK_HISTORY_REFUSAL_NAMING_NOTHING, action: undoOrRedo, refused_operation_index: null, runtime_words: runtimeWords },
     refused_at: refusedAt,
   };
 }
@@ -98,7 +109,7 @@ function mockTransactionsOldestFirst(projectDirectory: string): ProjectTransacti
   );
   const meter = { id: nodeOf("brightnessmeter"), name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", config: {} };
   const meterLinks = [{ source: { node: nodeOf("invertingeffect"), port: "video_to_downstream" }, target: { node: meter.id, port: "video_from_upstream" } }];
-  const added = mockTransaction(4, CLAUDE, [{ stream: mainStream, operation: "add_node", node: meter, links: meterLinks }], [{ stream: mainStream, operation: "remove_node", node: meter, links: meterLinks }]);
+  const added = mockTransaction(4, CLAUDE, [{ stream: mainStream, operation: "add_node", node: meter, links: meterLinks }], [{ stream: mainStream, operation: "remove_node", node: meter.id, links: meterLinks }]);
   const fitted = mockTransaction(
     5,
     YOU,

@@ -90,6 +90,16 @@ describe("a Float input's control", () => {
     expect(wordsOfTheControl(inProperties)).toBe("1");
   });
 
+  it("draws a control on the recorded sample's unwired Float input with the value the runtime read by default, and none on its wired or untyped pins", async () => {
+    await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind");
+    const onTheCard = await waitFor(() => controlOnTheCard("warmth", "base") ?? expect.unreachable("no control on Warmth's base row"), AS_LONG_AS_A_FRAME_BINDS);
+    expect(wordsOfTheControl(onTheCard)).toBe("0.1");
+    expect([onTheCard.getAttribute("data-surface"), onTheCard.getAttribute("data-state")]).toEqual(["node", "editable"]);
+    const streamGraph = coreViewPage("stream_graph", "stream-graph");
+    expect(streamGraph.querySelector('[data-node-graph-card="warmth"] [data-input-control="count"]')).toBeNull();
+    expect(streamGraph.querySelector('[data-node-graph-card="tally"] [data-input-control]')).toBeNull();
+  });
+
   it("sends a drag on the node live, with no history entry for a move, and its release is one Undo step", async () => {
     const { backend } = await mountedWindowOverTheMock("state=running");
     const onTheCard = await waitFor(() => controlOnTheCard("invertingeffect", "amount") ?? expect.unreachable("no control on the card's amount row"), AS_LONG_AS_A_FRAME_BINDS);
@@ -128,16 +138,16 @@ describe("a Float input's control", () => {
     await waitFor(() => expect(field.value).toBe(""));
   });
 
-  it("shows the runtime's refusal of a value under Properties' control, in its words, until a value is taken", async () => {
-    await mountedWindowOverTheMock("state=running&input_values=refuse_negative");
-    fireEvent.click(await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card")));
-    const inProperties = await waitFor(() => floatControlIn(coreViewPage("properties").querySelector('[data-properties-port="amount"] [data-input-control="amount"]')) ?? expect.unreachable("no control on Properties' amount row"), AS_LONG_AS_A_FRAME_BINDS);
-    const refusalLine = () => coreViewPage("properties").querySelector('[data-properties-input-value-refusal="amount"]');
+  it("shows the runtime's recorded refusal of a value under Properties' control, in its words, until a value is taken", async () => {
+    await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind&refusal=value_of_another_type");
+    fireEvent.click(await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>('[data-node-graph-card="warmth"]') ?? expect.unreachable("no Warmth card")));
+    const inProperties = await waitFor(() => floatControlIn(coreViewPage("properties").querySelector('[data-properties-port="base"] [data-input-control="base"]')) ?? expect.unreachable("no control on Properties' base row"), AS_LONG_AS_A_FRAME_BINDS);
+    const refusalLine = () => coreViewPage("properties").querySelector('[data-properties-input-value-refusal="base"]');
     expect(refusalLine()).toBeNull();
 
-    inProperties.dragTo(-0.5);
+    inProperties.dragTo(0.3);
     inProperties.release();
-    await waitFor(() => expect(refusalLine()?.textContent).toContain("the value is below the input's range, which starts at 0"));
+    await waitFor(() => expect(refusalLine()?.textContent).toContain('the value of input `base` of `warmth` is "warm", and `base` takes a number. To fix: send 0.5'));
     expect(refusalLine()?.textContent).toContain("The value wasn't set:");
 
     inProperties.dragTo(0.5);

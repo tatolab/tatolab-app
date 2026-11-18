@@ -1,4 +1,5 @@
 import { largeMockStreamGraph } from "./mock_large_stream_graph";
+import { mockRecordedGraphOfTheEveryPinKindSample } from "./mock_recordings";
 import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
 import type { JsonValue, ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphFragmentKind, StreamGraphGroup, StreamGraphLink, StreamGraphNodeKind, StreamGraphNodeStudioFields, StreamGraphNote, StreamGraphPortPin, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
 
@@ -407,7 +408,7 @@ const PICTURE_AND_FADER_VIEW_LINK: StreamGraphLink = {
 /** An alpha-over compositor of two layers over the effect's output, the second offset and half transparent. */
 const ALPHA_OVER_COMPOSITOR_NODE: MockGraphNode = {
   name: "alphaovercompositor",
-  type: "tatolab.compositor:AlphaOverCompositor",
+  type: "tatolab.compositor.alpha_over_compositor:AlphaOverCompositor",
   state: "Running",
   config: { width: 1280, height: 720, layers: [{}, { x: 640, y: 360, opacity: 0.5 }] },
   input_ports: portsStatingNoStreamFacts("image", "layer_0", "layer_1"),
@@ -691,6 +692,14 @@ function failedLobbyRecorderListing(machine: MockMachine): ListedStream {
   return { stream: mockStreamIdOf(address), display_name: "lobby-recorder", location: mockStreamLocationOf(address), state: "failed", node_count: null, failed_because: machine.cameraFailure, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
 }
 
+/** What `?main_graph=` names `main` to hold in place of the pattern project's own graph. */
+export type MockMainGraph = "every_pin_kind" | "large";
+
+/** The graph `?main_graph=` names, `null` when it names none. */
+export function mockMainGraphNamed(mainGraphInTheQuery: string | null): MockMainGraph | null {
+  return mainGraphInTheQuery === "every_pin_kind" || mainGraphInTheQuery === "large" ? mainGraphInTheQuery : null;
+}
+
 /** The machine the mock runtime runs on for `platform`, and the streams it lists. */
 export interface MockStreamFixtures {
   machine: MockMachine;
@@ -707,8 +716,8 @@ export interface MockStreamFixtures {
   mainStreamHoldingAGeneratedSubgraph: MockStreamFixture;
   /** `main` with an `ImageFile` that names no asset, so it reports itself not ready. */
   mainStreamWithAnImageFileNotReady: MockStreamFixture;
-  /** `main` holding the large graph of the canvas measurements. */
-  mainStreamOfTheLargeGraph: MockStreamFixture;
+  /** `main` holding each graph `?main_graph=` names: the one recorded from the every-pin-kind sample, or the large graph of the canvas measurements. */
+  mainStreamHoldingTheGraph: Record<MockMainGraph, MockStreamFixture>;
   cameraStream: MockStreamFixture;
   /** The camera stream as the runtime re-loads it at its start before anyone has asked for camera access. */
   cameraStreamWaitingForCameraAccess: MockStreamFixture;
@@ -745,6 +754,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
   };
   const mainStream = createTestPatternStream(machine, mainStreamOptions);
   const largeGraph = largeMockStreamGraph();
+  const everyPinKindGraph = mockRecordedGraphOfTheEveryPinKindSample();
   const cameraStream = createCameraStream(machine);
   const recorderOfMainStream = createTestPatternStream(machine, {
     ...mainStreamOptions,
@@ -764,7 +774,10 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     mainStreamDeclaringGraphInputs: createTestPatternStream(machine, { ...mainStreamOptions, withGraphInputs: true }),
     mainStreamHoldingAGeneratedSubgraph: createTestPatternStream(machine, { ...mainStreamOptions, withAGeneratedSubgraph: true }),
     mainStreamWithAnImageFileNotReady: createTestPatternStream(machine, { ...mainStreamOptions, withAnImageFileNotReady: true }),
-    mainStreamOfTheLargeGraph: { ...mainStream, listing: { ...mainStream.listing, node_count: largeGraph.nodes.length }, graph: largeGraph },
+    mainStreamHoldingTheGraph: {
+      every_pin_kind: { ...mainStream, listing: { ...mainStream.listing, node_count: everyPinKindGraph.nodes.length }, graph: everyPinKindGraph },
+      large: { ...mainStream, listing: { ...mainStream.listing, node_count: largeGraph.nodes.length }, graph: largeGraph },
+    },
     cameraStream,
     cameraStreamWaitingForCameraAccess: { ...cameraStream, listing: { ...cameraStream.listing, capture_devices_whose_access_was_never_asked_for: ["camera"] } },
     recorderOfMainStream,

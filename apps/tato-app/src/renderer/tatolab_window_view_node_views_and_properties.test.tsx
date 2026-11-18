@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { JsonValue, PoppedOutView } from "../shared/tatolab_backend_contract";
+import type { JsonValue, NodeCatalog, PoppedOutView } from "../shared/tatolab_backend_contract";
+import type { TatolabBackend } from "./backend/tatolab_backend";
 import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
 import { readMockTatolabOptions } from "../../mock/mock_tatolab_options";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
@@ -15,6 +16,25 @@ vi.mock("@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_monac
 });
 
 afterEach(cleanUpTheWindowsOfEarlierTests);
+
+/** The node catalog of the mock's `backend`, with Core Nodes' `ImageFile` listed as streamlib declares it: the recorded sample adds no node type taking a project asset, so a test of the asset field lists one itself. */
+async function theCatalogListingImageFile(backend: Pick<TatolabBackend, "describeNodeCatalog">, stream: string): Promise<NodeCatalog> {
+  const catalog = await backend.describeNodeCatalog(stream);
+  return {
+    ...catalog,
+    node_types: [
+      ...catalog.node_types,
+      {
+        type: "core_nodes.image_file:ImageFile",
+        description: "A project image asset, published as an Image.",
+        category: null,
+        config_schema: { type: "object", properties: { asset: { type: "string", default: "", "x-tatolab-project-asset": { media: ["image"] } } }, additionalProperties: false },
+        inputs: [],
+        outputs: [{ name: "image", description: "", family: "image", pin: null, input_mode: null }],
+      },
+    ],
+  };
+}
 
 describe("the studio", () => {
   it("asks for a node while nothing is selected, then plays the node clicked, reading its port as a port viewer", async () => {
@@ -202,14 +222,16 @@ describe("the studio", () => {
     await waitFor(() => expect(inTheCoreView("properties").getByRole("textbox", { name: "Node name" })).toHaveProperty("value", "Inverting Effect"));
   });
 
-  it("draws a Float pin, a Texture pin and an untyped pin each in its own look, and names each type on its tooltip", async () => {
-    await mountedWindowOverTheMock("state=running");
+  it("draws the recorded sample's Float, Integer, Boolean and Texture pins and its untyped Records pin each in its own look, and names each type on its tooltip", async () => {
+    await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind");
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
-    const socket = (nodeId: string, handleId: string) => streamGraph.querySelector<HTMLElement>(`[data-node-graph-card="${nodeId}"] .node-graph-pin[data-handleid="${handleId}"]`) ?? expect.unreachable(`no socket ${handleId} on ${nodeId}`);
+    const socket = (nodeName: string, handleId: string) => streamGraph.querySelector<HTMLElement>(`[data-node-graph-card="${nodeName}"] .node-graph-pin[data-handleid="${handleId}"]`) ?? expect.unreachable(`no socket ${handleId} on ${nodeName}`);
     const look = (element: HTMLElement) => [element.getAttribute("data-pin-type"), element.getAttribute("data-pin-flow"), element.getAttribute("title")];
-    await waitFor(() => expect(look(socket("invertingeffect", "input:amount"))).toEqual(["float", "value", "amount · Float, one value at a time\nBrightness added to each frame after it is inverted"]));
-    expect(look(socket("displaywindow", "input:video"))).toEqual(["texture", "stream", "video · Texture, a stream\nFrames to show"]);
-    expect(look(socket("invertingeffect", "input:video_from_upstream"))).toEqual(["untyped", null, "video_from_upstream · No exact type · 30 fps"]);
+    await waitFor(() => expect(look(socket("warmth", "input:base"))).toEqual(["float", "value", "base · Float, one value at a time"]));
+    expect(look(socket("beat", "output:count"))).toEqual(["integer", "value", "count · Integer, one value at a time"]);
+    expect(look(socket("beat", "output:accented"))).toEqual(["boolean", "value", "accented · Boolean, one value at a time"]);
+    expect(look(socket("testpattern", "output:video"))).toEqual(["texture", "stream", "video · Texture, a stream\nTest-pattern video frames"]);
+    expect(look(socket("tally", "output:tally"))).toEqual(["untyped", null, "tally · No exact type · values unchecked\nHow many pictures it has seen, and the size of the latest"]);
   });
 
   it("names each port's type and flow in Properties beside a mark in its type's look, and an untyped port's family as a family", async () => {
@@ -292,12 +314,13 @@ describe("the studio", () => {
   });
 
   it("chooses an image for Image File's asset field in the asset picker over the window, sends its UUID, undoes it with one ⌘Z, imports one that is chosen at once, and shows a refusal in the runtime's words under the field", { timeout: 30_000 }, async () => {
-    const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running")));
+    const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=node-not-ready")));
     const assetsSent: JsonValue[] = [];
     const mediaTheImportOffered: (readonly string[] | null)[] = [];
     let refusesTheNextAssetSet = false;
-    await mountedWindowOverTheMock("state=running", {
+    await mountedWindowOverTheMock("state=node-not-ready", {
       ...mockBackend,
+      describeNodeCatalog: (stream) => theCatalogListingImageFile(mockBackend, stream),
       importAssetsIntoTheOpenProject: (media) => {
         mediaTheImportOffered.push(media);
         return mockBackend.importAssetsIntoTheOpenProject(media);
@@ -313,12 +336,7 @@ describe("the studio", () => {
       },
     });
     const streamGraph = coreViewPage("stream_graph", "stream-graph");
-    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-tool="add_node"]') ?? expect.unreachable("no Add node in the graph's ribbon")));
-    const nodeSearch = await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Add a node" }));
-    const nodeSearchField = within(nodeSearch).getByRole("combobox");
-    fireEvent.change(nodeSearchField, { target: { value: "Image File" } });
-    fireEvent.keyDown(nodeSearchField, { key: "Enter" });
-    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="imagefile"]') ?? expect.unreachable("no Image File card"), { timeout: 5000 }));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="posterimage"]') ?? expect.unreachable("no Image File card"), { timeout: 5000 }));
 
     const properties = () => coreViewPage("properties");
     const assetWords = () => properties().querySelector<HTMLInputElement>('[data-config-field="asset"] [data-property-asset-field] input') ?? expect.unreachable("no asset field");
@@ -372,33 +390,32 @@ describe("the studio", () => {
 
   it("shows under Image File's asset field the runtime's words when it refuses to list the project's assets", { timeout: 20_000 }, async () => {
     const refusal = "list_assets failed: the project's assets folder is unreadable";
-    await mountedWindowOverTheMock("state=running", {
+    const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=node-not-ready")));
+    await mountedWindowOverTheMock("state=node-not-ready", {
+      ...mockBackend,
+      describeNodeCatalog: (stream) => theCatalogListingImageFile(mockBackend, stream),
       listProjectAssets: async () => {
         throw refusal;
       },
     });
     const streamGraph = coreViewPage("stream_graph", "stream-graph");
-    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-tool="add_node"]') ?? expect.unreachable("no Add node in the graph's ribbon")));
-    const nodeSearchField = within(await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Add a node" }))).getByRole("combobox");
-    fireEvent.change(nodeSearchField, { target: { value: "Image File" } });
-    fireEvent.keyDown(nodeSearchField, { key: "Enter" });
-    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="imagefile"]') ?? expect.unreachable("no Image File card"), { timeout: 5000 }));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="posterimage"]') ?? expect.unreachable("no Image File card"), { timeout: 5000 }));
 
     await waitFor(() => expect(coreViewPage("properties").querySelector('[data-config-field="asset"] [data-property-asset-listing-refusal]')?.textContent).toContain(refusal), { timeout: 5000 });
   });
 
   it("exposes a number config field as a Graph Input from Properties, the node taking it as an input fed by the new Graph Input", async () => {
-    await mountedWindowOverTheMock("state=running");
+    await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind");
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
-    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card")));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="tally"]') ?? expect.unreachable("no Frame Tally card")));
     const properties = () => coreViewPage("properties");
 
     pressAsAPointerDoes(await waitFor(() => properties().querySelector<HTMLElement>("[data-properties-expose-as-a-graph-input]") ?? expect.unreachable("no Expose as a Graph Input")));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Strength" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Report Every Frames" }));
 
-    const strengthInput = await waitFor(() => properties().querySelector<HTMLElement>('[data-properties-section="inputs"] [data-properties-port="strength"]') ?? expect.unreachable("no strength input"), { timeout: 5000 });
-    await waitFor(() => expect([...strengthInput.querySelectorAll("[data-property-port-linked-end]")].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"))).toEqual(["invertingeffect_strength › value"]));
-    await waitFor(() => expect(streamGraph.querySelector('[data-node-graph-card="invertingeffect_strength"]')).not.toBeNull());
+    const reportInput = await waitFor(() => properties().querySelector<HTMLElement>('[data-properties-section="inputs"] [data-properties-port="report_every_frames"]') ?? expect.unreachable("no report_every_frames input"), { timeout: 5000 });
+    await waitFor(() => expect([...reportInput.querySelectorAll("[data-property-port-linked-end]")].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"))).toEqual(["tally_report_every_frames › value"]));
+    await waitFor(() => expect(streamGraph.querySelector('[data-node-graph-card="tally_report_every_frames"]')).not.toBeNull());
     expect(properties().querySelector("[data-properties-expose-as-a-graph-input]")).toBeNull();
   });
 
