@@ -90,15 +90,6 @@ async function stopOpenProject(sharedState: TatolabAppSharedState, commandFromWi
   return answerTheWindowOnceTheRuntimeAnswered(sharedState, "stop_open_project", () => sharedState.controller.stopPlayback(studioWindow.value.openProject.projectFolder));
 }
 
-/** `write_studio_view_output`'s `{ stream, node, port, value }` as the window sends it, or why it is not. */
-function studioViewOutputArgumentsFrom(commandArguments: unknown): Result<{ stream: string; node: string; port: string; value: JsonValue }, string> {
-  if (!isAJsonObject(commandArguments)) return failedWith("write_studio_view_output needs `stream`, `node`, `port` and `value`");
-  const { stream, node, port, value } = commandArguments;
-  if (typeof stream !== "string" || typeof node !== "string" || typeof port !== "string") return failedWith("write_studio_view_output needs `stream`, `node` and `port` as text");
-  if (!isAJsonValue(value)) return failedWith("write_studio_view_output needs `value` as JSON");
-  return succeeded({ stream, node, port, value });
-}
-
 /** `undo_in_the_open_project`'s and `redo_in_the_open_project`'s `{ author }` as the window sends it, or why it is not. */
 function undoOrRedoArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<ProjectTransactionAuthor, string> {
   const author = isAJsonObject(commandArguments) ? commandArguments["author"] : undefined;
@@ -244,23 +235,6 @@ function openPortViewerArgumentsFrom(commandArguments: unknown): Result<PortView
   return succeeded({ stream: commandArguments["stream"], node_id: commandArguments["node_id"], port: commandArguments["port"] });
 }
 
-/** Run `write`, a live value handed to the runtime, for `commandName` sent from `commandFromWindow`, answering `null` once taken; refused with `refusalFromAnyOtherWindow` unless a studio window or a popped-out view sent it, and in the runtime's own words. */
-async function answerALiveWriteFromAStudioWindowOrAPoppedOutView(
-  sharedState: TatolabAppSharedState,
-  commandName: TatolabCommandName,
-  commandFromWindow: { windowContentsId: number },
-  refusalFromAnyOtherWindow: string,
-  write: () => Promise<Result<unknown, LocalApiRequestFailure>>,
-): Promise<{ ok: true; value: null } | { ok: false; refusal: string }> {
-  if (sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId) === null) return { ok: false, refusal: refusalFromAnyOtherWindow };
-  return commandAnswerOfNothingFrom(
-    await answerTheWindow(commandName, async () => {
-      const written = await write();
-      return written.ok ? succeeded(undefined) : failedWith(written.failure.failureDescription);
-    }),
-  );
-}
-
 type OpenProjectCommandName =
   | "pop_out_view"
   | "read_popped_out_view"
@@ -268,7 +242,6 @@ type OpenProjectCommandName =
   | "save_project_file"
   | "create_node_file"
   | "list_project_files"
-  | "write_studio_view_output"
   | "list_studio_views_of_the_open_project"
   | "run_open_project"
   | "pause_open_project"
@@ -329,14 +302,6 @@ export function openProjectCommandHandlersOf(sharedState: TatolabAppSharedState)
       const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
       if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
       return commandAnswerFrom(await answerTheWindow("list_project_files", () => studioWindow.value.openProjectFiles.listProjectFiles(projectFolder.value)));
-    },
-    write_studio_view_output: async (commandArguments, commandFromWindow) => {
-      const outputArguments = studioViewOutputArgumentsFrom(commandArguments);
-      if (!outputArguments.ok) return { ok: false, refusal: outputArguments.failure };
-      const { stream, node, port, value } = outputArguments.value;
-      return answerALiveWriteFromAStudioWindowOrAPoppedOutView(sharedState, "write_studio_view_output", commandFromWindow, "Only a studio window or a popped-out view writes a view's output.", () =>
-        sharedState.controller.writeStudioViewOutput(stream, node, port, value),
-      );
     },
     list_studio_views_of_the_open_project: async (_commandArguments, commandFromWindow) => {
       const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);

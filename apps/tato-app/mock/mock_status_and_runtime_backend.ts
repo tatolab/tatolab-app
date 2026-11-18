@@ -1,4 +1,5 @@
 import { MOCK_RECORDED_NODE_CATALOG } from "./mock_recordings";
+import { isAnOutputOfAValueSource, mockMessageOnTheOutputOfAValueSource } from "./mock_value_sources";
 import { mockGraphNodeIdOf } from "./mock_stream_fixtures";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
@@ -170,6 +171,7 @@ export function mockStatusAndRuntimeBackendOf(simulation: MockTatolabSimulation)
       if (node === undefined) throw `no node with the id \`${target.node_id}\` in stream \`${target.stream}\``;
       const outputPort = node.output_ports.find((port) => port.name === target.port);
       if (outputPort === undefined) throw `\`${node.name}\` has no output port named \`${target.port}\``;
+      if (isAnOutputOfAValueSource(node, target.port)) return mockPortViewers.openOnAValueSource(target, mockMessageOnTheOutputOfAValueSource(node, target.port));
       return mockPortViewers.open(target, node.name, outputPort.family, node.not_ready_because !== undefined);
     },
     closePortViewer: async (portViewer) => {

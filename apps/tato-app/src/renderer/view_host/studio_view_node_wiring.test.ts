@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StreamGraphNode, StreamGraphSummary } from "./studio_view_contract";
-import { nodesOfTheStudioViewType, studioViewInputWiring } from "./studio_view_node_wiring";
+import { nodesOfTheStudioViewType, studioViewInputWiring, studioViewNodeAddressOf } from "./studio_view_node_wiring";
 import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 function graphNode(name: string, type: string, config: StreamGraphNode["config"], outputs: StreamGraphNode["output_ports"]): StreamGraphNode {
@@ -47,5 +47,11 @@ describe("a view node's wiring", () => {
       booth: { kind: "unwired", because: "booth is wired from lobby-a1b2c3/player, in another stream, which a view does not read." },
       cue: { kind: "unwired", because: "Nothing is wired into cue." },
     });
+  });
+
+  it("sets a value on the node's inputs at the stream's own level of the window's project, and says why not while the project or the stream asset is unknown", () => {
+    expect(studioViewNodeAddressOf("/set", { ...GRAPH, stream_asset: "s-uuid" }, DECK, "Set")).toEqual({ kind: "addressed", graph: { project_folder: "/set", stream_asset: "s-uuid", level: [] }, node_id: "id-djdeck" });
+    expect(studioViewNodeAddressOf("/set", GRAPH, DECK, "Set")).toEqual({ kind: "not_addressed", because: "The runtime's graph of Set names no stream asset, so nothing is set on its djdeck node." });
+    expect(studioViewNodeAddressOf(null, { ...GRAPH, stream_asset: "s-uuid" }, DECK, "Set")).toEqual({ kind: "not_addressed", because: "No project is open in this window, so nothing is set on the djdeck node in Set." });
   });
 });

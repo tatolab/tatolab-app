@@ -136,7 +136,6 @@ export const TATOLAB_COMMAND_NAMES = [
   "list_project_files",
   "list_studio_views_of_the_open_project",
   "list_node_ui_elements",
-  "write_studio_view_output",
   "run_open_project",
   "pause_open_project",
   "read_open_project_transactions",
@@ -471,8 +470,6 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   list_studio_views_of_the_open_project: { commandArguments: undefined; answer: ListedStudioView[] };
   /** From a studio window or a popped-out view only: every node UI element the window's views pick their controls from, the Studio's own module's among them, each script served under the window page's scheme; refused in words. */
   list_node_ui_elements: { commandArguments: undefined; answer: readonly ListedNodeUiElement[] };
-  /** From a studio window or a popped-out view only: `value` published on the output `port` of the view node `node` (its UUID) in `stream`, as the port's family takes it: a Records port a JSON object, an Array port a number, nested lists of numbers or an object of such attributes by name, a Channels port a number or `{ samples, sample_rate }`, an Image or Packets port refused; live data, recorded nowhere; refused in the runtime's own words. */
-  write_studio_view_output: { commandArguments: { stream: string; node: string; port: string; value: JsonValue }; answer: null };
   /** The playback of the open project's folder, which the window never names, started: `start_playback` queued after `open_project` while the runtime holds it closed and `reload_project` while a stream of it has failed, or `resume_playback` while it is paused; refused in the runtime's own words, or while no project is open. */
   run_open_project: { commandArguments: undefined; answer: null };
   /** The runtime's `pause_playback` of the open project's folder, which the window never names: every stream of it held loaded and `paused` at once. Refused in the runtime's own words, or while no project is open. */

@@ -31,6 +31,7 @@ import type {
 import type { AreaForAViewType, ModulesAndMarketplaceSection, PortViewerEvent, ProjectAssetPick, ProjectAssetPickEnding, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
 import type { ProjectAssetPickAnswering } from "./project_asset_pick_held_in_the_window";
 import type { NodeUiElementsReading } from "@tatolab/tato-app-view-sdk/node_ui_host";
+import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 
 export type {
   JsonValue,
@@ -95,20 +96,14 @@ export interface PythonLanguageServerConnection {
   close(): void;
 }
 
-/** A view node in a running stream: the stream and the node's UUID, as `graph` lists it under `id`. */
-export interface StudioViewNodeAddress {
-  stream: string;
-  node_id: string;
-}
+/** A view node in a running stream: the level of the open project's stream it sits on, where a value is set on its inputs, and the node's UUID, as `graph` lists it under `id`; or why no value can be set on it. */
+export type StudioViewNodeAddress = { kind: "addressed"; graph: GraphAddress; node_id: string } | { kind: "not_addressed"; because: string };
 
 /** The layout's areas for a view type as the window holds them: none when no view type has the id, or why the window has no areas. */
 export type AreasForAViewTypeInTheWindow =
   | { kind: "not_a_view_type" }
   | { kind: "areas_listed"; view_title: string; areas: Omit<AreaForAViewType, "is_the_asking_views_area">[] }
   | { kind: "no_areas"; because: string };
-
-/** Whether the runtime took a live value written to a view node's output or a stream's Input, or why not, in its own words. */
-export type LiveValueWriting = { kind: "written" } | { kind: "not_written"; because: string };
 
 /** One port viewer, reading a running node's output port until closed. */
 export interface PortViewerConnection {
@@ -176,8 +171,6 @@ export interface StudioViewHostServices {
   readThePersonEditing(): Promise<ThePersonEditingReading>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
-  /** Publish `value` on the output `port` of the view node `viewNode`, answering once the runtime took it or why it did not. */
-  writeStudioViewOutput(viewNode: StudioViewNodeAddress, port: string, value: JsonValue): Promise<LiveValueWriting>;
   /** Hold `pick` in the window's asset picker, ending any asset pick held, until the person chooses an asset or closes the picker. */
   pickAProjectAsset(pick: ProjectAssetPick): Promise<ProjectAssetPickEnding>;
   /** The asset pick a view is shown in the asset picker to answer, at once and on each change; always `null` for a view shown anywhere else. */

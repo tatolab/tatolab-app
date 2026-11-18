@@ -104,6 +104,20 @@ const GRAPH_TRANSACTION_REFUSAL: ProjectActionRefusal = {
   runtime_words: "a node of that name exists",
 };
 
+/** The runtime's refusal of a value its view node's input does not take, as `transact` answers it. */
+const VIEW_OUTPUT_VALUE_REFUSAL: ProjectActionRefusal = {
+  refusal_code: "input_value_not_valid",
+  action: "transact",
+  refused_operation_index: 0,
+  refused_node: "id-dj-deck",
+  refused_link: null,
+  refused_field: "play_a",
+  refused_params_pointer: "/operations/0/value",
+  refused_file: null,
+  suggested_call: null,
+  runtime_words: "output `play_a` of node `deck` carries Array, and an Array value is a number or a list of numbers",
+};
+
 const DECK_A_TARGET: PortViewerTarget = { stream: "set", node_id: "id-deck-a", port: "audio" };
 const DECK_B_TARGET: PortViewerTarget = { stream: "set", node_id: "id-deck-b", port: "audio" };
 
@@ -122,7 +136,6 @@ function recordingHostServices() {
   const viewTypesShownInAreas: { viewTypeId: string; areaId: string }[] = [];
   const graphTransactionsAsked: { projectFolder: string; operations: readonly unknown[]; mode: string; idempotencyKey: string | null }[] = [];
   const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
-  const outputsWritten: { viewNode: StudioViewNodeAddress; port: string; value: JsonValue }[] = [];
   const projectAssetPickHeld = new ProjectAssetPickHeldInTheWindow();
   const hostServices: StudioViewHostServices = {
     watchOpenProject: (listener) => {
@@ -225,6 +238,7 @@ function recordingHostServices() {
       graphTransactionsAsked.push({ projectFolder, operations, mode, idempotencyKey });
       if (operations[0]?.operation === "rename_node") return { kind: "refused", refusal: GRAPH_TRANSACTION_REFUSAL };
       if (operations[0]?.operation === "remove_node") return { kind: "not_sent", because: "No runtime answers." };
+      if (operations[0]?.operation === "set_node_input_value" && operations[0].input === "play_a") return { kind: "refused", refusal: VIEW_OUTPUT_VALUE_REFUSAL };
       return { kind: "applied", transaction: GRAPH_TRANSACTION_APPLIED };
     },
     readThePersonEditing: async () => ({ kind: "read", author: { kind: "person", name: "sam" } }),
@@ -237,10 +251,6 @@ function recordingHostServices() {
           opened.closed = true;
         },
       };
-    },
-    writeStudioViewOutput: async (viewNode, port, value) => {
-      outputsWritten.push({ viewNode, port, value });
-      return port === "play_a" ? { kind: "not_written", because: "write_studio_view_output failed: `play_a` takes a number or a list of numbers" } : { kind: "written" };
     },
     pickAProjectAsset: (pick) => projectAssetPickHeld.start(pick, null),
     watchProjectAssetPickShownHere: projectAssetPickHeld.projectAssetPick.watch,
@@ -256,7 +266,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, projectAssetPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked, outputsWritten };
+  return { hostServices, projectAssetPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked };
 }
 
 /** An area that keeps the settings it is asked to remember, says where the view's header row lies, and expands while a layout holds it. */
@@ -545,25 +555,39 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(portViewersOpened.map((opened) => opened.closed)).toEqual([true]);
   });
 
-  it("writes what it sends on a declared output onto its node through the runtime, refused an undeclared output, and the runtime's refusal in its own words", async () => {
-    const deckNode: StudioViewNodeAddress = { stream: "set", node_id: "id-dj-deck" };
-    const { connection, outputsWritten } = await connectedView(DJ_DECK_MANIFEST, {}, undefined, deckNode);
+  it("sets what it sends on a declared output, live, on its node's input of that name, refused an undeclared output, and the runtime's refusal in its own words", async () => {
+    const deckNode: StudioViewNodeAddress = { kind: "addressed", graph: { project_folder: "/set", stream_asset: "s-uuid", level: [] }, node_id: "id-dj-deck" };
+    const { connection, graphTransactionsAsked } = await connectedView(DJ_DECK_MANIFEST, {}, undefined, deckNode);
 
     expect(await connection.sendOutput("tempo", 0.5)).toEqual({ kind: "refused", because: "DJ Deck declares no output named tempo." });
     expect(await connection.sendOutput("crossfader", 0.42)).toEqual({ kind: "done" });
-    expect(await connection.sendOutput("play_a", { playing: true })).toEqual({ kind: "refused", because: "write_studio_view_output failed: `play_a` takes a number or a list of numbers" });
-    expect(outputsWritten).toEqual([
-      { viewNode: deckNode, port: "crossfader", value: 0.42 },
-      { viewNode: deckNode, port: "play_a", value: { playing: true } },
+    expect(await connection.sendOutput("play_a", { playing: true })).toEqual({ kind: "refused", because: VIEW_OUTPUT_VALUE_REFUSAL.runtime_words });
+    expect(graphTransactionsAsked).toEqual([
+      { projectFolder: "/set", operations: [{ operation: "set_node_input_value", stream: "s-uuid", node: "id-dj-deck", input: "crossfader", value: 0.42 }], mode: "live", idempotencyKey: null },
+      { projectFolder: "/set", operations: [{ operation: "set_node_input_value", stream: "s-uuid", node: "id-dj-deck", input: "play_a", value: { playing: true } }], mode: "live", idempotencyKey: null },
     ]);
   });
 
+  it("answers why Studio sent nothing when the write never reached the runtime", async () => {
+    const deckNode: StudioViewNodeAddress = { kind: "addressed", graph: { project_folder: "/set", stream_asset: "s-uuid", level: [] }, node_id: "id-dj-deck" };
+    const { connection, hostServices } = await connectedView(DJ_DECK_MANIFEST, {}, undefined, deckNode);
+    hostServices.transactInTheProject = async () => ({ kind: "not_sent", because: "No runtime answers." });
+
+    expect(await connection.sendOutput("crossfader", 0.42)).toEqual({ kind: "refused", because: "No runtime answers." });
+  });
+
+  it("is refused an output while its node has no address a value is set at, writing nothing", async () => {
+    const { connection, graphTransactionsAsked } = await connectedView(DJ_DECK_MANIFEST, {}, undefined, { kind: "not_addressed", because: "The runtime's graph of set names no stream asset, so no value is set on DJ Deck's node." });
+
+    expect(await connection.sendOutput("crossfader", 0.42)).toEqual({ kind: "refused", because: "The runtime's graph of set names no stream asset, so no value is set on DJ Deck's node." });
+    expect(graphTransactionsAsked).toEqual([]);
+  });
 
   it("is refused an output while it shows in an area with no node, writing nothing", async () => {
-    const { connection, outputsWritten } = await connectedView(DJ_DECK_MANIFEST, {});
+    const { connection, graphTransactionsAsked } = await connectedView(DJ_DECK_MANIFEST, {});
 
     expect(await connection.sendOutput("crossfader", 0.42)).toEqual({ kind: "refused", because: "DJ Deck shows in an area and has no node, so what it sends on crossfader reaches no stream." });
-    expect(outputsWritten).toEqual([]);
+    expect(graphTransactionsAsked).toEqual([]);
   });
 
   it("stops every watch and port viewer when the studio closes the view", async () => {

@@ -27,7 +27,6 @@ import type {
   TatolabAppUpdateState,
   TatolabPlatform,
   TatolabStatus,
-  JsonValue,
 } from "../shared/tatolab_backend_contract.js";
 import { Effect, Layer } from "effect";
 import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_apps_child.js";
@@ -38,7 +37,7 @@ import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names
 import type { ProjectAssetAtItsPath, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
 import type { AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
 import type { NodeFileCreationRecorded, ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
-import type { ProjectViewTheRuntimeListed, StudioViewOutputWritten } from "./project_views_on_the_wire.js";
+import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { LocalApiClient, type StreamAssetChange } from "./local_api_client.js";
 import { type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
@@ -480,11 +479,6 @@ export class TatolabAppController {
   /** The runtime's `create_node_file` of `filePath` in the project in `projectDirectory`. */
   createNodeFile(projectDirectory: string, filePath: string, author: ProjectTransactionAuthor, idempotencyKey: string): Promise<Result<NodeFileCreationRecorded, LocalApiRequestFailure>> {
     return this.localApiClient.createNodeFile(projectDirectory, filePath, author, idempotencyKey);
-  }
-
-  /** Publish `value` on the output `port` of the view node `node` in `stream`. */
-  writeStudioViewOutput(stream: string, node: string, port: string, value: JsonValue): Promise<Result<StudioViewOutputWritten, LocalApiRequestFailure>> {
-    return this.localApiClient.writeStudioViewOutput(stream, node, port, value);
   }
 
   /** Each view the project in `projectDirectory` and its imports bring. */

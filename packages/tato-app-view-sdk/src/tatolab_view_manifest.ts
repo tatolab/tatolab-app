@@ -4,7 +4,7 @@
 // enforces.
 
 import { z } from "zod";
-import { PORT_FAMILIES } from "./port_families.js";
+import { PORT_FAMILIES, type PortFamily } from "./port_families.js";
 import { jsonValueSchema } from "./studio_readings.js";
 
 /** The view contract this SDK speaks; a manifest built for a later minor, or another major, is refused by name. */
@@ -49,6 +49,9 @@ const contractSchema = z
   );
 
 const portNameSchema = z.string().regex(/^[a-z_][a-z0-9_]*$/, { message: "a port name is lower-case letters, digits and underscores" });
+
+/** The families of the outputs a panel writes: each value of one is set on the view node's input of the output's name, and published on the output. */
+export const FAMILIES_A_PANEL_WRITES: readonly PortFamily[] = ["array", "channels", "records"];
 
 /** An input or output a `node` view declares, as a node declares a port. */
 export const viewDeclaredPortSchema = z.object({
@@ -129,7 +132,25 @@ export const tatolabViewManifestSchema = z
     if (manifest.placement === "area" && (manifest.inputs.length > 0 || manifest.outputs.length > 0)) {
       context.addIssue({ code: "custom", message: "an `area` view has no node, so it declares no inputs or outputs; a view with ports has `node` placement", path: ["placement"] });
     }
+    outputsNamedApartFromItsInputsAndSettings(manifest, context);
   });
+
+/** An output and an input of a view are one name on its node, and so is an output a panel writes and a setting, its value being set on the node's input of the output's name. */
+function outputsNamedApartFromItsInputsAndSettings(manifest: { inputs: readonly ViewDeclaredPort[]; outputs: readonly ViewDeclaredPort[]; settings?: ViewSettingsDeclaration | undefined }, context: z.RefinementCtx): void {
+  const inputNames = new Set(manifest.inputs.map((input) => input.name));
+  const settingNames = new Set(Object.keys(manifest.settings?.properties ?? {}));
+  manifest.outputs.forEach(({ name, family }, index) => {
+    const path = ["outputs", index, "name"];
+    if (inputNames.has(name)) context.addIssue({ code: "custom", message: `\`${name}\` names an input too, and a port is named once`, path });
+    else if (FAMILIES_A_PANEL_WRITES.includes(family) && settingNames.has(name)) {
+      context.addIssue({
+        code: "custom",
+        message: `\`${name}\` names a setting too, and the value of an output a panel writes is set on the view node's input of the output's name, so such an output is named after no setting`,
+        path,
+      });
+    }
+  });
+}
 
 /** What `tatolab_view.json` declares, defaults filled in. */
 export type TatolabViewManifest = z.output<typeof tatolabViewManifestSchema>;

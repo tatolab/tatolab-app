@@ -116,6 +116,8 @@ export interface MockGraphNode {
   studio?: StreamGraphNodeStudioFields;
   /** What it holds when it is a subgraph; absent on every other node. */
   fragment?: MockGraphFragment;
+  /** Whether the runtime serves it as a value source, as it serves a view node: each output carries what its input of the same name is set to. */
+  is_a_value_source?: true;
 }
 
 /** The graph a mock subgraph node holds, as the runtime renders a node's `fragment`. */
@@ -410,14 +412,34 @@ const IMAGE_FILE_NOT_READY_NODE: MockGraphNode = {
   output_ports: portsStatingNoStreamFacts("image", "image"),
 };
 
-/** The fixture view's node, its picture wired from the effect, as a project's view stands in its stream's graph. */
+/** The fixture view's node, its picture wired from the effect, as a project's view stands in its stream's graph: its `fader` output, which its panel writes, has an input of its name, a setting that takes no wire and holds no value until the panel sets one. */
 const PICTURE_AND_FADER_VIEW_NODE: MockGraphNode = {
   name: "pictureandfader",
   type: MOCK_STUDIO_VIEW_TYPE_ID,
   state: "Running",
   config: {},
-  input_ports: portsStatingNoStreamFacts("image", "picture"),
+  input_ports: [...portsStatingNoStreamFacts("image", "picture"), { name: "fader", family: "array", stream_facts: null, values_checked: null, pin: null, value_read: { value: null, comes_from: null } }],
   output_ports: portsStatingNoStreamFacts("array", "fader"),
+  is_a_value_source: true,
+};
+
+/** The node wired to the fixture view's `fader` output, reading each value its panel sets. */
+const FADER_METER_NODE: MockGraphNode = {
+  name: "fadermeter",
+  type: "nodes.fader_meter:FaderMeter",
+  state: "Running",
+  config: {},
+  input_ports: portsStatingNoStreamFacts("array", "level"),
+  output_ports: [],
+};
+
+const FADER_METER_LINK: StreamGraphLink = {
+  id: "Lf4d3rm3t3rr34d5th3f4d3r0",
+  source_node: "pictureandfader",
+  source_port: "fader",
+  target_node: "fadermeter",
+  target_port: "level",
+  state: "wired",
 };
 
 const PICTURE_AND_FADER_VIEW_LINK: StreamGraphLink = {
@@ -496,7 +518,7 @@ function createTestPatternStream(
   },
 ): MockStreamFixture {
   const { projectDirectory, recordsTheStream } = options;
-  const nodeCount = 4 + (recordsTheStream === null ? 0 : 1) + (options.withTheFixtureViewsNode ? 1 : 0) + (options.withTheCompositorNode ? 1 : 0) + (options.withAGeneratedSubgraph ? 1 : 0) + (options.withAnImageFileNotReady ? 1 : 0);
+  const nodeCount = 4 + (recordsTheStream === null ? 0 : 1) + (options.withTheFixtureViewsNode ? 2 : 0) + (options.withTheCompositorNode ? 1 : 0) + (options.withAGeneratedSubgraph ? 1 : 0) + (options.withAnImageFileNotReady ? 1 : 0);
   const listing = runningListing({ project_directory: projectDirectory, stream_name: options.streamName }, options.displayName, nodeCount);
   const streamId = listing.stream;
   const brightness = (dueAt: number): MockLogRecordDraft => ({
@@ -514,7 +536,7 @@ function createTestPatternStream(
       nodes: [
         ...TEST_PATTERN_NODES.map((node) => (options.withDisplayWindowInError && node.name === "displaywindow" ? { ...node, state: "Error", failed_because: DISPLAY_WINDOW_FAILED_BECAUSE } : node)),
         ...(recordsTheStream === null ? [] : [RECORDER_OF_MAIN_NODE]),
-        ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_NODE] : []),
+        ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_NODE, FADER_METER_NODE] : []),
         ...(options.withTheCompositorNode ? [ALPHA_OVER_COMPOSITOR_NODE] : []),
         ...(options.withGraphInputs ? TEST_PATTERN_GRAPH_INPUTS : []),
         ...(options.withAGeneratedSubgraph ? [HALFTONE_LOOK_GENERATED_SUBGRAPH] : []),
@@ -523,7 +545,7 @@ function createTestPatternStream(
       links: [
         ...TEST_PATTERN_LINKS.map((link) => (options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" } : link)),
         ...(recordsTheStream === null ? [] : [recorderOfMainLink(recordsTheStream)]),
-        ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_LINK] : []),
+        ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_LINK, FADER_METER_LINK] : []),
         ...(options.withTheCompositorNode ? [ALPHA_OVER_COMPOSITOR_LINK] : []),
         ...(options.withAGeneratedSubgraph ? [HALFTONE_LOOK_LINK] : []),
       ],

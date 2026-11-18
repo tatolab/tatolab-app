@@ -10,7 +10,7 @@ import { StudioAreaHeaderRowOfAWaitingView, StudioAreaHeaderWords } from "@tatol
 import { nodeTitle } from "@tatolab/tato-app-core-views/shared/node_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostServices, StudioViewNodeAddress, StudioViewTypeSource } from "./studio_view_contract";
-import { nodesOfTheStudioViewType, studioViewInputWiring, type StudioViewInputWiring } from "./studio_view_node_wiring";
+import { nodesOfTheStudioViewType, studioViewInputWiring, studioViewNodeAddressOf, type StudioViewInputWiring } from "./studio_view_node_wiring";
 import type { RegisteredStudioViewType, StudioAreaOfTheView } from "./studio_view_type_registry";
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 import { WatchedStudioValue } from "./watched_studio_value";
@@ -107,6 +107,7 @@ function TatolabNodeViewOfTheTab({ streamTab, ...view }: TatolabViewOfAnArea & {
   const { hostServices, listed, manifest } = view;
   const watchTheTabsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => hostServices.watchStreamGraph(stream, listener), [hostServices, stream]);
   const graphReading = useViewReading(watchTheTabsGraph);
+  const openProject = useViewReading(hostServices.watchOpenProject);
   if (graphReading === null) {
     return (
       <TatolabViewWaiting>
@@ -133,12 +134,13 @@ function TatolabNodeViewOfTheTab({ streamTab, ...view }: TatolabViewOfAnArea & {
       </TatolabViewWaiting>
     );
   }
+  const projectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
   return (
     <TatolabViewFrame
-      key={viewNode.id}
+      key={`${viewNode.id}:${projectFolder ?? ""}`}
       {...view}
       inputWiring={studioViewInputWiring(graphReading.graph, viewNode, manifest.inputs)}
-      viewNode={{ stream: graphReading.graph.stream, node_id: viewNode.id }}
+      viewNode={studioViewNodeAddressOf(projectFolder, graphReading.graph, viewNode, streamTab.display_name)}
     />
   );
 }
