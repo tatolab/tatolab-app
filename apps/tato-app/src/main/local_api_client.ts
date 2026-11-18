@@ -154,7 +154,6 @@ function captureDevicesWhoseAccessWasNeverAskedForOnTheWire(listedStream: JsonOb
   return everyOneRead(captureDevices.value, (captureDevice) => (typeof captureDevice === "string" ? succeeded(captureDevice) : failedWith(`\`${key}\` holds a value that is not a string`)));
 }
 
-/** A runtime tool that pauses or resumes a whole project's playback at once, queueing no action. */
 /** A client of the local API served at one socket path. */
 export class LocalApiClient {
   /** A client of the local API at `localApiSocketPath`, giving up on a request unanswered after `requestTimeoutMs`. */

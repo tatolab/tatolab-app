@@ -420,7 +420,6 @@ export async function aLocalApiQueuingEachProjectAction(openRefusedWith: Buffer 
         return openRefusedWith ?? controlOperationResultResponse({ action: `${method}-1`, project_directory: projectDirectory });
       case "start_playback":
       case "reload_project":
-        return controlOperationResultResponse({ action: `${method}-1`, project_directory: projectDirectory });
       case "stop_playback":
         return controlOperationResultResponse({ action: `${method}-1`, project_directory: projectDirectory });
       case "pause_playback":

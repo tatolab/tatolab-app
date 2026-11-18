@@ -112,6 +112,27 @@ test("Live opens then plays a closed project, reloads then plays a stopped one w
   expect(projectActionsQueued).toEqual([["stop_playback", projectFolder]]);
 });
 
+test("Pause and Stop ask the runtime about the project's folder as the runtime named it, not as the window was opened at", async () => {
+  const hallwaysAsTheRuntimeNamesIt = "/private/tmp/tl-rec-hallways/projects/hallways";
+  const sharedState = await sharedStateOverFakes([httpResponse("200 OK", "text/plain", "ok")], "linux", [], null, {
+    nameTheProject: async () => succeeded({ folder: hallwaysAsTheRuntimeNamesIt, project: "6f1d0b7e-4c2a-4e8b-9a31-0d5e7c9b2f14", name: "hallways" }),
+    listTheDependencies: async () => succeeded([]),
+  });
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "hallways-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+  const { localApiSocketPath, projectActionsQueued } = await aLocalApiQueuingEachProjectAction();
+  const commandHandlers = commandHandlersOver(sharedState, () => {}, localApiSocketPath);
+
+  expect(await commandHandlers.pause_open_project(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.stop_open_project(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  expect(projectActionsQueued).toEqual([
+    ["pause_playback", hallwaysAsTheRuntimeNamesIt],
+    ["stop_playback", hallwaysAsTheRuntimeNamesIt],
+  ]);
+});
+
 test("Live answers the runtime's refusal of an open it would play after, in its own words, and queues no playback", async () => {
   const sharedState = await sharedStateOverFakes([httpResponse("200 OK", "text/plain", "ok")], "linux", [], null, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS);
   await sharedState.statusPublisher.refreshAndPublish();

@@ -194,17 +194,13 @@ function commandAnswerOfPlainCode<Answer>(answering: () => Promise<Result<Answer
 export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiSocketPath: string, appVersion: string): Layer.Layer<StudioServices> {
   const streamsLastListed = () => sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [];
   const streamsLastListedFrom = (projectFolder: string) => streamsOfTheProjectIn(streamsLastListed(), projectFolder);
+  const studioWindowOf = (commandFromWindow: TatolabCommandFromWindow) =>
+    fromResult(studioWindowTheCommandCameFrom(sharedState, commandFromWindow), (words) => new CommandRefused({ words }));
   return Layer.mergeAll(
     runtimeControlLayer(localApiSocketPath, LOCAL_API_REQUEST_TIMEOUT_MS),
     Layer.succeed(StudioWindows, {
-      projectFolderOfTheWindow: (commandFromWindow) =>
-        fromResult(studioWindowTheCommandCameFrom(sharedState, commandFromWindow), (words) => new CommandRefused({ words })).pipe(
-          Effect.map((studioWindow) => studioWindow.projectTransactionsFeed.projectFolder),
-        ),
-      openProjectReadingOfTheWindow: (commandFromWindow) =>
-        fromResult(studioWindowTheCommandCameFrom(sharedState, commandFromWindow), (words) => new CommandRefused({ words })).pipe(
-          Effect.map((studioWindow) => studioWindow.openProject.readOpenProject()),
-        ),
+      projectFolderOfTheWindow: (commandFromWindow) => studioWindowOf(commandFromWindow).pipe(Effect.map((studioWindow) => studioWindow.projectTransactionsFeed.projectFolder)),
+      openProjectReadingOfTheWindow: (commandFromWindow) => studioWindowOf(commandFromWindow).pipe(Effect.map((studioWindow) => studioWindow.openProject.readOpenProject())),
       aStudioWindowHoldsTheProjectIn: (projectFolder) => sharedState.appWindows.aStudioWindowHoldsTheProjectIn(projectFolder),
       folderOfTheWindowsOpenProject: (commandFromWindow, folder) => {
         const openProjectFolder = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId)?.openProjectFiles.projectFolderOfTheOpenProject(folder);

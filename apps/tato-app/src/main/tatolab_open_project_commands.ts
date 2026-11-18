@@ -7,7 +7,7 @@ import { failedWith, succeeded, type Result } from "./result.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { studioViewsOfTheOpenProject } from "./open_project_views.js";
 import { deleteAsset, openProject, pausePlayback, readAssetPreview, relocateAsset, reloadProject, resumePlayback, startPlayback, stopPlayback, undoOrRedo } from "./runtime_operations.js";
-import { ListedStreams, PersonEditingInStudio, StudioWindows, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
+import { ListedStreams, PersonEditingInStudio, StudioWindows, thenAStatusRound, type StatusRounds, type StudioServices } from "./studio_runtime.js";
 import { CommandRefused, windowCommand } from "./window_command.js";
 import { answerTheWindow, type TatolabCommandFromWindow, NO_PROJECT_IN_THE_PROJECTS_WINDOW_REFUSAL, studioWindowTheCommandCameFrom, isTextOrNull, oneTextArgumentFrom, type TatolabWindowCommandHandlers, commandAnswerFrom, commandAnswerOfNothingFrom } from "./tatolab_command_answers.js";
 
@@ -36,6 +36,8 @@ const startThePlaybackOfTheProject = Effect.fn("startThePlaybackOfTheProject")(f
     case "preparing":
       yield* startPlayback(projectFolder);
       return;
+    default:
+      return playback satisfies never;
   }
 });
 
@@ -48,27 +50,35 @@ const runOpenProject = Effect.fn("runOpenProject")(function* (commandFromWindow:
   return null;
 });
 
-/** The asking window's project's folder handed to `ofTheFolder`, then a status round whether the runtime carried it out or refused it; refused in the Projects window. */
+/** The asking window's project's folder handed to `ofTheFolder`; refused in the Projects window. */
+function ofTheWindowsProject<Answer, Failure, Services>(
+  commandFromWindow: TatolabCommandFromWindow,
+  ofTheFolder: (projectFolder: string) => Effect.Effect<Answer, Failure, Services>,
+): Effect.Effect<Answer, Failure | CommandRefused, Services | StudioWindows> {
+  return StudioWindows.use((studioWindows) => studioWindows.projectFolderOfTheWindow(commandFromWindow)).pipe(Effect.flatMap(ofTheFolder));
+}
+
+/** The asking window's project's folder handed to `ofTheFolder`, then a status round whether the runtime carried it out or refused it, answering nothing; refused in the Projects window. */
 function ofTheWindowsProjectThenAStatusRound<Answer, Failure, Services>(
   commandFromWindow: TatolabCommandFromWindow,
   ofTheFolder: (projectFolder: string) => Effect.Effect<Answer, Failure, Services>,
-): Effect.Effect<null, Failure | CommandRefused, Services | StudioServices> {
-  return StudioWindows.use((studioWindows) => studioWindows.projectFolderOfTheWindow(commandFromWindow)).pipe(
-    Effect.flatMap((projectFolder) => thenAStatusRound(ofTheFolder(projectFolder))),
-    Effect.as(null),
-  );
+): Effect.Effect<null, Failure | CommandRefused, Services | StudioWindows | StatusRounds> {
+  return ofTheWindowsProject(commandFromWindow, (projectFolder) => thenAStatusRound(ofTheFolder(projectFolder))).pipe(Effect.as(null));
 }
 
-/** The asking window's project's folder and the person editing in Studio, handed to `byThePerson`; refused in the Projects window. */
+/** The asking window's project's folder and the person editing in Studio handed to `byThePerson`, answering nothing; refused in the Projects window. */
 function byThePersonEditingInTheWindowsProject<Answer, Failure, Services>(
   commandFromWindow: TatolabCommandFromWindow,
   byThePerson: (projectFolder: string, author: ProjectTransactionAuthor) => Effect.Effect<Answer, Failure, Services>,
-): Effect.Effect<Answer, Failure | CommandRefused, Services | StudioServices> {
-  return Effect.gen(function* () {
-    const projectFolder = yield* (yield* StudioWindows).projectFolderOfTheWindow(commandFromWindow);
-    const { author } = yield* PersonEditingInStudio;
-    return yield* byThePerson(projectFolder, author);
-  });
+): Effect.Effect<null, Failure | CommandRefused, Services | StudioWindows | PersonEditingInStudio> {
+  return ofTheWindowsProject(commandFromWindow, (projectFolder) => PersonEditingInStudio.use(({ author }) => byThePerson(projectFolder, author))).pipe(Effect.as(null));
+}
+
+/** The window's `undo_in_the_open_project` or `redo_in_the_open_project` on `studioRuntime`: the runtime's `undo` or `redo` by the window's author on its project, answering the transaction it applied; refused in the Projects window, or in the runtime's own words. */
+function undoOrRedoCommand(studioRuntime: ManagedRuntime.ManagedRuntime<StudioServices, never>, undoOrRedoTool: "undo" | "redo") {
+  return windowCommand(studioRuntime, `${undoOrRedoTool}_in_the_open_project`, UndoOrRedoArguments, ({ author }, commandFromWindow) =>
+    ofTheWindowsProject(commandFromWindow, (projectFolder) => undoOrRedo(undoOrRedoTool, projectFolder, author)),
+  );
 }
 
 /** The arguments of `undo_in_the_open_project` and `redo_in_the_open_project`: the person or agent by the name history shows. */
@@ -256,30 +266,25 @@ export function openProjectCommandHandlersOf(
       const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
       return studioWindow.ok ? { ok: true, value: studioWindow.value.projectTransactionsFeed.readProjectTransactions() } : { ok: false, refusal: studioWindow.failure };
     },
-    undo_in_the_open_project: windowCommand(studioRuntime, "undo_in_the_open_project", UndoOrRedoArguments, ({ author }, commandFromWindow) =>
-      StudioWindows.use((studioWindows) => studioWindows.projectFolderOfTheWindow(commandFromWindow)).pipe(Effect.flatMap((projectFolder) => undoOrRedo("undo", projectFolder, author))),
-    ),
+    undo_in_the_open_project: undoOrRedoCommand(studioRuntime, "undo"),
     import_assets_into_the_open_project: async (commandArguments, commandFromWindow) => {
       const importing = importAssetsArgumentsFrom(commandArguments);
       if (!importing.ok) return { ok: false, refusal: importing.failure };
       return commandAnswerFrom(await importAssetsIntoTheOpenProject(sharedState, importing.value.media, commandFromWindow));
     },
     relocate_asset_in_the_open_project: windowCommand(studioRuntime, "relocate_asset_in_the_open_project", RelocateAssetArguments, ({ asset, to_path }, commandFromWindow) =>
-      byThePersonEditingInTheWindowsProject(commandFromWindow, (projectFolder, author) => relocateAsset(projectFolder, asset, to_path, author)).pipe(Effect.as(null)),
+      byThePersonEditingInTheWindowsProject(commandFromWindow, (projectFolder, author) => relocateAsset(projectFolder, asset, to_path, author)),
     ),
     read_asset_preview_of_the_open_project: windowCommand(studioRuntime, "read_asset_preview_of_the_open_project", AssetArguments, ({ asset }, commandFromWindow) =>
-      StudioWindows.use((studioWindows) => studioWindows.projectFolderOfTheWindow(commandFromWindow)).pipe(
-        Effect.flatMap((projectFolder) => readAssetPreview(projectFolder, asset)),
+      ofTheWindowsProject(commandFromWindow, (projectFolder) => readAssetPreview(projectFolder, asset)).pipe(
         Effect.map(({ media_type, picture_bytes, pixel_width, pixel_height }) => ({ picture_url: `data:${media_type};base64,${picture_bytes.toString("base64")}`, pixel_width, pixel_height })),
       ),
     ),
     delete_asset_from_the_open_project: windowCommand(studioRuntime, "delete_asset_from_the_open_project", AssetArguments, ({ asset }, commandFromWindow) =>
-      byThePersonEditingInTheWindowsProject(commandFromWindow, (projectFolder, author) => deleteAsset(projectFolder, asset, author)).pipe(Effect.as(null)),
+      byThePersonEditingInTheWindowsProject(commandFromWindow, (projectFolder, author) => deleteAsset(projectFolder, asset, author)),
     ),
     read_the_person_editing_in_studio: async () => ({ ok: true, value: sharedState.thePersonEditingInStudio }),
-    redo_in_the_open_project: windowCommand(studioRuntime, "redo_in_the_open_project", UndoOrRedoArguments, ({ author }, commandFromWindow) =>
-      StudioWindows.use((studioWindows) => studioWindows.projectFolderOfTheWindow(commandFromWindow)).pipe(Effect.flatMap((projectFolder) => undoOrRedo("redo", projectFolder, author))),
-    ),
+    redo_in_the_open_project: undoOrRedoCommand(studioRuntime, "redo"),
     start_python_language_server: async (commandArguments, commandFromWindow) => {
       const projectFolder = oneTextArgumentFrom("start_python_language_server", commandArguments, "project_folder", "the folder of the open project or of one of its imports");
       if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };
