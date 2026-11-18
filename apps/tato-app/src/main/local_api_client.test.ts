@@ -2,9 +2,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { CONTROL_CONTRACT_REVISION, CONTROL_CONTRACT_VERSION, CONTROL_CONTRACT_VERSION_MISMATCH_ERROR_CODE } from "@tatolab/runtime-client";
+import { Effect } from "effect";
 import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationFailedResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
-import { httpRequestBytes, LocalApiClient, parseHttpResponse, runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./local_api_client.js";
+import { LocalApiClient, runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./local_api_client.js";
+import { httpRequestBytes, parseHttpResponse } from "./local_api_plain_http.js";
+import { runtimeControlLayer } from "./runtime_control_layer.js";
+import { describeNodeCatalog, describeStreamGraph, listProjectAssets, listProjectNodeTypes, readProjectLogRecords } from "./runtime_operations.js";
 import { TatolabRuntimeControlWebSocketConnection } from "./tatolab_runtime_control_operation_call.js";
 import { streamActionChangesConnectionOver } from "./stream_action_changes_followed_for_the_status.js";
 import { answerOf, cleanUps, cleanUpWhatTheTestStarted, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./local_api_client_test_support.js";
@@ -181,7 +185,9 @@ test("a_chunked_response_is_dechunked", async () => {
 });
 
 test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_description_its_streams_their_graphs_and_node_catalogs_logs_node_types_assets_and_dependencies_and_its_machine_name", async () => {
-  const client = new LocalApiClient(process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"] ?? "", 5_000);
+  const liveLocalApiSocketPath = process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"] ?? "";
+  const client = new LocalApiClient(liveLocalApiSocketPath, 5_000);
+  const liveRuntimeControl = runtimeControlLayer(liveLocalApiSocketPath, 5_000);
 
   answerOf(await client.checkHealth());
   const runtimeDescription = answerOf(await client.describeRuntime());
@@ -190,28 +196,28 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
   const streams = answerOf(await client.listStreams());
   expect(answerOf(await client.machineName())).not.toBe("");
   for (const loadedStream of streams.filter((listedStream) => listedStream.node_count !== null)) {
-    const graph = answerOf(await client.describeStreamGraph(loadedStream.stream));
+    const graph = await Effect.runPromise(describeStreamGraph(loadedStream.stream).pipe(Effect.provide(liveRuntimeControl)));
     expect(graph.stream).toBe(loadedStream.stream);
     expect(graph.graph_document_text.startsWith("{\n")).toBe(true);
-    const nodeCatalog = answerOf(await client.describeNodeCatalog(loadedStream.stream));
+    const nodeCatalog = await Effect.runPromise(describeNodeCatalog(loadedStream.stream).pipe(Effect.provide(liveRuntimeControl)));
     expect(nodeCatalog.node_types.length).toBeGreaterThan(0);
   }
   for (const projectDirectory of new Set(streams.flatMap((listedStream) => (listedStream.location === null ? [] : [listedStream.location.project_directory])))) {
     const projectStreams = streams.filter((listedStream) => listedStream.location?.project_directory === projectDirectory);
-    const nodeTypeListing = answerOf(await client.listProjectNodeTypes(projectDirectory));
+    const nodeTypeListing = await Effect.runPromise(listProjectNodeTypes(projectDirectory).pipe(Effect.provide(liveRuntimeControl)));
     answerOf(await client.listDependencies(projectDirectory, false));
     expect(nodeTypeListing.sources[0]?.origin).toEqual({ source: "project" });
-    const assetListing = answerOf(await client.listProjectAssets(projectDirectory));
+    const assetListing = await Effect.runPromise(listProjectAssets(projectDirectory).pipe(Effect.provide(liveRuntimeControl)));
     expect(assetListing.assets.filter((asset) => asset.kind === "stream").length).toBeGreaterThanOrEqual(projectStreams.length);
     for (const previewedAsset of assetListing.assets.filter((asset) => asset.preview !== null)) {
       const picture = answerOf(await client.readAssetPreview(projectDirectory, previewedAsset.asset));
       expect([picture.pixel_width, picture.pixel_height, picture.media_type]).toEqual([previewedAsset.preview?.pixel_width, previewedAsset.preview?.pixel_height, previewedAsset.preview?.media_type]);
     }
-    const wholeLog = answerOf(await client.readProjectLogRecords(projectDirectory, { stream: null, action: null }, null, null, 500));
+    const wholeLog = await Effect.runPromise(readProjectLogRecords(projectDirectory, { stream: null, action: null }, null, null).pipe(Effect.provide(liveRuntimeControl)));
     expect(wholeLog.project_directory).toBe(projectDirectory);
     expect(wholeLog.records.length).toBeGreaterThan(0);
     for (const projectStream of projectStreams) {
-      const streamLog = answerOf(await client.readProjectLogRecords(projectDirectory, { stream: projectStream.stream, action: null }, null, null, 500));
+      const streamLog = await Effect.runPromise(readProjectLogRecords(projectDirectory, { stream: projectStream.stream, action: null }, null, null).pipe(Effect.provide(liveRuntimeControl)));
       expect(streamLog.records.every((record) => record.stream === projectStream.stream)).toBe(true);
     }
   }
@@ -233,11 +239,8 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_names_its_stream_actions
   }
 });
 
-test("a_request_carries_a_content_length_exactly_when_it_carries_a_body", () => {
-  expect(httpRequestBytes("POST", "/mcp", [], null).toString("utf8")).toBe("POST /mcp HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
-  expect(httpRequestBytes("GET", "/health", [], Buffer.alloc(0)).toString("utf8")).toBe(
-    "GET /health HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-  );
+test("a_plain_request_is_one_get_with_no_body_on_a_connection_the_runtime_closes", () => {
+  expect(httpRequestBytes("GET", "/health").toString("utf8")).toBe("GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
 });
 
 test("a_truncated_body_is_malformed", () => {

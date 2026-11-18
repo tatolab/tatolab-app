@@ -27,8 +27,8 @@ import { createTatolabAppLog, type TatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import type { TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import { ListedStreams, PersonEditingInStudio, ProjectViewsListed, StudioAppVersion, studioRuntimeLayer, StudioWindows, tatolabAppLogAsEffectsLogger, type StudioServices } from "./studio_runtime.js";
-import { runtimeControlLayer } from "./tatolab_runtime_control_operation_call.js";
+import { ListedStreams, StatusRounds, PersonEditingInStudio, ProjectViewsListed, StudioAppVersion, studioRuntimeLayer, StudioWindows, tatolabAppLogAsEffectsLogger, type StudioServices } from "./studio_runtime.js";
+import { runtimeControlLayer } from "./runtime_control_layer.js";
 import { CommandRefused } from "./window_command.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
@@ -85,6 +85,8 @@ export interface StudioServicesOfATest {
   /** The one studio window, by its contents id, and the project it holds; a command from any other window is refused as one from the Projects window. */
   readonly studioWindow?: { readonly windowContentsId: number; readonly projectFolder: string };
   readonly streamAssetsOfTheProject?: (projectFolder: string) => ReadonlySet<string>;
+  /** Whether the runtime lists a stream from a folder; at the default, whether `streamAssetsOfTheProject` gives it any. */
+  readonly aStreamIsListedFrom?: (projectFolder: string) => boolean;
   readonly author?: ProjectTransactionAuthor;
   readonly appVersion?: string;
   /** Where Effect's logs go; nowhere at the default. */
@@ -103,9 +105,14 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
       projectFolderOfTheWindow: (commandFromWindow) =>
         commandFromWindow.windowContentsId === studioWindow.windowContentsId ? Effect.succeed(studioWindow.projectFolder) : Effect.fail(new CommandRefused({ words: "No project is open in this window." })),
       aStudioWindowHoldsTheProjectIn: (projectFolder) => projectFolder === studioWindow.projectFolder,
+      folderOfTheWindowsOpenProject: (commandFromWindow, folder) => (commandFromWindow.windowContentsId === studioWindow.windowContentsId && folder === studioWindow.projectFolder ? folder : null),
     }),
     Layer.succeed(ProjectViewsListed, { isListedAsOpening: () => false }),
-    Layer.succeed(ListedStreams, { streamAssetsOfTheProject: overrides.streamAssetsOfTheProject ?? (() => new Set()) }),
+    Layer.succeed(ListedStreams, {
+      streamAssetsOfTheProject: overrides.streamAssetsOfTheProject ?? (() => new Set()),
+      aStreamIsListedFrom: overrides.aStreamIsListedFrom ?? ((projectFolder) => (overrides.streamAssetsOfTheProject?.(projectFolder).size ?? 0) > 0),
+    }),
+    Layer.succeed(StatusRounds, { requestARound: Effect.void }),
     Layer.succeed(PersonEditingInStudio, { author: overrides.author ?? { kind: "person", name: "sam" } }),
     Layer.succeed(StudioAppVersion, { version: overrides.appVersion ?? STUDIO_APP_VERSION_UNDER_TEST }),
     tatolabAppLogAsEffectsLogger(overrides.tatolabAppLog ?? quietTatolabAppLog),
@@ -140,6 +147,8 @@ export async function sharedStateOverFakes(
     menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[];
     assetFilesTheDialogAnswers: { files: readonly string[] | null };
     localApiControlOperationCallsReceived: () => [string, unknown][];
+    /** The request line of each request the fake local API read, in order. */
+    localApiRequestLinesReceived: () => string[];
   }
 > {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
@@ -316,6 +325,7 @@ export async function sharedStateOverFakes(
     webPagesOpenedInTheBrowser,
     localApiSocketPath: localApiServer.localApiSocketPath,
     localApiControlOperationCallsReceived: () => localApiServer.receivedRequests().flatMap(controlOperationCallOfTheRequest),
+    localApiRequestLinesReceived: () => localApiServer.receivedRequests().map((request) => request.split("\r\n")[0] ?? ""),
     streamFailureNotifications,
     systemNotifications,
     tatolabAppOpenedAtLogin,

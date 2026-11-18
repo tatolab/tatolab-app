@@ -15,7 +15,7 @@ import { controlOperationCallsReceivedBy } from "./local_api_client_test_support
 import { ProjectViewsListed, StudioWindows, tatolabAppLogAsEffectsLogger } from "./studio_runtime.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import { cleanUpTheFakesTheLastTestMade, cleanUps, recordedResponseBody } from "./tatolab_commands_test_support.js";
-import { runtimeControlLayer } from "./tatolab_runtime_control_operation_call.js";
+import { runtimeControlLayer } from "./runtime_control_layer.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
@@ -142,7 +142,7 @@ function projectViewFilesServedAt(localApiSocketPath: string) {
   const studioRuntime = ManagedRuntime.make(
     Layer.mergeAll(
       runtimeControlLayer(localApiSocketPath, 2_000),
-      Layer.mock(StudioWindows, { aStudioWindowHoldsTheProjectIn: (projectFolder) => projectFolder === NIGHT_SHOW }),
+      Layer.mock(StudioWindows, { aStudioWindowHoldsTheProjectIn: (projectFolder) => projectFolder === NIGHT_SHOW, folderOfTheWindowsOpenProject: () => null }),
       Layer.succeed(ProjectViewsListed, { isListedAsOpening: (openProjectFolder, viewFolder) => projectViewsListed.isListedAsOpening(openProjectFolder, viewFolder) }),
       tatolabAppLogAsEffectsLogger(tatolabAppLog),
     ),

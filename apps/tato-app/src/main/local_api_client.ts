@@ -1,34 +1,24 @@
 // The app's client of the runtime's local API. Every control operation is one `POST /control` through
 // the generated `@tatolab/runtime-client`, typed by the contract the runtime unit carries; `GET
-// /health` says the runtime is up, `GET /api/graph` names the machine, and `GET /api/registry` lists
-// the node types a stream can add, each one short HTTP/1.1 request over the local API's Unix socket.
+// /health` says the runtime is up and `GET /api/graph` names the machine, each read through
+// `getOverTheLocalApi`.
 
-import { isUtf8 } from "node:buffer";
-import net from "node:net";
+import { Effect } from "effect";
 import type {
   ProjectDependency,
   WorkspaceDependencyUpdate,
   ListedStream,
-  NodeCatalog,
-  ProjectNodeTypeListing,
-  ProjectAssetListing,
   ProjectCreationQueued,
-  ProjectLogNarrowing,
-  ProjectLogRecordsPage,
   ProjectStreamActionQueued,
   ProjectTheRuntimeNames,
   ProjectTransaction,
   ProjectTransactionAuthor,
   RuntimeDescription,
-  StreamActionCancelAnswer,
   StreamActionFollowed,
-  StreamGraphSummary,
   StreamLocation,
 } from "../shared/tatolab_backend_contract.js";
 import {
   arrayOrEmpty,
-  jsonTextKeepingTheWrittenNumbers,
-  prettyJsonTextKeepingTheWrittenNumbers,
   everyOneRead,
   isAJsonObject,
   jsonObject,
@@ -43,21 +33,19 @@ import {
   requiredUnsignedInteger,
   toolResultReadWith,
 } from "./json_on_the_wire.js";
-import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
+import { failedWith, succeeded, type Result } from "./result.js";
+import { bodyOfAnOkAnswer, getOverTheLocalApi } from "./local_api_plain_http.js";
+import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import {
   authorOnTheWire,
   callOneControlOperationOverAPost,
   controlOperationTimeLimitMs,
-  durationAsTheTimeoutFailureSpellsIt,
   type ControlOperationAnswer,
   type ControlOperationMethodName,
   type ControlOperationParams,
   type ControlOperationResult,
 } from "./tatolab_runtime_control_operation_call.js";
-import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
-import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
-import { projectAssetListingFromTheListAssetsToolResult } from "./project_asset_listing.js";
 import { assetPreviewPictureFromTheReadAssetPreviewToolResult, type AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
 import {
   duplicateFromTheDuplicateProjectToolResult,
@@ -92,18 +80,12 @@ import {
   projectDependencyFromTheRemoveDependencyToolResult,
   workspaceDependenciesFromTheListDependenciesToolResult,
 } from "./project_dependencies_on_the_wire.js";
-import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
-import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import {
   projectCreationQueuedFromTheCreateProjectToolResult,
   projectStreamActionQueuedFromTheToolResult,
   type ProjectStreamActionToolName,
-  streamActionCancelAnswerFromTheCancelStreamActionToolResult,
   streamActionDescriptionFromTheDescribeStreamActionToolResult,
 } from "./stream_action_description.js";
-
-/** The most bytes one plain HTTP answer of the local API may carry before the client gives up on it. */
-const LARGEST_LOCAL_API_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 /** A stream's `location` on the wire: `project_directory`, its project's UUID as `project` and its stream asset's UUID as `stream_asset`. */
 function streamLocationOnTheWire(location: JsonObjectOnTheWire): Result<StreamLocation, string> {
@@ -163,15 +145,6 @@ function runtimeDescriptionOnTheWire(toolResult: JsonObjectOnTheWire): Result<Ru
   if (!runtimeLogDirectory.ok) return runtimeLogDirectory;
   return succeeded({ version: version.value, build_id: buildId.value, up_for_ms: upForMs.value, runtime_log_directory: runtimeLogDirectory.value });
 }
-
-/** One HTTP response as the client read it. */
-export interface LocalApiHttpResponse {
-  statusCode: number;
-  body: Buffer;
-}
-
-/** One HTTP request header, as name and value. */
-type HttpRequestHeader = readonly [headerName: string, headerValue: string];
 
 /** Every stream a `list_streams` tool result lists. A stream's unknown state is kept as spelled, a `null` location is an earlier runtime's record, and unknown fields are ignored. */
 export function listedStreamsFromTheListStreamsToolResult(operationResult: unknown): Result<ListedStream[], string> {
@@ -264,9 +237,9 @@ export class LocalApiClient {
 
   /** Whether the runtime answers `GET /health` with `ok`. */
   async checkHealth(): Promise<Result<void, LocalApiRequestFailure>> {
-    const response = await this.sendOneHttpRequestAndReadItsResponse("GET", "/health", [], null);
+    const response = await this.runAPlainHttpRequest(getOverTheLocalApi(this.localApiSocketPath, "/health", this.requestTimeoutMs));
     if (!response.ok) return response;
-    const body = response.value.body.toString("utf8").trim();
+    const body = response.value.body.trim();
     if (response.value.statusCode === 200 && body === "ok") return succeeded(undefined);
     return localApiRequestFailure(`the runtime at ${this.localApiSocketPath} answered /health with ${response.value.statusCode}: ${body}`);
   }
@@ -291,33 +264,9 @@ export class LocalApiClient {
   async machineName(): Promise<Result<string, LocalApiRequestFailure>> {
     const graphBody = await this.getBodyOfAnOkAnswer("/api/graph");
     if (!graphBody.ok) return graphBody;
-    const graph = parseJsonOnTheWire(graphBody.value.toString("utf8"));
+    const graph = parseJsonOnTheWire(graphBody.value);
     const machine = graph.ok ? (isAJsonObject(graph.value) ? requiredText(graph.value, "machine") : failedWith("the graph is not an object")) : graph;
     return machine.ok ? machine : localApiRequestFailure(`the runtime's /api/graph names no machine: ${machine.failure}`);
-  }
-
-  /** Up to `count` of the log records of the project in `projectDirectory` after the cursor `after` (`null` for the oldest held) and before the cursor `until` (`null` for none), narrowed as `narrowing` asks, from the runtime's `logs` tool. */
-  async readProjectLogRecords(
-    projectDirectory: string,
-    narrowing: ProjectLogNarrowing,
-    after: string | null,
-    until: string | null,
-    count: number,
-  ): Promise<Result<ProjectLogRecordsPage, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation(
-      "logs",
-      {
-        project_directory: projectDirectory,
-        ...(narrowing.stream === null ? {} : { stream: narrowing.stream }),
-        ...(narrowing.action === null ? {} : { action: narrowing.action }),
-        ...(after === null ? {} : { after }),
-        ...(until === null ? {} : { until }),
-        count,
-      },
-    );
-    if (!operationResult.ok) return operationResult;
-    const page = projectLogRecordsPageFromTheLogsToolResult(jsonTextKeepingTheWrittenNumbers(operationResult.value));
-    return page.ok ? page : localApiRequestFailure(page.failure);
   }
 
   /** Queue the stop of the playback of the project in `projectDirectory`, which keeps each stream's graph loaded, answering the id of the action it queued; refused in the runtime's own words, as when none of them plays. */
@@ -505,46 +454,6 @@ export class LocalApiClient {
     return description.ok ? succeeded({ kind: "described", description: description.value }) : localApiRequestFailure(description.failure);
   }
 
-  /** End the stream action `action` early through the runtime's `cancel_stream_action`: dropped while queued, stopped at its step while running; refused in the runtime's own words, as for a stop past cancelling. */
-  async cancelStreamAction(action: string): Promise<Result<StreamActionCancelAnswer, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("cancel_stream_action", { action });
-    if (!operationResult.ok) return operationResult;
-    const answer = streamActionCancelAnswerFromTheCancelStreamActionToolResult(operationResult.value);
-    return answer.ok ? answer : localApiRequestFailure(answer.failure);
-  }
-
-  /** The graph of the loaded stream `stream` from the runtime's `graph` operation, its numbers kept as the runtime wrote them. */
-  async describeStreamGraph(stream: string): Promise<Result<StreamGraphSummary, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("graph", { stream });
-    if (!operationResult.ok) return operationResult;
-    const summary = streamGraphSummaryFromTheGraphToolResult(stream, prettyJsonTextKeepingTheWrittenNumbers(operationResult.value));
-    return summary.ok ? summary : localApiRequestFailure(summary.failure);
-  }
-
-  /** Every node type the loaded stream `stream` can add, from `GET /api/registry?stream=`; refused in the runtime's own words. */
-  async describeNodeCatalog(stream: string): Promise<Result<NodeCatalog, LocalApiRequestFailure>> {
-    const registryBody = await this.getBodyOfAnOkAnswer(nodeCatalogRequestTarget(stream));
-    if (!registryBody.ok) return registryBody;
-    const nodeCatalog = nodeCatalogFromTheRegistryAnswer(stream, registryBody.value.toString("utf8"));
-    return nodeCatalog.ok ? nodeCatalog : localApiRequestFailure(nodeCatalog.failure);
-  }
-
-  /** What the project in `projectDirectory`, each import and each installed distribution declare, from the runtime's `list_project_node_types`, read from source without running it; refused in the runtime's own words. */
-  async listProjectNodeTypes(projectDirectory: string): Promise<Result<ProjectNodeTypeListing, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("list_project_node_types", { project_directory: projectDirectory });
-    if (!operationResult.ok) return operationResult;
-    const listing = projectNodeTypeListingFromTheToolResult(operationResult.value);
-    return listing.ok ? listing : localApiRequestFailure(listing.failure);
-  }
-
-  /** Every asset of the project in `projectDirectory`, its graph documents among them, from the runtime's `list_assets`; refused in the runtime's own words, as for a folder holding no `tatolab-project.json`. */
-  async listProjectAssets(projectDirectory: string): Promise<Result<ProjectAssetListing, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("list_assets", { project_directory: projectDirectory });
-    if (!operationResult.ok) return operationResult;
-    const listing = projectAssetListingFromTheListAssetsToolResult(operationResult.value);
-    return listing.ok ? listing : localApiRequestFailure(listing.failure);
-  }
-
   /** The preview picture of the asset `asset` of the project in `projectDirectory`, an image's own or a video's poster frame, through `read_asset_preview`; refused in the runtime's own words, as for an asset with none or whose bytes it is still reading. */
   async readAssetPreview(projectDirectory: string, asset: string): Promise<Result<AssetPreviewPictureTheRuntimeRead, LocalApiRequestFailure>> {
     const operationResult = await this.callControlOperation("read_asset_preview", { project_directory: projectDirectory, asset });
@@ -684,15 +593,19 @@ export class LocalApiClient {
   }
 
   /** `GET requestTarget`, answering the body of a `200`; any other answer is refused in the runtime's own words when its body carries them. */
-  private async getBodyOfAnOkAnswer(requestTarget: string): Promise<Result<Buffer, LocalApiRequestFailure>> {
-    const response = await this.sendOneHttpRequestAndReadItsResponse("GET", requestTarget, [], null);
-    if (!response.ok) return response;
-    if (response.value.statusCode === 200) return succeeded(response.value.body);
-    const bodyText = response.value.body.toString("utf8");
-    const errorResponse = parseJsonOnTheWire(bodyText);
-    const runtimesOwnWords = errorResponse.ok && isAJsonObject(errorResponse.value) ? requiredText(errorResponse.value, "error") : null;
-    return localApiRequestFailure(
-      runtimesOwnWords?.ok ? runtimesOwnWords.value : `the runtime answered ${requestTarget} with ${response.value.statusCode}: ${bodyText.trim()}`,
+  private getBodyOfAnOkAnswer(requestTarget: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.runAPlainHttpRequest(
+      getOverTheLocalApi(this.localApiSocketPath, requestTarget, this.requestTimeoutMs).pipe(Effect.flatMap((response) => bodyOfAnOkAnswer(requestTarget, response))),
+    );
+  }
+
+  /** `request` run to its end, its failure in its words. */
+  private runAPlainHttpRequest<Answer>(request: Effect.Effect<Answer, RuntimeControlFailure>): Promise<Result<Answer, LocalApiRequestFailure>> {
+    return Effect.runPromise(
+      Effect.match(request, {
+        onSuccess: (answer): Result<Answer, LocalApiRequestFailure> => succeeded(answer),
+        onFailure: (failure) => localApiRequestFailure(failure.words),
+      }),
     );
   }
 
@@ -709,128 +622,5 @@ export class LocalApiClient {
     params: ControlOperationParams<Method>,
   ): Promise<Result<ControlOperationAnswer<Method>, LocalApiRequestFailure>> {
     return callOneControlOperationOverAPost(this.localApiSocketPath, method, params, controlOperationTimeLimitMs(method, this.requestTimeoutMs));
-  }
-
-  private sendOneHttpRequestAndReadItsResponse(
-    method: string,
-    requestTarget: string,
-    extraHeaders: readonly HttpRequestHeader[],
-    requestBody: Buffer | null,
-    responseTimeoutMs: number = this.requestTimeoutMs,
-  ): Promise<Result<LocalApiHttpResponse, LocalApiRequestFailure>> {
-    const socketText = this.localApiSocketPath;
-    return new Promise((settle) => {
-      const responseChunks: Buffer[] = [];
-      let responseByteCount = 0;
-      let connected = false;
-      let requestSent = false;
-      let settled = false;
-      const settleOnce = (outcome: Result<LocalApiHttpResponse, LocalApiRequestFailure>) => {
-        if (settled) return;
-        settled = true;
-        connection.destroy();
-        settle(outcome);
-      };
-      const connection = net.createConnection(this.localApiSocketPath);
-      connection.setTimeout(responseTimeoutMs);
-      connection.on("connect", () => {
-        connected = true;
-        connection.write(httpRequestBytes(method, requestTarget, extraHeaders, requestBody), () => {
-          requestSent = true;
-        });
-      });
-      connection.on("data", (responseChunk: Buffer) => {
-        responseChunks.push(responseChunk);
-        responseByteCount += responseChunk.length;
-        if (responseByteCount > LARGEST_LOCAL_API_RESPONSE_BYTES) {
-          settleOnce(
-            localApiRequestFailure(`${method} ${requestTarget} to ${socketText} answered more than ${LARGEST_LOCAL_API_RESPONSE_BYTES} bytes`),
-          );
-        }
-      });
-      connection.on("timeout", () => {
-        settleOnce(
-          localApiRequestFailure(`${method} ${requestTarget} to ${socketText} did not answer within ${durationAsTheTimeoutFailureSpellsIt(responseTimeoutMs)}`),
-        );
-      });
-      connection.on("error", (connectionFailure) => {
-        const failureText = describeCaughtFailure(connectionFailure);
-        const failureDescription = !connected
-          ? `no runtime answers at ${socketText}: ${failureText}`
-          : requestSent
-            ? `${method} ${requestTarget} to ${socketText} did not answer within ${durationAsTheTimeoutFailureSpellsIt(responseTimeoutMs)}: ${failureText}`
-            : `the request ${method} ${requestTarget} to ${socketText} could not be sent: ${failureText}`;
-        settleOnce(localApiRequestFailure(failureDescription));
-      });
-      connection.on("end", () => {
-        const response = parseHttpResponse(Buffer.concat(responseChunks));
-        settleOnce(
-          response.ok ? response : localApiRequestFailure(`${method} ${requestTarget} to ${socketText} answered malformed HTTP: ${response.failure}`),
-        );
-      });
-    });
-  }
-}
-
-/** One HTTP/1.1 request on a connection the server closes after answering; it carries a `Content-Length` exactly when it carries a body. */
-export function httpRequestBytes(method: string, requestTarget: string, extraHeaders: readonly HttpRequestHeader[], requestBody: Buffer | null): Buffer {
-  let requestHead = `${method} ${requestTarget} HTTP/1.1\r\nHost: localhost\r\n`;
-  for (const [headerName, headerValue] of extraHeaders) requestHead += `${headerName}: ${headerValue}\r\n`;
-  if (requestBody !== null) requestHead += `Content-Length: ${requestBody.length}\r\n`;
-  requestHead += "Connection: close\r\n\r\n";
-  return Buffer.concat([Buffer.from(requestHead, "utf8"), requestBody ?? Buffer.alloc(0)]);
-}
-
-/** A complete HTTP/1.1 response read to end of stream: its status and its body, de-chunked when it was sent chunked. */
-export function parseHttpResponse(responseBytes: Buffer): Result<LocalApiHttpResponse, string> {
-  const headEnd = responseBytes.indexOf("\r\n\r\n");
-  if (headEnd === -1) return failedWith("the response head never ended");
-  const headBytes = responseBytes.subarray(0, headEnd);
-  if (!isUtf8(headBytes)) return failedWith("the response head is not UTF-8");
-  const body = responseBytes.subarray(headEnd + 4);
-  const [statusLine, ...headerLines] = headBytes.toString("utf8").split("\r\n");
-  if (statusLine === undefined) return failedWith("the response has no status line");
-  const statusCodeText = statusLine.split(" ")[1];
-  const statusCode = statusCodeText !== undefined && /^\d{1,5}$/.test(statusCodeText) ? Number(statusCodeText) : null;
-  if (statusCode === null || statusCode > 65535) return failedWith(`the status line ${JSON.stringify(statusLine)} names no status`);
-  let contentLength: number | null = null;
-  let chunked = false;
-  for (const headerLine of headerLines) {
-    const colon = headerLine.indexOf(":");
-    if (colon === -1) continue;
-    const headerName = headerLine.slice(0, colon).toLowerCase();
-    const headerValue = headerLine.slice(colon + 1).trim();
-    if (headerName === "content-length") {
-      contentLength = /^\d+$/.test(headerValue) ? Number(headerValue) : null;
-    } else if (headerName === "transfer-encoding" && headerValue.toLowerCase().includes("chunked")) {
-      chunked = true;
-    }
-  }
-  if (chunked) {
-    const dechunked = dechunkedBody(body);
-    return dechunked.ok ? succeeded({ statusCode, body: dechunked.value }) : dechunked;
-  }
-  if (contentLength === null) return succeeded({ statusCode, body });
-  if (body.length < contentLength) return failedWith(`the body ended after ${body.length} of its ${contentLength} bytes`);
-  return succeeded({ statusCode, body: body.subarray(0, contentLength) });
-}
-
-function dechunkedBody(chunkedBody: Buffer): Result<Buffer, string> {
-  const bodyChunks: Buffer[] = [];
-  let remaining = chunkedBody;
-  for (;;) {
-    const sizeLineEnd = remaining.indexOf("\r\n");
-    if (sizeLineEnd === -1) return failedWith("a chunk size line never ended");
-    const sizeLineBytes = remaining.subarray(0, sizeLineEnd);
-    if (!isUtf8(sizeLineBytes)) return failedWith("a chunk size line is not UTF-8");
-    const sizeText = (sizeLineBytes.toString("utf8").split(";")[0] ?? "").trim();
-    if (!/^[0-9a-fA-F]+$/.test(sizeText)) return failedWith(`the chunk size ${JSON.stringify(sizeText)} is not hexadecimal`);
-    const chunkSize = parseInt(sizeText, 16);
-    remaining = remaining.subarray(sizeLineEnd + 2);
-    if (chunkSize === 0) return succeeded(Buffer.concat(bodyChunks));
-    if (remaining.length < chunkSize) return failedWith("the body ended inside a chunk");
-    bodyChunks.push(remaining.subarray(0, chunkSize));
-    if (remaining.length < chunkSize + 2) return failedWith("the body ended after a chunk");
-    remaining = remaining.subarray(chunkSize + 2);
   }
 }

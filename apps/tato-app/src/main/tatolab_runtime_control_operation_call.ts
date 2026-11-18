@@ -31,11 +31,12 @@ import {
   type DiscoverResult,
   type ProjectActionRefusalOnTheWire,
 } from "@tatolab/runtime-client";
-import { Context, Duration, Effect, Layer } from "effect";
+import { Context, Effect } from "effect";
 import { TATO_STUDIO_MCP_CLIENT_NAME, type ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { ContractMismatch, RuntimeOfAnotherContract, RuntimeRefused, RuntimeTimedOut, RuntimeUnreachable, type RuntimeControlFailure } from "./runtime_control_failures.js";
+import { fromResult } from "./result_as_effect.js";
 
 export type { ControlNotifications, ControlOperationMethodName, ControlOperations };
 export type {
@@ -142,17 +143,17 @@ export function authorOnTheWire(author: ProjectTransactionAuthor): { kind: Proje
 }
 
 /** A client of the local API at `localApiSocketPath` whose calls each go in one `POST /control`. */
-function controlClientOfOnePost(localApiSocketPath: string): TatolabRuntimeClient {
+export function controlClientOfOnePost(localApiSocketPath: string): TatolabRuntimeClient {
   return new TatolabRuntimeClient(new ControlPostTransport({ socketPath: localApiSocketPath, clientName: TATO_STUDIO_MCP_CLIENT_NAME }));
 }
 
 /** That `method` to `localApiSocketPath` did not answer within `timeLimitMs`. */
-function runtimeTimedOut(method: ControlOperationMethodName, localApiSocketPath: string, timeLimitMs: number): RuntimeTimedOut {
+export function runtimeTimedOut(method: ControlOperationMethodName, localApiSocketPath: string, timeLimitMs: number): RuntimeTimedOut {
   return new RuntimeTimedOut({ operation: method, words: `\`${method}\` to ${localApiSocketPath} did not answer within ${durationAsTheTimeoutFailureSpellsIt(timeLimitMs)}` });
 }
 
 /** The failure `callFailure`, thrown by the client calling `method` on the local API at `localApiSocketPath`, stands for; the one reading of a failed call, for every path that calls. */
-function runtimeControlFailureOfTheCall(method: ControlOperationMethodName, localApiSocketPath: string, callFailure: unknown): RuntimeControlFailure {
+export function runtimeControlFailureOfTheCall(method: ControlOperationMethodName, localApiSocketPath: string, callFailure: unknown): RuntimeControlFailure {
   if (callFailure instanceof ControlOperationError) {
     const byTheOperation = callFailure.code === CONTROL_OPERATION_REFUSED_ERROR_CODE || callFailure.code === CONTROL_OPERATION_FAILED_ERROR_CODE;
     return new RuntimeRefused({
@@ -210,6 +211,12 @@ export function callOneControlOperationOverAPost<Method extends ControlOperation
   return controlOperationAnswerOfTheCall(method, localApiSocketPath, responseTimeoutMs, (callOptions) => controlClient.call(method, params, callOptions));
 }
 
+/** One answer to a plain HTTP request of the local API: its status and its body as UTF-8 text. */
+export interface LocalApiHttpResponse {
+  readonly statusCode: number;
+  readonly body: string;
+}
+
 /** The one service that calls the runtime: each control operation by its method, typed by the contract both ways, within the operation's time limit. */
 export class RuntimeControl extends Context.Service<
   RuntimeControl,
@@ -224,11 +231,27 @@ export class RuntimeControl extends Context.Service<
      * the contract had a revision.
      */
     readonly discover: Effect.Effect<DiscoverResult, RuntimeControlFailure>;
+    /** `GET requestTarget`, one of the local API's plain HTTP requests, given up once the connection sits idle for the default time limit: its whole response, whatever its status. */
+    readonly get: (requestTarget: string) => Effect.Effect<LocalApiHttpResponse, RuntimeControlFailure>;
   }
 >()("tatolab-app/RuntimeControl") {}
 
+/**
+ * `method` called with `params` and its answer read with `readTheAnswer`, a reader that walks the contract's type into the one
+ * Studio keeps; an answer it cannot read fails as not the contract's type, in the reader's words.
+ */
+export function controlOperationReadWith<Method extends ControlOperationMethodName, Value>(
+  method: Method,
+  params: ControlOperationParams<Method>,
+  readTheAnswer: (answered: ControlOperationResult<Method>) => Result<Value, string>,
+): Effect.Effect<Value, RuntimeControlFailure, RuntimeControl> {
+  return RuntimeControl.use((runtimeControl) => runtimeControl.call(method, params)).pipe(
+    Effect.flatMap((answered) => fromResult(readTheAnswer(answered), (why) => answerContractMismatch(method, why))),
+  );
+}
+
 /** A client connected to the local API at `localApiSocketPath` over `/control/ws`, its `discover` answered; aborting `signal` gives up on it. */
-function controlClientConnectedOverAWebSocket(localApiSocketPath: string, signal: ControlCallOptions["signal"]) {
+export function controlClientConnectedOverAWebSocket(localApiSocketPath: string, signal: ControlCallOptions["signal"]) {
   return TatolabRuntimeClient.connect(
     signal === undefined ? { socketPath: localApiSocketPath, clientName: TATO_STUDIO_MCP_CLIENT_NAME } : { socketPath: localApiSocketPath, clientName: TATO_STUDIO_MCP_CLIENT_NAME, signal },
   );
@@ -238,44 +261,9 @@ function controlClientConnectedOverAWebSocket(localApiSocketPath: string, signal
  * Close `connectedClient` without waiting for the runtime to answer the close, as the persistent connection does: a runtime that
  * never answers it must not hold up the status round that read its contract. Closing cannot fail.
  */
-function closedWithoutWaitingForThePeer(connectedClient: TatolabRuntimeClient): Effect.Effect<void> {
+export function closedWithoutWaitingForThePeer(connectedClient: TatolabRuntimeClient): Effect.Effect<void> {
   return Effect.sync(() => {
     connectedClient.close().catch(() => {});
-  });
-}
-
-/**
- * `RuntimeControl` over the local API at `localApiSocketPath`: each `call` one `POST /control`, given up after its operation's limit
- * or `defaultTimeLimitMs`, which aborts the request, as an interrupt does; `discover` one `/control/ws` connection, given up after
- * `defaultTimeLimitMs` and closed without waiting for the runtime's answer to the close.
- */
-export function runtimeControlLayer(localApiSocketPath: string, defaultTimeLimitMs: number): Layer.Layer<RuntimeControl> {
-  return Layer.succeed(RuntimeControl, {
-    discover: Effect.acquireUseRelease(
-      Effect.tryPromise({
-        try: (signal) => controlClientConnectedOverAWebSocket(localApiSocketPath, signal),
-        catch: (connectFailure) => runtimeControlFailureOfTheCall("discover", localApiSocketPath, connectFailure),
-      }),
-      (connectedClient) => Effect.succeed(connectedClient.discovered),
-      (connectedClient) => closedWithoutWaitingForThePeer(connectedClient),
-    ).pipe(
-      Effect.timeoutOrElse({
-        duration: Duration.millis(defaultTimeLimitMs),
-        orElse: () => Effect.fail(runtimeTimedOut("discover", localApiSocketPath, defaultTimeLimitMs)),
-      }),
-    ),
-    call: <Method extends ControlOperationMethodName>(method: Method, params: ControlOperationParams<Method>) => {
-      const timeLimitMs = controlOperationTimeLimitMs(method, defaultTimeLimitMs);
-      return Effect.tryPromise({
-        try: (signal) => controlClientOfOnePost(localApiSocketPath).call(method, params, { signal }),
-        catch: (callFailure) => runtimeControlFailureOfTheCall(method, localApiSocketPath, callFailure),
-      }).pipe(
-        Effect.timeoutOrElse({
-          duration: Duration.millis(timeLimitMs),
-          orElse: () => Effect.fail(runtimeTimedOut(method, localApiSocketPath, timeLimitMs)),
-        }),
-      );
-    },
   });
 }
 

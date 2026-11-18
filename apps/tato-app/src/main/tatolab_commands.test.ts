@@ -1,9 +1,9 @@
 import { afterEach, expect, test } from "vitest";
 import { controlOperationFailedResponse, httpResponse, controlOperationResultResponse, controlWebSocketUpgradeRefusedWithWords, runtimeDescribedResponse } from "./fake_local_api_server.js";
-import { failedWith, succeeded } from "./result.js";
+import { succeeded } from "./result.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
-import { describeStreamGraph, readProjectLogRecords, readProjectLogRecordsArgumentsFrom, streamArgumentsFrom } from "./tatolab_stream_and_runtime_project_commands.js";
+import { streamArgumentsFrom } from "./tatolab_stream_and_runtime_project_commands.js";
 import { enabledArgumentsFrom } from "./tatolab_status_runtime_and_settings_commands.js";
 import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
 
@@ -133,31 +133,22 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
   );
 });
 
-test("a refusal from the runtime reaches the window in the runtime's own words", async () => {
+test("a refusal from the runtime reaches the window in the runtime's own words, and a folder the runtime lists no stream from is never asked about", async () => {
   const graphRefusal = "graph failed: Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main";
-  const logsRefusal = "logs failed: Resource not found: this runtime holds no stream of the project in /tmp/nope";
-  const sharedState = await sharedStateOverFakes(
-    [
-      controlOperationFailedResponse(graphRefusal),
-      controlOperationFailedResponse(logsRefusal),
-    ],
-    "macos"
-  );
+  const sharedState = await sharedStateOverFakes([controlOperationFailedResponse(graphRefusal)], "macos");
+  const commandHandlers = commandHandlersOver(sharedState);
 
-  expect(await describeStreamGraph(sharedState, "nope")).toEqual(failedWith(graphRefusal));
-  expect(await readProjectLogRecords(sharedState, "/tmp/nope", { stream: null, action: null }, null, null)).toEqual(failedWith(logsRefusal));
+  expect(await commandHandlers.describe_stream_graph({ stream: "nope" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: graphRefusal });
+  expect(await commandHandlers.read_project_log_records({ project_directory: "/tmp/nope", stream: null, action: null, after: null, until: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "The runtime lists no stream from /tmp/nope.",
+  });
 });
 
 test("a command's arguments are read as the window sends them, and anything else is refused", () => {
   expect(enabledArgumentsFrom("set_stream_failure_notifications", { enabled: false })).toEqual(succeeded({ enabled: false }));
   expect(enabledArgumentsFrom("set_stream_failure_notifications", { enabled: "yes" }).ok).toBe(false);
   expect(enabledArgumentsFrom("set_stream_failure_notifications", null).ok).toBe(false);
-  expect(readProjectLogRecordsArgumentsFrom({ project_directory: "/tmp/p", stream: "pattern-main-d76f70", action: null, after: "1:7830", until: "1:9120" })).toEqual(
-    succeeded({ projectDirectory: "/tmp/p", narrowing: { stream: "pattern-main-d76f70", action: null }, after: "1:7830", until: "1:9120" }),
-  );
-  expect(readProjectLogRecordsArgumentsFrom({ project_directory: "/tmp/p", stream: null, action: null, after: 79, until: null }).ok).toBe(false);
-  expect(readProjectLogRecordsArgumentsFrom({ project_directory: "/tmp/p", stream: null, action: null, after: null }).ok).toBe(false);
-  expect(readProjectLogRecordsArgumentsFrom({ stream: null, action: null, after: null }).ok).toBe(false);
   expect(streamArgumentsFrom("describe_stream_graph", { stream: "main" })).toEqual(succeeded({ stream: "main" }));
   expect(streamArgumentsFrom("describe_stream_graph", {}).ok).toBe(false);
 });
@@ -183,7 +174,7 @@ test("each command answers the window in the contract's shape, a refusal in its 
   expect(await commandHandlers.read_project_log_records({ stream: "camera" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal:
-      "read_project_log_records needs `project_directory`, a project's folder, and `stream`, `action`, `after` and `until`, each text or null: a stream's id, a stream action's id, the cursor of the page before, and the cursor the read stops at",
+      'read_project_log_records: Missing key\n  at ["project_directory"]',
   });
-  expect(await commandHandlers.describe_stream_graph(null, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "describe_stream_graph needs `stream`, a stream's id" });
+  expect(await commandHandlers.describe_stream_graph(null, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "describe_stream_graph: Expected object" });
 });

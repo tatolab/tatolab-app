@@ -4,8 +4,6 @@
 import type {
   ListedStream,
   ProjectCreationQueued,
-  ProjectLogNarrowing,
-  ProjectLogRecordsPage,
   ProjectStreamActionQueued,
   ProjectTransaction,
   ProjectTransactionAuthor,
@@ -13,12 +11,7 @@ import type {
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
   StudioWarning,
-  StreamActionCancelAnswer,
   StreamActionFollowed,
-  StreamGraphSummary,
-  NodeCatalog,
-  ProjectNodeTypeListing,
-  ProjectAssetListing,
   ProjectTheRuntimeNames,
   ProjectDependency,
   WorkspaceDependencyUpdate,
@@ -47,11 +40,9 @@ import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_l
 import { failedWith, type Result } from "./result.js";
 import { readTheAnsweringRuntimesIdentity, readTheRuntimesContractAge, type RuntimeContractAgeReading } from "./runtime_contract_age.js";
 import { tatolabAppLogAsEffectsLogger } from "./studio_runtime.js";
-import { LOCAL_API_REQUEST_TIMEOUT_MS, RuntimeControl, runtimeControlLayer } from "./tatolab_runtime_control_operation_call.js";
+import { runtimeControlLayer } from "./runtime_control_layer.js";
+import { LOCAL_API_REQUEST_TIMEOUT_MS, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-
-/** How many log records one page the window reads holds. */
-const PROJECT_LOG_RECORDS_PER_PAGE = 500;
 
 /** Something asked once of each runtime that comes up, as its machine's name and its contract's age are. */
 export class AskedOncePerRuntimeUpEpisode<Answer extends {} | null> {
@@ -266,16 +257,6 @@ export class TatolabAppController {
     return this.localApiClient.describeRuntime();
   }
 
-  /** The window's next page of the log of the project in `projectDirectory`, narrowed as `narrowing` asks: the records after the cursor `after`, or the oldest held for `null`, and before the cursor `until`, or the latest for `null`. */
-  readProjectLogRecords(
-    projectDirectory: string,
-    narrowing: ProjectLogNarrowing,
-    after: string | null,
-    until: string | null,
-  ): Promise<Result<ProjectLogRecordsPage, LocalApiRequestFailure>> {
-    return this.localApiClient.readProjectLogRecords(projectDirectory, narrowing, after, until, PROJECT_LOG_RECORDS_PER_PAGE);
-  }
-
   /** Queue the stop of the playback of the project in `projectDirectory` through the runtime's `stop_playback`, answering the id of the action the runtime queued. */
   stopPlayback(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
     return this.localApiClient.stopPlayback(projectDirectory);
@@ -351,34 +332,9 @@ export class TatolabAppController {
     return this.localApiClient.describeStreamAction(action);
   }
 
-  /** End the stream action `action` early through the runtime's `cancel_stream_action`. */
-  cancelStreamAction(action: string): Promise<Result<StreamActionCancelAnswer, LocalApiRequestFailure>> {
-    return this.localApiClient.cancelStreamAction(action);
-  }
-
   /** Every stream the runtime lists now. */
   listStreams(): Promise<Result<ListedStream[], LocalApiRequestFailure>> {
     return this.localApiClient.listStreams();
-  }
-
-  /** The graph of the loaded stream `stream`. */
-  describeStreamGraph(stream: string): Promise<Result<StreamGraphSummary, LocalApiRequestFailure>> {
-    return this.localApiClient.describeStreamGraph(stream);
-  }
-
-  /** Every node type the loaded stream `stream` can add. */
-  describeNodeCatalog(stream: string): Promise<Result<NodeCatalog, LocalApiRequestFailure>> {
-    return this.localApiClient.describeNodeCatalog(stream);
-  }
-
-  /** What the project in `projectDirectory` and each source it draws node code from declares, read from source without running it. */
-  listProjectNodeTypes(projectDirectory: string): Promise<Result<ProjectNodeTypeListing, LocalApiRequestFailure>> {
-    return this.localApiClient.listProjectNodeTypes(projectDirectory);
-  }
-
-  /** Every asset of the project in `projectDirectory`, its graph documents among them. */
-  listProjectAssets(projectDirectory: string): Promise<Result<ProjectAssetListing, LocalApiRequestFailure>> {
-    return this.localApiClient.listProjectAssets(projectDirectory);
   }
 
   /** The project in `projectDirectory` as the runtime names it. */

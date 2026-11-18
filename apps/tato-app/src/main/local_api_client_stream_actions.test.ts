@@ -4,6 +4,7 @@ import { FakeLocalApiServer, controlOperationResponseOfTheRecordedToolResponse, 
 import { LocalApiClient, queuedStreamActionFromTheToolResult, streamsThePauseOrResumeReachedFromTheToolResult, streamAssetChangeFromTheToolResult } from "./local_api_client.js";
 import { projectCreationQueuedFromTheCreateProjectToolResult, projectStreamActionQueuedFromTheToolResult, streamActionCancelAnswerFromTheCancelStreamActionToolResult, streamActionDescriptionFromTheDescribeStreamActionToolResult } from "./stream_action_description.js";
 import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./local_api_client_test_support.js";
+import { cancelStreamAction } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -379,8 +380,8 @@ test("a_cancel_answers_cancelled_for_a_queued_action_and_in_progress_for_one_it_
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-cancel-stream-action-answer-for-a-queued-stop-of-doorways-front-door-cancelled.json")),
   ]);
 
-  expect(answerOf(await server.client().cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-10"))).toEqual({ action: "Ra19ljkh20wimdvgya5udt9v1-10", state: "cancelled" });
-  expect(answerOf(await server.client().cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-9"))).toEqual({ action: "Ra19ljkh20wimdvgya5udt9v1-9", state: "in_progress" });
+  expect(answerOf(await server.run(cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-10")))).toEqual({ action: "Ra19ljkh20wimdvgya5udt9v1-10", state: "cancelled" });
+  expect(answerOf(await server.run(cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-9")))).toEqual({ action: "Ra19ljkh20wimdvgya5udt9v1-9", state: "in_progress" });
   expect(describedOf(answerOf(await server.client().describeStreamAction("Ra19ljkh20wimdvgya5udt9v1-9")))).toEqual({
     action: "Ra19ljkh20wimdvgya5udt9v1-9",
     project_directory: "/tmp/tatolab-proof-projects/slowpoke",
@@ -391,7 +392,7 @@ test("a_cancel_answers_cancelled_for_a_queued_action_and_in_progress_for_one_it_
     failed_because: null,
     venv_sync: null,
   });
-  expect(answerOf(await server.client().cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-12"))).toEqual({ action: "Ra19ljkh20wimdvgya5udt9v1-12", state: "cancelled" });
+  expect(answerOf(await server.run(cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-12")))).toEqual({ action: "Ra19ljkh20wimdvgya5udt9v1-12", state: "cancelled" });
   expect(controlOperationCallsReceivedBy(server)[0]).toEqual(["cancel_stream_action", { action: "Ra19ljkh20wimdvgya5udt9v1-10" }]);
 });
 
@@ -401,12 +402,12 @@ test("a_cancel_the_runtime_declines_carries_its_own_words_a_running_stop_past_ca
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-cancel-stream-action-refusal-for-an-action-already-cancelled.json")),
   ]);
 
-  expect(failureOf(await server.client().cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-13"))).toEqual({
-    failureDescription:
+  expect(failureOf(await server.run(cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-13")))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words:
       "Invalid configuration: the stream action `Ra19ljkh20wimdvgya5udt9v1-13` is a running stop, which has begun unloading its streams and cannot be cut short; it ends done",
-    isTheRuntimesRefusal: true,
   });
-  expect(failureOf(await server.client().cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-9")).failureDescription).toBe(
+  expect(failureOf(await server.run(cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-9"))).words).toBe(
     "Invalid configuration: the stream action `Ra19ljkh20wimdvgya5udt9v1-9` is already cancelled, so there is nothing to cancel",
   );
 });
