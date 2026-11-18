@@ -3,14 +3,14 @@
 // the runtime's `list_project_views` of the workspace lists under its folder.
 
 import path from "node:path";
-import { Effect } from "effect";
+import { Effect, Result } from "effect";
+import type { Result as PlainResult } from "./result.js";
 import type { DependencySourceKind, ProjectTheRuntimeNames, ViewsOfAWorkspaceDependency, WorkspaceDependency } from "../shared/tatolab_backend_contract.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import { studioViewOpeningOf, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
-import type { Result } from "./result.js";
 
 /** Asks the person in the desktop's open dialog, opened at `defaultFolder`, for a project's folder or a `.zip` of one; `null` when they cancel. */
-export type DependencySourceDialog = (sourceKind: DependencySourceKind, defaultFolder: string) => Promise<Result<string | null, string>>;
+export type DependencySourceDialog = (sourceKind: DependencySourceKind, defaultFolder: string) => Promise<PlainResult<string | null, string>>;
 
 /** The folder inside a project that holds each project it imports, one folder each. */
 export const PROJECT_IMPORTS_FOLDER = "imports";
@@ -24,19 +24,22 @@ export function importFolderInsideTheWorkspace(workspaceFolder: string, folder: 
   return path.join(workspaceFolder, PROJECT_IMPORTS_FOLDER, folder);
 }
 
-/** Each of `listedDependencies` as Module manager shows it, in the runtime's order, named by `nameTheProjectInAFolder` from its copy (no name when it fails), with the views of `workspaceViews` its folder brings. */
+/** Each of `listedDependencies` as Module manager shows it, in the runtime's order, named by `nameTheProjectInAFolder` from its copy (no name, logged, when it fails), with the views `workspaceViews` lists under its folder, or why none were listed. */
 export function workspaceDependenciesOf<Services>(
   workspaceFolder: string,
   listedDependencies: readonly ListedProjectDependency[],
-  workspaceViews: Result<readonly ProjectViewTheRuntimeListed[], string>,
-  nameTheProjectInAFolder: (projectFolder: string) => Effect.Effect<ProjectTheRuntimeNames, unknown, Services>,
+  workspaceViews: Result.Result<readonly ProjectViewTheRuntimeListed[], { readonly words: string }>,
+  nameTheProjectInAFolder: (projectFolder: string) => Effect.Effect<ProjectTheRuntimeNames, { readonly words: string }, Services>,
 ): Effect.Effect<WorkspaceDependency[], never, Services> {
   return Effect.forEach(
     listedDependencies,
     (listed) => {
       const folderPath = importFolderInsideTheWorkspace(workspaceFolder, listed.dependency.folder) ?? path.join(workspaceFolder, PROJECT_IMPORTS_FOLDER);
       return nameTheProjectInAFolder(folderPath).pipe(
-        Effect.match({ onSuccess: (named): string | null => named.name, onFailure: (): string | null => null }),
+        Effect.map((named): string | null => named.name),
+        Effect.catch((unnamed) =>
+          Effect.logWarning("the runtime gave no name for an import of the workspace").pipe(Effect.annotateLogs({ folder_path: folderPath, because: unnamed.words }), Effect.as(null)),
+        ),
         Effect.map(
           (name): WorkspaceDependency => ({
             ...listed.dependency,
@@ -54,11 +57,11 @@ export function workspaceDependenciesOf<Services>(
   );
 }
 
-function viewsTheImportBrings(workspaceViews: Result<readonly ProjectViewTheRuntimeListed[], string>, importFolder: string): ViewsOfAWorkspaceDependency {
-  if (!workspaceViews.ok) return { kind: "not_listed", because: workspaceViews.failure };
+function viewsTheImportBrings(workspaceViews: Result.Result<readonly ProjectViewTheRuntimeListed[], { readonly words: string }>, importFolder: string): ViewsOfAWorkspaceDependency {
+  if (Result.isFailure(workspaceViews)) return { kind: "not_listed", because: workspaceViews.failure.words };
   return {
     kind: "listed",
-    views: workspaceViews.value
+    views: workspaceViews.success
       .filter((listedView) => listedView.import_folder === importFolder)
       .map((listedView) => ({ view_type_id: listedView.view_type, manifest_json: listedView.manifest, ...studioViewOpeningOf(listedView) })),
   };

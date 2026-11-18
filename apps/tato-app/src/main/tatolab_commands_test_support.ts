@@ -129,7 +129,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
       chooseDependencySource: () => Effect.succeed(null),
     }),
     Layer.succeed(PackageCatalog, {
-      entryNamed: (name) => Effect.fail(new CommandRefused({ words: `The catalog lists nothing named ${name}.` })),
+      readTheCatalog: Effect.succeed({ kind: "read" as const, entries: [], unreadable_entry_count: 0 }),
       downloadTheZipOf: (entry) => Effect.fail(new CommandRefused({ words: `${entry.title} was not downloaded.` })),
     }),
     Layer.succeed(StudioProjectOpening, { makeAProjectOfItsOwnFromTheArchive: (archive) => Effect.fail(new CommandRefused({ words: `${archive} was not made into a project.` })) }),

@@ -4,7 +4,7 @@
 // app's log, never to the console.
 
 import { Cause, Context, Effect, Layer, Logger, References, type LogLevel } from "effect";
-import type { ChosenProjectFolder, DependencySourceKind, ListedStream, PackageCatalogEntry, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
+import type { ChosenProjectFolder, DependencySourceKind, ListedStream, PackageCatalogEntry, PackageCatalogReading, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import { streamsOfTheProjectIn, theStreamsListTheProjectOpen } from "../shared/project_playback.js";
 import { downloadTheCatalogEntrysZip } from "./marketplace_module_download.js";
 import { readThePackageCatalog } from "./package_catalog.js";
@@ -69,8 +69,8 @@ export class ModuleManagerWindows extends Context.Service<
 export class PackageCatalog extends Context.Service<
   PackageCatalog,
   {
-    /** The catalog entry `name`, the catalog read afresh; refused when the catalog does not read or lists nothing by that name. */
-    readonly entryNamed: (name: string) => Effect.Effect<PackageCatalogEntry, CommandRefused>;
+    /** The catalog read afresh: its entries for this machine, or why it did not read. */
+    readonly readTheCatalog: Effect.Effect<PackageCatalogReading>;
     /** The path of `entry`'s `.zip`, downloaded into the app's downloads folder and checked against the catalog. */
     readonly downloadTheZipOf: (entry: PackageCatalogEntry) => Effect.Effect<string, CommandRefused>;
   }
@@ -132,9 +132,9 @@ function tatolabAppLogLevelOf(logLevel: LogLevel.LogLevel): TatolabAppLogLevel |
   }
 }
 
-/** `value`, annotated on a log, as a field of the app's log: kept when it is one a field holds, its text otherwise. */
+/** `value`, annotated on a log, as a field of the app's log: kept when it is one a field holds, its JSON otherwise. */
 function tatolabAppLogFieldOf(value: unknown): string | number | boolean | null {
-  return value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? value : String(value);
+  return value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? value : (JSON.stringify(value) ?? String(value));
 }
 
 /** Effect's logger, replaced by one writing each log to `tatolabAppLog`: its first part as the message, its annotations as fields, any further parts as `details`, and a cause as `cause`. */
@@ -183,14 +183,7 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
       chooseDependencySource: (sourceKind, defaultFolder) => commandAnswerOfPlainCode(() => sharedState.dependencySourceDialog(sourceKind, defaultFolder)),
     }),
     Layer.succeed(PackageCatalog, {
-      entryNamed: (name) =>
-        Effect.promise(() => readThePackageCatalog(sharedState.fetchTextOverHttps, sharedState.machineModulesInstallOn)).pipe(
-          Effect.flatMap((catalog) => {
-            if (catalog.kind === "not_read") return Effect.fail(new CommandRefused({ words: catalog.because }));
-            const entry = catalog.entries.find((listed) => listed.name === name);
-            return entry === undefined ? Effect.fail(new CommandRefused({ words: `The catalog lists nothing named ${name}.` })) : Effect.succeed(entry);
-          }),
-        ),
+      readTheCatalog: Effect.promise(() => readThePackageCatalog(sharedState.fetchTextOverHttps, sharedState.machineModulesInstallOn)),
       downloadTheZipOf: (entry) => commandAnswerOfPlainCode(() => downloadTheCatalogEntrysZip(entry, sharedState.fetchBytesOverHttps, sharedState.moduleDownloadsFolder)),
     }),
     Layer.succeed(StudioProjectOpening, {
