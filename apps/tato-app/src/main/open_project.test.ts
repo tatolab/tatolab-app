@@ -326,6 +326,7 @@ function runtimeControlOnTheLiveClock(localApiSocketPath: string): Layer.Layer<R
         call: (method, params) => runtimeControl.call(method, params).pipe(Effect.provideService(Clock.Clock, LIVE_CLOCK)),
         discover: runtimeControl.discover.pipe(Effect.provideService(Clock.Clock, LIVE_CLOCK)),
         get: (requestTarget) => runtimeControl.get(requestTarget).pipe(Effect.provideService(Clock.Clock, LIVE_CLOCK)),
+        connect: runtimeControl.connect.pipe(Effect.provideService(Clock.Clock, LIVE_CLOCK)),
       };
     }),
   ).pipe(Layer.provide(runtimeControlLayer(localApiSocketPath, 2_000)));
@@ -402,6 +403,7 @@ async function anOpenProject(options: {
       aStudioWindowHoldsTheProjectIn: (folder) => projectOpenedLast?.projectFolder === folder,
       folderOfTheWindowsOpenProject: () => null,
       openedFolderOfTheStudioWindow: () => projectOpenedLast?.projectFolder ?? null,
+      windowFollowingTheRuntimeOf: () => null,
       closeTheStudioWindowOf: (folder) =>
         Effect.sync(() => {
           studioWindowsClosed.push(folder);

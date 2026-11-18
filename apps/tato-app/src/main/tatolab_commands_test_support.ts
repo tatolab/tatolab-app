@@ -1,7 +1,5 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { ProjectViewsListedToTheWindows } from "./extension_files_served_with_types_removed.js";
-import { streamGraphChangesFollowedForTheWindows } from "./stream_graph_changes_followed_for_the_windows.js";
-import { projectLogRecordsFollowedForTheWindows } from "./project_log_records_followed_for_the_windows.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { localApiRequestFailure } from "./local_api_request_failure.js";
 import os from "node:os";
@@ -44,6 +42,7 @@ import {
   Terminal,
   StudioAppVersion,
   studioRuntimeLayer,
+  runtimePushesFollowedLayer,
   StudioWindows,
   SystemMediaAccessAhead,
   ThisMachinesFolders,
@@ -136,8 +135,10 @@ export const STUDIO_WINDOW_UNDER_TEST = { windowContentsId: PROJECTS_WINDOW_CONT
 /** Every Studio service a converted command runs on, as a test sets them up: the live `RuntimeControl` over a fake local API and the rest as `overrides` says. */
 export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}): Layer.Layer<StudioServices> {
   const studioWindow = overrides.studioWindow ?? STUDIO_WINDOW_UNDER_TEST;
+  const runtimeControl = runtimeControlLayer(overrides.localApiSocketPath ?? "/nowhere/tatolab.sock", overrides.localApiTimeLimitMs ?? 2_000);
   return Layer.mergeAll(
-    runtimeControlLayer(overrides.localApiSocketPath ?? "/nowhere/tatolab.sock", overrides.localApiTimeLimitMs ?? 2_000),
+    runtimeControl,
+    runtimePushesFollowedLayer.pipe(Layer.provide(Layer.merge(runtimeControl, tatolabAppLogAsEffectsLogger(overrides.tatolabAppLog ?? quietTatolabAppLog)))),
     Layer.succeed(StudioWindows, {
       projectFolderOfTheWindow: (commandFromWindow) =>
         commandFromWindow.windowContentsId === studioWindow.windowContentsId ? Effect.succeed(studioWindow.projectFolder) : Effect.fail(new CommandRefused({ words: "No project is open in this window." })),
@@ -151,6 +152,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
       openTheProjectInItsStudioWindow: () => Effect.succeed("opened_its_studio_window" as const),
       closeTheStudioWindowOf: () => Effect.void,
       stepTheProjectsWindowAsideFor: () => Effect.void,
+      windowFollowingTheRuntimeOf: () => null,
     }),
     Layer.succeed(ModuleManagerWindows, {
       workspaceFolderOfTheWindow: () => Effect.fail(new CommandRefused({ words: "Only a Module manager window imports into a project." })),
@@ -345,16 +347,6 @@ export async function sharedStateOverFakes(
       viewerProcessId: 4242,
       waitThen: () => undefined,
       streamStateTheRuntimeListsNow: () => "running",
-      tatolabAppLog: quietTatolabAppLog,
-    }),
-    streamGraphChangesFollowed: streamGraphChangesFollowedForTheWindows({
-      openThePushesConnection: async () => localApiRequestFailure("these tests open no stream graph changes connection"),
-      waitThen: () => undefined,
-      tatolabAppLog: quietTatolabAppLog,
-    }),
-    projectLogRecordsFollowed: projectLogRecordsFollowedForTheWindows({
-      openThePushesConnection: async () => localApiRequestFailure("these tests open no project log records connection"),
-      waitThen: () => undefined,
       tatolabAppLog: quietTatolabAppLog,
     }),
     systemMenuBar: new SystemMenuBarOfTheFocusedWindow({

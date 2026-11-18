@@ -1,6 +1,3 @@
-import type { TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
-import { succeeded, type Result } from "./result.js";
-import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { chooseAStreamProjectFolder, createAStreamProject, openAStreamProject } from "./stream_project_adding.js";
 import { openTheStreamsProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
 import { newStreamDocumentPathNoFileHolds, PROJECT_STREAMS_FOLDER } from "./new_stream_document_path.js";
@@ -21,9 +18,10 @@ import {
   removeProject,
   setStreamDisplayName,
 } from "./runtime_operations.js";
-import { ListedStreams, PersonEditingInStudio, StudioWindows, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
+import { ListedStreams, PersonEditingInStudio, ProjectLogsFollowed, StreamGraphsFollowed, StudioWindows, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
+import type { TatolabMainWindow } from "./tatolab_main_window.js";
 import { CommandRefused, windowCommand } from "./window_command.js";
-import { type TatolabCommandFromWindow, oneTextArgumentFrom, type TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
+import type { TatolabCommandFromWindow, TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 
 /** What Tato Studio calls each stream edit in a refusal, as it asks and once done. */
 const STREAM_EDIT_WORDS = { rename: "renamed", delete: "deleted" } as const;
@@ -78,10 +76,20 @@ const projectFolderTheWindowMayAskTheRuntimeAbout = Effect.fn("projectFolderTheW
   return yield* projectFolderTheRuntimeLastListed(projectDirectory);
 });
 
-/** The `{ stream }` arguments of the command `commandName` as the window sends them, or why they are not. */
-export function streamArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ stream: string }, string> {
-  const stream = oneTextArgumentFrom(commandName, commandArguments, "stream", "a stream's id");
-  return stream.ok ? succeeded({ stream: stream.value }) : stream;
+/** The window a command came from as one that follows the runtime's pushes, a studio window or a view popped out of one; refused with `refusal` from any other. */
+function windowFollowingTheRuntime(commandFromWindow: TatolabCommandFromWindow, refusal: string) {
+  return StudioWindows.use((studioWindows) => {
+    const windowFollowing = studioWindows.windowFollowingTheRuntimeOf(commandFromWindow);
+    return windowFollowing === null ? Effect.fail(new CommandRefused({ words: refusal })) : Effect.succeed(windowFollowing);
+  });
+}
+
+/** `stop` of the window a command came from, when it is one that follows the runtime's pushes; nothing from any other. */
+function whenAWindowFollowsTheRuntime<Services>(commandFromWindow: TatolabCommandFromWindow, stop: (windowFollowing: TatolabMainWindow) => Effect.Effect<void, never, Services>) {
+  return StudioWindows.use((studioWindows) => {
+    const windowFollowing = studioWindows.windowFollowingTheRuntimeOf(commandFromWindow);
+    return windowFollowing === null ? Effect.void : stop(windowFollowing);
+  }).pipe(Effect.as(null));
 }
 
 /** The arguments of `choose_stream_project_folder`: what the folder is chosen for. */
@@ -126,9 +134,8 @@ type StreamAndRuntimeProjectCommandName =
   | "follow_project_log_records"
   | "stop_following_project_log_records";
 
-/** The handlers of the window's commands on the projects and streams the runtime lists, their logs, graphs and stream actions, over `sharedState`, the converted ones run on `studioRuntime`. */
+/** The handlers of the window's commands on the projects and streams the runtime lists, their logs, graphs and stream actions, run on `studioRuntime`. */
 export function streamAndRuntimeProjectCommandHandlersOf(
-  sharedState: TatolabAppSharedState,
   studioRuntime: ManagedRuntime.ManagedRuntime<StudioServices, never>,
 ): Pick<TatolabWindowCommandHandlers, StreamAndRuntimeProjectCommandName> {
   return {
@@ -188,36 +195,24 @@ export function streamAndRuntimeProjectCommandHandlersOf(
     choose_stream_project_folder: windowCommand(studioRuntime, "choose_stream_project_folder", ChooseStreamProjectFolderArguments, ({ chosen_for }) => chooseAStreamProjectFolder(chosen_for)),
     create_stream_project: windowCommand(studioRuntime, "create_stream_project", CreateStreamProjectArguments, ({ folder }) => createAStreamProject(folder)),
     open_stream_project: windowCommand(studioRuntime, "open_stream_project", OpenStreamProjectArguments, ({ folder }) => openAStreamProject(folder)),
-    follow_stream_graph_changes: async (commandArguments, commandFromWindow) => {
-      const followed = streamArgumentsFrom("follow_stream_graph_changes", commandArguments);
-      if (!followed.ok) return { ok: false, refusal: followed.failure };
-      const windowFollowingStreamGraphs = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
-      if (windowFollowingStreamGraphs === null) return { ok: false, refusal: "Only a studio window or a popped-out view follows a stream's graph." };
-      sharedState.streamGraphChangesFollowed.follow(followed.value.stream, windowFollowingStreamGraphs);
-      return { ok: true, value: null };
-    },
-    stop_following_stream_graph_changes: async (commandArguments, commandFromWindow) => {
-      const followed = streamArgumentsFrom("stop_following_stream_graph_changes", commandArguments);
-      if (!followed.ok) return { ok: false, refusal: followed.failure };
-      const windowFollowingStreamGraphs = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
-      if (windowFollowingStreamGraphs !== null) sharedState.streamGraphChangesFollowed.stopFollowing(followed.value.stream, windowFollowingStreamGraphs);
-      return { ok: true, value: null };
-    },
-    follow_project_log_records: windowCommand(studioRuntime, "follow_project_log_records", ProjectDirectoryArguments, ({ project_directory }, commandFromWindow) =>
-      projectFolderTheWindowMayAskTheRuntimeAbout(project_directory, commandFromWindow).pipe(
-        Effect.flatMap(() => {
-          const windowFollowingProjectLogs = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
-          if (windowFollowingProjectLogs === null) return Effect.fail(new CommandRefused({ words: "Only a studio window or a popped-out view follows a project's log." }));
-          return Effect.sync(() => sharedState.projectLogRecordsFollowed.follow(project_directory, windowFollowingProjectLogs)).pipe(Effect.as(null));
-        }),
+    follow_stream_graph_changes: windowCommand(studioRuntime, "follow_stream_graph_changes", StreamArguments, ({ stream }, commandFromWindow) =>
+      windowFollowingTheRuntime(commandFromWindow, "Only a studio window or a popped-out view follows a stream's graph.").pipe(
+        Effect.flatMap((windowFollowing) => StreamGraphsFollowed.use((followed) => followed.follow(stream, windowFollowing))),
+        Effect.as(null),
       ),
     ),
-    stop_following_project_log_records: async (commandArguments, commandFromWindow) => {
-      const projectDirectory = oneTextArgumentFrom("stop_following_project_log_records", commandArguments, "project_directory", "the directory of a project the window follows the log of");
-      if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
-      const windowFollowingProjectLogs = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
-      if (windowFollowingProjectLogs !== null) sharedState.projectLogRecordsFollowed.stopFollowing(projectDirectory.value, windowFollowingProjectLogs);
-      return { ok: true, value: null };
-    },
+    stop_following_stream_graph_changes: windowCommand(studioRuntime, "stop_following_stream_graph_changes", StreamArguments, ({ stream }, commandFromWindow) =>
+      whenAWindowFollowsTheRuntime(commandFromWindow, (windowFollowing) => StreamGraphsFollowed.use((followed) => followed.stopFollowing(stream, windowFollowing))),
+    ),
+    follow_project_log_records: windowCommand(studioRuntime, "follow_project_log_records", ProjectDirectoryArguments, ({ project_directory }, commandFromWindow) =>
+      projectFolderTheWindowMayAskTheRuntimeAbout(project_directory, commandFromWindow).pipe(
+        Effect.andThen(windowFollowingTheRuntime(commandFromWindow, "Only a studio window or a popped-out view follows a project's log.")),
+        Effect.flatMap((windowFollowing) => ProjectLogsFollowed.use((followed) => followed.follow(project_directory, windowFollowing))),
+        Effect.as(null),
+      ),
+    ),
+    stop_following_project_log_records: windowCommand(studioRuntime, "stop_following_project_log_records", ProjectDirectoryArguments, ({ project_directory }, commandFromWindow) =>
+      whenAWindowFollowsTheRuntime(commandFromWindow, (windowFollowing) => ProjectLogsFollowed.use((followed) => followed.stopFollowing(project_directory, windowFollowing))),
+    ),
   };
 }

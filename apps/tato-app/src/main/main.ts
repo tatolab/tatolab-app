@@ -32,7 +32,7 @@ import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import { closeProject, listDependencies, nameTheProject } from "./runtime_operations.js";
 import { resultInWordsOf } from "./result_as_effect.js";
 import { answerOnTheStudioRuntime } from "./window_command.js";
-import { studioRuntimeLayer, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
+import { ProjectLogsFollowed, StreamGraphsFollowed, studioRuntimeLayer, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
@@ -57,8 +57,6 @@ import { RuntimeViewerControlConnection } from "./runtime_viewer_control_connect
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { projectChangesConnectionOver } from "./project_transactions_feed.js";
 import { StreamActionChangesFollowedForTheStatus, streamActionChangesConnectionOver } from "./stream_action_changes_followed_for_the_status.js";
-import { streamGraphChangesConnectionOver, streamGraphChangesFollowedForTheWindows, type StreamGraphChangesFollowedForTheWindows } from "./stream_graph_changes_followed_for_the_windows.js";
-import { projectLogRecordsConnectionOver, projectLogRecordsFollowedForTheWindows, type ProjectLogRecordsFollowedForTheWindows } from "./project_log_records_followed_for_the_windows.js";
 import { TatolabRuntimeControlWebSocketConnection } from "./tatolab_runtime_control_operation_call.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import { runtimeViewerChannelReaderOpenerOver } from "./runtime_viewer_frame_import_addon.js";
@@ -69,9 +67,6 @@ import { isAnotherBuildOfTatolab, type TatolabAppCopy } from "./tatolab_app_copy
 
 /** How long a port viewer's `open_viewer` or `close_viewer` waits on the runtime. */
 const PORT_VIEWER_REQUEST_TIMEOUT_MS = 5_000;
-
-/** How long a connection the windows follow the runtime's pushes over waits for the runtime to answer a subscribe. */
-const CONTROL_PUSHES_CONNECTION_REQUEST_TIMEOUT_MS = 5_000;
 
 /** How long a read of a project's change feed waits on the runtime. */
 const PROJECT_TRANSACTIONS_FEED_REQUEST_TIMEOUT_MS = 10_000;
@@ -194,8 +189,6 @@ export async function startTatolabApp(
   }
   let pythonLanguageServersOnceBuilt: PythonLanguageServers | null = null;
   let runtimePortViewersOnceBuilt: RuntimePortViewers | null = null;
-  let streamGraphChangesFollowedOnceBuilt: StreamGraphChangesFollowedForTheWindows | null = null;
-  let projectLogRecordsFollowedOnceBuilt: ProjectLogRecordsFollowedForTheWindows | null = null;
   let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
   let studioRuntimeOnceBuilt: ManagedRuntime.ManagedRuntime<StudioServices, never> | null = null;
   /** `effect`, named `workName`, run on the studio runtime once it is built: its answer, or its failure in its words; never rejecting. */
@@ -228,8 +221,13 @@ export async function startTatolabApp(
     whenAWindowStartingLanguageServersClosed: (languageServerOfTheWindow) => pythonLanguageServersOnceBuilt?.stopTheLanguageServersOf(languageServerOfTheWindow),
     whenAWindowShowingPortViewersClosed: (tatolabMainWindow) => {
       runtimePortViewersOnceBuilt?.closeThePortViewersOf(tatolabMainWindow);
-      streamGraphChangesFollowedOnceBuilt?.stopFollowingEverySubjectOf(tatolabMainWindow);
-      projectLogRecordsFollowedOnceBuilt?.stopFollowingEverySubjectOf(tatolabMainWindow);
+      if (studioRuntimeOnceBuilt === null) return;
+      void answerOnTheStudioRuntime(
+        studioRuntimeOnceBuilt,
+        "stopping what the closed window followed",
+        Effect.all([StreamGraphsFollowed.use((followed) => followed.stopFollowingEverySubjectOf(tatolabMainWindow)), ProjectLogsFollowed.use((followed) => followed.stopFollowingEverySubjectOf(tatolabMainWindow))], { discard: true }),
+        () => undefined,
+      );
     },
     tatolabAppLog,
   });
@@ -374,27 +372,6 @@ export async function startTatolabApp(
     tatolabAppLog,
   });
   runtimePortViewersOnceBuilt = runtimePortViewers;
-  const waitThen = (afterMs: number, then: () => void): void => {
-    setTimeout(then, afterMs);
-  };
-  const streamGraphChangesFollowed = streamGraphChangesFollowedForTheWindows({
-    openThePushesConnection: async () => {
-      const opened = await TatolabRuntimeControlWebSocketConnection.open(platformForThisBuild.localApiSocket, CONTROL_PUSHES_CONNECTION_REQUEST_TIMEOUT_MS);
-      return opened.ok ? succeeded(streamGraphChangesConnectionOver(opened.value)) : opened;
-    },
-    waitThen,
-    tatolabAppLog,
-  });
-  streamGraphChangesFollowedOnceBuilt = streamGraphChangesFollowed;
-  const projectLogRecordsFollowed = projectLogRecordsFollowedForTheWindows({
-    openThePushesConnection: async () => {
-      const opened = await TatolabRuntimeControlWebSocketConnection.open(platformForThisBuild.localApiSocket, CONTROL_PUSHES_CONNECTION_REQUEST_TIMEOUT_MS);
-      return opened.ok ? succeeded(projectLogRecordsConnectionOver(opened.value)) : opened;
-    },
-    waitThen,
-    tatolabAppLog,
-  });
-  projectLogRecordsFollowedOnceBuilt = projectLogRecordsFollowed;
   statusPublisher.attachRuntimePortViewers(runtimePortViewers);
   const sharedState: TatolabAppSharedState = {
     controller,
@@ -420,8 +397,6 @@ export async function startTatolabApp(
     appWindows: tatolabAppWindows,
     pythonLanguageServers,
     runtimePortViewers,
-    streamGraphChangesFollowed,
-    projectLogRecordsFollowed,
     systemMenuBar,
     fetchTextOverHttps: tatolabElectronAppShell.fetchTextOverHttps,
     fetchBytesOverHttps: tatolabElectronAppShell.fetchBytesOverHttps,
@@ -444,8 +419,6 @@ export async function startTatolabApp(
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.stopWatchingEveryProject());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.pythonLanguageServers.stopEveryLanguageServer());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.runtimePortViewers.closeEveryPortViewer());
-  tatolabElectronAppShell.onTheAppQuitting(() => sharedState.streamGraphChangesFollowed.stopFollowingEverySubject());
-  tatolabElectronAppShell.onTheAppQuitting(() => sharedState.projectLogRecordsFollowed.stopFollowingEverySubject());
   tatolabElectronAppShell.onTheAppQuitting(() => streamActionChangesFollowed.stop());
   const quitTheApp = () =>
     quitTheTatolabApp(

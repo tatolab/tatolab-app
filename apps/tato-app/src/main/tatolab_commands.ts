@@ -19,7 +19,7 @@ import { listNodeUiElementsCommand } from "./list_node_ui_elements_command.js";
 export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState, studioRuntime: ManagedRuntime.ManagedRuntime<StudioServices, never>, quitTheApp: () => void): TatolabWindowCommandHandlers {
   return {
     ...statusRuntimeAndSettingsCommandHandlersOf(sharedState, studioRuntime, quitTheApp),
-    ...streamAndRuntimeProjectCommandHandlersOf(sharedState, studioRuntime),
+    ...streamAndRuntimeProjectCommandHandlersOf(studioRuntime),
     ...projectsWindowCommandHandlersOf(sharedState, studioRuntime),
     ...openProjectCommandHandlersOf(sharedState, studioRuntime),
     ...moduleManagerCommandHandlersOf(sharedState, studioRuntime),
