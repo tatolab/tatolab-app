@@ -18,6 +18,11 @@ const EnabledArguments = Schema.Struct({ enabled: Schema.Boolean });
 /** The arguments of `dismiss_the_studio_warning_dialog`: the warning whose dialog was shown. */
 const DismissTheStudioWarningDialogArguments = Schema.Struct({ kind: Schema.Literal("viewer_frames_copied_on_x11") });
 
+/** `change` answered with nothing, then a status round whether it was carried out or refused, so the window sees what it changed. */
+function answeredWithNothingThenAStatusRound<Failure, Services>(change: Effect.Effect<void, Failure, Services>): Effect.Effect<null, Failure, Services | StatusRounds> {
+  return thenAStatusRound(change).pipe(Effect.as(null));
+}
+
 /** `get_tatolab_status`: the status as of the poller's last round, waiting for the first when the window asks before it. */
 const tatolabStatusAsOfTheLastRound = StatusRounds.use((statusRounds) => statusRounds.lastStatusWaitingUpTo(FIRST_STATUS_ROUND_WAIT_LIMIT_MS)).pipe(
   Effect.flatMap((status) => (status === null ? Effect.fail(new CommandRefused({ words: "Tatolab has not observed the runtime yet" })) : Effect.succeed(status))),
@@ -63,7 +68,7 @@ export function statusRuntimeAndSettingsCommandHandlersOf(
   return {
     get_tatolab_status: windowCommand(studioRuntime, "get_tatolab_status", Schema.Undefined, () => tatolabStatusAsOfTheLastRound),
     link_command_line_tool: windowCommand(studioRuntime, "link_command_line_tool", Schema.Undefined, () =>
-      thenAStatusRound(CarriedTools.use((carriedTools) => carriedTools.linkTheCommandLineTool)).pipe(Effect.as(null)),
+      answeredWithNothingThenAStatusRound(CarriedTools.use((carriedTools) => carriedTools.linkTheCommandLineTool)),
     ),
     quit_tatolab_app: async () => {
       quitTheApp();
@@ -92,20 +97,20 @@ export function statusRuntimeAndSettingsCommandHandlersOf(
     },
     describe_runtime: windowCommand(studioRuntime, "describe_runtime", Schema.Undefined, () => describeRuntime()),
     restart_runtime: windowCommand(studioRuntime, "restart_runtime", Schema.Undefined, () =>
-      thenAStatusRound(CarriedTools.use((carriedTools) => carriedTools.restartTheRuntime)).pipe(Effect.as(null)),
+      answeredWithNothingThenAStatusRound(CarriedTools.use((carriedTools) => carriedTools.restartTheRuntime)),
     ),
     open_runtime_log_folder: windowCommand(studioRuntime, "open_runtime_log_folder", Schema.Undefined, () => openTheRuntimesLogFolder.pipe(Effect.as(null))),
     set_stream_failure_notifications: windowCommand(studioRuntime, "set_stream_failure_notifications", EnabledArguments, ({ enabled }) =>
-      thenAStatusRound(StudioSettings.use((studioSettings) => studioSettings.setStreamFailureNotifications(enabled))).pipe(Effect.as(null)),
+      answeredWithNothingThenAStatusRound(StudioSettings.use((studioSettings) => studioSettings.setStreamFailureNotifications(enabled))),
     ),
     set_developer_mode: windowCommand(studioRuntime, "set_developer_mode", EnabledArguments, ({ enabled }) =>
-      thenAStatusRound(StudioSettings.use((studioSettings) => studioSettings.setDeveloperMode(enabled))).pipe(Effect.as(null)),
+      answeredWithNothingThenAStatusRound(StudioSettings.use((studioSettings) => studioSettings.setDeveloperMode(enabled))),
     ),
     dismiss_the_studio_warning_dialog: windowCommand(studioRuntime, "dismiss_the_studio_warning_dialog", DismissTheStudioWarningDialogArguments, ({ kind }) =>
-      thenAStatusRound(StudioSettings.use((studioSettings) => studioSettings.rememberTheWarningDialogWasShown(kind))).pipe(Effect.as(null)),
+      answeredWithNothingThenAStatusRound(StudioSettings.use((studioSettings) => studioSettings.rememberTheWarningDialogWasShown(kind))),
     ),
     set_open_tatolab_at_login: windowCommand(studioRuntime, "set_open_tatolab_at_login", EnabledArguments, ({ enabled }) =>
-      thenAStatusRound(StudioSettings.use((studioSettings) => studioSettings.setOpenTatolabAtLogin(enabled))).pipe(Effect.as(null)),
+      answeredWithNothingThenAStatusRound(StudioSettings.use((studioSettings) => studioSettings.setOpenTatolabAtLogin(enabled))),
     ),
     show_menus_in_the_system_menu_bar: async (commandArguments, commandFromWindow) => {
       const menus = systemMenuBarMenusFrom(commandArguments);

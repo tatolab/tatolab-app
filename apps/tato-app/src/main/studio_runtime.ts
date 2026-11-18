@@ -169,7 +169,7 @@ export function thenAStatusRound<Answer, Failure, Services>(change: Effect.Effec
   return change.pipe(Effect.ensuring(StatusRounds.use((statusRounds) => statusRounds.requestARound)));
 }
 
-/** The settings the window changes, each remembered between launches; a choice that could not be remembered is refused in words. */
+/** What the window changes and Studio remembers between launches: its settings, and the warning dialogs already shown; what could not be remembered is refused in words. */
 export class StudioSettings extends Context.Service<
   StudioSettings,
   {

@@ -42,7 +42,6 @@ import {
 } from "./project_files_on_the_wire.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 
-
 /** A client of the local API served at one socket path. */
 export class LocalApiClient {
   /** A client of the local API at `localApiSocketPath`, giving up on a request unanswered after `requestTimeoutMs`. */
@@ -64,7 +63,6 @@ export class LocalApiClient {
     if (response.value.statusCode === 200 && body === "ok") return succeeded(undefined);
     return localApiRequestFailure(`the runtime at ${this.localApiSocketPath} answered /health with ${response.value.statusCode}: ${body}`);
   }
-
 
   /** Every stream the runtime holds, from its `list_streams` tool. */
   listStreams(): Promise<Result<ListedStream[], LocalApiRequestFailure>> {

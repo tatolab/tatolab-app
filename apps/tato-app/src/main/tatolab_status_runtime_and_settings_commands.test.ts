@@ -81,6 +81,7 @@ test("opening_the_runtimes_log_folder_opens_the_folder_the_runtime_names_and_ref
     [
       controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 4_000, runtime_log_directory: runtimeLogFolder }),
       controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 5_000, runtime_log_directory: null }),
+      controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 6_000, runtime_log_directory: "/gone/logs" }),
     ],
     "macos",
     [runtimeLogFolder],
@@ -90,6 +91,7 @@ test("opening_the_runtimes_log_folder_opens_the_folder_the_runtime_names_and_ref
   expect(await commandHandlers.open_runtime_log_folder({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: expect.stringMatching(/^open_runtime_log_folder: /) });
   expect(await commandHandlers.open_runtime_log_folder(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(await commandHandlers.open_runtime_log_folder(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL });
+  expect(await commandHandlers.open_runtime_log_folder(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "/gone/logs is not a folder on this machine." });
   expect(sharedState.foldersShownInTheFileManager).toEqual([runtimeLogFolder]);
 });
 
