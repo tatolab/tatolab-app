@@ -10,10 +10,10 @@ import {
   callOneControlOperationOverAPost,
   controlContractTypeOf,
   RuntimeControl,
-  runtimeControlLayer,
   type ControlOperationAnswer,
   type ControlOperationParams,
 } from "./tatolab_runtime_control_operation_call.js";
+import { runtimeControlLayer } from "./runtime_control_layer.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 

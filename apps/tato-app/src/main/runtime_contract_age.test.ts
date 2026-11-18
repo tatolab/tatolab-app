@@ -7,7 +7,7 @@ import type { RuntimeOfAnotherAge } from "../shared/tatolab_backend_contract.js"
 import { fakeControlWebSocketRuntime, resultLine, type FakeControlWebSocketAnswer } from "./fake_control_websocket_runtime.js";
 import { FakeLocalApiServer, httpResponse } from "./fake_local_api_server.js";
 import { readTheRuntimesContractAge, remedyForTheOlderSide, type HowTheRunningRuntimeRuns, type RuntimeContractAgeReading } from "./runtime_contract_age.js";
-import { runtimeControlLayer } from "./tatolab_runtime_control_operation_call.js";
+import { runtimeControlLayer } from "./runtime_control_layer.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
 

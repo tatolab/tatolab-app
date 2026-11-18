@@ -6,7 +6,7 @@ import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, contro
 import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { failedWith, succeeded } from "./result.js";
 import { removeProject, openTheProjectWhenTheRuntimeHoldsItClosed } from "./tatolab_stream_and_runtime_project_commands.js";
-import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, cleanUps, recordedResponseBody, sharedStateOverFakes, RECORDED_PATTERN_PROJECT, RECORDED_PATTERN_RELOAD_ACTION, RECORDED_LOBBY_PROJECT, RECORDED_LOBBY_OPEN_ACTION, RECORDED_UNLISTED_PROJECT_THE_RUNTIME_HOLDS_OPEN } from "./tatolab_commands_test_support.js";
+import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, cleanUps, recordedResponseBody, sharedStateOverFakes, RECORDED_PATTERN_PROJECT, RECORDED_PATTERN_RELOAD_ACTION, RECORDED_LOBBY_PROJECT, RECORDED_LOBBY_OPEN_ACTION, RECORDED_UNLISTED_PROJECT_THE_RUNTIME_HOLDS_OPEN, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
@@ -64,7 +64,7 @@ test("each queued action answers the window null, and a missing argument or a pr
     ok: false,
     refusal: "Only a studio window or a popped-out view follows a project's log.",
   });
-  expect(await commandHandlers.list_project_node_types({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "list_project_node_types needs `project_directory`, a project's folder" });
+  expect(await commandHandlers.list_project_node_types({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: 'list_project_node_types: Missing key\n  at ["project_directory"]' });
 });
 
 test("reloading a project the runtime lists open queues reload_project, one it lists closed open_project, each answering the action and observing again; one it does not list is refused", async () => {
@@ -283,7 +283,7 @@ test("cancel_stream_action answers the window in the contract's shape, asks for 
     refusal: "Invalid configuration: the stream action `Ra19ljkh20wimdvgya5udt9v1-13` is a running stop, which has begun unloading its streams and cannot be cut short; it ends done",
   });
   expect(refreshRequests).toHaveBeenCalledTimes(2);
-  expect(await commandHandlers.cancel_stream_action({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "cancel_stream_action needs `action`, a stream action's id" });
+  expect(await commandHandlers.cancel_stream_action({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: 'cancel_stream_action: Missing key\n  at ["action"]' });
 });
 
 test("the commands that add a project read their arguments as the window sends them, and refuse anything else", async () => {
@@ -367,4 +367,55 @@ test("creating_a_stream_in_the_open_project_places_its_graph_document_in_streams
     ok: false,
     refusal: "create_stream_in_the_open_project needs `display_name`, the display name to show the new stream under",
   });
+});
+
+test("a studio window reads the log and assets of its own project before the runtime lists a stream of it, the folder resolved as it holds it", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      controlOperationResultResponse({ project_directory: "/unused", records: [], next_after: "1:0", records_no_longer_held: false }),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-assets-tool-result-of-the-project-night-show.json")),
+    ],
+    "linux",
+    [],
+    null,
+    THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS,
+  );
+  const projectFolder = await realpath(await mkdtemp(path.join(os.tmpdir(), "night-show-")));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+  const commandHandlers = commandHandlersOver(sharedState);
+
+  expect(await commandHandlers.read_project_log_records({ project_directory: projectFolder, stream: null, action: null, after: null, until: null }, fromTheStudioWindow)).toMatchObject({
+    ok: true,
+    value: { records: [] },
+  });
+  expect(await commandHandlers.list_project_assets({ project_directory: projectFolder }, fromTheStudioWindow)).toMatchObject({ ok: true });
+  expect(sharedState.localApiControlOperationCallsReceived()).toEqual([
+    ["logs", { project_directory: projectFolder, count: 500 }],
+    ["list_assets", { project_directory: projectFolder }],
+  ]);
+});
+
+test("the node catalog is read from the runtime's registry of the stream named, and a stream it has not loaded is refused in its words; a folder it lists no stream from is never asked about", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-registry-answer-of-a-test-root-runtime-naming-no-stream.json")),
+      httpResponse("404 Not Found", "application/json", await recordedResponseBody("local-api-registry-refusal-for-the-stream-front-door-not-loaded.json")),
+    ],
+    "linux",
+  );
+  const commandHandlers = commandHandlersOver(sharedState);
+
+  expect(await commandHandlers.list_project_assets({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
+  expect(await commandHandlers.describe_node_catalog({ stream: "pattern-main-3f2a1c" }, FROM_THE_PROJECTS_WINDOW)).toMatchObject({
+    ok: true,
+    value: { stream: "pattern-main-3f2a1c", node_types: [{ type: "tatolab.stream:RelayTrackSource" }] },
+  });
+  const refusal = await commandHandlers.describe_node_catalog({ stream: "front-door" }, FROM_THE_PROJECTS_WINDOW);
+  expect(!refusal.ok && refusal.refusal).toContain("front-door");
+  expect(sharedState.localApiRequestLinesReceived()).toEqual([
+    "GET /api/registry?stream=pattern-main-3f2a1c HTTP/1.1",
+    "GET /api/registry?stream=front-door HTTP/1.1",
+  ]);
 });

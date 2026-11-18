@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse } from "./fake_local_api_server.js";
 import { answerOf, cleanUpWhatTheTestStarted, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./local_api_client_test_support.js";
+import { describeStreamGraph, readProjectLogRecords } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -9,7 +10,7 @@ test("reading_a_projects_log_asks_the_logs_tool_for_the_project_narrowed_to_a_st
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-logs-tool-result-of-the-project-pattern-narrowed-to-its-stream-main-first-4.json")),
   ]);
 
-  const page = answerOf(await server.client().readProjectLogRecords("/tmp/tatolab-proof-projects/pattern", { stream: "pattern-main-d76f70", action: null }, null, null, 4));
+  const page = answerOf(await server.run(readProjectLogRecords("/tmp/tatolab-proof-projects/pattern", { stream: "pattern-main-d76f70", action: null }, null, null)));
 
   expect(page.project_directory).toBe("/tmp/tatolab-proof-projects/pattern");
   expect(page.next_after).toBe("1:7830");
@@ -22,7 +23,7 @@ test("reading_a_projects_log_asks_the_logs_tool_for_the_project_narrowed_to_a_st
   ]);
   const [, body] = headAndBodyOf(server.receivedRequests()[0]);
   expect(JSON.parse(body).method).toBe("logs");
-  expect(JSON.parse(body).params).toEqual({ project_directory: "/tmp/tatolab-proof-projects/pattern", stream: "pattern-main-d76f70", count: 4 });
+  expect(JSON.parse(body).params).toEqual({ project_directory: "/tmp/tatolab-proof-projects/pattern", stream: "pattern-main-d76f70", count: 500 });
 });
 
 test("reading_on_from_a_cursor_until_another_narrowed_to_an_action_sends_both_cursors_and_the_action_and_no_stream", async () => {
@@ -31,7 +32,7 @@ test("reading_on_from_a_cursor_until_another_narrowed_to_an_action_sends_both_cu
   ]);
 
   const page = answerOf(
-    await server.client().readProjectLogRecords("/tmp/tatolab-proof-projects/doorways", { stream: null, action: "Rnd53mwtsrixjyxk7h3jfq5j5-7" }, "1:0", "1:1000000", 12),
+    await server.run(readProjectLogRecords("/tmp/tatolab-proof-projects/doorways", { stream: null, action: "Rnd53mwtsrixjyxk7h3jfq5j5-7" }, "1:0", "1:1000000")),
   );
 
   expect(page.records).toHaveLength(12);
@@ -41,7 +42,7 @@ test("reading_on_from_a_cursor_until_another_narrowed_to_an_action_sends_both_cu
     action: "Rnd53mwtsrixjyxk7h3jfq5j5-7",
     after: "1:0",
     until: "1:1000000",
-    count: 12,
+    count: 500,
   });
 });
 
@@ -50,9 +51,9 @@ test("a_log_read_the_runtime_refuses_carries_its_own_words", async () => {
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-control-refusal-for-logs-of-a-project-directory-that-is-not-absolute.json")),
   ]);
 
-  expect(failureOf(await server.client().readProjectLogRecords("relative", { stream: null, action: null }, null, null, 500))).toEqual({
-    failureDescription: "`project_directory` must be an absolute path; got `relative`",
-    isTheRuntimesRefusal: true,
+  expect(failureOf(await server.run(readProjectLogRecords("relative", { stream: null, action: null }, null, null)))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words: "`project_directory` must be an absolute path; got `relative`",
   });
 });
 
@@ -60,7 +61,7 @@ test("describing_a_stream_graph_calls_the_graph_tool_and_keeps_its_text_as_the_r
   const graphText = await recordedResponseBody("local-api-graph-of-the-stream-main.json");
   const server = await fakeLocalApiServerAnswering([controlOperationResponseOfTheResultText(graphText)]);
 
-  const summary = answerOf(await server.client().describeStreamGraph("main"));
+  const summary = answerOf(await server.run(describeStreamGraph("main")));
 
   expect(summary.stream).toBe("main");
   expect(summary.graph_document_text).toBe(graphText.trimEnd());
@@ -75,7 +76,7 @@ test("a_real_graph_tool_result_reads_with_its_counters_and_verbatim_text", async
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-graph-tool-result-of-the-stream-front-door.json")),
   ]);
 
-  const summary = answerOf(await server.client().describeStreamGraph("front-door"));
+  const summary = answerOf(await server.run(describeStreamGraph("front-door")));
 
   expect(summary.nodes.map((node) => [node.name, node.type, node.state])).toEqual([
     ["testpatternsource", "tatolab.stream:TestPatternSource", "Running"],
@@ -101,7 +102,7 @@ test("a_real_graph_tool_result_reads_each_outputs_stream_facts_and_the_records_u
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-graph-tool-result-of-a-stream-stating-stream-facts.json")),
   ]);
 
-  const summary = answerOf(await server.client().describeStreamGraph(stream));
+  const summary = answerOf(await server.run(describeStreamGraph(stream)));
 
   expect(summary.nodes.map((node) => [node.name, node.input_ports, node.output_ports])).toEqual([
     [
@@ -142,7 +143,7 @@ test("a_real_graph_reads_the_pin_type_and_flow_each_typed_port_carries_and_an_un
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-graph-result-of-pins-linking-a-texture-output-to-a-texture-input.json")),
   ]);
 
-  const summary = answerOf(await server.client().describeStreamGraph("pins-main-cbc98f"));
+  const summary = answerOf(await server.run(describeStreamGraph("pins-main-cbc98f")));
 
   const aTexture = { pin_type: { type: "texture" }, flow: "stream" };
   expect(summary.nodes.map((node) => [node.name, node.input_ports, node.output_ports])).toEqual([
@@ -157,7 +158,7 @@ test("a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words", 
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-graph-tool-refusal-for-the-stopped-stream-front-door.json")),
   ]);
 
-  expect(failureOf(await server.client().describeStreamGraph("front-door")).failureDescription).toBe(
+  expect(failureOf(await server.run(describeStreamGraph("front-door"))).words).toBe(
     "graph failed: Resource not found: no stream named `front-door` is loaded in this runtime. Loaded: none",
   );
 });

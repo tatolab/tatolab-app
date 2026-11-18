@@ -1,4 +1,4 @@
-import type { ProjectCreationQueued, ProjectLogNarrowing, ProjectLogRecordsPage, ProjectStreamActionQueued, StreamActionCancelAnswer, StreamActionFollowed, StreamAssetCreated, StreamGraphSummary, StreamLocation, NodeCatalog, ProjectNodeTypeListing, ProjectAssetListing, StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
+import type { ProjectCreationQueued, ProjectStreamActionQueued, StreamActionFollowed, StreamAssetCreated, StreamLocation, StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
 import { streamsOfTheProjectIn, theStreamsListTheProjectOpen } from "../shared/project_playback.js";
 import type { TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject } from "./json_on_the_wire.js";
@@ -7,53 +7,11 @@ import { failedWith, succeeded, type Result } from "./result.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { openStreamProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
 import { newStreamDocumentPathNoFileHolds, PROJECT_STREAMS_FOLDER } from "./new_stream_document_path.js";
+import { Effect, Schema, type ManagedRuntime } from "effect";
+import { cancelStreamAction, describeNodeCatalog, describeStreamGraph, listProjectAssets, listProjectNodeTypes, readProjectLogRecords } from "./runtime_operations.js";
+import { ListedStreams, StatusRounds, StudioWindows, type StudioServices } from "./studio_runtime.js";
+import { CommandRefused, windowCommand } from "./window_command.js";
 import { answerTheWindow, answerTheWindowOnceTheRuntimeAnswered, type TatolabCommandFromWindow, studioWindowTheCommandCameFrom, isTextOrNull, oneTextArgumentFrom, type TatolabWindowCommandHandlers, commandAnswerFrom, commandAnswerOfNothingFrom } from "./tatolab_command_answers.js";
-
-/** `read_project_log_records { project_directory, stream, action, after, until }`: the project's log records after the cursor `after` and before the cursor `until`, narrowed to `stream` and `action` when they are given; refused in the runtime's own words. */
-export function readProjectLogRecords(
-  sharedState: TatolabAppSharedState,
-  projectDirectory: string,
-  narrowing: ProjectLogNarrowing,
-  after: string | null,
-  until: string | null,
-): Promise<Result<ProjectLogRecordsPage, string>> {
-  return answerTheWindow("read_project_log_records", async () => {
-    const page = await sharedState.controller.readProjectLogRecords(projectDirectory, narrowing, after, until);
-    return page.ok ? page : failedWith(page.failure.failureDescription);
-  });
-}
-
-/** `describe_stream_graph { stream }`: the graph of the loaded stream `stream`; refused in the runtime's own words. */
-export function describeStreamGraph(sharedState: TatolabAppSharedState, stream: string): Promise<Result<StreamGraphSummary, string>> {
-  return answerTheWindow("describe_stream_graph", async () => {
-    const summary = await sharedState.controller.describeStreamGraph(stream);
-    return summary.ok ? summary : failedWith(summary.failure.failureDescription);
-  });
-}
-
-/** `describe_node_catalog { stream }`: every node type the loaded stream `stream` can add; refused in the runtime's own words. */
-function describeNodeCatalog(sharedState: TatolabAppSharedState, stream: string): Promise<Result<NodeCatalog, string>> {
-  return answerTheWindow("describe_node_catalog", async () => {
-    const nodeCatalog = await sharedState.controller.describeNodeCatalog(stream);
-    return nodeCatalog.ok ? nodeCatalog : failedWith(nodeCatalog.failure.failureDescription);
-  });
-}
-
-/** `list_project_node_types { project_directory }`: what the project and each source it draws node code from declares, read from source without running it; refused in the runtime's own words. */
-function listProjectNodeTypes(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectNodeTypeListing, string>> {
-  return answerTheWindow("list_project_node_types", async () => {
-    const listing = await sharedState.controller.listProjectNodeTypes(projectDirectory);
-    return listing.ok ? listing : failedWith(listing.failure.failureDescription);
-  });
-}
-
-/** `list_project_assets { project_directory }`: every asset of the project, its graph documents among them, as the runtime's `list_assets` lists them; refused in the runtime's own words. */
-function listProjectAssets(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectAssetListing, string>> {
-  return answerTheWindow("list_project_assets", async () => {
-    const listing = await sharedState.controller.listProjectAssets(projectDirectory);
-    return listing.ok ? listing : failedWith(listing.failure.failureDescription);
-  });
-}
 
 /** `remove_project { project_directory }`: the runtime's `remove_project` queued on the project, so the listing shows its streams `stopping`; refused in the runtime's own words. */
 export function removeProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<void, string>> {
@@ -62,33 +20,46 @@ export function removeProject(sharedState: TatolabAppSharedState, projectDirecto
 
 /** `projectDirectory` when a stream the runtime last listed is from it, so a command naming a folder acts only on a project the runtime holds; refused naming it otherwise. */
 function projectDirectoryTheRuntimeLastListed(sharedState: TatolabAppSharedState, projectDirectory: string): Result<string, string> {
-  const listedStreams = sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [];
-  const isListed = listedStreams.some((listedStream) => listedStream.location?.project_directory === projectDirectory);
-  return isListed ? succeeded(projectDirectory) : failedWith(`The runtime lists no stream from ${projectDirectory}.`);
+  const isListed = streamsOfTheProjectIn(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectDirectory).length > 0;
+  return isListed ? succeeded(projectDirectory) : failedWith(refusalOfAFolderTheRuntimeListsNoStreamFrom(projectDirectory));
 }
 
-/** `projectDirectory` when the runtime last listed a stream from it or it is the folder of the asking window's project or of one of its imports, which the studio reads the log and node types of before its first run; refused otherwise. */
-function projectDirectoryTheWindowMayAskTheRuntimeAbout(
-  sharedState: TatolabAppSharedState,
-  projectDirectory: string,
-  commandFromWindow: TatolabCommandFromWindow,
-): Result<string, string> {
-  const studioWindow = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId);
-  const openProjectFolder = studioWindow?.openProjectFiles.projectFolderOfTheOpenProject(projectDirectory) ?? null;
-  return openProjectFolder?.ok === true ? openProjectFolder : projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory);
+/** The refusal of a command naming `projectDirectory`, a folder the runtime last listed no stream from. */
+function refusalOfAFolderTheRuntimeListsNoStreamFrom(projectDirectory: string): string {
+  return `The runtime lists no stream from ${projectDirectory}.`;
 }
 
-/** `commandName`'s `project_directory` argument when it is a folder the window `commandFromWindow` may ask the runtime about, or why not. */
-function projectDirectoryArgumentTheWindowMayAskTheRuntimeAbout(
-  sharedState: TatolabAppSharedState,
-  commandName: TatolabCommandName,
-  commandArguments: unknown,
-  commandFromWindow: TatolabCommandFromWindow,
-): Result<string, string> {
-  const projectDirectory = oneTextArgumentFrom(commandName, commandArguments, "project_directory", "a project's folder");
-  if (!projectDirectory.ok) return projectDirectory;
-  return projectDirectoryTheWindowMayAskTheRuntimeAbout(sharedState, projectDirectory.value, commandFromWindow);
-}
+/** The arguments of a command on one stream: its id. */
+const StreamArguments = Schema.Struct({ stream: Schema.String });
+
+/** The arguments of a command on one project: its folder. */
+const ProjectDirectoryArguments = Schema.Struct({ project_directory: Schema.String });
+
+/** The arguments of a command on one stream action: its id. */
+const StreamActionArguments = Schema.Struct({ action: Schema.String });
+
+/** `read_project_log_records`'s arguments: the project's folder, the stream and stream action to narrow to, and the cursors of the page before and of where the read stops, each `null` for none. */
+const ReadProjectLogRecordsArguments = Schema.Struct({
+  project_directory: Schema.String,
+  stream: Schema.NullOr(Schema.String),
+  action: Schema.NullOr(Schema.String),
+  after: Schema.NullOr(Schema.String),
+  until: Schema.NullOr(Schema.String),
+});
+
+/**
+ * `projectDirectory` when the window a command came from may ask the runtime about it: the folder of the window's own project or of
+ * one of its imports, which the studio reads the log and node types of before its first run, or a project the runtime last listed a
+ * stream from; refused naming it otherwise.
+ */
+const projectFolderTheWindowMayAskTheRuntimeAbout = Effect.fn("projectFolderTheWindowMayAskTheRuntimeAbout")(function* (projectDirectory: string, commandFromWindow: TatolabCommandFromWindow) {
+  const studioWindows = yield* StudioWindows;
+  const folderOfTheWindowsOpenProject = studioWindows.folderOfTheWindowsOpenProject(commandFromWindow, projectDirectory);
+  if (folderOfTheWindowsOpenProject !== null) return folderOfTheWindowsOpenProject;
+  const listedStreams = yield* ListedStreams;
+  if (listedStreams.aStreamIsListedFrom(projectDirectory)) return projectDirectory;
+  return yield* new CommandRefused({ words: refusalOfAFolderTheRuntimeListsNoStreamFrom(projectDirectory) });
+});
 
 /** What Tato Studio calls each stream edit in a refusal, as it asks and once done. */
 const STREAM_EDIT_WORDS = { rename: "renamed", delete: "deleted" } as const;
@@ -234,39 +205,6 @@ function describeStreamAction(sharedState: TatolabAppSharedState, action: string
   });
 }
 
-/** `cancel_stream_action { action }`: the runtime's `cancel_stream_action`, then a status round; refused in the runtime's own words. */
-function cancelStreamAction(sharedState: TatolabAppSharedState, action: string): Promise<Result<StreamActionCancelAnswer, string>> {
-  return answerTheWindow("cancel_stream_action", async () => {
-    const answer = await sharedState.controller.cancelStreamAction(action);
-    sharedState.statusPublisher.requestRefresh();
-    return answer.ok ? answer : failedWith(answer.failure.failureDescription);
-  });
-}
-
-/** `read_project_log_records`'s arguments as the window sends them, or why they are not. */
-export function readProjectLogRecordsArgumentsFrom(
-  commandArguments: unknown,
-): Result<{ projectDirectory: string; narrowing: ProjectLogNarrowing; after: string | null; until: string | null }, string> {
-  if (
-    !isAJsonObject(commandArguments) ||
-    typeof commandArguments["project_directory"] !== "string" ||
-    !isTextOrNull(commandArguments["stream"]) ||
-    !isTextOrNull(commandArguments["action"]) ||
-    !isTextOrNull(commandArguments["after"]) ||
-    !isTextOrNull(commandArguments["until"])
-  ) {
-    return failedWith(
-      "read_project_log_records needs `project_directory`, a project's folder, and `stream`, `action`, `after` and `until`, each text or null: a stream's id, a stream action's id, the cursor of the page before, and the cursor the read stops at",
-    );
-  }
-  return succeeded({
-    projectDirectory: commandArguments["project_directory"],
-    narrowing: { stream: commandArguments["stream"], action: commandArguments["action"] },
-    after: commandArguments["after"],
-    until: commandArguments["until"],
-  });
-}
-
 /** The `{ stream }` arguments of the command `commandName` as the window sends them, or why they are not. */
 export function streamArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ stream: string }, string> {
   const stream = oneTextArgumentFrom(commandName, commandArguments, "stream", "a stream's id");
@@ -349,37 +287,28 @@ type StreamAndRuntimeProjectCommandName =
   | "follow_project_log_records"
   | "stop_following_project_log_records";
 
-/** The handlers of the window's commands on the projects and streams the runtime lists, their logs, graphs and stream actions, over `sharedState`. */
-export function streamAndRuntimeProjectCommandHandlersOf(sharedState: TatolabAppSharedState): Pick<TatolabWindowCommandHandlers, StreamAndRuntimeProjectCommandName> {
+/** The handlers of the window's commands on the projects and streams the runtime lists, their logs, graphs and stream actions, over `sharedState`, the converted ones run on `studioRuntime`. */
+export function streamAndRuntimeProjectCommandHandlersOf(
+  sharedState: TatolabAppSharedState,
+  studioRuntime: ManagedRuntime.ManagedRuntime<StudioServices, never>,
+): Pick<TatolabWindowCommandHandlers, StreamAndRuntimeProjectCommandName> {
   return {
-    read_project_log_records: async (commandArguments, commandFromWindow) => {
-      const readArguments = readProjectLogRecordsArgumentsFrom(commandArguments);
-      if (!readArguments.ok) return { ok: false, refusal: readArguments.failure };
-      const { projectDirectory, narrowing, after, until } = readArguments.value;
-      const readableProjectDirectory = projectDirectoryTheWindowMayAskTheRuntimeAbout(sharedState, projectDirectory, commandFromWindow);
-      if (!readableProjectDirectory.ok) return { ok: false, refusal: readableProjectDirectory.failure };
-      return commandAnswerFrom(await readProjectLogRecords(sharedState, readableProjectDirectory.value, narrowing, after, until));
-    },
-    describe_stream_graph: async (commandArguments) => {
-      const describeStreamGraphArguments = streamArgumentsFrom("describe_stream_graph", commandArguments);
-      if (!describeStreamGraphArguments.ok) return { ok: false, refusal: describeStreamGraphArguments.failure };
-      return commandAnswerFrom(await describeStreamGraph(sharedState, describeStreamGraphArguments.value.stream));
-    },
-    describe_node_catalog: async (commandArguments) => {
-      const describeNodeCatalogArguments = streamArgumentsFrom("describe_node_catalog", commandArguments);
-      if (!describeNodeCatalogArguments.ok) return { ok: false, refusal: describeNodeCatalogArguments.failure };
-      return commandAnswerFrom(await describeNodeCatalog(sharedState, describeNodeCatalogArguments.value.stream));
-    },
-    list_project_node_types: async (commandArguments, commandFromWindow) => {
-      const askableProjectDirectory = projectDirectoryArgumentTheWindowMayAskTheRuntimeAbout(sharedState, "list_project_node_types", commandArguments, commandFromWindow);
-      if (!askableProjectDirectory.ok) return { ok: false, refusal: askableProjectDirectory.failure };
-      return commandAnswerFrom(await listProjectNodeTypes(sharedState, askableProjectDirectory.value));
-    },
-    list_project_assets: async (commandArguments, commandFromWindow) => {
-      const askableProjectDirectory = projectDirectoryArgumentTheWindowMayAskTheRuntimeAbout(sharedState, "list_project_assets", commandArguments, commandFromWindow);
-      if (!askableProjectDirectory.ok) return { ok: false, refusal: askableProjectDirectory.failure };
-      return commandAnswerFrom(await listProjectAssets(sharedState, askableProjectDirectory.value));
-    },
+    read_project_log_records: windowCommand(studioRuntime, "read_project_log_records", ReadProjectLogRecordsArguments, (reading, commandFromWindow) =>
+      projectFolderTheWindowMayAskTheRuntimeAbout(reading.project_directory, commandFromWindow).pipe(
+        Effect.flatMap((projectFolder) => readProjectLogRecords(projectFolder, { stream: reading.stream, action: reading.action }, reading.after, reading.until)),
+      ),
+    ),
+    describe_stream_graph: windowCommand(studioRuntime, "describe_stream_graph", StreamArguments, ({ stream }) => describeStreamGraph(stream)),
+    describe_node_catalog: windowCommand(studioRuntime, "describe_node_catalog", StreamArguments, ({ stream }) => describeNodeCatalog(stream)),
+    list_project_node_types: windowCommand(studioRuntime, "list_project_node_types", ProjectDirectoryArguments, ({ project_directory }, commandFromWindow) =>
+      projectFolderTheWindowMayAskTheRuntimeAbout(project_directory, commandFromWindow).pipe(Effect.flatMap(listProjectNodeTypes)),
+    ),
+    list_project_assets: windowCommand(studioRuntime, "list_project_assets", ProjectDirectoryArguments, ({ project_directory }, commandFromWindow) =>
+      projectFolderTheWindowMayAskTheRuntimeAbout(project_directory, commandFromWindow).pipe(Effect.flatMap(listProjectAssets)),
+    ),
+    cancel_stream_action: windowCommand(studioRuntime, "cancel_stream_action", StreamActionArguments, ({ action }) =>
+      cancelStreamAction(action).pipe(Effect.ensuring(StatusRounds.use((statusRounds) => statusRounds.requestARound))),
+    ),
     remove_project: async (commandArguments) => {
       const projectDirectory = oneTextArgumentFrom("remove_project", commandArguments, "project_directory", "a project's folder as the runtime lists it");
       if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
@@ -435,11 +364,6 @@ export function streamAndRuntimeProjectCommandHandlersOf(sharedState: TatolabApp
       if (!action.ok) return { ok: false, refusal: action.failure };
       return commandAnswerFrom(await describeStreamAction(sharedState, action.value));
     },
-    cancel_stream_action: async (commandArguments) => {
-      const action = oneTextArgumentFrom("cancel_stream_action", commandArguments, "action", "a stream action's id");
-      if (!action.ok) return { ok: false, refusal: action.failure };
-      return commandAnswerFrom(await cancelStreamAction(sharedState, action.value));
-    },
     follow_stream_graph_changes: async (commandArguments, commandFromWindow) => {
       const followed = streamArgumentsFrom("follow_stream_graph_changes", commandArguments);
       if (!followed.ok) return { ok: false, refusal: followed.failure };
@@ -455,16 +379,15 @@ export function streamAndRuntimeProjectCommandHandlersOf(sharedState: TatolabApp
       if (windowFollowingStreamGraphs !== null) sharedState.streamGraphChangesFollowed.stopFollowing(followed.value.stream, windowFollowingStreamGraphs);
       return { ok: true, value: null };
     },
-    follow_project_log_records: async (commandArguments, commandFromWindow) => {
-      const projectDirectory = oneTextArgumentFrom("follow_project_log_records", commandArguments, "project_directory", "a project's folder");
-      if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
-      const followableProjectDirectory = projectDirectoryTheWindowMayAskTheRuntimeAbout(sharedState, projectDirectory.value, commandFromWindow);
-      if (!followableProjectDirectory.ok) return { ok: false, refusal: followableProjectDirectory.failure };
-      const windowFollowingProjectLogs = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
-      if (windowFollowingProjectLogs === null) return { ok: false, refusal: "Only a studio window or a popped-out view follows a project's log." };
-      sharedState.projectLogRecordsFollowed.follow(projectDirectory.value, windowFollowingProjectLogs);
-      return { ok: true, value: null };
-    },
+    follow_project_log_records: windowCommand(studioRuntime, "follow_project_log_records", ProjectDirectoryArguments, ({ project_directory }, commandFromWindow) =>
+      projectFolderTheWindowMayAskTheRuntimeAbout(project_directory, commandFromWindow).pipe(
+        Effect.flatMap(() => {
+          const windowFollowingProjectLogs = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
+          if (windowFollowingProjectLogs === null) return Effect.fail(new CommandRefused({ words: "Only a studio window or a popped-out view follows a project's log." }));
+          return Effect.sync(() => sharedState.projectLogRecordsFollowed.follow(project_directory, windowFollowingProjectLogs)).pipe(Effect.as(null));
+        }),
+      ),
+    ),
     stop_following_project_log_records: async (commandArguments, commandFromWindow) => {
       const projectDirectory = oneTextArgumentFrom("stop_following_project_log_records", commandArguments, "project_directory", "the directory of a project the window follows the log of");
       if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
