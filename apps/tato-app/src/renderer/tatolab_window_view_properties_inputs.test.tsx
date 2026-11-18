@@ -87,29 +87,29 @@ async function linksInto(backend: TatolabBackend, nodeName: string): Promise<str
 }
 
 describe("Properties' Inputs", () => {
-  it("draws an unwired input's own control with its description and where its value comes from, and its Reset to default is one Undo step", { timeout: 20_000 }, async () => {
-    const { backend } = await mountedWindowOverTheMock("state=running");
-    await selectInTheStreamGraph("invertingeffect");
-    const control = await waitFor(() => controlOnTheRow("amount") ?? expect.unreachable("no control on Properties' amount row"), AS_LONG_AS_A_FRAME_BINDS);
+  it("draws the recorded sample's unwired Float input's own control with where its value comes from, and its Reset to default is one Undo step", { timeout: 20_000 }, async () => {
+    const { backend } = await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind");
+    await selectInTheStreamGraph("warmth");
+    const control = await waitFor(() => controlOnTheRow("base") ?? expect.unreachable("no control on Properties' base row"), AS_LONG_AS_A_FRAME_BINDS);
     expect(control.getAttribute("data-surface")).toBe("properties");
-    expect(inputRow("amount").querySelector("[data-properties-input-description]")?.textContent).toBe("Brightness added to each frame after it is inverted");
-    expect(inputRow("amount").querySelector("[data-properties-input-comes-from]")?.textContent).toBe("Default");
-    expect(inputRow("amount").querySelector("[data-properties-input-reset]")).toBeNull();
+    expect(inputRow("base").querySelector("[data-properties-input-description]")).toBeNull();
+    expect(inputRow("base").querySelector("[data-properties-input-comes-from]")?.textContent).toBe("Default");
+    expect(inputRow("base").querySelector("[data-properties-input-reset]")).toBeNull();
 
-    control.commitTyped(1.4);
-    await waitFor(async () => expect(await valueTheGraphReads(backend, "invertingeffect", "amount")).toEqual({ value: 1.4, comes_from: "saved" }));
-    await waitFor(() => expect(inputRow("amount").querySelector("[data-properties-input-comes-from]")?.textContent).toBe("Saved"));
+    control.commitTyped(0.4);
+    await waitFor(async () => expect(await valueTheGraphReads(backend, "warmth", "base")).toEqual({ value: 0.4, comes_from: "saved" }));
+    await waitFor(() => expect(inputRow("base").querySelector("[data-properties-input-comes-from]")?.textContent).toBe("Saved"));
     const entriesBefore = await historyLength(backend);
 
-    fireEvent.click(buttonOn(inputRow("amount"), "[data-properties-input-reset]"));
-    await waitFor(async () => expect(await valueTheGraphReads(backend, "invertingeffect", "amount")).toEqual({ value: 1, comes_from: "default" }));
+    fireEvent.click(buttonOn(inputRow("base"), "[data-properties-input-reset]"));
+    await waitFor(async () => expect(await valueTheGraphReads(backend, "warmth", "base")).toEqual({ value: 0.1, comes_from: "default" }));
     expect(await historyLength(backend)).toBe(entriesBefore + 1);
-    await waitFor(() => expect(controlOnTheRow("amount")?.textContent).toBe("1"));
-    await waitFor(() => expect(inputRow("amount").querySelector("[data-properties-input-reset]")).toBeNull());
+    await waitFor(() => expect(controlOnTheRow("base")?.textContent).toBe("0.1"));
+    await waitFor(() => expect(inputRow("base").querySelector("[data-properties-input-reset]")).toBeNull());
 
     await backend.undoInTheOpenProject({ kind: "person", name: "Sam" });
-    await waitFor(async () => expect(await valueTheGraphReads(backend, "invertingeffect", "amount")).toEqual({ value: 1.4, comes_from: "saved" }));
-    await waitFor(() => expect(controlOnTheRow("amount")?.textContent).toBe("1.4"));
+    await waitFor(async () => expect(await valueTheGraphReads(backend, "warmth", "base")).toEqual({ value: 0.4, comes_from: "saved" }));
+    await waitFor(() => expect(controlOnTheRow("base")?.textContent).toBe("0.4"));
   });
 
   it("names the node and pin that drive a wired input, with no value of its own, its disconnect is one Undo step, and it jumps to that node", { timeout: 20_000 }, async () => {

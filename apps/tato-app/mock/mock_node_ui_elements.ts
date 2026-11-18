@@ -1,9 +1,12 @@
 // The node UI elements the mock lists: the Studio's own module, as the app lists it from its
-// manifest, each script served by the mock's dev server beside the window with its types removed,
-// as the app's page protocol serves it. `?node_ui=unserved` serves none, so each control ends at
-// the read-only line; `?node_ui=refused` refuses the listing.
+// manifest, the manifest read from source with the contract's checker, each script served by the
+// mock's dev server beside the window with its types removed, as the app's page protocol serves it.
+// `?node_ui=unserved` serves none, so each control ends at the read-only line; `?node_ui=refused`
+// refuses the listing.
 
-import type { ListedNodeUiElement } from "@tatolab/tato-app-view-sdk/node_ui_host";
+import studioNodeUiManifestText from "../../../packages/tato-app-core-node-ui/node_ui/tatolab_node_ui.json?raw";
+import type { ListedNodeUiElement, NodeUiElementRegistration } from "@tatolab/tato-app-view-sdk/node_ui_host";
+import { describeTheContractIssues, readControlContractValue } from "../src/main/tatolab_runtime_control_operation_call";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { sleep } from "./mock_tatolab_simulation";
 import type { MockNodeUiElementsListing } from "./mock_tatolab_options";
@@ -13,14 +16,22 @@ import { MOCK_COMMAND_LATENCY_MILLISECONDS } from "./mock_tatolab_simulation_con
 const MOCK_STUDIO_NODE_UI_FILES_PATH = "/core_node_ui/";
 
 /** The folder version the mock lists the Studio's own elements under. */
-export const MOCK_STUDIO_NODE_UI_FOLDER_VERSION = "mock";
+const MOCK_STUDIO_NODE_UI_FOLDER_VERSION = "mock";
 
-/** Each control the Studio's own `node_ui/tatolab_node_ui.json` registers, as its script and its registration. */
-export const MOCK_STUDIO_NODE_UI_CONTROLS: readonly Pick<ListedNodeUiElement, "script" | "registration">[] = [{ script: "float_number.ts", registration: { kind: "control", type: "float", control: null } }];
+/** Each element the Studio's own `node_ui/tatolab_node_ui.json` registers, as its script and its registration. */
+function elementsTheStudiosManifestRegisters(): readonly Pick<ListedNodeUiElement, "script" | "registration">[] {
+  const manifest = readControlContractValue("NodeUiManifest", JSON.parse(studioNodeUiManifestText));
+  if (!manifest.read) throw new Error(`The Studio's own node_ui/tatolab_node_ui.json is not a node UI manifest: ${describeTheContractIssues(manifest.issues, "the manifest")}`);
+  const listed = (script: string, registration: NodeUiElementRegistration) => ({ script, registration });
+  return [
+    ...(manifest.value.controls ?? []).map((control) => listed(control.script, { kind: "control", type: control.type, control: control.control ?? null })),
+    ...(manifest.value.node_bodies ?? []).map((nodeBody) => listed(nodeBody.script, { kind: "node_body", node_type: nodeBody.node_type })),
+  ];
+}
 
 /** The Studio's own elements as the mock lists them, each served from the page's own origin, or from nowhere when `isUnserved`. */
 export function mockStudioNodeUiElements(pageOrigin: string, isUnserved: boolean): readonly ListedNodeUiElement[] {
-  return MOCK_STUDIO_NODE_UI_CONTROLS.map(({ script, registration }) => ({
+  return elementsTheStudiosManifestRegisters().map(({ script, registration }) => ({
     module: "studio",
     brought_by: "studio",
     script,

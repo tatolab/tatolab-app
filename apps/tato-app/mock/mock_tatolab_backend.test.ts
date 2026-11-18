@@ -189,7 +189,40 @@ describe("the mock backend's stream actions", () => {
     expect((await settled(backend.describeStreamGraph(MAIN))).groups[0]).toMatchObject({ colour: "#3fcf8e", description: "The source" });
   });
 
-  it("saves a collapse as a placed stream, commits an edit inside it but refuses one live, and undoes both in turn", async () => {
+  it("replays the runtime's recorded refusal of a link of another type on the sample's first connect, then makes the link it is next asked for, judging none", async () => {
+    const { backend } = await runningMockBackend("main_graph=every_pin_kind&refusal=link_of_another_type");
+    const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
+      await vi.advanceTimersByTimeAsync(100);
+      return answering;
+    };
+    const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
+    const graphBefore = await settled(backend.describeStreamGraph(MAIN));
+    const idOf = (name: string) => graphBefore.nodes.find((node) => node.name === name)?.id ?? expect.unreachable(`no ${name} in the sample`);
+    const tallyIntoBase = { operation: "connect" as const, stream: streamAsset, source: { node: idOf("tally"), port: "tally" }, target: { node: idOf("warmth"), port: "base" } };
+
+    const refused = await settled(backend.transactInTheOpenProject([{ operation: "rename_node", stream: streamAsset, node: idOf("glow"), name: "shine" }, tallyIntoBase], "commit", null));
+    expect(refused).toEqual({
+      kind: "refused",
+      refusal: {
+        refusal_code: "refused",
+        action: "transact",
+        refused_operation_index: 1,
+        refused_node: null,
+        refused_link: { source: { node: idOf("tally"), port: "tally" }, target: { node: idOf("warmth"), port: "base" } },
+        refused_field: null,
+        refused_params_pointer: null,
+        refused_file: null,
+        suggested_call: null,
+        runtime_words: "Invalid link: cannot link tally.tally (Records) to warmth.base (Channels): a link joins two ports of one family; place a RecordsToChannels node between them",
+      },
+    });
+    expect(await settled(backend.describeStreamGraph(MAIN))).toEqual(graphBefore);
+
+    expect((await settled(backend.transactInTheOpenProject([tallyIntoBase], "commit", null))).kind).toBe("applied");
+    expect((await settled(backend.describeStreamGraph(MAIN))).links.filter((link) => link.target_node === "warmth" && link.target_port === "base").map((link) => link.source_node)).toEqual(["tally"]);
+  });
+
+  it("saves a collapse as a placed stream, commits an edit inside it, and undoes both in turn", async () => {
     const { backend } = await runningMockBackend();
     const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
       await vi.advanceTimersByTimeAsync(100);
@@ -206,8 +239,7 @@ describe("the mock backend's stream actions", () => {
     const lookNode = (await settled(backend.describeStreamGraph(MAIN))).nodes.find((node) => node.id === look);
     expect(lookNode).toMatchObject({ type: "tatolab.project:StreamFragment", fragment: { kind: "placed_stream" } });
 
-    const addInside = { operation: "add_node" as const, stream: streamAsset, level: [look], type: "tatolab.stream:DisplayWindow", name: "preview" };
-    expect(await settled(backend.transactInTheOpenProject([addInside], "live", null))).toMatchObject({ kind: "refused", refusal: { runtime_words: expect.stringContaining("an edit inside a placed stream is refused live") } });
+    const addInside = { operation: "add_node" as const, stream: streamAsset, level: [look], type: "nodes.frame_tally:FrameTally", name: "preview" };
     expect((await settled(backend.transactInTheOpenProject([addInside], "commit", null))).kind).toBe("applied");
     const insideNames = async () => (await settled(backend.describeStreamGraph(MAIN))).nodes.find((node) => node.id === look)?.fragment?.nodes.map((node) => node.name);
     expect(await insideNames()).toContain("preview");
@@ -452,28 +484,20 @@ describe("the mock backend's runtime", () => {
 });
 
 describe("the mock backend's node catalog", () => {
-  it("lists every type its streams' graphs name, each graph node with its config", async () => {
-    const { backend } = await runningMockBackend();
-    let graphsRead = 0;
-    for (const streamId of [MAIN, CAMERA, RECORDER, PATTERN_TWO, LOBBY_RECORDER, HEAT_MAP]) {
-      const graph = backend.describeStreamGraph(streamId).then(
-        (summary) => summary,
-        () => null,
-      );
-      const catalog = backend.describeNodeCatalog(streamId).then(
-        (listed) => listed,
-        () => null,
-      );
-      await vi.advanceTimersByTimeAsync(200);
-      const graphRead = await graph;
-      const catalogListed = await catalog;
-      if (graphRead === null) continue;
-      graphsRead += 1;
-      expect(catalogListed?.stream).toBe(streamId);
-      const typesListed = new Set(catalogListed?.node_types.map((entry) => entry.type));
-      for (const node of graphRead.nodes) expect([node.name, typesListed.has(node.type)]).toEqual([node.name, true]);
-    }
-    expect(graphsRead).toBeGreaterThan(0);
+  it("lists the node types the runtime's registry listed for the sample, every one the sample's graph names but its Graph Input", async () => {
+    const { backend } = await runningMockBackend("main_graph=every_pin_kind");
+    const graph = backend.describeStreamGraph(MAIN);
+    const catalog = backend.describeNodeCatalog(MAIN);
+    await vi.advanceTimersByTimeAsync(200);
+    const typesListed = new Set((await catalog).node_types.map((entry) => entry.type));
+    expect((await graph).nodes.map((node) => [node.name, typesListed.has(node.type)])).toEqual([
+      ["testpattern", true],
+      ["brightness", false],
+      ["beat", true],
+      ["warmth", true],
+      ["glow", true],
+      ["tally", true],
+    ]);
   });
 });
 
@@ -496,7 +520,7 @@ describe("the mock backend's port families", () => {
     const servedByDefault = await familiesOfMain("");
     expect(servedByDefault.graph).not.toContain(null);
     expect(new Set(servedByDefault.graph)).toEqual(new Set(["image", "channels", "records", "array"]));
-    expect(servedByDefault.catalog).not.toContain(null);
+    expect(servedByDefault.catalog).toContain("records");
   });
 });
 

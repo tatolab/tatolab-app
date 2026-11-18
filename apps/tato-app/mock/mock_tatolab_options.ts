@@ -1,6 +1,7 @@
 import { jsonValueSchema } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { mockWorkspaceDependenciesScenarioNamed, type MockWorkspaceDependenciesScenario } from "./mock_workspace_dependencies";
-import type { MockMachine } from "./mock_stream_fixtures";
+import { mockMainGraphNamed, type MockMachine, type MockMainGraph } from "./mock_stream_fixtures";
+import { mockReplayedRefusalNamed, type MockReplayedRefusal } from "./mock_replayed_refusals";
 import { mockOpenProjectScenarioNamed, type MockOpenProjectScenario } from "./mock_open_project";
 import { mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import type { MockAssetImportScenario } from "./mock_project_assets";
@@ -160,8 +161,8 @@ export interface MockTatolabOptions {
   isTheFixtureViewListed: boolean;
   /** `?node_ui=unserved`: the Studio's own controls are listed with scripts nothing serves, so each ends at the read-only line with why; `?node_ui=refused`: listing them is refused, so each input draws its own field. They are listed and served by default. */
   nodeUiElementsListing: MockNodeUiElementsListing;
-  /** `?input_values=refuse_negative`: an input's value below zero is refused, as the runtime refuses one outside its input's range. */
-  areNegativeInputValuesRefused: boolean;
+  /** `?refusal=link_of_another_type|value_of_another_type`: the runtime's recorded refusal the mock replays for the first link made, or the first value set; none by default. */
+  replayedRefusal: MockReplayedRefusal | null;
   /** `?shell_sets_live=<number>`: a few seconds after the page opens, a shell sets the inverting effect's `amount` in `main` live to the number, as an agent's `transact` would; nothing is set by default. */
   valueAShellSetsLive: number | null;
   /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the effect's output. */
@@ -172,8 +173,8 @@ export interface MockTatolabOptions {
   doesTheMainStreamHoldAGeneratedSubgraph: boolean;
   /** `?node_states=stopped`: every node of `main` that has a state reads `Stopped` once the stream settles, so none of its ports writes. */
   areTheMainStreamsNodesStopped: boolean;
-  /** `?main_graph=large`: `main` holds 300 nodes of four inputs each and 450 links, for the canvas measurements; it takes precedence over every other choice of `main`. */
-  isTheMainStreamLarge: boolean;
+  /** `?main_graph=every_pin_kind|large`: `main` holds the graph recorded from streamlib's sample project that declares each kind of pin, or 300 nodes of four inputs each and 450 links for the canvas measurements; either takes precedence over every other choice of `main`. */
+  mainGraph: MockMainGraph | null;
 }
 
 /** The query parameter a Module manager window's page is told by. */
@@ -298,11 +299,11 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
     isTheCompositorInMain: pageQuery.get("compositor") === "layered",
     nodeUiElementsListing: mockNodeUiElementsListingOf(pageQuery.get("node_ui")),
-    areNegativeInputValuesRefused: pageQuery.get("input_values") === "refuse_negative",
+    replayedRefusal: mockReplayedRefusalNamed(pageQuery.get("refusal")),
     valueAShellSetsLive: numberInTheQuery(pageQuery.get("shell_sets_live")),
     doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",
     doesTheMainStreamHoldAGeneratedSubgraph: pageQuery.get("subgraphs") === "generated",
-    isTheMainStreamLarge: pageQuery.get("main_graph") === "large",
+    mainGraph: mockMainGraphNamed(pageQuery.get("main_graph")),
     areTheMainStreamsNodesStopped: pageQuery.get("node_states") === "stopped",
   };
 }
