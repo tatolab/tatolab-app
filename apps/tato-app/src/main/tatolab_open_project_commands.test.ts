@@ -2,51 +2,67 @@ import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { projectViewFolderUrl } from "./extension_files_served_with_types_removed.js";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, expect, test, vi } from "vitest";
+import { Effect, ManagedRuntime } from "effect";
+import { afterEach, expect, test } from "vitest";
 import type { ListedStream } from "../shared/tatolab_backend_contract.js";
-import { controlOperationResponseOfTheRecordedToolResponse, httpResponse } from "./fake_local_api_server.js";
+import { controlOperationFailedResponse, controlOperationResponseOfTheRecordedToolResponse, FakeLocalApiServer, httpResponse } from "./fake_local_api_server.js";
 import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { succeeded } from "./result.js";
-import { reloadTheOpenProjectAfterASaveOfItsPythonFile, whatASavedNodeFileAsksOfTheRuntime } from "./tatolab_open_project_commands.js";
-import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, cleanUps, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS, recordedResponseBody, sharedStateOverFakes, listedStreamOfTheProject, statusLastPublishedListing, aLocalApiQueuingEachProjectAction } from "./tatolab_commands_test_support.js";
+import { reloadTheOpenProjectAfterASaveOfItsPythonFile } from "./tatolab_open_project_commands.js";
+import { createTatolabAppLog } from "./tatolab_app_log.js";
+import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, cleanUps, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS, recordedResponseBody, sharedStateOverFakes, listedStreamOfTheProject, statusLastPublishedListing, aLocalApiQueuingEachProjectAction, studioServicesLayerForTest } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
-test("a saved Python file of a project the runtime lists open queues reload_project, as tatolab dev does; another file, or a closed project, is left as it is", async () => {
-  const sharedState = await sharedStateOverFakes([httpResponse("200 OK", "text/plain", "ok")], "linux");
-  await sharedState.statusPublisher.refreshAndPublish();
-  const projectActionsQueued: [string, string][] = [];
-  vi.spyOn(sharedState.controller, "reloadProject").mockImplementation(async (projectDirectory) => {
-    projectActionsQueued.push(["reload_project", projectDirectory]);
-    return succeeded({ action: "reload_project-1", project_directory: projectDirectory });
-  });
-  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+test("a saved Python file of a project the runtime lists open queues reload_project, as tatolab dev does, then a status round; another file, or a closed project, is left as it is", async () => {
   const doorways = "/projects/doorways";
   const pattern = "/projects/pattern";
   const lobby = "/projects/lobby";
-  statusLastPublishedListing(sharedState, [listedStreamOfTheProject(doorways, "running"), listedStreamOfTheProject(pattern, "stopped"), listedStreamOfTheProject(lobby, "closed")]);
+  const { localApiSocketPath, projectActionsQueued } = await aLocalApiQueuingEachProjectAction();
+  let statusRounds = 0;
+  const studioRuntime = ManagedRuntime.make(
+    studioServicesLayerForTest({
+      localApiSocketPath,
+      theProjectIsListedOpen: (projectFolder) => projectFolder === doorways || projectFolder === pattern,
+      requestARound: Effect.sync(() => void (statusRounds += 1)),
+    }),
+  );
+  cleanUps.push(() => studioRuntime.dispose());
+  const afterASaveOf = (projectFolder: string, savedFile: string) => studioRuntime.runPromise(reloadTheOpenProjectAfterASaveOfItsPythonFile(projectFolder, savedFile));
 
-  await reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState, doorways, path.join(doorways, "tatolab_view.json"));
-  await reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState, lobby, path.join(lobby, "nodes", "invert.py"));
-  expect(projectActionsQueued).toEqual([]);
+  await afterASaveOf(doorways, path.join(doorways, "tatolab_view.json"));
+  await afterASaveOf(lobby, path.join(lobby, "nodes", "invert.py"));
+  expect([projectActionsQueued, statusRounds]).toEqual([[], 0]);
 
-  await reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState, doorways, path.join(doorways, "nodes", "invert.py"));
-  await reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState, pattern, path.join(pattern, "nodes", "invert.py"));
+  await afterASaveOf(doorways, path.join(doorways, "nodes", "invert.py"));
+  await afterASaveOf(pattern, path.join(pattern, "nodes", "invert.py"));
   expect(projectActionsQueued).toEqual([
     ["reload_project", doorways],
     ["reload_project", pattern],
   ]);
-  expect(refreshRequests).toHaveBeenCalledTimes(2);
+  expect(statusRounds).toBe(2);
 });
 
-test("a saved node file reloads a project the runtime holds open, playing, stopped or failed, and leaves a closed or unlisted one alone", () => {
-  const hallways = "/projects/hallways";
+test("a reload the runtime refuses after a save is logged in its own words, and still asks for a status round", async () => {
+  const doorways = "/projects/doorways";
+  const localApiServer = await FakeLocalApiServer.answeringEachControlOperation(async () => controlOperationFailedResponse("reload_project failed: the project's history is busy"));
+  cleanUps.push(() => localApiServer.close());
+  const loggedLines: string[] = [];
+  let statusRounds = 0;
+  const studioRuntime = ManagedRuntime.make(
+    studioServicesLayerForTest({
+      localApiSocketPath: localApiServer.localApiSocketPath,
+      theProjectIsListedOpen: () => true,
+      requestARound: Effect.sync(() => void (statusRounds += 1)),
+      tatolabAppLog: createTatolabAppLog("debug", (logLine) => loggedLines.push(logLine)),
+    }),
+  );
+  cleanUps.push(() => studioRuntime.dispose());
 
-  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfTheProject(hallways, "running"), listedStreamOfTheProject(hallways, "failed", "lobby")], hallways)).toBe("reload");
-  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfTheProject(hallways, "stopped")], hallways)).toBe("reload");
-  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfTheProject(hallways, "failed")], hallways)).toBe("reload");
-  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfTheProject(hallways, "closed")], hallways)).toBe("nothing");
-  expect(whatASavedNodeFileAsksOfTheRuntime([listedStreamOfTheProject(hallways, "failed")], "/projects/doorways")).toBe("nothing");
+  await studioRuntime.runPromise(reloadTheOpenProjectAfterASaveOfItsPythonFile(doorways, path.join(doorways, "nodes", "invert.py")));
+
+  expect(statusRounds).toBe(1);
+  expect(loggedLines.find((logLine) => logLine.includes("refused to reload the project after a save"))).toContain("reload_project failed: the project's history is busy");
 });
 
 test("Live opens then plays a closed project, reloads then plays a stopped one with a failed stream, only reloads a playing one with a failed stream, resumes a paused one, and plays any other open one; Pause pauses it", async () => {

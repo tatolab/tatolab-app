@@ -1,16 +1,16 @@
 import path from "node:path";
 import { Effect, Schema, type ManagedRuntime } from "effect";
-import type { ListedStream, JsonValue, PoppedOutView, PortViewerTarget, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
-import { streamsOfTheProjectIn, theStreamsListTheProjectOpen } from "../shared/project_playback.js";
+import type { JsonValue, OpenProjectReading, PoppedOutView, PortViewerTarget, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { studioViewsOfTheOpenProject } from "./open_project_views.js";
+import { createANodeFileInTheOpenProject, listTheOpenProjectsFiles, readTheOpenProjectsFile, saveTheOpenProjectsFile } from "./open_project_files.js";
 import { importTheFilesThePersonChooses } from "./project_assets_imported_from_chosen_files.js";
 import { deleteAsset, openProject, pausePlayback, readAssetPreview, relocateAsset, reloadProject, resumePlayback, startPlayback, stopPlayback, undoOrRedo } from "./runtime_operations.js";
 import { ListedStreams, PersonEditingInStudio, StudioWindows, thenAStatusRound, type StatusRounds, type StudioServices } from "./studio_runtime.js";
 import { CommandRefused, windowCommand } from "./window_command.js";
-import { answerTheWindow, type TatolabCommandFromWindow, NO_PROJECT_IN_THE_PROJECTS_WINDOW_REFUSAL, studioWindowTheCommandCameFrom, isTextOrNull, oneTextArgumentFrom, type TatolabWindowCommandHandlers, commandAnswerFrom, commandAnswerOfNothingFrom } from "./tatolab_command_answers.js";
+import { type TatolabCommandFromWindow, NO_PROJECT_IN_THE_PROJECTS_WINDOW_REFUSAL, studioWindowTheCommandCameFrom, oneTextArgumentFrom, type TatolabWindowCommandHandlers, commandAnswerFrom, commandAnswerOfNothingFrom } from "./tatolab_command_answers.js";
 
 /**
  * The playback of the project in `projectFolder` started as the runtime last listed it, a failed stream of an open one first reloaded, which retries it and
@@ -94,20 +94,41 @@ const ImportAssetsArguments = Schema.Struct({ media: Schema.NullOr(Schema.Array(
 /** The arguments of the commands on one asset of the open project: its UUID. */
 const AssetArguments = Schema.Struct({ asset: Schema.String });
 
-/** What a save of a project's node file asks of the runtime: `reload` while it holds the project in `projectDirectory` open, which keeps its playback, and `nothing` while it is closed. */
-export function whatASavedNodeFileAsksOfTheRuntime(listedStreams: readonly ListedStream[], projectDirectory: string): "reload" | "nothing" {
-  return theStreamsListTheProjectOpen(streamsOfTheProjectIn(listedStreams, projectDirectory)) ? "reload" : "nothing";
+/** After a save of `savedFile`, a `.py` file of `projectDirectory`, the open project read again as `tatolab dev` does on a save, keeping its playback, then a status round; a closed one is left alone, and a refusal is logged in the runtime's own words. */
+export const reloadTheOpenProjectAfterASaveOfItsPythonFile = Effect.fn("reloadTheOpenProjectAfterASaveOfItsPythonFile")(function* (projectDirectory: string, savedFile: string) {
+  if (path.extname(savedFile) !== ".py" || !(yield* ListedStreams).theProjectIsListedOpen(projectDirectory)) return;
+  yield* thenAStatusRound(reloadProject(projectDirectory)).pipe(
+    Effect.matchEffect({
+      onSuccess: (queued) => Effect.logInfo("reloaded the project after a save of its Python file").pipe(Effect.annotateLogs({ action: queued.action })),
+      onFailure: (refused) => Effect.logWarning("the runtime refused to reload the project after a save of its Python file").pipe(Effect.annotateLogs({ refusal: refused.words })),
+    }),
+    Effect.annotateLogs({ project_folder: projectDirectory, file: savedFile }),
+  );
+});
+
+/** `save_project_file`: `text` saved to `file` of the open project `reading` holds when it still has `based_on_version`, then the project reloaded for a saved Python file it plays. */
+const saveTheOpenProjectFileThenReload = Effect.fn("saveTheOpenProjectFileThenReload")(function* (reading: OpenProjectReading, file: string, text: string, basedOnVersion: string | null) {
+  const saved = yield* saveTheOpenProjectsFile(reading, file, text, basedOnVersion);
+  if (reading.kind === "read") yield* reloadTheOpenProjectAfterASaveOfItsPythonFile(reading.open_project.project.folder, file);
+  return saved;
+});
+
+/** The asking window's open project as read now handed to `ofTheReading`; refused in the Projects window. */
+function ofTheWindowsOpenProject<Answer, Failure, Services>(
+  commandFromWindow: TatolabCommandFromWindow,
+  ofTheReading: (reading: OpenProjectReading) => Effect.Effect<Answer, Failure, Services>,
+): Effect.Effect<Answer, Failure | CommandRefused, Services | StudioWindows> {
+  return StudioWindows.use((studioWindows) => studioWindows.openProjectReadingOfTheWindow(commandFromWindow)).pipe(Effect.flatMap(ofTheReading));
 }
 
-/** After a save of `savedFile`, a `.py` file of `projectDirectory`, the open project read again as `tatolab dev` does on a save, keeping its playback; a closed one is left alone, and a refusal is logged in the runtime's own words. */
-export async function reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState: TatolabAppSharedState, projectDirectory: string, savedFile: string): Promise<void> {
-  if (path.extname(savedFile) !== ".py") return;
-  if (whatASavedNodeFileAsksOfTheRuntime(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [], projectDirectory) === "nothing") return;
-  const queued = await sharedState.controller.reloadProject(projectDirectory);
-  sharedState.statusPublisher.requestRefresh();
-  if (queued.ok) sharedState.tatolabAppLog.info("reloaded the project after a save of its Python file", { project_folder: projectDirectory, file: savedFile, action: queued.value.action });
-  else sharedState.tatolabAppLog.warn("the runtime refused to reload the project after a save of its Python file", { project_folder: projectDirectory, file: savedFile, refusal: queued.failure.failureDescription });
-}
+/** The arguments of `read_project_file` and `create_node_file`: an absolute path in the open project. */
+const ProjectFileArguments = Schema.Struct({ file: Schema.String });
+
+/** The arguments of `save_project_file`: an absolute path in the open project, its whole text, and the version it was read at, `null` for a new file. */
+const SaveProjectFileArguments = Schema.Struct({ file: Schema.String, text: Schema.String, based_on_version: Schema.NullOr(Schema.String) });
+
+/** The arguments of `list_project_files`: the folder of the open project or of one of its imports. */
+const ListProjectFilesArguments = Schema.Struct({ project_folder: Schema.String });
 
 /** `pop_out_view`'s arguments as the window sends them, or why they are not. */
 function popOutViewArgumentsFrom(commandArguments: unknown): Result<PoppedOutView, string> {
@@ -130,19 +151,6 @@ function popOutView(sharedState: TatolabAppSharedState, target: PoppedOutView, c
   if (studioWindow === null) return failedWith("Only a project's studio window can pop out one of its views.");
   sharedState.appWindows.popOutTheViewOf(studioWindow, target);
   return succeeded(undefined);
-}
-
-/** `save_project_file`'s arguments as the window sends them, or why they are not. */
-function saveProjectFileArgumentsFrom(commandArguments: unknown): Result<{ file: string; text: string; based_on_version: string | null }, string> {
-  if (
-    !isAJsonObject(commandArguments) ||
-    typeof commandArguments["file"] !== "string" ||
-    typeof commandArguments["text"] !== "string" ||
-    !isTextOrNull(commandArguments["based_on_version"])
-  ) {
-    return failedWith("save_project_file needs `file`, an absolute path, `text`, and `based_on_version`, the version it was read at or null for a new file");
-  }
-  return succeeded({ file: commandArguments["file"], text: commandArguments["text"], based_on_version: commandArguments["based_on_version"] });
 }
 
 /** `send_to_python_language_server`'s arguments as the window sends them, or why they are not. */
@@ -208,39 +216,20 @@ export function openProjectCommandHandlersOf(
       ok: true,
       value: sharedState.appWindows.poppedOutViewOfTheWindowWithContents(commandFromWindow.windowContentsId),
     }),
-    read_project_file: async (commandArguments, commandFromWindow) => {
-      const file = oneTextArgumentFrom("read_project_file", commandArguments, "file", "an absolute path in the open project");
-      if (!file.ok) return { ok: false, refusal: file.failure };
-      const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-      if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
-      return commandAnswerFrom(await answerTheWindow("read_project_file", () => studioWindow.value.openProjectFiles.readProjectFile(file.value)));
-    },
-    save_project_file: async (commandArguments, commandFromWindow) => {
-      const saveArguments = saveProjectFileArgumentsFrom(commandArguments);
-      if (!saveArguments.ok) return { ok: false, refusal: saveArguments.failure };
-      const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-      if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
-      const { file, text, based_on_version } = saveArguments.value;
-      const saved = await answerTheWindow("save_project_file", () => studioWindow.value.openProjectFiles.saveProjectFile(file, text, based_on_version));
-      if (saved.ok) await reloadTheOpenProjectAfterASaveOfItsPythonFile(sharedState, studioWindow.value.openProject.projectFolder, file);
-      return commandAnswerFrom(saved);
-    },
-    create_node_file: async (commandArguments, commandFromWindow) => {
-      const file = oneTextArgumentFrom("create_node_file", commandArguments, "file", "an absolute path for a new .py file in the open project");
-      if (!file.ok) return { ok: false, refusal: file.failure };
-      const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-      if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
-      return commandAnswerFrom(await answerTheWindow("create_node_file", () => studioWindow.value.openProjectFiles.createNodeFile(file.value)));
-    },
-    list_project_files: async (commandArguments, commandFromWindow) => {
-      const projectFolder = oneTextArgumentFrom("list_project_files", commandArguments, "project_folder", "the folder of the open project or of one of its imports");
-      if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };
-      const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
-      if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
-      return commandAnswerFrom(await answerTheWindow("list_project_files", () => studioWindow.value.openProjectFiles.listProjectFiles(projectFolder.value)));
-    },
+    read_project_file: windowCommand(studioRuntime, "read_project_file", ProjectFileArguments, ({ file }, commandFromWindow) =>
+      ofTheWindowsOpenProject(commandFromWindow, (reading) => readTheOpenProjectsFile(reading, file)),
+    ),
+    save_project_file: windowCommand(studioRuntime, "save_project_file", SaveProjectFileArguments, ({ file, text, based_on_version }, commandFromWindow) =>
+      ofTheWindowsOpenProject(commandFromWindow, (reading) => saveTheOpenProjectFileThenReload(reading, file, text, based_on_version)),
+    ),
+    create_node_file: windowCommand(studioRuntime, "create_node_file", ProjectFileArguments, ({ file }, commandFromWindow) =>
+      ofTheWindowsOpenProject(commandFromWindow, (reading) => createANodeFileInTheOpenProject(reading, file)),
+    ),
+    list_project_files: windowCommand(studioRuntime, "list_project_files", ListProjectFilesArguments, ({ project_folder }, commandFromWindow) =>
+      ofTheWindowsOpenProject(commandFromWindow, (reading) => listTheOpenProjectsFiles(reading, project_folder)),
+    ),
     list_studio_views_of_the_open_project: windowCommand(studioRuntime, "list_studio_views_of_the_open_project", Schema.Undefined, (_nothing, commandFromWindow) =>
-      StudioWindows.use((studioWindows) => studioWindows.openProjectReadingOfTheWindow(commandFromWindow)).pipe(Effect.flatMap(studioViewsOfTheOpenProject)),
+      ofTheWindowsOpenProject(commandFromWindow, studioViewsOfTheOpenProject),
     ),
     run_open_project: windowCommand(studioRuntime, "run_open_project", Schema.Undefined, (_nothing, commandFromWindow) => runOpenProject(commandFromWindow)),
     pause_open_project: windowCommand(studioRuntime, "pause_open_project", Schema.Undefined, (_nothing, commandFromWindow) =>

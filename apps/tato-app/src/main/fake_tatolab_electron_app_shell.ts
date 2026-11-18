@@ -210,7 +210,6 @@ export class FakeTatolabElectronAppShell {
     runtimeViewerFrameImportAddonPath: "/fake/out/native/tatolab_runtime_viewer_frame_import.node",
     mainProcessId: 4242,
     homeDirectory: path.join(this.appConfigDirectory, "home"),
-    personSignedInToThisMachine: "sam",
     answerProjectViewFileRequestsWith: (answerAProjectViewFileRequest) => {
       this.answerAProjectViewFileRequest = answerAProjectViewFileRequest;
     },

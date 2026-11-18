@@ -3,6 +3,7 @@
 // member of the shared state, holding only what a converted handler reads. Effect's logs go to the
 // app's log, never to the console.
 
+import { randomUUID } from "node:crypto";
 import { Cause, Context, Effect, Layer, Logger, References, type LogLevel } from "effect";
 import type {
   DependencySourceKind,
@@ -16,6 +17,7 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import { projectPlaybackAsListed, streamsOfTheProjectIn, theStreamsListTheProjectOpen, type ProjectPlaybackAsListed } from "../shared/project_playback.js";
 import { downloadTheCatalogEntrysZip } from "./marketplace_module_download.js";
+import { projectFolderOfTheOpenProject } from "./open_project_files.js";
 import type { ProjectFolderDialogPurpose, RecentProjectFolderOpened, StudioWindowOfTheProjectShown } from "./open_project.js";
 import type { ProjectAssetFileFilter } from "./project_asset_file_filters.js";
 import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
@@ -207,6 +209,9 @@ export class FileManager extends Context.Service<
 /** The person signed in to this computer, the author Studio's graph edits are recorded under. */
 export class PersonEditingInStudio extends Context.Service<PersonEditingInStudio, { readonly author: ProjectTransactionAuthor }>()("tatolab-app/PersonEditingInStudio") {}
 
+/** The idempotency key of each change Studio asks of the runtime once, so a retried call is recorded once. */
+export class IdempotencyKeys extends Context.Service<IdempotencyKeys, { readonly mint: Effect.Effect<string> }>()("tatolab-app/IdempotencyKeys") {}
+
 /** This copy of the Studio's version, which names the contents of its own node UI module. */
 export class StudioAppVersion extends Context.Service<StudioAppVersion, { readonly version: string }>()("tatolab-app/StudioAppVersion") {}
 
@@ -227,6 +232,7 @@ export type StudioServices =
   | CarriedTools
   | FileManager
   | PersonEditingInStudio
+  | IdempotencyKeys
   | StudioAppVersion;
 
 /** The app's log level each of Effect's log levels writes at; `None` writes nothing. */
@@ -294,7 +300,8 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
           if (sharedState.appWindows.isTheProjectsWindow(commandFromWindow.windowContentsId)) sharedState.appWindows.projectsWindow.hide();
         }),
       folderOfTheWindowsOpenProject: (commandFromWindow, folder) => {
-        const openProjectFolder = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId)?.openProjectFiles.projectFolderOfTheOpenProject(folder);
+        const studioWindow = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId);
+        const openProjectFolder = studioWindow === null ? null : projectFolderOfTheOpenProject(studioWindow.openProject.readOpenProject(), folder);
         return openProjectFolder?.ok === true ? openProjectFolder.value : null;
       },
     }),
@@ -360,6 +367,7 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
         ),
     }),
     Layer.succeed(PersonEditingInStudio, { author: sharedState.thePersonEditingInStudio }),
+    Layer.succeed(IdempotencyKeys, { mint: Effect.sync(() => randomUUID()) }),
     Layer.succeed(StudioAppVersion, { version: appVersion }),
     tatolabAppLogAsEffectsLogger(sharedState.tatolabAppLog),
   );

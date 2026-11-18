@@ -93,15 +93,6 @@ function windowDevServerUrlNamedIn(windowDevServerUrlText: string | undefined): 
   return null;
 }
 
-/** The account the app runs as, which a save is recorded by; `os.userInfo()` throws for a uid with no passwd entry, as in some containers. */
-function nameOfThePersonSignedInToThisMachine(): string {
-  try {
-    return os.userInfo().username;
-  } catch {
-    return process.env["USER"] ?? "person";
-  }
-}
-
 const tatolabElectronAppShell: TatolabElectronAppShell = {
   readThisCopyOfTatolab: async () => ({
     // An AppImage runs from a mount that goes when it exits; `APPIMAGE` names the file that opens it again.
@@ -179,7 +170,6 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   homeDirectory: app.getPath("home"),
   // On Linux Electron reads XDG_DOCUMENTS_DIR from user-dirs.dirs, falling back to ~/Documents.
   documentsDirectory: app.getPath("documents"),
-  personSignedInToThisMachine: nameOfThePersonSignedInToThisMachine(),
   answerProjectViewFileRequestsWith,
   createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
   openAWebPageInTheBrowser: openAWebPageInTheBrowserThroughElectron,

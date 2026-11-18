@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ListedStream } from "./tatolab_backend_contract.js";
-import { projectPlaybackAsListed } from "./project_playback.js";
+import { projectPlaybackAsListed, streamsOfTheProjectIn, theStreamsListTheProjectOpen } from "./project_playback.js";
 
 const PROJECT_FOLDER = "/Users/someone/Tato Studio/camera_to_screen";
 
@@ -34,5 +34,14 @@ describe("a project's playback as the runtime lists its streams", () => {
   it("reads only the streams of the project in the folder, and says when one of them failed", () => {
     const listedStreams = [listedStreamOf("/elsewhere", "running"), listedStreamOf(PROJECT_FOLDER, "stopped"), listedStreamOf(PROJECT_FOLDER, "failed", "broken")];
     expect(projectPlaybackAsListed(listedStreams, PROJECT_FOLDER)).toEqual({ playback: "stopped", a_stream_has_failed: true, a_stream_is_running: false });
+  });
+
+  it("lists a project open while any stream of it is listed playing, stopped or failed, and closed while each is closed or none is listed", () => {
+    const openAsListed = (...listedStreams: ListedStream[]) => theStreamsListTheProjectOpen(streamsOfTheProjectIn(listedStreams, PROJECT_FOLDER));
+    expect(openAsListed(listedStreamOf(PROJECT_FOLDER, "running"), listedStreamOf(PROJECT_FOLDER, "failed", "lobby"))).toBe(true);
+    expect(openAsListed(listedStreamOf(PROJECT_FOLDER, "stopped"))).toBe(true);
+    expect(openAsListed(listedStreamOf(PROJECT_FOLDER, "failed"))).toBe(true);
+    expect(openAsListed(listedStreamOf(PROJECT_FOLDER, "closed"))).toBe(false);
+    expect(openAsListed(listedStreamOf("/elsewhere", "failed"))).toBe(false);
   });
 });

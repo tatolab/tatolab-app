@@ -45,7 +45,15 @@ import {
   workspaceDependenciesFromTheListDependenciesToolResult,
   type ListedProjectDependency,
 } from "./project_dependencies_on_the_wire.js";
-import { projectFileBytesFromTheReadProjectFileToolResult, projectFilesFromTheListProjectFilesToolResult, type ProjectFileTheRuntimeListed } from "./project_files_on_the_wire.js";
+import {
+  nodeFileCreationFromTheCreateNodeFileToolResult,
+  projectFileBytesFromTheReadProjectFileToolResult,
+  projectFilesFromTheListProjectFilesToolResult,
+  projectFileWriteFromTheWriteProjectFileToolResult,
+  type NodeFileCreationRecorded,
+  type ProjectFileTheRuntimeListed,
+  type ProjectFileWriteRecorded,
+} from "./project_files_on_the_wire.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
 import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTheListAssetsToolResult, type ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
@@ -271,6 +279,30 @@ export function summarizeTheProject(projectDirectory: string): Effect.Effect<Pro
 /** The bytes of the file `filePath`, `/`-separated in the project in `projectDirectory`, from the runtime's `read_project_file`. */
 export function readProjectFile(projectDirectory: string, filePath: string): Effect.Effect<Buffer, RuntimeControlFailure, RuntimeControl> {
   return controlOperationReadWith("read_project_file", { project_directory: projectDirectory, path: filePath }, projectFileBytesFromTheReadProjectFileToolResult);
+}
+
+/** `text` written whole to `filePath`, `/`-separated in the project in `projectDirectory`, through the runtime's `write_project_file`: one transaction on its history by `author`, keyed by `idempotencyKey`. */
+export function writeProjectFile(
+  projectDirectory: string,
+  filePath: string,
+  text: string,
+  author: ProjectTransactionAuthor,
+  idempotencyKey: string,
+): Effect.Effect<ProjectFileWriteRecorded, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith(
+    "write_project_file",
+    { project_directory: projectDirectory, path: filePath, content: text, author: authorOnTheWire(author), idempotency_key: idempotencyKey },
+    projectFileWriteFromTheWriteProjectFileToolResult,
+  );
+}
+
+/** A new Python node file at `filePath`, `/`-separated in the project in `projectDirectory`, from the runtime's node template through its `create_node_file`: one transaction on its history by `author`, keyed by `idempotencyKey`. */
+export function createNodeFile(projectDirectory: string, filePath: string, author: ProjectTransactionAuthor, idempotencyKey: string): Effect.Effect<NodeFileCreationRecorded, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith(
+    "create_node_file",
+    { project_directory: projectDirectory, path: filePath, author: authorOnTheWire(author), idempotency_key: idempotencyKey },
+    nodeFileCreationFromTheCreateNodeFileToolResult,
+  );
 }
 
 /** The project in `projectDirectory` named `name` through the runtime's `rename_project`, one transaction on its history: how people see it after. */
