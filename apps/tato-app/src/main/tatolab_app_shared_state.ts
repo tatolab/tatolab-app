@@ -10,8 +10,8 @@ import type { TatolabAppUpdater } from "./tatolab_app_updater.js";
 import type { TatolabAppUpdateAnnouncements } from "./tatolab_app_update_announcements.js";
 import type { TatolabAppWindows } from "./tatolab_app_windows.js";
 import type { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
-import type { StreamProjectFolderOpeners } from "./stream_project_folder_opening.js";
-import type { StreamProjectAdding } from "./stream_project_adding.js";
+import type { TerminalOpenedInAFolder } from "./platform/terminal_opened_in_a_folder.js";
+import type { StreamProjectFolderDialog } from "./stream_project_adding.js";
 import type { StreamFailureNotifications } from "./stream_failure_notifications.js";
 import type { HeldRememberedSwitch } from "./remembered_switch_file.js";
 import type { ProjectArchiveDialog, ProjectCoverImageDialog, ProjectFolderDialog, RecentProjectFolders } from "./open_project.js";
@@ -27,6 +27,14 @@ import type { PackageCatalogMachine, ProjectTransactionAuthor } from "../shared/
 import type { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 
 /** The controller, the status publisher, the updater, what opens a stream's project, adding a project, the stream-failure notifications, Developer mode, the project dialogs and recent projects, the app's windows, the language servers, the port viewers and the system menu bar, which the tray's choices and the window's commands reach. */
+/** What opens a folder, and how the app tells a folder still exists. */
+export interface StreamProjectFolderOpeners {
+  /** Show `folder` in the desktop's file manager, refused in the file manager's own words. */
+  openAFolderInTheFileManager(folder: string): Promise<Result<void, string>>;
+  terminalOpenedInAFolder: TerminalOpenedInAFolder;
+  isAnExistingFolder(folderPath: string): Promise<boolean>;
+}
+
 export interface TatolabAppSharedState {
   controller: TatolabAppController;
   statusPublisher: TatolabStatusPublisher;
@@ -36,7 +44,8 @@ export interface TatolabAppSharedState {
   /** Open a web page in the person's browser, as an update's release notes open. */
   openAWebPageInTheBrowser: (webPageUrl: string) => Promise<Result<void, string>>;
   streamProjectFolderOpeners: StreamProjectFolderOpeners;
-  streamProjectAdding: StreamProjectAdding;
+  /** Asks the person for a folder from the Projects window's add menu. */
+  streamProjectFolderDialog: StreamProjectFolderDialog;
   streamFailureNotifications: StreamFailureNotifications;
   /** Whether Developer mode is on, which the status carries. */
   developerModeSwitch: HeldRememberedSwitch;

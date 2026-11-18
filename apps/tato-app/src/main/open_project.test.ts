@@ -369,7 +369,7 @@ async function anOpenProject(options: {
   const projectOpeningServices: Layer.Layer<ProjectOpeningServices> = Layer.mergeAll(
     runtimeControlOnTheLiveClock(runtime.localApi.localApiSocketPath),
     Layer.succeed(ThisMachinesFolders, { homeDirectory, documentsDirectory }),
-    Layer.succeed(ProjectDialogs, {
+    Layer.mock(ProjectDialogs, {
       chooseAProjectFolder: (purpose, defaultFolder) =>
         Effect.sync(() => {
           dialogsAsked.push({ purpose, defaultFolder });

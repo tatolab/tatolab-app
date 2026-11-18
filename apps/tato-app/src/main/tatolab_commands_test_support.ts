@@ -40,6 +40,8 @@ import {
   StudioSettings,
   CarriedTools,
   FileManager,
+  FoldersChosenInTheWindow,
+  Terminal,
   StudioAppVersion,
   studioRuntimeLayer,
   StudioWindows,
@@ -53,7 +55,6 @@ import { runtimeControlLayer } from "./runtime_control_layer.js";
 import { CommandRefused } from "./window_command.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
-import { StreamProjectAdding } from "./stream_project_adding.js";
 import { TatolabAppUpdateAnnouncements } from "./tatolab_app_update_announcements.js";
 import { TatolabAppUpdater } from "./tatolab_app_updater.js";
 
@@ -165,6 +166,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
       chooseAProjectArchive: () => Effect.succeed(null),
       chooseAProjectCoverImage: () => Effect.succeed(null),
       chooseAssetFilesToImport: () => Effect.succeed(null),
+      chooseAStreamProjectFolder: () => Effect.succeed(null),
     }),
     Layer.succeed(RecentProjects, { readRecentFolders: Effect.succeed([]), rememberOpened: () => Effect.void, forget: () => Effect.void }),
     Layer.succeed(ProjectViewsListed, { isListedAsOpening: () => false, startAListing: Effect.succeed(1), rememberTheListing: () => Effect.void }),
@@ -185,6 +187,8 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
     }),
     Layer.succeed(CarriedTools, { restartTheRuntime: Effect.void, linkTheCommandLineTool: Effect.void }),
     Layer.succeed(FileManager, { showAnExistingFolder: () => Effect.void }),
+    Layer.succeed(Terminal, { openInAnExistingFolder: () => Effect.void }),
+    Layer.succeed(FoldersChosenInTheWindow, { remember: () => Effect.void, holds: () => Effect.succeed(false) }),
     Layer.succeed(PersonEditingInStudio, { author: overrides.author ?? { kind: "person", name: "sam" } }),
     Layer.succeed(IdempotencyKeys, { mint: overrides.idempotencyKeys ?? idempotencyKeysNumberedInOrder() }),
     Layer.succeed(StudioAppVersion, { version: overrides.appVersion ?? STUDIO_APP_VERSION_UNDER_TEST }),
@@ -320,11 +324,7 @@ export async function sharedStateOverFakes(
       terminalOpenedInAFolder: terminal,
       isAnExistingFolder: async (folderPath) => existingFolders.includes(folderPath),
     },
-    streamProjectAdding: new StreamProjectAdding({
-      homeDirectory: appConfigDirectory,
-      streamProjectFolderDialog: async () => succeeded(folderTheDialogAnswers),
-      projectLoadsOnTheRuntime: controller,
-    }),
+    streamProjectFolderDialog: async () => succeeded(folderTheDialogAnswers),
     developerModeSwitch,
     studioWarnings,
     homeDirectory: appConfigDirectory,
