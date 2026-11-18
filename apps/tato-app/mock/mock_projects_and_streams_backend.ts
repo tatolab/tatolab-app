@@ -1,5 +1,4 @@
 import { mockGraphNodeIdOf, mockStreamIdOf } from "./mock_stream_fixtures";
-import { isAGraphInputAClientWrites } from "./mock_stream_graph_document";
 import {
   mockNewProjectDefaults,
   mockFirstNameNothingHolds,
@@ -15,53 +14,16 @@ import { mockProjectNodeTypeListing } from "./mock_project_node_types";
 import { mockDeleteTheAsset, mockImportTheFilesChosen, mockReadTheAssetPreview, mockProjectAssetListing, mockRelocateTheAsset } from "./mock_project_assets";
 import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
-import type { JsonValue, ProjectGraphTransaction } from "../src/shared/tatolab_backend_contract";
-import { applyMockGraphTransaction, isAJsonObject } from "./mock_graph_transactions";
-import { MOCK_RECORDED_NODE_CATALOG } from "./mock_recordings";
+import type { ProjectGraphTransaction } from "../src/shared/tatolab_backend_contract";
+import { applyMockGraphTransaction } from "./mock_graph_transactions";
 import { MockReplayedRefusals } from "./mock_replayed_refusals";
 import { PROJECT_LOG_FOLDER_IN_THE_PROJECT, type StreamActionCancelAnswer, type StreamActionFollowed } from "../src/shared/tatolab_backend_contract";
-import { MOCK_COMMAND_LATENCY_MILLISECONDS, type MockLoadedStream } from "./mock_tatolab_simulation_constants";
+import { MOCK_COMMAND_LATENCY_MILLISECONDS } from "./mock_tatolab_simulation_constants";
 import { sleep, type MockTatolabSimulation } from "./mock_tatolab_simulation";
-
-/** Why the runtime's `write_graph_input` refuses `value` for the Input `input` of `loadedStream`, listed as `streamState`, in its words; `null` where it takes it. */
-function refusalOfAGraphInputWrite(loadedStream: MockLoadedStream, streamState: string | null, input: string, value: JsonValue): string | null {
-  const { listing, graph } = loadedStream.fixture;
-  if (streamState !== "running") {
-    return `Runtime error: the project of the stream \`${listing.stream}\` in ${listing.location?.project_directory ?? "its folder"} is stopped, so no node of it runs to publish on \`value\`; \`start_playback\` plays it`;
-  }
-  const writableInputs = graph.nodes.filter((node) => isAGraphInputAClientWrites(node) && node.state === "Running");
-  const graphInput = writableInputs.find((node) => node.config["port"] === input);
-  if (graphInput === undefined) {
-    const declared = writableInputs.map((node) => `\`${String(node.config["port"])}\``).join(", ");
-    return `Processor not found: no \`GraphInput\` on the top level of the stream \`${listing.stream}\` declares the Input \`${input}\` and runs; a client writes the Inputs of family array, channels or records, and the stream's are: ${declared}`;
-  }
-  const family = String(graphInput.config["family"]);
-  if (family === "channels" && typeof value !== "number" && typeof value !== "boolean" && !(isAJsonObject(value) && "samples" in value && "sample_rate" in value)) {
-    return `Port error: output \`value\` of node \`${graphInput.name}\` carries Channels, and a Channels value is a number, a bool or \`{"samples": [[...], ...], "sample_rate"}\``;
-  }
-  const arrayValueRefusal = family === "array" ? whyAnArrayValueIsNotANumberOrAListOfOneShape(value) : null;
-  if (arrayValueRefusal !== null) {
-    return `Port error: output \`value\` of node \`${graphInput.name}\` carries Array, and attribute \`values\` is a number or a list of numbers of one shape: ${arrayValueRefusal}`;
-  }
-  if (family === "records" && !isAJsonObject(value)) return `Port error: output \`value\` of node \`${graphInput.name}\` carries Records, and a Records value is a JSON object`;
-  return null;
-}
-
-/** Why `value` is not a number or a list of numbers of one shape, in the runtime's words; `null` where it is. */
-function whyAnArrayValueIsNotANumberOrAListOfOneShape(value: JsonValue): string | null {
-  if (typeof value === "number") return null;
-  if (!Array.isArray(value)) return `\`${JSON.stringify(value)}\` is not a number at that depth`;
-  for (const element of value) {
-    const elementRefusal = whyAnArrayValueIsNotANumberOrAListOfOneShape(element);
-    if (elementRefusal !== null) return elementRefusal;
-  }
-  const shapes = new Set(value.map((element) => (Array.isArray(element) ? element.length : -1)));
-  return shapes.size > 1 ? "its lists differ in length" : null;
-}
 
 /** The mock backend's projects and streams methods over `simulation`. */
 export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulation): Pick<TatolabBackend, "listProjectNodeTypes" | "listProjectAssets" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "deleteAssetFromTheOpenProject" | "removeProject" | "renameStream" | "createStreamInTheOpenProject" | "deleteStream" | "openStreamProjectFolder" | "openTerminalAtStreamProject" | "openStreamLogFolder" | "chooseStreamProjectFolder" | "createStreamProject" | "openStreamProject" | "stopOpenProject" | "reloadProject" | "describeStreamAction" | "cancelStreamAction" | "chooseProjectFolder" | "readNewProjectDefaults" | "chooseNewProjectLocation" | "createNewProject" | "readOpenProject" | "readRecentProjects" | "openRecentProject" | "renameRecentProject" | "duplicateRecentProject" | "deleteRecentProject" | "readRecentProjectCover" | "setRecentProjectDescription" | "chooseProjectCoverImage" | "setRecentProjectCover" | "chooseProjectArchiveToImport" | "importProjectArchive" | "onOpenProjectChanged" | "readOpenProjectTransactions" | "onProjectTransactionsChanged" | "onProjectFilesChanged" | "onProjectNodeTypesChanged" | "undoInTheOpenProject" | "transactInTheOpenProject" | "readThePersonEditingInStudio" | "redoInTheOpenProject" | "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "runOpenProject" | "pauseOpenProject" | "listStudioViewsOfTheOpenProject" | "writeStudioViewOutput" | "writeGraphInput"> {
-  const { fixtures, assetsChangedWhileTheMockRuns, openProjectListeners, mockStudioViewsListedInTheProject, coverImageUrlsByFolder, mockFoldersOnDisk, rememberTheProjectAsOpenedLast, openTheProjectInTheMock, mockProjectFiles, graphTransactionsCommittedByIdempotencyKey, mockProjectTransactions, refuseWithoutAnOpenProject, loadedStreams, graphTargetsOfTheOpenProject, savedGraphTargetsOfTheOpenProject, commitGraphActions, whyTheUndoIsRefused, applyingItsGraphOperations, pushEveryFollowedStreamGraphChanged, listStreams, projectFolders, foldersHandedToTheWindow, projectFolderTheDialogChooses, refuseAFolderNotHandedToTheWindow, newProjectFolderTheRuntimeDraws, projectLoadsQueued, notHeldWords, cancelMockStreamAction, queueAMockProjectLoadThatFails, queueAMockProjectLoad, noRuntimeAnswersRefusal, loadedStreamOfTheId, streamIdsListedForARefusal, loadedStreamsOfTheMockProjectIn, mockPlaybackAReloadOfTheProjectKeeps, setTheMockPlaybackOfTheStreams, stopMockProject, removeMockProject, renameMockStream, createMockStreamInTheOpenProject, deleteMockStream, listedProjectFolderOf, isTheTerminalMissing, isTheLogFolderMissing, isNoProjectLoadHeld, mockTatolabOptions } = simulation;
+  const { fixtures, assetsChangedWhileTheMockRuns, openProjectListeners, mockStudioViewsListedInTheProject, coverImageUrlsByFolder, mockFoldersOnDisk, rememberTheProjectAsOpenedLast, openTheProjectInTheMock, mockProjectFiles, graphTransactionsCommittedByIdempotencyKey, mockProjectTransactions, refuseWithoutAnOpenProject, loadedStreams, graphTargetsOfTheOpenProject, savedGraphTargetsOfTheOpenProject, commitGraphActions, graphEditGrounds, whyTheUndoIsRefused, applyingItsGraphOperations, pushEveryFollowedStreamGraphChanged, listStreams, projectFolders, foldersHandedToTheWindow, projectFolderTheDialogChooses, refuseAFolderNotHandedToTheWindow, newProjectFolderTheRuntimeDraws, projectLoadsQueued, notHeldWords, cancelMockStreamAction, queueAMockProjectLoadThatFails, queueAMockProjectLoad, noRuntimeAnswersRefusal, loadedStreamOfTheId, streamIdsListedForARefusal, loadedStreamsOfTheMockProjectIn, mockPlaybackAReloadOfTheProjectKeeps, setTheMockPlaybackOfTheStreams, stopMockProject, removeMockProject, renameMockStream, createMockStreamInTheOpenProject, deleteMockStream, listedProjectFolderOf, isTheTerminalMissing, isTheLogFolderMissing, isNoProjectLoadHeld, mockTatolabOptions } = simulation;
   const replayedRefusals = new MockReplayedRefusals(mockTatolabOptions.replayedRefusal);
   return {
     listProjectNodeTypes: async (projectDirectory) => {
@@ -348,7 +310,7 @@ export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulatio
       savedGraphTargetsOfTheOpenProject();
       const replayedRefusal = replayedRefusals.refusalOf(operations, mode);
       if (replayedRefusal !== null) return { kind: "refused", refusal: replayedRefusal };
-      const outcome = mode === "commit" ? commitGraphActions(operations, "a_transaction") : applyMockGraphTransaction(graphTargetsOfTheOpenProject(), MOCK_RECORDED_NODE_CATALOG, operations, "a_live_transaction");
+      const outcome = mode === "commit" ? commitGraphActions(operations, "a_transaction") : applyMockGraphTransaction(graphTargetsOfTheOpenProject(), graphEditGrounds, operations, "a_live_transaction");
       pushEveryFollowedStreamGraphChanged();
       const recorded = mode === "commit" ? mockProjectTransactions.record(MOCK_PERSON_EDITING_IN_STUDIO, outcome.history_operations, outcome.inverse_operations) : null;
       const transaction: ProjectGraphTransaction = { mode, transaction: recorded?.transaction ?? null, commit: recorded?.commit ?? null, ...outcome.transaction };
@@ -427,10 +389,8 @@ export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulatio
     },
     writeGraphInput: async (stream, input, value) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      const loadedStream = loadedStreamOfTheId(stream);
-      const refusal = refusalOfAGraphInputWrite(loadedStream, listStreams()?.find((listing) => listing.stream === stream)?.state ?? null, input, value);
-      if (refusal !== null) throw `write_graph_input failed: ${refusal}`;
-      loadedStream.valueWrittenToEachGraphInput.set(input, value);
+      // The mock judges no value: it holds what was written and echoes it on the Input's next graph.
+      loadedStreamOfTheId(stream).valueWrittenToEachGraphInput.set(input, value);
       pushEveryFollowedStreamGraphChanged();
     },
   };

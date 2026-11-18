@@ -20,7 +20,7 @@ import { MockProjectTransactions } from "./mock_project_transactions";
 import { mockProjectAssetsUnchanged } from "./mock_project_assets";
 import type { JsonValue, ProjectGraphTransaction, ProjectTransaction, StreamAssetCreated, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
 import { streamDocumentNameNumberedPast, streamDocumentNameOfTheDisplayName } from "../src/shared/stream_document_name";
-import { applyMockGraphTransaction, isAJsonObject, isAHistoryOperationTheMockMakesAgainFromTheEditInside, graphActionApplyingTheHistoryOperation, thePlacementsOfTheStream, type MockStreamGraphTarget } from "./mock_graph_transactions";
+import { applyMockGraphTransaction, isAJsonObject, isAHistoryOperationTheMockMakesAgainFromTheEditInside, graphActionApplyingTheHistoryOperation, thePlacementsOfTheStream, type MockGraphEditGrounds, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
   type ListedStream,
   type OpenProjectReading,
@@ -184,9 +184,10 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
       }),
     );
   /** Commit `operations`: applied to the saved graphs, which answer, then to the running ones. */
+  const graphEditGrounds: MockGraphEditGrounds = { nodeCatalog: MOCK_RECORDED_NODE_CATALOG, portsOfTheNodesRemoved: new Map() };
   const commitGraphActions = (operations: readonly StreamGraphAction[], applying: "a_transaction" | "undo_or_redo", historyOperationsReplayed: readonly JsonValue[] = []) => {
-    const applied = applyMockGraphTransaction(savedGraphTargetsOfTheOpenProject(), MOCK_RECORDED_NODE_CATALOG, operations, applying, historyOperationsReplayed);
-    applyMockGraphTransaction(graphTargetsOfTheOpenProject(), MOCK_RECORDED_NODE_CATALOG, operations, applying, applied.history_operations);
+    const applied = applyMockGraphTransaction(savedGraphTargetsOfTheOpenProject(), graphEditGrounds, operations, applying, historyOperationsReplayed);
+    applyMockGraphTransaction(graphTargetsOfTheOpenProject(), graphEditGrounds, operations, applying, applied.history_operations);
     return applied;
   };
   /** Why undoing `undone` is refused, in the runtime's words: the stream it saved is edited since, or placed by another node still; `null` when nothing refuses it. */
@@ -900,6 +901,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     graphTargetsOfTheOpenProject,
     savedGraphTargetsOfTheOpenProject,
     commitGraphActions,
+    graphEditGrounds,
     whyTheUndoIsRefused,
     applyingItsGraphOperations,
     streamsWhoseGraphsAreFollowed,

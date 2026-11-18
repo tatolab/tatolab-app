@@ -3,7 +3,9 @@
 // `recordings/` and read here through the readers the app uses on a real answer: the node catalog of
 // its stream `main`, that stream's graph, and the refusals of `transact` a scenario replays. The mock
 // holds no node type, graph or refusal of its own for this work; a recording that no longer reads
-// fails the mock's load, as the app would fail to read the runtime's answer.
+// fails the mock's load, as the app would fail to read the runtime's answer. They were recorded from the
+// `tatolabd` 0.68.82 that `cargo xtask build-runtime` built at streamlib 415f6e3, the sample created with
+// `create_project` and played until its `glow` node had written frames.
 
 import registryAnswerOfMain from "./recordings/every-pin-kind-registry-answer-of-main.json?raw";
 import graphResultOfMain from "./recordings/every-pin-kind-graph-result-of-main.json?raw";

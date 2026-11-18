@@ -28,9 +28,12 @@ function targetsOf(graph: MockStreamGraph): ReadonlyMap<string, MockStreamGraphT
   return new Map([[STREAM_ASSET, { stream_id: STREAM_ID, graph }]]);
 }
 
+/** The ports of the nodes this file's edits removed, as one mock runtime keeps them. */
+const portsOfTheNodesRemoved = new Map<string, Pick<MockGraphNode, "input_ports" | "output_ports">>();
+
 /** `operations` applied to `graph`, each node added with the ports the recorded catalog lists for its type. */
 function apply(graph: MockStreamGraph, operations: readonly StreamGraphAction[], ...rest: [applying?: "a_transaction" | "a_live_transaction" | "undo_or_redo", historyOperationsReplayed?: readonly JsonValue[]]) {
-  return applyMockGraphTransaction(targetsOf(graph), MOCK_RECORDED_NODE_CATALOG, operations, ...rest);
+  return applyMockGraphTransaction(targetsOf(graph), { nodeCatalog: MOCK_RECORDED_NODE_CATALOG, portsOfTheNodesRemoved }, operations, ...rest);
 }
 
 const TEST_PATTERN = mockNodeIdOf(STREAM_ID, "testpatternsource");
@@ -105,6 +108,18 @@ test("an operation history records is turned back into the graph action that app
   apply(graph, restoring.flatMap((action) => (action === null ? [] : [action])), "undo_or_redo");
     expect(graph.nodes.map((node) => node.name)).toEqual(["testpatternsource"]);
   expect(graphActionApplyingTheHistoryOperation({ operation: "import_asset", asset: {} })).toBeNull();
+});
+
+test("a node of a type the recorded catalog does not list, removed and added back by its undo, keeps the ports it had", () => {
+  const graph = aTestPatternAlone();
+  const inverterPorts = { input_ports: [{ name: "video_from_upstream", family: "image" as const, stream_facts: null, values_checked: null, pin: null, value_read: null }], output_ports: [] };
+  graph.nodes.push({ name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {}, ...structuredClone(inverterPorts) });
+  const inverter = mockNodeIdOf(STREAM_ID, "invertingeffect");
+  const removed = apply(graph, [{ operation: "remove_node", stream: STREAM_ASSET, node: inverter }]);
+  const restoring = removed.inverse_operations.map(graphActionApplyingTheHistoryOperation).flatMap((action) => (action === null ? [] : [action]));
+  expect(() => applyMockGraphTransaction(targetsOf(graph), { nodeCatalog: MOCK_RECORDED_NODE_CATALOG, portsOfTheNodesRemoved: new Map() }, restoring, "undo_or_redo")).toThrow(MockGraphEditNotApplicable);
+  apply(graph, restoring, "undo_or_redo");
+  expect(graph.nodes.find((node) => node.name === "invertingeffect")).toMatchObject({ type: "nodes.inverting_effect:InvertingEffect", ...inverterPorts });
 });
 
 test("a node's studio fields are replaced whole, unknown keys kept under metadata, and a wrong-shaped position is a defect", () => {

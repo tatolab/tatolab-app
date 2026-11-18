@@ -13,9 +13,10 @@
 
 import { mockGraphNodeIdOf, mockUuidOf, type MockGraphNode, type MockStreamGraph } from "./mock_stream_fixtures";
 import { studioAsTheRuntimeRendersIt } from "./mock_stream_graph_document";
+import { echoTheInputValueSet } from "./mock_value_echo";
 import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { PORT_FAMILIES, type JsonValue, type NodeCatalogEntry, type NodeCatalogPort, type PortFamily, type ProjectGraphTransaction, type StreamGraphDeclaredPort, type StreamGraphAction, type StreamGraphActionLinkEnd, type StreamGraphGroup, type StreamGraphInputValueRead, type StreamGraphLink, type StreamGraphNodeStudioFields, type StreamGraphNote } from "../src/shared/tatolab_backend_contract";
+import { PORT_FAMILIES, type JsonValue, type NodeCatalogEntry, type NodeCatalogPort, type PortFamily, type ProjectGraphTransaction, type StreamGraphDeclaredPort, type StreamGraphAction, type StreamGraphActionLinkEnd, type StreamGraphGroup, type StreamGraphLink, type StreamGraphNodeStudioFields, type StreamGraphNote } from "../src/shared/tatolab_backend_contract";
 
 /** A mock stream a graph action can name: its id, and the graph the mock holds for it. */
 export interface MockStreamGraphTarget {
@@ -39,6 +40,12 @@ export interface MockGraphTransactionApplied {
 }
 
 /** An edit the mock cannot apply, naming what its graphs do not hold: a defect of the caller, never an answer the window reads. */
+/** What one mock runtime adds a node from: the node catalog it lists, and the ports of each node an edit removed, by its id, so an undo or redo adding back a node of a type the catalog does not list gives it the ports it had, as the runtime's document keeps them. */
+export interface MockGraphEditGrounds {
+  nodeCatalog: readonly NodeCatalogEntry[];
+  portsOfTheNodesRemoved: Map<string, Pick<MockGraphNode, "input_ports" | "output_ports">>;
+}
+
 export class MockGraphEditNotApplicable extends Error {
   override readonly name = "MockGraphEditNotApplicable";
 }
@@ -122,7 +129,7 @@ function ownStreamTheNodePlaces(node: MockGraphNode): string | null {
   return placed !== null && placed.from === null ? placed.asset : null;
 }
 
-/** Why `subgraph`, the node `subgraphId` names at a level, has no inside an edit can reach, in the runtime's words; `null` when it places one of the project's own streams. */
+/** Why `subgraph`, the node `subgraphId` names at a level, has no inside an edit can reach, the defect thrown at an edit sent there; `null` when it places one of the project's own streams. */
 function whyTheNodeHasNoInsideToEdit(subgraph: MockGraphNode | undefined, subgraphId: string): string | null {
   if (subgraph === undefined) return `no node ${subgraphId} in the stream's graph`;
   const placed = streamTheNodePlaces(subgraph);
@@ -207,32 +214,11 @@ function shortNameOfTheType(nodeType: string): string {
   return (nodeType.split(":").at(-1) ?? nodeType).toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
-/** The ports of each node an edit removed, by its id, so an undo or redo adding back a node of a type the recorded catalog does not list gives it the ports it had, as the runtime's document keeps them. */
-const portsOfTheNodesRemoved = new Map<string, Pick<MockGraphNode, "input_ports" | "output_ports">>();
-
 let mockLinksMade = 0;
 /** How many groups and notes the mock has made, so each one's UUID is new, as the runtime's always is. */
 let mockGroupsAndNotesMade = 0;
 /** How many streams a collapse has saved, so each one's asset UUID is new. */
 let mockPlacedStreamsSaved = 0;
-
-/**
- * Sets `node`'s input `input` to `to`, `null` taking it off: live, on the value it reads alone, or saved, on its pins too.
- * Answers the value its pins held before.
- */
-function setTheInputValue(node: MockGraphNode, input: string, to: JsonValue | null, applying: "a_transaction" | "a_live_transaction" | "undo_or_redo"): JsonValue | null {
-  const declaredDefault = node.input_defaults?.[input] ?? null;
-  const valueRead: StreamGraphInputValueRead =
-    to !== null ? { value: to, comes_from: applying === "a_live_transaction" ? "live" : "saved" } : declaredDefault !== null ? { value: declaredDefault, comes_from: "default" } : { value: null, comes_from: null };
-  node.input_ports = node.input_ports.map((port) => (port.name === input && port.value_read !== null ? { ...port, value_read: valueRead } : port));
-  const from = node.pins?.[input] ?? null;
-  if (applying === "a_live_transaction") return from;
-  const pins = { ...node.pins };
-  if (to === null) delete pins[input];
-  else pins[input] = to;
-  node.pins = pins;
-  return from;
-}
 
 /** Whether `value` is a JSON object, not a list or `null`. */
 export const isAJsonObject = (value: JsonValue | undefined): value is { [key: string]: JsonValue } => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -327,7 +313,7 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
  */
 export function applyMockGraphTransaction(
   targetsByStreamAsset: ReadonlyMap<string, MockStreamGraphTarget>,
-  nodeCatalog: readonly NodeCatalogEntry[],
+  { nodeCatalog, portsOfTheNodesRemoved }: MockGraphEditGrounds,
   operations: readonly StreamGraphAction[],
   applying: "a_transaction" | "a_live_transaction" | "undo_or_redo" = "a_transaction",
   historyOperationsReplayed: readonly JsonValue[] = [],
@@ -399,7 +385,7 @@ export function applyMockGraphTransaction(
           throw new MockGraphEditNotApplicable(`node ${operation.node} has no input \`${operation.input}\``);
         }
         const to = operation.value ?? null;
-        const from = setTheInputValue(node, operation.input, to, applying);
+        const from = echoTheInputValueSet(node, operation.input, to, applying);
         recordInHistory({ operation: "set_pin_value", node: nodeIdOf(node), input: operation.input, from, to }, { operation: "set_pin_value", node: nodeIdOf(node), input: operation.input, from: to, to: from });
         break;
       }
@@ -410,7 +396,7 @@ export function applyMockGraphTransaction(
           throw new MockGraphEditNotApplicable(`node ${operation.node} has no input \`${operation.input}\` that holds a value`);
         }
         const to = operation.value ?? null;
-        const from = setTheInputValue(node, operation.input, to, applying);
+        const from = echoTheInputValueSet(node, operation.input, to, applying);
         if (applying === "a_live_transaction") break;
         recordInHistory({ operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from, to }, { operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from: to, to: from });
         break;
