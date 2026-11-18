@@ -5,56 +5,31 @@
 // choosing.
 
 import path from "node:path";
-import { PROJECT_LOG_FOLDER_IN_THE_PROJECT, type ListedStream } from "../shared/tatolab_backend_contract.js";
-import type { TerminalOpenedInAFolder } from "./platform/terminal_opened_in_a_folder.js";
-import { failedWith, type Result } from "./result.js";
+import { Effect } from "effect";
+import { PROJECT_LOG_FOLDER_IN_THE_PROJECT } from "../shared/tatolab_backend_contract.js";
+import { FileManager, ListedStreams, Terminal } from "./studio_runtime.js";
+import { CommandRefused } from "./window_command.js";
 
 /** What of a stream's project opens, and where: the project folder in the desktop's file manager or in a terminal whose shell starts in it, or its log folder in the file manager. */
 export type StreamProjectFolderOpening = "file_manager" | "terminal" | "log_folder_in_the_file_manager";
 
-/** What opens a folder, and how the app tells a folder still exists. */
-export interface StreamProjectFolderOpeners {
-  /** Show `folder` in the desktop's file manager, refused in the file manager's own words. */
-  openAFolderInTheFileManager(folder: string): Promise<Result<void, string>>;
-  terminalOpenedInAFolder: TerminalOpenedInAFolder;
-  isAnExistingFolder(folderPath: string): Promise<boolean>;
-}
-
-/** `folder` opened by `openTheFolder` while it is a folder on this machine; refused with `refusalWhenMissing` once it is not. */
-export async function openedWhenAnExistingFolder(
-  streamProjectFolderOpeners: StreamProjectFolderOpeners,
-  folder: string,
-  refusalWhenMissing: string,
-  openTheFolder: (existingFolder: string) => Promise<Result<void, string>>,
-): Promise<Result<void, string>> {
-  return (await streamProjectFolderOpeners.isAnExistingFolder(folder)) ? openTheFolder(folder) : failedWith(refusalWhenMissing);
-}
-
-/** Open the project folder the runtime listed for the stream `streamId` in `listedStreams` as `opening` asks; refused naming why when it is not listed, has no location, or the folder is gone. */
-export async function openStreamProjectFolder(
-  listedStreams: readonly ListedStream[] | null,
-  streamId: string,
-  opening: StreamProjectFolderOpening,
-  streamProjectFolderOpeners: StreamProjectFolderOpeners,
-): Promise<Result<void, string>> {
-  const listedStream = listedStreams?.find((candidateListedStream) => candidateListedStream.stream === streamId) ?? null;
-  if (listedStream === null) return failedWith(`The runtime does not list ${streamId}, so Tato Studio has no project folder to open.`);
+/** `open_stream_project_folder`, `open_terminal_at_stream_project` or `open_stream_log_folder`: the project folder the runtime last listed for the stream `stream`, or its log folder, opened as `opening` asks; refused naming why when it is not listed, has no location, or the folder is gone. */
+export const openTheStreamsProjectFolder = Effect.fn("openTheStreamsProjectFolder")(function* (stream: string, opening: StreamProjectFolderOpening) {
+  const listedStream = (yield* ListedStreams).listedStream(stream);
+  if (listedStream === null) return yield* new CommandRefused({ words: `The runtime does not list ${stream}, so Tato Studio has no project folder to open.` });
   const streamDisplayName = listedStream.display_name;
-  if (listedStream.location === null) return failedWith(`The runtime lists no project folder for ${streamDisplayName}.`);
+  if (listedStream.location === null) return yield* new CommandRefused({ words: `The runtime lists no project folder for ${streamDisplayName}.` });
   const projectFolder = listedStream.location.project_directory;
   const projectFolderGoneRefusal = `${projectFolder} is no longer a folder on this machine.`;
-  const openInTheFileManager = (folder: string) => streamProjectFolderOpeners.openAFolderInTheFileManager(folder);
   switch (opening) {
     case "file_manager":
-      return openedWhenAnExistingFolder(streamProjectFolderOpeners, projectFolder, projectFolderGoneRefusal, openInTheFileManager);
+      return yield* (yield* FileManager).showAnExistingFolder(projectFolder, projectFolderGoneRefusal);
     case "terminal":
-      return openedWhenAnExistingFolder(streamProjectFolderOpeners, projectFolder, projectFolderGoneRefusal, (folder) =>
-        streamProjectFolderOpeners.terminalOpenedInAFolder.openTerminalIn(folder),
-      );
+      return yield* (yield* Terminal).openInAnExistingFolder(projectFolder, projectFolderGoneRefusal);
     case "log_folder_in_the_file_manager": {
       // Stat only: the runtime's log segments in it are never listed or read.
       const logFolder = path.join(projectFolder, PROJECT_LOG_FOLDER_IN_THE_PROJECT);
-      return openedWhenAnExistingFolder(streamProjectFolderOpeners, logFolder, `${streamDisplayName} has no log folder yet: ${logFolder} is not on this machine.`, openInTheFileManager);
+      return yield* (yield* FileManager).showAnExistingFolder(logFolder, `${streamDisplayName} has no log folder yet: ${logFolder} is not on this machine.`);
     }
   }
-}
+});

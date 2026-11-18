@@ -5,7 +5,7 @@ import { LocalApiClient } from "./local_api_client.js";
 import { queuedStreamActionFromTheToolResult, streamAssetChangeFromTheToolResult, streamsThePauseOrResumeReachedFromTheToolResult } from "./stream_changes_on_the_wire.js";
 import { projectCreationQueuedFromTheCreateProjectToolResult, projectStreamActionQueuedFromTheToolResult, streamActionCancelAnswerFromTheCancelStreamActionToolResult, streamActionDescriptionFromTheDescribeStreamActionToolResult } from "./stream_action_description.js";
 import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./local_api_client_test_support.js";
-import { cancelStreamAction, createStream, deleteStream, describeStreamAction, pausePlayback, removeProject, resumePlayback, setStreamDisplayName, startPlayback, stopPlayback } from "./runtime_operations.js";
+import { cancelStreamAction, createProject, createStream, deleteStream, describeStreamAction, openProject, pausePlayback, removeProject, resumePlayback, setStreamDisplayName, startPlayback, stopPlayback } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -207,12 +207,12 @@ test("creating_a_project_calls_create_project_with_its_folder_or_none_and_reads_
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-create-project-answer-with-no-folder-drawn-kind-butte.json")),
   ]);
 
-  expect(answerOf(await server.client().createProject("/tmp/tatolab-proof-projects/lobby"))).toEqual({
+  expect(answerOf(await server.run(createProject("/tmp/tatolab-proof-projects/lobby")))).toEqual({
     action: "Rj12j3eujz3zn0dposliv79k9-2",
     stream: "lobby-main-caa719",
     project_directory: "/tmp/tatolab-proof-projects/lobby",
   });
-  expect(answerOf(await server.client().createProject(null))).toEqual({
+  expect(answerOf(await server.run(createProject(null)))).toEqual({
     action: "Rj12j3eujz3zn0dposliv79k9-7",
     stream: "kind-butte-main-e51c2f",
     project_directory: "/tmp/tatolab-proof/streams/kind-butte",
@@ -229,13 +229,13 @@ test("opening_a_project_calls_open_project_with_its_folder_and_reads_the_action_
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-open-project-refusal-for-the-open-project-pattern.json")),
   ]);
 
-  expect(answerOf(await server.client().openProject("/tmp/tatolab-proof-projects/lobby"))).toEqual({
+  expect(answerOf(await server.run(openProject("/tmp/tatolab-proof-projects/lobby")))).toEqual({
     action: "Rhrb4oumhnnzujbb137ivd7ah-8",
     project_directory: "/tmp/tatolab-proof-projects/lobby",
   });
-  expect(failureOf(await server.client().openProject("/tmp/tatolab-proof-projects/pattern"))).toEqual({
-    failureDescription: "Runtime error: the project in /tmp/tatolab-proof-projects/pattern is already open, so there is none to open; `reload_project` re-reads what changed on disk",
-    isTheRuntimesRefusal: true,
+  expect(failureOf(await server.run(openProject("/tmp/tatolab-proof-projects/pattern")))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words: "Runtime error: the project in /tmp/tatolab-proof-projects/pattern is already open, so there is none to open; `reload_project` re-reads what changed on disk",
   });
   expect(controlOperationCallsReceivedBy(server)).toEqual([
     ["open_project", { project_directory: "/tmp/tatolab-proof-projects/lobby" }],

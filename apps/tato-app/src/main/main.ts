@@ -42,7 +42,7 @@ import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "./tatolab_tray_menu.js";
 import type { Result } from "./result.js";
 import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
-import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
+import type { StreamProjectFolderDialog } from "./stream_project_adding.js";
 import { type FolderEntriesWatch, type ProjectArchiveDialog, type ProjectCoverImageDialog, type ProjectFolderDialog, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import type { ProjectAssetFilesDialog } from "./project_assets_imported_from_chosen_files.js";
@@ -414,11 +414,7 @@ export async function startTatolabApp(
       terminalOpenedInAFolder: platformForThisBuild.terminalOpenedInAFolder,
       isAnExistingFolder: isAnExistingFolderOnThisMachine,
     },
-    streamProjectAdding: new StreamProjectAdding({
-      homeDirectory: tatolabElectronAppShell.homeDirectory,
-      streamProjectFolderDialog: tatolabElectronAppShell.askThePersonForAStreamProjectFolder,
-      projectLoadsOnTheRuntime: controller,
-    }),
+    streamProjectFolderDialog: tatolabElectronAppShell.askThePersonForAStreamProjectFolder,
     streamFailureNotifications,
     developerModeSwitch,
     studioWarnings,

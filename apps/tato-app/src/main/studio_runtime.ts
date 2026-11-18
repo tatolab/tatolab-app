@@ -4,7 +4,7 @@
 // app's log, never to the console.
 
 import { randomUUID } from "node:crypto";
-import { Cause, Context, Effect, Layer, Logger, References, type LogLevel } from "effect";
+import { Cause, Context, Effect, HashSet, Layer, Logger, Ref, References, type LogLevel } from "effect";
 import type {
   DependencySourceKind,
   ListedStream,
@@ -12,6 +12,7 @@ import type {
   PackageCatalogEntry,
   PackageCatalogReading,
   ProjectTransactionAuthor,
+  StreamProjectFolderChosenFor,
   StudioWarningKind,
   TatolabStatus,
 } from "../shared/tatolab_backend_contract.js";
@@ -21,8 +22,7 @@ import type { ProjectFolderDialogPurpose, RecentProjectFolderOpened, StudioWindo
 import type { ProjectAssetFileFilter } from "./project_asset_file_filters.js";
 import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { readThePackageCatalog } from "./package_catalog.js";
-import { openedWhenAnExistingFolder } from "./stream_project_folder_opening.js";
-import type { Result } from "./result.js";
+import { failedWith, type Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
 import type { TatolabAppLog, TatolabAppLogFields, TatolabAppLogLevel } from "./tatolab_app_log.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
@@ -77,6 +77,8 @@ export class ProjectDialogs extends Context.Service<
     readonly chooseAProjectCoverImage: (defaultFolder: string) => Effect.Effect<string | null, CommandRefused>;
     /** The files to import as assets, the dialog opened at `defaultFolder` offering `fileFilters`, the first chosen. */
     readonly chooseAssetFilesToImport: (defaultFolder: string, fileFilters: readonly ProjectAssetFileFilter[]) => Effect.Effect<readonly string[] | null, CommandRefused>;
+    /** A folder from the Projects window's add menu, an existing project to open or a new project's folder as `chosenFor` says, the dialog opened at `defaultFolder`. */
+    readonly chooseAStreamProjectFolder: (chosenFor: StreamProjectFolderChosenFor, defaultFolder: string) => Effect.Effect<string | null, CommandRefused>;
   }
 >()("tatolab-app/ProjectDialogs") {}
 
@@ -205,6 +207,37 @@ export class FileManager extends Context.Service<
   }
 >()("tatolab-app/FileManager") {}
 
+/** The desktop's terminal. */
+export class Terminal extends Context.Service<
+  Terminal,
+  {
+    /** Open a terminal whose shell starts in `folder`; refused with `refusalWhenMissing` when it is no folder on this machine, and in the platform's words. */
+    readonly openInAnExistingFolder: (folder: string, refusalWhenMissing: string) => Effect.Effect<void, CommandRefused>;
+  }
+>()("tatolab-app/Terminal") {}
+
+/** The folders the app handed the window from its own dialog, the only ones a command may have the runtime create or open a project in, so a page never picks a path of its own. */
+export class FoldersChosenInTheWindow extends Context.Service<
+  FoldersChosenInTheWindow,
+  {
+    /** Remember `folder`, absolute, as handed to the window. */
+    readonly remember: (folder: string) => Effect.Effect<void>;
+    /** Whether the app handed `folder`, absolute, to the window. */
+    readonly holds: (folder: string) => Effect.Effect<boolean>;
+  }
+>()("tatolab-app/FoldersChosenInTheWindow") {}
+
+/** The folders handed to the window, none at first, kept for as long as the runtime the layer builds. */
+export const foldersChosenInTheWindowLayer: Layer.Layer<FoldersChosenInTheWindow> = Layer.effect(
+  FoldersChosenInTheWindow,
+  Ref.make(HashSet.empty<string>()).pipe(
+    Effect.map((foldersHandedToTheWindow) => ({
+      remember: (folder: string) => Ref.update(foldersHandedToTheWindow, HashSet.add(folder)),
+      holds: (folder: string) => Ref.get(foldersHandedToTheWindow).pipe(Effect.map(HashSet.has(folder))),
+    })),
+  ),
+);
+
 /** The person signed in to this computer, the author Studio's graph edits are recorded under. */
 export class PersonEditingInStudio extends Context.Service<PersonEditingInStudio, { readonly author: ProjectTransactionAuthor }>()("tatolab-app/PersonEditingInStudio") {}
 
@@ -230,6 +263,8 @@ export type StudioServices =
   | StudioSettings
   | CarriedTools
   | FileManager
+  | Terminal
+  | FoldersChosenInTheWindow
   | PersonEditingInStudio
   | IdempotencyKeys
   | StudioAppVersion;
@@ -279,8 +314,17 @@ function commandAnswerOfPlainCode<Answer>(answering: () => Promise<Result<Answer
   return Effect.promise(answering).pipe(Effect.flatMap((answered) => fromResult(answered, (words) => new CommandRefused({ words }))));
 }
 
+/** A service method opening a folder with `openTheFolder` while `isAnExistingFolder` says it is a folder on this machine; refused with `refusalWhenMissing` once it is not, and in the opener's words. */
+function existingFolderOpenedBy(
+  isAnExistingFolder: (folder: string) => Promise<boolean>,
+  openTheFolder: (existingFolder: string) => Promise<Result<void, string>>,
+): (folder: string, refusalWhenMissing: string) => Effect.Effect<void, CommandRefused> {
+  return (folder, refusalWhenMissing) => commandAnswerOfPlainCode(async () => ((await isAnExistingFolder(folder)) ? openTheFolder(folder) : failedWith(refusalWhenMissing)));
+}
+
 /** Every service the main process's Effect code runs on, over `sharedState`, the local API at `localApiSocketPath` and this copy's `appVersion`. */
 export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiSocketPath: string, appVersion: string): Layer.Layer<StudioServices> {
+  const folderOpeners = sharedState.streamProjectFolderOpeners;
   const streamsLastListed = () => sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [];
   const streamsLastListedFrom = (projectFolder: string) => streamsOfTheProjectIn(streamsLastListed(), projectFolder);
   const studioWindowOf = (commandFromWindow: TatolabCommandFromWindow) =>
@@ -320,6 +364,7 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
       chooseAProjectArchive: (defaultFolder) => commandAnswerOfPlainCode(() => sharedState.projectArchiveDialog(defaultFolder)),
       chooseAProjectCoverImage: (defaultFolder) => commandAnswerOfPlainCode(() => sharedState.projectCoverImageDialog(defaultFolder)),
       chooseAssetFilesToImport: (defaultFolder, fileFilters) => commandAnswerOfPlainCode(() => sharedState.projectAssetFilesDialog(defaultFolder, fileFilters)),
+      chooseAStreamProjectFolder: (chosenFor, defaultFolder) => commandAnswerOfPlainCode(() => sharedState.streamProjectFolderDialog(chosenFor, defaultFolder)),
     }),
     Layer.succeed(RecentProjects, {
       readRecentFolders: Effect.promise(() => sharedState.recentProjectFolders.readRecentFolders()),
@@ -356,14 +401,9 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
       restartTheRuntime: commandAnswerOfPlainCode(() => sharedState.controller.restartTheRuntimeOnRequest()),
       linkTheCommandLineTool: commandAnswerOfPlainCode(() => sharedState.controller.linkTheCommandLineTool()),
     }),
-    Layer.succeed(FileManager, {
-      showAnExistingFolder: (folder, refusalWhenMissing) =>
-        commandAnswerOfPlainCode(() =>
-          openedWhenAnExistingFolder(sharedState.streamProjectFolderOpeners, folder, refusalWhenMissing, (existingFolder) =>
-            sharedState.streamProjectFolderOpeners.openAFolderInTheFileManager(existingFolder),
-          ),
-        ),
-    }),
+    Layer.succeed(FileManager, { showAnExistingFolder: existingFolderOpenedBy(folderOpeners.isAnExistingFolder, (folder) => folderOpeners.openAFolderInTheFileManager(folder)) }),
+    Layer.succeed(Terminal, { openInAnExistingFolder: existingFolderOpenedBy(folderOpeners.isAnExistingFolder, (folder) => folderOpeners.terminalOpenedInAFolder.openTerminalIn(folder)) }),
+    foldersChosenInTheWindowLayer,
     Layer.succeed(PersonEditingInStudio, { author: sharedState.thePersonEditingInStudio }),
     Layer.succeed(IdempotencyKeys, { mint: Effect.sync(() => randomUUID()) }),
     Layer.succeed(StudioAppVersion, { version: appVersion }),

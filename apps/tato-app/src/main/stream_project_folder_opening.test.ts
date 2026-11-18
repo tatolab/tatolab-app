@@ -1,8 +1,11 @@
 import { expect, test } from "vitest";
+import { projectPlaybackAsListed } from "../shared/project_playback.js";
 import type { ListedStream } from "../shared/tatolab_backend_contract.js";
-import { FakeTerminalOpenedInAFolder } from "./fake_tatolab_platform_for_this_build.js";
+import { Effect, Layer } from "effect";
 import { failedWith, succeeded, type Result } from "./result.js";
-import { openStreamProjectFolder, type StreamProjectFolderOpeners } from "./stream_project_folder_opening.js";
+import { openTheStreamsProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
+import { FileManager, ListedStreams, Terminal } from "./studio_runtime.js";
+import { CommandRefused } from "./window_command.js";
 
 function listedStream(displayName: string, projectDirectory: string | null): ListedStream {
   return {
@@ -15,75 +18,87 @@ function listedStream(displayName: string, projectDirectory: string | null): Lis
   };
 }
 
-function openersOverFakes(existingFolders: readonly string[]) {
+/** The stream folders opened against `listedStreams`, with `existingFolders` on this machine and the terminal answering `terminalAnswer`; with every folder shown and every terminal opened. */
+function openingOverFakes(existingFolders: readonly string[], terminalRefusal: string | null = null) {
   const foldersShownInTheFileManager: string[] = [];
-  const terminal = new FakeTerminalOpenedInAFolder();
-  const openers: StreamProjectFolderOpeners = {
-    openAFolderInTheFileManager: async (folder): Promise<Result<void, string>> => {
-      foldersShownInTheFileManager.push(folder);
-      return succeeded(undefined);
-    },
-    terminalOpenedInAFolder: terminal,
-    isAnExistingFolder: async (folderPath) => existingFolders.includes(folderPath),
-  };
-  return { openers, foldersShownInTheFileManager, terminal };
+  const terminalOpenedInFolders: string[] = [];
+  const openedWhenAnExistingFolder = (folder: string, refusalWhenMissing: string, opened: string[]) =>
+    existingFolders.includes(folder) ? Effect.sync(() => void opened.push(folder)) : Effect.fail(new CommandRefused({ words: refusalWhenMissing }));
+  const servicesOfTheOpening = Layer.mergeAll(
+    Layer.succeed(ListedStreams, {
+      streamAssetsOfTheProject: () => new Set(),
+      aStreamIsListedFrom: () => true,
+      theProjectIsListedOpen: () => true,
+      listedStream: (stream) => LISTED_STREAMS.find((listedStream) => listedStream.stream === stream) ?? null,
+      playbackOfTheProject: (projectFolder) => projectPlaybackAsListed(LISTED_STREAMS, projectFolder),
+    }),
+    Layer.succeed(FileManager, { showAnExistingFolder: (folder, refusalWhenMissing) => openedWhenAnExistingFolder(folder, refusalWhenMissing, foldersShownInTheFileManager) }),
+    Layer.succeed(Terminal, {
+      openInAnExistingFolder: (folder, refusalWhenMissing) =>
+        terminalRefusal === null ? openedWhenAnExistingFolder(folder, refusalWhenMissing, terminalOpenedInFolders) : Effect.fail(new CommandRefused({ words: terminalRefusal })),
+    }),
+  );
+  const open = (stream: string, opening: StreamProjectFolderOpening): Promise<Result<void, string>> =>
+    Effect.runPromise(
+      openTheStreamsProjectFolder(stream, opening).pipe(
+        Effect.match({ onSuccess: () => succeeded(undefined), onFailure: (refused) => failedWith(refused.words) }),
+        Effect.provide(servicesOfTheOpening),
+      ),
+    );
+  return { open, foldersShownInTheFileManager, terminalOpenedInFolders };
 }
 
 const LISTED_STREAMS = [listedStream("front-door", "/Users/jonathanf/streams/front-door"), listedStream("nowhere", null)];
 
 test("the_listed_project_folder_of_the_stream_opens_in_the_file_manager_or_a_terminal", async () => {
-  const { openers, foldersShownInTheFileManager, terminal } = openersOverFakes(["/Users/jonathanf/streams/front-door"]);
+  const { open, foldersShownInTheFileManager, terminalOpenedInFolders } = openingOverFakes(["/Users/jonathanf/streams/front-door"]);
 
-  expect(await openStreamProjectFolder(LISTED_STREAMS, "front-door-main-7a03be", "file_manager", openers)).toEqual(succeeded(undefined));
-  expect(await openStreamProjectFolder(LISTED_STREAMS, "front-door-main-7a03be", "terminal", openers)).toEqual(succeeded(undefined));
+  expect(await open("front-door-main-7a03be", "file_manager")).toEqual(succeeded(undefined));
+  expect(await open("front-door-main-7a03be", "terminal")).toEqual(succeeded(undefined));
 
   expect(foldersShownInTheFileManager).toEqual(["/Users/jonathanf/streams/front-door"]);
-  expect(terminal.openedInFolders).toEqual(["/Users/jonathanf/streams/front-door"]);
+  expect(terminalOpenedInFolders).toEqual(["/Users/jonathanf/streams/front-door"]);
 });
 
 test("a_stream_the_runtime_does_not_list_or_names_no_folder_for_or_whose_folder_is_gone_opens_nothing", async () => {
-  const { openers, foldersShownInTheFileManager, terminal } = openersOverFakes([]);
+  const { open, foldersShownInTheFileManager, terminalOpenedInFolders } = openingOverFakes([]);
 
-  expect(await openStreamProjectFolder(LISTED_STREAMS, "gone", "terminal", openers)).toEqual(
+  expect(await open("gone", "terminal")).toEqual(
     failedWith("The runtime does not list gone, so Tato Studio has no project folder to open."),
   );
-  expect(await openStreamProjectFolder(null, "front-door-main-7a03be", "file_manager", openers)).toEqual(
-    failedWith("The runtime does not list front-door-main-7a03be, so Tato Studio has no project folder to open."),
-  );
-  expect(await openStreamProjectFolder(LISTED_STREAMS, "nowhere-main-7a03be", "file_manager", openers)).toEqual(
+  expect(await open("nowhere-main-7a03be", "file_manager")).toEqual(
     failedWith("The runtime lists no project folder for nowhere."),
   );
-  expect(await openStreamProjectFolder(LISTED_STREAMS, "front-door-main-7a03be", "terminal", openers)).toEqual(
+  expect(await open("front-door-main-7a03be", "terminal")).toEqual(
     failedWith("/Users/jonathanf/streams/front-door is no longer a folder on this machine."),
   );
   expect(foldersShownInTheFileManager).toEqual([]);
-  expect(terminal.openedInFolders).toEqual([]);
+  expect(terminalOpenedInFolders).toEqual([]);
 });
 
 test("the_log_folder_under_the_listed_project_folder_opens_in_the_file_manager", async () => {
-  const { openers, foldersShownInTheFileManager } = openersOverFakes(["/Users/jonathanf/streams/front-door", "/Users/jonathanf/streams/front-door/.streamlib/logs"]);
+  const { open, foldersShownInTheFileManager } = openingOverFakes(["/Users/jonathanf/streams/front-door", "/Users/jonathanf/streams/front-door/.streamlib/logs"]);
 
-  expect(await openStreamProjectFolder(LISTED_STREAMS, "front-door-main-7a03be", "log_folder_in_the_file_manager", openers)).toEqual(succeeded(undefined));
+  expect(await open("front-door-main-7a03be", "log_folder_in_the_file_manager")).toEqual(succeeded(undefined));
 
   expect(foldersShownInTheFileManager).toEqual(["/Users/jonathanf/streams/front-door/.streamlib/logs"]);
 });
 
 test("a_log_folder_not_written_yet_opens_nothing_and_says_so", async () => {
-  const { openers, foldersShownInTheFileManager } = openersOverFakes(["/Users/jonathanf/streams/front-door"]);
+  const { open, foldersShownInTheFileManager } = openingOverFakes(["/Users/jonathanf/streams/front-door"]);
 
-  expect(await openStreamProjectFolder(LISTED_STREAMS, "front-door-main-7a03be", "log_folder_in_the_file_manager", openers)).toEqual(
+  expect(await open("front-door-main-7a03be", "log_folder_in_the_file_manager")).toEqual(
     failedWith("front-door has no log folder yet: /Users/jonathanf/streams/front-door/.streamlib/logs is not on this machine."),
   );
-  expect(await openStreamProjectFolder(LISTED_STREAMS, "nowhere-main-7a03be", "log_folder_in_the_file_manager", openers)).toEqual(
+  expect(await open("nowhere-main-7a03be", "log_folder_in_the_file_manager")).toEqual(
     failedWith("The runtime lists no project folder for nowhere."),
   );
   expect(foldersShownInTheFileManager).toEqual([]);
 });
 
 test("the_terminals_refusal_reaches_the_window_in_its_own_words", async () => {
-  const { openers, terminal } = openersOverFakes(["/Users/jonathanf/streams/front-door"]);
-  terminal.answer = failedWith("Terminal did not open on /Users/jonathanf/streams/front-door (exit status: 1)");
+  const { open } = openingOverFakes(["/Users/jonathanf/streams/front-door"], "Terminal did not open on /Users/jonathanf/streams/front-door (exit status: 1)");
 
-  expect(await openStreamProjectFolder(LISTED_STREAMS, "front-door-main-7a03be", "terminal", openers)).toEqual(terminal.answer);
+  expect(await open("front-door-main-7a03be", "terminal")).toEqual(failedWith("Terminal did not open on /Users/jonathanf/streams/front-door (exit status: 1)"));
 });
 

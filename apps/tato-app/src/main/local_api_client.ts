@@ -6,7 +6,6 @@
 import { Effect, type Layer } from "effect";
 import type {
   ListedStream,
-  ProjectCreationQueued,
   ProjectStreamActionQueued,
   ProjectTheRuntimeNames,
 } from "../shared/tatolab_backend_contract.js";
@@ -19,7 +18,7 @@ import { failedWith, succeeded, type Result } from "./result.js";
 import { bodyOfAnOkAnswer, getOverTheLocalApi } from "./local_api_plain_http.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { createProject, listDependencies, listStreams, nameTheProject, openProject, reloadProject } from "./runtime_operations.js";
+import { listDependencies, listStreams, nameTheProject, reloadProject } from "./runtime_operations.js";
 import { queuedStreamActionFromTheToolResult, type ProjectActionToolName } from "./stream_changes_on_the_wire.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import {
@@ -85,17 +84,7 @@ export class LocalApiClient {
     return action.ok ? action : localApiRequestFailure(action.failure);
   }
 
-  /** Queue the creation of a new project in `projectDirectory`, or with `null` in a folder the runtime draws under `~/streams`, and its run; answered at once, refused in the runtime's own words. */
-  createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>> {
-    return this.answerOf(createProject(projectDirectory));
-  }
-
-  /** Queue the open of the closed or never-opened project in `projectDirectory`, which loads every stream asset in it with its playback stopped; answered at once, refused in the runtime's own words, as for an open project, which `reloadProject` re-reads. */
-  openProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
-    return this.answerOf(openProject(projectDirectory));
-  }
-
-  /** Queue the reload from disk of the open project in `projectDirectory`, which keeps its playback and retries its failed streams; answered at once, refused in the runtime's own words, as for a project that is not open, which `openProject` opens. */
+  /** Queue the reload from disk of the open project in `projectDirectory`, which keeps its playback and retries its failed streams; answered at once, refused in the runtime's own words, as for a project that is not open, which the runtime's `open_project` opens. */
   reloadProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
     return this.answerOf(reloadProject(projectDirectory));
   }

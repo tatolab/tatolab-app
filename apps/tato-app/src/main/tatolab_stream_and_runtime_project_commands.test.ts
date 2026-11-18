@@ -196,13 +196,13 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
   });
   expect(await commandHandlers.open_terminal_at_stream_project({}, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: "open_terminal_at_stream_project needs `stream`, a stream's id",
+    refusal: expect.stringMatching(/^open_terminal_at_stream_project: /),
   });
 
   expect(await commandHandlers.open_stream_log_folder({ stream: "main-main-9e44b1" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(await commandHandlers.open_stream_log_folder({}, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: "open_stream_log_folder needs `stream`, a stream's id",
+    refusal: expect.stringMatching(/^open_stream_log_folder: /),
   });
 
   expect(sharedState.foldersShownInTheFileManager).toEqual(["/Users/jonathanf/streams/main", "/Users/jonathanf/streams/main/.streamlib/logs"]);
@@ -290,15 +290,15 @@ test("the commands that add a project read their arguments as the window sends t
   const commandHandlers = commandHandlersOver(await sharedStateOverFakes([], "linux"));
   expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "anything" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: "choose_stream_project_folder needs `chosen_for`, project_to_open or new_project_directory",
+    refusal: expect.stringMatching(/^choose_stream_project_folder: /),
   });
   expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_open" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(await commandHandlers.create_stream_project({ folder: 7 }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: "create_stream_project needs `folder`, a folder chosen in the window, or null for one the runtime draws under ~/streams",
+    refusal: expect.stringMatching(/^create_stream_project: /),
   });
   expect(await commandHandlers.create_stream_project({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "Tato Studio acts only on a folder chosen in its window. Choose /etc again." });
-  expect(await commandHandlers.open_stream_project({ folder: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "open_stream_project needs `folder`, a folder chosen in the window" });
+  expect(await commandHandlers.open_stream_project({ folder: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: expect.stringMatching(/^open_stream_project: /) });
   expect(await commandHandlers.describe_stream_action({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: 'describe_stream_action: Missing key\n  at ["action"]' });
 });
 

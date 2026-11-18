@@ -19,7 +19,7 @@ import type {
   ProjectFolderChosenFor,
   ProjectTheRuntimeNames,
 } from "../shared/tatolab_backend_contract.js";
-import { realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
+import { realFolderOf, realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import {
   createProject,
@@ -191,11 +191,6 @@ function foldersTheReadingDependsOn(projectFolder: string, reading: OpenProjectR
 
 /** `<Documents>/Tato Studio`, where new projects go. */
 const defaultNewProjectLocation = ThisMachinesFolders.use(({ documentsDirectory }) => Effect.succeed(path.join(documentsDirectory, NEW_PROJECTS_FOLDER_INSIDE_DOCUMENTS)));
-
-/** `folder`, resolved to its real path when it has one. */
-function realFolderOf(folder: string): Effect.Effect<string> {
-  return Effect.promise(() => realPathOrAsGiven(path.resolve(folder)));
-}
 
 /** Nothing when `folder` is one of the recent projects; refused naming it otherwise. */
 const oneOfTheRecentFolders = Effect.fn("oneOfTheRecentFolders")(function* (folder: string) {

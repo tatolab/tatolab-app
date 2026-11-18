@@ -1,13 +1,16 @@
-// Adding a project from the window: choosing its folder in the app's own dialog, then queuing the
-// runtime's creation or open of it. A command naming a folder acts only on one this module handed
-// the window from that dialog, so a page can never have the runtime create or open a path of its
-// choosing.
+// Adding a project from the Projects window's add menu: choosing its folder in the app's own dialog,
+// then queuing the runtime's creation or open of it. A command naming a folder acts only on one the
+// app handed the window from that dialog, so a page can never have the runtime create or open a path
+// of its choosing.
 
 import path from "node:path";
-import type { ProjectCreationQueued, ProjectStreamActionQueued, StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
-import { isAnExistingFolderOnThisMachine, realPathOrAsGiven } from "./file_system_entries_on_this_machine.js";
-import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
-import { failedWith, succeeded, type Result } from "./result.js";
+import { Effect } from "effect";
+import type { StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
+import { isAnExistingFolderOnThisMachine, realFolderOf } from "./file_system_entries_on_this_machine.js";
+import type { Result } from "./result.js";
+import { createProject, openProject } from "./runtime_operations.js";
+import { FoldersChosenInTheWindow, ProjectDialogs, thenAStatusRound, ThisMachinesFolders } from "./studio_runtime.js";
+import { CommandRefused } from "./window_command.js";
 
 /** The folder under the home directory the runtime draws a new project's folder in, where the dialog opens for one. */
 const NEW_STREAM_PROJECTS_FOLDER_IN_HOME = "streams";
@@ -15,72 +18,41 @@ const NEW_STREAM_PROJECTS_FOLDER_IN_HOME = "streams";
 /** Asks the person for a folder in the desktop's dialog, opened at `defaultFolder`: an existing project to import, or a new project's folder, which may not exist yet. `null` when they cancel. */
 export type StreamProjectFolderDialog = (chosenFor: StreamProjectFolderChosenFor, defaultFolder: string) => Promise<Result<string | null, string>>;
 
-/** The runtime's tools a project is added with: `create_project` and `open_project`, each answering at once with the action it queued. */
-export interface ProjectLoadsOnTheRuntime {
-  createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>>;
-  openProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>>;
-}
-
-/** What adding a project reaches: the person's home, the dialog, and the runtime. */
-export interface StreamProjectAddingSources {
-  homeDirectory: string;
-  streamProjectFolderDialog: StreamProjectFolderDialog;
-  projectLoadsOnTheRuntime: ProjectLoadsOnTheRuntime;
-}
-
-/** The refusal of a folder the window names that the app never handed it. */
-function folderNotHandedToTheWindowRefusal(folder: string): string {
-  return `Tato Studio acts only on a folder chosen in its window. Choose ${folder} again.`;
-}
-
-/** The folders the window may name, and every command that names one. */
-export class StreamProjectAdding {
-  private readonly foldersHandedToTheWindow = new Set<string>();
-
-  constructor(private readonly sources: StreamProjectAddingSources) {}
-
-  /** Ask the person for a folder in the dialog, answering it absolute with its links resolved, as the runtime lists a project's folder; `null` when they cancel. */
-  async chooseStreamProjectFolder(chosenFor: StreamProjectFolderChosenFor): Promise<Result<string | null, string>> {
-    const chosenFolder = await this.sources.streamProjectFolderDialog(chosenFor, await this.dialogsDefaultFolder(chosenFor));
-    if (!chosenFolder.ok) return chosenFolder;
-    return succeeded(chosenFolder.value === null ? null : await this.handToTheWindow(chosenFolder.value));
+/** Where the dialog opens for `chosenFor`: the home folder for a project to open, `~/streams` for a new project's folder once that folder exists. */
+const dialogsDefaultFolder = Effect.fn("dialogsDefaultFolder")(function* (chosenFor: StreamProjectFolderChosenFor) {
+  const { homeDirectory } = yield* ThisMachinesFolders;
+  const newStreamProjectsFolder = path.join(homeDirectory, NEW_STREAM_PROJECTS_FOLDER_IN_HOME);
+  switch (chosenFor) {
+    case "project_to_open":
+      return homeDirectory;
+    case "new_project_directory":
+      return (yield* Effect.promise(() => isAnExistingFolderOnThisMachine(newStreamProjectsFolder))) ? newStreamProjectsFolder : homeDirectory;
   }
+});
 
-  /** Queue `create_project` in `folder`, or with `null` in a folder the runtime draws under `~/streams`; refused in the runtime's own words, or for a folder the app never handed the window. */
-  async createStreamProject(folder: string | null): Promise<Result<ProjectCreationQueued, string>> {
-    const projectFolder = folder === null ? succeeded(null) : this.folderHandedToTheWindow(folder);
-    if (!projectFolder.ok) return projectFolder;
-    const queued = await this.sources.projectLoadsOnTheRuntime.createProject(projectFolder.value);
-    return queued.ok ? queued : failedWith(queued.failure.failureDescription);
-  }
+/** `choose_stream_project_folder`: a folder the person chooses in the dialog, absolute with its links resolved as the runtime lists a project's, remembered as handed to the window; `null` when they cancel. */
+export const chooseAStreamProjectFolder = Effect.fn("chooseAStreamProjectFolder")(function* (chosenFor: StreamProjectFolderChosenFor) {
+  const chosenFolder = yield* (yield* ProjectDialogs).chooseAStreamProjectFolder(chosenFor, yield* dialogsDefaultFolder(chosenFor));
+  if (chosenFolder === null) return null;
+  const resolvedFolder = yield* realFolderOf(chosenFolder);
+  yield* (yield* FoldersChosenInTheWindow).remember(resolvedFolder);
+  return resolvedFolder;
+});
 
-  /** Queue `open_project` in `folder`, which loads every stream asset in it with its playback stopped; refused in the runtime's own words, or for a folder the app never handed the window. */
-  async openStreamProject(folder: string): Promise<Result<ProjectStreamActionQueued, string>> {
-    const projectFolder = this.folderHandedToTheWindow(folder);
-    if (!projectFolder.ok) return projectFolder;
-    const queued = await this.sources.projectLoadsOnTheRuntime.openProject(projectFolder.value);
-    return queued.ok ? queued : failedWith(queued.failure.failureDescription);
-  }
+/** `folder` resolved, when the app handed it to the window from its dialog; refused otherwise. */
+const folderChosenInTheWindow = Effect.fn("folderChosenInTheWindow")(function* (folder: string) {
+  const resolvedFolder = path.resolve(folder);
+  if (yield* (yield* FoldersChosenInTheWindow).holds(resolvedFolder)) return resolvedFolder;
+  return yield* new CommandRefused({ words: `Tato Studio acts only on a folder chosen in its window. Choose ${folder} again.` });
+});
 
-  /** `folder` resolved, when the app handed it to the window; refused otherwise. */
-  private folderHandedToTheWindow(folder: string): Result<string, string> {
-    const resolvedFolder = path.resolve(folder);
-    return this.foldersHandedToTheWindow.has(resolvedFolder) ? succeeded(resolvedFolder) : failedWith(folderNotHandedToTheWindowRefusal(folder));
-  }
+/** `create_stream_project`: the runtime's `create_project` queued in `folder`, or with `null` in a folder it draws under `~/streams`, then a status round; refused for a folder not chosen in the window, or in the runtime's own words. */
+export const createAStreamProject = Effect.fn("createAStreamProject")(function* (folder: string | null) {
+  const projectFolder = folder === null ? null : yield* folderChosenInTheWindow(folder);
+  return yield* thenAStatusRound(createProject(projectFolder));
+});
 
-  private async dialogsDefaultFolder(chosenFor: StreamProjectFolderChosenFor): Promise<string> {
-    const newStreamProjectsFolder = path.join(this.sources.homeDirectory, NEW_STREAM_PROJECTS_FOLDER_IN_HOME);
-    switch (chosenFor) {
-      case "project_to_open":
-        return this.sources.homeDirectory;
-      case "new_project_directory":
-        return (await isAnExistingFolderOnThisMachine(newStreamProjectsFolder)) ? newStreamProjectsFolder : this.sources.homeDirectory;
-    }
-  }
-
-  private async handToTheWindow(folder: string): Promise<string> {
-    const resolvedFolder = await realPathOrAsGiven(path.resolve(folder));
-    this.foldersHandedToTheWindow.add(resolvedFolder);
-    return resolvedFolder;
-  }
-}
+/** `open_stream_project`: the runtime's `open_project` queued on `folder`, which opens it with its playback stopped, then a status round; refused for a folder not chosen in the window, or in the runtime's own words. */
+export const openAStreamProject = Effect.fn("openAStreamProject")(function* (folder: string) {
+  return yield* thenAStatusRound(openProject(yield* folderChosenInTheWindow(folder)));
+});

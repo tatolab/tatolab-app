@@ -1,9 +1,8 @@
-import type { ProjectCreationQueued, ProjectStreamActionQueued, StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
-import { isAJsonObject } from "./json_on_the_wire.js";
-import { failedWith, succeeded, type Result } from "./result.js";
+import { succeeded, type Result } from "./result.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
-import { openStreamProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
+import { chooseAStreamProjectFolder, createAStreamProject, openAStreamProject } from "./stream_project_adding.js";
+import { openTheStreamsProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
 import { newStreamDocumentPathNoFileHolds, PROJECT_STREAMS_FOLDER } from "./new_stream_document_path.js";
 import { Effect, Schema, type ManagedRuntime } from "effect";
 import {
@@ -24,7 +23,7 @@ import {
 } from "./runtime_operations.js";
 import { ListedStreams, PersonEditingInStudio, StudioWindows, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
 import { CommandRefused, windowCommand } from "./window_command.js";
-import { answerTheWindow, type TatolabCommandFromWindow, isTextOrNull, oneTextArgumentFrom, type TatolabWindowCommandHandlers, commandAnswerFrom, commandAnswerOfNothingFrom } from "./tatolab_command_answers.js";
+import { type TatolabCommandFromWindow, oneTextArgumentFrom, type TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 
 /** What Tato Studio calls each stream edit in a refusal, as it asks and once done. */
 const STREAM_EDIT_WORDS = { rename: "renamed", delete: "deleted" } as const;
@@ -79,91 +78,28 @@ const projectFolderTheWindowMayAskTheRuntimeAbout = Effect.fn("projectFolderTheW
   return yield* projectFolderTheRuntimeLastListed(projectDirectory);
 });
 
-/** Where each command that opens a stream's project folder opens it. */
-const STREAM_PROJECT_FOLDER_OPENING_OF_THE_COMMAND = {
-  open_stream_project_folder: "file_manager",
-  open_terminal_at_stream_project: "terminal",
-  open_stream_log_folder: "log_folder_in_the_file_manager",
-} as const satisfies Record<string, StreamProjectFolderOpening>;
-
-/** A command that opens a stream's project folder. */
-type StreamProjectFolderCommandName = keyof typeof STREAM_PROJECT_FOLDER_OPENING_OF_THE_COMMAND;
-
-/** `open_stream_project_folder`, `open_terminal_at_stream_project` or `open_stream_log_folder { stream }`: the project folder the runtime last listed for `stream`, or its log folder, opened where `commandName` opens it; refused naming why. */
-function openStreamProjectFolderOnRequest(
-  sharedState: TatolabAppSharedState,
-  commandName: StreamProjectFolderCommandName,
-  stream: string,
-): Promise<Result<void, string>> {
-  return answerTheWindow(commandName, () =>
-    openStreamProjectFolder(
-      sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? null,
-      stream,
-      STREAM_PROJECT_FOLDER_OPENING_OF_THE_COMMAND[commandName],
-      sharedState.streamProjectFolderOpeners,
-    ),
-  );
-}
-
-/** `choose_stream_project_folder { chosen_for }`: the app's folder dialog, answering the chosen folder as the runtime lists a project's; `null` when the person cancels. */
-function chooseStreamProjectFolder(sharedState: TatolabAppSharedState, chosenFor: StreamProjectFolderChosenFor): Promise<Result<string | null, string>> {
-  return answerTheWindow("choose_stream_project_folder", () => sharedState.streamProjectAdding.chooseStreamProjectFolder(chosenFor));
-}
-
-/** `create_stream_project { folder }`: the runtime's `create_project` queued in `folder`, or with `null` in a folder it draws, then a status round; refused in the runtime's own words. */
-function createStreamProject(sharedState: TatolabAppSharedState, folder: string | null): Promise<Result<ProjectCreationQueued, string>> {
-  return answerTheWindow("create_stream_project", async () => {
-    const queued = await sharedState.streamProjectAdding.createStreamProject(folder);
-    sharedState.statusPublisher.requestRefresh();
-    return queued;
-  });
-}
-
-/** `open_stream_project { folder }`: the runtime's `open_project` queued on `folder`, which opens it with its playback stopped, then a status round; refused in the runtime's own words. */
-function openStreamProject(sharedState: TatolabAppSharedState, folder: string): Promise<Result<ProjectStreamActionQueued, string>> {
-  return answerTheWindow("open_stream_project", async () => {
-    const queued = await sharedState.streamProjectAdding.openStreamProject(folder);
-    sharedState.statusPublisher.requestRefresh();
-    return queued;
-  });
-}
-
 /** The `{ stream }` arguments of the command `commandName` as the window sends them, or why they are not. */
 export function streamArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ stream: string }, string> {
   const stream = oneTextArgumentFrom(commandName, commandArguments, "stream", "a stream's id");
   return stream.ok ? succeeded({ stream: stream.value }) : stream;
 }
 
-/** The `{ folder }` arguments of the command `commandName` as the window sends them, or why they are not. */
-function folderArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ folder: string }, string> {
-  const folder = oneTextArgumentFrom(commandName, commandArguments, "folder", "a folder chosen in the window");
-  return folder.ok ? succeeded({ folder: folder.value }) : folder;
-}
+/** The arguments of `choose_stream_project_folder`: what the folder is chosen for. */
+const ChooseStreamProjectFolderArguments = Schema.Struct({ chosen_for: Schema.Literals(["project_to_open", "new_project_directory"]) });
 
-/** `choose_stream_project_folder`'s arguments as the window sends them, or why they are not. */
-function chooseStreamProjectFolderArgumentsFrom(commandArguments: unknown): Result<{ chosen_for: StreamProjectFolderChosenFor }, string> {
-  const chosenFor = isAJsonObject(commandArguments) ? commandArguments["chosen_for"] : undefined;
-  if (chosenFor !== "project_to_open" && chosenFor !== "new_project_directory") {
-    return failedWith("choose_stream_project_folder needs `chosen_for`, project_to_open or new_project_directory");
-  }
-  return succeeded({ chosen_for: chosenFor });
-}
+/** The arguments of `create_stream_project`: a folder chosen in the window, or `null` for one the runtime draws under `~/streams`. */
+const CreateStreamProjectArguments = Schema.Struct({ folder: Schema.NullOr(Schema.String) });
 
-/** `create_stream_project`'s arguments as the window sends them, or why they are not. */
-function createStreamProjectArgumentsFrom(commandArguments: unknown): Result<{ folder: string | null }, string> {
-  if (!isAJsonObject(commandArguments) || !isTextOrNull(commandArguments["folder"])) {
-    return failedWith("create_stream_project needs `folder`, a folder chosen in the window, or null for one the runtime draws under ~/streams");
-  }
-  return succeeded({ folder: commandArguments["folder"] });
-}
+/** The arguments of `open_stream_project`: a folder chosen in the window. */
+const OpenStreamProjectArguments = Schema.Struct({ folder: Schema.String });
 
-async function streamProjectFolderOpeningOnTheStreamNamedIn(
-  sharedState: TatolabAppSharedState,
-  commandName: StreamProjectFolderCommandName,
-  commandArguments: unknown,
-): Promise<Result<void, string>> {
-  const streamArguments = streamArgumentsFrom(commandName, commandArguments);
-  return streamArguments.ok ? openStreamProjectFolderOnRequest(sharedState, commandName, streamArguments.value.stream) : streamArguments;
+/** The window's `commandName { stream }` on `studioRuntime`: the project folder the runtime last listed for the stream, or its log folder, opened as `opening` asks, answering nothing. */
+function streamProjectFolderCommand(
+  studioRuntime: ManagedRuntime.ManagedRuntime<StudioServices, never>,
+  commandName: "open_stream_project_folder" | "open_terminal_at_stream_project" | "open_stream_log_folder",
+  opening: StreamProjectFolderOpening,
+) {
+  return windowCommand(studioRuntime, commandName, StreamArguments, ({ stream }) => openTheStreamsProjectFolder(stream, opening).pipe(Effect.as(null)));
 }
 
 type StreamAndRuntimeProjectCommandName =
@@ -246,27 +182,12 @@ export function streamAndRuntimeProjectCommandHandlersOf(
       }),
     ),
     describe_stream_action: windowCommand(studioRuntime, "describe_stream_action", StreamActionArguments, ({ action }) => describeStreamAction(action)),
-    open_stream_project_folder: async (commandArguments) =>
-      commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_stream_project_folder", commandArguments)),
-    open_terminal_at_stream_project: async (commandArguments) =>
-      commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_terminal_at_stream_project", commandArguments)),
-    open_stream_log_folder: async (commandArguments) =>
-      commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_stream_log_folder", commandArguments)),
-    choose_stream_project_folder: async (commandArguments) => {
-      const chooseArguments = chooseStreamProjectFolderArgumentsFrom(commandArguments);
-      if (!chooseArguments.ok) return { ok: false, refusal: chooseArguments.failure };
-      return commandAnswerFrom(await chooseStreamProjectFolder(sharedState, chooseArguments.value.chosen_for));
-    },
-    create_stream_project: async (commandArguments) => {
-      const folderArguments = createStreamProjectArgumentsFrom(commandArguments);
-      if (!folderArguments.ok) return { ok: false, refusal: folderArguments.failure };
-      return commandAnswerFrom(await createStreamProject(sharedState, folderArguments.value.folder));
-    },
-    open_stream_project: async (commandArguments) => {
-      const folderArguments = folderArgumentsFrom("open_stream_project", commandArguments);
-      if (!folderArguments.ok) return { ok: false, refusal: folderArguments.failure };
-      return commandAnswerFrom(await openStreamProject(sharedState, folderArguments.value.folder));
-    },
+    open_stream_project_folder: streamProjectFolderCommand(studioRuntime, "open_stream_project_folder", "file_manager"),
+    open_terminal_at_stream_project: streamProjectFolderCommand(studioRuntime, "open_terminal_at_stream_project", "terminal"),
+    open_stream_log_folder: streamProjectFolderCommand(studioRuntime, "open_stream_log_folder", "log_folder_in_the_file_manager"),
+    choose_stream_project_folder: windowCommand(studioRuntime, "choose_stream_project_folder", ChooseStreamProjectFolderArguments, ({ chosen_for }) => chooseAStreamProjectFolder(chosen_for)),
+    create_stream_project: windowCommand(studioRuntime, "create_stream_project", CreateStreamProjectArguments, ({ folder }) => createAStreamProject(folder)),
+    open_stream_project: windowCommand(studioRuntime, "open_stream_project", OpenStreamProjectArguments, ({ folder }) => openAStreamProject(folder)),
     follow_stream_graph_changes: async (commandArguments, commandFromWindow) => {
       const followed = streamArgumentsFrom("follow_stream_graph_changes", commandArguments);
       if (!followed.ok) return { ok: false, refusal: followed.failure };
