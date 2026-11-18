@@ -31,14 +31,14 @@ import {
   type DiscoverResult,
   type ProjectActionRefusalOnTheWire,
 } from "@tatolab/runtime-client";
-import { Context, Effect } from "effect";
+import { Context, Effect, type Scope, type Stream } from "effect";
 import { TATO_STUDIO_MCP_CLIENT_NAME, type ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { ContractMismatch, RuntimeOfAnotherContract, RuntimeRefused, RuntimeTimedOut, RuntimeUnreachable, type RuntimeControlFailure } from "./runtime_control_failures.js";
 import { fromResult } from "./result_as_effect.js";
 
-export type { ControlNotifications, ControlOperationMethodName, ControlOperations };
+export type { ControlNotificationMethodName, ControlNotifications, ControlOperationMethodName, ControlOperations };
 export type {
   ControlContractComponents,
   ControlContractIssue,
@@ -222,8 +222,23 @@ export class RuntimeControl extends Context.Service<
     readonly discover: Effect.Effect<DiscoverResult, RuntimeControlFailure>;
     /** `GET requestTarget`, one of the local API's plain HTTP requests, given up once the connection sits idle for the default time limit: its whole response, whatever its status. */
     readonly get: (requestTarget: string) => Effect.Effect<LocalApiHttpResponse, RuntimeControlFailure>;
+    /**
+     * Open a `/control/ws` connection, its `discover` answered within the default time limit, held open until the scope closes;
+     * `RuntimeOfAnotherContract` when the runtime refused this Studio's contract.
+     */
+    readonly connect: Effect.Effect<ControlConnection, RuntimeControlFailure, Scope.Scope>;
   }
 >()("tatolab-app/RuntimeControl") {}
+
+/** One `/control/ws` connection to the runtime, carrying any number of calls at once, open while the scope that opened it is. */
+export interface ControlConnection {
+  /** `method` called with `params` on this connection, within the operation's time limit; a call once the connection closed fails unsent. */
+  readonly call: <Method extends ControlOperationMethodName>(method: Method, params: ControlOperationParams<Method>) => Effect.Effect<ControlOperationResult<Method>, RuntimeControlFailure>;
+  /** The params of each `method` notification the runtime sends on this connection from now on. */
+  readonly notifications: <Method extends ControlNotificationMethodName>(method: Method) => Stream.Stream<ControlNotifications[Method]>;
+  /** Why the runtime closed the connection, once it does; never, while the runtime keeps it open. */
+  readonly closedByTheRuntime: Effect.Effect<string>;
+}
 
 /**
  * `method` called with `params` and its answer read with `readTheAnswer`, a reader that walks the contract's type into the one

@@ -1,171 +1,252 @@
+import { Duration, Effect, Stream } from "effect";
+import { TestClock } from "effect/testing";
 import { expect, test } from "vitest";
-import { CONTROL_PUSHES_SUBSCRIBED_AGAIN_AFTER_MS, ControlPushesFollowedForTheWindows, type ControlPushesConnection } from "./control_pushes_followed_for_the_windows.js";
-import { localApiRequestFailure } from "./local_api_request_failure.js";
-import { failedWith, succeeded, type Result } from "./result.js";
-import { createTatolabAppLog } from "./tatolab_app_log.js";
+import { fakeRuntimeOfConnections, refusedByTheOperation, runOnATestClock, settle, type FakeControlConnection } from "./control_connection_test_support.js";
+import { isAJsonObject } from "./json_on_the_wire.js";
+import { CONTROL_PUSHES_SUBSCRIBED_AGAIN_AFTER, controlPushesFollowedForTheWindows, type ControlPushesFeed } from "./control_pushes_followed_for_the_windows.js";
 
-const quietTatolabAppLog = createTatolabAppLog("error", () => {});
-
-/** A `/control/ws` connection that subscribes each stream in `streamsLoaded`, refuses any other in the runtime's words, and records every subscribe. */
-class FakeStreamGraphChangesConnection implements ControlPushesConnection<null> {
-  readonly streamsSubscribed: string[] = [];
-  private readonly streamGraphChangedListeners: ((stream: string, pushed: null) => void)[] = [];
-  private readonly closedListeners: ((whyItClosed: string) => void)[] = [];
-  private isOpenNow = true;
-
-  constructor(private readonly streamsLoaded: Set<string>) {}
-
-  async subscribeToThePushesOf(stream: string): Promise<Result<void, string>> {
-    this.streamsSubscribed.push(stream);
-    return this.streamsLoaded.has(stream) ? succeeded(undefined) : failedWith(`subscribe_stream_graph_changes failed: no stream with the id \`${stream}\` is loaded in this runtime`);
-  }
-
-  onPushed(listener: (stream: string, pushed: null) => void): void {
-    this.streamGraphChangedListeners.push(listener);
-  }
-
-  onClosed(whenTheConnectionCloses: (whyItClosed: string) => void): void {
-    this.closedListeners.push(whenTheConnectionCloses);
-  }
-
-  isOpen(): boolean {
-    return this.isOpenNow;
-  }
-
-  close(): void {
-    this.isOpenNow = false;
-  }
-
-  pushTheStreamGraphChanged(stream: string): void {
-    for (const listener of this.streamGraphChangedListeners) listener(stream, null);
-  }
-
-  closeFromTheRuntime(): void {
-    this.isOpenNow = false;
-    for (const listener of this.closedListeners) listener("the runtime closed the /control/ws connection");
-  }
-}
+/** Stream graphs followed with one subscribe each, refused for a stream the runtime does not hold loaded, and each `stream_graph_changed` pushed with nothing. */
+const STREAM_GRAPHS: ControlPushesFeed<null> = {
+  subjectAsTheLogNamesIt: "stream graph",
+  subscribe: (connection, stream) => connection.call("subscribe_stream_graph_changes", { streams: [stream] }).pipe(Effect.asVoid),
+  pushes: (connection) => connection.notifications("stream_graph_changed").pipe(Stream.map((changed) => ({ subject: changed.stream, pushed: null }))),
+};
 
 /** A window recording each stream it is told changed. */
-function windowRecordingTheChanges(): { streamsToldChanged: string[] } {
+interface WindowRecordingTheChanges {
+  readonly streamsToldChanged: string[];
+}
+
+function windowRecordingTheChanges(): WindowRecordingTheChanges {
   return { streamsToldChanged: [] };
 }
 
-/** The followed stream graphs over fake connections, each opened one recorded, and waits run only when `runTheWaits` is called. */
-function streamGraphChangesFollowedOverFakeConnections(streamsLoaded: Set<string>) {
-  const connectionsOpened: FakeStreamGraphChangesConnection[] = [];
-  const waitsPending: { afterMs: number; then: () => void }[] = [];
-  let doesTheRuntimeAnswer = true;
-  const followed = new ControlPushesFollowedForTheWindows<{ streamsToldChanged: string[] }, null>({
-    openThePushesConnection: async () => {
-      if (!doesTheRuntimeAnswer) return localApiRequestFailure("no runtime answers at /tmp/local-api.sock");
-      const connection = new FakeStreamGraphChangesConnection(streamsLoaded);
-      connectionsOpened.push(connection);
-      return succeeded(connection);
-    },
-    tellTheWindowItChanged: (windowFollowing, stream) => windowFollowing.streamsToldChanged.push(stream),
-    waitThen: (afterMs, then) => waitsPending.push({ afterMs, then }),
-    tatolabAppLog: quietTatolabAppLog,
-    subjectAsTheLogNamesIt: "stream graph",
+/** A runtime holding `streamsLoaded`, whose connections subscribe each and refuse any other in the runtime's words, and the stream graphs followed over it. */
+function streamGraphsFollowedOverAFakeRuntime(streamsLoaded: Set<string>) {
+  const runtime = fakeRuntimeOfConnections({
+    subscribe_stream_graph_changes: ({ streams }) => streams.every((stream) => streamsLoaded.has(stream))
+        ? Effect.succeed({ streams })
+        : Effect.fail(refusedByTheOperation("subscribe_stream_graph_changes", `subscribe_stream_graph_changes failed: no stream with the id \`${streams.join(", ")}\` is loaded in this runtime`)),
   });
-  return {
-    followed,
-    connectionsOpened,
-    waitsPending,
-    setTheRuntimeAnswers: (answers: boolean) => {
-      doesTheRuntimeAnswer = answers;
-    },
-    runTheWaits: () => {
-      for (const wait of waitsPending.splice(0)) wait.then();
-    },
-  };
+  const followed = controlPushesFollowedForTheWindows(STREAM_GRAPHS, (windowFollowing: WindowRecordingTheChanges, stream) => void windowFollowing.streamsToldChanged.push(stream));
+  return { ...runtime, followed };
 }
 
-async function settle(): Promise<void> {
-  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+/** Each stream `connection` was asked to subscribe, in order. */
+function streamsSubscribedOn(connection: FakeControlConnection | undefined): string[] {
+  return (connection?.callsMade ?? []).flatMap(([, params]) =>
+    isAJsonObject(params) && Array.isArray(params["streams"]) ? params["streams"].filter((stream): stream is string => typeof stream === "string") : [],
+  );
 }
 
 test("two_windows_following_one_stream_share_one_subscription_and_each_is_told_of_its_changes", async () => {
-  const { followed, connectionsOpened } = streamGraphChangesFollowedOverFakeConnections(new Set(["main"]));
+  const { followed, connectionsOpened, layer } = streamGraphsFollowedOverAFakeRuntime(new Set(["main"]));
   const studioWindow = windowRecordingTheChanges();
   const poppedOutView = windowRecordingTheChanges();
 
-  followed.follow("main", studioWindow);
-  followed.follow("main", poppedOutView);
-  await settle();
-  const [connection] = connectionsOpened;
-  connection?.pushTheStreamGraphChanged("main");
-  connection?.pushTheStreamGraphChanged("another-stream");
+  await runOnATestClock(
+    Effect.gen(function* () {
+      const streamGraphs = yield* followed;
+      yield* streamGraphs.follow("main", studioWindow);
+      yield* streamGraphs.follow("main", poppedOutView);
+      yield* settle;
+      connectionsOpened[0]?.push("stream_graph_changed", { stream: "main", change: "missed" });
+      connectionsOpened[0]?.push("stream_graph_changed", { stream: "another-stream", change: "missed" });
+      yield* settle;
+    }),
+    layer,
+  );
 
   expect(connectionsOpened).toHaveLength(1);
-  expect(connection?.streamsSubscribed).toEqual(["main"]);
+  expect(streamsSubscribedOn(connectionsOpened[0])).toEqual(["main"]);
   expect(studioWindow.streamsToldChanged).toEqual(["main", "main"]);
   expect(poppedOutView.streamsToldChanged).toEqual(["main", "main"]);
 });
 
-test("a_stream_not_loaded_yet_is_subscribed_again_after_a_wait_and_its_window_told_once_it_is", async () => {
+test("a_stream_not_loaded_yet_is_subscribed_again_on_the_schedule_and_its_window_told_once_it_is", async () => {
   const streamsLoaded = new Set<string>();
-  const { followed, connectionsOpened, waitsPending, runTheWaits } = streamGraphChangesFollowedOverFakeConnections(streamsLoaded);
+  const { followed, connectionsOpened, layer } = streamGraphsFollowedOverAFakeRuntime(streamsLoaded);
   const studioWindow = windowRecordingTheChanges();
 
-  followed.follow("main", studioWindow);
-  await settle();
-  expect(waitsPending.map((wait) => wait.afterMs)).toEqual([CONTROL_PUSHES_SUBSCRIBED_AGAIN_AFTER_MS]);
-  expect(studioWindow.streamsToldChanged).toEqual([]);
-  streamsLoaded.add("main");
-  runTheWaits();
-  await settle();
+  await runOnATestClock(
+    Effect.gen(function* () {
+      const streamGraphs = yield* followed;
+      yield* streamGraphs.follow("main", studioWindow);
+      yield* settle;
+      expect(studioWindow.streamsToldChanged).toEqual([]);
+      streamsLoaded.add("main");
+      yield* TestClock.adjust(CONTROL_PUSHES_SUBSCRIBED_AGAIN_AFTER);
+    }),
+    layer,
+  );
 
-  expect(connectionsOpened[0]?.streamsSubscribed).toEqual(["main", "main"]);
+  expect(streamsSubscribedOn(connectionsOpened[0])).toEqual(["main", "main"]);
   expect(studioWindow.streamsToldChanged).toEqual(["main"]);
 });
 
-test("a_connection_the_runtime_closes_is_opened_again_and_every_followed_stream_subscribed_again", async () => {
-  const { followed, connectionsOpened, runTheWaits } = streamGraphChangesFollowedOverFakeConnections(new Set(["main", "lobby"]));
+test("a_connection_the_runtime_closes_is_opened_again_on_the_schedule_and_every_followed_stream_subscribed_again", async () => {
+  const { followed, connectionsOpened, layer } = streamGraphsFollowedOverAFakeRuntime(new Set(["main", "lobby"]));
   const studioWindow = windowRecordingTheChanges();
-  followed.follow("main", studioWindow);
-  followed.follow("lobby", studioWindow);
-  await settle();
 
-  connectionsOpened[0]?.closeFromTheRuntime();
-  connectionsOpened[0]?.pushTheStreamGraphChanged("main");
-  runTheWaits();
-  await settle();
+  await runOnATestClock(
+    Effect.gen(function* () {
+      const streamGraphs = yield* followed;
+      yield* streamGraphs.follow("main", studioWindow);
+      yield* streamGraphs.follow("lobby", studioWindow);
+      yield* settle;
+      connectionsOpened[0]?.closeFromTheRuntime();
+      yield* settle;
+      connectionsOpened[0]?.push("stream_graph_changed", { stream: "main", change: "missed" });
+      expect(connectionsOpened).toHaveLength(1);
+      yield* TestClock.adjust(CONTROL_PUSHES_SUBSCRIBED_AGAIN_AFTER);
+    }),
+    layer,
+  );
 
+  expect(connectionsOpened[0]?.closedByTheApp).toBe(true);
   expect(connectionsOpened).toHaveLength(2);
-  expect(connectionsOpened[1]?.streamsSubscribed.sort()).toEqual(["lobby", "main"]);
+  expect(streamsSubscribedOn(connectionsOpened[1]).sort()).toEqual(["lobby", "main"]);
   expect(studioWindow.streamsToldChanged.sort()).toEqual(["lobby", "lobby", "main", "main"]);
 });
 
-test("a_runtime_that_does_not_answer_is_tried_again_after_a_wait", async () => {
-  const { followed, connectionsOpened, setTheRuntimeAnswers, runTheWaits } = streamGraphChangesFollowedOverFakeConnections(new Set(["main"]));
+test("a_runtime_that_does_not_answer_is_tried_again_on_the_schedule", async () => {
+  const { followed, connectionsOpened, runtime, layer } = streamGraphsFollowedOverAFakeRuntime(new Set(["main"]));
   const studioWindow = windowRecordingTheChanges();
-  setTheRuntimeAnswers(false);
+  runtime.answers = false;
 
-  followed.follow("main", studioWindow);
-  await settle();
-  setTheRuntimeAnswers(true);
-  runTheWaits();
-  await settle();
+  await runOnATestClock(
+    Effect.gen(function* () {
+      const streamGraphs = yield* followed;
+      yield* streamGraphs.follow("main", studioWindow);
+      yield* settle;
+      runtime.answers = true;
+      yield* TestClock.adjust(CONTROL_PUSHES_SUBSCRIBED_AGAIN_AFTER);
+    }),
+    layer,
+  );
 
   expect(connectionsOpened).toHaveLength(1);
   expect(studioWindow.streamsToldChanged).toEqual(["main"]);
 });
 
 test("the_connection_closes_once_no_window_follows_and_a_closed_window_is_told_nothing_more", async () => {
-  const { followed, connectionsOpened } = streamGraphChangesFollowedOverFakeConnections(new Set(["main", "lobby"]));
+  const { followed, connectionsOpened, layer } = streamGraphsFollowedOverAFakeRuntime(new Set(["main", "lobby"]));
   const studioWindow = windowRecordingTheChanges();
   const poppedOutView = windowRecordingTheChanges();
-  followed.follow("main", studioWindow);
-  followed.follow("lobby", poppedOutView);
-  await settle();
-  const [connection] = connectionsOpened;
 
-  followed.stopFollowingEverySubjectOf(poppedOutView);
-  connection?.pushTheStreamGraphChanged("lobby");
-  expect(connection?.isOpen()).toBe(true);
-  followed.stopFollowing("main", studioWindow);
+  await runOnATestClock(
+    Effect.gen(function* () {
+      const streamGraphs = yield* followed;
+      yield* streamGraphs.follow("main", studioWindow);
+      yield* streamGraphs.follow("lobby", poppedOutView);
+      yield* settle;
+      yield* streamGraphs.stopFollowingEverySubjectOf(poppedOutView);
+      connectionsOpened[0]?.push("stream_graph_changed", { stream: "lobby", change: "missed" });
+      yield* settle;
+      expect(connectionsOpened[0]?.closedByTheApp).toBe(false);
+      yield* streamGraphs.stopFollowing("main", studioWindow);
+      yield* settle;
+    }),
+    layer,
+  );
 
   expect(poppedOutView.streamsToldChanged).toEqual(["lobby"]);
-  expect(connection?.isOpen()).toBe(false);
+  expect(connectionsOpened[0]?.closedByTheApp).toBe(true);
+  expect(connectionsOpened).toHaveLength(1);
+});
+
+test("a_stream_followed_again_after_the_connection_closed_opens_a_new_one", async () => {
+  const { followed, connectionsOpened, layer } = streamGraphsFollowedOverAFakeRuntime(new Set(["main"]));
+  const studioWindow = windowRecordingTheChanges();
+
+  await runOnATestClock(
+    Effect.gen(function* () {
+      const streamGraphs = yield* followed;
+      yield* streamGraphs.follow("main", studioWindow);
+      yield* settle;
+      yield* streamGraphs.stopFollowing("main", studioWindow);
+      yield* settle;
+      yield* streamGraphs.follow("main", studioWindow);
+      yield* settle;
+    }),
+    layer,
+  );
+
+  expect(connectionsOpened.map((connection) => connection.closedByTheApp)).toEqual([true, true]);
+  expect(studioWindow.streamsToldChanged).toEqual(["main", "main"]);
+});
+
+test("a_window_that_breaks_on_a_push_closes_the_connection_and_it_is_opened_again_on_the_schedule", async () => {
+  const runtime = fakeRuntimeOfConnections({ subscribe_stream_graph_changes: ({ streams }) => Effect.succeed({ streams }) });
+  let timesTold = 0;
+  const studioWindow = windowRecordingTheChanges();
+  const followed = controlPushesFollowedForTheWindows(STREAM_GRAPHS, (windowFollowing: WindowRecordingTheChanges, stream) => {
+    timesTold += 1;
+    if (timesTold === 2) throw new Error("the window could not draw the change");
+    windowFollowing.streamsToldChanged.push(stream);
+  });
+
+  await runOnATestClock(
+    Effect.gen(function* () {
+      const streamGraphs = yield* followed;
+      yield* streamGraphs.follow("main", studioWindow);
+      yield* settle;
+      runtime.connectionsOpened[0]?.push("stream_graph_changed", { stream: "main", change: "missed" });
+      yield* settle;
+      expect(runtime.connectionsOpened[0]?.closedByTheApp).toBe(true);
+      yield* TestClock.adjust(CONTROL_PUSHES_SUBSCRIBED_AGAIN_AFTER);
+      runtime.connectionsOpened[1]?.push("stream_graph_changed", { stream: "main", change: "missed" });
+      yield* settle;
+    }),
+    runtime.layer,
+  );
+
+  expect(runtime.connectionsOpened).toHaveLength(2);
+  expect(studioWindow.streamsToldChanged).toEqual(["main", "main", "main"]);
+});
+
+test("a_connect_that_breaks_is_tried_again_on_the_schedule", async () => {
+  const { followed, connectionsOpened, runtime, layer } = streamGraphsFollowedOverAFakeRuntime(new Set(["main"]));
+  const studioWindow = windowRecordingTheChanges();
+  runtime.breaksOnTheNextConnect = true;
+
+  await runOnATestClock(
+    Effect.gen(function* () {
+      const streamGraphs = yield* followed;
+      yield* streamGraphs.follow("main", studioWindow);
+      yield* settle;
+      expect(connectionsOpened).toHaveLength(0);
+      yield* TestClock.adjust(CONTROL_PUSHES_SUBSCRIBED_AGAIN_AFTER);
+    }),
+    layer,
+  );
+
+  expect(connectionsOpened).toHaveLength(1);
+  expect(studioWindow.streamsToldChanged).toEqual(["main"]);
+});
+
+test("a_stream_unfollowed_before_it_was_subscribed_is_tried_no_more_and_its_window_told_once_it_is_followed_again", async () => {
+  const streamsLoaded = new Set<string>(["lobby"]);
+  const { followed, connectionsOpened, layer } = streamGraphsFollowedOverAFakeRuntime(streamsLoaded);
+  const studioWindow = windowRecordingTheChanges();
+
+  await runOnATestClock(
+    Effect.gen(function* () {
+      const streamGraphs = yield* followed;
+      yield* streamGraphs.follow("lobby", studioWindow);
+      yield* streamGraphs.follow("main", studioWindow);
+      yield* settle;
+      yield* streamGraphs.stopFollowing("main", studioWindow);
+      yield* settle;
+      yield* TestClock.adjust(Duration.times(CONTROL_PUSHES_SUBSCRIBED_AGAIN_AFTER, 3));
+      expect(streamsSubscribedOn(connectionsOpened[0]).sort()).toEqual(["lobby", "main"]);
+      streamsLoaded.add("main");
+      yield* streamGraphs.follow("main", studioWindow);
+      yield* settle;
+    }),
+    layer,
+  );
+
+  expect(connectionsOpened).toHaveLength(1);
+  expect(studioWindow.streamsToldChanged.sort()).toEqual(["lobby", "main"]);
 });

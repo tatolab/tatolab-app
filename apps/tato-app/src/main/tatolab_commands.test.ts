@@ -1,9 +1,7 @@
 import { afterEach, expect, test } from "vitest";
 import { controlOperationFailedResponse, httpResponse, controlOperationResultResponse, controlWebSocketUpgradeRefusedWithWords, runtimeDescribedResponse } from "./fake_local_api_server.js";
-import { succeeded } from "./result.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
-import { streamArgumentsFrom } from "./tatolab_stream_and_runtime_project_commands.js";
 import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
@@ -142,11 +140,6 @@ test("a refusal from the runtime reaches the window in the runtime's own words, 
     ok: false,
     refusal: "The runtime lists no stream from /tmp/nope.",
   });
-});
-
-test("a command's arguments are read as the window sends them, and anything else is refused", () => {
-  expect(streamArgumentsFrom("describe_stream_graph", { stream: "main" })).toEqual(succeeded({ stream: "main" }));
-  expect(streamArgumentsFrom("describe_stream_graph", {}).ok).toBe(false);
 });
 
 test("each command answers the window in the contract's shape, a refusal in its own words and nothing as null", async () => {

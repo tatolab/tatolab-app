@@ -22,6 +22,9 @@ import type { ProjectFolderDialogPurpose, RecentProjectFolderOpened, StudioWindo
 import type { ProjectAssetFileFilter } from "./project_asset_file_filters.js";
 import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { readThePackageCatalog } from "./package_catalog.js";
+import { controlPushesFollowedForTheWindows } from "./control_pushes_followed_for_the_windows.js";
+import { PROJECT_LOG_RECORDS_WRITTEN, tellTheWindowTheProjectLogRecordsWritten, type ProjectLogRecordsFollowedForTheWindows, type WindowFollowingProjectLogs } from "./project_log_records_followed_for_the_windows.js";
+import { STREAM_GRAPH_CHANGES, tellTheWindowTheStreamGraphChanged, type StreamGraphChangesFollowedForTheWindows, type WindowFollowingStreamGraphs } from "./stream_graph_changes_followed_for_the_windows.js";
 import { failedWith, type Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
 import type { TatolabAppLog, TatolabAppLogFields, TatolabAppLogLevel } from "./tatolab_app_log.js";
@@ -51,6 +54,8 @@ export class StudioWindows extends Context.Service<
     readonly closeTheStudioWindowOf: (folder: string) => Effect.Effect<void>;
     /** Step the Projects window aside for the project's own window when the command came from it; a studio window is left as it is. */
     readonly stepTheProjectsWindowAsideFor: (commandFromWindow: TatolabCommandFromWindow) => Effect.Effect<void>;
+    /** The window a command came from when it follows the runtime's pushes, a studio window or a view popped out of one; `null` from any other. */
+    readonly windowFollowingTheRuntimeOf: (commandFromWindow: TatolabCommandFromWindow) => WindowFollowingTheRuntime | null;
   }
 >()("tatolab-app/StudioWindows") {}
 
@@ -247,6 +252,27 @@ export class IdempotencyKeys extends Context.Service<IdempotencyKeys, { readonly
 /** This copy of the Studio's version, which names the contents of its own node UI module. */
 export class StudioAppVersion extends Context.Service<StudioAppVersion, { readonly version: string }>()("tatolab-app/StudioAppVersion") {}
 
+/** The stream graphs the app's windows follow, over a connection to the runtime held open while one is followed. */
+export class StreamGraphsFollowed extends Context.Service<StreamGraphsFollowed, StreamGraphChangesFollowedForTheWindows>()("tatolab-app/StreamGraphsFollowed") {}
+
+/** The project logs the app's windows follow, over a connection to the runtime held open while one is followed. */
+export class ProjectLogsFollowed extends Context.Service<ProjectLogsFollowed, ProjectLogRecordsFollowedForTheWindows>()("tatolab-app/ProjectLogsFollowed") {}
+
+/** A window that follows the runtime's pushes: told each change of a stream graph and each project log record it follows. */
+export type WindowFollowingTheRuntime = WindowFollowingStreamGraphs & WindowFollowingProjectLogs;
+
+/** The stream graphs and project logs the windows follow, over the runtime's connections while the layer's scope is open. */
+export function runtimePushesFollowedLayerOver(runtimeControl: Layer.Layer<RuntimeControl>, tatolabAppLog: TatolabAppLog): Layer.Layer<StreamGraphsFollowed | ProjectLogsFollowed> {
+  return Layer.mergeAll(
+    Layer.effect(StreamGraphsFollowed, controlPushesFollowedForTheWindows(STREAM_GRAPH_CHANGES, tellTheWindowTheStreamGraphChanged)),
+    Layer.effect(ProjectLogsFollowed, controlPushesFollowedForTheWindows(PROJECT_LOG_RECORDS_WRITTEN, tellTheWindowTheProjectLogRecordsWritten)),
+    // The following runs in fibers of its own, which log through the logger provided to them here.
+  ).pipe(Layer.provide(Layer.merge(runtimeControl, tatolabAppLogAsEffectsLogger(tatolabAppLog))));
+}
+
+/** How long a connection the windows follow the runtime's pushes over waits for the runtime to answer a subscribe. */
+const CONTROL_PUSHES_CONNECTION_REQUEST_TIMEOUT_MS = 5_000;
+
 /** Every service the main process's Effect code runs on. */
 export type StudioServices =
   | RuntimeControl
@@ -267,7 +293,9 @@ export type StudioServices =
   | FoldersChosenInTheWindow
   | PersonEditingInStudio
   | IdempotencyKeys
-  | StudioAppVersion;
+  | StudioAppVersion
+  | StreamGraphsFollowed
+  | ProjectLogsFollowed;
 
 /** The app's log level each of Effect's log levels writes at; `None` writes nothing. */
 function tatolabAppLogLevelOf(logLevel: LogLevel.LogLevel): TatolabAppLogLevel | null {
@@ -331,6 +359,7 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
     fromResult(studioWindowTheCommandCameFrom(sharedState, commandFromWindow), (words) => new CommandRefused({ words }));
   return Layer.mergeAll(
     runtimeControlLayer(localApiSocketPath, LOCAL_API_REQUEST_TIMEOUT_MS),
+    runtimePushesFollowedLayerOver(runtimeControlLayer(localApiSocketPath, CONTROL_PUSHES_CONNECTION_REQUEST_TIMEOUT_MS), sharedState.tatolabAppLog),
     Layer.succeed(StudioWindows, {
       projectFolderOfTheWindow: (commandFromWindow) => studioWindowOf(commandFromWindow).pipe(Effect.map((studioWindow) => studioWindow.projectTransactionsFeed.projectFolder)),
       openProjectReadingOfTheWindow: (commandFromWindow) => studioWindowOf(commandFromWindow).pipe(Effect.map((studioWindow) => studioWindow.openProject.readOpenProject())),
@@ -342,6 +371,7 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
         Effect.sync(() => {
           if (sharedState.appWindows.isTheProjectsWindow(commandFromWindow.windowContentsId)) sharedState.appWindows.projectsWindow.hide();
         }),
+      windowFollowingTheRuntimeOf: (commandFromWindow) => sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId),
       folderOfTheWindowsOpenProject: (commandFromWindow, folder) => {
         const openProjectFolder = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId)?.openProject.projectFolderOfTheOpenProject(folder);
         return openProjectFolder?.ok === true ? openProjectFolder.value : null;
