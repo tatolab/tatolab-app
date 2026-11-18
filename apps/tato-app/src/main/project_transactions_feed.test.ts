@@ -8,6 +8,7 @@ import { fakeRuntimeOfConnections, refusedByTheOperation, settle, type FakeContr
 import { isAJsonObject } from "./json_on_the_wire.js";
 import { PROJECT_TRANSACTIONS_FOLLOWED_AGAIN_AFTER, ProjectTransactionsFeedOfAStudioWindow } from "./project_transactions_feed.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
+import { ProjectFeedsFollowed, projectFeedsFollowedLayerOver } from "./studio_runtime.js";
 import type { ControlNotifications, ControlOperationResult } from "./tatolab_runtime_control_operation_call.js";
 
 const PROJECT_FOLDER = "/home/sam/streams/pattern";
@@ -240,6 +241,29 @@ test("closes_its_connection_when_the_window_closes_and_sends_nothing_after", asy
 
   expect(connectionsOpened[0]?.closedByTheApp).toBe(true);
   expect(readingsSent).toHaveLength(1);
+});
+
+test("a_feed_followed_in_the_studio_runtimes_scope_closes_its_connection_as_the_studio_runtime_is_disposed", async () => {
+  const runtime = fakeRuntimeOfConnections({
+    read_project_changes: () => Effect.succeed(changeFeedHolding(["t1"])),
+    subscribe_project_changes: ({ projects }) => Effect.succeed({ projects }),
+  });
+  const studioRuntime = ManagedRuntime.make(projectFeedsFollowedLayerOver(runtime.layer));
+  const feed = new ProjectTransactionsFeedOfAStudioWindow(PROJECT_FOLDER, {
+    followOverTheRuntime: (following) => {
+      const followingFiber = studioRuntime.runFork(ProjectFeedsFollowed.use((followed) => followed.follow(following)));
+      return () => followingFiber.interruptUnsafe();
+    },
+    sendTheWindowTheProjectTransactions: () => undefined,
+    tellTheWindowTheProjectFilesChanged: () => undefined,
+    tellTheWindowTheProjectNodeTypesChanged: () => undefined,
+  });
+
+  feed.follow();
+  await expect.poll(() => feed.readProjectTransactions().kind).toBe("read");
+  await studioRuntime.dispose();
+
+  expect(runtime.connectionsOpened.map((connection) => connection.closedByTheApp)).toEqual([true]);
 });
 
 const liveLocalApiSocket = process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"];

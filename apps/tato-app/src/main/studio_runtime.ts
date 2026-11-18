@@ -4,7 +4,7 @@
 // app's log, never to the console.
 
 import { randomUUID } from "node:crypto";
-import { Cause, Context, Effect, HashSet, Layer, Logger, Ref, References, type LogLevel } from "effect";
+import { Cause, Context, Effect, Fiber, FiberSet, HashSet, Layer, Logger, Ref, References, type LogLevel } from "effect";
 import type {
   DependencySourceKind,
   ListedStream,
@@ -287,6 +287,35 @@ export function streamActionsFollowedLayerOver(
   );
 }
 
+/** What runs each studio window's following of its project's change feed: in the studio runtime's scope, over `RuntimeControl`. */
+export class ProjectFeedsFollowed extends Context.Service<
+  ProjectFeedsFollowed,
+  {
+    /** `following` run in the studio runtime's scope until it or the studio runtime is interrupted. */
+    readonly follow: (following: Effect.Effect<never, never, RuntimeControl>) => Effect.Effect<never>;
+  }
+>()("tatolab-app/ProjectFeedsFollowed") {}
+
+/** Each studio window's project change feed followed over `runtimeControl` while the layer's scope is open. */
+export function projectFeedsFollowedLayerOver(runtimeControl: Layer.Layer<RuntimeControl>): Layer.Layer<ProjectFeedsFollowed> {
+  return Layer.effect(
+    ProjectFeedsFollowed,
+    Effect.gen(function* () {
+      const followings = yield* FiberSet.make<never, never>();
+      const overTheRuntime = yield* Effect.context<RuntimeControl>();
+      return {
+        follow: (following) =>
+          FiberSet.run(followings, following.pipe(Effect.provide(overTheRuntime))).pipe(
+            Effect.flatMap((followingFiber) => Fiber.join(followingFiber).pipe(Effect.onInterrupt(() => Fiber.interrupt(followingFiber)))),
+          ),
+      };
+    }),
+  ).pipe(Layer.provide(runtimeControl));
+}
+
+/** How long a project change feed's connection waits for the runtime to read the feed, which opens the project, or to subscribe it. */
+const PROJECT_FEEDS_CONNECTION_REQUEST_TIMEOUT_MS = 10_000;
+
 /** How long the stream actions' connection waits for the runtime to answer a subscribe or a describe. */
 const STREAM_ACTIONS_CONNECTION_REQUEST_TIMEOUT_MS = 10_000;
 
@@ -316,6 +345,7 @@ export type StudioServices =
   | StudioAppVersion
   | StreamGraphsFollowed
   | StreamActionsFollowed
+  | ProjectFeedsFollowed
   | ProjectLogsFollowed;
 
 /** The app's log level each of Effect's log levels writes at; `None` writes nothing. */
@@ -381,6 +411,7 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
   return Layer.mergeAll(
     runtimeControlLayer(localApiSocketPath, LOCAL_API_REQUEST_TIMEOUT_MS),
     runtimePushesFollowedLayerOver(runtimeControlLayer(localApiSocketPath, CONTROL_PUSHES_CONNECTION_REQUEST_TIMEOUT_MS), sharedState.tatolabAppLog),
+    projectFeedsFollowedLayerOver(runtimeControlLayer(localApiSocketPath, PROJECT_FEEDS_CONNECTION_REQUEST_TIMEOUT_MS)),
     streamActionsFollowedLayerOver(runtimeControlLayer(localApiSocketPath, STREAM_ACTIONS_CONNECTION_REQUEST_TIMEOUT_MS), sharedState.tatolabAppLog, sharedState.streamActionsNoticed, () =>
       sharedState.statusPublisher.requestRefresh(),
     ),

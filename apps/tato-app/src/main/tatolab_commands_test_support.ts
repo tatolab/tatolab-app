@@ -44,6 +44,7 @@ import {
   studioRuntimeLayer,
   runtimePushesFollowedLayerOver,
   streamActionsFollowedLayerOver,
+  projectFeedsFollowedLayerOver,
   type WindowFollowingTheRuntime,
   StudioWindows,
   SystemMediaAccessAhead,
@@ -147,6 +148,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
   return Layer.mergeAll(
     runtimeControl,
     runtimePushesFollowedLayerOver(overrides.runtimeControlOfThePushes ?? runtimeControl, overrides.tatolabAppLog ?? quietTatolabAppLog),
+    projectFeedsFollowedLayerOver(runtimeControl),
     streamActionsFollowedLayerOver(runtimeControl, overrides.tatolabAppLog ?? quietTatolabAppLog, new StreamActionsNoticed(), () => {}),
     Layer.succeed(StudioWindows, {
       projectFolderOfTheWindow: (commandFromWindow) =>

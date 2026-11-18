@@ -13,6 +13,7 @@
 import { Duration, Effect, Fiber, FiberSet, Latch, Result as EffectResult, Stream } from "effect";
 import type { ProjectTransactionsReading } from "../shared/tatolab_backend_contract.js";
 import { projectTransactionsFromTheChangeFeed } from "./project_transactions_on_the_wire.js";
+import { followedUntilTheConnectionEnds, runsOneAtATime, type AfterTheRun } from "./runtime_connection_following.js";
 import { controlOperationOnTheConnectionReadWith, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 
 /** How long after the feed's connection ends it is followed again. */
@@ -91,28 +92,17 @@ export class ProjectTransactionsFeedOfAStudioWindow {
       const firstRead = yield* readTheFeed;
       const project = firstRead.project;
       const reading = yield* FiberSet.make<void, never>();
-      const reads = { isOneUnderWay: false, isAnotherWanted: false };
-      const readsWhileWanted = Effect.gen(function* () {
-        do {
-          reads.isAnotherWanted = false;
+      /** The feed read again and published, one read at a time; a change while one is under way is read once after it. */
+      const reads = runsOneAtATime<null>(
+        reading,
+        Effect.fnUntraced(function* (): Effect.fn.Return<AfterTheRun> {
           const read = yield* Effect.result(readTheFeed);
           feed.publish(EffectResult.isSuccess(read) ? { kind: "read", project_transactions: read.success } : { kind: "not_read", because: read.failure.words });
-        } while (reads.isAnotherWanted);
-      }).pipe(
-        Effect.ensuring(
-          Effect.sync(() => {
-            reads.isOneUnderWay = false;
-          }),
-        ),
+          return "run_what_was_asked_since";
+        }),
+        () => null,
       );
-      const readTheFeedAgain = Effect.suspend(() => {
-        if (reads.isOneUnderWay) {
-          reads.isAnotherWanted = true;
-          return Effect.void;
-        }
-        reads.isOneUnderWay = true;
-        return FiberSet.run(reading, readsWhileWanted).pipe(Effect.asVoid);
-      });
+      const readTheFeedAgain = reads.ask(projectFolder, null);
       const changesNoticed = yield* connection.notifications("project_changed").pipe(
         Stream.filter((change) => change.project === project),
         Stream.runForEach((change) =>
@@ -140,12 +130,7 @@ export class ProjectTransactionsFeedOfAStudioWindow {
 
     return Effect.forever(
       Effect.gen(function* () {
-        const ended = yield* Effect.scoped(followedOverOneConnection).pipe(
-          Effect.catch((failure) => Effect.succeed<FeedConnectionEnded>({ _tag: "Failed", why: failure.words })),
-          Effect.catchDefect((defect) =>
-            Effect.logError("following a project's change feed broke", defect).pipe(Effect.as<FeedConnectionEnded>({ _tag: "Failed", why: String(defect) })),
-          ),
-        );
+        const ended = yield* followedUntilTheConnectionEnds(followedOverOneConnection, (why): FeedConnectionEnded => ({ _tag: "Failed", why }), "following a project's change feed");
         if (ended._tag === "ClosedByTheRuntime") {
           const followsAgainAtOnce = feed.lastReading.kind === "read" && !hasFollowedAgainAtOnce;
           hasFollowedAgainAtOnce = followsAgainAtOnce;

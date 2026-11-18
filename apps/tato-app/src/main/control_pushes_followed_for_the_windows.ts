@@ -8,6 +8,7 @@
 
 import { Duration, Effect, FiberMap, Schedule, type Scope, Stream, SubscriptionRef } from "effect";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
+import { followedUntilTheConnectionEnds } from "./runtime_connection_following.js";
 import { RuntimeControl, type ControlConnection } from "./tatolab_runtime_control_operation_call.js";
 
 /** How long a subject the runtime would not subscribe, or whose connection closed, waits before it is subscribed again. */
@@ -103,12 +104,7 @@ export function controlPushesFollowedForTheWindows<WindowFollowing, Pushed>(
 
     yield* Effect.gen(function* () {
       yield* aWindowFollowsASubject;
-      const ended = yield* Effect.scoped(followedOverOneConnection).pipe(
-        Effect.catch((failure) => Effect.succeed<ConnectionEnded>({ _tag: "Ended", why: failure.words })),
-        Effect.catchDefect((defect) =>
-          Effect.logError(`following a ${feed.subjectAsTheLogNamesIt} broke`, defect).pipe(Effect.as<ConnectionEnded>({ _tag: "Ended", why: String(defect) })),
-        ),
-      );
+      const ended = yield* followedUntilTheConnectionEnds(followedOverOneConnection, (why): ConnectionEnded => ({ _tag: "Ended", why }), `following a ${feed.subjectAsTheLogNamesIt}`);
       if (ended._tag === "NoWindowFollows") return;
       yield* willFollowAgain(ended.why, null);
       yield* Effect.sleep(CONTROL_PUSHES_SUBSCRIBED_AGAIN_AFTER);

@@ -13,6 +13,7 @@ import { STREAM_ACTION_STEP_MAKING_THE_VENV, type FailedProjectStreamAction, typ
 import { everyOneRead, jsonObject, requiredArray } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { streamActionDescriptionFromTheDescribeStreamActionToolResult } from "./stream_action_description.js";
+import { followedUntilTheConnectionEnds, runsOneAtATime, type AfterTheRun } from "./runtime_connection_following.js";
 import { controlOperationOnTheConnectionReadWith, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 
 /** Each project's sync under way, and each that ended since the status last took them. */
@@ -140,12 +141,6 @@ export interface StreamActionsFollowedForTheStatus {
   readonly follow: Effect.Effect<void>;
 }
 
-/** One describe of an action under way, and whether another is wanted once it ends. */
-interface DescribeUnderWay {
-  isAnotherDescribeWanted: boolean;
-  endedSyncOfTheNextDescription: EndedSyncOfTheDescription;
-}
-
 /**
  * The stream actions followed into `noticed` from `follow` for as long as the scope is open, the status read again with
  * `readTheStatusAgain` as each one moves on.
@@ -157,61 +152,47 @@ export function streamActionsFollowedForTheStatus(
   return Effect.gen(function* () {
     const runtimeControl = yield* RuntimeControl;
     const followingStarted = yield* Latch.make(false);
-    const readTheStatusAgainWhen = (didItChange: boolean) => Effect.sync(() => didItChange && readTheStatusAgain());
+    const readTheStatusAgainWhen = (didItChange: boolean) =>
+      Effect.sync(() => {
+        if (didItChange) readTheStatusAgain();
+      });
 
     /** The actions under way, followed over one connection until the runtime closes it: why it ended. */
     const followedOverOneConnection = Effect.gen(function* () {
       const connection = yield* runtimeControl.connect;
       yield* Effect.addFinalizer(() => readTheStatusAgainWhen(noticed.forget()));
       const describing = yield* FiberSet.make<void, never>();
-      const describesUnderWay = new Map<string, DescribeUnderWay>();
-
-      const described = (action: string) =>
-        controlOperationOnTheConnectionReadWith(connection, "describe_stream_action", { action }, streamActionDescriptionFromTheDescribeStreamActionToolResult);
-
-      /** Each describe of `thisDescribe`'s action, one at a time while another is wanted, each noticed. */
-      const describedWhileWanted = (action: string, thisDescribe: DescribeUnderWay) =>
-        Effect.gen(function* () {
-          while (thisDescribe.isAnotherDescribeWanted) {
-            thisDescribe.isAnotherDescribeWanted = false;
-            const endedSyncOfThisDescription = thisDescribe.endedSyncOfTheNextDescription;
-            const description = yield* Effect.result(described(action));
-            if (EffectResult.isFailure(description)) {
-              yield* Effect.logWarning("a stream action could not be described, so the Activity panel shows no sync for it").pipe(Effect.annotateLogs({ action, because: description.failure.words }));
-              yield* readTheStatusAgainWhen(noticed.noticeTheActionWasNotDescribed(action));
-              return;
-            }
-            yield* readTheStatusAgainWhen(noticed.noticeTheDescription(description.success, endedSyncOfThisDescription));
+      /** Each action described and noticed, one describe of an action at a time; an ended sync is handed over when any describe asked for since would. */
+      const describes = runsOneAtATime<EndedSyncOfTheDescription>(
+        describing,
+        Effect.fnUntraced(function* (action: string, endedSyncOfTheDescription: EndedSyncOfTheDescription): Effect.fn.Return<AfterTheRun> {
+          const description = yield* Effect.result(
+            controlOperationOnTheConnectionReadWith(connection, "describe_stream_action", { action }, streamActionDescriptionFromTheDescribeStreamActionToolResult),
+          );
+          if (EffectResult.isFailure(description)) {
+            yield* Effect.logWarning("a stream action could not be described, so the Activity panel shows no sync for it").pipe(Effect.annotateLogs({ action, because: description.failure.words }));
+            yield* readTheStatusAgainWhen(noticed.noticeTheActionWasNotDescribed(action));
+            return "stop";
           }
-        }).pipe(Effect.ensuring(Effect.sync(() => describesUnderWay.delete(action))));
-
-      /** `action` described and noticed, after the describe of it under way when there is one. */
-      const describeAndNotice = (action: string, endedSyncOfTheDescription: EndedSyncOfTheDescription) =>
-        Effect.suspend(() => {
-          const describeUnderWay = describesUnderWay.get(action);
-          if (describeUnderWay !== undefined) {
-            describeUnderWay.isAnotherDescribeWanted = true;
-            if (endedSyncOfTheDescription === "hand_it_over") describeUnderWay.endedSyncOfTheNextDescription = "hand_it_over";
-            return Effect.void;
-          }
-          const thisDescribe: DescribeUnderWay = { isAnotherDescribeWanted: true, endedSyncOfTheNextDescription: endedSyncOfTheDescription };
-          describesUnderWay.set(action, thisDescribe);
-          return FiberSet.run(describing, describedWhileWanted(action, thisDescribe)).pipe(Effect.asVoid);
-        });
+          yield* readTheStatusAgainWhen(noticed.noticeTheDescription(description.success, endedSyncOfTheDescription));
+          return "run_what_was_asked_since";
+        }),
+        (askedBefore, askedSince) => (askedSince === "hand_it_over" ? askedSince : askedBefore),
+      );
 
       const changesNoticed = yield* connection.notifications("stream_action_changed").pipe(
         Stream.runForEach((change) =>
           Effect.suspend(() => {
             readTheStatusAgain();
             const actionsToDescribe = change.change === "changed" && typeof change.action === "string" ? [change.action] : noticed.actionsFollowedNow();
-            return Effect.forEach(actionsToDescribe, (action) => describeAndNotice(action, "hand_it_over"), { discard: true });
+            return Effect.forEach(actionsToDescribe, (action) => describes.ask(action, "hand_it_over"), { discard: true });
           }),
         ),
         Effect.forkScoped({ startImmediately: true }),
       );
       const actionsUnderWay = yield* controlOperationOnTheConnectionReadWith(connection, "subscribe_stream_action_changes", {}, actionsUnderWayFromTheSubscribeResult);
       readTheStatusAgain();
-      yield* Effect.forEach(actionsUnderWay, (action) => describeAndNotice(action, "count_it_handed_over"), { discard: true });
+      yield* Effect.forEach(actionsUnderWay, (action) => describes.ask(action, "count_it_handed_over"), { discard: true });
       return yield* Effect.raceAllFirst([
         connection.closedByTheRuntime,
         Fiber.join(changesNoticed).pipe(Effect.as("the runtime's stream action changes on the /control/ws connection ended")),
@@ -223,10 +204,7 @@ export function streamActionsFollowedForTheStatus(
       yield* followingStarted.await;
       return yield* Effect.forever(
         Effect.gen(function* () {
-          const whyItEnded = yield* Effect.scoped(followedOverOneConnection).pipe(
-            Effect.catch((failure) => Effect.succeed(failure.words)),
-            Effect.catchDefect((defect) => Effect.logError("following the stream actions broke", defect).pipe(Effect.as(String(defect)))),
-          );
+          const whyItEnded = yield* followedUntilTheConnectionEnds(followedOverOneConnection, (why) => why, "following the stream actions");
           yield* Effect.logInfo("will follow the stream actions again").pipe(Effect.annotateLogs({ because: whyItEnded }));
           yield* Effect.sleep(STREAM_ACTIONS_FOLLOWED_AGAIN_AFTER);
         }),
