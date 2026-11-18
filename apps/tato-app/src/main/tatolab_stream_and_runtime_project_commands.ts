@@ -18,8 +18,7 @@ import {
   removeProject,
   setStreamDisplayName,
 } from "./runtime_operations.js";
-import { ListedStreams, PersonEditingInStudio, ProjectLogsFollowed, StreamGraphsFollowed, StudioWindows, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
-import type { TatolabMainWindow } from "./tatolab_main_window.js";
+import { ListedStreams, PersonEditingInStudio, ProjectLogsFollowed, StreamGraphsFollowed, StudioWindows, thenAStatusRound, type StudioServices, type WindowFollowingTheRuntime } from "./studio_runtime.js";
 import { CommandRefused, windowCommand } from "./window_command.js";
 import type { TatolabCommandFromWindow, TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 
@@ -76,20 +75,24 @@ const projectFolderTheWindowMayAskTheRuntimeAbout = Effect.fn("projectFolderTheW
   return yield* projectFolderTheRuntimeLastListed(projectDirectory);
 });
 
-/** The window a command came from as one that follows the runtime's pushes, a studio window or a view popped out of one; refused with `refusal` from any other. */
+/** The window a command came from when it follows the runtime's pushes, a studio window or a view popped out of one; `null` for any other. */
+function windowFollowingTheRuntimeOf(commandFromWindow: TatolabCommandFromWindow) {
+  return StudioWindows.use((studioWindows) => Effect.succeed(studioWindows.windowFollowingTheRuntimeOf(commandFromWindow)));
+}
+
+/** The window a command came from as one that follows the runtime's pushes; refused with `refusal` from any other. */
 function windowFollowingTheRuntime(commandFromWindow: TatolabCommandFromWindow, refusal: string) {
-  return StudioWindows.use((studioWindows) => {
-    const windowFollowing = studioWindows.windowFollowingTheRuntimeOf(commandFromWindow);
-    return windowFollowing === null ? Effect.fail(new CommandRefused({ words: refusal })) : Effect.succeed(windowFollowing);
-  });
+  return windowFollowingTheRuntimeOf(commandFromWindow).pipe(
+    Effect.flatMap((windowFollowing) => (windowFollowing === null ? Effect.fail(new CommandRefused({ words: refusal })) : Effect.succeed(windowFollowing))),
+  );
 }
 
 /** `stop` of the window a command came from, when it is one that follows the runtime's pushes; nothing from any other. */
-function whenAWindowFollowsTheRuntime<Services>(commandFromWindow: TatolabCommandFromWindow, stop: (windowFollowing: TatolabMainWindow) => Effect.Effect<void, never, Services>) {
-  return StudioWindows.use((studioWindows) => {
-    const windowFollowing = studioWindows.windowFollowingTheRuntimeOf(commandFromWindow);
-    return windowFollowing === null ? Effect.void : stop(windowFollowing);
-  }).pipe(Effect.as(null));
+function whenAWindowFollowsTheRuntime<Services>(commandFromWindow: TatolabCommandFromWindow, stop: (windowFollowing: WindowFollowingTheRuntime) => Effect.Effect<void, never, Services>) {
+  return windowFollowingTheRuntimeOf(commandFromWindow).pipe(
+    Effect.flatMap((windowFollowing) => (windowFollowing === null ? Effect.void : stop(windowFollowing))),
+    Effect.as(null),
+  );
 }
 
 /** The arguments of `choose_stream_project_folder`: what the folder is chosen for. */

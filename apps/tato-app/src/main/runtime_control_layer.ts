@@ -22,17 +22,11 @@ import {
 /** A client connected over `/control/ws`, its `discover` answered. */
 type ConnectedControlClient = Awaited<ReturnType<typeof controlClientConnectedOverAWebSocket>>;
 
-/** `method` called with `params` by `sendTheCall`, given up after its operation's limit or `defaultTimeLimitMs`, which aborts it, as an interrupt does. */
-function callWithinItsTimeLimit<Method extends ControlOperationMethodName>(
-  localApiSocketPath: string,
-  defaultTimeLimitMs: number,
-  method: Method,
-  sendTheCall: (signal: AbortSignal) => Promise<ControlOperationResult<Method>>,
-): Effect.Effect<ControlOperationResult<Method>, RuntimeControlFailure> {
-  const timeLimitMs = controlOperationTimeLimitMs(method, defaultTimeLimitMs);
+/** What `send` resolves to, sent as `method`, given up after `timeLimitMs`, which aborts it, as an interrupt does. */
+function sentWithinTimeLimit<Value>(localApiSocketPath: string, method: ControlOperationMethodName, timeLimitMs: number, send: (signal: AbortSignal) => Promise<Value>): Effect.Effect<Value, RuntimeControlFailure> {
   return Effect.tryPromise({
-    try: sendTheCall,
-    catch: (callFailure) => runtimeControlFailureOfTheCall(method, localApiSocketPath, callFailure),
+    try: send,
+    catch: (sendFailure) => runtimeControlFailureOfTheCall(method, localApiSocketPath, sendFailure),
   }).pipe(
     Effect.timeoutOrElse({
       duration: Duration.millis(timeLimitMs),
@@ -41,17 +35,19 @@ function callWithinItsTimeLimit<Method extends ControlOperationMethodName>(
   );
 }
 
+/** `method` called with `params` by `sendTheCall`, given up after its operation's limit or `defaultTimeLimitMs`. */
+function callWithinItsTimeLimit<Method extends ControlOperationMethodName>(
+  localApiSocketPath: string,
+  defaultTimeLimitMs: number,
+  method: Method,
+  sendTheCall: (signal: AbortSignal) => Promise<ControlOperationResult<Method>>,
+): Effect.Effect<ControlOperationResult<Method>, RuntimeControlFailure> {
+  return sentWithinTimeLimit(localApiSocketPath, method, controlOperationTimeLimitMs(method, defaultTimeLimitMs), sendTheCall);
+}
+
 /** A client connected over `/control/ws` with its `discover` answered within `timeLimitMs`, closed without waiting for the runtime as the scope closes. */
 function clientConnectedOverAWebSocket(localApiSocketPath: string, timeLimitMs: number): Effect.Effect<ConnectedControlClient, RuntimeControlFailure, Scope.Scope> {
-  const connecting = Effect.tryPromise({
-    try: (signal) => controlClientConnectedOverAWebSocket(localApiSocketPath, signal),
-    catch: (connectFailure) => runtimeControlFailureOfTheCall("discover", localApiSocketPath, connectFailure),
-  }).pipe(
-    Effect.timeoutOrElse({
-      duration: Duration.millis(timeLimitMs),
-      orElse: () => Effect.fail(runtimeTimedOut("discover", localApiSocketPath, timeLimitMs)),
-    }),
-  );
+  const connecting = sentWithinTimeLimit(localApiSocketPath, "discover", timeLimitMs, (signal) => controlClientConnectedOverAWebSocket(localApiSocketPath, signal));
   return Effect.uninterruptibleMask((restore) => restore(connecting).pipe(Effect.tap((connectedClient) => Effect.addFinalizer(() => closedWithoutWaitingForThePeer(connectedClient)))));
 }
 

@@ -6,7 +6,8 @@ import { Deferred, Effect, Layer, ManagedRuntime, Queue, type Scope, Stream } fr
 import { TestClock } from "effect/testing";
 import { RuntimeRefused, RuntimeUnreachable, type RuntimeControlFailure } from "./runtime_control_failures.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { runtimePushesFollowedLayer } from "./studio_runtime.js";
+import { runtimePushesFollowedLayerOver } from "./studio_runtime.js";
+import { createTatolabAppLog } from "./tatolab_app_log.js";
 import {
   RuntimeControl,
   type ControlConnection,
@@ -81,16 +82,20 @@ export class FakeControlConnection implements ControlConnection {
   }
 }
 
-/** A runtime whose connections answer each call as `answers` says, every one opened recorded; it refuses to connect while `answers` is false. */
+/** A runtime whose connections answer each call as `answers` says, every one opened recorded; it refuses to connect while `answers` is false, and breaks on the next connect while `breaksOnTheNextConnect` is true. */
 export function fakeRuntimeOfConnections(answers: FakeCallAnswers) {
   const connectionsOpened: FakeControlConnection[] = [];
-  const runtime = { answers: true };
+  const runtime = { answers: true, breaksOnTheNextConnect: false };
   const layer = Layer.succeed(RuntimeControl, {
     call: (method) => Effect.die(`these tests make no ${method} call outside a connection`),
     discover: Effect.die("these tests make no discover call"),
     get: (requestTarget) => Effect.die(`these tests make no GET ${requestTarget}`),
-    connect: Effect.suspend(() =>
-      runtime.answers
+    connect: Effect.suspend(() => {
+      if (runtime.breaksOnTheNextConnect) {
+        runtime.breaksOnTheNextConnect = false;
+        return Effect.die(new Error("the connect broke"));
+      }
+      return runtime.answers
         ? Effect.acquireRelease(
             Effect.sync(() => {
               const connection = new FakeControlConnection(answers);
@@ -102,14 +107,17 @@ export function fakeRuntimeOfConnections(answers: FakeCallAnswers) {
                 connection.closedByTheApp = true;
               }),
           )
-        : Effect.fail(new RuntimeUnreachable({ operation: "discover", words: "no runtime answers at /tmp/local-api.sock" })),
-    ),
+        : Effect.fail(new RuntimeUnreachable({ operation: "discover", words: "no runtime answers at /tmp/local-api.sock" }));
+    }),
   });
   return { connectionsOpened, runtime, layer };
 }
 
+/** Turns of the test clock's scheduler that let a follower connect, subscribe and hand on a push: each stage of it waits a turn on the one before, and the deepest takes under ten. */
+const SCHEDULER_TURNS_TO_SETTLE = 20;
+
 /** Let every fiber the test started run as far as it can at the test clock's time: the clock's scheduler flushed, a turn at a time. */
-export const settle = Effect.forEach(Array.from({ length: 20 }), () => TestClock.adjust(0), { discard: true });
+export const settle = Effect.forEach(Array.from({ length: SCHEDULER_TURNS_TO_SETTLE }), () => TestClock.adjust(0), { discard: true });
 
 /** `program` run to its end on `runtimeControl` and a test clock, its scope closed after. */
 export function runOnATestClock<Value>(program: Effect.Effect<Value, never, RuntimeControl | Scope.Scope>, runtimeControl: Layer.Layer<RuntimeControl>): Promise<Value> {
@@ -118,5 +126,6 @@ export function runOnATestClock<Value>(program: Effect.Effect<Value, never, Runt
 
 /** The stream graphs and project logs followed over the real runtime at `localApiSocketPath`, beside its `RuntimeControl`; dispose it once the test ends. */
 export function pushesFollowedOverALiveRuntime(localApiSocketPath: string) {
-  return ManagedRuntime.make(runtimePushesFollowedLayer.pipe(Layer.provideMerge(runtimeControlLayer(localApiSocketPath, 5_000))));
+  const runtimeControl = runtimeControlLayer(localApiSocketPath, 5_000);
+  return ManagedRuntime.make(Layer.merge(runtimeControl, runtimePushesFollowedLayerOver(runtimeControl, createTatolabAppLog("error", () => {}))));
 }

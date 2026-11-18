@@ -42,7 +42,8 @@ import {
   Terminal,
   StudioAppVersion,
   studioRuntimeLayer,
-  runtimePushesFollowedLayer,
+  runtimePushesFollowedLayerOver,
+  type WindowFollowingTheRuntime,
   StudioWindows,
   SystemMediaAccessAhead,
   ThisMachinesFolders,
@@ -51,6 +52,7 @@ import {
 } from "./studio_runtime.js";
 import { projectPlaybackAsListed } from "../shared/project_playback.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
+import type { RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import { CommandRefused } from "./window_command.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
@@ -102,6 +104,10 @@ export interface StudioServicesOfATest {
   /** The local API the live `RuntimeControl` calls, and how long it waits; nothing answers at the default. */
   readonly localApiSocketPath?: string;
   readonly localApiTimeLimitMs?: number;
+  /** The `RuntimeControl` the stream graphs and project logs are followed over; the live one at the default. */
+  readonly runtimeControlOfThePushes?: Layer.Layer<RuntimeControl>;
+  /** What the studio window follows of the runtime's pushes as; none follows at the default. */
+  readonly windowFollowingTheRuntime?: WindowFollowingTheRuntime;
   /** The one studio window, by its contents id, and the project it holds; a command from any other window is refused as one from the Projects window. */
   readonly studioWindow?: { readonly windowContentsId: number; readonly projectFolder: string };
   readonly streamAssetsOfTheProject?: (projectFolder: string) => ReadonlySet<string>;
@@ -138,7 +144,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
   const runtimeControl = runtimeControlLayer(overrides.localApiSocketPath ?? "/nowhere/tatolab.sock", overrides.localApiTimeLimitMs ?? 2_000);
   return Layer.mergeAll(
     runtimeControl,
-    runtimePushesFollowedLayer.pipe(Layer.provide(Layer.merge(runtimeControl, tatolabAppLogAsEffectsLogger(overrides.tatolabAppLog ?? quietTatolabAppLog)))),
+    runtimePushesFollowedLayerOver(overrides.runtimeControlOfThePushes ?? runtimeControl, overrides.tatolabAppLog ?? quietTatolabAppLog),
     Layer.succeed(StudioWindows, {
       projectFolderOfTheWindow: (commandFromWindow) =>
         commandFromWindow.windowContentsId === studioWindow.windowContentsId ? Effect.succeed(studioWindow.projectFolder) : Effect.fail(new CommandRefused({ words: "No project is open in this window." })),
@@ -152,7 +158,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
       openTheProjectInItsStudioWindow: () => Effect.succeed("opened_its_studio_window" as const),
       closeTheStudioWindowOf: () => Effect.void,
       stepTheProjectsWindowAsideFor: () => Effect.void,
-      windowFollowingTheRuntimeOf: () => null,
+      windowFollowingTheRuntimeOf: (commandFromWindow) => (commandFromWindow.windowContentsId === studioWindow.windowContentsId ? (overrides.windowFollowingTheRuntime ?? null) : null),
     }),
     Layer.succeed(ModuleManagerWindows, {
       workspaceFolderOfTheWindow: () => Effect.fail(new CommandRefused({ words: "Only a Module manager window imports into a project." })),

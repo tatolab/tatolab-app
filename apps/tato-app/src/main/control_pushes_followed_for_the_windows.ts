@@ -29,6 +29,9 @@ export interface ControlPushesFeed<Pushed> {
   readonly pushes: (connection: ControlConnection) => Stream.Stream<SubjectPushed<Pushed>>;
 }
 
+/** Why one connection's following ended: no window follows a subject any longer, or it ended for `why` and is opened again on the schedule. */
+type ConnectionEnded = { readonly _tag: "NoWindowFollows" } | { readonly _tag: "Ended"; readonly why: string };
+
 /** The subjects of one kind the app's windows follow, each by its id. */
 export interface ControlPushesFollowed<WindowFollowing> {
   /** Tell `windowFollowing` of each push of `subject` from now on, and once as soon as it is subscribed. */
@@ -69,14 +72,10 @@ export function controlPushesFollowedForTheWindows<WindowFollowing, Pushed>(
         Effect.andThen(Effect.never),
       );
 
-    /** Every followed subject subscribed on one connection, held open until the runtime closes it or no window follows a subject: why it ended. */
+    /** Every followed subject subscribed on one connection and each push on it handed on, held open until no window follows a subject, or until it ends: why. */
     const followedOverOneConnection = Effect.gen(function* () {
       const connection = yield* runtimeControl.connect;
-      yield* feed.pushes(connection).pipe(
-        Stream.runForEach(({ subject, pushed }) => tellTheWindows(subject, pushed)),
-        Effect.forkScoped,
-      );
-      const subscriptions = yield* FiberMap.make<string>();
+      const subscriptions = yield* FiberMap.make<string, never, RuntimeControlFailure>();
       const subscribeTheSubjectsFollowed = SubscriptionRef.changes(subjectsFollowed).pipe(
         Stream.takeUntil((subjects) => subjects.size === 0),
         Stream.runForEach((subjects) =>
@@ -85,9 +84,15 @@ export function controlPushesFollowedForTheWindows<WindowFollowing, Pushed>(
             for (const [subject] of [...subscriptions]) if (!subjects.has(subject)) yield* FiberMap.remove(subscriptions, subject);
           }),
         ),
-        Effect.as(`no window follows a ${feed.subjectAsTheLogNamesIt} any longer`),
+        Effect.as<ConnectionEnded>({ _tag: "NoWindowFollows" }),
       );
-      return yield* Effect.raceFirst(connection.closedByTheRuntime, subscribeTheSubjectsFollowed);
+      const pushesHandedOn = feed.pushes(connection).pipe(
+        Stream.runForEach(({ subject, pushed }) => tellTheWindows(subject, pushed)),
+        Effect.as<ConnectionEnded>({ _tag: "Ended", why: "the runtime's pushes on the /control/ws connection ended" }),
+      );
+      const closedByTheRuntime = connection.closedByTheRuntime.pipe(Effect.map((why): ConnectionEnded => ({ _tag: "Ended", why })));
+      const aSubscriptionBroke = FiberMap.join(subscriptions).pipe(Effect.andThen(Effect.never));
+      return yield* Effect.raceAllFirst([closedByTheRuntime, subscribeTheSubjectsFollowed, pushesHandedOn, aSubscriptionBroke]);
     });
 
     const aWindowFollowsASubject = SubscriptionRef.changes(subjectsFollowed).pipe(
@@ -98,9 +103,14 @@ export function controlPushesFollowedForTheWindows<WindowFollowing, Pushed>(
 
     yield* Effect.gen(function* () {
       yield* aWindowFollowsASubject;
-      const whyItEnded = yield* Effect.scoped(followedOverOneConnection).pipe(Effect.catch((failure) => Effect.succeed(failure.words)));
-      if (windowsFollowingBySubject.size === 0) return;
-      yield* willFollowAgain(whyItEnded, null);
+      const ended = yield* Effect.scoped(followedOverOneConnection).pipe(
+        Effect.catch((failure) => Effect.succeed<ConnectionEnded>({ _tag: "Ended", why: failure.words })),
+        Effect.catchDefect((defect) =>
+          Effect.logError(`following a ${feed.subjectAsTheLogNamesIt} broke`, defect).pipe(Effect.as<ConnectionEnded>({ _tag: "Ended", why: String(defect) })),
+        ),
+      );
+      if (ended._tag === "NoWindowFollows") return;
+      yield* willFollowAgain(ended.why, null);
       yield* Effect.sleep(CONTROL_PUSHES_SUBSCRIBED_AGAIN_AFTER);
     }).pipe(Effect.forever, Effect.forkScoped);
 
@@ -108,16 +118,20 @@ export function controlPushesFollowedForTheWindows<WindowFollowing, Pushed>(
       Effect.suspend(() => {
         const windowsFollowing = windowsFollowingBySubject.get(subject);
         if (windowsFollowing === undefined || !windowsFollowing.delete(windowFollowing)) return Effect.void;
-        if (windowsFollowing.size === 0) windowsFollowingBySubject.delete(subject);
+        if (windowsFollowing.size > 0) return Effect.void;
+        windowsFollowingBySubject.delete(subject);
         return theSubjectsFollowedChanged;
       });
 
     return {
       follow: (subject, windowFollowing) =>
         Effect.suspend(() => {
-          const windowsFollowing = windowsFollowingBySubject.get(subject) ?? new Set<WindowFollowing>();
-          windowsFollowing.add(windowFollowing);
-          windowsFollowingBySubject.set(subject, windowsFollowing);
+          const windowsFollowing = windowsFollowingBySubject.get(subject);
+          if (windowsFollowing !== undefined) {
+            windowsFollowing.add(windowFollowing);
+            return Effect.void;
+          }
+          windowsFollowingBySubject.set(subject, new Set([windowFollowing]));
           return theSubjectsFollowedChanged;
         }),
       stopFollowing,
