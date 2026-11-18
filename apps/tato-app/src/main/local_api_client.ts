@@ -5,8 +5,6 @@
 
 import { Effect, type Layer } from "effect";
 import type {
-  ProjectDependency,
-  WorkspaceDependencyUpdate,
   ListedStream,
   ProjectCreationQueued,
   ProjectStreamActionQueued,
@@ -36,7 +34,7 @@ import { failedWith, succeeded, type Result } from "./result.js";
 import { bodyOfAnOkAnswer, getOverTheLocalApi } from "./local_api_plain_http.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { describeStreamAction, listProjectFiles, openProject, reloadProject, startPlayback } from "./runtime_operations.js";
+import { describeStreamAction, listDependencies, listProjectFiles, listProjectViews, nameTheProject, openProject, reloadProject, startPlayback } from "./runtime_operations.js";
 import { queuedStreamActionFromTheToolResult, type ProjectActionToolName } from "./stream_changes_on_the_wire.js";
 import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import {
@@ -59,7 +57,7 @@ import {
   type ProjectSettingsAfterTheTransaction,
   type ProjectSettingsTool,
 } from "./project_changes_on_the_wire.js";
-import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTheListAssetsToolResult, type ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
+import { projectSummaryFromTheListAssetsToolResult, type ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import {
   projectTransactionFromTheUndoOrRedoToolResult,
 } from "./project_transactions_on_the_wire.js";
@@ -71,17 +69,8 @@ import {
   type ProjectFileTheRuntimeListed,
   type ProjectFileWriteRecorded,
 } from "./project_files_on_the_wire.js";
-import {
-  projectViewsFromTheListProjectViewsToolResult,
-  type ProjectViewTheRuntimeListed,
-} from "./project_views_on_the_wire.js";
-import {
-  dependencyUpdateFromTheUpdateDependencyToolResult,
-  type ListedProjectDependency,
-  projectDependencyFromTheAddDependencyToolResult,
-  projectDependencyFromTheRemoveDependencyToolResult,
-  workspaceDependenciesFromTheListDependenciesToolResult,
-} from "./project_dependencies_on_the_wire.js";
+import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
+import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import { projectCreationQueuedFromTheCreateProjectToolResult } from "./stream_action_description.js";
 
 /** A stream's `location` on the wire: `project_directory`, its project's UUID as `project` and its stream asset's UUID as `stream_asset`. */
@@ -382,11 +371,8 @@ export class LocalApiClient {
   }
 
   /** The project in `projectDirectory` as the runtime's `list_assets` names it; refused in the runtime's own words, as for a folder holding no `tatolab-project.json`. */
-  async nameTheProject(projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("list_assets", { project_directory: projectDirectory });
-    if (!operationResult.ok) return operationResult;
-    const project = projectTheRuntimeNamesFromTheListAssetsToolResult(operationResult.value);
-    return project.ok ? project : localApiRequestFailure(project.failure);
+  nameTheProject(projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
+    return this.answerOf(nameTheProject(projectDirectory));
   }
 
   /** The project in `projectDirectory` as its card shows it, from `list_assets`: its name, description and last edit; refused in the runtime's own words. */
@@ -397,39 +383,9 @@ export class LocalApiClient {
     return summary.ok ? summary : localApiRequestFailure(summary.failure);
   }
 
-  /** Copy the project in `source`, an absolute folder or `.zip`, into `imports/` of the project in `projectDirectory` through the runtime's `add_dependency`; refused in the runtime's own words. */
-  async addDependency(projectDirectory: string, source: string): Promise<Result<ProjectDependency, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("add_dependency", { project_directory: projectDirectory, source });
-    if (!operationResult.ok) return operationResult;
-    const dependency = projectDependencyFromTheAddDependencyToolResult(operationResult.value);
-    return dependency.ok ? dependency : localApiRequestFailure(dependency.failure);
-  }
-
-  /** Copy the import `project` of the project in `projectDirectory` again from its source through the runtime's `update_dependency`, overwriting files edited since its copy only with `overwriteEditedFiles`; refused in the runtime's own words. */
-  async updateDependency(projectDirectory: string, project: string, overwriteEditedFiles: boolean): Promise<Result<WorkspaceDependencyUpdate, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation(
-      "update_dependency",
-      { project_directory: projectDirectory, project, overwrite_edited_files: overwriteEditedFiles },
-    );
-    if (!operationResult.ok) return operationResult;
-    const update = dependencyUpdateFromTheUpdateDependencyToolResult(operationResult.value);
-    return update.ok ? update : localApiRequestFailure(update.failure);
-  }
-
-  /** Take the import `project` out of the project in `projectDirectory` through the runtime's `remove_dependency`, answering the import it removed; refused in the runtime's own words. */
-  async removeDependency(projectDirectory: string, project: string): Promise<Result<ProjectDependency, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("remove_dependency", { project_directory: projectDirectory, project });
-    if (!operationResult.ok) return operationResult;
-    const dependency = projectDependencyFromTheRemoveDependencyToolResult(operationResult.value);
-    return dependency.ok ? dependency : localApiRequestFailure(dependency.failure);
-  }
-
   /** Each import of the project in `projectDirectory` from the runtime's `list_dependencies`, each source read for a newer version with `checkForNewer`; refused in the runtime's own words. */
-  async listDependencies(projectDirectory: string, checkForNewer: boolean): Promise<Result<ListedProjectDependency[], LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("list_dependencies", { project_directory: projectDirectory, check_for_newer: checkForNewer });
-    if (!operationResult.ok) return operationResult;
-    const dependencies = workspaceDependenciesFromTheListDependenciesToolResult(operationResult.value);
-    return dependencies.ok ? dependencies : localApiRequestFailure(dependencies.failure);
+  listDependencies(projectDirectory: string, checkForNewer: boolean): Promise<Result<ListedProjectDependency[], LocalApiRequestFailure>> {
+    return this.answerOf(listDependencies(projectDirectory, checkForNewer));
   }
 
   /** The files of the project in `projectDirectory`, or of its folder `under` alone, from the runtime's `list_project_files`; refused in the runtime's own words. */
@@ -484,11 +440,8 @@ export class LocalApiClient {
   }
 
   /** Each view the project in `projectDirectory` and its imports bring, from the runtime's `list_project_views`; refused in the runtime's own words. */
-  async listProjectViews(projectDirectory: string): Promise<Result<ProjectViewTheRuntimeListed[], LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("list_project_views", { project_directory: projectDirectory });
-    if (!operationResult.ok) return operationResult;
-    const listed = projectViewsFromTheListProjectViewsToolResult(operationResult.value);
-    return listed.ok ? listed : localApiRequestFailure(listed.failure);
+  listProjectViews(projectDirectory: string): Promise<Result<ProjectViewTheRuntimeListed[], LocalApiRequestFailure>> {
+    return this.answerOf(listProjectViews(projectDirectory));
   }
 
   /** Undo `author`'s latest transaction in the project in `projectDirectory` not undone yet, through the runtime's `undo`, answering the undo it applied; refused in the runtime's own words. */

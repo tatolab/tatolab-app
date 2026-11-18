@@ -6,6 +6,9 @@
 import { Effect } from "effect";
 import type {
   NodeCatalog,
+  ProjectDependency,
+  ProjectTheRuntimeNames,
+  WorkspaceDependencyUpdate,
   ProjectAssetListing,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -21,9 +24,18 @@ import { bodyOfAnOkAnswer } from "./local_api_plain_http.js";
 import { fromResult } from "./result_as_effect.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectAssetListingFromTheListAssetsToolResult } from "./project_asset_listing.js";
+import {
+  dependencyUpdateFromTheUpdateDependencyToolResult,
+  projectDependencyFromTheAddDependencyToolResult,
+  projectDependencyFromTheRemoveDependencyToolResult,
+  workspaceDependenciesFromTheListDependenciesToolResult,
+  type ListedProjectDependency,
+} from "./project_dependencies_on_the_wire.js";
 import { projectFilesFromTheListProjectFilesToolResult, type ProjectFileTheRuntimeListed } from "./project_files_on_the_wire.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
+import { projectTheRuntimeNamesFromTheListAssetsToolResult } from "./project_the_runtime_names.js";
+import { projectViewsFromTheListProjectViewsToolResult, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { ContractMismatch, type RuntimeControlFailure } from "./runtime_control_failures.js";
 import {
   projectStreamActionQueuedFromTheToolResult,
@@ -154,4 +166,38 @@ export function deleteStream(projectDirectory: string, streamAsset: string, auth
     { project_directory: projectDirectory, stream_asset: streamAsset, author: authorOnTheWire(author) },
     (answered) => streamAssetChangeFromTheToolResult("delete_stream", answered),
   );
+}
+
+/** The project in `projectDirectory` as the runtime's `list_assets` names it; refused in the runtime's words, as for a folder holding no `tatolab-project.json`. */
+export function nameTheProject(projectDirectory: string): Effect.Effect<ProjectTheRuntimeNames, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("list_assets", { project_directory: projectDirectory }, projectTheRuntimeNamesFromTheListAssetsToolResult);
+}
+
+/** Each view the project in `projectDirectory` and its imports bring, from the runtime's `list_project_views`. */
+export function listProjectViews(projectDirectory: string): Effect.Effect<ProjectViewTheRuntimeListed[], RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("list_project_views", { project_directory: projectDirectory }, projectViewsFromTheListProjectViewsToolResult);
+}
+
+/** Each import of the project in `projectDirectory` from the runtime's `list_dependencies`, each source read for a newer version with `checkForNewer`. */
+export function listDependencies(projectDirectory: string, checkForNewer: boolean): Effect.Effect<ListedProjectDependency[], RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("list_dependencies", { project_directory: projectDirectory, check_for_newer: checkForNewer }, workspaceDependenciesFromTheListDependenciesToolResult);
+}
+
+/** The project in `source`, an absolute folder or `.zip`, copied into `imports/` of the project in `projectDirectory` by the runtime's `add_dependency`. */
+export function addDependency(projectDirectory: string, source: string): Effect.Effect<ProjectDependency, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("add_dependency", { project_directory: projectDirectory, source }, projectDependencyFromTheAddDependencyToolResult);
+}
+
+/** The import `project` of the project in `projectDirectory` copied again from its source by the runtime's `update_dependency`, overwriting files edited since its copy only with `overwriteEditedFiles`. */
+export function updateDependency(projectDirectory: string, project: string, overwriteEditedFiles: boolean): Effect.Effect<WorkspaceDependencyUpdate, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith(
+    "update_dependency",
+    { project_directory: projectDirectory, project, overwrite_edited_files: overwriteEditedFiles },
+    dependencyUpdateFromTheUpdateDependencyToolResult,
+  );
+}
+
+/** The import `project` taken out of the project in `projectDirectory` by the runtime's `remove_dependency`, answering the import it removed. */
+export function removeDependency(projectDirectory: string, project: string): Effect.Effect<ProjectDependency, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("remove_dependency", { project_directory: projectDirectory, project }, projectDependencyFromTheRemoveDependencyToolResult);
 }

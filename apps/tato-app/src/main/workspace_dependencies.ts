@@ -3,6 +3,7 @@
 // the runtime's `list_project_views` of the workspace lists under its folder.
 
 import path from "node:path";
+import { Effect } from "effect";
 import type { DependencySourceKind, ProjectTheRuntimeNames, ViewsOfAWorkspaceDependency, WorkspaceDependency } from "../shared/tatolab_backend_contract.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import { studioViewOpeningOf, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
@@ -23,30 +24,33 @@ export function importFolderInsideTheWorkspace(workspaceFolder: string, folder: 
   return path.join(workspaceFolder, PROJECT_IMPORTS_FOLDER, folder);
 }
 
-/** The runtime's name for the project in a folder, or why it gave none. */
-export type NameTheProjectInAFolder = (projectFolder: string) => Promise<Result<ProjectTheRuntimeNames, unknown>>;
-
-/** Each of `listedDependencies` as Module manager shows it, in the runtime's order, with the views of `workspaceViews` its folder brings. */
-export async function workspaceDependenciesOf(
+/** Each of `listedDependencies` as Module manager shows it, in the runtime's order, named by `nameTheProjectInAFolder` from its copy (no name when it fails), with the views of `workspaceViews` its folder brings. */
+export function workspaceDependenciesOf<Services>(
   workspaceFolder: string,
   listedDependencies: readonly ListedProjectDependency[],
   workspaceViews: Result<readonly ProjectViewTheRuntimeListed[], string>,
-  nameTheProjectInAFolder: NameTheProjectInAFolder,
-): Promise<WorkspaceDependency[]> {
-  return Promise.all(
-    listedDependencies.map(async (listed): Promise<WorkspaceDependency> => {
+  nameTheProjectInAFolder: (projectFolder: string) => Effect.Effect<ProjectTheRuntimeNames, unknown, Services>,
+): Effect.Effect<WorkspaceDependency[], never, Services> {
+  return Effect.forEach(
+    listedDependencies,
+    (listed) => {
       const folderPath = importFolderInsideTheWorkspace(workspaceFolder, listed.dependency.folder) ?? path.join(workspaceFolder, PROJECT_IMPORTS_FOLDER);
-      const named = await nameTheProjectInAFolder(folderPath);
-      return {
-        ...listed.dependency,
-        folder_path: folderPath,
-        name: named.ok ? named.value.name : null,
-        edited_files: listed.edited_files,
-        newer_version_exists: listed.newer_version_exists,
-        check_refused_because: listed.check_refused_because,
-        views: viewsTheImportBrings(workspaceViews, listed.dependency.folder),
-      };
-    }),
+      return nameTheProjectInAFolder(folderPath).pipe(
+        Effect.match({ onSuccess: (named): string | null => named.name, onFailure: (): string | null => null }),
+        Effect.map(
+          (name): WorkspaceDependency => ({
+            ...listed.dependency,
+            folder_path: folderPath,
+            name,
+            edited_files: listed.edited_files,
+            newer_version_exists: listed.newer_version_exists,
+            check_refused_because: listed.check_refused_because,
+            views: viewsTheImportBrings(workspaceViews, listed.dependency.folder),
+          }),
+        ),
+      );
+    },
+    { concurrency: "unbounded" },
   );
 }
 

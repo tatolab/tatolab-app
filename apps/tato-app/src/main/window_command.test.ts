@@ -57,3 +57,13 @@ test("a command sent after its runtime was disposed, as the app quits, answers t
 
   expect(await answer).toEqual({ ok: false, refusal: expect.stringMatching(/^transact_in_the_open_project ended without an answer: /) });
 });
+
+test("an Effect log's annotations are written as the app log's fields, a value a field cannot hold as its text, before any further parts as details", async () => {
+  const { studioRuntime, loggedLines } = studioRuntimeLoggingEachLine();
+
+  await studioRuntime.runPromise(
+    Effect.logInfo("imported a project into the workspace", "from the dialog").pipe(Effect.annotateLogs({ folder: "doorways", project_folder: "/home/sam/night show", count: 2, kept: true, none: null, list: ["a", "b"] })),
+  );
+
+  expect(loggedLines).toEqual([' INFO imported a project into the workspace folder=doorways project_folder="/home/sam/night show" count=2 kept=true none=null list=a,b details="from the dialog"']);
+});
