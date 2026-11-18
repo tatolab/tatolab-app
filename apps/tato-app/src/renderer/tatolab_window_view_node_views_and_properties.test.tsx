@@ -489,6 +489,20 @@ describe("the studio", () => {
     await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector("[data-stream-graph]")?.getAttribute("data-stream-graph")).toBe(recorderStream));
   });
 
+  it("draws a stream the runtime refused to play as its graph, under why it failed, in the Stream graph and the Outliner, and its cards still select", async () => {
+    await mountedWindowOverTheMock("state=refused-at-play");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    await waitFor(() => expect(streamGraph.querySelector('[aria-label="Graph of main"]')).not.toBeNull());
+    expect(coreViewPage("stream_graph", "stream-graph").querySelector(`[data-stream-graph-failure="${PATTERN_MAIN_STREAM}"]`)?.textContent).toMatch(/^main failed: Invalid link: link `Lkrgygd6qubqrj4jviamzuzfw` feeds a function node island into `displaywindow`/);
+    expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-graph-state="failed"]')).toBeNull();
+
+    await waitFor(() => expect(outlinerRowIds()).toEqual(expect.arrayContaining([`stream:${PATTERN_MAIN_STREAM}/failed`, `node:${PATTERN_MAIN_STREAM}/displaywindow`])));
+
+    const displayWindowCard = await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="displaywindow"]') ?? expect.unreachable("no Display Window card"));
+    fireEvent.click(displayWindowCard);
+    await waitFor(() => expect(inTheCoreView("properties").getByRole("textbox", { name: "Node name" })).toHaveProperty("value", "Display Window"));
+  });
+
   it("says in the Stream graph's frame that a stopped stream isn't running, and that no stream is open once its tab closes", async () => {
     await mountedWindowOverTheMock("state=running");
     const patternTwoStream = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" });

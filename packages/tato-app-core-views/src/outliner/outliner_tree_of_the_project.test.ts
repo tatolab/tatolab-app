@@ -206,6 +206,23 @@ describe("the outliner's tree", () => {
     ]);
   });
 
+  it("shows the nodes of a failed stream whose graph the runtime serves, under why it failed, each selectable as on a stopped stream", () => {
+    const failedBecause = "Invalid link: link `Lkrgygd6qubqrj4jviamzuzfw` feeds a function node island into `display-uuid`, which runs in the app process";
+    const failedLobbyWall: ListedStream = { ...listedStream("/w/studio", "lobby_wall"), state: "failed", failed_because: failedBecause };
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [failedLobbyWall] }, { "lobby_wall-id": LOBBY_WALL_GRAPH }, "lobby_wall-id", {});
+    expect(rows.map(({ row }) => [row.label, row.icon, row.tone ?? "plain"])).toEqual([
+      ["lobby_wall", "failed", "failed"],
+      [failedBecause, "unreadable", "failed"],
+      ["Inputs", "graph_group", "plain"],
+      ["Camera Source", "graph_node", "plain"],
+      ["The look", "graph_group", "plain"],
+      ["Halftone", "failed", "failed"],
+      ["Display", "graph_node", "plain"],
+      ["stray", "graph_node", "plain"],
+    ]);
+    expect(rows.find(({ row }) => row.label === "Display")?.meaning).toEqual({ kind: "node", stream: "lobby_wall-id", node: "display", display_name: "lobby_wall", project_name: "studio" });
+  });
+
   it("says what a preparing stream is doing in place of the graph read the runtime refuses while it loads", () => {
     const preparingStream: ListedStream = { ...listedStream("/w/studio", "preparing"), state: "preparing", node_count: null, step: "making_the_venv" };
     const graphs: Record<string, StreamGraphReading> = { "preparing-id": { kind: "not_read", because: "graph failed: no stream with the id `preparing-id` is loaded in this runtime" } };
