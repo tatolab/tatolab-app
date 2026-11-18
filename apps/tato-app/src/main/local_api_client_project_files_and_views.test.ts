@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse } from "./fake_local_api_server.js";
 import { answerOf, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./local_api_client_test_support.js";
+import { listProjectViews, undoOrRedo } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -91,7 +92,7 @@ test("undoing a save is the runtime's undo of the write_project_file transaction
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-undo-tool-result-of-sam-undoing-their-save-of-night-show-nodes-camera-py.json")),
   ]);
 
-  const undone = answerOf(await server.client().undoInTheProject(RECORDED_NIGHT_SHOW, { kind: "person", name: "Sam" }));
+  const undone = answerOf(await server.run(undoOrRedo("undo", RECORDED_NIGHT_SHOW, { kind: "person", name: "Sam" })));
 
   expect(undone.undoes).toBe("c394e90f-a850-4603-81c3-8d25ba25ea76");
 });
@@ -102,8 +103,8 @@ test("a project's views are listed from its views/ folders and its imports', eac
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-views-refusal-for-a-folder-that-is-not-a-project.json")),
   ]);
 
-  const listed = answerOf(await server.client().listProjectViews(RECORDED_NIGHT_SHOW));
-  const refusal = failureOf(await server.client().listProjectViews("/private/tmp/tl-rec053/not-a-project"));
+  const listed = answerOf(await server.run(listProjectViews(RECORDED_NIGHT_SHOW)));
+  const refusal = failureOf(await server.run(listProjectViews("/private/tmp/tl-rec053/not-a-project")));
 
   expect(listed.map(({ view_type, project_name, import_folder, view_folder_in_the_project, opens, not_opened_because }) => ({ view_type, project_name, import_folder, view_folder_in_the_project, opens, not_opened_because }))).toEqual([
     { view_type: "night-show:broken", project_name: "night-show", import_folder: null, view_folder_in_the_project: "views/broken", opens: false, not_opened_because: "`contract`: this runtime reads view contract 1.0." },
@@ -111,5 +112,5 @@ test("a project's views are listed from its views/ folders and its imports', eac
     { view_type: "lobby-wall:meter", project_name: "lobby-wall", import_folder: "lobby-wall", view_folder_in_the_project: "imports/lobby-wall/views/meter", opens: true, not_opened_because: null },
   ]);
   expect(listed[1]?.manifest).toMatchObject({ title: "DJ Deck", placement: "node", entry: "index.html" });
-  expect(refusal.failureDescription).toBe("list_project_views failed: /private/tmp/tl-rec053/not-a-project holds no project: it has no tatolab-project.json");
+  expect(refusal).toMatchObject({ _tag: "RuntimeRefused", words: "list_project_views failed: /private/tmp/tl-rec053/not-a-project holds no project: it has no tatolab-project.json" });
 });

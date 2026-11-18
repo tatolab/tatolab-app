@@ -3,7 +3,7 @@ import { afterEach, expect, test } from "vitest";
 import { FakeLocalApiServer, controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationFailedResponse } from "./fake_local_api_server.js";
 import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./local_api_client_test_support.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { describeNodeCatalog, listProjectAssets, listProjectNodeTypes } from "./runtime_operations.js";
+import { describeNodeCatalog, listProjectAssets, listProjectNodeTypes, readAssetPreview } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -181,10 +181,10 @@ test("a_real_preview_picture_read_answers_the_png_and_a_video_with_no_poster_fra
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-read-asset-preview-tool-result-of-harbour-dusk-png.json")),
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-read-asset-preview-refusal-for-quay-walk-mp4-with-no-poster-frame.json")),
   ]);
-  const picture = answerOf(await server.client().readAssetPreview(RECORDED_HARBOUR_LIGHTS, RECORDED_HARBOUR_DUSK_PNG));
+  const picture = answerOf(await server.run(readAssetPreview(RECORDED_HARBOUR_LIGHTS, RECORDED_HARBOUR_DUSK_PNG)));
   expect([picture.pixel_width, picture.pixel_height, picture.media_type, picture.picture_bytes.length]).toEqual([512, 320, "image/png", 36974]);
   expect(picture.picture_bytes.subarray(1, 4).toString("latin1")).toBe("PNG");
-  expect(failureOf(await server.client().readAssetPreview(RECORDED_HARBOUR_LIGHTS, RECORDED_QUAY_WALK_MP4)).failureDescription).toBe(
+  expect(failureOf(await server.run(readAssetPreview(RECORDED_HARBOUR_LIGHTS, RECORDED_QUAY_WALK_MP4))).words).toBe(
     "read_asset_preview failed: asset 23199eb3-ea3c-4d31-8f0f-2bf9395590d2 has no preview picture; the runtime makes one for an image",
   );
   expect(controlOperationCallsReceivedBy(server)).toEqual([
@@ -207,9 +207,10 @@ test("a_real_preview_picture_read_answers_the_png_and_a_video_with_no_poster_fra
 
 test("a_preview_picture_answered_for_another_asset_is_refused", async () => {
   const server = await fakeLocalApiServerAnswering([controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-read-asset-preview-tool-result-of-harbour-dusk-png.json"))]);
-  expect(failureOf(await server.client().readAssetPreview(RECORDED_HARBOUR_LIGHTS, RECORDED_QUAY_WALK_MP4)).failureDescription).toBe(
-    `the runtime's read_asset_preview result could not be read: it answers the asset ${RECORDED_HARBOUR_DUSK_PNG}, not ${RECORDED_QUAY_WALK_MP4}`,
-  );
+  expect(failureOf(await server.run(readAssetPreview(RECORDED_HARBOUR_LIGHTS, RECORDED_QUAY_WALK_MP4)))).toMatchObject({
+    _tag: "ContractMismatch",
+    words: `the runtime's answer to \`read_asset_preview\` is not the contract's \`ReadAssetPreviewToolResult\`: the runtime's read_asset_preview result could not be read: it answers the asset ${RECORDED_HARBOUR_DUSK_PNG}, not ${RECORDED_QUAY_WALK_MP4}`,
+  });
 });
 
 test("a_real_asset_listing_lists_each_imported_file_and_graph_document_and_a_folder_that_is_not_a_project_is_refused_in_the_runtimes_own_words", async () => {

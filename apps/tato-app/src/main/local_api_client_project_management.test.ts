@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse } from "./fake_local_api_server.js";
 import { answerOf, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./local_api_client_test_support.js";
+import { deleteAsset, relocateAsset } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -181,11 +182,11 @@ test("an_asset_the_person_renames_or_moves_keeps_its_uuid_at_its_new_path_record
   const poster = "7fc01c14-399c-4749-a45b-2c99a77ce0a6";
   const sam = { kind: "person", name: "sam" } as const;
 
-  expect(answerOf(await server.client().relocateAsset(harbourLights, poster, "media/harbour-poster.png", sam))).toEqual({ asset: poster, path: "media/harbour-poster.png" });
-  expect(answerOf(await server.client().relocateAsset(harbourLights, poster, "media/posters/harbour-poster.png", sam))).toEqual({ asset: poster, path: "media/posters/harbour-poster.png" });
-  expect(failureOf(await server.client().relocateAsset(harbourLights, poster, "media/opening.png", sam))).toEqual({
-    failureDescription: "relocate_asset failed: `media/opening.png` is already the path of the asset 4ce7c229-734b-4210-9bb5-e321bf4183de",
-    isTheRuntimesRefusal: true,
+  expect(answerOf(await server.run(relocateAsset(harbourLights, poster, "media/harbour-poster.png", sam)))).toEqual({ asset: poster, path: "media/harbour-poster.png" });
+  expect(answerOf(await server.run(relocateAsset(harbourLights, poster, "media/posters/harbour-poster.png", sam)))).toEqual({ asset: poster, path: "media/posters/harbour-poster.png" });
+  expect(failureOf(await server.run(relocateAsset(harbourLights, poster, "media/opening.png", sam)))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words: "relocate_asset failed: `media/opening.png` is already the path of the asset 4ce7c229-734b-4210-9bb5-e321bf4183de",
   });
   expect(controlOperationCallsReceivedBy(server)).toEqual([
     ["relocate_asset", { project_directory: harbourLights, asset: poster, to_path: "media/harbour-poster.png", author: sam }],
@@ -202,10 +203,10 @@ test("an_asset_the_person_deletes_is_answered_as_it_was_recorded_under_them_and_
   const harbourLights = "/tmp/tatolab-proof-projects/harbour-lights";
   const sam = { kind: "person", name: "sam" } as const;
 
-  expect(answerOf(await server.client().deleteAsset(harbourLights, "4ce7c229-734b-4210-9bb5-e321bf4183de", sam))).toEqual({ asset: "4ce7c229-734b-4210-9bb5-e321bf4183de", path: "media/opening.png" });
-  expect(failureOf(await server.client().deleteAsset(harbourLights, "00000000-0000-4000-8000-000000000000", sam))).toEqual({
-    failureDescription: "delete_asset failed: the project holds no asset 00000000-0000-4000-8000-000000000000",
-    isTheRuntimesRefusal: true,
+  expect(answerOf(await server.run(deleteAsset(harbourLights, "4ce7c229-734b-4210-9bb5-e321bf4183de", sam)))).toEqual({ asset: "4ce7c229-734b-4210-9bb5-e321bf4183de", path: "media/opening.png" });
+  expect(failureOf(await server.run(deleteAsset(harbourLights, "00000000-0000-4000-8000-000000000000", sam)))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words: "delete_asset failed: the project holds no asset 00000000-0000-4000-8000-000000000000",
   });
   expect(controlOperationCallsReceivedBy(server)).toEqual([
     ["delete_asset", { project_directory: harbourLights, asset: "4ce7c229-734b-4210-9bb5-e321bf4183de", author: sam }],

@@ -2,7 +2,7 @@
 // project-wide action queued, and the stream asset, transaction and commit of a change to one stream
 // asset.
 
-import { jsonObject, type JsonObjectOnTheWire, requiredObject, requiredText } from "./json_on_the_wire.js";
+import { everyOneRead, jsonObject, type JsonObjectOnTheWire, requiredArray, requiredObject, requiredText, toolResultReadWith } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import type { ControlOperationResult } from "./tatolab_runtime_control_operation_call.js";
 
@@ -14,6 +14,18 @@ export function queuedStreamActionFromTheToolResult(toolName: ProjectActionToolN
   const toolResult = jsonObject(operationResult, `the ${toolName} result`);
   const action = toolResult.ok ? requiredText(toolResult.value, "action") : toolResult;
   return action.ok ? action : failedWith(`the runtime's ${toolName} result could not be read: ${action.failure}`);
+}
+
+/** The runtime's tools that pause or resume a project's playback at once. */
+export type ProjectPlaybackPauseOrResumeToolName = "pause_playback" | "resume_playback";
+
+/** The id of each stream a `pause_playback` or `resume_playback` result names under `streams`, read from the result of `toolName`. */
+export function streamsThePauseOrResumeReachedFromTheToolResult(toolName: ProjectPlaybackPauseOrResumeToolName, operationResult: ControlOperationResult<ProjectPlaybackPauseOrResumeToolName>): Result<string[], string> {
+  return toolResultReadWith(toolName, operationResult, (toolResult) => {
+    const streams = requiredArray(toolResult, "streams");
+    if (!streams.ok) return streams;
+    return everyOneRead(streams.value, (stream) => (typeof stream === "string" ? succeeded(stream) : failedWith("`streams` holds a value that is not a string")));
+  });
 }
 
 /** The stream-asset tools that change one stream asset as one transaction on the project's history. */

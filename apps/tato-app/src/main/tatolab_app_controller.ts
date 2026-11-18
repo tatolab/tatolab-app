@@ -5,7 +5,6 @@ import type {
   ListedStream,
   ProjectCreationQueued,
   ProjectStreamActionQueued,
-  ProjectTransaction,
   ProjectTransactionAuthor,
   RuntimeDescription,
   StreamFailureNotificationsState,
@@ -26,9 +25,7 @@ import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import type { ProjectAssetAtItsPath, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
-import type { AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
 import type { NodeFileCreationRecorded, ProjectFileTheRuntimeListed, ProjectFileWriteRecorded } from "./project_files_on_the_wire.js";
-import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { LocalApiClient } from "./local_api_client.js";
 import { type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
@@ -255,21 +252,6 @@ export class TatolabAppController {
     return this.localApiClient.describeRuntime();
   }
 
-  /** Queue the stop of the playback of the project in `projectDirectory` through the runtime's `stop_playback`, answering the id of the action the runtime queued. */
-  stopPlayback(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
-    return this.localApiClient.stopPlayback(projectDirectory);
-  }
-
-  /** Pause the playback of the project in `projectDirectory` at once through the runtime's `pause_playback`, answering the id of each stream it paused. */
-  pausePlayback(projectDirectory: string): Promise<Result<string[], LocalApiRequestFailure>> {
-    return this.localApiClient.pausePlayback(projectDirectory);
-  }
-
-  /** Resume the paused playback of the project in `projectDirectory` at once through the runtime's `resume_playback`, answering the id of each stream it resumed. */
-  resumePlayback(projectDirectory: string): Promise<Result<string[], LocalApiRequestFailure>> {
-    return this.localApiClient.resumePlayback(projectDirectory);
-  }
-
   /** Queue the close of the open project in `projectDirectory` through the runtime's `close_project`, answering the id of the action the runtime queued. */
   closeProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
     return this.localApiClient.closeProject(projectDirectory);
@@ -285,24 +267,9 @@ export class TatolabAppController {
     return this.localApiClient.openProject(projectDirectory);
   }
 
-  /** Queue the start of the playback of the open project in `projectDirectory` through the runtime's `start_playback`. */
-  startPlayback(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
-    return this.localApiClient.startPlayback(projectDirectory);
-  }
-
   /** Queue the reload from disk of the open project in `projectDirectory`, keeping its playback, through the runtime's `reload_project`. */
   reloadProject(projectDirectory: string): Promise<Result<ProjectStreamActionQueued, LocalApiRequestFailure>> {
     return this.localApiClient.reloadProject(projectDirectory);
-  }
-
-  /** Undo `author`'s latest transaction in the project in `projectDirectory` not undone yet, answering the undo the runtime applied. */
-  undoInTheProject(projectDirectory: string, author: ProjectTransactionAuthor): Promise<Result<ProjectTransaction, LocalApiRequestFailure>> {
-    return this.localApiClient.undoInTheProject(projectDirectory, author);
-  }
-
-  /** Redo what `author`'s latest undo in the project in `projectDirectory` reversed, answering the redo the runtime applied. */
-  redoInTheProject(projectDirectory: string, author: ProjectTransactionAuthor): Promise<Result<ProjectTransaction, LocalApiRequestFailure>> {
-    return this.localApiClient.redoInTheProject(projectDirectory, author);
   }
 
   /** The stream action `action` as the runtime's `describe_stream_action` describes it. */
@@ -355,21 +322,6 @@ export class TatolabAppController {
     return this.localApiClient.importAsset(projectDirectory, source, assetPath, author);
   }
 
-  /** Put the asset `asset` of the project in `projectDirectory` at `toPath` through the runtime's `relocate_asset`, by `author`. */
-  relocateAsset(projectDirectory: string, asset: string, toPath: string, author: ProjectTransactionAuthor): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>> {
-    return this.localApiClient.relocateAsset(projectDirectory, asset, toPath, author);
-  }
-
-  /** The preview picture of the asset `asset` of the project in `projectDirectory` through the runtime's `read_asset_preview`. */
-  readAssetPreview(projectDirectory: string, asset: string): Promise<Result<AssetPreviewPictureTheRuntimeRead, LocalApiRequestFailure>> {
-    return this.localApiClient.readAssetPreview(projectDirectory, asset);
-  }
-
-  /** Stop tracking the asset `asset` of the project in `projectDirectory` through the runtime's `delete_asset`, by `author`. */
-  deleteAsset(projectDirectory: string, asset: string, author: ProjectTransactionAuthor): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>> {
-    return this.localApiClient.deleteAsset(projectDirectory, asset, author);
-  }
-
   /** Make a project in `projectDirectory` from the `.zip` `source` through the runtime's `import_project`. */
   importProject(source: string, projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
     return this.localApiClient.importProject(source, projectDirectory);
@@ -398,11 +350,6 @@ export class TatolabAppController {
   /** The runtime's `create_node_file` of `filePath` in the project in `projectDirectory`. */
   createNodeFile(projectDirectory: string, filePath: string, author: ProjectTransactionAuthor, idempotencyKey: string): Promise<Result<NodeFileCreationRecorded, LocalApiRequestFailure>> {
     return this.localApiClient.createNodeFile(projectDirectory, filePath, author, idempotencyKey);
-  }
-
-  /** Each view the project in `projectDirectory` and its imports bring. */
-  listProjectViews(projectDirectory: string): Promise<Result<ProjectViewTheRuntimeListed[], LocalApiRequestFailure>> {
-    return this.localApiClient.listProjectViews(projectDirectory);
   }
 
   /** The runtime's streams, or why listing them failed, which is logged on the round it starts failing. */

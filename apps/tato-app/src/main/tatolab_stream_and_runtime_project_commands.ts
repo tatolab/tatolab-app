@@ -23,7 +23,7 @@ import {
   removeProject,
   setStreamDisplayName,
 } from "./runtime_operations.js";
-import { ListedStreams, PersonEditingInStudio, StatusRounds, StudioWindows, type StudioServices } from "./studio_runtime.js";
+import { ListedStreams, PersonEditingInStudio, StudioWindows, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
 import { CommandRefused, windowCommand } from "./window_command.js";
 import { answerTheWindow, type TatolabCommandFromWindow, isTextOrNull, oneTextArgumentFrom, type TatolabWindowCommandHandlers, commandAnswerFrom, commandAnswerOfNothingFrom } from "./tatolab_command_answers.js";
 
@@ -43,11 +43,6 @@ const projectFolderTheRuntimeLastListed = Effect.fn("projectFolderTheRuntimeLast
   if ((yield* ListedStreams).aStreamIsListedFrom(projectDirectory)) return projectDirectory;
   return yield* new CommandRefused({ words: `The runtime lists no stream from ${projectDirectory}.` });
 });
-
-/** `change`, then a status round whether it changed the runtime or was refused, so the listing shows what it did. */
-function thenAStatusRound<Answer, Failure, Services>(change: Effect.Effect<Answer, Failure, Services>): Effect.Effect<Answer, Failure, Services | StatusRounds> {
-  return change.pipe(Effect.ensuring(StatusRounds.use((statusRounds) => statusRounds.requestARound)));
-}
 
 /** The arguments of `rename_stream`: the stream's id and the display name to show it under. */
 const RenameStreamArguments = Schema.Struct({ stream: Schema.String, display_name: Schema.String });
