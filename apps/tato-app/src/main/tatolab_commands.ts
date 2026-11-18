@@ -20,7 +20,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
   return {
     ...statusRuntimeAndSettingsCommandHandlersOf(sharedState, quitTheApp),
     ...streamAndRuntimeProjectCommandHandlersOf(sharedState, studioRuntime),
-    ...projectsWindowCommandHandlersOf(sharedState),
+    ...projectsWindowCommandHandlersOf(sharedState, studioRuntime),
     ...openProjectCommandHandlersOf(sharedState, studioRuntime),
     ...moduleManagerCommandHandlersOf(sharedState, studioRuntime),
     transact_in_the_open_project: transactInTheOpenProjectCommand(studioRuntime),

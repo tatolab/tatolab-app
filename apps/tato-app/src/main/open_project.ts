@@ -6,27 +6,41 @@
 
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { Clock, Effect, Result } from "effect";
 import { newProjectFolderNameRefusal, projectNameNumbered, UNTITLED_PROJECT_NAME } from "../shared/new_project_folder_name.js";
+import { streamsOfTheProjectIn, theStreamsListTheProjectOpen } from "../shared/project_playback.js";
 import type {
   ChosenProjectFolder,
   ImportedProject,
   NewProjectDefaults,
   OpenProjectReading,
   ProjectArchiveChosenToImport,
-  ProjectCreationQueued,
   RecentProject,
-  StreamActionFollowed,
   ProjectFolderChosenFor,
   ProjectTheRuntimeNames,
-  ProjectTransactionAuthor,
 } from "../shared/tatolab_backend_contract.js";
 import { realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
-import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
-import type { ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
-import type { ProjectAssetAtItsPath, ProjectSettingsAfterTheTransaction } from "./project_changes_on_the_wire.js";
+import {
+  createProject,
+  deleteProject,
+  describeStreamAction,
+  duplicateProject,
+  importAsset,
+  importProject,
+  listStreams,
+  openProject,
+  readProjectFile,
+  renameProject,
+  setProjectCover,
+  setProjectDescription,
+  summarizeTheProject,
+} from "./runtime_operations.js";
+import { ProjectDialogs, RecentProjects, StudioWindows, thenAStatusRound, ThisMachinesFolders } from "./studio_runtime.js";
+import type { RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import { importFolderInsideTheWorkspace, PROJECT_IMPORTS_FOLDER } from "./workspace_dependencies.js";
-import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
+import { describeCaughtFailure, type Result as PlainResult } from "./result.js";
+import { CommandRefused } from "./window_command.js";
 
 /** How long the folders must stay quiet after a change before they are read again, so one save that touches a file several times reads once. */
 export const OPEN_PROJECT_REREAD_QUIET_MS = 150;
@@ -35,7 +49,7 @@ export const OPEN_PROJECT_REREAD_QUIET_MS = 150;
 export type ProjectFolderDialogPurpose = ProjectFolderChosenFor | "new_project_location";
 
 /** Asks the person for a folder in the desktop's dialog, opened at `defaultFolder`. `null` when they cancel. */
-export type ProjectFolderDialog = (purpose: ProjectFolderDialogPurpose, defaultFolder: string) => Promise<Result<string | null, string>>;
+export type ProjectFolderDialog = (purpose: ProjectFolderDialogPurpose, defaultFolder: string) => Promise<PlainResult<string | null, string>>;
 
 /** The folder new projects go in, inside the platform's Documents folder. */
 export const NEW_PROJECTS_FOLDER_INSIDE_DOCUMENTS = "Tato Studio";
@@ -68,45 +82,16 @@ export interface RecentProjectFolders {
   /** The folders remembered, recent first; none when none are. */
   readRecentFolders(): Promise<RecentProjectFolderOpened[]>;
   /** Put `folder` first, opened at `openedAtWallClockMs`; refused in words when it could not be written, though it stays open until the app quits. */
-  rememberOpened(folder: string, openedAtWallClockMs: number): Promise<Result<void, string>>;
+  rememberOpened(folder: string, openedAtWallClockMs: number): Promise<PlainResult<void, string>>;
   /** Forget `folder`; nothing changes when it is not remembered, and refused in words when the file could not be written. */
-  forget(folder: string): Promise<Result<void, string>>;
-}
-
-/** The runtime's `create_project`, which makes a new project. */
-export interface NewProjectCreation {
-  createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>>;
-}
-
-/** The runtime's verbs on a project itself, and the description of an action one queued, each refused in the runtime's own words. */
-export interface ProjectChangesThroughTheRuntime {
-  /** The project's name, description and last edit, from `list_assets`. */
-  summarizeTheProject(projectDirectory: string): Promise<Result<ProjectSummaryTheRuntimeServes, LocalApiRequestFailure>>;
-  /** `rename_project`, answering the name it now has. */
-  renameProject(projectDirectory: string, name: string): Promise<Result<string, LocalApiRequestFailure>>;
-  /** `duplicate_project` into `into`, a folder that does not exist yet. */
-  duplicateProject(projectDirectory: string, into: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>>;
-  /** `delete_project`, answering the id of the action it queued. */
-  deleteProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>>;
-  /** Where the deletion `deleteProject` queued stands now. */
-  describeStreamAction(action: string): Promise<Result<StreamActionFollowed, LocalApiRequestFailure>>;
-  /** `import_project` of the `.zip` `source` into `projectDirectory`, a folder that does not exist yet. */
-  importProject(source: string, projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>>;
-  /** `set_project_description`; `null` clears it. */
-  setProjectDescription(projectDirectory: string, description: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>>;
-  /** `set_project_cover` with the media asset `cover`, a UUID the project holds; `null` clears it. */
-  setProjectCover(projectDirectory: string, cover: string | null): Promise<Result<ProjectSettingsAfterTheTransaction, LocalApiRequestFailure>>;
-  /** `import_asset` of the file at `source` to `assetPath` in the project, or for `null` into its kind's folder, by `author` or, for `null`, the runtime's own. */
-  importAsset(projectDirectory: string, source: string, assetPath: string | null, author: ProjectTransactionAuthor | null): Promise<Result<ProjectAssetAtItsPath, LocalApiRequestFailure>>;
-  /** `read_project_file`: the bytes of `filePath` in the project. */
-  readProjectFile(projectDirectory: string, filePath: string): Promise<Result<Buffer, LocalApiRequestFailure>>;
+  forget(folder: string): Promise<PlainResult<void, string>>;
 }
 
 /** Asks the person for a project `.zip` in the desktop's open dialog, opened at `defaultFolder`. `null` when they cancel. */
-export type ProjectArchiveDialog = (defaultFolder: string) => Promise<Result<string | null, string>>;
+export type ProjectArchiveDialog = (defaultFolder: string) => Promise<PlainResult<string | null, string>>;
 
 /** Asks the person for an image to show a project by, in the desktop's open dialog, opened at `defaultFolder`. `null` when they cancel. */
-export type ProjectCoverImageDialog = (defaultFolder: string) => Promise<Result<string | null, string>>;
+export type ProjectCoverImageDialog = (defaultFolder: string) => Promise<PlainResult<string | null, string>>;
 
 /** The image files a project cover can be chosen from, by extension, with the media type each is read back as. */
 export const PROJECT_COVER_IMAGE_MEDIA_TYPES: Readonly<Record<string, string>> = {
@@ -125,32 +110,6 @@ function projectCoverImageMediaTypeOf(imagePath: string): string | undefined {
 /** The folder in a project a chosen cover image is imported into. */
 const PROJECT_COVER_IMAGES_FOLDER = "media";
 
-/** What opening a project reaches: the person's home and Documents folders, the dialogs, the recent projects, the wall clock, the runtime, and the studio window each project opens in. */
-export interface ProjectOpeningSources {
-  homeDirectory: string;
-  /** The platform's Documents folder, where new projects go under `Tato Studio/`. */
-  documentsDirectory: string;
-  projectFolderDialog: ProjectFolderDialog;
-  projectArchiveDialog: ProjectArchiveDialog;
-  projectCoverImageDialog: ProjectCoverImageDialog;
-  recentProjectFolders: RecentProjectFolders;
-  /** The wall clock, in milliseconds since the epoch, stamped on a project as it opens for the Projects window to show. */
-  readWallClockNowMs: () => number;
-  newProjectCreation: NewProjectCreation;
-  projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime;
-  projectChanges: ProjectChangesThroughTheRuntime;
-  /** Answers once `delayMs` have passed. */
-  waitFor: (delayMs: number) => Promise<void>;
-  /** The monotonic clock, in milliseconds, that a deletion's longest wait is measured on. */
-  readMonotonicClockMs: () => number;
-  /** Open the project in `folder` in its own studio window, or bring that window forward when it is open; answers once the window shows the project. */
-  openTheProjectInItsStudioWindow: (folder: string) => Promise<StudioWindowOfTheProjectShown>;
-  /** Close the studio window of the project in `folder` and the windows it opened, without asking; nothing when none is open. */
-  closeTheStudioWindowOf: (folder: string) => void;
-  /** Open the project in `folder` on the runtime when it holds it closed, since it draws and edits only a loaded stream's graph; refused in the runtime's own words. */
-  openTheProjectWhenTheRuntimeHoldsItClosed: (folder: string) => Promise<Result<void, string>>;
-}
-
 /** What opening a project in its studio window did: opened a new window for it, or brought the one already open forward. */
 export type StudioWindowOfTheProjectShown = "opened_its_studio_window" | "brought_its_studio_window_forward";
 
@@ -166,18 +125,20 @@ export interface OpenProjectOfAStudioWindowSources {
 /** What the runtime answers about the project in a folder, each refused in the runtime's words or that no runtime answered. */
 export interface ProjectReadingsOfTheRuntime {
   /** Its UUID and name, from `list_assets`. */
-  nameTheProject: (projectFolder: string) => Promise<Result<ProjectTheRuntimeNames, string>>;
+  nameTheProject: (projectFolder: string) => Promise<PlainResult<ProjectTheRuntimeNames, string>>;
   /** Each project it imports, from `list_dependencies`. */
-  listTheDependencies: (projectFolder: string) => Promise<Result<ListedProjectDependency[], string>>;
+  listTheDependencies: (projectFolder: string) => Promise<PlainResult<ListedProjectDependency[], string>>;
 }
 
 /** The first of `name`, `name 2`, `name 3`, … that nothing in `location` holds as `<that name><extension>`; `name` itself when every one tried is taken, for the runtime or the sheet to refuse. */
-async function firstNumberedNameNothingHoldsIn(location: string, name: string, extension = ""): Promise<string> {
-  for (let number = 1; number <= NUMBERED_NAMES_TRIED; number += 1) {
-    const numberedName = projectNameNumbered(name, number);
-    if (!(await somethingIsAt(path.join(location, `${numberedName}${extension}`)))) return numberedName;
-  }
-  return name;
+function firstNumberedNameNothingHoldsIn(location: string, name: string, extension = ""): Effect.Effect<string> {
+  return Effect.promise(async () => {
+    for (let number = 1; number <= NUMBERED_NAMES_TRIED; number += 1) {
+      const numberedName = projectNameNumbered(name, number);
+      if (!(await somethingIsAt(path.join(location, `${numberedName}${extension}`)))) return numberedName;
+    }
+    return name;
+  });
 }
 
 /** The name a project imported from `archive` suggests: the `.zip`'s file name without its extension, or `Imported project` for a name that is only the extension. */
@@ -227,252 +188,253 @@ function foldersTheReadingDependsOn(projectFolder: string, reading: OpenProjectR
   return [...new Set([reading.open_project.project.folder, path.join(reading.open_project.project.folder, PROJECT_IMPORTS_FOLDER), ...importFolders])];
 }
 
-/** Opening a project, from any window: a folder chosen in the dialog, a recent project, or a new one the runtime creates, each in its own studio window and remembered among the recent projects. */
-export class ProjectOpening {
-  constructor(private readonly sources: ProjectOpeningSources) {}
+/** `<Documents>/Tato Studio`, where new projects go. */
+const defaultNewProjectLocation = ThisMachinesFolders.use(({ documentsDirectory }) => Effect.succeed(path.join(documentsDirectory, NEW_PROJECTS_FOLDER_INSIDE_DOCUMENTS)));
 
-  /** Ask the person for a project folder, the dialog opened beside `openProjectFolder` (the asking window's) or at home, and open it. `null` when they cancel; refused in the dialog's own words. */
-  async chooseProjectFolder(chosenFor: ProjectFolderChosenFor, openProjectFolder: string | null): Promise<Result<ChosenProjectFolder | null, string>> {
-    const chosenFolder = await this.sources.projectFolderDialog(chosenFor, openProjectFolder === null ? this.sources.homeDirectory : path.dirname(openProjectFolder));
-    if (!chosenFolder.ok || chosenFolder.value === null) return chosenFolder.ok ? succeeded(null) : chosenFolder;
-    const folder = await realPathOrAsGiven(path.resolve(chosenFolder.value));
-    const opened = await this.openAndRememberTheFolder(folder);
-    return opened.ok ? succeeded({ folder, project_creation: null }) : opened;
-  }
-
-  /** `<Documents>/Tato Studio`, and the first of `Untitled project`, `Untitled project 2`, … that nothing there holds. */
-  async readNewProjectDefaults(): Promise<NewProjectDefaults> {
-    const location = this.defaultNewProjectLocation();
-    return { location, name: await firstNumberedNameNothingHoldsIn(location, UNTITLED_PROJECT_NAME) };
-  }
-
-  /** Ask the person for a project `.zip`, the dialog opened at home, and answer where the Import project sheet starts for it; `null` when they cancel. */
-  async chooseProjectArchiveToImport(): Promise<Result<ProjectArchiveChosenToImport | null, string>> {
-    const chosenArchive = await this.sources.projectArchiveDialog(this.sources.homeDirectory);
-    if (!chosenArchive.ok) return chosenArchive;
-    if (chosenArchive.value === null) return succeeded(null);
-    const location = this.defaultNewProjectLocation();
-    const archive = path.resolve(chosenArchive.value);
-    return succeeded({ archive, location, name: await firstNumberedNameNothingHoldsIn(location, projectNameOfTheArchive(archive)) });
-  }
-
-  /**
-   * Make the project `name` in `location` from the `.zip` `archive` with the runtime's `import_project`, making `location` when it is missing, and
-   * open it. Refused with nothing made for a name that is no folder name or that something in `location` already holds; the runtime's refusal in its own words.
-   */
-  async importProjectArchive(archive: string, name: string, location: string): Promise<Result<ChosenProjectFolder, string>> {
-    if (!path.isAbsolute(archive)) return failedWith(`${archive} is not a full path to a .zip.`);
-    const projectDirectory = await this.newProjectDirectoryFor(name, location);
-    if (!projectDirectory.ok) return projectDirectory;
-    const imported = await this.sources.projectChanges.importProject(archive, projectDirectory.value);
-    if (!imported.ok) return failedWith(imported.failure.failureDescription);
-    const folder = await realPathOrAsGiven(path.resolve(imported.value.folder));
-    const opened = await this.openAndRememberTheFolder(folder);
-    return opened.ok ? succeeded({ folder, project_creation: null }) : opened;
-  }
-
-  /** Make a new project from the `.zip` `archive` in `<Documents>/Tato Studio`, under the first of `name`, `name 2`, … that nothing there holds, and open it, as `importProjectArchive` does. */
-  async makeAProjectOfItsOwnFromTheArchive(archive: string, name: string): Promise<Result<ChosenProjectFolder, string>> {
-    const location = this.defaultNewProjectLocation();
-    return this.importProjectArchive(archive, await firstNumberedNameNothingHoldsIn(location, name), location);
-  }
-
-  /** Name the project in `folder`, one of the recent projects, `name` through the runtime; its folder keeps its name. Refused for a blank name or any other folder, and in the runtime's own words. */
-  async renameRecentProject(folder: string, name: string): Promise<Result<void, string>> {
-    const recentFolder = await this.oneOfTheRecentFolders(folder);
-    if (!recentFolder.ok) return recentFolder;
-    if (name.trim() === "") return failedWith("Give the project a name.");
-    const renamed = await this.sources.projectChanges.renameProject(folder, name.trim());
-    return renamed.ok ? succeeded(undefined) : failedWith(renamed.failure.failureDescription);
-  }
-
-  /**
-   * Duplicate the project in `folder`, one of the recent projects, with its history into the first of `<folder> copy`, `<folder> copy 2`, … that nothing
-   * holds, and put the duplicate first among the recent projects; it does not open. Answers the duplicate's folder; refused for any other folder, and in the runtime's own words.
-   */
-  async duplicateRecentProject(folder: string): Promise<Result<string, string>> {
-    const recentFolder = await this.oneOfTheRecentFolders(folder);
-    if (!recentFolder.ok) return recentFolder;
-    const duplicateFolderName = await firstNumberedNameNothingHoldsIn(path.dirname(folder), `${path.basename(folder)} ${DUPLICATE_FOLDER_NAME_SUFFIX}`);
-    const duplicated = await this.sources.projectChanges.duplicateProject(folder, path.join(path.dirname(folder), duplicateFolderName));
-    if (!duplicated.ok) return failedWith(duplicated.failure.failureDescription);
-    const duplicateFolder = await realPathOrAsGiven(path.resolve(duplicated.value.folder));
-    const remembered = await this.sources.recentProjectFolders.rememberOpened(duplicateFolder, this.sources.readWallClockNowMs());
-    return remembered.ok ? succeeded(duplicateFolder) : failedWith(`The duplicate is in ${duplicateFolder}, but Tato Studio could not remember it for next time: ${remembered.failure}`);
-  }
-
-  /** The cover of the project in `folder`, one of the recent projects, as a `data:` URL of its image; `null` when it has none or one that is no image a window shows. Refused for any other folder, and in the runtime's own words. */
-  async readRecentProjectCover(folder: string): Promise<Result<string | null, string>> {
-    const recentFolder = await this.oneOfTheRecentFolders(folder);
-    if (!recentFolder.ok) return recentFolder;
-    const summary = await this.sources.projectChanges.summarizeTheProject(folder);
-    if (!summary.ok) return failedWith(summary.failure.failureDescription);
-    const coverPath = summary.value.cover_path;
-    if (coverPath === null) return succeeded(null);
-    const mediaType = projectCoverImageMediaTypeOf(coverPath);
-    if (mediaType === undefined) return succeeded(null);
-    const coverBytes = await this.sources.projectChanges.readProjectFile(folder, coverPath);
-    if (!coverBytes.ok) return failedWith(coverBytes.failure.failureDescription);
-    return succeeded(`data:${mediaType};base64,${coverBytes.value.toString("base64")}`);
-  }
-
-  /** Describe the project in `folder`, one of the recent projects, as `description` through the runtime; a blank one clears it. Refused for any other folder, and in the runtime's own words. */
-  async setRecentProjectDescription(folder: string, description: string): Promise<Result<void, string>> {
-    const recentFolder = await this.oneOfTheRecentFolders(folder);
-    if (!recentFolder.ok) return recentFolder;
-    const described = await this.sources.projectChanges.setProjectDescription(folder, description.trim() === "" ? null : description.trim());
-    return described.ok ? succeeded(undefined) : failedWith(described.failure.failureDescription);
-  }
-
-  /** The image the person chooses to show a project by, in the dialog opened at home; `null` when they cancel. */
-  async chooseProjectCoverImage(): Promise<Result<string | null, string>> {
-    const chosenImage = await this.sources.projectCoverImageDialog(this.sources.homeDirectory);
-    if (!chosenImage.ok) return chosenImage;
-    return succeeded(chosenImage.value === null ? null : path.resolve(chosenImage.value));
-  }
-
-  /**
-   * Show the project in `folder`, one of the recent projects, by `image`, an image file on this machine, which the runtime imports into its `media/`
-   * under the image's own name, numbered past one already there; `null` shows it by its plain cover again. Refused for any other folder, an image of a
-   * kind a window cannot show, and in the runtime's own words.
-   */
-  async setRecentProjectCover(folder: string, image: string | null): Promise<Result<void, string>> {
-    const recentFolder = await this.oneOfTheRecentFolders(folder);
-    if (!recentFolder.ok) return recentFolder;
-    if (image === null) {
-      const uncovered = await this.sources.projectChanges.setProjectCover(folder, null);
-      return uncovered.ok ? succeeded(undefined) : failedWith(uncovered.failure.failureDescription);
-    }
-    if (!path.isAbsolute(image)) return failedWith(`${image} is not a full path to an image.`);
-    const extension = path.extname(image);
-    if (projectCoverImageMediaTypeOf(image) === undefined) return failedWith(`${path.basename(image)} is not a PNG, JPEG, WebP or GIF image.`);
-    const coverImagesFolder = path.join(folder, PROJECT_COVER_IMAGES_FOLDER);
-    const imageFileName = `${await firstNumberedNameNothingHoldsIn(coverImagesFolder, path.basename(image, extension), extension)}${extension}`;
-    const imported = await this.sources.projectChanges.importAsset(folder, image, `${PROJECT_COVER_IMAGES_FOLDER}/${imageFileName}`, null);
-    if (!imported.ok) return failedWith(imported.failure.failureDescription);
-    const covered = await this.sources.projectChanges.setProjectCover(folder, imported.value.asset);
-    return covered.ok ? succeeded(undefined) : failedWith(covered.failure.failureDescription);
-  }
-
-  /**
-   * Delete the project in `folder`, one of the recent projects, through the runtime, which stops and forgets its streams and moves its folder to the Trash;
-   * answers once it has, its studio window closed and the project forgotten here. Refused for any other folder, in the runtime's words when it failed, and
-   * when the runtime has not finished within `PROJECT_DELETION_LONGEST_WAIT_MS`.
-   */
-  async deleteRecentProject(folder: string): Promise<Result<void, string>> {
-    const recentFolder = await this.oneOfTheRecentFolders(folder);
-    if (!recentFolder.ok) return recentFolder;
-    const queued = await this.sources.projectChanges.deleteProject(folder);
-    if (!queued.ok) return failedWith(queued.failure.failureDescription);
-    const deleted = await this.followTheDeletionToItsEnd(queued.value, folder);
-    if (!deleted.ok) return deleted;
-    this.sources.closeTheStudioWindowOf(folder);
-    const forgotten = await this.sources.recentProjectFolders.forget(folder);
-    return forgotten.ok ? succeeded(undefined) : failedWith(`The project is in the Trash, but Tato Studio could not forget it: ${forgotten.failure}`);
-  }
-
-  /** Ask the person for the folder a new project goes in, the dialog opened at `startingAt`, or at the default location when that is not absolute. `null` when they cancel. */
-  chooseNewProjectLocation(startingAt: string): Promise<Result<string | null, string>> {
-    return this.sources.projectFolderDialog("new_project_location", path.isAbsolute(startingAt) ? startingAt : this.defaultNewProjectLocation());
-  }
-
-  /**
-   * Create the project `name` in `location` with the runtime's `create_project`, making `location` when it is missing, and open it. Refused with nothing
-   * created for a name that is no folder name or that something in `location` already holds; the runtime's refusal in its own words.
-   */
-  async createNewProject(name: string, location: string): Promise<Result<ChosenProjectFolder, string>> {
-    const projectDirectory = await this.newProjectDirectoryFor(name, location);
-    if (!projectDirectory.ok) return projectDirectory;
-    const queued = await this.sources.newProjectCreation.createProject(projectDirectory.value);
-    if (!queued.ok) return failedWith(queued.failure.failureDescription);
-    const folder = await realPathOrAsGiven(path.resolve(queued.value.project_directory));
-    const opened = await this.openAndRememberTheFolder(folder, "the_runtime_opens_the_new_project_itself");
-    return opened.ok ? succeeded({ folder, project_creation: queued.value }) : opened;
-  }
-
-  /** Open `folder`, one of the recent projects, and put it first among them; refused for any other folder, and in words when it could not be remembered, though it opens. */
-  async openRecentProject(folder: string): Promise<Result<void, string>> {
-    const recentFolders = await this.sources.recentProjectFolders.readRecentFolders();
-    if (!recentFolders.some((recentFolder) => recentFolder.folder === folder)) return failedWith(`${folder} is not one of the recent projects.`);
-    return this.openAndRememberTheFolder(folder);
-  }
-
-  /** The recent projects, recent first, each with its project's name, description and last edit as the runtime reads them now, `null` where it could not. */
-  async readRecentProjects(): Promise<RecentProject[]> {
-    const recentFolders = await this.sources.recentProjectFolders.readRecentFolders();
-    return Promise.all(
-      recentFolders.map(async ({ folder, opened_at_wall_clock_ms }): Promise<RecentProject> => {
-        const summary = await this.sources.projectChanges.summarizeTheProject(folder);
-        return {
-          folder,
-          project_name: summary.ok ? summary.value.name : null,
-          project_description: summary.ok ? summary.value.description : null,
-          last_edited_at_wall_clock_ms: summary.ok ? summary.value.last_edited_at_wall_clock_ms : null,
-          has_a_chosen_cover: summary.ok && summary.value.cover_path !== null && projectCoverImageMediaTypeOf(summary.value.cover_path) !== undefined,
-          last_opened_at_wall_clock_ms: opened_at_wall_clock_ms,
-        };
-      }),
-    );
-  }
-
-  private defaultNewProjectLocation(): string {
-    return path.join(this.sources.documentsDirectory, NEW_PROJECTS_FOLDER_INSIDE_DOCUMENTS);
-  }
-
-  /** `<location>/<name>` for a project the runtime makes there, `location` made when missing; refused for a name that is no folder name, a relative `location`, or a folder that exists. */
-  private async newProjectDirectoryFor(name: string, location: string): Promise<Result<string, string>> {
-    const nameRefusal = newProjectFolderNameRefusal(name);
-    if (nameRefusal !== null) return failedWith(nameRefusal);
-    if (!path.isAbsolute(location)) return failedWith(`${location} is not a full path to a folder.`);
-    const projectDirectory = path.join(location, name.trim());
-    if (await somethingIsAt(projectDirectory)) return failedWith(`${projectDirectory} already exists. Choose another name or location.`);
-    try {
-      await mkdir(location, { recursive: true });
-    } catch (mkdirFailure) {
-      return failedWith(`Tato Studio couldn't make the folder ${location}: ${describeCaughtFailure(mkdirFailure)}`);
-    }
-    return succeeded(projectDirectory);
-  }
-
-  private async oneOfTheRecentFolders(folder: string): Promise<Result<void, string>> {
-    const recentFolders = await this.sources.recentProjectFolders.readRecentFolders();
-    return recentFolders.some((recentFolder) => recentFolder.folder === folder) ? succeeded(undefined) : failedWith(`${folder} is not one of the recent projects.`);
-  }
-
-  /** Ask about the deletion `action` until it ends: done, or refused with why it failed, was cancelled, is no longer held, or is still running past the longest wait. */
-  private async followTheDeletionToItsEnd(action: string, folder: string): Promise<Result<void, string>> {
-    const followedSinceMs = this.sources.readMonotonicClockMs();
-    while (this.sources.readMonotonicClockMs() - followedSinceMs <= PROJECT_DELETION_LONGEST_WAIT_MS) {
-      const followed = await this.sources.projectChanges.describeStreamAction(action);
-      if (!followed.ok) return failedWith(followed.failure.failureDescription);
-      if (followed.value.kind === "not_held") return failedWith(followed.value.words);
-      const { state, failed_because: failedBecause } = followed.value.description;
-      if (state === "done") return succeeded(undefined);
-      if (state === "failed") return failedWith(failedBecause ?? `The runtime could not delete ${folder}.`);
-      if (state === "cancelled") return failedWith(`Deleting ${folder} was cancelled; the project is where it was.`);
-      await this.sources.waitFor(PROJECT_DELETION_FOLLOW_INTERVAL_MS);
-    }
-    return failedWith(`The runtime is still deleting ${folder}. Its card stays here, and reads as gone from disk once the folder is in the Trash.`);
-  }
-
-  /** Open `folder` in its studio window and remember it; a project opened in a new window is opened on the runtime when it holds it closed, one whose window was open already is left as the person left it. */
-  private async openAndRememberTheFolder(
-    folder: string,
-    howTheRuntimeOpensTheProject: "open_it_when_the_runtime_holds_it_closed" | "the_runtime_opens_the_new_project_itself" = "open_it_when_the_runtime_holds_it_closed",
-  ): Promise<Result<void, string>> {
-    const studioWindowShown = await this.sources.openTheProjectInItsStudioWindow(folder);
-    const remembered = await this.sources.recentProjectFolders.rememberOpened(folder, this.sources.readWallClockNowMs());
-    const opened =
-      howTheRuntimeOpensTheProject === "open_it_when_the_runtime_holds_it_closed" && studioWindowShown === "opened_its_studio_window"
-        ? await this.sources.openTheProjectWhenTheRuntimeHoldsItClosed(folder)
-        : succeeded(undefined);
-    const failuresAfterTheWindowOpened = [
-      ...(opened.ok ? [] : [`the runtime did not open it: ${opened.failure}`]),
-      ...(remembered.ok ? [] : [`Tato Studio could not remember it for next time: ${remembered.failure}`]),
-    ];
-    return failuresAfterTheWindowOpened.length === 0 ? succeeded(undefined) : failedWith(`${folder} is open, but ${failuresAfterTheWindowOpened.join("; and ")}`);
-  }
+/** `folder`, resolved to its real path when it has one. */
+function realFolderOf(folder: string): Effect.Effect<string> {
+  return Effect.promise(() => realPathOrAsGiven(path.resolve(folder)));
 }
+
+/** Nothing when `folder` is one of the recent projects; refused naming it otherwise. */
+const oneOfTheRecentFolders = Effect.fn("oneOfTheRecentFolders")(function* (folder: string) {
+  const recentFolders = yield* (yield* RecentProjects).readRecentFolders;
+  if (!recentFolders.some((recentFolder) => recentFolder.folder === folder)) return yield* new CommandRefused({ words: `${folder} is not one of the recent projects.` });
+});
+
+/** `folder` put first among the recent projects, stamped with the wall clock now. */
+const rememberAmongTheRecentProjects = Effect.fn("rememberAmongTheRecentProjects")(function* (folder: string) {
+  const openedAtWallClockMs = yield* Clock.currentTimeMillis;
+  yield* (yield* RecentProjects).rememberOpened(folder, openedAtWallClockMs);
+});
+
+/** `<location>/<name>` for a project the runtime makes there, `location` made when missing; refused for a name that is no folder name, a relative `location`, or a folder that exists. */
+const newProjectDirectoryFor = Effect.fn("newProjectDirectoryFor")(function* (name: string, location: string) {
+  const nameRefusal = newProjectFolderNameRefusal(name);
+  if (nameRefusal !== null) return yield* new CommandRefused({ words: nameRefusal });
+  if (!path.isAbsolute(location)) return yield* new CommandRefused({ words: `${location} is not a full path to a folder.` });
+  const projectDirectory = path.join(location, name.trim());
+  if (yield* Effect.promise(() => somethingIsAt(projectDirectory))) return yield* new CommandRefused({ words: `${projectDirectory} already exists. Choose another name or location.` });
+  yield* Effect.tryPromise({
+    try: () => mkdir(location, { recursive: true }),
+    catch: (mkdirFailure) => new CommandRefused({ words: `Tato Studio couldn't make the folder ${location}: ${describeCaughtFailure(mkdirFailure)}` }),
+  });
+  return projectDirectory;
+});
+
+/** The project in `folder` opened on the runtime when it holds it closed, since it draws and edits only a loaded stream's graph, then a status round; left as it is while open. */
+export const openTheProjectWhenTheRuntimeHoldsItClosed = Effect.fn("openTheProjectWhenTheRuntimeHoldsItClosed")(function* (folder: string) {
+  const listedStreams = yield* listStreams();
+  if (theStreamsListTheProjectOpen(streamsOfTheProjectIn(listedStreams, folder))) return;
+  yield* thenAStatusRound(openProject(folder));
+});
+
+/**
+ * `folder` opened in its studio window and remembered among the recent projects; a project opened in a new window is opened on the runtime when it holds it
+ * closed, one whose window was open already is left as the person left it. Refused, once its window shows it, saying what did not happen.
+ */
+const openAndRememberTheFolder = Effect.fn("openAndRememberTheFolder")(function* (
+  folder: string,
+  howTheRuntimeOpensTheProject: "open_it_when_the_runtime_holds_it_closed" | "the_runtime_opens_the_new_project_itself" = "open_it_when_the_runtime_holds_it_closed",
+) {
+  const studioWindowShown = yield* (yield* StudioWindows).openTheProjectInItsStudioWindow(folder);
+  const remembered = yield* Effect.result(rememberAmongTheRecentProjects(folder));
+  const opened =
+    howTheRuntimeOpensTheProject === "open_it_when_the_runtime_holds_it_closed" && studioWindowShown === "opened_its_studio_window"
+      ? yield* Effect.result(openTheProjectWhenTheRuntimeHoldsItClosed(folder))
+      : Result.succeed(undefined);
+  const failuresAfterTheWindowOpened = [
+    ...(Result.isFailure(opened) ? [`the runtime did not open it: ${opened.failure.words}`] : []),
+    ...(Result.isFailure(remembered) ? [`Tato Studio could not remember it for next time: ${remembered.failure.words}`] : []),
+  ];
+  if (failuresAfterTheWindowOpened.length > 0) return yield* new CommandRefused({ words: `${folder} is open, but ${failuresAfterTheWindowOpened.join("; and ")}` });
+});
+
+/** The folder the person chooses in the project folder dialog, opened beside `openProjectFolder` (the asking window's project) or at home, opened in its studio window; `null` when they cancel. */
+export const chooseProjectFolder = Effect.fn("chooseProjectFolder")(function* (chosenFor: ProjectFolderChosenFor, openProjectFolder: string | null) {
+  const { homeDirectory } = yield* ThisMachinesFolders;
+  const chosenFolder = yield* (yield* ProjectDialogs).chooseAProjectFolder(chosenFor, openProjectFolder === null ? homeDirectory : path.dirname(openProjectFolder));
+  if (chosenFolder === null) return null;
+  const folder = yield* realFolderOf(chosenFolder);
+  yield* openAndRememberTheFolder(folder);
+  return { folder, project_creation: null } satisfies ChosenProjectFolder;
+});
+
+/** `<Documents>/Tato Studio`, and the first of `Untitled project`, `Untitled project 2`, … that nothing there holds. */
+export const readNewProjectDefaults: Effect.Effect<NewProjectDefaults, never, ThisMachinesFolders> = Effect.gen(function* () {
+  const location = yield* defaultNewProjectLocation;
+  return { location, name: yield* firstNumberedNameNothingHoldsIn(location, UNTITLED_PROJECT_NAME) };
+});
+
+/** The project `.zip` the person chooses in the dialog opened at home, with where the Import project sheet starts for it; `null` when they cancel. */
+export const chooseProjectArchiveToImport: Effect.Effect<ProjectArchiveChosenToImport | null, CommandRefused, ThisMachinesFolders | ProjectDialogs> = Effect.gen(function* () {
+  const { homeDirectory } = yield* ThisMachinesFolders;
+  const chosenArchive = yield* (yield* ProjectDialogs).chooseAProjectArchive(homeDirectory);
+  if (chosenArchive === null) return null;
+  const location = yield* defaultNewProjectLocation;
+  const archive = path.resolve(chosenArchive);
+  return { archive, location, name: yield* firstNumberedNameNothingHoldsIn(location, projectNameOfTheArchive(archive)) };
+});
+
+/**
+ * The project `name` made in `location` from the `.zip` `archive` by the runtime's `import_project`, `location` made when missing, and opened. Refused with
+ * nothing made for a name that is no folder name or that something in `location` already holds; the runtime's refusal in its own words.
+ */
+export const importProjectArchive = Effect.fn("importProjectArchive")(function* (archive: string, name: string, location: string) {
+  if (!path.isAbsolute(archive)) return yield* new CommandRefused({ words: `${archive} is not a full path to a .zip.` });
+  const projectDirectory = yield* newProjectDirectoryFor(name, location);
+  const imported = yield* importProject(archive, projectDirectory);
+  const folder = yield* realFolderOf(imported.folder);
+  yield* openAndRememberTheFolder(folder);
+  return { folder, project_creation: null } satisfies ChosenProjectFolder;
+});
+
+/** A new project made from the `.zip` `archive` in `<Documents>/Tato Studio`, under the first of `name`, `name 2`, … that nothing there holds, and opened, as `importProjectArchive` does. */
+export const makeAProjectOfItsOwnFromTheArchive = Effect.fn("makeAProjectOfItsOwnFromTheArchive")(function* (archive: string, name: string) {
+  const location = yield* defaultNewProjectLocation;
+  return yield* importProjectArchive(archive, yield* firstNumberedNameNothingHoldsIn(location, name), location);
+});
+
+/** The project in `folder`, one of the recent projects, named `name` through the runtime; its folder keeps its name. Refused for a blank name or any other folder, and in the runtime's own words. */
+export const renameRecentProject = Effect.fn("renameRecentProject")(function* (folder: string, name: string) {
+  yield* oneOfTheRecentFolders(folder);
+  if (name.trim() === "") return yield* new CommandRefused({ words: "Give the project a name." });
+  yield* renameProject(folder, name.trim());
+});
+
+/**
+ * The project in `folder`, one of the recent projects, duplicated with its history into the first of `<folder> copy`, `<folder> copy 2`, … that nothing holds,
+ * and the duplicate put first among the recent projects; it does not open. Answers the duplicate's folder; refused for any other folder, and in the runtime's own words.
+ */
+export const duplicateRecentProject = Effect.fn("duplicateRecentProject")(function* (folder: string) {
+  yield* oneOfTheRecentFolders(folder);
+  const duplicateFolderName = yield* firstNumberedNameNothingHoldsIn(path.dirname(folder), `${path.basename(folder)} ${DUPLICATE_FOLDER_NAME_SUFFIX}`);
+  const duplicated = yield* duplicateProject(folder, path.join(path.dirname(folder), duplicateFolderName));
+  const duplicateFolder = yield* realFolderOf(duplicated.folder);
+  yield* rememberAmongTheRecentProjects(duplicateFolder).pipe(
+    Effect.mapError(({ words }) => new CommandRefused({ words: `The duplicate is in ${duplicateFolder}, but Tato Studio could not remember it for next time: ${words}` })),
+  );
+  return duplicateFolder;
+});
+
+/** The cover of the project in `folder`, one of the recent projects, as a `data:` URL of its image; `null` when it has none or one that is no image a window shows. Refused for any other folder, and in the runtime's own words. */
+export const readRecentProjectCover = Effect.fn("readRecentProjectCover")(function* (folder: string) {
+  yield* oneOfTheRecentFolders(folder);
+  const { cover_path: coverPath } = yield* summarizeTheProject(folder);
+  if (coverPath === null) return null;
+  const mediaType = projectCoverImageMediaTypeOf(coverPath);
+  if (mediaType === undefined) return null;
+  const coverBytes = yield* readProjectFile(folder, coverPath);
+  return `data:${mediaType};base64,${coverBytes.toString("base64")}`;
+});
+
+/** The project in `folder`, one of the recent projects, described as `description` through the runtime; a blank one clears it. Refused for any other folder, and in the runtime's own words. */
+export const setRecentProjectDescription = Effect.fn("setRecentProjectDescription")(function* (folder: string, description: string) {
+  yield* oneOfTheRecentFolders(folder);
+  yield* setProjectDescription(folder, description.trim() === "" ? null : description.trim());
+});
+
+/** The image the person chooses to show a project by, in the dialog opened at home; `null` when they cancel. */
+export const chooseProjectCoverImage: Effect.Effect<string | null, CommandRefused, ThisMachinesFolders | ProjectDialogs> = Effect.gen(function* () {
+  const { homeDirectory } = yield* ThisMachinesFolders;
+  const chosenImage = yield* (yield* ProjectDialogs).chooseAProjectCoverImage(homeDirectory);
+  return chosenImage === null ? null : path.resolve(chosenImage);
+});
+
+/**
+ * The project in `folder`, one of the recent projects, shown by `image`, an image file on this machine, which the runtime imports into its `media/` under the
+ * image's own name, numbered past one already there; `null` shows it by its plain cover again. Refused for any other folder, an image of a kind a window
+ * cannot show, and in the runtime's own words.
+ */
+export const setRecentProjectCover = Effect.fn("setRecentProjectCover")(function* (folder: string, image: string | null) {
+  yield* oneOfTheRecentFolders(folder);
+  if (image === null) {
+    yield* setProjectCover(folder, null);
+    return;
+  }
+  if (!path.isAbsolute(image)) return yield* new CommandRefused({ words: `${image} is not a full path to an image.` });
+  if (projectCoverImageMediaTypeOf(image) === undefined) return yield* new CommandRefused({ words: `${path.basename(image)} is not a PNG, JPEG, WebP or GIF image.` });
+  const extension = path.extname(image);
+  const imageFileName = `${yield* firstNumberedNameNothingHoldsIn(path.join(folder, PROJECT_COVER_IMAGES_FOLDER), path.basename(image, extension), extension)}${extension}`;
+  const imported = yield* importAsset(folder, image, `${PROJECT_COVER_IMAGES_FOLDER}/${imageFileName}`, null);
+  yield* setProjectCover(folder, imported.asset);
+});
+
+/** The deletion `action` of the project in `folder`, asked about until it ends: done, or refused with why it failed, was cancelled, is no longer held, or is still running past the longest wait. */
+const followTheDeletionToItsEnd = Effect.fn("followTheDeletionToItsEnd")(function* (action: string, folder: string) {
+  const followedSinceNanos = yield* Clock.monotonicTimeNanos;
+  const longestWaitNanos = BigInt(PROJECT_DELETION_LONGEST_WAIT_MS) * 1_000_000n;
+  while ((yield* Clock.monotonicTimeNanos) - followedSinceNanos <= longestWaitNanos) {
+    const followed = yield* describeStreamAction(action);
+    if (followed.kind === "not_held") return yield* new CommandRefused({ words: followed.words });
+    const { state, failed_because: failedBecause } = followed.description;
+    if (state === "done") return;
+    if (state === "failed") return yield* new CommandRefused({ words: failedBecause ?? `The runtime could not delete ${folder}.` });
+    if (state === "cancelled") return yield* new CommandRefused({ words: `Deleting ${folder} was cancelled; the project is where it was.` });
+    yield* Effect.sleep(PROJECT_DELETION_FOLLOW_INTERVAL_MS);
+  }
+  return yield* new CommandRefused({ words: `The runtime is still deleting ${folder}. Its card stays here, and reads as gone from disk once the folder is in the Trash.` });
+});
+
+/**
+ * The project in `folder`, one of the recent projects, deleted through the runtime, which stops and forgets its streams and moves its folder to the Trash;
+ * answers once it has, its studio window closed and the project forgotten here. Refused for any other folder, in the runtime's words when it failed, and
+ * when the runtime has not finished within `PROJECT_DELETION_LONGEST_WAIT_MS`.
+ */
+export const deleteRecentProject = Effect.fn("deleteRecentProject")(function* (folder: string) {
+  yield* oneOfTheRecentFolders(folder);
+  const action = yield* deleteProject(folder);
+  yield* followTheDeletionToItsEnd(action, folder);
+  yield* (yield* StudioWindows).closeTheStudioWindowOf(folder);
+  yield* (yield* RecentProjects).forget(folder).pipe(Effect.mapError(({ words }) => new CommandRefused({ words: `The project is in the Trash, but Tato Studio could not forget it: ${words}` })));
+});
+
+/** The folder the person chooses for a new project, the dialog opened at `startingAt`, or at the default location when that is not absolute; `null` when they cancel. */
+export const chooseNewProjectLocation = Effect.fn("chooseNewProjectLocation")(function* (startingAt: string) {
+  const defaultFolder = path.isAbsolute(startingAt) ? startingAt : yield* defaultNewProjectLocation;
+  return yield* (yield* ProjectDialogs).chooseAProjectFolder("new_project_location", defaultFolder);
+});
+
+/**
+ * The project `name` created in `location` by the runtime's `create_project`, `location` made when missing, and opened. Refused with nothing created for a
+ * name that is no folder name or that something in `location` already holds; the runtime's refusal in its own words.
+ */
+export const createNewProject = Effect.fn("createNewProject")(function* (name: string, location: string) {
+  const projectDirectory = yield* newProjectDirectoryFor(name, location);
+  const queued = yield* createProject(projectDirectory);
+  const folder = yield* realFolderOf(queued.project_directory);
+  yield* openAndRememberTheFolder(folder, "the_runtime_opens_the_new_project_itself");
+  return { folder, project_creation: queued } satisfies ChosenProjectFolder;
+});
+
+/** `folder`, one of the recent projects, opened and put first among them; refused for any other folder, and in words when it could not be remembered, though it opens. */
+export const openRecentProject = Effect.fn("openRecentProject")(function* (folder: string) {
+  yield* oneOfTheRecentFolders(folder);
+  yield* openAndRememberTheFolder(folder);
+});
+
+/** The recent projects, recent first, each with its project's name, description and last edit as the runtime reads them now, `null` where it could not. */
+export const readRecentProjects: Effect.Effect<RecentProject[], never, RecentProjects | RuntimeControl> = Effect.gen(function* () {
+  const recentFolders = yield* (yield* RecentProjects).readRecentFolders;
+  return yield* Effect.forEach(
+    recentFolders,
+    ({ folder, opened_at_wall_clock_ms }) =>
+      Effect.result(summarizeTheProject(folder)).pipe(
+        Effect.map((summary): RecentProject => {
+          const summarized = Result.isSuccess(summary) ? summary.success : null;
+          return {
+            folder,
+            project_name: summarized?.name ?? null,
+            project_description: summarized?.description ?? null,
+            last_edited_at_wall_clock_ms: summarized?.last_edited_at_wall_clock_ms ?? null,
+            has_a_chosen_cover: summarized !== null && summarized.cover_path !== null && projectCoverImageMediaTypeOf(summarized.cover_path) !== undefined,
+            last_opened_at_wall_clock_ms: opened_at_wall_clock_ms,
+          };
+        }),
+      ),
+    { concurrency: "unbounded" },
+  );
+});
 
 /** The project one studio window shows, read from its folder and read again whenever one of its folders changes. */
 export class OpenProjectOfAStudioWindow {

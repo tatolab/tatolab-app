@@ -1,123 +1,58 @@
-import type { ChosenProjectFolder, ProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
-import { isAJsonObject } from "./json_on_the_wire.js";
-import { failedWith, succeeded, type Result } from "./result.js";
+import { Effect, Schema, type ManagedRuntime } from "effect";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { NO_PROJECT_OPEN_IN_THE_WINDOW } from "./tatolab_app_windows.js";
-import { answerTheWindow, answerTheWindowThenRefreshTheStatus, type TatolabCommandFromWindow, oneTextArgumentFrom, type TatolabWindowCommandHandlers, commandAnswerFrom, commandAnswerOfNothingFrom } from "./tatolab_command_answers.js";
+import type { TatolabCommandFromWindow, TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
+import {
+  chooseNewProjectLocation,
+  chooseProjectArchiveToImport,
+  chooseProjectCoverImage,
+  chooseProjectFolder,
+  createNewProject,
+  deleteRecentProject,
+  duplicateRecentProject,
+  importProjectArchive,
+  openRecentProject,
+  readNewProjectDefaults,
+  readRecentProjectCover,
+  readRecentProjects,
+  renameRecentProject,
+  setRecentProjectCover,
+  setRecentProjectDescription,
+} from "./open_project.js";
+import { StudioWindows, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
+import { windowCommand } from "./window_command.js";
 
-/** A project opened from the Projects window steps it aside for the project's own window; one opened from a studio window leaves that window as it is. */
-function stepTheProjectsWindowAsideOnceItOpenedAProject(
-  sharedState: TatolabAppSharedState,
+/** `opening`, then, once it opened a project, the Projects window stepped aside for the project's own window when the command came from it; a studio window is left as it is. */
+function thenStepTheProjectsWindowAside<Answer, Failure, Services>(
   commandFromWindow: TatolabCommandFromWindow,
-  opened: Result<unknown, string>,
-): void {
-  if (opened.ok && opened.value !== null && sharedState.appWindows.isTheProjectsWindow(commandFromWindow.windowContentsId)) {
-    sharedState.appWindows.projectsWindow.hide();
-  }
+  opening: Effect.Effect<Answer, Failure, Services>,
+): Effect.Effect<Answer, Failure, Services | StudioWindows> {
+  return opening.pipe(Effect.tap((opened) => (opened === null ? Effect.void : StudioWindows.use((studioWindows) => studioWindows.stepTheProjectsWindowAsideFor(commandFromWindow)))));
 }
 
-/** `choose_project_folder { chosen_for }`: the app's folder dialog, opened beside the asking window's project, the chosen folder opened in its own studio window; `null` when the person cancels. */
-async function chooseProjectFolder(
-  sharedState: TatolabAppSharedState,
-  chosenFor: ProjectFolderChosenFor,
-  commandFromWindow: TatolabCommandFromWindow,
-): Promise<Result<ChosenProjectFolder | null, string>> {
-  const projectFolderOfTheWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId)?.openProject.projectFolder ?? null;
-  const chosen = await answerTheWindow("choose_project_folder", () => sharedState.projectOpening.chooseProjectFolder(chosenFor, projectFolderOfTheWindow));
-  stepTheProjectsWindowAsideOnceItOpenedAProject(sharedState, commandFromWindow, chosen);
-  return chosen;
-}
+/** The arguments of `choose_project_folder`: what the folder is chosen for. */
+const ChooseProjectFolderArguments = Schema.Struct({ chosen_for: Schema.Literal("project_to_open") });
 
-/** `choose_project_folder`'s arguments as the window sends them, or why they are not. */
-function chooseProjectFolderArgumentsFrom(commandArguments: unknown): Result<{ chosen_for: ProjectFolderChosenFor }, string> {
-  const chosenFor = isAJsonObject(commandArguments) ? commandArguments["chosen_for"] : undefined;
-  if (chosenFor !== "project_to_open") return failedWith("choose_project_folder needs `chosen_for`, project_to_open");
-  return succeeded({ chosen_for: chosenFor });
-}
+/** The arguments of `choose_new_project_location`: the folder the dialog opens in. */
+const ChooseNewProjectLocationArguments = Schema.Struct({ starting_at: Schema.String });
 
-/** `create_new_project { name, location }`: the runtime's `create_project` at `<location>/<name>`, opened in its own studio window, then a status round; refused in the app's words or the runtime's own. */
-async function createNewProject(
-  sharedState: TatolabAppSharedState,
-  name: string,
-  location: string,
-  commandFromWindow: TatolabCommandFromWindow,
-): Promise<Result<ChosenProjectFolder, string>> {
-  const created = await answerTheWindow("create_new_project", async () => {
-    const createdProject = await sharedState.projectOpening.createNewProject(name, location);
-    sharedState.statusPublisher.requestRefresh();
-    return createdProject;
-  });
-  stepTheProjectsWindowAsideOnceItOpenedAProject(sharedState, commandFromWindow, created);
-  return created;
-}
+/** The arguments of `create_new_project`: the new project's name and the full path of the folder it goes in. */
+const CreateNewProjectArguments = Schema.Struct({ name: Schema.String, location: Schema.String });
 
-/** `open_recent_project { folder }`: one of the recent projects opened in its own studio window, or that window brought forward. */
-async function openRecentProject(sharedState: TatolabAppSharedState, folder: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
-  const opened = await answerTheWindow("open_recent_project", () => sharedState.projectOpening.openRecentProject(folder));
-  stepTheProjectsWindowAsideOnceItOpenedAProject(sharedState, commandFromWindow, opened.ok ? succeeded(folder) : opened);
-  return opened;
-}
+/** The arguments of the commands on one recent project: its folder. */
+const RecentProjectArguments = Schema.Struct({ folder: Schema.String });
 
-/** `import_project_archive { archive, name, location }`: the runtime's `import_project` of `archive` into `<location>/<name>`, opened in its own studio window, then a status round; refused in the app's words or the runtime's own. */
-async function importProjectArchive(
-  sharedState: TatolabAppSharedState,
-  importArguments: { archive: string; name: string; location: string },
-  commandFromWindow: TatolabCommandFromWindow,
-): Promise<Result<ChosenProjectFolder, string>> {
-  const imported = await answerTheWindow("import_project_archive", async () => {
-    const importedProject = await sharedState.projectOpening.importProjectArchive(importArguments.archive, importArguments.name, importArguments.location);
-    sharedState.statusPublisher.requestRefresh();
-    return importedProject;
-  });
-  stepTheProjectsWindowAsideOnceItOpenedAProject(sharedState, commandFromWindow, imported);
-  return imported;
-}
+/** The arguments of `rename_recent_project`: one of the recent projects' folders and its new name. */
+const RenameRecentProjectArguments = Schema.Struct({ folder: Schema.String, name: Schema.String });
 
-/** `import_project_archive`'s arguments as the window sends them, or why they are not. */
-function importProjectArchiveArgumentsFrom(commandArguments: unknown): Result<{ archive: string; name: string; location: string }, string> {
-  const archive = oneTextArgumentFrom("import_project_archive", commandArguments, "archive", "the project .zip chosen in the dialog");
-  if (!archive.ok) return archive;
-  const name = oneTextArgumentFrom("import_project_archive", commandArguments, "name", "the imported project's name");
-  if (!name.ok) return name;
-  const location = oneTextArgumentFrom("import_project_archive", commandArguments, "location", "the folder the project goes in");
-  if (!location.ok) return location;
-  return succeeded({ archive: archive.value, name: name.value, location: location.value });
-}
+/** The arguments of `set_recent_project_description`: one of the recent projects' folders and what it is, blank to clear it. */
+const SetRecentProjectDescriptionArguments = Schema.Struct({ folder: Schema.String, description: Schema.String });
 
-/** `rename_recent_project`'s arguments as the window sends them, or why they are not. */
-function renameRecentProjectArgumentsFrom(commandArguments: unknown): Result<{ folder: string; name: string }, string> {
-  const folder = oneTextArgumentFrom("rename_recent_project", commandArguments, "folder", "one of the recent projects' folders");
-  if (!folder.ok) return folder;
-  const name = oneTextArgumentFrom("rename_recent_project", commandArguments, "name", "the project's new name");
-  if (!name.ok) return name;
-  return succeeded({ folder: folder.value, name: name.value });
-}
+/** The arguments of `set_recent_project_cover`: one of the recent projects' folders and the full path of an image, or `null` for the plain cover. */
+const SetRecentProjectCoverArguments = Schema.Struct({ folder: Schema.String, image: Schema.NullOr(Schema.String) });
 
-/** `set_recent_project_description`'s arguments as the window sends them, or why they are not. */
-function setRecentProjectDescriptionArgumentsFrom(commandArguments: unknown): Result<{ folder: string; description: string }, string> {
-  const folder = oneTextArgumentFrom("set_recent_project_description", commandArguments, "folder", "one of the recent projects' folders");
-  if (!folder.ok) return folder;
-  const description = oneTextArgumentFrom("set_recent_project_description", commandArguments, "description", "what the project is, blank to clear it");
-  if (!description.ok) return description;
-  return succeeded({ folder: folder.value, description: description.value });
-}
-
-/** `set_recent_project_cover`'s arguments as the window sends them, or why they are not. */
-function setRecentProjectCoverArgumentsFrom(commandArguments: unknown): Result<{ folder: string; image: string | null }, string> {
-  const folder = oneTextArgumentFrom("set_recent_project_cover", commandArguments, "folder", "one of the recent projects' folders");
-  if (!folder.ok) return folder;
-  const image = isAJsonObject(commandArguments) ? commandArguments["image"] : undefined;
-  if (image !== null && typeof image !== "string") return failedWith("set_recent_project_cover needs `image`, the full path of an image, or null for the plain cover");
-  return succeeded({ folder: folder.value, image });
-}
-
-/** `create_new_project`'s arguments as the window sends them, or why they are not. */
-function createNewProjectArgumentsFrom(commandArguments: unknown): Result<{ name: string; location: string }, string> {
-  const name = oneTextArgumentFrom("create_new_project", commandArguments, "name", "the new project's name");
-  if (!name.ok) return name;
-  const location = oneTextArgumentFrom("create_new_project", commandArguments, "location", "the full path of the folder it goes in");
-  return location.ok ? succeeded({ name: name.value, location: location.value }) : location;
-}
+/** The arguments of `import_project_archive`: the project `.zip` chosen in the dialog, the imported project's name and the folder it goes in. */
+const ImportProjectArchiveArguments = Schema.Struct({ archive: Schema.String, name: Schema.String, location: Schema.String });
 
 type ProjectsWindowCommandName =
   | "choose_project_folder"
@@ -138,81 +73,45 @@ type ProjectsWindowCommandName =
   | "import_project_archive"
   | "show_projects_window";
 
-/** The handlers of the Projects window's commands on new, recent and imported projects, over `sharedState`. */
-export function projectsWindowCommandHandlersOf(sharedState: TatolabAppSharedState): Pick<TatolabWindowCommandHandlers, ProjectsWindowCommandName> {
+/** The handlers of the Projects window's commands on new, recent and imported projects, run on `studioRuntime`, over `sharedState`'s windows. */
+export function projectsWindowCommandHandlersOf(
+  sharedState: TatolabAppSharedState,
+  studioRuntime: ManagedRuntime.ManagedRuntime<StudioServices, never>,
+): Pick<TatolabWindowCommandHandlers, ProjectsWindowCommandName> {
   return {
-    choose_project_folder: async (commandArguments, commandFromWindow) => {
-      const chooseArguments = chooseProjectFolderArgumentsFrom(commandArguments);
-      if (!chooseArguments.ok) return { ok: false, refusal: chooseArguments.failure };
-      return commandAnswerFrom(await chooseProjectFolder(sharedState, chooseArguments.value.chosen_for, commandFromWindow));
-    },
-    read_new_project_defaults: async () => ({ ok: true, value: await sharedState.projectOpening.readNewProjectDefaults() }),
-    choose_new_project_location: async (commandArguments) => {
-      const startingAt = oneTextArgumentFrom("choose_new_project_location", commandArguments, "starting_at", "the folder the dialog opens in");
-      if (!startingAt.ok) return { ok: false, refusal: startingAt.failure };
-      return commandAnswerFrom(await answerTheWindow("choose_new_project_location", () => sharedState.projectOpening.chooseNewProjectLocation(startingAt.value)));
-    },
-    create_new_project: async (commandArguments, commandFromWindow) => {
-      const createArguments = createNewProjectArgumentsFrom(commandArguments);
-      if (!createArguments.ok) return { ok: false, refusal: createArguments.failure };
-      return commandAnswerFrom(await createNewProject(sharedState, createArguments.value.name, createArguments.value.location, commandFromWindow));
-    },
+    choose_project_folder: windowCommand(studioRuntime, "choose_project_folder", ChooseProjectFolderArguments, ({ chosen_for }, commandFromWindow) =>
+      StudioWindows.use((studioWindows) =>
+        thenStepTheProjectsWindowAside(commandFromWindow, chooseProjectFolder(chosen_for, studioWindows.openedFolderOfTheStudioWindow(commandFromWindow))),
+      ),
+    ),
+    read_new_project_defaults: windowCommand(studioRuntime, "read_new_project_defaults", Schema.Undefined, () => readNewProjectDefaults),
+    choose_new_project_location: windowCommand(studioRuntime, "choose_new_project_location", ChooseNewProjectLocationArguments, ({ starting_at }) => chooseNewProjectLocation(starting_at)),
+    create_new_project: windowCommand(studioRuntime, "create_new_project", CreateNewProjectArguments, ({ name, location }, commandFromWindow) =>
+      thenStepTheProjectsWindowAside(commandFromWindow, thenAStatusRound(createNewProject(name, location))),
+    ),
     read_open_project: async (_commandArguments, commandFromWindow) => ({
       ok: true,
       value: sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId)?.openProject.readOpenProject() ?? NO_PROJECT_OPEN_IN_THE_WINDOW,
     }),
-    read_recent_projects: async () => ({ ok: true, value: await sharedState.projectOpening.readRecentProjects() }),
-    open_recent_project: async (commandArguments, commandFromWindow) => {
-      const folder = oneTextArgumentFrom("open_recent_project", commandArguments, "folder", "one of the recent projects' folders");
-      if (!folder.ok) return { ok: false, refusal: folder.failure };
-      return commandAnswerOfNothingFrom(await openRecentProject(sharedState, folder.value, commandFromWindow));
-    },
-    rename_recent_project: async (commandArguments) => {
-      const renameArguments = renameRecentProjectArgumentsFrom(commandArguments);
-      if (!renameArguments.ok) return { ok: false, refusal: renameArguments.failure };
-      return commandAnswerOfNothingFrom(
-        await answerTheWindow("rename_recent_project", () => sharedState.projectOpening.renameRecentProject(renameArguments.value.folder, renameArguments.value.name)),
-      );
-    },
-    duplicate_recent_project: async (commandArguments) => {
-      const folder = oneTextArgumentFrom("duplicate_recent_project", commandArguments, "folder", "one of the recent projects' folders");
-      if (!folder.ok) return { ok: false, refusal: folder.failure };
-      return commandAnswerFrom(await answerTheWindow("duplicate_recent_project", () => sharedState.projectOpening.duplicateRecentProject(folder.value)));
-    },
-    delete_recent_project: async (commandArguments) => {
-      const folder = oneTextArgumentFrom("delete_recent_project", commandArguments, "folder", "one of the recent projects' folders");
-      if (!folder.ok) return { ok: false, refusal: folder.failure };
-      return commandAnswerOfNothingFrom(
-        await answerTheWindowThenRefreshTheStatus(sharedState, "delete_recent_project", () => sharedState.projectOpening.deleteRecentProject(folder.value)),
-      );
-    },
-    read_recent_project_cover: async (commandArguments) => {
-      const folder = oneTextArgumentFrom("read_recent_project_cover", commandArguments, "folder", "one of the recent projects' folders");
-      if (!folder.ok) return { ok: false, refusal: folder.failure };
-      return commandAnswerFrom(await answerTheWindow("read_recent_project_cover", () => sharedState.projectOpening.readRecentProjectCover(folder.value)));
-    },
-    set_recent_project_description: async (commandArguments) => {
-      const descriptionArguments = setRecentProjectDescriptionArgumentsFrom(commandArguments);
-      if (!descriptionArguments.ok) return { ok: false, refusal: descriptionArguments.failure };
-      return commandAnswerOfNothingFrom(
-        await answerTheWindow("set_recent_project_description", () => sharedState.projectOpening.setRecentProjectDescription(descriptionArguments.value.folder, descriptionArguments.value.description)),
-      );
-    },
-    choose_project_cover_image: async () => commandAnswerFrom(await answerTheWindow("choose_project_cover_image", () => sharedState.projectOpening.chooseProjectCoverImage())),
-    set_recent_project_cover: async (commandArguments) => {
-      const coverArguments = setRecentProjectCoverArgumentsFrom(commandArguments);
-      if (!coverArguments.ok) return { ok: false, refusal: coverArguments.failure };
-      return commandAnswerOfNothingFrom(
-        await answerTheWindow("set_recent_project_cover", () => sharedState.projectOpening.setRecentProjectCover(coverArguments.value.folder, coverArguments.value.image)),
-      );
-    },
-    choose_project_archive_to_import: async () =>
-      commandAnswerFrom(await answerTheWindow("choose_project_archive_to_import", () => sharedState.projectOpening.chooseProjectArchiveToImport())),
-    import_project_archive: async (commandArguments, commandFromWindow) => {
-      const importArguments = importProjectArchiveArgumentsFrom(commandArguments);
-      if (!importArguments.ok) return { ok: false, refusal: importArguments.failure };
-      return commandAnswerFrom(await importProjectArchive(sharedState, importArguments.value, commandFromWindow));
-    },
+    read_recent_projects: windowCommand(studioRuntime, "read_recent_projects", Schema.Undefined, () => readRecentProjects),
+    open_recent_project: windowCommand(studioRuntime, "open_recent_project", RecentProjectArguments, ({ folder }, commandFromWindow) =>
+      thenStepTheProjectsWindowAside(commandFromWindow, openRecentProject(folder).pipe(Effect.as(folder))).pipe(Effect.as(null)),
+    ),
+    rename_recent_project: windowCommand(studioRuntime, "rename_recent_project", RenameRecentProjectArguments, ({ folder, name }) => renameRecentProject(folder, name).pipe(Effect.as(null))),
+    duplicate_recent_project: windowCommand(studioRuntime, "duplicate_recent_project", RecentProjectArguments, ({ folder }) => duplicateRecentProject(folder)),
+    delete_recent_project: windowCommand(studioRuntime, "delete_recent_project", RecentProjectArguments, ({ folder }) => thenAStatusRound(deleteRecentProject(folder)).pipe(Effect.as(null))),
+    read_recent_project_cover: windowCommand(studioRuntime, "read_recent_project_cover", RecentProjectArguments, ({ folder }) => readRecentProjectCover(folder)),
+    set_recent_project_description: windowCommand(studioRuntime, "set_recent_project_description", SetRecentProjectDescriptionArguments, ({ folder, description }) =>
+      setRecentProjectDescription(folder, description).pipe(Effect.as(null)),
+    ),
+    choose_project_cover_image: windowCommand(studioRuntime, "choose_project_cover_image", Schema.Undefined, () => chooseProjectCoverImage),
+    set_recent_project_cover: windowCommand(studioRuntime, "set_recent_project_cover", SetRecentProjectCoverArguments, ({ folder, image }) =>
+      setRecentProjectCover(folder, image).pipe(Effect.as(null)),
+    ),
+    choose_project_archive_to_import: windowCommand(studioRuntime, "choose_project_archive_to_import", Schema.Undefined, () => chooseProjectArchiveToImport),
+    import_project_archive: windowCommand(studioRuntime, "import_project_archive", ImportProjectArchiveArguments, ({ archive, name, location }, commandFromWindow) =>
+      thenStepTheProjectsWindowAside(commandFromWindow, thenAStatusRound(importProjectArchive(archive, name, location))),
+    ),
     show_projects_window: async () => {
       sharedState.appWindows.showTheProjectsWindow();
       return { ok: true, value: null };

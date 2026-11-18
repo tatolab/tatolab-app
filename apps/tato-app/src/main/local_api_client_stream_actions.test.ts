@@ -5,7 +5,7 @@ import { LocalApiClient } from "./local_api_client.js";
 import { queuedStreamActionFromTheToolResult, streamAssetChangeFromTheToolResult, streamsThePauseOrResumeReachedFromTheToolResult } from "./stream_changes_on_the_wire.js";
 import { projectCreationQueuedFromTheCreateProjectToolResult, projectStreamActionQueuedFromTheToolResult, streamActionCancelAnswerFromTheCancelStreamActionToolResult, streamActionDescriptionFromTheDescribeStreamActionToolResult } from "./stream_action_description.js";
 import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./local_api_client_test_support.js";
-import { cancelStreamAction, createStream, deleteStream, pausePlayback, removeProject, resumePlayback, setStreamDisplayName, startPlayback, stopPlayback } from "./runtime_operations.js";
+import { cancelStreamAction, createStream, deleteStream, describeStreamAction, pausePlayback, removeProject, resumePlayback, setStreamDisplayName, startPlayback, stopPlayback } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -297,7 +297,7 @@ test("describing_a_stream_action_reads_its_state_step_and_streams_from_queued_to
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-stream-action-of-the-run-of-hallways-done-one-running-one-failed.json")),
   ]);
 
-  expect(answerOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-9"))).toEqual({
+  expect(answerOf(await server.run(describeStreamAction("Rj12j3eujz3zn0dposliv79k9-9")))).toEqual({
     kind: "described",
     description: {
       action: "Rj12j3eujz3zn0dposliv79k9-9",
@@ -310,8 +310,8 @@ test("describing_a_stream_action_reads_its_state_step_and_streams_from_queued_to
       venv_sync: null,
     },
   });
-  expect(describedOf(answerOf(await server.client().describeStreamAction("Riioiuiuj7n1z3ghkm7s9n1xi-6")))).toMatchObject({ state: "in_progress", step: "making_the_venv" });
-  expect(describedOf(answerOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-3"))).streams).toEqual([
+  expect(describedOf(answerOf(await server.run(describeStreamAction("Riioiuiuj7n1z3ghkm7s9n1xi-6"))))).toMatchObject({ state: "in_progress", step: "making_the_venv" });
+  expect(describedOf(answerOf(await server.run(describeStreamAction("Rj12j3eujz3zn0dposliv79k9-3")))).streams).toEqual([
     { stream: "hallways-front_door-58034f", display_name: "front_door", state: "running" },
     { stream: "hallways-back_door-2416d3", display_name: "back_door", state: "failed" },
   ]);
@@ -324,7 +324,7 @@ test("describing_a_stream_action_reads_its_venv_sync_package_by_package_while_uv
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-stream-action-of-a-new-project-done-numpy-and-pillow-installed.json")),
   ]);
 
-  expect(describedOf(answerOf(await server.client().describeStreamAction("Rvxjb0uiacgp6c3o13o9qvzj1-1"))).venv_sync).toEqual({
+  expect(describedOf(answerOf(await server.run(describeStreamAction("Rvxjb0uiacgp6c3o13o9qvzj1-1")))).venv_sync).toEqual({
     phase: "downloading",
     packages_resolved: 9,
     packages_prepared: null,
@@ -338,7 +338,7 @@ test("describing_a_stream_action_reads_its_venv_sync_package_by_package_while_uv
       { name: "llvmlite", version: null, kind: "distribution", state: "downloading", download_size_bytes: 40579891 },
     ],
   });
-  const done = describedOf(answerOf(await server.client().describeStreamAction("Rvxjb0uiacgp6c3o13o9qvzj1-1")));
+  const done = describedOf(answerOf(await server.run(describeStreamAction("Rvxjb0uiacgp6c3o13o9qvzj1-1"))));
   expect(done).toMatchObject({ state: "done", step: null, venv_sync: { phase: "installed", packages_prepared: 4, packages_installed: 8, downloads_done: 4 } });
   expect(done.venv_sync?.packages.map((venvSyncPackage) => [venvSyncPackage.name, venvSyncPackage.version, venvSyncPackage.download_size_bytes])).toEqual([
     ["numpy", "2.5.4", 5452595],
@@ -359,17 +359,17 @@ test("a_failed_action_reads_its_reason_one_the_tool_no_longer_holds_answers_its_
     httpResponse("200 OK", "application/json", '{"jsonrpc":"2.0","id":1,"error":{"code":-32603,"message":"the runtime is shutting down"}}'),
   ]);
 
-  const failedCreation = describedOf(answerOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-5")));
+  const failedCreation = describedOf(answerOf(await server.run(describeStreamAction("Rj12j3eujz3zn0dposliv79k9-5"))));
   expect(failedCreation).toMatchObject({ state: "failed", streams: [] });
   expect(failedCreation.failed_because).toContain("already has .gitignore");
-  expect(answerOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-999"))).toEqual({
+  expect(answerOf(await server.run(describeStreamAction("Rj12j3eujz3zn0dposliv79k9-999")))).toEqual({
     kind: "not_held",
     words:
       "Invalid configuration: the stream action `Rj12j3eujz3zn0dposliv79k9-999` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log",
   });
-  expect(failureOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-5"))).toEqual({
-    failureDescription: "the runtime refused `describe_stream_action`: the runtime is shutting down",
-    isTheRuntimesRefusal: true,
+  expect(failureOf(await server.run(describeStreamAction("Rj12j3eujz3zn0dposliv79k9-5")))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words: "the runtime refused `describe_stream_action`: the runtime is shutting down",
   });
 });
 
@@ -383,7 +383,7 @@ test("a_cancel_answers_cancelled_for_a_queued_action_and_in_progress_for_one_it_
 
   expect(answerOf(await server.run(cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-10")))).toEqual({ action: "Ra19ljkh20wimdvgya5udt9v1-10", state: "cancelled" });
   expect(answerOf(await server.run(cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-9")))).toEqual({ action: "Ra19ljkh20wimdvgya5udt9v1-9", state: "in_progress" });
-  expect(describedOf(answerOf(await server.client().describeStreamAction("Ra19ljkh20wimdvgya5udt9v1-9")))).toEqual({
+  expect(describedOf(answerOf(await server.run(describeStreamAction("Ra19ljkh20wimdvgya5udt9v1-9"))))).toEqual({
     action: "Ra19ljkh20wimdvgya5udt9v1-9",
     project_directory: "/tmp/tatolab-proof-projects/slowpoke",
     kind: "load",
@@ -432,7 +432,7 @@ test("an_open_a_start_playback_and_a_close_are_described_under_their_own_kinds_w
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-stream-action-of-the-close-of-lobby-done.json")),
   ]);
   const kindAndStreamStatesOf = async (action: string) => {
-    const followed = answerOf(await server.client().describeStreamAction(action));
+    const followed = answerOf(await server.run(describeStreamAction(action)));
     return followed.kind === "described" ? [followed.description.kind, followed.description.state, followed.description.streams.map((stream) => stream.state)] : followed;
   };
 
@@ -450,5 +450,9 @@ test("a_stream_action_whose_params_the_runtime_does_not_read_is_a_failure_in_its
   };
   const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", JSON.stringify(paramsRefused))]);
 
-  expect(failureOf(await server.client().describeStreamAction("Rgw2h0t6a3cjv8y1-4"))).toEqual({ isTheRuntimesRefusal: true, failureDescription: `the runtime refused \`describe_stream_action\`: ${runtimeWords}` });
+  expect(failureOf(await server.run(describeStreamAction("Rgw2h0t6a3cjv8y1-4")))).toMatchObject({
+    _tag: "RuntimeRefused",
+    byTheOperation: false,
+    words: `the runtime refused \`describe_stream_action\`: ${runtimeWords}`,
+  });
 });

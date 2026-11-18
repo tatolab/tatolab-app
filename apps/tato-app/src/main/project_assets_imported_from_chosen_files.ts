@@ -3,36 +3,30 @@
 // numbered past a name already taken. One refusal leaves the other files to import.
 
 import path from "node:path";
+import { Effect, Result } from "effect";
 import type { ProjectAssetsImported, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
-import type { ProjectChangesThroughTheRuntime } from "./open_project.js";
 import { projectAssetFileFiltersFor, type ProjectAssetFileFilter } from "./project_asset_file_filters.js";
-import { succeeded, type Result } from "./result.js";
+import type { Result as PlainResult } from "./result.js";
+import { importAsset } from "./runtime_operations.js";
+import { ProjectDialogs, ThisMachinesFolders } from "./studio_runtime.js";
 
 /** Asks the person for the files to import as assets, in the desktop's open dialog opened at `defaultFolder` offering `fileFilters`, the first chosen; `null` when they cancel. */
-export type ProjectAssetFilesDialog = (defaultFolder: string, fileFilters: readonly ProjectAssetFileFilter[]) => Promise<Result<readonly string[] | null, string>>;
+export type ProjectAssetFilesDialog = (defaultFolder: string, fileFilters: readonly ProjectAssetFileFilter[]) => Promise<PlainResult<readonly string[] | null, string>>;
 
-/** What importing chosen files reaches: the dialog, the person's home folder it opens at, and the runtime's `import_asset`. */
-export interface ProjectAssetsImportedFromChosenFilesSources {
-  homeDirectory: string;
-  projectAssetFilesDialog: ProjectAssetFilesDialog;
-  projectChanges: Pick<ProjectChangesThroughTheRuntime, "importAsset">;
-}
-
-/** The files the person chooses, imported into a project one after another. */
-export class ProjectAssetsImportedFromChosenFiles {
-  constructor(private readonly sources: ProjectAssetsImportedFromChosenFilesSources) {}
-
-  /** Each file the person chooses, the dialog offering the files of `media` first (`null` for any), imported into the project in `projectDirectory` by `author`, with the files the runtime refused in its own words; `null` when they cancel. */
-  async importTheFilesThePersonChooses(projectDirectory: string, media: readonly string[] | null, author: ProjectTransactionAuthor): Promise<Result<ProjectAssetsImported | null, string>> {
-    const chosenFiles = await this.sources.projectAssetFilesDialog(this.sources.homeDirectory, projectAssetFileFiltersFor(media));
-    if (!chosenFiles.ok) return chosenFiles;
-    if (chosenFiles.value === null || chosenFiles.value.length === 0) return succeeded(null);
-    const assetsImported: ProjectAssetsImported = { imported: [], refused: [] };
-    for (const chosenFile of chosenFiles.value) {
-      const imported = await this.sources.projectChanges.importAsset(projectDirectory, chosenFile, null, author);
-      if (imported.ok) assetsImported.imported.push(imported.value);
-      else assetsImported.refused.push({ file_name: path.basename(chosenFile), because: imported.failure.failureDescription });
-    }
-    return succeeded(assetsImported);
+/** Each file the person chooses, the dialog opened at home offering the files of `media` first (`null` for any), imported into the project in `projectDirectory` by `author` one after another, with the files the runtime refused in its own words; `null` when they cancel. */
+export const importTheFilesThePersonChooses = Effect.fn("importTheFilesThePersonChooses")(function* (
+  projectDirectory: string,
+  media: readonly string[] | null,
+  author: ProjectTransactionAuthor,
+) {
+  const { homeDirectory } = yield* ThisMachinesFolders;
+  const chosenFiles = yield* (yield* ProjectDialogs).chooseProjectAssetFiles(homeDirectory, projectAssetFileFiltersFor(media));
+  if (chosenFiles === null || chosenFiles.length === 0) return null;
+  const assetsImported: ProjectAssetsImported = { imported: [], refused: [] };
+  for (const chosenFile of chosenFiles) {
+    const imported = yield* Effect.result(importAsset(projectDirectory, chosenFile, null, author));
+    if (Result.isSuccess(imported)) assetsImported.imported.push(imported.success);
+    else assetsImported.refused.push({ file_name: path.basename(chosenFile), because: imported.failure.words });
   }
-}
+  return assetsImported;
+});

@@ -31,7 +31,6 @@ import {
 import type { TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import { studioRuntimeLayer, type StudioServices } from "./studio_runtime.js";
-import { openTheProjectWhenTheRuntimeHoldsItClosed } from "./tatolab_stream_and_runtime_project_commands.js";
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
@@ -46,9 +45,9 @@ import type { Result } from "./result.js";
 import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
 import type { ProjectFilesOfTheRuntime } from "./open_project_files.js";
-import { ProjectOpening, type FolderEntriesWatch, type ProjectArchiveDialog, type ProjectCoverImageDialog, type ProjectFolderDialog, type ProjectReadingsOfTheRuntime } from "./open_project.js";
+import { type FolderEntriesWatch, type ProjectArchiveDialog, type ProjectCoverImageDialog, type ProjectFolderDialog, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
-import { ProjectAssetsImportedFromChosenFiles, type ProjectAssetFilesDialog } from "./project_assets_imported_from_chosen_files.js";
+import type { ProjectAssetFilesDialog } from "./project_assets_imported_from_chosen_files.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { localApiRequestFailure } from "./local_api_request_failure.js";
 import { projectViewFileRequestsAnsweredOn, ProjectViewsListedToTheWindows, type AnswerAProjectViewFileRequest } from "./extension_files_served_with_types_removed.js";
@@ -162,8 +161,6 @@ export interface TatolabElectronAppShell {
   /** The person signed in to this computer, by their account name, whose Studio edits the runtime records under them. */
   thePersonSignedInToThisComputer: ProjectTransactionAuthor;
   readMonotonicClockMs(): number;
-  /** The wall clock, in milliseconds since the epoch, only ever shown to the person, as when the Projects window says a project was opened. */
-  readWallClockMsForDisplay(): number;
   mainWindowHostFactory: MainWindowHostFactory;
   trayIconHostFactory: TrayIconHostFactory;
   dockIconHost: DockIconHost;
@@ -396,23 +393,6 @@ export async function startTatolabApp(
     return aRuntimeTheAppStartedIsRunning ? Promise.all([runtimeStopped, studioRuntimeDisposed]).then(() => undefined) : null;
   });
   const projectViewsListed = new ProjectViewsListedToTheWindows();
-  const projectOpening = new ProjectOpening({
-    homeDirectory: tatolabElectronAppShell.homeDirectory,
-    documentsDirectory: tatolabElectronAppShell.documentsDirectory,
-    projectFolderDialog: tatolabElectronAppShell.askThePersonForAProjectFolder,
-    projectArchiveDialog: tatolabElectronAppShell.askThePersonForAProjectArchive,
-    projectCoverImageDialog: tatolabElectronAppShell.askThePersonForAProjectCoverImage,
-    recentProjectFolders: recentProjectFoldersFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
-    readWallClockNowMs: () => tatolabElectronAppShell.readWallClockMsForDisplay(),
-    newProjectCreation: controller,
-    projectReadingsOfTheRuntime,
-    projectChanges: controller,
-    waitFor: (delayMs) => new Promise((waited) => setTimeout(waited, delayMs)),
-    readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
-    openTheProjectInItsStudioWindow: (folder) => tatolabAppWindows.openTheProjectInItsStudioWindow(folder),
-    closeTheStudioWindowOf: (folder) => tatolabAppWindows.studioWindowOfTheProjectIn(folder)?.tatolabMainWindow.close(),
-    openTheProjectWhenTheRuntimeHoldsItClosed: (folder) => openTheProjectWhenTheRuntimeHoldsItClosed({ controller, statusPublisher }, folder),
-  });
   const pythonLanguageServers = new PythonLanguageServers({
     startANodeLanguageServer: tatolabElectronAppShell.startANodeLanguageServer,
     pyrightLanguageServerModulePath: tatolabElectronAppShell.pyrightLanguageServerModulePath,
@@ -471,7 +451,12 @@ export async function startTatolabApp(
     streamFailureNotifications,
     developerModeSwitch,
     studioWarnings,
-    projectOpening,
+    homeDirectory: tatolabElectronAppShell.homeDirectory,
+    documentsDirectory: tatolabElectronAppShell.documentsDirectory,
+    projectFolderDialog: tatolabElectronAppShell.askThePersonForAProjectFolder,
+    projectArchiveDialog: tatolabElectronAppShell.askThePersonForAProjectArchive,
+    projectCoverImageDialog: tatolabElectronAppShell.askThePersonForAProjectCoverImage,
+    recentProjectFolders: recentProjectFoldersFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
     appWindows: tatolabAppWindows,
     pythonLanguageServers,
     runtimePortViewers,
@@ -483,11 +468,7 @@ export async function startTatolabApp(
     machineModulesInstallOn: platformItems.machineModulesInstallOn,
     moduleDownloadsFolder: path.join(tatolabElectronAppShell.appConfigDirectory, MODULE_DOWNLOADS_FOLDER_NAME),
     dependencySourceDialog: tatolabElectronAppShell.askThePersonForADependencySource,
-    projectAssetsImportedFromChosenFiles: new ProjectAssetsImportedFromChosenFiles({
-      homeDirectory: tatolabElectronAppShell.homeDirectory,
-      projectAssetFilesDialog: tatolabElectronAppShell.askThePersonForFilesToImportAsAssets,
-      projectChanges: controller,
-    }),
+    projectAssetFilesDialog: tatolabElectronAppShell.askThePersonForFilesToImportAsAssets,
     thePersonEditingInStudio: tatolabElectronAppShell.thePersonSignedInToThisComputer,
     projectViewsListed,
     systemMediaAccessAskedAheadForViews: new SystemMediaAccessAskedAheadForViews(platformForThisBuild.systemMediaAccess, tatolabElectronAppShell.systemNotifications),

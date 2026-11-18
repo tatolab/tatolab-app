@@ -1,20 +1,20 @@
 import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse } from "./fake_local_api_server.js";
 import { answerOf, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./local_api_client_test_support.js";
-import { deleteAsset, relocateAsset } from "./runtime_operations.js";
+import { deleteAsset, deleteProject, describeStreamAction, duplicateProject, importAsset, importProject, relocateAsset, renameProject, setProjectCover, setProjectDescription, summarizeTheProject } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
-test("renaming_a_project_calls_rename_project_with_its_folder_and_name_and_reads_its_name_now_and_a_blank_name_is_refused_in_the_runtimes_words", async () => {
+test("renaming_a_project_calls_rename_project_with_its_folder_and_name_and_reads_its_settings_after_and_a_blank_name_is_refused_in_the_runtimes_words", async () => {
   const server = await fakeLocalApiServerAnswering([
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-rename-project-answer-for-night-show-renamed-night-show.json")),
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-rename-project-refusal-for-a-name-that-shows-nothing.json")),
   ]);
 
-  expect(answerOf(await server.client().renameProject("/tmp/tatolab-proof-projects/night-show", "Night Show"))).toBe("Night Show");
-  expect(failureOf(await server.client().renameProject("/tmp/tatolab-proof-projects/night-show", "   "))).toEqual({
-    failureDescription: "rename_project failed: a project's name cannot be blank",
-    isTheRuntimesRefusal: true,
+  expect(answerOf(await server.run(renameProject("/tmp/tatolab-proof-projects/night-show", "Night Show")))).toEqual({ name: "Night Show", description: null, cover: null });
+  expect(failureOf(await server.run(renameProject("/tmp/tatolab-proof-projects/night-show", "   ")))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words: "rename_project failed: a project's name cannot be blank",
   });
   expect(controlOperationCallsReceivedBy(server)).toEqual([
     ["rename_project", { project_directory: "/tmp/tatolab-proof-projects/night-show", name: "Night Show" }],
@@ -29,12 +29,12 @@ test("duplicating_a_project_calls_duplicate_project_into_a_new_folder_and_reads_
   ]);
   const into = "/tmp/tatolab-proof-projects/night-show copy";
 
-  expect(answerOf(await server.client().duplicateProject("/tmp/tatolab-proof-projects/night-show", into))).toEqual({
+  expect(answerOf(await server.run(duplicateProject("/tmp/tatolab-proof-projects/night-show", into)))).toEqual({
     folder: into,
     project: "03784927-d486-46f1-a0d8-a1768485f601",
     name: "Night Show copy",
   });
-  expect(failureOf(await server.client().duplicateProject("/tmp/tatolab-proof-projects/night-show", into)).failureDescription).toBe(
+  expect(failureOf(await server.run(duplicateProject("/tmp/tatolab-proof-projects/night-show", into))).words).toBe(
     "duplicate_project failed: /tmp/tatolab-proof-projects/night-show copy already exists, so the project was not duplicated into it",
   );
   expect(controlOperationCallsReceivedBy(server)).toEqual([
@@ -49,12 +49,12 @@ test("importing_a_project_zip_calls_import_project_with_the_zip_and_a_new_folder
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-import-project-refusal-for-a-zip-holding-no-project.json")),
   ]);
 
-  expect(answerOf(await server.client().importProject("/tmp/tatolab-proof-projects/night-show.zip", "/tmp/tatolab-proof-projects/imported-show"))).toEqual({
+  expect(answerOf(await server.run(importProject("/tmp/tatolab-proof-projects/night-show.zip", "/tmp/tatolab-proof-projects/imported-show")))).toEqual({
     folder: "/tmp/tatolab-proof-projects/imported-show",
     project: "cba1d286-8a36-4113-bf10-8630cf9a52b2",
     name: "Night Show",
   });
-  expect(failureOf(await server.client().importProject("/tmp/tatolab-proof-projects/notes.zip", "/tmp/tatolab-proof-projects/imported-notes")).failureDescription).toBe(
+  expect(failureOf(await server.run(importProject("/tmp/tatolab-proof-projects/notes.zip", "/tmp/tatolab-proof-projects/imported-notes"))).words).toBe(
     "import_project failed: /tmp/tatolab-proof-projects/notes.zip holds no project to import: it has no `tatolab-project.json` at its root",
   );
   expect(controlOperationCallsReceivedBy(server)).toEqual([
@@ -70,12 +70,12 @@ test("deleting_a_project_queues_delete_project_answering_its_action_which_is_fol
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-delete-project-refusal-for-a-folder-that-is-not-a-project.json")),
   ]);
 
-  expect(answerOf(await server.client().deleteProject("/tmp/tatolab-proof-projects/night-show copy"))).toBe("Rumdndppudfu1hageszz80pom-2");
-  expect(answerOf(await server.client().describeStreamAction("Rumdndppudfu1hageszz80pom-2"))).toMatchObject({
+  expect(answerOf(await server.run(deleteProject("/tmp/tatolab-proof-projects/night-show copy")))).toBe("Rumdndppudfu1hageszz80pom-2");
+  expect(answerOf(await server.run(describeStreamAction("Rumdndppudfu1hageszz80pom-2")))).toMatchObject({
     kind: "described",
     description: { action: "Rumdndppudfu1hageszz80pom-2", kind: "delete", state: "done", streams: [], failed_because: null },
   });
-  expect(failureOf(await server.client().deleteProject("/tmp/tatolab-proof-projects/nothing-here")).failureDescription).toBe(
+  expect(failureOf(await server.run(deleteProject("/tmp/tatolab-proof-projects/nothing-here"))).words).toBe(
     "Resource not found: /tmp/tatolab-proof-projects/nothing-here holds no project: it has no tatolab-project.json, so there is none to delete",
   );
   expect(controlOperationCallsReceivedBy(server)).toEqual([
@@ -91,12 +91,12 @@ test("summarizing_a_project_reads_its_name_description_and_last_edit_from_list_a
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-assets-tool-result-of-night-show-copy-with-no-description-or-cover.json")),
   ]);
 
-  expect(answerOf(await server.client().summarizeTheProject("/tmp/tatolab-proof-projects/night-show"))).toMatchObject({
+  expect(answerOf(await server.run(summarizeTheProject("/tmp/tatolab-proof-projects/night-show")))).toMatchObject({
     name: "Night Show",
     description: "Projection for the night market: a test pattern into a brightness meter.",
     last_edited_at_wall_clock_ms: 1_794_335_926_000,
   });
-  expect(answerOf(await server.client().summarizeTheProject("/tmp/tatolab-proof-projects/night-show copy"))).toMatchObject({
+  expect(answerOf(await server.run(summarizeTheProject("/tmp/tatolab-proof-projects/night-show copy")))).toMatchObject({
     name: "Night Show copy",
     description: null,
     last_edited_at_wall_clock_ms: 1_794_335_872_000,
@@ -109,8 +109,8 @@ test("a_project_covered_by_a_media_asset_is_summarized_with_that_assets_path_and
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-assets-tool-result-of-night-show-copy-with-no-description-or-cover.json")),
   ]);
 
-  expect(answerOf(await server.client().summarizeTheProject("/tmp/tatolab-proof-projects/night-show"))).toMatchObject({ name: "Night Market", cover_path: "media/cover-art.png" });
-  expect(answerOf(await server.client().summarizeTheProject("/tmp/tatolab-proof-projects/night-show copy"))).toMatchObject({ cover_path: null });
+  expect(answerOf(await server.run(summarizeTheProject("/tmp/tatolab-proof-projects/night-show")))).toMatchObject({ name: "Night Market", cover_path: "media/cover-art.png" });
+  expect(answerOf(await server.run(summarizeTheProject("/tmp/tatolab-proof-projects/night-show copy")))).toMatchObject({ cover_path: null });
 });
 
 test("describing_a_project_calls_set_project_description_and_reads_its_settings_after_and_a_folder_holding_no_project_is_refused_in_the_runtimes_words", async () => {
@@ -119,14 +119,14 @@ test("describing_a_project_calls_set_project_description_and_reads_its_settings_
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-set-project-description-refusal-for-a-folder-that-is-not-a-project.json")),
   ]);
 
-  expect(answerOf(await server.client().setProjectDescription("/tmp/tatolab-proof-projects/night-show", "Projection for the night market."))).toEqual({
+  expect(answerOf(await server.run(setProjectDescription("/tmp/tatolab-proof-projects/night-show", "Projection for the night market.")))).toEqual({
     name: "Night Market",
     description: "Projection for the night market.",
     cover: "7593be3b-210b-4656-ab21-2213bfa307b5",
   });
-  expect(failureOf(await server.client().setProjectDescription("/tmp/tatolab-proof-projects/nothing-here", null))).toEqual({
-    failureDescription: "set_project_description failed: /tmp/tatolab-proof-projects/nothing-here holds no project: it has no tatolab-project.json",
-    isTheRuntimesRefusal: true,
+  expect(failureOf(await server.run(setProjectDescription("/tmp/tatolab-proof-projects/nothing-here", null)))).toMatchObject({
+    _tag: "RuntimeRefused",
+    words: "set_project_description failed: /tmp/tatolab-proof-projects/nothing-here holds no project: it has no tatolab-project.json",
   });
   expect(controlOperationCallsReceivedBy(server)).toEqual([
     ["set_project_description", { project_directory: "/tmp/tatolab-proof-projects/night-show", description: "Projection for the night market." }],
@@ -140,7 +140,7 @@ test("an_asset_the_person_imports_naming_no_path_lands_in_its_kinds_folder_numbe
   ]);
   const tidePool = "/tmp/tatolab-proof-projects/tide-pool";
 
-  expect(answerOf(await server.client().importAsset(tidePool, "/tmp/poster.png", null, { kind: "person", name: "sam" }))).toEqual({
+  expect(answerOf(await server.run(importAsset(tidePool, "/tmp/poster.png", null, { kind: "person", name: "sam" })))).toEqual({
     asset: "d18ac59c-d741-45fc-8d21-d3febd0d14a0",
     path: "media/poster-3.png",
   });
@@ -156,12 +156,12 @@ test("covering_a_project_imports_the_image_with_import_asset_then_names_it_with_
   ]);
   const nightShow = "/tmp/tatolab-proof-projects/night-show";
 
-  expect(answerOf(await server.client().importAsset(nightShow, "/tmp/cover-art.png", "media/cover-art.png", null))).toEqual({ asset: "7593be3b-210b-4656-ab21-2213bfa307b5", path: "media/cover-art.png" });
-  expect(failureOf(await server.client().importAsset(nightShow, "/tmp/cover-art.png", "media/cover-art.png", null)).failureDescription).toBe(
+  expect(answerOf(await server.run(importAsset(nightShow, "/tmp/cover-art.png", "media/cover-art.png", null)))).toEqual({ asset: "7593be3b-210b-4656-ab21-2213bfa307b5", path: "media/cover-art.png" });
+  expect(failureOf(await server.run(importAsset(nightShow, "/tmp/cover-art.png", "media/cover-art.png", null))).words).toBe(
     "import_asset failed: `media/cover-art.png` is already the path of the asset 7593be3b-210b-4656-ab21-2213bfa307b5",
   );
-  expect(answerOf(await server.client().setProjectCover(nightShow, "7593be3b-210b-4656-ab21-2213bfa307b5"))).toMatchObject({ cover: "7593be3b-210b-4656-ab21-2213bfa307b5" });
-  expect(failureOf(await server.client().setProjectCover(nightShow, "00000000-0000-4000-8000-000000000000")).failureDescription).toBe(
+  expect(answerOf(await server.run(setProjectCover(nightShow, "7593be3b-210b-4656-ab21-2213bfa307b5")))).toMatchObject({ cover: "7593be3b-210b-4656-ab21-2213bfa307b5" });
+  expect(failureOf(await server.run(setProjectCover(nightShow, "00000000-0000-4000-8000-000000000000"))).words).toBe(
     "set_project_cover failed: the project holds no asset 00000000-0000-4000-8000-000000000000",
   );
   expect(controlOperationCallsReceivedBy(server)).toEqual([

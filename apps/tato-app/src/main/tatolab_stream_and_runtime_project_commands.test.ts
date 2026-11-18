@@ -4,9 +4,7 @@ import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationResultResponse, controlWebSocketUpgradeRefusedWithWords, runtimeDescribedResponse } from "./fake_local_api_server.js";
 import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
-import { failedWith, succeeded } from "./result.js";
-import { openTheProjectWhenTheRuntimeHoldsItClosed } from "./tatolab_stream_and_runtime_project_commands.js";
-import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, cleanUps, recordedResponseBody, sharedStateOverFakes, RECORDED_PATTERN_PROJECT, RECORDED_PATTERN_RELOAD_ACTION, RECORDED_LOBBY_PROJECT, RECORDED_LOBBY_OPEN_ACTION, RECORDED_UNLISTED_PROJECT_THE_RUNTIME_HOLDS_OPEN, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS } from "./tatolab_commands_test_support.js";
+import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, cleanUps, recordedResponseBody, sharedStateOverFakes, RECORDED_PATTERN_PROJECT, RECORDED_PATTERN_RELOAD_ACTION, RECORDED_LOBBY_PROJECT, RECORDED_LOBBY_OPEN_ACTION, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
@@ -114,29 +112,6 @@ test("reloading a project the runtime lists open queues reload_project, one it l
     ok: false,
     refusal: 'reload_project: Missing key\n  at ["project_directory"]',
   });
-});
-
-test("opening a project opens it only when the runtime, asked then, lists none of its streams or each closed, observing again after; its refusal in its own words", async () => {
-  const listedStreams = await recordedResponseBody("local-api-list-streams-tool-result-of-a-playing-a-stopped-and-a-closed-project.json");
-  const sharedState = await sharedStateOverFakes(
-    [
-      controlOperationResponseOfTheRecordedToolResponse(listedStreams),
-      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-open-project-answer-for-the-closed-project-lobby.json")),
-      controlOperationResponseOfTheRecordedToolResponse(listedStreams),
-      controlOperationResponseOfTheRecordedToolResponse(listedStreams),
-      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-open-project-refusal-for-the-open-project-pattern.json")),
-    ],
-    "linux"
-  );
-  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
-  const opens = vi.spyOn(sharedState.controller, "openProject");
-
-  expect(await openTheProjectWhenTheRuntimeHoldsItClosed(sharedState, RECORDED_LOBBY_PROJECT)).toEqual(succeeded(undefined));
-  expect(await openTheProjectWhenTheRuntimeHoldsItClosed(sharedState, RECORDED_PATTERN_PROJECT)).toEqual(succeeded(undefined));
-  const refused = await openTheProjectWhenTheRuntimeHoldsItClosed(sharedState, RECORDED_UNLISTED_PROJECT_THE_RUNTIME_HOLDS_OPEN);
-  expect(opens.mock.calls).toEqual([[RECORDED_LOBBY_PROJECT], [RECORDED_UNLISTED_PROJECT_THE_RUNTIME_HOLDS_OPEN]]);
-  expect(refreshRequests).toHaveBeenCalledTimes(2);
-  expect(refused).toEqual(failedWith(expect.stringContaining("is already open, so there is none to open; `reload_project` re-reads what changed on disk")));
 });
 
 test("renaming a stream sets the display name of the stream asset the runtime lists for it, then observes again whether it renamed or refused", async () => {

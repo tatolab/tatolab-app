@@ -203,7 +203,7 @@ test("importing assets into the open project copies each file the person chooses
     },
   });
   expect(await commandHandlers.import_assets_into_the_open_project({ media: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
-  expect(await commandHandlers.import_assets_into_the_open_project({ media: "image" }, fromTheStudioWindow)).toEqual({ ok: false, refusal: "import_assets_into_the_open_project needs `media`, a list of media names or null" });
+  expect(await commandHandlers.import_assets_into_the_open_project({ media: "image" }, fromTheStudioWindow)).toEqual({ ok: false, refusal: expect.stringMatching(/^import_assets_into_the_open_project: /) });
 });
 
 test("renaming, moving and deleting an asset of the open project reach the runtime by the person editing, answering nothing, or the runtime's refusal in its own words", async () => {
