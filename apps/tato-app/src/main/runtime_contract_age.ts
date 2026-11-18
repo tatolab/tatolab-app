@@ -1,6 +1,7 @@
 // Whether the runtime answering serves the control contract this Studio was built against, read once
-// each time a runtime comes up by `discover` on `/control/ws`, and, when it refuses, the record it
-// states: which side is older, its release and both contracts, with the one thing to do about it.
+// for each runtime by `discover` on `/control/ws`, and, when it refuses, the record it states: which
+// side is older, its release and both contracts, with the one thing to do about it. Which runtime is
+// answering is read every round, so a reading never outlives the runtime it was read of.
 
 import { Effect } from "effect";
 import type { RuntimeOfAnotherAge, RuntimeOfAnotherAgeRemedy } from "../shared/tatolab_backend_contract.js";
@@ -33,7 +34,7 @@ export function remedyForTheOlderSide(olderSide: RuntimeOfAnotherAge["older_side
 }
 
 /** The runtime's mismatch record as the window's status carries it, with the remedy for how the runtime runs. */
-export function runtimeOfAnotherAgeOf(mismatch: ControlContractVersionMismatch, howTheRuntimeRuns: HowTheRunningRuntimeRuns): RuntimeOfAnotherAge {
+function runtimeOfAnotherAgeOf(mismatch: ControlContractVersionMismatch, howTheRuntimeRuns: HowTheRunningRuntimeRuns): RuntimeOfAnotherAge {
   const olderSide = mismatch.older_side === "client" ? "studio" : "runtime";
   return {
     older_side: olderSide,
@@ -55,6 +56,26 @@ export function readTheRuntimesContractAge(howTheRuntimeRuns: HowTheRunningRunti
           failure._tag === "RuntimeOfAnotherContract"
             ? { kind: "of_another_age", runtimeOfAnotherAge: runtimeOfAnotherAgeOf(failure.mismatch, howTheRuntimeRuns), runtimeWords: failure.words }
             : { kind: "unread", why: failure.words },
+        ),
+      ),
+    );
+  });
+}
+
+/**
+ * Which runtime answers: its build id, as `describe_runtime` names it; for one that refuses this Studio's contract, its release
+ * and contract, as its record names them; `null` when it said neither, which names no other runtime.
+ */
+export function readTheAnsweringRuntimesIdentity(): Effect.Effect<string | null, never, RuntimeControl> {
+  return Effect.gen(function* () {
+    const runtimeControl = yield* RuntimeControl;
+    return yield* runtimeControl.call("describe_runtime", {}).pipe(
+      Effect.map((runtimeDescription): string | null => `build ${runtimeDescription.build_id}`),
+      Effect.catch((failure) =>
+        Effect.succeed(
+          failure._tag === "RuntimeOfAnotherContract"
+            ? `release ${failure.mismatch.runtime_version} at contract ${failure.mismatch.runtime_contract_version}.${failure.mismatch.runtime_contract_revision}`
+            : null,
         ),
       ),
     );

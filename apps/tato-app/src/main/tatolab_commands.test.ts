@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "vitest";
-import { controlOperationFailedResponse, httpResponse, controlOperationResultResponse, controlWebSocketUpgradeRefusedWithWords } from "./fake_local_api_server.js";
+import { controlOperationFailedResponse, httpResponse, controlOperationResultResponse, controlWebSocketUpgradeRefusedWithWords, runtimeDescribedResponse } from "./fake_local_api_server.js";
 import { failedWith, succeeded } from "./result.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
@@ -32,6 +32,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       }),
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
       controlWebSocketUpgradeRefusedWithWords(),
+      runtimeDescribedResponse("0.69.84+test.1"),
     ],
     "macos"
   );

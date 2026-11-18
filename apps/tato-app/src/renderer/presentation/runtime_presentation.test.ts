@@ -34,7 +34,7 @@ describe("presentRuntimeStatus", () => {
     expect(presentRuntimeStatus(statusWith({}))).toEqual({ runtimeState: "running", tone: "ok", shortLabel: "Running", banner: null });
   });
 
-  it("warns of a running runtime of another age with its notice as the banner", () => {
+  it("warns of a running runtime of another age with no banner, as its notice says why", () => {
     const runtimeOfAnotherAge = {
       older_side: "runtime",
       runtime_version: "0.68.90",
@@ -42,16 +42,7 @@ describe("presentRuntimeStatus", () => {
       studio_contract: { version: 3, revision: 1 },
       remedy: "update_the_runtime",
     } as const;
-    expect(presentRuntimeStatus(statusWith({ runtime_of_another_age: runtimeOfAnotherAge }))).toEqual({
-      runtimeState: "running",
-      tone: "warning",
-      shortLabel: "Running",
-      banner: {
-        title: "The runtime is older than this Studio",
-        explanation:
-          "tatolabd 0.68.90 serves control contract 3, revision 0; this Studio needs contract 3, revision 1. Your projects are untouched. Update the tatolabd that is running. This build of Tato Studio carries no runtime of its own.",
-      },
-    });
+    expect(presentRuntimeStatus(statusWith({ runtime_of_another_age: runtimeOfAnotherAge }))).toEqual({ runtimeState: "running", tone: "warning", shortLabel: "Running", banner: null });
   });
 
   it("shows a runtime the app is starting as in progress", () => {

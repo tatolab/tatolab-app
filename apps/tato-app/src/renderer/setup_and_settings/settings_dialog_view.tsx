@@ -11,6 +11,7 @@ import { SectionedDialog } from "@tatolab/tato-app-view-sdk/design_system/sectio
 import { SettingsGroup, SettingsMachineWords, SettingsRow, SettingsSectionExplanation } from "@tatolab/tato-app-view-sdk/design_system/settings_rows";
 import { ToggleSwitch } from "@tatolab/tato-app-view-sdk/design_system/toggle_switch";
 import { presentTatolabAppUpdate } from "../presentation/app_update_presentation";
+import { runtimeOfAnotherAgeShownFor } from "../presentation/runtime_of_another_age_presentation";
 import { presentCommandLineTool, presentPlatform } from "../presentation/platform_presentation";
 import type { StatusTone } from "../presentation/runtime_presentation";
 import {
@@ -206,6 +207,7 @@ function RuntimeSection() {
   const runtimeDescription = useRuntimeDescriptionReading();
   const platformPresentation = presentPlatform(platform);
   const runtimeStatusRow = presentRuntimeStatusRow(status, runtimeDescription);
+  const runtimeOfAnotherAge = runtimeOfAnotherAgeShownFor(status);
   const restartUnavailableBecause = restartRuntimeUnavailableBecause(status);
   const restartRuntime = useActionThroughTheBackend(() => backend.restartRuntime(), "Couldn't restart the runtime:");
   const runtimeLogFolder = presentRuntimeLogFolder(status, runtimeDescription);
@@ -243,7 +245,7 @@ function RuntimeSection() {
           )}
         >
           {runtimeStatusRow.refusal !== null && <RefusalLine lead="The runtime didn't describe itself:" words={runtimeStatusRow.refusal} tone="warning" />}
-          {status.runtime_state === "running" && status.runtime_of_another_age !== null && <RuntimeOfAnotherAgeNotice runtimeOfAnotherAge={status.runtime_of_another_age} />}
+          {runtimeOfAnotherAge !== null && <RuntimeOfAnotherAgeNotice runtimeOfAnotherAge={runtimeOfAnotherAge} className="mt-1" />}
         </SettingsRow>
         <SettingsRow
           label="Local API socket"
@@ -382,9 +384,9 @@ function AboutSection() {
             description={appUpdate.description}
             refusal={runTheUpdateAction.refusal ?? (appUpdate.failure === null ? null : { lead: "The last check failed:", words: appUpdate.failure })}
             control={() =>
-              appUpdate.action !== null && (
-                <ActionButton isDisabled={!appUpdate.action.isEnabled || runTheUpdateAction.isPending} onPressed={runTheUpdateAction.run}>
-                  {appUpdate.action.label}
+              runTheUpdateAction.action !== null && (
+                <ActionButton isDisabled={!runTheUpdateAction.action.isEnabled || runTheUpdateAction.isPending} onPressed={runTheUpdateAction.run}>
+                  {runTheUpdateAction.action.label}
                 </ActionButton>
               )
             }

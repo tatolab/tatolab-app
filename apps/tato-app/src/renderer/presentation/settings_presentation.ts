@@ -83,7 +83,7 @@ export interface RuntimeStatusRowPresentation {
   /** `Running · tatolabd 0.55.2 · up 3d 2h`, or the state word alone. */
   statusWords: string;
   tone: StatusTone;
-  /** Why the runtime is in a warning or error state, as the window's banner says it; `null` otherwise, and for a runtime of another age, whose notice says it. */
+  /** Why the runtime is in a warning or error state, as the window's banner says it; `null` otherwise. */
   problemExplanation: string | null;
   refusal: string | null;
 }
@@ -91,7 +91,7 @@ export interface RuntimeStatusRowPresentation {
 /** Runtime › Status for `status` and what the runtime last said of itself. */
 export function presentRuntimeStatusRow(status: TatolabStatus, runtimeDescription: RuntimeDescriptionReading): RuntimeStatusRowPresentation {
   const { tone, shortLabel, banner } = presentRuntimeStatus(status);
-  const problemExplanation = (tone === "error" || tone === "warning") && banner !== null && status.runtime_of_another_age === null ? banner.explanation : null;
+  const problemExplanation = (tone === "error" || tone === "warning") && banner !== null ? banner.explanation : null;
   if (status.runtime_state !== "running" || runtimeDescription.kind === "not_read") {
     return { statusWords: shortLabel, tone, problemExplanation, refusal: null };
   }

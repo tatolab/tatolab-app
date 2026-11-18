@@ -130,6 +130,11 @@ export function controlWebSocketUpgradeRefusedWithWords(): Buffer {
   return httpResponse("409 Conflict", "text/plain", "the contract age is not read in this test");
 }
 
+/** The runtime's answer to `describe_runtime` from the build `buildId` of release `version`, which names the runtime answering. */
+export function runtimeDescribedResponse(buildId: string, version = "0.69.84"): Buffer {
+  return controlOperationResultResponse({ version, build_id: buildId, up_for_ms: 1 });
+}
+
 /** The JSON-RPC body `POST /control` answers with for `jsonRpcAnswerText`, as the runtime writes it. */
 function controlResponse(jsonRpcAnswerText: string): Buffer {
   return httpResponse("200 OK", "application/json", jsonRpcAnswerText);

@@ -32,8 +32,8 @@ function contractAgeReadAt(localApiSocketPath: string, howTheRuntimeRuns: HowThe
   return Effect.runPromise(readTheRuntimesContractAge(howTheRuntimeRuns).pipe(Effect.provide(runtimeControlLayer(localApiSocketPath, 2_000))));
 }
 
-async function controlWebSocketRuntime(answerCall: FakeControlWebSocketAnswer, answerDiscover?: FakeControlWebSocketAnswer) {
-  const runtime = await fakeControlWebSocketRuntime(answerCall, answerDiscover);
+async function controlWebSocketRuntime(answerCall: FakeControlWebSocketAnswer, answerDiscover?: FakeControlWebSocketAnswer, answersTheClose = true) {
+  const runtime = await fakeControlWebSocketRuntime(answerCall, answerDiscover, { answersTheClose });
   cleanUps.push(() => runtime.close());
   return runtime;
 }
@@ -49,6 +49,14 @@ test("a runtime serving this Studio's contract agrees, and its connection is clo
   expect(await contractAgeReadAt(runtime.localApiSocketPath)).toEqual({ kind: "agrees" });
   const upgradeHeadLines = (runtime.upgradeRequestsRead[0] ?? "").toLowerCase().split("\r\n");
   expect(upgradeHeadLines).toContain(`tatolab-control-contract-revision: ${CONTROL_CONTRACT_REVISION}`);
+});
+
+test("a runtime that never answers the close still answers the reading at once, so the status round is not held up", async () => {
+  const runtime = await controlWebSocketRuntime(() => null, undefined, false);
+
+  const readingStartedAtMs = performance.now();
+  expect(await contractAgeReadAt(runtime.localApiSocketPath)).toEqual({ kind: "agrees" });
+  expect(performance.now() - readingStartedAtMs).toBeLessThan(1_000);
 });
 
 test("an older runtime refusing the upgrade with its record in the 409 body is the runtime of another age that record names", async () => {

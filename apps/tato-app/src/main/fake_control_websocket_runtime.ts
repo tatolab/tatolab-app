@@ -1,6 +1,6 @@
 // Tests' stand-in for the runtime's `/control/ws`: a Unix socket that upgrades each connection, answers
-// `discover` as a runtime of the asked-for age does, and every later call as the test says. Never
-// imported by shipped code.
+// `discover` as a runtime of the asked-for age does, and every later call as the test says, and any
+// other request, `/health` or `POST /control`, as the test says too. Never imported by shipped code.
 
 import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -68,18 +68,27 @@ export interface FakeControlWebSocketRuntime {
 
 /**
  * A local API that upgrades `/control/ws`, answers `discover` with `answerDiscover` (by default as a runtime serving this Studio's
- * contract), and then each call with `answerCall`, recording every upgrade and every call after `discover` it read.
+ * contract), and then each call with `answerCall`, recording every upgrade and every call after `discover` it read; with
+ * `answersTheClose` false, it never answers a client's close, as a runtime that hangs does.
  */
 export async function fakeControlWebSocketRuntime(
   answerCall: FakeControlWebSocketAnswer,
   answerDiscover: FakeControlWebSocketAnswer = (call) => [resultLine(call["id"], DISCOVERED_AT_THIS_STUDIOS_CONTRACT)],
+  {
+    answersTheClose = true,
+    answerHttpRequest = () => null,
+  }: {
+    answersTheClose?: boolean;
+    /** The raw response to any other request than the upgrade, read whole, as `/health` or `POST /control`; `null` closes it unanswered. */
+    answerHttpRequest?: (request: string) => Buffer | null;
+  } = {},
 ): Promise<FakeControlWebSocketRuntime> {
   const socketDirectory = await mkdtemp("/tmp/tl-app-");
   const localApiSocketPath = path.join(socketDirectory, "local-api.sock");
   const upgradeRequestsRead: string[] = [];
   const callsRead: Record<string, unknown>[] = [];
   const connectionsOpen: net.Socket[] = [];
-  const server = net.createServer((connection) => {
+  const server = net.createServer({ allowHalfOpen: !answersTheClose }, (connection) => {
     connectionsOpen.push(connection);
     const sendText = (messageText: string) => connection.write(serverWebSocketFrame(WEBSOCKET_TEXT_OPCODE, Buffer.from(messageText, "utf8")));
     let bytesRead: Buffer = Buffer.alloc(0);
@@ -90,6 +99,15 @@ export async function fakeControlWebSocketRuntime(
         const headEnd = bytesRead.indexOf("\r\n\r\n");
         if (headEnd === -1) return;
         const upgradeHead = bytesRead.subarray(0, headEnd).toString("utf8");
+        if (!upgradeHead.startsWith("GET /control/ws ")) {
+          const contentLength = Number(/^content-length:\s*(\d+)\s*$/im.exec(upgradeHead)?.[1] ?? "0");
+          if (bytesRead.length < headEnd + 4 + contentLength) return;
+          const response = answerHttpRequest(bytesRead.subarray(0, headEnd + 4 + contentLength).toString("utf8"));
+          bytesRead = Buffer.alloc(0);
+          if (response === null) connection.destroy();
+          else connection.end(response);
+          return;
+        }
         upgradeRequestsRead.push(upgradeHead);
         bytesRead = bytesRead.subarray(headEnd + 4);
         upgraded = true;
@@ -100,6 +118,7 @@ export async function fakeControlWebSocketRuntime(
       for (let frame = firstClientWebSocketFrame(bytesRead); frame !== null; frame = firstClientWebSocketFrame(bytesRead)) {
         bytesRead = frame.bytesAfter;
         if (frame.opcode === WEBSOCKET_CLOSE_OPCODE) {
+          if (!answersTheClose) return;
           connection.end(serverWebSocketFrame(WEBSOCKET_CLOSE_OPCODE, frame.payload.subarray(0, 2)));
           return;
         }
@@ -116,7 +135,9 @@ export async function fakeControlWebSocketRuntime(
       }
     });
     connection.on("error", () => connection.destroy());
-    connection.once("end", () => connection.end());
+    connection.once("end", () => {
+      if (answersTheClose) connection.end();
+    });
   });
   await new Promise<void>((listening) => server.listen(localApiSocketPath, listening));
   return {

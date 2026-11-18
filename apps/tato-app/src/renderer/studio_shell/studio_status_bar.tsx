@@ -167,7 +167,10 @@ function StudioWarningsPanelButton({ status }: { status: TatolabStatus }) {
   );
 }
 
-/** The runtime's phrase while it refuses this Studio's contract, opening a panel with the one notice and its remedy. */
+/**
+ * The runtime's phrase while it refuses this Studio's contract, words only as the foot's other phrases are, opening a panel with the
+ * one notice and its remedy. It is its own panel, not a Warnings entry, because it carries the runtime's record and the update action.
+ */
 function RuntimeOfAnotherAgePanelButton({ words, runtimeOfAnotherAge }: { words: string; runtimeOfAnotherAge: RuntimeOfAnotherAge }) {
   const [isOpen, setIsOpen] = useState(false);
   return (
@@ -208,11 +211,11 @@ export function StudioStatusBar({
   return (
     <footer className="flex h-6 shrink-0 items-center gap-4 bg-studio-menu-bar px-3 text-2xs text-fg-3" aria-label="Status" data-studio-status-bar="">
       <StudioWarningsPanelButton status={status} />
-      {words.runtime_tone === "of_another_age" && status.runtime_of_another_age !== null ? (
-        <RuntimeOfAnotherAgePanelButton words={words.runtime} runtimeOfAnotherAge={status.runtime_of_another_age} />
+      {words.runtime.tone === "of_another_age" ? (
+        <RuntimeOfAnotherAgePanelButton words={words.runtime.words} runtimeOfAnotherAge={words.runtime.runtime_of_another_age} />
       ) : (
-        <span className={cn(words.runtime_tone === "not_running" && "text-danger-text")} data-studio-status-bar-runtime={words.runtime_tone}>
-          {words.runtime}
+        <span className={cn(words.runtime.tone === "not_running" && "text-danger-text")} data-studio-status-bar-runtime={words.runtime.tone}>
+          {words.runtime.words}
         </span>
       )}
       <StudioActivityPanelButton status={status} />

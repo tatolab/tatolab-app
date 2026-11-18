@@ -234,7 +234,21 @@ function controlClientConnectedOverAWebSocket(localApiSocketPath: string, signal
   );
 }
 
-/** `RuntimeControl` over the local API at `localApiSocketPath`: each call one `POST /control`, given up after its operation's limit or `defaultTimeLimitMs`, which aborts the request, as an interrupt does. */
+/**
+ * Close `connectedClient` without waiting for the runtime to answer the close, as the persistent connection does: a runtime that
+ * never answers it must not hold up the status round that read its contract. Closing cannot fail.
+ */
+function closedWithoutWaitingForThePeer(connectedClient: TatolabRuntimeClient): Effect.Effect<void> {
+  return Effect.sync(() => {
+    connectedClient.close().catch(() => {});
+  });
+}
+
+/**
+ * `RuntimeControl` over the local API at `localApiSocketPath`: each `call` one `POST /control`, given up after its operation's limit
+ * or `defaultTimeLimitMs`, which aborts the request, as an interrupt does; `discover` one `/control/ws` connection, given up after
+ * `defaultTimeLimitMs` and closed without waiting for the runtime's answer to the close.
+ */
 export function runtimeControlLayer(localApiSocketPath: string, defaultTimeLimitMs: number): Layer.Layer<RuntimeControl> {
   return Layer.succeed(RuntimeControl, {
     discover: Effect.acquireUseRelease(
@@ -243,7 +257,7 @@ export function runtimeControlLayer(localApiSocketPath: string, defaultTimeLimit
         catch: (connectFailure) => runtimeControlFailureOfTheCall("discover", localApiSocketPath, connectFailure),
       }),
       (connectedClient) => Effect.succeed(connectedClient.discovered),
-      (connectedClient) => Effect.promise(() => connectedClient.close()),
+      (connectedClient) => closedWithoutWaitingForThePeer(connectedClient),
     ).pipe(
       Effect.timeoutOrElse({
         duration: Duration.millis(defaultTimeLimitMs),

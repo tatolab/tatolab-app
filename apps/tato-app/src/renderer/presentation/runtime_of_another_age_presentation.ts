@@ -1,7 +1,12 @@
 // What the window says of a runtime that refused this Studio's control contract: which side is older,
 // the facts the runtime's record states, and the one thing to do about it. It blocks nothing.
 
-import type { ControlContractAge, RuntimeOfAnotherAge } from "../../shared/tatolab_backend_contract";
+import type { ControlContractAge, RuntimeOfAnotherAge, TatolabStatus } from "../../shared/tatolab_backend_contract";
+
+/** The runtime of another age the window shows for `status`: only a running one, whose record the status still holds; `null` otherwise. */
+export function runtimeOfAnotherAgeShownFor(status: Pick<TatolabStatus, "runtime_state" | "runtime_of_another_age">): RuntimeOfAnotherAge | null {
+  return status.runtime_state === "running" ? status.runtime_of_another_age : null;
+}
 
 /** The notice's words: a title naming the older side, the record's facts, the remedy, and the status bar's short form. */
 export interface RuntimeOfAnotherAgeWords {
@@ -13,7 +18,7 @@ export interface RuntimeOfAnotherAgeWords {
   /** Whether the remedy is updating Tato Studio, which the notice offers through the app's own updater. */
   offersTheStudioUpdate: boolean;
   /** As "tatolabd 0.55.2 · older than this Studio". */
-  status_bar: string;
+  statusBar: string;
 }
 
 /** `contract` as the notice names it: "contract 3, revision 1". */
@@ -46,6 +51,6 @@ export function presentRuntimeOfAnotherAge(runtimeOfAnotherAge: RuntimeOfAnother
       : `${runtimeServes}; this Studio was built for ${contractWords(runtimeOfAnotherAge.studio_contract)}. Your projects are untouched.`,
     remedy: remedyWords(runtimeOfAnotherAge),
     offersTheStudioUpdate: runtimeOfAnotherAge.remedy === "update_studio",
-    status_bar: `${runtime} · ${isTheRuntimeOlder ? "older" : "newer"} than this Studio`,
+    statusBar: `${runtime} · ${isTheRuntimeOlder ? "older" : "newer"} than this Studio`,
   };
 }

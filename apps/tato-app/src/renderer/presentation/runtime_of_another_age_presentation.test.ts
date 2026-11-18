@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeOfAnotherAge } from "../../shared/tatolab_backend_contract";
-import { presentRuntimeOfAnotherAge } from "./runtime_of_another_age_presentation";
+import { presentRuntimeOfAnotherAge, runtimeOfAnotherAgeShownFor } from "./runtime_of_another_age_presentation";
 
 const AN_OLDER_RUNTIME_THE_APP_DID_NOT_START: RuntimeOfAnotherAge = {
   older_side: "runtime",
@@ -25,7 +25,7 @@ describe("presentRuntimeOfAnotherAge", () => {
       explanation: "tatolabd 0.68.90 serves control contract 3, revision 0; this Studio needs contract 3, revision 1. Your projects are untouched.",
       remedy: "Quit the tatolabd that is running. Tato Studio didn't start it, so it leaves it alone; once it has quit, Tato Studio starts the one it carries.",
       offersTheStudioUpdate: false,
-      status_bar: "tatolabd 0.68.90 · older than this Studio",
+      statusBar: "tatolabd 0.68.90 · older than this Studio",
     });
   });
 
@@ -35,7 +35,7 @@ describe("presentRuntimeOfAnotherAge", () => {
       explanation: "tatolabd 0.80.0 serves control contract 4, revision 0; this Studio was built for contract 3, revision 1. Your projects are untouched.",
       remedy: "Update Tato Studio.",
       offersTheStudioUpdate: true,
-      status_bar: "tatolabd 0.80.0 · newer than this Studio",
+      statusBar: "tatolabd 0.80.0 · newer than this Studio",
     });
   });
 
@@ -47,5 +47,13 @@ describe("presentRuntimeOfAnotherAge", () => {
     const uncarried = presentRuntimeOfAnotherAge({ ...AN_OLDER_RUNTIME_THE_APP_DID_NOT_START, remedy: "update_the_runtime" });
     expect(uncarried.remedy).toBe("Update the tatolabd that is running. This build of Tato Studio carries no runtime of its own.");
     expect(uncarried.offersTheStudioUpdate).toBe(false);
+  });
+});
+
+describe("runtimeOfAnotherAgeShownFor", () => {
+  it("shows a runtime of another age only while it runs", () => {
+    expect(runtimeOfAnotherAgeShownFor({ runtime_state: "running", runtime_of_another_age: A_NEWER_RUNTIME })).toBe(A_NEWER_RUNTIME);
+    expect(runtimeOfAnotherAgeShownFor({ runtime_state: "starting", runtime_of_another_age: A_NEWER_RUNTIME })).toBeNull();
+    expect(runtimeOfAnotherAgeShownFor({ runtime_state: "running", runtime_of_another_age: null })).toBeNull();
   });
 });
