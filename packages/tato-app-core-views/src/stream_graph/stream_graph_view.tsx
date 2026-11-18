@@ -372,7 +372,7 @@ function StreamGraphOfTheTab({
   );
   const onViewportLeft = useCallback((viewport: NodeGraphCanvasViewport) => keepWhereTheStreamWasLeft({ viewport }), [keepWhereTheStreamWasLeft]);
 
-  if (listedStream?.state === "failed") {
+  if (listedStream?.state === "failed" && graphReading?.kind !== "read") {
     return (
       <WaitingState
         isFailure
@@ -408,6 +408,14 @@ function StreamGraphOfTheTab({
   }
   return (
     <>
+      {listedStream?.state === "failed" && (
+        <RefusalLine
+          layout="bar"
+          lead={`${streamTab.display_name} failed:`}
+          words={listedStream.failed_because ?? "The runtime lists it failed and gives no reason."}
+          data-stream-graph-failure={streamTab.stream}
+        />
+      )}
       {editedGraph !== null && "because" in editedGraph && importedProjectName === null && (
         <RefusalLine layout="bar" tone="warning" lead="Read only:" words={editedGraph.because} />
       )}

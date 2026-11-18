@@ -3,6 +3,7 @@ import {
   createMockStreamFixtures,
   createMockStreamRunFromAProjectFolder,
   MOCK_RUNTIME_ID,
+  mockMainStreamAsTheRuntimeHoldsIt,
   mockStreamIdOf,
   type MockStreamGraph,
   type MockLogRecordDraft,
@@ -108,9 +109,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
                 : mockTatolabOptions.doesTheMainStreamHoldAGeneratedSubgraph
                   ? fixtures.mainStreamHoldingAGeneratedSubgraph
                   : fixtures.mainStream;
-  const mainStream: MockStreamFixture = mockTatolabOptions.areTheMainStreamsNodesStopped
-    ? { ...mainStreamAsChosen, graph: { ...mainStreamAsChosen.graph, nodes: mainStreamAsChosen.graph.nodes.map((node) => (node.state === null ? node : { ...node, state: "Stopped" })) } }
-    : mainStreamAsChosen;
+  const mainStream = mockMainStreamAsTheRuntimeHoldsIt(mainStreamAsChosen, scenario === "refused-at-play" ? "refused_at_play" : mockTatolabOptions.areTheMainStreamsNodesStopped ? "nodes_stopped" : "as_chosen");
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
   const menusKeptForTheSystemMenuBar: SystemMenuBarMenu[] = [];

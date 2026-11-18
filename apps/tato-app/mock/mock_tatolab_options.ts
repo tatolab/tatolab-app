@@ -19,13 +19,17 @@ import type {
   StudioWarning,
 } from "../src/shared/tatolab_backend_contract";
 
-/** Browser-only stand-ins for the app backend, picked with `?state=`: `starting` is the app's runtime coming up, `not-running` one that exited. */
+/**
+ * Browser-only stand-ins for the app backend, picked with `?state=`: `starting` is the app's runtime coming up, `not-running`
+ * one that exited, `refused-at-play` the runtime holding `main` failed, its graph stopped, after it refused to play a link.
+ */
 export type MockTatolabScenario =
   | "running"
   | "empty"
   | "loading"
   | "node-error"
   | "node-not-ready"
+  | "refused-at-play"
   | "camera-access"
   | "dropping"
   | "not-listed"
@@ -38,6 +42,7 @@ const MOCK_TATOLAB_SCENARIOS: readonly MockTatolabScenario[] = [
   "loading",
   "node-error",
   "node-not-ready",
+  "refused-at-play",
   "camera-access",
   "dropping",
   "not-listed",
@@ -413,6 +418,7 @@ export function initialMockStatus(
     case "loading":
     case "node-error":
     case "node-not-ready":
+    case "refused-at-play":
     case "camera-access":
     case "dropping":
     case "not-listed":

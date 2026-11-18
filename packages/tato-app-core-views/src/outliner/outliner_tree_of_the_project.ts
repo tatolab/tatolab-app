@@ -3,7 +3,7 @@
 // them as their `studio.group`.
 
 import type { TreeRowPick, TreeViewRow } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
-import type { ListedStream, ListedStreamsReading, OpenProject, StreamGraphAction, StreamGraphNode, StreamGraphNodeKind, StreamGraphReading, StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { ListedStream, ListedStreamsReading, OpenProject, StreamGraphAction, StreamGraphNode, StreamGraphNodeKind, StreamGraphReading, StreamGraphSummary, StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { shownStudioTreeRows, studioTreeNodesMatching, type StudioTreeNode } from "../shared/node_type_listing_tree";
 import { nodeTitle } from "../shared/node_words";
 import { editedStreamGraphOf, selectionFramedEdits } from "../shared/stream_graph_edits";
@@ -143,21 +143,16 @@ function groupChildren(stream: ListedStream, projectName: string, group: string,
   return nodeRows.length > 0 ? nodeRows : [leafNode({ row_id: `group:${stream.stream}/${group}/empty`, label: "No nodes", icon: "waiting", tone: "waiting" })];
 }
 
-/** The rows under a stream: its groups, each holding its nodes, then the nodes in no group; or why none show. */
-function streamChildren(stream: ListedStream, projectName: string, graphReading: StreamGraphReading | undefined): OutlinerTreeNode[] {
-  const rowId = streamRowId(stream.stream);
-  if (stream.state === "failed" && stream.failed_because !== null) {
-    return [leafNode({ row_id: `${rowId}/failed`, label: stream.failed_because, icon: "unreadable", tone: "failed" })];
-  }
-  const preparingWords = streamPreparingWords(stream, stream.display_name);
-  if (preparingWords !== null && (graphReading === undefined || graphReading.kind === "not_read")) {
-    return [leafNode({ row_id: `${rowId}/preparing`, label: preparingWords.explanation, icon: "waiting", tone: "waiting" })];
-  }
-  if (graphReading === undefined) return [leafNode({ row_id: `${rowId}/waiting`, label: "Nodes not read yet", icon: "waiting", tone: "waiting" })];
-  if (graphReading.kind === "not_read" && stream.state !== "running") return [leafNode({ row_id: `${rowId}/not-running`, label: "Not running", icon: "waiting", tone: "waiting" })];
-  if (graphReading.kind === "not_read") return [leafNode({ row_id: `${rowId}/not-read`, label: graphReading.because, icon: "unreadable", tone: "unreadable" })];
-  const { groups, nodes } = graphReading.graph;
-  if (nodes.length === 0 && groups.length === 0) return [leafNode({ row_id: `${rowId}/empty`, label: "No nodes yet", icon: "waiting", tone: "waiting" })];
+/** The row saying why `stream` failed, in the runtime's words, while it failed and the runtime gave a reason; none otherwise. */
+function streamFailureRows(stream: ListedStream): OutlinerTreeNode[] {
+  if (stream.state !== "failed" || stream.failed_because === null) return [];
+  return [leafNode({ row_id: `${streamRowId(stream.stream)}/failed`, label: stream.failed_because, icon: "unreadable", tone: "failed" })];
+}
+
+/** The rows of a graph the runtime served: its groups, each holding its nodes, then the nodes in no group; or a row saying it holds none. */
+function streamGraphRows(stream: ListedStream, projectName: string, graph: StreamGraphSummary): OutlinerTreeNode[] {
+  const { groups, nodes } = graph;
+  if (nodes.length === 0 && groups.length === 0) return [leafNode({ row_id: `${streamRowId(stream.stream)}/empty`, label: "No nodes yet", icon: "waiting", tone: "waiting" })];
   const groupIds = new Set(groups.map((group) => group.id));
   const groupRows = groups.map(
     (group): OutlinerTreeNode => ({
@@ -169,6 +164,22 @@ function streamChildren(stream: ListedStream, projectName: string, graphReading:
   );
   const ungroupedNodeRows = nodes.filter((node) => node.studio.group === null || !groupIds.has(node.studio.group)).map((node) => graphNodeRow(stream, projectName, node));
   return [...groupRows, ...ungroupedNodeRows];
+}
+
+/**
+ * The rows under a stream: why it failed, when it did, then the groups and nodes of the graph the runtime served, a failed
+ * stream's as much as any other's; or, with no graph read, why none show.
+ */
+function streamChildren(stream: ListedStream, projectName: string, graphReading: StreamGraphReading | undefined): OutlinerTreeNode[] {
+  const failureRows = streamFailureRows(stream);
+  if (graphReading?.kind === "read") return [...failureRows, ...streamGraphRows(stream, projectName, graphReading.graph)];
+  if (failureRows.length > 0) return failureRows;
+  const rowId = streamRowId(stream.stream);
+  const preparingWords = streamPreparingWords(stream, stream.display_name);
+  if (preparingWords !== null) return [leafNode({ row_id: `${rowId}/preparing`, label: preparingWords.explanation, icon: "waiting", tone: "waiting" })];
+  if (graphReading === undefined) return [leafNode({ row_id: `${rowId}/waiting`, label: "Nodes not read yet", icon: "waiting", tone: "waiting" })];
+  if (stream.state !== "running") return [leafNode({ row_id: `${rowId}/not-running`, label: "Not running", icon: "waiting", tone: "waiting" })];
+  return [leafNode({ row_id: `${rowId}/not-read`, label: graphReading.because, icon: "unreadable", tone: "unreadable" })];
 }
 
 /** The streams of `streams` the runtime loaded from `project`'s folder. */

@@ -746,6 +746,32 @@ export function mockMainGraphNamed(mainGraphInTheQuery: string | null): MockMain
   return mainGraphInTheQuery === "every_pin_kind" || mainGraphInTheQuery === "large" ? mainGraphInTheQuery : null;
 }
 
+/** Why the runtime failed `main` in the mock's `?state=refused-at-play`: a play that refused a link from a function node into a node in the app process, in the runtime's words. */
+const MOCK_MAIN_REFUSED_AT_PLAY_BECAUSE =
+  "Invalid link: link `Lkrgygd6qubqrj4jviamzuzfw` feeds a function node island into `displaywindow`, which runs in the app process; a function node runs inside the read of a node in a helper process, and the app process runs no node code";
+
+/** `stream` with each node that reports a state stopped, as the runtime holds the graph of a stream that does not play. */
+function mockStreamWithItsNodesStopped(stream: MockStreamFixture): MockStreamFixture {
+  return { ...stream, graph: { ...stream.graph, nodes: stream.graph.nodes.map((node) => (node.state === null ? node : { ...node, state: "Stopped" })) } };
+}
+
+/**
+ * `main` as the runtime holds it: as chosen; with its nodes stopped (`?node_states=stopped`); or failed in the runtime's
+ * words with its graph still held, stopped, as after a play it refused (`?state=refused-at-play`).
+ */
+export function mockMainStreamAsTheRuntimeHoldsIt(main: MockStreamFixture, held: "as_chosen" | "nodes_stopped" | "refused_at_play"): MockStreamFixture {
+  switch (held) {
+    case "as_chosen":
+      return main;
+    case "nodes_stopped":
+      return mockStreamWithItsNodesStopped(main);
+    case "refused_at_play": {
+      const stopped = mockStreamWithItsNodesStopped(main);
+      return { ...stopped, listing: { ...stopped.listing, state: "failed", failed_because: MOCK_MAIN_REFUSED_AT_PLAY_BECAUSE } };
+    }
+  }
+}
+
 /** The machine the mock runtime runs on for `platform`, and the streams it lists. */
 export interface MockStreamFixtures {
   machine: MockMachine;
