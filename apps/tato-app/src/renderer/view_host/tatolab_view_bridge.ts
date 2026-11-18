@@ -62,7 +62,7 @@ interface InputWatch {
   portViewerConnection: PortViewerConnection | null;
 }
 
-/** Serves one view of `viewTypeId`, declared by `manifest`, over `port`: reading through `hostServices`, its area through `areaServices`, a `node` view's inputs through `inputWiring` and its outputs onto `viewNode`; Image frames cross as the transferred `VideoFrame`, with no copy. */
+/** Serves one view of `viewTypeId`, declared by `manifest`, over `port`: reading through `hostServices`, its area through `areaServices`, a `node` view's inputs through `inputWiring` and its outputs onto `viewNode`; Image frames reach its inputs and port viewers as the transferred `VideoFrame`, with no copy. */
 export class TatolabViewBridge {
   private readonly stopWatchingByWatchId = new Map<number, StopWatching>();
   private readonly inputWatchesByWatchId = new Map<number, InputWatch>();
