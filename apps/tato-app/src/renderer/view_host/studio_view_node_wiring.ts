@@ -3,6 +3,8 @@
 // the node's input of that name, which the node publishes on the output.
 
 import type { ViewDeclaredPort } from "@tatolab/tato-app-view-sdk";
+import { graphAddressOfTheStreamsOwnLevel } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import { nodeTitle } from "@tatolab/tato-app-core-views/shared/node_words";
 import type { PortViewerTarget, StreamGraphNode, StreamGraphSummary, StudioViewNodeAddress } from "./studio_view_contract";
 
 /** What one input of a view reads: the output wired into it, named as `Node › port`, or why it reads nothing. */
@@ -15,9 +17,10 @@ export function nodesOfTheStudioViewType(graph: StreamGraphSummary, viewTypeId: 
 
 /** Where a value is set on the inputs of `viewNode`, on the own level of the stream `graph` renders, named `streamWords`, in the window's project at `projectFolder`; or why none is while either is unknown. */
 export function studioViewNodeAddressOf(projectFolder: string | null, graph: StreamGraphSummary, viewNode: StreamGraphNode, streamWords: string): StudioViewNodeAddress {
-  if (projectFolder === null) return { kind: "not_addressed", because: `No project is open in this window, so nothing is set on the ${viewNode.name} node in ${streamWords}.` };
-  if (graph.stream_asset === null) return { kind: "not_addressed", because: `The runtime's graph of ${streamWords} names no stream asset, so nothing is set on its ${viewNode.name} node.` };
-  return { kind: "addressed", graph: { project_folder: projectFolder, stream_asset: graph.stream_asset, level: [] }, node_id: viewNode.id };
+  const title = nodeTitle(viewNode.name, viewNode.type);
+  if (projectFolder === null) return { kind: "not_addressed", because: `No project is open in this window, so nothing is set on the ${title} node in ${streamWords}.` };
+  if (graph.stream_asset === null) return { kind: "not_addressed", because: `The runtime's graph of ${streamWords} names no stream asset, so nothing is set on its ${title} node.` };
+  return { kind: "addressed", graph: graphAddressOfTheStreamsOwnLevel(projectFolder, graph.stream_asset), node_id: viewNode.id };
 }
 
 /** What each of `declaredInputs` of the view node `viewNode` reads in `graph`, by input name. */

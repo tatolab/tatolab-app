@@ -58,6 +58,7 @@ const DJ_DECK_MANIFEST = manifestOf({
   outputs: [
     { name: "crossfader", family: "array" },
     { name: "play_a", family: "array" },
+    { name: "cover", family: "image" },
   ],
   settings: { type: "object", properties: { show_waveform: { type: "boolean", default: true }, zoom: { type: "number", minimum: 1, default: 1 } } },
 });
@@ -491,6 +492,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
       outputs: [
         { name: "crossfader", family: "array" },
         { name: "play_a", family: "array" },
+        { name: "cover", family: "image" },
       ],
       capabilities: ["read.selection", "camera"],
     });
@@ -566,6 +568,23 @@ describe("a view's connection to Studio, through the one bridge every view is se
       { projectFolder: "/set", operations: [{ operation: "set_node_input_value", stream: "s-uuid", node: "id-dj-deck", input: "crossfader", value: 0.42 }], mode: "live", idempotencyKey: null },
       { projectFolder: "/set", operations: [{ operation: "set_node_input_value", stream: "s-uuid", node: "id-dj-deck", input: "play_a", value: { playing: true } }], mode: "live", idempotencyKey: null },
     ]);
+  });
+
+  it("is refused a value on an Image output, which a panel never writes, sending nothing", async () => {
+    const deckNode: StudioViewNodeAddress = { kind: "addressed", graph: { project_folder: "/set", stream_asset: "s-uuid", level: [] }, node_id: "id-dj-deck" };
+    const { connection, graphTransactionsAsked } = await connectedView(DJ_DECK_MANIFEST, {}, undefined, deckNode);
+
+    expect(await connection.sendOutput("cover", { frame: 1 })).toEqual({ kind: "refused", because: "DJ Deck writes no value on its Image output cover; a panel writes Array, Channels and Records outputs." });
+    expect(graphTransactionsAsked).toEqual([]);
+  });
+
+  it("sets what it sends at the address its node was given last, once the stream's asset becomes known", async () => {
+    const { connection, bridge, graphTransactionsAsked } = await connectedView(DJ_DECK_MANIFEST, {}, undefined, { kind: "not_addressed", because: "The runtime's graph of Set names no stream asset, so nothing is set on its Deck node." });
+    expect(await connection.sendOutput("crossfader", 0.1)).toEqual({ kind: "refused", because: "The runtime's graph of Set names no stream asset, so nothing is set on its Deck node." });
+
+    bridge.readdress({ kind: "addressed", graph: { project_folder: "/set", stream_asset: "s-uuid", level: [] }, node_id: "id-dj-deck" });
+    expect(await connection.sendOutput("crossfader", 0.2)).toEqual({ kind: "done" });
+    expect(graphTransactionsAsked).toEqual([{ projectFolder: "/set", operations: [{ operation: "set_node_input_value", stream: "s-uuid", node: "id-dj-deck", input: "crossfader", value: 0.2 }], mode: "live", idempotencyKey: null }]);
   });
 
   it("answers why Studio sent nothing when the write never reached the runtime", async () => {

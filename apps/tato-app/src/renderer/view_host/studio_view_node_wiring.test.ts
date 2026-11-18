@@ -50,8 +50,9 @@ describe("a view node's wiring", () => {
   });
 
   it("sets a value on the node's inputs at the stream's own level of the window's project, and says why not while the project or the stream asset is unknown", () => {
+    const unnamedDeck = graphNode("deck", "acme-dj:deck", {}, []);
     expect(studioViewNodeAddressOf("/set", { ...GRAPH, stream_asset: "s-uuid" }, DECK, "Set")).toEqual({ kind: "addressed", graph: { project_folder: "/set", stream_asset: "s-uuid", level: [] }, node_id: "id-djdeck" });
-    expect(studioViewNodeAddressOf("/set", GRAPH, DECK, "Set")).toEqual({ kind: "not_addressed", because: "The runtime's graph of Set names no stream asset, so nothing is set on its djdeck node." });
+    expect(studioViewNodeAddressOf("/set", GRAPH, unnamedDeck, "Set")).toEqual({ kind: "not_addressed", because: "The runtime's graph of Set names no stream asset, so nothing is set on its Deck node." });
     expect(studioViewNodeAddressOf(null, { ...GRAPH, stream_asset: "s-uuid" }, DECK, "Set")).toEqual({ kind: "not_addressed", because: "No project is open in this window, so nothing is set on the djdeck node in Set." });
   });
 });

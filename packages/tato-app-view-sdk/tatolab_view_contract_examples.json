@@ -350,6 +350,21 @@
       "refused_at": "outputs[0].name"
     },
     {
+      "named": "an Image output named after one of its settings, since no input of its name is made",
+      "manifest": {
+        "contract": "1.0",
+        "title": "Deck",
+        "entry": "index.html",
+        "placement": "node",
+        "outputs": [{ "name": "preview", "family": "image" }],
+        "settings": {
+          "type": "object",
+          "properties": { "preview": { "type": "boolean", "default": true } }
+        }
+      },
+      "opens": true
+    },
+    {
       "named": "a range on a port that is not Array",
       "manifest": {
         "contract": "1.0",

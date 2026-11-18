@@ -29,7 +29,7 @@ interface TatolabViewOfAnArea {
   hostServices: StudioViewHostServices;
 }
 
-/** The view's frame, on its entry, served by a bridge that reads its inputs from `inputWiring` and writes its outputs onto `viewNode`; a reload of the frame is served by a new one. */
+/** The view's frame, on its entry, served by a bridge that reads its inputs from `inputWiring` and writes its outputs onto `viewNode`, each followed as it changes; a reload of the frame is served by a new one. */
 function TatolabViewFrame({
   listed,
   manifest,
@@ -43,6 +43,9 @@ function TatolabViewFrame({
   const inputWiringRef = useRef(inputWiring);
   inputWiringRef.current = inputWiring;
   const inputWiringAsJson = JSON.stringify(inputWiring);
+  const viewNodeRef = useRef(viewNode);
+  viewNodeRef.current = viewNode;
+  const viewNodeAsJson = JSON.stringify(viewNode);
   const rememberSettingsRef = useRef(area.rememberSettings);
   rememberSettingsRef.current = area.rememberSettings;
   const [savedSettings] = useState(() => new WatchedStudioValue<{ saved: JsonValue | undefined }>({ saved: area.saved_settings }));
@@ -57,6 +60,9 @@ function TatolabViewFrame({
   useEffect(() => {
     bridgeRef.current?.rewireInputs(inputWiringRef.current);
   }, [inputWiringAsJson]);
+  useEffect(() => {
+    bridgeRef.current?.readdress(viewNodeRef.current);
+  }, [viewNodeAsJson]);
 
   const entryUrl = new URL(manifest.entry, listed.folder_url);
   const handTheFrameItsPort = () => {
@@ -71,7 +77,7 @@ function TatolabViewFrame({
       expansion: area.expansion,
     };
     const channel = new MessageChannel();
-    const bridge = new TatolabViewBridge(channel.port1, listed.view_type_id, manifest, hostServices, areaServices, inputWiringRef.current, viewNode);
+    const bridge = new TatolabViewBridge(channel.port1, listed.view_type_id, manifest, hostServices, areaServices, inputWiringRef.current, viewNodeRef.current);
     bridge.start();
     bridgeRef.current = bridge;
     frameWindow.postMessage({ kind: VIEW_PORT_HANDOVER }, entryUrl.origin, [channel.port2]);
@@ -137,7 +143,7 @@ function TatolabNodeViewOfTheTab({ streamTab, ...view }: TatolabViewOfAnArea & {
   const projectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
   return (
     <TatolabViewFrame
-      key={`${viewNode.id}:${projectFolder ?? ""}`}
+      key={viewNode.id}
       {...view}
       inputWiring={studioViewInputWiring(graphReading.graph, viewNode, manifest.inputs)}
       viewNode={studioViewNodeAddressOf(projectFolder, graphReading.graph, viewNode, streamTab.display_name)}

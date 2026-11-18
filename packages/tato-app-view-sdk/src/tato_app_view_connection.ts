@@ -58,8 +58,8 @@ export type StopWatching = () => void;
 /** Called with Studio's words when it refuses a watch. */
 export type WhenStudioRefuses = (because: string) => void;
 
-/** What a view sends on an output: a `VideoFrame` for Image, which Studio then owns, or JSON. */
-export type ViewOutputPayload = JsonValue | VideoFrame;
+/** What a view sends on an output: JSON, as the output's family takes it. A panel writes Array, Channels and Records outputs, never Image or Packets. */
+export type ViewOutputPayload = JsonValue;
 
 /** How a graph transaction is sent: kept or live, and the key of the person's gesture it belongs to, `null` for none. */
 export interface GraphTransactionSending {
@@ -172,7 +172,10 @@ export interface TatoAppViewConnection {
   watchProjectAssetPick(listener: (pick: ProjectAssetPick | null) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** End the asset pick held with the asset `asset` chosen, by its UUID. */
   answerTheProjectAssetPick(asset: string): Promise<ViewAskDone>;
-  /** Send `payload` on the `node` view's output `output`. */
+  /**
+   * Send `payload` on the `node` view's output `output`, an Array, Channels or Records output: Studio sets it, live, on the view node's input of the output's name, whose value the node
+   * publishes on the output. Refused in the runtime's words when it does not take the value, and in Studio's for an Image or Packets output, which a panel never writes.
+   */
   sendOutput(output: string, payload: ViewOutputPayload): Promise<ViewAskDone>;
   /** Stop every watch and close the port. */
   close(): void;
@@ -185,14 +188,6 @@ interface WatchHeld {
 
 const IGNORE_THE_REFUSAL: WhenStudioRefuses = () => undefined;
 const CLOSED_BECAUSE = "The view closed its connection to Tato Studio.";
-
-function isAVideoFrame(payload: unknown): payload is VideoFrame {
-  return typeof VideoFrame !== "undefined" && payload instanceof VideoFrame;
-}
-
-function picturesToTransferOf(payload: ViewOutputPayload): Transferable[] {
-  return isAVideoFrame(payload) ? [payload] : [];
-}
 
 function settingsOf(reading: JsonValue): ViewSettings {
   return typeof reading === "object" && reading !== null && !Array.isArray(reading) ? reading : null;
@@ -246,7 +241,7 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       return new Promise((resolveAnswer) => {
         answerWaitersByAskId.set(askId, resolveAnswer);
         if (payload === undefined) send({ kind: "ask", ask_id: askId, ask: askedFor });
-        else send({ kind: "ask", ask_id: askId, ask: askedFor, payload }, picturesToTransferOf(payload));
+        else send({ kind: "ask", ask_id: askId, ask: askedFor, payload });
       });
     };
 
