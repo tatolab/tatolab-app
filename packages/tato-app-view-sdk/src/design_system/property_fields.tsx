@@ -180,6 +180,7 @@ export function PropertyNumberField({
   minimum,
   maximum,
   isTheTypesDefault = false,
+  labelledBy,
   onCommitted,
 }: {
   fieldId: string;
@@ -187,6 +188,8 @@ export function PropertyNumberField({
   minimum: number | null;
   maximum: number | null;
   isTheTypesDefault?: boolean;
+  /** The id of the element that names the field, where no label points at it. */
+  labelledBy?: string;
   /** The words typed, which the caller reads as a number; absent for a value that is only shown. */
   onCommitted?: (words: string) => void;
 }) {
@@ -198,6 +201,7 @@ export function PropertyNumberField({
       <input
         id={fieldId}
         inputMode="decimal"
+        aria-labelledby={labelledBy}
         {...editing}
         className={cn(PROPERTY_FIELD_CLASS_NAMES, "relative bg-transparent text-center font-mono tabular-nums", valueToneClassName(isTheTypesDefault))}
       />
@@ -219,6 +223,8 @@ export function PropertySliderField({
   onDragStarted,
   onLiveEdit,
   onCommitted,
+  onDragCancelled,
+  labelledBy,
   valueTypedBesideTheSlider,
 }: {
   fieldId: string;
@@ -230,10 +236,15 @@ export function PropertySliderField({
   onDragStarted: () => void;
   onLiveEdit: (value: number) => void;
   onCommitted: (value: number) => void;
+  /** Escape during a drag: the drag ends where it began, nothing is committed, and the slider moves nothing more until the press ends; without it Escape does nothing. */
+  onDragCancelled?: () => void;
+  /** The id of the element that names the slider, where no label points at it. */
+  labelledBy?: string;
   /** The value beside the slider typed into: its accessible name, and the words typed, which the caller reads as a number. */
   valueTypedBesideTheSlider: { label: string; onWordsTyped: (words: string) => void };
 }) {
   const [draggedValue, setDraggedValue] = useState<number | null>(null);
+  const [isCancelledUntilThePressEnds, setIsCancelledUntilThePressEnds] = useState(false);
   const shownValue = draggedValue ?? value ?? minimum;
   const valueWords = isWholeNumber ? String(shownValue) : shownValue.toFixed(2);
   const valueEditedInPlace = useWordsEditedInPlace(valueWords, valueTypedBesideTheSlider.onWordsTyped);
@@ -241,32 +252,46 @@ export function PropertySliderField({
   const release = useCallback(() => {
     if (draggedValue !== null) onCommitted(draggedValue);
     setDraggedValue(null);
+    setIsCancelledUntilThePressEnds(false);
   }, [draggedValue, onCommitted]);
   useEffect(() => {
-    if (draggedValue === null) return undefined;
+    if (draggedValue === null && !isCancelledUntilThePressEnds) return undefined;
     window.addEventListener("pointerup", release);
     window.addEventListener("pointercancel", release);
     return () => {
       window.removeEventListener("pointerup", release);
       window.removeEventListener("pointercancel", release);
     };
-  }, [draggedValue, release]);
+  }, [draggedValue, isCancelledUntilThePressEnds, release]);
   return (
     <div className="flex min-w-0 items-center gap-2">
       <input
         id={fieldId}
         type="range"
+        aria-labelledby={labelledBy}
         min={minimum}
         max={maximum}
         step={step}
         value={shownValue}
         onChange={(changeEvent) => {
+          if (isCancelledUntilThePressEnds) return;
           const moved = Number(changeEvent.target.value);
           if (draggedValue === null) onDragStarted();
           setDraggedValue(moved);
           onLiveEdit(moved);
         }}
-        onKeyUp={release}
+        onKeyDown={(keyEvent) => {
+          if (keyEvent.key !== "Escape" || draggedValue === null || onDragCancelled === undefined) return;
+          keyEvent.preventDefault();
+          keyEvent.stopPropagation();
+          setDraggedValue(null);
+          setIsCancelledUntilThePressEnds(true);
+          onDragCancelled();
+        }}
+        onKeyUp={(keyEvent) => {
+          // On a slider whose drag Escape cancels, Escape's key-up is part of the cancel, not a release.
+          if (keyEvent.key !== "Escape" || onDragCancelled === undefined) release();
+        }}
         onBlur={release}
         className="h-4 min-w-0 flex-1 accent-brand"
       />

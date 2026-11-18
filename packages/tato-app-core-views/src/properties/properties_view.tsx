@@ -1,24 +1,23 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { NodeGraphPinMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
 import { pinWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
 import { takesAControl } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
-import { inputAddressKey, type GraphAddress, type InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import type { GraphAddress, InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
 import {
   InputControlBinderContext,
   InputControlMount,
+  InputValueWords,
   useInputControlsOfTheFrame,
   useInputValuesOfTheStream,
   useOwnFieldOfTheInput,
-  useShownValueOfTheInput,
+  useRefusalOfTheInput,
   useWhereTheInputsValueComesFrom,
 } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import type { NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
-import { valueWords } from "@tatolab/tato-app-view-sdk/pin_model/value_words";
-import type { PinType } from "@tatolab/tato-app-view-sdk/pin_types";
 import { portFamilyWords } from "@tatolab/tato-app-view-sdk/port_families";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_banner";
@@ -454,7 +453,7 @@ interface InputRowsOfTheNode {
   node: StreamGraphNode;
   /** The stream's asset, which every edit names; `null` where the graph can't be edited. */
   streamAsset: string | null;
-  /** The frame's store, whose refusal of an input's last value shows under its value. */
+  /** The frame's store, which a promotion reads the value an input shows from. */
   inputValues: InputValues;
   graphEdits: GraphEditsOfTheNode;
   searchWords: string;
@@ -470,7 +469,7 @@ function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port:
   const { connection, stream, level, graph, node, streamAsset, inputValues, graphEdits, searchWords } = rows;
   const place = placeOfTheInput(pin.name);
   const state = inputRowStateOf({ input: pin, value_comes_from: port.value_read?.comes_from ?? null, driven_by: linkedEndsOfThePort(graph, node, "input", pin.name), is_editable: streamAsset !== null });
-  const valueSource = useWhereTheInputsValueComesFrom(state.kind === "holds_a_value" ? state.address : null);
+  const valueSource = useWhereTheInputsValueComesFrom(state.kind === "holds_a_value" ? state.address : null, "commit");
   const comesFrom = valueSource?.comes_from ?? null;
   const canBePromoted = (state.kind === "holds_a_value" || state.kind === "not_connected") && state.can_be_promoted;
   return (
@@ -485,7 +484,7 @@ function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port:
       bandShade={bandShade}
       refusal={graphEdits.refusalsByPlace.get(place) ?? null}
       comesFromWords={comesFrom === null || comesFrom === "wire" ? undefined : COMES_FROM_WORDS[comesFrom]}
-      reset={valueSource === null || comesFrom !== "saved" ? undefined : { label: `Reset ${pin.name} to default`, onReset: valueSource.resetToTheDefault }}
+      reset={valueSource === null || comesFrom !== "saved" ? undefined : { label: `Reset ${pin.name} to default`, onReset: valueSource.clearTheValue }}
       promotion={
         !canBePromoted || streamAsset === null
           ? undefined
@@ -518,7 +517,7 @@ function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port:
       }
       unlinkedValue={
         state.kind === "holds_a_value" ? (
-          <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} pin={pin.pin} address={state.address} inputValues={inputValues} />
+          <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} pin={pin.pin} address={state.address} />
         ) : state.kind === "wired_from_outside_the_level" ? (
           <span className="text-fg-3" data-properties-input-wired-from-outside-the-level>
             Wired
@@ -534,7 +533,7 @@ function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port:
  * words while that control loads, and the panel's own field where the table has no control for it. Under it, the store's
  * refusal of the last value sent to it.
  */
-function ValueOfTheUnwiredInput({ fieldId, pin, address, inputValues }: { fieldId: string; pin: StreamGraphPortPin | null; address: InputAddress; inputValues: InputValues }) {
+function ValueOfTheUnwiredInput({ fieldId, pin, address }: { fieldId: string; pin: StreamGraphPortPin | null; address: InputAddress }) {
   const controlled = takesAControl({ name: address.input, pin, value_address: address });
   const ownField = <OwnFieldOfTheInput fieldId={fieldId} address={address} />;
   return (
@@ -542,26 +541,16 @@ function ValueOfTheUnwiredInput({ fieldId, pin, address, inputValues }: { fieldI
       {controlled === null ? (
         ownField
       ) : (
-        <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={<ValueWordsOfTheInput address={address} pinType={pin?.pin_type ?? null} />} noControl={ownField} className="w-full" />
+        <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={<InputValueWords address={address} pinType={pin?.pin_type ?? null} data-properties-input-value-words={address.input} />} noControl={ownField} className="w-full" />
       )}
-      <RefusalOfTheInputsValue inputValues={inputValues} address={address} />
+      <RefusalOfTheInputsValue address={address} />
     </div>
-  );
-}
-
-/** An input's value in words, as its card shows it while its control loads. */
-function ValueWordsOfTheInput({ address, pinType }: { address: InputAddress; pinType: PinType | null }) {
-  const shown = useShownValueOfTheInput(address);
-  return (
-    <span className="truncate text-fg-3 tabular-nums" data-properties-input-value-words={address.input}>
-      {valueWords(pinType, shown.value) ?? ""}
-    </span>
   );
 }
 
 /** The panel's own field for an input the table has no control for: its value as JSON, each commit set as the input's value, the words left empty taking it off. */
 function OwnFieldOfTheInput({ fieldId, address }: { fieldId: string; address: InputAddress }) {
-  const ownField = useOwnFieldOfTheInput(address);
+  const ownField = useOwnFieldOfTheInput(address, "commit");
   const shown = ownField?.shown ?? null;
   const holdsItsOwnValue = shown?.comes_from === "saved" || shown?.comes_from === "live";
   return (
@@ -576,14 +565,8 @@ function OwnFieldOfTheInput({ fieldId, address }: { fieldId: string; address: In
 }
 
 /** The store's refusal of the last value sent to `address`, under its value; nothing while the last one was taken. */
-function RefusalOfTheInputsValue({ inputValues, address }: { inputValues: InputValues; address: InputAddress }) {
-  const [refusal, setRefusal] = useState<string | null>(null);
-  const addressKey = inputAddressKey(address);
-  const latestAddress = useRef(address);
-  useLayoutEffect(() => {
-    latestAddress.current = address;
-  });
-  useLayoutEffect(() => inputValues.watchRefusal(latestAddress.current, setRefusal), [inputValues, addressKey]);
+function RefusalOfTheInputsValue({ address }: { address: InputAddress }) {
+  const refusal = useRefusalOfTheInput(address);
   if (refusal === null) return null;
   return <RefusalLine lead="The value wasn't set:" words={refusal} layout="under_field" data-properties-input-value-refusal={address.input} />;
 }

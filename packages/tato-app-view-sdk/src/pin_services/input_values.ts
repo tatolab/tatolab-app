@@ -34,8 +34,12 @@ export interface InputValues {
   watchRefusal(address: InputAddress, listener: (refusal: string | null) => void): StopWatching;
   /** Open a gesture on `address`, ended by one commit or by its last live value; it takes the place of a gesture still open there. */
   beginGesture(address: InputAddress, release: "commit" | "live"): InputValueGesture;
-  /** Take the input's saved value off as one commit, ending a gesture open on it, so it reads its declared default; an input that already reads its default sends nothing. */
-  clear(address: InputAddress): void;
+  /**
+   * End a gesture open on the input and take a value off it: with `"commit"`, its saved value as one commit, so it reads its
+   * declared default; with `"live"`, its live value, so it reads its saved value again and nothing is recorded. An input that
+   * holds no such value sends nothing.
+   */
+  clear(address: InputAddress, mode: "commit" | "live"): void;
   /**
    * Take `reading` of the values of a stream of the project in `projectFolder`: what every input reads, at every level,
    * forgetting an input of that stream it no longer holds that nothing watches or sends; or what one input reads now.
@@ -233,10 +237,16 @@ export function createInputValues(sending: InputValuesSending): InputValues {
         },
       };
     },
-    clear: (address) => {
+    clear: (address, mode) => {
       const state = stateOf(address);
       state.gesture = null;
       const shown = shownBy(state);
+      if (mode === "live") {
+        // The runtime shows the saved value it holds once the live one is off, so the live value stays shown until it reads so.
+        if (shown.comes_from === "live") senderOf(state).sendLive(null);
+        publishTheValue(state);
+        return;
+      }
       if (shown.comes_from === "default" || shown.comes_from === null) {
         publishTheValue(state);
         return;

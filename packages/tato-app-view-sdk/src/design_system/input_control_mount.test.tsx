@@ -64,7 +64,7 @@ function valuesRead(count: StreamGraphInputValueRead): StreamInputValuesReading 
 }
 
 function OwnFieldOfTheCount() {
-  const ownField = useOwnFieldOfTheInput(COUNT.address);
+  const ownField = useOwnFieldOfTheInput(COUNT.address, "commit");
   if (ownField === null) return <span data-testid="own-field">only shown</span>;
   return (
     <button type="button" data-testid="own-field" onClick={() => ownField.releaseTheValue({ every: 2 })}>

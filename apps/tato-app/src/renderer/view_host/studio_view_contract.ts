@@ -178,8 +178,6 @@ export interface StudioViewHostServices {
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
   /** Publish `value` on the output `port` of the view node `viewNode`, answering once the runtime took it or why it did not. */
   writeStudioViewOutput(viewNode: StudioViewNodeAddress, port: string, value: JsonValue): Promise<LiveValueWriting>;
-  /** Hand `value` to the Input `input` of the running stream `stream`, answering once the runtime took it or why it did not. */
-  writeGraphInput(stream: string, input: string, value: JsonValue): Promise<LiveValueWriting>;
   /** Hold `pick` in the window's asset picker, ending any asset pick held, until the person chooses an asset or closes the picker. */
   pickAProjectAsset(pick: ProjectAssetPick): Promise<ProjectAssetPickEnding>;
   /** The asset pick a view is shown in the asset picker to answer, at once and on each change; always `null` for a view shown anywhere else. */

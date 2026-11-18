@@ -317,12 +317,36 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
   },
 ];
 
-/** The pattern's main stream declares two input ports, as the runtime renders a `GraphInput` back: no state, its `port` and `family` config, one `value` output. */
+/**
+ * The `value` input of a top-level `GraphInput` of `family`, a setting that takes no wire, as the runtime renders it: no pin
+ * type, since it carries any value of its family, reading `defaultValue`, the Input's `default`, while nothing sets it.
+ */
+const graphInputValueInput = (family: PortFamily, defaultValue: JsonValue): StreamGraphDeclaredPort => ({
+  name: "value",
+  family,
+  stream_facts: null,
+  values_checked: family === "records" ? false : null,
+  pin: null,
+  value_read: { value: defaultValue, comes_from: "default" },
+});
+
+/** A top-level `GraphInput` named `name`, declaring the input port `port` of `family` with `config`, as the runtime renders one back: running, a `value` input reading its `default` and one `value` output. */
+const graphInputOfThePattern = (name: string, family: PortFamily, config: Record<string, JsonValue> & { port: string; default: JsonValue }): MockGraphNode => ({
+  name,
+  type: "tatolab.stream:GraphInput",
+  state: "Running",
+  config: { ...config, family },
+  input_ports: [graphInputValueInput(family, config.default)],
+  input_defaults: { value: config.default },
+  output_ports: portsStatingNoStreamFacts(family, "value"),
+});
+
+/** The pattern's main stream declares four input ports, each by a top-level `GraphInput`; `strobe` is reset at Stop, the others are kept. */
 const TEST_PATTERN_GRAPH_INPUTS: MockGraphNode[] = [
-  { name: "graphinput", type: "tatolab.stream:GraphInput", state: "Running", config: { port: "brightness", family: "channels", default: 0.5, range: [0, 1] }, input_ports: [], output_ports: portsStatingNoStreamFacts("channels", "value") },
-  { name: "graphinput-2", type: "tatolab.stream:GraphInput", state: "Running", config: { port: "strobe", family: "channels", default: false }, input_ports: [], output_ports: portsStatingNoStreamFacts("channels", "value") },
-  { name: "graphinput-3", type: "tatolab.stream:GraphInput", state: "Running", config: { port: "tint", family: "array", default: [1, 0.5, 0.25], range: [0, 1] }, input_ports: [], output_ports: portsStatingNoStreamFacts("array", "value") },
-  { name: "graphinput-4", type: "tatolab.stream:GraphInput", state: "Running", config: { port: "cue", family: "records", default: { scene: "intro" } }, input_ports: [], output_ports: portsStatingNoStreamFacts("records", "value") },
+  graphInputOfThePattern("graphinput", "channels", { port: "brightness", default: 0.5, range: [0, 1] }),
+  graphInputOfThePattern("graphinput-2", "channels", { port: "strobe", default: false, lifetime: "reset" }),
+  graphInputOfThePattern("graphinput-3", "array", { port: "tint", default: [1, 0.5, 0.25], range: [0, 1] }),
+  graphInputOfThePattern("graphinput-4", "records", { port: "cue", default: { scene: "intro" } }),
 ];
 
 /** A graph generator's frozen output beside the pattern: a halftone look, its dot size promoted to the subgraph's config, read only until unlocked. */

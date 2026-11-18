@@ -90,19 +90,15 @@ function familyTheInterfaceNodeCarries(node: MockGraphNode): string | null {
   return (node.type === "tatolab.stream:GraphInput" ? node.output_ports[0]?.family : node.input_ports[0]?.family) ?? null;
 }
 
-/** The port `node` declares as the runtime renders its `graph_interface`: a top-level Input a client writes, while it reads `nodeState` `Running`, carrying the value last written to it by name, else its `default`; `null` for a node that is no interface node. */
-function graphInterfacePortAsTheRuntimeRendersIt(
-  node: MockGraphNode,
-  nodeState: string | null,
-  isTopLevel: boolean,
-  valueWrittenToEachGraphInput: ReadonlyMap<string, JsonValue>,
-): StreamGraphInterfacePort | null {
+/** The port `node` declares as the runtime renders its `graph_interface`: a top-level Input a client writes, while it reads `nodeState` `Running`, carrying what its `value` input reads, else its `default`; `null` for a node that is no interface node. */
+function graphInterfacePortAsTheRuntimeRendersIt(node: MockGraphNode, nodeState: string | null, isTopLevel: boolean): StreamGraphInterfacePort | null {
   const direction = node.type === "tatolab.stream:GraphInput" ? "input" : node.type === "tatolab.stream:GraphOutput" ? "output" : null;
   const { port } = node.config;
   if (direction === null || typeof port !== "string") return null;
   const family = familyTheInterfaceNodeCarries(node);
   const carriesAValue = isTopLevel && nodeState === "Running" && isAGraphInputAClientWrites(node);
-  return { direction, port, family, current_value: carriesAValue ? (valueWrittenToEachGraphInput.get(port) ?? node.config["default"] ?? null) : null };
+  const valueRead = node.input_ports.find((input) => input.name === "value")?.value_read?.value ?? null;
+  return { direction, port, family, current_value: carriesAValue ? (valueRead ?? node.config["default"] ?? null) : null };
 }
 
 /** `{ graph_interface }` as the runtime renders it on `node`'s components, its `current_value` left out where it carries none; `{}` on a node that is no interface node. */
@@ -125,14 +121,13 @@ function mockGraphNodeKindOf(node: MockGraphNode): StreamGraphNodeKind {
   return node.kind ?? (node.fragment === undefined ? "process" : "fragment");
 }
 
-/** The `graph {stream}` document of `graph` for the stream `listing` lists, on `machineName` at `moment`, each top-level Input carrying what `valueWrittenToEachGraphInput` holds under its name, and the summary read from it; its ports name their families only when `arePortFamiliesServed`. */
+/** The `graph {stream}` document of `graph` for the stream `listing` lists, on `machineName` at `moment`, each top-level Input carrying what its `value` input reads, and the summary read from it; its ports name their families only when `arePortFamiliesServed`. */
 export function mockStreamGraphSummary(
   listing: ListedStream,
   machineName: string,
   graph: MockStreamGraph,
   moment: MockStreamGraphMoment,
   arePortFamiliesServed: boolean,
-  valueWrittenToEachGraphInput: ReadonlyMap<string, JsonValue>,
 ): StreamGraphSummary {
   const streamId = listing.stream;
   const streamAsset = listing.location?.stream_asset ?? null;
@@ -178,7 +173,7 @@ export function mockStreamGraphSummary(
               links: node.fragment.links.map((link) => ({ ...link, state: linkState(link.state) })),
               groups: node.fragment.groups,
             },
-      graph_interface: graphInterfacePortAsTheRuntimeRendersIt(node, nodeState(node.state), isTopLevel, valueWrittenToEachGraphInput),
+      graph_interface: graphInterfacePortAsTheRuntimeRendersIt(node, nodeState(node.state), isTopLevel),
     }));
   const nodes = nodesOfTheLevel(graph.nodes, graph.links, true);
   const groups = graph.groups ?? [];

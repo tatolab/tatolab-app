@@ -95,3 +95,42 @@ it("a value set live from outside the window shows in every frame's store with n
   expect(properties.shownValue(amount)).toEqual({ value: 0.3, comes_from: "live" });
   expect(graphReads).toBe(readsBeforeTheSet);
 });
+
+it("a drag on a Graph Input's value released live in Perform leaves no history entry, and Back to saved shows its default again", async () => {
+  vi.useFakeTimers();
+  const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("graph_inputs=declared")));
+  const host = new StreamGraphAndCatalogReadings(backend);
+  const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
+    await vi.advanceTimersByTimeAsync(100);
+    return answering;
+  };
+  const inputValues = createInputValues({
+    transactInTheProject: (_projectFolder, operations, sending) => backend.transactInTheOpenProject([...operations], sending.mode, sending.idempotencyKey),
+    newGestureIdempotencyKey: () => "never-committed",
+  });
+  const historyLength = async () => {
+    const reading = await settled(backend.readOpenProjectTransactions());
+    return reading.kind === "read" ? reading.project_transactions.transactions.length : -1;
+  };
+  host.watchStreamInputValues(MAIN, (reading) => inputValues.takeTheInputValues(PATTERN_FOLDER, reading));
+  const graph = await settled(backend.describeStreamGraph(MAIN));
+  const brightnessInput = graph.nodes.find((node) => node.graph_interface?.port === "brightness");
+  if (brightnessInput === undefined || graph.stream_asset === null) return expect.unreachable("the main stream declares brightness");
+  const brightness: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.stream_asset, level: [] }, node_id: brightnessInput.id, input: "value" };
+  expect(inputValues.shownValue(brightness)).toEqual({ value: 0.5, comes_from: "default" });
+  const entriesBefore = await historyLength();
+
+  const drag = inputValues.beginGesture(brightness, "live");
+  drag.move(0.7);
+  await settled(Promise.resolve());
+  drag.release(0.9);
+  await settled(Promise.resolve());
+  expect(inputValues.shownValue(brightness)).toEqual({ value: 0.9, comes_from: "live" });
+  expect(await historyLength()).toBe(entriesBefore);
+  expect((await settled(backend.describeStreamGraph(MAIN))).nodes.find((node) => node.id === brightnessInput.id)?.graph_interface?.current_value).toBe(0.9);
+
+  inputValues.clear(brightness, "live");
+  await settled(Promise.resolve());
+  expect(inputValues.shownValue(brightness)).toEqual({ value: 0.5, comes_from: "default" });
+  expect(await historyLength()).toBe(entriesBefore);
+});

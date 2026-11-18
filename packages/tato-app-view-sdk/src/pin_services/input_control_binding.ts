@@ -2,7 +2,7 @@
 // one binder from its connection; each control slot binds through it. The binder asks the table
 // which element draws the input, loads it, hands it its pin, state and value, and follows the
 // store. An element's `input` moves a gesture and its `change` releases it, a lone `change` being a
-// whole gesture; Escape, or a press the pointer gives up, cancels it. While a gesture is open the
+// whole gesture, ended in a commit, or live in Perform; Escape, or a press the pointer gives up, cancels it. While a gesture is open the
 // binder never sets the element's value, and every value that arrives is set in one animation-frame
 // flush, so a surface's React tree never sees one. DOM only, no React.
 
@@ -39,12 +39,25 @@ export interface InputControlBinding {
 }
 
 /**
- * A surface's own field for one input, where the table has no control for it: the store's value for that input, a gesture
- * that sends through the input's one sender and ends in one commit, and the input's saved value taken off as one commit.
+ * How a gesture on an input ends: in one commit, recorded in the project's history, or in its last live value, recorded
+ * nowhere. Perform plays a show, so a gesture there ends live; on every other surface it ends in a commit.
+ */
+export type InputValueRelease = "commit" | "live";
+
+/** How a gesture ends on `surface`. */
+export function releaseOfAGestureOn(surface: NodeUiSurface): InputValueRelease {
+  return surface === "perform" ? "live" : "commit";
+}
+
+/**
+ * A surface's own field for one input, where the table has no control for it: the store's value for that input and its
+ * refusal, a gesture that sends through the input's one sender and ends as the binding's release says, and a clear of the
+ * value that release keeps: the saved value as one commit, back to the default, or the live value, back to the saved one.
  */
 export interface OwnFieldBinding {
   shownValue(): ShownValue;
   watchValue(listener: (shown: ShownValue) => void): StopWatching;
+  watchRefusal(listener: (refusal: string | null) => void): StopWatching;
   beginGesture(): InputValueGesture;
   clear(): void;
 }
@@ -53,8 +66,8 @@ export interface OwnFieldBinding {
 export interface InputControlBinder {
   /** Draws the control for `input` inside `host`, telling `whenShown` what the slot shows each time it changes. */
   bindInputControl(host: HTMLElement, input: ControlledInput, place: InputControlPlace, whenShown?: (shown: InputControlShown) => void): InputControlBinding;
-  /** Binds a surface's own field to the input at `address`. */
-  bindOwnField(address: InputAddress): OwnFieldBinding;
+  /** Binds a surface's own field to the input at `address`, its gestures ending as `release` says. */
+  bindOwnField(address: InputAddress, release: InputValueRelease): OwnFieldBinding;
 }
 
 /** What a binder reads and writes through: the frame's element listing and its store, and, for tests, how an element loads and when a flush runs. */
@@ -308,7 +321,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
 
     #openGesture(): InputValueGesture {
       if (this.#gesture !== null) return this.#gesture;
-      const gesture = inputValues.beginGesture(this.#input.address, "commit");
+      const gesture = inputValues.beginGesture(this.#input.address, releaseOfAGestureOn(this.#place.surface));
       this.#gesture = gesture;
       this.#host.ownerDocument.addEventListener("keydown", this.#keyPressedInTheGesture, { capture: true });
       return gesture;
@@ -391,11 +404,12 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       binding.refresh();
       return binding;
     },
-    bindOwnField: (address) => ({
+    bindOwnField: (address, release) => ({
       shownValue: () => inputValues.shownValue(address),
       watchValue: (listener) => inputValues.watchValue(address, listener),
-      beginGesture: () => inputValues.beginGesture(address, "commit"),
-      clear: () => inputValues.clear(address),
+      watchRefusal: (listener) => inputValues.watchRefusal(address, listener),
+      beginGesture: () => inputValues.beginGesture(address, release),
+      clear: () => inputValues.clear(address, release),
     }),
   };
 }

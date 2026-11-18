@@ -237,7 +237,7 @@ test("a_gesture_released_live_sends_its_last_value_live_and_records_nothing", as
 test("clearing_an_input_commits_its_value_off_under_a_new_key_and_shows_it_at_its_default_until_a_reading_gives_that_default", async () => {
   const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
   inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
-  inputValues.clear(GAIN);
+  inputValues.clear(GAIN, "commit");
   expect(inputValues.shownValue(GAIN)).toEqual({ value: null, comes_from: "default" });
   await answerTheNext();
   inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
@@ -250,9 +250,9 @@ test("clearing_an_input_commits_its_value_off_under_a_new_key_and_shows_it_at_it
 test("two_clears_in_a_row_send_one_commit_and_clearing_an_input_at_its_default_sends_nothing", async () => {
   const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
   inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5), { value: 1, comes_from: "default" }));
-  inputValues.clear(GAIN);
-  inputValues.clear(GAIN);
-  inputValues.clear(INSIDE);
+  inputValues.clear(GAIN, "commit");
+  inputValues.clear(GAIN, "commit");
+  inputValues.clear(INSIDE, "commit");
   await answerTheNext();
   await answerTheNext();
   expect(sent.map((transaction) => transaction.operations)).toEqual([[{ operation: "set_node_input_value", stream: STREAM_ASSET, node: "MIX-ID", input: "gain", value: null }]]);
@@ -263,7 +263,7 @@ test("clearing_an_input_ends_a_gesture_open_on_it_so_its_release_sends_nothing_m
   inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5), saved(0.25)));
   const gesture = inputValues.beginGesture(INSIDE, "commit");
   gesture.move(0.4);
-  inputValues.clear(INSIDE);
+  inputValues.clear(INSIDE, "commit");
   gesture.release(0.9);
   await answerTheNext();
   await answerTheNext();
@@ -272,12 +272,33 @@ test("clearing_an_input_ends_a_gesture_open_on_it_so_its_release_sends_nothing_m
   ]);
 });
 
+test("back_to_saved_sends_a_live_null_recorded_nowhere_and_shows_the_live_value_until_the_runtime_reads_the_saved_one_and_sends_nothing_off_a_saved_value", async () => {
+  const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
+  inputValues.clear(GAIN, "live");
+  expect(sent).toEqual([]);
+  inputValues.takeTheInputValues(PROJECT, gainChanged({ value: 0.8, comes_from: "live" }));
+  const gesture = inputValues.beginGesture(GAIN, "live");
+  gesture.move(0.9);
+  await answerTheNext();
+  inputValues.clear(GAIN, "live");
+  gesture.release(0.95);
+  expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.8, comes_from: "live" });
+  await answerTheNext();
+  inputValues.takeTheInputValues(PROJECT, gainChanged({ value: 0.5, comes_from: "saved" }));
+  expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.5, comes_from: "saved" });
+  expect(sent.map(({ operations, mode, idempotency_key }) => [operations, mode, idempotency_key])).toEqual([
+    [[{ operation: "set_node_input_value", stream: STREAM_ASSET, node: "MIX-ID", input: "gain", value: 0.9 }], "live", null],
+    [[{ operation: "set_node_input_value", stream: STREAM_ASSET, node: "MIX-ID", input: "gain", value: null }], "live", null],
+  ]);
+});
+
 test("a_refused_clear_keeps_the_runtimes_words_and_shows_the_value_the_graph_reads_again", async () => {
   const { inputValues, answerTheNext } = storeOverAHeldConnection();
   inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
   const refusals: (string | null)[] = [];
   inputValues.watchRefusal(GAIN, (refusal) => refusals.push(refusal));
-  inputValues.clear(GAIN);
+  inputValues.clear(GAIN, "commit");
   await answerTheNext({ kind: "not_sent", because: "the project is read only" });
   expect(refusals).toEqual([null, "the project is read only"]);
   expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.5, comes_from: "saved" });

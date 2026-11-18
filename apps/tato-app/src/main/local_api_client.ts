@@ -88,7 +88,6 @@ import {
   type ProjectViewTheRuntimeListed,
   type StudioViewOutputWritten,
 } from "./project_views_on_the_wire.js";
-import { graphInputWrittenFromTheWriteGraphInputToolResult, type GraphInputWritten } from "./graph_input_written_on_the_wire.js";
 import {
   dependencyUpdateFromTheUpdateDependencyToolResult,
   type ListedProjectDependency,
@@ -675,14 +674,6 @@ export class LocalApiClient {
     const operationResult = await this.callControlOperation("write_studio_view_output", { stream, node, port, value });
     if (!operationResult.ok) return operationResult;
     const written = studioViewOutputFromTheWriteStudioViewOutputToolResult(operationResult.value);
-    return written.ok ? written : localApiRequestFailure(written.failure);
-  }
-
-  /** Hand `value` to the Input `input` of the running stream `stream`, through the runtime's `write_graph_input`; live data, recorded nowhere, the last write winning; refused in the runtime's own words. */
-  async writeGraphInput(stream: string, input: string, value: JsonValue): Promise<Result<GraphInputWritten, LocalApiRequestFailure>> {
-    const operationResult = await this.callControlOperation("write_graph_input", { stream, input, value });
-    if (!operationResult.ok) return operationResult;
-    const written = graphInputWrittenFromTheWriteGraphInputToolResult(operationResult.value);
     return written.ok ? written : localApiRequestFailure(written.failure);
   }
 
