@@ -2,7 +2,7 @@
 import { afterEach, expect, test } from "vitest";
 import type { ControlledInput } from "../pin_model/controlled_inputs.js";
 import type { InputAddress } from "../pin_model/node_inputs.js";
-import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState } from "../node_ui/input_control_element.js";
+import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState, type NodeUiSurface } from "../node_ui/input_control_element.js";
 import type { NodeUiElementLoading } from "../node_ui/load_node_ui_element.js";
 import type { ListedNodeUiElement, NodeUiElementsReading } from "../node_ui/node_ui_elements_listing.js";
 import { listedElementOf } from "../node_ui/test_fixtures/node_ui_listing_fixtures.js";
@@ -59,7 +59,7 @@ function valuesRead(gain: JsonValue, comesFrom: "saved" | "default" | "live" = "
 }
 
 /** A binder over a store whose every write applies at once, with the listing, the loads and the flushes in the test's hands. */
-function binderUnderTest({ loading = { kind: "defined", tag: STAND_IN_TAG } }: { loading?: NodeUiElementLoading } = {}) {
+function binderUnderTest({ loading = { kind: "defined", tag: STAND_IN_TAG }, surface = "node" }: { loading?: NodeUiElementLoading; surface?: NodeUiSurface } = {}) {
   const sent: { value: JsonValue | null; mode: GraphEditMode }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: (_projectFolder, operations, sending) => {
@@ -93,7 +93,7 @@ function binderUnderTest({ loading = { kind: "defined", tag: STAND_IN_TAG } }: {
   const host = document.createElement("div");
   document.body.append(host);
   const shown: InputControlShown[] = [];
-  const binding = binder.bindInputControl(host, FLOAT_GAIN, { surface: "node", read_only: false }, (each) => shown.push(each));
+  const binding = binder.bindInputControl(host, FLOAT_GAIN, { surface, read_only: false }, (each) => shown.push(each));
   const control = (): StandInFloatControl => {
     const element = host.firstElementChild;
     if (!(element instanceof StandInFloatControl)) throw new Error("the slot holds no control");
@@ -144,6 +144,27 @@ test("a drag sends each move live and its release one commit, and a value that a
   ]);
   slot.flush();
   expect(control.valuesHanded.at(-1)).toBe(0.8);
+});
+
+test("in Perform a drag sends each move live and its release live too, so nothing is committed, and Escape puts back the live value it began at", async () => {
+  const slot = binderUnderTest({ surface: "perform" });
+  slot.list([FLOAT_DEFAULT]);
+  await slot.settled();
+  const control = slot.control();
+  expect(control.pinsHanded.map((pin) => pin.surface)).toEqual(["perform"]);
+  control.dragTo(0.6);
+  control.release();
+  await slot.settled();
+  control.dragTo(0.9);
+  await slot.settled();
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await slot.settled();
+  expect(slot.sent).toEqual([
+    { value: 0.6, mode: "live" },
+    { value: 0.6, mode: "live" },
+    { value: 0.9, mode: "live" },
+    { value: 0.6, mode: "live" },
+  ]);
 });
 
 test("a lone change is a whole gesture: one commit and no live value", async () => {
@@ -255,7 +276,7 @@ test("a_surfaces_own_field_shows_the_stores_value_and_writes_a_whole_gesture_and
   });
   inputValues.takeTheInputValues(PROJECT, valuesRead(0.5));
   const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues });
-  const field = binder.bindOwnField(GAIN);
+  const field = binder.bindOwnField(GAIN, "commit");
   const valuesShown: JsonValue[] = [];
   field.watchValue((shown) => valuesShown.push(shown.value));
   expect(field.shownValue()).toEqual({ value: 0.5, comes_from: "saved" });
@@ -269,4 +290,39 @@ test("a_surfaces_own_field_shows_the_stores_value_and_writes_a_whole_gesture_and
     { value: null, mode: "commit" },
   ]);
   expect(valuesShown).toEqual([0.5, { gain: [1, 2] }, null]);
+});
+
+test("a_surfaces_own_field_bound_live_sends_its_gesture_and_its_clear_live_and_shows_the_refusal_of_its_last_write", async () => {
+  const sent: { value: JsonValue | null; mode: GraphEditMode }[] = [];
+  const inputValues = createInputValues({
+    transactInTheProject: (_projectFolder, operations, sending) => {
+      for (const operation of operations) if (operation.operation === "set_node_input_value") sent.push({ value: operation.value ?? null, mode: sending.mode });
+      return Promise.resolve(
+        sent.length === 2
+          ? { kind: "not_sent", because: "the stream is stopped" }
+          : { kind: "applied", transaction: { mode: sending.mode, transaction: null, commit: null, operations: [], added_nodes: [], connected_links: [], added_groups: [], added_notes: [] } },
+      );
+    },
+    newGestureIdempotencyKey: () => "gesture",
+  });
+  inputValues.takeTheInputValues(PROJECT, valuesRead(0.5));
+  const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues });
+  const field = binder.bindOwnField(GAIN, "live");
+  const refusals: (string | null)[] = [];
+  field.watchRefusal((refusal) => refusals.push(refusal));
+
+  const gesture = field.beginGesture();
+  gesture.move(0.6);
+  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+  gesture.release(0.7);
+  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+  inputValues.takeTheInputValues(PROJECT, valuesRead(0.6, "live"));
+  field.clear();
+  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+  expect(sent).toEqual([
+    { value: 0.6, mode: "live" },
+    { value: 0.7, mode: "live" },
+    { value: null, mode: "live" },
+  ]);
+  expect(refusals).toEqual([null, "the stream is stopped", null]);
 });

@@ -588,7 +588,6 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
       loadedAtMilliseconds,
       unreleasedStartupDrafts: [...fixture.startupLog],
       writeLiveLog: fixture.createLiveLogWriter(),
-      valueWrittenToEachGraphInput: new Map(),
     };
     loadedStreams.set(fixture.listing.stream, loadedStream);
     listedStreamsNotLoaded.delete(fixture.listing.stream);
@@ -839,7 +838,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     return mockStreamGraphSummary(loadedStream.fixture.listing, fixtures.machine.name, loadedStream.fixture.graph, {
       hasSettled: millisecondsSinceSettled >= 0,
       secondsSinceSettled: Math.max(0, millisecondsSinceSettled) / 1000,
-    }, mockTatolabOptions.arePortFamiliesServed, loadedStream.valueWrittenToEachGraphInput);
+    }, mockTatolabOptions.arePortFamiliesServed);
   };
 
   /** The project folder the mock runtime lists for the stream `streamId`, as the main process looks it up before opening it. */

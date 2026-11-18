@@ -3,8 +3,8 @@ import { createContext, memo, useCallback, useContext, useLayoutEffect, useMemo,
 import { areTheSameControlledInput, type ControlledInput } from "../pin_model/controlled_inputs";
 import { inputAddressKey, type InputAddress } from "../pin_model/node_inputs";
 import type { NodeUiSurface } from "../node_ui/input_control_element";
-import { createInputControlBinder, type InputControlBinder, type InputControlBinding, type InputControlShown, type OwnFieldBinding } from "../pin_services/input_control_binding";
-import { createInputValues, type InputValues, type ShownValue } from "../pin_services/input_values";
+import { createInputControlBinder, type InputControlBinder, type InputControlBinding, type InputControlShown, type InputValueRelease, type OwnFieldBinding } from "../pin_services/input_control_binding";
+import { createInputValues, type InputValueGesture, type InputValues, type ShownValue } from "../pin_services/input_values";
 import type { InputValueComesFrom, JsonValue } from "../studio_readings";
 import { newGestureIdempotencyKey, type TatoAppViewConnection } from "../tato_app_view_connection";
 
@@ -124,25 +124,27 @@ function haveTheSameInputAndPlace(before: InputControlHostProps, after: InputCon
 
 // Where the control table has no control for an input, a surface's own field shows its value, and a row says where that
 // value comes from. Both read the store through the frame's binder, as the one place a value reaches React, and send
-// through the input's one sender, so an edit is one `set_node_input_value` commit as a control's release is.
+// through the input's one sender, so an edit is one `set_node_input_value` as a control's release is: a commit, or in
+// Perform a live value.
 
 /** The binding of a surface's own field to one input, and what it was bound under. */
 interface OwnFieldBound {
   readonly binder: InputControlBinder | null;
   readonly address_key: string | null;
+  readonly release: InputValueRelease;
   readonly binding: OwnFieldBinding | null;
 }
 
-function ownFieldBoundAt(binder: InputControlBinder | null, address: InputAddress | null): OwnFieldBound {
-  return { binder, address_key: address === null ? null : inputAddressKey(address), binding: address === null ? null : (binder?.bindOwnField(address) ?? null) };
+function ownFieldBoundAt(binder: InputControlBinder | null, address: InputAddress | null, release: InputValueRelease): OwnFieldBound {
+  return { binder, address_key: address === null ? null : inputAddressKey(address), release, binding: address === null ? null : (binder?.bindOwnField(address, release) ?? null) };
 }
 
-/** The frame's binding of the input at `address`, kept while a new reading gives an equal address; `null` for no address or no binder. */
-function useOwnFieldBinding(address: InputAddress | null): OwnFieldBinding | null {
+/** The frame's binding of the input at `address`, its gestures ending as `release` says, kept while a new reading gives an equal address; `null` for no address or no binder. */
+function useOwnFieldBinding(address: InputAddress | null, release: InputValueRelease): OwnFieldBinding | null {
   const binder = useContext(InputControlBinderContext);
-  const [bound, setBound] = useState(() => ownFieldBoundAt(binder, address));
+  const [bound, setBound] = useState(() => ownFieldBoundAt(binder, address, release));
   const addressKey = address === null ? null : inputAddressKey(address);
-  if (bound.binder !== binder || bound.address_key !== addressKey) setBound(ownFieldBoundAt(binder, address));
+  if (bound.binder !== binder || bound.address_key !== addressKey || bound.release !== release) setBound(ownFieldBoundAt(binder, address, release));
   return bound.binding;
 }
 
@@ -151,7 +153,7 @@ const watchesNothing = () => () => undefined;
 
 /** The value the store shows for the input at `address`, at once and on each change; nothing for no address or no binder. */
 export function useShownValueOfTheInput(address: InputAddress | null): ShownValue {
-  return useShownValueThrough(useOwnFieldBinding(address));
+  return useShownValueThrough(useOwnFieldBinding(address, "commit"));
 }
 
 function useShownValueThrough(binding: OwnFieldBinding | null): ShownValue {
@@ -160,35 +162,51 @@ function useShownValueThrough(binding: OwnFieldBinding | null): ShownValue {
   return useSyncExternalStore(watchTheValue, readTheValue);
 }
 
-/** Where the value the store shows for an input comes from, and its reset to the default. */
-export interface WhereTheInputsValueComesFrom {
-  readonly comes_from: InputValueComesFrom | null;
-  /** Takes the input's saved value off as one commit. */
-  readonly resetToTheDefault: () => void;
+/** Why the store's latest write of the input at `address` was refused, in the words of what refused it; `null` once a write applies, and for no address or no binder. */
+export function useRefusalOfTheInput(address: InputAddress | null): string | null {
+  const binding = useOwnFieldBinding(address, "commit");
+  const [refusal, setRefusal] = useState<{ readonly binding: OwnFieldBinding | null; readonly words: string | null }>({ binding, words: null });
+  useLayoutEffect(() => binding?.watchRefusal((words) => setRefusal({ binding, words })), [binding]);
+  return refusal.binding === binding ? refusal.words : null;
 }
 
-/** Where the value the store shows for the input at `address` comes from, drawn again only when that changes; `null` for no address or no binder. */
-export function useWhereTheInputsValueComesFrom(address: InputAddress | null): WhereTheInputsValueComesFrom | null {
-  const binding = useOwnFieldBinding(address);
+/** Where the value an input shows comes from, and the clear of the value its surface keeps. */
+export interface WhereTheInputsValueComesFrom {
+  readonly comes_from: InputValueComesFrom | null;
+  /** Takes off the value the surface keeps: the saved value as one commit, back to the default, or in Perform the live value, back to the saved one. */
+  readonly clearTheValue: () => void;
+}
+
+/** Where the value the store shows for the input at `address` comes from, drawn again only when that changes, its clear as `release` says; `null` for no address or no binder. */
+export function useWhereTheInputsValueComesFrom(address: InputAddress | null, release: InputValueRelease): WhereTheInputsValueComesFrom | null {
+  const binding = useOwnFieldBinding(address, release);
   const watchTheValue = useCallback((onChanged: () => void) => binding?.watchValue(onChanged) ?? watchesNothing(), [binding]);
   const readWhereItComesFrom = useCallback(() => binding?.shownValue().comes_from ?? null, [binding]);
   const comesFrom = useSyncExternalStore(watchTheValue, readWhereItComesFrom);
-  return useMemo(() => (binding === null ? null : { comes_from: comesFrom, resetToTheDefault: () => binding.clear() }), [binding, comesFrom]);
+  return useMemo(() => (binding === null ? null : { comes_from: comesFrom, clearTheValue: () => binding.clear() }), [binding, comesFrom]);
 }
 
 /** What a surface's own field reads and writes for its input. */
 export interface OwnFieldOfTheInput {
   /** The value the store shows for the input, and where it comes from. */
   readonly shown: ShownValue;
-  /** Sends `value` as one whole gesture, one commit. */
+  /** Opens a gesture, a drag, whose moves are live and whose release ends as the field's binding says. */
+  readonly beginTheGesture: () => InputValueGesture;
+  /** Sends `value` as one whole gesture. */
   readonly releaseTheValue: (value: JsonValue) => void;
-  /** Takes the input's saved value off as one commit. */
+  /** Takes off the value the field's surface keeps: the saved value, or in Perform the live value. */
   readonly clearTheValue: () => void;
 }
 
-/** The own field of the input at `address`, bound through the frame's binder; `null` where the frame gives no binder, so the field is only shown. */
-export function useOwnFieldOfTheInput(address: InputAddress): OwnFieldOfTheInput | null {
-  const binding = useOwnFieldBinding(address);
+/** The own field of the input at `address`, bound through the frame's binder with its gestures ending as `release` says; `null` where the frame gives no binder, so the field is only shown. */
+export function useOwnFieldOfTheInput(address: InputAddress, release: InputValueRelease): OwnFieldOfTheInput | null {
+  const binding = useOwnFieldBinding(address, release);
   const shown = useShownValueThrough(binding);
-  return useMemo(() => (binding === null ? null : { shown, releaseTheValue: (value) => binding.beginGesture().release(value), clearTheValue: () => binding.clear() }), [binding, shown]);
+  return useMemo(
+    () =>
+      binding === null
+        ? null
+        : { shown, beginTheGesture: () => binding.beginGesture(), releaseTheValue: (value) => binding.beginGesture().release(value), clearTheValue: () => binding.clear() },
+    [binding, shown],
+  );
 }

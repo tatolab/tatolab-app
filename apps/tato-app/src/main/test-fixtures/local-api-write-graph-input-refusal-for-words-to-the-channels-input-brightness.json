@@ -1,1 +1,0 @@
-{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"write_graph_input failed: Port error: output `value` of node `graphinput` carries Channels, and a Channels value is a number, a bool or `{\"samples\": [[...], ...], \"sample_rate\"}`"}],"isError":true}}

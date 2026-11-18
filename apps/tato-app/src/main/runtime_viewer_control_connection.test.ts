@@ -33,7 +33,7 @@ function failureOf<T, F>(result: Result<T, F>): F {
 type FakeControlWebSocketAnswer = (call: Record<string, unknown>) => string[] | null;
 
 /** What `discover` answers, in the shape the runtime's `DiscoverResult` serializes to. */
-const DISCOVERED = { contract_version: 2, runtime_version: "0.68.74", build_id: "test-build", operations: [...CONTROL_OPERATION_METHOD_NAMES] };
+const DISCOVERED = { contract_version: 2, contract_revision: 1, runtime_version: "0.68.74", build_id: "test-build", operations: [...CONTROL_OPERATION_METHOD_NAMES] };
 
 /** The GUID RFC 6455 appends to a client's `Sec-WebSocket-Key` before hashing it into `Sec-WebSocket-Accept`. */
 const WEBSOCKET_ACCEPT_KEY_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";

@@ -31,7 +31,7 @@ export interface StudioWindowValuesServedToViews {
 
 /** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types, assets and history, their language servers, and the port viewers of their running nodes. */
 export interface StudioViewHostProjectServices {
-  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "deleteAssetFromTheOpenProject" | "writeStudioViewOutput" | "writeGraphInput" | "openModuleManagerWindow">;
+  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "deleteAssetFromTheOpenProject" | "writeStudioViewOutput" | "openModuleManagerWindow">;
   projectLogReadings: ProjectLogReadings;
   projectNodeTypeReadings: ProjectListingReadingsWhileWatched<ProjectNodeTypeListing>;
   projectAssetReadings: ProjectListingReadingsWhileWatched<ProjectAssetListing>;
@@ -198,7 +198,6 @@ export function studioViewHostServicesOf(
     readThePersonEditing: projectServices.projectTransactionsReadings.readThePersonEditing,
     connectToPythonLanguageServer: projectServices.pythonLanguageServerConnections.connectToPythonLanguageServer,
     writeStudioViewOutput: (viewNode, port, value) => liveValueWritingOf(backend.writeStudioViewOutput(viewNode.stream, viewNode.node_id, port, value)),
-    writeGraphInput: (stream, input, value) => liveValueWritingOf(backend.writeGraphInput(stream, input, value)),
     watchPortViewer: projectServices.portViewerConnections.watchPortViewer,
   };
 }

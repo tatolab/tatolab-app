@@ -1,5 +1,5 @@
-// The words a person types into a Graph Input's field, read as the value `write_graph_input` takes,
-// or refused before anything is written.
+// The words a person types into a Graph Input's field in Perform, read as the value its `value` input
+// takes, or refused before anything is sent.
 
 import { jsonValueSchema, type JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
 

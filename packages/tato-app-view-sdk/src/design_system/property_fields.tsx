@@ -219,6 +219,7 @@ export function PropertySliderField({
   onDragStarted,
   onLiveEdit,
   onCommitted,
+  onDragCancelled,
   valueTypedBesideTheSlider,
 }: {
   fieldId: string;
@@ -230,10 +231,13 @@ export function PropertySliderField({
   onDragStarted: () => void;
   onLiveEdit: (value: number) => void;
   onCommitted: (value: number) => void;
+  /** Escape during a drag: the drag ends where it began, nothing is committed, and the slider moves nothing more until the press ends; without it Escape does nothing. */
+  onDragCancelled?: () => void;
   /** The value beside the slider typed into: its accessible name, and the words typed, which the caller reads as a number. */
   valueTypedBesideTheSlider: { label: string; onWordsTyped: (words: string) => void };
 }) {
   const [draggedValue, setDraggedValue] = useState<number | null>(null);
+  const [isCancelledUntilThePressEnds, setIsCancelledUntilThePressEnds] = useState(false);
   const shownValue = draggedValue ?? value ?? minimum;
   const valueWords = isWholeNumber ? String(shownValue) : shownValue.toFixed(2);
   const valueEditedInPlace = useWordsEditedInPlace(valueWords, valueTypedBesideTheSlider.onWordsTyped);
@@ -241,16 +245,17 @@ export function PropertySliderField({
   const release = useCallback(() => {
     if (draggedValue !== null) onCommitted(draggedValue);
     setDraggedValue(null);
+    setIsCancelledUntilThePressEnds(false);
   }, [draggedValue, onCommitted]);
   useEffect(() => {
-    if (draggedValue === null) return undefined;
+    if (draggedValue === null && !isCancelledUntilThePressEnds) return undefined;
     window.addEventListener("pointerup", release);
     window.addEventListener("pointercancel", release);
     return () => {
       window.removeEventListener("pointerup", release);
       window.removeEventListener("pointercancel", release);
     };
-  }, [draggedValue, release]);
+  }, [draggedValue, isCancelledUntilThePressEnds, release]);
   return (
     <div className="flex min-w-0 items-center gap-2">
       <input
@@ -261,12 +266,27 @@ export function PropertySliderField({
         step={step}
         value={shownValue}
         onChange={(changeEvent) => {
+          if (isCancelledUntilThePressEnds) return;
           const moved = Number(changeEvent.target.value);
           if (draggedValue === null) onDragStarted();
           setDraggedValue(moved);
           onLiveEdit(moved);
         }}
-        onKeyUp={release}
+        onKeyDown={(keyEvent) => {
+          if (keyEvent.key !== "Escape") {
+            setIsCancelledUntilThePressEnds(false);
+            return;
+          }
+          if (draggedValue === null || onDragCancelled === undefined) return;
+          keyEvent.preventDefault();
+          keyEvent.stopPropagation();
+          setDraggedValue(null);
+          setIsCancelledUntilThePressEnds(true);
+          onDragCancelled();
+        }}
+        onKeyUp={(keyEvent) => {
+          if (keyEvent.key !== "Escape") release();
+        }}
         onBlur={release}
         className="h-4 min-w-0 flex-1 accent-brand"
       />

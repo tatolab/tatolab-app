@@ -1,5 +1,4 @@
 import type { MockLiveLogWriter, MockLogRecordDraft, MockStreamFixture } from "./mock_stream_fixtures";
-import type { JsonValue } from "../src/shared/tatolab_backend_contract";
 import type { ProjectLogRecord, StreamActionVenvSync } from "../src/shared/tatolab_backend_contract";
 
 /** How long the mock takes to answer a command, as the app would over IPC. */
@@ -108,8 +107,6 @@ export interface MockLoadedStream {
   loadedAtMilliseconds: number;
   unreleasedStartupDrafts: MockLogRecordDraft[];
   writeLiveLog: MockLiveLogWriter;
-  /** The value a client last wrote to each of its top-level Inputs, by name; gone on the next load, as the runtime keeps none. */
-  valueWrittenToEachGraphInput: Map<string, JsonValue>;
 }
 
 /** A project's log as the mock keeps it: its records oldest first, after the ones its retention deleted. */

@@ -1,11 +1,19 @@
-// A stream's Graph Inputs as Controls lists them: each top-level `GraphInput` node the runtime's
-// `graph` renders back, by the port it declares, the family it carries and the value it carries now,
-// with the control that writes that value through `write_graph_input`.
+// A stream's inputs as Perform lists them: each top-level `GraphInput` the runtime's `graph` renders
+// back, by the port it declares and the family it carries, with its own `value` input, where Perform
+// sets its value with `set_node_input_value` as every surface sets a node's, and the control Perform
+// draws there while the control table has none for it.
 
-import type { JsonValue, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { valueAddressOfTheInput, type GraphAddress, type InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import type { JsonValue, StreamGraphPortPin, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The node type a stream declares one of its input ports with. */
 export const GRAPH_INPUT_NODE_TYPE = "tatolab.stream:GraphInput";
+
+/** The input of a `GraphInput` that holds the value it carries, a setting that takes no wire. */
+export const GRAPH_INPUT_VALUE_INPUT = "value";
+
+/** Whether a value set live on an Input is kept across Stop, or reset at Stop, as the `GraphInput`'s `lifetime` setting says. */
+export type GraphInputLifetime = "kept" | "reset";
 
 /** The families of the Inputs a client writes; an Image or Packets Input carries only what the graph wires into it. */
 const FAMILIES_A_CLIENT_WRITES: readonly string[] = ["array", "channels", "records"];
@@ -21,38 +29,44 @@ export interface GraphInputRange {
   readonly highest: number;
 }
 
-/** How Controls writes an Input: a number on a slider within its range, a number typed, a bool switched, JSON typed, or not at all. */
+/** How Perform sets an Input the control table has no control for: a number on a slider within its range, a number typed, a bool switched, JSON typed, or not at all. */
 export type GraphInputControlKind = "slider" | "number" | "toggle" | "json" | "not_written";
 
 /** One input port a stream declares with a top-level `GraphInput` node. */
 export interface GraphInputOfTheStream {
   readonly node_id: string;
-  /** The Input's name, which `write_graph_input` takes. */
+  /** The Input's name, as the stream declares it. */
   readonly port_name: string;
   /** As the runtime spells it; `null` while the node states none. */
   readonly family: string | null;
-  /** What it carries now, the last value written, else its `default`; `null` where the graph renders none and its config declares no `default`. */
-  readonly current_value: JsonValue | null;
+  /** Where the value of its `value` input is kept, which Perform and the node share; `null` where the runtime serves no such input that holds a value, as for an Input of a family no client writes. */
+  readonly value_address: InputAddress | null;
+  /** The exact type and flow of its `value` input; `null` while the runtime serves none. */
+  readonly value_pin: StreamGraphPortPin | null;
+  readonly lifetime: GraphInputLifetime;
   readonly range: GraphInputRange | null;
   readonly control: GraphInputControlKind;
 }
 
-/** Each top-level Graph Input `graph` declares, in the order the graph lists its nodes. */
-export function graphInputsOfTheStream(graph: StreamGraphSummary): GraphInputOfTheStream[] {
+/** Each top-level Graph Input `graph` declares, in the order the graph lists its nodes, its value addressed at `valuesAt`, the stream's own level; `null` addresses none. */
+export function graphInputsOfTheStream(graph: StreamGraphSummary, valuesAt: GraphAddress | null): GraphInputOfTheStream[] {
   return graph.nodes
     .filter((node) => node.type === GRAPH_INPUT_NODE_TYPE)
     .map((node) => {
-      const { port, family, range } = node.config;
-      const declaredDefault = node.config["default"] ?? null;
+      const { port, family, range, lifetime } = node.config;
+      // A document saved before the Input's value was an input holds it as `default`; one saved since, as `value`.
+      const declaredDefault = node.config["default"] ?? node.config[GRAPH_INPUT_VALUE_INPUT] ?? null;
       const declared = node.graph_interface;
       const familyDeclared = declared?.family ?? (typeof family === "string" ? family : null);
-      const currentValue = declared?.current_value ?? declaredDefault;
       const rangeDeclared = graphInputRangeFrom(range);
+      const valueInput = node.input_ports.find((input) => input.name === GRAPH_INPUT_VALUE_INPUT);
       return {
         node_id: node.id,
         port_name: declared?.port ?? (typeof port === "string" && port !== "" ? port : node.name),
         family: familyDeclared,
-        current_value: currentValue,
+        value_address: valueInput === undefined ? null : valueAddressOfTheInput(valuesAt, node.id, valueInput),
+        value_pin: valueInput?.pin ?? null,
+        lifetime: lifetime === "reset" ? "reset" : "kept",
         range: rangeDeclared,
         control: controlForTheInput(familyDeclared, declaredDefault, rangeDeclared),
       };

@@ -331,34 +331,6 @@ test("the open project's views are the runtime's list_project_views of its folde
   expect(await commandHandlers.list_studio_views_of_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 
-/** The window's `write_graph_input` answers `null` once the runtime took the value, and its refusal word for word. */
-test("a Graph Input's value reaches the runtime's write_graph_input from a studio window, answered null once taken, refused in the runtime's own words, and from the Projects window or with arguments that are not text and JSON refused before it is asked", async () => {
-  const sharedState = await sharedStateOverFakes(
-    [
-      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-write-graph-input-tool-result-of-s06-perform-brightness.json")),
-      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-write-graph-input-refusal-for-the-stopped-project-s06-perform.json")),
-    ],
-    "macos",
-  );
-  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "s06-perform-"));
-  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
-  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
-  const commandHandlers = commandHandlersOver(sharedState);
-  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
-  const brightness = { stream: "s06-perform-main-0df4a7", input: "brightness", value: 0.8 };
-
-  expect(await commandHandlers.write_graph_input(brightness, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "Only a studio window or a popped-out view writes a Graph Input." });
-  expect(await commandHandlers.write_graph_input(brightness, fromTheStudioWindow)).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.write_graph_input(brightness, fromTheStudioWindow)).toEqual({
-    ok: false,
-    refusal:
-      "write_graph_input failed: Runtime error: the project of the stream `s06-perform-main-0df4a7` in /tmp/tatolab-proof-projects/s06-perform is stopped, so no node of it runs to publish on `value`; `start_playback` plays it",
-  });
-  expect(await commandHandlers.write_graph_input({ ...brightness, input: 7 }, fromTheStudioWindow)).toEqual({ ok: false, refusal: "write_graph_input needs `stream` and `input` as text" });
-  expect(await commandHandlers.write_graph_input({ stream: brightness.stream, input: brightness.input }, fromTheStudioWindow)).toEqual({ ok: false, refusal: "write_graph_input needs `value` as JSON" });
-  expect(await commandHandlers.write_graph_input("brightness", fromTheStudioWindow)).toEqual({ ok: false, refusal: "write_graph_input needs `stream`, `input` and `value`" });
-});
-
 /** The window's `write_studio_view_output` answers `null` once the runtime took the value, and its refusal word for word. */
 test("a view's output value reaches the runtime's write_studio_view_output from a studio window, answered null once taken, refused in the runtime's own words, and from the Projects window or with arguments that are not text and JSON refused before it is asked", async () => {
   const sharedState = await sharedStateOverFakes(

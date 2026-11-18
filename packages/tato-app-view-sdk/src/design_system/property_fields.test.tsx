@@ -46,7 +46,7 @@ describe("a property field edited in place", () => {
   });
 });
 
-function aSliderRecordingEachEdit() {
+function aSliderRecordingEachEdit({ isCancelledByEscape = false }: { isCancelledByEscape?: boolean } = {}) {
   const edits: string[] = [];
   render(
     <label>
@@ -60,6 +60,7 @@ function aSliderRecordingEachEdit() {
         onDragStarted={() => edits.push("drag started")}
         onLiveEdit={(moved) => edits.push(`live ${moved}`)}
         onCommitted={(released) => edits.push(`commit ${released}`)}
+        onDragCancelled={isCancelledByEscape ? () => edits.push("cancelled") : undefined}
         valueTypedBesideTheSlider={{ label: "FPS value", onWordsTyped: (words) => edits.push(`typed ${words}`) }}
       />
     </label>,
@@ -112,6 +113,28 @@ describe("a property slider", () => {
     act(() => slider.focus());
     act(() => slider.blur());
     expect(edits).toEqual([]);
+  });
+
+  it("cancels a drag on Escape, commits nothing, and moves nothing more until the press ends", () => {
+    const { edits, slider } = aSliderRecordingEachEdit({ isCancelledByEscape: true });
+    fireEvent.pointerDown(slider);
+    fireEvent.change(slider, { target: { value: "31" } });
+    fireEvent.keyDown(slider, { key: "Escape" });
+    fireEvent.keyUp(slider, { key: "Escape" });
+    fireEvent.change(slider, { target: { value: "35" } });
+    expect(screen.queryByText("LIVE")).toBeNull();
+    fireEvent.pointerUp(window);
+    fireEvent.change(slider, { target: { value: "40" } });
+    fireEvent.pointerUp(window);
+    expect(edits).toEqual(["drag started", "live 31", "cancelled", "drag started", "live 40", "commit 40"]);
+  });
+
+  it("does nothing on Escape where the drag cannot be cancelled", () => {
+    const { edits, slider } = aSliderRecordingEachEdit();
+    fireEvent.change(slider, { target: { value: "31" } });
+    fireEvent.keyDown(slider, { key: "Escape" });
+    fireEvent.pointerUp(window);
+    expect(edits).toEqual(["drag started", "live 31", "commit 31"]);
   });
 
   it("commits a keyboard step when the key is let go", () => {
