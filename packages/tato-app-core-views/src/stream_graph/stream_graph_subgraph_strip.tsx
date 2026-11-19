@@ -2,7 +2,7 @@ import { ArrowUp, ChevronRight, LockOpen } from "lucide-react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { KeyboardKey } from "@tatolab/tato-app-view-sdk/design_system/keyboard_key";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
-import type { StreamGraphNode } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { fragmentKindOfTheNode, type StreamGraphNode } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { whyTheInsideOfTheSubgraphIsReadOnly } from "./stream_graph_levels";
 
 /** Why Refresh from code acts only on a subgraph of the stream's own level: the runtime places a generator's output nowhere deeper. */
@@ -70,7 +70,7 @@ export function StreamGraphSubgraphReadOnlyBanner({
   onRefreshed: () => void;
   onUnlocked: () => void;
 }) {
-  const kind = subgraph.fragment?.kind ?? null;
+  const kind = fragmentKindOfTheNode(subgraph);
   const refreshDisabledReason = editsRefusedBecause ?? (isOnTheStreamsOwnLevel ? null : ONLY_THE_STREAMS_OWN_LEVEL_IS_REFRESHED);
   return (
     <ReadOnlyBanner

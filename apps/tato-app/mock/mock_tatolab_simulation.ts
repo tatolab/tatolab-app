@@ -10,7 +10,7 @@ import {
   type MockStreamFixture,
   stampMockLogRecord,
 } from "./mock_stream_fixtures";
-import { mockStreamGraphSummary } from "./mock_stream_graph_document";
+import { mockStreamGraphOf } from "./mock_stream_graph_document";
 import type { MockInputValueChanged } from "./mock_input_value_changes";
 import { mockFoldersInDocumentsTatoStudio, mockOpenProjectReading, mockRecentProjects } from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
@@ -29,7 +29,7 @@ import {
   type ProjectLogRecord,
   type ProjectLogRecordsPage,
   type ProjectLogRecordsPushed,
-  type StreamGraphSummary,
+  type StreamGraph,
   type StreamGraphInputValueChange,
   type ProjectVenvSyncOfAStreamAction,
   type FailedProjectStreamAction,
@@ -832,9 +832,9 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     publishStatus({ streams: listStreams() });
   };
 
-  const graphOfLoadedStream = (loadedStream: MockLoadedStream): StreamGraphSummary => {
+  const graphOfLoadedStream = (loadedStream: MockLoadedStream): StreamGraph => {
     const millisecondsSinceSettled = Date.now() - loadedStream.loadedAtMilliseconds - MOCK_STREAM_SETTLE_MILLISECONDS;
-    return mockStreamGraphSummary(loadedStream.fixture.listing, fixtures.machine.name, loadedStream.fixture.graph, {
+    return mockStreamGraphOf(loadedStream.fixture.listing, fixtures.machine.name, loadedStream.fixture.graph, {
       hasSettled: millisecondsSinceSettled >= 0,
       secondsSinceSettled: Math.max(0, millisecondsSinceSettled) / 1000,
     }, mockTatolabOptions.arePortFamiliesServed);

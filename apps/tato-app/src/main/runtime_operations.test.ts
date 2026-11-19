@@ -212,11 +212,13 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
   expect(runtimeDescription.build_id.startsWith(`${runtimeDescription.version}+`)).toBe(true);
   expect(runtimeDescription.up_for_ms).toBeGreaterThan(0);
   const streams = await live(listStreams());
-  expect(await live(readTheMachineName())).not.toBe("");
+  const machineName = await live(readTheMachineName());
+  expect(machineName).not.toBe("");
   for (const loadedStream of streams.filter((listedStream) => listedStream.node_count !== null)) {
     const graph = await live(describeStreamGraph(loadedStream.stream));
     expect(graph.stream).toBe(loadedStream.stream);
-    expect(graph.graph_document_text.startsWith("{\n")).toBe(true);
+    expect(graph.machine).toBe(machineName);
+    expect(graph.nodes.length).toBeGreaterThan(0);
     const nodeCatalog = await live(describeNodeCatalog(loadedStream.stream));
     expect(nodeCatalog.node_types.length).toBeGreaterThan(0);
   }

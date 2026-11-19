@@ -135,7 +135,7 @@ test("a group frames its nodes until it is removed, and a note is added, changed
   const graph = aTestPatternAlone();
   const grouped = apply(graph, [{ operation: "add_group", stream: STREAM_ASSET, title: "Frame", nodes: [TEST_PATTERN] }]);
   const group = grouped.transaction.added_groups[0]?.group ?? "";
-  expect(graph.groups).toEqual([{ id: group, title: "Frame", description: null, colour: null }]);
+  expect(graph.groups).toEqual([{ id: group, title: "Frame" }]);
   expect(graph.nodes[0]?.studio?.group).toBe(group);
   const described = apply(graph, [{ operation: "set_group_fields", stream: STREAM_ASSET, group, description: "The source", colour: "#3fcf8e" }]);
   expect(graph.groups).toEqual([{ id: group, title: "Frame", description: "The source", colour: "#3fcf8e" }]);
@@ -169,7 +169,7 @@ test("a collapsed node is saved as a stream the subgraph places, wired through i
   expect(graph.nodes.map((node) => node.name)).toEqual(["testpatternsource", "output"]);
   const placing = graph.nodes[1] ?? expect.unreachable("no subgraph");
   const placedStream = assetPlacedBy(placing);
-  expect(placing).toMatchObject({ type: "tatolab.project:StreamFragment", config: { stream: { asset: placedStream } }, fragment: { kind: "placed_stream" } });
+  expect(placing).toMatchObject({ type: "tatolab.project:StreamFragment", config: { stream: { asset: placedStream } } });
   expect(graph.links).toMatchObject([{ source_node: "testpatternsource", source_port: "video", target_node: "output", target_port: "frametally-picture" }]);
   expect(placing.fragment?.nodes.map((node) => node.name)).toEqual(["frametally", "frametally-picture"]);
   expect(placing.input_ports.map((port) => [port.name, port.family])).toEqual([["frametally-picture", "image"]]);
@@ -294,8 +294,8 @@ test("renaming a placed stream's Graph Output port carries the links onto that p
 
 test("an edit at the level of a generated subgraph, or of an import's placed stream, is a defect naming why", () => {
   const graph = aTestPatternAlone();
-  graph.nodes.push({ name: "halftone-look", type: "generators.looks:halftone_look", state: null, config: {}, input_ports: [], output_ports: [], fragment: { kind: "generated", nodes: [], links: [], groups: [] } });
-  graph.nodes.push({ name: "grain", type: "tatolab.project:StreamFragment", state: null, config: { stream: { asset: "grain-asset", from: "an-import" } }, input_ports: [], output_ports: [], fragment: { kind: "placed_stream", nodes: [], links: [], groups: [] } });
+  graph.nodes.push({ name: "halftone-look", type: "generators.looks:halftone_look", state: null, config: {}, input_ports: [], output_ports: [], fragment: { nodes: [], links: [], groups: [] } });
+  graph.nodes.push({ name: "grain", type: "tatolab.project:StreamFragment", state: null, config: { stream: { asset: "grain-asset", from: "an-import" } }, input_ports: [], output_ports: [], fragment: { nodes: [], links: [], groups: [] } });
   const halftoneLook = mockNodeIdOf(STREAM_ID, "halftone-look");
   expect(() => apply(graph, [{ operation: "add_node", stream: STREAM_ASSET, type: FRAME_TALLY, level: [halftoneLook] }])).toThrow("unlock it with unlock_subgraph");
   expect(() => apply(graph, [{ operation: "add_node", stream: STREAM_ASSET, type: FRAME_TALLY, level: [mockNodeIdOf(STREAM_ID, "grain")] }])).toThrow("places a stream of the import");

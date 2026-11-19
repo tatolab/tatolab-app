@@ -1,4 +1,4 @@
-import type { StreamGraphNode, StreamGraphSummary, StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { familyOfThePort, type StreamGraph, type StreamGraphNode, type StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nodeTitle } from "../shared/node_words";
 
 /** One output port of a stream's graph: its node's id as `graph` lists it, that node's name, and the port's own name. */
@@ -8,14 +8,14 @@ export type NodeVisualizerPortAddress = { node_id: string; node_name: string; po
 export type NodeVisualizerSubject = { kind: "nothing_selected" } | { kind: "node_without_output"; node: StreamGraphNode } | { kind: "port"; port: NodeVisualizerPortAddress };
 
 /** The selected node of `graph`'s stream and what the Node visualizer plays of it: its first port that may carry a picture, an Image port or one whose family the runtime does not serve, or else its first port of any family. */
-export function nodeVisualizerSubjectOf(graph: StreamGraphSummary, selection: StudioSelection | null): NodeVisualizerSubject {
+export function nodeVisualizerSubjectOf(graph: StreamGraph, selection: StudioSelection | null): NodeVisualizerSubject {
   if (selection?.kind !== "node" || selection.stream !== graph.stream || (selection.level ?? []).length > 0) return { kind: "nothing_selected" };
   const selectedNode = graph.nodes.find((node) => node.name === selection.node);
   if (selectedNode === undefined) return { kind: "nothing_selected" };
   const played =
-    selectedNode.output_ports.find((outputPort) => outputPort.family === "image") ??
-    selectedNode.output_ports.find((outputPort) => outputPort.family === null) ??
-    selectedNode.output_ports[0];
+    selectedNode.ports.outputs.find((outputPort) => familyOfThePort(outputPort) === "image") ??
+    selectedNode.ports.outputs.find((outputPort) => familyOfThePort(outputPort) === null) ??
+    selectedNode.ports.outputs[0];
   if (played === undefined) return { kind: "node_without_output", node: selectedNode };
   return { kind: "port", port: { node_id: selectedNode.id, node_name: selectedNode.name, port: played.name } };
 }
@@ -26,7 +26,7 @@ export function nodeVisualizerPortKey(portAddress: { node_id: string; port: stri
 }
 
 /** A port in words: its node's title, then the port's name. */
-export function portWordsOf(graph: StreamGraphSummary, portAddress: NodeVisualizerPortAddress): string {
+export function portWordsOf(graph: StreamGraph, portAddress: NodeVisualizerPortAddress): string {
   const node = graph.nodes.find((graphNode) => graphNode.id === portAddress.node_id);
   return `${node === undefined ? portAddress.node_name : nodeTitle(node.name, node.type)} › ${portAddress.port}`;
 }
@@ -35,7 +35,7 @@ export function portWordsOf(graph: StreamGraphSummary, portAddress: NodeVisualiz
 const NODE_STATE_RUNNING = "Running";
 
 /** The state of the node of `playedPort` while it is one other than `Running`, so its port writes nothing to read; `null` while it runs, or while the graph names no state. */
-export function stateKeepingThePlayedNodeFromWriting(graph: StreamGraphSummary, playedPort: NodeVisualizerPortAddress): string | null {
-  const playedNodeState = graph.nodes.find((node) => node.id === playedPort.node_id)?.state ?? null;
+export function stateKeepingThePlayedNodeFromWriting(graph: StreamGraph, playedPort: NodeVisualizerPortAddress): string | null {
+  const playedNodeState = graph.nodes.find((node) => node.id === playedPort.node_id)?.components.state ?? null;
   return playedNodeState === NODE_STATE_RUNNING ? null : playedNodeState;
 }

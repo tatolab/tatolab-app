@@ -6,9 +6,8 @@
 // wire, a stored value, or both (`input_mode`, a setting taking no wire). Every other key the
 // runtime renders is ignored.
 
-import type { JsonValue, NodeCatalog, NodeCatalogEntry, NodeCatalogPort } from "../shared/tatolab_backend_contract.js";
+import { familyOfThePort, type JsonValue, type NodeCatalog, type NodeCatalogEntry, type NodeCatalogPort } from "../shared/tatolab_backend_contract.js";
 import { arrayOrEmpty, everyOneRead, isAJsonValue, jsonObject, type JsonObjectOnTheWire, optionalText, parseJsonOnTheWire, requiredArray, requiredText, textOrDefault } from "./json_on_the_wire.js";
-import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
 import { nodeCatalogPortPinOnTheWire } from "./port_pin_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { readControlContractValue } from "./tatolab_runtime_control_operation_call.js";
@@ -77,7 +76,7 @@ function catalogPortsUnder(nodeType: JsonObjectOnTheWire, direction: "inputs" | 
     return succeeded({
       name: name.value,
       description: description.value,
-      family: portFamilyOnTheWire(port.value),
+      family: familyOfThePort(port.value),
       pin: nodeCatalogPortPinOnTheWire(port.value),
       input_mode: direction === "inputs" ? inputModeOnTheWire(port.value) : null,
     });

@@ -2,7 +2,7 @@
 // Image output's frame rate and HDR light levels, a Packets output's codec, picture size, sample rate, channels and
 // configuration record, and a Records port's unchecked values.
 
-import type { PortStreamFacts, StreamGraphDeclaredPort, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { streamFactsOfThePort, type PortStreamFacts, type StreamGraph, type StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The H.265 SEI's luminance unit: 0.0001 cd/m². */
 const MASTERING_LUMINANCE_STEPS_PER_CANDELA_PER_SQUARE_METRE = 10_000;
@@ -36,8 +36,9 @@ function streamFactsWords(facts: PortStreamFacts): string[] {
 }
 
 /** Each fact `port` states about its stream in words, and `values unchecked` on a Records port; `[]` when it states none. */
-export function portStreamFactsWords(port: Pick<StreamGraphDeclaredPort, "stream_facts" | "values_checked">): string[] {
-  return [...(port.stream_facts === null ? [] : streamFactsWords(port.stream_facts)), ...(port.values_checked === false ? ["values unchecked"] : [])];
+export function portStreamFactsWords(port: Pick<StreamGraphPort, "stream_facts" | "values_checked">): string[] {
+  const streamFacts = streamFactsOfThePort(port);
+  return [...(streamFacts === null ? [] : streamFactsWords(streamFacts)), ...(port.values_checked === false ? ["values unchecked"] : [])];
 }
 
 /** What a Records port's unchecked mark means, where the studio explains it. */
@@ -45,13 +46,13 @@ export const VALUES_UNCHECKED_MEANING = "The runtime checks only that each decla
 
 /** The facts the input `inputPort` of `nodeName` receives: those of the output its one link reads, with its own unchecked mark; none while it has no link, or more than one. */
 export function streamFactsAnInputReceives(
-  graph: StreamGraphSummary,
+  graph: Pick<StreamGraph, "nodes" | "links">,
   nodeName: string,
-  inputPort: StreamGraphDeclaredPort,
-): Pick<StreamGraphDeclaredPort, "stream_facts" | "values_checked"> {
-  const linksIntoThePort = graph.links.filter((link) => link.target_node === nodeName && link.target_port === inputPort.name);
+  inputPort: StreamGraphPort,
+): Pick<StreamGraphPort, "stream_facts" | "values_checked"> {
+  const linksIntoThePort = graph.links.filter((link) => link.target.node === nodeName && link.target.port === inputPort.name);
   const upstreamLink = linksIntoThePort.length === 1 ? linksIntoThePort[0] : undefined;
   const upstreamOutputPort =
-    upstreamLink === undefined ? undefined : graph.nodes.find((node) => node.name === upstreamLink.source_node)?.output_ports.find((port) => port.name === upstreamLink.source_port);
-  return { stream_facts: upstreamOutputPort?.stream_facts ?? null, values_checked: inputPort.values_checked };
+    upstreamLink === undefined ? undefined : graph.nodes.find((node) => node.name === upstreamLink.source.node)?.ports.outputs.find((port) => port.name === upstreamLink.source.port);
+  return { stream_facts: upstreamOutputPort?.stream_facts, values_checked: inputPort.values_checked };
 }

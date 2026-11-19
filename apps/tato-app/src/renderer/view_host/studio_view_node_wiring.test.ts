@@ -1,31 +1,22 @@
 import { describe, expect, it } from "vitest";
-import type { StreamGraphNode, StreamGraphSummary } from "./studio_view_contract";
+import type { StreamGraphNode, StreamGraph } from "./studio_view_contract";
 import { nodesOfTheStudioViewType, studioViewInputWiring, studioViewNodeAddressOf } from "./studio_view_node_wiring";
-import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { aGraphLink, aGraphNode, aGraphPort, aStreamGraph } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 
-function graphNode(name: string, type: string, config: StreamGraphNode["config"], outputs: StreamGraphNode["output_ports"]): StreamGraphNode {
-  return { id: `id-${name}`, name, type, kind: "process", state: "Running", failed_because: null, process_raising_because: null, not_ready_because: null, config, input_ports: [], output_ports: outputs, dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
+function graphNode(name: string, type: string, config: StreamGraphNode["config"], outputs: StreamGraphNode["ports"]["outputs"]): StreamGraphNode {
+  return aGraphNode(name, { id: `id-${name}`, type, kind: "process", config, outputs, components: { state: "Running" } });
 }
 
 const DECK = graphNode("djdeck", "acme-dj:deck", { level: 0.5 }, []);
-const GRAPH: StreamGraphSummary = {
-  stream: "set",
-  nodes: [
-    graphNode("player", "acme_dj:Player", {}, [{ name: "audio", family: "channels", stream_facts: null, values_checked: null, pin: null, value_read: null }]),
-    graphNode("camera", "tatolab.stream:Camera", {}, [{ name: "video", family: "image", stream_facts: null, values_checked: null, pin: null, value_read: null }]),
-    DECK,
-    graphNode("otherview", "acme-stage:rig", {}, []),
+const GRAPH: StreamGraph = aStreamGraph(
+  [graphNode("player", "acme_dj:Player", {}, [aGraphPort("audio", "channels")]), graphNode("camera", "tatolab.stream:Camera", {}, [aGraphPort("video", "image")]), DECK, graphNode("otherview", "acme-stage:rig", {}, [])],
+  [
+    aGraphLink("L1", ["player", "audio"], ["djdeck", "deck_a"]),
+    aGraphLink("L2", ["camera", "video"], ["djdeck", "deck_b"]),
+    aGraphLink("L3", ["lobby-a1b2c3/player", "audio"], ["djdeck", "booth"]),
   ],
-  links: [
-    { id: "L1", source_node: "player", source_port: "audio", target_node: "djdeck", target_port: "deck_a", state: "wired" },
-    { id: "L2", source_node: "camera", source_port: "video", target_node: "djdeck", target_port: "deck_b", state: "wired" },
-    { id: "L3", source_node: "lobby-a1b2c3/player", source_port: "audio", target_node: "djdeck", target_port: "booth", state: "wired" },
-  ],
-  stream_asset: null,
-  groups: [],
-  notes: [],
-  graph_document_text: "{}",
-};
+  { stream: "set" },
+);
 
 describe("a view node's wiring", () => {
   it("finds the nodes of a view type by their type, the view type itself", () => {
@@ -35,7 +26,7 @@ describe("a view node's wiring", () => {
 
   it("reads each input from the output linked into it, and says why an input reads nothing", () => {
     expect(
-      studioViewInputWiring(GRAPH, DECK, [
+      studioViewInputWiring("set", GRAPH, DECK, [
         { name: "deck_a", family: "channels" },
         { name: "deck_b", family: "channels" },
         { name: "booth", family: "channels" },
@@ -51,8 +42,8 @@ describe("a view node's wiring", () => {
 
   it("sets a value on the node's inputs at the stream's own level of the window's project, and says why not while the project or the stream asset is unknown", () => {
     const unnamedDeck = graphNode("deck", "acme-dj:deck", {}, []);
-    expect(studioViewNodeAddressOf("/set", { ...GRAPH, stream_asset: "s-uuid" }, DECK, "Set")).toEqual({ kind: "addressed", graph: { project_folder: "/set", stream_asset: "s-uuid", level: [] }, node_id: "id-djdeck" });
+    expect(studioViewNodeAddressOf("/set", { ...GRAPH, asset: "s-uuid" }, DECK, "Set")).toEqual({ kind: "addressed", graph: { project_folder: "/set", stream_asset: "s-uuid", level: [] }, node_id: "id-djdeck" });
     expect(studioViewNodeAddressOf("/set", GRAPH, unnamedDeck, "Set")).toEqual({ kind: "not_addressed", because: "The runtime's graph of Set names no stream asset, so nothing is set on its Deck node." });
-    expect(studioViewNodeAddressOf(null, { ...GRAPH, stream_asset: "s-uuid" }, DECK, "Set")).toEqual({ kind: "not_addressed", because: "No project is open in this window, so nothing is set on the djdeck node in Set." });
+    expect(studioViewNodeAddressOf(null, { ...GRAPH, asset: "s-uuid" }, DECK, "Set")).toEqual({ kind: "not_addressed", because: "No project is open in this window, so nothing is set on the djdeck node in Set." });
   });
 });

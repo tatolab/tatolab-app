@@ -1,4 +1,6 @@
-import { NODE_STUDIO_FIELDS_NONE_SET, type JsonValue, type StreamGraphDeclaredPort, type StreamGraphLink, type StreamGraphNode } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { JsonValue, StreamGraphLink, StreamGraphNode, StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
+import { aGraphLink, aGraphNode, aGraphPort } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 import { expect, test } from "vitest";
 import type { ConfigFormField } from "./config_form_fields";
 import {
@@ -17,34 +19,16 @@ import {
   setTheConfigField,
 } from "./properties_graph_edits";
 
-function aPort(name: string, family: StreamGraphDeclaredPort["family"]): StreamGraphDeclaredPort {
-  return { name, family, stream_facts: null, values_checked: null, pin: null, value_read: null };
+function aPort(name: string, family: PortFamily | null): StreamGraphPort {
+  return aGraphPort(name, family);
 }
 
-function aNode(name: string, inputs: StreamGraphDeclaredPort[], outputs: StreamGraphDeclaredPort[]): StreamGraphNode {
-  return {
-    id: `id-${name}`,
-    name,
-    type: `tatolab.ops:${name}`,
-    kind: "function",
-    state: "Running",
-    failed_because: null,
-    process_raising_because: null,
-    not_ready_because: null,
-    config: {},
-    input_ports: inputs,
-    output_ports: outputs,
-    dropped_bags_by_link: {},
-    refused_bags_by_output_port: {},
-    pins: {},
-    exposed_config_fields: [],
-    studio: NODE_STUDIO_FIELDS_NONE_SET,
-    fragment: null, graph_interface: null,
-  };
+function aNode(name: string, inputs: StreamGraphPort[], outputs: StreamGraphPort[]): StreamGraphNode {
+  return aGraphNode(name, { id: `id-${name}`, type: `tatolab.ops:${name}`, kind: "function", config: {}, inputs, outputs, components: { state: "Running" } });
 }
 
 function aLink(source: StreamGraphNode, sourcePort: string, target: StreamGraphNode, targetPort: string): StreamGraphLink {
-  return { id: `${source.name}.${sourcePort}->${target.name}.${targetPort}`, source_node: source.name, source_port: sourcePort, target_node: target.name, target_port: targetPort, state: "wired" };
+  return aGraphLink(`${source.name}.${sourcePort}->${target.name}.${targetPort}`, [source.name, sourcePort], [target.name, targetPort]);
 }
 
 const camera = aNode("camera", [], [aPort("video", "image"), aPort("level", "channels")]);
@@ -148,7 +132,7 @@ test("exposing a config field is one transaction: the node takes it as an input,
 
 test("promoting an input is one transaction: a new Graph Input named for the node and input, of the input's family, carrying the number it shows now as its default, wired into it", () => {
   const glow = { id: "id-glow", name: "glow" };
-  const amountReadSaved = { ...aPort("amount", "channels"), value_read: { value: 0.7, comes_from: "saved" as const } };
+  const amountReadSaved = aGraphPort("amount", "channels", { value: 0.7, value_comes_from: "saved" });
   expect(promoteToGraphInput("asset", { node: glow, input: amountReadSaved, valueShown: 0.3, isOnTheStreamsOwnLevel: true, nodeNamesTaken: new Set(["glow"]) })).toEqual([
     { operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: "glow_amount", config: { port: "glow_amount", family: "channels", default: 0.3 }, as: "graph_input" },
     { operation: "connect", stream: "asset", source: { node: "graph_input", port: "value" }, target: { node: "id-glow", port: "amount" } },
@@ -157,7 +141,7 @@ test("promoting an input is one transaction: a new Graph Input named for the nod
 
 test("a promotion takes the first free name, names no family where the input names none, and carries no default below a stream's own level", () => {
   const glow = { id: "id-glow", name: "glow" };
-  const amount = { ...aPort("amount", "channels"), value_read: { value: 0.7, comes_from: "saved" as const } };
+  const amount = aGraphPort("amount", "channels", { value: 0.7, value_comes_from: "saved" });
   expect(promoteToGraphInput("asset", { node: glow, input: amount, valueShown: 0.7, isOnTheStreamsOwnLevel: false, nodeNamesTaken: new Set(["glow", "glow_amount", "glow_amount_2"]) })[0]).toEqual(
     { operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: "glow_amount_3", config: { port: "glow_amount_3", family: "channels" }, as: "graph_input" },
   );

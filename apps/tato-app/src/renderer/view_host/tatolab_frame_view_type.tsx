@@ -145,7 +145,7 @@ function TatolabNodeViewOfTheTab({ streamTab, ...view }: TatolabViewOfAnArea & {
     <TatolabViewFrame
       key={viewNode.id}
       {...view}
-      inputWiring={studioViewInputWiring(graphReading.graph, viewNode, manifest.inputs)}
+      inputWiring={studioViewInputWiring(streamTab.stream, graphReading.graph, viewNode, manifest.inputs)}
       viewNode={studioViewNodeAddressOf(projectFolder, graphReading.graph, viewNode, streamTab.display_name)}
     />
   );

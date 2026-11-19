@@ -11,12 +11,12 @@
 // links onto a port it renames or removes are carried at every placement. History names a node inside by the id its
 // first placement draws it under, where the runtime names it by the placed stream's own.
 
-import { mockGraphNodeIdOf, mockUuidOf, type MockGraphNode, type MockStreamGraph } from "./mock_stream_fixtures";
+import { mockGraphNodeIdOf, mockUuidOf, type MockGraphLink, type MockGraphNode, type MockGraphPort, type MockStreamGraph } from "./mock_stream_fixtures";
 import { studioAsTheRuntimeRendersIt } from "./mock_stream_graph_document";
 import { echoTheInputValueSet } from "./mock_value_echo";
 import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
-import { isAJsonValue, NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { PORT_FAMILIES, type JsonValue, type NodeCatalogEntry, type NodeCatalogPort, type PortFamily, type ProjectGraphTransaction, type StreamGraphDeclaredPort, type StreamGraphAction, type StreamGraphActionLinkEnd, type StreamGraphGroup, type StreamGraphLink, type StreamGraphNodeStudioFields, type StreamGraphNote } from "../src/shared/tatolab_backend_contract";
+import { fragmentKindOfTheNode, isAJsonValue, NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { PORT_FAMILIES, type JsonValue, type NodeCatalogEntry, type NodeCatalogPort, type PortFamily, type ProjectGraphTransaction, type StreamGraphAction, type StreamGraphActionLinkEnd, type StreamGraphGroup, type StreamGraphNodeStudioFields, type StreamGraphNote } from "../src/shared/tatolab_backend_contract";
 
 /** A mock stream a graph action can name: its id, and the graph the mock holds for it. */
 export interface MockStreamGraphTarget {
@@ -27,7 +27,7 @@ export interface MockStreamGraphTarget {
 /** One level of a mock stream's graph: the stream's own, or the inside of a subgraph, which holds no notes. */
 interface MockGraphLevel {
   nodes: MockGraphNode[];
-  links: StreamGraphLink[];
+  links: MockGraphLink[];
   groups?: StreamGraphGroup[];
   notes?: StreamGraphNote[];
 }
@@ -153,7 +153,7 @@ function whyTheNodeHasNoInsideToEdit(subgraph: MockGraphNode | undefined, subgra
 
 /** The one port `value` a Graph Input declares as its output and a Graph Output as its input, of the family its config names, as the runtime builds an interface node no registry lists. */
 function portsOfTheInterfaceNode(type: typeof GRAPH_INPUT_NODE_TYPE | typeof GRAPH_OUTPUT_NODE_TYPE, family: PortFamily | null): Pick<MockGraphNode, "input_ports" | "output_ports"> {
-  const valuePort: StreamGraphDeclaredPort = { name: "value", family, stream_facts: null, values_checked: null, pin: null, value_read: null };
+  const valuePort: MockGraphPort = { name: "value", family, stream_facts: null, values_checked: null, pin: null, value_read: null };
   return type === GRAPH_INPUT_NODE_TYPE ? { input_ports: [], output_ports: [valuePort] } : { input_ports: [valuePort], output_ports: [] };
 }
 
@@ -217,7 +217,7 @@ export function isAHistoryOperationTheMockMakesAgainFromTheEditInside(historyOpe
 }
 
 /** A port of a node added from `port`, its catalog port: its name, family and pin type as the catalog lists them, stating no stream facts and reading no value yet. */
-function graphPortOfTheCatalogPort(port: Pick<NodeCatalogPort, "name" | "family" | "pin">): StreamGraphDeclaredPort {
+function graphPortOfTheCatalogPort(port: Pick<NodeCatalogPort, "name" | "family" | "pin">): MockGraphPort {
   return { name: port.name, family: port.family, stream_facts: null, values_checked: port.family === "records" ? false : null, pin: exactPinOfTheDeclaredPort(port.pin), value_read: null };
 }
 
@@ -537,7 +537,7 @@ export function applyMockGraphTransaction(
         const groups = (graph.groups ??= []);
         mockGroupsAndNotesMade += 1;
         const group = idTheReplayedOperationKept("group") ?? mockUuidOf(`group\n${target.stream_id}\n${mockGroupsAndNotesMade}\n${operation.title}`);
-        const added = { id: group, title: operation.title, description: operation.description ?? null, colour: operation.colour ?? null };
+        const added: StreamGraphGroup = { id: group, title: operation.title, ...(operation.description === undefined || operation.description === null ? {} : { description: operation.description }), ...(operation.colour === undefined || operation.colour === null ? {} : { colour: operation.colour }) };
         groups.push(added);
         for (const member of members) member.studio = { ...(member.studio ?? NODE_STUDIO_FIELDS_NONE_SET), group };
         const memberIds = members.map(nodeIdOf);
@@ -548,11 +548,11 @@ export function applyMockGraphTransaction(
       case "set_group_fields": {
         const group = graph.groups?.find((candidate) => candidate.id === operation.group);
         if (group === undefined) throw new MockGraphEditNotApplicable(`no group ${operation.group} in the stream's graph`);
-        const from = { title: group.title, description: group.description, colour: group.colour };
+        const from = { title: group.title, description: group.description ?? null, colour: group.colour ?? null };
         group.title = operation.title ?? group.title;
         group.description = operation.description ?? group.description;
         group.colour = operation.colour ?? group.colour;
-        const to = { title: group.title, description: group.description, colour: group.colour };
+        const to = { title: group.title, description: group.description ?? null, colour: group.colour ?? null };
         recordInHistory({ operation: "set_group_fields", group: group.id, from, to }, { operation: "set_group_fields", group: group.id, from: to, to: from });
         break;
       }
@@ -636,7 +636,7 @@ export function applyMockGraphTransaction(
             outsideLinks.push({ ...link, source_node: name, source_port: interfaceName });
           } else outsideLinks.push(link);
         }
-        subgraph.fragment = { kind: "placed_stream", nodes: insideNodes, links: insideLinks, groups: [] };
+        subgraph.fragment = { nodes: insideNodes, links: insideLinks, groups: [] };
         const firstMember = members[0];
         if (firstMember?.studio?.position !== undefined && firstMember.studio.position !== null) subgraph.studio = { ...NODE_STUDIO_FIELDS_NONE_SET, position: firstMember.studio.position };
         graph.nodes = [...graph.nodes.filter((node) => !members.includes(node)), subgraph];
@@ -651,7 +651,7 @@ export function applyMockGraphTransaction(
         break;
       }
       case "import_graph_generator": {
-        const subgraph = graph.nodes.find((node) => node.name === operation.name && node.type === operation.generator && node.fragment?.kind === "generated");
+        const subgraph = graph.nodes.find((node) => node.name === operation.name && node.type === operation.generator && node.fragment !== undefined && fragmentKindOfTheNode(node) === "generated");
         if (subgraph === undefined) throw new MockGraphEditNotApplicable(`the mock runs no graph generator; it refreshes only a fragment of \`${operation.generator}\` the graph holds`);
         const from = structuredClone(subgraph.config);
         subgraph.config = operation.config === undefined || operation.config === null ? subgraph.config : jsonObjectTheActionCarries(operation.config, "config");
@@ -703,11 +703,11 @@ export function applyMockGraphTransaction(
       const carriedByHoldingStream = new Map<string, { port_links_taken_out: JsonValue[]; port_links_put_back: JsonValue[] }>();
       for (const [workingStreamAsset, workingGraph] of workingGraphs) {
         for (const { placing, holdingLevel, holdingStream } of eachPlacementOf(streamOfTheLevel, workingGraph, workingStreamAsset)) {
-          if (placing.fragment !== graph) placing.fragment = { kind: "placed_stream", ...structuredClone({ nodes: graph.nodes, links: graph.links, groups: graph.groups ?? [] }) };
+          if (placing.fragment !== graph) placing.fragment = { ...structuredClone({ nodes: graph.nodes, links: graph.links, groups: graph.groups ?? [] }) };
           placing.input_ports = portsOf("input");
           placing.output_ports = portsOf("output");
           const carried = carriedByHoldingStream.get(holdingStream) ?? { port_links_taken_out: [], port_links_put_back: [] };
-          const linksKept: StreamGraphLink[] = [];
+          const linksKept: MockGraphLink[] = [];
           for (const [position, link] of holdingLevel.links.entries()) {
             const portAfter =
               link.target_node === placing.name ? portNamedAfterTheEdit("input", link.target_port) : link.source_node === placing.name ? portNamedAfterTheEdit("output", link.source_port) : undefined;

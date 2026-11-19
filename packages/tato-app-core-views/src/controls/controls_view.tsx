@@ -18,7 +18,7 @@ function GraphInputsOfTheTab({ connection, inputValues, streamTab, projectFolder
   useInputValuesOfTheStream(connection, inputValues, streamTab.stream, projectFolder);
   const graphInputs = useMemo(() => {
     if (graphReading?.kind !== "read") return null;
-    const streamAsset = graphReading.graph.stream_asset;
+    const streamAsset = graphReading.graph.asset ?? null;
     return graphInputsOfTheStream(graphReading.graph, graphAddressOfTheStreamsOwnLevel(projectFolder, streamAsset));
   }, [graphReading, projectFolder]);
   if (graphReading === null) return null;

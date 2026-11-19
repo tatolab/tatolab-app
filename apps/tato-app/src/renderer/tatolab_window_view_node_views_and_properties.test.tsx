@@ -556,8 +556,8 @@ describe("the studio", () => {
     panel.close();
     const graph = await backend.describeStreamGraph(PATTERN_MAIN_STREAM);
     const viewNode = graph.nodes.find((node) => node.name === "pictureandfader") ?? expect.unreachable("no view node");
-    expect(transactionsSent.mock.calls).toEqual([[[{ operation: "set_node_input_value", stream: graph.stream_asset, node: viewNode.id, input: "fader", value: 0.6 }], "live", null]]);
-    expect(viewNode.input_ports.find((port) => port.name === "fader")?.value_read).toEqual({ value: 0.6, comes_from: "live" });
+    expect(transactionsSent.mock.calls).toEqual([[[{ operation: "set_node_input_value", stream: graph.asset, node: viewNode.id, input: "fader", value: 0.6 }], "live", null]]);
+    expect(viewNode.ports.inputs.find((port) => port.name === "fader")).toMatchObject({ value: 0.6, value_comes_from: "live" });
   });
 
   it("says in the view-type menu why a project's views are not listed", async () => {

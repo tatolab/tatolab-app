@@ -3,9 +3,22 @@
 // wrote is decoded on the Studio's side, by the Schemas of `./studio_host`, each held to a type here.
 // A graph action and a graph edit mode are the control contract's own types.
 
-import type { GraphEditMode, StreamGraphAction, StreamGraphActionLinkEnd } from "@tatolab/runtime-client/contract";
+import type {
+  GraphEditMode,
+  GraphFragmentOnTheWire,
+  GraphInterfacePortOnTheWire,
+  GraphLinkOnTheWire,
+  GraphNodeKindOnTheWire,
+  GraphNodeOnTheWire,
+  GraphNodePortOnTheWire,
+  InputValueComesFromOnTheWire,
+  LabelledNodeGroup,
+  StreamGraphAction,
+  StreamGraphActionLinkEnd,
+  StreamGraphOnTheWire,
+} from "@tatolab/runtime-client/contract";
 import type { DeclaredPinType, NodeInputMode, PinFlow, PinType } from "./pin_type_readings.js";
-import type { PortFamily } from "./port_families.js";
+import { PORT_FAMILIES, type PortFamily } from "./port_families.js";
 
 /** A value as JSON carries it. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -76,32 +89,101 @@ export type PortStreamFacts =
       codec_configuration_byte_length: number | null;
     };
 
-/** The pin type a port of a running graph carries, resolved, and its flow, from its `pin_type` and `flow` keys. */
+/** A stream's graph and its parts, as the runtime's `graph` answers them: the control contract's own types, passed on unchanged. */
+export type {
+  StreamGraphOnTheWire as StreamGraph,
+  GraphNodeOnTheWire as StreamGraphNode,
+  GraphNodePortOnTheWire as StreamGraphPort,
+  GraphLinkOnTheWire as StreamGraphLink,
+  LabelledNodeGroup as StreamGraphGroup,
+  GraphFragmentOnTheWire as StreamGraphFragment,
+  GraphInterfacePortOnTheWire as StreamGraphInterfacePort,
+  GraphNodeKindOnTheWire as StreamGraphNodeKind,
+  InputValueComesFromOnTheWire as InputValueComesFrom,
+};
+
+/** The pin type a port of a running graph carries, resolved, and its flow, which the runtime serves together. */
 export type StreamGraphPortPin = { pin_type: PinType; flow: PinFlow };
 
-/** Where the value an input reads comes from, as the runtime spells its `value_comes_from`: set live, saved in the graph document, its port's declared default, or a link that feeds it. */
-export type InputValueComesFrom = "live" | "saved" | "default" | "wire";
+/** The pin type and flow `port` carries; `null` on a port the runtime serves neither for, because its code does not state its type exactly, which links by its family alone. */
+export function pinOfThePort(port: Pick<GraphNodePortOnTheWire, "pin_type" | "flow">): StreamGraphPortPin | null {
+  return port.pin_type === undefined || port.flow === undefined ? null : { pin_type: port.pin_type, flow: port.flow };
+}
 
 /** The value an input reads while unlinked, `null` while a link feeds it or it reads none, and where it comes from, `null` while it reads none. */
-export type StreamGraphInputValueRead = { value: JsonValue | null; comes_from: InputValueComesFrom | null };
+export type StreamGraphInputValueRead = { value: JsonValue | null; comes_from: InputValueComesFromOnTheWire | null };
 
 /** A change the runtime announced of what one input of a running graph reads, its node named by its graph `id`. */
 export type StreamGraphInputValueChange = { node: string; input: string; value_read: StreamGraphInputValueRead };
 
-/** A port a node declares under the graph's `ports.inputs` or `ports.outputs`. */
-export type StreamGraphDeclaredPort = {
-  name: string;
-  /** The family the port carries, from its `family` key; `null` while the runtime serves none, or one this app does not know. */
-  family: PortFamily | null;
-  /** What an output states about the stream it carries now, from its `stream_facts` key; `null` when it states none, as every input does. */
-  stream_facts: PortStreamFacts | null;
-  /** `false` on a Records port, whose values no type checks, from its `values_checked` key; `null` on every other family. */
-  values_checked: boolean | null;
-  /** Its pin type and flow; `null` on a port the runtime serves neither for, because its code does not state its type exactly, which links by its family alone. */
-  pin: StreamGraphPortPin | null;
-  /** On an input, the value it reads while unlinked and where that value comes from, from its `value` and `value_comes_from` keys; `null` on an input that takes no stored value, and on every output. */
-  value_read: StreamGraphInputValueRead | null;
-};
+/**
+ * What an input of a graph, or an `input_value_changed` naming one, says it reads while unlinked and where that comes from:
+ * a link that feeds it serves `value_comes_from` `wire` and no `value`, one that reads nothing a `null` value alone. `null` for
+ * an input that takes no stored value, serving neither, and for an output.
+ */
+export function inputValueReadOfThePort(port: { readonly value?: unknown; readonly value_comes_from?: InputValueComesFromOnTheWire | null | undefined }): StreamGraphInputValueRead | null {
+  const comesFrom = port.value_comes_from;
+  if (comesFrom === undefined || comesFrom === null) return port.value === null ? { value: null, comes_from: null } : null;
+  if (comesFrom === "wire") return { value: null, comes_from: "wire" };
+  return isAJsonValue(port.value) ? { value: port.value, comes_from: comesFrom } : null;
+}
+
+/** The family a port names under its `family` key, or under that declaration's own `family`; `null` for none, or one this app does not know. */
+export function familyOfThePort(port: { readonly family?: unknown }): PortFamily | null {
+  const familyOnTheWire = typeof port.family === "object" && port.family !== null && "family" in port.family ? port.family.family : port.family;
+  if (typeof familyOnTheWire !== "string") return null;
+  const familyName = familyOnTheWire.toLowerCase();
+  return PORT_FAMILIES.find((family) => family === familyName) ?? null;
+}
+
+/** What an output states under `stream_facts` about the stream it carries now; `null` for none, or facts of a family or shape this app does not read, which only describe a stream. */
+export function streamFactsOfThePort(port: { readonly stream_facts?: unknown }): PortStreamFacts | null {
+  const streamFacts = jsonObjectOrNull(port.stream_facts);
+  if (streamFacts === null) return null;
+  if (streamFacts["family"] === "image") {
+    const frameRate = jsonObjectOrNull(streamFacts["frame_rate"]);
+    const lightLevel = jsonObjectOrNull(streamFacts["content_light_level"]);
+    const colourVolume = jsonObjectOrNull(streamFacts["mastering_display_colour_volume"]);
+    const numerator = wholeNumberOrNull(frameRate?.["numerator"]);
+    const denominator = wholeNumberOrNull(frameRate?.["denominator"]);
+    const maxContentLightLevel = wholeNumberOrNull(lightLevel?.["max_content_light_level"]);
+    const maxFrameAverageLightLevel = wholeNumberOrNull(lightLevel?.["max_frame_average_light_level"]);
+    const maxLuminance = wholeNumberOrNull(colourVolume?.["max_display_mastering_luminance"]);
+    const minLuminance = wholeNumberOrNull(colourVolume?.["min_display_mastering_luminance"]);
+    return {
+      family: "image",
+      frame_rate: numerator === null || denominator === null || numerator === 0 || denominator === 0 ? null : { numerator, denominator },
+      content_light_level:
+        maxContentLightLevel === null || maxFrameAverageLightLevel === null ? null : { max_content_light_level: maxContentLightLevel, max_frame_average_light_level: maxFrameAverageLightLevel },
+      mastering_display_colour_volume: maxLuminance === null || minLuminance === null ? null : { max_display_mastering_luminance: maxLuminance, min_display_mastering_luminance: minLuminance },
+    };
+  }
+  if (streamFacts["family"] === "packets") {
+    const codecConfigurationHex = streamFacts["codec_configuration_hex"];
+    return {
+      family: "packets",
+      rfc6381_codec: typeof streamFacts["rfc6381_codec"] === "string" ? streamFacts["rfc6381_codec"] : null,
+      coded_width: wholeNumberOrNull(streamFacts["coded_width"]),
+      coded_height: wholeNumberOrNull(streamFacts["coded_height"]),
+      sample_rate: wholeNumberOrNull(streamFacts["sample_rate"]),
+      channel_count: wholeNumberOrNull(streamFacts["channel_count"]),
+      codec_configuration_byte_length: typeof codecConfigurationHex === "string" ? Math.floor(codecConfigurationHex.length / 2) : null,
+    };
+  }
+  return null;
+}
+
+function isAnObject(value: unknown): value is { readonly [key: string]: unknown } {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function jsonObjectOrNull(value: unknown): { readonly [key: string]: unknown } | null {
+  return isAnObject(value) ? value : null;
+}
+
+function wholeNumberOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
+}
 
 /** A point or a size on the canvas, `[x, y]` or `[width, height]`. */
 export type StudioCanvasPair = [number, number];
@@ -120,15 +202,78 @@ export type StreamGraphNodeStudioFields = {
 /** The `studio` fields of a node whose graph document sets none. */
 export const NODE_STUDIO_FIELDS_NONE_SET: Readonly<StreamGraphNodeStudioFields> = Object.freeze({ position: null, group: null, comment: null, colour: null, collapsed: null, metadata: Object.freeze({}) });
 
-/** A labelled group of a stream's graph, from its `groups` key, which its nodes join by naming its UUID as their `studio.group`. */
-export type StreamGraphGroup = {
-  id: string;
-  title: string;
-  description: string | null;
-  colour: string | null;
-};
+/** The studio contract version this app reads; a `studio` under another version is read as a free map. */
+const STUDIO_CONTRACT_READ = 1;
 
-/** A canvas note of a stream's graph, from its `studio.notes` key: text at a position and size, beside the nodes. */
+/** A UUID in any text form the runtime's `Uuid::parse_str` takes: hyphenated, simple, braced or `urn:uuid:`. */
+const A_UUID = /^(?:urn:uuid:)?(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}|[0-9a-f]{32})$/i;
+
+/** `[x, y]` as two finite numbers; `null` for anything else. */
+function canvasPairOrNull(value: unknown): StudioCanvasPair | null {
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  const [first, second]: unknown[] = value;
+  return typeof first === "number" && Number.isFinite(first) && typeof second === "number" && Number.isFinite(second) ? [first, second] : null;
+}
+
+/** One fixed key of a node's `studio` read into `fields`; whether its value had the key's shape. */
+function readANodeStudioFixedKey(fields: StreamGraphNodeStudioFields, key: string, value: unknown): boolean {
+  switch (key) {
+    case "position": {
+      const position = canvasPairOrNull(value);
+      if (position !== null) fields.position = position;
+      return position !== null;
+    }
+    case "group":
+      if (typeof value === "string" && A_UUID.test(value)) fields.group = value;
+      return typeof value === "string" && A_UUID.test(value);
+    case "comment":
+      if (typeof value === "string") fields.comment = value;
+      return typeof value === "string";
+    case "colour":
+      if (typeof value === "string") fields.colour = value;
+      return typeof value === "string";
+    case "collapsed":
+      if (typeof value === "boolean") fields.collapsed = value;
+      return typeof value === "boolean";
+    default:
+      return false;
+  }
+}
+
+/** Each node's `studio` already read, by the object the graph serves under that key, so one reading gives the same fields however often it is asked. */
+const STUDIO_FIELDS_READ = new WeakMap<object, StreamGraphNodeStudioFields>();
+
+/**
+ * What Tato Studio draws `node` with, read from its `studio` key as the runtime reads it: under the studio contract, each fixed
+ * key of its shape, a key the runtime would refuse to write read as absent; in a free map written before the contract, every
+ * key that does not read kept under `metadata`.
+ */
+export function studioFieldsOfTheNode(node: Pick<GraphNodeOnTheWire, "studio">): Readonly<StreamGraphNodeStudioFields> {
+  const studio = node.studio;
+  if (studio === undefined) return NODE_STUDIO_FIELDS_NONE_SET;
+  const readBefore = STUDIO_FIELDS_READ.get(studio);
+  if (readBefore !== undefined) return readBefore;
+  const isUnderTheContract = studio["contract"] === STUDIO_CONTRACT_READ;
+  const metadataOnTheWire = studio["metadata"];
+  const metadata = jsonObjectOrNull(metadataOnTheWire);
+  const fields: StreamGraphNodeStudioFields = {
+    ...NODE_STUDIO_FIELDS_NONE_SET,
+    metadata:
+      metadata !== null
+        ? Object.fromEntries(Object.entries(metadata).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1])))
+        : !isUnderTheContract && isAJsonValue(metadataOnTheWire)
+          ? { metadata: metadataOnTheWire }
+          : {},
+  };
+  for (const [key, value] of Object.entries(studio)) {
+    if ((key === "contract" && isUnderTheContract) || key === "metadata") continue;
+    if (!readANodeStudioFixedKey(fields, key, value) && !isUnderTheContract && isAJsonValue(value)) fields.metadata[key] = value;
+  }
+  STUDIO_FIELDS_READ.set(studio, fields);
+  return fields;
+}
+
+/** A canvas note of a stream's graph: text at a position and size, beside the nodes. */
 export type StreamGraphNote = {
   id: string;
   text: string;
@@ -136,97 +281,75 @@ export type StreamGraphNote = {
   size: StudioCanvasPair;
 };
 
-/** The port a `GraphInput` or `GraphOutput` node declares for its stream, from the node's `components.graph_interface`. */
-export type StreamGraphInterfacePort = {
-  direction: "input" | "output";
-  port: string;
-  /** As the runtime spells it: `image`, `array`, `channels`, `packets` or `records`; `null` while the node names none and nothing is linked to it, when the first link's family becomes its own. */
-  family: string | null;
-  /** What a running top-level Input carries now, the last value a client wrote, else its config's `default`; `null` where the runtime renders none. */
-  current_value: JsonValue | null;
-};
+/** Each graph's canvas notes already read, by the object the graph serves under `studio`. */
+const CANVAS_NOTES_READ = new WeakMap<object, readonly StreamGraphNote[]>();
 
-/** How a node's code runs, as the runtime spells its `kind`: a shader on the GPU, a function evaluated where its reader reads, a class in a process of its own, or a graph generator's stored output. */
-export const STREAM_GRAPH_NODE_KINDS = ["shader", "function", "process", "fragment"] as const;
-/** How a node's code runs. */
-export type StreamGraphNodeKind = (typeof STREAM_GRAPH_NODE_KINDS)[number];
-
-/** Whether `kindOnTheWire` is a node kind this app knows. */
-export function isAStreamGraphNodeKind(kindOnTheWire: unknown): kindOnTheWire is StreamGraphNodeKind {
-  return STREAM_GRAPH_NODE_KINDS.some((kind) => kind === kindOnTheWire);
+/** The canvas notes the graph's `studio.notes` holds, each one the runtime would refuse (no id or text, or no two-number position or size) left out rather than losing the graph over. */
+export function canvasNotesOfTheGraph(graph: Pick<StreamGraphOnTheWire, "studio">): readonly StreamGraphNote[] {
+  const studio = jsonObjectOrNull(graph.studio);
+  if (studio === null) return [];
+  const readBefore = CANVAS_NOTES_READ.get(studio);
+  if (readBefore !== undefined) return readBefore;
+  const notesOnTheWire: unknown = studio["notes"];
+  const notes = (Array.isArray(notesOnTheWire) ? notesOnTheWire : []).flatMap((noteOnTheWire: unknown): StreamGraphNote[] => {
+    const note = jsonObjectOrNull(noteOnTheWire);
+    const position = canvasPairOrNull(note?.["position"]);
+    const size = canvasPairOrNull(note?.["size"]);
+    const id = note?.["id"];
+    const text = note?.["text"];
+    return typeof id === "string" && typeof text === "string" && position !== null && size !== null ? [{ id, text, position, size }] : [];
+  });
+  CANVAS_NOTES_READ.set(studio, notes);
+  return notes;
 }
-
-/** One node of a stream's graph, by the name a link end and a port address name it by. */
-export type StreamGraphNode = {
-  /** The node's UUID, which a log record's `processor_id` and every graph edit name it by. */
-  id: string;
-  name: string;
-  type: string;
-  /** How its code runs, from its `kind` key; `null` on a node whose type nothing registers, which the runtime renders with no `kind`. */
-  kind: StreamGraphNodeKind | null;
-  /** The processor's state as the runtime names it, such as `Running`. */
-  state: string | null;
-  /** Why it failed, in the runtime's own words: set while it reads `Error`, `null` otherwise. */
-  failed_because: string | null;
-  /** What its `process()` last raised, in the runtime's own words, while it keeps raising and stays `Running`; `null` once a call runs cleanly, and for a node that never raised. */
-  process_raising_because: string | null;
-  /** Why it cannot do its work yet, in the runtime's own words, such as an unset or missing file, while it keeps running; `null` while it is ready. */
-  not_ready_because: string | null;
-  /** Its config as the graph renders it; `{}` when it renders none. */
-  config: Record<string, JsonValue>;
-  /** The value set on each unlinked input, by input name, as the graph's `pins` renders it; an input left at its port's default is absent. */
-  pins: Record<string, JsonValue>;
-  /** The number and bool config fields it takes as inputs, each an input port of the field's name, as the graph's `exposed_config_fields` renders them; `[]` when it takes none. */
-  exposed_config_fields: string[];
-  input_ports: StreamGraphDeclaredPort[];
-  output_ports: StreamGraphDeclaredPort[];
-  /** Messages it dropped on each link into it, by the link's `id`. */
-  dropped_bags_by_link: Record<string, number>;
-  /** Messages each of its output ports refused, by port name. */
-  refused_bags_by_output_port: Record<string, number>;
-  /** What Tato Studio draws it with, from its `studio` key under the runtime's studio contract. */
-  studio: StreamGraphNodeStudioFields;
-  /** What it holds when it is a subgraph, from its `fragment` key; `null` on every other node. */
-  fragment: StreamGraphFragment | null;
-  /** The port it declares for its stream when it is a `GraphInput` or `GraphOutput` the runtime renders as one; `null` on every other node. */
-  graph_interface: StreamGraphInterfacePort | null;
-};
 
 /** How a subgraph came to be: `generated` is a `@graph_generator`'s frozen output, its node's `type` the generator; `placed_stream` a stream placed by reference (`tatolab.project:StreamFragment`), which a collapse saves the selection as. */
 export type StreamGraphFragmentKind = "generated" | "placed_stream";
 
-/** The graph a subgraph node holds: its nodes, each read as a stream's node is, the links between them and its labelled groups. */
-export type StreamGraphFragment = {
-  kind: StreamGraphFragmentKind;
-  nodes: StreamGraphNode[];
-  links: StreamGraphLink[];
-  groups: StreamGraphGroup[];
-};
+/** The node type of another stream placed by reference (`STREAM_FRAGMENT_NODE_TYPE` in streamlib). */
+const STREAM_FRAGMENT_NODE_TYPE = "tatolab.project:StreamFragment";
 
-/** One link of a stream's graph, from an output port to an input port; the source may be in another stream. */
-export type StreamGraphLink = {
-  /** The runtime's id of the link, which a node's `dropped_bags_by_link` is keyed by. */
-  id: string;
-  source_node: string;
-  source_port: string;
-  target_node: string;
-  target_port: string;
-  /** `wired`, `pending`, `awaiting_remote`, `error`, `disconnecting` or `disconnected`. */
-  state: string;
-};
+/** How the subgraph `node` holds came to be, by its type. */
+export function fragmentKindOfTheNode(node: Pick<GraphNodeOnTheWire, "type">): StreamGraphFragmentKind {
+  return node.type === STREAM_FRAGMENT_NODE_TYPE ? "placed_stream" : "generated";
+}
 
-/** One loaded stream's nodes and links, and the document they were read from. */
-export type StreamGraphSummary = {
-  stream: string;
-  /** The stream asset's UUID, from the graph's `asset` key, which every graph edit names the stream by; `null` when the graph renders none. */
-  stream_asset: string | null;
-  groups: StreamGraphGroup[];
-  notes: StreamGraphNote[];
-  nodes: StreamGraphNode[];
-  links: StreamGraphLink[];
-  /** The `graph` tool's text exactly as the runtime wrote it. */
-  graph_document_text: string;
-};
+/** The fragment of a node of `kind` `fragment` that serves none: it holds nothing. */
+const AN_EMPTY_FRAGMENT: GraphFragmentOnTheWire = Object.freeze({ nodes: [], links: [], groups: [] });
+
+/** What `node` holds when it is a subgraph, an empty graph for a fragment that serves none; `null` on every other node. */
+export function fragmentOfTheNode(node: Pick<GraphNodeOnTheWire, "kind" | "fragment">): GraphFragmentOnTheWire | null {
+  return node.fragment ?? (node.kind === "fragment" ? AN_EMPTY_FRAGMENT : null);
+}
+
+/** The port `node` declares for its stream when it is a `GraphInput` or `GraphOutput` the runtime renders as one; `null` on every other node. */
+export function graphInterfacePortOfTheNode(node: Pick<GraphNodeOnTheWire, "components">): GraphInterfacePortOnTheWire | null {
+  return node.components.graph_interface ?? null;
+}
+
+/** The bags `node` lost on its inbound link `linkId`, `0` where it counts none. */
+export function bagsDroppedOnTheLink(node: Pick<GraphNodeOnTheWire, "components">, linkId: string): number {
+  return Number(node.components.metrics?.dropped_bags_by_link[linkId] ?? 0);
+}
+
+/** The bags `node`'s output port `port` refused at its ceiling, `0` where it counts none. */
+export function bagsRefusedOnTheOutputPort(node: Pick<GraphNodeOnTheWire, "components">, port: string): number {
+  return Number(node.components.metrics?.refused_bags_by_output_port[port] ?? 0);
+}
+
+/** Each open JSON object already read, by the object the graph serves. */
+const JSON_OBJECT_MEMBERS_READ = new WeakMap<object, { readonly [key: string]: JsonValue }>();
+
+/** The values `value` holds as a JSON object, by key, a member no JSON value kept out; `{}` for anything else. A node's `config` and `pins` are served as open JSON; one object served gives the same members however often it is read. */
+export function jsonObjectMembersOf(value: unknown): { readonly [key: string]: JsonValue } {
+  const object = jsonObjectOrNull(value);
+  if (object === null) return {};
+  const readBefore = JSON_OBJECT_MEMBERS_READ.get(object);
+  if (readBefore !== undefined) return readBefore;
+  const members = Object.fromEntries(Object.entries(object).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1])));
+  JSON_OBJECT_MEMBERS_READ.set(object, members);
+  return members;
+}
 
 /** The pin type a node type's port declares, or how it is found, and its flow, from the catalog port's `pin_type` and `flow` keys. */
 export type NodeCatalogPortPin = { pin_type: DeclaredPinType; flow: PinFlow };
@@ -517,7 +640,7 @@ export type StreamTabAddress = { stream: string; project_name: string; display_n
 export type ListedStreamsReading = { kind: "listed"; streams: ListedStream[] } | { kind: "not_listed"; because: string } | { kind: "listing_failed"; because: string };
 
 /** A stream's graph as the runtime renders it now, or why it renders none, in its own words. */
-export type StreamGraphReading = { kind: "read"; graph: StreamGraphSummary } | { kind: "not_read"; because: string };
+export type StreamGraphReading = { kind: "read"; graph: StreamGraphOnTheWire } | { kind: "not_read"; because: string };
 
 /** What one input of a stream's graph reads, at the level of the subgraphs it is inside, by their node ids from the outermost, and its node by its graph `id`. */
 export type StreamInputValue = { level: string[]; node_id: string; input: string; value_read: StreamGraphInputValueRead };

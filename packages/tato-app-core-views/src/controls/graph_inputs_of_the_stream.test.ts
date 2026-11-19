@@ -1,29 +1,30 @@
 import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import { NODE_STUDIO_FIELDS_NONE_SET, type JsonValue, type StreamGraphDeclaredPort, type StreamGraphInterfacePort, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { JsonValue, StreamGraph, StreamGraphInterfacePort, StreamGraphNode, StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { aGraphNode, aGraphPort, aStreamGraph } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 import { expect, test } from "vitest";
 import { LIFETIME_WORDS, graphInputsOfTheStream, whyNoControlWritesTheInput, whyNothingSetsTheInput } from "./graph_inputs_of_the_stream";
 
-function node(id: string, name: string, type: string, config: StreamGraphNode["config"], graphInterface: StreamGraphInterfacePort | null = null): StreamGraphNode {
-  return { id, name, type, kind: "process", state: "Running", failed_because: null, process_raising_because: null, not_ready_because: null, config, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: graphInterface };
+function node(id: string, name: string, type: string, config: StreamGraphNode["config"], graphInterface: StreamGraphInterfacePort | null = null, inputs: StreamGraphPort[] = []): StreamGraphNode {
+  return aGraphNode(name, { id, type, kind: "process", config, inputs, components: { state: "Running", ...(graphInterface === null ? {} : { graph_interface: graphInterface }) } });
 }
 
 /** The `value` input a running top-level `GraphInput` renders, reading `value` from where `comesFrom` says. */
-function valueInput(value: JsonValue, comesFrom: "default" | "saved" | "live" = "default"): StreamGraphDeclaredPort {
-  return { name: "value", family: null, stream_facts: null, values_checked: null, pin: null, value_read: { value, comes_from: comesFrom } };
+function valueInput(value: JsonValue, comesFrom: "default" | "saved" | "live" = "default"): StreamGraphPort {
+  return aGraphPort("value", null, { value, value_comes_from: comesFrom });
 }
 
 const STREAM_LEVEL: GraphAddress = { project_folder: "/projects/s06-perform", stream_asset: "0df4a7aa-1111-2222-3333-444444444444", level: [] };
 
-function graphOf(nodes: StreamGraphNode[]): StreamGraphSummary {
-  return { stream: "s06-perform-main-0df4a7", stream_asset: null, groups: [], notes: [], nodes, links: [], graph_document_text: "{\n}" };
+function graphOf(nodes: StreamGraphNode[]): StreamGraph {
+  return aStreamGraph(nodes, [], { stream: "s06-perform-main-0df4a7" });
 }
 
 test("each top-level GraphInput is listed by the port and family the graph renders it declaring, in the graph's order, its value addressed at its own value input", () => {
   const graph = graphOf([
-    { ...node("a1", "graphinput", "tatolab.stream:GraphInput", { port: "brightness", family: "channels", default: 0.5, range: [0, 1] }, { direction: "input", port: "brightness", family: "channels", current_value: 0.8 }), input_ports: [valueInput(0.8, "live")] },
+    node("a1", "graphinput", "tatolab.stream:GraphInput", { port: "brightness", family: "channels", default: 0.5, range: [0, 1] }, { direction: "input", port: "brightness", family: "channels", current_value: 0.8 }, [valueInput(0.8, "live")]),
     node("b2", "multiply", "tatolab.ops:Multiply", {}),
-    { ...node("c3", "graphinput-2", "tatolab.stream:GraphInput", { port: "cue", family: "records", default: { scene: "intro" }, lifetime: "reset" }, { direction: "input", port: "cue", family: "records", current_value: { scene: "finale" } }), input_ports: [valueInput({ scene: "intro" })] },
-    node("d4", "out", "tatolab.stream:GraphOutput", { port: "video", family: "image" }, { direction: "output", port: "video", family: "image", current_value: null }),
+    node("c3", "graphinput-2", "tatolab.stream:GraphInput", { port: "cue", family: "records", default: { scene: "intro" }, lifetime: "reset" }, { direction: "input", port: "cue", family: "records", current_value: { scene: "finale" } }, [valueInput({ scene: "intro" })]),
+    node("d4", "out", "tatolab.stream:GraphOutput", { port: "video", family: "image" }, { direction: "output", port: "video", family: "image" }),
   ]);
 
   expect(graphInputsOfTheStream(graph, STREAM_LEVEL)).toEqual([
@@ -35,7 +36,7 @@ test("each top-level GraphInput is listed by the port and family the graph rende
 test("a GraphInput the graph renders no graph_interface or value input for is read from its config, and nothing sets it; with no stream level known nothing is addressed", () => {
   const graph = graphOf([
     node("e5", "graphinput-3", "tatolab.stream:GraphInput", { port: "tint", family: "array", default: [1, 0.5, 0.25], range: [0, 1] }),
-    { ...node("f6", "settings", "tatolab.stream:GraphInput", { family: "records" }), input_ports: [valueInput(null)] },
+    node("f6", "settings", "tatolab.stream:GraphInput", { family: "records" }, null, [valueInput(null)]),
   ]);
 
   expect(graphInputsOfTheStream(graph, STREAM_LEVEL)).toEqual([
@@ -66,7 +67,7 @@ test("each Input's control follows what its config declares: a ranged number a s
 
 test("a value set since never changes an Input's control: a ranged Channels Input reading a bool stays a slider, and one saved as `value` is guessed from it", () => {
   const graph = graphOf([
-    { ...node("a1", "graphinput", "tatolab.stream:GraphInput", { port: "brightness", family: "channels", default: 0.5, range: [0, 1] }), input_ports: [valueInput(true, "live")] },
+    node("a1", "graphinput", "tatolab.stream:GraphInput", { port: "brightness", family: "channels", default: 0.5, range: [0, 1] }, null, [valueInput(true, "live")]),
     node("b2", "graphinput-2", "tatolab.stream:GraphInput", { port: "strobe", family: "channels", value: false }),
   ]);
 
