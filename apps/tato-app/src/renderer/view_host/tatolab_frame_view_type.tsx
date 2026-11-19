@@ -10,7 +10,7 @@ import { StudioAreaHeaderRowOfAWaitingView, StudioAreaHeaderWords } from "@tatol
 import { nodeTitle } from "@tatolab/tato-app-core-views/shared/node_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostServices, StudioViewNodeAddress, StudioViewTypeSource } from "./studio_view_contract";
-import { nodesOfTheStudioViewType, studioViewInputWiring, studioViewNodeAddressOf, type StudioViewInputWiring } from "./studio_view_node_wiring";
+import { nodesOfTheStudioViewType, settingsTheViewNodeHolds, studioViewInputWiring, studioViewNodeAddressOf, type StudioViewInputWiring } from "./studio_view_node_wiring";
 import type { RegisteredStudioViewType, StudioAreaOfTheView } from "./studio_view_type_registry";
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 import { WatchedStudioValue } from "./watched_studio_value";
@@ -29,7 +29,11 @@ interface TatolabViewOfAnArea {
   hostServices: StudioViewHostServices;
 }
 
-/** The view's frame, on its entry, served by a bridge that reads its inputs from `inputWiring` and writes its outputs onto `viewNode`, each followed as it changes; a reload of the frame is served by a new one. */
+/**
+ * The view's frame, on its entry, served by a bridge that reads its inputs from `inputWiring`, writes its outputs onto `viewNode` and
+ * reads its settings from `settingsHeld`, each followed as it changes; a reload of the frame is served by a new one. An `area` view's
+ * settings are its area's; a `node` view's are what its node holds.
+ */
 function TatolabViewFrame({
   listed,
   manifest,
@@ -37,7 +41,8 @@ function TatolabViewFrame({
   hostServices,
   inputWiring,
   viewNode,
-}: TatolabViewOfAnArea & { inputWiring: Record<string, StudioViewInputWiring>; viewNode: StudioViewNodeAddress | null }) {
+  settingsHeld,
+}: TatolabViewOfAnArea & { inputWiring: Record<string, StudioViewInputWiring>; viewNode: StudioViewNodeAddress | null; settingsHeld: JsonValue | undefined }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<TatolabViewBridge | null>(null);
   const inputWiringRef = useRef(inputWiring);
@@ -48,10 +53,10 @@ function TatolabViewFrame({
   const viewNodeAsJson = JSON.stringify(viewNode);
   const rememberSettingsRef = useRef(area.rememberSettings);
   rememberSettingsRef.current = area.rememberSettings;
-  const [savedSettings] = useState(() => new WatchedStudioValue<{ saved: JsonValue | undefined }>({ saved: area.saved_settings }));
-  const savedSettingsAsJson = JSON.stringify(area.saved_settings) ?? "";
-  const savedSettingsRef = useRef(area.saved_settings);
-  savedSettingsRef.current = area.saved_settings;
+  const [savedSettings] = useState(() => new WatchedStudioValue<{ saved: JsonValue | undefined }>({ saved: settingsHeld }));
+  const savedSettingsAsJson = JSON.stringify(settingsHeld) ?? "";
+  const savedSettingsRef = useRef(settingsHeld);
+  savedSettingsRef.current = settingsHeld;
 
   useEffect(() => () => bridgeRef.current?.close(), []);
   useEffect(() => {
@@ -72,6 +77,7 @@ function TatolabViewFrame({
     const areaServices: TatolabViewAreaServices = {
       areaId: area.area_id,
       watchSavedSettings: (listener) => savedSettings.watch(({ saved }) => listener(saved)),
+      readSavedSettings: () => savedSettings.readLatest().saved,
       rememberSettings: (settings) => rememberSettingsRef.current(settings),
       watchHeaderRow: area.header_row.watch,
       expansion: area.expansion,
@@ -147,6 +153,7 @@ function TatolabNodeViewOfTheTab({ streamTab, ...view }: TatolabViewOfAnArea & {
       {...view}
       inputWiring={studioViewInputWiring(streamTab.stream, graphReading.graph, viewNode, manifest.inputs)}
       viewNode={studioViewNodeAddressOf(projectFolder, graphReading.graph, viewNode, streamTab.display_name)}
+      settingsHeld={settingsTheViewNodeHolds(manifest, viewNode)}
     />
   );
 }
@@ -193,7 +200,7 @@ export function tatolabFrameViewType(listed: ListedStudioView, manifest: Tatolab
     manifest,
     renderInAnArea: (area, hostServices) =>
       manifest.placement === "area" ? (
-        <TatolabViewFrame listed={listed} manifest={manifest} area={area} hostServices={hostServices} inputWiring={{}} viewNode={null} />
+        <TatolabViewFrame listed={listed} manifest={manifest} area={area} hostServices={hostServices} inputWiring={{}} viewNode={null} settingsHeld={area.saved_settings} />
       ) : (
         <TatolabNodeView listed={listed} manifest={manifest} area={area} hostServices={hostServices} />
       ),

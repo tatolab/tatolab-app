@@ -10,11 +10,13 @@ import {
   type ViewAsk,
   type ViewAskAnswer,
   type ViewDeclaredPort,
+  type ViewSettings,
   type ViewWatchedReading,
   type ViewWatchedSubject,
 } from "@tatolab/tato-app-view-sdk";
 import { setNodeInputValueAction } from "@tatolab/tato-app-view-sdk/pin_model/input_value_actions";
 import { jsonValueSchema, messageFromTheViewSchema, readViewSettings, viewSettingsForAnArea } from "@tatolab/tato-app-view-sdk/studio_host";
+import type { StreamGraphAction } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { Result, Schema } from "effect";
 import type {
   JsonValue,
@@ -28,7 +30,7 @@ import type {
   ViewHeaderRow,
 } from "./studio_view_contract";
 import type { InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import type { StudioViewInputWiring } from "./studio_view_node_wiring";
+import { settingsSetOnTheViewNode, type StudioViewInputWiring } from "./studio_view_node_wiring";
 
 /** The parts of a `MessagePort` the bridge uses, so a test can stand in for one. */
 export interface TatolabViewMessagePort {
@@ -39,12 +41,18 @@ export interface TatolabViewMessagePort {
   close(): void;
 }
 
-/** What the area showing a view hands it: the settings it saved, a way to keep the next ones, and where the view's own header row lies. */
+/**
+ * What the area showing a view hands it: the settings it holds, a way to keep the next ones, and where the view's own header row lies.
+ * A `node` view's settings are its node's: the area holds what the node's graph document holds, and keeps nothing itself.
+ */
 export interface TatolabViewAreaServices {
   /** The id of the area in the layout showing the view; `null` where the view shows outside one, as a popped-out view does. */
   areaId: string | null;
   /** The settings the area holds, `undefined` for an area that saved none, at once and on each change. */
   watchSavedSettings(listener: (savedSettings: JsonValue | undefined) => void): StopWatching;
+  /** The settings the area holds now, as `watchSavedSettings` last told them. */
+  readSavedSettings(): JsonValue | undefined;
+  /** Keep `settings` with an `area` view's area; a `node` view's are set on its node instead. */
   rememberSettings(settings: JsonValue): void;
   watchHeaderRow(listener: (headerRow: ViewHeaderRow) => void): StopWatching;
   expansion: StudioAreaExpansion;
@@ -158,7 +166,21 @@ export class TatolabViewBridge {
     if (Result.isFailure(value)) return { kind: "refused", because: `${output.name} takes JSON, and what the view sent is not.` };
     if (this.viewNode.kind === "not_addressed") return { kind: "refused", because: this.viewNode.because };
     const input: InputAddress = { graph: this.viewNode.graph, node_id: this.viewNode.node_id, input: output.name };
-    const applying = await this.hostServices.transactInTheProject(input.graph.project_folder, [setNodeInputValueAction(input, value.success)], "live", null);
+    return this.applyOnTheViewNode(input.graph.project_folder, [setNodeInputValueAction(input, value.success)], "live");
+  }
+
+  /** Sets each of `settings` that changed on the view's node, as one edit of its stream's history, which Undo takes back. */
+  private async setTheSettingsOnTheViewNode(viewNode: StudioViewNodeAddress, settings: ViewSettings): Promise<ViewAskAnswer> {
+    if (viewNode.kind === "not_addressed") return { kind: "refused", because: viewNode.because };
+    const settingsHeld = viewSettingsForAnArea(this.manifest, this.areaServices.readSavedSettings()) ?? {};
+    const settingsSet = settingsSetOnTheViewNode(viewNode, settingsHeld, settings ?? {});
+    if (settingsSet.length === 0) return { kind: "done" };
+    return this.applyOnTheViewNode(viewNode.graph.project_folder, settingsSet, "commit");
+  }
+
+  /** `actions` applied in the project at `projectFolder`, in `mode`, as the view's ask answers it: done, or refused in the runtime's words. */
+  private async applyOnTheViewNode(projectFolder: string, actions: StreamGraphAction[], mode: "commit" | "live"): Promise<ViewAskAnswer> {
+    const applying = await this.hostServices.transactInTheProject(projectFolder, actions, mode, null);
     switch (applying.kind) {
       case "applied":
         return { kind: "done" };
@@ -330,6 +352,7 @@ export class TatolabViewBridge {
       case "remember_settings": {
         const settingsReading = readViewSettings(this.manifest, ask.settings);
         if (settingsReading.kind === "do_not_fit") return { kind: "refused", because: settingsReading.because };
+        if (this.manifest.placement === "node" && this.viewNode !== null) return this.setTheSettingsOnTheViewNode(this.viewNode, settingsReading.settings);
         this.areaServices.rememberSettings(settingsReading.settings);
         return { kind: "done" };
       }

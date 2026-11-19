@@ -296,6 +296,7 @@ function recordingAreaServices(savedSettings: JsonValue | undefined) {
   const areaServices: TatolabViewAreaServices = {
     areaId: "properties",
     watchSavedSettings: (listener) => saved.watch((latest) => listener(latest.saved)),
+    readSavedSettings: () => saved.readLatest().saved,
     rememberSettings: (settings) => saved.publish({ saved: settings }),
     watchHeaderRow: headerRow.watch,
     expansion: {
@@ -738,6 +739,34 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(keptAnswer).toEqual({ kind: "done" });
     expect(refusedAnswer.kind === "refused" ? refusedAnswer.because : "kept").toContain("`zoom`:");
     expect(saved.readLatest()).toEqual({ saved: { show_waveform: true, zoom: 2 } });
+  });
+
+  it("sets a node view's changed settings on its node as one edit, keeps none with its area, and says why where they are not set", async () => {
+    const deckNode: StudioViewNodeAddress = { kind: "addressed", graph: { project_folder: "/set", stream_asset: "s-uuid", level: [] }, node_id: "id-dj-deck" };
+    const { connection, bridge, saved, graphTransactionsAsked, hostServices } = await connectedView(DJ_DECK_MANIFEST, {}, { zoom: 2 }, deckNode);
+
+    expect(await connection.rememberSettings({ zoom: 2, show_waveform: true })).toEqual({ kind: "done" });
+    expect(graphTransactionsAsked).toEqual([]);
+    expect(await connection.rememberSettings({ zoom: 3, show_waveform: false })).toEqual({ kind: "done" });
+    expect(graphTransactionsAsked).toEqual([
+      {
+        projectFolder: "/set",
+        operations: [
+          { operation: "set_node_input_value", stream: "s-uuid", node: "id-dj-deck", input: "show_waveform", value: false },
+          { operation: "set_node_input_value", stream: "s-uuid", node: "id-dj-deck", input: "zoom", value: 3 },
+        ],
+        mode: "commit",
+        idempotencyKey: null,
+      },
+    ]);
+    expect(saved.readLatest()).toEqual({ saved: { zoom: 2 } });
+    expect(await connection.rememberSettings({ zoom: 0 })).toMatchObject({ kind: "refused", because: expect.stringContaining("`zoom`:") });
+
+    hostServices.transactInTheProject = async () => ({ kind: "refused", refusal: VIEW_OUTPUT_VALUE_REFUSAL });
+    expect(await connection.rememberSettings({ zoom: 4 })).toEqual({ kind: "refused", because: VIEW_OUTPUT_VALUE_REFUSAL.runtime_words });
+    bridge.readdress({ kind: "not_addressed", because: "The runtime's graph of Set names no stream asset, so nothing is set on its Deck node." });
+    expect(await connection.rememberSettings({ zoom: 4 })).toEqual({ kind: "refused", because: "The runtime's graph of Set names no stream asset, so nothing is set on its Deck node." });
+    expect(graphTransactionsAsked).toHaveLength(1);
   });
 
   it("opens a view of a type on a file, tells views of that type what they were opened on, and says why when no area can show it", async () => {

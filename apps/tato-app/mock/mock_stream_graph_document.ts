@@ -149,6 +149,7 @@ export function mockStreamGraphOf(listing: ListedStream, machineName: string, gr
         name: node.name,
         config: node.config,
         pins: node.pins ?? {},
+        input_values: { ...node.config, ...node.pins },
         ...(node.exposed_config_fields === undefined || node.exposed_config_fields.length === 0 ? {} : { exposed_config_fields: node.exposed_config_fields }),
         ...(node.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(node.studio) }),
         ports: {

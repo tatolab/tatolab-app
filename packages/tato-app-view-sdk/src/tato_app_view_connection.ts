@@ -118,7 +118,10 @@ export interface TatoAppViewConnection {
   watchPortViewer(target: PortViewerTarget, onEvent: (event: PortViewerEvent) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** What the output wired into the `node` view's input `input` carries; an Image frame arrives as a `VideoFrame` the view closes once drawn. */
   watchInput(input: string, onEvent: (inputEvent: ViewInputEvent) => void, whenRefused?: WhenStudioRefuses): StopWatching;
-  /** The settings the view's area holds, checked against the view's declared settings: at once, then after each `rememberSettings`. */
+  /**
+   * The view's settings, checked against the view's declared settings: an `area` view's as its area holds them, a `node` view's as its
+   * node does, at once, then on each change, however it was made: `rememberSettings`, Properties, Undo or an agent.
+   */
   watchSettings(listener: (settings: ViewSettings) => void): StopWatching;
   /** The file or port the view's area was opened on, at once and again whenever the area is opened on another. */
   watchOpenedOn(listener: (openedOn: ViewOpenedOn) => void): StopWatching;
@@ -134,7 +137,10 @@ export interface TatoAppViewConnection {
   openStreamTab(streamTab: StreamTabAddress): Promise<ViewAskDone>;
   /** Open a view of `viewTypeId` on `on`, a file or a running node's output port. */
   openView(viewTypeId: string, on: ViewOpeningTarget): Promise<ViewAskDone>;
-  /** Keep `settings` with the view's area; refused when they do not fit what the view declares. */
+  /**
+   * Keep `settings`: an `area` view's with its area, a `node` view's on its node, each setting that changed set as its input's value in
+   * one edit of the stream's history; refused when they do not fit what the view declares, or in the runtime's words.
+   */
   rememberSettings(settings: ViewSettings): Promise<ViewAskDone>;
   /** `file`'s text and the version it is at, or why it was not read. */
   readProjectFile(file: string): Promise<ProjectFileReading>;

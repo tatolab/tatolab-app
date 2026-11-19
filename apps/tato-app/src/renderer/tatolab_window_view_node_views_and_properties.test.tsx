@@ -3,7 +3,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { NodeTypeDescription, PoppedOutView } from "../shared/tatolab_backend_contract";
 import type { ModuleManagerSectionAsked } from "../shared/tatolab_electron_bridge_contract";
-import { connectToTatoAppOverPort } from "@tatolab/tato-app-view-sdk";
+import { connectToTatoAppOverPort, type TatoAppViewConnection, type ViewSettings } from "@tatolab/tato-app-view-sdk";
 import type { TatolabBackend } from "./backend/tatolab_backend";
 import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
 import { readMockTatolabOptions } from "../../mock/mock_tatolab_options";
@@ -99,6 +99,27 @@ function nodeTypesDescribingTheCompositorsLayers(backend: Pick<TatolabBackend, "
       };
     },
   };
+}
+
+
+/** The fixture view shown in the viewer area on the stream's node of its type, and a panel connected over the port its frame is handed. */
+async function thePictureAndFaderPanelInTheViewer(): Promise<TatoAppViewConnection> {
+  const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+  pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+  fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Picture and fader/ }));
+  const viewFrame = await waitFor(() => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-tatolab-view]') ?? expect.unreachable("no project view frame"));
+  await waitFor(() => expect(viewerArea.querySelector("[data-node-view-whereabouts]")).not.toBeNull());
+
+  const frameWindow = viewFrame.contentWindow ?? expect.unreachable("the view's frame has no window");
+  const handedOverPort = new Promise<MessagePort>((resolve) => {
+    // happy-dom's window.postMessage drops what it transfers, so the handover's port is taken here.
+    frameWindow.postMessage = (_message: unknown, _targetOrigin?: string | WindowPostMessageOptions, transfer: Transferable[] = []) => {
+      const port = transfer.find((transferred): transferred is MessagePort => "postMessage" in transferred && "start" in transferred);
+      if (port !== undefined) resolve(port);
+    };
+  });
+  fireEvent.load(viewFrame);
+  return connectToTatoAppOverPort(await handedOverPort);
 }
 
 describe("the studio", () => {
@@ -697,22 +718,7 @@ describe("the studio", () => {
   it("sets what a node view's panel sends on its output, live, on its node's input of that name in the open project's stream", async () => {
     const { backend } = await mountedWindowOverTheMock("state=running&studio_views=fixture");
     const transactionsSent = vi.spyOn(backend, "transactInTheOpenProject");
-    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
-    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Picture and fader/ }));
-    const viewFrame = await waitFor(() => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-tatolab-view]') ?? expect.unreachable("no project view frame"));
-    await waitFor(() => expect(viewerArea.querySelector("[data-node-view-whereabouts]")).not.toBeNull());
-
-    const frameWindow = viewFrame.contentWindow ?? expect.unreachable("the view's frame has no window");
-    const handedOverPort = new Promise<MessagePort>((resolve) => {
-      // happy-dom's window.postMessage drops what it transfers, so the handover's port is taken here.
-      frameWindow.postMessage = (_message: unknown, _targetOrigin?: string | WindowPostMessageOptions, transfer: Transferable[] = []) => {
-        const port = transfer.find((transferred): transferred is MessagePort => "postMessage" in transferred && "start" in transferred);
-        if (port !== undefined) resolve(port);
-      };
-    });
-    fireEvent.load(viewFrame);
-    const panel = await connectToTatoAppOverPort(await handedOverPort);
+    const panel = await thePictureAndFaderPanelInTheViewer();
 
     expect(await panel.sendOutput("fader", 0.6)).toEqual({ kind: "done" });
     panel.close();
@@ -720,6 +726,25 @@ describe("the studio", () => {
     const viewNode = graph.nodes.find((node) => node.name === "pictureandfader") ?? expect.unreachable("no view node");
     expect(transactionsSent.mock.calls).toEqual([[[{ operation: "set_node_input_value", stream: graph.asset, node: viewNode.id, input: "fader", value: 0.6 }], "live", null]]);
     expect(viewNode.ports.inputs.find((port) => port.name === "fader")).toMatchObject({ value: 0.6, value_comes_from: "live" });
+  });
+
+  it("keeps a node view's setting on its node, which Undo takes back and the panel follows", async () => {
+    const { backend } = await mountedWindowOverTheMock("state=running&studio_views=fixture");
+    const panel = await thePictureAndFaderPanelInTheViewer();
+    const settingsSeen: ViewSettings[] = [];
+    panel.watchSettings((settings) => settingsSeen.push(settings));
+    await waitFor(() => expect(settingsSeen).toEqual([{ picture_fit: "contain" }]));
+
+    expect(await panel.rememberSettings({ picture_fit: "cover" })).toEqual({ kind: "done" });
+    await waitFor(() => expect(settingsSeen.at(-1)).toEqual({ picture_fit: "cover" }));
+    const viewNodeOf = async () => (await backend.describeStreamGraph(PATTERN_MAIN_STREAM)).nodes.find((node) => node.name === "pictureandfader") ?? expect.unreachable("no view node");
+    expect((await viewNodeOf()).input_values).toMatchObject({ picture_fit: "cover" });
+    expect(localStorage.getItem(studioLayoutStorageKey(PATTERN_PROJECT)) ?? "").not.toContain("picture_fit");
+
+    await backend.undoInTheOpenProject({ kind: "person", name: "Sam" });
+    await waitFor(() => expect(settingsSeen.at(-1)).toEqual({ picture_fit: "contain" }));
+    expect((await viewNodeOf()).input_values).not.toHaveProperty("picture_fit");
+    panel.close();
   });
 
   it("says in the view-type menu why a project's views are not listed", async () => {

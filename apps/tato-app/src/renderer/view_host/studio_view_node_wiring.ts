@@ -1,9 +1,12 @@
 // A view people write is a node in its stream's graph: each of its inputs reads whatever output a
-// link wires into it, through that output's port viewer, and what it writes on an output is set on
-// the node's input of that name, which the node publishes on the output.
+// link wires into it, through that output's port viewer, what it writes on an output is set on the
+// node's input of that name, which the node publishes on the output, and its settings are the node's
+// inputs of their names, which take no wire.
 
-import type { ViewDeclaredPort } from "@tatolab/tato-app-view-sdk";
+import type { TatolabViewManifest, ViewDeclaredPort } from "@tatolab/tato-app-view-sdk";
+import { setNodeInputValueAction } from "@tatolab/tato-app-view-sdk/pin_model/input_value_actions";
 import { graphAddressOfTheStreamsOwnLevel } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import { jsonObjectMembersOf, type JsonValue, type StreamGraphAction } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nodeTitle } from "@tatolab/tato-app-core-views/shared/node_words";
 import { familyOfThePort } from "../../shared/tatolab_backend_contract";
 import type { PortViewerTarget, StreamGraph, StreamGraphNode, StudioViewNodeAddress } from "./studio_view_contract";
@@ -49,4 +52,25 @@ export function studioViewInputWiring(stream: string, graph: StreamGraph, viewNo
     wiringByInput[declaredInput.name] = { kind: "wired", target: { stream, node_id: sourceNode.id, port: link.source.port }, wired_from_words: wiredFromWords };
   }
   return wiringByInput;
+}
+
+/**
+ * The settings `manifest` declares as the view node `viewNode` holds them: the value its graph document holds for each setting's input,
+ * by name, a setting it holds none for left out to read its default; `undefined` for a view that declares no settings.
+ */
+export function settingsTheViewNodeHolds(manifest: Pick<TatolabViewManifest, "settings">, viewNode: Pick<StreamGraphNode, "input_values" | "config">): JsonValue | undefined {
+  if (manifest.settings === undefined) return undefined;
+  const valuesByInput = jsonObjectMembersOf(viewNode.input_values ?? viewNode.config);
+  return Object.fromEntries(Object.keys(manifest.settings.properties).flatMap((settingName) => (Object.hasOwn(valuesByInput, settingName) ? [[settingName, valuesByInput[settingName]]] : [])));
+}
+
+/** A set of the input of each setting whose value `settings` changes from `settingsHeld`, on the view node at `viewNode`, in the settings' order; none where nothing changed. */
+export function settingsSetOnTheViewNode(
+  viewNode: Extract<StudioViewNodeAddress, { kind: "addressed" }>,
+  settingsHeld: { readonly [settingName: string]: JsonValue },
+  settings: { readonly [settingName: string]: JsonValue },
+): StreamGraphAction[] {
+  return Object.entries(settings).flatMap(([settingName, value]) =>
+    JSON.stringify(settingsHeld[settingName] ?? null) === JSON.stringify(value) ? [] : [setNodeInputValueAction({ graph: viewNode.graph, node_id: viewNode.node_id, input: settingName }, value)],
+  );
 }

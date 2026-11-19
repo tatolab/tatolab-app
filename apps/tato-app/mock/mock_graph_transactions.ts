@@ -404,6 +404,14 @@ export function applyMockGraphTransaction(
       }
       case "set_node_input_value": {
         const node = nodeNamed(operation.node);
+        if (node.settings?.includes(operation.input) === true) {
+          const to = jsonTheActionCarries(operation.value ?? null, "value");
+          const from = node.config[operation.input] ?? null;
+          const { [operation.input]: _taken, ...configWithoutTheSetting } = node.config;
+          node.config = to === null ? configWithoutTheSetting : { ...node.config, [operation.input]: to };
+          recordInHistory({ operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from, to }, { operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from: to, to: from });
+          break;
+        }
         const port = node.input_ports.find((candidate) => candidate.name === operation.input);
         if (port === undefined || port.value_read === null) {
           throw new MockGraphEditNotApplicable(`node ${operation.node} has no input \`${operation.input}\` that holds a value`);
