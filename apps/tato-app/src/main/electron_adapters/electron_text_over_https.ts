@@ -1,4 +1,5 @@
 import { net } from "electron";
+import { bytesOfTheResponse } from "../https_response_bytes.js";
 import { describeCaughtFailure, failedWith, succeeded } from "../result.js";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "../package_catalog.js";
 
@@ -20,21 +21,7 @@ export const fetchTextOverHttpsThroughElectron: FetchTextOverHttps = async (url)
 export const fetchBytesOverHttpsThroughElectron: FetchBytesOverHttps = async (url, largestByteCount, following) => {
   try {
     const response = await net.fetch(url, { cache: "no-cache", ...(following === null ? {} : { signal: following.stopped }) });
-    if (response.status !== 200) return failedWith(`HTTP ${response.status} ${response.statusText}`.trim());
-    const announced = response.headers.get("content-length");
-    // A Content-Length that is not a count of bytes says nothing of the size, so the download goes on as one of no known size.
-    const announcedByteCount = announced !== null && /^\d+$/.test(announced.trim()) ? Number(announced.trim()) : null;
-    if (announcedByteCount !== null && announcedByteCount > largestByteCount) return failedWith(`it is ${announcedByteCount} bytes, over the ${largestByteCount} a download may be`);
-    if (response.body === null) return succeeded(Buffer.alloc(0));
-    const runsRead: Uint8Array[] = [];
-    let bytesReadSoFar = 0;
-    for await (const run of response.body) {
-      bytesReadSoFar += run.byteLength;
-      if (bytesReadSoFar > largestByteCount) return failedWith(`it is over the ${largestByteCount} bytes a download may be`);
-      runsRead.push(run);
-      following?.bytesRead(bytesReadSoFar, announcedByteCount);
-    }
-    return succeeded(Buffer.concat(runsRead, bytesReadSoFar));
+    return await bytesOfTheResponse(response, largestByteCount, following);
   } catch (fetchFailure) {
     return failedWith(describeCaughtFailure(fetchFailure));
   }

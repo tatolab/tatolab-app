@@ -103,6 +103,8 @@ export class FakeTatolabElectronAppShell {
   localApiSocketPath: string | null = null;
   /** The bytes each URL serves over HTTPS, a Marketplace `.zip` among them; any other URL is refused. */
   readonly bytesServedByUrl = new Map<string, Buffer>();
+  /** URLs whose download reads half its bytes and then holds until it is stopped, as a slow one does when Cancel is pressed. */
+  readonly urlsWhoseDownloadHoldsUntilStopped = new Set<string>();
   /** Every URL the app fetched over HTTPS, in order. */
   readonly urlsFetched: string[] = [];
   /** How the running app answers a request for a project view's file, once it has handed that over. */
@@ -204,6 +206,11 @@ export class FakeTatolabElectronAppShell {
       this.urlsFetched.push(url);
       const bytesServed = this.bytesServedByUrl.get(url);
       if (bytesServed === undefined) return failedWith("the fake shell reaches no network");
+      if (this.urlsWhoseDownloadHoldsUntilStopped.has(url) && following !== null) {
+        following.bytesRead(Math.floor(bytesServed.length / 2), bytesServed.length);
+        await new Promise((stoppedNow) => (following.stopped.aborted ? stoppedNow(undefined) : following.stopped.addEventListener("abort", stoppedNow, { once: true })));
+        return failedWith("This operation was aborted");
+      }
       following?.bytesRead(bytesServed.length, bytesServed.length);
       return succeeded(bytesServed);
     },

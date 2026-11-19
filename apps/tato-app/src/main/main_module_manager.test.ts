@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { cp, writeFile } from "node:fs/promises";
+import { cp, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, test } from "vitest";
+import { MODULE_DOWNLOADS_FOLDER_NAME } from "@tatolab/tato-app-view-sdk/marketplace_modules";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { TATOLAB_MARKETPLACE_IMPORT_PROGRESSED_EVENT } from "../shared/tatolab_electron_bridge_contract.js";
 import type { FakeTatolabElectronAppShell } from "./fake_tatolab_electron_app_shell.js";
 import { startTatolabApp } from "./main.js";
@@ -282,6 +283,22 @@ describe("Module manager", () => {
       ]);
       expect(await fakeShell.invokeTheCommand("cancel_marketplace_import", { name: "tatolab-camera" }, 3)).toEqual({ ok: false, refusal: "No add of tatolab-camera is under way in this window." });
       expect(await fakeShell.invokeTheCommand("cancel_marketplace_import", undefined, 3)).toMatchObject({ ok: false, refusal: expect.stringMatching(/^cancel_marketplace_import: /) });
+    });
+
+    test("a package's download stops on Cancel from the window that asked, which the import answers as cancelled with nothing downloaded or added; another window's Cancel is refused", async () => {
+      const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+      serveACatalogOfTheHalftoneSampleAndTheCameraPackage(fakeShell);
+      fakeShell.urlsWhoseDownloadHoldsUntilStopped.add(CAMERA_PACKAGE_ZIP_URL);
+
+      const imported = fakeShell.invokeTheCommand("import_from_the_marketplace", { name: "tatolab-camera" }, 3);
+      await vi.waitFor(() => expect(fakeShell.urlsFetched).toContain(CAMERA_PACKAGE_ZIP_URL));
+      expect(await fakeShell.invokeTheCommand("cancel_marketplace_import", { name: "tatolab-camera" }, 2)).toEqual({ ok: false, refusal: "No add of tatolab-camera is under way in this window." });
+      expect(await fakeShell.invokeTheCommand("cancel_marketplace_import", { name: "tatolab-camera" }, 3)).toEqual({ ok: true, value: null });
+
+      expect(await imported).toEqual({ ok: true, value: { kind: "cancelled" } });
+      expect(await readdir(path.join(fakeShell.tatolabElectronAppShell.appConfigDirectory, MODULE_DOWNLOADS_FOLDER_NAME)).catch(() => [])).toEqual([]);
+      const listed = await fakeShell.invokeTheCommand("list_workspace_dependencies", { check_for_newer: false }, 3);
+      expect(listed.ok && Array.isArray(listed.value) && listed.value.map((dependency) => ("folder" in dependency ? dependency.folder : null))).toEqual(["lobby-wall"]);
     });
 
     test("a package is added from a Stream graph popped out of the project's studio window, as its node search adds one", async () => {
