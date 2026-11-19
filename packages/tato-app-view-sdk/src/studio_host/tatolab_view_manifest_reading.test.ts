@@ -43,8 +43,8 @@ describe("readTatolabViewManifest", () => {
   });
 
   it("refuses a view built for a later minor or another major, naming the contract served", () => {
-    expect(becauseOf({ ...STAGE_RIG_MANIFEST, contract: "1.4" })).toBe("`contract`: this Tato Studio serves view contract 1.0.");
-    expect(becauseOf({ ...STAGE_RIG_MANIFEST, contract: "2.0" })).toBe("`contract`: this Tato Studio serves view contract 1.0.");
+    expect(becauseOf({ ...STAGE_RIG_MANIFEST, contract: "1.4" })).toBe("`contract`: this Tato Studio serves view contract 1.1.");
+    expect(becauseOf({ ...STAGE_RIG_MANIFEST, contract: "2.0" })).toBe("`contract`: this Tato Studio serves view contract 1.1.");
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, contract: 1 })).toContain("`contract`:");
   });
 
@@ -111,6 +111,22 @@ describe("readTatolabViewManifest", () => {
     expect(
       becauseOf({ ...STAGE_RIG_MANIFEST, settings: { type: "object", properties: { show_beams: { type: "boolean", default: "yes" } } } }),
     ).toContain("`settings.properties.show_beams.default`: its default does not fit its own schema");
+  });
+
+  it("reads a 1.1 port by its pin type, the family it is carried as filled in, and keeps a port declared by family alone as written", () => {
+    const monitor = { ...STAGE_RIG_MANIFEST, contract: "1.1", inputs: [{ name: "picture", pin_type: { type: "texture", pixel_formats: ["rgba8_unorm"] } }], outputs: [{ name: "master_intensity", family: "array", range: [0, 1] }] };
+    expect(readTatolabViewManifest(monitor)).toEqual({
+      kind: "read",
+      manifest: { ...monitor, inputs: [{ name: "picture", family: "image", pin_type: { type: "texture", pixel_formats: ["rgba8_unorm"] } }] },
+    });
+  });
+
+  it("refuses a pin type the contract does not take at its field, and an output a panel writes of a type that holds no value", () => {
+    const withOutput = (output: unknown) => ({ ...STAGE_RIG_MANIFEST, contract: "1.1", outputs: [output] });
+    expect(becauseOf(withOutput({ name: "level", pin_type: { type: "float", exact_size: "float16" } }))).toContain("`outputs[0].pin_type");
+    expect(becauseOf(withOutput({ name: "level", pin_type: { type: "decibels" } }))).toContain("`outputs[0].pin_type.type`: a pin type's `type` is one of `boolean`, ");
+    expect(becauseOf(withOutput({ name: "fire", pin_type: { type: "trigger" } }))).toBe("`outputs[0].pin_type`: a panel writes a value onto a Records output, and a trigger holds none.");
+    expect(readTatolabViewManifest(withOutput({ name: "level", pin_type: { type: "audio" } })).kind).toBe("read");
   });
 
   it("refuses a manifest that is not an object or has no title", () => {
