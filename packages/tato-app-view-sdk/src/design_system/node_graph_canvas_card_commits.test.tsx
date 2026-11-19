@@ -54,6 +54,7 @@ function card(nodeId: string, index: number): NodeGraphCanvasNode {
     frame_id: null,
     is_collapsed: false,
     subgraph: null,
+    kind: { look: "process" },
   };
 }
 

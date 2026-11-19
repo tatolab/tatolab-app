@@ -36,7 +36,7 @@ const GRAPH: StreamGraph = aStreamGraph(
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_of_their_types_and_an_input_shows_the_facts_its_one_link_carries", () => {
   expect(streamGraphCanvasContents(GRAPH, NONE_DESCRIBED).nodes).toEqual([
-    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, wire: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null },
+    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, wire: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null, kind: { look: "process" } },
     {
       node_id: "invert",
       title: "invert",
@@ -49,6 +49,7 @@ test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_of_their_type
       frame_id: null,
       is_collapsed: false,
       subgraph: null,
+      kind: { look: "process" },
     },
   ]);
 });
@@ -158,15 +159,39 @@ test("a card and its pins carry their node type's descriptions, and a blank one 
   expect(streamGraphCanvasContents(GRAPH, describedByType).nodes.find((node) => node.node_id === "camera")?.description).toBeNull();
 });
 
-test("a_subgraph_card_carries_its_kind_and_names_it_beside_its_title", () => {
+test("a_subgraph_card_carries_its_kind_and_a_generated_one_names_its_generator_beside_its_title", () => {
   const holding = (name: string, type: string): StreamGraphNode => graphNode(name, [], [], { type, kind: "fragment", fragment: { nodes: [], links: [], groups: [] } });
   const cards = streamGraphCanvasContents(
     { ...GRAPH, links: [], nodes: [holding("look", "tatolab.project:StreamFragment"), holding("levels", "generators.looks:mic_levels")] },
     NONE_DESCRIBED,
   ).nodes;
-  expect(cards.map((card) => [card.node_id, card.subgraph, card.type_name])).toEqual([
-    ["look", "placed_stream", "Subgraph"],
-    ["levels", "generated", "mic_levels"],
+  expect(cards.map((card) => [card.node_id, card.subgraph, card.kind, card.type_name])).toEqual([
+    ["look", "placed_stream", { look: "placed_stream" }, null],
+    ["levels", "generated", { look: "subgraph" }, "mic_levels"],
+  ]);
+});
+
+test("a_card_carries_how_its_nodes_code_runs_with_a_functions_language_and_an_unknown_kind_where_the_runtime_names_none", () => {
+  const cards = streamGraphCanvasContents(
+    {
+      ...GRAPH,
+      links: [],
+      nodes: [
+        graphNode("camera", [], [], { kind: "process" }),
+        graphNode("blur", [], [], { kind: "shader" }),
+        graphNode("spin", [], [], { kind: "function", language: "python" }),
+        graphNode("beats", [], [], { kind: "function", language: "rust" }),
+        graphNode("halftone", [], [], { kind: null }),
+      ],
+    },
+    NONE_DESCRIBED,
+  ).nodes;
+  expect(cards.map((card) => [card.node_id, card.kind])).toEqual([
+    ["camera", { look: "process" }],
+    ["blur", { look: "shader" }],
+    ["spin", { look: "function", language: "python" }],
+    ["beats", { look: "function", language: "rust" }],
+    ["halftone", { look: "unknown" }],
   ]);
 });
 

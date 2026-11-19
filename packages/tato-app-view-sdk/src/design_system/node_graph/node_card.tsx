@@ -1,6 +1,6 @@
 import { Handle, Position, useStore, useStoreApi, type NodeProps } from "@xyflow/react";
 import { cn } from "cn";
-import { ChevronDown, ChevronRight, Combine, Hammer, SquareX, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, Hammer, SquareX, TriangleAlert } from "lucide-react";
 import { Fragment, memo, useContext, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import { inputAddressKey, type InputAddress } from "../../pin_model/node_inputs";
 import { takesAControl } from "../../pin_model/controlled_inputs";
@@ -12,7 +12,8 @@ import { jsonTextOf, type StreamGraphPortPin } from "../../studio_readings";
 import { InputControlMount } from "../input_control_mount";
 import { NodeGraphNodesFoundContext } from "../node_graph_find_bar";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "../support/full_strength_focus_ring";
-import { nodeGraphPinKey, type NodeGraphCardCondition, type NodeGraphCanvasNode } from "../support/node_graph_canvas_contract";
+import { nodeGraphPinKey, type NodeGraphCardCondition, type NodeGraphCardKind, type NodeGraphCanvasNode } from "../support/node_graph_canvas_contract";
+import { NodeGraphCardKindMark, NodeGraphCardLanguageTag } from "./node_card_kind_mark";
 import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, connectionLookupKeyOfTheHandle, NodeGraphEditableContext, NodeGraphWireFitsContext, NodeGraphCardAndFrameEditingContext, NodeGraphInputValuesContext, NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE } from "../support/node_graph_flow_elements";
 import { NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT, NODE_GRAPH_CARD_HEADER_HEIGHT, NODE_GRAPH_CARD_PIN_ROWS_PADDING, NODE_GRAPH_PIN_ROW_HEIGHT } from "../support/node_graph_layout";
 import { isAPinSocketOfTheCardUnmeasured } from "../support/node_graph_pin_socket_measurement";
@@ -135,7 +136,7 @@ function takesASocket(pin: Pick<NodePin, "setting">): boolean {
 }
 
 /** What a card's header and pin rows draw of a node. */
-type NodeGraphCardFaceNode = Pick<NodeGraphCanvasNode, "title" | "type_name" | "description" | "condition" | "inputs" | "outputs" | "is_collapsed" | "subgraph">;
+type NodeGraphCardFaceNode = Pick<NodeGraphCanvasNode, "title" | "type_name" | "description" | "condition" | "inputs" | "outputs" | "is_collapsed" | "kind">;
 
 /** A card's header and its rows, one full-width row per pin, outputs first, then settings, then the other inputs; the canvas and a preview outside it both draw it, and `socketOfThePin` draws the socket of each pin but a setting. */
 function NodeGraphCardHeaderAndPinRows({
@@ -156,17 +157,19 @@ function NodeGraphCardHeaderAndPinRows({
         className="node-graph-card-header relative flex items-center gap-2 px-2"
         style={{ height: NODE_GRAPH_CARD_HEADER_HEIGHT }}
         title={graphNode.description ?? undefined}
+        data-kind={graphNode.kind.look}
       >
         {beforeTheTitle}
-        {graphNode.subgraph !== null && <Combine className="size-3 shrink-0 text-fg-2" strokeWidth={2} aria-label="Subgraph" data-node-graph-card-subgraph={graphNode.subgraph} />}
-        <span className="truncate text-xs font-semibold text-fg">
+        <NodeGraphCardKindMark kind={graphNode.kind} />
+        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-fg">
           {graphNode.title}
         </span>
         {graphNode.type_name !== null && (
-          <span className="ml-auto shrink-0 text-[10.5px] text-fg-3" data-node-graph-card-type={graphNode.type_name}>
+          <span className="node-graph-card-type shrink-0 text-[10.5px]" data-node-graph-card-type={graphNode.type_name}>
             {graphNode.type_name}
           </span>
         )}
+        <NodeGraphCardLanguageTag kind={graphNode.kind} />
         <NodeGraphCardConditionTag condition={graphNode.condition} />
         {graphNode.is_collapsed && rows.filter((row) => takesASocket(row.node_pin)).map((row) => <Fragment key={`${row.side}:${row.node_pin.name}`}>{socketOfThePin(row.side, row.node_pin, false)}</Fragment>)}
       </div>
@@ -305,8 +308,8 @@ const NODE_GRAPH_CARD_PREVIEW_SCALE = 0.85;
 /** The narrowest a card's preview is drawn, which a popover drawing one beside itself keeps room for. */
 export const NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX = Math.ceil(NODE_GRAPH_CARD_WIDTHS_PX.narrowest * NODE_GRAPH_CARD_PREVIEW_SCALE);
 
-/** A node's card as the graph would draw it once placed, smaller and outside any canvas: its name on the header and a row per pin, none linked. */
-export function NodeGraphCardPreview({ title, inputs, outputs }: { title: string; inputs: readonly NodePin[]; outputs: readonly NodePin[] }) {
+/** A node's card as the graph would draw it once placed, smaller and outside any canvas: its name and kind on the header and a row per pin, none linked. */
+export function NodeGraphCardPreview({ title, kind, inputs, outputs }: { title: string; kind: NodeGraphCardKind; inputs: readonly NodePin[]; outputs: readonly NodePin[] }) {
   return (
     <div
       className={cn(NODE_GRAPH_CARD_CLASS_NAMES, "w-max")}
@@ -315,7 +318,7 @@ export function NodeGraphCardPreview({ title, inputs, outputs }: { title: string
       data-node-graph-card-preview={title}
     >
       <NodeGraphCardHeaderAndPinRows
-        graphNode={{ title, type_name: null, description: null, condition: { look: "healthy" }, inputs, outputs, is_collapsed: false, subgraph: null }}
+        graphNode={{ title, type_name: null, description: null, condition: { look: "healthy" }, inputs, outputs, is_collapsed: false, kind }}
         socketOfThePin={(side, pin) => <span aria-hidden className="node-graph-pin node-graph-pin-of-a-preview" data-side={side} {...socketLookAttributes(pin.pin)} />}
       />
     </div>

@@ -9,6 +9,7 @@ import type {
   NodeGraphCanvasNode,
   NodeGraphCanvasNote,
   NodeGraphCardCondition,
+  NodeGraphCardKind,
   NodeGraphLinkLook,
 } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
 import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
@@ -102,15 +103,36 @@ function canvasLinkOf(link: StreamGraphLink, condition: StreamCondition | null):
   };
 }
 
-/** The quiet type beside a card's title: a subgraph's kind (a generated one by its generator), or a node's type when its name is the one the code gave. */
+/** The quiet type beside a card's title: a generated subgraph's generator, or a node's type when its name is the one the code gave; none on a placed stream, whose header's mark already says it. */
 function typeNameOnTheCard(node: StreamGraphNode): string | null {
   if (fragmentOfTheNode(node) !== null)
     return fragmentKindOfTheNode(node) === "placed_stream"
-      ? "Subgraph"
+      ? null
       : nodeTypeClassName(node.type);
   return isANameTheCodeGave(node.name, node.type)
     ? nodeTypeClassName(node.type)
     : null;
+}
+
+/**
+ * What kind of node `node`'s card shows: a subgraph by how it came to be, any other node by how the runtime says its code
+ * runs, with a function's language; `unknown` where the runtime names no kind, as for a type nothing registers.
+ */
+function cardKindOf(node: StreamGraphNode): NodeGraphCardKind {
+  if (fragmentOfTheNode(node) !== null)
+    return { look: fragmentKindOfTheNode(node) === "placed_stream" ? "placed_stream" : "subgraph" };
+  switch (node.kind) {
+    case "process":
+    case "shader":
+      return { look: node.kind };
+    case "function":
+      return { look: "function", language: node.language ?? null };
+    case "fragment":
+      return { look: "subgraph" };
+    case undefined:
+    case null:
+      return { look: "unknown" };
+  }
 }
 
 /** Whether `a` and `b` hold the same values; it compares JSON-shaped data only (plain objects, arrays and primitives), as a `NodeGraphCanvasNode` is. */
@@ -193,6 +215,7 @@ export function streamGraphCanvasContents(
         is_collapsed: studio.collapsed === true,
         subgraph:
           fragmentOfTheNode(node) === null ? null : fragmentKindOfTheNode(node),
+        kind: cardKindOf(node),
       });
     }),
     links: graph.links.map((link) => canvasLinkOf(link, condition)),

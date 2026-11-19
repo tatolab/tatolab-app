@@ -146,6 +146,7 @@ export function mockStreamGraphOf(listing: ListedStream, machineName: string, gr
         id: mockGraphNodeIdOf(streamId, node),
         type: node.type,
         kind: mockGraphNodeKindOf(node),
+        ...(node.language === undefined ? {} : { language: node.language }),
         name: node.name,
         config: node.config,
         pins: node.pins ?? {},

@@ -6,7 +6,7 @@ import { NodeGraphCanvas } from "./node_graph_canvas";
 import { NodeGraphCardPreview, NodeGraphPinMark } from "./node_graph/node_card";
 import { NodeGraphLinkView } from "./node_graph_link_view";
 import type { NodePin } from "../pin_model/node_pins";
-import type { NodeGraphCanvasEditing, NodeGraphCanvasNode } from "./support/node_graph_canvas_contract";
+import type { NodeGraphCanvasEditing, NodeGraphCanvasNode, NodeGraphCardKind } from "./support/node_graph_canvas_contract";
 
 afterEach(cleanup);
 
@@ -38,6 +38,7 @@ function card(nodeId: string, isCollapsed: boolean): NodeGraphCanvasNode {
     frame_id: FRAME_ID,
     is_collapsed: isCollapsed,
     subgraph: null,
+    kind: { look: "process" },
   };
 }
 
@@ -101,6 +102,36 @@ describe("the node graph canvas", () => {
       ["input:reset", "trigger", "trigger"],
     ]);
     expect(card.querySelector("[data-family]")).toBeNull();
+  });
+});
+
+describe("a card's header", () => {
+  it.each<[NodeGraphCardKind, string, string | null]>([
+    [{ look: "process" }, "Process node", null],
+    [{ look: "shader" }, "Shader node", null],
+    [{ look: "function", language: "python" }, "Function node in Python", "Python"],
+    [{ look: "function", language: "rust" }, "Function node in Rust", "Rust"],
+    [{ look: "function", language: null }, "Function node", null],
+    [{ look: "subgraph" }, "Subgraph", null],
+    [{ look: "placed_stream" }, "Placed stream", null],
+    [{ look: "unknown" }, "Kind not known", null],
+  ])("leads with the mark of a %o node, labelled %s, and names a function's language", async (kind, words, languageWords) => {
+    const { container } = render(
+      <NodeGraphCanvas label="Stream graph" nodes={[{ ...card("pattern", false), kind }]} links={[]} frames={[]} selectedNodeIds={[]} onNodesSelected={vi.fn()} editing={null} />,
+    );
+    const header = await vi.waitFor(() => container.querySelector<HTMLElement>('[data-node-graph-card="pattern"] .node-graph-card-header') ?? expect.unreachable("no card header"));
+    expect(header.getAttribute("data-kind")).toBe(kind.look);
+    const mark = header.querySelector(`[data-node-graph-card-kind="${kind.look}"]`) ?? expect.unreachable("no kind mark");
+    expect(mark.getAttribute("aria-label")).toBe(words);
+    expect(header.querySelector("[data-node-graph-card-language]")?.textContent ?? null).toBe(languageWords);
+  });
+
+  it("marks a collapsed card's header with its kind too", async () => {
+    const { container } = render(
+      <NodeGraphCanvas label="Stream graph" nodes={[{ ...card("pattern", true), kind: { look: "shader" } }]} links={[]} frames={[]} selectedNodeIds={[]} onNodesSelected={vi.fn()} editing={null} />,
+    );
+    const header = await vi.waitFor(() => container.querySelector<HTMLElement>('[data-node-graph-card="pattern"][data-collapsed] .node-graph-card-header') ?? expect.unreachable("no collapsed card header"));
+    expect(header.querySelector('[data-node-graph-card-kind="shader"]')).not.toBeNull();
   });
 });
 
@@ -444,13 +475,14 @@ describe("finding nodes in the graph", () => {
 });
 
 describe("a node's card previewed outside a canvas", () => {
-  it("draws the card's own header and pin rows, outputs first, with a socket per pin in its type's look", () => {
+  it("draws the card's own header with its kind and pin rows, outputs first, with a socket per pin in its type's look", () => {
     const previewPin = (name: string, pin: NodePin["pin"]): NodePin => ({ name, pin, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null });
     const texture = { pin_type: { type: "texture" }, flow: "stream" } as const;
-    const { container } = render(<NodeGraphCardPreview title="Halftone" inputs={[previewPin("frames", texture), previewPin("level", null)]} outputs={[previewPin("image", texture)]} />);
+    const { container } = render(<NodeGraphCardPreview title="Halftone" kind={{ look: "shader" }} inputs={[previewPin("frames", texture), previewPin("level", null)]} outputs={[previewPin("image", texture)]} />);
     const preview = container.querySelector<HTMLElement>('[data-node-graph-card-preview="Halftone"]') ?? expect.unreachable("no preview");
     expect(preview.classList.contains("node-graph-card")).toBe(true);
     expect(preview.querySelector(".node-graph-card-header")?.textContent).toBe("Halftone");
+    expect(preview.querySelector('.node-graph-card-header[data-kind="shader"] [data-node-graph-card-kind="shader"]')).not.toBeNull();
     expect([...preview.querySelectorAll("[data-node-graph-input-pin]")].map((pin) => pin.textContent)).toEqual(["frames", "level"]);
     expect([...preview.querySelectorAll("[data-node-graph-output-pin]")].map((pin) => pin.textContent)).toEqual(["image"]);
     expect([...preview.querySelectorAll(".node-graph-pin")].map((socket) => [socket.getAttribute("data-side"), socket.getAttribute("data-pin-type"), socket.getAttribute("data-pin-flow")])).toEqual([

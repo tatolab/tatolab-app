@@ -27,7 +27,25 @@ export interface NodeGraphCanvasNode {
   is_collapsed: boolean;
   /** How the subgraph it holds came to be, which a double-click steps inside; `null` for a node that holds none. */
   subgraph: NodeGraphSubgraphKind | null;
+  /** What kind of node it is, which its header shows by an icon and a colour. */
+  kind: NodeGraphCardKind;
 }
+
+/** The language a function node is written in, which its header names. */
+export type NodeGraphFunctionLanguage = "python" | "rust";
+
+/**
+ * What kind of node a card draws: how its code runs (a process, a shader or a function, with the function's language
+ * where it is known), a subgraph a generator made or a selection collapsed into, another stream placed by reference, or
+ * `unknown` where nothing says, as for a type no module registers.
+ */
+export type NodeGraphCardKind =
+  | { look: "process" }
+  | { look: "shader" }
+  | { look: "function"; language: NodeGraphFunctionLanguage | null }
+  | { look: "subgraph" }
+  | { look: "placed_stream" }
+  | { look: "unknown" };
 
 /** Whether a card's node type has code to open, and what opening it does, or why it has none in words a person reads. */
 export type NodeGraphCardCode = { kind: "opens"; onOpened: () => void } | { kind: "does_not_open"; because: string };

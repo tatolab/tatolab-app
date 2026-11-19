@@ -5,6 +5,7 @@
 
 import type { SearchPopoverNarrowing } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import type { SearchPopoverItem } from "@tatolab/tato-app-view-sdk/design_system/support/search_popover_rows";
+import type { NodeGraphCardKind } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
 import { exactPinOfTheDeclaredPort, type NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import {
   familyOfThePort,
@@ -131,9 +132,28 @@ function nodePinOfTheDescribedPort(port: NodeTypePortDescribed): NodePin {
   };
 }
 
-/** The card the search previews for the node type `searchItemId` names, as the graph draws that node once placed, with a pin for each input a wire reaches and no setting; `null` for an item that is no node type `offered` describes, as a graph generator. */
-export function nodeTypeSearchPreviewCard(offered: readonly NodeTypeOffered[], searchItemId: string): { title: string; inputs: NodePin[]; outputs: NodePin[] } | null {
+/** The kind a described node type's preview card shows: how its code runs, `unknown` where its declaration source does not say; a description names no function's language. */
+function previewCardKindOf(described: NodeTypeDescription): NodeGraphCardKind {
+  switch (described.kind) {
+    case "process":
+    case "shader":
+      return { look: described.kind };
+    case "function":
+      return { look: "function", language: null };
+    case undefined:
+    case null:
+      return { look: "unknown" };
+  }
+}
+
+/** The card the search previews for the node type `searchItemId` names, as the graph draws that node once placed, with its kind, a pin for each input a wire reaches and no setting; `null` for an item that is no node type `offered` describes, as a graph generator. */
+export function nodeTypeSearchPreviewCard(offered: readonly NodeTypeOffered[], searchItemId: string): { title: string; kind: NodeGraphCardKind; inputs: NodePin[]; outputs: NodePin[] } | null {
   const described = offered.find((nodeType) => nodeType.listed.node_type === searchItemId)?.described ?? null;
   if (described === null) return null;
-  return { title: nameInWords(nodeTypeClassName(described.node_type)), inputs: inputsAWireReaches(described).map(nodePinOfTheDescribedPort), outputs: described.outputs.map(nodePinOfTheDescribedPort) };
+  return {
+    title: nameInWords(nodeTypeClassName(described.node_type)),
+    kind: previewCardKindOf(described),
+    inputs: inputsAWireReaches(described).map(nodePinOfTheDescribedPort),
+    outputs: described.outputs.map(nodePinOfTheDescribedPort),
+  };
 }

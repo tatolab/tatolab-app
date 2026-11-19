@@ -369,7 +369,7 @@ describe("the studio", () => {
     await waitFor(() => expect(rowLabels().some((label) => label?.startsWith("Brightness Meter"))).toBe(true));
     const search = outliner().querySelector<HTMLInputElement>("[data-outliner-search]") ?? expect.unreachable("no search field in the Outliner's toolbar");
     fireEvent.change(search, { target: { value: "bright" } });
-    await waitFor(() => expect(rowLabels().slice(0, 2)).toEqual(["mainstream", "Brightness Meterprocess"]));
+    await waitFor(() => expect(rowLabels().slice(0, 2)).toEqual(["mainstream", "Brightness Meterfunction"]));
     expect(rowLabels().some((label) => label?.startsWith("Test Pattern Source"))).toBe(false);
     expect(outliner().querySelector("[data-matched-words]")?.textContent).toBe("Bright");
     fireEvent.change(search, { target: { value: "nothing-is-called-this" } });
