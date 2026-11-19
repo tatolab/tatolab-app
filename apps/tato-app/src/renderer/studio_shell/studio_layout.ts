@@ -1,7 +1,7 @@
 // The studio's one layout per project folder: its tree as the person shaped it, the edges they hid, and the presets they
 // saved, kept in the page's storage so a project reopens as it was left.
 
-import { studioAreaLayoutFromSaved, type StudioArea, type StudioAreaLayoutNode, type StudioAreaSplit } from "./studio_area_layout";
+import { layoutShowsTheViewType, studioAreaLayoutFromSaved, type StudioArea, type StudioAreaLayoutNode, type StudioAreaSplit } from "./studio_area_layout";
 import type { TatolabWindowLocalStorage } from "../tatolab_window_local_storage";
 import { NO_STUDIO_LAYOUT_EDGE_HIDDEN, type StudioLayoutEdgesHidden } from "./studio_layout_shapes";
 
@@ -36,6 +36,30 @@ export function defaultStudioLayout(): StudioAreaLayoutNode {
     [60, area("stream-graph", "stream_graph")],
     [22, split("main-right", "column", [[38, area("viewer", "viewer")], [62, area("properties", "properties")]])],
   ]);
+}
+
+/** The layout Studio ships for working on a project's code: its files left, Code with the project's log in the middle, and the stream graph over the Node visualizer on the right. */
+export function codeStudioLayout(): StudioAreaLayoutNode {
+  return split("code-columns", "row", [
+    [18, area("code-files", "files")],
+    [52, area("code", "code")],
+    [30, split("code-right", "column", [[45, area("code-stream-graph", "stream_graph")], [55, area("code-viewer", "viewer")]])],
+  ]);
+}
+
+/** A layout that ships with Studio, which Window › Layout offers beside the shapes and opening a view it shows can switch to. */
+export interface StudioLayoutShipped {
+  layout_id: "code";
+  title: string;
+  layout: StudioAreaLayoutNode;
+}
+
+/** The layouts Studio ships, in the layout menu's order. */
+export const STUDIO_LAYOUTS_SHIPPED: readonly StudioLayoutShipped[] = [{ layout_id: "code", title: "Code", layout: codeStudioLayout() }];
+
+/** The first layout Studio ships that shows `viewTypeId`, or `null` when none does. */
+export function shippedStudioLayoutShowing(viewTypeId: string): StudioLayoutShipped | null {
+  return STUDIO_LAYOUTS_SHIPPED.find(({ layout }) => layoutShowsTheViewType(layout, viewTypeId)) ?? null;
 }
 
 /** `saved`'s field `fieldName`, or `undefined` when `saved` is not an object or has none. */

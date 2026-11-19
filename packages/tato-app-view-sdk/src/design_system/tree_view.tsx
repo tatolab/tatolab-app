@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { ChevronRight, Lock } from "lucide-react";
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { RightClickMenu } from "./menus";
 import { studioIconNamed, type StudioIconName } from "./support/studio_icons";
 import { MatchedWords } from "./matched_words";
 
@@ -100,7 +101,8 @@ export type TreeRowPick = "alone" | "toggled" | "extended";
  * A tree of rows, each at its depth with guide lines down its parents' depths and a connector from its parent's line: a click selects a row, ⌘ or ⇧ with it
  * adds rows where the tree selects several, and its chevron opens or closes it; from the keyboard the arrows, Home and
  * End move the selection, Right and Left open and close a row or move to its first child or its parent, and Enter
- * activates it; where the tree selects several, ⇧ with Up or Down extends the selection and Space toggles the focused row.
+ * activates it; where the tree selects several, ⇧ with Up or Down extends the selection and Space toggles the focused row. A
+ * right-click on a row opens the choices `rightClickChoicesOfRow` gives it, where it gives any.
  */
 export function TreeView({
   label,
@@ -111,6 +113,7 @@ export function TreeView({
   onRowActivated,
   onExpansionToggled,
   columnHeadings,
+  rightClickChoicesOfRow,
 }: {
   label: string;
   /** The rows that show, in order: a collapsed row's rows are left out. */
@@ -124,6 +127,8 @@ export function TreeView({
   onExpansionToggled: (rowId: string, expand: boolean) => void;
   /** Headings over the label and aside columns, held at the top as the tree scrolls; left out, the tree shows none. */
   columnHeadings?: TreeViewColumnHeadings;
+  /** What a right-click on the row `rowId` offers; `null`, or left out, for a row a right-click offers nothing on. */
+  rightClickChoicesOfRow?: (rowId: string) => ReactNode | null;
 }) {
   const treeElement = useRef<HTMLDivElement>(null);
   const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
@@ -178,7 +183,8 @@ export function TreeView({
         const RowIcon = studioIconNamed(row.icon);
         const isSelected = row.row_id === selectedRowId || alsoSelectedRowIds?.has(row.row_id) === true;
         const isCurrent = row.isCurrent === true;
-        return (
+        const rightClickChoices = rightClickChoicesOfRow?.(row.row_id) ?? null;
+        const rowElement = (
           <div
             key={row.row_id}
             role="treeitem"
@@ -240,6 +246,12 @@ export function TreeView({
               {row.isReadOnly === true && <Lock className="size-[11px]" strokeWidth={1.75} role="img" aria-label="Read only" />}
             </span>
           </div>
+        );
+        if (rightClickChoices === null) return rowElement;
+        return (
+          <RightClickMenu key={row.row_id} label={`${row.label}: what to do`} choices={rightClickChoices}>
+            {rowElement}
+          </RightClickMenu>
         );
       })}
     </div>

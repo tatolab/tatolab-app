@@ -277,6 +277,27 @@ export function RightClickMenuItem({
   );
 }
 
+/** A right-click menu row for something that cannot be chosen here, drawn as a disabled choice, then a note saying why that the row is described by. */
+export function RightClickMenuItemThatCannotBeChosen({
+  icon: ItemIcon,
+  whyItCannotBeChosen,
+  children,
+  ...controlDataAttributes
+}: { icon?: LucideIcon; whyItCannotBeChosen: ReactNode; children: ReactNode } & ControlDataAttributes) {
+  const idOfTheNoteSayingWhy = useId();
+  return (
+    <>
+      <ContextMenuItem disabled aria-describedby={idOfTheNoteSayingWhy} className={MENU_ITEM_CLASS_NAMES} {...controlDataAttributes}>
+        {ItemIcon !== undefined && <ItemIcon className={MENU_ITEM_ICON_CLASS_NAMES} strokeWidth={1.75} aria-hidden />}
+        {children}
+      </ContextMenuItem>
+      <p id={idOfTheNoteSayingWhy} className={MENU_NOTE_CLASS_NAMES}>
+        {whyItCannotBeChosen}
+      </p>
+    </>
+  );
+}
+
 /** A choice of a right-click menu that opens its own menu of `children` beside it. */
 export function RightClickSubmenu({ label, icon: ItemIcon, children, ...controlDataAttributes }: { label: string; icon?: LucideIcon; children: ReactNode } & ControlDataAttributes) {
   return (

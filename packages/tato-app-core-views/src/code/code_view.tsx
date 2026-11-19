@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
 import { CodeFileTabStrip, type OpenableCodeFileGroup } from "@tatolab/tato-app-view-sdk/design_system/code_file_tab_strip";
-import { CodeTextEditor, forgetCodeEditorDocument } from "@tatolab/tato-app-view-sdk/design_system/code_text_editor";
+import { CodeTextEditor, forgetCodeEditorDocument, type CodeTextEditorLineAskedFor } from "@tatolab/tato-app-view-sdk/design_system/code_text_editor";
 import { codeEditorLanguageOfFile } from "@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_types";
 import { LogRecordLines } from "@tatolab/tato-app-view-sdk/design_system/log_record_lines";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
@@ -25,6 +25,11 @@ import { hasEditsNotSaved, OpenCodeDocuments, type CodeEditsNotSaved, type CodeE
 
 /** The issue that names the file a node's class is defined in, which opening a node's code waits on. */
 const OPENING_A_NODES_FILE_WAITS_ON = "tatolab/streamlib#2918";
+
+/** The line of `file` an opening of the area asked to be brought into view. */
+interface LineOfAFileAskedFor extends CodeTextEditorLineAskedFor {
+  file: string;
+}
 
 /** Keeps with the area the settings `change` makes of the latest ones, showing why when Studio refuses them. */
 type RememberTheCodeSettings = (change: (settings: CodeViewSettings) => CodeViewSettings) => void;
@@ -178,7 +183,7 @@ function CodeDocumentNoticeRow({ documents, document }: { documents: OpenCodeDoc
   );
 }
 
-function ShownCodeDocument({ documents, file }: { documents: OpenCodeDocuments; file: string }) {
+function ShownCodeDocument({ documents, file, lineAskedFor }: { documents: OpenCodeDocuments; file: string; lineAskedFor: LineOfAFileAskedFor | null }) {
   const document = documents.documentOf(file);
   useEffect(() => {
     documents.open(file);
@@ -202,6 +207,7 @@ function ShownCodeDocument({ documents, file }: { documents: OpenCodeDocuments; 
         languageHelp={document.language_help}
         onTextEdited={onTextEdited}
         onSaveAsked={onSaveAsked}
+        lineBroughtIntoView={lineAskedFor?.file === file ? lineAskedFor : null}
         data-code-text-editor={file}
       />
       {document.language_server_ended_because !== null && (
@@ -236,11 +242,13 @@ function CodeAreaBody({
   documents,
   settings,
   rememberTheSettings,
+  lineAskedFor,
 }: {
   connection: TatoAppViewConnection;
   documents: OpenCodeDocuments;
   settings: CodeViewSettings;
   rememberTheSettings: RememberTheCodeSettings;
+  lineAskedFor: LineOfAFileAskedFor | null;
 }) {
   const openProject = useViewReading(connection.watchOpenProject);
   const shownDocument = settings.shown_file === null ? undefined : documents.documentOf(settings.shown_file);
@@ -256,7 +264,7 @@ function CodeAreaBody({
         data-code-document-state="none_open"
       />
     ) : (
-      <ShownCodeDocument documents={documents} file={settings.shown_file} />
+      <ShownCodeDocument documents={documents} file={settings.shown_file} lineAskedFor={lineAskedFor} />
     );
   if (!settings.logs_shown || loggedProjectFolder === null) return <div className="flex min-h-0 flex-1 flex-col">{code}</div>;
   return (
@@ -275,14 +283,22 @@ function CodeAreaBody({
   );
 }
 
-/** Shows the file each opening of the area names, once: an opening the area took before, heard again as its frame loads again, is left as the person left the tabs. */
-function useTheFileTheAreaIsOpenedOn(connection: TatoAppViewConnection, rememberTheSettings: RememberTheCodeSettings): void {
+/**
+ * Shows the file each opening of the area names, once, and the line it names, which it answers: an opening the area took
+ * before, heard again as its frame loads again, is left as the person left the tabs and asks for no line.
+ */
+function useTheFileTheAreaIsOpenedOn(connection: TatoAppViewConnection, settings: CodeViewSettings, rememberTheSettings: RememberTheCodeSettings): LineOfAFileAskedFor | null {
   const openedOn = useViewReading(connection.watchOpenedOn);
+  const [lineAskedFor, setLineAskedFor] = useState<LineOfAFileAskedFor | null>(null);
+  const openingTakenBefore = useRef(settings.opening_taken);
   useEffect(() => {
-    if (openedOn?.kind !== "file") return;
-    const { file, opening_id: openingId } = openedOn;
-    rememberTheSettings((settings) => (settings.opening_taken === openingId ? settings : { ...withTheFileShown(settings, file), opening_taken: openingId }));
+    if (openedOn?.kind !== "file" || openedOn.opening_id === openingTakenBefore.current) return;
+    const { file, line, opening_id: openingId } = openedOn;
+    openingTakenBefore.current = openingId;
+    rememberTheSettings((latest) => (latest.opening_taken === openingId ? latest : { ...withTheFileShown(latest, file), opening_taken: openingId }));
+    setLineAskedFor(line === undefined ? null : { file, line, asked_id: openingId });
   }, [openedOn, rememberTheSettings]);
+  return lineAskedFor;
 }
 
 function CodeOfTheArea({ connection, settings }: { connection: TatoAppViewConnection; settings: CodeViewSettings }) {
@@ -302,11 +318,11 @@ function CodeOfTheArea({ connection, settings }: { connection: TatoAppViewConnec
     },
     [connection, showTheRefusalOf],
   );
-  useTheFileTheAreaIsOpenedOn(connection, rememberTheSettings);
+  const lineAskedFor = useTheFileTheAreaIsOpenedOn(connection, settings, rememberTheSettings);
   return (
     <CoreViewFrame connection={connection} toolbarLabel="Code tools" toolbarTools={<CodeAreaToolbarTools connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} />}>
       <RefusalOfTheLatestAskBar refusal={settingsRefusal} />
-      <CodeAreaBody connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} />
+      <CodeAreaBody connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} lineAskedFor={lineAskedFor} />
     </CoreViewFrame>
   );
 }

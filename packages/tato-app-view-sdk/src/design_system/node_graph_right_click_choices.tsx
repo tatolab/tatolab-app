@@ -1,7 +1,7 @@
-import { ChevronDown, ChevronRight, Combine, Frame, Palette, Pencil, Pipette, Plus, Scan, StickyNote, Text, Trash2, Ungroup } from "lucide-react";
-import { RightClickMenuItem, RightClickMenuSeparator, RightClickMenuSingleChoiceGroup, RightClickSubmenu } from "./menus";
+import { ChevronDown, ChevronRight, Code, Combine, Frame, Palette, Pencil, Pipette, Plus, Scan, StickyNote, Text, Trash2, Ungroup } from "lucide-react";
+import { RightClickMenuItem, RightClickMenuItemThatCannotBeChosen, RightClickMenuSeparator, RightClickMenuSingleChoiceGroup, RightClickSubmenu } from "./menus";
 import { useContext } from "react";
-import { type NodeGraphCanvasNode, type NodeGraphCanvasFrame, NODE_GRAPH_FRAME_COLOURS, type NodeGraphCanvasPoint, type NodeGraphCanvasEditing } from "./support/node_graph_canvas_contract";
+import { type NodeGraphCanvasNode, type NodeGraphCanvasFrame, NODE_GRAPH_FRAME_COLOURS, type NodeGraphCanvasPoint, type NodeGraphCanvasEditing, type NodeGraphCardCode } from "./support/node_graph_canvas_contract";
 import { type NodeGraphFrameWordsFieldName, NodeGraphFrameColoursUsedContext } from "./support/node_graph_flow_elements";
 
 /** What a right-click on the canvas landed on: the canvas itself at a point, a card, a link or a note. */
@@ -73,6 +73,7 @@ export function NodeGraphRightClickChoices({
   onDeleteTheSelection,
   onFrameTheWholeGraph,
   onSubgraphOpened,
+  codeOfTheCard,
 }: {
   rightClicked: NodeGraphRightClicked;
   /** The card right-clicked, when it was one. */
@@ -84,6 +85,8 @@ export function NodeGraphRightClickChoices({
   onDeleteTheSelection: () => void;
   onFrameTheWholeGraph: () => void;
   onSubgraphOpened: ((nodeId: string) => void) | null;
+  /** Whether the card right-clicked has code to open; `null` offers no Edit code. */
+  codeOfTheCard: NodeGraphCardCode | null;
 }) {
   const frameTheWholeGraphChoice = (
     <RightClickMenuItem icon={Scan} onChosen={onFrameTheWholeGraph} data-node-graph-choice="frame_all">
@@ -131,9 +134,19 @@ export function NodeGraphRightClickChoices({
           Step inside
         </RightClickMenuItem>
       )}
+      {codeOfTheCard?.kind === "opens" && (
+        <RightClickMenuItem icon={Code} onChosen={codeOfTheCard.onOpened} data-node-graph-choice="edit_code">
+          Edit code
+        </RightClickMenuItem>
+      )}
+      {codeOfTheCard?.kind === "does_not_open" && (
+        <RightClickMenuItemThatCannotBeChosen icon={Code} whyItCannotBeChosen={codeOfTheCard.because} data-node-graph-choice="edit_code">
+          Edit code
+        </RightClickMenuItemThatCannotBeChosen>
+      )}
       {editing !== null && graphNode !== null && (
         <>
-          {isASubgraph && <RightClickMenuSeparator />}
+          {(isASubgraph || codeOfTheCard !== null) && <RightClickMenuSeparator />}
           <RightClickMenuItem icon={Frame} shortcutHint="F" onChosen={onFrameTheSelection} data-node-graph-choice="frame_selection">
             Frame {selectionWords}
           </RightClickMenuItem>
@@ -153,7 +166,12 @@ export function NodeGraphRightClickChoices({
           </RightClickMenuItem>
         </>
       )}
-      {editing === null && !isASubgraph && frameTheWholeGraphChoice}
+      {editing === null && !isASubgraph && (
+        <>
+          {codeOfTheCard !== null && <RightClickMenuSeparator />}
+          {frameTheWholeGraphChoice}
+        </>
+      )}
     </>
   );
 }

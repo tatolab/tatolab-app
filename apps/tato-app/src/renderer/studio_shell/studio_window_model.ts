@@ -15,7 +15,7 @@ import { WatchedStudioValue } from "../view_host/watched_studio_value";
 import { ProjectAssetPickHeldInTheWindow } from "../view_host/project_asset_pick_held_in_the_window";
 import type { JsonValue, ListedStreamsReading, StopWatching, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
 import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, type StudioAreaLayoutNode } from "./studio_area_layout";
-import type { StudioLayoutKeptInStorage, StudioLayoutOfAFolder } from "./studio_layout";
+import { shippedStudioLayoutShowing, STUDIO_LAYOUTS_SHIPPED, type StudioLayoutKeptInStorage, type StudioLayoutOfAFolder, type StudioLayoutShipped } from "./studio_layout";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
 import { NO_STUDIO_LAYOUT_EDGE_HIDDEN, studioLayoutShapedAs, studioLayoutWithEdgesHidden, studioLayoutWithShownSplitSizes, type StudioLayoutEdge, type StudioLayoutShape } from "./studio_layout_shapes";
 import { showViewTypeInAreaOf, watchAreasForTheViewType, type StudioViewTypeAreaSources } from "./studio_view_type_areas";
@@ -220,12 +220,14 @@ export class StudioWindowModel {
     this.selection.publish(pin.selection);
   }
 
-  /** Open views of `viewTypeId` on `on`, in each area of the layout that shows that type. */
+  /** Open views of `viewTypeId` on `on`, in each area of the layout that shows that type; where none shows it, the window switches to the layout Studio ships that does. */
   openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening {
     if (this.poppedOutView.readLatest() !== null) return { kind: "not_opened", because: "A popped-out view's window shows that view alone. Open it from the project's studio window." };
     const studioLayout = this.studioLayout.readLatest();
     if (studioLayout !== null && !layoutShowsTheViewType(studioLayoutWithEdgesHidden(studioLayout.layout, studioLayout.edges_hidden), viewTypeId)) {
-      return { kind: "not_opened", because: `No area shows ${viewTypeId}. Choose it in an area's view menu, then open it again.` };
+      const shippedLayout = shippedStudioLayoutShowing(viewTypeId);
+      if (shippedLayout === null) return { kind: "not_opened", because: `No area shows ${viewTypeId}. Choose it in an area's view menu, then open it again.` };
+      this.applyTheShippedLayout(shippedLayout.layout_id);
     }
     const opening: ViewOpenedOnAsked = { on, opening_id: crypto.randomUUID() };
     this.viewsOpenedOn.publish({ ...this.viewsOpenedOn.readLatest(), [viewTypeId]: opening });
@@ -419,6 +421,14 @@ export class StudioWindowModel {
     this.expandedAreaId.publish(null);
     this.changeTheLayout((studioLayout) => ({ ...studioLayout, layout: preset.layout, edges_hidden: NO_STUDIO_LAYOUT_EDGE_HIDDEN }));
     return true;
+  }
+
+  /** Lay the window out as the layout Studio ships as `layoutId`, every edge shown. */
+  applyTheShippedLayout(layoutId: StudioLayoutShipped["layout_id"]): void {
+    const shippedLayout = STUDIO_LAYOUTS_SHIPPED.find((shipped) => shipped.layout_id === layoutId);
+    if (shippedLayout === undefined) return;
+    this.expandedAreaId.publish(null);
+    this.changeTheLayout((studioLayout) => ({ ...studioLayout, layout: shippedLayout.layout, edges_hidden: NO_STUDIO_LAYOUT_EDGE_HIDDEN }));
   }
 
   /** Save the layout, as it shows, as a preset named `title`, after the ones saved before. */

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ListedStream, TatolabStatus } from "../../shared/tatolab_backend_contract";
-import { StudioLayoutKeptInStorage } from "./studio_layout";
+import type { StudioAreaLayoutNode } from "./studio_area_layout";
+import { codeStudioLayout, StudioLayoutKeptInStorage } from "./studio_layout";
 import { StudioWindowModel } from "./studio_window_model";
 
 const SHEET_CHECK_FOLDER = "/Users/someone/Documents/Tato Studio/Sheet Check";
@@ -53,6 +54,10 @@ function studioWindowModelOpenOnSheetCheck(): StudioWindowModel {
     open_project: { project: { name: "sheet-check", folder: SHEET_CHECK_FOLDER, project: "5b2e8f14-7c3a-4d90-a6e1-0f9c3b7d2e58" }, imports: [], imports_not_listed_because: null },
   });
   return studioWindowModel;
+}
+
+function areaViewTypesOf(layout: StudioAreaLayoutNode): (string | null)[] {
+  return layout.kind === "area" ? [layout.view_type_id] : layout.parts.flatMap(({ part }) => areaViewTypesOf(part));
 }
 
 const MAIN_RUNNING = listedStream("sheet-check-main-14aec5", SHEET_CHECK_FOLDER, "main", "running");
@@ -305,5 +310,44 @@ describe("a failure of the open project's latest stream action", () => {
     const reloadThatFailed = { ...OPEN_THAT_FAILED, action: "Rvxjb0uiacgp6c3o13o9qvzj1-3", kind: "load" };
     studioWindowModel.showStatus(withTheFailures([reloadThatFailed]));
     expect(studioWindowModel.openProjectStreamActionFailureRaised.readLatest()).toEqual(reloadThatFailed);
+  });
+});
+
+describe("opening a view on a file", () => {
+  const nodeFile = { kind: "file" as const, file: `${SHEET_CHECK_FOLDER}/nodes/paint_ball.py`, line: 12 };
+  const viewTypesShown = (studioWindowModel: StudioWindowModel) => {
+    const studioLayout = studioWindowModel.studioLayout.readLatest();
+    return studioLayout === null ? [] : areaViewTypesOf(studioLayout.layout);
+  };
+
+  it("switches a layout that shows no Code area to the Code layout Studio ships, and opens Code on the file at its line", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    expect(viewTypesShown(studioWindowModel)).not.toContain("code");
+    expect(studioWindowModel.openView("code", nodeFile)).toEqual({ kind: "opened" });
+    expect(studioWindowModel.studioLayout.readLatest()?.layout).toEqual(codeStudioLayout());
+    expect(viewTypesShown(studioWindowModel)).toEqual(["files", "code", "stream_graph", "viewer"]);
+    expect(studioWindowModel.viewsOpenedOn.readLatest().code?.on).toEqual(nodeFile);
+  });
+
+  it("keeps a layout that shows a Code area as it is", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    studioWindowModel.showViewTypeInArea("properties", "code");
+    const layoutShowingCode = studioWindowModel.studioLayout.readLatest()?.layout;
+    expect(studioWindowModel.openView("code", nodeFile)).toEqual({ kind: "opened" });
+    expect(studioWindowModel.studioLayout.readLatest()?.layout).toEqual(layoutShowingCode);
+  });
+
+  it("switches a layout whose Code area is hidden at an edge, which shows no Code", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    studioWindowModel.showViewTypeInArea("properties", "code");
+    studioWindowModel.toggleTheLayoutsEdge("right");
+    expect(studioWindowModel.openView("code", nodeFile)).toEqual({ kind: "opened" });
+    expect(studioWindowModel.studioLayout.readLatest()).toMatchObject({ layout: codeStudioLayout(), edges_hidden: { left: false, bottom: false, right: false } });
+  });
+
+  it("refuses a view type no layout Studio ships shows, naming how to show it", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    expect(studioWindowModel.openView("acme-dj:deck", nodeFile)).toEqual({ kind: "not_opened", because: "No area shows acme-dj:deck. Choose it in an area's view menu, then open it again." });
+    expect(studioWindowModel.viewsOpenedOn.readLatest()["acme-dj:deck"]).toBeUndefined();
   });
 });

@@ -37,15 +37,24 @@ export interface CodeTextEditorProps extends ControlDataAttributes {
   onTextEdited(text: string): void;
   /** ⌘S on macOS, Ctrl+S on Linux. */
   onSaveAsked(): void;
+  /** The line to bring to the middle and put the cursor on, once for each `asked_id`; `null` or left out brings none. */
+  lineBroughtIntoView?: CodeTextEditorLineAskedFor | null;
+}
+
+/** A line of the document asked to be brought into view, by the ask's own id, so the same line asked again is a new ask. */
+export interface CodeTextEditorLineAskedFor {
+  line: number;
+  asked_id: string;
 }
 
 /** A document's text in Monaco, coloured, marked with its diagnostics, completing and describing symbols through `languageHelp`. */
-export function CodeTextEditor({ documentKey, language, text, isReadOnly, diagnostics, languageHelp, onTextEdited, onSaveAsked, ...controlDataAttributes }: CodeTextEditorProps) {
+export function CodeTextEditor({ documentKey, language, text, isReadOnly, diagnostics, languageHelp, onTextEdited, onSaveAsked, lineBroughtIntoView = null, ...controlDataAttributes }: CodeTextEditorProps) {
   const editorHostRef = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState<{ monacoModule: CodeTextEditorMonaco; editor: import("./support/code_text_editor_monaco").monaco.editor.IStandaloneCodeEditor } | null>(null);
   const [loadFailure, setLoadFailure] = useState<string | null>(null);
   const latestCallbacks = useRef({ onTextEdited, onSaveAsked });
   const isTakingTheOwnersText = useRef(false);
+  const lineAskBroughtIntoView = useRef<string | null>(null);
   useLayoutEffect(() => {
     latestCallbacks.current = { onTextEdited, onSaveAsked };
   });
@@ -116,6 +125,16 @@ export function CodeTextEditor({ documentKey, language, text, isReadOnly, diagno
     }
     if (loaded.editor.getModel() !== model) loaded.editor.setModel(model);
   }, [loaded, documentKey, language, text]);
+
+  useEffect(() => {
+    if (loaded === null || lineBroughtIntoView === null || lineAskBroughtIntoView.current === lineBroughtIntoView.asked_id) return;
+    const model = loaded.editor.getModel();
+    if (model === null || model.uri.toString() !== loaded.monacoModule.monaco.Uri.file(documentKey).toString()) return;
+    lineAskBroughtIntoView.current = lineBroughtIntoView.asked_id;
+    const lineNumber = Math.min(Math.max(1, Math.round(lineBroughtIntoView.line)), model.getLineCount());
+    loaded.editor.setPosition({ lineNumber, column: model.getLineFirstNonWhitespaceColumn(lineNumber) || 1 });
+    loaded.editor.revealLineInCenter(lineNumber);
+  }, [loaded, documentKey, text, lineBroughtIntoView]);
 
   useEffect(() => {
     loaded?.editor.updateOptions({ readOnly: isReadOnly, readOnlyMessage: { value: "This file belongs to an imported project, which the studio opens read-only." } });

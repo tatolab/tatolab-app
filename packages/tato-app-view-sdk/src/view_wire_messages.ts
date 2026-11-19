@@ -118,8 +118,8 @@ export type ViewWatchedSubject =
   /** The asset pick the view is shown in Studio's asset picker to answer; `null` for a view shown anywhere else. */
   | { kind: "project_asset_pick" };
 
-/** A file of the open project or its imports, or a running node's output port, that a view of some type is opened on. */
-export type ViewOpeningTarget = { kind: "file"; file: string } | { kind: "port"; target: PortViewerTarget };
+/** A file of the open project or its imports, at its line `line` when one is named, or a running node's output port, that a view of some type is opened on. */
+export type ViewOpeningTarget = { kind: "file"; file: string; line?: number } | { kind: "port"; target: PortViewerTarget };
 
 /** What a view may ask Studio to do; an output's payload travels beside the ask in the same message. */
 export type ViewAsk =

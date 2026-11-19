@@ -27,7 +27,7 @@ import { nodesTheSelectionHolds, nodesTheSelectionHoldsInTheStream, selectionOfT
 /** What a row stands for, so choosing it selects or opens the right thing. */
 export type OutlinerRowMeaning =
   | { kind: "stream"; stream: string; display_name: string; project_name: string; project_folder: string }
-  | { kind: "node"; stream: string; node: string; display_name: string; project_name: string }
+  | { kind: "node"; stream: string; node: string; node_type: string; display_name: string; project_name: string }
   | { kind: "nothing_to_select" };
 
 /** A row of the outliner and what it stands for. */
@@ -154,7 +154,7 @@ function graphNodeRow(stream: ListedStream, projectName: string, node: StreamGra
       ...nodeRowCondition(node, stream.condition),
       aside: outlinerTypeOfTheNode(node),
     },
-    meaning: { kind: "node", stream: stream.stream, node: node.name, display_name: stream.display_name, project_name: projectName },
+    meaning: { kind: "node", stream: stream.stream, node: node.name, node_type: node.type, display_name: stream.display_name, project_name: projectName },
     isOpenByDefault: false,
     children: [],
   };

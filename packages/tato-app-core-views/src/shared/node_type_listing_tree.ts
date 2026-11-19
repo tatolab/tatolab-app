@@ -106,10 +106,15 @@ export function whereTheModuleStoppedTheParser(unreadableModule: NodeModuleNotRe
   return `${unreadableModule.path}${line}${column}`;
 }
 
+/** `relativePath` under the folder `folder`, as one absolute path. */
+export function fileUnderTheFolder(folder: string, relativePath: string): string {
+  return `${folder.replace(/\/+$/, "")}/${relativePath.replace(/^\/+/, "")}`;
+}
+
 /** `relativePath` under `projectDirectory`, for the project's own source; `null` for any other, whose files are not the project's to open. */
 function declaringFileOf(source: NodeTypeSourceListed, projectDirectory: string, relativePath: string | null): string | null {
   if (source.source !== "project" || relativePath === null) return null;
-  return `${projectDirectory.replace(/\/+$/, "")}/${relativePath}`;
+  return fileUnderTheFolder(projectDirectory, relativePath);
 }
 
 function compareByText(left: string, right: string): number {

@@ -30,6 +30,9 @@ export interface NodeGraphCanvasNode {
   subgraph: NodeGraphSubgraphKind | null;
 }
 
+/** Whether a card's node type has code to open, and what opening it does, or why it has none in words a person reads. */
+export type NodeGraphCardCode = { kind: "opens"; onOpened: () => void } | { kind: "does_not_open"; because: string };
+
 /** How a subgraph came to be: a graph generator's read-only output, a collapsed selection, or another stream placed by reference. */
 export type NodeGraphSubgraphKind = "generated" | "placed_stream";
 

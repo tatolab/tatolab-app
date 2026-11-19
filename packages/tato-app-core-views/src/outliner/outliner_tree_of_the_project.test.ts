@@ -157,7 +157,7 @@ describe("the outliner's tree", () => {
     const halftone = rows.find(({ row }) => row.label === "Halftone");
     expect([halftone?.row.icon, halftone?.row.tone]).toEqual(["failed", "failed"]);
     expect(halftone?.row.row_id).toBe("node:lobby_wall-id/Halftone");
-    expect(halftone?.meaning).toEqual({ kind: "node", stream: "lobby_wall-id", node: "Halftone", display_name: "lobby_wall", project_name: "studio" });
+    expect(halftone?.meaning).toEqual({ kind: "node", stream: "lobby_wall-id", node: "Halftone", node_type: "lens.nodes:HalftoneLensEffect", display_name: "lobby_wall", project_name: "studio" });
     expect(rows[0]?.meaning).toEqual({ kind: "stream", stream: "lobby_wall-id", display_name: "lobby_wall", project_name: "studio", project_folder: "/w/studio" });
     expect(outlinerRowIdsOfTheSelection({ kind: "node", stream: "lobby_wall-id", node: "Halftone" })).toEqual({ picked_last: "node:lobby_wall-id/Halftone", all: new Set(["node:lobby_wall-id/Halftone"]) });
     expect(outlinerRowIdsOfTheSelection({ kind: "nodes", stream: "lobby_wall-id", nodes: ["display", "Halftone"] })).toEqual({
@@ -215,7 +215,7 @@ describe("the outliner's tree", () => {
       ["Display", "graph_node", "plain"],
       ["stray", "graph_node", "plain"],
     ]);
-    expect(rows.find(({ row }) => row.label === "Display")?.meaning).toEqual({ kind: "node", stream: "lobby_wall-id", node: "display", display_name: "lobby_wall", project_name: "studio" });
+    expect(rows.find(({ row }) => row.label === "Display")?.meaning).toEqual({ kind: "node", stream: "lobby_wall-id", node: "display", node_type: "tatolab.stream:Display", display_name: "lobby_wall", project_name: "studio" });
   });
 
   it("says what a preparing stream is doing in place of the graph read the runtime refuses while it loads", () => {

@@ -3,14 +3,14 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX, NodeGraphCardPreview } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
 import { NodeGraphCanvas } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
-import type { NodeGraphCanvasEditing, NodeGraphCanvasPoint, NodeGraphCanvasViewport } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
+import type { NodeGraphCanvasEditing, NodeGraphCanvasPoint, NodeGraphCanvasViewport, NodeGraphCardCode } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { SearchPopover } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import { Store } from "lucide-react";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings } from "@tatolab/tato-app-view-sdk";
+import type { ImportedProject, StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings } from "@tatolab/tato-app-view-sdk";
 import { graphAddressOfTheStreamsOwnLevel, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
 import { InputControlBinderContext, useInputControlsOfTheFrame, useInputValuesOfTheStream } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
@@ -27,6 +27,7 @@ import {
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
+import { codeOfTheNodeType, openTheCodeOfTheNodeType } from "../shared/code_of_the_node_type";
 import { streamPreparingWords } from "../shared/stream_preparing_words";
 import { StreamConditionChip, StreamDiagnosticBars } from "../shared/stream_condition_bar";
 import type { StreamDiagnosticLine, StreamDiagnosticLink } from "../shared/stream_condition_words";
@@ -97,6 +98,7 @@ function importedProjectNameOfTheStream(stream: string, openProject: OpenProject
 
 /** Stops nothing: a stream the runtime lists in no project has no project node types to watch. */
 const NO_PROJECT_FOLDER_TO_LIST: StopWatching = () => undefined;
+const NO_IMPORTS: readonly ImportedProject[] = [];
 
 /** The graph of the stream tab shown, read while the view is drawn. */
 function StreamGraphOfTheTab({
@@ -254,6 +256,19 @@ function StreamGraphOfTheTab({
   );
   const [nodeTypeSearchAsked, setNodeTypeSearchAsked] = useState<NodeTypeSearchAsked | null>(null);
   const [modulesAndMarketplaceRefusal, showTheRefusalOfOpeningTheMarketplace] = useRefusalOfTheLatestAsk();
+  const [codeOpeningRefusal, showTheRefusalOfOpeningTheCode] = useRefusalOfTheLatestAsk();
+  const openProjectOfTheStream = openProject?.kind === "read" && openProject.open_project.project.folder === projectFolder ? openProject.open_project : null;
+  const importsOfTheStreamsProject = openProjectOfTheStream?.imports ?? NO_IMPORTS;
+  const codeOfTheCard = useCallback(
+    (nodeId: string): NodeGraphCardCode => {
+      const nodeType = levelShown?.graph.nodes.find((node) => node.name === nodeId)?.type ?? null;
+      if (nodeType === null) return { kind: "does_not_open", because: "The graph no longer holds this node." };
+      const code = codeOfTheNodeType(nodeTypesReading, importsOfTheStreamsProject, nodeType);
+      if (code.kind === "does_not_open") return code;
+      return { kind: "opens", onOpened: () => showTheRefusalOfOpeningTheCode("Didn't open the code:", openTheCodeOfTheNodeType(connection, code)) };
+    },
+    [levelShown, nodeTypesReading, importsOfTheStreamsProject, connection, showTheRefusalOfOpeningTheCode],
+  );
   const closeTheNodeTypeSearch = useCallback(() => setNodeTypeSearchAsked(null), []);
   useEffect(() => setNodeTypeSearchAsked(null), [subgraphNamesReached]);
   const editing = useMemo((): NodeGraphCanvasEditing | null => {
@@ -334,7 +349,6 @@ function StreamGraphOfTheTab({
   );
   const nodeTypesOffered = useMemo(() => nodeTypesTheSearchOffers(nodeTypesOfTheProject), [nodeTypesOfTheProject]);
   const looseWireOfTheSearch = nodeTypeSearchAsked?.looseWire ?? null;
-  const openProjectOfTheStream = openProject?.kind === "read" && openProject.open_project.project.folder === projectFolder ? openProject.open_project : null;
   const nodeTypeSearchItemsOffered = useMemo(
     () => [
       ...nodeTypeSearchItems(nodeTypesOffered, looseWireOfTheSearch, openProjectOfTheStream),
@@ -450,6 +464,7 @@ function StreamGraphOfTheTab({
         )}
         {refusalOfTheLatestEdit !== null && <RefusalLine layout="bar" lead={refusalOfTheLatestEdit.lead} words={refusalOfTheLatestEdit.words} />}
         <RefusalOfTheLatestAskBar refusal={modulesAndMarketplaceRefusal} />
+        <RefusalOfTheLatestAskBar refusal={codeOpeningRefusal} />
         {innermostSubgraph !== null && (
           <StreamGraphSubgraphTrail
             streamDisplayName={streamTab.display_name}
@@ -475,6 +490,7 @@ function StreamGraphOfTheTab({
           viewportWhereItWasLeft={innermostSubgraph === null ? viewportWhereTheStreamWasLeft : null}
           onViewportLeft={innermostSubgraph === null ? onViewportLeft : null}
           onSubgraphOpened={stepInsideTheSubgraph}
+          codeOfTheCard={codeOfTheCard}
           inputValues={inputValues}
           overlay={
             <>

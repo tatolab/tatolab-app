@@ -816,8 +816,8 @@ export type ProjectFilesListing = { kind: "listed"; project_files: ProjectFiles 
 /** What a Python language server connection delivers: one JSON-RPC message the server sent, or the server's end with why. */
 export type PythonLanguageServerConnectionEvent = { kind: "message"; message: JsonValue } | { kind: "ended"; because: string };
 
-/** What a view's area was opened on: a file of the open project or its imports, or a running node's output port, with the opening's id, so a view that keeps what it opened tells a new opening from one it took before; `null` for an area opened on nothing. */
-export type ViewOpenedOn = { kind: "file"; file: string; opening_id: string } | { kind: "port"; target: PortViewerTarget; opening_id: string } | null;
+/** What a view's area was opened on: a file of the open project or its imports, at its line `line` when the opening named one, or a running node's output port, with the opening's id, so a view that keeps what it opened tells a new opening from one it took before; `null` for an area opened on nothing. */
+export type ViewOpenedOn = { kind: "file"; file: string; line?: number; opening_id: string } | { kind: "port"; target: PortViewerTarget; opening_id: string } | null;
 
 /** Where the view's own header row lies inside its frame: Studio's view-type menu covers the row's start up to `leading_inset_px`, and the row is `height_px` tall, `0` where the frame has no header row, as in the asset picker; neither is below `0`. */
 export type ViewHeaderRow = { leading_inset_px: number; height_px: number };
