@@ -1,17 +1,7 @@
 import { expect, test } from "vitest";
-import type { Result } from "./result.js";
+import { answerOf, failureOf } from "./runtime_operations_test_support.js";
 import { closedViewerFromTheCloseViewerToolResult, openedRuntimeViewerFromTheOpenViewerToolResult } from "./runtime_viewer_control_connection.js";
 import { LINUX_VIEWER, OPEN_VIEWER_RESULT_ON_LINUX } from "./runtime_viewer_test_support.js";
-
-function answerOf<T, F>(result: Result<T, F>): T {
-  if (!result.ok) return expect.unreachable(JSON.stringify(result.failure));
-  return result.value;
-}
-
-function failureOf<T, F>(result: Result<T, F>): F {
-  if (result.ok) return expect.unreachable(`expected a failure, answered ${JSON.stringify(result.value)}`);
-  return result.failure;
-}
 
 test("an_open_viewer_result_on_macos_without_a_viewer_process_names_no_surface_share_address", () => {
   const { surface_share_address: _surfaceShareAddress, ...withoutSurfaceShareAddress } = OPEN_VIEWER_RESULT_ON_LINUX;

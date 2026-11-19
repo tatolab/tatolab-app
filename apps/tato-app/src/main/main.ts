@@ -32,7 +32,7 @@ import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import { closeProject, listDependencies, nameTheProject } from "./runtime_operations.js";
 import { resultInWordsOf } from "./result_as_effect.js";
 import { answerOnTheStudioRuntime } from "./window_command.js";
-import { PortViewerConnections, ProjectFeedsFollowed, ProjectLogsFollowed, StreamActionsFollowed, StreamGraphsFollowed, studioRuntimeLayer, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
+import { RuntimeConnectionsForPortViewers, ProjectFeedsFollowed, ProjectLogsFollowed, StreamActionsFollowed, StreamGraphsFollowed, studioRuntimeLayer, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
@@ -337,7 +337,7 @@ export async function startTatolabApp(
   });
   pythonLanguageServersOnceBuilt = pythonLanguageServers;
   const runtimePortViewers = new RuntimePortViewers({
-    openTheViewerConnection: () => answerInWordsOnTheStudioRuntime("opening the port viewers' connection", PortViewerConnections.use((connections) => connections.open)),
+    openTheViewerConnection: () => answerInWordsOnTheStudioRuntime("opening the port viewers' connection", RuntimeConnectionsForPortViewers.use((connections) => connections.open)),
     openAChannelReader: runtimeViewerChannelReaderOpenerOver(tatolabElectronAppShell.runtimeViewerFrameImportAddonPath, platformForThisBuild.viewerImageFrameReading),
     viewerProcessId: tatolabElectronAppShell.mainProcessId,
     waitThen: (afterMs, then) => {

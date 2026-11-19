@@ -1,14 +1,14 @@
-import { Effect, Exit, Layer, Result as EffectResult, Scope } from "effect";
+import { Effect, Exit, Layer, ManagedRuntime, Result as EffectResult, Scope } from "effect";
 import { afterEach, expect, test } from "vitest";
 import { fakeRuntimeOfConnections, refusedByTheOperation } from "./control_connection_test_support.js";
 import { fakeControlWebSocketRuntime as fakeControlWebSocketRuntimeOnASocket, resultLine, type FakeControlWebSocketAnswer } from "./fake_control_websocket_runtime.js";
 import { runtimeViewerConnectionOpenedIn } from "./port_viewer_connection_over_the_runtime.js";
-import type { Result } from "./result.js";
-import { RuntimeTimedOut } from "./runtime_control_failures.js";
+import { RuntimeOfAnotherContract, RuntimeRefused, RuntimeTimedOut } from "./runtime_control_failures.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
+import { answerOf, failureOf } from "./runtime_operations_test_support.js";
 import type { RuntimeViewerCallFailure, RuntimeViewerConnection } from "./runtime_viewer_control_connection.js";
 import { LINUX_VIEWER, OPEN_VIEWER_RESULT_ON_LINUX } from "./runtime_viewer_test_support.js";
-import { tatolabAppLogAsEffectsLogger } from "./studio_runtime.js";
+import { RuntimeConnectionsForPortViewers, runtimeConnectionsForPortViewersLayerOver, tatolabAppLogAsEffectsLogger } from "./studio_runtime.js";
 import { createTatolabAppLog, type TatolabAppLog } from "./tatolab_app_log.js";
 import type { ControlOperationResult, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 
@@ -17,16 +17,6 @@ const cleanUps: (() => Promise<void>)[] = [];
 afterEach(async () => {
   await Promise.all(cleanUps.splice(0).map((cleanUp) => cleanUp()));
 });
-
-function answerOf<T, F>(result: Result<T, F>): T {
-  if (!result.ok) return expect.unreachable(JSON.stringify(result.failure));
-  return result.value;
-}
-
-function failureOf<T, F>(result: Result<T, F>): F {
-  if (result.ok) return expect.unreachable(`expected a failure, answered ${JSON.stringify(result.value)}`);
-  return result.failure;
-}
 
 /** A fake `/control/ws` runtime answering each call after `discover` with `answerCall`, closed after the test. */
 async function fakeControlWebSocketRuntime(answerCall: FakeControlWebSocketAnswer) {
@@ -114,7 +104,7 @@ test("a_call_that_breaks_is_logged_and_answered_as_a_failure", async () => {
 
   const failure = failureOf(await connection.closeViewer("a/b/c"));
 
-  expect(failure).toEqual<RuntimeViewerCallFailure>({ words: "`close_viewer` broke: Error: the socket broke", theRuntimeRefusedIt: false });
+  expect(failure).toEqual<RuntimeViewerCallFailure>({ words: "`close_viewer` broke: the socket broke", theRuntimeRefusedIt: false });
   expect(errorsLogged.join("\n")).toMatch(/a port viewer's close_viewer broke/);
 });
 
@@ -152,6 +142,8 @@ test("closing_the_connection_or_the_scope_it_was_opened_in_closes_it_and_tells_t
   closedWithItsScope.connection.onClosed((why) => whyEachClosed.push(`with its scope: ${why}`));
 
   closedByTheApp.connection.close();
+  expect(closedByTheApp.connection.isOpen()).toBe(false);
+  expect(whyEachClosed).toEqual(["by the app: the port viewers' /control/ws connection was closed"]);
   await Effect.runPromise(Scope.close(closedWithItsScope.outerScope, Exit.void));
 
   await expect.poll(() => runtime.connectionsOpened.map((connection) => connection.closedByTheApp)).toEqual([true, true]);
@@ -161,4 +153,49 @@ test("closing_the_connection_or_the_scope_it_was_opened_in_closes_it_and_tells_t
   ]);
   expect(closedByTheApp.connection.isOpen()).toBe(false);
   expect(closedWithItsScope.connection.isOpen()).toBe(false);
+});
+
+test("only_the_operations_own_refusal_is_the_runtimes_refusal_a_port_viewer_waits_out", async () => {
+  const { connection } = await connectionOver(
+    fakeRuntimeOfConnections({
+      open_viewer: () => Effect.fail(new RuntimeRefused({ operation: "open_viewer", words: "invalid params", byTheOperation: false, refusal: undefined })),
+      close_viewer: () => Effect.fail(new RuntimeOfAnotherContract({ operation: "close_viewer", words: "the runtime serves another contract", mismatch: JSON.parse("{}") })),
+    }).layer,
+  );
+
+  expect(failureOf(await connection.openViewer(A_TARGET))).toEqual<RuntimeViewerCallFailure>({ words: "invalid params", theRuntimeRefusedIt: false });
+  expect(failureOf(await connection.closeViewer("a/b/c"))).toEqual<RuntimeViewerCallFailure>({ words: "the runtime serves another contract", theRuntimeRefusedIt: false });
+});
+
+test("a_call_awaiting_its_answer_and_a_call_after_the_runtime_closed_the_connection_fail_without_a_refusal", async () => {
+  const runtime = await fakeControlWebSocketRuntime(() => null);
+  const { connection } = await connectionOver(runtimeControlLayer(runtime.localApiSocketPath, 2_000));
+  const whyItClosed: string[] = [];
+  connection.onClosed((why) => whyItClosed.push(why));
+
+  const awaitingItsAnswer = connection.openViewer(A_TARGET);
+  await expect.poll(() => runtime.callsRead.length).toBe(1);
+  runtime.closeEveryConnection();
+
+  expect(failureOf(await awaitingItsAnswer).theRuntimeRefusedIt).toBe(false);
+  await expect.poll(() => whyItClosed).toEqual([`the runtime at ${runtime.localApiSocketPath} closed the /control/ws connection`]);
+  expect(connection.isOpen()).toBe(false);
+  expect(failureOf(await connection.closeViewer("s/n/p")).theRuntimeRefusedIt).toBe(false);
+});
+
+test("the_studio_runtimes_connections_log_a_call_that_breaks_and_close_as_it_is_disposed", async () => {
+  const linesLogged: string[] = [];
+  const runtime = fakeRuntimeOfConnections({ close_viewer: () => Effect.die(new Error("the socket broke")) });
+  const studioRuntime = ManagedRuntime.make(runtimeConnectionsForPortViewersLayerOver(runtime.layer, createTatolabAppLog("error", (line) => linesLogged.push(line))));
+  cleanUps.push(() => studioRuntime.dispose());
+  const connection = await studioRuntime.runPromise(RuntimeConnectionsForPortViewers.use((connections) => connections.open));
+  const whyItClosed: string[] = [];
+  connection.onClosed((why) => whyItClosed.push(why));
+
+  expect(failureOf(await connection.closeViewer("a/b/c")).words).toBe("`close_viewer` broke: the socket broke");
+  expect(linesLogged.join("\n")).toMatch(/a port viewer's close_viewer broke/);
+  await studioRuntime.dispose();
+
+  expect(whyItClosed).toEqual(["the port viewers' /control/ws connection was closed"]);
+  expect(runtime.connectionsOpened[0]?.closedByTheApp).toBe(true);
 });

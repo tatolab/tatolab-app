@@ -43,7 +43,7 @@ import {
   studioRuntimeLayer,
   runtimePushesFollowedLayerOver,
   streamActionsFollowedLayerOver,
-  portViewerConnectionsLayerOver,
+  runtimeConnectionsForPortViewersLayerOver,
   projectFeedsFollowedLayerOver,
   type WindowFollowingTheRuntime,
   StudioWindows,
@@ -149,7 +149,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
     runtimeControl,
     runtimePushesFollowedLayerOver(overrides.runtimeControlOfThePushes ?? runtimeControl, overrides.tatolabAppLog ?? quietTatolabAppLog),
     projectFeedsFollowedLayerOver(runtimeControl),
-    portViewerConnectionsLayerOver(runtimeControl, overrides.tatolabAppLog ?? quietTatolabAppLog),
+    runtimeConnectionsForPortViewersLayerOver(runtimeControl, overrides.tatolabAppLog ?? quietTatolabAppLog),
     streamActionsFollowedLayerOver(runtimeControl, overrides.tatolabAppLog ?? quietTatolabAppLog, new StreamActionsNoticed(), () => {}),
     Layer.succeed(StudioWindows, {
       projectFolderOfTheWindow: (commandFromWindow) =>

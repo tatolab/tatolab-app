@@ -3,7 +3,7 @@
 // runtime's close of it is told to plain listeners.
 
 import { Effect, Exit, Scope } from "effect";
-import { failedWith, succeeded, type Result } from "./result.js";
+import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import {
   closedViewerFromTheCloseViewerToolResult,
@@ -37,17 +37,17 @@ export function runtimeViewerConnectionOpenedIn(outerScope: Scope.Scope): Effect
     const services = yield* Effect.context<never>();
     let whyItClosed: string | null = null;
     const listenersToTheClose: ((whyItClosed: string) => void)[] = [];
-    const closedBecause = (why: string) =>
-      Effect.sync(() => {
-        if (whyItClosed !== null) return;
-        whyItClosed = why;
-        for (const listener of listenersToTheClose.splice(0)) listener(why);
-      });
-    const closeTheConnection = () => void Effect.runForkWith(services)(Scope.close(connectionScope, Exit.void));
-    yield* Scope.addFinalizer(connectionScope, closedBecause(CLOSED_BY_THE_APP));
+    /** Mark the connection closed because of `why`, telling each listener once; a second close keeps the first why. */
+    const markClosedBecause = (why: string) => {
+      if (whyItClosed !== null) return;
+      whyItClosed = why;
+      for (const listener of listenersToTheClose.splice(0)) listener(why);
+    };
+    yield* Scope.addFinalizer(connectionScope, Effect.sync(() => markClosedBecause(CLOSED_BY_THE_APP)));
     yield* connection.closedByTheRuntime.pipe(
-      Effect.flatMap(closedBecause),
-      Effect.andThen(Effect.sync(closeTheConnection)),
+      Effect.flatMap((why) => Effect.sync(() => markClosedBecause(why))),
+      // Detached, as closing the scope interrupts this fiber, which runs in it.
+      Effect.andThen(Effect.forkDetach(Scope.close(connectionScope, Exit.void))),
       Effect.forkIn(connectionScope),
     );
 
@@ -65,7 +65,7 @@ export function runtimeViewerConnectionOpenedIn(outerScope: Scope.Scope): Effect
               failedWith({ words: failure.words, theRuntimeRefusedIt: failure._tag === "RuntimeRefused" && failure.byTheOperation }),
           }),
           Effect.catchDefect((defect) =>
-            Effect.logError(`a port viewer's ${method} broke`, defect).pipe(Effect.as(failedWith({ words: `\`${method}\` broke: ${String(defect)}`, theRuntimeRefusedIt: false }))),
+            Effect.logError(`a port viewer's ${method} broke`, defect).pipe(Effect.as(failedWith({ words: `\`${method}\` broke: ${describeCaughtFailure(defect)}`, theRuntimeRefusedIt: false }))),
           ),
         ),
       );
@@ -83,7 +83,10 @@ export function runtimeViewerConnectionOpenedIn(outerScope: Scope.Scope): Effect
         else whenTheConnectionCloses(whyItClosed);
       },
       isOpen: () => whyItClosed === null,
-      close: closeTheConnection,
-    } satisfies RuntimeViewerConnection;
+      close: () => {
+        markClosedBecause(CLOSED_BY_THE_APP);
+        Effect.runForkWith(services)(Scope.close(connectionScope, Exit.void));
+      },
+    };
   });
 }
