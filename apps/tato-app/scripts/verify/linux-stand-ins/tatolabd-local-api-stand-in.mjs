@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { fakeControlWebSocketRuntime } from "../../../src/main/fake_control_websocket_runtime.ts";
+import { DISCOVERED_AT_THIS_STUDIOS_CONTRACT, fakeControlWebSocketRuntime, resultLine } from "../../../src/main/fake_control_websocket_runtime.ts";
 
 const RECORDED_RESPONSES = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../src/main/test-fixtures");
 const STAND_IN_MACHINE_NAME = "linux-container-stand-in";
@@ -28,6 +28,8 @@ const recordedGraphResultText = (() => {
   const resultStart = '{"jsonrpc":"2.0","id":1,"result":';
   return answerText.slice(resultStart.length, -1).replace('"machine":"vm"', `"machine":"${STAND_IN_MACHINE_NAME}"`);
 })();
+/** The runtime the recording describes, which `discover` names too, serving this Studio's contract. */
+const recordedRuntime = JSON.parse(recordedToolText("local-api-describe-runtime-tool-result-of-a-test-root-runtime.json"));
 const RECORDED_GRAPH_STREAM = "test-pattern-halftone-lens-main-66e784";
 const listedStreams = JSON.parse(recordedToolText("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json"));
 const listingOf = (streamId) => listedStreams.streams.find((listedStream) => listedStream.stream === streamId);
@@ -58,12 +60,25 @@ function projectListedIn(projectDirectory) {
   return { identity: { project_directory: projectDirectory, project: firstStream.location.project, project_name: path.basename(projectDirectory) }, streams };
 }
 
-/** A project read as the runtime answers it for a project the listing holds streams of, or the recorded refusal of `operation` for a folder that holds no project. */
+/** The words of a recorded refusal, whether recorded as an MCP tool's error or as the control operation's. */
+function recordedRefusalWords(fileName) {
+  const recorded = JSON.parse(recordedText(fileName));
+  return recorded.error?.message ?? recorded.result.content[0].text;
+}
+
+/** The refusal recorded for each project read of a folder that holds no project; a read with none recorded takes `list_assets`' words. */
+const REFUSALS_OF_A_FOLDER_THAT_IS_NOT_A_PROJECT = {
+  list_assets: "local-api-list-assets-refusal-for-a-folder-that-is-not-a-project.json",
+  list_node_types: "local-api-list-node-types-refusal-for-a-folder-that-is-not-a-project.json",
+  list_project_views: "local-api-list-project-views-refusal-for-a-folder-that-is-not-a-project.json",
+};
+
+/** A project read as the runtime answers it for a project the listing holds streams of, or as recorded refused for a folder that holds no project. */
 function projectReadAnswer(requestId, operation, projectDirectory, resultOfTheProject) {
   const listedProject = projectListedIn(projectDirectory);
   if (listedProject !== null) return answerLine(requestId, JSON.stringify(resultOfTheProject(listedProject)));
-  const recordedRefusal = recordedToolText("local-api-list-assets-refusal-for-a-folder-that-is-not-a-project.json");
-  return answerLine(requestId, recordedRefusal.replace("list_assets", operation).replace(`${STAND_IN_PROJECTS_FOLDER}/not-a-project`, projectDirectory), true);
+  const recordedRefusal = recordedRefusalWords(REFUSALS_OF_A_FOLDER_THAT_IS_NOT_A_PROJECT[operation] ?? REFUSALS_OF_A_FOLDER_THAT_IS_NOT_A_PROJECT.list_assets);
+  return answerLine(requestId, recordedRefusal.replace(/^\w+ failed: \S+ holds/, `${operation} failed: ${projectDirectory} holds`), true);
 }
 
 /** `list_assets`'s answer for a listed project: the recorded answer, with one stream asset, shaped as recorded, per listed stream. */
@@ -91,16 +106,19 @@ function nodeTypesDescribed(requestId, nodeTypes) {
   return answerLine(requestId, JSON.stringify({ node_types: described }));
 }
 
-/** A graph subscription's answer: the streams asked for, each loaded, or a refusal naming the one that is not. */
-function streamSubscriptionAnswer(requestId, operation, streams) {
-  const notLoaded = streams.find((streamId) => listingOf(streamId)?.node_count == null);
-  if (notLoaded !== undefined) return answerLine(requestId, `${operation} failed: no stream \`${notLoaded}\` is loaded in this runtime`, true);
-  return answerLine(requestId, JSON.stringify({ streams }));
+/** The runtime's refusal of `operation` for the stream `streamId`, not loaded: the words recorded for `graph`'s, naming them and the streams loaded. */
+function notLoadedRefusal(requestId, operation, streamId) {
+  const recordedRefusal = recordedRefusalWords("local-api-graph-tool-refusal-for-the-stopped-stream-front-door.json");
+  const loadedStreams = listedStreams.streams.filter((listedStream) => listedStream.node_count != null).map((listedStream) => listedStream.stream).join(", ");
+  return answerLine(requestId, recordedRefusal.replace(/^graph failed/, `${operation} failed`).replace("`front-door`", `\`${streamId}\``).replace(/Loaded: none$/, `Loaded: ${loadedStreams || "none"}`), true);
 }
 
-let standInActionCount = 100;
-const nextStandInAction = () => `Rstandin-${(standInActionCount += 1)}`;
-const STAND_IN_ACTION_MILLISECONDS = 1500;
+/** A graph subscription's answer: the streams asked for, each loaded, or the refusal naming the one that is not. */
+function streamSubscriptionAnswer(requestId, operation, streams) {
+  const notLoaded = streams.find((streamId) => listingOf(streamId)?.node_count == null);
+  if (notLoaded !== undefined) return notLoadedRefusal(requestId, operation, notLoaded);
+  return answerLine(requestId, JSON.stringify({ streams }));
+}
 
 /** Lists `listing` under `state` with its action at `step`, then, a beat later, as `finish` leaves it. */
 function workOnTheStreamAction(listing, state, step, finish) {
@@ -171,15 +189,14 @@ function answerTheCall({ id: requestId, method: name, params: toolArguments = {}
   if (name === "graph") {
     const isTheStreamLoaded = listingOf(toolArguments.stream)?.node_count != null;
     if (isTheStreamLoaded) return answerLine(requestId, recordedGraphResultText.replace(`"stream":"${RECORDED_GRAPH_STREAM}"`, `"stream":${JSON.stringify(toolArguments.stream)}`));
-    const recordedRefusal = recordedToolText("local-api-graph-tool-refusal-for-the-stopped-stream-front-door.json");
-    return answerLine(requestId, recordedRefusal.replace("`front-door`", `\`${toolArguments.stream}\``), true);
+    return notLoadedRefusal(requestId, "graph", toolArguments.stream);
   }
   if (name === "logs") return logsAnswer(requestId, toolArguments);
   if (name in PROJECT_READS) return projectReadAnswer(requestId, name, toolArguments.project_directory, PROJECT_READS[name]);
   if (name === "describe_node_types") return nodeTypesDescribed(requestId, toolArguments.node_types);
   if (name === "subscribe_project_changes") return answerLine(requestId, JSON.stringify({ projects: toolArguments.projects }));
   if (name === "subscribe_stream_graph_changes" || name === "subscribe_input_value_changes") return streamSubscriptionAnswer(requestId, name, toolArguments.streams);
-  if (name === "describe_runtime") return answerLine(requestId, recordedToolText("local-api-describe-runtime-tool-result-of-a-test-root-runtime.json"));
+  if (name === "describe_runtime") return answerLine(requestId, JSON.stringify(recordedRuntime));
   // Its actions finish on a timer, seen in the listing, so it tells a subscriber of none under way and sends no change.
   if (name === "subscribe_stream_action_changes") return answerLine(requestId, JSON.stringify({ actions_under_way: [] }));
   console.error(`the stand-in does not answer \`${name}\``, JSON.stringify(toolArguments));
@@ -198,4 +215,5 @@ function answerTheHttpRequest(request) {
   return httpResponse(404, "text/plain", "not found");
 }
 
-await fakeControlWebSocketRuntime((call) => [answerTheCall(call)], undefined, { answerHttpRequest: answerTheHttpRequest, listenAt: process.argv[2] });
+const discovered = { ...DISCOVERED_AT_THIS_STUDIOS_CONTRACT, runtime_version: recordedRuntime.version, build_id: recordedRuntime.build_id };
+await fakeControlWebSocketRuntime((call) => [answerTheCall(call)], (call) => [resultLine(call.id, discovered)], { answerHttpRequest: answerTheHttpRequest, listenAt: process.argv[2] });
