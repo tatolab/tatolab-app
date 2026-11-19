@@ -2,4 +2,4 @@
 // which `./pin_types` takes from the runtime client. Studio's own build hands them to a view, so a
 // view reads them as typed and decodes none.
 
-export type { BuiltInPinTypeName, BundleMember, DeclaredPinType, NodeInputMode, PinFlow, PinType } from "./pin_types.js";
+export type { BuiltInPinTypeName, BundleMember, DeclaredPinType, NodeInputMode, PinAnnotations, PinFlow, PinType } from "./pin_types.js";

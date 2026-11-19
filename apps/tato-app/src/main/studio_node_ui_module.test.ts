@@ -41,8 +41,24 @@ test("the Studio's own manifest reads as the contract's node UI manifest, each c
   }
 });
 
-test("the Studio lists its own number control as the default for a Float input, brought by the Studio and served beside the window", async () => {
+test("the Studio lists its own controls, a default for each of Boolean, Integer and Float and a slider for each ranged number, brought by the Studio and served beside the window", async () => {
   expect(await Effect.runPromise(theStudiosOwnNodeUiElements("0.45.0"))).toEqual([
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "boolean_switch.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "boolean", control: null },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/boolean_switch.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "integer_stepper.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "integer", control: null },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/integer_stepper.ts" },
+    },
     {
       module: "studio",
       brought_by: "studio",
@@ -50,6 +66,22 @@ test("the Studio lists its own number control as the default for a Float input, 
       folder_version: "0.45.0",
       registration: { kind: "control", type: "float", control: null },
       script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/float_number.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "integer_slider.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "integer", control: "slider" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/integer_slider.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "float_slider.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "float", control: "slider" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/float_slider.ts" },
     },
   ]);
 });

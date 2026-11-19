@@ -18,8 +18,8 @@ const catalogEntry = (type: string, description: string, category: string | null
   description,
   category,
   config_schema: null,
-  inputs: inputs.map(([name, family]) => ({ name, description: "", family, pin: null, input_mode: null })),
-  outputs: outputs.map(([name, family]) => ({ name, description: "", family, pin: null, input_mode: null })),
+  inputs: inputs.map(([name, family]) => ({ name, description: "", family, pin: null, input_mode: null, annotations: {} })),
+  outputs: outputs.map(([name, family]) => ({ name, description: "", family, pin: null, input_mode: null, annotations: {} })),
 });
 const BLUR = catalogEntry("nodes.blur:GaussianBlur", "Softens an image", "Effects/Blur", [["video_in", "image"]], [["video_out", "image"]]);
 const METER = catalogEntry("tatolab.stream.Meter", "Reads a level", null, [["level", "array"]], []);
@@ -29,9 +29,9 @@ const A_SETTING = { mode: "setting_only", read: "at_setup" } as const;
 const BLUR_LISTING_ITS_SETTINGS: NodeCatalogEntry = {
   ...BLUR,
   inputs: [
-    { name: "video_in", description: "", family: "image", pin: null, input_mode: null },
-    { name: "gain", description: "How loud.", family: null, pin: { pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value" }, input_mode: A_SETTING },
-    { name: "layers", description: "", family: null, pin: null, input_mode: A_SETTING },
+    { name: "video_in", description: "", family: "image", pin: null, input_mode: null, annotations: {} },
+    { name: "gain", description: "How loud.", family: null, pin: { pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value" }, input_mode: A_SETTING, annotations: {} },
+    { name: "layers", description: "", family: null, pin: null, input_mode: A_SETTING, annotations: {} },
   ],
 };
 const TONE_OF_SETTINGS_ONLY: NodeCatalogEntry = { ...catalogEntry("nodes.tone:Tone", "Makes a tone", null, [], [["tone", "array"]]), inputs: BLUR_LISTING_ITS_SETTINGS.inputs.slice(1) };
@@ -128,7 +128,7 @@ test("offers each node type the project, its imports and its installed distribut
   const offered = nodeTypesTheSearchOffers([BLUR], listing);
   expect(offered.map((entry) => entry.type)).toEqual(["nodes.blur:GaussianBlur", "nodes.invert:Invert", "nodes.native:Half", "tatolab_testpattern:TestPatternSource"]);
   expect(offered[0]).toBe(BLUR);
-  expect(offered[1]).toEqual({ type: "nodes.invert:Invert", description: "Inverts each frame", category: "Effects", config_schema: null, inputs: [{ name: "video_in", description: "", family: "image", pin: null, input_mode: null }], outputs: [{ name: "video_out", description: "", family: "image", pin: null, input_mode: null }] });
+  expect(offered[1]).toEqual({ type: "nodes.invert:Invert", description: "Inverts each frame", category: "Effects", config_schema: null, inputs: [{ name: "video_in", description: "", family: "image", pin: null, input_mode: null, annotations: {} }], outputs: [{ name: "video_out", description: "", family: "image", pin: null, input_mode: null, annotations: {} }] });
   expect(offered[2]?.inputs).toEqual([]);
   expect(nodeTypesTheSearchOffers([BLUR], null)).toEqual([BLUR]);
   expect([...nodeTypesTheProjectDeclares(listing)]).toEqual(["nodes.invert:Invert", "nodes.blur:GaussianBlur", "nodes.native:Half"]);
@@ -164,8 +164,8 @@ test("each_graph_generator_of_the_projects_own_source_is_offered_under_this_proj
 test("a_previewed_pin_shows_the_type_its_node_type_states_exactly_and_none_where_another_pin_decides_it", () => {
   const typed: NodeCatalogEntry = {
     ...BLUR,
-    inputs: [{ name: "video_in", description: "Frames", family: "image", pin: { pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" }, input_mode: null }],
-    outputs: [{ name: "video_out", description: "", family: "image", pin: { pin_type: { kind: "same_as_input", input_port_name: "video_in" }, flow: "stream" }, input_mode: null }],
+    inputs: [{ name: "video_in", description: "Frames", family: "image", pin: { pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" }, input_mode: null, annotations: {} }],
+    outputs: [{ name: "video_out", description: "", family: "image", pin: { pin_type: { kind: "same_as_input", input_port_name: "video_in" }, flow: "stream" }, input_mode: null, annotations: {} }],
   };
   const previewCard = nodeTypeSearchPreviewCard([typed], typed.type);
   expect(previewCard?.inputs.map((pin) => [pin.pin, pin.description])).toEqual([[{ pin_type: { type: "texture" }, flow: "stream" }, "Frames"]]);
@@ -175,8 +175,8 @@ test("a_previewed_pin_shows_the_type_its_node_type_states_exactly_and_none_where
 test("a_node_type_is_previewed_as_its_card_titled_in_words_with_its_pins_and_a_graph_generator_as_nothing", () => {
   expect(nodeTypeSearchPreviewCard([BLUR, METER], "nodes.blur:GaussianBlur")).toEqual({
     title: "Gaussian Blur",
-    inputs: [{ name: "video_in", pin: null, family: "image", description: null, stream_facts_words: [], value_address: null }],
-    outputs: [{ name: "video_out", pin: null, family: "image", description: null, stream_facts_words: [], value_address: null }],
+    inputs: [{ name: "video_in", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null }],
+    outputs: [{ name: "video_out", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null }],
   });
   expect(nodeTypeSearchPreviewCard([BLUR, METER], "graph_generator:generators.mics:mic_levels")).toBeNull();
 });

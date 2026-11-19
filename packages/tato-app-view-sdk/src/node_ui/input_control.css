@@ -72,3 +72,158 @@
 :host([data-state="driven_by_wire"]) input {
   color: var(--fg-3);
 }
+
+/* An Integer's stepper: the number field between a − and a + button. */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.stepper .field {
+  flex: 1;
+}
+
+.step {
+  flex: none;
+  width: 20px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--studio-control);
+  color: var(--fg-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.step:hover:not(:disabled) {
+  color: var(--fg);
+}
+
+.step:disabled {
+  color: var(--fg-3);
+  cursor: default;
+}
+
+:host([data-surface="node"]) .step {
+  height: 20px;
+  background: var(--well);
+}
+
+/* A ranged number's slider: the track, then the number and its unit. */
+.slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  min-width: 0;
+}
+
+.slider input {
+  flex: 1;
+  min-width: 0;
+  height: 12px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+}
+
+.slider input:focus-visible {
+  outline: none;
+}
+
+.slider input::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--fg-4);
+}
+
+.slider input::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--brand);
+  appearance: none;
+}
+
+.slider input:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.slider input:disabled {
+  cursor: default;
+}
+
+.slider input:disabled::-webkit-slider-thumb {
+  background: var(--fg-3);
+}
+
+.slider-words {
+  flex: none;
+  min-width: 40px;
+  color: var(--fg-2);
+  text-align: right;
+}
+
+:host([data-surface="node"]) .slider {
+  height: 20px;
+  gap: 6px;
+}
+
+:host([data-surface="node"]) .slider-words {
+  min-width: 32px;
+}
+
+/* A Boolean's switch: a track whose thumb sits right while on. */
+.switch {
+  position: relative;
+  display: block;
+  width: 28px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  outline: none;
+  background: var(--studio-control);
+  box-shadow: inset 0 0 0 1px var(--studio-graph-card-line);
+  cursor: pointer;
+}
+
+.switch:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.switch[aria-checked="true"] {
+  background: var(--brand);
+  box-shadow: none;
+}
+
+.switch:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--fg);
+  transition: transform 120ms ease;
+}
+
+.switch[aria-checked="true"] .switch-thumb {
+  transform: translateX(12px);
+}
+
+:host([data-state="read_only"]) .slider-words,
+:host([data-state="driven_by_wire"]) .slider-words {
+  color: var(--fg-3);
+}

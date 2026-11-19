@@ -31,7 +31,7 @@ async function theCatalogListingImageFile(backend: Pick<TatolabBackend, "describ
         category: null,
         config_schema: { type: "object", properties: { asset: { type: "string", default: "", "x-tatolab-project-asset": { media: ["image"] } } }, additionalProperties: false },
         inputs: [],
-        outputs: [{ name: "image", description: "", family: "image", pin: null, input_mode: null }],
+        outputs: [{ name: "image", description: "", family: "image", pin: null, input_mode: null, annotations: {} }],
       },
     ],
   };
@@ -228,7 +228,7 @@ describe("the studio", () => {
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
     const socket = (nodeName: string, handleId: string) => streamGraph.querySelector<HTMLElement>(`[data-node-graph-card="${nodeName}"] .node-graph-pin[data-handleid="${handleId}"]`) ?? expect.unreachable(`no socket ${handleId} on ${nodeName}`);
     const look = (element: HTMLElement) => [element.getAttribute("data-pin-type"), element.getAttribute("data-pin-flow"), element.getAttribute("title")];
-    await waitFor(() => expect(look(socket("warmth", "input:base"))).toEqual(["float", "value", "base · Float, one value at a time"]));
+    await waitFor(() => expect(look(socket("warmth", "input:base"))).toEqual(["float", "value", "base · Float, one value at a time\nHow warm the picture is on the first beat of a bar."]));
     expect(look(socket("beat", "output:count"))).toEqual(["integer", "value", "count · Integer, one value at a time"]);
     expect(look(socket("beat", "output:accented"))).toEqual(["boolean", "value", "accented · Boolean, one value at a time"]);
     expect(look(socket("testpattern", "output:video"))).toEqual(["texture", "stream", "video · Texture, a stream\nTest-pattern video frames"]);

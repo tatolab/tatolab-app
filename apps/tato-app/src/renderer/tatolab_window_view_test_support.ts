@@ -1,6 +1,8 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { expect, vi } from "vitest";
 import type { SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
+import { nodeUiElementTag } from "@tatolab/tato-app-view-sdk/node_ui_host";
+import { mockStudioNodeUiElements } from "../../mock/mock_node_ui_elements";
 import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
 import { readMockTatolabOptions } from "../../mock/mock_tatolab_options";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
@@ -190,4 +192,14 @@ export async function theAreasShownAre(areaIds: readonly string[]): Promise<void
 /** Keeps `saved` as the pattern project's layout, for the studio to open on. */
 export function keepThePatternProjectsLayout(saved: unknown): void {
   localStorage.setItem(studioLayoutStorageKey(PATTERN_PROJECT), JSON.stringify(saved));
+}
+
+/**
+ * The tag the mock's listing mints for the Studio's Float control named `control`, `null` for the type's default. A frame
+ * imports each listed script from the dev server, which no test serves, so a test defines a stand-in under this tag, as
+ * loading the Studio's own control in a frame defines it.
+ */
+export function tagOfTheStudiosFloatControl(control: string | null): string {
+  const listed = mockStudioNodeUiElements(window.location.origin, false).find(({ registration }) => registration.kind === "control" && registration.type === "float" && registration.control === control);
+  return nodeUiElementTag(listed ?? expect.unreachable(`the mock lists no Float control ${control ?? "default"}`));
 }

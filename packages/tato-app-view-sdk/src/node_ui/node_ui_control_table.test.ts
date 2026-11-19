@@ -37,6 +37,36 @@ test("the control an annotation names wins over the type's default, bare for the
   expect(table.controlChoiceForTheInput(inputDeclarationOf(float, { control: null }))).toEqual({ kind: "element", listed: floatDefault, chosen_by: "type_default", because: null });
 });
 
+test("an input that states both ends of its range gets its type's slider, and one with an open end or none gets its type's default", () => {
+  const integerDefault = listedElementOf("studio", { kind: "control", type: "integer", control: null }, { script: "integer_stepper.ts" });
+  const integerSlider = listedElementOf("studio", { kind: "control", type: "integer", control: "slider" }, { script: "integer_slider.ts" });
+  const floatDefault = listedElementOf("studio", { kind: "control", type: "float", control: null }, { script: "float_number.ts" });
+  const acmeKnob = listedElementOf("acme", { kind: "control", type: "integer", control: "knob" }, { script: "knob.ts" });
+  const table = new NodeUiControlTable({ elements: [integerDefault, integerSlider, floatDefault, acmeKnob] });
+  const { integer, float } = ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME;
+  expect(table.controlChoiceForTheInput(inputDeclarationOf(integer, { range: { minimum: 1, maximum: 16 } }))).toEqual({ kind: "element", listed: integerSlider, chosen_by: "stated_range", because: null });
+  expect(table.controlChoiceForTheInput(inputDeclarationOf(integer, { range: { minimum: 1 } }))).toEqual({ kind: "element", listed: integerDefault, chosen_by: "type_default", because: null });
+  expect(table.controlChoiceForTheInput(inputDeclarationOf(integer, { range: { minimum: null, maximum: 16 } }))).toEqual({ kind: "element", listed: integerDefault, chosen_by: "type_default", because: null });
+  expect(table.controlChoiceForTheInput(inputDeclarationOf(integer, { range: null }))).toEqual({ kind: "element", listed: integerDefault, chosen_by: "type_default", because: null });
+  expect(table.controlChoiceForTheInput(inputDeclarationOf(float, { range: { minimum: 0, maximum: 1 } }))).toEqual({ kind: "element", listed: floatDefault, chosen_by: "type_default", because: null });
+  expect(table.controlChoiceForTheInput(inputDeclarationOf(integer, { range: { minimum: 1, maximum: 16 }, control: "acme:knob" }))).toEqual({ kind: "element", listed: acmeKnob, chosen_by: "annotation", because: null });
+  expect(table.controlChoiceForTheInput(inputDeclarationOf(integer, { range: { minimum: 1, maximum: 16 }, control: "dial" }))).toEqual({
+    kind: "element",
+    listed: integerSlider,
+    chosen_by: "stated_range",
+    because: "No control named dial is registered for an input of type integer; its range's slider draws it.",
+  });
+});
+
+test("a project's control named slider is picked by its qualified name only, never by a stated range", () => {
+  const integerDefault = listedElementOf("studio", { kind: "control", type: "integer", control: null });
+  const acmeSlider = listedElementOf("acme", { kind: "control", type: "integer", control: "slider" });
+  const table = new NodeUiControlTable({ elements: [integerDefault, acmeSlider] });
+  const integer = ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.integer;
+  expect(table.controlChoiceForTheInput(inputDeclarationOf(integer, { range: { minimum: 0, maximum: 10 } }))).toEqual({ kind: "element", listed: integerDefault, chosen_by: "type_default", because: null });
+  expect(table.controlChoiceForTheInput(inputDeclarationOf(integer, { control: "acme:slider" }))).toEqual({ kind: "element", listed: acmeSlider, chosen_by: "annotation", because: null });
+});
+
 test("an annotation that names a control no one registers says so, on the type's default or on the read-only line", () => {
   const floatDefault = listedElementOf("studio", { kind: "control", type: "float", control: null });
   const acmeKnob = listedElementOf("acme", { kind: "control", type: "float", control: "knob" });
