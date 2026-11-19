@@ -11,6 +11,7 @@ import {
   stampMockLogRecord,
 } from "./mock_stream_fixtures";
 import { mockStreamGraphOf } from "./mock_stream_graph_document";
+import { mockConditionOf } from "./mock_stream_conditions";
 import type { MockInputValueChanged } from "./mock_input_value_changes";
 import { mockFoldersInDocumentsTatoStudio, mockOpenProjectReading, mockRecentProjects } from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
@@ -276,10 +277,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     return [...listingOrder, ...streamIdsRunFromTheWindow]
       .map((streamId) => loadedStreams.get(streamId)?.fixture.listing ?? listedStreamsNotLoaded.get(streamId) ?? null)
       .filter((listing): listing is ListedStream => listing !== null)
-      .map((listing) => {
-        const renamedTo = displayNamesRenamedTo.get(listing.stream);
-        return renamedTo === undefined ? listing : { ...listing, display_name: renamedTo };
-      });
+      .map((listing) => ({ ...listing, display_name: displayNamesRenamedTo.get(listing.stream) ?? listing.display_name, condition: listing.condition ?? mockConditionOf(listing, loadedStreams.has(listing.stream)) }));
   };
 
   /** Each project folder the mock knows, by path: its stream assets' names, none for a folder that is no project, and whether it has a `.venv`; a folder not here does not exist. */
@@ -726,7 +724,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
 
   /** `stop_playback` as the runtime does it: one action queued that stops every playing stream of the project, each recorded stopped; refused when none of them plays. */
   const stopMockProject = (projectDirectory: string): void => {
-    const loadedStreamsOfTheProject = loadedStreamsOfTheMockProjectIn(projectDirectory);
+    const loadedStreamsOfTheProject = loadedStreamsOfTheMockProjectIn(projectDirectory).filter(({ fixture }) => fixture.listing.state !== "failed");
     if (loadedStreamsOfTheProject.length === 0) {
       throw `Runtime error: no stream of the project in ${projectDirectory} plays, so there is none to stop; \`start_playback\` plays it. Loaded: ${streamIdsListedForARefusal(loadedStreams.keys())}. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
     }
@@ -832,12 +830,14 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     publishStatus({ streams: listStreams() });
   };
 
-  const graphOfLoadedStream = (loadedStream: MockLoadedStream): StreamGraph => {
-    const millisecondsSinceSettled = Date.now() - loadedStream.loadedAtMilliseconds - MOCK_STREAM_SETTLE_MILLISECONDS;
-    return mockStreamGraphOf(loadedStream.fixture.listing, fixtures.machine.name, loadedStream.fixture.graph, {
-      hasSettled: millisecondsSinceSettled >= 0,
-      secondsSinceSettled: Math.max(0, millisecondsSinceSettled) / 1000,
-    }, mockTatolabOptions.arePortFamiliesServed);
+  /** `fixture`'s graph as the runtime renders it `millisecondsSinceSettled` after its nodes settled, or with its nodes not started while that is `null`. */
+  const graphOfTheFixture = (fixture: MockStreamFixture, millisecondsSinceSettled: number | null): StreamGraph =>
+    mockStreamGraphOf(fixture.listing, fixtures.machine.name, fixture.graph, { hasSettled: (millisecondsSinceSettled ?? -1) >= 0, secondsSinceSettled: Math.max(0, millisecondsSinceSettled ?? 0) / 1000 }, mockTatolabOptions.arePortFamiliesServed);
+  const graphOfLoadedStream = (loadedStream: MockLoadedStream): StreamGraph => graphOfTheFixture(loadedStream.fixture, Date.now() - loadedStream.loadedAtMilliseconds - MOCK_STREAM_SETTLE_MILLISECONDS);
+  /** The graph of the stream `streamId` as the runtime answers it: a loaded one's running graph, or the saved graph of one it holds not loaded. */
+  const graphOfTheStream = (streamId: string): StreamGraph => {
+    const fixtureNotLoaded = loadedStreams.has(streamId) || mockStatus.runtime_state !== "running" ? undefined : recordedFixturesNotLoaded.get(streamId);
+    return fixtureNotLoaded === undefined ? graphOfLoadedStream(loadedStreamOfTheId(streamId)) : graphOfTheFixture(fixtureNotLoaded, null);
   };
 
   /** The project folder the mock runtime lists for the stream `streamId`, as the main process looks it up before opening it. */
@@ -943,6 +943,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     createMockStreamInTheOpenProject,
     deleteMockStream,
     graphOfLoadedStream,
+    graphOfTheStream,
     listedProjectFolderOf,
     downloadTheNewerVersion,
     finishTheUpdateCheck,

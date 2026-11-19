@@ -1,13 +1,15 @@
 // The outliner's tree, derived from what the view is handed: the streams the runtime lists from the open
 // project's folder, and each one's graph as the runtime renders it, its groups holding the nodes that name
-// them as their `studio.group`.
+// them as their `studio.group`, with each diagnostic of the stream's condition on the row it names.
 
 import type { TreeRowPick, TreeViewRow } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import {
+  isLiveInTheRunningGraph,
   studioFieldsOfTheNode,
   type ListedStream,
   type ListedStreamsReading,
   type OpenProject,
+  type StreamCondition,
   type StreamGraph,
   type StreamGraphAction,
   type StreamGraphNode,
@@ -19,6 +21,7 @@ import { shownStudioTreeRows, studioTreeNodesMatching, type StudioTreeNode } fro
 import { nodeTitle } from "../shared/node_words";
 import { editedStreamGraphOf, selectionFramedEdits } from "../shared/stream_graph_edits";
 import { streamPreparingWords } from "../shared/stream_preparing_words";
+import { diagnosticKey, diagnosticRowWords, diagnosticsAtTheNode, doesTheDiagnosticWarn } from "../shared/stream_condition_words";
 import { nodesTheSelectionHolds, nodesTheSelectionHoldsInTheStream, selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 
 /** What a row stands for, so choosing it selects or opens the right thing. */
@@ -127,10 +130,19 @@ function leafNode(row: OutlinerTreeNode["row"]): OutlinerTreeNode {
   return { row, meaning: { kind: "nothing_to_select" }, isOpenByDefault: false, children: [] };
 }
 
-/** How a node's row reads: failed while it failed or its `process()` keeps raising, not ready while it reports itself so, plain otherwise. */
-function nodeRowCondition(node: StreamGraphNode): Pick<OutlinerTreeNode["row"], "icon" | "tone"> {
-  if (node.components.failed_because !== null || node.components.process_raising_because !== null) return { icon: "failed", tone: "failed" };
-  if (node.components.not_ready_because !== null) return { icon: "not_ready", tone: "not_ready" };
+const FAILED_ROW: Pick<OutlinerTreeNode["row"], "icon" | "tone"> = { icon: "failed", tone: "failed" };
+const NOT_READY_ROW: Pick<OutlinerTreeNode["row"], "icon" | "tone"> = { icon: "not_ready", tone: "not_ready" };
+
+/**
+ * How a node's row reads: failed while it failed, its `process()` keeps raising or a diagnostic of `condition` that keeps it
+ * from running names it; not ready while the running stream does not hold it yet, it reports itself so or a diagnostic that
+ * warns names it; plain otherwise.
+ */
+function nodeRowCondition(node: StreamGraphNode, condition: StreamCondition | null): Pick<OutlinerTreeNode["row"], "icon" | "tone"> {
+  if (node.components.failed_because !== null || node.components.process_raising_because !== null) return FAILED_ROW;
+  const diagnostics = diagnosticsAtTheNode(condition, node.name);
+  if (diagnostics.some((diagnostic) => !doesTheDiagnosticWarn(diagnostic.kind))) return FAILED_ROW;
+  if (!isLiveInTheRunningGraph(node) || node.components.not_ready_because !== null || diagnostics.length > 0) return NOT_READY_ROW;
   return { icon: "graph_node", tone: undefined };
 }
 
@@ -139,7 +151,7 @@ function graphNodeRow(stream: ListedStream, projectName: string, node: StreamGra
     row: {
       row_id: nodeRowId(stream.stream, node.name),
       label: nodeTitle(node.name, node.type),
-      ...nodeRowCondition(node),
+      ...nodeRowCondition(node, stream.condition),
       aside: outlinerTypeOfTheNode(node),
     },
     meaning: { kind: "node", stream: stream.stream, node: node.name, display_name: stream.display_name, project_name: projectName },
@@ -154,10 +166,27 @@ function groupChildren(stream: ListedStream, projectName: string, group: string,
   return nodeRows.length > 0 ? nodeRows : [leafNode({ row_id: `group:${stream.stream}/${group}/empty`, label: "No nodes", icon: "waiting", tone: "waiting" })];
 }
 
-/** The row saying why `stream` failed, in the runtime's words, while it failed and the runtime gave a reason; none otherwise. */
+/**
+ * The rows saying what is wrong with `stream` as a whole and with its links, a row per diagnostic of its condition in the
+ * runtime's words, the node rows carrying their own; a runtime that lists no condition gives why it failed, while it did.
+ */
 function streamFailureRows(stream: ListedStream): OutlinerTreeNode[] {
-  if (stream.state !== "failed" || stream.failed_because === null) return [];
-  return [leafNode({ row_id: `${streamRowId(stream.stream)}/failed`, label: stream.failed_because, icon: "unreadable", tone: "failed" })];
+  if (stream.condition === null) {
+    if (stream.state !== "failed" || stream.failed_because === null) return [];
+    return [leafNode({ row_id: `${streamRowId(stream.stream)}/failed`, label: stream.failed_because, icon: "unreadable", tone: "failed" })];
+  }
+  return stream.condition.diagnostics.flatMap((diagnostic) => {
+    if (diagnostic.place.on === "node") return [];
+    return [leafNode({ row_id: `${streamRowId(stream.stream)}/diagnostic/${diagnosticKey(diagnostic)}`, label: diagnosticRowWords(diagnostic, stream.display_name), ...(doesTheDiagnosticWarn(diagnostic.kind) ? NOT_READY_ROW : FAILED_ROW) })];
+  });
+}
+
+/** How a stream's row reads: by the health of its condition, or failed while a runtime that lists none lists it failed. */
+function streamRowCondition(stream: ListedStream): Pick<OutlinerTreeNode["row"], "icon" | "tone"> {
+  const health = stream.condition?.health ?? (stream.state === "failed" ? "failed" : "healthy");
+  if (health === "failed") return FAILED_ROW;
+  if (health === "degraded") return NOT_READY_ROW;
+  return { icon: "stream", tone: undefined };
 }
 
 /** The rows of a graph the runtime served: its groups, each holding its nodes, then the nodes in no group; or a row saying it holds none. */
@@ -181,19 +210,22 @@ function streamGraphRows(stream: ListedStream, projectName: string, graph: Strea
 }
 
 /**
- * The rows under a stream: why it failed, when it did, then the groups and nodes of the graph the runtime served, a failed
- * stream's as much as any other's; or, with no graph read, why none show.
+ * The rows under a stream: what is wrong with it, then the groups and nodes of the graph the runtime served, whatever the
+ * stream is doing; or, with no graph read, why none show.
  */
 function streamChildren(stream: ListedStream, projectName: string, graphReading: StreamGraphReading | undefined): OutlinerTreeNode[] {
   const failureRows = streamFailureRows(stream);
   if (graphReading?.kind === "read") return [...failureRows, ...streamGraphRows(stream, projectName, graphReading.graph)];
-  if (failureRows.length > 0) return failureRows;
+  return [...failureRows, whyNoNodesShowRow(stream, graphReading)];
+}
+
+/** The row saying why `stream` shows no nodes while its graph is not read: the step it is preparing, the read not answered yet, or why it failed. */
+function whyNoNodesShowRow(stream: ListedStream, graphReading: Extract<StreamGraphReading, { kind: "not_read" }> | undefined): OutlinerTreeNode {
   const rowId = streamRowId(stream.stream);
   const preparingWords = streamPreparingWords(stream, stream.display_name);
-  if (preparingWords !== null) return [leafNode({ row_id: `${rowId}/preparing`, label: preparingWords.explanation, icon: "waiting", tone: "waiting" })];
-  if (graphReading === undefined) return [leafNode({ row_id: `${rowId}/waiting`, label: "Nodes not read yet", icon: "waiting", tone: "waiting" })];
-  if (stream.state !== "running") return [leafNode({ row_id: `${rowId}/not-running`, label: "Not running", icon: "waiting", tone: "waiting" })];
-  return [leafNode({ row_id: `${rowId}/not-read`, label: graphReading.because, icon: "unreadable", tone: "unreadable" })];
+  if (preparingWords !== null) return leafNode({ row_id: `${rowId}/preparing`, label: preparingWords.explanation, icon: "waiting", tone: "waiting" });
+  if (graphReading === undefined) return leafNode({ row_id: `${rowId}/waiting`, label: "Nodes not read yet", icon: "waiting", tone: "waiting" });
+  return leafNode({ row_id: `${rowId}/not-read`, label: graphReading.because, icon: "unreadable", tone: "unreadable" });
 }
 
 /** The streams of `streams` the runtime loaded from `project`'s folder. */
@@ -217,8 +249,7 @@ function projectStreamNodes(project: OpenProject, listedStreams: ListedStreamsRe
           row: {
             row_id: streamRowId(stream.stream),
             label: stream.display_name,
-            icon: stream.state === "failed" ? "failed" : "stream",
-            tone: stream.state === "failed" ? "failed" : undefined,
+            ...streamRowCondition(stream),
             isCurrent: stream.stream === openStream,
             aside: "stream",
           },

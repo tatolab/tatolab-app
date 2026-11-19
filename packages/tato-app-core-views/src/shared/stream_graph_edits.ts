@@ -210,15 +210,18 @@ export function deletedEdits(edited: EditedStreamGraph, deleted: { node_ids: rea
   const removedNodeNames = new Set(deleted.node_ids);
   const disconnected: StreamGraphAction[] = edited.graph.links
     .filter((link) => deleted.link_ids.includes(linkIdAsTheCanvasKeysIt(link)) && !removedNodeNames.has(link.source.node) && !removedNodeNames.has(link.target.node))
-    .flatMap((link) => {
-      const sourceNode = nodeIdOf(edited, link.source.node);
-      const targetNode = nodeIdOf(edited, link.target.node);
-      if (sourceNode === null || targetNode === null) return [];
-      return [{ operation: "disconnect", stream: edited.streamAsset, source: { node: sourceNode, port: link.source.port }, target: { node: targetNode, port: link.target.port } }];
-    });
+    .flatMap((link) => linkDisconnectedEdits(edited, { from_node: link.source.node, from_port: link.source.port, to_node: link.target.node, to_port: link.target.port }));
   const removedNodes: StreamGraphAction[] = edited.graph.nodes.filter((node) => removedNodeNames.has(node.name)).map((node) => ({ operation: "remove_node", stream: edited.streamAsset, node: node.id }));
   const removedNotes: StreamGraphAction[] = deleted.note_ids.map((note) => ({ operation: "remove_note", stream: edited.streamAsset, note }));
   return [...disconnected, ...removedNodes, ...removedNotes];
+}
+
+/** The link from `from_node`'s `from_port` to `to_node`'s `to_port`, its nodes by name, disconnected; nothing when the graph holds no node of either name. */
+export function linkDisconnectedEdits(edited: EditedStreamGraph, link: { from_node: string; from_port: string; to_node: string; to_port: string }): StreamGraphAction[] {
+  const sourceNode = nodeIdOf(edited, link.from_node);
+  const targetNode = nodeIdOf(edited, link.to_node);
+  if (sourceNode === null || targetNode === null) return [];
+  return [{ operation: "disconnect", stream: edited.streamAsset, source: { node: sourceNode, port: link.from_port }, target: { node: targetNode, port: link.to_port } }];
 }
 
 /** A link's id as the canvas keys it: the runtime's id, or its ends while the runtime gives it none. */

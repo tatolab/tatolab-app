@@ -83,7 +83,7 @@ export function mockStreamIdOf(address: MockStreamAddress): string {
 
 /** A stream listed running, its graph loaded with `nodeCount` nodes, under the id its address computes to. */
 function runningListing(address: MockStreamAddress, displayName: string, nodeCount: number): ListedStream {
-  return { stream: mockStreamIdOf(address), display_name: displayName, location: mockStreamLocationOf(address), state: "running", node_count: nodeCount, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
+  return { stream: mockStreamIdOf(address), display_name: displayName, location: mockStreamLocationOf(address), state: "running", node_count: nodeCount, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], condition: null, action: null, step: null };
 }
 
 /** A log record before the mock runtime numbers and stamps it. */
@@ -766,13 +766,13 @@ function patternProjectDirectory(machine: MockMachine): string {
 /** A stream its owner stopped with `tatolab stop`. */
 function stoppedPatternTwoListing(machine: MockMachine): ListedStream {
   const address = { project_directory: patternProjectDirectory(machine), stream_name: "pattern_two" };
-  return { stream: mockStreamIdOf(address), display_name: "pattern-two", location: mockStreamLocationOf(address), state: "stopped", node_count: null, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
+  return { stream: mockStreamIdOf(address), display_name: "pattern-two", location: mockStreamLocationOf(address), state: "stopped", node_count: null, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], condition: null, action: null, step: null };
 }
 
 /** A stream that could not load at the runtime's start. */
 function failedLobbyRecorderListing(machine: MockMachine): ListedStream {
   const address = { project_directory: `${machine.homeDirectory}/streams/lobby-recorder`, stream_name: "main" };
-  return { stream: mockStreamIdOf(address), display_name: "lobby-recorder", location: mockStreamLocationOf(address), state: "failed", node_count: null, failed_because: machine.cameraFailure, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
+  return { stream: mockStreamIdOf(address), display_name: "lobby-recorder", location: mockStreamLocationOf(address), state: "failed", node_count: null, failed_because: machine.cameraFailure, capture_devices_whose_access_was_never_asked_for: [], condition: null, action: null, step: null };
 }
 
 /** What `?main_graph=` names `main` to hold in place of the pattern project's own graph. */
@@ -902,6 +902,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
       failed_because:
         "an earlier runtime recorded it, under record schema 2, and this runtime does not load it; run it again with `tatolab run` in its project, and `tatolab rm doorbell` forgets this record",
       capture_devices_whose_access_was_never_asked_for: [],
+      condition: null,
       action: null,
       step: null,
     },

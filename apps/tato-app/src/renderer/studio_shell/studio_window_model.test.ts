@@ -14,7 +14,7 @@ function listedStream(stream: string, projectDirectory: string, streamName: stri
     state,
     node_count: state === "running" ? 4 : null,
     failed_because: state === "failed" ? "`uv sync` did not make …/Sheet Check/.venv" : null,
-    capture_devices_whose_access_was_never_asked_for: [],
+    capture_devices_whose_access_was_never_asked_for: [], condition: null,
     action: null,
     step: null,
   };

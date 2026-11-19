@@ -5,7 +5,7 @@ import { Effect, Schema } from "effect";
 import type { MessageFromTheView, ModulesAndMarketplaceSection, ProjectAssetPick, ViewAsk, ViewOpeningTarget, ViewWatchedSubject } from "../view_wire_messages.js";
 import { contractValue } from "./contract_value.js";
 import { schemaOfThePublicType } from "./schema_of_a_public_type.js";
-import { jsonValueSchema, portViewerTargetSchema, projectTransactionAuthorSchema, streamTabAddressSchema, studioSelectionSchema } from "./studio_reading_schemas.js";
+import { jsonValueSchema, portViewerTargetSchema, projectStreamsRecoverySchema, projectTransactionAuthorSchema, streamTabAddressSchema, studioSelectionSchema } from "./studio_reading_schemas.js";
 
 const watchOrAskIdSchema = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 
@@ -84,6 +84,7 @@ export const viewAskSchema = schemaOfThePublicType<ViewAsk>()(
     Schema.Struct({ kind: Schema.Literal("relocate_asset_in_the_project"), project_folder: Schema.String, asset: Schema.String, to_path: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("read_asset_preview_in_the_project"), project_folder: Schema.String, asset: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("delete_asset_from_the_project"), project_folder: Schema.String, asset: Schema.String }),
+    Schema.Struct({ kind: Schema.Literal("recover_the_projects_streams"), project_folder: Schema.String, recovery: projectStreamsRecoverySchema }),
     Schema.Struct({ kind: Schema.Literal("show_view_type_in_area"), view_type_id: Schema.String, area_id: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("open_modules_and_marketplace"), shows: modulesAndMarketplaceSectionSchema }),
     Schema.Struct({ kind: Schema.Literal("pick_a_project_asset"), pick: projectAssetPickSchema }),

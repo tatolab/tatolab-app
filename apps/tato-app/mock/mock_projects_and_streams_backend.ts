@@ -367,7 +367,7 @@ export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulatio
       if (simulation.openProjectReading.kind === "unreadable") throw simulation.openProjectReading.refusal;
       if (simulation.mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
       const folder = simulation.openProjectReading.open_project.project.folder;
-      const loadedStreamsOfTheProject = loadedStreamsOfTheMockProjectIn(folder);
+      const loadedStreamsOfTheProject = loadedStreamsOfTheMockProjectIn(folder).filter(({ fixture }) => fixture.listing.state !== "failed");
       if (loadedStreamsOfTheProject.some((loadedStream) => loadedStream.fixture.listing.state === "paused")) {
         setTheMockPlaybackOfTheStreams(loadedStreamsOfTheProject, "running");
         return;

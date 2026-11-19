@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from "vitest";
-import type { NodeCatalog, StreamGraphInputValueChange, StreamGraph } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, NodeCatalog, StreamGraphInputValueChange, StreamGraph } from "../../shared/tatolab_backend_contract";
 import { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
-import type { NodeCatalogReading, StreamGraphReading, StreamInputValuesReading } from "./studio_view_contract";
+import type { NodeCatalogReading, ProjectTransactionsReading, StreamGraphReading, StreamInputValuesReading } from "./studio_view_contract";
 import { aGraphNode, aGraphPort, aStreamGraph } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 
 afterEach(() => {
@@ -27,6 +27,10 @@ function countingBackend() {
   const pushTheStreamGraphChanged = (stream: string, inputValueChange: StreamGraphInputValueChange | null = null) => {
     for (const listener of streamGraphChangedListeners) listener(stream, inputValueChange);
   };
+  const projectTransactionsListeners = new Set<(reading: ProjectTransactionsReading) => void>();
+  const announceAProjectTransaction = () => {
+    for (const listener of projectTransactionsListeners) listener({ kind: "not_read", because: "a transaction was announced" });
+  };
   const backend = {
     followStreamGraphChanges: (stream: string): Promise<void> => {
       streamsFollowed.add(stream);
@@ -40,6 +44,10 @@ function countingBackend() {
       streamGraphChangedListeners.add(listener);
       return () => streamGraphChangedListeners.delete(listener);
     },
+    onProjectTransactionsChanged: (listener: (reading: ProjectTransactionsReading) => void): (() => void) => {
+      projectTransactionsListeners.add(listener);
+      return () => projectTransactionsListeners.delete(listener);
+    },
     describeStreamGraph: (stream: string): Promise<StreamGraph> => {
       reads.graph += 1;
       return Promise.resolve(graphOfTheTypes(stream, served.graphTypes, served.gain));
@@ -50,7 +58,7 @@ function countingBackend() {
       return Promise.resolve({ stream, node_types: served.catalogTypes.map((type) => ({ type, description: "", category: null, config_schema: null, inputs: [], outputs: [] })) });
     },
   };
-  return { backend, served, reads, streamsFollowed, pushTheStreamGraphChanged };
+  return { backend, served, reads, streamsFollowed, pushTheStreamGraphChanged, announceAProjectTransaction };
 }
 
 test("two_views_watching_one_stream_share_one_read_and_nothing_is_read_again_until_a_change_is_pushed", async () => {
@@ -73,6 +81,42 @@ test("two_views_watching_one_stream_share_one_read_and_nothing_is_read_again_unt
   pushTheStreamGraphChanged("main");
   await vi.advanceTimersByTimeAsync(10);
   expect(reads.graph).toBe(2);
+});
+
+function listedStreamLoaded(stream: string, load: "loaded" | "not_loaded"): ListedStream {
+  return {
+    stream,
+    display_name: stream,
+    location: null,
+    state: load === "loaded" ? "running" : "stopped",
+    node_count: null,
+    failed_because: null,
+    capture_devices_whose_access_was_never_asked_for: [],
+    condition: { load, playback: load === "loaded" ? "playing" : "stopped", health: "healthy", diagnostics: [] },
+    action: null,
+    step: null,
+  };
+}
+
+test("each_transaction_the_projects_feed_announces_reads_again_the_graph_of_each_watched_stream_the_runtime_does_not_list_loaded_and_a_load_or_unload_reads_it_again", async () => {
+  vi.useFakeTimers();
+  const { backend, served, reads, announceAProjectTransaction } = countingBackend();
+  const readings = new StreamGraphAndCatalogReadings(backend);
+  const closedView: StreamGraphReading[] = [];
+  readings.watchStreamGraph("closed", (reading) => closedView.push(reading));
+  readings.watchStreamGraph("playing", () => undefined);
+  await vi.advanceTimersByTimeAsync(10);
+  readings.takeTheStreamsListed([listedStreamLoaded("closed", "not_loaded"), listedStreamLoaded("playing", "loaded")]);
+  await vi.advanceTimersByTimeAsync(10);
+  expect(reads.graph).toBe(3);
+  served.graphTypes = ["A", "B"];
+  announceAProjectTransaction();
+  await vi.advanceTimersByTimeAsync(10);
+  expect(reads.graph).toBe(4);
+  readings.takeTheStreamsListed([listedStreamLoaded("closed", "not_loaded"), listedStreamLoaded("playing", "not_loaded")]);
+  await vi.advanceTimersByTimeAsync(10);
+  expect(reads.graph).toBe(5);
+  expect(closedView.map((reading) => (reading.kind === "read" ? reading.graph.nodes.length : reading.because))).toEqual([1, 2]);
 });
 
 test("changes_pushed_while_a_read_is_in_flight_read_the_graph_once_more_after_it", async () => {

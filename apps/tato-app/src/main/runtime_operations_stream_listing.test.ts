@@ -198,3 +198,34 @@ test("the_listing_reads_a_closed_projects_streams_closed_and_unloaded_beside_a_p
     ["pattern-main-32fee2", "stopped", false],
   ]);
 });
+
+test("each_streams_condition_reads_with_its_diagnostics_a_value_newer_than_this_app_as_its_sets_fallback_and_none_from_a_runtime_that_lists_none", () => {
+  const listing = { stream: "lobby-main-298da3", display_name: "main", location: { project_directory: "/Users/me/lobby", project: A_PROJECT, stream_asset: A_STREAM_ASSET }, state: "failed", node_count: null, failed_because: "the link was refused" };
+  const condition = {
+    load: "loaded",
+    playback: "rewinding",
+    health: "degraded",
+    diagnostics: [
+      { kind: "link_refused", place: { on: "link", from_node: "camera", from_port: "video", to_node: "display", to_port: "video" }, words: "the link was refused", recovery: "fix_the_link" },
+      { kind: "edit_not_live", place: { on: "node", node_id: "D1", node_name: "display" }, words: "the running stream refused it", recovery: "restart_the_playback" },
+      { kind: "a_kind_from_later", place: { on: "a_place_from_later" }, words: "something newer", recovery: "a_recovery_from_later" },
+    ],
+  };
+
+  const [listedWithACondition, listedWithNone] = answerOf(listedStreamsFromTheListStreamsToolResult({ streams: [{ ...listing, condition }, listing] }));
+
+  expect(listedWithACondition?.condition).toEqual({
+    load: "loaded",
+    playback: "stopped",
+    health: "degraded",
+    diagnostics: [
+      { kind: "link_refused", place: { on: "link", from_node: "camera", from_port: "video", to_node: "display", to_port: "video" }, words: "the link was refused", recovery: "fix_the_link" },
+      { kind: "edit_not_live", place: { on: "node", node_id: "D1", node_name: "display" }, words: "the running stream refused it", recovery: "restart_the_playback" },
+      { kind: "other", place: { on: "stream" }, words: "something newer", recovery: "retry_the_load" },
+    ],
+  });
+  expect(listedWithNone?.condition).toBeNull();
+  expect(failureOf(listedStreamsFromTheListStreamsToolResult({ streams: [{ ...listing, condition: { ...condition, diagnostics: [{ kind: "node_failed", place: { on: "node", node_id: "D1" }, words: "it failed", recovery: "restart_the_playback" }] } }] }))).toMatch(
+    /^the runtime's list_streams result could not be read: .*node_name/,
+  );
+});

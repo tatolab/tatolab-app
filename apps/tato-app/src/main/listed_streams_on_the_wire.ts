@@ -1,9 +1,10 @@
 // What the runtime's `list_streams` answers: every stream it holds, with where it came from, its
-// state, and the action and step it is in.
+// state, its condition, and the action and step it is in.
 
 import type { ListedStream, StreamLocation } from "../shared/tatolab_backend_contract.js";
 import { arrayOrEmpty, everyOneRead, jsonObject, type JsonObjectOnTheWire, optionalObject, optionalText, optionalUnsignedInteger, requiredText } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
+import { streamConditionOnTheWire } from "./stream_condition_on_the_wire.js";
 
 /** A stream's `location` on the wire: `project_directory`, its project's UUID as `project` and its stream asset's UUID as `stream_asset`. */
 function streamLocationOnTheWire(location: JsonObjectOnTheWire): Result<StreamLocation, string> {
@@ -50,6 +51,10 @@ function listedStreamOnTheWire(listedStreamOnTheWire: unknown): Result<ListedStr
   if (!failedBecause.ok) return failedBecause;
   const captureDevicesWhoseAccessWasNeverAskedFor = captureDevicesWhoseAccessWasNeverAskedForOnTheWire(listedStream.value);
   if (!captureDevicesWhoseAccessWasNeverAskedFor.ok) return captureDevicesWhoseAccessWasNeverAskedFor;
+  const conditionOnTheWire = optionalObject(listedStream.value, "condition");
+  if (!conditionOnTheWire.ok) return conditionOnTheWire;
+  const condition = conditionOnTheWire.value === null ? succeeded(null) : streamConditionOnTheWire(conditionOnTheWire.value);
+  if (!condition.ok) return condition;
   const action = optionalText(listedStream.value, "action");
   if (!action.ok) return action;
   const step = optionalText(listedStream.value, "step");
@@ -62,6 +67,7 @@ function listedStreamOnTheWire(listedStreamOnTheWire: unknown): Result<ListedStr
     node_count: nodeCount.value,
     failed_because: failedBecause.value,
     capture_devices_whose_access_was_never_asked_for: captureDevicesWhoseAccessWasNeverAskedFor.value,
+    condition: condition.value,
     action: action.value,
     step: step.value,
   });
