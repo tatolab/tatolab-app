@@ -33,8 +33,14 @@ export function isOnTheStreamsOwnLevel(address: InputAddress): boolean {
   return address.graph.level.length === 0;
 }
 
-/** Where the value `port`, an input of the node `nodeId` at `valuesAt`, holds of its own is kept; `null` on an input that takes no stored value or that a link feeds, and where no stream's graph is known. */
-export function valueAddressOfTheInput(valuesAt: GraphAddress | null, nodeId: string, port: Pick<StreamGraphPort, "name" | "value" | "value_comes_from">): InputAddress | null {
+/**
+ * Where a person sets `port`, an input of the node `nodeId` at `valuesAt`: where the value it holds of its own is kept, or, on
+ * an unlinked Trigger, which holds none, where it is fired. `null` on an input that takes no stored value and is no Trigger, on
+ * one a link feeds, and where no stream's graph is known.
+ */
+export function valueAddressOfTheInput(valuesAt: GraphAddress | null, nodeId: string, port: Pick<StreamGraphPort, "name" | "value" | "value_comes_from" | "flow">): InputAddress | null {
+  if (valuesAt === null) return null;
   const valueRead = inputValueReadOfThePort(port);
-  return valuesAt === null || valueRead === null || valueRead.comes_from === "wire" ? null : { graph: valuesAt, node_id: nodeId, input: port.name };
+  const isSetHere = valueRead === null ? port.flow === "trigger" && port.value_comes_from !== "wire" : valueRead.comes_from !== "wire";
+  return isSetHere ? { graph: valuesAt, node_id: nodeId, input: port.name } : null;
 }

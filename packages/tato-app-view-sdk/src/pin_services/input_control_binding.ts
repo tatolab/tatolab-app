@@ -3,7 +3,8 @@
 // which element draws the input, loads it, hands it its pin, state and value, and follows the
 // store. An element's `input` moves a gesture and its `change` releases it, a lone `change` being a
 // whole gesture, ended in a commit, or live in Perform; the element's own `cancel`, Escape, or a press
-// the pointer gives up, cancels it. While a gesture is open the
+// the pointer gives up, cancels it. A Trigger holds no value: each `change` of its control fires it
+// once, on every surface. While a gesture is open the
 // binder never sets the element's value, and every value that arrives is set in one animation-frame
 // flush, so a surface's React tree never sees one. DOM only, no React.
 
@@ -18,7 +19,7 @@ import { NodeUiControlTable, type NodeUiControlChoice } from "../node_ui/node_ui
 import type { NodeUiElementHost } from "../node_ui/node_ui_element_host.js";
 import type { ListedNodeUiElement, NodeUiElementsReading } from "../node_ui/node_ui_elements_listing.js";
 import { ReadOnlyValueLineElement } from "../node_ui/read_only_value_line_element.js";
-import type { StopWatching } from "../tato_app_view_connection.js";
+import type { StopWatching, TatoAppViewConnection } from "../tato_app_view_connection.js";
 import type { InputValueGesture, InputValues, ShownValue } from "./input_values.js";
 
 /** Where a control is drawn, and whether the graph there can be edited. */
@@ -71,10 +72,14 @@ export interface InputControlBinder {
   bindOwnField(address: InputAddress, release: InputValueRelease): OwnFieldBinding;
 }
 
-/** What a binder reads and writes through: the frame's element listing and its store, and, for tests, how an element loads and when a flush runs. */
+/** What a control asks of the project an input's stream is in, through the frame's connection. */
+export type ProjectAControlReaches = Pick<TatoAppViewConnection, "pickAProjectAsset" | "readAssetPreviewInTheProject" | "watchProjectAssets">;
+
+/** What a binder reads and writes through: the frame's element listing, its store and its reach into a project, and, for tests, how an element loads and when a flush runs. */
 export interface InputControlBinderSources {
   readonly watchNodeUiElements: (listener: (reading: NodeUiElementsReading) => void) => StopWatching;
   readonly inputValues: InputValues;
+  readonly project: ProjectAControlReaches;
   readonly loadElement?: (listed: ListedNodeUiElement) => Promise<NodeUiElementLoading>;
   readonly requestAFlush?: (flush: () => void) => void;
 }
@@ -124,7 +129,7 @@ function stateAt(place: InputControlPlace): InputControlState {
 export function createInputControlBinder(sources: InputControlBinderSources): InputControlBinder {
   const loadElement = sources.loadElement ?? ((listed: ListedNodeUiElement) => loadNodeUiElement(listed));
   const requestAFlush = sources.requestAFlush ?? ((flush: () => void) => void requestAnimationFrame(flush));
-  const { inputValues } = sources;
+  const { inputValues, project } = sources;
   const bindings = new Set<SlotBinding>();
   const bindingsToFlush = new Set<SlotBinding>();
   let table: NodeUiControlTable | null = null;
@@ -145,17 +150,23 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
   };
 
   /** The control the table picks for `pin`, defined and handed its pin, for a control that holds another. */
-  const studio: NodeUiElementHost = {
-    inputControlFor: async (pin) => {
-      const choice = table?.controlChoiceForTheInput(pin.declaration) ?? { kind: "read_only_line", because: "The Studio has not listed its controls yet." };
-      if (choice.kind === "read_only_line") return Promise.reject(new Error(choice.because));
-      const loading = await loadElement(choice.listed);
-      if (loading.kind !== "defined") return Promise.reject(new Error(whyTheElementDidNotLoad(loading)));
-      const control = newInputControl(loading.tag);
-      control.pin = pin;
-      return control;
-    },
+  const inputControlFor: NodeUiElementHost["inputControlFor"] = async (pin) => {
+    const choice = table?.controlChoiceForTheInput(pin.declaration) ?? { kind: "read_only_line", because: "The Studio has not listed its controls yet." };
+    if (choice.kind === "read_only_line") return Promise.reject(new Error(choice.because));
+    const loading = await loadElement(choice.listed);
+    if (loading.kind !== "defined") return Promise.reject(new Error(whyTheElementDidNotLoad(loading)));
+    const control = newInputControl(loading.tag);
+    control.pin = pin;
+    return control;
   };
+
+  /** The Studio as a control of an input of a stream in the project at `projectFolder` reaches it. */
+  const studioOfTheProject = (projectFolder: string): NodeUiElementHost => ({
+    pickAProjectAsset: (pick) => project.pickAProjectAsset(pick),
+    readAssetPreview: (asset) => project.readAssetPreviewInTheProject(projectFolder, asset),
+    watchProjectAssets: (listener) => project.watchProjectAssets(projectFolder, listener),
+    inputControlFor,
+  });
 
   /** One slot: the element it holds, the gesture open on it, and its watch of the store. */
   class SlotBinding implements InputControlBinding {
@@ -267,7 +278,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
 
     /** Hands `element` its pin, state and value, then puts it in the slot and listens to it. */
     #mount(element: AnyInputControl): void {
-      const pin: ControlledPin<BuiltInPinTypeName> = { declaration: this.#input.declaration, surface: this.#place.surface, studio };
+      const pin: ControlledPin<BuiltInPinTypeName> = { declaration: this.#input.declaration, surface: this.#place.surface, studio: studioOfTheProject(this.#input.address.graph.project_folder) };
       element.pin = pin;
       element.setAttribute("data-surface", this.#place.surface);
       element.setAttribute("data-state", stateAt(this.#place));
@@ -315,9 +326,14 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       }
     }
 
+    /** Whether what the element fires now is the person's doing, on a slot that may be edited, and so is acted on. */
+    #isActedOn(): boolean {
+      return !(this.#isIgnoringTheElement || this.#isIgnoringTheElementUntilAPress || this.#isUnbound || this.#place.read_only);
+    }
+
     /** The JSON `event` carries for the input, or `undefined` for an event the binder does not act on. */
     #valueOfTheEvent(event: Event): ReturnType<typeof jsonOfTheStoredPinValue> {
-      if (this.#isIgnoringTheElement || this.#isIgnoringTheElementUntilAPress || this.#isUnbound || this.#place.read_only) return undefined;
+      if (!this.#isActedOn()) return undefined;
       const carried = valueTheInputControlEventCarries(event);
       return carried === null ? undefined : jsonOfTheStoredPinValue(this.#input.declaration.pin_type, carried.value);
     }
@@ -343,12 +359,22 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       this.#closeTheGesture();
     }
 
+    /** Whether the input is a Trigger, which holds no value, so its control's `change` fires it and nothing else it fires is acted on. */
+    #isATrigger(): boolean {
+      return this.#input.declaration.pin_type.type === "trigger";
+    }
+
     readonly #elementMoved = (event: Event): void => {
+      if (this.#isATrigger()) return;
       const value = this.#valueOfTheEvent(event);
       if (value !== undefined) this.#openGesture().move(value);
     };
 
     readonly #elementReleased = (event: Event): void => {
+      if (this.#isATrigger()) {
+        if (this.#isActedOn() && valueTheInputControlEventCarries(event) !== null) inputValues.fire(this.#input.address);
+        return;
+      }
       const value = this.#valueOfTheEvent(event);
       if (value === undefined) return;
       this.#openGesture().release(value);

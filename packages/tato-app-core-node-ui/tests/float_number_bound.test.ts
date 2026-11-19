@@ -5,6 +5,7 @@ import { nodeUiElementTag, type ListedNodeUiElement } from "@tatolab/tato-app-vi
 import type { JsonValue, StreamInputValuesReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { afterEach, expect, it, vi } from "vitest";
 import FloatNumber from "../node_ui/float_number.ts";
+import { NO_PROJECT } from "./control_test_support.ts";
 
 vi.mock("@tatolab/tato-app-view-sdk/node_ui/input_control.css", () => ({ default: new CSSStyleSheet() }));
 
@@ -39,7 +40,7 @@ async function boundFloatNumber() {
     newGestureIdempotencyKey: () => "drag",
   });
   inputValues.takeTheInputValues("/projects/demo", valuesOfTheGain(0.5));
-  const binder = createInputControlBinder({ watchNodeUiElements: (listener) => (listener({ elements: [FLOAT_NUMBER_LISTED] }), () => undefined), inputValues, requestAFlush: (flush) => flush() });
+  const binder = createInputControlBinder({ watchNodeUiElements: (listener) => (listener({ elements: [FLOAT_NUMBER_LISTED] }), () => undefined), inputValues, project: NO_PROJECT, requestAFlush: (flush) => flush() });
   const host = document.createElement("div");
   document.body.append(host);
   binder.bindInputControl(host, GAIN, { surface: "node", read_only: false });

@@ -6,6 +6,7 @@ import { createInputControlBinder, type InputControlBinder, type InputControlSho
 import { createInputValues } from "../pin_services/input_values";
 import type { GraphEditMode, StreamGraphInputValueRead, StreamInputValuesReading } from "../studio_readings";
 import { InputControlBinderContext, InputControlMount, useOwnFieldOfTheInput } from "./input_control_mount";
+import { NO_PROJECT } from "../node_ui/test_fixtures/node_ui_listing_fixtures";
 
 const COUNT: ControlledInput = {
   address: { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "LOOP-ID", input: "count" },
@@ -106,7 +107,7 @@ test("a surface's own field shows the store's value as each reading changes it, 
     newGestureIdempotencyKey: () => "gesture",
   });
   inputValues.takeTheInputValues(COUNT.address.graph.project_folder, valuesRead({ value: { every: 1 }, comes_from: "saved" }));
-  const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues });
+  const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues, project: NO_PROJECT });
   render(
     <InputControlBinderContext value={binder}>
       <OwnFieldOfTheCount />

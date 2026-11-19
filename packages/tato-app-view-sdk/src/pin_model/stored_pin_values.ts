@@ -1,11 +1,11 @@
 // An input's value as the store holds it, JSON, and as a control holds it, the stored value its pin
-// type generates. The scalar types and the types made of numbers are read each way so far; a type
-// whose controls have not landed reads as no value, so no control is handed a value of a form it
-// does not declare.
+// type generates. Each built-in type that stores a value and has a control is read each way; any
+// other type, a bundle among them, reads as no value, so no control is handed a value of a form it
+// does not declare. A Trigger stores none.
 
-import type { BuiltInPinTypeName, ColorPinValue, PinType, RectanglePinValue, VectorComponentCount, VectorPinValue } from "../pin_types.js";
+import type { AssetPinValue, BuiltInPinTypeName, ColorPinValue, PinType, RectanglePinValue, VectorComponentCount, VectorPinValue } from "../pin_types.js";
 import type { StoredPinValue } from "../node_ui/input_control_element.js";
-import type { JsonValue } from "../studio_readings.js";
+import { isAJsonValue, type JsonValue } from "../studio_readings.js";
 
 /** The keys a Color's value holds, in the order a control shows them. */
 const COLOR_PARTS = ["red", "green", "blue", "alpha"] as const satisfies readonly (keyof ColorPinValue)[];
@@ -72,6 +72,34 @@ function transformNumbersOf(value: unknown): number[] | undefined {
   return Array.isArray(value) && value.length === TRANSFORM_NUMBER_COUNT && value.every(isAFiniteNumber) ? [...value] : undefined;
 }
 
+/** `value` as an Asset: an object holding the asset's UUID under `asset` and, for an asset of an import, that project's UUID under `from`, and no other key. */
+function assetOf(value: unknown): AssetPinValue | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const entries = new Map<string, unknown>(Object.entries(value));
+  const asset = entries.get("asset");
+  const from = entries.get("from");
+  if (typeof asset !== "string" || asset === "") return undefined;
+  if (!entries.has("from")) return entries.size === 1 ? { asset } : undefined;
+  return entries.size === 2 && typeof from === "string" && from !== "" ? { asset, from } : undefined;
+}
+
+/** `value` as one of a Menu's `optionNames`, spelled as declared. */
+function menuOptionOf(value: unknown, optionNames: readonly string[]): string | undefined {
+  return typeof value === "string" && optionNames.includes(value) ? value : undefined;
+}
+
+/** `value` as a List of `elementType`: each element read by `readTheElement`, or `undefined` when it is no list or any element is not of that type's form. */
+function listOf<Element>(value: unknown, readTheElement: (element: unknown) => Element | undefined): Element[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const elements: Element[] = [];
+  for (const element of value) {
+    const read = readTheElement(element);
+    if (read === undefined) return undefined;
+    elements.push(read);
+  }
+  return elements;
+}
+
 /** The value of a type made of numbers, as `pinType` declares its form, or `undefined` for another type or a value not of that form; the store's JSON and a control's value have the same form. */
 function numbersOfThePinType(pinType: PinType, value: unknown): ColorPinValue | VectorPinValue | RectanglePinValue | number[] | undefined {
   switch (pinType.type) {
@@ -99,6 +127,14 @@ export function storedPinValueOfTheJson(pinType: PinType, value: JsonValue | nul
       return typeof value === "boolean" ? value : undefined;
     case "string":
       return typeof value === "string" ? value : undefined;
+    case "menu":
+      return menuOptionOf(value, pinType.option_names);
+    case "asset":
+      return assetOf(value);
+    case "list_of": {
+      const elementType = pinType.element_type;
+      return listOf(value, (element) => (isAJsonValue(element) ? storedPinValueOfTheJson(elementType, element) : undefined));
+    }
     case "color":
     case "vector":
     case "rectangle":
@@ -121,6 +157,17 @@ export function jsonOfTheStoredPinValue(pinType: PinType, stored: unknown): Json
       return typeof stored === "boolean" ? stored : undefined;
     case "string":
       return typeof stored === "string" ? stored : undefined;
+    case "menu":
+      return menuOptionOf(stored, pinType.option_names);
+    case "asset": {
+      const asset = assetOf(stored);
+      if (asset === undefined) return undefined;
+      return asset.from === undefined ? { asset: asset.asset } : { asset: asset.asset, from: asset.from };
+    }
+    case "list_of": {
+      const elementType = pinType.element_type;
+      return listOf(stored, (element) => jsonOfTheStoredPinValue(elementType, element));
+    }
     case "color":
     case "vector":
     case "rectangle":

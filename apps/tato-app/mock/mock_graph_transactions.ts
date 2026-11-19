@@ -316,6 +316,19 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
 }
 
 /**
+ * Fires the Trigger input `input` of `node`, as a live set of no value does, which stores nothing and announces nothing; refused
+ * in the runtime's words as a saved set, a set carrying a value, and a fire of an input a link feeds are.
+ */
+function fireTheTriggerInput(graph: MockGraphLevel, node: MockGraphNode, input: string, value: unknown, applying: "a_transaction" | "a_live_transaction" | "undo_or_redo"): void {
+  const toFireIt = "To fire it: send `set_node_input_value` with no value in a `live` transaction of value sets alone, which fires it once";
+  if (value !== null) throw new MockGraphEditNotApplicable(`the value of input \`${input}\` of \`${node.name}\` is ${JSON.stringify(value)}, and \`${input}\` is a Trigger, which carries an event and no value. ${toFireIt}`);
+  if (applying !== "a_live_transaction") throw new MockGraphEditNotApplicable(`input \`${input}\` of \`${node.name}\` is a Trigger, which carries an event and holds no value to save. ${toFireIt}`);
+  if (graph.links.some((link) => link.target_node === node.name && link.target_port === input)) {
+    throw new MockGraphEditNotApplicable(`input \`${input}\` of \`${node.name}\` is a Trigger a link feeds, and the link's messages are its only events. To fix: unlink it, or fire the node feeding it`);
+  }
+}
+
+/**
  * Apply `operations` to `targetsByStreamAsset`'s graphs as one transaction: each graph is changed only once every
  * operation has applied to a copy of it. Applied by an undo or a redo, an `add_node`'s `as` is the id the node had, which
  * it takes again. An `add_group` or `add_note` takes the id its operation in `historyOperationsReplayed` recorded, so the
@@ -404,6 +417,10 @@ export function applyMockGraphTransaction(
       case "set_node_input_value": {
         const node = nodeNamed(operation.node);
         const port = node.input_ports.find((candidate) => candidate.name === operation.input);
+        if (port?.pin?.flow === "trigger") {
+          fireTheTriggerInput(graph, node, operation.input, operation.value ?? null, applying);
+          break;
+        }
         if (port === undefined || port.value_read === null) {
           throw new MockGraphEditNotApplicable(`node ${operation.node} has no input \`${operation.input}\` that holds a value`);
         }

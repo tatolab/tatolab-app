@@ -17,7 +17,7 @@ export interface NodePin {
   /** What its node type's annotations state of its value, such as its range and the control that edits it; empty where it states none. */
   readonly annotations: PinAnnotations;
   readonly stream_facts_words: readonly string[];
-  /** Where the value an input holds while unwired is kept, the key its row reads the value by; `null` on an output, on an input that takes no stored value or that a link feeds, and outside a stream's graph. */
+  /** Where a person sets an unwired input, the key its row reads the value by: where the value it holds is kept, or where an unlinked Trigger is fired; `null` on an output, on an input that takes no stored value and is no Trigger, on one a link feeds, and outside a stream's graph. */
   readonly value_address: InputAddress | null;
 }
 

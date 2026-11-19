@@ -37,13 +37,18 @@ function nodeGraphShapeKey(
 /** The shape key while every card has a saved place, when no card is laid out and so no shape decides anything. */
 const EVERY_CARD_PLACED_SHAPE_KEY = "every card placed";
 
-/** The cards' widths as drawn, read once React Flow has measured them for one shape of the graph. */
-interface MeasuredCardWidths {
+/** The cards' sizes as drawn, read once React Flow has measured them for one shape of the graph, and again as a laid-out card's height changes, as its controls load or a List's rows grow. */
+interface MeasuredCardSizes {
   shapeKey: string;
-  widthByNode: Map<string, number>;
+  sizeByNode: ReadonlyMap<string, { width: number; height: number }>;
 }
 
-/** Where the canvas's cards and notes sit and how big they are: laid out until measured, the graph framed once laid out on the measured widths, and each move held until the graph shows it. */
+/** Whether a card with no saved place is measured at another height than `measured` holds, so the cards below it would overlap it. */
+function hasALaidOutCardChangedHeight(nodes: readonly NodeGraphCanvasNode[], cardSizeByNode: ReadonlyMap<string, { width: number; height: number }>, measured: MeasuredCardSizes): boolean {
+  return nodes.some((node) => node.saved_position === null && !Object.is(cardSizeByNode.get(node.node_id)?.height, measured.sizeByNode.get(node.node_id)?.height));
+}
+
+/** Where the canvas's cards and notes sit and how big they are: laid out until measured, then on the measured sizes, the graph framed once laid out on them, and each move held until the graph shows it. */
 export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], links: readonly NodeGraphCanvasLink[], notes: readonly NodeGraphCanvasNote[], nodeById: ReadonlyMap<string, NodeGraphCanvasNode>, editing: NodeGraphCanvasEditing | null, reactFlow: ReactFlowInstance, viewportWhereItWasLeft: NodeGraphCanvasViewport | null) {
   const [cardSizeByNode, setCardSizeByNode] = useState<
     ReadonlyMap<string, { width: number; height: number }>
@@ -53,9 +58,8 @@ export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], li
   );
   const isEveryCardPlaced = nodes.every((node) => node.saved_position !== null);
   const shapeKey = isEveryCardPlaced ? EVERY_CARD_PLACED_SHAPE_KEY : nodeGraphShapeKey(nodes, links);
-  const [measuredCardWidths, setMeasuredCardWidths] =
-    useState<MeasuredCardWidths | null>(null);
-  const isLaidOutOnMeasuredWidths = measuredCardWidths?.shapeKey === shapeKey;
+  const [measuredCardSizes, setMeasuredCardSizes] = useState<MeasuredCardSizes | null>(null);
+  const isLaidOutOnMeasuredSizes = measuredCardSizes?.shapeKey === shapeKey;
   const [hasBeenFramed, setHasBeenFramed] = useState(false);
   const [heldCardPositions, setHeldCardPositions] = useState<HeldPositionById>(new Map());
   const [heldCardFrames, setHeldCardFrames] = useState<ReadonlyMap<string, string | null>>(new Map());
@@ -87,14 +91,12 @@ export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], li
               output_pin_names: node.outputs.map((pin) => pin.name),
               shows_failure_words: failureWordsTheCardShows(node) !== null,
               is_collapsed: node.is_collapsed,
-              card_width:
-                (isLaidOutOnMeasuredWidths
-                  ? measuredCardWidths.widthByNode.get(node.node_id)
-                  : undefined) ?? NODE_GRAPH_CARD_SMALLEST_WIDTH,
+              card_width: (isLaidOutOnMeasuredSizes ? measuredCardSizes.sizeByNode.get(node.node_id)?.width : undefined) ?? NODE_GRAPH_CARD_SMALLEST_WIDTH,
+              card_height: (isLaidOutOnMeasuredSizes ? measuredCardSizes.sizeByNode.get(node.node_id)?.height : undefined) ?? null,
             })),
             links,
           ),
-    [isEveryCardPlaced, nodes, links, isLaidOutOnMeasuredWidths, measuredCardWidths],
+    [isEveryCardPlaced, nodes, links, isLaidOutOnMeasuredSizes, measuredCardSizes],
   );
   const positionOfTheCard = useCallback(
     (node: NodeGraphCanvasNode): NodeGraphPosition =>
@@ -112,29 +114,17 @@ export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], li
   );
 
   useEffect(() => {
-    if (!areCardsMeasured || isLaidOutOnMeasuredWidths) return;
-    const widthByNode = new Map(
-      nodes.map((node) => [
-        node.node_id,
-        cardSizeByNode.get(node.node_id)?.width ??
-          NODE_GRAPH_CARD_SMALLEST_WIDTH,
-      ]),
-    );
-    setMeasuredCardWidths({ shapeKey, widthByNode });
-  }, [
-    areCardsMeasured,
-    isLaidOutOnMeasuredWidths,
-    nodes,
-    cardSizeByNode,
-    shapeKey,
-  ]);
+    if (!areCardsMeasured) return;
+    if (isLaidOutOnMeasuredSizes && !hasALaidOutCardChangedHeight(nodes, cardSizeByNode, measuredCardSizes)) return;
+    setMeasuredCardSizes({ shapeKey, sizeByNode: new Map(cardSizeByNode) });
+  }, [areCardsMeasured, isLaidOutOnMeasuredSizes, measuredCardSizes, nodes, cardSizeByNode, shapeKey]);
 
   useEffect(() => {
-    if (!isLaidOutOnMeasuredWidths || hasBeenFramed) return;
+    if (!isLaidOutOnMeasuredSizes || hasBeenFramed) return;
     if (viewportWhereItWasLeft === null) void reactFlow.fitView(FIT_TO_VIEW_OPTIONS);
     else void reactFlow.setViewport(viewportWhereItWasLeft);
     setHasBeenFramed(true);
-  }, [isLaidOutOnMeasuredWidths, hasBeenFramed, reactFlow, viewportWhereItWasLeft]);
+  }, [isLaidOutOnMeasuredSizes, hasBeenFramed, reactFlow, viewportWhereItWasLeft]);
 
   const positionOfTheNote = useCallback((note: NodeGraphCanvasNote): NodeGraphPosition => heldNotePositions.get(note.note_id) ?? note.position, [heldNotePositions]);
   const sizeOfTheNote = useCallback((note: NodeGraphCanvasNote): NodeGraphNoteSize => heldNoteSizes.get(note.note_id) ?? note.size, [heldNoteSizes]);
@@ -193,5 +183,5 @@ export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], li
     [editing],
   );
 
-  return { cardSizeByNode, isLaidOutOnMeasuredWidths, hasBeenFramed, positionOfTheCard, frameOfTheCard, sizeOfTheCard, positionOfTheNote, sizeOfTheNote, followTheLayoutChanges, holdTheCardMoves, releaseTheHeldCards, releaseTheHeldNotePosition, keepTheResizedNote };
+  return { cardSizeByNode, isLaidOutOnMeasuredSizes, hasBeenFramed, positionOfTheCard, frameOfTheCard, sizeOfTheCard, positionOfTheNote, sizeOfTheNote, followTheLayoutChanges, holdTheCardMoves, releaseTheHeldCards, releaseTheHeldNotePosition, keepTheResizedNote };
 }

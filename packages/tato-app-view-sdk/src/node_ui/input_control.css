@@ -317,3 +317,139 @@
 :host([data-surface="node"]) .number-part {
   flex-basis: 100%;
 }
+
+/* A String's one line of text, read from its start. */
+.field[data-text-line] input {
+  padding: 0 6px;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  text-align: left;
+}
+
+/* A control that draws a design-system part in its own children, where the panel's stylesheet applies: its shadow root
+   holds only the slot they show through. */
+.slot-of-the-part {
+  display: block;
+  min-width: 0;
+}
+
+/* A Trigger's button: each press fires the input once. */
+.trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  outline: none;
+  background: var(--studio-control);
+  color: var(--fg);
+  font: inherit;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  cursor: pointer;
+}
+
+.trigger:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.trigger:active:not(:disabled) {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+.trigger:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.trigger:disabled {
+  color: var(--fg-3);
+  cursor: default;
+}
+
+:host([data-surface="node"]) .trigger {
+  height: 20px;
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--studio-graph-card-line);
+}
+
+/* A List: a row for each element, its element's control before a button that removes it, then a button that adds one. */
+.list-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.list-row-control {
+  flex: 1;
+  min-width: 0;
+}
+
+.list-row-words {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-row-remove,
+.list-add {
+  flex: none;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  outline: none;
+  background: transparent;
+  color: var(--fg-3);
+  font: inherit;
+  cursor: pointer;
+}
+
+.list-row-remove {
+  width: 20px;
+}
+
+.list-add {
+  align-self: flex-start;
+  padding: 0 6px;
+  font-family: var(--font-sans, system-ui, sans-serif);
+}
+
+.list-row-remove:hover:not(:disabled),
+.list-add:hover:not(:disabled) {
+  color: var(--fg);
+}
+
+.list-row-remove:focus-visible,
+.list-add:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.list-row-remove:disabled,
+.list-add:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.list-empty {
+  color: var(--fg-3);
+  font-family: var(--font-sans, system-ui, sans-serif);
+}
+
+:host([data-surface="node"]) .list-row-remove,
+:host([data-surface="node"]) .list-add {
+  height: 20px;
+}

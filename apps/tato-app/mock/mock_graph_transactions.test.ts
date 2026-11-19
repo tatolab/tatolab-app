@@ -325,3 +325,19 @@ test("a value set by either operation is the value its input reads, live on the 
   setLevel("set_pin_value", null);
   expect([level(), pins()]).toEqual([{ value: 1, comes_from: "default" }, {}]);
 });
+
+test("a Trigger input is fired by a live set with no value, which stores nothing, and refused a value, a commit, or a link feeding it, as the runtime refuses them", () => {
+  const graph = aTestPatternAlone();
+  const [testPattern] = graph.nodes;
+  if (testPattern === undefined) throw new Error("the graph holds no test pattern");
+  testPattern.input_ports = [{ name: "flash", family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: { type: "trigger" }, flow: "trigger" }, value_read: null }];
+  const fire = (value: number | null, applying: "a_transaction" | "a_live_transaction" = "a_live_transaction") =>
+    apply(graph, [{ operation: "set_node_input_value", stream: STREAM_ASSET, node: TEST_PATTERN, input: "flash", value }], applying);
+
+  const fired = fire(null);
+  expect([fired.history_operations, fired.inverse_operations, testPattern.input_ports[0]?.value_read, testPattern.pins]).toEqual([[], [], null, undefined]);
+  expect(() => fire(1)).toThrow(/is a Trigger, which carries an event and no value/);
+  expect(() => fire(null, "a_transaction")).toThrow(/holds no value to save/);
+  graph.links.push({ id: "Lflashfeed0000000000000001", source_node: "testpatternsource", source_port: "video", target_node: "testpatternsource", target_port: "flash", state: "wired" });
+  expect(() => fire(null)).toThrow(/is a Trigger a link feeds/);
+});

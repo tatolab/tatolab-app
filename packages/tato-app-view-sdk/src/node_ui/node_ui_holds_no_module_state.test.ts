@@ -9,7 +9,12 @@ import { expect, test } from "vitest";
 const SDK_SOURCE_FOLDER = path.join(import.meta.dirname, "..");
 const ENTRIES_THAT_HOLD_NO_STATE = ["node_ui.ts", "node_ui_host.ts", "pin_types.ts"];
 
-/** Each source file the entries reach through relative imports and re-exports, parsed. */
+/** Whether `statement` is erased from the module as it runs, as `import type` and `export type` are, so it loads nothing. */
+function isErasedAsItRuns(statement: ts.ImportDeclaration | ts.ExportDeclaration): boolean {
+  return ts.isImportDeclaration(statement) ? statement.importClause?.isTypeOnly === true : statement.isTypeOnly;
+}
+
+/** Each source file the entries reach through relative imports and re-exports that load it as they run, parsed. */
 async function sourcesTheEntriesReach(): Promise<ts.SourceFile[]> {
   const reached = new Map<string, ts.SourceFile>();
   const toRead = ENTRIES_THAT_HOLD_NO_STATE.map((entry) => path.join(SDK_SOURCE_FOLDER, entry));
@@ -18,7 +23,7 @@ async function sourcesTheEntriesReach(): Promise<ts.SourceFile[]> {
     const source = ts.createSourceFile(sourcePath, await readFile(sourcePath, "utf8"), ts.ScriptTarget.Latest, true);
     reached.set(sourcePath, source);
     for (const statement of source.statements) {
-      if ((ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) && statement.moduleSpecifier !== undefined && ts.isStringLiteral(statement.moduleSpecifier)) {
+      if ((ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) && !isErasedAsItRuns(statement) && statement.moduleSpecifier !== undefined && ts.isStringLiteral(statement.moduleSpecifier)) {
         const specifier = statement.moduleSpecifier.text;
         if (specifier.startsWith(".")) toRead.push(path.resolve(path.dirname(sourcePath), specifier.replace(/\.js$/, ".ts")));
       }

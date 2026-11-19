@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { layOutNodeGraph, nodeGraphCardHeight, nodeGraphPinRowIndex } from "./node_graph_layout";
 
-const card = (node_id: string, input_pin_names: string[], output_pin_names: string[]) => ({ node_id, input_pin_names, output_pin_names, shows_failure_words: false, is_collapsed: false, card_width: 180 });
+const card = (node_id: string, input_pin_names: string[], output_pin_names: string[]) => ({ node_id, input_pin_names, output_pin_names, shows_failure_words: false, is_collapsed: false, card_width: 180, card_height: null });
 
 test("a_card_is_as_tall_as_a_row_per_pin", () => {
   expect(nodeGraphCardHeight({ input_pin_names: ["a"], output_pin_names: ["b", "c"], shows_failure_words: false, is_collapsed: false })).toBe(26 + 12 + 3 * 24);
@@ -50,4 +50,9 @@ test("a_fed_card_sits_so_the_input_row_it_is_fed_on_lines_up_with_the_feeding_ou
   const sourceRowCentre = (positions.get("source")?.y ?? 0) + 26 + 6 + 0 * 24 + 12;
   const mixerRowCentre = (positions.get("mixer")?.y ?? 0) + 26 + 6 + 2 * 24 + 12;
   expect(mixerRowCentre).toBe(sourceRowCentre);
+});
+
+test("a card measured taller than its rows, as one whose controls grow its rows, pushes the card under it down by its measured height", () => {
+  const positions = layOutNodeGraph([{ ...card("a", [], ["x"]), card_height: 300 }, card("b", [], ["x"])], []);
+  expect((positions.get("b")?.y ?? 0) - (positions.get("a")?.y ?? 0)).toBeGreaterThanOrEqual(300);
 });

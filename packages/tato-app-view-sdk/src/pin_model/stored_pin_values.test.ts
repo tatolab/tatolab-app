@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import type { PinType } from "../pin_types.js";
+import type { JsonValue } from "../studio_readings.js";
 import { jsonOfTheStoredPinValue, storedPinValueOfTheJson } from "./stored_pin_values.js";
 
 const COLOR: PinType = { type: "color" };
@@ -33,4 +34,45 @@ test("a value not of its type's form reads as no value", () => {
   expect(storedPinValueOfTheJson(TRANSFORM, [...IDENTITY.slice(1), "1"])).toBeUndefined();
   expect(jsonOfTheStoredPinValue(VECTOR_2, { x: Number.NaN, y: 0 })).toBeUndefined();
   expect(jsonOfTheStoredPinValue(TRANSFORM, [...IDENTITY.slice(1), Number.POSITIVE_INFINITY])).toBeUndefined();
+});
+
+const MENU: PinType = { type: "menu", option_names: ["light", "regular", "bold"] };
+const ASSET: PinType = { type: "asset", media: ["image"] };
+const LIST_OF_FLOATS: PinType = { type: "list_of", element_type: { type: "float" } };
+const LIST_OF_COLORS: PinType = { type: "list_of", element_type: COLOR };
+const AN_ASSET = "baaf9e5a-0aff-45f7-a7ea-b83db51e5a3b";
+const AN_IMPORT = "0df4a7aa-1111-2222-3333-444444444444";
+
+test("a String, a Menu option, an Asset and a List read each way in their type's form, the empty string and the empty List among them", () => {
+  const cases: [PinType, JsonValue][] = [
+    [{ type: "string" }, ""],
+    [{ type: "string" }, "Live from the lobby"],
+    [MENU, "bold"],
+    [ASSET, { asset: AN_ASSET }],
+    [ASSET, { asset: AN_ASSET, from: AN_IMPORT }],
+    [LIST_OF_FLOATS, []],
+    [LIST_OF_FLOATS, [0, 0.5, 1]],
+    [LIST_OF_COLORS, [{ red: 1, green: 0.6, blue: 0.2, alpha: 1 }]],
+  ];
+  for (const [pinType, value] of cases) {
+    expect(storedPinValueOfTheJson(pinType, value), pinType.type).toEqual(value);
+    expect(jsonOfTheStoredPinValue(pinType, value), pinType.type).toEqual(value);
+  }
+});
+
+test("a Menu value that is no option, an Asset that is a bare UUID or holds another key, and a List holding an element of another form read as no value", () => {
+  expect(storedPinValueOfTheJson(MENU, "Bold")).toBeUndefined();
+  expect(jsonOfTheStoredPinValue(MENU, "heavy")).toBeUndefined();
+  expect(storedPinValueOfTheJson(ASSET, AN_ASSET)).toBeUndefined();
+  expect(storedPinValueOfTheJson(ASSET, { asset: "" })).toBeUndefined();
+  expect(storedPinValueOfTheJson(ASSET, { asset: AN_ASSET, path: "media/poster.png" })).toBeUndefined();
+  expect(jsonOfTheStoredPinValue(ASSET, { asset: AN_ASSET, from: "" })).toBeUndefined();
+  expect(storedPinValueOfTheJson(LIST_OF_FLOATS, [0, "1"])).toBeUndefined();
+  expect(storedPinValueOfTheJson(LIST_OF_FLOATS, { 0: 1 })).toBeUndefined();
+  expect(jsonOfTheStoredPinValue(LIST_OF_COLORS, [{ red: 1, green: 0.6, blue: 0.2 }])).toBeUndefined();
+});
+
+test("a Trigger stores no value, so it reads as none either way", () => {
+  expect(storedPinValueOfTheJson({ type: "trigger" }, null)).toBeUndefined();
+  expect(jsonOfTheStoredPinValue({ type: "trigger" }, null)).toBeUndefined();
 });
