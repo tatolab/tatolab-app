@@ -148,7 +148,7 @@ export interface MockTatolabOptions {
   projectHistoryScenario: MockProjectHistoryScenario;
   /** `?recent=none`: no project opened before, as on first run; six recent ones by default. */
   recentProjectsInTheQuery: string | null;
-  /** Each port's family is served in the graph and the node catalog, as the runtime serves it; `?port_families=unserved` serves none, as a runtime from before strict-port-families. */
+  /** Each port's family is served in the graph and in each node type described, as the runtime serves it; `?port_families=unserved` serves none, as a runtime from before strict-port-families. */
   arePortFamiliesServed: boolean;
   /** `?node_types=unreadable_project`: every module of the open project's own node code does not parse; one of them does not by default. */
   isEveryOwnNodeModuleUnreadable: boolean;

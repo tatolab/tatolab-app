@@ -1,4 +1,3 @@
-import { MOCK_RECORDED_NODE_CATALOG } from "./mock_recordings";
 import { isAnOutputOfAValueSource, mockMessageOnTheOutputOfAValueSource } from "./mock_value_sources";
 import { mockGraphNodeIdOf } from "./mock_stream_fixtures";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
@@ -25,7 +24,7 @@ export function mockPoppedOutViewPageUrl(pageUrl: string, target: PoppedOutView)
 const MOCK_NOTIFICATION_CLICK_MILLISECONDS = 1200;
 
 /** The mock backend's status and runtime methods over `simulation`. */
-export function mockStatusAndRuntimeBackendOf(simulation: MockTatolabSimulation): Pick<TatolabBackend, "getTatolabStatus" | "linkCommandLineTool" | "quitTatolabApp" | "readProjectLogRecords" | "followProjectLogRecords" | "stopFollowingProjectLogRecords" | "onProjectLogRecordsWritten" | "describeStreamGraph" | "followStreamGraphChanges" | "stopFollowingStreamGraphChanges" | "onStreamGraphChanged" | "describeNodeCatalog" | "describeRuntime" | "restartRuntime" | "openRuntimeLogFolder" | "onStreamPageRequested" | "showTheProjectsWindow" | "showTheMenusInTheSystemMenuBar" | "onSystemMenuBarEntryChosen" | "popOutView" | "readPoppedOutView" | "pathOfADroppedFile" | "onTatolabStatusChanged" | "startPythonLanguageServer" | "sendToPythonLanguageServer" | "stopPythonLanguageServer" | "onPythonLanguageServerEvent" | "openPortViewer" | "closePortViewer" | "onPortViewerEvent" | "onPortViewerImageFrame"> {
+export function mockStatusAndRuntimeBackendOf(simulation: MockTatolabSimulation): Pick<TatolabBackend, "getTatolabStatus" | "linkCommandLineTool" | "quitTatolabApp" | "readProjectLogRecords" | "followProjectLogRecords" | "stopFollowingProjectLogRecords" | "onProjectLogRecordsWritten" | "describeStreamGraph" | "followStreamGraphChanges" | "stopFollowingStreamGraphChanges" | "onStreamGraphChanged" | "describeRuntime" | "restartRuntime" | "openRuntimeLogFolder" | "onStreamPageRequested" | "showTheProjectsWindow" | "showTheMenusInTheSystemMenuBar" | "onSystemMenuBarEntryChosen" | "popOutView" | "readPoppedOutView" | "pathOfADroppedFile" | "onTatolabStatusChanged" | "startPythonLanguageServer" | "sendToPythonLanguageServer" | "stopPythonLanguageServer" | "onPythonLanguageServerEvent" | "openPortViewer" | "closePortViewer" | "onPortViewerEvent" | "onPortViewerImageFrame"> {
   const { fixtures, statusListeners, openProjectListeners, menusKeptForTheSystemMenuBar, chooseTheSystemMenuBarEntryOnceOffered, mockProjectFiles, languageServerEventListeners, mockLanguageServersBySession, mockPortViewers, refuseWithoutAnOpenProject, streamsWhoseGraphsAreFollowed, streamGraphChangedListeners, projectsWhoseLogsAreFollowed, projectLogRecordsWrittenListeners, publishStatus, listStreams, takeRuntimeDown, startRuntime, noRuntimeAnswersRefusal, loadedStreamOfTheId, readMockProjectLog, graphOfTheStream, doesTheRuntimeKeepNoOwnLog, isTheRuntimeRestartRefused, streamPageRequestedByANotification, mockTatolabOptions } = simulation;
   return {
     getTatolabStatus: async () => {
@@ -76,14 +75,6 @@ export function mockStatusAndRuntimeBackendOf(simulation: MockTatolabSimulation)
       return () => {
         streamGraphChangedListeners.delete(listener);
       };
-    },
-    describeNodeCatalog: async (streamId) => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      loadedStreamOfTheId(streamId);
-      const nodeTypes = mockTatolabOptions.arePortFamiliesServed
-        ? structuredClone([...MOCK_RECORDED_NODE_CATALOG])
-        : MOCK_RECORDED_NODE_CATALOG.map((entry) => ({ ...entry, inputs: entry.inputs.map((port) => ({ ...port, family: null })), outputs: entry.outputs.map((port) => ({ ...port, family: null })) }));
-      return { stream: streamId, node_types: nodeTypes };
     },
     describeRuntime: async (): Promise<RuntimeDescription> => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

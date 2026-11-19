@@ -484,14 +484,16 @@ describe("the mock backend's runtime", () => {
   });
 });
 
-describe("the mock backend's node catalog", () => {
-  it("lists the node types the runtime's registry listed for the sample, every one the sample's graph names but its Graph Input", async () => {
+describe("the mock backend's node types", () => {
+  it("lists and describes the node types the runtime listed and described for the sample, every one the sample's graph names but its Graph Input, and refuses a folder holding no project", async () => {
     const { backend } = await runningMockBackend("main_graph=every_pin_kind");
     const graph = backend.describeStreamGraph(MAIN);
-    const catalog = backend.describeNodeCatalog(MAIN);
+    const listing = backend.listNodeTypes(PATTERN_FOLDER);
+    const refusal = backend.listNodeTypes("/etc").catch((refused: unknown) => refused);
     await vi.advanceTimersByTimeAsync(200);
-    const typesListed = new Set((await catalog).node_types.map((entry) => entry.type));
-    expect((await graph).nodes.map((node) => [node.name, typesListed.has(node.type)])).toEqual([
+    const typesListed = (await listing).sources.flatMap((source) => source.node_types.map((listed) => listed.node_type));
+    expect((await listing).project_directory).toBe(PATTERN_FOLDER);
+    expect((await graph).nodes.map((node) => [node.name, typesListed.includes(node.type)])).toEqual([
       ["testpattern", true],
       ["brightness", false],
       ["beat", true],
@@ -500,6 +502,10 @@ describe("the mock backend's node catalog", () => {
       ["glow", true],
       ["tally", true],
     ]);
+    expect(await refusal).toBe("list_node_types failed: /etc holds no project: it has no tatolab-project.json");
+    const described = backend.describeNodeTypes(PATTERN_FOLDER, typesListed);
+    await vi.advanceTimersByTimeAsync(200);
+    expect((await described).node_types.map((nodeType) => nodeType.node_type)).toEqual(typesListed);
   });
 });
 
@@ -508,21 +514,20 @@ describe("the mock backend's port families", () => {
     const familiesOfMain = async (pageQuery: string) => {
       const { backend } = await runningMockBackend(pageQuery);
       const graph = backend.describeStreamGraph(MAIN);
-      const catalog = backend.describeNodeCatalog(MAIN);
+      const described = backend.describeNodeTypes(PATTERN_FOLDER, ["tatolab.stream:ChannelsToRecords", "nodes.glow:Glow"]);
       await vi.advanceTimersByTimeAsync(200);
       const read = await graph;
-      const listed = await catalog;
       return {
         graph: read.nodes.flatMap((node) => [...node.ports.inputs, ...node.ports.outputs].map(familyOfThePort)),
-        catalog: listed.node_types.flatMap((entry) => [...entry.inputs, ...entry.outputs].map((port) => port.family)),
+        described: (await described).node_types.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : [...nodeType.inputs, ...nodeType.outputs].map(familyOfThePort))),
       };
     };
     const unservedWhenAsked = await familiesOfMain("port_families=unserved");
-    expect(new Set([...unservedWhenAsked.graph, ...unservedWhenAsked.catalog])).toEqual(new Set([null]));
+    expect(new Set([...unservedWhenAsked.graph, ...unservedWhenAsked.described])).toEqual(new Set([null]));
     const servedByDefault = await familiesOfMain("");
     expect(servedByDefault.graph).not.toContain(null);
     expect(new Set(servedByDefault.graph)).toEqual(new Set(["image", "channels", "records", "array"]));
-    expect(servedByDefault.catalog).toContain("records");
+    expect(servedByDefault.described).toEqual(["channels", null, "records", null, null, null, null]);
   });
 });
 

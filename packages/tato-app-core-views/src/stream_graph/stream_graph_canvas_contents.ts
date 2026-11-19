@@ -18,7 +18,7 @@ import {
   fragmentOfTheNode,
   isLiveInTheRunningGraph,
   studioFieldsOfTheNode,
-  type NodeCatalog,
+  type NodeTypeDescription,
   type StreamCondition,
   type StreamDiagnosticKind,
   type StreamGraph,
@@ -137,7 +137,7 @@ function holdTheSameValues(a: unknown, b: unknown): boolean {
 
 /**
  * `graph` as the canvas draws it, each node keyed by its name, as a link's ends name it, with each node type's and port's
- * description as `catalog` gives it, and each unlinked input that holds a value addressed at `valuesAt`, the level of the
+ * documentation as `describedByType`, each node type's description by its type, gives it, and each unlinked input that holds a value addressed at `valuesAt`, the level of the
  * graph it is; `null` addresses none. A link renders on every input it feeds, one that takes no stored value too, so a
  * linked input is addressed by none. A node that `previous` draws the same is drawn by the very object `previous` holds, so its
  * card is not drawn again; a value is not part of it. Each diagnostic of `condition`, the stream's as the runtime lists it, shows
@@ -145,16 +145,13 @@ function holdTheSameValues(a: unknown, b: unknown): boolean {
  */
 export function streamGraphCanvasContents(
   graph: StreamGraph,
-  catalog: NodeCatalog | null,
+  describedByType: ReadonlyMap<string, NodeTypeDescription>,
   previous: StreamGraphCanvasContents | null = null,
   valuesAt: GraphAddress | null = null,
   condition: StreamCondition | null = null,
 ): StreamGraphCanvasContents {
   const groups = graph.groups ?? [];
   const groupIds = new Set(groups.map((group) => group.id));
-  const catalogEntryByType = new Map(
-    (catalog?.node_types ?? []).map((entry) => [entry.type, entry]),
-  );
   const previousNodeById = new Map(
     (previous?.nodes ?? []).map((node) => [node.node_id, node]),
   );
@@ -172,16 +169,16 @@ export function streamGraphCanvasContents(
         title: nodeTitle(node.name, node.type),
         type_name: typeNameOnTheCard(node),
         description: descriptionWords(
-          catalogEntryByType.get(node.type)?.description,
+          describedByType.get(node.type)?.documentation,
         ),
         condition: cardConditionOf(node, condition),
         inputs: nodeInputs(
           graph,
           node,
-          catalogEntryByType.get(node.type),
+          describedByType.get(node.type),
           valuesAt,
         ),
-        outputs: nodeOutputs(node, catalogEntryByType.get(node.type)),
+        outputs: nodeOutputs(node, describedByType.get(node.type)),
         saved_position:
           studio.position === null
             ? null

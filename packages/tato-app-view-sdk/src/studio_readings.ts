@@ -13,11 +13,14 @@ import type {
   GraphNodePortOnTheWire,
   InputValueComesFromOnTheWire,
   LabelledNodeGroup,
+  ListNodeTypesToolResult,
+  NodeTypeDescribedOrWhyNot,
+  NodeTypeDescription,
   StreamGraphAction,
   StreamGraphActionLinkEnd,
   StreamGraphOnTheWire,
 } from "@tatolab/runtime-client/contract";
-import type { DeclaredPinType, NodeInputMode, PinAnnotations, PinFlow, PinType } from "./pin_type_readings.js";
+import type { PinFlow, PinType } from "./pin_type_readings.js";
 import { PORT_FAMILIES, type PortFamily } from "./port_families.js";
 
 /** A value as JSON carries it. */
@@ -152,6 +155,21 @@ export type {
   GraphNodeKindOnTheWire as StreamGraphNodeKind,
   InputValueComesFromOnTheWire as InputValueComesFrom,
 };
+
+/** The node types a project offers and how each is described, as the runtime's `list_node_types` and `describe_node_types` answer them: the control contract's own types, passed on unchanged. */
+export type {
+  ListNodeTypesToolResult,
+  DescribeNodeTypesToolResult,
+  NodeTypeSourceListed,
+  NodeTypeListed,
+  GraphGeneratorListed,
+  NodeTypeDescribedOrWhyNot,
+  NodeTypeDescription,
+  NodeTypeNotDescribed,
+  NodeTypeInputDescribed,
+  NodeTypePortDescribed,
+  NodeTypeInputMode,
+} from "@tatolab/runtime-client/contract";
 
 /** The pin type a port of a running graph carries, resolved, and its flow, which the runtime serves together. */
 export type StreamGraphPortPin = { pin_type: PinType; flow: PinFlow };
@@ -407,36 +425,17 @@ export function jsonObjectMembersOf(value: unknown): { readonly [key: string]: J
   return members;
 }
 
-/** The pin type a node type's port declares, or how it is found, and its flow, from the catalog port's `pin_type` and `flow` keys. */
-export type NodeCatalogPortPin = { pin_type: DeclaredPinType; flow: PinFlow };
-
-/** One port a node type declares, as the node catalog lists it. */
-export type NodeCatalogPort = {
-  name: string;
-  description: string;
-  family: PortFamily | null;
-  /** Its declared pin type and flow; `null` on a port the catalog serves neither for, because its code does not state its type exactly. */
-  pin: NodeCatalogPortPin | null;
-  /** On an input, whether it takes a wire, a stored value, or both, from its `input_mode` key; `null` on an input the catalog serves none for, which takes a wire, and on every output. */
-  input_mode: NodeInputMode | null;
-  /** What the port's annotations state of its value, such as its range, step, unit and the control that edits it; empty for a port the catalog serves none for. */
-  annotations: PinAnnotations;
+/** The node types a project offers, by source, and each one's inputs and outputs: `list_node_types`' and `describe_node_types`' answers, as the runtime gave them. */
+export type ProjectNodeTypesDescribed = {
+  listing: ListNodeTypesToolResult;
+  /** Each node type the listing names, described, or with why it could not be, in the listing's order. */
+  described: NodeTypeDescribedOrWhyNot[];
 };
 
-/** One node type a stream can add, as the node catalog lists it under the `type` a graph node carries. */
-export type NodeCatalogEntry = {
-  type: string;
-  description: string;
-  /** The category the runtime files it under, a path with `/` between its levels, as `Effects/Stylize`; `null` for a type served with none. */
-  category: string | null;
-  /** Its config's JSON Schema, draft 2020-12 with no `$schema` key; `null` for a type described without one. */
-  config_schema: JsonValue | null;
-  inputs: NodeCatalogPort[];
-  outputs: NodeCatalogPort[];
-};
-
-/** Every node type the loaded stream `stream` can add. */
-export type NodeCatalog = { stream: string; node_types: NodeCatalogEntry[] };
+/** The description of each node type `described` holds one of, by its `node_type`; a node type described with why not is left out. */
+export function nodeTypeDescriptionsByType(described: readonly NodeTypeDescribedOrWhyNot[]): ReadonlyMap<string, NodeTypeDescription> {
+  return new Map(described.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : [[nodeType.node_type, nodeType] as const])));
+}
 
 /** One port of a node type as its declaration states it in source. */
 export type ProjectNodeTypePort = {
@@ -713,8 +712,8 @@ export type StreamInputValue = { level: string[]; node_id: string; input: string
  */
 export type StreamInputValuesReading = { kind: "values"; stream_asset: string | null; values: StreamInputValue[] } | { kind: "changed"; stream_asset: string | null; change: StreamInputValue };
 
-/** The node types a stream can add, or why the runtime lists none, in its own words. */
-export type NodeCatalogReading = { kind: "listed"; catalog: NodeCatalog } | { kind: "not_listed"; because: string };
+/** The node types a project offers and each one's inputs and outputs, or why the runtime lists none, in its own words. */
+export type ProjectNodeTypesDescribedReading = { kind: "listed"; node_types: ProjectNodeTypesDescribed } | { kind: "not_listed"; because: string };
 
 /** What a project and each source it draws node code from declares, or why the runtime lists none, in its own words. */
 export type ProjectNodeTypesReading = { kind: "listed"; listing: ProjectNodeTypeListing } | { kind: "not_listed"; because: string };

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { NodeCatalog, PoppedOutView } from "../shared/tatolab_backend_contract";
+import type { NodeTypeDescription, PoppedOutView } from "../shared/tatolab_backend_contract";
 import { connectToTatoAppOverPort } from "@tatolab/tato-app-view-sdk";
 import type { TatolabBackend } from "./backend/tatolab_backend";
 import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
@@ -18,22 +18,85 @@ vi.mock("@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_monac
 
 afterEach(cleanUpTheWindowsOfEarlierTests);
 
-/** The node catalog of the mock's `backend`, with Core Nodes' `ImageFile` listed as streamlib declares it: the recorded sample adds no node type taking a project asset, so a test of the asset field lists one itself. */
-async function theCatalogListingImageFile(backend: Pick<TatolabBackend, "describeNodeCatalog">, stream: string): Promise<NodeCatalog> {
-  const catalog = await backend.describeNodeCatalog(stream);
+const IMAGE_FILE = "core_nodes.image_file:ImageFile";
+
+const CORE_NODES_DISTRIBUTION = { source: "installed_distribution", distribution: "tatolab-core-nodes", distribution_version: "0.68.82" } as const;
+
+/**
+ * The mock `backend`'s node types, with Core Nodes' `ImageFile` listed and described as streamlib declares it: the recorded sample
+ * adds no node type taking a project asset, so a test of the asset field lists one itself.
+ */
+function nodeTypesListingImageFile(backend: Pick<TatolabBackend, "listNodeTypes" | "describeNodeTypes">): Pick<TatolabBackend, "listNodeTypes" | "describeNodeTypes"> {
   return {
-    ...catalog,
-    node_types: [
-      ...catalog.node_types,
-      {
-        type: "core_nodes.image_file:ImageFile",
-        description: "A project image asset, published as an Image.",
-        category: null,
-        config_schema: { type: "object", properties: { asset: { type: "string", default: "", "x-tatolab-project-asset": { media: ["image"] } } }, additionalProperties: false },
-        inputs: [],
-        outputs: [{ name: "image", description: "", family: "image", pin: null, input_mode: null, annotations: {} }],
-      },
-    ],
+    listNodeTypes: async (projectDirectory) => {
+      const listing = await backend.listNodeTypes(projectDirectory);
+      const imageFileListed = { node_type: IMAGE_FILE, documentation: "A project image asset, published as an Image.", category: null, kind: "process", described_from: "interpreter" } as const;
+      return { ...listing, sources: [...listing.sources, { ...CORE_NODES_DISTRIBUTION, node_types: [imageFileListed], graph_generators: [], unreadable_modules: [] }] };
+    },
+    describeNodeTypes: async (projectDirectory, nodeTypes) => {
+      const described = await backend.describeNodeTypes(
+        projectDirectory,
+        nodeTypes.filter((nodeType) => nodeType !== IMAGE_FILE),
+      );
+      const imageFileDescribed: NodeTypeDescription = {
+        ...CORE_NODES_DISTRIBUTION,
+        node_type: IMAGE_FILE,
+        described_from: "interpreter",
+        documentation: "A project image asset, published as an Image.",
+        kind: "process",
+        inputs: [
+          {
+            name: "asset",
+            documentation: "",
+            pin_type: { kind: "is", pin_type: { type: "string" } },
+            flow: "value",
+            annotations: { project_asset: { media: ["image"] } },
+            mode: "setting_only",
+            read: "at_setup",
+            default_value: "",
+            lifetime: "kept",
+            value_json_schema: { type: "string" },
+          },
+        ],
+        outputs: [{ name: "image", documentation: "", pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" }],
+      };
+      return { node_types: nodeTypes.includes(IMAGE_FILE) ? [...described.node_types, imageFileDescribed] : described.node_types };
+    },
+  };
+}
+
+const ALPHA_OVER_COMPOSITOR = "tatolab.compositor.alpha_over_compositor:AlphaOverCompositor";
+
+/** The JSON Schema of the compositor's `layers`, as its config class declares it: a list of records, each placing one layer. */
+const LAYERS_SCHEMA = {
+  type: "array",
+  items: {
+    type: "object",
+    properties: {
+      x: { type: "integer", description: "Canvas column of the layer's left edge; negative clips it.", default: 0 },
+      y: { type: "integer", description: "Canvas row of the layer's top edge; negative clips it.", default: 0 },
+      opacity: { type: "number", description: "0.0 hides the layer, 1.0 shows it as it arrives.", minimum: 0, maximum: 1, default: 1 },
+    },
+    additionalProperties: false,
+  },
+};
+
+/**
+ * The mock `backend`'s descriptions, the compositor's `layers` setting with the JSON Schema its config class declares: the runtime
+ * describes a setting whose type no pin type holds with no schema, so a test of a list of records gives it one.
+ */
+function nodeTypesDescribingTheCompositorsLayers(backend: Pick<TatolabBackend, "describeNodeTypes">): Pick<TatolabBackend, "describeNodeTypes"> {
+  return {
+    describeNodeTypes: async (projectDirectory, nodeTypes) => {
+      const described = await backend.describeNodeTypes(projectDirectory, nodeTypes);
+      return {
+        node_types: described.node_types.map((nodeType) =>
+          nodeType.node_type !== ALPHA_OVER_COMPOSITOR || "not_described_because" in nodeType
+            ? nodeType
+            : { ...nodeType, inputs: nodeType.inputs.map((input) => (input.name === "layers" ? { ...input, value_json_schema: LAYERS_SCHEMA } : input)) },
+        ),
+      };
+    },
   };
 }
 
@@ -292,7 +355,8 @@ describe("the studio", () => {
   });
 
   it("shows each entry of a list config as its own fields in Properties, and edits, adds and removes an entry as the node's whole config", { timeout: 20_000 }, async () => {
-    await mountedWindowOverTheMock("state=running&compositor=layered");
+    const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&compositor=layered")));
+    await mountedWindowOverTheMock("state=running&compositor=layered", { ...mockBackend, ...nodeTypesDescribingTheCompositorsLayers(mockBackend) });
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
     fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="alphaovercompositor"]') ?? expect.unreachable("no compositor card")));
     const properties = () => coreViewPage("properties");
@@ -326,7 +390,7 @@ describe("the studio", () => {
     let refusesTheNextAssetSet = false;
     await mountedWindowOverTheMock("state=node-not-ready", {
       ...mockBackend,
-      describeNodeCatalog: (stream) => theCatalogListingImageFile(mockBackend, stream),
+      ...nodeTypesListingImageFile(mockBackend),
       importAssetsIntoTheOpenProject: (media) => {
         mediaTheImportOffered.push(media);
         return mockBackend.importAssetsIntoTheOpenProject(media);
@@ -399,7 +463,7 @@ describe("the studio", () => {
     const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=node-not-ready")));
     await mountedWindowOverTheMock("state=node-not-ready", {
       ...mockBackend,
-      describeNodeCatalog: (stream) => theCatalogListingImageFile(mockBackend, stream),
+      ...nodeTypesListingImageFile(mockBackend),
       listProjectAssets: async () => {
         throw refusal;
       },

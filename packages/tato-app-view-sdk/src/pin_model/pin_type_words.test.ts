@@ -42,7 +42,7 @@ test("a_cards_rows_are_its_outputs_then_its_inputs", () => {
 test("a_declared_port_shows_an_exact_type_only_where_its_node_type_states_one", () => {
   expect(exactPinOfTheDeclaredPort({ pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" })).toEqual({ pin_type: { type: "texture" }, flow: "stream" });
   expect(exactPinOfTheDeclaredPort({ pin_type: { kind: "same_as_input", input_port_name: "a" }, flow: "value" })).toBeNull();
-  expect(exactPinOfTheDeclaredPort(null)).toBeNull();
+  expect(exactPinOfTheDeclaredPort({})).toBeNull();
 });
 
 test("every_pin_type_key_has_a_socket_colour_rule_and_a_colour_token", () => {

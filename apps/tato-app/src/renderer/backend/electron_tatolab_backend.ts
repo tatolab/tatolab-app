@@ -40,7 +40,8 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("stop_following_stream_graph_changes", { stream: streamId });
     },
     onStreamGraphChanged: (listener) => tatolabElectronBridge.onStreamGraphChanged(listener),
-    describeNodeCatalog: (streamId) => invokeTatolabCommand("describe_node_catalog", { stream: streamId }),
+    listNodeTypes: (projectDirectory) => invokeTatolabCommand("list_node_types", { project_directory: projectDirectory }),
+    describeNodeTypes: (projectDirectory, nodeTypes) => invokeTatolabCommand("describe_node_types", { project_directory: projectDirectory, node_types: nodeTypes }),
     listProjectNodeTypes: (projectDirectory) => invokeTatolabCommand("list_project_node_types", { project_directory: projectDirectory }),
     listProjectAssets: (projectDirectory) => invokeTatolabCommand("list_project_assets", { project_directory: projectDirectory }),
     importAssetsIntoTheOpenProject: (media) => invokeTatolabCommand("import_assets_into_the_open_project", { media }),
