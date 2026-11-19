@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import type { ListedStream, OpenProjectReading, ProjectAssetsImported } from "../../shared/tatolab_backend_contract";
 import type { ListedStreamsReading } from "./studio_view_contract";
-import { changeAnAssetOfTheOpenProjectForAView, importAssetsIntoTheOpenProjectForAView, readAnAssetPreviewOfTheOpenProjectForAView, recoverTheOpenProjectsStreamsForAView } from "./studio_view_host_services";
+import { changeTheOpenProjectForAView, importAssetsIntoTheOpenProjectForAView, readAnAssetPreviewOfTheOpenProjectForAView, recoverTheOpenProjectsStreamsForAView } from "./studio_view_host_services";
 
 const GALLERY_WALL_OPEN: OpenProjectReading = {
   kind: "read",
@@ -57,23 +57,41 @@ test("a folder that is not the window's open project is refused in Studio's word
 test("a view's rename, move or delete of an asset changes the window's open project, listed again at once, a rejection in its own words, and any other folder refused with nothing asked", async () => {
   const projectsListedAgain: string[] = [];
   let changesAsked = 0;
-  const assetChangeSources = { readTheOpenProject: () => GALLERY_WALL_OPEN, listTheProjectAgainNow: (projectFolder: string) => projectsListedAgain.push(projectFolder) };
+  const assetChangeSources = { readTheOpenProject: () => GALLERY_WALL_OPEN, whatChanges: "assets" as const, listTheProjectAgainNow: (projectFolder: string) => projectsListedAgain.push(projectFolder) };
   const changeAnswering = (answer: () => Promise<void>) => () => {
     changesAsked += 1;
     return answer();
   };
 
-  expect(await changeAnAssetOfTheOpenProjectForAView("/projects/gallery-wall", assetChangeSources, changeAnswering(async () => undefined))).toEqual({ kind: "changed" });
+  expect(await changeTheOpenProjectForAView("/projects/gallery-wall", assetChangeSources, changeAnswering(async () => undefined))).toEqual({ kind: "changed" });
   expect(projectsListedAgain).toEqual(["/projects/gallery-wall"]);
-  expect(await changeAnAssetOfTheOpenProjectForAView("/projects/gallery-wall", assetChangeSources, changeAnswering(() => Promise.reject("delete_asset failed: the project holds no asset b-uuid")))).toEqual({
+  expect(await changeTheOpenProjectForAView("/projects/gallery-wall", assetChangeSources, changeAnswering(() => Promise.reject("delete_asset failed: the project holds no asset b-uuid")))).toEqual({
     kind: "not_changed",
     because: "delete_asset failed: the project holds no asset b-uuid",
   });
-  expect(await changeAnAssetOfTheOpenProjectForAView("/projects/elsewhere", assetChangeSources, changeAnswering(async () => undefined))).toEqual({
+  expect(await changeTheOpenProjectForAView("/projects/elsewhere", assetChangeSources, changeAnswering(async () => undefined))).toEqual({
     kind: "not_changed",
     because: "Tato Studio changes the assets of this window's project only, not /projects/elsewhere.",
   });
   expect(changesAsked).toBe(2);
+});
+
+test("a view's change to a node type's group on the window's open project lists that project's node types again at once", async () => {
+  const projectsListedAgain: string[] = [];
+  const nodeTypeGroupChangeSources = { readTheOpenProject: () => GALLERY_WALL_OPEN, whatChanges: "node type groups" as const, listTheProjectAgainNow: (projectFolder: string) => projectsListedAgain.push(projectFolder) };
+  expect(await changeTheOpenProjectForAView("/projects/gallery-wall", nodeTypeGroupChangeSources, async () => undefined)).toEqual({ kind: "changed" });
+  expect(projectsListedAgain).toEqual(["/projects/gallery-wall"]);
+});
+
+test("a view's change to a node type's group refuses any other folder in words that name the node type groups, nothing asked", async () => {
+  let changesAsked = 0;
+  const nodeTypeGroupChangeSources = { readTheOpenProject: () => GALLERY_WALL_OPEN, whatChanges: "node type groups" as const, listTheProjectAgainNow: () => undefined };
+  expect(
+    await changeTheOpenProjectForAView("/projects/elsewhere", nodeTypeGroupChangeSources, async () => {
+      changesAsked += 1;
+    }),
+  ).toEqual({ kind: "not_changed", because: "Tato Studio changes the node type groups of this window's project only, not /projects/elsewhere." });
+  expect(changesAsked).toBe(0);
 });
 
 test("a view reads an asset's preview picture of the window's open project, a rejection in its own words, and any other folder refused with nothing asked", async () => {

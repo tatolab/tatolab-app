@@ -215,7 +215,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
   };
   /** `undoOrRedo`, its graph operations applied to the mock graphs as the runtime applies them; a transaction naming no graph changes none. */
   const applyingItsGraphOperations = (undoOrRedo: ProjectTransaction): ProjectTransaction => {
-    const graphActions = undoOrRedo.operations.filter((operation) => !isAHistoryOperationTheMockMakesAgainFromTheEditInside(operation)).map(graphActionApplyingTheHistoryOperation);
+    const graphActions = nodeTypesTheProjectGains.fileTheGroupsOf(undoOrRedo.operations).filter((operation) => !isAHistoryOperationTheMockMakesAgainFromTheEditInside(operation)).map(graphActionApplyingTheHistoryOperation);
     const everyOneNamesAGraph = graphActions.every((graphAction): graphAction is StreamGraphAction => graphAction !== null);
     if (everyOneNamesAGraph && graphActions.length > 0) commitGraphActions(graphActions, "undo_or_redo", undoOrRedo.operations);
     pushEveryFollowedStreamGraphChanged();

@@ -159,6 +159,8 @@ export type ViewAsk =
   | { kind: "read_asset_preview_in_the_project"; project_folder: string; asset: string }
   /** Stop tracking the asset `asset` of the project, its file leaving it, through the runtime's `delete_asset`, by the person editing. */
   | { kind: "delete_asset_from_the_project"; project_folder: string; asset: string }
+  /** File the node type `node_type` under `group`, a `/`-separated path, in the project through the runtime's `set_node_type_group`, by the person editing; `null` puts it back where an import or its author files it. */
+  | { kind: "set_node_type_group_in_the_project"; project_folder: string; node_type: string; group: string | null }
   /** Recover the project's streams with `recovery`: their playback stopped and started again, or the project read again from disk. */
   | { kind: "recover_the_projects_streams"; project_folder: string; recovery: ProjectStreamsRecovery }
   /** Show the view type `view_type_id` in area `area_id` of the layout, in place of what it shows. */

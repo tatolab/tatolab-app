@@ -3,6 +3,7 @@
 // with the path it sits at.
 
 import type { JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { nodeTypeCategoryPath } from "../shared/node_type_category_path";
 
 /** The name each node has now, by its UUID. */
 export type NodeNamesById = ReadonlyMap<string, string>;
@@ -186,6 +187,15 @@ function whatOneOperationChanged(operation: OperationFields, nodeNames: NodeName
         sentence: { lead: textOf(operation["to"]) === null ? "Removed the project's cover" : "Set the project's cover", subject: null, rest: "" },
         line: `set_project_cover ${wordsOfAValue(operation["from"] ?? undefined)} → ${wordsOfAValue(operation["to"] ?? undefined)}`,
       };
+    case "set_node_type_group": {
+      const nodeType = textOf(operation["node_type"]);
+      const nodeTypeName = nodeType === null ? "a node type" : nodeTypeNameOf(nodeType);
+      const to = textOf(operation["to"]);
+      return {
+        sentence: to === null ? { lead: "Put", subject: nodeTypeName, rest: "back in its own group" } : { lead: "Moved", subject: nodeTypeName, rest: `to the group ${nodeTypeCategoryPath(to).join(" / ")}` },
+        line: `set_node_type_group ${nodeType ?? "a node type"} ${wordsOfAValue(operation["from"] ?? undefined)} → ${wordsOfAValue(operation["to"] ?? undefined)}`,
+      };
+    }
     default:
       return { sentence: { lead: operationName, subject: null, rest: "" }, line: operationName };
   }

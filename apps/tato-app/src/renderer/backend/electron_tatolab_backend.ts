@@ -51,6 +51,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     deleteAssetFromTheOpenProject: async (asset) => {
       await invokeTatolabCommand("delete_asset_from_the_open_project", { asset });
     },
+    setNodeTypeGroupInTheOpenProject: async (nodeType, group) => {
+      await invokeTatolabCommand("set_node_type_group_in_the_open_project", { node_type: nodeType, group });
+    },
     checkForTatolabAppUpdates: async () => {
       await invokeTatolabCommand("check_for_tatolab_app_updates", undefined);
     },

@@ -98,6 +98,8 @@ export interface TatolabBackend {
   readAssetPreviewOfTheOpenProject(asset: string): Promise<AssetPreviewPicture>;
   /** Stop tracking the asset `asset` of the window's project, its file leaving the project, by the person editing; rejects in Studio's or the runtime's words. */
   deleteAssetFromTheOpenProject(asset: string): Promise<void>;
+  /** File the node type `nodeType`, as the window's project lists it, under `group`, a `/`-separated path, or with `null` put it back where an import or its author files it, by the person editing; rejects in Studio's or the runtime's words. */
+  setNodeTypeGroupInTheOpenProject(nodeType: string, group: string | null): Promise<void>;
   /** Check for a newer Tato Studio, downloading one that installs in place; how that goes arrives as the status's `app_update`. */
   checkForTatolabAppUpdates(): Promise<void>;
   /** Restart into a downloaded Tato Studio, download one a check found, or open a `.deb`'s download; how that goes arrives as the status's `app_update`. */
