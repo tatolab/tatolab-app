@@ -40,6 +40,15 @@ describe("a view node's wiring", () => {
     });
   });
 
+  it("reads an input that names its pin type from whatever output is linked into it, which the runtime judged by the two pins' types", () => {
+    expect(studioViewInputWiring("set", GRAPH, DECK, [{ name: "deck_b", family: "image", pin_type: { type: "texture" } }])).toEqual({
+      deck_b: { kind: "wired", target: { stream: "set", node_id: "id-camera", port: "video" }, wired_from_words: "camera › video" },
+    });
+    expect(studioViewInputWiring("set", GRAPH, DECK, [{ name: "deck_a", family: "channels", pin_type: { type: "float" } }])).toEqual({
+      deck_a: { kind: "wired", target: { stream: "set", node_id: "id-player", port: "audio" }, wired_from_words: "player › audio" },
+    });
+  });
+
   it("sets a value on the node's inputs at the stream's own level of the window's project, and says why not while the project or the stream asset is unknown", () => {
     const unnamedDeck = graphNode("deck", "acme-dj:deck", {}, []);
     expect(studioViewNodeAddressOf("/set", { ...GRAPH, asset: "s-uuid" }, DECK, "Set")).toEqual({ kind: "addressed", graph: { project_folder: "/set", stream_asset: "s-uuid", level: [] }, node_id: "id-djdeck" });

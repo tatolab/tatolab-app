@@ -1,13 +1,17 @@
-// `tatolab_view.json`, view contract 1.0: what every panel declares, Tato Studio's own or brought by a
+// `tatolab_view.json`, view contract 1.1: what every panel declares, Tato Studio's own or brought by a
 // project. The Studio reads a manifest with the Schema of `./studio_host`, held to the types here,
 // and writes `tatolab_view.schema.json` from it, less the checks only code can make (a path that
 // stays inside the view's folder), which Studio still enforces.
 
+import type { PinType } from "./pin_types.js";
 import type { PortFamily } from "./port_families.js";
 import type { JsonValue } from "./studio_readings.js";
 
 /** The view contract this SDK speaks; a manifest built for a later minor, or another major, is refused by name. */
-export const VIEW_CONTRACT_SERVED = { major: 1, minor: 0 } as const;
+export const VIEW_CONTRACT_SERVED = { major: 1, minor: 1 } as const;
+
+/** The first minor of the served major in which a declared port names its `pin_type`. */
+export const VIEW_CONTRACT_MINOR_OF_A_PORTS_PIN_TYPE = 1;
 
 /** What a view may declare it uses. Every view runs with full access whatever it declares; `camera` and `microphone` are what its frame may ask the person for, through the system's own prompt. */
 export const VIEW_CAPABILITIES = [
@@ -37,11 +41,14 @@ export function isAPathInsideTheViewsFolder(path: string): boolean {
 /** The families of the outputs a panel writes: each value of one is set on the view node's input of the output's name, and published on the output. */
 export const FAMILIES_A_PANEL_WRITES: readonly PortFamily[] = ["array", "channels", "records"];
 
-/** An input or output a `node` view declares, as a node declares a port. */
+/** An input or output a `node` view declares, as a node declares a port: by its pin type, or by the older `family` alone. */
 export type ViewDeclaredPort = {
   /** Lower-case letters, digits and underscores, named once among the view's ports. */
   name: string;
+  /** The one family the port carries: the one its pin type's messages belong to, when it names one. */
   family: PortFamily;
+  /** The pin type the port carries; left out on a port declared by `family` alone. */
+  pin_type?: PinType | undefined;
   description?: string | undefined;
   /** The lowest and highest value an Array port carries, for a control such as a fader, lowest first. */
   range?: [number, number] | undefined;
@@ -55,9 +62,9 @@ export type ViewSettingsDeclaration = {
   [keyword: string]: unknown;
 };
 
-/** What `tatolab_view.json` declares, for view contract 1.0, defaults filled in. A view's id is never written here: one Tato Studio ships with is its folder's name, a project's view's its project's name and its folder's. */
+/** What `tatolab_view.json` declares, for view contract 1.1, defaults filled in. A view's id is never written here: one Tato Studio ships with is its folder's name, a project's view's its project's name and its folder's. */
 export type TatolabViewManifest = {
-  /** The view contract the view was built for, as `"1.0"`. */
+  /** The view contract the view was built for, as `"1.1"`. */
   contract: string;
   /** The name the view-type menu lists. */
   title: string;

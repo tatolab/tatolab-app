@@ -1,18 +1,23 @@
-// Reading `tatolab_view.json`, an author's file, against view contract 1.0, and the JSON Schema an
+// Reading `tatolab_view.json`, an author's file, against view contract 1.1, and the JSON Schema an
 // author's editor checks it against, written from the same Schema.
 
-import { Effect, Result, Schema, SchemaRepresentation, SchemaTransformation } from "effect";
-import { PORT_FAMILIES } from "../port_families.js";
+import { controlContractIssues } from "@tatolab/runtime-client/contract";
+import { Effect, Result, Schema, SchemaIssue, SchemaRepresentation, SchemaTransformation } from "effect";
+import { BUILT_IN_PIN_TYPES } from "../built_in_pin_types.js";
+import type { BuiltInPinTypeName, PinType } from "../pin_types.js";
+import { FAMILY_CARRYING_A_PIN_OF, PORT_FAMILIES, portFamilyWords } from "../port_families.js";
 import {
   FAMILIES_A_PANEL_WRITES,
   isAPathInsideTheViewsFolder,
   VIEW_CAPABILITIES,
+  VIEW_CONTRACT_MINOR_OF_A_PORTS_PIN_TYPE,
   VIEW_CONTRACT_SERVED,
   type TatolabViewManifest,
   type TatolabViewManifestReading,
   type ViewDeclaredPort,
   type ViewSettingsDeclaration,
 } from "../tatolab_view_manifest.js";
+import { contractComponentJsonSchemaDefinitions } from "./contract_value.js";
 import { issuesAtTheirPaths, type IssueAtItsPath } from "./schema_issue_words.js";
 import { schemaOfThePublicType } from "./schema_of_a_public_type.js";
 import { jsonValueSchema } from "./studio_reading_schemas.js";
@@ -28,10 +33,22 @@ const pathInsideTheViewsFolderSchema = Schema.NonEmptyString.check(
   Schema.makeFilter(isAPathInsideTheViewsFolder, { message: "it is a path inside the view's folder, with no `..` step, scheme or backslash" }),
 );
 
+/** The major and minor `contract` names, a `major.minor`. */
+function majorAndMinorOf(contract: string): { major: number | undefined; minor: number | undefined } {
+  const [major, minor] = contract.split(".").map(Number);
+  return { major, minor };
+}
+
 /** Whether `contract`, a `major.minor`, is one this SDK serves: its major, at its minor or an earlier one. */
 function isAContractServed(contract: string): boolean {
-  const [major, minor] = contract.split(".").map(Number);
+  const { major, minor } = majorAndMinorOf(contract);
   return major === VIEW_CONTRACT_SERVED.major && minor !== undefined && minor <= VIEW_CONTRACT_SERVED.minor;
+}
+
+/** Whether `contract`, one this SDK serves, is one in which a declared port names its `pin_type`. */
+function namesAMinorWithAPortsPinType(contract: string): boolean {
+  const { minor } = majorAndMinorOf(contract);
+  return minor !== undefined && minor >= VIEW_CONTRACT_MINOR_OF_A_PORTS_PIN_TYPE;
 }
 
 const contractSchema = Schema.String.check(
@@ -45,12 +62,84 @@ const rangeSchema = Schema.mutable(Schema.Tuple([Schema.Finite, Schema.Finite]))
   Schema.makeFilter(([lowest, highest]) => lowest < highest, { message: "a range is [lowest, highest], lowest first" }),
 );
 
-const viewDeclaredPortSchema = Schema.Struct({
+const BUILT_IN_PIN_TYPE_NAMES: ReadonlyMap<string, BuiltInPinTypeName> = new Map(BUILT_IN_PIN_TYPES.map(({ name }) => [name, name]));
+
+/** Why `written` is no pin type the runtime takes: its `type` names no built-in type, or the first issue the runtime client's check of the contract's `PinType` gives, at its place. */
+function whyItIsNoPinType(written: { readonly [key: string]: unknown }): Schema.FilterIssue | undefined {
+  const typeName = written["type"];
+  if (typeof typeName !== "string" || !BUILT_IN_PIN_TYPE_NAMES.has(typeName)) {
+    return { path: ["type"], issue: `a pin type's \`type\` is one of ${BUILT_IN_PIN_TYPES.map(({ name }) => `\`${name}\``).join(", ")}` };
+  }
+  const [firstIssue] = controlContractIssues("PinType", written, "sent");
+  return firstIssue === undefined ? undefined : { path: firstIssue.path, issue: firstIssue.message };
+}
+
+/** Whether `written` is a pin type as the runtime takes it sent to it. */
+function isAPinType(written: { readonly [key: string]: unknown }): written is PinType {
+  return controlContractIssues("PinType", written, "sent").length === 0;
+}
+
+const PIN_TYPE_DEFINITION = "#/$defs/PinType";
+
+/**
+ * A pin type as the control contract writes it, checked by the runtime client's check of it, and in the JSON Schema a
+ * reference to the contract's own `PinType`, which `tatolabViewJsonSchema` places in its `$defs`.
+ */
+const pinTypeSchema = Schema.Record(Schema.String, Schema.Unknown).pipe(
+  Schema.check(Schema.makeFilter(whyItIsNoPinType, { toJsonSchema: () => ({}) }, true)),
+  Schema.refine(isAPinType, { toJsonSchema: () => ({ $ref: PIN_TYPE_DEFINITION }) }),
+);
+
+const portFamilySchema = Schema.Literals(PORT_FAMILIES);
+
+/** A declared port as `tatolab_view.json` writes it: its `pin_type`, its `family`, or both, in agreement. */
+const viewDeclaredPortAsWrittenSchema = Schema.Struct({
   name: portNameSchema,
-  family: Schema.Literals(PORT_FAMILIES),
+  family: Schema.optionalKey(portFamilySchema),
+  pin_type: Schema.optionalKey(pinTypeSchema),
   description: Schema.optionalKey(Schema.String),
   range: Schema.optionalKey(rangeSchema),
+}).check(
+  Schema.makeFilter((port) => (port.family === undefined && port.pin_type === undefined ? "a port names the `pin_type` it carries, or the older `family`" : undefined), {
+    toJsonSchema: () => ({ anyOf: [{ required: ["pin_type"] }, { required: ["family"] }] }),
+  }),
+);
+
+/** A declared port as read: the family it carries, the one its pin type's messages belong to when it names one. */
+const viewDeclaredPortReadSchema = Schema.Struct({
+  name: Schema.String,
+  family: portFamilySchema,
+  pin_type: Schema.optionalKey(Schema.toType(pinTypeSchema)),
+  description: Schema.optionalKey(Schema.String),
+  range: Schema.optionalKey(Schema.mutable(Schema.Tuple([Schema.Finite, Schema.Finite]))),
 });
+
+type ViewDeclaredPortAsWritten = (typeof viewDeclaredPortAsWrittenSchema)["Type"];
+
+type ViewDeclaredPortRead = (typeof viewDeclaredPortReadSchema)["Type"];
+
+/** `written` read: the family its pin type is carried as, which a `family` written beside it agrees with, or the `family` it names alone. */
+function viewDeclaredPortRead(written: ViewDeclaredPortAsWritten): Effect.Effect<ViewDeclaredPortRead, SchemaIssue.Issue> {
+  const { family, pin_type, ...rest } = written;
+  if (pin_type === undefined) {
+    return family === undefined ? Effect.fail(new SchemaIssue.InvalidValue({ message: "a port names the `pin_type` it carries, or the older `family`" }, written)) : Effect.succeed({ ...rest, family });
+  }
+  const carried = FAMILY_CARRYING_A_PIN_OF[pin_type.type];
+  if (carried === null) {
+    return Effect.fail(new SchemaIssue.InvalidValue({ message: `\`pin_type\`: a ${pin_type.type} rides no message a view's port reads or writes; a view declares a port of a type a link carries` }, written));
+  }
+  if (family !== undefined && family !== carried) {
+    return Effect.fail(new SchemaIssue.InvalidValue({ message: `\`family\` is \`${family}\`, and a ${pin_type.type} is carried as \`${carried}\`; drop \`family\`, which the \`pin_type\` sets` }, written));
+  }
+  return Effect.succeed({ ...rest, family: carried, pin_type });
+}
+
+const viewDeclaredPortSchema = viewDeclaredPortAsWrittenSchema.pipe(
+  Schema.decodeTo(
+    viewDeclaredPortReadSchema,
+    SchemaTransformation.transformEffect<ViewDeclaredPortRead, ViewDeclaredPortAsWritten>({ decode: viewDeclaredPortRead, encode: (port) => Effect.succeed(port) }),
+  ),
+);
 
 /** Ports named once, a range carried by an Array port alone, each issue at its port. */
 function portsNamedOnce(ports: readonly ViewDeclaredPort[]): Schema.FilterIssue[] {
@@ -109,6 +198,32 @@ function outputsNamedApartFromItsInputsAndSettings(manifest: Pick<TatolabViewMan
   });
 }
 
+/** The pin types of a panel's outputs that hold no stored value but whose samples a panel still writes as values. */
+const PIN_TYPES_A_PANEL_WRITES_WITH_NO_STORED_VALUE: ReadonlySet<BuiltInPinTypeName> = new Set(["audio", "tensor"]);
+
+/** Whether a panel writes values of the type `typeName` onto an output: one a pin of it holds, or the samples of an Audio or Tensor stream. */
+function isATypeAPanelWritesAValueOf(typeName: BuiltInPinTypeName): boolean {
+  return PIN_TYPES_A_PANEL_WRITES_WITH_NO_STORED_VALUE.has(typeName) || BUILT_IN_PIN_TYPES.some(({ name, value_component }) => name === typeName && value_component !== undefined);
+}
+
+/** A port names its `pin_type` only in a view built for the minor that brought it, and an output a panel writes is of a type that holds a value. */
+function pinTypesNamedWhereTheyMayBe(manifest: Pick<TatolabViewManifest, "contract" | "inputs" | "outputs">): Schema.FilterIssue[] {
+  const minor = `${VIEW_CONTRACT_SERVED.major}.${VIEW_CONTRACT_MINOR_OF_A_PORTS_PIN_TYPE}`;
+  const namedTooEarly = namesAMinorWithAPortsPinType(manifest.contract)
+    ? []
+    : (["inputs", "outputs"] as const).flatMap((direction) =>
+        manifest[direction].flatMap((port, index): Schema.FilterIssue[] =>
+          port.pin_type === undefined ? [] : [{ path: [direction, index, "pin_type"], issue: `a port's \`pin_type\` is view contract ${minor}; write \`"contract": "${minor}"\`` }],
+        ),
+      );
+  const holdingNoValue = manifest.outputs.flatMap(({ family, pin_type }, index): Schema.FilterIssue[] =>
+    pin_type !== undefined && FAMILIES_A_PANEL_WRITES.includes(family) && !isATypeAPanelWritesAValueOf(pin_type.type)
+      ? [{ path: ["outputs", index, "pin_type"], issue: `a panel writes a value onto a ${portFamilyWords(family)} output, and a ${pin_type.type} holds none` }]
+      : [],
+  );
+  return [...namedTooEarly, ...holdingNoValue];
+}
+
 /** A view with ports shows on a node, and its outputs are named apart. */
 function placedForItsPortsAndNamedApart(manifest: Pick<TatolabViewManifest, "placement" | "inputs" | "outputs" | "settings">): Schema.FilterIssue[] {
   const placement: Schema.FilterIssue[] =
@@ -138,7 +253,7 @@ const tatolabViewManifestSchema = Schema.Struct({
   accepts: takingWhenLeftOut(Schema.Struct({ files: takingWhenLeftOut(Schema.mutable(Schema.Array(fileExtensionSchema)), []) }), { files: [] }),
   settings: Schema.optionalKey(viewSettingsDeclarationSchema),
   capabilities: takingWhenLeftOut(Schema.mutable(Schema.Array(Schema.Literals(VIEW_CAPABILITIES))), []),
-}).check(Schema.makeFilter(placedForItsPortsAndNamedApart));
+}).check(Schema.makeFilter(placedForItsPortsAndNamedApart), Schema.makeFilter(pinTypesNamedWhereTheyMayBe));
 
 /** What `tatolab_view.json` declares, read as the public manifest type, defaults filled in; a capability may be declared more than once. */
 const tatolabViewManifestDecoding = schemaOfThePublicType<TatolabViewManifest>()(tatolabViewManifestSchema);
@@ -165,10 +280,10 @@ export function readTatolabViewManifest(manifestJson: unknown): TatolabViewManif
 export function tatolabViewJsonSchema(): Record<string, unknown> {
   const { schema, definitions } = Schema.toJsonSchemaDocument(tatolabViewManifestSchema, { onExcessProperty: "error" });
   return {
-    title: "tatolab_view.json, view contract 1.0",
+    title: `tatolab_view.json, view contract ${VIEW_CONTRACT_SERVED.major}.${VIEW_CONTRACT_SERVED.minor}`,
     $schema: "https://json-schema.org/draft/2020-12/schema",
     ...schema,
-    ...(Object.keys(definitions).length === 0 ? {} : { $defs: definitions }),
+    $defs: { ...definitions, ...contractComponentJsonSchemaDefinitions("PinType") },
   };
 }
 
