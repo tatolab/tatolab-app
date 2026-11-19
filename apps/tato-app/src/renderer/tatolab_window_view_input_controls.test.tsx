@@ -1,11 +1,9 @@
 // @vitest-environment happy-dom
 import { fireEvent, waitFor } from "@testing-library/react";
 import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState } from "@tatolab/tato-app-view-sdk/node_ui";
-import { nodeUiElementTag } from "@tatolab/tato-app-view-sdk/node_ui_host";
 import { NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_flow_elements";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mockStudioNodeUiElements } from "../../mock/mock_node_ui_elements";
-import { mountedWindowOverTheMock, coreViewPage, cleanUpTheWindowsOfEarlierTests, PATTERN_MAIN_STREAM } from "./tatolab_window_view_test_support";
+import { mountedWindowOverTheMock, coreViewPage, cleanUpTheWindowsOfEarlierTests, PATTERN_MAIN_STREAM, tagOfTheStudiosFloatControl } from "./tatolab_window_view_test_support";
 import type { TatolabBackend } from "./backend/tatolab_backend";
 import { inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
 
@@ -34,11 +32,12 @@ class StandInFloatControl extends HTMLElement implements InputControlElement<"fl
   }
 }
 
-// A frame imports each listed script from the dev server, which no test serves, so the stand-in is defined under the tag
-// the mock's listing mints, as loading the Studio's own control in a frame defines it.
-const [MOCK_FLOAT_CONTROL_LISTED] = mockStudioNodeUiElements(window.location.origin, false);
-const FLOAT_CONTROL_TAG = nodeUiElementTag(MOCK_FLOAT_CONTROL_LISTED ?? expect.unreachable("the mock lists the Studio's Float control"));
-customElements.define(FLOAT_CONTROL_TAG, StandInFloatControl);
+/** The same stand-in under the tag of the Studio's Float slider, which draws a Float input whose range has both ends. */
+class StandInFloatSlider extends StandInFloatControl {}
+
+const FLOAT_SLIDER_TAG = tagOfTheStudiosFloatControl("slider");
+customElements.define(tagOfTheStudiosFloatControl(null), StandInFloatControl);
+customElements.define(FLOAT_SLIDER_TAG, StandInFloatSlider);
 
 afterEach(cleanUpTheWindowsOfEarlierTests);
 
@@ -92,9 +91,10 @@ describe("a Float input's control", () => {
     expect(wordsOfTheControl(inProperties)).toBe("1");
   });
 
-  it("draws a control on the recorded sample's unwired Float input with the value the runtime read by default, and none on its wired or untyped pins", async () => {
+  it("draws the slider on the recorded sample's unwired Float input whose range has both ends, with the value the runtime read by default, and none on its wired or untyped pins", async () => {
     await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind");
     const onTheCard = await waitFor(() => controlOnTheCard("warmth", "base") ?? expect.unreachable("no control on Warmth's base row"), AS_LONG_AS_A_FRAME_BINDS);
+    expect(onTheCard.tagName.toLowerCase()).toBe(FLOAT_SLIDER_TAG);
     expect(wordsOfTheControl(onTheCard)).toBe("0.1");
     expect([onTheCard.getAttribute("data-surface"), onTheCard.getAttribute("data-state")]).toEqual(["node", "editable"]);
     const streamGraph = coreViewPage("stream_graph", "stream-graph");

@@ -70,7 +70,7 @@ export function nodeTypesTheProjectDeclares(projectNodeTypes: ProjectNodeTypeLis
 }
 
 function catalogEntryOfTheDeclaration(declared: ProjectNodeType): NodeCatalogEntry {
-  const portsDeclared = (ports: ProjectNodeType["inputs"]) => (ports ?? []).map(({ name, description, family }) => ({ name, description, family, pin: null, input_mode: null }));
+  const portsDeclared = (ports: ProjectNodeType["inputs"]) => (ports ?? []).map(({ name, description, family }) => ({ name, description, family, pin: null, input_mode: null, annotations: {} }));
   return { type: declared.type, description: declared.description, category: declared.category, config_schema: null, inputs: portsDeclared(declared.inputs), outputs: portsDeclared(declared.outputs) };
 }
 
@@ -124,7 +124,7 @@ export function nodeTypeSearchNarrowing(looseWire: LooseWire): SearchPopoverNarr
 /** A node type's port as a card placed now draws its pin: the type it states exactly, or none, and no stream yet. */
 function nodePinOfTheCatalogPort(port: NodeCatalogPort): NodePin {
   const description = port.description.trim();
-  return { name: port.name, pin: exactPinOfTheDeclaredPort(port.pin), family: port.family, description: description === "" ? null : description, stream_facts_words: [], value_address: null };
+  return { name: port.name, pin: exactPinOfTheDeclaredPort(port.pin), family: port.family, description: description === "" ? null : description, annotations: port.annotations, stream_facts_words: [], value_address: null };
 }
 
 /** The card the search previews for the node type `searchItemId` names, as the graph draws that node once placed, with a pin for each input a wire reaches and no setting; `null` for an item that is no node type of `catalog`, as a graph generator. */

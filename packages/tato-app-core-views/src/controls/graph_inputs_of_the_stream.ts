@@ -4,6 +4,7 @@
 // draws there while the control table has none for it.
 
 import type { GraphAddress, InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import type { PinAnnotations } from "@tatolab/tato-app-view-sdk/pin_type_readings";
 import { graphInterfacePortOfTheNode, jsonObjectMembersOf, type JsonValue, type StreamGraph, type StreamGraphPortPin } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nodeInputs } from "../shared/node_pins_of_the_graph";
 
@@ -44,6 +45,8 @@ export interface GraphInputOfTheStream {
   readonly value_address: InputAddress | null;
   /** The exact type and flow of its `value` input; `null` while the runtime serves none. */
   readonly value_pin: StreamGraphPortPin | null;
+  /** What the node type annotates of its `value` input, as every surface reads a node's inputs. */
+  readonly value_annotations: PinAnnotations;
   readonly lifetime: GraphInputLifetime;
   readonly range: GraphInputRange | null;
   readonly control: GraphInputControlKind;
@@ -68,6 +71,7 @@ export function graphInputsOfTheStream(graph: StreamGraph, valuesAt: GraphAddres
         family: familyDeclared,
         value_address: valueInput?.value_address ?? null,
         value_pin: valueInput?.pin ?? null,
+        value_annotations: valueInput?.annotations ?? {},
         lifetime: lifetime === "reset" ? "reset" : "kept",
         range: rangeDeclared,
         control: controlForTheInput(familyDeclared, declaredDefault, rangeDeclared),

@@ -17,7 +17,7 @@ test("a_real_registry_answer_reads_as_each_node_types_description_config_schema_
   expect(relayTrackSource?.type).toBe("tatolab.stream:RelayTrackSource");
   expect(relayTrackSource?.description.startsWith("Reads one track at a MoQ relay into the graph")).toBe(true);
   expect(relayTrackSource?.inputs).toEqual([]);
-  expect(relayTrackSource?.outputs).toEqual([{ name: "track", description: "Each object of the track, as the relay delivered it", family: null, pin: null, input_mode: null }]);
+  expect(relayTrackSource?.outputs).toEqual([{ name: "track", description: "Each object of the track, as the relay delivered it", family: null, pin: null, input_mode: null, annotations: {} }]);
   expect(relayTrackSource?.config_schema).toMatchObject({
     title: "RelayTrackSourceConfig",
     type: "object",
@@ -32,7 +32,7 @@ test("a_node_type_described_without_a_config_schema_reads_as_none", () => {
 
   expect(nodeCatalogFromTheRegistryAnswer("main", registryAnswer)).toEqual({
     ok: true,
-    value: { stream: "main", node_types: [{ type: "nodes.x:X", description: "", category: null, config_schema: null, inputs: [{ name: "a", description: "", family: null, pin: null, input_mode: null }], outputs: [] }] },
+    value: { stream: "main", node_types: [{ type: "nodes.x:X", description: "", category: null, config_schema: null, inputs: [{ name: "a", description: "", family: null, pin: null, input_mode: null, annotations: {} }], outputs: [] }] },
   });
 });
 
@@ -160,4 +160,43 @@ test("an_input_mode_the_contract_does_not_name_reads_as_none", () => {
   const nodeCatalog = nodeCatalogFromTheRegistryAnswer("main", registryAnswer);
 
   expect(nodeCatalog.ok && nodeCatalog.value.node_types[0]?.inputs.map((port) => port.input_mode)).toEqual([null, null]);
+});
+
+test("each_port_reads_with_the_annotations_the_runtime_serves_its_range_step_unit_meaning_and_control", () => {
+  const registryAnswer = JSON.stringify({
+    nodes: [
+      {
+        type: "nodes.beat:Warmth",
+        description: "",
+        inputs: [
+          { name: "beats_per_bar", description: "", annotations: { range: { minimum: 1, maximum: 16 } } },
+          { name: "base", description: "", annotations: { range: { minimum: 0, maximum: 1 }, step: 0.01, unit: "%", meaning: "warmth", control: "slider" } },
+          { name: "count", description: "" },
+        ],
+        outputs: [{ name: "result", description: "", annotations: { meaning: "warmth" } }],
+      },
+    ],
+  });
+
+  const nodeCatalog = nodeCatalogFromTheRegistryAnswer("main", registryAnswer);
+
+  expect(nodeCatalog.ok).toBe(true);
+  if (!nodeCatalog.ok) return;
+  const [warmth] = nodeCatalog.value.node_types;
+  expect(warmth?.inputs.map(({ name, annotations }) => ({ name, annotations }))).toEqual([
+    { name: "beats_per_bar", annotations: { range: { minimum: 1, maximum: 16 } } },
+    { name: "base", annotations: { range: { minimum: 0, maximum: 1 }, step: 0.01, unit: "%", meaning: "warmth", control: "slider" } },
+    { name: "count", annotations: {} },
+  ]);
+  expect(warmth?.outputs.map((port) => port.annotations)).toEqual([{ meaning: "warmth" }]);
+});
+
+test("annotations_the_contract_cannot_read_read_as_none", () => {
+  const registryAnswer = JSON.stringify({
+    nodes: [{ type: "nodes.x:X", description: "", inputs: [{ name: "a", description: "", annotations: { range: { minimum: "low" } } }, { name: "b", description: "", annotations: 3 }], outputs: [] }],
+  });
+
+  const nodeCatalog = nodeCatalogFromTheRegistryAnswer("main", registryAnswer);
+
+  expect(nodeCatalog.ok && nodeCatalog.value.node_types[0]?.inputs.map((port) => port.annotations)).toEqual([{}, {}]);
 });

@@ -3,8 +3,9 @@
 // filed under (`category`, absent for a type that declares none), its config's JSON Schema
 // (`config_schema`, absent for a type described without one) and its ports by name and description,
 // each typed one with the pin type and flow it declares, and each input with whether it takes a
-// wire, a stored value, or both (`input_mode`, a setting taking no wire). Every other key the
-// runtime renders is ignored.
+// wire, a stored value, or both (`input_mode`, a setting taking no wire), and what each port's
+// annotations state of its value, such as its range and the control that edits it (`annotations`).
+// Every other key the runtime renders is ignored.
 
 import { familyOfThePort, type JsonValue, type NodeCatalog, type NodeCatalogEntry, type NodeCatalogPort } from "../shared/tatolab_backend_contract.js";
 import { arrayOrEmpty, everyOneRead, isAJsonValue, jsonObject, type JsonObjectOnTheWire, optionalText, parseJsonOnTheWire, requiredArray, requiredText, textOrDefault } from "./json_on_the_wire.js";
@@ -79,6 +80,7 @@ function catalogPortsUnder(nodeType: JsonObjectOnTheWire, direction: "inputs" | 
       family: familyOfThePort(port.value),
       pin: nodeCatalogPortPinOnTheWire(port.value),
       input_mode: direction === "inputs" ? inputModeOnTheWire(port.value) : null,
+      annotations: annotationsOnTheWire(port.value),
     });
   });
 }
@@ -87,4 +89,10 @@ function catalogPortsUnder(nodeType: JsonObjectOnTheWire, direction: "inputs" | 
 function inputModeOnTheWire(input: JsonObjectOnTheWire): NodeCatalogPort["input_mode"] {
   const inputMode = readControlContractValue("NodeInputMode", input["input_mode"]);
   return inputMode.read ? inputMode.value : null;
+}
+
+/** The port's `annotations`, checked against the control contract's own schema; none when it serves none, or ones this app's contract cannot read. */
+function annotationsOnTheWire(port: JsonObjectOnTheWire): NodeCatalogPort["annotations"] {
+  const annotations = readControlContractValue("PinAnnotations", port["annotations"]);
+  return annotations.read ? annotations.value : {};
 }
