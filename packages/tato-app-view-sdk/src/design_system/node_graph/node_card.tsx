@@ -12,8 +12,8 @@ import type { StreamGraphPortPin } from "../../studio_readings";
 import { InputControlMount } from "../input_control_mount";
 import { NodeGraphNodesFoundContext } from "../node_graph_find_bar";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "../support/full_strength_focus_ring";
-import type { NodeGraphCardCondition, NodeGraphCanvasNode } from "../support/node_graph_canvas_contract";
-import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, connectionLookupKeyOfTheHandle, NodeGraphEditableContext, NodeGraphCardAndFrameEditingContext, NodeGraphInputValuesContext, NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE } from "../support/node_graph_flow_elements";
+import { nodeGraphPinKey, type NodeGraphCardCondition, type NodeGraphCanvasNode } from "../support/node_graph_canvas_contract";
+import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, connectionLookupKeyOfTheHandle, NodeGraphEditableContext, NodeGraphWireFitsContext, NodeGraphCardAndFrameEditingContext, NodeGraphInputValuesContext, NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE } from "../support/node_graph_flow_elements";
 import { NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT, NODE_GRAPH_CARD_HEADER_HEIGHT, NODE_GRAPH_CARD_PIN_ROWS_PADDING, NODE_GRAPH_PIN_ROW_HEIGHT } from "../support/node_graph_layout";
 import { isAPinSocketOfTheCardUnmeasured } from "../support/node_graph_pin_socket_measurement";
 
@@ -53,6 +53,7 @@ function NodeGraphPinSocket({
   takesNewWires: boolean;
 }) {
   const isEditable = useContext(NodeGraphEditableContext);
+  const wireFit = useContext(NodeGraphWireFitsContext)?.get(nodeGraphPinKey(nodeId, side, pin.name));
   const handleType = side === "input" ? "target" : "source";
   const handleId = side === "input" ? inputPinHandleId(pin.name) : outputPinHandleId(pin.name);
   // A socket is drawn again only when it gains its first link or loses its last; `useNodeConnections` would draw it
@@ -66,7 +67,8 @@ function NodeGraphPinSocket({
       isConnectable={isEditable && takesNewWires}
       className="node-graph-pin"
       {...socketLookAttributes(pin.pin)}
-      title={nodeGraphPinTooltip(pin)}
+      title={wireFit?.words ?? nodeGraphPinTooltip(pin)}
+      data-wire-fit={wireFit?.outcome}
       data-stream-facts={pin.stream_facts_words.length === 0 ? undefined : pin.stream_facts_words.join(" · ")}
       data-linked={isLinked || undefined}
     />

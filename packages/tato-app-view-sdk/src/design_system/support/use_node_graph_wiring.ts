@@ -1,8 +1,6 @@
-import { useCallback } from "react";
-import type { Connection, FinalConnectionState } from "@xyflow/react";
-import { canPinsOfTheseFamiliesBeWired } from "./node_graph_editing";
-import type { PortFamily } from "../../port_families";
-import type { NodeGraphCanvasEditing, NodeGraphCanvasNode, NodeGraphCanvasPoint } from "./node_graph_canvas_contract";
+import { useCallback, useRef, useState } from "react";
+import type { Connection, FinalConnectionState, OnConnectStartParams } from "@xyflow/react";
+import { nodeGraphPinKey, type NodeGraphCanvasDraggedPin, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint, type NodeGraphWireFits } from "./node_graph_canvas_contract";
 import type { NodeGraphLinkFlowEdge } from "./node_graph_flow_elements";
 
 /** A pin's name and side from the handle id React Flow reports. */
@@ -13,23 +11,36 @@ function pinOfAHandleId(handleId: string | null | undefined): { side: "input" | 
   return null;
 }
 
-/** The wiring of a card's pins by a drag on the canvas: whether a connection can be wired, its wiring, and a wire let go over the canvas. */
-export function useNodeGraphWiring(nodeById: ReadonlyMap<string, NodeGraphCanvasNode>, editing: NodeGraphCanvasEditing | null, canvasPointOf: (clientPoint: { x: number; y: number }) => NodeGraphCanvasPoint) {
-  const pinFamilyOf = useCallback(
-    (nodeId: string, side: "input" | "output", pinName: string): PortFamily | null => {
-      const graphNode = nodeById.get(nodeId);
-      return (side === "input" ? graphNode?.inputs : graphNode?.outputs)?.find((pin) => pin.name === pinName)?.family ?? null;
+/**
+ * The wiring of a card's pins by a drag on the canvas: how the wire being dragged fits each pin, as the editing's answer gives
+ * it, whether a connection can be wired, its wiring, and a wire let go over the canvas. The fits change twice a drag at most,
+ * when the answer arrives and when the wire is let go, so the sockets that show them are drawn again only then.
+ */
+export function useNodeGraphWiring(editing: NodeGraphCanvasEditing | null, canvasPointOf: (clientPoint: { x: number; y: number }) => NodeGraphCanvasPoint) {
+  const [wireFits, setWireFits] = useState<NodeGraphWireFits | null>(null);
+  const pinDraggedOff = useRef<NodeGraphCanvasDraggedPin | null>(null);
+  const askHowTheWireFits = useCallback(
+    (_event: MouseEvent | TouchEvent, { nodeId, handleId }: OnConnectStartParams) => {
+      const pin = pinOfAHandleId(handleId);
+      const draggedOff = editing === null || nodeId === null || pin === null ? null : { node_id: nodeId, ...pin };
+      pinDraggedOff.current = draggedOff;
+      if (editing === null || draggedOff === null) return;
+      void editing.fitsOfAWireFrom(draggedOff).then((fits) => {
+        if (pinDraggedOff.current === draggedOff) setWireFits(fits);
+      });
     },
-    [nodeById],
+    [editing],
   );
   const canTheConnectionBeWired = useCallback(
     (connection: Connection | NodeGraphLinkFlowEdge) => {
       const source = pinOfAHandleId(connection.sourceHandle);
       const target = pinOfAHandleId(connection.targetHandle);
       if (source?.side !== "output" || target?.side !== "input") return false;
-      return canPinsOfTheseFamiliesBeWired(pinFamilyOf(connection.source, "output", source.pin), pinFamilyOf(connection.target, "input", target.pin));
+      const draggedOff = pinDraggedOff.current;
+      const farEnd = draggedOff?.side === "input" ? { node_id: connection.source, ...source } : { node_id: connection.target, ...target };
+      return wireFits?.get(nodeGraphPinKey(farEnd.node_id, farEnd.side, farEnd.pin))?.outcome !== "refused";
     },
-    [pinFamilyOf],
+    [wireFits],
   );
   const wireThePins = useCallback(
     (connection: Connection) => {
@@ -42,17 +53,19 @@ export function useNodeGraphWiring(nodeById: ReadonlyMap<string, NodeGraphCanvas
   );
   const followTheWireLetGo = useCallback(
     (event: MouseEvent | TouchEvent, connectionState: FinalConnectionState) => {
+      pinDraggedOff.current = null;
+      setWireFits(null);
       if (editing === null || connectionState.isValid === true || connectionState.toNode !== null || connectionState.fromHandle === null) return;
       const pin = pinOfAHandleId(connectionState.fromHandle.id);
       if (pin === null) return;
       const clientPoint = "changedTouches" in event ? event.changedTouches[0] : event;
       if (clientPoint === undefined) return;
       editing.onWireLetGoOverTheCanvas(
-        { node_id: connectionState.fromHandle.nodeId, pin: pin.pin, side: pin.side, family: pinFamilyOf(connectionState.fromHandle.nodeId, pin.side, pin.pin) },
+        { node_id: connectionState.fromHandle.nodeId, ...pin },
         canvasPointOf({ x: clientPoint.clientX, y: clientPoint.clientY }),
       );
     },
-    [editing, pinFamilyOf, canvasPointOf],
+    [editing, canvasPointOf],
   );
-  return { canTheConnectionBeWired, wireThePins, followTheWireLetGo };
+  return { wireFits, askHowTheWireFits, canTheConnectionBeWired, wireThePins, followTheWireLetGo };
 }

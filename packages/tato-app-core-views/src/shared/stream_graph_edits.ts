@@ -157,11 +157,6 @@ export function pinsWiredEdits(edited: EditedStreamGraph, source: { node_id: str
   return [{ operation: "connect", stream: edited.streamAsset, source: { node: sourceNode, port: source.pin }, target: { node: targetNode, port: target.pin } }];
 }
 
-/** The first port of `ports` that can take or give `family`; any port when the family is unknown. */
-function firstPortOfTheFamily(ports: readonly Pick<NodeCatalogPort, "name" | "family">[], family: string | null): string | null {
-  return (family === null ? ports[0] : (ports.find((port) => port.family === family || port.family === null) ?? null))?.name ?? null;
-}
-
 /** The inputs of `nodeType` a wire can end at: every input but a setting, which takes a stored value and no wire. */
 export function inputsAWireReaches(nodeType: Pick<NodeCatalogEntry, "inputs">): readonly NodeCatalogPort[] {
   return nodeType.inputs.filter((input) => input.input_mode?.mode !== "setting_only");
@@ -172,11 +167,10 @@ export interface LooseWire {
   node_id: string;
   pin: string;
   side: "input" | "output";
-  family: string | null;
 }
 
-/** A node of `nodeType` placed with its card at `position`, and, from a loose wire, linked to the wire's pin by its first port of the wire's family that takes a wire. */
-export function nodePlacedEdits(edited: EditedStreamGraph, nodeType: NodeCatalogEntry, position: StreamGraphCanvasPosition, looseWire: LooseWire | null): StreamGraphAction[] {
+/** A node of `nodeType` placed with its card at `position`, and, from a loose wire, linked to the wire's pin by `wired.port`, the port of the placed node the runtime answered the wire fits. */
+export function nodePlacedEdits(edited: EditedStreamGraph, nodeType: NodeCatalogEntry, position: StreamGraphCanvasPosition, wired: { looseWire: LooseWire; port: string } | null): StreamGraphAction[] {
   const placed: StreamGraphAction = {
     operation: "add_node",
     stream: edited.streamAsset,
@@ -184,25 +178,11 @@ export function nodePlacedEdits(edited: EditedStreamGraph, nodeType: NodeCatalog
     studio: { position: toTheCanvasPixel(position) },
     as: NODE_PLACED_IN_THIS_TRANSACTION,
   };
-  const wiredNode = looseWire === null ? null : nodeIdOf(edited, looseWire.node_id);
-  if (looseWire === null || wiredNode === null) return [placed];
-  const wiredEnd = { node: wiredNode, port: looseWire.pin };
-  if (looseWire.side === "output") {
-    const input = firstPortOfTheFamily(inputsAWireReaches(nodeType), looseWire.family);
-    return input === null ? [placed] : [placed, { operation: "connect", stream: edited.streamAsset, source: wiredEnd, target: { node: NODE_PLACED_IN_THIS_TRANSACTION, port: input } }];
-  }
-  const output = firstPortOfTheFamily(nodeType.outputs, looseWire.family);
-  return output === null ? [placed] : [placed, { operation: "connect", stream: edited.streamAsset, source: { node: NODE_PLACED_IN_THIS_TRANSACTION, port: output }, target: wiredEnd }];
-}
-
-/** The port of `nodeType` a loose wire of `family` from `side` links to when a node of it is placed, or `null` when it has none. */
-export function portALooseWireLinksTo(nodeType: NodeCatalogEntry, looseWire: Pick<LooseWire, "side" | "family">): string | null {
-  return firstPortOfTheFamily(looseWire.side === "output" ? inputsAWireReaches(nodeType) : nodeType.outputs, looseWire.family);
-}
-
-/** Whether `nodeType` has a port a loose wire of `family` from `side` could link to. */
-export function canANodeTypeTakeTheLooseWire(nodeType: NodeCatalogEntry, looseWire: Pick<LooseWire, "side" | "family">): boolean {
-  return portALooseWireLinksTo(nodeType, looseWire) !== null;
+  const wiredNode = wired === null ? null : nodeIdOf(edited, wired.looseWire.node_id);
+  if (wired === null || wiredNode === null) return [placed];
+  const wiredEnd = { node: wiredNode, port: wired.looseWire.pin };
+  const placedEnd = { node: NODE_PLACED_IN_THIS_TRANSACTION, port: wired.port };
+  return [placed, { operation: "connect", stream: edited.streamAsset, ...(wired.looseWire.side === "output" ? { source: wiredEnd, target: placedEnd } : { source: placedEnd, target: wiredEnd }) }];
 }
 
 /** The selected links, nodes and notes taken out: a link of a removed node goes with it, so only the others are disconnected. */
@@ -224,6 +204,11 @@ export function deletedEdits(edited: EditedStreamGraph, deleted: { node_ids: rea
 /** A link's id as the canvas keys it: the runtime's id, or its ends while the runtime gives it none. */
 export function linkIdAsTheCanvasKeysIt(link: StreamGraph["links"][number]): string {
   return link.id === "" ? `${link.source.node}.${link.source.port}->${link.target.node}.${link.target.port}` : link.id;
+}
+
+/** The first port of `ports` that can take or give `family`; any port when the family is unknown. */
+function firstPortOfTheFamily(ports: readonly Pick<NodeCatalogPort, "name" | "family">[], family: string | null): string | null {
+  return (family === null ? ports[0] : (ports.find((port) => port.family === family || port.family === null) ?? null))?.name ?? null;
 }
 
 /** `nodeName`'s node spliced into the link `linkId`: the link's source feeds its first input of that family, its first output of that family feeds the link's target, and the link goes; nothing when it has no such ports. */

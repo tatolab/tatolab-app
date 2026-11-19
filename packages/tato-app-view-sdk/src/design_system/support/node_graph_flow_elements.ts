@@ -3,7 +3,7 @@ import { createContext } from "react";
 import type { NodeGraphPosition } from "./node_graph_layout";
 import type { PinTypeKey } from "../../pin_model/pin_type_words";
 import type { InputValues } from "../../pin_services/input_values";
-import type { NodeGraphCanvasNode, NodeGraphCanvasFrame, NodeGraphCanvasNote, NodeGraphCanvasLink, NodeGraphCanvasEditing } from "./node_graph_canvas_contract";
+import type { NodeGraphCanvasNode, NodeGraphCanvasFrame, NodeGraphCanvasNote, NodeGraphCanvasLink, NodeGraphCanvasEditing, NodeGraphWireFits } from "./node_graph_canvas_contract";
 
 /** A card as React Flow holds it. */
 export type NodeGraphCardFlowNode = Node<
@@ -49,6 +49,9 @@ export const NodeGraphInputValuesContext = createContext<InputValues | null>(nul
 
 /** Whether the canvas takes edits, which lets its pins start wires and its notes be edited. */
 export const NodeGraphEditableContext = createContext<boolean>(false);
+
+/** How the wire being dragged fits each pin, once the runtime has answered; `null` while no wire is dragged or no answer has arrived. */
+export const NodeGraphWireFitsContext = createContext<NodeGraphWireFits | null>(null);
 
 /** What a note asks for when its text is edited or it is resized. */
 export const NodeGraphNoteEditingContext = createContext<NodeGraphCanvasEditing["onNoteChanged"] | null>(null);

@@ -55,6 +55,7 @@ import {
 } from "../shared/stream_graph_edits";
 import { nodesTheSelectionHoldsInTheStream, selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 import { levelOfTheSubgraphsSteppedThrough, selectionOfTheSubgraphSteppedOutOf, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly } from "./stream_graph_levels";
+import { linkCandidatesRequestOf, portsALooseWireFits, wireFitsOfTheAnswer } from "./stream_graph_wire_fits";
 import { graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeOriginWordsByType, nodeTypeSearchItems, nodeTypeSearchNarrowing, nodeTypeSearchPreviewCard, nodeTypesTheProjectDeclares, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
 import { NODE_TYPE_CATEGORIES_WORDS, NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS } from "../shared/node_type_category_path";
 import { StreamGraphSubgraphReadOnlyBanner, StreamGraphSubgraphTrail } from "./stream_graph_subgraph_strip";
@@ -65,10 +66,17 @@ const NEXT_PLACED_NODE_OFFSET = 36;
 
 /** The search over a loose wire offers no way on beside its field. */
 
-/** Where the Add node search was asked for, and the wire it was dragged off when it was. */
+/** Where the Add node search was asked for, the wire it was dragged off when it was, and the port of each node type the runtime answered that wire fits; `null` until it answers, or when it did not, so the search judges nothing. */
 interface NodeTypeSearchAsked {
   at: NodeGraphCanvasPoint;
   looseWire: LooseWire | null;
+  portsTheWireFits: ReadonlyMap<string, string> | null;
+}
+
+/** The loose wire a node of `nodeType` placed from `asked` is linked to and the port of the placed node that links it, as the runtime answered; `null` for none. */
+function wiredToTheLooseWire(asked: NodeTypeSearchAsked, nodeType: string): { looseWire: LooseWire; port: string } | null {
+  const port = asked.portsTheWireFits?.get(nodeType);
+  return asked.looseWire === null || port === undefined ? null : { looseWire: asked.looseWire, port };
 }
 
 /** The issue that opens an import as a project of its own, where it can be edited. */
@@ -245,9 +253,22 @@ function StreamGraphOfTheTab({
           ...(cardLetGoOverALink === null ? [] : cardLetGoOverALinkEdits(editedGraph, cardLetGoOverALink.node_id, cardLetGoOverALink.link_id)),
           ...cardsMovedEdits(editedGraph, moves),
         ]),
+      fitsOfAWireFrom: async (draggedOff) => {
+        const request = linkCandidatesRequestOf(editedGraph, draggedOff, levelOfTheEdits, "placed_ports");
+        if (request === null || projectFolder === null) return new Map();
+        return wireFitsOfTheAnswer(editedGraph, draggedOff, await connection.checkLinkCandidates(projectFolder, request));
+      },
       onPinsWired: (source, target) => void sendTheGestureAtTheLevelShown(pinsWiredEdits(editedGraph, source, target)),
-      onWireLetGoOverTheCanvas: (looseWire, at) => setNodeTypeSearchAsked({ at, looseWire }),
-      onNodeAskedFor: (at) => setNodeTypeSearchAsked({ at, looseWire: null }),
+      onWireLetGoOverTheCanvas: (looseWire, at) => {
+        const asked: NodeTypeSearchAsked = { at, looseWire, portsTheWireFits: null };
+        setNodeTypeSearchAsked(asked);
+        const request = linkCandidatesRequestOf(editedGraph, looseWire, levelOfTheEdits, "node_type_ports");
+        if (request === null || projectFolder === null) return;
+        void connection.checkLinkCandidates(projectFolder, request).then((checking) =>
+          setNodeTypeSearchAsked((current) => (current === asked ? { ...asked, portsTheWireFits: portsALooseWireFits(checking) } : current)),
+        );
+      },
+      onNodeAskedFor: (at) => setNodeTypeSearchAsked({ at, looseWire: null, portsTheWireFits: null }),
       onNoteAskedFor: (at) => void sendTheGestureAtTheLevelShown(notePlacedEdits(editedGraph, at.on_the_canvas)),
       onDeleted: (deleted) => void sendTheGestureAtTheLevelShown(deletedEdits(editedGraph, deleted)),
       onFrameAskedFor: (nodeIds) => sendTheGestureAtTheLevelShown(selectionFramedEdits(editedGraph, nodeIds)),
@@ -265,7 +286,7 @@ function StreamGraphOfTheTab({
       onFrameRemoved: (frameId) => void sendTheGestureAtTheLevelShown(frameRemovedEdits(editedGraph, frameId)),
       onCardCollapsed: (nodeId, collapsed) => void sendTheStudioGesture(cardCollapsedEdits(editedGraph, nodeId, collapsed)),
     };
-  }, [importedProjectName, editedGraph, sendTheGestureAtTheLevelShown, sendTheStudioGesture, select, streamTab.stream, keepWhereTheStreamWasLeft, levelOfTheEdits]);
+  }, [importedProjectName, editedGraph, sendTheGestureAtTheLevelShown, sendTheStudioGesture, select, streamTab.stream, keepWhereTheStreamWasLeft, levelOfTheEdits, connection, projectFolder]);
   const editingOfTheLevelShown = subgraphKeepingTheLevelReadOnly === null ? editing : null;
   const sendTheSubgraphGesture = useCallback(
     (depth: number, actionsOf: (edited: EditedStreamGraph, subgraphName: string) => StreamGraphAction[], returnsToItsLevel: boolean) => {
@@ -298,13 +319,14 @@ function StreamGraphOfTheTab({
     [catalogReading, projectNodeTypeListing],
   );
   const looseWireOfTheSearch = nodeTypeSearchAsked?.looseWire ?? null;
+  const portsTheWireOfTheSearchFits = nodeTypeSearchAsked?.portsTheWireFits ?? null;
   const openProjectOfTheStream = openProject?.kind === "read" && openProject.open_project.project.folder === projectFolder ? openProject.open_project : null;
   const nodeTypeSearchItemsOffered = useMemo(
     () => [
-      ...nodeTypeSearchItems(catalog, looseWireOfTheSearch, nodeTypesTheProjectDeclares(projectNodeTypeListing), nodeTypeOriginWordsByType(projectNodeTypeListing, openProjectOfTheStream)),
+      ...nodeTypeSearchItems(catalog, portsTheWireOfTheSearchFits, nodeTypesTheProjectDeclares(projectNodeTypeListing), nodeTypeOriginWordsByType(projectNodeTypeListing, openProjectOfTheStream)),
       ...(subgraphDepth === 0 ? graphGeneratorSearchItems(projectNodeTypeListing, looseWireOfTheSearch, openProjectOfTheStream) : []),
     ],
-    [catalog, projectNodeTypeListing, looseWireOfTheSearch, subgraphDepth, openProjectOfTheStream],
+    [catalog, projectNodeTypeListing, looseWireOfTheSearch, portsTheWireOfTheSearchFits, subgraphDepth, openProjectOfTheStream],
   );
   const previewOfTheNodeTypeSearched = useCallback(
     (searchItemId: string) => {
@@ -333,7 +355,7 @@ function StreamGraphOfTheTab({
           ? generatorSubgraphPlacedEdits(editedGraph, chosenGenerator, nodeTypeSearchAsked.at.on_the_canvas)
           : chosenNodeType === undefined
             ? null
-            : nodePlacedEdits(editedGraph, chosenNodeType, nodeTypeSearchAsked.at.on_the_canvas, nodeTypeSearchAsked.looseWire);
+            : nodePlacedEdits(editedGraph, chosenNodeType, nodeTypeSearchAsked.at.on_the_canvas, wiredToTheLooseWire(nodeTypeSearchAsked, chosenNodeType.type));
       if (placedEdits === null) return;
       void sendTheGestureAtTheLevelShown(placedEdits);
       // A second generator placed before the graph shows the first would take the first's name, which refreshes it.
@@ -351,6 +373,7 @@ function StreamGraphOfTheTab({
           in_the_element: inTheElement,
         },
         looseWire: null,
+        portsTheWireFits: null,
       });
     },
     [catalog, nodeTypeSearchAsked, editedGraph, sendTheGestureAtTheLevelShown],

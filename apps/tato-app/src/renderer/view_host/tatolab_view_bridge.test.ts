@@ -242,6 +242,8 @@ function recordingHostServices() {
       if (operations[0]?.operation === "set_node_input_value" && operations[0].input === "play_a") return { kind: "refused", refusal: VIEW_OUTPUT_VALUE_REFUSAL };
       return { kind: "applied", transaction: GRAPH_TRANSACTION_APPLIED };
     },
+    checkLinkCandidates: async (projectFolder, request) =>
+      projectFolder === "/set" ? { kind: "checked", result: { candidates: [{ end: { kind: "placed_port", node: "n-uuid", port: "video" }, check: { outcome: "connects" } }] } } : { kind: "not_checked", because: `No runtime follows ${request.stream}.` },
     readThePersonEditing: async () => ({ kind: "read", author: { kind: "person", name: "sam" } }),
     connectToPythonLanguageServer: (projectFolder, onEvent) => {
       const opened = { projectFolder, onEvent, closed: false };
@@ -359,6 +361,13 @@ describe("a view's connection to Studio, through the one bridge every view is se
     bridge.close();
     expect(projectAssetPickHeld.projectAssetPick.readLatest()).toBeNull();
     void picking;
+  });
+
+  it("asks the runtime how a placed pin links to its candidates, its answer reaching the view unchanged and a refusal in words", async () => {
+    const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
+    const request = { stream: "s-uuid", from: { output: { node: "m-uuid", port: "video" } }, among: "placed_ports", include_refused: true } as const;
+    expect(await connection.checkLinkCandidates("/set", request)).toEqual({ kind: "checked", result: { candidates: [{ end: { kind: "placed_port", node: "n-uuid", port: "video" }, check: { outcome: "connects" } }] } });
+    expect(await connection.checkLinkCandidates("/elsewhere", request)).toEqual({ kind: "not_checked", because: "No runtime follows s-uuid." });
   });
 
   it("names the person editing, whose own edits Undo reverts", async () => {

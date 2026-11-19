@@ -27,6 +27,8 @@ import type {
   ProjectGraphTransactionApplying,
   StreamGraphAction,
   ThePersonEditingReading,
+  CheckLinkCandidatesRequest,
+  LinkCandidatesChecking,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { AreaForAViewType, ModulesAndMarketplaceSection, PortViewerEvent, ProjectAssetPick, ProjectAssetPickEnding, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
 import type { ProjectAssetPickAnswering } from "./project_asset_pick_held_in_the_window";
@@ -66,6 +68,8 @@ export type {
   StreamGraphAction,
   ThePersonEditingReading,
   ViewOpenedOn,
+  CheckLinkCandidatesRequest,
+  LinkCandidatesChecking,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 export type {
   PortViewerEvent as PortViewerConnectionEvent,
@@ -168,6 +172,8 @@ export interface StudioViewHostServices {
   /** The runtime's `transact` of `operations` on the open project's streams as one transaction, answering what it applied, its structured refusal, or why it was never sent. */
   transactInTheProject(projectFolder: string, operations: readonly StreamGraphAction[], mode: GraphEditMode, idempotencyKey: string | null): Promise<ProjectGraphTransactionApplying>;
   /** The person editing in Studio, the author their graph edits are recorded under, or why it was not read. */
+  /** The runtime's `check_link_candidates` of `request` on a stream of the open project, answering how a link from its placed pin to each candidate would connect, or why it was not checked. */
+  checkLinkCandidates(projectFolder: string, request: CheckLinkCandidatesRequest): Promise<LinkCandidatesChecking>;
   readThePersonEditing(): Promise<ThePersonEditingReading>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;

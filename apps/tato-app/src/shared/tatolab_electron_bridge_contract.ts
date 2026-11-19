@@ -31,6 +31,7 @@ import type {
   ProjectStreamActionQueued,
   ProjectTransaction,
   ProjectGraphTransactionTheRuntimeAnswered,
+  LinkCandidatesCheckResult,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
   RuntimeDescription,
@@ -55,6 +56,7 @@ import type {
   SystemMenuBarMenu,
 } from "./tatolab_backend_contract.js";
 import type { ProjectGraphTransactionSentByTheWindow } from "./transact_in_the_open_project_arguments.js";
+import type { LinkCandidatesAskedByTheWindow } from "./check_link_candidates_in_the_open_project_arguments.js";
 import type { ListedNodeUiElement } from "@tatolab/tato-app-view-sdk/node_ui_host";
 
 /** The scheme the Electron app serves its window's page under: a page on it with no bridge is the app's window whose preload did not load. */
@@ -141,6 +143,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "read_open_project_transactions",
   "undo_in_the_open_project",
   "transact_in_the_open_project",
+  "check_link_candidates_in_the_open_project",
   "read_the_person_editing_in_studio",
   "redo_in_the_open_project",
   "stop_open_project",
@@ -480,6 +483,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   undo_in_the_open_project: { commandArguments: { author: ProjectTransactionAuthor }; answer: ProjectTransaction };
   /** The runtime's `transact` of `operations` on the graphs of the asking studio window's project's streams, as one transaction by the person editing; a stream outside the project is refused in Studio's words, a refusal the runtime structures is answered as `refused`, any other refusal in its own words. */
   transact_in_the_open_project: { commandArguments: ProjectGraphTransactionSentByTheWindow; answer: ProjectGraphTransactionTheRuntimeAnswered };
+  check_link_candidates_in_the_open_project: { commandArguments: LinkCandidatesAskedByTheWindow; answer: LinkCandidatesCheckResult };
   /** From a studio window only: the desktop's open dialog for files, offering first the files of `media` (`media_facts` members, `null` for any) and every file after, each one chosen copied by the runtime's `import_asset` into the window's project, which places it in its kind's folder under its own name, numbered past a name already taken, by the person editing; `null` when they choose nothing. A file refused leaves the rest to import. */
   import_assets_into_the_open_project: { commandArguments: { media: readonly string[] | null }; answer: ProjectAssetsImported | null };
   /** From a studio window only: the runtime's `relocate_asset` of `asset`, a UUID the window's project holds, to `to_path`, `/`-separated in the project, renaming it, moving it or both, by the person editing; refused in the runtime's own words. */

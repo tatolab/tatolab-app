@@ -1,7 +1,7 @@
 // What the Add node search offers over a stream's graph: each node type its stream's catalog lists and each its
 // project's sources declare, titled in words, filed under the category the runtime serves and named for the project or
 // package it comes from, then each graph generator the project's own source declares, placed as a subgraph; for a wire
-// dragged off a pin, only the node types that can take it.
+// dragged off a pin, only the node types the runtime answered it fits.
 
 import type { SearchPopoverNarrowing } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import type { SearchPopoverItem } from "@tatolab/tato-app-view-sdk/design_system/support/search_popover_rows";
@@ -9,7 +9,7 @@ import { exactPinOfTheDeclaredPort, type NodePin } from "@tatolab/tato-app-view-
 import type { NodeCatalogEntry, NodeCatalogPort, OpenProject, ProjectNodeType, ProjectNodeTypeListing, ProjectNodeTypeSourceOrigin } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nodeTypeCategoryPath } from "../shared/node_type_category_path";
 import { nameInWords, nodeTypeClassName } from "../shared/node_words";
-import { inputsAWireReaches, portALooseWireLinksTo, type LooseWire } from "../shared/stream_graph_edits";
+import { inputsAWireReaches, type LooseWire } from "../shared/stream_graph_edits";
 
 /** The entry above the search's categories that lists what the project's own source declares. */
 export const THIS_PROJECT_SEARCH_ENTRY = "This project";
@@ -42,15 +42,15 @@ export function nodeTypeOriginWordsByType(projectNodeTypes: ProjectNodeTypeListi
   return originWordsByType;
 }
 
-/** Each node type of `catalog` the search offers, keyed by its type; with a loose wire, only those with a port of the wire's family on the other side. */
+/** Each node type of `catalog` the search offers, keyed by its type; for a loose wire the runtime answered for, only those `portsTheWireFits` names. */
 export function nodeTypeSearchItems(
   catalog: readonly NodeCatalogEntry[],
-  looseWire: Pick<LooseWire, "side" | "family"> | null,
+  portsTheWireFits: ReadonlyMap<string, string> | null,
   typesTheProjectDeclares: ReadonlySet<string> = new Set(),
   originWordsByType: ReadonlyMap<string, string> = new Map(),
 ): SearchPopoverItem[] {
   return catalog.flatMap((nodeType) => {
-    if (looseWire !== null && portALooseWireLinksTo(nodeType, looseWire) === null) return [];
+    if (portsTheWireFits !== null && !portsTheWireFits.has(nodeType.type)) return [];
     return [
       {
         item_id: nodeType.type,
@@ -86,7 +86,7 @@ export function nodeTypesTheSearchOffers(catalog: readonly NodeCatalogEntry[], p
 const GRAPH_GENERATOR_SEARCH_ITEM_PREFIX = "graph_generator:";
 
 /** Each graph generator the project's own source declares, offered under This project to place as a subgraph; none for a loose wire, since a generator's ports are known only once it runs. */
-export function graphGeneratorSearchItems(projectNodeTypes: ProjectNodeTypeListing | null, looseWire: Pick<LooseWire, "side" | "family"> | null, openProject: OpenProject | null = null): SearchPopoverItem[] {
+export function graphGeneratorSearchItems(projectNodeTypes: ProjectNodeTypeListing | null, looseWire: LooseWire | null, openProject: OpenProject | null = null): SearchPopoverItem[] {
   if (looseWire !== null) return [];
   return (projectNodeTypes?.sources ?? [])
     .filter(({ origin }) => origin.source === "project")
@@ -106,18 +106,17 @@ export function graphGeneratorOfTheSearchItem(itemId: string): string | null {
   return itemId.startsWith(GRAPH_GENERATOR_SEARCH_ITEM_PREFIX) ? itemId.slice(GRAPH_GENERATOR_SEARCH_ITEM_PREFIX.length) : null;
 }
 
-/** What the search over a loose wire is narrowed to: what every node type offered takes or gives, and that placing one links it in the same edit. */
+/** What the search over a loose wire is narrowed to: the node types the runtime answered can take or feed the wire's pin, and that placing one links it in the same edit. */
 export function nodeTypeSearchNarrowing(looseWire: LooseWire): SearchPopoverNarrowing {
-  const familyWords = looseWire.family === null ? null : `${looseWire.family.charAt(0).toUpperCase()}${looseWire.family.slice(1)}`;
   if (looseWire.side === "output") {
     return {
-      heading: familyWords === null ? `Can take ${looseWire.pin}` : `Takes ${familyWords}`,
-      footnote: `Placing one adds it and links ${looseWire.pin} to its first ${familyWords ?? "matching"} input, in one edit. One undo takes both back.`,
+      heading: `Can take ${looseWire.pin}`,
+      footnote: `Placing one adds it and links ${looseWire.pin} to the first input the runtime says it fits, in one edit. One undo takes both back.`,
     };
   }
   return {
-    heading: familyWords === null ? `Can feed ${looseWire.pin}` : `Gives ${familyWords}`,
-    footnote: `Placing one adds it and links its first ${familyWords ?? "matching"} output to ${looseWire.pin}, in one edit. One undo takes both back.`,
+    heading: `Can feed ${looseWire.pin}`,
+    footnote: `Placing one adds it and links the first output the runtime says fits to ${looseWire.pin}, in one edit. One undo takes both back.`,
   };
 }
 

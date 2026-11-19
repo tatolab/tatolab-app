@@ -66,6 +66,7 @@ function editingOfAReading(): NodeGraphCanvasEditing {
   const applied = async () => "applied" as const;
   return {
     onCardsMoved: applied,
+    fitsOfAWireFrom: async () => new Map(),
     onPinsWired: vi.fn(),
     onWireLetGoOverTheCanvas: vi.fn(),
     onNodeAskedFor: vi.fn(),

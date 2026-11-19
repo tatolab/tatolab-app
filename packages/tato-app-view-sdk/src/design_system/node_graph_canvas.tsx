@@ -14,7 +14,7 @@ import { frameACardIsLetGoIn, frameRectangleAroundCards, linkUnderACard, placeCl
 import { type NodeGraphCanvasNode, type NodeGraphCanvasFrame, NODE_GRAPH_FRAME_COLOURS, type NodeGraphCanvasNote, type NodeGraphCanvasLink, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphCanvasCardMove, type NodeGraphCanvasEditing } from "./support/node_graph_canvas_contract";
 import { NodeGraphCardView } from "./node_graph/node_card";
 import { pinTypeKeyOfTheLink } from "./support/node_graph_link_colour";
-import { type NodeGraphCardFlowNode, type NodeGraphNoteFlowNode, type NodeGraphFrameFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphEditableContext, NodeGraphNoteEditingContext, NodeGraphNoteResizingContext, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColoursUsedContext, NodeGraphFrameColourPickingContext, NodeGraphFrameWordsEditingContext, NodeGraphInputValuesContext } from "./support/node_graph_flow_elements";
+import { type NodeGraphCardFlowNode, type NodeGraphNoteFlowNode, type NodeGraphFrameFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphEditableContext, NodeGraphWireFitsContext, NodeGraphNoteEditingContext, NodeGraphNoteResizingContext, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColoursUsedContext, NodeGraphFrameColourPickingContext, NodeGraphFrameWordsEditingContext, NodeGraphInputValuesContext } from "./support/node_graph_flow_elements";
 import type { InputValues } from "../pin_services/input_values";
 import { type NodeGraphRightClicked, NodeGraphRightClickChoices } from "./node_graph_right_click_choices";
 import { NodeGraphFrameView } from "./node_graph_frame_view";
@@ -307,7 +307,7 @@ function NodeGraphFlow({
     [editing, nodeById, nodes, links, frames, positionOfTheCard, frameOfTheCard, sizeOfTheCard, linkMidpointsDrawn, holdTheCardMoves, releaseTheHeldCards, releaseTheHeldNotePosition],
   );
 
-  const { canTheConnectionBeWired, wireThePins, followTheWireLetGo } = useNodeGraphWiring(nodeById, editing, canvasPointOf);
+  const { wireFits, askHowTheWireFits, canTheConnectionBeWired, wireThePins, followTheWireLetGo } = useNodeGraphWiring(editing, canvasPointOf);
 
   const { takeAKeyTypedWhileTheFrameIsMade, frameTheSelection, frameWordsEditing, setFrameIdWhoseColourIsPicked, frameWhoseColourIsPicked, frameColoursUsed, cardAndFrameEditing } = useNodeGraphFrameEditing(editing, frames, selectedIds);
 
@@ -385,6 +385,7 @@ function NodeGraphFlow({
 
   return (
       <NodeGraphEditableContext value={editing !== null}>
+        <NodeGraphWireFitsContext value={wireFits}>
         <NodeGraphNoteEditingContext value={editing?.onNoteChanged ?? null}>
         <NodeGraphNoteResizingContext value={editing === null ? null : keepTheResizedNote}>
           <NodeGraphCardAndFrameEditingContext value={cardAndFrameEditing}>
@@ -498,6 +499,7 @@ function NodeGraphFlow({
                 onNodeDoubleClick={(_event, flowNode) => {
                   if (flowNode.type === "node_graph_card" && (nodeById.get(flowNode.id)?.subgraph ?? null) !== null) onSubgraphOpened?.(flowNode.id);
                 }}
+                onConnectStart={askHowTheWireFits}
                 onConnect={wireThePins}
                 onConnectEnd={followTheWireLetGo}
                 isValidConnection={canTheConnectionBeWired}
@@ -559,6 +561,7 @@ function NodeGraphFlow({
           </NodeGraphCardAndFrameEditingContext>
         </NodeGraphNoteResizingContext>
         </NodeGraphNoteEditingContext>
+        </NodeGraphWireFitsContext>
       </NodeGraphEditableContext>
   );
 }

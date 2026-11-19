@@ -104,6 +104,12 @@ g[data-pin-type="untyped"] { --node-graph-pin-colour: var(--studio-graph-link); 
   clip-path: polygon(17.5% 28.3%, 60.9% 50%, 17.5% 71.7%);
   content: "";
 }
+/* While a wire is dragged and the runtime has answered how it fits, a socket it connects to lights with a ring in the
+   card-selected colour, and one it refuses dims; a socket it was not asked about, or not checked, stays as it is. */
+.node-graph-canvas .react-flow__handle.node-graph-pin:is([data-wire-fit="connects"], [data-wire-fit="connects_with_free_conversion"], [data-wire-fit="connects_through_convert_node"]) {
+  box-shadow: 0 0 0 2px var(--studio-graph-card-selected);
+}
+.node-graph-canvas .react-flow__handle.node-graph-pin[data-wire-fit="refused"] { opacity: 0.3; }
 /* React Flow places a canvas pin on its card's edge; a preview's pin sits there by these rules. */
 .node-graph-pin-of-a-preview { position: absolute; top: 50%; transform: translate(-50%, -50%); }
 .node-graph-pin-of-a-preview[data-side="input"] { left: 0; }

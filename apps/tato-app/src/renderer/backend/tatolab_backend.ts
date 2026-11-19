@@ -1,4 +1,6 @@
 import type {
+  CheckLinkCandidatesRequest,
+  LinkCandidatesCheckResult,
   ChosenProjectFolder,
   StudioWarningKind,
   JsonValue,
@@ -225,6 +227,8 @@ export interface TatolabBackend {
   undoInTheOpenProject(author: ProjectTransactionAuthor): Promise<ProjectTransaction>;
   /** The runtime's `transact` of `operations` on the graphs of the open project's streams as one transaction recorded as Studio's own, resolving with what it applied or the runtime's structured refusal, and rejecting in words for any other refusal. */
   transactInTheOpenProject(operations: readonly StreamGraphAction[], mode: GraphEditMode, idempotencyKey: string | null): Promise<ProjectGraphTransactionTheRuntimeAnswered>;
+  /** The runtime's `check_link_candidates` of `request` on a stream of the open project, which changes nothing, resolving with its answer unchanged and rejecting in the runtime's or Studio's words. */
+  checkLinkCandidatesInTheOpenProject(request: CheckLinkCandidatesRequest): Promise<LinkCandidatesCheckResult>;
   /** The person editing in Studio, whose graph edits the runtime records under them. */
   readThePersonEditingInStudio(): Promise<ProjectTransactionAuthor>;
   /** The runtime's `redo` by `author` on the open project, resolving with the redo it applied and rejecting in the runtime's own words. */

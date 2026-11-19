@@ -3,8 +3,10 @@
 // framework, and takes what Studio sends as the contract's types, since Studio's own build wrote it.
 
 import type {
+  CheckLinkCandidatesRequest,
   GraphEditMode,
   JsonValue,
+  LinkCandidatesChecking,
   ListedStreamsReading,
   NodeCatalogReading,
   OpenProjectReading,
@@ -164,6 +166,8 @@ export interface TatoAppViewConnection {
   deleteAssetFromTheProject(projectFolder: string, asset: string): Promise<ViewAskDone>;
   /** The person editing in Studio: the author their graph edits are recorded under, and so whose edits their own Undo reverts. */
   readThePersonEditing(): Promise<ThePersonEditingReading>;
+  /** How a link from `request`'s placed pin to each of its candidates would connect, or why not, as the runtime's `check_link_candidates` judges it on a stream of the project in `projectFolder`; nothing is changed. */
+  checkLinkCandidates(projectFolder: string, request: CheckLinkCandidatesRequest): Promise<LinkCandidatesChecking>;
   /** Apply `operations` on the graphs of the project's streams as one transaction, whole or not at all, answering what it applied or the runtime's structured refusal. */
   transactInTheProject(projectFolder: string, operations: readonly StreamGraphAction[], sending: GraphTransactionSending): Promise<ProjectGraphTransactionApplying>;
   /** Have the person choose a project asset of `pick`'s media in Studio's asset picker over the window, ending any asset pick held; answered once the picker closes. */
@@ -327,6 +331,11 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       redoInTheProject: (projectFolder, author) => ask({ kind: "redo_in_the_project", project_folder: projectFolder, author }).then(transactionApplyingOf),
       transactInTheProject: (projectFolder, operations, sending) =>
         ask({ kind: "transact_in_the_project", project_folder: projectFolder, operations: [...operations], mode: sending.mode, idempotency_key: sending.idempotencyKey }).then(graphTransactionApplyingOf),
+      checkLinkCandidates: (projectFolder, request) =>
+        ask({ kind: "check_link_candidates", project_folder: projectFolder, request }).then((answer): LinkCandidatesChecking => {
+          if (answer.kind === "link_candidates_checked") return { kind: "checked", result: answer.result };
+          return { kind: "not_checked", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
       importAssetsIntoTheProject: (projectFolder, media) =>
         ask({ kind: "import_assets_into_the_project", project_folder: projectFolder, media: media === null ? null : [...media] }).then((answer): ProjectAssetsImporting => {
           if (answer.kind === "project_assets_imported") return { kind: "imported", assets_imported: answer.assets_imported };

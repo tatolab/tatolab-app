@@ -164,6 +164,7 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     onProjectNodeTypesChanged: (listener) => tatolabElectronBridge.onProjectNodeTypesChanged(listener),
     undoInTheOpenProject: (author) => invokeTatolabCommand("undo_in_the_open_project", { author }),
     transactInTheOpenProject: (operations, mode, idempotencyKey) => invokeTatolabCommand("transact_in_the_open_project", { operations, mode, idempotency_key: idempotencyKey }),
+    checkLinkCandidatesInTheOpenProject: (request) => invokeTatolabCommand("check_link_candidates_in_the_open_project", request),
     readThePersonEditingInStudio: () => invokeTatolabCommand("read_the_person_editing_in_studio", undefined),
     redoInTheOpenProject: (author) => invokeTatolabCommand("redo_in_the_open_project", { author }),
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),

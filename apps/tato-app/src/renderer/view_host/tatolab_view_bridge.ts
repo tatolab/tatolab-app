@@ -411,6 +411,10 @@ export class TatolabViewBridge {
         if (applying.kind === "refused") return { kind: "project_action_refused", refusal: applying.refusal };
         return { kind: "refused", because: applying.because };
       }
+      case "check_link_candidates": {
+        const checking = await this.hostServices.checkLinkCandidates(ask.project_folder, ask.request);
+        return checking.kind === "checked" ? { kind: "link_candidates_checked", result: checking.result } : { kind: "refused", because: checking.because };
+      }
       case "read_the_person_editing": {
         const reading = await this.hostServices.readThePersonEditing();
         return reading.kind === "read" ? { kind: "the_person_editing", author: reading.author } : { kind: "refused", because: reading.because };
