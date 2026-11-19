@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import type { ListedStream, NodeCatalog, StreamGraphInputValueChange, StreamGraphSummary, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, NodeCatalog, StreamGraphInputValueChange, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
 import { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { NodeCatalogReading, ProjectTransactionsReading, StreamGraphReading, StreamInputValuesReading } from "./studio_view_contract";
 import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
@@ -35,16 +35,7 @@ function countingBackend() {
   const announceAProjectTransaction = () => {
     for (const listener of projectTransactionsListeners) listener({ kind: "not_read", because: "a transaction was announced" });
   };
-  const statusListeners = new Set<(status: Pick<TatolabStatus, "streams">) => void>();
-  const announceTheStreamsListed = (streams: ListedStream[]) => {
-    for (const listener of statusListeners) listener({ streams });
-  };
   const backend = {
-    getTatolabStatus: (): Promise<Pick<TatolabStatus, "streams">> => Promise.resolve({ streams: null }),
-    onTatolabStatusChanged: (listener: (status: Pick<TatolabStatus, "streams">) => void): Promise<() => void> => {
-      statusListeners.add(listener);
-      return Promise.resolve(() => statusListeners.delete(listener));
-    },
     followStreamGraphChanges: (stream: string): Promise<void> => {
       streamsFollowed.add(stream);
       return Promise.resolve();
@@ -71,7 +62,7 @@ function countingBackend() {
       return Promise.resolve({ stream, node_types: served.catalogTypes.map((type) => ({ type, description: "", category: null, config_schema: null, inputs: [], outputs: [] })) });
     },
   };
-  return { backend, served, reads, streamsFollowed, pushTheStreamGraphChanged, announceAProjectTransaction, announceTheStreamsListed };
+  return { backend, served, reads, streamsFollowed, pushTheStreamGraphChanged, announceAProjectTransaction };
 }
 
 test("two_views_watching_one_stream_share_one_read_and_nothing_is_read_again_until_a_change_is_pushed", async () => {
@@ -111,20 +102,24 @@ function listedStreamLoaded(stream: string, load: "loaded" | "not_loaded"): List
   };
 }
 
-test("each_transaction_the_projects_feed_announces_reads_again_the_graph_of_each_watched_stream_the_runtime_does_not_list_loaded", async () => {
+test("each_transaction_the_projects_feed_announces_reads_again_the_graph_of_each_watched_stream_the_runtime_does_not_list_loaded_and_a_load_or_unload_reads_it_again", async () => {
   vi.useFakeTimers();
-  const { backend, served, reads, announceAProjectTransaction, announceTheStreamsListed } = countingBackend();
+  const { backend, served, reads, announceAProjectTransaction } = countingBackend();
   const readings = new StreamGraphAndCatalogReadings(backend);
   const closedView: StreamGraphReading[] = [];
   readings.watchStreamGraph("closed", (reading) => closedView.push(reading));
   readings.watchStreamGraph("playing", () => undefined);
   await vi.advanceTimersByTimeAsync(10);
-  announceTheStreamsListed([listedStreamLoaded("closed", "not_loaded"), listedStreamLoaded("playing", "loaded")]);
-  expect(reads.graph).toBe(2);
+  readings.takeTheStreamsListed([listedStreamLoaded("closed", "not_loaded"), listedStreamLoaded("playing", "loaded")]);
+  await vi.advanceTimersByTimeAsync(10);
+  expect(reads.graph).toBe(3);
   served.graphTypes = ["A", "B"];
   announceAProjectTransaction();
   await vi.advanceTimersByTimeAsync(10);
-  expect(reads.graph).toBe(3);
+  expect(reads.graph).toBe(4);
+  readings.takeTheStreamsListed([listedStreamLoaded("closed", "not_loaded"), listedStreamLoaded("playing", "not_loaded")]);
+  await vi.advanceTimersByTimeAsync(10);
+  expect(reads.graph).toBe(5);
   expect(closedView.map((reading) => (reading.kind === "read" ? reading.graph.nodes.length : reading.because))).toEqual([1, 2]);
 });
 

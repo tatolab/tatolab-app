@@ -871,7 +871,8 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
       node_count: null,
       failed_because:
         "an earlier runtime recorded it, under record schema 2, and this runtime does not load it; run it again with `tatolab run` in its project, and `tatolab rm doorbell` forgets this record",
-      capture_devices_whose_access_was_never_asked_for: [], condition: null,
+      capture_devices_whose_access_was_never_asked_for: [],
+      condition: null,
       action: null,
       step: null,
     },

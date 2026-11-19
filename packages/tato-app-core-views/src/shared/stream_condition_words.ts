@@ -3,19 +3,26 @@
 
 import type { ProjectStreamsRecovery, StreamCondition, StreamDiagnostic, StreamDiagnosticKind, StreamDiagnosticPlace, StreamDiagnosticRecovery, StreamHealth, StreamLoad, StreamPlayback } from "@tatolab/tato-app-view-sdk/studio_readings";
 
+/** A link as a diagnostic names it: the nodes at its ends by name, and their ports. */
+export type StreamDiagnosticLink = Extract<StreamDiagnosticPlace, { on: "link" }>;
+
 /** What recovers from a diagnostic: an ask Studio runs on the project, the link it names disconnected, or nothing Studio can do. */
 export type StreamDiagnosticAction =
   | { kind: "ask_studio"; recovery: ProjectStreamsRecovery; label: string }
-  | { kind: "disconnect_the_link"; label: string }
+  | { kind: "disconnect_the_link"; label: string; link: StreamDiagnosticLink }
   | { kind: "none" };
 
 /** One diagnostic as a view lists it. */
 export interface StreamDiagnosticLine {
   tone: "failure" | "warning";
+  /** Its identity among the stream's diagnostics: its kind and place, which a reordered list keeps. */
+  key: string;
   /** Where it applies, as the view leads its words with it. */
   lead: string;
-  /** The runtime's words, then what the person does about it. */
+  /** The runtime's words, exactly as it gave them. */
   words: string;
+  /** What the person does about it, in the view's words. */
+  whatRecoversFromIt: string;
   action: StreamDiagnosticAction;
   diagnostic: StreamDiagnostic;
 }
@@ -30,15 +37,17 @@ const DIAGNOSTICS_THAT_WARN: ReadonlySet<StreamDiagnosticKind> = new Set(["node_
 const RESTART_THE_PLAYBACK: StreamDiagnosticAction = { kind: "ask_studio", recovery: "restart_the_playback", label: "Restart playback" };
 const RELOAD_THE_PROJECT: StreamDiagnosticAction = { kind: "ask_studio", recovery: "reload_the_project", label: "Reload project" };
 
-/** What the person does about a diagnostic whose recovery is `recovery`, in words, and the action that does it. */
-const RECOVERY_WORDS_AND_ACTION: Record<StreamDiagnosticRecovery, { words: string; action: StreamDiagnosticAction }> = {
-  fix_the_code: { words: "Fix the code, then reload the project.", action: RELOAD_THE_PROJECT },
-  fix_the_dependencies: { words: "Fix the project's Python packages, then reload the project.", action: RELOAD_THE_PROJECT },
-  fix_the_link: { words: "Disconnect the link, or wire it to ports that take each other.", action: { kind: "disconnect_the_link", label: "Disconnect link" } },
-  restart_the_playback: { words: "Restart the playback to make it live.", action: RESTART_THE_PLAYBACK },
-  remove_the_stream: { words: "Remove the stream from the project, or fix what it names.", action: { kind: "none" } },
-  wait_for_the_node: { words: "It clears once the node is ready.", action: { kind: "none" } },
-  retry_the_load: { words: "Reload the project to try again.", action: RELOAD_THE_PROJECT },
+const NO_ACTION: StreamDiagnosticAction = { kind: "none" };
+
+/** What the person does about a diagnostic whose recovery is `recovery`, in words, and the action that does it at `place`: a link is disconnected only where the place is one. */
+const RECOVERY_WORDS_AND_ACTION: Record<StreamDiagnosticRecovery, { words: string; actionAt: (place: StreamDiagnosticPlace) => StreamDiagnosticAction }> = {
+  fix_the_code: { words: "Fix the code, then reload the project.", actionAt: () => RELOAD_THE_PROJECT },
+  fix_the_dependencies: { words: "Fix the project's Python packages, then reload the project.", actionAt: () => RELOAD_THE_PROJECT },
+  fix_the_link: { words: "Disconnect the link, or wire it to ports that take each other.", actionAt: (place) => (place.on === "link" ? { kind: "disconnect_the_link", label: "Disconnect link", link: place } : NO_ACTION) },
+  restart_the_playback: { words: "Restart the playback to make it live.", actionAt: () => RESTART_THE_PLAYBACK },
+  remove_the_stream: { words: "Remove the stream from the project, or fix what it names.", actionAt: () => NO_ACTION },
+  wait_for_the_node: { words: "It clears once the node is ready.", actionAt: () => NO_ACTION },
+  retry_the_load: { words: "Reload the project to try again.", actionAt: () => RELOAD_THE_PROJECT },
 };
 
 /** The condition in one line: its load, playback and health. */
@@ -58,15 +67,35 @@ export function diagnosticPlaceWords(place: StreamDiagnosticPlace, streamWords: 
   }
 }
 
+/** A diagnostic in words on a row under its stream: the runtime's words, led by its link where it names one. */
+export function diagnosticRowWords(diagnostic: StreamDiagnostic, streamWords: string): string {
+  return diagnostic.place.on === "link" ? `${diagnosticPlaceWords(diagnostic.place, streamWords)}: ${diagnostic.words}` : diagnostic.words;
+}
+
+/** A diagnostic's identity among its stream's: its kind and where it applies. */
+export function diagnosticKey(diagnostic: StreamDiagnostic): string {
+  const { place } = diagnostic;
+  switch (place.on) {
+    case "stream":
+      return `${diagnostic.kind}@stream`;
+    case "node":
+      return `${diagnostic.kind}@node:${place.node_id}`;
+    case "link":
+      return `${diagnostic.kind}@link:${place.from_node}.${place.from_port}->${place.to_node}.${place.to_port}`;
+  }
+}
+
 /** Each diagnostic of `condition` as a view lists it, the stream named `streamWords`; none while the runtime lists no condition. */
 export function streamDiagnosticLines(condition: StreamCondition | null, streamWords: string): StreamDiagnosticLine[] {
   return (condition?.diagnostics ?? []).map((diagnostic) => {
-    const { words, action } = RECOVERY_WORDS_AND_ACTION[diagnostic.recovery];
+    const { words, actionAt } = RECOVERY_WORDS_AND_ACTION[diagnostic.recovery];
     return {
+      key: diagnosticKey(diagnostic),
       tone: DIAGNOSTICS_THAT_WARN.has(diagnostic.kind) ? "warning" : "failure",
       lead: `${diagnosticPlaceWords(diagnostic.place, streamWords)}:`,
-      words: `${diagnostic.words} ${words}`,
-      action,
+      words: diagnostic.words,
+      whatRecoversFromIt: words,
+      action: actionAt(diagnostic.place),
       diagnostic,
     };
   });

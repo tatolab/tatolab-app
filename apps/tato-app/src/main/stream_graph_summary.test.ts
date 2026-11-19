@@ -535,7 +535,7 @@ test("a recorded graph reads a GraphInput the runtime renders with no graph_inte
 
 test("a graph_interface with no direction, port or family to read is read as none, and one rendering no current_value reads it as null", () => {
   const graphInterfaceOf = (graphInterface: unknown) => {
-    const summary = streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify({ nodes: [{ name: "edge", type: "tatolab.stream:GraphOutput", components: { graph_interface: graphInterface, live: true } }] }));
+    const summary = streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify({ nodes: [{ name: "edge", type: "tatolab.stream:GraphOutput", components: { graph_interface: graphInterface } }] }));
     if (!summary.ok) return expect.unreachable(summary.failure);
     const [onlyNode] = summary.value.nodes;
     return onlyNode === undefined ? expect.unreachable("no node") : onlyNode.graph_interface;
@@ -637,4 +637,24 @@ test("an_input_reads_the_value_it_holds_while_unlinked_and_where_it_comes_from",
     ["newer", null],
   ]);
   expect(graph.ok && graph.value.nodes[0]?.output_ports.map((port) => port.value_read)).toEqual([null]);
+});
+
+test("a node or link the runtime renders live false is not held by the running graph, and one rendering no live or a null one is", () => {
+  const summary = streamGraphSummaryFromTheGraphToolResult(
+    "main",
+    JSON.stringify({
+      nodes: [
+        { id: "P1", name: "source", type: "tatolab.stream:TestPatternSource" },
+        { id: "P2", name: "added", type: "tatolab.stream:DisplayWindow", live: false },
+        { id: "P3", name: "kept", type: "tatolab.stream:DisplayWindow", live: null },
+      ],
+      links: [
+        { id: "L1", source: { node: "source", port: "video" }, target: { node: "added", port: "video" }, live: false },
+        { id: "L2", source: { node: "source", port: "video" }, target: { node: "kept", port: "video" } },
+      ],
+    }),
+  );
+  if (!summary.ok) return expect.unreachable(summary.failure);
+  expect(summary.value.nodes.map((node) => [node.name, node.live])).toEqual([["source", true], ["added", false], ["kept", true]]);
+  expect(summary.value.links.map((link) => [link.id, link.live])).toEqual([["L1", false], ["L2", true]]);
 });

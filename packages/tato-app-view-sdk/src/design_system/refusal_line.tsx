@@ -16,6 +16,7 @@ export function RefusalLine({
   words,
   tone = "failure",
   layout = "line",
+  whatRecoversFromIt,
   action,
   ...controlDataAttributes
 }: {
@@ -25,6 +26,8 @@ export function RefusalLine({
   words: string;
   tone?: RefusalTone;
   layout?: "line" | "under_field" | "bar";
+  /** The window's own words on what recovers from the refusal, on a line of their own under it, so the refusal's stay its own. */
+  whatRecoversFromIt?: string;
   /** The control that recovers from what was refused, at the line's end. */
   action?: ReactNode;
 } & ControlDataAttributes) {
@@ -44,6 +47,7 @@ export function RefusalLine({
       <span className="min-w-0 break-words select-text">
         {lead !== undefined && <span className={tone === "failure" ? "text-danger-text" : "text-warn-text"}>{lead} </span>}
         <span className={layout === "bar" ? "text-fg" : undefined}>{words}</span>
+        {whatRecoversFromIt !== undefined && <span className="block">{whatRecoversFromIt}</span>}
       </span>
       {action !== undefined && <span className="ml-auto shrink-0 pl-2">{action}</span>}
     </p>

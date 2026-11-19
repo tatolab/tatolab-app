@@ -12,45 +12,47 @@ import type {
   StreamLoad,
   StreamPlayback,
 } from "../shared/tatolab_backend_contract.js";
-import { everyOneRead, jsonObject, type JsonObjectOnTheWire, requiredArray, requiredText } from "./json_on_the_wire.js";
+import { everyOneRead, jsonObject, type JsonObjectOnTheWire, requiredArray, requiredObject, requiredText } from "./json_on_the_wire.js";
 import { succeeded, type Result } from "./result.js";
 
-const STREAM_LOADS: readonly StreamLoad[] = ["loading", "loaded", "unloading", "not_loaded"];
-const STREAM_PLAYBACKS: readonly StreamPlayback[] = ["starting", "playing", "paused", "stopping", "stopped"];
-const STREAM_HEALTHS: readonly StreamHealth[] = ["healthy", "degraded", "failed"];
-const STREAM_DIAGNOSTIC_KINDS: readonly StreamDiagnosticKind[] = [
-  "project_venv_not_made",
-  "load_refused",
-  "start_refused",
-  "node_type_not_described",
-  "link_refused",
-  "keeps_crashing_the_runtime",
-  "recorded_by_an_earlier_runtime",
-  "node_failed",
-  "node_raising",
-  "node_not_ready",
-  "edit_not_live",
-  "other",
-];
-const STREAM_DIAGNOSTIC_RECOVERIES: readonly StreamDiagnosticRecovery[] = [
-  "fix_the_code",
-  "fix_the_dependencies",
-  "fix_the_link",
-  "restart_the_playback",
-  "remove_the_stream",
-  "wait_for_the_node",
-  "retry_the_load",
-];
+// Each set as a record of its values, so a value the contract adds and this app's type names fails to compile until it is here.
+const STREAM_LOADS: Readonly<Record<StreamLoad, true>> = { loading: true, loaded: true, unloading: true, not_loaded: true };
+const STREAM_PLAYBACKS: Readonly<Record<StreamPlayback, true>> = { starting: true, playing: true, paused: true, stopping: true, stopped: true };
+const STREAM_HEALTHS: Readonly<Record<StreamHealth, true>> = { healthy: true, degraded: true, failed: true };
+const STREAM_DIAGNOSTIC_KINDS: Readonly<Record<StreamDiagnosticKind, true>> = {
+  project_venv_not_made: true,
+  load_refused: true,
+  start_refused: true,
+  node_type_not_described: true,
+  link_refused: true,
+  keeps_crashing_the_runtime: true,
+  recorded_by_an_earlier_runtime: true,
+  node_failed: true,
+  node_raising: true,
+  node_not_ready: true,
+  edit_not_live: true,
+  other: true,
+};
+const STREAM_DIAGNOSTIC_RECOVERIES: Readonly<Record<StreamDiagnosticRecovery, true>> = {
+  fix_the_code: true,
+  fix_the_dependencies: true,
+  fix_the_link: true,
+  restart_the_playback: true,
+  remove_the_stream: true,
+  wait_for_the_node: true,
+  retry_the_load: true,
+};
 
-/** The value of `values` spelled `spelled`, or `fallback` for one newer than this app. */
-function oneOfOrFallback<Value extends string>(values: readonly Value[], spelled: string, fallback: Value): Value {
-  return values.find((value) => value === spelled) ?? fallback;
+/** Whether `spelled` is one of `values`. */
+function isOneOf<Value extends string>(values: Readonly<Record<Value, true>>, spelled: string): spelled is Value {
+  return Object.hasOwn(values, spelled);
 }
 
 /** The text at `key` read into `values`, a value newer than this app read as `fallback`. */
-function setValueOnTheWire<Value extends string>(onTheWire: JsonObjectOnTheWire, key: string, values: readonly Value[], fallback: Value): Result<Value, string> {
+function setValueOnTheWire<Value extends string>(onTheWire: JsonObjectOnTheWire, key: string, values: Readonly<Record<Value, true>>, fallback: Value): Result<Value, string> {
   const spelled = requiredText(onTheWire, key);
-  return spelled.ok ? succeeded(oneOfOrFallback(values, spelled.value, fallback)) : spelled;
+  if (!spelled.ok) return spelled;
+  return succeeded(isOneOf(values, spelled.value) ? spelled.value : fallback);
 }
 
 /** A stream's condition as `list_streams` renders it under `condition`. */
@@ -68,12 +70,13 @@ export function streamConditionOnTheWire(conditionOnTheWire: JsonObjectOnTheWire
   return succeeded({ load: load.value, playback: playback.value, health: health.value, diagnostics: diagnostics.value });
 }
 
+/** One diagnostic as the condition lists it: its kind, place, words and recovery. */
 function streamDiagnosticOnTheWire(diagnosticOnTheWire: unknown): Result<StreamDiagnostic, string> {
   const diagnostic = jsonObject(diagnosticOnTheWire, "a diagnostic");
   if (!diagnostic.ok) return diagnostic;
   const kind = setValueOnTheWire(diagnostic.value, "kind", STREAM_DIAGNOSTIC_KINDS, "other");
   if (!kind.ok) return kind;
-  const placeOnTheWire = jsonObject(diagnostic.value["place"], "a diagnostic's `place`");
+  const placeOnTheWire = requiredObject(diagnostic.value, "place");
   if (!placeOnTheWire.ok) return placeOnTheWire;
   const place = streamDiagnosticPlaceOnTheWire(placeOnTheWire.value);
   if (!place.ok) return place;
@@ -88,23 +91,26 @@ function streamDiagnosticOnTheWire(diagnosticOnTheWire: unknown): Result<StreamD
 function streamDiagnosticPlaceOnTheWire(place: JsonObjectOnTheWire): Result<StreamDiagnosticPlace, string> {
   const on = requiredText(place, "on");
   if (!on.ok) return on;
-  if (on.value === "node") {
-    const nodeId = requiredText(place, "node_id");
-    if (!nodeId.ok) return nodeId;
-    const nodeName = requiredText(place, "node_name");
-    if (!nodeName.ok) return nodeName;
-    return succeeded({ on: "node", node_id: nodeId.value, node_name: nodeName.value });
+  switch (on.value) {
+    case "node": {
+      const nodeId = requiredText(place, "node_id");
+      if (!nodeId.ok) return nodeId;
+      const nodeName = requiredText(place, "node_name");
+      if (!nodeName.ok) return nodeName;
+      return succeeded({ on: "node", node_id: nodeId.value, node_name: nodeName.value });
+    }
+    case "link": {
+      const fromNode = requiredText(place, "from_node");
+      if (!fromNode.ok) return fromNode;
+      const fromPort = requiredText(place, "from_port");
+      if (!fromPort.ok) return fromPort;
+      const toNode = requiredText(place, "to_node");
+      if (!toNode.ok) return toNode;
+      const toPort = requiredText(place, "to_port");
+      if (!toPort.ok) return toPort;
+      return succeeded({ on: "link", from_node: fromNode.value, from_port: fromPort.value, to_node: toNode.value, to_port: toPort.value });
+    }
+    default:
+      return succeeded({ on: "stream" });
   }
-  if (on.value === "link") {
-    const fromNode = requiredText(place, "from_node");
-    if (!fromNode.ok) return fromNode;
-    const fromPort = requiredText(place, "from_port");
-    if (!fromPort.ok) return fromPort;
-    const toNode = requiredText(place, "to_node");
-    if (!toNode.ok) return toNode;
-    const toPort = requiredText(place, "to_port");
-    if (!toPort.ok) return toPort;
-    return succeeded({ on: "link", from_node: fromNode.value, from_port: fromPort.value, to_node: toNode.value, to_port: toPort.value });
-  }
-  return succeeded({ on: "stream" });
 }

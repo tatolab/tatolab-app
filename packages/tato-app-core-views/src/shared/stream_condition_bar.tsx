@@ -16,7 +16,7 @@ export function StreamConditionChip({ condition }: { condition: StreamCondition 
 }
 
 /**
- * A bar per diagnostic of a stream's condition, where it applies leading the runtime's words and what recovers it, with the
+ * A bar per diagnostic of a stream's condition, where it applies leading the runtime's words, what recovers from it under them, with the
  * action that does when there is one: `whyTheActionCannotRun` says why an action cannot run now, `null` when it can.
  */
 export function StreamDiagnosticBars({
@@ -30,13 +30,14 @@ export function StreamDiagnosticBars({
   onActionChosen: (line: StreamDiagnosticLine) => void;
   whyTheActionCannotRun: (line: StreamDiagnosticLine) => string | null;
 }) {
-  return streamDiagnosticLines(condition, streamWords).map((line, index) => (
+  return streamDiagnosticLines(condition, streamWords).map((line) => (
     <RefusalLine
-      key={`${line.diagnostic.kind}:${index}`}
+      key={line.key}
       layout="bar"
       tone={line.tone}
       lead={line.lead}
       words={line.words}
+      whatRecoversFromIt={line.whatRecoversFromIt}
       action={
         line.action.kind === "none" ? undefined : (
           <ActionButton size="small" disabledReason={whyTheActionCannotRun(line)} onPressed={() => onActionChosen(line)} data-stream-diagnostic-action={line.diagnostic.recovery}>

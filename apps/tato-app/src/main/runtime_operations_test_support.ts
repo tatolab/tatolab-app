@@ -52,7 +52,8 @@ export function listedStream(
     state,
     node_count: nodeCount,
     failed_because: failedBecause,
-    capture_devices_whose_access_was_never_asked_for: [], condition: null,
+    capture_devices_whose_access_was_never_asked_for: [],
+    condition: null,
     action: actionUnderWay?.action ?? null,
     step: actionUnderWay?.step ?? null,
   };

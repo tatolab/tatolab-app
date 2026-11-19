@@ -107,7 +107,7 @@ export function readProjectLogRecords(
   );
 }
 
-/** The graph of the loaded stream `stream`, from the runtime's `graph`, its numbers kept as the runtime wrote them. */
+/** The graph of the stream `stream`, running or saved, from the runtime's `graph`, its numbers kept as the runtime wrote them. */
 export function describeStreamGraph(stream: string): Effect.Effect<StreamGraphSummary, RuntimeControlFailure, RuntimeControl> {
   return controlOperationReadWith("graph", { stream }, (answered) => streamGraphSummaryFromTheGraphToolResult(stream, prettyJsonTextKeepingTheWrittenNumbers(answered)));
 }

@@ -7,14 +7,11 @@
 
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import { StreamInputValuesReadings } from "./stream_input_values_readings";
-import type { ListedStream, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import type { NodeCatalogReading, StopWatching, StreamGraphReading, StreamInputValuesReading } from "./studio_view_contract";
 
 /** What the host reads a stream's graph and catalog through, and is told of its graph's changes by. */
-type StreamGraphAndCatalogBackend = Pick<TatolabBackend, "describeStreamGraph" | "describeNodeCatalog" | "followStreamGraphChanges" | "stopFollowingStreamGraphChanges" | "onStreamGraphChanged" | "onProjectTransactionsChanged"> & {
-  getTatolabStatus(): Promise<Pick<TatolabStatus, "streams">>;
-  onTatolabStatusChanged(listener: (status: Pick<TatolabStatus, "streams">) => void): Promise<() => void>;
-};
+type StreamGraphAndCatalogBackend = Pick<TatolabBackend, "describeStreamGraph" | "describeNodeCatalog" | "followStreamGraphChanges" | "stopFollowingStreamGraphChanges" | "onStreamGraphChanged" | "onProjectTransactionsChanged">;
 
 /** Whether the runtime holds `listed` loaded, and so pushes each change of its graph: by its condition's load, or, from a runtime that lists no condition, while it runs. */
 function doesTheRuntimePushTheChangesOf(listed: ListedStream): boolean {
@@ -146,25 +143,20 @@ export class StreamGraphAndCatalogReadings {
       if (inputValueChange === null) readings?.readTheGraphAgain();
       else readings?.inputValues.takeTheChange(inputValueChange);
     });
-    let hasAStatusChangeArrived = false;
-    void backend.onTatolabStatusChanged((status) => {
-      hasAStatusChangeArrived = true;
-      this.keepTheStreamsWhoseChangesThePushesCarry(status);
-    });
-    backend.getTatolabStatus().then(
-      (status) => {
-        if (!hasAStatusChangeArrived) this.keepTheStreamsWhoseChangesThePushesCarry(status);
-      },
-      () => undefined,
-    );
     backend.onProjectTransactionsChanged(() => {
       for (const [stream, readings] of this.readingsByStream) if (!this.streamsWhoseChangesThePushesCarry.has(stream)) readings.readTheGraphAgain();
     });
   }
 
-  private keepTheStreamsWhoseChangesThePushesCarry(status: Pick<TatolabStatus, "streams">): void {
+  /**
+   * Take the streams the runtime lists now, from each status the window is shown: a watched stream it has loaded or unloaded
+   * since the last is read again, as its graph changes from the running one to the saved one or back.
+   */
+  takeTheStreamsListed(streams: readonly ListedStream[] | null): void {
+    const pushedBefore = new Set(this.streamsWhoseChangesThePushesCarry);
     this.streamsWhoseChangesThePushesCarry.clear();
-    for (const listed of status.streams ?? []) if (doesTheRuntimePushTheChangesOf(listed)) this.streamsWhoseChangesThePushesCarry.add(listed.stream);
+    for (const listed of streams ?? []) if (doesTheRuntimePushTheChangesOf(listed)) this.streamsWhoseChangesThePushesCarry.add(listed.stream);
+    for (const [stream, readings] of this.readingsByStream) if (pushedBefore.has(stream) !== this.streamsWhoseChangesThePushesCarry.has(stream)) readings.readTheGraphAgain();
   }
 
   /** Read only while the window is shown. */

@@ -94,16 +94,35 @@ export function changeAnAssetOfTheOpenProjectForAView(projectFolder: string, ass
 /** What a view's recovery of a project's streams reaches: the window's open project, and the backend that stops, starts and reloads it. */
 export interface ProjectStreamsRecoveryForAViewSources {
   readTheOpenProject: () => OpenProjectReading;
+  readTheListedStreams: () => ListedStreamsReading;
   backend: Pick<TatolabBackend, "stopOpenProject" | "runOpenProject" | "reloadProject">;
 }
 
-/** Recover the streams of `projectFolder` with `recovery` when it is the window's open project: its playback stopped, then started again, or the project reloaded; refused for any other folder, or in the runtime's own words. */
+/** Start the open project's playback again, stopping it first while a stream of it plays. */
+function restartTheOpenProjectsPlayback(projectFolder: string, sources: ProjectStreamsRecoveryForAViewSources): Promise<void> {
+  const stopped = doesAStreamOfTheProjectPlay(sources.readTheListedStreams(), projectFolder) ? sources.backend.stopOpenProject() : Promise.resolve();
+  return stopped.then(() => sources.backend.runOpenProject());
+}
+
+/** Whether a stream of `projectFolder` plays, so a restart stops it first: by its condition's playback, or, from a runtime that lists no condition, while it runs. */
+function doesAStreamOfTheProjectPlay(listedStreams: ListedStreamsReading, projectFolder: string): boolean {
+  if (listedStreams.kind !== "listed") return false;
+  return listedStreams.streams.some(
+    (listed) => listed.location?.project_directory === projectFolder && (listed.condition === null ? listed.state === "running" : listed.condition.playback !== "stopped"),
+  );
+}
+
+/**
+ * Recover the streams of `projectFolder` with `recovery` when it is the window's open project: its playback started again,
+ * stopped first while a stream of it plays, since the runtime refuses to stop a project none of whose streams plays; or the
+ * project reloaded. Refused for any other folder, or in the runtime's own words.
+ */
 export function recoverTheOpenProjectsStreamsForAView(projectFolder: string, recovery: ProjectStreamsRecovery, sources: ProjectStreamsRecoveryForAViewSources): Promise<ProjectStreamsRecovering> {
   const openProject = sources.readTheOpenProject();
   if (openProject.kind !== "read" || openProject.open_project.project.folder !== projectFolder) {
     return Promise.resolve({ kind: "not_asked", because: `Tato Studio recovers the streams of this window's project only, not ${projectFolder}.` });
   }
-  const recovered = recovery === "restart_the_playback" ? sources.backend.stopOpenProject().then(() => sources.backend.runOpenProject()) : sources.backend.reloadProject(projectFolder);
+  const recovered = recovery === "restart_the_playback" ? restartTheOpenProjectsPlayback(projectFolder, sources) : sources.backend.reloadProject(projectFolder);
   return recovered.then(
     (): ProjectStreamsRecovering => ({ kind: "asked" }),
     (rejection: unknown): ProjectStreamsRecovering => ({ kind: "not_asked", because: describeBackendRejection(rejection) }),
@@ -198,7 +217,7 @@ export function studioViewHostServicesOf(
       changeAnAssetOfTheOpenProjectForAView(projectFolder, assetChangeSources, () => backend.relocateAssetInTheOpenProject(asset, toPath)),
     readAssetPreviewInTheProject: (projectFolder, asset) => readAnAssetPreviewOfTheOpenProjectForAView(projectFolder, sources.openProject.readLatest, () => backend.readAssetPreviewOfTheOpenProject(asset)),
     deleteAssetFromTheProject: (projectFolder, asset) => changeAnAssetOfTheOpenProjectForAView(projectFolder, assetChangeSources, () => backend.deleteAssetFromTheOpenProject(asset)),
-    recoverTheProjectsStreams: (projectFolder, recovery) => recoverTheOpenProjectsStreamsForAView(projectFolder, recovery, { readTheOpenProject: sources.openProject.readLatest, backend }),
+    recoverTheProjectsStreams: (projectFolder, recovery) => recoverTheOpenProjectsStreamsForAView(projectFolder, recovery, { readTheOpenProject: sources.openProject.readLatest, readTheListedStreams: sources.listedStreams.readLatest, backend }),
     openModulesAndMarketplace: (shows) =>
       backend.openModuleManagerWindow(shows).then(
         (): ViewOpening => ({ kind: "opened" }),

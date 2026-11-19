@@ -498,11 +498,21 @@ describe("the studio", () => {
     expect(within(startRefused).getByRole("button", { name: "Restart playback" })).not.toBeNull();
     expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-graph-state="not_read"]')).toBeNull();
 
-    await waitFor(() => expect(outlinerRowIds()).toEqual(expect.arrayContaining([`stream:${PATTERN_MAIN_STREAM}/diagnostic/0`, `node:${PATTERN_MAIN_STREAM}/displaywindow`])));
+    await waitFor(() => expect(outlinerRowIds()).toEqual(expect.arrayContaining([`stream:${PATTERN_MAIN_STREAM}/diagnostic/start_refused@stream`, `node:${PATTERN_MAIN_STREAM}/displaywindow`])));
 
     const displayWindowCard = await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="displaywindow"]') ?? expect.unreachable("no Display Window card"));
     fireEvent.click(displayWindowCard);
     await waitFor(() => expect(inTheCoreView("properties").getByRole("textbox", { name: "Node name" })).toHaveProperty("value", "Display Window"));
+  });
+
+  it("restarts a stream the runtime refused to play without stopping a project none of whose streams plays", { timeout: 20_000 }, async () => {
+    await mountedWindowOverTheMock("state=refused-at-play");
+    const startRefused = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>('[data-stream-diagnostic="start_refused"]') ?? expect.unreachable("no start refused bar"));
+    fireEvent.click(within(startRefused).getByRole("button", { name: "Restart playback" }));
+
+    await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-condition]')?.textContent).toBe("loaded, playing, healthy"), { timeout: 10_000 });
+    expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-diagnostic="start_refused"]')).toBeNull();
+    expect(coreViewPage("stream_graph", "stream-graph").textContent).not.toContain("Restart playback was refused");
   });
 
   it("draws a stopped stream's saved graph with its condition in the Stream graph's frame, and says no stream is open once its tab closes", async () => {

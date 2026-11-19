@@ -29,7 +29,7 @@ import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { streamPreparingWords } from "../shared/stream_preparing_words";
 import { StreamConditionChip, StreamDiagnosticBars } from "../shared/stream_condition_bar";
-import type { StreamDiagnosticLine } from "../shared/stream_condition_words";
+import type { StreamDiagnosticLine, StreamDiagnosticLink } from "../shared/stream_condition_words";
 import { streamGraphCanvasContents, type StreamGraphCanvasContents } from "./stream_graph_canvas_contents";
 import { useStreamGraphEditsSentToTheRuntime } from "../shared/stream_graph_edit_sending";
 import {
@@ -77,9 +77,16 @@ interface NodeTypeSearchAsked {
 /** The issue that opens an import as a project of its own, where it can be edited. */
 const OPENING_AN_IMPORT_TO_EDIT_ARRIVES_WITH = "tatolab/tatolab-app#133";
 
-/** The import a stream's project is, by its name, when the open project imports the project the runtime lists it from; `null` for the project's own. */
 const NO_SUBGRAPHS_STEPPED_THROUGH: readonly StreamGraphNode[] = [];
 
+/** Why no edit can be sent to `editedGraph`, the graph of a stream of the import `importedProjectName` (`null` for the project's own); `null` when one can. */
+function whyNoEditCanBeSentTo(editedGraph: EditedStreamGraph | { because: string } | null, importedProjectName: string | null): string | null {
+  if (importedProjectName !== null) return `${importedProjectName} is an import`;
+  if (editedGraph === null) return "The graph isn't read yet";
+  return "because" in editedGraph ? editedGraph.because : null;
+}
+
+/** The import a stream's project is, by its name, when the open project imports the project the runtime lists it from; `null` for the project's own. */
 function importedProjectNameOfTheStream(stream: string, openProject: OpenProjectReading | null, listedStreams: ListedStreamsReading | null): string | null {
   if (openProject?.kind !== "read" || listedStreams?.kind !== "listed") return null;
   const projectDirectory = listedStreams.streams.find((listedStream) => listedStream.stream === stream)?.location?.project_directory;
@@ -295,28 +302,33 @@ function StreamGraphOfTheTab({
     },
     [graphReading, subgraphsSteppedThrough, sendTheGesture, stepToTheLevel, select],
   );
-  const whyNoEditCanBeSent = importedProjectName !== null ? `${importedProjectName} is an import` : editedGraph === null ? "The graph isn't read yet" : "because" in editedGraph ? editedGraph.because : null;
+  const whyNoEditCanBeSent = whyNoEditCanBeSentTo(editedGraph, importedProjectName);
   const editedGraphOfTheStreamsOwnLevel = useMemo(() => (graphReading?.kind === "read" ? editedStreamGraphOf(graphReading.graph) : null), [graphReading]);
+  const disconnectedEditsOf = useCallback(
+    (link: StreamDiagnosticLink): StreamGraphAction[] =>
+      editedGraphOfTheStreamsOwnLevel === null || "because" in editedGraphOfTheStreamsOwnLevel ? [] : linkDisconnectedEdits(editedGraphOfTheStreamsOwnLevel, link),
+    [editedGraphOfTheStreamsOwnLevel],
+  );
   const [recoveryRefusal, showTheRefusalOfTheRecovery] = useRefusalOfTheLatestAsk();
   const whyTheDiagnosticActionCannotRun = useCallback(
     (line: StreamDiagnosticLine): string | null => {
       if (projectFolder === null) return "The runtime lists this stream in no project, so Studio has no project to recover it in.";
-      if (line.action.kind !== "disconnect_the_link") return null;
       if (importedProjectName !== null) return `${importedProjectName} is an import`;
-      if (editedGraphOfTheStreamsOwnLevel === null) return "The graph isn't read yet";
-      return "because" in editedGraphOfTheStreamsOwnLevel ? editedGraphOfTheStreamsOwnLevel.because : null;
+      if (line.action.kind !== "disconnect_the_link") return null;
+      const whyNoEdit = whyNoEditCanBeSentTo(editedGraphOfTheStreamsOwnLevel, null);
+      if (whyNoEdit !== null) return whyNoEdit;
+      const { from_node: fromNode, to_node: toNode } = line.action.link;
+      return disconnectedEditsOf(line.action.link).length === 0 ? `The graph holds no node named ${fromNode} or ${toNode}, so no link of theirs can be disconnected` : null;
     },
-    [projectFolder, importedProjectName, editedGraphOfTheStreamsOwnLevel],
+    [projectFolder, importedProjectName, editedGraphOfTheStreamsOwnLevel, disconnectedEditsOf],
   );
   const runTheDiagnosticAction = useCallback(
     (line: StreamDiagnosticLine) => {
       if (projectFolder === null) return;
       if (line.action.kind === "ask_studio") showTheRefusalOfTheRecovery(`${line.action.label} was refused:`, connection.recoverTheProjectsStreams(projectFolder, line.action.recovery));
-      if (line.action.kind === "disconnect_the_link" && line.diagnostic.place.on === "link" && editedGraphOfTheStreamsOwnLevel !== null && !("because" in editedGraphOfTheStreamsOwnLevel)) {
-        void sendTheGesture(linkDisconnectedEdits(editedGraphOfTheStreamsOwnLevel, line.diagnostic.place));
-      }
+      if (line.action.kind === "disconnect_the_link") void sendTheGesture(disconnectedEditsOf(line.action.link));
     },
-    [connection, projectFolder, editedGraphOfTheStreamsOwnLevel, sendTheGesture, showTheRefusalOfTheRecovery],
+    [connection, projectFolder, disconnectedEditsOf, sendTheGesture, showTheRefusalOfTheRecovery],
   );
   const watchTheProjectsNodeTypes = useCallback(
     (listener: (reading: ProjectNodeTypesReading) => void): StopWatching =>

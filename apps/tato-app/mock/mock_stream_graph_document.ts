@@ -106,7 +106,7 @@ function graphInterfaceComponentOf(node: StreamGraphNode | undefined): Record<st
   const graphInterface = node?.graph_interface ?? null;
   if (graphInterface === null) return {};
   const { current_value: currentValue, ...declared } = graphInterface;
-  return { graph_interface: currentValue === null ? declared : { ...declared, live: true, current_value: currentValue } };
+  return { graph_interface: currentValue === null ? declared : { ...declared, current_value: currentValue } };
 }
 
 /** A link's source, a node in another stream rendered with that stream beside it, as `<stream>/<node>` names it in the summary. */
