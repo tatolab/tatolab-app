@@ -41,7 +41,7 @@ test("the Studio's own manifest reads as the contract's node UI manifest, each c
   }
 });
 
-test("the Studio lists its own controls, a default for each of Boolean, Integer, Float, Color, Vector, Rectangle and Transform and a slider for each ranged number, brought by the Studio and served beside the window", async () => {
+test("the Studio lists its own controls, a default for each type that stores a value, a slider for each ranged number, and the controls an annotation names, brought by the Studio and served beside the window", async () => {
   expect(await Effect.runPromise(theStudiosOwnNodeUiElements("0.45.0"))).toEqual([
     {
       module: "studio",
@@ -155,6 +155,70 @@ test("the Studio lists its own controls, a default for each of Boolean, Integer,
       registration: { kind: "control", type: "float", control: "slider" },
       script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/float_slider.ts" },
     },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "boolean_checkbox.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "boolean", control: "checkbox" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/boolean_checkbox.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "integer_dial.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "integer", control: "dial" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/integer_dial.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "float_dial.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "float", control: "dial" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/float_dial.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "string_multiline.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "string", control: "multiline" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/string_multiline.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "string_code.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "string", control: "code" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/string_code.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "menu_segmented.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "menu", control: "segmented" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/menu_segmented.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "vector_xy_pad.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "vector", control: "xy_pad" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/vector_xy_pad.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "asset_file_picker.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "asset", control: "file_picker" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/asset_file_picker.ts" },
+    },
   ]);
 });
 
@@ -195,7 +259,7 @@ test("a request that leaves the module, or names a file it does not hold, is not
   expect(studioNodeUiFileOfTheRequest("tatolab-app://app/core_node_ui/a%5C..%5Cb.ts")).toBeNull();
   expect(studioNodeUiFileOfTheRequest("tatolab-app://app/core_views/float_number.ts")).toBeNull();
   expect(await answerAStudioNodeUiFileRequest("tatolab-app://app/core_node_ui/%2E%2E/index.html", readTheModulesFile, keptLog().log)).toMatchObject({ kind: "not_served", status: 404 });
-  expect(await answerAStudioNodeUiFileRequest(studioNodeUiFileUrl("float_dial.ts"), readTheModulesFile, keptLog().log)).toMatchObject({ kind: "not_served", status: 404 });
+  expect(await answerAStudioNodeUiFileRequest(studioNodeUiFileUrl("float_knob.ts"), readTheModulesFile, keptLog().log)).toMatchObject({ kind: "not_served", status: 404 });
 });
 
 test("a file that is there but cannot be read answers 500, and one whose types cannot be removed answers 422 and is logged as a warning", async () => {

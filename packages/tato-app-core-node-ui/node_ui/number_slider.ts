@@ -29,6 +29,41 @@ function decimalsOf(step: number): number {
   return fraction.length;
 }
 
+/** The span, step and unit a ranged number's control moves over, settled from what its input states. */
+export interface SettledNumberSpan {
+  readonly minimum: number;
+  readonly maximum: number;
+  /** The step it moves by, or `null` for any number between the ends. */
+  readonly step: number | null;
+  /** How many decimals the number is shown with. */
+  readonly decimals: number;
+  /** The unit shown after the number, or `""`. */
+  readonly unit: string;
+}
+
+/** The span a slider or a dial moves over: the input's range when it states both ends, else a Float's whole span or a hundred whole numbers; its step, a whole number for `wholeNumbers`; and its unit. */
+export function settledNumberSpanOf(annotations: PinAnnotations, wholeNumbers: boolean): SettledNumberSpan {
+  const { range, step, unit } = annotations;
+  const rangeWhenNone = RANGE_WHEN_NONE_IS_STATED[wholeNumbers ? "integer" : "float"];
+  const statedMinimum = range?.minimum ?? null;
+  const statedMaximum = range?.maximum ?? null;
+  const hasARange = statedMinimum !== null && statedMaximum !== null && statedMaximum > statedMinimum;
+  const statedStep = step !== undefined && step !== null && step > 0 ? step : null;
+  const settledStep = wholeNumbers ? Math.max(1, Math.round(statedStep ?? 1)) : statedStep;
+  return {
+    minimum: hasARange ? statedMinimum : rangeWhenNone.minimum,
+    maximum: hasARange ? statedMaximum : rangeWhenNone.maximum,
+    step: settledStep,
+    decimals: settledStep === null ? DECIMALS_WITH_NO_STEP : decimalsOf(settledStep),
+    unit: unit ?? "",
+  };
+}
+
+/** `number` with `unit` after it, shown with `decimals` decimals. */
+export function numberWithItsUnit(number: number, decimals: number, unit: string): string {
+  return `${number.toFixed(decimals)}${unit === "" ? "" : ` ${unit}`}`;
+}
+
 /** A slider over an input's range. */
 export class NumberSlider {
   readonly #track = document.createElement("input");
@@ -55,17 +90,13 @@ export class NumberSlider {
 
   /** Takes the range, step and unit `annotations` state, and the input's `label`. */
   takeTheDeclaration(annotations: PinAnnotations, label: string): void {
-    const { range, step, unit } = annotations;
-    const rangeWhenNone = RANGE_WHEN_NONE_IS_STATED[this.#shape.whole_numbers ? "integer" : "float"];
-    const hasARange = range?.minimum !== undefined && range.minimum !== null && range.maximum !== undefined && range.maximum !== null && range.maximum > range.minimum;
-    this.#track.min = String(hasARange ? range.minimum : rangeWhenNone.minimum);
-    this.#track.max = String(hasARange ? range.maximum : rangeWhenNone.maximum);
-    const statedStep = step !== undefined && step !== null && step > 0 ? step : null;
-    const settledStep = this.#shape.whole_numbers ? Math.max(1, Math.round(statedStep ?? 1)) : statedStep;
-    this.#track.step = settledStep === null ? "any" : String(settledStep);
-    this.#decimals = settledStep === null ? DECIMALS_WITH_NO_STEP : decimalsOf(settledStep);
+    const span = settledNumberSpanOf(annotations, this.#shape.whole_numbers);
+    this.#track.min = String(span.minimum);
+    this.#track.max = String(span.maximum);
+    this.#track.step = span.step === null ? "any" : String(span.step);
+    this.#decimals = span.decimals;
     this.#track.setAttribute("aria-label", label);
-    this.#unit = unit ?? "";
+    this.#unit = span.unit;
     this.#show(this.#value);
   }
 
@@ -107,6 +138,6 @@ export class NumberSlider {
   }
 
   #show(value: number): void {
-    this.#words.value = `${value.toFixed(this.#decimals)}${this.#unit === "" ? "" : ` ${this.#unit}`}`;
+    this.#words.value = numberWithItsUnit(value, this.#decimals, this.#unit);
   }
 }
