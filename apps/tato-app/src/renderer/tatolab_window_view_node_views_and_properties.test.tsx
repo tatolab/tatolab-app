@@ -57,6 +57,7 @@ describe("the studio", () => {
     fireEvent.click(within(playing).getByRole("button", { name: "Open again" }));
     expect(playing.getAttribute("data-viewer-port-state")).toBe("waiting");
     await waitFor(() => expect(playing.getAttribute("data-viewer-port-state")).toBe("ended"));
+    expect(playing.ownerDocument.activeElement).toBe(within(playing).getByRole("button", { name: "Open again" }));
 
     fireEvent.click(outlinerRow(`node:${PATTERN_MAIN_STREAM}/displaywindow`));
     const withoutOutput = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-state="node_without_output"]') ?? expect.unreachable("no placeholder for a node with no output"));

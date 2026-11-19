@@ -6,8 +6,8 @@
 // cannot read ends with a way to open it again. What each viewer reads of its port is `RuntimePortViewerReads`'s.
 
 import type { ListedStream } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { Data, Deferred, Effect, Exit, Fiber } from "effect";
-import type { PortViewerRecovery, PortViewerTarget, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import { Data, Deferred, Effect, Fiber } from "effect";
+import type { PortViewerEvent, PortViewerRecovery, PortViewerTarget, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import { fromResult, resultInWordsOf } from "./result_as_effect.js";
 import { describeCaughtFailure, type Result } from "./result.js";
 import { RuntimePortViewerReads, type RuntimePortViewerReadsEnded, type WindowShowingPortViewers } from "./runtime_port_viewer_reads.js";
@@ -67,6 +67,9 @@ const STREAM_STATES_A_PORT_VIEWER_WAITS_OUT: ReadonlySet<string> = new Set(["sto
 /** The listed states of a stream a load or a stop is working on: its nodes, and the channels a runtime viewer held open on them, are being replaced. */
 const STREAM_STATES_WHILE_ITS_NODES_ARE_REPLACED: ReadonlySet<string> = new Set(["preparing", "stopping"]);
 
+/** Why no port viewer opens once the app began to quit. */
+const THE_APP_IS_QUITTING = "the app is quitting";
+
 /** How a port viewer recovers once its reads ended in each way. */
 const RECOVERY_ONCE_THE_READS_ENDED: Record<RuntimePortViewerReadsEnded["kind"], PortViewerRecovery> = {
   the_node_stopped_writing: "shows_once_the_node_runs",
@@ -78,6 +81,28 @@ function aStreamActionReplacesTheNodesOf(listedStream: ListedStream): boolean {
   return listedStream.action !== null || STREAM_STATES_WHILE_ITS_NODES_ARE_REPLACED.has(listedStream.state);
 }
 
+/** A port viewer event every port viewer of one port is told, without the id each gets it under. */
+type EventToEveryPortViewerOfAPort = Extract<PortViewerEvent, { kind: "reopening" | "ended" }> extends infer Event ? (Event extends unknown ? Omit<Event, "port_viewer"> : never) : never;
+
+/** `open` run once for `key` however many ask for it while it runs, in a fiber of its own: a caller interrupted while it waits stops waiting, and the opening goes on for the others. */
+function sharedWhileInFlight<K, A, E>(inFlight: Map<K, Deferred.Deferred<A, E>>, key: K, open: Effect.Effect<A, E>): Effect.Effect<A, E> {
+  return Effect.suspend(() => {
+    const beingOpened = inFlight.get(key);
+    if (beingOpened !== undefined) return Deferred.await(beingOpened);
+    const opening = Deferred.makeUnsafe<A, E>();
+    inFlight.set(key, opening);
+    const openedAndShared = open.pipe(
+      Effect.onExit((exit) =>
+        Effect.suspend(() => {
+          inFlight.delete(key);
+          return Deferred.done(opening, exit);
+        }),
+      ),
+    );
+    return Effect.forkDetach(openedAndShared).pipe(Effect.andThen(Deferred.await(opening)));
+  });
+}
+
 function portViewerTargetKey(target: PortViewerTarget): string {
   return JSON.stringify([target.stream, target.node_id, target.port]);
 }
@@ -87,10 +112,13 @@ export class RuntimePortViewers {
   private readonly subscriptionsByPortViewer = new Map<string, PortViewerSubscription>();
   private readonly runtimeViewersByTargetKey = new Map<string, RuntimeViewerHeldOpen>();
   private readonly openingsByTargetKey = new Map<string, Deferred.Deferred<RuntimeViewerHeldOpen, PortViewerOpenFailure>>();
+  /** How many port viewers of each port are waiting for its runtime viewer to open, so it is not closed under them as one of its port viewers closes. */
+  private readonly portViewersWaitingByTargetKey = new Map<string, number>();
+  private readonly connectionOpenings = new Map<"connection", Deferred.Deferred<RuntimeViewerConnection, PortViewerConnectionNotOpened>>();
   private readonly reopeningsByTargetKey = new Map<string, Fiber.Fiber<void>>();
   private readonly streamsSeenWhileTheirNodesWereReplaced = new Set<string>();
   private viewerConnection: RuntimeViewerConnection | null = null;
-  private connectionBeingOpened: Deferred.Deferred<RuntimeViewerConnection, PortViewerConnectionNotOpened> | null = null;
+  private hasQuit = false;
   private portViewersOpened = 0;
 
   constructor(private readonly sources: RuntimePortViewersSources) {}
@@ -112,12 +140,17 @@ export class RuntimePortViewers {
     Effect.runFork(Effect.forEach(portViewersOfTheWindow, ([portViewer]) => this.portViewerClosed(portViewer), { discard: true }));
   }
 
-  /** Close every port viewer and the connection they share, as the app quits. */
+  /** Close the connection the port viewers share as the app quits, which closes every runtime viewer opened on it, then let go of what this app held of them; a connection still opening is closed once it opens. */
   closeEveryPortViewer(): void {
+    this.hasQuit = true;
     const connection = this.viewerConnection;
     this.viewerConnection = null;
+    this.subscriptionsByPortViewer.clear();
     Effect.runFork(
-      Effect.forEach([...this.subscriptionsByPortViewer.keys()], (portViewer) => this.portViewerClosed(portViewer), { discard: true }).pipe(Effect.andThen(connection === null ? Effect.void : connection.close)),
+      (connection === null ? Effect.void : connection.close).pipe(
+        Effect.andThen(Effect.suspend(() => Fiber.interruptAll(this.reopeningsByTargetKey.values()))),
+        Effect.andThen(Effect.forEach([...this.runtimeViewersByTargetKey.keys()], (targetKey) => this.runtimeViewerClosed(targetKey), { discard: true })),
+      ),
     );
   }
 
@@ -133,17 +166,29 @@ export class RuntimePortViewers {
   }
 
   private portViewerOpened(target: PortViewerTarget, windowShowingPortViewers: WindowShowingPortViewers): Effect.Effect<{ port_viewer: string }, PortViewerOpenFailure> {
-    return this.runtimeViewerOf(target).pipe(
-      Effect.as(true),
-      Effect.catchTag("PortViewerOpenRefused", (refusal) => (this.isTheStreamNotYetRunning(target, refusal) ? Effect.succeed(false) : Effect.fail(refusal))),
-      Effect.map((isHeldOpen) => {
-        this.portViewersOpened += 1;
-        const portViewer = `port-viewer-${this.portViewersOpened}`;
-        this.subscriptionsByPortViewer.set(portViewer, { target, windowShowingPortViewers });
-        if (!isHeldOpen) this.reopenAfterAWait(portViewerTargetKey(target));
-        return { port_viewer: portViewer };
-      }),
-    );
+    return Effect.suspend(() => {
+      const targetKey = portViewerTargetKey(target);
+      this.portViewersWaitingByTargetKey.set(targetKey, (this.portViewersWaitingByTargetKey.get(targetKey) ?? 0) + 1);
+      return this.runtimeViewerOf(target).pipe(
+        Effect.as(true),
+        Effect.catchTag("PortViewerOpenRefused", (refusal) => (this.isTheStreamNotYetRunning(target, refusal) ? Effect.succeed(false) : Effect.fail(refusal))),
+        Effect.flatMap((isHeldOpen) =>
+          Effect.suspend(() => {
+            this.portViewersOpened += 1;
+            const portViewer = `port-viewer-${this.portViewersOpened}`;
+            this.subscriptionsByPortViewer.set(portViewer, { target, windowShowingPortViewers });
+            return (isHeldOpen ? Effect.void : this.reopenAfterAWait(targetKey)).pipe(Effect.as({ port_viewer: portViewer }));
+          }),
+        ),
+        Effect.ensuring(
+          Effect.sync(() => {
+            const stillWaiting = (this.portViewersWaitingByTargetKey.get(targetKey) ?? 1) - 1;
+            if (stillWaiting === 0) this.portViewersWaitingByTargetKey.delete(targetKey);
+            else this.portViewersWaitingByTargetKey.set(targetKey, stillWaiting);
+          }),
+        ),
+      );
+    });
   }
 
   private portViewerClosed(portViewer: string): Effect.Effect<void> {
@@ -152,7 +197,7 @@ export class RuntimePortViewers {
       if (subscription === undefined) return Effect.void;
       this.subscriptionsByPortViewer.delete(portViewer);
       const targetKey = portViewerTargetKey(subscription.target);
-      if (this.subscriptionsOf(targetKey).length > 0) return Effect.void;
+      if (this.isThePortShown(targetKey)) return Effect.void;
       return Effect.all([this.stopReopening(targetKey), this.runtimeViewerClosed(targetKey)], { discard: true });
     });
   }
@@ -162,58 +207,48 @@ export class RuntimePortViewers {
     return refusal.theRuntimeRefusedIt && listedState !== null && STREAM_STATES_A_PORT_VIEWER_WAITS_OUT.has(listedState);
   }
 
+  /** Whether a port viewer shows the port `targetKey` names, or waits for its runtime viewer to open. */
+  private isThePortShown(targetKey: string): boolean {
+    return this.portViewersWaitingByTargetKey.has(targetKey) || this.subscriptionsOf(targetKey).length > 0;
+  }
+
   private subscriptionsOf(targetKey: string): [string, PortViewerSubscription][] {
     return [...this.subscriptionsByPortViewer].filter(([, subscription]) => portViewerTargetKey(subscription.target) === targetKey);
   }
 
-  private tellEveryPortViewerOf(targetKey: string, event: { kind: "reopening"; because: string } | { kind: "ended"; because: string; recovery: PortViewerRecovery }): void {
+  private tellEveryPortViewerOf(targetKey: string, event: EventToEveryPortViewerOfAPort): void {
     for (const [portViewer, subscription] of this.subscriptionsOf(targetKey)) subscription.windowShowingPortViewers.sendTheWindowAPortViewerEvent({ port_viewer: portViewer, ...event });
   }
 
-  /** The connection the port viewers share, opened once however many ask for it at a time; a connection the runtime drops reopens every viewer it held. */
+  /** The connection the port viewers share, opened once however many ask for it at a time. */
   private theViewerConnection(): Effect.Effect<RuntimeViewerConnection, PortViewerConnectionNotOpened> {
     return Effect.suspend(() => {
+      if (this.hasQuit) return Effect.fail(new PortViewerConnectionNotOpened({ words: THE_APP_IS_QUITTING }));
       const held = this.viewerConnection;
-      const beingOpened = this.connectionBeingOpened;
-      if (beingOpened !== null) return Deferred.await(beingOpened);
-      const opening = Deferred.makeUnsafe<RuntimeViewerConnection, PortViewerConnectionNotOpened>();
-      this.connectionBeingOpened = opening;
-      const opened = held === null ? this.sources.openTheViewerConnection : Effect.flatMap(held.isOpen, (isOpen) => (isOpen ? Effect.succeed(held) : this.sources.openTheViewerConnection));
-      return opened.pipe(
-        Effect.tap((connection) =>
-          Effect.suspend(() => {
-            if (connection === held) return Effect.void;
-            this.viewerConnection = connection;
-            return Effect.forkDetach(Effect.flatMap(connection.whyItClosed, (whyItClosed) => this.everyRuntimeViewerReopenedAfter(connection, whyItClosed)));
-          }),
-        ),
-        Effect.onExit((exit) =>
-          Effect.suspend(() => {
-            this.connectionBeingOpened = null;
-            return Deferred.done(opening, exit);
-          }),
-        ),
-      );
+      const opened = sharedWhileInFlight(this.connectionOpenings, "connection", this.sources.openTheViewerConnection.pipe(Effect.tap((connection) => this.connectionHeld(connection))));
+      return held === null ? opened : Effect.flatMap(held.isOpen, (isOpen) => (isOpen ? Effect.succeed(held) : opened));
     });
   }
 
-  /** The runtime viewer of `target`'s port, held open already, being opened by another port viewer, or opened now. */
+  /** Hold `connection` for the port viewers, a connection the runtime drops reopening every viewer it held; one that opened as the app quit is closed. */
+  private connectionHeld(connection: RuntimeViewerConnection): Effect.Effect<void, PortViewerConnectionNotOpened> {
+    return Effect.suspend(() => {
+      if (this.hasQuit) return connection.close.pipe(Effect.andThen(Effect.fail(new PortViewerConnectionNotOpened({ words: THE_APP_IS_QUITTING }))));
+      this.viewerConnection = connection;
+      return Effect.asVoid(Effect.forkDetach(Effect.flatMap(connection.whyItClosed, (whyItClosed) => this.everyRuntimeViewerReopenedAfter(connection, whyItClosed))));
+    });
+  }
+
+  /** The runtime viewer of `target`'s port, held open already, being opened, or opened now; one that opened once no port viewer shows the port any more is closed again. */
   private runtimeViewerOf(target: PortViewerTarget): Effect.Effect<RuntimeViewerHeldOpen, PortViewerOpenFailure> {
     return Effect.suspend(() => {
       const targetKey = portViewerTargetKey(target);
       const heldOpen = this.runtimeViewersByTargetKey.get(targetKey);
       if (heldOpen !== undefined) return Effect.succeed(heldOpen);
-      const beingOpened = this.openingsByTargetKey.get(targetKey);
-      if (beingOpened !== undefined) return Deferred.await(beingOpened);
-      const opening = Deferred.makeUnsafe<RuntimeViewerHeldOpen, PortViewerOpenFailure>();
-      this.openingsByTargetKey.set(targetKey, opening);
-      return this.runtimeViewerOpened(target, targetKey).pipe(
-        Effect.onExit((exit) =>
-          Effect.suspend(() => {
-            this.openingsByTargetKey.delete(targetKey);
-            return Deferred.done(opening, exit);
-          }),
-        ),
+      return sharedWhileInFlight(
+        this.openingsByTargetKey,
+        targetKey,
+        this.runtimeViewerOpened(target, targetKey).pipe(Effect.tap(() => (this.isThePortShown(targetKey) ? Effect.void : this.runtimeViewerClosed(targetKey)))),
       );
     });
   }
@@ -277,47 +312,61 @@ export class RuntimePortViewers {
   private everyPortViewerEnded(targetKey: string, heldOpen: RuntimeViewerHeldOpen, ended: RuntimePortViewerReadsEnded): Effect.Effect<void> {
     return Effect.suspend(() => {
       if (this.runtimeViewersByTargetKey.get(targetKey) !== heldOpen) return Effect.void;
-      this.tellEveryPortViewerOf(targetKey, { kind: "ended", because: ended.words, recovery: RECOVERY_ONCE_THE_READS_ENDED[ended.kind] });
-      for (const [portViewer] of this.subscriptionsOf(targetKey)) this.subscriptionsByPortViewer.delete(portViewer);
-      return Effect.all([this.stopReopening(targetKey), this.runtimeViewerClosed(targetKey)], { discard: true });
+      return this.stopReopening(targetKey).pipe(Effect.andThen(this.everyPortViewerOfThePortEnded(targetKey, ended.words, RECOVERY_ONCE_THE_READS_ENDED[ended.kind])));
     });
   }
 
+  /** Tell every port viewer of the port `targetKey` names that it ended `because`, and how it recovers, and close its runtime viewer. */
+  private everyPortViewerOfThePortEnded(targetKey: string, because: string, recovery: PortViewerRecovery): Effect.Effect<void> {
+    return Effect.suspend(() => {
+      this.tellEveryPortViewerOf(targetKey, { kind: "ended", because, recovery });
+      for (const [portViewer] of this.subscriptionsOf(targetKey)) this.subscriptionsByPortViewer.delete(portViewer);
+      return this.runtimeViewerClosed(targetKey);
+    });
+  }
+
+  /** Close the runtime viewer of the port `targetKey` names, tell its port viewers it is reopening `because`, and open it again after a wait. */
+  private runtimeViewerReopenedBecause(targetKey: string, because: string): Effect.Effect<void> {
+    return this.runtimeViewerClosed(targetKey).pipe(
+      Effect.andThen(Effect.sync(() => this.tellEveryPortViewerOf(targetKey, { kind: "reopening", because }))),
+      Effect.andThen(this.reopenAfterAWait(targetKey)),
+    );
+  }
+
   private everyRuntimeViewerOfTheStreamReopened(stream: string): Effect.Effect<void> {
-    return Effect.forEach(
-      [...this.runtimeViewersByTargetKey].filter(([, heldOpen]) => heldOpen.openedViewer.stream === stream),
-      ([targetKey, heldOpen]) =>
-        this.runtimeViewerClosed(targetKey).pipe(
-          Effect.andThen(
-            Effect.sync(() => {
-              this.tellEveryPortViewerOf(targetKey, { kind: "reopening", because: `${heldOpen.openedViewer.node_name} › ${heldOpen.openedViewer.port} was replaced as its project loaded again.` });
-              this.reopenAfterAWait(targetKey);
-            }),
-          ),
-        ),
-      { discard: true },
+    return Effect.suspend(() =>
+      Effect.forEach(
+        [...this.runtimeViewersByTargetKey].filter(([, heldOpen]) => heldOpen.openedViewer.stream === stream),
+        ([targetKey, heldOpen]) => this.runtimeViewerReopenedBecause(targetKey, `${heldOpen.openedViewer.node_name} › ${heldOpen.openedViewer.port} was replaced as its project loaded again.`),
+        { discard: true },
+      ),
     );
   }
 
   private everyRuntimeViewerReopenedAfter(closedConnection: RuntimeViewerConnection, whyItClosed: string): Effect.Effect<void> {
-    return Effect.sync(() => {
-      if (this.viewerConnection !== closedConnection) return;
+    return Effect.suspend(() => {
+      if (this.viewerConnection !== closedConnection) return Effect.void;
       this.viewerConnection = null;
-      for (const [targetKey, heldOpen] of [...this.runtimeViewersByTargetKey]) {
-        this.runtimeViewersByTargetKey.delete(targetKey);
-        heldOpen.reads.stop();
-        heldOpen.channelReader.close();
-        this.tellEveryPortViewerOf(targetKey, { kind: "reopening", because: whyItClosed });
-        this.reopenAfterAWait(targetKey);
-      }
+      return Effect.forEach([...this.runtimeViewersByTargetKey.keys()], (targetKey) => this.runtimeViewerReopenedBecause(targetKey, whyItClosed), { discard: true });
     });
   }
 
   /** Open the port `targetKey` names again after a wait, and again after each wait that follows a failure the port viewers wait out, while a window shows it; one reopening per port. */
-  private reopenAfterAWait(targetKey: string): void {
-    if (this.reopeningsByTargetKey.has(targetKey)) return;
-    const reopening = Effect.runFork(this.reopenedAfterEachWait(targetKey).pipe(Effect.ensuring(Effect.sync(() => this.reopeningsByTargetKey.delete(targetKey)))));
-    this.reopeningsByTargetKey.set(targetKey, reopening);
+  private reopenAfterAWait(targetKey: string): Effect.Effect<void> {
+    return Effect.suspend(() => {
+      if (this.reopeningsByTargetKey.has(targetKey)) return Effect.void;
+      const forgottenOnceDone = Effect.withFiber((reopening) =>
+        Effect.sync(() => {
+          if (this.reopeningsByTargetKey.get(targetKey) === reopening) this.reopeningsByTargetKey.delete(targetKey);
+        }),
+      );
+      // Started at once, so it is waiting by the time the port viewer that asked for it opens; one done already is not kept.
+      return Effect.forkDetach(this.reopenedAfterEachWait(targetKey).pipe(Effect.ensuring(forgottenOnceDone)), { startImmediately: true }).pipe(
+        Effect.map((reopening) => {
+          if (reopening.pollUnsafe() === undefined) this.reopeningsByTargetKey.set(targetKey, reopening);
+        }),
+      );
+    });
   }
 
   private reopenedAfterEachWait(targetKey: string): Effect.Effect<void> {
@@ -325,20 +374,16 @@ export class RuntimePortViewers {
       yield* this.sources.waitBeforeReopening;
       const [firstSubscription] = this.subscriptionsOf(targetKey);
       if (firstSubscription === undefined || this.runtimeViewersByTargetKey.has(targetKey)) return true;
-      const reopened = yield* Effect.exit(this.runtimeViewerOf(firstSubscription[1].target));
-      if (Exit.isSuccess(reopened)) {
-        if (this.subscriptionsOf(targetKey).length === 0) yield* this.runtimeViewerClosed(targetKey);
-        return true;
-      }
-      const failure = Exit.findErrorOption(reopened);
-      if (failure._tag === "None") return true;
-      if (failure.value._tag === "PortViewerPortNotRead") {
-        this.tellEveryPortViewerOf(targetKey, { kind: "ended", because: failure.value.words, recovery: "open_the_port_again" });
-        for (const [portViewer] of this.subscriptionsOf(targetKey)) this.subscriptionsByPortViewer.delete(portViewer);
-        return true;
-      }
-      this.tellEveryPortViewerOf(targetKey, { kind: "reopening", because: failure.value.words });
-      return false;
+      return yield* this.runtimeViewerOf(firstSubscription[1].target).pipe(
+        Effect.as(true),
+        Effect.catchTag("PortViewerPortNotRead", (notRead) => this.everyPortViewerOfThePortEnded(targetKey, notRead.words, "open_the_port_again").pipe(Effect.as(true))),
+        Effect.catch((failure) => Effect.sync(() => this.tellEveryPortViewerOf(targetKey, { kind: "reopening", because: failure.words })).pipe(Effect.as(false))),
+        Effect.catchDefect((defect) => {
+          const words = `reopening the port broke: ${describeCaughtFailure(defect)}`;
+          this.sources.tatolabAppLog.error("a port viewer's reopening broke", { failure: words });
+          return this.everyPortViewerOfThePortEnded(targetKey, words, "open_the_port_again").pipe(Effect.as(true));
+        }),
+      );
     });
     return Effect.repeat(reopenedOnce, { until: (isDone) => isDone }).pipe(Effect.asVoid);
   }

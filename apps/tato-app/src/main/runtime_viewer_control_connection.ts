@@ -138,12 +138,10 @@ export function runtimeViewerConnectionOpenedIn(outerScope: Scope.Scope): Effect
     const services = yield* Effect.context<never>();
     const closed = Deferred.makeUnsafe<string>();
     yield* Scope.addFinalizer(connectionScope, Deferred.succeed(closed, CLOSED_BY_THE_APP));
-    yield* connection.closedByTheRuntime.pipe(
-      Effect.flatMap((why) => Deferred.succeed(closed, why)),
-      // Detached, as closing the scope interrupts this fiber, which runs in it.
-      Effect.andThen(Effect.forkDetach(Scope.close(connectionScope, Exit.void))),
-      Effect.forkIn(connectionScope),
-    );
+    /** Mark the connection closed `because`, and close its scope; detached, as closing the scope interrupts a fiber that runs in it. */
+    const closedBecause = (because: string): Effect.Effect<void> =>
+      Deferred.succeed(closed, because).pipe(Effect.andThen(Effect.forkDetach(Scope.close(connectionScope, Exit.void))), Effect.asVoid);
+    yield* connection.closedByTheRuntime.pipe(Effect.flatMap(closedBecause), Effect.forkIn(connectionScope));
 
     /** `method`'s answer read with `readTheAnswer`: a failure in its words, a call that breaks logged and failed as one. */
     const answerOf = <Method extends "open_viewer" | "close_viewer", Value>(
@@ -169,7 +167,7 @@ export function runtimeViewerConnectionOpenedIn(outerScope: Scope.Scope): Effect
       closeViewer: (viewer) => answerOf("close_viewer", { viewer }, closedViewerFromTheCloseViewerToolResult),
       whyItClosed: Deferred.await(closed),
       isOpen: Effect.map(Deferred.isDone(closed), (isDone) => !isDone),
-      close: Deferred.succeed(closed, CLOSED_BY_THE_APP).pipe(Effect.andThen(Effect.forkDetach(Scope.close(connectionScope, Exit.void))), Effect.asVoid),
+      close: closedBecause(CLOSED_BY_THE_APP),
     };
   });
 }

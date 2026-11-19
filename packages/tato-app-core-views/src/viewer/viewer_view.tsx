@@ -139,6 +139,7 @@ function PortViewerPicture({
         show(event);
       }
     };
+    // Studio refuses only a watch it holds under the same id already, which opening again, under a new watch id, does not repeat.
     return connection.watchPortViewer({ stream, node_id, port }, handleTheEvent, (because) => show({ kind: "ended", because, recovery: "open_the_port_again" }));
   }, [connection, stream, node_id, port, timesOpenedAgain]);
   const isAPicture = shown.kind === "picture";
@@ -191,7 +192,7 @@ function PortViewerPicture({
           details={shown.because}
           action={
             shown.recovery === "open_the_port_again" ? (
-              <ActionButton size="small" onPressed={() => setTimesOpenedAgain((times) => times + 1)} data-viewer-open-again="">
+              <ActionButton size="small" hasFocusOnOpen={timesOpenedAgain > 0} onPressed={() => setTimesOpenedAgain((times) => times + 1)} data-viewer-open-again="">
                 Open again
               </ActionButton>
             ) : undefined
