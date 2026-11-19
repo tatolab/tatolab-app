@@ -18,7 +18,7 @@
     "skipLibCheck": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["node"]
+    "types": ["node", "vite/client"]
   },
   "include": ["node_ui", "tests", "css_module_scripts.d.ts", "vitest.config.ts", "eslint.config.js"]
 }

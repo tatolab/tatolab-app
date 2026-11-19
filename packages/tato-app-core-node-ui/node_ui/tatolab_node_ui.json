@@ -16,6 +16,14 @@
     { "type": "pin_type_choice", "script": "type_choice.ts" },
     { "type": "integer", "control": "slider", "script": "integer_slider.ts" },
     { "type": "float", "control": "slider", "script": "float_slider.ts" },
+    { "type": "boolean", "control": "checkbox", "script": "boolean_checkbox.ts" },
+    { "type": "integer", "control": "dial", "script": "integer_dial.ts" },
+    { "type": "float", "control": "dial", "script": "float_dial.ts" },
+    { "type": "string", "control": "multiline", "script": "string_multiline.ts" },
+    { "type": "string", "control": "code", "script": "string_code.ts" },
+    { "type": "menu", "control": "segmented", "script": "menu_segmented.ts" },
+    { "type": "vector", "control": "xy_pad", "script": "vector_xy_pad.ts" },
+    { "type": "asset", "control": "file_picker", "script": "asset_file_picker.ts" },
     { "type": "texture", "control": "preview", "script": "wire_preview.ts" },
     { "type": "audio", "control": "meter", "script": "wire_meter.ts" }
   ]
