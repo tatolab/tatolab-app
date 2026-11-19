@@ -3,7 +3,9 @@
 // without the carried wheels and the uv metadata naming its carried Python, a unit whose bin/ or
 // lib/tatolab/ holds something it does not place, a unit without the browser host's app bundle, a unit whose lib/tatolab/imports/ holds anything
 // but pure-Python wheels, a unit whose lib/tatolab/samples/ holds no sample project, a unit without the Core Nodes project, and a unit
-// built from any streamlib commit but the one the build resolved. Every refusal comes before it touches the bundle.
+// built from any streamlib commit but the one the build resolved, a unit carrying one of the TypeScript compiler and the linter without
+// the other, and a unit whose compiler folder holds native code or a folder beside the compiler. Every refusal comes before it touches
+// the bundle.
 
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
@@ -324,4 +326,59 @@ test("a browser host directory holding anything but the host's app bundle is ref
   expect(assembleOutcome.exitCode).toBe(1);
   expect(assembleOutcome.stderr).toContain("ships lib/tatolab/browser-host/libcef.so, which this script does not place in the bundle");
   expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+});
+
+/** Plants the code checkers a unit carries beside tatolabd: oxlint, and tsc with `compilerFolderFiles` beside it. */
+async function plantTheCodeCheckers(runtimeUnitDirectory: string, compilerFolderFiles: Record<string, string | Buffer>, plantTheLinter = true): Promise<void> {
+  const compilerFolder = path.join(runtimeUnitDirectory, "bin", "typescript");
+  await mkdir(compilerFolder, { recursive: true });
+  for (const [fileName, contents] of Object.entries(compilerFolderFiles)) await writeFile(path.join(compilerFolder, fileName), contents);
+  if (plantTheLinter) {
+    await writeFile(path.join(runtimeUnitDirectory, "bin", "oxlint"), "");
+    await chmod(path.join(runtimeUnitDirectory, "bin", "oxlint"), 0o755);
+  }
+}
+
+test("a unit that carries the TypeScript compiler, its library files and the linter is not refused for them", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
+  await plantTheCodeCheckers(runtimeUnitDirectory, { tsc: "", "lib.d.ts": "/// lib", LICENSE: "Apache-2.0", "NOTICE.txt": "notices" });
+  // The test-root marker makes assemble stop at its next refusal, so the bundle is never built from planted files.
+  await writeFile(path.join(runtimeUnitDirectory, "machine-directories-under-a-test-root"), "");
+  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+  expect(assembleOutcome.exitCode).toBe(1);
+  expect(assembleOutcome.stderr).toContain("refusing to ship a test-root runtime unit");
+  expect(assembleOutcome.stderr).not.toContain("typescript");
+  expect(assembleOutcome.stderr).not.toContain("oxlint");
+  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+});
+
+test("a unit that carries one code checker without the other is refused, naming the missing one, and the bundle is untouched", async () => {
+  for (const [compilerFolderFiles, plantTheLinter, missingEntry] of [
+    [{ "lib.d.ts": "/// lib" }, true, "bin/typescript/tsc"],
+    [{ tsc: "", "lib.d.ts": "/// lib" }, false, "bin/oxlint"],
+  ] as const) {
+    await rm(path.join(scratchDirectory, "tatolab-runtime"), { recursive: true, force: true });
+    const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
+    await plantTheCodeCheckers(runtimeUnitDirectory, compilerFolderFiles, plantTheLinter);
+    const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+    expect(assembleOutcome.exitCode).toBe(1);
+    expect(assembleOutcome.stderr).toContain(`is missing ${missingEntry}`);
+    expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+  }
+});
+
+test("a unit whose compiler folder holds native code or a folder beside the compiler is refused, since Resources/typescript holds data only", async () => {
+  for (const [plantedEntry, plant] of [
+    ["bin/typescript/helper.dylib", (compilerFolder: string) => writeFile(path.join(compilerFolder, "helper.dylib"), MACH_O_64_BIT_MAGIC_BYTES)],
+    ["bin/typescript/nested", (compilerFolder: string) => mkdir(path.join(compilerFolder, "nested"))],
+  ] as const) {
+    await rm(path.join(scratchDirectory, "tatolab-runtime"), { recursive: true, force: true });
+    const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
+    await plantTheCodeCheckers(runtimeUnitDirectory, { tsc: "", "lib.d.ts": "/// lib" });
+    await plant(path.join(runtimeUnitDirectory, "bin", "typescript"));
+    const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+    expect(assembleOutcome.exitCode).toBe(1);
+    expect(assembleOutcome.stderr).toContain(`ships ${plantedEntry}, which Resources/typescript cannot carry`);
+    expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+  }
 });
